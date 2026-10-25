@@ -243,6 +243,15 @@ ne vide pas l'écran) avec ses trois états.
     et la modification de ses liaisons (`core.binding.escalation`) ; le groupe livré
     `secours` est marqué « Groupe livré », ni modifiable ni clos, ses liaisons non plus
     (`core.group.builtin`), ses membres gérés seulement par un administrateur global.
+  - Un objet entièrement en lecture seule pour une même raison l'annonce en tête : quand
+    toutes ses écritures sont refusées par le même motif, un `InlineAlert` de ton `warn`
+    (icône de cadenas) en haut du panneau dit la raison en une phrase, avec le code de la
+    règle en `CodeBadge` (« Lecture seule : ce groupe est lié sur un périmètre plus large
+    que le vôtre. », `core.group.escalation` ; « Groupe livré : seuls ses membres se
+    gèrent, par un administrateur global. », `core.group.builtin`). Chaque action garde
+    son refus propre (`reason` : aspect désactivé, focalisable, motif en infobulle au
+    survol et au focus, M14) ; l'encart ne les remplace pas, il évite de devoir survoler
+    chaque bouton pour comprendre que rien ne s'écrit.
   - L'identité choisie : état (`StatusBadge`) et actions Désactiver, Révoquer les
     sessions ; en lecture, ses groupes kartenn avec « via » (direct, ou le groupe de l'IdP
     qui l'y fait entrer), ses droits effectifs (rôle, périmètre, groupe qui le donne) et

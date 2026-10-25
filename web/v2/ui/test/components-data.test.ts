@@ -274,6 +274,16 @@ describe("filters, differential, view states", () => {
   });
 
   it("Skeleton: busy, said in words, the bars hidden", async () => {
+    // Another icon, the colour and the role of the tone kept.
+    const warn = await render(InlineAlert, { tone: "warn", title: "Lecture seule." });
+    const locked = await render(InlineAlert, {
+      tone: "warn",
+      title: "Lecture seule.",
+      icon: "lock",
+    });
+    expect(locked).toContain('role="status"');
+    expect(locked).toContain('data-tone="warn"');
+    expect(locked).not.toEqual(warn);
     const html = await render(Skeleton, { rows: 2, columns: 3 });
     expect(html).toContain('aria-busy="true"');
     expect(text(html)).toContain("Chargement");

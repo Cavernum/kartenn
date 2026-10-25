@@ -428,7 +428,7 @@ sont listés.
 | 23 | `KeyLabel`, `EnvChip` | — | libellé absent (clé seule) | REQ-020-21 ; clé en infobulle et copiable |
 | 24 | `StatusBadge` | — | les six états | couleur + icône + libellé |
 | 25 | `Skeleton`, `EmptyState`, `ErrorState` | `aria-busy` ; — ; `role="alert"` | — | REQ-020-23 ; `Skeleton` : barres de 12 px (`--k-space-3`) en `--k-skeleton`, animées d'un reflet `--k-skeleton-sheen` (bande de la moitié de la barre, 2 × `--k-duration-spin`, linéaire), immobiles sous mouvement réduit, remplissage gardé ; aussi dans les cellules d'un `DataGrid` en chargement ; `ErrorState` montre la phrase courante, le code et `Request-Id` (`CodeBadge`) |
-| 26 | `InlineAlert` | `role="status"` ou `alert` | quatre états | violations sous un formulaire |
+| 26 | `InlineAlert` | `role="status"` ou `alert` | quatre états | violations sous un formulaire ; option `icon` qui remplace l'icône du ton quand elle en dit plus (cadenas d'un objet en lecture seule), couleur et rôle du ton gardés |
 | 27 | `DatePill`, `DraftCounter`, `TimeBand` | Button ; Button (bascule, `aria-expanded`) et Menu Button (liste des brouillons) ; `role="status"` | hors présent ; compteur à 0 ; panneau ouvert | barre d'état de la 021 ; `DatePill` ouvre `PeriodPicker` en surimpression ; `DraftCounter` ouvert (`expanded`) : son icône de brouillon devient une croix, ce que fera le prochain clic (revue du 2026-10-25) |
 | 28 | `Kbd`, `ShortcutHint` | — | — | rendu des raccourcis dans menus, infobulles, aide `?` |
 | 29 | `DiffList` | liste groupée par objet, Disclosure | ajout, retrait, modification, anomalie | avant/après par attribut et propriété ; virtualisée au-delà de 200 lignes |

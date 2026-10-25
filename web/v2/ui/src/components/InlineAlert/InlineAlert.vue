@@ -6,7 +6,8 @@
 // An inline message (design « Inventaire », line 26): the violations under a form, a
 // warning above a table. `role="alert"` for an error (read at once), `status` otherwise.
 // Colour, icon and title together (REQ-020-7); each violation shows its code, copyable
-// (REQ-020-22).
+// (REQ-020-22). `icon` replaces the icon of the tone when it says more (a lock for an
+// object read only); the colour and the role stay those of the tone.
 import type { IconName } from "../../icons/index.ts";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import Icon from "../Icon/Icon.vue";
@@ -18,8 +19,10 @@ const props = withDefaults(
     title: string;
     /** Violations: a readable message and the code of each. */
     items?: { message: string; code?: string }[];
+    /** An icon that says more than the tone's (e.g. `lock`). */
+    icon?: IconName | undefined;
   }>(),
-  { tone: "info", items: () => [] },
+  { tone: "info", items: () => [], icon: undefined },
 );
 
 const ICONS: Record<AlertTone, IconName> = {
@@ -36,7 +39,7 @@ const ICONS: Record<AlertTone, IconName> = {
     :data-tone="props.tone"
     :role="props.tone === 'ko' ? 'alert' : 'status'"
   >
-    <Icon :name="ICONS[props.tone]" class="k-inline-alert__icon" />
+    <Icon :name="props.icon ?? ICONS[props.tone]" class="k-inline-alert__icon" />
     <div class="k-inline-alert__body">
       <p class="k-inline-alert__title">{{ props.title }}</p>
       <div v-if="$slots.default" class="k-inline-alert__text"><slot /></div>

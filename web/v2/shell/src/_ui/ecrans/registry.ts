@@ -219,13 +219,13 @@ export const MOCKUPS: Mockup[] = [
         id: "groupe-refus",
         label: "Groupe hors périmètre",
         description:
-          "Un groupe lié sur un périmètre global, pour un administrateur d'entité : membres et rôles refusés par motif « Périmètre plus large que le vôtre » (core.group.escalation, core.binding.escalation).",
+          "Un groupe lié sur un périmètre global, pour un administrateur d'entité : « Lecture seule » annoncé en tête (core.group.escalation), chaque action refusée par motif « Périmètre plus large que le vôtre » (core.group.escalation, core.binding.escalation).",
       },
       {
         id: "secours",
         label: "Groupe livré",
         description:
-          "Le groupe livré secours : ni modifiable ni clos (core.group.builtin) ; ses membres se gèrent seulement par un administrateur global.",
+          "Le groupe livré secours, annoncé en tête : ni modifiable ni clos (core.group.builtin) ; ses membres se gèrent seulement par un administrateur global.",
       },
       {
         id: "identite",

@@ -91,6 +91,14 @@ const PENDING = {
 const WIDER_GROUP = "Périmètre plus large que le vôtre (core.group.escalation).";
 const WIDER_BINDING = "Périmètre plus large que le vôtre (core.binding.escalation).";
 const BUILTIN = "Groupe livré : ses rôles suivent la synchronisation (core.group.builtin).";
+const BUILTIN_MEMBERS =
+  "Groupe livré : ses membres se gèrent par un administrateur global (core.group.builtin).";
+// An object whose writes are all refused for one reason says it at its top (021, « refus
+// annoncé en tête »): a notice and the code of the rule; each action keeps its tooltip.
+interface ReadOnly {
+  title: string;
+  code: string;
+}
 
 interface MemberRow extends GroupMember {
   pending?: Pending;
@@ -107,7 +115,10 @@ interface ShownGroup {
   bindings: BindingRow[];
   memberReason?: string;
   bindingReason?: string;
+  addBindingReason?: string;
+  editReason?: string;
   closeReason?: string;
+  readOnly?: ReadOnly;
 }
 const supervision = (pending: boolean): ShownGroup => ({
   key: "supervision",
@@ -137,7 +148,13 @@ const GROUP_SHOWN: Record<string, ShownGroup> = {
     bindings: ASTREINTE_BINDINGS,
     memberReason: WIDER_GROUP,
     bindingReason: WIDER_BINDING,
+    addBindingReason: WIDER_BINDING,
+    editReason: WIDER_GROUP,
     closeReason: WIDER_GROUP,
+    readOnly: {
+      title: "Lecture seule : ce groupe est lié sur un périmètre plus large que le vôtre.",
+      code: "core.group.escalation",
+    },
   },
   secours: {
     key: "secours",
@@ -145,9 +162,15 @@ const GROUP_SHOWN: Record<string, ShownGroup> = {
     builtin: true,
     members: SECOURS_MEMBERS,
     bindings: SECOURS_BINDINGS,
-    memberReason: WIDER_GROUP,
+    memberReason: BUILTIN_MEMBERS,
     bindingReason: BUILTIN,
+    addBindingReason: BUILTIN,
+    editReason: BUILTIN,
     closeReason: BUILTIN,
+    readOnly: {
+      title: "Groupe livré : seuls ses membres se gèrent, par un administrateur global.",
+      code: "core.group.builtin",
+    },
   },
 };
 const group = GROUP_SHOWN[props.vue];
@@ -158,7 +181,7 @@ const groupActions: ToolbarAction[] = [
     icon: "pencil",
     shortcut: ["e"],
     priority: 2,
-    ...(group?.builtin ? { reason: BUILTIN } : {}),
+    ...(group?.editReason ? { reason: group.editReason } : {}),
   },
   {
     id: "close",
@@ -368,6 +391,9 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
           <span v-if="group.builtin">
             <StatusBadge state="info" label="Groupe livré" />
           </span>
+          <InlineAlert v-if="group.readOnly" tone="warn" icon="lock" :title="group.readOnly.title">
+            <CodeBadge :code="group.readOnly.code" />
+          </InlineAlert>
           <Barre label="Actions du groupe" :actions="groupActions" align="start" />
         </Stack>
         <section aria-labelledby="k-ecran-membres">
@@ -495,11 +521,7 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
               </li>
             </ul>
             <span>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon="plus"
-                :reason="group.builtin ? BUILTIN : undefined"
+              <Button size="sm" variant="ghost" icon="plus" :reason="group.addBindingReason"
                 >Ajouter un rôle</Button
               >
             </span>

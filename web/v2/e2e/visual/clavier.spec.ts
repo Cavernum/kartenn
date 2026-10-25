@@ -314,3 +314,52 @@ test.describe("DraftCounter (toggle + Menu Button)", () => {
     ]);
   });
 });
+
+test.describe("Refusals of a read-only object (E7, 024/M14)", () => {
+  for (const [view, title, code, member] of [
+    [
+      "groupe-refus",
+      "Lecture seule : ce groupe est lié sur un périmètre plus large que le vôtre.",
+      "core.group.escalation",
+      "Périmètre plus large que le vôtre (core.group.escalation).",
+    ],
+    [
+      "secours",
+      "Groupe livré : seuls ses membres se gèrent, par un administrateur global.",
+      "core.group.builtin",
+      "Groupe livré : ses membres se gèrent par un administrateur global (core.group.builtin).",
+    ],
+  ] as const) {
+    test(`${view}: said at the top, each action refused with its reason`, async ({ page }) => {
+      await page.goto(`/_ui/ecrans/E7?vue=${view}`);
+      const panel = page.getByRole("complementary", { name: "Panneau droit" });
+      const notice = panel.getByRole("status").filter({ hasText: title });
+      await expect(notice).toBeVisible();
+      await expect(notice).toContainText(code);
+      // Every write of the panel is refused, focusable, its reason on focus and on hover.
+      const add = panel.getByRole("button", { name: "Ajouter un membre" });
+      await expect(add).toHaveAttribute("aria-disabled", "true");
+      await expect(add).toHaveAttribute("data-blocked", "true");
+      await add.focus();
+      await expect(page.getByRole("tooltip")).toHaveText(member);
+      await expect(add).toHaveAccessibleDescription(member);
+      await add.blur();
+      await expect(page.getByRole("tooltip")).toBeHidden();
+      const remove = panel.getByRole("button", { name: /^Retirer .* du groupe$/ }).first();
+      await expect(remove).toHaveAttribute("aria-disabled", "true");
+      await remove.hover();
+      await expect(page.getByRole("tooltip")).toHaveText(member);
+      await page.mouse.move(0, 0);
+      for (const name of ["Ajouter un rôle", /^Modifier le rôle/, /^Retirer le rôle/]) {
+        await expect(panel.getByRole("button", { name }).first()).toHaveAttribute(
+          "aria-disabled",
+          "true",
+        );
+      }
+      const bar = panel.getByRole("toolbar", { name: "Actions du groupe" });
+      for (const name of ["Modifier", "Clore…"]) {
+        await expect(bar.getByRole("button", { name })).toHaveAttribute("aria-disabled", "true");
+      }
+    });
+  }
+});
