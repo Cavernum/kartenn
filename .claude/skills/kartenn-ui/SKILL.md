@@ -80,8 +80,16 @@ largeur est fausse, même belle à 1280 px.
 - **Barres d'outils** : `Toolbar` replie dans « … », jamais de retour à la ligne.
 - **Messages** : une phrase va à la ligne, jamais d'ellipse sans moyen de lire le texte
   entier ; une liste longue dans un lieu étroit est une `ExpandableGrid`.
-- **Quatre largeurs** : avant de rendre une maquette ou un écran, le voir à 1440, 1280,
-  1024 et 768 px, en clair et en sombre ; la capture le prouve.
+- **Cinq largeurs** : avant de rendre une maquette ou un écran, le voir à 1440, 1280,
+  1024, 768 et 390 px, en clair et en sombre ; la capture le prouve ; rien ne défile de
+  côté à 320 px hors d'une grille (`layout.spec`).
+- **Adaptation** (spec 020 § « Adaptation à la largeur ») : le cadre seul lit la fenêtre
+  (`@media` en syntaxe d'intervalle, seuils de `WIDTH_CLASSES` recopiés, `data-width`) ;
+  un composant lit sa racine conteneur (`container-type: inline-size`, `@container` aux
+  seuils de `CONTAINER_WIDTHS` seulement), jamais une `@media` de largeur ; `pointer` et
+  `hover` en `@media` restent permis. Grilles : `priority` sur les colonnes secondaires
+  (2 sous `md`, 3 sous `lg`), sélecteur « Colonnes » fourni par la grille ; tuiles en
+  `Grid columns="auto"` ; rien de réservé au survol.
 - **Droits** : une action interdite reste visible, `aria-disabled`, infobulle « Il faut
   `<permission>` » ; jamais d'encart permanent des droits.
 
@@ -110,17 +118,17 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `DateTimeField`, `PeriodPicker` | Date Picker Dialog ; spin button | ☐ |
 | `Checkbox`, `Switch` | Checkbox ; Switch | ☐ |
 | `Tabs` | Tabs (activation manuelle) | ◐ |
-| `Menu` (bouton et menu) | Menu Button, Menu ; entrée désactivée focalisable (`aria-disabled`), motif en description et infobulle | ◐ |
+| `Menu` (bouton et menu) | Menu Button, Menu ; entrée désactivée focalisable (`aria-disabled`), motif en description et infobulle ; entrée à cocher (`menuitemcheckbox`, menu gardé ouvert) | ◐ |
 | `Dialog`, `AlertDialog`, `Drawer` | Dialog (Modal), Alert Dialog ; `Drawer` modal seulement | ◐ |
-| `SidePanel` | `complementary` non modal + Tabs ; surimpression de la surface (hôte positionné, surface `isolation: isolate`), redimensionnable (Window Splitter maison) ; `cover` sous 1024 px (toute la surface, sans poignée) ; `rail` : replié, languette dans le flux (piste `auto` de l'hôte) dont le chevron « Ouvrir le panneau » le rouvre ; entre et sort depuis son bord (`<Transition>`, jamais au premier rendu) | ● |
+| `SidePanel` | `complementary` non modal + Tabs ; surimpression de la surface (hôte positionné, surface `isolation: isolate`), ou à côté quand le cadre le pose (surface ≥ `--k-size-surface-min`), redimensionnable (Window Splitter maison) ; `cover` en classe étroite (toute la surface, sans poignée) ; `sheet` en classe compacte (toute la fenêtre, « Retour ») ; `rail` : replié, languette dans le flux (piste `auto` de l'hôte) dont le chevron « Ouvrir le panneau » le rouvre ; entre et sort depuis son bord (`<Transition>`, jamais au premier rendu) | ● |
 | `CommitForm`, `SplitButton` | champs étiquetés, Ctrl+Entrée ; Button + Menu Button (entrées désactivées avec motif) | ● |
-| `Toolbar` | Toolbar ; actions repliées dans « … » par priorité | ● |
+| `Toolbar` | Toolbar ; actions repliées dans « … » par priorité ; sous 360 px, l'action principale seule | ● |
 | `MatrixGrid` | Grid ; en-têtes de lignes et de colonnes figés ; croix de survol ou de la cellule active (`data-cross`, en-têtes compris) ; `axes` : sens lignes ↓ colonnes → au coin et pointes d'accent sur les bordures de la croix (`data-flow` : fin de l'en-tête source, bas de l'en-tête destination, début et haut de la cellule montrée ; pseudo-éléments, retournées en RTL) (virtualisation au-delà de 50 × 50 à venir) | ● |
 | `Toast` | `status` / `alert`, pause au survol et au focus | ☐ |
 | `Tooltip`, `Popover` | Tooltip (`useTooltip`, action refusée : `forbidden`, `reason` sur `Button`, `IconButton`, entrée de `Menu`) ; Dialog non modal | ◐ (`Tooltip` ●) |
 | `Breadcrumb`, `SidebarNav` | Breadcrumb ; Disclosure dans `navigation` | ◐ |
 | `CommandPalette` | Combobox dans un Dialog modal (liste `position="inline"`, sans Viewport) | ◐ |
-| `DataGrid` | Grid (maison) ; une seule grille, lignes en `subgrid` (024) ; tri (`aria-sort`) et filtre de colonne (Alt+Bas, `filter`) ; navigation au clavier ; colonne de message `wrap` (va à la ligne) ; états de ligne `draft`, `review`, `removed` (barrée), ligne entrée dans un brouillon éclairée une fois (`data-fresh`) (virtualisation et édition à venir) | ◐ |
+| `DataGrid` | Grid (maison) ; une seule grille, lignes en `subgrid` (024) ; tri (`aria-sort`) et filtre de colonne (Alt+Bas, `filter`) ; navigation au clavier ; colonne de message `wrap` (va à la ligne) ; états de ligne `draft`, `review`, `removed` (barrée), ligne entrée dans un brouillon éclairée une fois (`data-fresh`) (virtualisation et édition à venir) ; racine conteneur, colonnes à `priority` masquées par `@container` et sélecteur « Colonnes » (`columnVisibility`), clé collante | ◐ |
 | `ExpandableGrid` | `DataGrid` compacte (compte de lignes, `visibleRows`, `compactColumns`) + `IconButton` « Agrandir » qui ouvre la même table dans un `Dialog` `lg` `contained` (focus piégé, Échap, focus rendu au bouton) ; tri et filtres de l'hôte, partagés | ● |
 | `TreeGrid`, `Tree` | Treegrid ; Tree View ; garde d'affichage `misplaced` ; « + » d'un nœud (`addLabel`, événement `add`, 024/M10) | ◐ (`TreeGrid`) |
 | `CodeBadge`, `KeyLabel`, `EnvChip`, `StatusBadge` | Button (copier, nom = contenu, « Copier » caché) ; — | ◐ |

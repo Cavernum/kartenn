@@ -308,7 +308,9 @@ popover) ; `--k-size-dialog-sm` / `-md` / `-lg` 400 / 560 / 720 px ; `--k-size-m
 180 px ; `--k-size-tooltip-max` 280 px ; `--k-size-field` 240 px ; colonnes de grille
 `--k-size-col-xs` / `-sm` / `-md` / `-lg` 56 / 96 / 160 / 240 px, `fill` valant
 `minmax(md, 1fr)`. Un test vérifie que toute propriété lue par une feuille existe (jeton
-public, alias local déclaré, ou valeur posée par CSSOM).
+public, alias local déclaré, ou valeur posée par CSSOM). Adaptation à la largeur
+(2026-10-25) : `--k-size-tile-min`, `--k-size-target-coarse` 44 px, `--k-size-viewport`,
+`--k-size-surface-min` 640 px, `--k-size-panel-beside` (§ « Adaptation à la largeur »).
 
 ### Adaptation à la largeur (relecture du 2026-10-25)
 
@@ -382,6 +384,65 @@ sur `:root` ni `body`. Le positionnement par ancre reste une amélioration progr
 Vérification : captures des maquettes ajoutées à 390 px (classe compacte) ; `layout.spec`
 vérifie à 320 px (1280 px à 400 %, note 1 de 1.4.10) qu'aucune page ne défile
 horizontalement hors des régions de grille, et que chaque classe montre le cadre attendu.
+
+**Réalisé (2026-10-25).**
+
+- `components/layout.ts` : `WIDTH_CLASSES` (`compact` 0, `narrow` 600, `standard` 1024,
+  `wide` 1280), `widthClass()`, `widthQuery()` (syntaxe d'intervalle) et
+  `CONTAINER_WIDTHS` (`xs` 360, `sm` 480, `md` 640, `lg` 960). `layout.test.ts` vérifie
+  que les `@media` du cadre (`EcranCadre.vue`) reprennent exactement les seuils de
+  `WIDTH_CLASSES`, et que les `@container` de la bibliothèque n'emploient que
+  `CONTAINER_WIDTHS` (aucune `@media` de largeur dans un composant ; `pointer` et `hover`
+  restent permis).
+- Jetons : `--k-size-tile-min` (`clamp(200px, 22vw, 280px)`), `--k-size-target-coarse`
+  (44 px), `--k-size-viewport` (`100vh`, `100dvh` sous `@supports`),
+  `--k-size-surface-min` (640 px) et `--k-size-panel-beside`
+  (`calc(100cqi - --k-size-surface-min)`, lu dans le conteneur où il sert).
+- Cadre : `data-width` posé par `matchMedia` sur les requêtes de `widthQuery()` ; la
+  hauteur suit `--k-size-viewport` (la règle `:root:has(.k-ecran)` disparaît). Le corps
+  est un conteneur nommé `k-ecran-body` : à 960 px et plus (640 de surface + 320 de
+  panneau), le panneau ouvert prend la piste de fin, dans le flux, à
+  `min(largeur choisie, --k-size-panel-beside)`, la languette s'efface ; en dessous il
+  reste en surimpression. Classe étroite : rail (état de `SidebarNav` posé par le script),
+  `cover`. Classe compacte : `SidebarNav` masquée, bouton « Navigation principale » dans la
+  barre d'état qui ouvre un `Drawer` (côté début) avec la navigation, marge réduite,
+  pastille de date et compteur en icône (règles `[data-width="compact"]` de leurs
+  feuilles), fil d'Ariane réduit à la page courante (`@container` sous `xs`), panneau en
+  `sheet` ; tant que la feuille est ouverte, barre, bande et surface sont `inert`. Le corps
+  n'est pas conteneur en classe compacte (la feuille `fixed` se pose sur la fenêtre). Sous
+  la classe large, la zone horaire de la pastille ne reste que dans son nom ; sous 1024 px,
+  la marge de la surface passe à `--k-space-2`. La surface est un conteneur nommé
+  `k-surface` (tuile large d'E0 ramenée à une colonne sous `md`).
+- `DataGrid`, `TreeGrid` : racine `k-data-grid-frame` / `k-tree-grid-frame` conteneur
+  (`class` et `style` de l'hôte y vont, les autres attributs sur la grille), trois gabarits
+  posés par CSSOM (`--k-grid-columns`, `-below-lg`, `-below-md`), cellules
+  `data-priority`, première colonne collante (lignes opaques, fond hérité), en-tête
+  au-dessus, `scrollbar-gutter: stable`. Le sélecteur « Colonnes »
+  (`internal/ColumnChooser.vue`, `Menu` d'entrées à cocher) n'apparaît que là où quelque
+  chose est masqué (sous `md`, sous `lg` si une colonne est de priorité 3, ou si
+  l'utilisateur a masqué une colonne) ; son état est le modèle `columnVisibility`
+  (`true` toujours montrée, `false` jamais ; la clé jamais masquée). Les flèches du
+  `DataGrid` sautent les colonnes masquées ; si la colonne du focus itinérant disparaît
+  (`ResizeObserver`), l'arrêt revient à la clé de sa ligne. `aria-colindex` garde le rang
+  parmi toutes les colonnes. `MatrixGrid` inchangé (défilement en deux dimensions).
+- `Toolbar` : `foldActions(…, narrow = CONTAINER_WIDTHS.xs)` ; `mainAction()`.
+- `Grid` : `auto` en `auto-fit` sur `--k-size-tile-min` ; nombre fixe = au plus n colonnes,
+  jamais plus étroites que `--k-size-col-md` ; `text-wrap-style: balance` sur les titres
+  des tuiles (le style seul : un titre tenu sur une ligne le reste). `Split` : racine
+  conteneur, côté et principal empilés sous `md`.
+- `Dialog` : `lg` plein écran en classe compacte (vue agrandie d'`ExpandableGrid`
+  comprise). `Button` : `primary` et `danger` à `--k-size-target-coarse` sous
+  `(any-pointer: coarse)`. `TreeGrid` : le « + » au survol seulement sous
+  `(hover: hover)` ; ligne choisie et focus le montrent partout.
+- Maquettes : `priority` sur les colonnes secondaires d'E1, E3, E5, E7 et E10 ; l'action
+  fictive « Colonnes » d'E3 retirée (le sélecteur la remplace). Captures à 390 px ;
+  `layout.spec` : maquettes à 320 px, cadre attendu à 1440, 1100, 768 et 390 px.
+- Écart à 024/M8 : en classe large (et standard quand la surface garde 640 px), le
+  panneau n'est plus en surimpression mais à côté de la surface, comme le tableau
+  ci-dessus le fixe.
+- Non fait : listes simples empilées sous `sm` (optionnel) ; `subgrid` entre blocs
+  voisins de formulaires ; champs côte à côte des formulaires (aucun formulaire à
+  plusieurs colonnes dans les maquettes).
 
 ## Architecture CSS (REQ-020-12 à 14)
 
@@ -486,7 +547,7 @@ sont listés.
 | 8 | `Checkbox` | Checkbox (deux et trois états) | mixte | sélection de lignes |
 | 9 | `Switch` | Switch | — | réglages binaires seulement |
 | 10 | `Tabs` | Tabs (activation manuelle) | onglet de plugin en chargement, en erreur | onglets de fiche, onglets de plugins |
-| 11 | `Menu`, `MenuButton` | Menu Button, Menu | entrée désactivée avec motif | raccourcis affichés à droite ; le motif d'une entrée désactivée (permission manquante, politique) est son infobulle et sa description (`aria-describedby`) |
+| 11 | `Menu`, `MenuButton` | Menu Button, Menu | entrée désactivée avec motif | raccourcis affichés à droite ; le motif d'une entrée désactivée (permission manquante, politique) est son infobulle et sa description (`aria-describedby`) ; entrée à cocher (`kind: "checkbox"`, `menuitemcheckbox`) qui garde le menu ouvert (sélecteur de colonnes) ; événement `open` |
 | 12 | `Dialog`, `AlertDialog` | Dialog (Modal), Alert Dialog | — | focus piégé et rendu ; confirmation destructive ; option `contained` : le corps tient dans la boîte, un enfant qui défile (une grille) défile en place, en-tête collant, titre et actions visibles (`ExpandableGrid`) |
 | 13 | `Drawer` | Dialog (modal) | ouvert | dialogue latéral modal (formulaire long) ; le panneau droit du cadre est `SidePanel` (#30) |
 | 14 | `Toast` | `role="status"` ou `alert` | succès, erreur persistante | pause au survol et au focus (WCAG 2.2.1) ; les erreurs restent jusqu'à fermeture |
@@ -495,7 +556,7 @@ sont listés.
 | 17 | `Breadcrumb` | Breadcrumb | élément courant | `aria-current="page"` |
 | 18 | `SidebarNav` | Disclosure (groupes) dans un repère `navigation` | replié en icônes, groupe ouvert, entrée active | entrées de plugins regroupées par espace (021) |
 | 19 | `CommandPalette` | Combobox dans un Dialog modal | aucune entrée, chargement | Ctrl+K ; commandes, navigation, objets récents |
-| 20 | `DataGrid` | Grid (données) | ligne sélectionnée, en brouillon, en revue, cellule en édition, invalide, en attente, cellule en chargement (`Skeleton`) | une seule grille, lignes en `subgrid` (§ « Structure avant style ») ; virtualisée ; tri `aria-sort` et filtre sur chaque colonne (REQ-020-34) ; colonnes redimensionnables au clavier ; colonne de plugin (W5) ; une colonne de message (`wrap` : motif, description) va à la ligne et la ligne grandit, jamais coupée ; clés, noms et nombres restent sur une ligne (revue du 2026-10-25) |
+| 20 | `DataGrid` | Grid (données) | ligne sélectionnée, en brouillon, en revue, cellule en édition, invalide, en attente, cellule en chargement (`Skeleton`) | une seule grille, lignes en `subgrid` (§ « Structure avant style ») ; virtualisée ; tri `aria-sort` et filtre sur chaque colonne (REQ-020-34) ; colonnes redimensionnables au clavier ; colonne de plugin (W5) ; une colonne de message (`wrap` : motif, description) va à la ligne et la ligne grandit, jamais coupée ; clés, noms et nombres restent sur une ligne (revue du 2026-10-25) ; racine conteneur, colonnes à `priority` masquées par `@container`, sélecteur « Colonnes » (`columnVisibility`), colonne de clé collante (§ « Adaptation à la largeur ») |
 | 21 | `TreeGrid`, `Tree` | Treegrid ; Tree View | nœud déplié, chargement des enfants, en brouillon, cible acceptée, cible refusée, déplacement en attente, déplacement refusé | virtualisé, enfants paginés ; `aria-setsize="-1"` tant que la dernière page n'est pas lue ; parent `derived` (aucun déplacement) ou `declared` (déplacement contrôlé, REQ-020-31) ; invariant d'affichage (REQ-020-32) |
 | 22 | `CodeBadge` | Button (copier) | copié | chasse fixe ; annonce `role="status"` « Copié » |
 | 23 | `KeyLabel`, `EnvChip` | — | libellé absent (clé seule) | REQ-020-21 ; clé en infobulle et copiable |
@@ -505,10 +566,10 @@ sont listés.
 | 27 | `DatePill`, `DraftCounter`, `TimeBand` | Button ; Button (bascule, `aria-expanded`) et Menu Button (liste des brouillons) ; `role="status"` | hors présent ; compteur à 0 ; panneau ouvert | barre d'état de la 021 ; `DatePill` ouvre `PeriodPicker` en surimpression ; `DraftCounter` ouvert (`expanded`) : son icône de brouillon devient une croix, ce que fera le prochain clic (revue du 2026-10-25) |
 | 28 | `Kbd`, `ShortcutHint` | — | — | rendu des raccourcis dans menus, infobulles, aide `?` |
 | 29 | `DiffList` | liste groupée par objet, Disclosure | ajout, retrait, modification, anomalie | avant/après par attribut et propriété ; virtualisée au-delà de 200 lignes |
-| 30 | `SidePanel` | région `complementary` (non modale) + Tabs | ouvert, replié, onglet actif, redimensionné, replié en languette | panneau droit de la 021 : surimpression de la surface, 420 px par défaut, poignée redimensionnable au clavier (Window Splitter), Échap ferme et rend le focus au déclencheur (024/M8) ; option `rail` : replié, il laisse au bord de fin une languette dans le flux (piste `auto` de l'hôte, une largeur de contrôle) dont le bouton à chevron « Ouvrir le panneau » (`aria-expanded="false"`) le rouvre sur son dernier onglet et y porte le focus ; la languette ne couvre jamais la surface, à toute largeur, `cover` compris ; le pied ne paraît que si l'hôte le remplit pour l'onglet devant (pas de bande vide) (revue du 2026-10-25) |
+| 30 | `SidePanel` | région `complementary` (non modale) + Tabs | ouvert, replié, onglet actif, redimensionné, replié en languette | panneau droit de la 021 : surimpression de la surface, 420 px par défaut, poignée redimensionnable au clavier (Window Splitter), Échap ferme et rend le focus au déclencheur (024/M8) ; option `rail` : replié, il laisse au bord de fin une languette dans le flux (piste `auto` de l'hôte, une largeur de contrôle) dont le bouton à chevron « Ouvrir le panneau » (`aria-expanded="false"`) le rouvre sur son dernier onglet et y porte le focus ; la languette ne couvre jamais la surface, à toute largeur, `cover` compris ; le pied ne paraît que si l'hôte le remplit pour l'onglet devant (pas de bande vide) (revue du 2026-10-25) ; le cadre le pose à côté de la surface quand elle garde `--k-size-surface-min` ; option `sheet` (classe compacte) : feuille sur toute la fenêtre, bouton « Retour » au lieu de la croix, focus sur l'onglet actif à l'ouverture |
 | 31 | `CommitForm` | — (champs étiquetés) | motif prérempli, motif requis manquant | résumé sur une ligne, description facultative ; Ctrl+Entrée émet `submit` (024/M9, REQ-020-37) |
 | 32 | `SplitButton` | Button + Menu Button | action choisie, entrée désactivée avec motif, chargement | action par défaut à gauche, chevron à droite (`aria-haspopup="menu"`) ; choisir une entrée change l'action du bouton sans la lancer (REQ-020-37) |
-| 33 | `Toolbar` | Toolbar | actions repliées dans « … » | flèches entre les actions (APG Toolbar) ; repli par priorité (REQ-020-36) |
+| 33 | `Toolbar` | Toolbar | actions repliées dans « … » | flèches entre les actions (APG Toolbar) ; repli par priorité (REQ-020-36) ; sous 360 px, une barre qui doit replier ne garde que son action principale (`primary`, sinon la plus prioritaire) |
 | 34 | `MatrixGrid` | Grid (données) | cellule active, cellule en brouillon, en revue, croix de survol | en-têtes de lignes et de colonnes de même composant, figés dans les deux sens ; virtualisée dans les deux sens au-delà de 50 × 50 (REQ-020-35) ; croix : la cellule survolée, sinon la cellule active, éclaire sa ligne et sa colonne, en-têtes compris (`data-cross`, fond `--k-hover`, en-têtes en `--k-text`) ; la cellule active garde son liseré d'accent (forme, pas seulement couleur) ; sens du flux (option `axes`) : le coin dit « Destination → » et « Source ↓ » (seul énoncé du sens au repos, quand la croix n'est sur aucune cellule) ; quand la croix est sur une cellule, de petites pointes d'accent (8 × 6 px, pseudo-éléments vides, hors de l'arbre d'accessibilité) sont posées sur des bordures et tracent un seul chemin source → flux → destination : le long de la ligne, sur la bordure de fin de l'en-tête de la ligne source et sur la bordure de début de la cellule montrée, elles pointent vers la grille (de la source vers la cellule) ; le long de la colonne, sur la bordure haute de la cellule montrée et sur la bordure basse de l'en-tête de la colonne destination, elles pointent vers le haut (de la cellule vers la destination) ; la cellule est « de cette source vers cette destination » ; en écriture de droite à gauche, les pointes horizontales sont retournées ; plus aucune flèche dans le texte des en-têtes ; le sens est dit en mots par le nom de la grille et le coin (revue du 2026-10-25) |
 | 35 | `BarChart` | `role="img"` nommé par un résumé, table de données cachée | survol d'une barre (infobulle), série vide | histogramme d'une série dans le temps (une barre par point, ordre de lecture) en SVG maison, sans dépendance ; mesuré par `ResizeObserver`, dessiné en pixels CSS (traits nets, aucune déformation) ; hauteur par jeton ; jetons seulement (`--k-accent`, `--k-border`, `--k-text-muted`), clair et sombre ; résumé (nombre de points, bornes, maximum, dernier) ; valeurs en chiffres tabulaires ; infobulle `decorative` au survol (la table cachée porte les mêmes données) ; ligne de base, graduation du maximum, première et dernière étiquettes (revue du 2026-10-25) |
 | 36 | `BarList` | table (en-têtes de ligne, valeurs) | valeur au-delà de l'échelle | barres horizontales d'une distribution (occupation, part) : libellé, barre décorative (`aria-hidden`), valeur ; échelle commune (`max`, sinon la plus grande valeur) ; la valeur est toujours écrite, la barre ne fait que la montrer (revue du 2026-10-25) |
