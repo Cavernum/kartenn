@@ -2,110 +2,140 @@
   - region "ExpandableGrid":
     - heading "ExpandableGrid" [level=1]
     - paragraph: "Motif : Grid compacte + Button qui ouvre un Dialog (Modal) avec la même grille"
-    - figure /compact — \d+ flux, cinq lignes visibles, deux colonnes ; « Agrandir » ouvre le reste/:
+    - figure /compact — \d+ flux, cinq lignes visibles, trois colonnes ; « Agrandir » ouvre le reste/:
       - text: /\d+ lignes/
-      - 'button "Agrandir : Flux cassés"'
-      - grid "Flux cassés":
+      - 'button "Agrandir : Flux non conformes"'
+      - grid "Flux non conformes":
         - rowgroup:
-          - row "Source Destination":
+          - row "Source Destination Protocole":
             - columnheader "Source"
             - columnheader "Destination"
+            - columnheader "Protocole"
         - rowgroup:
-          - row "rece-batch prod-api":
+          - row /rece-batch prod-api TCP\/\d+/:
             - gridcell "rece-batch"
             - gridcell "prod-api"
-          - row "rece-batch prod-registry":
+            - gridcell /TCP\/\d+/
+          - row /rece-batch prod-registry TCP\/\d+/:
             - gridcell "rece-batch"
             - gridcell "prod-registry"
-          - row "rece-batch prod-db":
+            - gridcell /TCP\/\d+/
+          - row /rece-batch prod-db TCP\/\d+/:
             - gridcell "rece-batch"
             - gridcell "prod-db"
-          - row "rece-batch prod-cache":
+            - gridcell /TCP\/\d+/
+          - row /rece-batch prod-dns UDP\/\d+/:
             - gridcell "rece-batch"
-            - gridcell "prod-cache"
-          - row "rece-batch prod-bus":
+            - gridcell "prod-dns"
+            - gridcell /UDP\/\d+/
+          - row "rece-batch prod-gw ICMP":
             - gridcell "rece-batch"
-            - gridcell "prod-bus"
-          - row "rece-ci prod-api":
+            - gridcell "prod-gw"
+            - gridcell "ICMP"
+          - row /rece-ci prod-api TCP\/\d+/:
             - gridcell "rece-ci"
             - gridcell "prod-api"
-          - row "rece-ci prod-registry":
+            - gridcell /TCP\/\d+/
+          - row /rece-ci prod-registry TCP\/\d+/:
             - gridcell "rece-ci"
             - gridcell "prod-registry"
-          - row "rece-ci prod-db":
+            - gridcell /TCP\/\d+/
+          - row /rece-ci prod-db TCP\/\d+/:
             - gridcell "rece-ci"
             - gridcell "prod-db"
-          - row "rece-ci prod-cache":
+            - gridcell /TCP\/\d+/
+          - row /rece-ci prod-dns UDP\/\d+/:
             - gridcell "rece-ci"
-            - gridcell "prod-cache"
-          - row "rece-ci prod-bus":
+            - gridcell "prod-dns"
+            - gridcell /UDP\/\d+/
+          - row "rece-ci prod-gw ICMP":
             - gridcell "rece-ci"
-            - gridcell "prod-bus"
-          - row "rece-etl prod-api":
+            - gridcell "prod-gw"
+            - gridcell "ICMP"
+          - row /rece-etl prod-api TCP\/\d+/:
             - gridcell "rece-etl"
             - gridcell "prod-api"
-          - row "rece-etl prod-registry":
+            - gridcell /TCP\/\d+/
+          - row /rece-etl prod-registry TCP\/\d+/:
             - gridcell "rece-etl"
             - gridcell "prod-registry"
-          - row "rece-etl prod-db":
+            - gridcell /TCP\/\d+/
+          - row /rece-etl prod-db TCP\/\d+/:
             - gridcell "rece-etl"
             - gridcell "prod-db"
-          - row "rece-etl prod-cache":
+            - gridcell /TCP\/\d+/
+          - row /rece-etl prod-dns UDP\/\d+/:
             - gridcell "rece-etl"
-            - gridcell "prod-cache"
-          - row "rece-etl prod-bus":
+            - gridcell "prod-dns"
+            - gridcell /UDP\/\d+/
+          - row "rece-etl prod-gw ICMP":
             - gridcell "rece-etl"
-            - gridcell "prod-bus"
-          - row "rece-mon prod-api":
+            - gridcell "prod-gw"
+            - gridcell "ICMP"
+          - row /rece-mon prod-api TCP\/\d+/:
             - gridcell "rece-mon"
             - gridcell "prod-api"
-          - row "rece-mon prod-registry":
+            - gridcell /TCP\/\d+/
+          - row /rece-mon prod-registry TCP\/\d+/:
             - gridcell "rece-mon"
             - gridcell "prod-registry"
-          - row "rece-mon prod-db":
+            - gridcell /TCP\/\d+/
+          - row /rece-mon prod-db TCP\/\d+/:
             - gridcell "rece-mon"
             - gridcell "prod-db"
-          - row "rece-mon prod-cache":
+            - gridcell /TCP\/\d+/
+          - row /rece-mon prod-dns UDP\/\d+/:
             - gridcell "rece-mon"
-            - gridcell "prod-cache"
-          - row "rece-mon prod-bus":
+            - gridcell "prod-dns"
+            - gridcell /UDP\/\d+/
+          - row "rece-mon prod-gw ICMP":
             - gridcell "rece-mon"
-            - gridcell "prod-bus"
-          - row "rece-web prod-api":
+            - gridcell "prod-gw"
+            - gridcell "ICMP"
+          - row /rece-web prod-api TCP\/\d+/:
             - gridcell "rece-web"
             - gridcell "prod-api"
-          - row "rece-web prod-registry":
+            - gridcell /TCP\/\d+/
+          - row /rece-web prod-registry TCP\/\d+/:
             - gridcell "rece-web"
             - gridcell "prod-registry"
-          - row "rece-web prod-db":
+            - gridcell /TCP\/\d+/
+          - row /rece-web prod-db TCP\/\d+/:
             - gridcell "rece-web"
             - gridcell "prod-db"
-          - row "rece-web prod-cache":
+            - gridcell /TCP\/\d+/
+          - row /rece-web prod-dns UDP\/\d+/:
             - gridcell "rece-web"
-            - gridcell "prod-cache"
-          - row "rece-web prod-bus":
+            - gridcell "prod-dns"
+            - gridcell /UDP\/\d+/
+          - row "rece-web prod-gw ICMP":
             - gridcell "rece-web"
-            - gridcell "prod-bus"
+            - gridcell "prod-gw"
+            - gridcell "ICMP"
       - code: compact
       - text: ""
     - 'figure "few — Trois lignes : la grille garde sa hauteur naturelle"':
       - text: 3 lignes
-      - 'button "Agrandir : Flux cassés"'
-      - grid "Flux cassés":
+      - 'button "Agrandir : Flux non conformes"'
+      - grid "Flux non conformes":
         - rowgroup:
-          - row "Source Destination":
+          - row "Source Destination Protocole":
             - columnheader "Source"
             - columnheader "Destination"
+            - columnheader "Protocole"
         - rowgroup:
-          - row "rece-batch prod-api":
+          - row /rece-batch prod-api TCP\/\d+/:
             - gridcell "rece-batch"
             - gridcell "prod-api"
-          - row "rece-ci prod-api":
+            - gridcell /TCP\/\d+/
+          - row /rece-ci prod-api TCP\/\d+/:
             - gridcell "rece-ci"
             - gridcell "prod-api"
-          - row "rece-web prod-api":
+            - gridcell /TCP\/\d+/
+          - row /rece-web prod-api TCP\/\d+/:
             - gridcell "rece-web"
             - gridcell "prod-api"
+            - gridcell /TCP\/\d+/
       - code: few
       - text: ""
     - 'figure "expanded — Agrandie : boîte de dialogue large, toutes les colonnes, tri et filtre"':

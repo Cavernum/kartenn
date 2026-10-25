@@ -267,16 +267,16 @@ test.describe("ExpandableGrid (Grid + Dialog (Modal))", () => {
   }) => {
     await state(page, "ExpandableGrid", "compact");
     // By its attribute: the open dialog hides the rest of the page from the tree.
-    const enlarge = page.locator('button[aria-label="Agrandir : Flux cassés"]');
+    const enlarge = page.locator('button[aria-label="Agrandir : Flux non conformes"]');
     await expect(enlarge).toHaveAttribute("aria-haspopup", "dialog");
-    await expect(page.getByRole("grid")).toHaveAttribute("aria-colcount", "2");
+    await expect(page.getByRole("grid")).toHaveAttribute("aria-colcount", "3");
     await enlarge.focus();
     await page.keyboard.press("Enter");
-    const dialog = page.getByRole("dialog", { name: "Flux cassés" });
+    const dialog = page.getByRole("dialog", { name: "Flux non conformes" });
     await expect(dialog).toBeVisible();
     await expect(enlarge).toHaveAttribute("aria-expanded", "true");
-    const grid = dialog.getByRole("grid", { name: "Flux cassés" });
-    await expect(grid).toHaveAttribute("aria-colcount", "4");
+    const grid = dialog.getByRole("grid", { name: "Flux non conformes" });
+    await expect(grid).toHaveAttribute("aria-colcount", "5");
     await expect(grid).toHaveAttribute("aria-rowcount", "26");
     // The sort is shared: sorting in the dialog sorts the compact grid too.
     const source = grid.getByRole("columnheader", { name: "Source" });

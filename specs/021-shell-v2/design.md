@@ -310,12 +310,12 @@ applique) ; *form* = panneau d'édition de la sorte dans le panneau droit (`Edit
 
 | Écran | Route | But | Édition | Codes notables |
 |---|---|---|---|---|
-| Matrice | `/x/policy/matrix?flow_type=<clé>` | permis entre environnements pour un type de flux (lignes : source, colonnes : destination ; croix de survol et pointes de sens de `MatrixGrid` sur les bordures de la croix) ; effet simulé en pied de matrice et dans le panneau du brouillon (cellules changées par source → destination, avant et après, puis effet simulé : comptes, un `InlineAlert` qui dit le nombre de flux cassés, et ces flux en `ExpandableGrid` — source et destination dans le panneau, service et code de la règle qui les refuse dans la vue agrandie) | place, vers le brouillon du shell (`policy.matrix.set` avec `if_match`) | `policy.matrix.stale`, `precondition-failed` |
+| Matrice | `/x/policy/matrix?flow_type=<clé>` | permis entre environnements pour un type de flux (lignes : source, colonnes : destination ; croix de survol et pointes de sens de `MatrixGrid` sur les bordures de la croix) ; effet simulé en pied de matrice et dans le panneau du brouillon (cellules changées par source → destination, avant et après, puis effet simulé : comptes, un `InlineAlert` qui dit le nombre de flux qui deviennent non conformes à la matrice, et ces flux en `ExpandableGrid` — source, destination et protocole dans le panneau ; service et code de la règle qui les refuse en plus dans la vue agrandie) | place, vers le brouillon du shell (`policy.matrix.set` avec `if_match`) | `policy.matrix.stale`, `precondition-failed` |
 | Règles et motifs | `/x/policy/rules`, `rules/<id>`, `rules/new`, `?tab=patterns` | règles hors matrice et motifs | form | `policy.text.missing` |
 | Catalogue | `/x/policy/catalogue/<collection>/<id>` | objets de référence, une forme pour huit collections | form | `invalid-member` |
 | Inférence | `/x/policy/inference`, `inference/<id>`, `inference/mismatches` | règles qui déduisent un axe, écarts ; aperçu d'une règle (route S36) | form, menu | `policy.inference.conflict`, `policy.inference.mismatch` |
 | Conformité | `/x/policy/compliance` | « ce flux serait-il permis, et pourquoi ? » | lecture | `policy-query-too-large` |
-| Effet d'un changement | `/x/policy/changes/<changeset>` | ce qu'un changeset ouvre, ferme, casse, guérit ; action « Effet sur la politique » sur un changeset | lecture | — |
+| Effet d'un changement | `/x/policy/changes/<changeset>` | ce qu'un changeset ouvre, ferme, rend non conforme à la matrice ou de nouveau conforme ; action « Effet sur la politique » sur un changeset | lecture | — |
 | Rapports d'audit | `/x/policy/reports`, `reports/<id>` | état de conformité à une date, listes à traiter (liste servie par `GET /v1/policy-reports`) | menu (lancer) | `conflict` |
 | Tuile | Accueil | écarts d'inférence, dernier rapport | lecture | — |
 

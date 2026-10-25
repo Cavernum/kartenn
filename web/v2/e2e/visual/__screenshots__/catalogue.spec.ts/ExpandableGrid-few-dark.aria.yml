@@ -4,21 +4,25 @@
     - paragraph: "Motif : Grid compacte + Button qui ouvre un Dialog (Modal) avec la même grille"
     - 'figure "few — Trois lignes : la grille garde sa hauteur naturelle"':
       - text: 3 lignes
-      - 'button "Agrandir : Flux cassés"'
-      - grid "Flux cassés":
+      - 'button "Agrandir : Flux non conformes"'
+      - grid "Flux non conformes":
         - rowgroup:
-          - row "Source Destination":
+          - row "Source Destination Protocole":
             - columnheader "Source"
             - columnheader "Destination"
+            - columnheader "Protocole"
         - rowgroup:
-          - row "rece-batch prod-api":
+          - row /rece-batch prod-api TCP\/\d+/:
             - gridcell "rece-batch"
             - gridcell "prod-api"
-          - row "rece-ci prod-api":
+            - gridcell /TCP\/\d+/
+          - row /rece-ci prod-api TCP\/\d+/:
             - gridcell "rece-ci"
             - gridcell "prod-api"
-          - row "rece-web prod-api":
+            - gridcell /TCP\/\d+/
+          - row /rece-web prod-api TCP\/\d+/:
             - gridcell "rece-web"
             - gridcell "prod-api"
+            - gridcell /TCP\/\d+/
       - code: few
       - text: ""

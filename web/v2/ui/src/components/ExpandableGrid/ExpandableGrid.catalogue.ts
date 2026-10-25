@@ -8,14 +8,19 @@ import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import type { GridColumn, GridSort } from "../DataGrid/grid.ts";
 import ExpandableGrid from "./ExpandableGrid.vue";
 
-/** Flows a draft would break: invented hosts of two environments, documentation ports. */
+/**
+ * Flows a draft would make nonconforming to the flow matrix: invented hosts of two
+ * environments, documentation ports; the protocol carries the port when it has one.
+ */
 const SOURCES = ["rece-batch", "rece-ci", "rece-web", "rece-etl", "rece-mon"];
-const TARGETS = ["prod-api", "prod-registry", "prod-db", "prod-cache", "prod-bus"];
-const SERVICES = ["tcp/443", "tcp/5000", "tcp/5432", "tcp/6379", "tcp/5672"];
+const TARGETS = ["prod-api", "prod-registry", "prod-db", "prod-dns", "prod-gw"];
+const PROTOCOLS = ["TCP/443", "TCP/5000", "TCP/5432", "UDP/53", "ICMP"];
+const SERVICES = ["https", "registry", "postgresql", "dns", "echo"];
 const flows = Array.from({ length: 25 }, (_, i) => ({
   key: `f${i}`,
   source: SOURCES[i % 5]!,
   destination: TARGETS[Math.floor(i / 5)]!,
+  protocol: PROTOCOLS[Math.floor(i / 5)]!,
   service: SERVICES[Math.floor(i / 5)]!,
   rule: i % 3 === 0 ? "flow.verdict.default" : "flow.verdict.denied",
 }));
@@ -24,15 +29,16 @@ type Flow = (typeof flows)[number];
 const columns: GridColumn[] = [
   { id: "source", label: "Source", width: "md", mono: true, sortable: true },
   { id: "destination", label: "Destination", width: "fill", mono: true, sortable: true },
+  { id: "protocol", label: "Protocole", width: "sm", mono: true, sortable: true },
   { id: "service", label: "Service", width: "sm", mono: true },
   { id: "rule", label: "Règle", width: "lg", filterable: true },
 ];
 const base = {
-  label: "Flux cassés",
+  label: "Flux non conformes",
   columns,
   rows: flows,
   rowKey: "key",
-  compactColumns: ["source", "destination"],
+  compactColumns: ["source", "destination", "protocol"],
 };
 
 /** The host sorts the rows (as for DataGrid); the rule shows as a copyable code. */
@@ -73,7 +79,7 @@ export default {
   states: [
     {
       name: "compact",
-      description: "25 flux, cinq lignes visibles, deux colonnes ; « Agrandir » ouvre le reste",
+      description: "25 flux, cinq lignes visibles, trois colonnes ; « Agrandir » ouvre le reste",
       props: {},
       demo: sorted(false),
     },
