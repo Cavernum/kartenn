@@ -44,18 +44,15 @@ const props = defineProps<{ items: Crumb[]; label?: string }>();
 
 <style>
 @layer components {
-  /* A container (design « Adaptation à la largeur »): its host gives it its width. */
   .k-breadcrumb {
     min-inline-size: 0;
-    container-type: inline-size;
   }
 
-  /* Under `xs`, the current page alone: the path is the navigation's. */
-  @container (width < 360px) {
-    .k-breadcrumb__item:not(:last-child),
-    .k-breadcrumb__item > .k-breadcrumb__separator {
-      display: none;
-    }
+  /* In the compact frame (its `data-width`, design « Adaptation à la largeur »), the
+   * current page alone: the path is the drawer's navigation. */
+  [data-width="compact"] .k-breadcrumb__item:not(:last-child),
+  [data-width="compact"] .k-breadcrumb__separator {
+    display: none;
   }
 
   .k-breadcrumb__list {

@@ -85,8 +85,11 @@ const word = (kind: DiffKind) => t(kind);
 
 <style>
 @layer components {
+  /* A container: its host gives it its width. */
   .k-diff-list {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    container-type: inline-size;
     background-color: var(--k-surface);
     border: var(--k-border-width) solid var(--k-border-strong);
     border-radius: var(--k-radius-md);
@@ -204,6 +207,25 @@ const word = (kind: DiffKind) => t(kind);
 
   .k-diff-list__arrow {
     color: var(--k-text-muted);
+  }
+
+  /* A long value breaks rather than widen the list. */
+  .k-diff-list__before,
+  .k-diff-list__after {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+
+  /* Under `xs` (design « Adaptation à la largeur »): the values under the attribute. */
+  @container (width < 360px) {
+    .k-diff-list .k-diff-list__change {
+      grid-template-columns: var(--k-space-3) minmax(0, 1fr);
+      padding-inline-start: var(--k-space-2);
+    }
+
+    .k-diff-list .k-diff-list__values {
+      grid-column: 2;
+    }
   }
 }
 </style>

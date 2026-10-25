@@ -315,7 +315,6 @@ function toggleDraft(): void {
 
   /* The breadcrumb gives way to the controls at the end of the bar. */
   .k-ecran__crumbs {
-    flex: 1 1 0;
     min-inline-size: 0;
     overflow: hidden;
   }

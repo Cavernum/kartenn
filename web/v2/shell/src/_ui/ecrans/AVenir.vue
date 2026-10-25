@@ -28,6 +28,7 @@ const props = defineProps<{
 @layer components {
   .k-ecran-later {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--k-space-2);
     align-content: start;
     padding: var(--k-space-2);
@@ -43,6 +44,8 @@ const props = defineProps<{
   }
 
   .k-ecran-later__name {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
     color: var(--k-text-muted);
     font-size: var(--k-text-xs);
     line-height: var(--k-text-xs-line);
