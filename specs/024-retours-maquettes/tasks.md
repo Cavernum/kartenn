@@ -545,6 +545,18 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
       de toast, ligne de brouillon éclairée à son ajout (`data-fresh`), état `removed`
       barré, réglage « Mouvement » (`data-motion="reduce"`), axe attend la fin des
       animations.
+  - Troisième relecture (2026-10-25). Choix tranchés :
+    - Flèches de la matrice dans le sens Source → Flux → Destination : entrée par la
+      bordure de début de la cellule, sortie par sa bordure haute vers l'en-tête de la
+      destination (pointes vers le haut).
+    - Vocabulaire de conformité à la matrice de flux (« deviennent non conformes »,
+      « conformes de nouveau ») ; compteurs servis renommés `nonconforming`/`conforming`.
+    - Colonne « Protocole » (`TCP/443`, `UDP/53`, `ICMP`) ; « Service » en nom de service ;
+      compact : source, destination, protocole.
+    - Objet entièrement en lecture seule pour une même raison : `InlineAlert` (avertissement,
+      icône de cadenas, option `icon` ajoutée) en tête, code de règle en `CodeBadge` ;
+      chaque action garde son infobulle. `groupe-refus` : Modifier et Ajouter un rôle
+      manquaient de refus, ajoutés.
 - [ ] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
   020) — REQ-024-29
 
