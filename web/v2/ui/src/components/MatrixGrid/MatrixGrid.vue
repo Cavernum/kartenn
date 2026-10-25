@@ -14,10 +14,15 @@
 // and its column, headers included (`data-cross`), so that one sees which entries of both
 // axes it joins; the active cell keeps its accent edge (a shape, not a colour alone). With
 // `axes`, the matrix says the direction of what it holds (a flow: rows are the source,
-// columns the destination): the corner reads « rows ↓ » and « columns → », and the headers
-// of the crosshair carry a discreet arrow (the row's leaves towards the columns, the
-// column's enters from the rows). The arrows are decorative: the name of the grid and the
-// corner say the direction in words.
+// columns the destination): the corner reads « rows ↓ » and « columns → », and the
+// crosshair carries small arrowheads sitting on borders (revue du 2026-10-25, second
+// pass): one on the inline-end border of the source row header, pointing into the grid;
+// one on the block-end border of the destination column header, pointing down into its
+// column; and two on the shown cell, on its inline-start border (pointing along the row,
+// from the source) and on its block-start border (pointing down the column, from the
+// destination header): the two paths meet in the cell. They are empty pseudo-elements
+// (`data-flow`), outside the accessibility tree: the name of the grid and the corner say
+// the direction in words.
 import { computed, nextTick, ref, shallowRef } from "vue";
 import { t } from "../../i18n.ts";
 import Icon from "../Icon/Icon.vue";
@@ -64,6 +69,18 @@ const onCross = (row: string, column: string): "true" | undefined =>
     : undefined;
 /** The crosshair stands on a cell of the body: its headers carry the arrows of direction. */
 const crossCell = computed(() => cross.value.row !== "" && cross.value.column !== "");
+/**
+ * The arrowhead of direction of a header or a cell (`data-flow`), for a directed matrix
+ * whose crosshair stands on a cell: the source row header, the destination column header,
+ * the cell shown.
+ */
+function flowOf(row: string, column: string): "source" | "destination" | "cell" | undefined {
+  if (!props.axes || !crossCell.value) return undefined;
+  if (column === "" && row === cross.value.row) return "source";
+  if (row === "" && column === cross.value.column) return "destination";
+  if (row === cross.value.row && column === cross.value.column) return "cell";
+  return undefined;
+}
 
 function onPointerover(event: PointerEvent): void {
   const cell = cellOf(event.target);
@@ -159,14 +176,10 @@ function onKeydown(event: KeyboardEvent): void {
           :data-column="column.id"
           :data-active="isActive('', column.id) ? 'true' : undefined"
           :data-cross="onCross('', column.id)"
+          :data-flow="flowOf('', column.id)"
           :aria-colindex="c + 2"
           :tabindex="tabindex('', column.id)"
         >
-          <Icon
-            v-if="props.axes && crossCell && cross.column === column.id"
-            name="arrow-down"
-            class="k-matrix__flow"
-          />
           <span class="k-matrix__text">{{ column.label }}</span>
         </div>
       </div>
@@ -187,16 +200,11 @@ function onKeydown(event: KeyboardEvent): void {
           data-column=""
           :data-active="isActive(row.id, '') ? 'true' : undefined"
           :data-cross="onCross(row.id, '')"
+          :data-flow="flowOf(row.id, '')"
           aria-colindex="1"
           :tabindex="tabindex(row.id, '')"
         >
           <span class="k-matrix__text">{{ row.label }}</span>
-          <Icon
-            v-if="props.axes && crossCell && cross.row === row.id"
-            name="arrow-right"
-            class="k-matrix__flow"
-            data-dir="inline"
-          />
         </div>
         <div
           v-for="(column, c) in props.columns"
@@ -208,6 +216,7 @@ function onKeydown(event: KeyboardEvent): void {
           :data-state="props.cellState?.(row, column)"
           :data-active="isActive(row.id, column.id) ? 'true' : undefined"
           :data-cross="onCross(row.id, column.id)"
+          :data-flow="flowOf(row.id, column.id)"
           :aria-colindex="c + 2"
           :tabindex="tabindex(row.id, column.id)"
         >
@@ -346,17 +355,70 @@ function onKeydown(event: KeyboardEvent): void {
     background-color: var(--k-accent-soft);
   }
 
-  /* The arrows of direction: small, at the end of a row header, before a column label. */
+  /* The arrowheads of direction: small accent triangles, 8 px wide and 6 px deep (the
+   * width of `--k-space-2`, the depth of `--k-space-1` + `--k-space-0-5`), centred on a
+   * border. One pointing along the row (to the inline end) on the end border of the
+   * source row header and on the start border of the shown cell; one pointing down on
+   * the bottom border of the destination column header and on the top border of the
+   * shown cell. Half of each lies over the neighbour, painted after it (positioned). */
+  .k-matrix__head .k-matrix__header[data-flow],
+  .k-matrix__cell[data-flow] {
+    position: relative;
+  }
+
+  .k-matrix [data-flow]::before,
+  .k-matrix [data-flow]::after {
+    position: absolute;
+    pointer-events: none;
+    background-color: var(--k-accent);
+  }
+
+  /* Along the row: on the end border of the source, on the start border of the cell. */
+  .k-matrix__row-header[data-flow]::after,
+  .k-matrix__cell[data-flow]::before {
+    content: "";
+    inset-block-start: calc(50% - var(--k-space-1));
+    inline-size: calc(var(--k-space-1) + var(--k-space-0-5));
+    block-size: var(--k-space-2);
+    clip-path: polygon(0 0, 100% 50%, 0 100%);
+  }
+
+  .k-matrix__row-header[data-flow]::after {
+    inset-inline-end: calc((var(--k-space-1) + var(--k-space-0-5)) / -2);
+  }
+
+  .k-matrix__cell[data-flow]::before {
+    inset-inline-start: calc((var(--k-space-1) + var(--k-space-0-5)) / -2);
+  }
+
+  .k-matrix__row-header[data-flow]:dir(rtl)::after,
+  .k-matrix__cell[data-flow]:dir(rtl)::before {
+    clip-path: polygon(100% 0, 0 50%, 100% 100%);
+  }
+
+  /* Down the column: on the bottom border of the destination, on the top border of the cell. */
+  .k-matrix__head .k-matrix__header[data-flow]::after,
+  .k-matrix__cell[data-flow]::after {
+    content: "";
+    inset-inline-start: calc(50% - var(--k-space-1));
+    inline-size: var(--k-space-2);
+    block-size: calc(var(--k-space-1) + var(--k-space-0-5));
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+  }
+
+  .k-matrix__head .k-matrix__header[data-flow]::after {
+    inset-block-end: calc((var(--k-space-1) + var(--k-space-0-5)) / -2);
+  }
+
+  .k-matrix__cell[data-flow]::after {
+    inset-block-start: calc((var(--k-space-1) + var(--k-space-0-5)) / -2);
+  }
+
+  /* The arrows of the corner, in words' colour. */
   .k-matrix__flow {
     flex: none;
-    color: var(--k-accent);
   }
 
-  .k-matrix__row-header > .k-matrix__flow {
-    margin-inline-start: auto;
-  }
-
-  .k-matrix__flow[data-dir="inline"]:dir(rtl),
   .k-matrix__axis[data-axis="columns"] > .k-matrix__flow:dir(rtl) {
     scale: -1 1;
   }
