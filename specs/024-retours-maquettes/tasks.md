@@ -517,6 +517,28 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
       références inchangées (bruit d'anticrénelage).
     - À faire : liste de lignes à actions en composant de bibliothèque (colonne d'actions,
       état brouillon, retrait, ajout) au lieu du CSS propre à E7.
+  - Seconde relecture (2026-10-25). Choix tranchés :
+    - `MatrixGrid` : pointes d'accent de 8 × 6 px (pseudo-éléments, `data-flow`) sur la
+      bordure de fin de l'en-tête source, la bordure basse de l'en-tête destination, et
+      sur la cellule montrée (bordure de début et bordure haute) : les deux chemins se
+      rejoignent dans la cellule ; retournées en RTL ; légende du coin gardée (seul énoncé
+      du sens au repos), flèches du texte des en-têtes retirées.
+    - Un message ne se coupe jamais : phrase de simulation et description d'une opération
+      vont à la ligne ; `DataGrid` option `wrap` pour une colonne de message. Libellés,
+      clés, titres et `CodeBadge` gardent leur ellipse (pas des messages ; un code long
+      coupé dans une colonne étroite reste illisible au survol : point ouvert).
+    - `ExpandableGrid` (enveloppe, pas une option de `DataGrid`) : deux `DataGrid` sur les
+      mêmes lignes, tri et filtres tenus par l'hôte et partagés, `visibleRows` (5),
+      `compactColumns`, compte au-dessus, « Agrandir » en `IconButton` sous un
+      `DialogTrigger` (focus rendu), vue agrandie en `Dialog` `lg` `contained`. E10 : flux
+      cassés (25) source et destination en compact, service et règle agrandis.
+    - Codes : un problème HTTP montre son `type` servi (URN, RFC 9457) ; une violation ou
+      le motif d'une 202 montre son code de règle tel que servi.
+    - `IconButton` importe `Button/button.css` (sans `Button` sur la page, il prenait
+      l'aspect natif).
+    - E7 réorganisé par groupes : voir la tâche 8 de la 025.
+    - Mouvement : politique de la 020 (§ Mouvement), note
+      `docs/reference/mouvement-interface.md` ; application en cours.
 - [ ] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
   020) — REQ-024-29
 
