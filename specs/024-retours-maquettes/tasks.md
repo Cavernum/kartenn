@@ -387,6 +387,46 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
   1280, 1024, 768 px — REQ-024-21, 22, 24, 27, 28, 29 — verify : `k-web2-check`,
   revues `ui-reviewer` et `a11y-auditor`
   - où : `web/v2/shell/src/_ui/ecrans/` ; `registry.ts` ; `e2e/visual/ecrans.spec.ts`
+  - En cours (2026-10-25), première moitié : cadre, captures, E0, E1, E2, E3, E5 et
+    bibliothèque ; E4, E6 à E10 suivent à part.
+    - Captures : `ecrans.spec.ts` capture chaque vue à 1440, 1280, 1024 et 768 px de large
+      (900 de haut, `SCREEN_WIDTHS` des fixtures), en clair et en sombre ; instantané ARIA
+      et axe à 1280 px ; une vue peut nommer l'élément focalisé de sa capture (`focus` du
+      registre : action refusée et son infobulle). `layout.spec.ts` vérifie sur chaque vue,
+      de 1024 à 1920 px, l'absence de défilement horizontal de la page, de la barre d'état
+      et de la surface, et l'alignement en-tête/cellules de chaque grille.
+    - Cadre (`EcranCadre.vue`) : emplacements fixes en grille (barre latérale, barre
+      d'état, bande, surface, panneau), chacun défilant en lui-même, la fenêtre jamais ;
+      surface `isolation: isolate` ; `SidePanel` à onglets Détail et « Brouillon n »
+      (props `panel`, emplacements `detail`, `draft`, `draft-footer`, `detail-footer`) ;
+      onglet Brouillon par défaut commun (`EcranBrouillon.vue`, `EcranSoumission.vue` :
+      simulation en une ligne, `CommitForm`, `SplitButton`) ; `DraftCounter` en bascule
+      avec le menu des brouillons ; sous 1024 px, barre latérale repliée et panneau
+      `cover` ; sélecteur de période en surimpression sous la pastille.
+    - E0 Accueil (nouvelle) : tuiles du cœur nourries par `STATS` (forme de
+      `GET /v1/stats`), tuiles `widget` VLAN et Flux, Politique en chargement,
+      `computed_at` en pied. E1 devient Topographie (`E1Topographie.vue`, entrée de barre
+      latérale) : « + » sur un nœud, vue `ajout` (panneau d'édition de la sorte dans
+      l'onglet Détail, bouton scindé), détail de la ligne choisie, tri et filtre. E2 :
+      actions refusées (`forbidden`, `reason`) sans encart, vue `droits` (infobulle au
+      focus). E3 : `Toolbar`, tri et filtre sur toutes les colonnes, colonnes filtrées
+      marquées, erreur de cellule en clair avec son code entier. E5 : onglet Brouillon
+      (simulation en cours, violations, retenu par une politique avec le chevron ouvert)
+      et vue `liste` (page `/drafts`).
+    - Bibliothèque : `TreeGrid` « + » d'un nœud (`addLabel`, `add`) ; `SidePanel` `cover` ;
+      `FilterChip` bouton de retrait de 24 × 24 px (axe `target-size`) ; `DataGrid` code
+      d'erreur jamais tronqué ; catalogue, tests Vitest et inventaire du skill à jour.
+    - Choix tranchés (11, première moitié) : maquettes capturées en densité compacte seule
+      (la confortable reste aux pages du catalogue) ; axe et instantané ARIA à 1280 px seul
+      (le CSP à toutes les largeurs) ; histogramme de l'accueil en bouche-trou `AVenir`
+      (`BarChart`, à planifier) plutôt qu'un composant de plus ; le « + » d'un nœud est
+      visible sur la ligne choisie, au survol et au focus, et ouvre un panneau qui choisit
+      la sorte (Adresse, Plage, Préfixe refusé avec motif dans un réseau) ; la tuile large
+      de l'accueil prend deux pistes, `grid-auto-flow: dense` comble les trous ; liste des
+      brouillons : « Reprendre » dans le menu de la ligne (refusé pour le brouillon actif)
+      pour tenir à 1024 px ; `k-web-shots --update` filtré par fichier s'écrit
+      `k-web-shots --update all <fichier>` (le script passe `--update-snapshots` juste
+      avant les arguments).
 - [ ] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
   020) — REQ-024-29
 
