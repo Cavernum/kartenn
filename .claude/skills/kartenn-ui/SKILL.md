@@ -101,10 +101,10 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `Tabs` | Tabs (activation manuelle) | ◐ |
 | `Menu` (bouton et menu) | Menu Button, Menu ; entrée désactivée focalisable (`aria-disabled`), motif en description et infobulle | ◐ |
 | `Dialog`, `AlertDialog`, `Drawer` | Dialog (Modal), Alert Dialog ; `Drawer` modal seulement | ◐ |
-| `SidePanel` | `complementary` non modal + Tabs ; surimpression de la surface (hôte positionné, surface `isolation: isolate`), redimensionnable (Window Splitter maison) ; `cover` sous 1024 px (toute la surface, sans poignée) | ● |
+| `SidePanel` | `complementary` non modal + Tabs ; surimpression de la surface (hôte positionné, surface `isolation: isolate`), redimensionnable (Window Splitter maison) ; `cover` sous 1024 px (toute la surface, sans poignée) ; `rail` : replié, languette dans le flux (piste `auto` de l'hôte) dont le chevron « Ouvrir le panneau » le rouvre | ● |
 | `CommitForm`, `SplitButton` | champs étiquetés, Ctrl+Entrée ; Button + Menu Button (entrées désactivées avec motif) | ● |
 | `Toolbar` | Toolbar ; actions repliées dans « … » par priorité | ● |
-| `MatrixGrid` | Grid ; en-têtes de lignes et de colonnes figés (virtualisation au-delà de 50 × 50 à venir) | ● |
+| `MatrixGrid` | Grid ; en-têtes de lignes et de colonnes figés ; croix de survol ou de la cellule active (`data-cross`, en-têtes compris) ; `axes` : sens lignes ↓ colonnes → au coin et flèches décoratives sur les en-têtes de la croix (virtualisation au-delà de 50 × 50 à venir) | ● |
 | `Toast` | `status` / `alert`, pause au survol et au focus | ☐ |
 | `Tooltip`, `Popover` | Tooltip (`useTooltip`, action refusée : `forbidden`, `reason` sur `Button`, `IconButton`, entrée de `Menu`) ; Dialog non modal | ◐ (`Tooltip` ●) |
 | `Breadcrumb`, `SidebarNav` | Breadcrumb ; Disclosure dans `navigation` | ◐ |
@@ -113,9 +113,11 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `TreeGrid`, `Tree` | Treegrid ; Tree View ; garde d'affichage `misplaced` ; « + » d'un nœud (`addLabel`, événement `add`, 024/M10) | ◐ (`TreeGrid`) |
 | `CodeBadge`, `KeyLabel`, `EnvChip`, `StatusBadge` | Button (copier, nom = contenu, « Copier » caché) ; — | ◐ |
 | `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `aria-busy` (reflet animé, immobile sous mouvement réduit) ; `alert` ; `status` | ◐ |
-| `DatePill`, `DraftCounter`, `TimeBand` | Button ; bascule du panneau (`aria-expanded`, `aria-controls`) et Menu Button des brouillons ; `status` | ◐ (`DraftCounter` ●) |
+| `DatePill`, `DraftCounter`, `TimeBand` | Button ; bascule du panneau (`aria-expanded`, `aria-controls` ; ouvert, icône en croix) et Menu Button des brouillons ; `status` | ◐ (`DraftCounter` ●) |
 | `Kbd`, `ShortcutHint` | — ; `kbd` imbriqués, noms de touches dans la langue | ◐ (`Kbd`) |
 | `DiffList` | liste groupée, Disclosure ; signe, mot caché, `del`/`ins` | ◐ |
+| `BarChart` | `role="img"` nommé par un résumé + table cachée ; SVG maison mesuré (`ResizeObserver`), infobulle décorative au survol | ● |
+| `BarList` | table (en-têtes de ligne, valeurs écrites), barres décoratives ; échelle `max` ou la plus grande valeur | ● |
 
 Écrans de référence : les maquettes validées du catalogue (`/_ui/ecrans/E0` à `E10`,
 design § « Maquettes », reprises par la 024) ; un écran de la 021 se compare à sa maquette, jamais à

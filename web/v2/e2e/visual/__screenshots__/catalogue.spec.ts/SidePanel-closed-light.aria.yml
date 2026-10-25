@@ -2,7 +2,7 @@
   - region "SidePanel":
     - heading "SidePanel" [level=1]
     - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter"
-    - 'figure "closed — Replié : rien ne reste ; le compteur du brouillon le rouvre"':
+    - 'figure "closed — Replié : une languette au bord de fin, dans le flux, dont le chevron le rouvre (le compteur aussi)"':
       - button "Brouillon ( 3 )"
       - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
       - grid "Préfixes":
@@ -36,5 +36,6 @@
             - gridcell /\d+:db8::\/\d+/
             - gridcell "Sauvegardes"
             - gridcell "7 %"
+      - button "Ouvrir le panneau"
       - code: closed
       - text: ""

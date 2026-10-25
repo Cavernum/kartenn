@@ -5,7 +5,8 @@
 <script setup lang="ts">
 // A piece of the frame for the catalogue: a container of fixed height, positioned, with an
 // isolated surface that scrolls inside it (« Structure avant style ») and room for the
-// right panel laid over it. Shows the sticky headers, the scroll in place, the overlay.
+// right panel laid over it, and an `auto` track at the end for the strip of the closed
+// panel. Shows the sticky headers, the scroll in place, the overlay.
 const props = withDefaults(defineProps<{ size?: "sm" | "md" }>(), { size: "sm" });
 </script>
 
@@ -22,7 +23,7 @@ const props = withDefaults(defineProps<{ size?: "sm" | "md" }>(), { size: "sm" }
     position: relative;
     display: grid;
     grid-template-rows: minmax(0, 1fr);
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
     block-size: var(--k-size-dialog-sm);
     overflow: hidden;
     background-color: var(--k-bg);

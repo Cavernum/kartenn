@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { createSSRApp, h, type Component } from "vue";
+import { createCommentVNode, createSSRApp, h, type Component } from "vue";
 import { renderToString } from "vue/server-renderer";
 import { describe, expect, it } from "vitest";
 import Button from "../src/components/Button/Button.vue";
@@ -19,6 +19,7 @@ import SplitButton from "../src/components/SplitButton/SplitButton.vue";
 import Toolbar from "../src/components/Toolbar/Toolbar.vue";
 import { foldActions, type ToolbarAction } from "../src/components/Toolbar/toolbar.ts";
 import TreeGrid from "../src/components/TreeGrid/TreeGrid.vue";
+import { icons } from "../src/icons/index.ts";
 
 // The components of the 024 (spec 020, inventory 30 to 34; REQ-020-23, 34 to 37;
 // 024/M8, M9, M12, M14, M15): roles, names and ARIA states as rendered on the server, and
@@ -71,7 +72,7 @@ describe("SidePanel", () => {
       ],
       tab: "draft",
     });
-    expect(html).toMatch(/^<aside id="panel" class="k-side-panel" aria-label="Panneau droit"/);
+    expect(html).toMatch(/<aside id="panel" class="k-side-panel" aria-label="Panneau droit"/);
     expect(html).toContain("--k-side-panel-width:420px");
     expect(html).toMatch(
       /role="separator" tabindex="0" aria-orientation="vertical" aria-label="Redimensionner le panneau" aria-controls="panel" aria-valuenow="420" aria-valuemin="320" aria-valuemax="720"/,
@@ -82,7 +83,35 @@ describe("SidePanel", () => {
 
   it("closed, leaves nothing", async () => {
     const html = await render(SidePanel, { label: "Panneau", tabs: [], open: false });
-    expect(html).toBe("<!---->");
+    expect(html.replace(/<!--[^>]*-->/g, "")).toBe("");
+  });
+
+  it("leaves out its footer when the host fills it with nothing for the tab in front", async () => {
+    const tabs = [
+      { value: "detail", label: "Détail" },
+      { value: "draft", label: "Brouillon" },
+    ];
+    const footer = ({ tab }: { tab: string }) =>
+      tab === "draft" ? [h("p", "Soumettre")] : [createCommentVNode("v-if")];
+    const shown = (tab: string) =>
+      renderToString(
+        createSSRApp({ render: () => h(SidePanel, { label: "Panneau", tabs, tab }, { footer }) }),
+      );
+    expect(await shown("draft")).toContain('class="k-side-panel__footer"');
+    expect(await shown("detail")).not.toContain("k-side-panel__footer");
+  });
+
+  it("closed with a rail, leaves a strip whose chevron reopens it", async () => {
+    const html = await render(SidePanel, { label: "Panneau", tabs: [], open: false, rail: true });
+    expect(html).not.toContain("<aside");
+    expect(html).toContain('class="k-side-panel-rail"');
+    expect(html).toMatch(
+      /aria-label="Ouvrir le panneau"[^>]*aria-expanded="false"|aria-expanded="false"[^>]*aria-label="Ouvrir le panneau"/,
+    );
+    const open = await render(SidePanel, { label: "Panneau", tabs: [], rail: true });
+    expect(open).toContain("<aside");
+    expect(open).toContain('class="k-side-panel-rail"');
+    expect(open).not.toContain("Ouvrir le panneau");
   });
 
   it("covering a narrow window, has no handle", async () => {
@@ -257,6 +286,30 @@ describe("grids (REQ-020-34, 35)", () => {
     expect(text(html)).toContain("(en brouillon)");
   });
 
+  it("MatrixGrid: the active cell crosses its row and column, headers included", async () => {
+    const axis = [
+      { id: "a", label: "A" },
+      { id: "b", label: "B" },
+    ];
+    const html = await render(MatrixGrid, {
+      label: "Matrice",
+      corner: "Source → destination",
+      rows: axis,
+      columns: axis,
+      active: { row: "a", column: "b" },
+      axes: { rows: "Source", columns: "Destination" },
+    });
+    // Row a (header and two cells), column b (header and the cell of row b).
+    expect(html.match(/data-cross="true"/g)).toHaveLength(5);
+    expect(html).toMatch(/role="rowheader"[^>]*data-row="a"[^>]*data-cross="true"/);
+    expect(html).toMatch(/role="columnheader"[^>]*data-column="b"[^>]*data-cross="true"/);
+    expect(html).not.toMatch(/role="rowheader"[^>]*data-row="b"[^>]*data-cross/);
+    // The corner says the direction in words; its arrows, and those of the crosshair, hidden.
+    expect(text(html)).toContain("Source → destination");
+    expect(html).toContain('class="k-matrix__axes" aria-hidden="true"');
+    expect(html.match(/k-matrix__flow/g)).toHaveLength(4);
+  });
+
   it("Skeleton: one bar for a cell, hidden", async () => {
     expect(await render(Skeleton, { variant: "cell" })).toMatch(
       /^<span class="k-skeleton__bar"[^>]*aria-hidden="true"/,
@@ -275,5 +328,13 @@ describe("DraftCounter (024/M8)", () => {
     expect(html).toContain('aria-label="Liste des brouillons"');
     expect(html).toContain('aria-haspopup="menu"');
     expect(await render(DraftCounter, { count: 3 })).not.toContain("aria-haspopup");
+  });
+
+  it("open, its draft icon becomes a cross", async () => {
+    const cross = String(icons.x[0]![1].d);
+    expect(await render(DraftCounter, { count: 3, expanded: true })).toContain(cross);
+    const closed = await render(DraftCounter, { count: 3 });
+    expect(closed).toContain('aria-expanded="false"');
+    expect(closed).not.toContain(cross);
   });
 });

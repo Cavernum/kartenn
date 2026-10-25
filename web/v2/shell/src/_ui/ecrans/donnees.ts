@@ -63,7 +63,16 @@ export const STATS = {
   pending: { to_apply: 3, mine: 2 },
   anomalies: { open: 12 },
   modules: {
-    vlan: { reserved: 37, deprecated: 5 },
+    /** The occupation of each group, in percent of its range (as E10 shows them). */
+    vlan: {
+      reserved: 37,
+      deprecated: 5,
+      groups: [
+        { key: "campus-ouest", used: 87 },
+        { key: "campus-est", used: 41 },
+        { key: "labo", used: 6 },
+      ],
+    },
     flow: { noncompliant: 4, waivers_expiring: 2 },
   },
   /** Two minutes before the frozen clock of the captures. */

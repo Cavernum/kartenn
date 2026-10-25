@@ -45,7 +45,7 @@ export default {
     { name: "empty", description: "Compteur à 0", props: { count: 0 }, demo },
     {
       name: "expanded",
-      description: "Panneau ouvert sur le brouillon",
+      description: "Panneau ouvert : l'icône devient une croix (le prochain appui le ferme)",
       props: { count: 3, expanded: true },
       demo,
     },

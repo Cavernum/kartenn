@@ -5,7 +5,8 @@
 <script setup lang="ts">
 // The draft counter of the status bar (design « Inventaire », line 27; spec 021, « Cadre »;
 // 024/M8): « Brouillon (n) », always shown, a toggle of the right panel on its draft tab
-// (`aria-expanded`, `aria-controls`); muted at zero. Beside it, when the host lists the
+// (`aria-expanded`, `aria-controls`); muted at zero. Expanded, its draft icon becomes a
+// cross: what the next press does, the panel being open (revue du 2026-10-25). Beside it, when the host lists the
 // drafts of the user, a chevron opens them (APG Menu Button); choosing one emits `select`.
 import { computed } from "vue";
 import { t } from "../../i18n.ts";
@@ -45,7 +46,7 @@ const items = computed<MenuItem[]>(() => [
       :aria-controls="props.controls"
       @click="emit('toggle')"
     >
-      <Icon name="draft" />
+      <Icon :name="props.expanded ? 'x' : 'draft'" />
       <span>{{ t("draft") }}</span>
       <span class="k-draft-counter__count"
         ><span class="k-visually-hidden">(</span>{{ props.count

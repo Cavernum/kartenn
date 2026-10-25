@@ -107,12 +107,15 @@ Révisé par la 024 (M8, M15 ; disposition B arbitrée sur prototype, hors dép�
   garde sa largeur, le panneau couvre sa droite. La surface est un contexte d'empilement
   isolé (`isolation: isolate`) : ses en-têtes collants ne passent jamais au-dessus du
   panneau. Onglets « Détail » (la sélection courante) et « Brouillon n » ; ouvrir le
-  brouillon le met devant. Replié, il disparaît sans laisser de bande ; son état (ouvert,
+  brouillon le met devant. Replié, il ne laisse qu'une languette au bord de fin de la
+  surface (option `rail`, dans le flux : elle ne couvre rien, `cover` compris), dont le
+  chevron « Ouvrir le panneau » le rouvre sur son dernier onglet ; son état (ouvert,
   onglet, largeur) est gardé en `localStorage` (`kartenn.panel`). Jamais au-dessus d'une
   cellule en édition : la grille fait défiler la cellule active hors de la zone couverte.
 - **Compteur du brouillon** (`DraftCounter`) : toujours visible, bascule du panneau
-  (`aria-expanded`, `aria-controls`) ; s'il est déjà ouvert sur l'onglet Brouillon, il le
-  ferme. Son menu (chevron) liste les brouillons de l'utilisateur (REQ-021-11).
+  (`aria-expanded`, `aria-controls`) : fermé, il l'ouvre sur l'onglet Brouillon ; ouvert,
+  quel que soit l'onglet, il le ferme, et son icône de brouillon devient une croix
+  (revue du 2026-10-25). Son menu (chevron) liste les brouillons de l'utilisateur (REQ-021-11).
 - **Pied de l'onglet Brouillon** : résultat de la simulation en une ligne ; `CommitForm`
   (résumé sur une ligne, description facultative) ; `SplitButton`. Action par défaut :
   « Appliquer » (`POST /v1/drafts/{id}/submission?apply=own`) si `/v1/me` donne
@@ -192,7 +195,7 @@ primitives de mise en page. Chaque zone de données est une frontière d'erreur 
 ne vide pas l'écran) avec ses trois états.
 
 - **Accueil** : tableau de bord de tuiles sur `Grid` ; tuiles du cœur (objets par sorte,
-  changements récents sur 7 et 30 jours avec l'histogramme par jour, à appliquer, les
+  changements récents sur 7 et 30 jours avec l'histogramme par jour (`BarChart`), à appliquer, les
   miens en attente, anomalies ouvertes) puis `widget` des plugins ; une tuile a ses trois
   états ; les compteurs viennent de `GET /v1/stats` (`computed_at` en pied : « il y a
   2 min »), relus sur l'événement `stats`.
@@ -276,7 +279,7 @@ applique) ; *form* = panneau d'édition de la sorte dans le panneau droit (`Edit
 
 | Écran | Route | But | Édition | Codes notables |
 |---|---|---|---|---|
-| Matrice | `/x/policy/matrix?flow_type=<clé>` | permis entre environnements pour un type de flux ; effet simulé en pied de matrice et dans le panneau du brouillon | place, vers le brouillon du shell (`policy.matrix.set` avec `if_match`) | `policy.matrix.stale`, `precondition-failed` |
+| Matrice | `/x/policy/matrix?flow_type=<clé>` | permis entre environnements pour un type de flux (lignes : source, colonnes : destination ; croix de survol et flèches de sens de `MatrixGrid`) ; effet simulé en pied de matrice et dans le panneau du brouillon (cellules changées par source → destination, avant et après, puis effet simulé) | place, vers le brouillon du shell (`policy.matrix.set` avec `if_match`) | `policy.matrix.stale`, `precondition-failed` |
 | Règles et motifs | `/x/policy/rules`, `rules/<id>`, `rules/new`, `?tab=patterns` | règles hors matrice et motifs | form | `policy.text.missing` |
 | Catalogue | `/x/policy/catalogue/<collection>/<id>` | objets de référence, une forme pour huit collections | form | `invalid-member` |
 | Inférence | `/x/policy/inference`, `inference/<id>`, `inference/mismatches` | règles qui déduisent un axe, écarts ; aperçu d'une règle (route S36) | form, menu | `policy.inference.conflict`, `policy.inference.mismatch` |

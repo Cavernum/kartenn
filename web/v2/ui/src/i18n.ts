@@ -69,6 +69,13 @@ const MESSAGES = {
     drafts: "Brouillons",
     draftsList: "Liste des brouillons",
     filtered: "filtrée",
+    panelOpen: "Ouvrir le panneau",
+    chartValues: "valeurs",
+    chartMax: "maximum",
+    chartLast: "dernière",
+    chartEmpty: "aucune donnée",
+    chartPoint: "Point",
+    chartValue: "Valeur",
   },
   en: {
     copy: "Copy",
@@ -126,6 +133,13 @@ const MESSAGES = {
     drafts: "Drafts",
     draftsList: "List of drafts",
     filtered: "filtered",
+    panelOpen: "Open the panel",
+    chartValues: "values",
+    chartMax: "maximum",
+    chartLast: "last",
+    chartEmpty: "no data",
+    chartPoint: "Point",
+    chartValue: "Value",
   },
 } as const satisfies Record<Locale, Record<string, string>>;
 

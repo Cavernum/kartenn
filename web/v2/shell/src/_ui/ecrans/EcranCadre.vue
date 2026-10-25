@@ -4,8 +4,9 @@
 // (breadcrumb, date pill, draft counter, user menu), band out of the present, work
 // surface, right panel (SidePanel) over the end of the surface. Each slot scrolls inside
 // itself; the page never does. The surface is an isolated stacking context: its sticky
-// headers never pass over the panel nor over a floating layer. The draft counter toggles
-// the panel on its draft tab (or closes it from there). Under 1024 px the sidebar is
+// headers never pass over the panel nor over a floating layer. The draft counter opens
+// the panel on its draft tab, or closes it when open (its icon is then a cross); closed,
+// the panel leaves its strip at the end of the body, whose chevron reopens it. Under 1024 px the sidebar is
 // collapsed and the panel covers the surface. The real frame is a task of the 021; here
 // it only places components of @kartenn/ui (layout, no look of its own).
 import {
@@ -89,11 +90,9 @@ const tabs = computed<TabItem[]>(() => [
   { value: "detail", label: "Détail" },
   { value: "draft", label: "Brouillon", count: props.draft },
 ]);
-const draftShown = computed(() => open.value && tab.value === "draft");
-
-/** The counter opens the panel on the draft, or closes it if the draft is in front. */
+/** The counter opens the panel on the draft, or closes it, whatever its tab. */
 function toggleDraft(): void {
-  if (draftShown.value) open.value = false;
+  if (open.value) open.value = false;
   else {
     open.value = true;
     tab.value = "draft";
@@ -122,7 +121,7 @@ function toggleDraft(): void {
           />
           <DraftCounter
             :count="props.draft"
-            :expanded="draftShown"
+            :expanded="open"
             :controls="open ? PANEL : undefined"
             :drafts="drafts"
             :default-open="props.draftsOpen"
@@ -153,6 +152,7 @@ function toggleDraft(): void {
           label="Panneau droit"
           :tabs="tabs"
           :cover="narrow"
+          rail
         >
           <template #detail>
             <slot name="detail">
@@ -243,11 +243,12 @@ function toggleDraft(): void {
     align-items: center;
   }
 
-  /* The surface and the right panel over its end; the panel is positioned in here. */
+  /* The surface, the strip of the closed panel, and the panel over their end; the panel is
+   * positioned in here. */
   .k-ecran__body {
     position: relative;
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
     min-block-size: 0;
   }
 

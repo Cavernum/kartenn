@@ -2,8 +2,8 @@
   - region "MatrixGrid":
     - heading "MatrixGrid" [level=1]
     - paragraph: "Motif : Grid (données) ; en-têtes de lignes et de colonnes figés"
-    - figure "rest — Matrice de politique, cellule active":
-      - grid "Matrice de politique":
+    - 'figure "rest — Matrice dirigée, cellule active : croix sur sa ligne et sa colonne, flèches de sens"':
+      - 'grid "Matrice de politique : source en ligne, destination en colonne"':
         - rowgroup:
           - row "Source → destination Serveurs Postes du siège Supervision Sauvegardes Invités":
             - columnheader "Source → destination"

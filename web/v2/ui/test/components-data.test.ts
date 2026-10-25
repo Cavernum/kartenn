@@ -7,6 +7,9 @@ import { renderToString } from "vue/server-renderer";
 import { describe, expect, it } from "vitest";
 import DataGrid from "../src/components/DataGrid/DataGrid.vue";
 import { columnsTemplate, type GridColumn } from "../src/components/DataGrid/grid.ts";
+import BarChart from "../src/components/BarChart/BarChart.vue";
+import { layoutBars, niceCeil } from "../src/components/BarChart/chart.ts";
+import BarList from "../src/components/BarList/BarList.vue";
 import DiffList from "../src/components/DiffList/DiffList.vue";
 import ErrorState from "../src/components/ErrorState/ErrorState.vue";
 import FilterChip from "../src/components/FilterChip/FilterChip.vue";
@@ -219,5 +222,69 @@ describe("filters, differential, view states", () => {
     expect(html).toContain('aria-busy="true"');
     expect(text(html)).toContain("Chargement");
     expect(html.match(/class="k-skeleton__row" aria-hidden="true"/g)).toHaveLength(2);
+  });
+});
+
+describe("charts (revue du 2026-10-25)", () => {
+  const points = [
+    { key: "d1", label: "13 janv.", value: 6 },
+    { key: "d2", label: "14 janv.", value: 11 },
+    { key: "d3", label: "15 janv.", value: 7 },
+  ];
+
+  it("niceCeil: a round top of scale, never below the peak", () => {
+    expect([0, 1, 7, 11, 12, 13, 141, 18455].map(niceCeil)).toEqual([
+      1, 1, 8, 12, 12, 15, 150, 20000,
+    ]);
+  });
+
+  it("layoutBars: equal slots, crisp edges, heights against the scale", () => {
+    const bars = layoutBars([6, 12, 0], 300, 120, 12);
+    expect(bars.map((b) => b.slotX)).toEqual([0, 100, 200]);
+    expect(bars.map((b) => b.height)).toEqual([60, 120, 0]);
+    expect(bars.every((b) => Number.isInteger(b.x) && Number.isInteger(b.width))).toBe(true);
+    expect(bars[1]!.x + bars[1]!.width).toBeLessThanOrEqual(200);
+    expect(layoutBars([1, 2], 0, 120, 2)).toEqual([]);
+  });
+
+  it("BarChart: one image named by a summary, every value in a hidden table", async () => {
+    const html = await render(BarChart, {
+      label: "Changesets appliqués par jour",
+      points,
+      pointLabel: "Jour",
+      valueLabel: "Appliqués",
+    });
+    expect(html).toContain(
+      'role="img" aria-label="Changesets appliqués par jour : 3 valeurs, 13 janv. – 15 janv. ; maximum 11 (14 janv.) ; dernière 7"',
+    );
+    expect(html).toMatch(/<table class="k-visually-hidden">/);
+    expect(html.match(/<th scope="row">/g)).toHaveLength(3);
+    expect(html).toMatch(/<th scope="col">Jour<\/th><th scope="col">Appliqués<\/th>/);
+    // The graduation and the bounds under the plot are hidden: the table says them.
+    expect(html).toContain('class="k-bar-chart__scale" aria-hidden="true"');
+    expect(html).toContain('class="k-bar-chart__axis" aria-hidden="true"');
+  });
+
+  it("BarChart: an empty series says so", async () => {
+    const html = await render(BarChart, { label: "Appliqués", points: [] });
+    expect(html).toContain('aria-label="Appliqués : aucune donnée"');
+  });
+
+  it("BarList: a table of written values, bars hidden, beyond the scale marked", async () => {
+    const html = await render(BarList, {
+      label: "Occupation",
+      items: [
+        { key: "a", label: "campus-ouest", value: 87 },
+        { key: "b", label: "dmz", value: 104 },
+      ],
+      max: 100,
+      format: (v: number) => `${v} %`,
+    });
+    expect(html.match(/<th scope="row"/g)).toHaveLength(2);
+    expect(html.match(/class="k-bar-list__track" aria-hidden="true"/g)).toHaveLength(2);
+    expect(html).toContain("--k-bar-list-ratio:0.87");
+    expect(html).toContain("--k-bar-list-ratio:1");
+    expect(html.match(/data-state="over"/g)).toHaveLength(1);
+    expect(text(html)).toContain("87 %");
   });
 });

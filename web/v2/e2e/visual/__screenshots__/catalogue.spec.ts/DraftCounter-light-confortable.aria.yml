@@ -10,7 +10,7 @@
       - button "Brouillon ( 0 )"
       - code: empty
       - text: ""
-    - figure "expanded — Panneau ouvert sur le brouillon":
+    - 'figure "expanded — Panneau ouvert : l''icône devient une croix (le prochain appui le ferme)"':
       - button "Brouillon ( 3 )" [expanded]
       - code: expanded
       - text: ""

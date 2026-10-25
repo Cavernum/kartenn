@@ -3,7 +3,7 @@
     - heading "MatrixGrid" [level=1]
     - paragraph: "Motif : Grid (données) ; en-têtes de lignes et de colonnes figés"
     - figure "cell-states — Cellules en brouillon et en revue (icône et mot caché)":
-      - grid "Matrice de politique":
+      - 'grid "Matrice de politique : source en ligne, destination en colonne"':
         - rowgroup:
           - row "Source → destination Serveurs Postes du siège Supervision Sauvegardes Invités":
             - columnheader "Source → destination"

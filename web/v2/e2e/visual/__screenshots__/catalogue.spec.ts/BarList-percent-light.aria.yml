@@ -1,0 +1,23 @@
+- main:
+  - region "BarList":
+    - heading "BarList" [level=1]
+    - paragraph: "Motif : table (en-têtes de ligne, valeurs), barres décoratives"
+    - figure /percent — Occupation de groupes, échelle à \d+ %/:
+      - table "Occupation des groupes de VLAN":
+        - caption: Occupation des groupes de VLAN
+        - rowgroup:
+          - row "Groupe Occupation":
+            - columnheader "Groupe"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row /campus-ouest \d+ %/:
+            - rowheader "campus-ouest"
+            - cell /\d+ %/
+          - row /campus-est \d+ %/:
+            - rowheader "campus-est"
+            - cell /\d+ %/
+          - row "labo 6 %":
+            - rowheader "labo"
+            - cell "6 %"
+      - code: percent
+      - text: ""

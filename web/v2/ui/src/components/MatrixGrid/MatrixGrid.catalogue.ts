@@ -31,7 +31,12 @@ const cell = (axis: readonly MatrixAxis[]) => ({
 const policy: FunctionalComponent<Record<string, unknown>> = (props) =>
   h(
     MatrixGrid as Component,
-    { label: "Matrice de politique", corner: "Source → destination", ...props },
+    {
+      label: "Matrice de politique : source en ligne, destination en colonne",
+      corner: "Source → destination",
+      axes: { rows: "Source", columns: "Destination" },
+      ...props,
+    },
     cell(ZONES),
   );
 
@@ -61,7 +66,8 @@ export default {
   states: [
     {
       name: "rest",
-      description: "Matrice de politique, cellule active",
+      description:
+        "Matrice dirigée, cellule active : croix sur sa ligne et sa colonne, flèches de sens",
       props: { rows: ZONES, columns: ZONES, active: { row: "desks", column: "servers" } },
       demo: policy,
       wide: true,
@@ -76,6 +82,24 @@ export default {
       },
       demo: policy,
       wide: true,
+    },
+    {
+      name: "crosshair",
+      description: "Cellule survolée : la croix la suit, la cellule active garde son liseré",
+      props: { rows: ZONES, columns: ZONES, active: { row: "desks", column: "servers" } },
+      demo: policy,
+      wide: true,
+      interaction: "hover",
+      target: "[data-row='backup'][data-column='monitoring']",
+    },
+    {
+      name: "cell-focus",
+      description: "Focus clavier sur une cellule : la croix suit le focus",
+      props: { rows: ZONES, columns: ZONES, active: { row: "guests", column: "backup" } },
+      demo: policy,
+      wide: true,
+      interaction: "focus",
+      target: "[data-row='guests'][data-column='backup']",
     },
     {
       name: "large",

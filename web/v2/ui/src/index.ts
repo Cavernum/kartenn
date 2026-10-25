@@ -88,6 +88,10 @@ export type {
   TreeRow,
 } from "./components/TreeGrid/tree.ts";
 export { default as FilterChip } from "./components/FilterChip/FilterChip.vue";
+export { default as BarChart } from "./components/BarChart/BarChart.vue";
+export { default as BarList } from "./components/BarList/BarList.vue";
+export { layoutBars, niceCeil } from "./components/BarChart/chart.ts";
+export type { BarLayout, ChartPoint } from "./components/BarChart/chart.ts";
 export { default as DiffList } from "./components/DiffList/DiffList.vue";
 export { DIFF_SIGNS } from "./components/DiffList/diff.ts";
 export type { DiffChange, DiffGroup, DiffKind } from "./components/DiffList/diff.ts";
