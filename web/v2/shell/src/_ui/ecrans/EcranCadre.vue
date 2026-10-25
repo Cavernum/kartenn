@@ -12,9 +12,10 @@
 //
 // Adaptation to the width (spec 020, « Adaptation à la largeur »): the frame alone reads
 // the window, in four classes (`WIDTH_CLASSES`, copied in the media queries below, equal
-// by test). Wide (≥ 1280) and standard (≥ 1024): sidebar expanded, the panel beside the
-// surface while the surface keeps `--k-size-surface-min` (a query on the body), over its
-// end otherwise. Narrow (≥ 600): sidebar as a rail, the panel covers the surface.
+// by test). Wide (≥ 1280) and standard (≥ 1024): sidebar expanded, the panel over the
+// end of the surface, which keeps its width and its columns (user's decision of
+// 2026-10-25, « par-dessus partout »). Narrow (≥ 600): sidebar as a rail, the panel
+// covers the surface.
 // Compact: one column, the sidebar in a drawer opened from the status bar, a reduced bar
 // (date pill and draft counter as icons), the panel a sheet over the window with a back
 // button. CSS lays all this out; the script keeps what CSS cannot: `data-width` on the
@@ -333,25 +334,6 @@ function toggleDraft(): void {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     min-block-size: 0;
-    container: k-ecran-body / inline-size;
-  }
-
-  /* Room for the surface and the panel side by side (`--k-size-surface-min` plus the
-   * least panel, 640 + 320): the open panel leaves the surface's end for its own column,
-   * at most what keeps the surface at its least width; the strip gives it its column.
-   * Not when it covers the surface (narrow class). */
-  @container k-ecran-body (width >= 960px) {
-    .k-ecran__body > .k-side-panel:not([data-cover], [data-sheet]) {
-      position: relative;
-      grid-row: 1;
-      grid-column: 2;
-      inline-size: min(var(--k-side-panel-width), var(--k-size-panel-beside));
-      box-shadow: none;
-    }
-
-    .k-ecran__body:has(> .k-side-panel) > .k-side-panel-rail {
-      display: none;
-    }
   }
 
   .k-ecran__surface {
@@ -407,8 +389,7 @@ function toggleDraft(): void {
     }
   }
 
-  /* Compact: one column; the sidebar in its drawer, opened from the bar; a reduced bar.
-   * The body is no container here: the sheet of the panel is laid on the window. */
+  /* Compact: one column; the sidebar in its drawer, opened from the bar; a reduced bar. */
   @media (width < 600px) {
     .k-ecran {
       grid-template-columns: minmax(0, 1fr);
@@ -430,10 +411,6 @@ function toggleDraft(): void {
 
     .k-ecran__bar-end {
       gap: var(--k-space-1);
-    }
-
-    .k-ecran__body {
-      container-type: normal;
     }
   }
 

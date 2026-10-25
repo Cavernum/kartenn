@@ -178,7 +178,7 @@ const rows: Row[] = [
 const columns: GridColumn[] = [
   { id: "value", label: "Objet", width: "fill", mono: true, sortable: true },
   { id: "usage", label: "Usage", width: "sm", sortable: true, filterable: true, priority: 2 },
-  { id: "env", label: "Environnement", width: "md", sortable: true, filterable: true, priority: 3 },
+  { id: "env", label: "Environnement", width: "md", sortable: true, filterable: true, priority: 2 },
   {
     id: "owner",
     label: "Propriétaire",

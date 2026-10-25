@@ -20,8 +20,7 @@
 // strip covers nothing, at any width (revue du 2026-10-25). The footer shows only when the
 // host fills it for the tab in front: no empty band under a tab without actions. With
 // `sheet` (compact frame, design « Adaptation à la largeur »), it covers the whole window,
-// a back button at its start instead of the cross, and takes the focus when it opens. The
-// host may also lay it beside the surface, in the flow (its own sheet decides).
+// a back button at its start instead of the cross, and takes the focus when it opens.
 import {
   Comment,
   Fragment,
