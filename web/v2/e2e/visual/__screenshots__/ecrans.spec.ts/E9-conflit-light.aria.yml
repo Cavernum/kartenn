@@ -3,7 +3,7 @@
     - heading "L'objet a changé depuis votre lecture" [level=2]
     - button "Fermer"
   - paragraph: "/Quelqu'un a modifié \\d+\\.\\d+\\.\\d+\\.\\d+ après que vous l'avez lue : rien n'a été écrit, votre saisie est gardée\\./"
-  - status:
+  - alert:
     - paragraph: Vous avez lu la version v4, la version actuelle est la v5.
     - list:
       - listitem:
