@@ -3,7 +3,9 @@
 // 024/M12, M16): every data zone has its three states (empty with a sentence and an action,
 // loading in animated skeletons in the cells of the table, error in plain language with its
 // code and Request-Id next to it), and the outcomes of a quick edit: 412 with a clear
-// message and the input kept, 202 « proposé, en revue » with its reason.
+// message and the input kept, 202 « proposé, en revue » with its reason. An HTTP problem
+// shows the `type` the API serves (RFC 9457, `urn:kartenn:problem:<slug>`, 006 design
+// « Erreurs »); a violation or a reason shows its rule code as served.
 import {
   Button,
   CodeBadge,
@@ -144,7 +146,7 @@ const cellState = (row: Row, column: GridColumn): CellState | undefined => {
           :items="[
             {
               message: 'Relisez la valeur actuelle, puis réappliquez ou abandonnez votre saisie.',
-              code: 'core.precondition.failed',
+              code: 'urn:kartenn:problem:precondition-failed',
             },
           ]"
         />

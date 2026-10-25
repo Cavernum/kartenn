@@ -8,9 +8,9 @@
     - list:
       - listitem:
         - text: Relisez la valeur actuelle, puis réappliquez ou abandonnez votre saisie.
-        - button "Copier core.precondition.failed":
+        - button "Copier urn:kartenn:problem:precondition-failed":
           - text: ""
-          - code: core.precondition.failed
+          - code: urn:kartenn:problem:precondition-failed
         - status
   - term: Valeur actuelle
   - definition: Atelier Sud
