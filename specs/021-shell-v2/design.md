@@ -116,7 +116,9 @@ Révisé par la 024 (M8, M15 ; disposition B arbitrée sur prototype, hors dép�
   (`aria-expanded`, `aria-controls`) : fermé, il l'ouvre sur l'onglet Brouillon ; ouvert,
   quel que soit l'onglet, il le ferme, et son icône de brouillon devient une croix
   (revue du 2026-10-25). Son menu (chevron) liste les brouillons de l'utilisateur (REQ-021-11).
-- **Pied de l'onglet Brouillon** : résultat de la simulation en une ligne ; `CommitForm`
+- **Pied de l'onglet Brouillon** : résultat de la simulation (pastille d'état puis phrase,
+  qui va à la ligne quand le panneau est étroit, jamais coupée : revue du 2026-10-25) ;
+  `CommitForm`
   (résumé sur une ligne, description facultative) ; `SplitButton`. Action par défaut :
   « Appliquer » (`POST /v1/drafts/{id}/submission?apply=own`) si `/v1/me` donne
   `apply_own` sur tous les objets du brouillon et que la simulation ne signale aucune
@@ -279,7 +281,7 @@ applique) ; *form* = panneau d'édition de la sorte dans le panneau droit (`Edit
 
 | Écran | Route | But | Édition | Codes notables |
 |---|---|---|---|---|
-| Matrice | `/x/policy/matrix?flow_type=<clé>` | permis entre environnements pour un type de flux (lignes : source, colonnes : destination ; croix de survol et flèches de sens de `MatrixGrid`) ; effet simulé en pied de matrice et dans le panneau du brouillon (cellules changées par source → destination, avant et après, puis effet simulé) | place, vers le brouillon du shell (`policy.matrix.set` avec `if_match`) | `policy.matrix.stale`, `precondition-failed` |
+| Matrice | `/x/policy/matrix?flow_type=<clé>` | permis entre environnements pour un type de flux (lignes : source, colonnes : destination ; croix de survol et pointes de sens de `MatrixGrid` sur les bordures de la croix) ; effet simulé en pied de matrice et dans le panneau du brouillon (cellules changées par source → destination, avant et après, puis effet simulé : comptes, un `InlineAlert` qui dit le nombre de flux cassés, et ces flux en `ExpandableGrid` — source et destination dans le panneau, service et code de la règle qui les refuse dans la vue agrandie) | place, vers le brouillon du shell (`policy.matrix.set` avec `if_match`) | `policy.matrix.stale`, `precondition-failed` |
 | Règles et motifs | `/x/policy/rules`, `rules/<id>`, `rules/new`, `?tab=patterns` | règles hors matrice et motifs | form | `policy.text.missing` |
 | Catalogue | `/x/policy/catalogue/<collection>/<id>` | objets de référence, une forme pour huit collections | form | `invalid-member` |
 | Inférence | `/x/policy/inference`, `inference/<id>`, `inference/mismatches` | règles qui déduisent un axe, écarts ; aperçu d'une règle (route S36) | form, menu | `policy.inference.conflict`, `policy.inference.mismatch` |
@@ -641,7 +643,13 @@ tri et filtre de 130 à 260 ms).
 
 - **Message d'une erreur** (REQ-021-20, 024/M16) : une phrase courante par type de
   problème, tirée des libellés de la 018 (« L'objet a changé depuis votre lecture »), le
-  code à côté en `CodeBadge` ; jamais le titre technique seul.
+  code à côté en `CodeBadge` ; jamais le titre technique seul. Le code montré est celui
+  que sert l'API, sans traduction : pour un problème HTTP, son `type` (RFC 9457,
+  `urn:kartenn:problem:<slug>`, table de la 006, design « Erreurs » : un 412 montre
+  `urn:kartenn:problem:precondition-failed`, un 503 `urn:kartenn:problem:unavailable`) ;
+  pour une violation (`violations[].rule` d'un 422) ou le motif d'une 202 (`reason.code`),
+  le code de la règle (`core.binding.escalation`, `changeset.apply_own.missing`). Jamais
+  de code pointé inventé pour un problème HTTP (revue du 2026-10-25).
 - **Brouillon supprimé, expiré ou repris** pendant que l'onglet l'a pour brouillon actif
   (événement `draft` `deleted`, ou 404) : l'onglet le quitte, avis avec le motif ;
   l'éditeur en cours garde sa saisie, proposée dans un nouveau brouillon.

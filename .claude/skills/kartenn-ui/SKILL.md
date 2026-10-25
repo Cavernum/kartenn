@@ -69,6 +69,8 @@ largeur est fausse, même belle à 1280 px.
   (`providePortalTarget`) ; la surface en `isolation: isolate`, pour qu'un en-tête collant
   ne passe pas au-dessus du panneau droit ni d'un menu.
 - **Barres d'outils** : `Toolbar` replie dans « … », jamais de retour à la ligne.
+- **Messages** : une phrase va à la ligne, jamais d'ellipse sans moyen de lire le texte
+  entier ; une liste longue dans un lieu étroit est une `ExpandableGrid`.
 - **Quatre largeurs** : avant de rendre une maquette ou un écran, le voir à 1440, 1280,
   1024 et 768 px, en clair et en sombre ; la capture le prouve.
 - **Droits** : une action interdite reste visible, `aria-disabled`, infobulle « Il faut
@@ -104,12 +106,13 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `SidePanel` | `complementary` non modal + Tabs ; surimpression de la surface (hôte positionné, surface `isolation: isolate`), redimensionnable (Window Splitter maison) ; `cover` sous 1024 px (toute la surface, sans poignée) ; `rail` : replié, languette dans le flux (piste `auto` de l'hôte) dont le chevron « Ouvrir le panneau » le rouvre | ● |
 | `CommitForm`, `SplitButton` | champs étiquetés, Ctrl+Entrée ; Button + Menu Button (entrées désactivées avec motif) | ● |
 | `Toolbar` | Toolbar ; actions repliées dans « … » par priorité | ● |
-| `MatrixGrid` | Grid ; en-têtes de lignes et de colonnes figés ; croix de survol ou de la cellule active (`data-cross`, en-têtes compris) ; `axes` : sens lignes ↓ colonnes → au coin et flèches décoratives sur les en-têtes de la croix (virtualisation au-delà de 50 × 50 à venir) | ● |
+| `MatrixGrid` | Grid ; en-têtes de lignes et de colonnes figés ; croix de survol ou de la cellule active (`data-cross`, en-têtes compris) ; `axes` : sens lignes ↓ colonnes → au coin et pointes d'accent sur les bordures de la croix (`data-flow` : fin de l'en-tête source, bas de l'en-tête destination, début et haut de la cellule montrée ; pseudo-éléments, retournées en RTL) (virtualisation au-delà de 50 × 50 à venir) | ● |
 | `Toast` | `status` / `alert`, pause au survol et au focus | ☐ |
 | `Tooltip`, `Popover` | Tooltip (`useTooltip`, action refusée : `forbidden`, `reason` sur `Button`, `IconButton`, entrée de `Menu`) ; Dialog non modal | ◐ (`Tooltip` ●) |
 | `Breadcrumb`, `SidebarNav` | Breadcrumb ; Disclosure dans `navigation` | ◐ |
 | `CommandPalette` | Combobox dans un Dialog modal (liste `position="inline"`, sans Viewport) | ◐ |
-| `DataGrid` | Grid (maison) ; une seule grille, lignes en `subgrid` (024) ; tri (`aria-sort`) et filtre de colonne (Alt+Bas, `filter`) ; navigation au clavier (virtualisation et édition à venir) | ◐ |
+| `DataGrid` | Grid (maison) ; une seule grille, lignes en `subgrid` (024) ; tri (`aria-sort`) et filtre de colonne (Alt+Bas, `filter`) ; navigation au clavier ; colonne de message `wrap` (va à la ligne) (virtualisation et édition à venir) | ◐ |
+| `ExpandableGrid` | `DataGrid` compacte (compte de lignes, `visibleRows`, `compactColumns`) + `IconButton` « Agrandir » qui ouvre la même table dans un `Dialog` `lg` `contained` (focus piégé, Échap, focus rendu au bouton) ; tri et filtres de l'hôte, partagés | ● |
 | `TreeGrid`, `Tree` | Treegrid ; Tree View ; garde d'affichage `misplaced` ; « + » d'un nœud (`addLabel`, événement `add`, 024/M10) | ◐ (`TreeGrid`) |
 | `CodeBadge`, `KeyLabel`, `EnvChip`, `StatusBadge` | Button (copier, nom = contenu, « Copier » caché) ; — | ◐ |
 | `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `aria-busy` (reflet animé, immobile sous mouvement réduit) ; `alert` ; `status` | ◐ |
