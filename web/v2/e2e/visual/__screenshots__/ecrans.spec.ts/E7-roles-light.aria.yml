@@ -113,53 +113,53 @@
       - heading "Permissions · 8" [level=3]
       - list:
         - listitem:
+          - text: Lire les préfixes
           - button "Copier core.prefix.read":
             - text: ""
             - code: core.prefix.read
           - status
-          - text: Lire les préfixes
         - listitem:
+          - text: Lire les adresses
           - button "Copier core.address.read":
             - text: ""
             - code: core.address.read
           - status
-          - text: Lire les adresses
         - listitem:
+          - text: Lire les plages
           - button "Copier core.range.read":
             - text: ""
             - code: core.range.read
           - status
-          - text: Lire les plages
         - listitem:
+          - text: Lire les sites
           - button "Copier core.site.read":
             - text: ""
             - code: core.site.read
           - status
-          - text: Lire les sites
         - listitem:
+          - text: Lire les VLAN
           - button "Copier vlan.read":
             - text: ""
             - code: vlan.read
           - status
-          - text: Lire les VLAN
         - listitem:
+          - text: Lire les groupes de VLAN
           - button "Copier vlan.group.read":
             - text: ""
             - code: vlan.group.read
           - status
-          - text: Lire les groupes de VLAN
         - listitem:
+          - text: Lire les machines
           - button "Copier machines.read":
             - text: ""
             - code: machines.read
           - status
-          - text: Lire les machines
         - listitem:
+          - text: Lire les interfaces
           - button "Copier machines.interface.read":
             - text: ""
             - code: machines.interface.read
           - status
-          - text: Lire les interfaces
     - region "Liaisons · 9":
       - heading "Liaisons · 9" [level=3]
       - list:
