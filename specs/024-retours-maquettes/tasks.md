@@ -509,7 +509,10 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
       modifier une liaison de portée globale par `reason` (`core.binding.escalation`) :
       motif plausible, à confirmer par une spec.
     - E9 : encart du 412 en ton `ko` (icône, titre et fond rouges, rôle `alert`) ; le 503
-      garde son `ErrorState` à icône rouge.
+      garde son `ErrorState` à icône rouge. Squelettes de chargement : jetons
+      `--k-skeleton` (barre, ≥ 1,2:1 sur les surfaces) et `--k-skeleton-sheen` (reflet,
+      ≥ 1,25:1 sur la barre), barres de 12 px ; sous mouvement réduit, barre fixe sans
+      reflet.
     - Captures : `k-web-shots --update changed [fichier]` plutôt que `all`, qui réécrit des
       références inchangées (bruit d'anticrénelage).
     - À faire : liste de lignes à actions en composant de bibliothèque (colonne d'actions,
