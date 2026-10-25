@@ -58,8 +58,19 @@ const past = computed(() => props.at !== null);
     border: var(--k-border-width) solid var(--k-border-control);
     border-radius: var(--k-radius-full);
     transition-property: background-color;
+    transition-duration: var(--k-duration-fade);
+    transition-timing-function: var(--k-ease-standard);
+  }
+
+  /* The chevron turns while the picker is open (design « Mouvement »). */
+  .k-date-pill__chevron {
+    transition-property: rotate;
     transition-duration: var(--k-duration-short);
     transition-timing-function: var(--k-ease-standard);
+  }
+
+  .k-date-pill[aria-expanded="true"] .k-date-pill__chevron {
+    rotate: var(--k-turn-half);
   }
 
   .k-date-pill:hover {

@@ -78,6 +78,38 @@ const portal = injectPortalTarget();
     box-shadow: var(--k-shadow-modal);
   }
 
+  /* Motion (design « Mouvement »): in from its edge, out by a fade (the sheet of `Dialog`,
+   * which also fades the scrim). */
+  .k-drawer {
+    transition-property: opacity, translate;
+    transition-duration: max(var(--k-duration-medium), var(--k-duration-fade));
+    transition-timing-function: var(--k-ease-standard);
+  }
+
+  @starting-style {
+    .k-drawer {
+      opacity: 0;
+      translate: var(--k-motion-shift-lg) 0;
+    }
+
+    .k-drawer[data-side="start"],
+    .k-drawer:dir(rtl) {
+      translate: calc(var(--k-motion-shift-lg) * -1) 0;
+    }
+
+    .k-drawer[data-side="start"]:dir(rtl) {
+      translate: var(--k-motion-shift-lg) 0;
+    }
+  }
+
+  .k-drawer[data-state="closed"] {
+    pointer-events: none;
+    animation-name: k-fade-out;
+    animation-duration: max(var(--k-duration-short), var(--k-duration-fade));
+    animation-timing-function: var(--k-ease-exit);
+    animation-fill-mode: forwards;
+  }
+
   .k-drawer[data-side="start"] {
     inset-inline: 0 auto;
     border-inline-start: 0;

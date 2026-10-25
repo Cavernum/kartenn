@@ -178,10 +178,20 @@
     --k-duration-fade: 80ms;
     --k-duration-short: 120ms;
     --k-duration-medium: 200ms;
+    --k-duration-slow: 300ms;
     --k-duration-spin: 900ms;
     --k-ease-standard: cubic-bezier(0.2, 0, 0, 1);
     --k-ease-exit: cubic-bezier(0.4, 0, 1, 1);
     --k-ease-linear: linear;
+    /* The way a layer comes from (its entry only): shifts towards its anchor or edge, the
+     * scale it rises from; none under reduced motion, its fade alone left. */
+    --k-motion-shift-sm: 4px;
+    --k-motion-shift-md: 8px;
+    --k-motion-shift-lg: 24px;
+    --k-motion-scale: 0.98;
+    /* The turn of a chevron (rotated, never swapped). */
+    --k-turn-quarter: 90deg;
+    --k-turn-half: 180deg;
   }
 
   /* Dark mode: the system's, unless the user forced light (REQ-020-3). The two blocks
@@ -280,12 +290,30 @@
     --k-tree-indent: 18px;
   }
 
-  /* Reduced motion (REQ-020-11, WCAG 2.3.3): no movement, a short fade at most */
+  /* Reduced motion (REQ-020-11, WCAG 2.3.3): no movement, a short fade at most; the
+   * system's, or the user's setting « Mouvement : réduit » (SCR40). The two blocks below
+   * are identical (test). */
   @media (prefers-reduced-motion: reduce) {
     :root {
       --k-duration-short: 0ms;
       --k-duration-medium: 0ms;
+      --k-duration-slow: 80ms;
       --k-duration-spin: 0ms;
+      --k-motion-shift-sm: 0px;
+      --k-motion-shift-md: 0px;
+      --k-motion-shift-lg: 0px;
+      --k-motion-scale: 1;
     }
+  }
+
+  :root[data-motion="reduce"] {
+    --k-duration-short: 0ms;
+    --k-duration-medium: 0ms;
+    --k-duration-slow: 80ms;
+    --k-duration-spin: 0ms;
+    --k-motion-shift-sm: 0px;
+    --k-motion-shift-md: 0px;
+    --k-motion-shift-lg: 0px;
+    --k-motion-scale: 1;
   }
 }

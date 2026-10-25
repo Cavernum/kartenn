@@ -212,15 +212,31 @@ describe("tokens", () => {
     }
   });
 
-  it("zeroes every duration under reduced motion, but the fade", () => {
-    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*:root \{/);
-    for (const [name, value] of Object.entries(reduced)) {
-      if (name.startsWith("--k-duration-") && name !== "--k-duration-fade") {
-        expect(value, name).toBe("0ms");
+  // A colour fade is not motion (WCAG 2.3.3): `fade` and `slow` (the highlight of a row)
+  // keep 80 ms; every other duration, which moves or scales, is zero.
+  for (const [source, palette] of [
+    ["the system", reduced],
+    ["the user's setting", { ...light, ...block(':root[data-motion="reduce"]') }],
+  ] as const) {
+    it(`zeroes every duration of a movement under reduced motion (${source})`, () => {
+      for (const [name, value] of Object.entries(palette)) {
+        if (!name.startsWith("--k-duration-")) continue;
+        const fade = name === "--k-duration-fade" || name === "--k-duration-slow";
+        expect(value, name).toBe(fade ? "80ms" : "0ms");
       }
-    }
-    expect(reduced["--k-duration-fade"]).toBe("80ms");
+      expect(palette["--k-duration-instant"]).toBe("0ms");
+      for (const size of ["sm", "md", "lg"]) {
+        expect(palette[`--k-motion-shift-${size}`], size).toBe("0px");
+      }
+      expect(palette["--k-motion-scale"]).toBe("1");
+    });
+  }
+
+  it("the reduced motion of the system is the one chosen", () => {
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{\s*:root \{/);
+    expect(block(":root", 1)).toEqual(block(':root[data-motion="reduce"]'));
     expect(light["--k-duration-medium"]).toBe("200ms");
+    expect(light["--k-duration-slow"]).toBe("300ms");
   });
 
   it("the ratio follows WCAG", () => {

@@ -27,8 +27,11 @@ export interface GridColumn {
  */
 export type CellState = "pending" | "draft" | "review" | { error: string; code?: string };
 
-/** The state of a whole row. */
-export type RowState = "draft" | "review";
+/**
+ * The state of a whole row: added or changed in a draft, in review, or removed in a draft
+ * (struck through until the draft is applied, rather than gone).
+ */
+export type RowState = "draft" | "review" | "removed";
 
 /** The sort of the grid (`aria-sort` of its header). */
 export interface GridSort {

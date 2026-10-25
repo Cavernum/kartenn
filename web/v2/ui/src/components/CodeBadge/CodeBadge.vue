@@ -72,7 +72,7 @@ onBeforeUnmount(() => clearTimeout(timer));
     border: var(--k-border-width) solid var(--k-border-strong);
     border-radius: var(--k-radius-md);
     transition-property: background-color, border-color;
-    transition-duration: var(--k-duration-short);
+    transition-duration: var(--k-duration-fade);
     transition-timing-function: var(--k-ease-standard);
   }
 

@@ -74,7 +74,12 @@ const heights = named([
   "control-height-md",
   "control-height-lg",
 ]);
-const motion = [...pick("--k-duration-"), ...pick("--k-ease-")];
+const motion = [
+  ...pick("--k-duration-"),
+  ...pick("--k-ease-"),
+  ...pick("--k-motion-"),
+  ...pick("--k-turn-"),
+];
 const figures = [
   ["10.0.0.0/8", "16 777 216", "12,5 %"],
   ["10.12.0.0/16", "65 536", "48,0 %"],

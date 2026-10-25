@@ -51,8 +51,17 @@ non servi avant la bascule) ; `web/` ne reçoit que des correctifs.
   composants flottants (liste `FLOATING` de `web/v2/stylelint.config.js`) ; ailleurs, un
   liseré intérieur `--k-shadow-inset-…` seulement.
 - Une propriété personnalisée locale s'appelle `--k-<composant>-…` et vaut un jeton.
-- Mouvement : durées `--k-duration-*` et courbes `--k-ease-*` seulement (nulles sous
-  mouvement réduit) ; aucune animation en boucle hors indicateur de chargement.
+- Mouvement (020 § « Mouvement », politique et réalisation) : durées `--k-duration-*`,
+  courbes `--k-ease-*`, amplitudes `--k-motion-*`, rotations `--k-turn-*` seulement ; sous
+  mouvement réduit (préférence du système ou `data-motion="reduce"`), durées nulles sauf
+  `fade`/`slow` et amplitudes nulles. `transform` (`translate`, `scale`, `rotate`),
+  `opacity` et couleurs seulement ; opacité d'une couche en
+  `max(var(--k-duration-medium), var(--k-duration-fade))`. Couche de Reka : entrée par
+  `@starting-style`, sortie par `k-fade-out` (la `Presence` attend un `animationend`) ;
+  focus placé sans attendre ; pas de `mode="out-in"`, pas de View Transitions, pas de
+  minuterie. Jamais animés : tri, filtre, actualisation, valeurs, défilement, contenu d'un
+  nœud, changement de page. Chevron de repli : `k-chevron` + `data-open`. Aucune animation
+  en boucle hors indicateur de chargement ; le reflet du squelette s'arrête avant 5 s.
 
 ### Structure avant style (spec 020 § « Structure avant style », 024/M12, M15)
 
@@ -103,7 +112,7 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `Tabs` | Tabs (activation manuelle) | ◐ |
 | `Menu` (bouton et menu) | Menu Button, Menu ; entrée désactivée focalisable (`aria-disabled`), motif en description et infobulle | ◐ |
 | `Dialog`, `AlertDialog`, `Drawer` | Dialog (Modal), Alert Dialog ; `Drawer` modal seulement | ◐ |
-| `SidePanel` | `complementary` non modal + Tabs ; surimpression de la surface (hôte positionné, surface `isolation: isolate`), redimensionnable (Window Splitter maison) ; `cover` sous 1024 px (toute la surface, sans poignée) ; `rail` : replié, languette dans le flux (piste `auto` de l'hôte) dont le chevron « Ouvrir le panneau » le rouvre | ● |
+| `SidePanel` | `complementary` non modal + Tabs ; surimpression de la surface (hôte positionné, surface `isolation: isolate`), redimensionnable (Window Splitter maison) ; `cover` sous 1024 px (toute la surface, sans poignée) ; `rail` : replié, languette dans le flux (piste `auto` de l'hôte) dont le chevron « Ouvrir le panneau » le rouvre ; entre et sort depuis son bord (`<Transition>`, jamais au premier rendu) | ● |
 | `CommitForm`, `SplitButton` | champs étiquetés, Ctrl+Entrée ; Button + Menu Button (entrées désactivées avec motif) | ● |
 | `Toolbar` | Toolbar ; actions repliées dans « … » par priorité | ● |
 | `MatrixGrid` | Grid ; en-têtes de lignes et de colonnes figés ; croix de survol ou de la cellule active (`data-cross`, en-têtes compris) ; `axes` : sens lignes ↓ colonnes → au coin et pointes d'accent sur les bordures de la croix (`data-flow` : fin de l'en-tête source, bas de l'en-tête destination, début et haut de la cellule montrée ; pseudo-éléments, retournées en RTL) (virtualisation au-delà de 50 × 50 à venir) | ● |
@@ -111,11 +120,11 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `Tooltip`, `Popover` | Tooltip (`useTooltip`, action refusée : `forbidden`, `reason` sur `Button`, `IconButton`, entrée de `Menu`) ; Dialog non modal | ◐ (`Tooltip` ●) |
 | `Breadcrumb`, `SidebarNav` | Breadcrumb ; Disclosure dans `navigation` | ◐ |
 | `CommandPalette` | Combobox dans un Dialog modal (liste `position="inline"`, sans Viewport) | ◐ |
-| `DataGrid` | Grid (maison) ; une seule grille, lignes en `subgrid` (024) ; tri (`aria-sort`) et filtre de colonne (Alt+Bas, `filter`) ; navigation au clavier ; colonne de message `wrap` (va à la ligne) (virtualisation et édition à venir) | ◐ |
+| `DataGrid` | Grid (maison) ; une seule grille, lignes en `subgrid` (024) ; tri (`aria-sort`) et filtre de colonne (Alt+Bas, `filter`) ; navigation au clavier ; colonne de message `wrap` (va à la ligne) ; états de ligne `draft`, `review`, `removed` (barrée), ligne entrée dans un brouillon éclairée une fois (`data-fresh`) (virtualisation et édition à venir) | ◐ |
 | `ExpandableGrid` | `DataGrid` compacte (compte de lignes, `visibleRows`, `compactColumns`) + `IconButton` « Agrandir » qui ouvre la même table dans un `Dialog` `lg` `contained` (focus piégé, Échap, focus rendu au bouton) ; tri et filtres de l'hôte, partagés | ● |
 | `TreeGrid`, `Tree` | Treegrid ; Tree View ; garde d'affichage `misplaced` ; « + » d'un nœud (`addLabel`, événement `add`, 024/M10) | ◐ (`TreeGrid`) |
 | `CodeBadge`, `KeyLabel`, `EnvChip`, `StatusBadge` | Button (copier, nom = contenu, « Copier » caché) ; — | ◐ |
-| `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `aria-busy` (reflet animé, immobile sous mouvement réduit) ; `alert` ; `status` | ◐ |
+| `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `aria-busy` (reflet animé deux fois puis fond fixe, immobile sous mouvement réduit) ; `alert` ; `status` | ◐ |
 | `DatePill`, `DraftCounter`, `TimeBand` | Button ; bascule du panneau (`aria-expanded`, `aria-controls` ; ouvert, icône en croix) et Menu Button des brouillons ; `status` | ◐ (`DraftCounter` ●) |
 | `Kbd`, `ShortcutHint` | — ; `kbd` imbriqués, noms de touches dans la langue | ◐ (`Kbd`) |
 | `DiffList` | liste groupée, Disclosure ; signe, mot caché, `del`/`ins` | ◐ |

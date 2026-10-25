@@ -28,7 +28,7 @@
     border: var(--k-border-width) solid var(--k-button-border);
     border-radius: var(--k-radius-md);
     transition-property: background-color, border-color, color;
-    transition-duration: var(--k-duration-short);
+    transition-duration: var(--k-duration-fade);
     transition-timing-function: var(--k-ease-standard);
   }
 

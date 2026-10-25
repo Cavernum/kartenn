@@ -106,6 +106,37 @@ function focusFirstField(event: Event): void {
     box-shadow: var(--k-shadow-modal);
   }
 
+  /* Motion (design « Mouvement »): the scrim fades in, the dialog rises from 98 % of its
+   * size; out, both fade. Under reduced motion the scale is none and the fade keeps
+   * `fade`. Interactive from the first frame; the focus is placed at once, never after the
+   * end. Without `@starting-style`, the dialog just appears. */
+  .k-dialog__overlay,
+  .k-dialog {
+    transition-property: opacity, scale;
+    transition-duration: max(var(--k-duration-medium), var(--k-duration-fade));
+    transition-timing-function: var(--k-ease-standard);
+  }
+
+  @starting-style {
+    .k-dialog__overlay,
+    .k-dialog {
+      opacity: 0;
+    }
+
+    .k-dialog {
+      scale: var(--k-motion-scale);
+    }
+  }
+
+  .k-dialog__overlay[data-state="closed"],
+  .k-dialog[data-state="closed"] {
+    pointer-events: none;
+    animation-name: k-fade-out;
+    animation-duration: max(var(--k-duration-short), var(--k-duration-fade));
+    animation-timing-function: var(--k-ease-exit);
+    animation-fill-mode: forwards;
+  }
+
   .k-dialog[data-size="sm"] {
     --k-dialog-size: var(--k-size-dialog-sm);
   }

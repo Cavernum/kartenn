@@ -122,7 +122,7 @@ defineExpose({ submit, focus: focusSummary });
     border: var(--k-border-width) solid var(--k-border-control);
     border-radius: var(--k-radius-md);
     transition-property: border-color;
-    transition-duration: var(--k-duration-short);
+    transition-duration: var(--k-duration-fade);
     transition-timing-function: var(--k-ease-standard);
   }
 

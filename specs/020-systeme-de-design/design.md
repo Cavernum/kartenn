@@ -255,6 +255,50 @@ de l'utilisateur gagne « Mouvement : celui du système / réduit » (technique 
 pose `data-motion="reduce"` sur la racine et applique les mêmes jetons que la préférence
 du système.
 
+Réalisation (2026-10-25). Jetons ajoutés : `--k-duration-slow` ; les amplitudes
+`--k-motion-shift-sm` / `-md` / `-lg` (4 / 8 / 24 px) et `--k-motion-scale` (0,98), nulles
+(0 px, 1) sous mouvement réduit ; `--k-turn-quarter` / `-half` (90° / 180°, rotation d'un
+chevron). `--k-ease-standard` sert d'entrée (décélération), `--k-ease-exit` de sortie. Le
+bloc `:root[data-motion="reduce"]` est identique au bloc de la requête média (test) : sous
+mouvement réduit, toute durée vaut 0 ms sauf `fade` et `slow` (80 ms) ; la durée d'opacité
+d'une couche s'écrit `max(var(--k-duration-medium), var(--k-duration-fade))`, si bien que
+la couche se fond en 80 ms sans bouger. Mise en œuvre :
+- **Couches de Reka** (`Dialog`, `AlertDialog`, surimpression d'`ExpandableGrid`, `Drawer`,
+  `CommandPalette`, `Menu`) : entrée par transition depuis `@starting-style` (sans prise en
+  charge, la couche apparaît d'un coup) ; sortie par l'animation `k-fade-out` (opacité
+  seule), parce que la `Presence` de Reka ne retient une couche que jusqu'à son
+  `animationend`, pas un `transitionend`. Couche fermée : `pointer-events: none`.
+- **`SidePanel`** : `<Transition>` de Vue (pas d'animation au premier rendu ni au
+  changement de page), classes `k-side-panel-enter-*` / `-leave-*`, seule classe d'état de
+  la bibliothèque ; le chevron de la languette entre de même.
+- **Infobulle** : fondu `fade` depuis `@starting-style` ; sortie immédiate. Pas de toast
+  (composant absent).
+- **Chevrons** : un seul glyphe `chevron-right` (classe `k-chevron`, `data-open`) tourné
+  d'un quart (`TreeGrid`, `SidebarNav`, `DiffList`), retourné en RTL ; ceux d'un menu, du
+  bouton scindé, du compteur de brouillons et de la pastille de date tournent d'un demi-tour
+  sous `aria-expanded="true"`. La languette du panneau n'existe que fermée : pas de
+  rotation.
+- **Survol, croix, ligne active** : `background-color` en `fade` (`DataGrid`, `TreeGrid`,
+  `MatrixGrid`, et les contrôles qui passaient en `short`).
+- **Brouillon** : `DataGrid` marque `data-fresh` la ligne dont l'état devient `draft` après
+  le premier rendu (une ligne masquée par un filtre puis remontrée garde son dernier état et
+  ne clignote pas) ; animation `k-row-fresh` de `--k-accent-soft` vers son fond, en
+  `slow`, retirée à son `animationend`. Ligne retirée : nouvel état `removed` (barrée,
+  atténuée, signe « − », mot caché « retirée dans le brouillon »), sans fondu de retrait.
+- **Onglets** : pas de barre glissante ; l'indicateur reste la bordure de l'onglet actif, en
+  fondu de couleur (une barre demanderait des positions physiques mesurées et des
+  exceptions de lint).
+- **Squelette** : deux passages du reflet (3,6 s), puis `animation-fill-mode: forwards` le
+  laisse hors de la barre ; immobile sous `data-motion="reduce"` comme sous la préférence.
+- **Réglage** : `applyMotion("system" | "reduce")` et `currentMotion()` de `@kartenn/ui` ;
+  l'entrée « Mouvement » du menu de l'utilisateur de la maquette du cadre bascule entre les
+  deux. Le shell réel ne câble encore ni thème ni densité : le réglage l'y rejoindra.
+- **Tests** : jetons (durées nulles sauf `fade` et `slow`, amplitudes nulles, deux blocs
+  identiques) ; `shell/test/motion.test.ts` (happy-dom) : attribut posé et retiré, focus
+  rendu sans attendre la sortie du panneau, ligne de brouillon éclairée une fois. Avant axe,
+  le parcours attend la fin des animations finies (une couche se fond même sous mouvement
+  réduit) ; les captures les avancent à leur fin (`animations: "disabled"`).
+
 ### Tailles (tâches 10 à 12, 2026-10-24)
 
 Largeurs du cadre et des couches, pour qu'aucun écran n'en écrive : `--k-size-sidebar`

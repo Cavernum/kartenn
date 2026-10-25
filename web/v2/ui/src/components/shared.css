@@ -63,6 +63,36 @@
     animation-iteration-count: infinite;
   }
 
+  /* The chevron of a disclosure (tree node, group of the sidebar or of a diff; design
+   * « Mouvement »): one glyph pointing to the inline end, turned a quarter down when open
+   * (`data-open`). The glyph alone turns; what it opens appears at once. */
+  .k-chevron {
+    transition-property: rotate;
+    transition-duration: var(--k-duration-short);
+    transition-timing-function: var(--k-ease-standard);
+  }
+
+  .k-chevron:dir(rtl) {
+    scale: -1 1;
+  }
+
+  .k-chevron[data-open] {
+    rotate: var(--k-turn-quarter);
+  }
+
+  .k-chevron[data-open]:dir(rtl) {
+    rotate: calc(var(--k-turn-quarter) * -1);
+  }
+
+  /* The exit of a layer of Reka (dialog, menu; design « Mouvement »): a fade, an animation
+   * rather than a transition because Reka's Presence keeps the layer mounted until its
+   * `animationend`. Movement and scale belong to the entry only. */
+  @keyframes k-fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+
   @keyframes k-spin {
     to {
       transform: rotate(1turn);

@@ -88,11 +88,18 @@ export default {
     },
     {
       name: "row-states",
-      description: "Lignes en brouillon et en revue",
+      description:
+        "Lignes en brouillon, en revue, retirée dans le brouillon (barrée) ; une ligne qui entre dans un brouillon s'éclaire puis s'estompe",
       props: {
         ...base,
         rowState: (row: Row) =>
-          row.prefix === prefixes[1] ? "draft" : row.prefix === prefixes[3] ? "review" : undefined,
+          row.prefix === prefixes[1]
+            ? "draft"
+            : row.prefix === prefixes[3]
+              ? "review"
+              : row.prefix === prefixes[4]
+                ? "removed"
+                : undefined,
       },
       wide: true,
     },
