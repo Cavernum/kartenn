@@ -1,0 +1,57 @@
+- main:
+  - region "SidePanel":
+    - heading "SidePanel" [level=1]
+    - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter"
+    - 'figure /sheet — Fenêtre compacte : feuille plein écran \(ici, tout le cadre de \d+ px\), « Retour » au début de ses onglets/':
+      - button "Brouillon ( 3 )" [expanded]
+      - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
+      - grid "Préfixes":
+        - rowgroup:
+          - row "Préfixe Libellé Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.2\.0\/\d+ Supervision \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Supervision"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Réserve \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Réserve"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Salle B \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Salle B"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell /\d+ %/
+          - row /\d+:db8::\/\d+ Sauvegardes 7 %/:
+            - gridcell /\d+:db8::\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "7 %"
+      - complementary "Panneau droit":
+        - tablist "Panneau droit":
+          - tab "Détail"
+          - tab "Brouillon 3" [selected]
+        - tabpanel "Brouillon 3":
+          - list:
+            - listitem: /Brouillon \d+\.\d+\.\d+\.\d+\/\d+/
+            - listitem: /Brouillon \d+\.\d+\.\d+\.\d+/
+            - listitem: /Brouillon \d+\.\d+\.\d+\.\d+\/\d+/
+        - button "Retour"
+        - paragraph: Simulation valide
+        - text: Résumé (obligatoire)
+        - textbox "Résumé (obligatoire)": Maintenance du référentiel
+        - text: Description (facultative)
+        - textbox "Description (facultative)"
+        - button "Appliquer"
+        - button "Choisir l'action"
+      - code: sheet
+      - text: ""

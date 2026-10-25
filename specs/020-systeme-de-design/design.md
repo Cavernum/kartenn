@@ -491,6 +491,10 @@ horizontalement hors des régions de grille, et que chaque classe montre le cadr
   des maquettes posent leurs libellés au-dessus des champs : rien à aligner entre eux ;
   les panneaux d'E2 ne sont pas traversés (un `subgrid` à travers `Panneau` lierait sa
   structure à son contenu).
+- Catalogue : état `sheet` du `SidePanel`, dans un cadre de démonstration `phone`
+  (`DemoFrame`, 400 px de large) dont la containment de mise en page (`contain: layout
+  paint`) fait le bloc conteneur de ce qui est fixé à la fenêtre : la feuille couvre le
+  cadre, pas la page du catalogue.
 
 ## Architecture CSS (REQ-020-12 à 14)
 
