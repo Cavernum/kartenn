@@ -36,5 +36,6 @@ Chaque note contient :
 | [vlan-mac-ieee-802.md](vlan-mac-ieee-802.md) | VID IEEE 802.1Q (valeurs réservées), adresses MAC EUI-48 (RFC 9542) | 008, 009 |
 | [oauth-clients-natifs.md](oauth-clients-natifs.md) | Client OAuth natif public : bouclage et PKCE (RFC 8252, 7636), flux d'appareil (RFC 8628), rotation des jetons de rafraîchissement (RFC 9700), nonce OIDC, audience (RFC 9068, 8707) | 023 |
 | [systeme-de-design.md](systeme-de-design.md) | Critères WCAG 2.2 du système de design, motifs APG, couches de cascade, `prefers-reduced-motion`, déterminisme des captures Playwright, licences OFL, ISC et MPL | 020 |
+| [mouvement-interface.md](mouvement-interface.md) | Mouvement : WCAG 2.2 (SC 2.3.3, 2.2.2, 2.3.1), `prefers-reduced-motion`, `@starting-style` et `allow-discrete`, View Transitions, prise en charge ; politique de kartenn | 020 |
 | [push-serveur.md](push-serveur.md) | Canal push serveur → client : SSE, MCP Streamable HTTP, mandataires, alternatives, `LISTEN`/`NOTIFY` | 022 |
 | [langues-negociation.md](langues-negociation.md) | Étiquettes BCP 47 (RFC 5646), Lookup (RFC 4647), `Accept-Language`, `Content-Language`, `Vary`, cache d'une réponse par langue | 018 |

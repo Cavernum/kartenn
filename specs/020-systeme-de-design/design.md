@@ -223,6 +223,38 @@ zone cliquable de 24 px par son étiquette ou sa cellule.
 remplacé par un squelette statique sous mouvement réduit. `--k-duration-spin` (900 ms,
 0 sous mouvement réduit) et `--k-ease-linear` font tourner cet indicateur (tâche 10).
 
+Politique (relecture du 2026-10-25, note
+[`mouvement-interface.md`](../../docs/reference/mouvement-interface.md)) : l'interface
+était jugée rapide mais figée ; le mouvement s'ajoute avec parcimonie, pour dire d'où vient
+une couche et ce qui vient de changer.
+
+| Interaction | Mouvement | Entrée / sortie |
+|---|---|---|
+| Panneau latéral, languette | `translateX` (depuis le bord) + opacité ; la surface prend sa largeur sans animation | `medium` `standard` / `short` `exit` |
+| Dialogue, surimpression d'une grille agrandie | opacité + `scale(.98 → 1)` ; voile en fondu | `medium` / `short` |
+| Menu, popover, sélecteur de période | opacité + `translateY(4px)` depuis son ancre | `short` / `fade` |
+| Infobulle | opacité, après son délai ; sortie sans animation | `fade` / 0 |
+| Toast | `translateY(8px)` + opacité ; pause au survol et au focus | `medium` / `short` |
+| Ligne ajoutée à un brouillon | fond `--k-accent-soft` qui s'estompe, sans déplacer les voisines | `slow` |
+| Ligne retirée | fondu avant retrait (ou passage à l'état barré) | `short` |
+| Indicateur d'onglet | `translateX` de la barre | `medium` |
+| Survol, croix d'une matrice, ligne active | couleur de fond seule, sans `transform` | `fade` |
+| Chevron d'un nœud, d'un repli | `rotate` du seul glyphe ; le contenu apparaît d'un coup | `short` |
+
+Jamais animés : actualisation, tri ou filtre d'une grille, valeur d'une cellule,
+défilement (`scroll-behavior` au défaut), virtualisation, ouverture d'un nœud d'arbre (le
+contenu), changement de page.
+
+Règles : `transform`, `opacity` et couleurs seulement ; focus placé sans attendre la fin
+d'une transition ; couche active dès sa première image ; pas de `mode="out-in"`, pas de
+View Transitions (elles bloquent le pointeur, VT1 § 7.1.1) ; transitions CSS
+interruptibles, sans minuterie. Nouveau jeton `--k-duration-slow` (300 ms, 80 ms sous
+mouvement réduit : un fondu de couleur reste permis) ; aucune réponse à une action ne
+dure plus. Le reflet du squelette s'arrête après 5 s sur un fond fixe (WCAG 2.2.2). Le menu
+de l'utilisateur gagne « Mouvement : celui du système / réduit » (technique SCR40), qui
+pose `data-motion="reduce"` sur la racine et applique les mêmes jetons que la préférence
+du système.
+
 ### Tailles (tâches 10 à 12, 2026-10-24)
 
 Largeurs du cadre et des couches, pour qu'aucun écran n'en écrive : `--k-size-sidebar`
