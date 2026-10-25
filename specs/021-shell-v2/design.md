@@ -216,7 +216,16 @@ ne vide pas l'écran) avec ses trois états.
   scindé.
 - **Administration** : écrans de la 007 sur `DataGrid`, `Dialog`, `FormField` ; permission
   en libellé à gauche puis `CodeBadge` (nom servi) à droite, en colonnes alignées
-  (024-11).
+  (024-11). Le rôle choisi s'ouvre dans l'onglet Détail du panneau droit : permissions puis
+  liaisons, une par ligne, chaque ligne finie par une colonne d'actions à place fixe
+  (`IconButton` : retirer une permission ; modifier, retirer une liaison), « Ajouter une
+  permission » et « Ajouter une liaison » sous leur liste. Pas de mode d'édition à part :
+  chaque action va au brouillon (édition *place*), et la ligne le montre au style du
+  brouillon des grilles (fond et barre d'accent) avec son signe : un retrait reste à sa
+  place, barré, son action devient « Annuler le retrait » ; un ajout vient en fin de liste,
+  son action le retire du brouillon ; le compteur « Brouillon n » compte chaque opération.
+  Une action interdite reste visible, refusée par `forbidden` ou `reason` (une liaison de
+  portée plus large que celles de l'utilisateur : `core.binding.escalation`).
 - **Hôte des plugins** : composants hôtes de la 007 (`ExtensionElement`, `PluginView`)
   repris dans le cadre ; vue de plugin sous son espace.
 
