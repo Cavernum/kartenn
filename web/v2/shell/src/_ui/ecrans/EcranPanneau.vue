@@ -131,8 +131,8 @@ const id = useId();
   }
 
   /* A grid or a tree in a flush panel: the panel draws the outer border. */
-  .k-ecran-panel__body[data-flush] > .k-data-grid,
-  .k-ecran-panel__body[data-flush] > .k-tree-grid {
+  .k-ecran-panel__body[data-flush] > .k-data-grid-frame > .k-data-grid,
+  .k-ecran-panel__body[data-flush] > .k-tree-grid-frame > .k-tree-grid {
     border: 0;
     border-radius: 0;
   }

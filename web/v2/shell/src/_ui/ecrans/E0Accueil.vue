@@ -163,6 +163,13 @@ const percent = (value: number) => `${value} %`;
     grid-column: span 2;
   }
 
+  /* A surface too narrow for two tiles: the histogram in the one column. */
+  @container k-surface (width < 640px) {
+    .k-ecran-tiles > .k-ecran-tile-wide {
+      grid-column: auto;
+    }
+  }
+
   /* Large counters with their term above. */
   .k-ecran-figures {
     display: flex;

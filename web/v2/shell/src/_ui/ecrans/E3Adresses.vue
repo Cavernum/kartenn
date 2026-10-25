@@ -115,17 +115,32 @@ const rows: Row[] = [
 ];
 const columns: GridColumn[] = [
   { id: "value", label: "Valeur", width: "md", mono: true, sortable: true, filterable: true },
-  { id: "usage", label: "Usage", width: "sm", sortable: true, filterable: true },
-  { id: "env", label: "Environnement", width: "md", sortable: true, filterable: true },
+  { id: "usage", label: "Usage", width: "sm", sortable: true, filterable: true, priority: 2 },
+  { id: "env", label: "Environnement", width: "md", sortable: true, filterable: true, priority: 3 },
   { id: "owner", label: "Propriétaire", width: "fill", sortable: true, filterable: true },
-  { id: "site", label: "Site", width: "md", mono: true, sortable: true, filterable: true },
-  { id: "machine", label: "Machine", width: "md", mono: true, sortable: true, filterable: true },
-  { id: "vlan", label: "VLAN", width: "sm", align: "end", mono: true, sortable: true },
+  {
+    id: "site",
+    label: "Site",
+    width: "md",
+    mono: true,
+    sortable: true,
+    filterable: true,
+    priority: 3,
+  },
+  {
+    id: "machine",
+    label: "Machine",
+    width: "md",
+    mono: true,
+    sortable: true,
+    filterable: true,
+    priority: 3,
+  },
+  { id: "vlan", label: "VLAN", width: "sm", align: "end", mono: true, sortable: true, priority: 2 },
 ];
 const sort = ref<GridSort | undefined>({ column: "value", direction: "ascending" });
 const actions: ToolbarAction[] = [
   { id: "create", label: "Créer", icon: "plus", variant: "primary", shortcut: ["c"], priority: 3 },
-  { id: "columns", label: "Colonnes", icon: "layers", variant: "ghost", priority: 1 },
   { id: "import", label: "Importer", icon: "clipboard-paste", variant: "ghost" },
 ];
 const cellState = (row: Row, column: GridColumn): CellState | undefined => {

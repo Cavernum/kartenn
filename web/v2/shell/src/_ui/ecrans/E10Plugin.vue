@@ -58,10 +58,10 @@ const groups: Group[] = [
 ];
 const groupColumns: GridColumn[] = [
   { id: "key", label: "Groupe", width: "fill", mono: true, sortable: true },
-  { id: "anchor", label: "Ancre", width: "md", mono: true, filterable: true },
-  { id: "range", label: "VID", width: "sm", mono: true },
+  { id: "anchor", label: "Ancre", width: "md", mono: true, filterable: true, priority: 3 },
+  { id: "range", label: "VID", width: "sm", mono: true, priority: 2 },
   { id: "used", label: "Occupation", width: "sm", align: "end", sortable: true },
-  { id: "free", label: "Libres", width: "sm", align: "end", sortable: true },
+  { id: "free", label: "Libres", width: "sm", align: "end", sortable: true, priority: 2 },
 ];
 const groupSort = ref<GridSort>({ column: "key", direction: "ascending" });
 
@@ -84,9 +84,9 @@ const vlans: Vlan[] = [
 const vlanColumns: GridColumn[] = [
   { id: "vid", label: "VID", width: "sm", mono: true, sortable: true },
   { id: "name", label: "Nom", width: "fill", mono: true, sortable: true },
-  { id: "state", label: "Statut", width: "md", filterable: true },
-  { id: "networks", label: "Réseaux", width: "md", mono: true, filterable: true },
-  { id: "interfaces", label: "Interfaces", width: "sm", align: "end", sortable: true },
+  { id: "state", label: "Statut", width: "md", filterable: true, priority: 2 },
+  { id: "networks", label: "Réseaux", width: "md", mono: true, filterable: true, priority: 3 },
+  { id: "interfaces", label: "Interfaces", width: "sm", align: "end", sortable: true, priority: 3 },
 ];
 const vlanSort = ref<GridSort>({ column: "vid", direction: "ascending" });
 const VLAN_STATE: Record<Vlan["state"], { state: State; label: string }> = {

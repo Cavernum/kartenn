@@ -44,9 +44,17 @@ const rows: Row[] = [
 ];
 const columns: GridColumn[] = [
   { id: "value", label: "Valeur", width: "md", mono: true, sortable: true },
-  { id: "usage", label: "Usage", width: "sm", sortable: true, filterable: true },
+  { id: "usage", label: "Usage", width: "sm", sortable: true, filterable: true, priority: 2 },
   { id: "owner", label: "Propriétaire", width: "fill", sortable: true, filterable: true },
-  { id: "site", label: "Site", width: "md", mono: true, sortable: true, filterable: true },
+  {
+    id: "site",
+    label: "Site",
+    width: "md",
+    mono: true,
+    sortable: true,
+    filterable: true,
+    priority: 3,
+  },
 ];
 const sort = ref<GridSort | undefined>({ column: "value", direction: "ascending" });
 const DRAFTED = ["192.0.2.11", "192.0.2.12", "192.0.2.40"];
@@ -85,9 +93,9 @@ interface DraftRow extends Record<string, unknown> {
 const draftRows: DraftRow[] = DRAFTS.map((d) => ({ ...d }));
 const draftColumns: GridColumn[] = [
   { id: "title", label: "Titre", width: "fill", sortable: true, filterable: true },
-  { id: "operations", label: "Opérations", width: "md", align: "end", sortable: true },
-  { id: "updated", label: "Modifié le", width: "md", mono: true, sortable: true },
-  { id: "expires", label: "Suppression", width: "md", sortable: true },
+  { id: "operations", label: "Opérations", width: "md", align: "end", sortable: true, priority: 2 },
+  { id: "updated", label: "Modifié le", width: "md", mono: true, sortable: true, priority: 3 },
+  { id: "expires", label: "Suppression", width: "md", sortable: true, priority: 3 },
   { id: "actions", label: "Actions", width: "sm" },
 ];
 const draftSort = ref<GridSort | undefined>({ column: "updated", direction: "descending" });
