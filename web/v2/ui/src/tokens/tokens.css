@@ -44,6 +44,11 @@
     --k-danger-fg: var(--k-accent-fg);
     --k-danger-hover: color-mix(in oklab, var(--k-state-ko-fg) 86%, var(--k-text));
 
+    /* Loading: the fill of a skeleton bar and the sheen that crosses it, lighter than the
+       fill in both modes (a light band on a grey bar) */
+    --k-skeleton: color-mix(in oklab, var(--k-text) 14%, var(--k-surface));
+    --k-skeleton-sheen: var(--k-surface);
+
     /* States (REQ-020-7): the value, its soft background and its border */
     --k-state-ok-fg: #147942;
     --k-state-warn-fg: #9d5800;
@@ -218,6 +223,7 @@
         0 1px 3px rgb(16 24 40 / 0.16);
       --k-shadow-modal: 0 0 0 1px var(--k-border-strong), 0 12px 32px rgb(16 24 40 / 0.36);
       --k-scrim: rgb(0 0 0 / 0.56);
+      --k-skeleton-sheen: color-mix(in oklab, var(--k-text) 30%, var(--k-surface));
     }
   }
 
@@ -257,6 +263,7 @@
       0 1px 3px rgb(16 24 40 / 0.16);
     --k-shadow-modal: 0 0 0 1px var(--k-border-strong), 0 12px 32px rgb(16 24 40 / 0.36);
     --k-scrim: rgb(0 0 0 / 0.56);
+    --k-skeleton-sheen: color-mix(in oklab, var(--k-text) 30%, var(--k-surface));
   }
 
   /* Comfortable density (REQ-020-2) */

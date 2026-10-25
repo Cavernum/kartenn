@@ -33,6 +33,8 @@ export const tokens = [
   "--k-danger",
   "--k-danger-fg",
   "--k-danger-hover",
+  "--k-skeleton",
+  "--k-skeleton-sheen",
   "--k-state-ok-fg",
   "--k-state-warn-fg",
   "--k-state-ko-fg",
