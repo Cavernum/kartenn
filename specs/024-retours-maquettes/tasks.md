@@ -480,6 +480,40 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
       la cellule choisie active) ; détail de la cellule dans le `SidePanel` ; vue VLAN
       sans `Split` : groupes au-dessus, VLAN du groupe dessous, `Renuméroter…` refusé par
       `forbidden` (`vlan.edit`).
+  - Retours de relecture (2026-10-25) repris. Choix tranchés :
+    - Graphiques SVG maison, sans dépendance : `BarChart` (série dans le temps, mesuré par
+      `ResizeObserver`, `role="img"` nommé par un résumé, table cachée des valeurs,
+      infobulle décorative, échelle arrondie `niceCeil`) et `BarList` (distribution en
+      barres horizontales, vraie table, barres `aria-hidden`, valeur au-delà de l'échelle
+      coupée d'un trait). Pas de sparkline : `/v1/stats` ne sert pas d'autre série dans le
+      temps. E0 : occupation des groupes VLAN en `BarList` (fixture alignée sur E10).
+    - `DraftCounter` : icône remplacée par une croix quand le panneau est ouvert,
+      `aria-expanded` suit le panneau quel que soit l'onglet, le compteur ferme le panneau
+      ouvert. `SidePanel` option `rail` : fermé, une languette à chevron de 24 px dans le
+      flux (ne couvre rien, `cover` compris), qui rouvre sur le dernier onglet ; la bande
+      reste sous le panneau ouvert pour que la mise en page ne bouge pas. Pied du panneau
+      seulement s'il est rempli pour l'onglet devant.
+    - `MatrixGrid` : lignes = source, colonnes = destination ; croix de la cellule survolée,
+      sinon active (cellules `--k-hover`, en-têtes `--k-accent-soft`), fonds d'état
+      prioritaires, liseré d'accent sur la cellule active ; option `axes` : coin
+      « Destination → / Source ↓ » et flèches discrètes `aria-hidden` sur les en-têtes de
+      la croix (pas de flèche tracée le long de la croix).
+    - E10 : panneau du cadre ; vue `brouillon` à trois sections (cellules changées
+      source → destination avec état avant → après, effet simulé, autres opérations) ;
+      `EcranSoumission` prend `policy`.
+    - E7 : libellé à gauche, nom servi à droite ; pas de mode d'édition à part, chaque
+      action va au brouillon ; actions en `IconButton` dans une dernière colonne alignée
+      (permission : Retirer ; liaison : Modifier, Retirer) ; « Ajouter une permission » et
+      « Ajouter une liaison » sous chaque liste ; vue `edition` (un retrait barré
+      annulable, un ajout en fin de liste, « Brouillon 3 ») ; panneau du cadre. Refus de
+      modifier une liaison de portée globale par `reason` (`core.binding.escalation`) :
+      motif plausible, à confirmer par une spec.
+    - E9 : encart du 412 en ton `ko` (icône, titre et fond rouges, rôle `alert`) ; le 503
+      garde son `ErrorState` à icône rouge.
+    - Captures : `k-web-shots --update changed [fichier]` plutôt que `all`, qui réécrit des
+      références inchangées (bruit d'anticrénelage).
+    - À faire : liste de lignes à actions en composant de bibliothèque (colonne d'actions,
+      état brouillon, retrait, ajout) au lieu du CSS propre à E7.
 - [ ] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
   020) — REQ-024-29
 
