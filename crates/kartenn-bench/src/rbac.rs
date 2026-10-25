@@ -1,6 +1,9 @@
 //! Cost of access control on the budgets of the core (spec 005, REQ-005-29; task 005-16):
-//! the dataset of `bench-core`, and a person of an issuer with 50 groups and 1 000
-//! bindings (20 on domains, the others on prefix subtrees and on the identity). Each
+//! the dataset of `bench-core`, and a person of an issuer with 50 groups in its token and
+//! 1 000 bindings (one per domain, the others on prefix subtrees) through 155 of the 200
+//! groups of kartenn (spec 025, REQ-025-15), mixed members of identities and groups of
+//! the issuer; the decision is also measured for 50 groups of the issuer resolved to 0, 1
+//! or 5 groups of kartenn. Each
 //! budget is measured twice on the same draws, alternately: without access control (the
 //! system), then with the decision and the filtering of the person; each p95 with access
 //! control must hold its budget, the overhead is reported (005/K15).
@@ -30,10 +33,27 @@ use crate::core_budgets::{Prepared, new_address, prepare};
 use crate::props::{SINCE, p95, progress};
 
 pub(crate) const ISSUER: &str = "https://idp.bench.invalid";
+/// The groups of the issuer in the token of the person (`g00` to `g49`).
 pub(crate) const GROUPS: usize = 50;
+/// The groups of kartenn (spec 025, REQ-025-15).
+const KARTENN_GROUPS: usize = 200;
+/// Groups of kartenn the person belongs to as an identity; those before them it belongs
+/// to through one of its groups of the issuer, those after not at all.
+const DIRECT: usize = 5;
+/// Groups of kartenn the person does not belong to: their members and bindings are
+/// noise for the resolution and the join.
+const FOREIGN: usize = 45;
+/// Groups of kartenn the person belongs to.
+const HELD: usize = KARTENN_GROUPS - FOREIGN;
+/// Bindings of the person, through its groups of kartenn.
 const BINDINGS: usize = 1_000;
-/// Bindings on the identity itself, the others on its groups.
-const OWN: usize = 10;
+/// Bindings of each group the person does not belong to.
+const FOREIGN_BINDINGS: usize = 2;
+/// Other identities, members of the groups beside the person.
+const OTHERS: usize = 100;
+/// Groups of kartenn resolved from the 50 groups of the issuer of a token, for the
+/// decision alone (the case of the group resolution).
+const RESOLVED: [usize; 3] = [0, 1, 5];
 
 /// One budget measured both ways.
 struct Pair {
@@ -71,13 +91,13 @@ pub(crate) const BIND_IDENTITY: &str = "WITH g AS (
     SELECT gen_random_uuid(), g.id, $2::uuid, $3::text, $4::uuid,
            tstzrange(now() - interval '1 day', NULL), gen_random_uuid() FROM g";
 
-/// A group of kartenn `key` over [`SINCE`], whose only member is the identity `identity`
-/// or else the group `idp_group` of [`ISSUER`]; its identifier.
+/// A group of kartenn `key` over [`SINCE`], whose members are the identities `identities`
+/// and the groups `idp_groups` of [`ISSUER`]; its identifier.
 pub(crate) async fn group(
     pool: &PgPool,
     key: &str,
-    identity: Option<Uuid>,
-    idp_group: Option<&str>,
+    identities: &[Uuid],
+    idp_groups: &[String],
 ) -> anyhow::Result<Uuid> {
     let id = Uuid::now_v7();
     let nil = Uuid::nil();
@@ -92,16 +112,26 @@ pub(crate) async fn group(
     .execute(pool)
     .await?;
     sqlx::query(
-        "INSERT INTO group_member (id, group_id, member_kind, identity_id, issuer, group_name,
-                                   valid_period, changeset_id)
-         VALUES ($1, $2, CASE WHEN $3::uuid IS NULL THEN 'idp_group' ELSE 'identity' END, $3,
-                 CASE WHEN $3::uuid IS NULL THEN $4::text END, $5, $6::tstzrange, $7)",
+        "INSERT INTO group_member (id, group_id, member_kind, identity_id, valid_period,
+                                   changeset_id)
+         SELECT gen_random_uuid(), $1, 'identity', i, $3::tstzrange, $4
+         FROM unnest($2::uuid[]) AS i",
     )
-    .bind(Uuid::now_v7())
     .bind(id)
-    .bind(identity)
+    .bind(identities)
+    .bind(SINCE)
+    .bind(nil)
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "INSERT INTO group_member (id, group_id, member_kind, issuer, group_name, valid_period,
+                                   changeset_id)
+         SELECT gen_random_uuid(), $1, 'idp_group', $2, n, $4::tstzrange, $5
+         FROM unnest($3::text[]) AS n",
+    )
+    .bind(id)
     .bind(ISSUER)
-    .bind(idp_group)
+    .bind(idp_groups)
     .bind(SINCE)
     .bind(nil)
     .execute(pool)
@@ -109,13 +139,44 @@ pub(crate) async fn group(
     Ok(id)
 }
 
-/// The role, the global attachment of the issuer and the bindings of `person`.
+/// Binds `role` on `scope_kind` `scope` to the group of kartenn `group`, over [`SINCE`].
+async fn binding(
+    pool: &PgPool,
+    group: Uuid,
+    role: Uuid,
+    scope_kind: &str,
+    scope: Uuid,
+) -> anyhow::Result<()> {
+    sqlx::query(
+        "INSERT INTO binding (id, group_id, role_id, scope_kind, scope_id, valid_period,
+                              changeset_id)
+         VALUES ($1, $2, $3, $4, $5, $6::tstzrange, $7)",
+    )
+    .bind(Uuid::now_v7())
+    .bind(group)
+    .bind(role)
+    .bind(scope_kind)
+    .bind(scope)
+    .bind(SINCE)
+    .bind(Uuid::nil())
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// The role, the global attachment of the issuer, the [`KARTENN_GROUPS`] groups of
+/// kartenn and their bindings: [`BINDINGS`] reach `person`, whose token carries the
+/// [`GROUPS`] groups `g00` to `g49`, through [`HELD`] groups (the first by one of its
+/// groups of the issuer, the last [`DIRECT`] as an identity); [`FOREIGN`] groups hold
+/// [`FOREIGN_BINDINGS`] each that do not. Every group also has members that are not the
+/// person (another identity, a group of the issuer absent from its token). Returns the
+/// role.
 pub(crate) async fn bind(
     pool: &PgPool,
     data: &Dataset,
     person: Uuid,
     seed: u64,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Uuid> {
     let role = Uuid::now_v7();
     let nil = Uuid::nil();
     sqlx::query(
@@ -155,47 +216,83 @@ pub(crate) async fn bind(
     .bind(nil)
     .execute(pool)
     .await?;
+    // The groups of kartenn: those of the person first, then the foreign ones; each with
+    // another identity and a group of the issuer absent from the token.
+    let others: Vec<Uuid> = (0..OTHERS).map(|_| Uuid::now_v7()).collect();
+    let mut groups = Vec::with_capacity(KARTENN_GROUPS);
+    for k in 0..KARTENN_GROUPS {
+        let mut identities = vec![others[k % OTHERS]];
+        let mut idp_groups = vec![format!("x{k:03}")];
+        if k < HELD - DIRECT {
+            idp_groups.push(format!("g{:02}", k % GROUPS));
+        } else if k < HELD {
+            identities.push(person);
+        }
+        groups.push(group(pool, &format!("bench-k{k:03}"), &identities, &idp_groups).await?);
+    }
     // Every domain through a group, so that every draw is visible; prefix subtrees
     // drawn at random for the rest, as many lists for the predicate to go through.
     let mut rng = ChaCha8Rng::seed_from_u64(seed.wrapping_add(7));
-    let mut rows = Vec::new();
     for (k, domain) in data.domains.iter().enumerate() {
-        rows.push((Some(k % GROUPS), "domain", domain.id));
+        binding(pool, groups[k % HELD], role, "domain", domain.id).await?;
     }
-    while rows.len() < BINDINGS {
+    for k in data.domains.len()..BINDINGS {
         let prefix = data.prefixes[rng.random_range(0..data.prefixes.len())].id;
-        let group = (rows.len() >= OWN + data.domains.len()).then_some(rows.len() % GROUPS);
-        rows.push((group, "prefix", prefix));
+        binding(pool, groups[k % HELD], role, "prefix", prefix).await?;
     }
-    // The person's own group, and a group of kartenn for each group of the issuer.
-    let own = group(pool, "bench-own", Some(person), None).await?;
-    let mut groups = Vec::with_capacity(GROUPS);
-    for g in 0..GROUPS {
-        let name = format!("g{g:02}");
-        groups.push(group(pool, &format!("bench-{name}"), None, Some(&name)).await?);
-    }
-    for (group, scope_kind, scope) in rows {
-        sqlx::query(
-            "INSERT INTO binding (id, group_id, role_id, scope_kind, scope_id, valid_period,
-                                  changeset_id)
-             VALUES ($1, $2, $3, $4, $5, $6::tstzrange, $7)",
-        )
-        .bind(Uuid::now_v7())
-        .bind(group.map_or(own, |g| groups[g]))
-        .bind(role)
-        .bind(scope_kind)
-        .bind(scope)
-        .bind(SINCE)
-        .bind(nil)
-        .execute(pool)
-        .await?;
+    for k in 0..FOREIGN * FOREIGN_BINDINGS {
+        let prefix = data.prefixes[rng.random_range(0..data.prefixes.len())].id;
+        binding(pool, groups[HELD + k % FOREIGN], role, "prefix", prefix).await?;
     }
     sqlx::raw_sql(
         "ANALYZE binding, rbac_group, group_member, role, role_permission, issuer_attachment",
     )
     .execute(pool)
     .await?;
-    Ok(())
+    Ok(role)
+}
+
+/// For each count of [`RESOLVED`], a person whose token carries [`GROUPS`] groups of the
+/// issuer, that many of them members of a group of kartenn of its own (the domains bound
+/// to them in turn, so that every draw is visible unless there is none).
+async fn resolution_subjects(
+    pool: &PgPool,
+    data: &Dataset,
+    role: Uuid,
+) -> anyhow::Result<Vec<(usize, Subject)>> {
+    let mut subjects = Vec::with_capacity(RESOLVED.len());
+    for n in RESOLVED {
+        let names: Vec<String> = (0..GROUPS).map(|g| format!("r{n}-{g:02}")).collect();
+        let mut groups = Vec::with_capacity(n);
+        for (j, name) in names.iter().take(n).enumerate() {
+            groups.push(
+                group(
+                    pool,
+                    &format!("bench-r{n}-{j}"),
+                    &[],
+                    std::slice::from_ref(name),
+                )
+                .await?,
+            );
+        }
+        if n > 0 {
+            for (k, domain) in data.domains.iter().enumerate() {
+                binding(pool, groups[k % n], role, "domain", domain.id).await?;
+            }
+        }
+        subjects.push((
+            n,
+            Subject {
+                id: Uuid::now_v7(),
+                issuer: Some(ISSUER.into()),
+                groups: names,
+            },
+        ));
+    }
+    sqlx::raw_sql("ANALYZE binding, rbac_group, group_member")
+        .execute(pool)
+        .await?;
+    Ok(subjects)
 }
 
 /// A unitary changeset of `context`: its duration, or why it was not applied.
@@ -247,7 +344,8 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         rack,
         mut report,
     } = prepare(database, data, seed).await?;
-    bind(&pool, data, author, seed).await?;
+    let role = bind(&pool, data, author, seed).await?;
+    let resolution = resolution_subjects(&pool, data, role).await?;
     progress(&format!("bindings: {:?}", started.elapsed()));
     let subject = Subject {
         id: author,
@@ -264,16 +362,27 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         .read_scope(&subject, now)
         .await
         .map_err(|e| anyhow!(e.0))?;
-    let bindings: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM binding WHERE group_id IN (
-             SELECT group_id FROM group_member WHERE identity_id = $1 OR group_name LIKE 'g%')",
+    let (bindings, held): (i64, i64) = sqlx::query_as(
+        "WITH m AS (SELECT kartenn_member_of($1, $2, $3, now()) AS group_id)
+         SELECT (SELECT count(*) FROM binding WHERE group_id IN (SELECT group_id FROM m)),
+                (SELECT count(*) FROM m)",
     )
     .bind(author)
+    .bind(ISSUER)
+    .bind(&subject.groups)
+    .fetch_one(&pool)
+    .await?;
+    let (all, groups, members): (i64, i64, i64) = sqlx::query_as(
+        "SELECT (SELECT count(*) FROM binding), (SELECT count(*) FROM rbac_group),
+                (SELECT count(*) FROM group_member)",
+    )
     .fetch_one(&pool)
     .await?;
     writeln!(
         report,
-        "INFO {bindings} bindings, {GROUPS} groups, scope of a read: {} octets",
+        "INFO {bindings} bindings through {held} groups of kartenn for {GROUPS} groups of the \
+         issuer in the token ({all} bindings, {groups} groups, {members} members in all), \
+         scope of a read: {} octets",
         scope.to_json().map_or(0, |j| j.to_string().len())
     )?;
 
@@ -401,12 +510,51 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
             .controlled
             .push(unitary(&store, &authorizer, &person, author, operation).await?);
     }
+
+    // The resolution of the groups (REQ-025-15): the decision on an address and the read
+    // scope, for 50 groups of the issuer resolved to 0, 1 or 5 groups of kartenn, then
+    // for the person.
+    let mut resolved = Vec::with_capacity(RESOLVED.len() + 1);
+    for (n, who) in resolution
+        .iter()
+        .map(|(n, s)| (*n, s))
+        .chain([(usize::try_from(held)?, &subject)])
+    {
+        let mut decisions = Vec::with_capacity(200);
+        let mut reads = Vec::with_capacity(200);
+        for _ in 0..200 {
+            let id = data.addresses[rng.random_range(0..data.addresses.len())].id;
+            let t = Instant::now();
+            let outside = authorizer
+                .authorize_many(who, "core.address.read", &[id])
+                .await
+                .map_err(|e| anyhow!(e.0))?;
+            decisions.push(t.elapsed());
+            if outside.is_empty() == (n == 0) {
+                bail!("the decision on {id} for {n} groups of kartenn is wrong");
+            }
+            let t = Instant::now();
+            authorizer
+                .read_scope(who, now)
+                .await
+                .map_err(|e| anyhow!(e.0))?;
+            reads.push(t.elapsed());
+        }
+        resolved.push((n, p95(decisions), p95(reads)));
+    }
     progress(&format!("measures: {:?}", started.elapsed()));
     writeln!(
         report,
         "INFO the read scope of the person, p95: {:?}",
         p95(scopes)
     )?;
+    for (n, decision, read) in resolved {
+        writeln!(
+            report,
+            "INFO {GROUPS} groups of the issuer, {n} groups of kartenn: decision on an \
+             address p95 {decision:?}, read scope p95 {read:?}"
+        )?;
+    }
 
     // INV-33: twice the current read, with access control as well (floor 5 ms).
     dated.limit = (p95(read.controlled.clone()) * 2).max(Duration::from_millis(5));

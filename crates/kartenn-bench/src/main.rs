@@ -20,7 +20,8 @@
 //! (REQ-011-19) with the four modules, a policy of 10⁴ rules and 10⁵ flows.
 //!
 //! `kartenn-bench rbac <database-url> <seed> [small]`: those budgets with access control,
-//! for a person with 50 groups and 1 000 bindings, and its overhead (REQ-005-29).
+//! for a person with 50 groups of the issuer and 1 000 bindings through 200 groups of
+//! kartenn, and its overhead (REQ-005-29, REQ-025-15).
 //!
 //! `kartenn-bench http <database-url> <seed> [small]`: those budgets through the router
 //! on a local port, with their overhead, then a load of 200 users and 50 writes per

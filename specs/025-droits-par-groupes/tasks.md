@@ -163,7 +163,28 @@ Statut : spec **validée le 2026-10-25**.
     - La fiche d'un rôle garde ses permissions éditables et liste ses groupes en lecture.
     - Fixtures dans `donnees.ts` (rôles, groupes, membres, liaisons, identités, comptes),
       émetteur inventé `idp-interne`.
-- [ ] 9. Bancs `bench-rbac` à 50 groupes de l'IdP par identité — REQ-025-15
+- [x] 9. Bancs `bench-rbac` à 50 groupes de l'IdP par identité — REQ-025-15 (code ;
+  mesure à pleine échelle à passer)
   - où : `crates/kartenn-bench/src/rbac.rs`.
+  - Résultat : `rbac::bind` pose 200 groupes kartenn (`bench-k000`…`bench-k199`) aux
+    membres mêlés (une autre identité et un groupe de l'IdP absent du jeton dans chacun) ;
+    la personne, 50 groupes de l'IdP `g00`…`g49` dans son jeton, en est membre de 155
+    (150 par un de ses groupes de l'IdP, 5 en identité) qui portent ses 1 000 liaisons ;
+    les 45 autres portent 90 liaisons qui ne l'atteignent pas. Cas de la résolution : la
+    décision sur une adresse et la portée de lecture, p95 sur 200 tirages, pour 50 groupes
+    de l'IdP résolus en 0, 1 et 5 groupes kartenn, puis pour la personne (lignes `INFO`).
+    Le décompte du rapport passe par `kartenn_member_of`.
+  - Choix tranchés :
+    - Les 1 000 liaisons sont celles **qui atteignent la personne** (lecture de REQ-005-29,
+      « 1 000 liaisons par identité ») ; les 90 liaisons des groupes étrangers s'y ajoutent
+      comme bruit de la jointure, pour ne pas alléger la mesure de la 005.
+    - Le cas 0/1/5 est rapporté en `INFO`, sans verdict propre : la décision n'a pas de
+      budget à elle, elle entre dans « lecture d'un objet » (50 ms) que les lignes `PASS`
+      mesurent déjà avec la personne ; le cas 0 vérifie le refus, les cas 1 et 5 l'accès.
+    - Les personnes du cas de la résolution ont leurs propres groupes de l'IdP (`r<n>-…`)
+      et groupes kartenn (`bench-r<n>-…`), les domaines liés à tour de rôle, hors des 200.
+    - `rbac::group` prend des listes d'identités et de groupes de l'IdP (un groupe aux
+      membres mêlés) ; `stats_budgets` suit.
+  - Mesure à pleine échelle : à passer (`K_BENCH_SCALE=full devenv shell -- bench-rbac`).
 - [ ] 10. Amendements de texte : 005 (K4, K7, K17, REQ-005-18, 26, 27 renvoient à la
   025), `docs/spec/` (interfaces, invariants, permissions), README des specs.
