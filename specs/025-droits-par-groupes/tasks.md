@@ -92,12 +92,89 @@ Statut : spec **validée le 2026-10-25**.
     - `breakglass create` exige le groupe `secours` livré (sinon « run `kartenn-server
       migrate` first »), comme il exigeait le rôle.
     - `account.breakglass.created` porte `group` (`secours`) au lieu de `role` et `scope`.
-- [ ] 4. Migration des liaisons existantes en changeset système, sortie de `migrate` —
+- [x] 4. Migration des liaisons existantes en changeset système, sortie de `migrate` —
   REQ-025-14 — verify : test de migration sur une base de la 005
   - où : job `migrate` de `kartenn-server` ; `crates/kartenn-server/tests/it/`.
-- [ ] 5. Routes `groups`, `groups/{id}/members`, `bindings` sur groupe, `GET /v1/me` et
+  - Résultat : migration `0068_rbac_bindings_reported.sql` (report en SQL, table
+    `rbac_migration_report`, colonnes de sujet retirées de `binding`, `group_id NOT
+    NULL`, index `binding_by_identity`/`binding_by_issuer` retirés) ;
+    `kartenn_store_pg::rbac_migration::report` (liste, audit `rbac.migration.reported`,
+    marque) appelé par `maintenance::deploy`, qui rend `Deployed { rbac_report }` ;
+    `kartenn-server migrate` imprime les lignes ; test
+    `rbac_report::bindings_of_the_005_are_reported_on_groups` (base arrêtée avant la
+    0066, trois sortes de liaisons, homonymes, liaison bornée, annulations).
+  - Choix tranchés :
+    - Report **dans une migration SQL** plutôt que dans le job après les migrations : le
+      retrait des colonnes doit suivre la conversion et le job ne passe qu'après toutes
+      les migrations en attente ; une migration qui refuserait de tourner bloquerait le
+      premier déploiement, et un code Rust appelé à mi-chemin dépendrait d'un schéma
+      figé à la 0066. Le changeset système est écrit en SQL (auteur système, `applied`,
+      motif `bindings reported on groups 025`), comme `breakglass::create` ; le job ne
+      fait que lister et auditer, une fois (`reported_at`).
+    - Conversion **sur place** : la liaison garde son identifiant et sa période (un
+      `Unbind` en attente reste valable), prend `group_id` et le changeset du report ; la
+      version d'avant reste dans `binding_history`, qui **garde les anciennes colonnes**
+      (le design : « colonnes archivées dans l'historique »), seules celles de `binding`
+      partent. Groupes et appartenances commencent à la plus ancienne des liaisons
+      qu'ils portent (le changeset est `retroactive` si c'est dans le passé).
+    - Seules les liaisons en vigueur ou à venir sont reportées ; une liaison close avant
+      sort de la table (sa trace reste dans l'historique), sans groupe créé pour elle.
+    - Liaison d'émetteur entier : listée puis retirée de la table (`DELETE`) ; une
+      clôture écrite dans la même transaction ne serait pas gardée par l'historique (une
+      version remplacée dans sa transaction ne l'est pas, 0018), la table du report et
+      l'audit en sont la trace.
+    - Clés : nom en minuscules, toute autre suite de caractères en `-` ; `compte-` +
+      nom affiché de l'identité (l'identité n'a pas de clé), `idp-` + émetteur + `-` +
+      groupe ; une clé trop longue, vide, en double ou déjà prise finit par 8 chiffres
+      hexadécimaux du md5 de sa source.
+    - Annulation : une liaison d'avant les groupes rendue par l'annulation d'un changeset
+      de la 005 l'est **sur le groupe que le report a donné à son ancien sujet** (table
+      du report) ; sans tel groupe (liaison d'émetteur, sujet sans liaison reportée), elle
+      est listée en `unsupported` (`binding`) au lieu d'une erreur. Les liaisons
+      converties ont le report pour changeset ultérieur : conflit, comme toute écriture
+      postérieure. Le changeset du report lui-même ne s'annule pas (`unsupported`
+      `rbac_migration`).
+    - Migration numérotée 0068 après la `0067_policy_authors` de la tâche 6 ; la sortie
+      de `migrate` ne reprend pas les politiques de la 0067 (ses `WARNING` vont au journal
+      de PostgreSQL, rien n'est gardé à relire).
+- [x] 5. Routes `groups`, `groups/{id}/members`, `bindings` sur groupe, `GET /v1/me` et
   identités — REQ-025-11 — verify : `k-check`, OpenAPI régénérée
   - où : `crates/kartenn-rest/src/rights.rs` ; `specs/006-api-rest/design.md` ligne 94.
+  - Résultat : routes de `rights.rs` (`groups`, `group`, `create_group`, `set_group`,
+    `close_group`, `group_members`, `group_member`, `add_member`, `remove_member`),
+    `?group=` sur `GET /v1/bindings` ; lectures `rbac_read::{groups, group,
+    group_by_key, members, member, created_member, groups_of}` ;
+    `authn::Rights.groups` (`GroupVia`), `HeldBinding.group`, port
+    `Identities::record_login` ; migration `0069_person_last_login.sql` ; libellés de
+    groupe dans `labels_read::stored` (espace `group`) et révision par `rbac_write` ;
+    `CORE_COLLECTIONS` gagne `groups` ; contrat, `schema.d.ts` (web et web/v2),
+    instantanés du client Python régénérés ; test
+    `rights::groups_and_members_are_administered`, `sessions` (groupes gardés à la
+    connexion).
+  - Choix tranchés :
+    - `{id}` d'un groupe : son identifiant (UUID), comme le dit le design ; une clé de
+      groupe peut ressembler à un UUID, on n'accepte pas les deux.
+    - `POST /v1/groups {key, labels}` → 409 si la clé existe (le `SetGroup` sous-jacent
+      renommerait) ; `PATCH {labels}` seulement, la clé ne change pas ; `DELETE` clôt
+      groupe, appartenances et liaisons (`CloseGroup`).
+    - `GET /v1/groups/{id}/members/{member}` ajouté (cible du `Location` d'un ajout).
+      Un membre se donne `{identity}` ou `{issuer, group}` ; autre forme → 422.
+    - `GET /v1/me` : `groups` devient la liste des groupes kartenn (`[{key, via}]`, une
+      entrée par appartenance), les groupes de l'émetteur passent en `idp_groups`
+      (rupture assumée avant la première version) ; `bindings` gagne `group`.
+    - Q-025-1 : les sessions sont des cookies scellés (ADR 0020), le serveur ne les garde
+      pas. Les groupes de l'émetteur et l'instant de la **dernière connexion** sont donc
+      écrits sur `person` (`last_login_at`, `last_login_groups`) par `logged_in` (pas
+      par un jeton d'accès, qui n'est pas une session) ; effacés par la
+      pseudonymisation. La fiche d'identité résout ses groupes et droits effectifs avec
+      ces groupes-là.
+    - Libellés d'un groupe au dictionnaire, espace `group` : servis à un lecteur des
+      droits, et à chacun pour ses propres groupes (comme les rôles) ; écrire ou clore un
+      groupe change la révision.
+- Notes pour la tâche 7 (client et CLI) : le catalogue dérivé du contrat expose déjà
+  `groups` (instantané `test_tree.ambr`) ; `kartenn me` affiche `key (via)` ; à faire :
+  `group member …` (sous-ressource), `bind --group`, `idp_groups` et `last_session`
+  dans les sorties.
 - [x] 6. Politiques d'approbation : auteurs par rôle ou groupe kartenn — REQ-025-13
   - où : `specs/004-changesets-bitemporel/design.md` ligne 180 et son code.
   - Résultat : `ApprovalPolicy::authors` retiré, `author_groups` devient une liste de clés

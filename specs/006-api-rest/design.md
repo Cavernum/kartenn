@@ -91,7 +91,7 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 | Propriétés | `property-declarations`, `property-declarations/{key}/values` ; `GET /v1/<collection>/{id}/properties` (valeurs résolues), `…/properties/{key}/explanation`, `…/properties/{key}/suggestion` ; `GET /v1/property-gaps` (écarts) |
 | Changesets | `POST /v1/changesets` (`?simulate=true` → 200 sans écriture) ; `GET` collection et objet ; `GET …/{id}/diff` (décompte, détail paginé) ; `POST …/{id}/validation`, `…/rejection`, `…/withdrawal`, `…/undo` ; `GET /v1/proposals` |
 | Imports | `POST /v1/imports` ; `PUT /v1/imports/{id}/chunks/{n}` ; `POST …/start`, `…/resume`, `…/cancel` ; `GET …/{id}` |
-| Droits | `roles`, `bindings`, `issuer-attachments`, `service-accounts`, `service-accounts/{id}/secrets`, `identities` (état), `GET /v1/me` (session, droits effectifs résumés) |
+| Droits | `roles`, `groups`, `groups/{id}/members` (025), `bindings` (sujet : un groupe kartenn), `issuer-attachments`, `service-accounts`, `service-accounts/{id}/secrets`, `identities` (état, groupes, droits effectifs), `GET /v1/me` (session, groupes, droits effectifs résumés) |
 | Audit | `GET`/`QUERY /v1/audit-events` ; `POST /v1/identities/{id}/pseudonymisation` |
 | Authentification | `GET /v1/auth/login?issuer=…`, `GET /v1/auth/callback`, `POST /v1/auth/logout`, `POST /v1/auth/breakglass` ; publiques : `GET /v1/auth/issuers` (007) et `GET /v1/auth/native-clients` (amendement 023/A5 : `[{id, discovery_url, client_id, audience, scopes, device}]`, client public des applications natives des seuls émetteurs configurés avec `native_client_id`, sans secret) |
 | Exploitation | `GET /v1/capabilities`, `GET /v1/openapi.json`, `PUT /v1/log-filters/{output}` ; `/health/live`, `/health/ready` |
@@ -207,9 +207,21 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   - rôles : `{key, href, label, builtin, entries}` ; `GET /v1/roles`, `GET`/`PUT`/
     `DELETE /v1/roles/{key}` ; `PUT {label, entries}` remplace le rôle (201 s'il est
     créé, 200 sinon), `DELETE` le clôt avec ses liaisons ;
-  - liaisons : `{id, href, subject, role, scope, valid_from, valid_to}`, `subject` et
-    `scope` dans la forme de l'opération `bind` ; `POST /v1/bindings` → 201 et
-    `Location`, `GET`/`DELETE /v1/bindings/{id}` ;
+  - groupes (spec 025, REQ-025-11) : `{id, href, key, labels, builtin, members,
+    bindings}` (les deux derniers : décomptes courants) ; `GET /v1/groups` (par clé),
+    `POST /v1/groups {key, labels}` → 201 et `Location` (409 si la clé est prise),
+    `GET`/`PATCH` (Merge Patch `{labels}`, la clé ne change pas)/`DELETE
+    /v1/groups/{id}` (clôt le groupe, ses appartenances et ses liaisons) ; membres :
+    `{id, href, kind, identity, name, issuer, group, valid_from, valid_to}`, `kind`
+    `identity` ou `idp_group` ; `GET`/`POST /v1/groups/{id}/members` (`{identity}` ou
+    `{issuer, group}`, 201 et `Location`), `GET`/`DELETE
+    /v1/groups/{id}/members/{member}` (l'appartenance, par son identifiant). Les
+    libellés d'un groupe entrent au dictionnaire `GET /v1/labels` (espace `group`, servi
+    à un lecteur des droits et, pour ses groupes, à chacun) et en changent la révision ;
+  - liaisons : `{id, href, group, role, scope, valid_from, valid_to}`, `group` (clé du
+    groupe kartenn) et `scope` dans la forme de l'opération `bind` ; `GET
+    /v1/bindings[?group=<clé>]`, `POST /v1/bindings` → 201 et `Location`,
+    `GET`/`DELETE /v1/bindings/{id}` ;
   - rattachements : `{issuer, entity}` (`entity` `null` : partout) ; `POST
     /v1/issuer-attachments` → 201 ; `DELETE /v1/issuer-attachments?issuer=…[&entity=…]`
     (un émetteur est une URL : la requête l'identifie, sans encodage dans le chemin) ;
@@ -224,12 +236,18 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     de la requête omet l'identifiant et le condensat du secret, tirés à chaque envoi) ;
   - identités : `{id, href, kind, name, issuer, disabled, revoked_after}` ; `GET
     /v1/identities`, `GET /v1/identities/{id}`, `PATCH` (Merge Patch) `{disabled,
-    revoke_sessions}` ;
-  - `GET /v1/me` (route de 005, sans permission ni audit) étendu par ajouts seulement
-    (REQ-006-33) : `name`, `bindings` (`[{role, scope}]`, les liaisons effectives,
-    directes, de groupe ou d'émetteur), `global_permissions` (celles des liaisons
+    revoke_sessions}` ; la fiche (`GET …/{id}`) ajoute `groups` et `bindings` comme
+    `GET /v1/me`, et `last_session` (`{at, idp_groups}`, `null` sans connexion) : les
+    groupes de l'émetteur de sa dernière connexion, gardés avec la personne à chaque
+    connexion (025, Q-025-1), qui expliquent une appartenance par groupe de l'IdP ;
+  - `GET /v1/me` (route de 005, sans permission ni audit) : `name`, `idp_groups` (les
+    groupes de l'émetteur de la session ou du jeton), `groups` (`[{key, via}]`, les
+    groupes kartenn, une entrée par appartenance, `via` = `direct` ou le groupe de
+    l'émetteur qui la donne ; 025), `bindings` (`[{group, role, scope}]`, les liaisons
+    effectives, par le groupe qui les donne), `global_permissions` (celles des liaisons
     globales) et `session.expires_at` (fin de session, par inactivité ou durée absolue ;
-    `session` reste `null` hors session cookie).
+    `session` reste `null` hors session cookie). La 025 a renommé `groups` (groupes de
+    l'émetteur) en `idp_groups` : pas de compatibilité avant la première version.
 - **Audit et exploitation (arbitrage du 2026-10-19, 006-19)** :
   - journal : `GET /v1/audit-events?from=…&to=…&name=…&actor=…&object=…` et `QUERY
     /v1/audit-events` (corps JSON, mêmes critères, chacun facultatif ; `from`/`to` en

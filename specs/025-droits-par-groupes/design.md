@@ -121,6 +121,11 @@ Dans le job `migrate`, après `0066`, en changeset système :
 Les liaisons de période bornée gardent leur période ; l'historique antérieur reste lisible
 sous l'ancienne forme (colonnes archivées dans l'historique de `binding`).
 
+Réalisation (tâche 4) : les étapes 1 à 3 sont la migration
+`0068_rbac_bindings_reported.sql` (changeset système écrit en SQL, conversion sur place,
+puis retrait des colonnes de `binding`) ; le job `migrate` fait l'étape 4 depuis la table
+`rbac_migration_report`, une fois.
+
 ## Erreurs et cas limites
 
 | Cas | Effet |
