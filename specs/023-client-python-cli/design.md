@@ -334,6 +334,25 @@ collections ne se traduisent pas.
 Chaque ligne est une entrée `NamedCommand(path, operation_ids, render)` ; une entrée dont
 une opération manque est masquée de l'aide et répond comme un module absent.
 
+#### Groupes kartenn (spec 025, REQ-025-11)
+
+Commandes dérivées, complétées par `kartenn_cli/rights.py` :
+- `kartenn groups list|get|create|update|close` ; un groupe se désigne par son UUID ou sa
+  clé (`groups get admins`). `GET /v1/groups` n'a pas de filtre par clé : la clé est
+  cherchée sur les pages de la liste (`CLIENT_KEYS`), code 3 si absente.
+- `kartenn groups members list|get|add|remove GROUPE [MEMBRE]` : à l'ajout, `MEMBRE` est
+  l'UUID d'une identité ou `émetteur/groupe` (coupé au dernier `/` ; `--identity`,
+  `--issuer` et `--group` pour un groupe de l'IdP qui contient un `/`) ; à la lecture et
+  au retrait, l'UUID de l'appartenance, celui de l'identité ou `émetteur/groupe`, cherchés
+  parmi les membres du groupe.
+- `kartenn bindings create --group CLÉ --role CLÉ --set scope=…`, `bindings list --group`.
+- `--dry-run` comme toute écriture ; `--into-changeset` écrit les opérations du noyau
+  (`set_group`, `close_group`, `add_member`, `remove_member`, `bind`, `unbind`), le groupe
+  par sa clé.
+- `kartenn identities get` en table : groupes `clé (via)`, liaisons
+  `rôle (groupe, portée)`, `last_session.at` et `last_session.idp_groups` ; `kartenn me`
+  ajoute la ligne « Groupes IdP » (`idp_groups`).
+
 #### Sorties (REQ-023-25, 26)
 
 - `table` : colonnes `x-kartenn.columns`, sinon les membres scalaires de premier niveau
@@ -431,7 +450,7 @@ Contrat de référence au 2026-10-23 : 279 opérations.
 | `properties` (69) | dérivé | `<ressource> properties <réf>`, `properties explain|suggest <réf> <clé>` sur toute ressource ; `property-declarations list|values` ; `property-gaps list` |
 | `changesets` (9) | nommé | `changeset list/show/diff/simulate/apply/approve/reject/withdraw/undo/proposals` |
 | `imports` (7) | nommé | `import` (création, morceaux, démarrage, reprise, annulation, suivi, liste) |
-| `rights` (19) | dérivé | `roles`, `bindings`, `issuer-attachments`, `service-accounts` (dont `secrets add/revoke`), `identities` (liste, état) |
+| `rights` (19, plus 9 de la 025) | dérivé | `roles`, `bindings` (`create --group`, `list --group`), `groups` (`list/get/create/update/close`, `members list/get/add/remove`), `issuer-attachments`, `service-accounts` (dont `secrets add/revoke`), `identities` (liste, état, fiche avec groupes, liaisons et dernière session) |
 | `audit` (2) | dérivé | `audit list` (`GET`/`QUERY`), `identities pseudonymise` |
 | `operations` (5) | nommé et dérivé | `capabilities`, `api spec`, `log-filters set`, `health` (`/health/live`, `/health/ready`) |
 | `graph` (1) | dérivé | `graph edges` |

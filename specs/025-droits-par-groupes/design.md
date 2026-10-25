@@ -92,8 +92,8 @@ WITH member_of AS (
   ou le groupe de l'IdP qui donne l'appartenance) et `bindings` effectifs.
 - Simulation (`?simulate=true`, 024) et brouillons (024) : les nouvelles opérations
   entrent dans `Operation` comme les autres.
-- Client Python et CLI (023) : `kartenn group …`, `kartenn group member …` ; `bind`
-  prend `--group`.
+- Client Python et CLI (023) : `kartenn groups …`, `kartenn groups members …` ;
+  `bindings create` prend `--group`.
 
 ## Interface (REQ-025-12, 021)
 
