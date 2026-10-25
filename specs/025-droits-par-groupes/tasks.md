@@ -1,6 +1,6 @@
 # 025 — Droits par groupes : tâches
 
-Statut : **brouillon** ; aucune tâche ne commence avant la validation de la spec.
+Statut : spec **validée le 2026-10-25**.
 
 - [ ] 1. Migration `0066_rbac_groups.sql`, tables `rbac_group`, `group_member`, `binding`
   sur `group_id` ; résolution `kartenn_member_of` ; `visibility_on`, droits effectifs et

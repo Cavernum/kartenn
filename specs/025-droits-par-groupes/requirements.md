@@ -1,11 +1,11 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-25
 ---
 
 # 025 — Droits par groupes : exigences
 
-Statut : **brouillon, à valider**.
+Statut : **validée le 2026-10-25** (Q-025-1 tranchée).
 
 ## Résumé
 
@@ -108,7 +108,8 @@ changesets, être auditées et être annulables (004). [005, REQ-005-25]
 #### REQ-025-11 — Routes
 L'API doit servir les groupes, leurs membres et leurs liaisons ; `GET /v1/me` et la fiche
 d'une identité doivent servir ses groupes kartenn (direct ou par quel groupe de l'IdP) et
-ses droits effectifs. [006, G4]
+ses droits effectifs ; la fiche d'une identité sert aussi les groupes de l'IdP de sa
+dernière session, avec la date de cette session. [006, G4, Q-025-1]
 
 #### REQ-025-12 — Écran
 L'écran Administration (021, E7) doit administrer les droits groupe par groupe (membres,

@@ -1,6 +1,6 @@
 # 025 — Droits par groupes : journal des décisions
 
-Statut : **brouillon, à valider**. Écrit à partir de la revue des maquettes du
+Statut : **validée le 2026-10-25**. Écrit à partir de la revue des maquettes du
 2026-10-25 (E7 Administration) et des arbitrages du même jour.
 
 Cadre : D13 (authentification), D36 (RBAC composable, liaisons portées) ; 005/K4 à K7,
@@ -139,8 +139,9 @@ pour que l'historique montre le report.
 REQ-005-27 et la 004 désignent des auteurs « par rôle ou par groupe » : le groupe y est
 désormais un groupe kartenn ; un compte nommé n'est plus un auteur désignable (G1).
 
-## Questions ouvertes
+## Questions tranchées
 
-- Q-025-1 : la fiche d'une identité affiche-t-elle aussi les groupes de son dernier jeton
-  (lus de sa dernière session), pour expliquer une appartenance indirecte ? Proposition :
-  oui, en lecture, avec la date de la session.
+- Q-025-1 (oui, 2026-10-25) : la fiche d'une identité affiche aussi les groupes de l'IdP
+  de sa dernière session, en lecture, avec la date de la session, pour expliquer une
+  appartenance indirecte. Ils sont gardés avec la session (005) ; une identité sans
+  session n'en montre aucun.

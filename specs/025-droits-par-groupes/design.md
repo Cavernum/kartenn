@@ -1,6 +1,6 @@
 # 025 — Droits par groupes : conception
 
-Statut : **brouillon, à valider**. Exigences : [`requirements.md`](requirements.md) ;
+Statut : **validée le 2026-10-25**. Exigences : [`requirements.md`](requirements.md) ;
 décisions : [`decisions.md`](decisions.md).
 
 ## Vue d'ensemble
