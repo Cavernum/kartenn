@@ -434,8 +434,12 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
       colonnes `minmax(max-content, 1fr)` et cellules d'au moins `--k-size-col-sm` (un état
       et son icône ne sont plus coupés, la matrice défile), contenu aligné au début comme
       les en-têtes ; en-tête des panneaux : actions sur le reste de la ligne, sans retour,
-      pour que leur `Toolbar` se replie (E1 à 1024 px) ; références des onze maquettes aux
-      quatre largeurs.
+      pour que leur `Toolbar` se replie (E1 à 1024 px), et une colonne `minmax(0, 1fr)`
+      au panneau ; `Tooltip` téléporté avec `defer` (une action refusée rendue avant la
+      couche du cadre ne montait pas son infobulle et levait une erreur au premier focus) ;
+      `Menu` écoute `focusin`/`focusout` (Reka déclare `focus` parmi les événements de son
+      entrée : le motif d'une entrée refusée ne s'affichait jamais) ; références des onze
+      maquettes aux quatre largeurs.
     - Point ouvert (à arbitrer) : deux styles de code dans E9 — le 412 montre la règle
       `core.precondition.failed` (M16), le 503 le type servi
       `urn:kartenn:problem:unavailable` ; le serveur n'est pas touché.
