@@ -407,7 +407,7 @@ horizontalement hors des régions de grille, et que chaque classe montre le cadr
   `cover`. Classe compacte : `SidebarNav` masquée, bouton « Navigation principale » dans la
   barre d'état qui ouvre un `Drawer` (côté début) avec la navigation, marge réduite,
   pastille de date et compteur en icône (règles `[data-width="compact"]` de leurs
-  feuilles), fil d'Ariane réduit à la page courante (`@container` sous `xs`), panneau en
+  feuilles), fil d'Ariane réduit à la page courante (même attribut), panneau en
   `sheet` ; tant que la feuille est ouverte, barre, bande et surface sont `inert`. Le corps
   n'est pas conteneur en classe compacte (la feuille `fixed` se pose sur la fenêtre). Sous
   la classe large, la zone horaire de la pastille ne reste que dans son nom ; sous 1024 px,
@@ -429,7 +429,9 @@ horizontalement hors des régions de grille, et que chaque classe montre le cadr
 - `Grid` : `auto` en `auto-fit` sur `--k-size-tile-min` ; nombre fixe = au plus n colonnes,
   jamais plus étroites que `--k-size-col-md` ; `text-wrap-style: balance` sur les titres
   des tuiles (le style seul : un titre tenu sur une ligne le reste). `Split` : racine
-  conteneur, côté et principal empilés sous `md`.
+  conteneur, côté et principal empilés sous `md`. `DiffList` : racine conteneur, valeurs
+  sous l'attribut sous `xs`, valeurs longues coupées ; `InlineAlert` : corps et liste en
+  une piste élastique (un code long ne l'élargit plus).
 - `Dialog` : `lg` plein écran en classe compacte (vue agrandie d'`ExpandableGrid`
   comprise). `Button` : `primary` et `danger` à `--k-size-target-coarse` sous
   `(any-pointer: coarse)`. `TreeGrid` : le « + » au survol seulement sous
