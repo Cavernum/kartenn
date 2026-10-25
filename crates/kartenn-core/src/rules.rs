@@ -234,7 +234,7 @@ rules! {
     POLICY_FORBIDDEN = "changeset.policy.forbidden", Error, ["REQ-004-39", "REQ-004-40"], "004/C6",
         "Créer, modifier ou désactiver une politique d'approbation exige le droit d'administration des politiques.";
     RBAC_INVALID = "core.role.invalid", Error, ["REQ-005-17", "REQ-005-25"], "005/K12",
-        "Un rôle a une clé, des libellés et des entrées du catalogue ; un émetteur et un groupe ne sont pas vides.";
+        "Un rôle a une clé, des libellés et des entrées du catalogue ; un émetteur n'est pas vide.";
     RBAC_FORBIDDEN = "core.rbac.forbidden", Error, ["REQ-005-26"], "005/K7, K11",
         "Administrer les rôles, les émetteurs, les comptes ou les liaisons exige la permission d'administration correspondante.";
     RBAC_ESCALATION = "core.binding.escalation", Error, ["REQ-005-26"], "005/K7",
