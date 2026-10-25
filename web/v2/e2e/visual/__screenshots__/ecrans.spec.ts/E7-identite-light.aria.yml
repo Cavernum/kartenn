@@ -48,49 +48,42 @@
     - heading "Identités 6" [level=2]
     - grid "Identités":
       - rowgroup:
-        - row "Identité État Groupes Émetteur Dernière session":
+        - row "Identité État Groupes Émetteur":
           - columnheader "Identité"
           - columnheader "État"
           - columnheader "Groupes"
           - columnheader "Émetteur"
-          - columnheader "Dernière session"
       - rowgroup:
-        - row /Camille Martin Active 2 idp-interne \d+-\d+-\d+ \d+:\d+/:
+        - row "Camille Martin Active 2 idp-interne":
           - gridcell "Camille Martin"
           - gridcell "Active"
           - gridcell "2"
           - gridcell "idp-interne"
-          - gridcell /\d+-\d+-\d+ \d+:\d+/
-        - row /Lou Bernard Active 3 idp-interne \d+-\d+-\d+ \d+:\d+/ [selected]:
+        - row "Lou Bernard Active 3 idp-interne" [selected]:
           - gridcell "Lou Bernard"
           - gridcell "Active"
           - gridcell "3"
           - gridcell "idp-interne"
-          - gridcell /\d+-\d+-\d+ \d+:\d+/
-        - row /Alex Morel Active 1 idp-interne \d+-\d+-\d+ \d+:\d+/:
+        - row "Alex Morel Active 1 idp-interne":
           - gridcell "Alex Morel"
           - gridcell "Active"
           - gridcell "1"
           - gridcell "idp-interne"
-          - gridcell /\d+-\d+-\d+ \d+:\d+/
-        - row /Sam Leroy Désactivée 1 idp-interne \d+-\d+-\d+ \d+:\d+/:
+        - row "Sam Leroy Désactivée 1 idp-interne":
           - gridcell "Sam Leroy"
           - gridcell "Désactivée"
           - gridcell "1"
           - gridcell "idp-interne"
-          - gridcell /\d+-\d+-\d+ \d+:\d+/
-        - row "Noa Petit Active 0 idp-interne —":
+        - row "Noa Petit Active 0 idp-interne":
           - gridcell "Noa Petit"
           - gridcell "Active"
           - gridcell "0"
           - gridcell "idp-interne"
-          - gridcell "—"
-        - row "secours Active 1 local —":
+        - row "secours Active 1 local":
           - gridcell "secours"
           - gridcell "Active"
           - gridcell "1"
           - gridcell "local"
-          - gridcell "—"
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
   - tablist "Panneau droit":
@@ -136,11 +129,8 @@
           - text: Lecteur
           - code: reader
           - text: Globale par Astreinte
-    - region /Groupes de l'IdP · 3 \(session du \d+-\d+-\d+ \d+:\d+\)/:
-      - heading /Groupes de l'IdP · 3 \(session du \d+-\d+-\d+ \d+:\d+\)/ [level=3]:
-        - text: ""
-        - time: /\d+-\d+-\d+ \d+:\d+/
-        - text: ""
+    - region "Groupes de l'IdP lors de sa dernière connexion · 3":
+      - heading "Groupes de l'IdP lors de sa dernière connexion · 3" [level=3]
       - list:
         - listitem: idp-interne / astreinte Astreinte
         - listitem: idp-interne / supervision-n1 Équipe supervision
