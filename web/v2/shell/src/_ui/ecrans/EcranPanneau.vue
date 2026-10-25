@@ -70,8 +70,12 @@ const id = useId();
   .k-ecran-panel__title {
     display: flex;
     gap: var(--k-space-2);
+    flex: none;
     align-items: baseline;
-    min-inline-size: 0;
+    max-inline-size: 60%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
     font-size: var(--k-text-md);
     line-height: var(--k-text-md-line);
     font-weight: var(--k-weight-semibold);
@@ -83,17 +87,28 @@ const id = useId();
   }
 
   .k-ecran-panel__detail {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     color: var(--k-text-muted);
     font-weight: var(--k-weight-regular);
     font-variant-numeric: tabular-nums;
   }
 
+  /* The actions take the rest of the header, on one line: a toolbar in there folds into
+   * « … » instead of pushing the panel wider (024/M15). */
   .k-ecran-panel__actions {
     display: flex;
-    flex-wrap: wrap;
+    flex: 1 1 0;
+    flex-wrap: nowrap;
     gap: var(--k-space-2);
     align-items: center;
     justify-content: end;
+    min-inline-size: 0;
+  }
+
+  .k-ecran-panel__actions > .k-toolbar {
+    flex: 1 1 0;
   }
 
   .k-ecran-panel__toolbar {

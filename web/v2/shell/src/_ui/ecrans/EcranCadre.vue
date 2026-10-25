@@ -1,18 +1,30 @@
 <script setup lang="ts">
-// The frame of the shell for the mock-ups (spec 021, « Cadre »): sidebar of spaces, status
-// bar (breadcrumb, date pill, draft counter, user menu), band out of the present, work
-// surface in panels, right panel (SidePanel) over the end of the surface. The real frame is a task of the 021;
-// here it only places components of @kartenn/ui (layout, no look of its own).
+// The frame of the shell for the mock-ups (spec 021, « Cadre », revised by the 024: M8,
+// M15): fixed slots laid by its grid — sidebar of spaces (collapsible), status bar
+// (breadcrumb, date pill, draft counter, user menu), band out of the present, work
+// surface, right panel (SidePanel) over the end of the surface. Each slot scrolls inside
+// itself; the page never does. The surface is an isolated stacking context: its sticky
+// headers never pass over the panel nor over a floating layer. The draft counter toggles
+// the panel on its draft tab (or closes it from there). Under 1024 px the sidebar is
+// collapsed and the panel covers the surface. The real frame is a task of the 021; here
+// it only places components of @kartenn/ui (layout, no look of its own).
 import {
   Breadcrumb,
   DatePill,
   DraftCounter,
   Menu,
+  SidePanel,
   SidebarNav,
   TimeBand,
   type Crumb,
+  type DraftSummary,
   type MenuItem,
+  type TabItem,
 } from "@kartenn/ui";
+import { computed, onBeforeUnmount, ref, useSlots } from "vue";
+import Brouillon from "./EcranBrouillon.vue";
+import Soumission from "./EcranSoumission.vue";
+import { DRAFTS } from "./donnees.ts";
 import { SPACES, closedBut } from "./sidebar.ts";
 
 const props = withDefaults(
@@ -25,16 +37,24 @@ const props = withDefaults(
     crumbs: Crumb[];
     /** The instant read, out of the present (band and date pill). */
     at?: string | undefined;
-    /** The date pill open on its picker. */
+    /** The date pill open on its picker (slot `picker`, laid over the surface). */
     picker?: boolean;
+    /** The operations of the active draft. */
     draft?: number;
+    /** The right panel open on this tab at first; closed when unset. */
+    panel?: "detail" | "draft" | undefined;
+    /** Former name of `panel="draft"`. */
     draftOpen?: boolean;
+    /** The menu of the drafts open (chevron of the counter). */
+    draftsOpen?: boolean;
     collapsed?: boolean;
   }>(),
-  { at: undefined, draft: 2 },
+  { at: undefined, draft: 3, panel: undefined },
 );
+const slots = useSlots();
 
 const ZONE = "Europe/Paris";
+const PANEL = "k-ecran-panel";
 
 const userMenu: MenuItem[] = [
   { kind: "label", label: "Camille Martin" },
@@ -47,31 +67,66 @@ const userMenu: MenuItem[] = [
   { id: "about", label: "À propos", icon: "info" },
   { id: "logout", label: "Se déconnecter", icon: "log-out" },
 ];
+const drafts: DraftSummary[] = DRAFTS.map((draft, i) => ({
+  id: draft.id,
+  label: draft.title,
+  count: i === 0 ? props.draft : draft.operations,
+  ...(i === 0 ? { current: true } : {}),
+}));
+
+// A narrow window (under 1024 px): the sidebar collapses, the panel covers the surface.
+const query = typeof window === "undefined" ? null : window.matchMedia("(width < 1024px)");
+const narrow = ref(query?.matches ?? false);
+const onQuery = (event: MediaQueryListEvent) => (narrow.value = event.matches);
+query?.addEventListener("change", onQuery);
+onBeforeUnmount(() => query?.removeEventListener("change", onQuery));
+
+const collapsed = ref(props.collapsed || narrow.value);
+const initial = props.draftOpen ? "draft" : props.panel;
+const open = ref(initial !== undefined);
+const tab = ref<string>(initial ?? "detail");
+const tabs = computed<TabItem[]>(() => [
+  { value: "detail", label: "Détail" },
+  { value: "draft", label: "Brouillon", count: props.draft },
+]);
+const draftShown = computed(() => open.value && tab.value === "draft");
+
+/** The counter opens the panel on the draft, or closes it if the draft is in front. */
+function toggleDraft(): void {
+  if (draftShown.value) open.value = false;
+  else {
+    open.value = true;
+    tab.value = "draft";
+  }
+}
 </script>
 
 <template>
-  <div class="k-ecran" :data-sidebar="props.collapsed ? 'collapsed' : 'expanded'">
+  <div class="k-ecran" :data-sidebar="collapsed ? 'collapsed' : 'expanded'">
     <SidebarNav
+      v-model:collapsed="collapsed"
       brand="kartenn"
       :groups="SPACES"
       :active="props.active"
       :closed="closedBut(props.space)"
-      :collapsed="props.collapsed"
     />
     <div class="k-ecran__column">
       <header class="k-ecran__bar">
-        <Breadcrumb :items="props.crumbs" />
+        <Breadcrumb :items="props.crumbs" class="k-ecran__crumbs" />
         <div class="k-ecran__bar-end">
           <DatePill
             :at="props.at ?? null"
             :time-zone="ZONE"
             :expanded="props.picker"
-            :aria-controls="$slots.picker ? 'k-ecran-picker' : undefined"
+            :aria-controls="slots.picker ? 'k-ecran-picker' : undefined"
           />
           <DraftCounter
             :count="props.draft"
-            :expanded="props.draftOpen"
-            :controls="props.draftOpen ? 'k-ecran-draft' : undefined"
+            :expanded="draftShown"
+            :controls="open ? PANEL : undefined"
+            :drafts="drafts"
+            :default-open="props.draftsOpen"
+            @toggle="toggleDraft"
           />
           <Menu
             label="Compte de Camille Martin"
@@ -84,15 +139,41 @@ const userMenu: MenuItem[] = [
         </div>
       </header>
       <TimeBand v-if="props.at" :at="props.at" :time-zone="ZONE" />
-      <div v-if="$slots.picker" id="k-ecran-picker" class="k-ecran__picker">
-        <slot name="picker" />
-      </div>
       <div class="k-ecran__body">
         <main class="k-ecran__surface">
           <h1 class="k-visually-hidden">{{ props.title }}</h1>
           <slot />
         </main>
-        <slot name="drawer" />
+        <slot v-if="slots.drawer" name="drawer" />
+        <SidePanel
+          v-else
+          :id="PANEL"
+          v-model:open="open"
+          v-model:tab="tab"
+          label="Panneau droit"
+          :tabs="tabs"
+          :cover="narrow"
+        >
+          <template #detail>
+            <slot name="detail">
+              <p class="k-ecran-muted">
+                Aucune sélection : choisir une ligne ou un nœud en montre ici le détail.
+              </p>
+            </slot>
+          </template>
+          <template #draft>
+            <slot name="draft"><Brouillon :count="props.draft" /></slot>
+          </template>
+          <template #footer="{ tab: current }">
+            <slot v-if="current === 'draft'" name="draft-footer">
+              <Soumission />
+            </slot>
+            <slot v-else name="detail-footer" />
+          </template>
+        </SidePanel>
+      </div>
+      <div v-if="slots.picker" id="k-ecran-picker" class="k-ecran__picker">
+        <slot name="picker" />
       </div>
     </div>
     <div id="k-ecran-layers" class="k-ecran__layers"></div>
@@ -101,73 +182,98 @@ const userMenu: MenuItem[] = [
 
 <style>
 @layer components {
-  /* The mock-ups take the whole page: no frame of the catalogue around them. */
+  /* The mock-ups take the whole window: no frame of the catalogue around them. */
   :root:has(.k-ecran),
   :root:has(.k-ecran) body,
   :root:has(.k-ecran) body > div {
     block-size: 100%;
   }
 
+  /* The slots: sidebar, then a column of bar, band and body. The window never scrolls. */
   .k-ecran {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    min-block-size: 100%;
+    block-size: 100%;
+    overflow: hidden;
     color: var(--k-text);
     background-color: var(--k-bg);
   }
 
+  .k-ecran > .k-sidebar {
+    min-block-size: 0;
+    overflow: auto;
+  }
+
   .k-ecran__column {
-    display: flex;
-    flex-direction: column;
+    position: relative;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     min-inline-size: 0;
+    min-block-size: 0;
+  }
+
+  /* Without the band, the body takes its row. */
+  .k-ecran__column > .k-ecran__body:nth-child(2) {
+    grid-row: 2 / -1;
   }
 
   .k-ecran__bar {
-    position: sticky;
-    inset-block-start: 0;
-    z-index: var(--k-z-sticky);
     display: flex;
     gap: var(--k-space-4);
     align-items: center;
     justify-content: space-between;
+    min-inline-size: 0;
     min-block-size: var(--k-size-status-bar);
     padding-inline: var(--k-space-4) var(--k-space-2);
     background-color: var(--k-surface);
     border-block-end: var(--k-border-width) solid var(--k-border-strong);
   }
 
+  /* The breadcrumb gives way to the controls at the end of the bar. */
+  .k-ecran__crumbs {
+    min-inline-size: 0;
+    overflow: hidden;
+  }
+
   .k-ecran__bar-end {
     display: flex;
+    flex: none;
     gap: var(--k-space-2);
     align-items: center;
   }
 
-  /* The period picker opens under the date pill, at the end of the bar. */
-  .k-ecran__picker {
-    display: flex;
-    justify-content: end;
-    padding: var(--k-space-2) var(--k-space-4) 0;
-  }
-
-  /* The right panel (SidePanel) lies over the end of the surface, which isolates its own
-   * sticky headers below it. */
+  /* The surface and the right panel over its end; the panel is positioned in here. */
   .k-ecran__body {
     position: relative;
-    display: flex;
-    flex: 1;
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
     min-block-size: 0;
   }
 
   .k-ecran__surface {
     display: grid;
-    flex: 1;
     gap: var(--k-space-3);
     align-content: start;
     min-inline-size: 0;
+    min-block-size: 0;
     padding: var(--k-space-3);
-    scroll-padding-block-start: var(--k-size-status-bar);
+    overflow: auto;
     isolation: isolate;
+  }
+
+  /* The period picker, laid over the band and the surface under the date pill, out of the
+   * flow: the page does not move (024/M15). */
+  .k-ecran__picker {
+    position: absolute;
+    inset-block-start: calc(var(--k-size-status-bar) + var(--k-space-1));
+    inset-inline-end: var(--k-space-2);
+    z-index: var(--k-z-overlay);
+    max-inline-size: calc(100% - var(--k-space-4));
+    max-block-size: calc(100% - var(--k-size-status-bar) - var(--k-space-2));
+    overflow: auto;
+    background-color: var(--k-bg);
+    border-radius: var(--k-radius-md);
   }
 
   .k-ecran__layers {
