@@ -51,6 +51,8 @@ const id = useId();
   .k-ecran-panel {
     display: grid;
     grid-template-rows: auto auto minmax(0, 1fr) auto;
+    /* One elastic column: a long header or grid never widens the panel. */
+    grid-template-columns: minmax(0, 1fr);
     min-inline-size: 0;
     background-color: var(--k-surface);
     border: var(--k-border-width) solid var(--k-border-strong);
