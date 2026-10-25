@@ -76,7 +76,7 @@ async fn everything(pool: &PgPool, person: Uuid) -> anyhow::Result<()> {
     .bind(nil)
     .execute(pool)
     .await?;
-    let group = crate::rbac::group(pool, "bench-stats", Some(person), None).await?;
+    let group = crate::rbac::group(pool, "bench-stats", &[person], &[]).await?;
     sqlx::query(
         "INSERT INTO binding (id, group_id, role_id, scope_kind, valid_period, changeset_id)
          VALUES ($1, $2, $3, 'global', $4::tstzrange, $5)",
