@@ -93,9 +93,10 @@ def test_login_in_the_browser(
     assert oidc[0]["grant_type"] == "authorization_code"
     assert isolated.values["kartenn", "kartenn:prod:access_token"] == "a1"
     me = kartenn("me")
-    assert me.stdout.splitlines()[0].startswith(
-        "Identité  Alice Exemple (interne)  (person, bearer)"
-    )
+    assert me.stdout.splitlines()[0].split(maxsplit=1) == [
+        "Identité",
+        "Alice Exemple (interne)  (person, bearer)",
+    ]
     out = kartenn("logout")
     assert out.stdout == "Déconnecté du profil prod.\n"
     assert ("kartenn", "kartenn:prod:access_token") not in isolated.values

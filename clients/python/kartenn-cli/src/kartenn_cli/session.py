@@ -66,9 +66,9 @@ def _who(me: dict[str, Any]) -> str:
 
 def _groups(groups: list[dict[str, str]]) -> str:
     """The groups of kartenn of `GET /v1/me` (spec 025): `key`, or `key (via group)`."""
-    return ", ".join(
-        g["key"] if g.get("via") == "direct" else f"{g['key']} ({g.get('via')})" for g in groups
-    )
+    from kartenn_cli.rights import group_of  # noqa: PLC0415
+
+    return ", ".join(group_of(g) for g in groups)
 
 
 def _breakglass(
@@ -189,6 +189,7 @@ def me_command(ctx: click.Context, output: str | None) -> None:
     rows = [
         (t("me.identity"), f"{_who(me)}  ({me.get('kind')}, {me.get('method')})"),
         (t("me.groups"), _groups(cast("list[dict[str, str]]", me.get("groups") or [])) or "—"),
+        (t("me.idp_groups"), ", ".join(cast("list[str]", me.get("idp_groups") or [])) or "—"),
         (t("me.roles"), ", ".join(cast("list[str]", me.get("roles") or [])) or "—"),
     ]
     width = max(len(label) for label, _ in rows)

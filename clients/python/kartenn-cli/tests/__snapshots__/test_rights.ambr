@@ -1,0 +1,25 @@
+# serializer version: 1
+# name: test_an_identity_with_its_groups_and_last_session
+  '''
+  href                     /v1/identities/1d000000-0000-7000-8000-000000000001
+  kind                     person
+  name                     Alice Exemple
+  issuer                   https://idp.example.org/realms/interne
+  disabled                 false
+  revoked_after            —
+  groups                   admins, admins (kartenn-admins)
+  bindings                 administrator (admins, global), reader (admins, site 6a000000-0000-7000-8000-000000000002)
+  last_session.at          2026-10-24T08:00:00Z
+  last_session.idp_groups  kartenn-admins, vpn
+  
+  '''
+# ---
+# name: test_members_of_a_group
+  '''
+  KIND       IDENTITY                              NAME           ISSUER                                  GROUP           VALID_FROM            VALID_TO
+  identity   1d000000-0000-7000-8000-000000000001  Alice Exemple  —                                       —               2026-10-01T00:00:00Z  —
+  idp_group  —                                     —              https://idp.example.org/realms/interne  kartenn-admins  2026-10-01T00:00:00Z  —
+  2 éléments
+  
+  '''
+# ---

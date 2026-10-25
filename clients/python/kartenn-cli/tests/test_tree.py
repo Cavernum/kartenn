@@ -104,6 +104,7 @@ def test_root_help_of_a_server_without_policy(server: FakeServer) -> None:
         ("policy", "rules", "list"),
         ("prefixes", "properties"),
         ("service-accounts", "secrets"),
+        ("groups", "members"),
     ],
 )
 def test_help_of_each_group(

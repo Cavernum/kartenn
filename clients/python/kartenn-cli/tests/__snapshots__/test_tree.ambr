@@ -187,6 +187,23 @@
   
   '''
 # ---
+# name: test_help_of_each_group[path9]
+  '''
+  Usage: kartenn groups members [OPTIONS] COMMANDE [ARGS]...
+  
+    Verbes « members ».
+  
+  Options:
+    -h, --help  Cette aide.
+  
+  Commandes:
+    add     `POST /v1/groups/{id}/members` `{identity}` or `{issuer, group}`: 201 and `Location`.
+    get     `GET /v1/groups/{id}/members/{member}`.
+    list    `GET /v1/groups/{id}/members`.
+    remove  `DELETE /v1/groups/{id}/members/{member}`: ends the membership.
+  
+  '''
+# ---
 # name: test_root_help_lists_the_modules_served
   '''
   Usage: kartenn [OPTIONS] COMMANDE [ARGS]...

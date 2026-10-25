@@ -404,6 +404,7 @@ session = "Break-glass session closed."
 help = "Who am I: identity, groups, roles."
 identity = "Identity"
 groups = "Groups"
+idp_groups = "IdP groups"
 roles = "Roles"
 
 [watch]
@@ -433,6 +434,11 @@ no_key = "“{resource}” declares no natural key (x-kartenn): name the object 
 shape = "“{ref}” does not have the shape of the key of “{resource}”: {key}."
 not_found = "No object “{ref}” in “{resource}” (at the dates of the read)."
 ambiguous = "“{ref}” names several objects of “{resource}”: give the UUID."
+
+[group]
+member_shape = "“{ref}” is neither the UUID of an identity nor “issuer/group”."
+member_missing = "No member: MEMBER, --identity, or --issuer and --group."
+member_twice = "Member given twice: MEMBER, or --identity, --issuer and --group."
 
 [list]
 valid_as_of = "valid at {valid}, as asserted on {as_of}"

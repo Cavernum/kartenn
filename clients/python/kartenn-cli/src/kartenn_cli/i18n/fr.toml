@@ -404,6 +404,7 @@ session = "Session de secours fermée."
 help = "Qui suis-je : identité, groupes, rôles."
 identity = "Identité"
 groups = "Groupes"
+idp_groups = "Groupes IdP"
 roles = "Rôles"
 
 [watch]
@@ -433,6 +434,11 @@ no_key = "« {resource} » ne déclare pas de clé naturelle (x-kartenn) : dési
 shape = "« {ref} » n'a pas la forme de la clé de « {resource} » : {key}."
 not_found = "Aucun objet « {ref} » dans « {resource} » (aux dates de la lecture)."
 ambiguous = "« {ref} » désigne plusieurs objets de « {resource} » : donnez l'UUID."
+
+[group]
+member_shape = "« {ref} » n'est ni l'UUID d'une identité ni « émetteur/groupe »."
+member_missing = "Membre absent : MEMBRE, --identity, ou --issuer et --group."
+member_twice = "Membre donné deux fois : MEMBRE, ou --identity, --issuer et --group."
 
 [list]
 valid_as_of = "valide au {valid}, tel qu'affirmé le {as_of}"
