@@ -5087,6 +5087,28 @@ export interface components {
       /** @description Its kind of the core, or its qualified type. */
       kind: string;
     };
+    /**
+     * @description A member of a group of kartenn (spec 025, G2, G6): an identity or a group of an
+     *     issuer, never another group of kartenn.
+     */
+    GroupMember:
+      | {
+          /**
+           * Format: uuid
+           * @description Its identifier.
+           */
+          id: string;
+          /** @enum {string} */
+          kind: "identity";
+        }
+      | {
+          /** @description Group, as the issuer serves it. */
+          group: string;
+          /** @description Issuer. */
+          issuer: string;
+          /** @enum {string} */
+          kind: "idp_group";
+        };
     /** @description A binding that serves the caller. */
     HeldBinding: {
       /** @description Role key. */
@@ -6325,6 +6347,42 @@ export interface components {
           key: string;
           /** @enum {string} */
           op: "close_role";
+        }
+      | {
+          /** @description Stable key. */
+          key: string;
+          /** @description Labels by language, `{<tag>: <text>}`: the default language at least. */
+          labels: components["schemas"]["BTreeMap"];
+          /** @enum {string} */
+          op: "set_group";
+        }
+      | {
+          /** @description Key. */
+          key: string;
+          /** @enum {string} */
+          op: "close_group";
+        }
+      | {
+          /** @description The group, by key. */
+          group: string;
+          /**
+           * Format: int32
+           * @description Local name of the membership.
+           */
+          local?: number | null;
+          /** @description Who. */
+          member: components["schemas"]["GroupMember"];
+          /** @enum {string} */
+          op: "add_member";
+        }
+      | {
+          /**
+           * Format: uuid
+           * @description The membership.
+           */
+          id: string;
+          /** @enum {string} */
+          op: "remove_member";
         }
       | {
           /** @description The group, by key. */

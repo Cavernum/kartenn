@@ -67,8 +67,13 @@ Sévérités fixées par la spécification (002/A4).
 | `core.binding.escalation` | erreur | On ne lie un rôle sur un périmètre que si l'on détient soi-même chacune de ses entrées sur ce périmètre. | REQ-005-26 | 005/K7 |
 | `core.role.builtin` | erreur | Un rôle livré ne change que par la synchronisation du noyau. | REQ-005-17 | 005/K12 |
 | `core.role.unknown` | erreur | Une liaison désigne un rôle en vigueur. | REQ-005-25 | 005/K6 |
-| `core.binding.requester` | erreur | Une liaison ne désigne pas une identité « requester » : un demandeur n'est pas un compte ; la personne qui se connecte ensuite par son émetteur en devient un. | REQ-016-12 | 016/G10 |
+| `core.binding.requester` | erreur | Un groupe n'a pas pour membre une identité « requester » : un demandeur n'est pas un compte ; la personne qui se connecte ensuite par son émetteur en devient un. | REQ-016-12, REQ-025-2 | 016/G10, 025/G2 |
 | `core.binding.group_closed` | erreur | Une liaison désigne un groupe en vigueur : un groupe clos depuis l'écriture d'un changeset en attente qui le lie met ce changeset en conflit à son approbation. | REQ-025-4 | 025/G1 |
+| `core.group.invalid` | erreur | Un groupe a une clé et des libellés ; un membre est une identité ou un groupe non vide d'un émetteur, présent au plus une fois dans un groupe à une même date. | REQ-025-1, REQ-025-2 | 025/G2 |
+| `core.group.unknown` | erreur | Une appartenance désigne un groupe en vigueur. | REQ-025-2 | 025/G2 |
+| `core.group.nested` | erreur | Un groupe kartenn n'est membre d'aucun autre : un membre est une identité ou un groupe de l'émetteur, la forme d'une appartenance n'en admet pas d'autre. | REQ-025-3 | 025/G6 |
+| `core.group.escalation` | erreur | On n'ajoute ni ne retire un membre d'un groupe, ni ne le clôt, que si l'on pourrait créer chacune de ses liaisons : administrer les droits sur leur périmètre et détenir chaque entrée de leurs rôles. | REQ-025-7, REQ-025-8 | 025/G5 |
+| `core.group.builtin` | erreur | Un groupe livré, ses libellés et ses liaisons ne changent que par la synchronisation du noyau ; ses membres se gèrent comme ceux d'un autre groupe. | REQ-025-9 | 025/G7 |
 | `core.object.forbidden` | erreur | Créer, modifier ou clore un objet exige la permission d'édition de sa sorte sur l'objet. | REQ-005-22 | 005/K12 |
 | `core.label.invalid` | erreur | Un libellé a de 1 à 200 caractères sans caractère de contrôle, sous une étiquette de langue BCP 47 ; une table de libellés non vide contient la langue par défaut. | REQ-018-9 | 018/R7, R9, RFC 5646 §2.1 |
 | `core.object.dependents` | erreur | Un objet n'est clos que si aucun objet vivant d'un module n'y fait référence ; la cascade explicite clôt ou détache les dépendants selon la politique de chaque référence. | REQ-008-10 | D33, ADR 0026 |

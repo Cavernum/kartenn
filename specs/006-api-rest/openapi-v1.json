@@ -3059,6 +3059,57 @@
         ],
         "type": "object"
       },
+      "GroupMember": {
+        "description": "A member of a group of kartenn (spec 025, G2, G6): an identity or a group of an\nissuer, never another group of kartenn.",
+        "oneOf": [
+          {
+            "description": "One identity.",
+            "properties": {
+              "id": {
+                "description": "Its identifier.",
+                "format": "uuid",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "identity"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "The identities of an issuer whose session carries the group `group`.",
+            "properties": {
+              "group": {
+                "description": "Group, as the issuer serves it.",
+                "type": "string"
+              },
+              "issuer": {
+                "description": "Issuer.",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "idp_group"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "issuer",
+              "group",
+              "kind"
+            ],
+            "type": "object"
+          }
+        ]
+      },
       "HeldBinding": {
         "description": "A binding that serves the caller.",
         "properties": {
@@ -6444,6 +6495,106 @@
             },
             "required": [
               "key",
+              "op"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Defines a group of kartenn, or replaces its labels (spec 025, REQ-025-1).",
+            "properties": {
+              "key": {
+                "description": "Stable key.",
+                "type": "string"
+              },
+              "labels": {
+                "$ref": "#/components/schemas/BTreeMap",
+                "description": "Labels by language, `{<tag>: <text>}`: the default language at least."
+              },
+              "op": {
+                "enum": [
+                  "set_group"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "labels",
+              "op"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Closes a group, its bindings and its memberships (spec 025, REQ-025-8).",
+            "properties": {
+              "key": {
+                "description": "Key.",
+                "type": "string"
+              },
+              "op": {
+                "enum": [
+                  "close_group"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "op"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Adds a member to a group (spec 025, REQ-025-2, 7).",
+            "properties": {
+              "group": {
+                "description": "The group, by key.",
+                "type": "string"
+              },
+              "local": {
+                "description": "Local name of the membership.",
+                "format": "int32",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "member": {
+                "$ref": "#/components/schemas/GroupMember",
+                "description": "Who."
+              },
+              "op": {
+                "enum": [
+                  "add_member"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "group",
+              "member",
+              "op"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Ends a membership (spec 025, REQ-025-7).",
+            "properties": {
+              "id": {
+                "description": "The membership.",
+                "format": "uuid",
+                "type": "string"
+              },
+              "op": {
+                "enum": [
+                  "remove_member"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
               "op"
             ],
             "type": "object"

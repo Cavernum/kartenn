@@ -346,17 +346,19 @@ pub async fn visibilities_on(
     let wanted: Vec<&str> = permissions.to_vec();
     // One row per binding, with the permissions of its role that matter here and, for a
     // prefix subtree, its domain and value (none once the prefix is closed: it grants
-    // nothing then). No sort: duplicates go in `Visibility::normalize`.
+    // nothing then). No sort: duplicates go in `Visibility::normalize`. The rights are those
+    // asserted before the writes of the transaction (spec 025, G5: `*_asserted`).
     let rows: Vec<ScopeRow> = sqlx::query_as(
         "WITH granting AS (
              SELECT rp.role_id, array_agg(rp.permission) AS permissions
-             FROM role r JOIN role_permission rp ON rp.role_id = r.id AND rp.valid_period @> $2
+             FROM role_asserted r
+             JOIN role_permission_asserted rp ON rp.role_id = r.id AND rp.valid_period @> $2
              WHERE r.valid_period @> $2
                AND (rp.permission = '*' OR rp.permission = ANY($1)
                     OR ($6 AND rp.permission LIKE 'prop.*.%'))
              GROUP BY rp.role_id)
          SELECT b.scope_kind, b.scope_id, g.permissions, p.domain_id, p.prefix::text
-         FROM binding b
+         FROM binding_asserted b
          JOIN granting g ON g.role_id = b.role_id
          LEFT JOIN prefix p ON b.scope_kind = 'prefix' AND p.id = b.scope_id
                            AND p.valid_period @> $2
@@ -679,8 +681,8 @@ pub async fn roles_of_on(
     subject: &Subject,
 ) -> Result<Vec<String>, StoreError> {
     sqlx::query_scalar(
-        "SELECT DISTINCT r.key FROM binding b
-         JOIN role r ON r.id = b.role_id AND r.valid_period @> now()
+        "SELECT DISTINCT r.key FROM binding_asserted b
+         JOIN role_asserted r ON r.id = b.role_id AND r.valid_period @> now()
          WHERE b.valid_period @> now()
            AND b.group_id IN (SELECT kartenn_member_of($1, $2, $3, now()))
          ORDER BY r.key",

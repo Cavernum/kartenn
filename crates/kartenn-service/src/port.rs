@@ -373,6 +373,16 @@ pub enum RbacRow {
         /// Its identifier.
         id: Uuid,
     },
+    /// A group of kartenn, by key (spec 025).
+    Group {
+        /// Key.
+        key: String,
+    },
+    /// A membership of a group (spec 025).
+    Member {
+        /// Its identifier.
+        id: Uuid,
+    },
     /// The attachment of an issuer to an entity, or everywhere.
     Attachment {
         /// Issuer.
@@ -410,8 +420,44 @@ pub enum RbacState {
         /// Where.
         scope: crate::operations::BindingScope,
     },
+    /// A group of kartenn.
+    Group {
+        /// Labels by language.
+        labels: crate::operations::RawLabels,
+    },
+    /// A membership.
+    Member {
+        /// The group, by key.
+        group: String,
+        /// Who.
+        member: crate::operations::GroupMember,
+    },
     /// An attachment: nothing beyond its identity.
     Attachment,
+}
+
+/// A group of kartenn as it was before the transaction of a changeset (spec 025, G5).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredGroup {
+    /// Delivered with kartenn (G7).
+    pub builtin: bool,
+    /// Its bindings in force then.
+    pub bindings: Vec<StoredBinding>,
+}
+
+/// A binding as it was before the transaction of a changeset (spec 025, G5).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredBinding {
+    /// Its identifier.
+    pub id: Uuid,
+    /// The key of its group.
+    pub group: String,
+    /// Its group is delivered with kartenn (G7).
+    pub builtin: bool,
+    /// The key of its role.
+    pub role: String,
+    /// Its scope object, [`crate::rbac::RBAC_OBJECT`] for a global one.
+    pub scope: Uuid,
 }
 
 /// An object, or an assignment of it, written by a changeset to undo.
@@ -677,12 +723,35 @@ pub trait WriteTx {
         permissions: &[&str],
     ) -> impl Future<Output = Result<Vec<crate::rbac::StoredRole>, StoreError>> + Send;
 
-    /// The scope object of a binding in force (its entity, site, domain or prefix, or
-    /// [`crate::rbac::RBAC_OBJECT`] for a global one), if it exists.
-    fn binding_scope(
+    /// The binding `binding` in force before the writes of this transaction, if any: the
+    /// rights it asks are those of the state the changeset changes (spec 025, G5).
+    fn stored_binding(
         &mut self,
         binding: Uuid,
-    ) -> impl Future<Output = Result<Option<Uuid>, StoreError>> + Send;
+    ) -> impl Future<Output = Result<Option<StoredBinding>, StoreError>> + Send;
+
+    /// The group `key` in force before the writes of this transaction, with its bindings
+    /// then, if it existed (spec 025, G5).
+    fn stored_group(
+        &mut self,
+        key: &str,
+    ) -> impl Future<Output = Result<Option<StoredGroup>, StoreError>> + Send;
+
+    /// The key of the group of the membership `member`, from any of its versions asserted
+    /// before this transaction (spec 025, G5).
+    fn member_group(
+        &mut self,
+        member: Uuid,
+    ) -> impl Future<Output = Result<Option<String>, StoreError>> + Send;
+
+    /// The scope objects of the bindings in force of `subject` whose role holds
+    /// `permission` or `*` ([`crate::rbac::RBAC_OBJECT`] for a global one), as this
+    /// transaction sees them: where it may hold the permission (spec 025, G5).
+    fn scopes_holding(
+        &mut self,
+        subject: &crate::authz::Subject,
+        permission: &str,
+    ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
 
     /// Whether one of `objects` lies in the scope `kind` (`entity`, `site`, `prefix`) `scope`
     /// or below it, as this transaction sees them (005, REQ-005-27).

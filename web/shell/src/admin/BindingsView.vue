@@ -3,16 +3,16 @@ import { computed, reactive, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { Pager, withQuery } from "../data/api.ts";
 import { useWrites } from "../time/index.ts";
-import { subjectText } from "./admin.ts";
 import PagedTable from "./PagedTable.vue";
 import WriteOutcome from "./WriteOutcome.vue";
 import { useAdminWrite } from "./write.ts";
 
-// Bindings subject × role × scope (REQ-007-19, spec 005): listed, posed, closed.
+// Bindings group × role × scope (REQ-007-19, spec 005; spec 025: a binding serves a group
+// of kartenn): listed, posed, closed.
 
 interface Binding extends Record<string, unknown> {
   id: string;
-  subject: { kind: string; id?: string | null; group?: string | null; issuer?: string | null };
+  group: string;
   role: string;
   scope: { kind: string; id?: string | null };
   valid_from: string;
@@ -24,10 +24,7 @@ const writes = useWrites();
 const write = useAdminWrite();
 const pager = shallowRef(new Pager<Binding>(URL));
 const form = reactive({
-  subjectKind: "group",
-  issuer: "",
   group: "",
-  identity: "",
   role: "",
   scopeKind: "global",
   scopeId: "",
@@ -35,14 +32,12 @@ const form = reactive({
 });
 
 const columns = computed(() => [
-  { key: "subject", label: t("admin.subject") },
+  { key: "group", label: t("admin.group") },
   { key: "role", label: t("admin.role") },
   { key: "scope", label: t("admin.scope") },
   { key: "valid_from", label: t("admin.since") },
 ]);
 const cell = (binding: Binding, key: string): string => {
-  if (key === "subject")
-    return `${t(`admin.subjects.${binding.subject.kind}`)} ${subjectText(binding.subject)}`;
   if (key === "scope")
     return binding.scope.id ? `${binding.scope.kind} ${binding.scope.id}` : binding.scope.kind;
   return String(binding[key] ?? "—");
@@ -53,18 +48,12 @@ function reload(): void {
   void pager.value.more();
 }
 
-function subject() {
-  if (form.subjectKind === "identity") return { kind: "identity", id: form.identity };
-  if (form.subjectKind === "issuer") return { kind: "issuer", issuer: form.issuer };
-  return { kind: "group", issuer: form.issuer, group: form.group };
-}
-
 async function bind(): Promise<void> {
   const scope =
     form.scopeKind === "global" ? { kind: "global" } : { kind: form.scopeKind, id: form.scopeId };
   const done = await write.run("POST", "/v1/bindings", {
     motive: form.motive,
-    subject: subject(),
+    group: form.group,
     role: form.role,
     scope,
   });
@@ -84,31 +73,15 @@ async function unbind(binding: Binding): Promise<void> {
   <PagedTable :pager="pager" :columns="columns" :caption="t('admin.bindings')" :cell="cell">
     <template #actions="{ row }">
       <button type="button" :disabled="!form.motive || !writes.quickEdit" @click="unbind(row)">
-        {{ t("admin.close", { name: `${row.role} ${subjectText(row.subject)}` }) }}
+        {{ t("admin.close", { name: `${row.role} ${row.group}` }) }}
       </button>
     </template>
   </PagedTable>
   <h2>{{ t("admin.bind") }}</h2>
   <form class="k-form" :aria-label="t('admin.bind')" @submit.prevent="bind">
     <label>
-      {{ t("admin.subjectKind") }}
-      <select v-model="form.subjectKind" name="subject">
-        <option value="group">{{ t("admin.subjects.group") }}</option>
-        <option value="identity">{{ t("admin.subjects.identity") }}</option>
-        <option value="issuer">{{ t("admin.subjects.issuer") }}</option>
-      </select>
-    </label>
-    <label v-if="form.subjectKind !== 'identity'">
-      {{ t("admin.issuer") }}
-      <input v-model="form.issuer" name="issuer" required />
-    </label>
-    <label v-if="form.subjectKind === 'group'">
       {{ t("admin.group") }}
       <input v-model="form.group" name="group" required />
-    </label>
-    <label v-if="form.subjectKind === 'identity'">
-      {{ t("admin.identity") }}
-      <input v-model="form.identity" name="identity" required />
     </label>
     <label>
       {{ t("admin.role") }}

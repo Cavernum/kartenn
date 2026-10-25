@@ -70,7 +70,21 @@ def test_profiles_and_break_glass(cli: Cli) -> None:
         me = cli("-p", profile, "me")
         assert re.search(r"^Identité +e2e +\(breakglass", me.out, re.MULTILINE), me.out
         cli("-p", profile, "issuer-attachments", "create", "--issuer", ISSUER, "--motive", MOTIVE)
-        subject = {"kind": "group", "issuer": ISSUER, "group": "kartenn-admins"}
+        # The group `kartenn-admins` of kartenn, whose member is the group of the issuer
+        # (spec 025): a binding serves a group of kartenn.
+        group = [
+            {"op": "set_group", "key": "kartenn-admins", "labels": {"fr": "Administrateurs"}},
+            {
+                "op": "add_member",
+                "group": "kartenn-admins",
+                "member": {"kind": "idp_group", "issuer": ISSUER, "group": "kartenn-admins"},
+            },
+        ]
+        (cli.home / "groupe.yaml").write_text("\n".join(f"- {json.dumps(o)}" for o in group))
+        cli("-p", profile, "changeset", "new", "--motive", MOTIVE)
+        cli("-p", profile, "changeset", "add", "--from-file", "groupe.yaml")
+        run = cli("-p", profile, "changeset", "apply")
+        assert re.match(r"Changeset <uuid> appliqué\.", normalized(run.out)), run.both
         run = cli(
             "-p",
             profile,
@@ -79,7 +93,7 @@ def test_profiles_and_break_glass(cli: Cli) -> None:
             "--role",
             "administrator",
             "--set",
-            f"subject={json.dumps(subject)}",
+            "group=kartenn-admins",
             "--set",
             'scope={"kind": "global"}',
             "--motive",

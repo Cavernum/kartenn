@@ -46,21 +46,23 @@ export default async function globalSetup(): Promise<void> {
       labels: { fr: CONTRIBUTOR.label },
       entries: CONTRIBUTOR.entries,
     });
-    for (const [group, roles] of Object.entries(GROUPS)) {
-      for (const role of roles) {
-        await expectOk(api, "POST", "/v1/bindings", {
-          motive: "end-to-end journeys",
-          subject: { kind: "group", issuer: ISSUER, group },
-          role,
-          scope: { kind: "global" },
-        });
-      }
-    }
+    // Each group of users.toml is a member of the group of kartenn of the same key, which
+    // holds the roles (spec 025: a binding serves a group of kartenn).
+    const group = (key: string) => [
+      { op: "set_group", key, labels: { fr: key } },
+      { op: "add_member", group: key, member: { kind: "idp_group", issuer: ISSUER, group: key } },
+    ];
+    await expectOk(api, "POST", "/v1/changesets", {
+      motive: "end-to-end journeys",
+      operations: Object.entries(GROUPS).flatMap(([key, roles]) => [
+        ...group(key),
+        ...roles.map((role) => ({ op: "bind", group: key, role, scope: { kind: "global" } })),
+      ]),
+    });
     const entity = await created(api, "/v1/entities", { slug: DATA.entity });
     // The group `redacteurs` (task 19): readers everywhere, able to read the roles (so that
     // the interface knows its scoped role), editors of one entity only.
     const confined = await created(api, "/v1/entities", { slug: DATA.confined });
-    const redacteurs = { kind: "group", issuer: ISSUER, group: "redacteurs" };
     await expectOk(api, "POST", "/v1/changesets", {
       motive: "end-to-end journeys",
       operations: [
@@ -70,11 +72,12 @@ export default async function globalSetup(): Promise<void> {
           labels: { fr: "Lecture des droits" },
           entries: ["core.rbac.read"],
         },
-        { op: "bind", subject: redacteurs, role: "reader", scope: { kind: "global" } },
-        { op: "bind", subject: redacteurs, role: "e2e_rbac_reader", scope: { kind: "global" } },
+        ...group("redacteurs"),
+        { op: "bind", group: "redacteurs", role: "reader", scope: { kind: "global" } },
+        { op: "bind", group: "redacteurs", role: "e2e_rbac_reader", scope: { kind: "global" } },
         {
           op: "bind",
-          subject: redacteurs,
+          group: "redacteurs",
           role: "editor",
           scope: { kind: "entity", id: { id: confined } },
         },

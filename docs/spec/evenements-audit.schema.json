@@ -625,6 +625,31 @@
           "additionalProperties": false,
           "properties": {
             "change": {},
+            "group": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "rbac.group.changed"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "change": {},
             "on_behalf_of": {
               "format": "uuid",
               "type": "string"

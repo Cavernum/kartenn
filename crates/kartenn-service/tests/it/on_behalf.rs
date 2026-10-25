@@ -9,7 +9,7 @@ use kartenn_service::authn::{
 };
 use kartenn_service::authz::{Grants, Unrestricted};
 use kartenn_service::expected::Sources;
-use kartenn_service::operations::BindingScope;
+use kartenn_service::operations::{BindingScope, GroupMember};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, Operation, Outcome, submit, submit_in};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
@@ -251,6 +251,30 @@ async fn the_requester_who_logs_in_becomes_a_person_under_the_issuer_name(pool: 
     let id = act_on_behalf(&store, &journal(&pool), &sa, &named, Source::default())
         .await
         .unwrap();
+    // A requester is not an account: no group has it for member.
+    let member = request(
+        identity(&pool, "person").await,
+        vec![
+            Operation::SetGroup {
+                key: "requesters".into(),
+                labels: [("fr".into(), "Demandeurs".into())].into(),
+            },
+            Operation::AddMember {
+                local: None,
+                group: "requesters".into(),
+                member: GroupMember::Identity { id },
+            },
+        ],
+    );
+    match submit(&store, &Unrestricted, &member, MAX_OPERATIONS)
+        .await
+        .unwrap()
+    {
+        Outcome::Refused { violations, .. } => {
+            assert_eq!(violations[0].rule.id, "core.binding.requester");
+        }
+        other => panic!("expected a refusal, got {other:?}"),
+    }
     // The real person logs in through the issuer: the same row, now a person, named by
     // the issuer.
     let (logged, disabled) = store

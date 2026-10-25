@@ -67,14 +67,49 @@ ALTER TABLE binding ADD CONSTRAINT binding_subject CHECK (CASE
     ELSE false END);
 CREATE INDEX binding_by_group ON binding (group_id);
 
+-- The rights of a subject are read as asserted before the writes of the current
+-- transaction (REQ-025-7, G5): a changeset that adds its author to a group, or binds a
+-- group of its author, gives the author nothing within itself. Outside a transaction that
+-- writes, these views are the tables: the rows the transaction moved to the history end
+-- at its instant (`sys_end = now()`), its new rows start at it.
+CREATE VIEW binding_asserted WITH (security_invoker = true) AS
+    SELECT id, group_id, role_id, scope_kind, scope_id, valid_period
+    FROM binding WHERE sys_start < now()
+    UNION ALL
+    SELECT id, group_id, role_id, scope_kind, scope_id, valid_period
+    FROM binding_history WHERE sys_start < now() AND sys_end = now();
+CREATE VIEW role_asserted WITH (security_invoker = true) AS
+    SELECT id, key, valid_period FROM role WHERE sys_start < now()
+    UNION ALL
+    SELECT id, key, valid_period FROM role_history WHERE sys_start < now() AND sys_end = now();
+CREATE VIEW role_permission_asserted WITH (security_invoker = true) AS
+    SELECT role_id, permission, valid_period FROM role_permission WHERE sys_start < now()
+    UNION ALL
+    SELECT role_id, permission, valid_period FROM role_permission_history
+    WHERE sys_start < now() AND sys_end = now();
+CREATE VIEW rbac_group_asserted WITH (security_invoker = true) AS
+    SELECT id, key, builtin, valid_period FROM rbac_group WHERE sys_start < now()
+    UNION ALL
+    SELECT id, key, builtin, valid_period FROM rbac_group_history
+    WHERE sys_start < now() AND sys_end = now();
+CREATE VIEW group_member_asserted WITH (security_invoker = true) AS
+    SELECT id, group_id, member_kind, identity_id, issuer, group_name, valid_period
+    FROM group_member WHERE sys_start < now()
+    UNION ALL
+    SELECT id, group_id, member_kind, identity_id, issuer, group_name, valid_period
+    FROM group_member_history WHERE sys_start < now() AND sys_end = now();
+GRANT SELECT ON binding_asserted, role_asserted, role_permission_asserted, rbac_group_asserted,
+    group_member_asserted TO kartenn_app;
+
 -- The groups of kartenn a subject belongs to at `at` (REQ-025-4, 5): directly, or by one
 -- of the groups `groups` of its issuer `issuer` (those of its session, or of the snapshot
--- of a pending changeset), in groups in force then.
+-- of a pending changeset), in groups in force then; as asserted before the writes of the
+-- current transaction.
 CREATE FUNCTION public.kartenn_member_of(who uuid, who_issuer text, who_groups text[], at timestamptz)
 RETURNS SETOF uuid
 LANGUAGE sql STABLE PARALLEL SAFE SET search_path = pg_catalog, public AS $$
-    SELECT m.group_id FROM group_member m
-    JOIN rbac_group g ON g.id = m.group_id AND g.valid_period @> at
+    SELECT m.group_id FROM group_member_asserted m
+    JOIN rbac_group_asserted g ON g.id = m.group_id AND g.valid_period @> at
     WHERE m.valid_period @> at
       AND ((m.member_kind = 'identity' AND m.identity_id = who)
            OR (m.member_kind = 'idp_group' AND m.issuer = who_issuer

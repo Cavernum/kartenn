@@ -31,11 +31,51 @@ Statut : spec **validée le 2026-10-25**.
     - Tests : `kartenn_testing::BIND_IDENTITY` et `GROUP_OF` (un groupe par identité) pour
       les raccourcis SQL des tests ; le compte de secours, en attendant la tâche 3, reçoit
       un groupe à lui lié au rôle administrateur.
-- [ ] 2. Opérations `SetGroup`, `CloseGroup`, `AddMember`, `RemoveMember`, `Bind` sur
+- [x] 2. Opérations `SetGroup`, `CloseGroup`, `AddMember`, `RemoveMember`, `Bind` sur
   groupe ; règles `core.group.escalation`, `core.group.builtin` ; annulation —
   REQ-025-3, 6, 7, 8, 10 — verify : `k-check`, INV-27 étendu
   - où : `crates/kartenn-store-pg/src/rbac_admin.rs`, `undo.rs` ;
     `crates/kartenn-core/src/rules.rs` (`RBAC_ESCALATION`) ; `docs/spec/regles-noyau.md`.
+  - Résultat : opérations `set_group`, `close_group`, `add_member`, `remove_member` (service,
+    miroir REST de `POST /v1/changesets`) ; `rbac::check_group`/`group_rights` ; écriture
+    `rbac_admin::write_group` ; annulation par `groups_touched` (groupes, appartenances) en
+    cinq étages ; tests `rights_come_and_go_with_the_memberships`,
+    `a_delegate_cannot_escalate_through_a_group` (INV-27), `group_changes_are_undone_in_their_order`,
+    `a_new_group_is_undone_after_its_members`, refus `core.binding.requester` par
+    `add_member` ; `regles-noyau.md`, `permissions.md`, `evenements-audit.md` régénérés.
+  - Choix tranchés :
+    - Les droits du sujet se lisent **tels qu'affirmés avant les écritures de la
+      transaction** (vues `binding_asserted`, `role_asserted`, `role_permission_asserted`,
+      `rbac_group_asserted`, `group_member_asserted`, lues par `kartenn_member_of` et
+      `visibilities_on`) : sans cela, s'entrer soi-même dans un groupe (REQ-025-7) ou lier un
+      rôle à son propre groupe passait le contrôle, fait après les écritures. Hors d'une
+      transaction qui écrit, ces vues sont les tables. Effet de bord voulu : un changeset
+      ne donne jamais de droit à son auteur en son sein.
+    - L'état d'un groupe contrôlé (liaisons, appartenance retirée, liaison retirée) est
+      celui d'avant le changeset (`stored_group`, `stored_binding`, `member_group`) ; cela
+      corrige au passage `Unbind`, que le contrôle, venu après l'écriture, ne voyait plus.
+    - Un administrateur ne se retire pas du dernier groupe qui lui donne le droit de le
+      faire : le refus le protège de se verrouiller dehors.
+    - Groupe sans liaison (création, ajout, clôture) et renommage : `core.rbac.admin` sur
+      un périmètre quelconque (`scopes_holding` puis le décideur) ; refus
+      `core.rbac.forbidden`.
+    - Liaison et retrait de liaison d'un groupe livré refusés hors synchronisation
+      (`core.group.builtin`), comme ses libellés ; ses membres se gèrent librement (G7).
+    - Règles ajoutées : `core.group.invalid` (clé, libellés, membre, doublon d'un membre),
+      `core.group.unknown` (appartenance à un groupe absent), `core.group.nested`
+      (documentaire : la forme d'un membre n'admet pas de groupe kartenn),
+      `core.group.escalation`, `core.group.builtin` ; `core.binding.requester` garde son
+      code et vise désormais l'appartenance.
+    - `RemoveMember` désigne l'appartenance par son identifiant (comme `Unbind`) ; une
+      appartenance reprise par l'annulation est une nouvelle ligne.
+    - Audit : `rbac.group.changed` (`group`, `change` : `set`, `closed`, `member_added`,
+      `member_removed`).
+    - Libellés de groupe hors du dictionnaire `GET /v1/labels` (pas de révision des
+      libellés) : à revoir avec les routes (tâche 5).
+    - Web et clients, au minimum pour ne rien casser : `BindingsView.vue` (colonne et
+      champ `group`), `web/e2e/global-setup.ts` et `budgets/global-setup.ts` (groupes de
+      même clé que ceux de l'IdP, par changeset), session `k-py-e2e` (groupe
+      `kartenn-admins` par `changeset add`, puis `bindings create --set group=…`).
 - [ ] 3. Groupe livré `secours`, amorçage du compte de secours par appartenance —
   REQ-025-9 — verify : `k-check`, parcours e2e `web/e2e/serve.sh`
   - où : `crates/kartenn-store-pg/src/breakglass.rs` ; synchronisation des rôles livrés.

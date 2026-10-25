@@ -4,7 +4,7 @@ use kartenn_core::objects::{AddressUsage, Nature};
 use kartenn_core::values::Cardinality;
 use kartenn_service::authz::Unrestricted;
 use kartenn_service::operations::{
-    BindingScope, DeclarationInput, PeriodSpec, RawInput, SecretRecord, TypeInput,
+    BindingScope, DeclarationInput, GroupMember, PeriodSpec, RawInput, SecretRecord, TypeInput,
 };
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::port::RbacRow;
@@ -535,5 +535,105 @@ async fn a_later_administration_is_a_conflict(pool: PgPool) {
             row: RbacRow::Binding { id: binding },
             by: unbound,
         }]
+    );
+}
+
+/// The kind of each operation of an inverse.
+fn kinds(operations: &[Operation]) -> Vec<&'static str> {
+    operations
+        .iter()
+        .map(|op| match op.inner() {
+            Operation::Unbind { .. } => "unbind",
+            Operation::RemoveMember { .. } => "remove_member",
+            Operation::CloseGroup { .. } => "close_group",
+            Operation::CloseRole { .. } => "close_role",
+            Operation::SetGroup { .. } => "set_group",
+            Operation::AddMember { .. } => "add_member",
+            Operation::Bind { .. } => "bind",
+            other => panic!("unexpected {other:?}"),
+        })
+        .collect()
+}
+
+// Spec 025, REQ-025-10: groups, then memberships, then bindings.
+#[kartenn_testing::pg_test]
+async fn group_changes_are_undone_in_their_order(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    let created = f
+        .applied(vec![
+            auditor("Auditor", &["core.audit.read"]),
+            Operation::SetGroup {
+                key: "ops".into(),
+                labels: [("fr".into(), "Ops".into())].into(),
+            },
+            Operation::AddMember {
+                local: None,
+                group: "ops".into(),
+                member: GroupMember::IdpGroup {
+                    issuer: IDP.into(),
+                    group: "ops".into(),
+                },
+            },
+            bind("ops", BindingScope::Global),
+        ])
+        .await;
+    let before = f.bindings().await;
+    let members = || async {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM group_member m JOIN rbac_group g ON g.id = m.group_id
+             WHERE g.key = 'ops' AND g.valid_period @> now() AND m.valid_period @> now()",
+        )
+        .fetch_one(&f.pool)
+        .await
+        .unwrap()
+    };
+    // A closure undone: the group, its member and its binding come back.
+    let closed = f
+        .applied(vec![Operation::CloseGroup { key: "ops".into() }])
+        .await;
+    assert_eq!(members().await, 0);
+    let undo = f.undone(closed).await;
+    assert_eq!(
+        kinds(&undo.request.operations),
+        ["set_group", "add_member", "bind"]
+    );
+    assert_eq!(f.bindings().await, before);
+    assert_eq!(members().await, 1);
+    // The creation, written over since: conflicts, nothing undone blindly.
+    let other = inverse(&f.store, created, f.author).await.unwrap().unwrap();
+    assert!(
+        other
+            .rbac_conflicts
+            .iter()
+            .any(|c| c.row == RbacRow::Group { key: "ops".into() }),
+        "{:?}",
+        other.rbac_conflicts
+    );
+}
+
+// Spec 025, REQ-025-10: a creation undone removes the memberships and bindings before
+// closing the group.
+#[kartenn_testing::pg_test]
+async fn a_new_group_is_undone_after_its_members(pool: PgPool) {
+    let f = Fixture::new(&pool).await;
+    let created = f
+        .applied(vec![
+            auditor("Auditor", &["core.audit.read"]),
+            Operation::SetGroup {
+                key: "ops".into(),
+                labels: [("fr".into(), "Ops".into())].into(),
+            },
+            Operation::AddMember {
+                local: None,
+                group: "ops".into(),
+                member: GroupMember::Identity { id: f.author },
+            },
+            bind("ops", BindingScope::Global),
+        ])
+        .await;
+    let undo = f.undone(created).await;
+    assert_eq!(
+        kinds(&undo.request.operations),
+        ["remove_member", "unbind", "close_role", "close_group"]
     );
 }

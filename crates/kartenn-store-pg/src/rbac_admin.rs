@@ -2,8 +2,9 @@
 //! their entries, bindings and attachments are versioned rows whose application period
 //! ends when they are removed; the state of an identity is a column of `person`.
 
-use kartenn_core::authz::BUILTIN_ROLES;
+use kartenn_core::authz::{BUILTIN_GROUPS, BUILTIN_ROLES};
 use kartenn_core::rules::{self, Violation};
+use kartenn_service::operations::GroupMember;
 use kartenn_service::port::{StoreError, WriteError};
 use kartenn_service::rbac::{RBAC_OBJECT, RbacOp};
 use sqlx::PgConnection;
@@ -123,18 +124,130 @@ pub(crate) async fn custom_roles_citing(
         .collect())
 }
 
-/// See [`kartenn_service::WriteTx::binding_scope`].
-pub(crate) async fn binding_scope(
+/// The key of the role `role_id`, from any of its versions (an SQL expression).
+const ROLE_KEY: &str = "(SELECT key FROM role WHERE id = b.role_id
+       UNION ALL SELECT key FROM role_history WHERE id = b.role_id LIMIT 1)";
+
+/// A row of a stored binding: id, scope, group key, builtin group, role key.
+type BindingRow = (
+    Uuid,
+    Option<Uuid>,
+    Option<String>,
+    Option<bool>,
+    Option<String>,
+);
+
+fn stored(row: BindingRow) -> kartenn_service::port::StoredBinding {
+    let (id, scope, group, builtin, role) = row;
+    kartenn_service::port::StoredBinding {
+        id,
+        group: group.unwrap_or_default(),
+        builtin: builtin.unwrap_or(false),
+        role: role.unwrap_or_default(),
+        scope: scope.unwrap_or(RBAC_OBJECT),
+    }
+}
+
+/// See [`kartenn_service::WriteTx::stored_binding`], read as asserted before the writes of
+/// the transaction (`binding_asserted`, migration 0066). A binding written before the
+/// groups (task 025-4) names none: its scope is asked all the same.
+pub(crate) async fn stored_binding(
     conn: &mut PgConnection,
     binding: Uuid,
-) -> Result<Option<Uuid>, StoreError> {
-    let scope: Option<Option<Uuid>> =
-        sqlx::query_scalar("SELECT scope_id FROM binding WHERE id = $1 AND valid_period @> now()")
-            .bind(binding)
-            .fetch_optional(&mut *conn)
-            .await
-            .map_err(store_err)?;
-    Ok(scope.map(|s| s.unwrap_or(RBAC_OBJECT)))
+) -> Result<Option<kartenn_service::port::StoredBinding>, StoreError> {
+    let row: Option<BindingRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT b.id, b.scope_id, g.key, g.builtin, {ROLE_KEY}
+         FROM binding_asserted b
+         LEFT JOIN LATERAL (SELECT key, builtin FROM rbac_group WHERE id = b.group_id
+                            UNION ALL
+                            SELECT key, builtin FROM rbac_group_history WHERE id = b.group_id
+                            LIMIT 1) g ON true
+         WHERE b.id = $1 AND b.valid_period @> now()
+         LIMIT 1"
+    )))
+    .bind(binding)
+    .fetch_optional(&mut *conn)
+    .await
+    .map_err(store_err)?;
+    Ok(row.map(stored))
+}
+
+/// See [`kartenn_service::WriteTx::stored_group`], as asserted before the writes of the
+/// transaction.
+pub(crate) async fn stored_group(
+    conn: &mut PgConnection,
+    key: &str,
+) -> Result<Option<kartenn_service::port::StoredGroup>, StoreError> {
+    let group: Option<(Uuid, bool)> = sqlx::query_as(
+        "SELECT id, builtin FROM rbac_group_asserted
+         WHERE key = $1 AND valid_period @> now() LIMIT 1",
+    )
+    .bind(key)
+    .fetch_optional(&mut *conn)
+    .await
+    .map_err(store_err)?;
+    let Some((id, builtin)) = group else {
+        return Ok(None);
+    };
+    let rows: Vec<BindingRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT b.id, b.scope_id, $2::text, $3::boolean, {ROLE_KEY}
+         FROM binding_asserted b WHERE b.group_id = $1 AND b.valid_period @> now()
+         ORDER BY b.id"
+    )))
+    .bind(id)
+    .bind(key)
+    .bind(builtin)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(store_err)?;
+    Ok(Some(kartenn_service::port::StoredGroup {
+        builtin,
+        bindings: rows.into_iter().map(stored).collect(),
+    }))
+}
+
+/// See [`kartenn_service::WriteTx::member_group`].
+pub(crate) async fn member_group(
+    conn: &mut PgConnection,
+    member: Uuid,
+) -> Result<Option<String>, StoreError> {
+    let key: Option<Option<String>> = sqlx::query_scalar(
+        "SELECT (SELECT key FROM rbac_group WHERE id = m.group_id
+                 UNION ALL SELECT key FROM rbac_group_history WHERE id = m.group_id LIMIT 1)
+         FROM (SELECT group_id FROM group_member WHERE id = $1 AND sys_start < now()
+               UNION ALL
+               SELECT group_id FROM group_member_history WHERE id = $1 AND sys_start < now()) m
+         LIMIT 1",
+    )
+    .bind(member)
+    .fetch_optional(&mut *conn)
+    .await
+    .map_err(store_err)?;
+    Ok(key.flatten())
+}
+
+/// See [`kartenn_service::WriteTx::scopes_holding`].
+pub(crate) async fn scopes_holding(
+    conn: &mut PgConnection,
+    subject: &kartenn_service::authz::Subject,
+    permission: &str,
+) -> Result<Vec<Uuid>, StoreError> {
+    sqlx::query_scalar(
+        "SELECT DISTINCT coalesce(b.scope_id, $5) FROM binding_asserted b
+         JOIN role_asserted r ON r.id = b.role_id AND r.valid_period @> now()
+         JOIN role_permission_asserted rp ON rp.role_id = r.id AND rp.valid_period @> now()
+                                AND rp.permission IN ($4, '*')
+         WHERE b.valid_period @> now()
+           AND b.group_id IN (SELECT kartenn_member_of($1, $2, $3, now()))",
+    )
+    .bind(subject.id)
+    .bind(subject.issuer.as_deref())
+    .bind(&subject.groups)
+    .bind(permission)
+    .bind(RBAC_OBJECT)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(store_err)
 }
 
 /// The period of a new row: from `$1` (transaction time if null) to `$2`.
@@ -274,6 +387,166 @@ async fn bind(
     .await
     .map_err(write_err)?;
     Ok(())
+}
+
+/// Defines the group `key`, or replaces its labels (spec 025, REQ-025-1).
+async fn set_group(
+    conn: &mut PgConnection,
+    key: &str,
+    labels: &kartenn_core::labels::Labels,
+    (at, until): (Option<OffsetDateTime>, Option<OffsetDateTime>),
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    let labels = labels.to_json();
+    if let Some(group) = group_id(conn, key, at).await? {
+        sqlx::query(
+            "UPDATE rbac_group SET labels = $2, changeset_id = $3 WHERE id = $1 AND labels <> $2",
+        )
+        .bind(group)
+        .bind(&labels)
+        .bind(changeset)
+        .execute(&mut *conn)
+        .await
+        .map_err(write_err)?;
+        return Ok(());
+    }
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO rbac_group (id, key, labels, builtin, valid_period, changeset_id)
+         VALUES ($3, $4, $5, $6, {PERIOD}, $7)"
+    )))
+    .bind(at)
+    .bind(until)
+    .bind(Uuid::now_v7())
+    .bind(key)
+    .bind(&labels)
+    .bind(BUILTIN_GROUPS.iter().any(|g| g.key == key))
+    .bind(changeset)
+    .execute(&mut *conn)
+    .await
+    .map_err(write_err)?;
+    Ok(())
+}
+
+/// A new membership `id` of `member` in the group `group` (spec 025, REQ-025-2): a
+/// requester is not an account (016/G10, INV-60); a member appears once in a group.
+async fn add_member(
+    conn: &mut PgConnection,
+    (id, group, member): (Uuid, &str, &GroupMember),
+    (at, until): (Option<OffsetDateTime>, Option<OffsetDateTime>),
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    let Some(group_id) = group_id(conn, group, at).await? else {
+        return Err(WriteError::Rule(
+            Violation::new(&rules::GROUP_UNKNOWN, format!("no group '{group}'"))
+                .with_subjects([id]),
+        ));
+    };
+    let (kind, identity, issuer, name) = match member {
+        GroupMember::Identity { id } => ("identity", Some(*id), None, None),
+        GroupMember::IdpGroup { issuer, group } => (
+            "idp_group",
+            None,
+            Some(issuer.as_str()),
+            Some(group.as_str()),
+        ),
+    };
+    if let Some(identity) = identity {
+        let kind: Option<String> = sqlx::query_scalar("SELECT kind FROM person WHERE id = $1")
+            .bind(identity)
+            .fetch_optional(&mut *conn)
+            .await
+            .map_err(write_err)?;
+        if kind.as_deref() == Some("requester") {
+            return Err(WriteError::Rule(
+                Violation::new(
+                    &rules::RBAC_REQUESTER,
+                    format!("identity {identity} is a requester, not an account"),
+                )
+                .with_subjects([id]),
+            ));
+        }
+    }
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO group_member (id, group_id, member_kind, identity_id, issuer, group_name,
+                                   valid_period, changeset_id)
+         VALUES ($3, $4, $5, $6, $7, $8, {PERIOD}, $9)"
+    )))
+    .bind(at)
+    .bind(until)
+    .bind(id)
+    .bind(group_id)
+    .bind(kind)
+    .bind(identity)
+    .bind(issuer)
+    .bind(name)
+    .bind(changeset)
+    .execute(&mut *conn)
+    .await
+    .map_err(|e| {
+        if e.as_database_error()
+            .and_then(|d| d.constraint())
+            .is_some_and(|c| c == "group_member_unique")
+        {
+            WriteError::Rule(
+                Violation::new(
+                    &rules::GROUP_INVALID,
+                    format!("this member is already in the group '{group}' then"),
+                )
+                .with_subjects([id]),
+            )
+        } else {
+            write_err(e)
+        }
+    })?;
+    Ok(())
+}
+
+/// Writes an operation on a group or its members (spec 025): closing a group ends its
+/// bindings and its memberships with it (REQ-025-8).
+async fn write_group(
+    conn: &mut PgConnection,
+    op: &RbacOp,
+    (at, until): (Option<OffsetDateTime>, Option<OffsetDateTime>),
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    match op {
+        RbacOp::SetGroup { key, labels } => {
+            set_group(conn, key, labels, (at, until), changeset).await
+        }
+        RbacOp::CloseGroup { key } => {
+            let Some(group) = group_id(conn, key, at).await? else {
+                return Err(WriteError::NoVersion(RBAC_OBJECT));
+            };
+            for (table, condition) in [
+                ("binding", "group_id = $1 AND $2::text IS NULL"),
+                ("group_member", "group_id = $1 AND $2::text IS NULL"),
+                ("rbac_group", "id = $1 AND $2::text IS NULL"),
+            ] {
+                end_rows(conn, table, condition, Some(group), None, at, changeset).await?;
+            }
+            Ok(())
+        }
+        RbacOp::AddMember { id, group, member } => {
+            add_member(conn, (*id, group, member), (at, until), changeset).await
+        }
+        RbacOp::RemoveMember { id } => {
+            let condition = "id = $1 AND $2::text IS NULL";
+            let ended = end_rows(
+                conn,
+                "group_member",
+                condition,
+                Some(*id),
+                None,
+                at,
+                changeset,
+            );
+            if ended.await? == 0 {
+                return Err(WriteError::NoVersion(*id));
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
 }
 
 /// Disables or enables an identity, revokes its sessions.
@@ -440,6 +713,10 @@ pub(crate) async fn write(
             }
             Ok(())
         }
+        RbacOp::SetGroup { .. }
+        | RbacOp::CloseGroup { .. }
+        | RbacOp::AddMember { .. }
+        | RbacOp::RemoveMember { .. } => write_group(conn, op, (at, until), changeset).await,
         RbacOp::Bind {
             id,
             group,

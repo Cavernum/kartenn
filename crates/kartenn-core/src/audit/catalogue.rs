@@ -132,6 +132,9 @@ events! {
     RBAC_BINDING_CHANGED = "rbac.binding.changed", Info, High, ["group", "role", "scope"], ["REQ-012-8", "REQ-025-10"],
         "Entity Management 3004 / Update", "iam",
         "Une liaison groupe × rôle × périmètre a été créée ou retirée.";
+    RBAC_GROUP_CHANGED = "rbac.group.changed", Info, High, ["group", "change"], ["REQ-012-8", "REQ-025-10"],
+        "Entity Management 3004 / Update", "iam",
+        "Un groupe a été créé, renommé ou clos (`change` : `set`, `closed`), ou un membre y est entré ou en est sorti (`member_added`, `member_removed`).";
     SERVICE_ACCOUNT_CHANGED = "account.service.changed", Info, High, ["change"], ["REQ-012-8"],
         "Account Change 3001 / Create", "iam",
         "Un compte de service a été créé, renouvelé ou révoqué.";
