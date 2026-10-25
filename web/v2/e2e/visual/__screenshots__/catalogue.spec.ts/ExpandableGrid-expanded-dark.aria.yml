@@ -5,258 +5,258 @@
     - paragraph: /\d+ lignes/
     - grid "Flux non conformes":
       - rowgroup:
-        - row "Source Destination Protocole Service Règle":
+        - row "Source Destination Type de flux Service Règle":
           - columnheader "Source"
           - columnheader "Destination"
-          - columnheader "Protocole"
+          - columnheader "Type de flux"
           - columnheader "Service"
           - columnheader "Règle"
       - rowgroup:
-        - row /rece-batch prod-api TCP\/\d+ https Copier flow\.verdict\.default/:
+        - row "rece-batch prod-api Applicatif https Copier flow.verdict.default":
           - gridcell "rece-batch"
           - gridcell "prod-api"
-          - gridcell /TCP\/\d+/
+          - gridcell "Applicatif"
           - gridcell "https"
           - gridcell "Copier flow.verdict.default":
             - button "Copier flow.verdict.default":
               - text: ""
               - code: flow.verdict.default
             - status
-        - row /rece-batch prod-registry TCP\/\d+ registry Copier flow\.verdict\.denied/:
+        - row "rece-batch prod-files Fichier sftp Copier flow.verdict.denied":
           - gridcell "rece-batch"
-          - gridcell "prod-registry"
-          - gridcell /TCP\/\d+/
-          - gridcell "registry"
+          - gridcell "prod-files"
+          - gridcell "Fichier"
+          - gridcell "sftp"
           - gridcell "Copier flow.verdict.denied":
             - button "Copier flow.verdict.denied":
               - text: ""
               - code: flow.verdict.denied
             - status
-        - row /rece-batch prod-db TCP\/\d+ postgresql Copier flow\.verdict\.denied/:
+        - row "rece-batch prod-db Base de données postgresql Copier flow.verdict.denied":
           - gridcell "rece-batch"
           - gridcell "prod-db"
-          - gridcell /TCP\/\d+/
+          - gridcell "Base de données"
           - gridcell "postgresql"
           - gridcell "Copier flow.verdict.denied":
             - button "Copier flow.verdict.denied":
               - text: ""
               - code: flow.verdict.denied
             - status
-        - row /rece-batch prod-dns UDP\/\d+ dns Copier flow\.verdict\.default/:
+        - row "rece-batch prod-bastion Administratif ssh Copier flow.verdict.default":
           - gridcell "rece-batch"
-          - gridcell "prod-dns"
-          - gridcell /UDP\/\d+/
-          - gridcell "dns"
+          - gridcell "prod-bastion"
+          - gridcell "Administratif"
+          - gridcell "ssh"
           - gridcell "Copier flow.verdict.default":
             - button "Copier flow.verdict.default":
               - text: ""
               - code: flow.verdict.default
             - status
-        - row "rece-batch prod-gw ICMP echo Copier flow.verdict.denied":
+        - row "rece-batch prod-registry Applicatif registry Copier flow.verdict.denied":
           - gridcell "rece-batch"
-          - gridcell "prod-gw"
-          - gridcell "ICMP"
-          - gridcell "echo"
+          - gridcell "prod-registry"
+          - gridcell "Applicatif"
+          - gridcell "registry"
           - gridcell "Copier flow.verdict.denied":
             - button "Copier flow.verdict.denied":
               - text: ""
               - code: flow.verdict.denied
             - status
-        - row /rece-ci prod-api TCP\/\d+ https Copier flow\.verdict\.denied/:
+        - row "rece-ci prod-api Applicatif https Copier flow.verdict.denied":
           - gridcell "rece-ci"
           - gridcell "prod-api"
-          - gridcell /TCP\/\d+/
+          - gridcell "Applicatif"
           - gridcell "https"
           - gridcell "Copier flow.verdict.denied":
             - button "Copier flow.verdict.denied":
               - text: ""
               - code: flow.verdict.denied
             - status
-        - row /rece-ci prod-registry TCP\/\d+ registry Copier flow\.verdict\.default/:
+        - row "rece-ci prod-files Fichier sftp Copier flow.verdict.default":
           - gridcell "rece-ci"
-          - gridcell "prod-registry"
-          - gridcell /TCP\/\d+/
-          - gridcell "registry"
+          - gridcell "prod-files"
+          - gridcell "Fichier"
+          - gridcell "sftp"
           - gridcell "Copier flow.verdict.default":
             - button "Copier flow.verdict.default":
               - text: ""
               - code: flow.verdict.default
             - status
-        - row /rece-ci prod-db TCP\/\d+ postgresql Copier flow\.verdict\.denied/:
+        - row "rece-ci prod-db Base de données postgresql Copier flow.verdict.denied":
           - gridcell "rece-ci"
           - gridcell "prod-db"
-          - gridcell /TCP\/\d+/
+          - gridcell "Base de données"
           - gridcell "postgresql"
           - gridcell "Copier flow.verdict.denied":
             - button "Copier flow.verdict.denied":
               - text: ""
               - code: flow.verdict.denied
             - status
-        - row /rece-ci prod-dns UDP\/\d+ dns Copier flow\.verdict\.denied/:
+        - row "rece-ci prod-bastion Administratif ssh Copier flow.verdict.denied":
           - gridcell "rece-ci"
-          - gridcell "prod-dns"
-          - gridcell /UDP\/\d+/
-          - gridcell "dns"
+          - gridcell "prod-bastion"
+          - gridcell "Administratif"
+          - gridcell "ssh"
           - gridcell "Copier flow.verdict.denied":
             - button "Copier flow.verdict.denied":
               - text: ""
               - code: flow.verdict.denied
             - status
-        - row "rece-ci prod-gw ICMP echo Copier flow.verdict.default":
+        - row "rece-ci prod-registry Applicatif registry Copier flow.verdict.default":
           - gridcell "rece-ci"
-          - gridcell "prod-gw"
-          - gridcell "ICMP"
-          - gridcell "echo"
+          - gridcell "prod-registry"
+          - gridcell "Applicatif"
+          - gridcell "registry"
           - gridcell "Copier flow.verdict.default":
             - button "Copier flow.verdict.default":
               - text: ""
               - code: flow.verdict.default
             - status
-        - row /rece-etl prod-api TCP\/\d+ https Copier flow\.verdict\.default/:
+        - row "rece-etl prod-api Applicatif https Copier flow.verdict.default":
           - gridcell "rece-etl"
           - gridcell "prod-api"
-          - gridcell /TCP\/\d+/
+          - gridcell "Applicatif"
           - gridcell "https"
           - gridcell "Copier flow.verdict.default":
             - button "Copier flow.verdict.default":
               - text: ""
               - code: flow.verdict.default
             - status
-        - row /rece-etl prod-registry TCP\/\d+ registry Copier flow\.verdict\.denied/:
+        - row "rece-etl prod-files Fichier sftp Copier flow.verdict.denied":
           - gridcell "rece-etl"
-          - gridcell "prod-registry"
-          - gridcell /TCP\/\d+/
-          - gridcell "registry"
+          - gridcell "prod-files"
+          - gridcell "Fichier"
+          - gridcell "sftp"
           - gridcell "Copier flow.verdict.denied":
             - button "Copier flow.verdict.denied":
               - text: ""
               - code: flow.verdict.denied
             - status
-        - row /rece-etl prod-db TCP\/\d+ postgresql Copier flow\.verdict\.denied/:
+        - row "rece-etl prod-db Base de données postgresql Copier flow.verdict.denied":
           - gridcell "rece-etl"
           - gridcell "prod-db"
-          - gridcell /TCP\/\d+/
+          - gridcell "Base de données"
           - gridcell "postgresql"
           - gridcell "Copier flow.verdict.denied":
             - button "Copier flow.verdict.denied":
               - text: ""
               - code: flow.verdict.denied
             - status
-        - row /rece-etl prod-dns UDP\/\d+ dns Copier flow\.verdict\.default/:
+        - row "rece-etl prod-bastion Administratif ssh Copier flow.verdict.default":
           - gridcell "rece-etl"
-          - gridcell "prod-dns"
-          - gridcell /UDP\/\d+/
-          - gridcell "dns"
+          - gridcell "prod-bastion"
+          - gridcell "Administratif"
+          - gridcell "ssh"
           - gridcell "Copier flow.verdict.default":
             - button "Copier flow.verdict.default":
               - text: ""
               - code: flow.verdict.default
             - status
-        - row "rece-etl prod-gw ICMP echo Copier flow.verdict.denied":
+        - row "rece-etl prod-registry Applicatif registry Copier flow.verdict.denied":
           - gridcell "rece-etl"
-          - gridcell "prod-gw"
-          - gridcell "ICMP"
-          - gridcell "echo"
+          - gridcell "prod-registry"
+          - gridcell "Applicatif"
+          - gridcell "registry"
           - gridcell "Copier flow.verdict.denied":
             - button "Copier flow.verdict.denied":
               - text: ""
               - code: flow.verdict.denied
             - status
-        - row /rece-mon prod-api TCP\/\d+ https Copier flow\.verdict\.denied/:
+        - row "rece-mon prod-api Applicatif https Copier flow.verdict.denied":
           - gridcell "rece-mon"
           - gridcell "prod-api"
-          - gridcell /TCP\/\d+/
+          - gridcell "Applicatif"
           - gridcell "https"
           - gridcell "Copier flow.verdict.denied":
             - button "Copier flow.verdict.denied":
               - text: ""
               - code: flow.verdict.denied
             - status
-        - row /rece-mon prod-registry TCP\/\d+ registry Copier flow\.verdict\.default/:
+        - row "rece-mon prod-files Fichier sftp Copier flow.verdict.default":
           - gridcell "rece-mon"
-          - gridcell "prod-registry"
-          - gridcell /TCP\/\d+/
-          - gridcell "registry"
+          - gridcell "prod-files"
+          - gridcell "Fichier"
+          - gridcell "sftp"
           - gridcell "Copier flow.verdict.default":
             - button "Copier flow.verdict.default":
               - text: ""
               - code: flow.verdict.default
             - status
-        - row /rece-mon prod-db TCP\/\d+ postgresql Copier flow\.verdict\.denied/:
+        - row "rece-mon prod-db Base de données postgresql Copier flow.verdict.denied":
           - gridcell "rece-mon"
           - gridcell "prod-db"
-          - gridcell /TCP\/\d+/
+          - gridcell "Base de données"
           - gridcell "postgresql"
           - gridcell "Copier flow.verdict.denied":
             - button "Copier flow.verdict.denied":
               - text: ""
               - code: flow.verdict.denied
             - status
-        - row /rece-mon prod-dns UDP\/\d+ dns Copier flow\.verdict\.denied/:
+        - row "rece-mon prod-bastion Administratif ssh Copier flow.verdict.denied":
           - gridcell "rece-mon"
-          - gridcell "prod-dns"
-          - gridcell /UDP\/\d+/
-          - gridcell "dns"
+          - gridcell "prod-bastion"
+          - gridcell "Administratif"
+          - gridcell "ssh"
           - gridcell "Copier flow.verdict.denied":
             - button "Copier flow.verdict.denied":
               - text: ""
               - code: flow.verdict.denied
             - status
-        - row "rece-mon prod-gw ICMP echo Copier flow.verdict.default":
+        - row "rece-mon prod-registry Applicatif registry Copier flow.verdict.default":
           - gridcell "rece-mon"
-          - gridcell "prod-gw"
-          - gridcell "ICMP"
-          - gridcell "echo"
+          - gridcell "prod-registry"
+          - gridcell "Applicatif"
+          - gridcell "registry"
           - gridcell "Copier flow.verdict.default":
             - button "Copier flow.verdict.default":
               - text: ""
               - code: flow.verdict.default
             - status
-        - row /rece-web prod-api TCP\/\d+ https Copier flow\.verdict\.denied/:
+        - row "rece-web prod-api Applicatif https Copier flow.verdict.denied":
           - gridcell "rece-web"
           - gridcell "prod-api"
-          - gridcell /TCP\/\d+/
+          - gridcell "Applicatif"
           - gridcell "https"
           - gridcell "Copier flow.verdict.denied":
             - button "Copier flow.verdict.denied":
               - text: ""
               - code: flow.verdict.denied
             - status
-        - row /rece-web prod-registry TCP\/\d+ registry Copier flow\.verdict\.denied/:
+        - row "rece-web prod-files Fichier sftp Copier flow.verdict.denied":
           - gridcell "rece-web"
-          - gridcell "prod-registry"
-          - gridcell /TCP\/\d+/
-          - gridcell "registry"
+          - gridcell "prod-files"
+          - gridcell "Fichier"
+          - gridcell "sftp"
           - gridcell "Copier flow.verdict.denied":
             - button "Copier flow.verdict.denied":
               - text: ""
               - code: flow.verdict.denied
             - status
-        - row /rece-web prod-db TCP\/\d+ postgresql Copier flow\.verdict\.default/:
+        - row "rece-web prod-db Base de données postgresql Copier flow.verdict.default":
           - gridcell "rece-web"
           - gridcell "prod-db"
-          - gridcell /TCP\/\d+/
+          - gridcell "Base de données"
           - gridcell "postgresql"
           - gridcell "Copier flow.verdict.default":
             - button "Copier flow.verdict.default":
               - text: ""
               - code: flow.verdict.default
             - status
-        - row /rece-web prod-dns UDP\/\d+ dns Copier flow\.verdict\.denied/:
+        - row "rece-web prod-bastion Administratif ssh Copier flow.verdict.denied":
           - gridcell "rece-web"
-          - gridcell "prod-dns"
-          - gridcell /UDP\/\d+/
-          - gridcell "dns"
+          - gridcell "prod-bastion"
+          - gridcell "Administratif"
+          - gridcell "ssh"
           - gridcell "Copier flow.verdict.denied":
             - button "Copier flow.verdict.denied":
               - text: ""
               - code: flow.verdict.denied
             - status
-        - row "rece-web prod-gw ICMP echo Copier flow.verdict.denied":
+        - row "rece-web prod-registry Applicatif registry Copier flow.verdict.denied":
           - gridcell "rece-web"
-          - gridcell "prod-gw"
-          - gridcell "ICMP"
-          - gridcell "echo"
+          - gridcell "prod-registry"
+          - gridcell "Applicatif"
+          - gridcell "registry"
           - gridcell "Copier flow.verdict.denied":
             - button "Copier flow.verdict.denied":
               - text: ""

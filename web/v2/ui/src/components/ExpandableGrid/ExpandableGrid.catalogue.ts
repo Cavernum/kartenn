@@ -10,17 +10,18 @@ import ExpandableGrid from "./ExpandableGrid.vue";
 
 /**
  * Flows a draft would make nonconforming to the flow matrix: invented hosts of two
- * environments, documentation ports; the protocol carries the port when it has one.
+ * environments; each flow shows its flow type by its label (the type of its service, one
+ * per service), the service by its key.
  */
 const SOURCES = ["rece-batch", "rece-ci", "rece-web", "rece-etl", "rece-mon"];
-const TARGETS = ["prod-api", "prod-registry", "prod-db", "prod-dns", "prod-gw"];
-const PROTOCOLS = ["TCP/443", "TCP/5000", "TCP/5432", "UDP/53", "ICMP"];
-const SERVICES = ["https", "registry", "postgresql", "dns", "echo"];
+const TARGETS = ["prod-api", "prod-files", "prod-db", "prod-bastion", "prod-registry"];
+const FLOW_TYPES = ["Applicatif", "Fichier", "Base de données", "Administratif", "Applicatif"];
+const SERVICES = ["https", "sftp", "postgresql", "ssh", "registry"];
 const flows = Array.from({ length: 25 }, (_, i) => ({
   key: `f${i}`,
   source: SOURCES[i % 5]!,
   destination: TARGETS[Math.floor(i / 5)]!,
-  protocol: PROTOCOLS[Math.floor(i / 5)]!,
+  flowType: FLOW_TYPES[Math.floor(i / 5)]!,
   service: SERVICES[Math.floor(i / 5)]!,
   rule: i % 3 === 0 ? "flow.verdict.default" : "flow.verdict.denied",
 }));
@@ -29,7 +30,7 @@ type Flow = (typeof flows)[number];
 const columns: GridColumn[] = [
   { id: "source", label: "Source", width: "md", mono: true, sortable: true },
   { id: "destination", label: "Destination", width: "fill", mono: true, sortable: true },
-  { id: "protocol", label: "Protocole", width: "sm", mono: true, sortable: true },
+  { id: "flowType", label: "Type de flux", width: "md", sortable: true },
   { id: "service", label: "Service", width: "sm", mono: true },
   { id: "rule", label: "Règle", width: "lg", filterable: true },
 ];
@@ -38,7 +39,7 @@ const base = {
   columns,
   rows: flows,
   rowKey: "key",
-  compactColumns: ["source", "destination", "protocol"],
+  compactColumns: ["source", "destination", "flowType"],
 };
 
 /** The host sorts the rows (as for DataGrid); the rule shows as a copyable code. */

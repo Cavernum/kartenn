@@ -7,22 +7,22 @@
       - 'button "Agrandir : Flux non conformes"'
       - grid "Flux non conformes":
         - rowgroup:
-          - row "Source Destination Protocole":
+          - row "Source Destination Type de flux":
             - columnheader "Source"
             - columnheader "Destination"
-            - columnheader "Protocole"
+            - columnheader "Type de flux"
         - rowgroup:
-          - row /rece-batch prod-api TCP\/\d+/:
+          - row "rece-batch prod-api Applicatif":
             - gridcell "rece-batch"
             - gridcell "prod-api"
-            - gridcell /TCP\/\d+/
-          - row /rece-ci prod-api TCP\/\d+/:
+            - gridcell "Applicatif"
+          - row "rece-ci prod-api Applicatif":
             - gridcell "rece-ci"
             - gridcell "prod-api"
-            - gridcell /TCP\/\d+/
-          - row /rece-web prod-api TCP\/\d+/:
+            - gridcell "Applicatif"
+          - row "rece-web prod-api Applicatif":
             - gridcell "rece-web"
             - gridcell "prod-api"
-            - gridcell /TCP\/\d+/
+            - gridcell "Applicatif"
       - code: few
       - text: ""

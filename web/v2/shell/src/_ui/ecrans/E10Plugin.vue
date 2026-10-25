@@ -8,7 +8,7 @@
 // cell in the right panel of the frame with its simulated effect. Its changes go to the
 // draft of the shell, whose tab lists the changed cells by source → destination with their
 // state before and after, the simulated effect (counts against the flow matrix, then the
-// flows that become nonconforming, with their protocol, in a compact grid that opens
+// flows that become nonconforming, with their flow type, in a compact grid that opens
 // large: ExpandableGrid), the other operations of the draft, and the common foot.
 import {
   Button,
@@ -160,51 +160,52 @@ const CHANGED = [
 ];
 /**
  * The flows that the draft makes nonconforming to the matrix (25: the list is long, kept
- * compact in the panel and opened large on demand, ExpandableGrid), each with its
- * protocol, its service and the code of the rule that refuses it. The protocol carries
- * the port when it has one (TCP/443, UDP/53; ICMP has none): one column, never empty;
- * the service is the name of what answers there.
+ * compact in the panel and opened large on demand, ExpandableGrid), each with its flow
+ * type, its service and the code of the rule that refuses it. The flow type shows by its
+ * label (010, REQ-010-4: the example set database, application, file, admin); it is the
+ * type of the service (one per service), and the service is shown by its key alone: its
+ * transport and ports belong to the service, not to the flow, and are read on its card.
  */
 const SOURCES = ["rece-batch", "rece-ci", "rece-web", "rece-etl", "rece-mon"];
 const TARGETS = [
-  ["prod-api", "TCP/443", "https"],
-  ["prod-registry", "TCP/5000", "registry"],
-  ["prod-db", "TCP/5432", "postgresql"],
-  ["prod-dns", "UDP/53", "dns"],
-  ["prod-gw", "ICMP", "echo"],
+  ["prod-api", "Applicatif", "https"],
+  ["prod-files", "Fichier", "sftp"],
+  ["prod-db", "Base de données", "postgresql"],
+  ["prod-bastion", "Administratif", "ssh"],
+  ["prod-registry", "Applicatif", "registry"],
 ] as const;
 interface Nonconforming extends Record<string, unknown> {
   key: string;
   source: string;
   destination: string;
-  protocol: string;
+  flowType: string;
   service: string;
   rule: string;
 }
 const NONCONFORMING: Nonconforming[] = Array.from({ length: 25 }, (_, i) => {
-  const [destination, protocol, service] = TARGETS[Math.floor(i / 5)]!;
+  const [destination, flowType, service] = TARGETS[Math.floor(i / 5)]!;
   return {
     key: `f${i}`,
     source: SOURCES[i % 5]!,
     destination,
-    protocol,
+    flowType,
     service,
     rule: i % 3 === 0 ? "flow.verdict.default" : "flow.verdict.denied",
   };
 });
 /**
- * In the panel, the source, the destination and the protocol; all columns, enlarged. The
+ * In the panel, the source, the destination and the flow type; all columns, enlarged. The
  * source is narrow (its keys are short) so that the three fit the panel at 1024 px.
  */
-const COMPACT = ["source", "destination", "protocol"];
+const COMPACT = ["source", "destination", "flowType"];
 const nonconformingColumns: GridColumn[] = [
   { id: "source", label: "Source", width: "sm", mono: true, sortable: true },
   { id: "destination", label: "Destination", width: "fill", mono: true, sortable: true },
-  { id: "protocol", label: "Protocole", width: "sm", mono: true, sortable: true },
+  { id: "flowType", label: "Type de flux", width: "md", sortable: true },
   { id: "service", label: "Service", width: "sm", mono: true, sortable: true },
   { id: "rule", label: "Règle", width: "lg", sortable: true },
 ];
-const nonconformingSort = ref<GridSort>({ column: "destination", direction: "ascending" });
+const nonconformingSort = ref<GridSort>({ column: "source", direction: "ascending" });
 const nonconformingRows = computed(() => {
   const column = nonconformingSort.value.column;
   const way = nonconformingSort.value.direction === "ascending" ? 1 : -1;

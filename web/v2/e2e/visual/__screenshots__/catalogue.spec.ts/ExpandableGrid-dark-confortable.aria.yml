@@ -7,111 +7,111 @@
       - 'button "Agrandir : Flux non conformes"'
       - grid "Flux non conformes":
         - rowgroup:
-          - row "Source Destination Protocole":
+          - row "Source Destination Type de flux":
             - columnheader "Source"
             - columnheader "Destination"
-            - columnheader "Protocole"
+            - columnheader "Type de flux"
         - rowgroup:
-          - row /rece-batch prod-api TCP\/\d+/:
+          - row "rece-batch prod-api Applicatif":
             - gridcell "rece-batch"
             - gridcell "prod-api"
-            - gridcell /TCP\/\d+/
-          - row /rece-batch prod-registry TCP\/\d+/:
+            - gridcell "Applicatif"
+          - row "rece-batch prod-files Fichier":
+            - gridcell "rece-batch"
+            - gridcell "prod-files"
+            - gridcell "Fichier"
+          - row "rece-batch prod-db Base de données":
+            - gridcell "rece-batch"
+            - gridcell "prod-db"
+            - gridcell "Base de données"
+          - row "rece-batch prod-bastion Administratif":
+            - gridcell "rece-batch"
+            - gridcell "prod-bastion"
+            - gridcell "Administratif"
+          - row "rece-batch prod-registry Applicatif":
             - gridcell "rece-batch"
             - gridcell "prod-registry"
-            - gridcell /TCP\/\d+/
-          - row /rece-batch prod-db TCP\/\d+/:
-            - gridcell "rece-batch"
-            - gridcell "prod-db"
-            - gridcell /TCP\/\d+/
-          - row /rece-batch prod-dns UDP\/\d+/:
-            - gridcell "rece-batch"
-            - gridcell "prod-dns"
-            - gridcell /UDP\/\d+/
-          - row "rece-batch prod-gw ICMP":
-            - gridcell "rece-batch"
-            - gridcell "prod-gw"
-            - gridcell "ICMP"
-          - row /rece-ci prod-api TCP\/\d+/:
+            - gridcell "Applicatif"
+          - row "rece-ci prod-api Applicatif":
             - gridcell "rece-ci"
             - gridcell "prod-api"
-            - gridcell /TCP\/\d+/
-          - row /rece-ci prod-registry TCP\/\d+/:
+            - gridcell "Applicatif"
+          - row "rece-ci prod-files Fichier":
             - gridcell "rece-ci"
-            - gridcell "prod-registry"
-            - gridcell /TCP\/\d+/
-          - row /rece-ci prod-db TCP\/\d+/:
+            - gridcell "prod-files"
+            - gridcell "Fichier"
+          - row "rece-ci prod-db Base de données":
             - gridcell "rece-ci"
             - gridcell "prod-db"
-            - gridcell /TCP\/\d+/
-          - row /rece-ci prod-dns UDP\/\d+/:
+            - gridcell "Base de données"
+          - row "rece-ci prod-bastion Administratif":
             - gridcell "rece-ci"
-            - gridcell "prod-dns"
-            - gridcell /UDP\/\d+/
-          - row "rece-ci prod-gw ICMP":
+            - gridcell "prod-bastion"
+            - gridcell "Administratif"
+          - row "rece-ci prod-registry Applicatif":
             - gridcell "rece-ci"
-            - gridcell "prod-gw"
-            - gridcell "ICMP"
-          - row /rece-etl prod-api TCP\/\d+/:
+            - gridcell "prod-registry"
+            - gridcell "Applicatif"
+          - row "rece-etl prod-api Applicatif":
             - gridcell "rece-etl"
             - gridcell "prod-api"
-            - gridcell /TCP\/\d+/
-          - row /rece-etl prod-registry TCP\/\d+/:
+            - gridcell "Applicatif"
+          - row "rece-etl prod-files Fichier":
             - gridcell "rece-etl"
-            - gridcell "prod-registry"
-            - gridcell /TCP\/\d+/
-          - row /rece-etl prod-db TCP\/\d+/:
+            - gridcell "prod-files"
+            - gridcell "Fichier"
+          - row "rece-etl prod-db Base de données":
             - gridcell "rece-etl"
             - gridcell "prod-db"
-            - gridcell /TCP\/\d+/
-          - row /rece-etl prod-dns UDP\/\d+/:
+            - gridcell "Base de données"
+          - row "rece-etl prod-bastion Administratif":
             - gridcell "rece-etl"
-            - gridcell "prod-dns"
-            - gridcell /UDP\/\d+/
-          - row "rece-etl prod-gw ICMP":
+            - gridcell "prod-bastion"
+            - gridcell "Administratif"
+          - row "rece-etl prod-registry Applicatif":
             - gridcell "rece-etl"
-            - gridcell "prod-gw"
-            - gridcell "ICMP"
-          - row /rece-mon prod-api TCP\/\d+/:
+            - gridcell "prod-registry"
+            - gridcell "Applicatif"
+          - row "rece-mon prod-api Applicatif":
             - gridcell "rece-mon"
             - gridcell "prod-api"
-            - gridcell /TCP\/\d+/
-          - row /rece-mon prod-registry TCP\/\d+/:
+            - gridcell "Applicatif"
+          - row "rece-mon prod-files Fichier":
             - gridcell "rece-mon"
-            - gridcell "prod-registry"
-            - gridcell /TCP\/\d+/
-          - row /rece-mon prod-db TCP\/\d+/:
+            - gridcell "prod-files"
+            - gridcell "Fichier"
+          - row "rece-mon prod-db Base de données":
             - gridcell "rece-mon"
             - gridcell "prod-db"
-            - gridcell /TCP\/\d+/
-          - row /rece-mon prod-dns UDP\/\d+/:
+            - gridcell "Base de données"
+          - row "rece-mon prod-bastion Administratif":
             - gridcell "rece-mon"
-            - gridcell "prod-dns"
-            - gridcell /UDP\/\d+/
-          - row "rece-mon prod-gw ICMP":
+            - gridcell "prod-bastion"
+            - gridcell "Administratif"
+          - row "rece-mon prod-registry Applicatif":
             - gridcell "rece-mon"
-            - gridcell "prod-gw"
-            - gridcell "ICMP"
-          - row /rece-web prod-api TCP\/\d+/:
+            - gridcell "prod-registry"
+            - gridcell "Applicatif"
+          - row "rece-web prod-api Applicatif":
             - gridcell "rece-web"
             - gridcell "prod-api"
-            - gridcell /TCP\/\d+/
-          - row /rece-web prod-registry TCP\/\d+/:
+            - gridcell "Applicatif"
+          - row "rece-web prod-files Fichier":
             - gridcell "rece-web"
-            - gridcell "prod-registry"
-            - gridcell /TCP\/\d+/
-          - row /rece-web prod-db TCP\/\d+/:
+            - gridcell "prod-files"
+            - gridcell "Fichier"
+          - row "rece-web prod-db Base de données":
             - gridcell "rece-web"
             - gridcell "prod-db"
-            - gridcell /TCP\/\d+/
-          - row /rece-web prod-dns UDP\/\d+/:
+            - gridcell "Base de données"
+          - row "rece-web prod-bastion Administratif":
             - gridcell "rece-web"
-            - gridcell "prod-dns"
-            - gridcell /UDP\/\d+/
-          - row "rece-web prod-gw ICMP":
+            - gridcell "prod-bastion"
+            - gridcell "Administratif"
+          - row "rece-web prod-registry Applicatif":
             - gridcell "rece-web"
-            - gridcell "prod-gw"
-            - gridcell "ICMP"
+            - gridcell "prod-registry"
+            - gridcell "Applicatif"
       - code: compact
       - text: ""
     - 'figure "few — Trois lignes : la grille garde sa hauteur naturelle"':
@@ -119,23 +119,23 @@
       - 'button "Agrandir : Flux non conformes"'
       - grid "Flux non conformes":
         - rowgroup:
-          - row "Source Destination Protocole":
+          - row "Source Destination Type de flux":
             - columnheader "Source"
             - columnheader "Destination"
-            - columnheader "Protocole"
+            - columnheader "Type de flux"
         - rowgroup:
-          - row /rece-batch prod-api TCP\/\d+/:
+          - row "rece-batch prod-api Applicatif":
             - gridcell "rece-batch"
             - gridcell "prod-api"
-            - gridcell /TCP\/\d+/
-          - row /rece-ci prod-api TCP\/\d+/:
+            - gridcell "Applicatif"
+          - row "rece-ci prod-api Applicatif":
             - gridcell "rece-ci"
             - gridcell "prod-api"
-            - gridcell /TCP\/\d+/
-          - row /rece-web prod-api TCP\/\d+/:
+            - gridcell "Applicatif"
+          - row "rece-web prod-api Applicatif":
             - gridcell "rece-web"
             - gridcell "prod-api"
-            - gridcell /TCP\/\d+/
+            - gridcell "Applicatif"
       - code: few
       - text: ""
     - 'figure "expanded — Agrandie : boîte de dialogue large, toutes les colonnes, tri et filtre"':
