@@ -1050,6 +1050,21 @@ impl WriteTx for PgTx {
         Ok(labels.map(|l| l.0))
     }
 
+    async fn group_labels(
+        &mut self,
+        key: &str,
+    ) -> Result<Option<kartenn_service::operations::RawLabels>, StoreError> {
+        let labels: Option<sqlx::types::Json<kartenn_service::operations::RawLabels>> =
+            sqlx::query_scalar(
+                "SELECT labels FROM rbac_group WHERE key = $1 AND valid_period @> now()",
+            )
+            .bind(key)
+            .fetch_optional(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
+        Ok(labels.map(|l| l.0))
+    }
+
     async fn custom_roles_citing(
         &mut self,
         permissions: &[&str],

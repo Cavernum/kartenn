@@ -13,7 +13,7 @@ use kartenn_service::audit::RequestContext;
 use kartenn_service::authn::{AuthnError, IdentityKind, authenticate_breakglass};
 use kartenn_service::authz::Subject;
 use kartenn_service::expected::Sources;
-use kartenn_service::operations::BindingScope;
+use kartenn_service::operations::{BindingScope, GroupMember};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::rbac::sync_roles;
 use kartenn_service::{ChangesetRequest, Operation, Outcome, submit_in};
@@ -88,33 +88,33 @@ async fn rescue(
     (account, id)
 }
 
-/// Binds the group `operators` (whose member is the group `operators` of an OIDC issuer)
-/// to `reader`, as `who`, under the RBAC.
+/// Creates the group `operators`, whose member is the group `operators` of an OIDC issuer,
+/// and binds it to `reader`, as `who`, under the RBAC.
 async fn bind_operators(pool: &PgPool, who: &Subject) -> Outcome {
-    sqlx::query(
-        "WITH g AS (
-            INSERT INTO rbac_group (id, key, labels, valid_period, changeset_id)
-            VALUES (gen_random_uuid(), 'operators', '{\"fr\": \"Opérateurs\"}',
-                    tstzrange(now() - interval '1 day', NULL), gen_random_uuid())
-            ON CONFLICT DO NOTHING RETURNING id)
-         INSERT INTO group_member (id, group_id, member_kind, issuer, group_name,
-                                   valid_period, changeset_id)
-         SELECT gen_random_uuid(), g.id, 'idp_group', 'https://idp.example', 'operators',
-                tstzrange(now() - interval '1 day', NULL), gen_random_uuid() FROM g",
-    )
-    .execute(pool)
-    .await
-    .unwrap();
     let request = ChangesetRequest {
         author: who.id,
         motive: "first operators".into(),
         period: None,
-        operations: vec![Operation::Bind {
-            local: None,
-            group: "operators".into(),
-            role: "reader".into(),
-            scope: BindingScope::Global,
-        }],
+        operations: vec![
+            Operation::SetGroup {
+                key: "operators".into(),
+                labels: [("fr".into(), "Opérateurs".into())].into(),
+            },
+            Operation::AddMember {
+                local: None,
+                group: "operators".into(),
+                member: GroupMember::IdpGroup {
+                    issuer: "https://idp.example".into(),
+                    group: "operators".into(),
+                },
+            },
+            Operation::Bind {
+                local: None,
+                group: "operators".into(),
+                role: "reader".into(),
+                scope: BindingScope::Global,
+            },
+        ],
         simulate: false,
         idempotency_key: None,
         apply_own: true,
@@ -141,15 +141,14 @@ async fn a_new_instance_is_bootstrapped_by_a_break_glass_account(pool: PgPool) {
         OffsetDateTime::now_utc() + Duration::from_hours(1),
     )
     .await;
-    // The creation names the role and its scope (K17).
-    let (role, scope): (String, String) = sqlx::query_as(
-        "SELECT details ->> 'role', details ->> 'scope' FROM audit.event
-         WHERE name = 'account.breakglass.created'",
+    // The creation names the delivered group (K17, spec 025 G7).
+    let group: String = sqlx::query_scalar(
+        "SELECT details ->> 'group' FROM audit.event WHERE name = 'account.breakglass.created'",
     )
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!((role.as_str(), scope.as_str()), ("administrator", "global"));
+    assert_eq!(group, "secours");
     // A break-glass login, then the first binding of an OIDC group.
     let otp = format!(
         "{:06}",
@@ -172,7 +171,7 @@ async fn a_new_instance_is_bootstrapped_by_a_break_glass_account(pool: PgPool) {
 }
 
 #[kartenn_testing::pg_test]
-async fn the_bootstrap_binding_ends_with_the_account(pool: PgPool) {
+async fn the_bootstrap_membership_ends_with_the_account(pool: PgPool) {
     delivered_roles(&pool).await;
     let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
     let (_, id) = rescue(

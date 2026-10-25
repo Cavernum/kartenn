@@ -474,8 +474,16 @@ pub struct BuiltinGroup {
     pub roles: &'static [&'static str],
 }
 
+/// The group of the break-glass accounts (spec 025, G7; 005/K17): the administrator role on
+/// the global scope; an account enters it at its creation, for its validity.
+pub static SECOURS: BuiltinGroup = BuiltinGroup {
+    key: "secours",
+    labels: crate::labels::Compiled::new("Secours", "Break-glass"),
+    roles: &["administrator"],
+};
+
 /// The delivered groups.
-pub static BUILTIN_GROUPS: &[&BuiltinGroup] = &[];
+pub static BUILTIN_GROUPS: &[&BuiltinGroup] = &[&SECOURS];
 
 impl BuiltinRole {
     /// Its entries in a build with the permissions `modules`: the delivered roles that

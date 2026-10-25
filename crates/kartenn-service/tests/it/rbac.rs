@@ -1796,3 +1796,66 @@ async fn a_delegate_cannot_escalate_through_a_group(pool: PgPool) {
         .await;
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
 }
+
+// REQ-025-9 (G7): the group `secours`, delivered, holds the administrator role on the
+// global scope; it changes only by the synchronisation, its members as those of any group.
+#[kartenn_testing::pg_test]
+async fn the_group_secours_is_delivered_and_kept(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    sync_roles(&t.store, MAX_OPERATIONS).await.unwrap();
+    let bound: Vec<(Uuid, String, String)> = sqlx::query_as(
+        "SELECT b.id, r.key, b.scope_kind FROM binding b
+         JOIN rbac_group g ON g.id = b.group_id AND g.builtin AND g.valid_period @> now()
+         JOIN role r ON r.id = b.role_id AND r.valid_period @> now()
+         WHERE g.key = 'secours' AND b.valid_period @> now()",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        bound
+            .iter()
+            .map(|(_, r, s)| (r.as_str(), s.as_str()))
+            .collect::<Vec<_>>(),
+        [("administrator", "global")]
+    );
+    assert!(
+        sync_roles(&t.store, MAX_OPERATIONS)
+            .await
+            .unwrap()
+            .is_none(),
+        "once"
+    );
+    let root = t.root().await;
+    for op in [
+        set_group("secours"),
+        Operation::CloseGroup {
+            key: "secours".into(),
+        },
+        bind_group("secours", "reader", BindingScope::Global),
+        Operation::Unbind { id: bound[0].0 },
+    ] {
+        let outcome = t.submit_as(&root, vec![op.clone()]).await;
+        assert_eq!(rules_of(&outcome), ["core.group.builtin"], "{op:?}");
+    }
+    // A member, by a global administrator only (G5): then an administrator everywhere.
+    let user = t.identity().await;
+    let delegate = t.identity().await;
+    let manager = t
+        .role("manager", &["core.rbac.admin", "core.address.read"])
+        .await;
+    t.bind(Binding::Identity(delegate.id), manager, "group", None)
+        .await;
+    let outcome = t
+        .submit_as(&delegate, vec![add_member("secours", user.id)])
+        .await;
+    assert_eq!(rules_of(&outcome), ["core.group.escalation"]);
+    let outcome = t
+        .submit_as(&root, vec![add_member("secours", user.id)])
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert_eq!(
+        t.allowed(&user, "core.address.read", &["172.16.0.9"]).await,
+        ["172.16.0.9"]
+    );
+}

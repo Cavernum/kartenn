@@ -6,7 +6,8 @@
 # - `serve.sh kartenn`: builds the shell and the plugins of web/plugins, gathers them under
 #   web/e2e/.state/plugins, recreates the kartenn_e2e database, migrates it,
 #   creates the break-glass account `e2e` (its proofs in web/e2e/.state/breakglass.txt),
-#   which the subcommand binds to `administrator` (K17), then serves kartenn-server on 9443.
+#   which the subcommand makes a member of the delivered group `secours` (K17, spec 025),
+#   then serves kartenn-server on 9443.
 # The end-to-end sessions of the Python CLI (spec 023, `k-py-e2e`) reuse `idp`, then:
 # - `serve.sh cli-prepare`: builds kartenn-server without the `policy` module (copied to
 #   web/e2e/.state/kartenn-server-labo), then with every module; writes the material of

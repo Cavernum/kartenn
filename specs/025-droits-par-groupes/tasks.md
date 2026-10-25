@@ -76,9 +76,22 @@ Statut : spec **validée le 2026-10-25**.
       champ `group`), `web/e2e/global-setup.ts` et `budgets/global-setup.ts` (groupes de
       même clé que ceux de l'IdP, par changeset), session `k-py-e2e` (groupe
       `kartenn-admins` par `changeset add`, puis `bindings create --set group=…`).
-- [ ] 3. Groupe livré `secours`, amorçage du compte de secours par appartenance —
+- [x] 3. Groupe livré `secours`, amorçage du compte de secours par appartenance —
   REQ-025-9 — verify : `k-check`, parcours e2e `web/e2e/serve.sh`
   - où : `crates/kartenn-store-pg/src/breakglass.rs` ; synchronisation des rôles livrés.
+  - Résultat : `kartenn_core::authz::SECOURS` (`BUILTIN_GROUPS`), synchronisé par
+    `rbac::sync_roles` (libellés, liaison `administrator` globale) ;
+    `breakglass::create` écrit l'appartenance `[création, valid_until)` ; test
+    `the_group_secours_is_delivered_and_kept` ; `k-web-e2e` (86 parcours, dont
+    `admin.spec`, par `serve.sh` ; un échec Firefox de `plugins.spec`, sans lien, repasse
+    seul) et `k-py-e2e` verts.
+  - Choix tranchés :
+    - Le groupe livré déclare ses rôles globaux (`BuiltinGroup::roles`) ; la
+      synchronisation n'ajoute que les liaisons manquantes, dans le même changeset système
+      que les rôles (`roles sync`), sans retirer une liaison qu'elle n'a pas posée.
+    - `breakglass create` exige le groupe `secours` livré (sinon « run `kartenn-server
+      migrate` first »), comme il exigeait le rôle.
+    - `account.breakglass.created` porte `group` (`secours`) au lieu de `role` et `scope`.
 - [ ] 4. Migration des liaisons existantes en changeset système, sortie de `migrate` —
   REQ-025-14 — verify : test de migration sur une base de la 005
   - où : job `migrate` de `kartenn-server` ; `crates/kartenn-server/tests/it/`.

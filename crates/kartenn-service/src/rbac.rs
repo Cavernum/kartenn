@@ -772,8 +772,10 @@ pub async fn rename_permissions<S: crate::port::Store>(
         .map(Some)
 }
 
-/// Synchronises the delivered roles with the code (K12): one system changeset setting
-/// each role whose entries or label differ. Called by the migration job.
+/// Synchronises the delivered roles and groups with the code (K12; spec 025, G7): one
+/// system changeset setting each role whose entries or label differ, each delivered group
+/// whose labels differ, and binding each group to the roles it lacks on the global scope.
+/// Called by the migration job.
 ///
 /// # Errors
 ///
@@ -804,6 +806,43 @@ pub async fn sync_roles<S: crate::port::Store>(
                 key: role.key.to_owned(),
                 labels: wanted_labels,
                 entries: wanted,
+            });
+        }
+    }
+    // The delivered groups (spec 025, G7): their labels, and their roles on the global
+    // scope, after the roles they name.
+    for group in kartenn_core::authz::BUILTIN_GROUPS {
+        let mut tx = store.begin().await?;
+        let labels = tx.group_labels(group.key).await?;
+        let bound: Vec<String> = tx
+            .stored_group(group.key)
+            .await?
+            .map(|g| {
+                g.bindings
+                    .into_iter()
+                    .filter(|b| b.scope == RBAC_OBJECT)
+                    .map(|b| b.role)
+                    .collect()
+            })
+            .unwrap_or_default();
+        tx.rollback().await?;
+        let wanted_labels = group.labels.raw();
+        if labels.as_ref() != Some(&wanted_labels) {
+            operations.push(Operation::SetGroup {
+                key: group.key.to_owned(),
+                labels: wanted_labels,
+            });
+        }
+        for role in group
+            .roles
+            .iter()
+            .filter(|r| !bound.iter().any(|b| b == *r))
+        {
+            operations.push(Operation::Bind {
+                local: None,
+                group: group.key.to_owned(),
+                role: (*role).to_owned(),
+                scope: BindingScope::Global,
             });
         }
     }

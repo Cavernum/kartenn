@@ -715,6 +715,12 @@ pub trait WriteTx {
         key: &str,
     ) -> impl Future<Output = Result<Option<crate::operations::RawLabels>, StoreError>> + Send;
 
+    /// The labels of the group of kartenn `key` in force now, if it exists (spec 025).
+    fn group_labels(
+        &mut self,
+        key: &str,
+    ) -> impl Future<Output = Result<Option<crate::operations::RawLabels>, StoreError>> + Send;
+
     /// The roles not delivered with kartenn, in force now, that hold one of `permissions`
     /// or a property permission of a retired verb (`prop.<key>.write`,
     /// `prop.<key>.propose`), by key (spec 018, REQ-018-4; spec 024, REQ-024-9).
