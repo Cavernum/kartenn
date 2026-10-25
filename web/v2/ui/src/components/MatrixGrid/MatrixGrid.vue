@@ -16,13 +16,13 @@
 // `axes`, the matrix says the direction of what it holds (a flow: rows are the source,
 // columns the destination): the corner reads « rows ↓ » and « columns → », and the
 // crosshair carries small arrowheads sitting on borders (revue du 2026-10-25, second
-// pass): one on the inline-end border of the source row header, pointing into the grid;
-// one on the block-end border of the destination column header, pointing down into its
-// column; and two on the shown cell, on its inline-start border (pointing along the row,
-// from the source) and on its block-start border (pointing down the column, from the
-// destination header): the two paths meet in the cell. They are empty pseudo-elements
-// (`data-flow`), outside the accessibility tree: the name of the grid and the corner say
-// the direction in words.
+// pass, turned on the third): they draw one path source → cell → destination. Along the
+// row, one on the inline-end border of the source row header and one on the inline-start
+// border of the shown cell, both pointing into the grid (from the source to the cell);
+// up the column, one on the block-start border of the shown cell and one on the block-end
+// border of the destination column header, both pointing up (from the cell to the
+// destination). They are empty pseudo-elements (`data-flow`), outside the accessibility
+// tree: the name of the grid and the corner say the direction in words.
 import { computed, nextTick, ref, shallowRef } from "vue";
 import { t } from "../../i18n.ts";
 import Icon from "../Icon/Icon.vue";
@@ -365,10 +365,11 @@ function onKeydown(event: KeyboardEvent): void {
 
   /* The arrowheads of direction: small accent triangles, 8 px wide and 6 px deep (the
    * width of `--k-space-2`, the depth of `--k-space-1` + `--k-space-0-5`), centred on a
-   * border. One pointing along the row (to the inline end) on the end border of the
-   * source row header and on the start border of the shown cell; one pointing down on
-   * the bottom border of the destination column header and on the top border of the
-   * shown cell. Half of each lies over the neighbour, painted after it (positioned). */
+   * border, along one path source → cell → destination. One pointing along the row (to
+   * the inline end) on the end border of the source row header and on the start border
+   * of the shown cell; one pointing up on the top border of the shown cell and on the
+   * bottom border of the destination column header. Half of each lies over the
+   * neighbour, painted after it (positioned). */
   .k-matrix__head .k-matrix__header[data-flow],
   .k-matrix__cell[data-flow] {
     position: relative;
@@ -404,14 +405,14 @@ function onKeydown(event: KeyboardEvent): void {
     clip-path: polygon(100% 0, 0 50%, 100% 100%);
   }
 
-  /* Down the column: on the bottom border of the destination, on the top border of the cell. */
+  /* Up the column: on the top border of the cell, on the bottom border of the destination. */
   .k-matrix__head .k-matrix__header[data-flow]::after,
   .k-matrix__cell[data-flow]::after {
     content: "";
     inset-inline-start: calc(50% - var(--k-space-1));
     inline-size: var(--k-space-2);
     block-size: calc(var(--k-space-1) + var(--k-space-0-5));
-    clip-path: polygon(0 0, 100% 0, 50% 100%);
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
   }
 
   .k-matrix__head .k-matrix__header[data-flow]::after {
