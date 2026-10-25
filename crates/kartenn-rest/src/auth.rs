@@ -290,16 +290,55 @@ const fn kind(kind: IdentityKind) -> &'static str {
 
 /// A binding that serves the caller.
 #[derive(Debug, Serialize, ToSchema)]
-struct HeldBinding {
+pub(crate) struct HeldBinding {
+    /// The group of kartenn that gives it, by key (spec 025, REQ-025-11).
+    pub(crate) group: String,
     /// Role key.
-    role: String,
+    pub(crate) role: String,
     /// Its scope.
-    scope: Scope,
+    pub(crate) scope: Scope,
+}
+
+/// A group of kartenn of an identity, and how it belongs to it (spec 025, REQ-025-11).
+#[derive(Debug, Serialize, ToSchema)]
+pub(crate) struct GroupOf {
+    /// The group, by key.
+    pub(crate) key: String,
+    /// `direct` (the identity itself is a member), or the group of its issuer that is.
+    pub(crate) via: String,
+}
+
+/// The groups and effective bindings of a summary of the rights.
+pub(crate) fn groups_and_bindings(
+    rights: &kartenn_service::authn::Rights,
+) -> (Vec<GroupOf>, Vec<HeldBinding>) {
+    let groups = rights
+        .groups
+        .iter()
+        .map(|g| GroupOf {
+            key: g.key.clone(),
+            via: g.via.clone().unwrap_or_else(|| "direct".to_owned()),
+        })
+        .collect();
+    let bindings = rights
+        .bindings
+        .iter()
+        .map(|b| HeldBinding {
+            group: b.group.clone(),
+            role: b.role.clone(),
+            scope: Scope {
+                kind: b.scope_kind.clone(),
+                id: b.scope,
+            },
+        })
+        .collect();
+    (groups, bindings)
 }
 
 /// The scope of a binding: `global`, or an object.
 #[derive(Debug, Serialize, ToSchema)]
-struct Scope {
+#[schema(as = HeldScope)]
+pub(crate) struct Scope {
     /// `global`, `entity`, `site`, `domain` or `prefix`.
     kind: String,
     /// The object; absent when global.
@@ -327,13 +366,15 @@ struct Me {
     method: &'static str,
     /// The issuer of the identity.
     issuer: Option<String>,
-    /// The groups of the identity.
-    groups: Vec<String>,
+    /// The groups of its issuer its session or token carries.
+    idp_groups: Vec<String>,
+    /// The groups of kartenn of the caller, one per membership (spec 025, REQ-025-11).
+    groups: Vec<GroupOf>,
     /// Display name.
     name: Option<String>,
     /// The keys of the roles held, on any scope.
     roles: Vec<String>,
-    /// The bindings that serve the caller.
+    /// The bindings that serve the caller, by the group that gives them.
     bindings: Vec<HeldBinding>,
     /// The entries of the roles of the global bindings.
     global_permissions: Vec<String>,
@@ -365,17 +406,7 @@ async fn me(State(authenticator): State<Arc<dyn Authenticator>>, request: Reques
         breakglass: s.breakglass,
         expires_at: ends,
     });
-    let bindings = rights
-        .bindings
-        .iter()
-        .map(|b| HeldBinding {
-            role: b.role.clone(),
-            scope: Scope {
-                kind: b.scope_kind.clone(),
-                id: b.scope,
-            },
-        })
-        .collect();
+    let (groups, bindings) = groups_and_bindings(&rights);
     (
         [(header::CACHE_CONTROL, "no-store")],
         axum::Json(Me {
@@ -383,7 +414,8 @@ async fn me(State(authenticator): State<Arc<dyn Authenticator>>, request: Reques
             kind: kind(principal.kind),
             method: principal.method.as_str(),
             issuer: principal.issuer.clone(),
-            groups: principal.groups.clone(),
+            idp_groups: principal.groups.clone(),
+            groups,
             name: rights.name,
             roles: rights.roles,
             bindings,

@@ -244,6 +244,10 @@ pub(crate) enum Location<'a> {
     Fixed(&'a str),
     /// The binding the changeset created.
     Binding,
+    /// The group of this key (spec 025).
+    Group(&'a str),
+    /// The membership the changeset created (spec 025).
+    Member,
     /// The service account of this secret, which the changeset created.
     Account(Uuid),
 }
@@ -737,6 +741,12 @@ async fn location(
         Some(Location::Binding) => rbac_read::created_binding(&api.pool, changeset)
             .await?
             .map(|id| format!("/v1/bindings/{id}")),
+        Some(Location::Group(key)) => rbac_read::group_by_key(&api.pool, key)
+            .await?
+            .map(|g| format!("/v1/groups/{}", g.id)),
+        Some(Location::Member) => rbac_read::created_member(&api.pool, changeset)
+            .await?
+            .map(|(group, id)| format!("/v1/groups/{group}/members/{id}")),
         Some(Location::Account(secret)) => rbac_read::account_of_secret(&api.pool, secret)
             .await?
             .map(|id| format!("/v1/service-accounts/{id}")),

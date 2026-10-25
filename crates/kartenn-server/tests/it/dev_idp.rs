@@ -310,7 +310,7 @@ async fn an_instance_logs_in_through_the_development_issuer(pool: PgPool) {
     let me: serde_json::Value = serde_json::from_str(&me.body).unwrap();
     assert_eq!(me["method"], "oidc", "{me}");
     assert_eq!(
-        me["groups"],
+        me["idp_groups"],
         serde_json::json!(["kartenn-admins", "lecteurs"]),
         "{me}"
     );

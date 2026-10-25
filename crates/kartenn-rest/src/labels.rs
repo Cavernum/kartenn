@@ -274,6 +274,8 @@ fn negotiate(wanted: &[Locale], available: &BTreeSet<Locale>, default: &Locale) 
 struct Rights {
     entries: Vec<String>,
     roles: Vec<String>,
+    /// The groups of kartenn of the caller (spec 025).
+    groups: Vec<String>,
 }
 
 impl Rights {
@@ -285,7 +287,12 @@ impl Rights {
 
     /// The key of the in-memory dictionary for this caller.
     fn key(&self) -> String {
-        format!("{}|{}", self.entries.join(","), self.roles.join(","))
+        format!(
+            "{}|{}|{}",
+            self.entries.join(","),
+            self.roles.join(","),
+            self.groups.join(",")
+        )
     }
 }
 
@@ -326,10 +333,18 @@ async fn labels(
         .await
         .map_err(|e| store(&e))?;
     let revision = format!("{stored_revision}-{}", codes.digest());
-    let (entries, roles) = labels_read::held(&api.pool, &principal.subject())
+    let subject = principal.subject();
+    let (entries, roles) = labels_read::held(&api.pool, &subject)
         .await
         .map_err(|e| store(&e))?;
-    let rights = Rights { entries, roles };
+    let groups = labels_read::groups_held(&api.pool, &subject)
+        .await
+        .map_err(|e| store(&e))?;
+    let rights = Rights {
+        entries,
+        roles,
+        groups,
+    };
     let accept = headers
         .get(header::ACCEPT_LANGUAGE)
         .and_then(|v| v.to_str().ok())
@@ -436,6 +451,8 @@ async fn build(
                             .is_some_and(|p| rights.holds(&format!("prop.{p}.read"), true))
                 }
                 "role" => rbac_reader || rights.roles.contains(&s.key),
+                // Spec 025: the groups of the caller, all of them for a reader of the rights.
+                "group" => rbac_reader || rights.groups.contains(&s.key),
                 _ => true,
             })
             .map(|s| {

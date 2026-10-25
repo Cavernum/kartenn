@@ -6,8 +6,8 @@ use hmac::{Hmac, KeyInit, Mac};
 use kartenn_core::period::Instant;
 use kartenn_service::StoreError;
 use kartenn_service::authn::{
-    BREAKGLASS_FAILURES_MAX, BreakglassAccount, BreakglassAttempt, BreakglassRecorded, HeldBinding,
-    Identities, IdentityState, Rights, ServiceAccount, StoredSecret,
+    BREAKGLASS_FAILURES_MAX, BreakglassAccount, BreakglassAttempt, BreakglassRecorded, GroupVia,
+    HeldBinding, Identities, IdentityState, Rights, ServiceAccount, StoredSecret,
 };
 use kartenn_service::authz::Subject;
 use sha2::Sha256;
@@ -252,10 +252,19 @@ impl Identities for PgStore {
         let name = crate::rbac_read::identity(self.pool(), subject.id)
             .await?
             .map(|i| i.name);
+        let groups = crate::rbac_read::groups_of(self.pool(), subject)
+            .await?
+            .into_iter()
+            .map(|g| GroupVia {
+                key: g.key,
+                via: g.via,
+            })
+            .collect();
         let bindings = crate::rbac_read::bindings_of(self.pool(), subject)
             .await?
             .into_iter()
             .map(|b| HeldBinding {
+                group: b.group,
                 role: b.role,
                 scope_kind: b.scope_kind,
                 scope: b.scope_id,
@@ -265,8 +274,21 @@ impl Identities for PgStore {
         Ok(Rights {
             name,
             roles,
+            groups,
             bindings,
             global_permissions,
         })
+    }
+
+    async fn record_login(&self, identity: Uuid, groups: &[String]) -> Result<(), StoreError> {
+        sqlx::query(
+            "UPDATE person SET last_login_at = now(), last_login_groups = $2 WHERE id = $1",
+        )
+        .bind(identity)
+        .bind(groups)
+        .execute(self.pool())
+        .await
+        .map_err(store_err)?;
+        Ok(())
     }
 }

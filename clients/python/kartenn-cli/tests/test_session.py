@@ -42,7 +42,8 @@ ME = {
     "issuer": "interne",
     "kind": "person",
     "method": "bearer",
-    "groups": ["reseau-admins"],
+    "idp_groups": ["reseau-admins"],
+    "groups": [{"key": "reseau", "via": "reseau-admins"}],
     "roles": ["network-admin"],
     "bindings": [],
 }

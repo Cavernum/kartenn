@@ -64,6 +64,13 @@ def _who(me: dict[str, Any]) -> str:
     return f"{name} ({issuer})" if issuer else str(name)
 
 
+def _groups(groups: list[dict[str, str]]) -> str:
+    """The groups of kartenn of `GET /v1/me` (spec 025): `key`, or `key (via group)`."""
+    return ", ".join(
+        g["key"] if g.get("via") == "direct" else f"{g['key']} ({g.get('via')})" for g in groups
+    )
+
+
 def _breakglass(
     found: Runtime, profile: Profile, name: str | None, *, keep: bool
 ) -> dict[str, Any]:
@@ -181,7 +188,7 @@ def me_command(ctx: click.Context, output: str | None) -> None:
         return
     rows = [
         (t("me.identity"), f"{_who(me)}  ({me.get('kind')}, {me.get('method')})"),
-        (t("me.groups"), ", ".join(cast("list[str]", me.get("groups") or [])) or "—"),
+        (t("me.groups"), _groups(cast("list[dict[str, str]]", me.get("groups") or [])) or "—"),
         (t("me.roles"), ", ".join(cast("list[str]", me.get("roles") or [])) or "—"),
     ]
     width = max(len(label) for label, _ in rows)

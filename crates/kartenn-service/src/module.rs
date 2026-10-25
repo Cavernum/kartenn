@@ -37,6 +37,8 @@ pub const CORE_COLLECTIONS: &[&str] = &[
     // The event stream (spec 022).
     "events",
     "graph",
+    // The groups of kartenn and their members (spec 025).
+    "groups",
     "identities",
     "imports",
     "issuer-attachments",
