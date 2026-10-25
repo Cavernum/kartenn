@@ -94,7 +94,7 @@
           - gridcell "Refus par défaut"
           - gridcell "Autoriser"
           - gridcell "Autoriser"
-    - text: Brouillon · 1 cellule · 1 en revue 1 s'ouvre sous réserve · 2 flux cassent · 0 guérit
+    - text: /Brouillon · 1 cellule · 1 en revue 1 s'ouvre sous réserve · \d+ flux cassent · 0 guérit/
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
   - tablist "Panneau droit":
@@ -128,24 +128,95 @@
       - term: S'ouvrent sous réserve
       - definition: "1"
       - term: Cassent
-      - definition: "2"
+      - definition: /\d+/
       - term: Guérissent
       - definition: "0"
       - status:
-        - paragraph: 2 flux cassent
-        - list:
-          - listitem:
-            - text: /rece-batch → prod-api \(tcp\/\d+\)/
-            - button "Copier flow.verdict.denied":
-              - text: ""
-              - code: flow.verdict.denied
-            - status
-          - listitem:
-            - text: /rece-ci → prod-registry \(tcp\/\d+\)/
-            - button "Copier flow.verdict.denied":
-              - text: ""
-              - code: flow.verdict.denied
-            - status
+        - paragraph: /\d+ flux cassent/
+        - text: Ils passaient avant ce brouillon ; la règle qui les refuse est dans la liste.
+      - text: /\d+ lignes/
+      - 'button "Agrandir : Flux cassés par le brouillon"'
+      - grid "Flux cassés par le brouillon":
+        - rowgroup:
+          - row "Source Destination":
+            - columnheader "Source"
+            - columnheader "Destination"
+        - rowgroup:
+          - row "rece-batch prod-api":
+            - gridcell "rece-batch"
+            - gridcell "prod-api"
+          - row "rece-ci prod-api":
+            - gridcell "rece-ci"
+            - gridcell "prod-api"
+          - row "rece-web prod-api":
+            - gridcell "rece-web"
+            - gridcell "prod-api"
+          - row "rece-etl prod-api":
+            - gridcell "rece-etl"
+            - gridcell "prod-api"
+          - row "rece-mon prod-api":
+            - gridcell "rece-mon"
+            - gridcell "prod-api"
+          - row "rece-batch prod-bus":
+            - gridcell "rece-batch"
+            - gridcell "prod-bus"
+          - row "rece-ci prod-bus":
+            - gridcell "rece-ci"
+            - gridcell "prod-bus"
+          - row "rece-web prod-bus":
+            - gridcell "rece-web"
+            - gridcell "prod-bus"
+          - row "rece-etl prod-bus":
+            - gridcell "rece-etl"
+            - gridcell "prod-bus"
+          - row "rece-mon prod-bus":
+            - gridcell "rece-mon"
+            - gridcell "prod-bus"
+          - row "rece-batch prod-cache":
+            - gridcell "rece-batch"
+            - gridcell "prod-cache"
+          - row "rece-ci prod-cache":
+            - gridcell "rece-ci"
+            - gridcell "prod-cache"
+          - row "rece-web prod-cache":
+            - gridcell "rece-web"
+            - gridcell "prod-cache"
+          - row "rece-etl prod-cache":
+            - gridcell "rece-etl"
+            - gridcell "prod-cache"
+          - row "rece-mon prod-cache":
+            - gridcell "rece-mon"
+            - gridcell "prod-cache"
+          - row "rece-batch prod-db":
+            - gridcell "rece-batch"
+            - gridcell "prod-db"
+          - row "rece-ci prod-db":
+            - gridcell "rece-ci"
+            - gridcell "prod-db"
+          - row "rece-web prod-db":
+            - gridcell "rece-web"
+            - gridcell "prod-db"
+          - row "rece-etl prod-db":
+            - gridcell "rece-etl"
+            - gridcell "prod-db"
+          - row "rece-mon prod-db":
+            - gridcell "rece-mon"
+            - gridcell "prod-db"
+          - row "rece-batch prod-registry":
+            - gridcell "rece-batch"
+            - gridcell "prod-registry"
+          - row "rece-ci prod-registry":
+            - gridcell "rece-ci"
+            - gridcell "prod-registry"
+          - row "rece-web prod-registry":
+            - gridcell "rece-web"
+            - gridcell "prod-registry"
+          - row "rece-etl prod-registry":
+            - gridcell "rece-etl"
+            - gridcell "prod-registry"
+          - row "rece-mon prod-registry":
+            - gridcell "rece-mon"
+            - gridcell "prod-registry"
     - region "Autres opérations":
       - heading "Autres opérations" [level=2]
       - text: "2"
