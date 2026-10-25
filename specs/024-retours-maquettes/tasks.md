@@ -551,8 +551,11 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
       destination (pointes vers le haut).
     - Vocabulaire de conformité à la matrice de flux (« deviennent non conformes »,
       « conformes de nouveau ») ; compteurs servis renommés `nonconforming`/`conforming`.
-    - Colonne « Protocole » (`TCP/443`, `UDP/53`, `ICMP`) ; « Service » en nom de service ;
-      compact : source, destination, protocole.
+    - Colonne « Type de flux » (libellé : Applicatif, Administratif, Base de données,
+      Fichier — jeu d'exemple de la 010) au lieu de « Protocole » (suite de relecture) ;
+      compact : source, destination, type de flux ; agrandi : plus service (clé) et
+      règle. Ni transport ni port : ils appartiennent au service (D29, un service = un
+      type de flux et ses couples transport/port) et se lisent sur sa fiche.
     - Objet entièrement en lecture seule pour une même raison : `InlineAlert` (avertissement,
       icône de cadenas, option `icon` ajoutée) en tête, code de règle en `CodeBadge` ;
       chaque action garde son infobulle. `groupe-refus` : Modifier et Ajouter un rôle

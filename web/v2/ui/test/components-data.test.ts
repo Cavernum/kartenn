@@ -117,13 +117,13 @@ describe("ExpandableGrid (revue du 2026-10-25)", () => {
     key: `f${i}`,
     source: `rece-${i}`,
     destination: "prod-api",
-    protocol: "TCP/443",
+    flowType: "Applicatif",
     rule: "flow.verdict.denied",
   }));
   const flowColumns: GridColumn[] = [
     { id: "source", label: "Source", mono: true },
     { id: "destination", label: "Destination", width: "fill", mono: true },
-    { id: "protocol", label: "Protocole", width: "sm", mono: true },
+    { id: "flowType", label: "Type de flux", width: "sm" },
     { id: "rule", label: "Règle", width: "lg" },
   ];
   const base = { label: "Flux non conformes", columns: flowColumns, rows: flows, rowKey: "key" };
@@ -142,12 +142,12 @@ describe("ExpandableGrid (revue du 2026-10-25)", () => {
   it("keeps the compact columns in the compact grid only", async () => {
     const html = await render(ExpandableGrid, {
       ...base,
-      compactColumns: ["source", "destination", "protocol"],
+      compactColumns: ["source", "destination", "flowType"],
     });
     expect(html).toMatch(
       /role="grid" aria-label="Flux non conformes" aria-rowcount="26" aria-colcount="3"/,
     );
-    expect(html).toContain("Protocole");
+    expect(html).toContain("Type de flux");
     expect(html).not.toContain("Règle");
   });
 
