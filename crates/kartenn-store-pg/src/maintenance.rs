@@ -47,6 +47,15 @@ pub enum DeployError {
     },
 }
 
+/// What a deployment has to tell its operator.
+#[derive(Debug, Default)]
+#[non_exhaustive]
+pub struct Deployed {
+    /// The bindings of the former subjects reported on groups by this deployment (spec
+    /// 025, REQ-025-14), listed once.
+    pub rbac_report: Option<crate::rbac_migration::Report>,
+}
+
 /// The migration job (D9): migrations of the core, then of the modules of `modules` in
 /// their order (REQ-008-2), history partitions ahead of time, the IANA special-purpose
 /// registries embedded in the code, then the declarations of the core synchronised from
@@ -60,8 +69,16 @@ pub enum DeployError {
 pub async fn deploy(
     pool: &PgPool,
     modules: &kartenn_service::module::ModuleRegistry,
-) -> Result<(), DeployError> {
+) -> Result<Deployed, DeployError> {
     crate::MIGRATOR.run(pool).await?;
+    // The report of the bindings on groups the migrations made, listed and audited once
+    // (spec 025, REQ-025-14).
+    let rbac_report = crate::rbac_migration::report(
+        pool,
+        &kartenn_service::audit::Instance::new(env!("CARGO_PKG_VERSION")),
+    )
+    .await
+    .map_err(|e| DeployError::Database(sqlx::Error::Protocol(e.0)))?;
     crate::modules::migrate(pool, modules).await?;
     // The background tasks of the modules (REQ-016-16).
     crate::jobs::declare_module_jobs(pool, &modules.jobs())
@@ -132,5 +149,5 @@ pub async fn deploy(
             });
         }
     }
-    Ok(())
+    Ok(Deployed { rbac_report })
 }

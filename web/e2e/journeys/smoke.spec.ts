@@ -14,7 +14,7 @@ test("login, read and logout through the development issuer", async ({ page, log
     const me = await fetch("/v1/me");
     const domains = await fetch("/v1/domains");
     return {
-      groups: ((await me.json()) as { groups: string[] }).groups,
+      groups: ((await me.json()) as { idp_groups: string[] }).idp_groups,
       domains: ((await domains.json()) as { items: { slug: string }[] }).items.map((d) => d.slug),
     };
   });

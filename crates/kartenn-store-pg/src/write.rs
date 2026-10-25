@@ -998,22 +998,30 @@ impl WriteTx for PgTx {
         period: Option<Period>,
         changeset: Uuid,
     ) -> Result<(), WriteError> {
+        use kartenn_service::rbac::RbacOp;
         let (at, until) = bounds(period)?;
-        if let kartenn_service::rbac::RbacOp::SetRole { key, labels, .. } = op
+        // Roles and groups carry labels (spec 018, R22; spec 025, REQ-025-11).
+        let labelled = match op {
+            RbacOp::SetRole { key, labels, .. } => Some(("role", key, labels)),
+            RbacOp::SetGroup { key, labels } => Some(("rbac_group", key, labels)),
+            _ => None,
+        };
+        if let Some((table, key, labels)) = labelled
             && !self.labels_written
         {
-            let current: Option<serde_json::Value> = sqlx::query_scalar(
-                "SELECT labels FROM role
-                 WHERE key = $1 AND valid_period @> coalesce($2::timestamptz, now())",
-            )
-            .bind(key)
-            .bind(at)
-            .fetch_optional(&mut *self.tx)
-            .await
-            .map_err(store_err)?;
+            let current: Option<serde_json::Value> =
+                sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+                    "SELECT labels FROM {table}
+                 WHERE key = $1 AND valid_period @> coalesce($2::timestamptz, now())"
+                )))
+                .bind(key)
+                .bind(at)
+                .fetch_optional(&mut *self.tx)
+                .await
+                .map_err(store_err)?;
             self.labels_written = current != Some(labels.to_json());
         }
-        self.labels_written |= matches!(op, kartenn_service::rbac::RbacOp::CloseRole { .. });
+        self.labels_written |= matches!(op, RbacOp::CloseRole { .. } | RbacOp::CloseGroup { .. });
         crate::rbac_admin::write(&mut self.tx, op, at, until, changeset).await
     }
 

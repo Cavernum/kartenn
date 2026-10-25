@@ -7,6 +7,7 @@ mod dev_idp;
 mod jobs;
 mod overrides;
 mod pool;
+mod rbac_report;
 mod run;
 mod secrets;
 mod trace;

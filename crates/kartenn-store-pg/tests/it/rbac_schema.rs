@@ -15,15 +15,8 @@ async fn account(pool: &PgPool, kind: &str) -> Uuid {
     .unwrap()
 }
 
-/// Group, former subject kind, former subject, scope kind, scope, accepted.
-type BindingCase<'a> = (
-    Option<Uuid>,
-    Option<&'a str>,
-    Option<Uuid>,
-    &'a str,
-    Option<Uuid>,
-    bool,
-);
+/// Group, scope kind, scope, accepted.
+type BindingCase<'a> = (Option<Uuid>, &'a str, Option<Uuid>, bool);
 
 /// Kind, identity, issuer, group of the issuer, accepted.
 type MemberCase<'a> = (
@@ -36,30 +29,35 @@ type MemberCase<'a> = (
 
 #[kartenn_testing::pg_test]
 async fn bindings_name_their_group_and_scope_consistently(pool: PgPool) {
-    // A new binding names a group and nothing else (spec 025, REQ-025-4).
-    let insert = "INSERT INTO binding (id, group_id, subject_kind, subject_id, role_id,
-                  scope_kind, scope_id, valid_period, changeset_id)
-                  VALUES (gen_random_uuid(), $1, $2, $3, gen_random_uuid(), $4, $5,
+    // A binding names a group and nothing else (spec 025, REQ-025-4).
+    let insert = "INSERT INTO binding (id, group_id, role_id, scope_kind, scope_id,
+                  valid_period, changeset_id)
+                  VALUES (gen_random_uuid(), $1, gen_random_uuid(), $2, $3,
                           tstzrange(now(), NULL), gen_random_uuid())";
     let id = Some(Uuid::now_v7());
-    let cases: [BindingCase<'_>; 5] = [
-        (id, None, None, "global", None, true),
-        (id, None, None, "entity", id, true),
-        (id, Some("identity"), id, "global", None, false),
-        (None, None, None, "global", None, false),
-        (id, None, None, "entity", None, false),
+    let cases: [BindingCase<'_>; 4] = [
+        (id, "global", None, true),
+        (id, "entity", id, true),
+        (None, "global", None, false),
+        (id, "entity", None, false),
     ];
-    for (group, kind, subject, scope, scope_id, ok) in cases {
+    for (group, scope, scope_id, ok) in cases {
         let result = sqlx::query(insert)
             .bind(group)
-            .bind(kind)
-            .bind(subject)
             .bind(scope)
             .bind(scope_id)
             .execute(&pool)
             .await;
-        assert_eq!(result.is_ok(), ok, "{group:?} {kind:?} {scope}: {result:?}");
+        assert_eq!(result.is_ok(), ok, "{group:?} {scope}: {result:?}");
     }
+    let former: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM information_schema.columns
+         WHERE table_name = 'binding' AND column_name IN ('subject_kind', 'subject_id')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(former, 0, "the former subject columns left the table");
 }
 
 #[kartenn_testing::pg_test]

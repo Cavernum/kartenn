@@ -488,3 +488,179 @@ async fn a_body_does_not_vary_with_the_language(pool: PgPool) {
     }
     assert!(seen.windows(2).all(|w| w[0] == w[1]), "{seen:?}");
 }
+
+/// The `Location` of a created resource.
+fn location(response: &Response) -> String {
+    response.headers()[header::LOCATION]
+        .to_str()
+        .unwrap()
+        .to_owned()
+}
+
+/// Spec 025, REQ-025-11 (task 025-5): groups, their members and bindings by route; the
+/// record of an identity serves its groups, by which membership, and its effective rights.
+#[kartenn_testing::pg_test]
+#[allow(clippy::too_many_lines)] // one group, from its creation to its closure
+async fn groups_and_members_are_administered(pool: PgPool) {
+    let admin = app_as(&pool, person(&pool, &["*"]).await);
+    let issuer = "https://idp.example.invalid/realm";
+    let body = json!({"motive": "on call", "key": "astreinte", "labels": {"fr": "Astreinte"}});
+    // A simulation writes nothing.
+    let response = send(&admin, with_body("POST", "/v1/groups?simulate=true", &body)).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let listed = json_of(send(&admin, get("/v1/groups")).await).await;
+    assert!(
+        listed["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|g| g["key"] != "astreinte")
+    );
+    let response = send(&admin, with_body("POST", "/v1/groups", &body)).await;
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let group = location(&response);
+    assert!(group.starts_with("/v1/groups/"), "{group}");
+    let response = send(&admin, with_body("POST", "/v1/groups", &body)).await;
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    let shown = json_of(send(&admin, get(&group)).await).await;
+    assert_eq!(shown["key"], "astreinte");
+    assert_eq!(shown["builtin"], false);
+    assert_eq!(shown["href"], group.as_str());
+
+    // Members: an identity, a group of an issuer; neither or both is refused.
+    let someone: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 's') RETURNING id",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let members = format!("{group}/members");
+    let response = send(
+        &admin,
+        with_body(
+            "POST",
+            &members,
+            &json!({"motive": "joins", "identity": someone}),
+        ),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let direct = location(&response);
+    assert!(direct.starts_with(&members), "{direct}");
+    let response = send(
+        &admin,
+        with_body(
+            "POST",
+            &members,
+            &json!({"motive": "joins", "issuer": issuer, "group": "netops"}),
+        ),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let response = send(
+        &admin,
+        with_body(
+            "POST",
+            &members,
+            &json!({"motive": "joins", "identity": someone, "issuer": issuer}),
+        ),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let listed = json_of(send(&admin, get(&members)).await).await;
+    assert_eq!(listed["items"].as_array().unwrap().len(), 2, "{listed}");
+    let shown = json_of(send(&admin, get(&direct)).await).await;
+    assert_eq!(shown["kind"], "identity");
+    assert_eq!(shown["identity"], json!(someone));
+
+    // A binding of the group, found by `?group=`.
+    put_role(&admin, "lecteur", &["core.entity.read"]).await;
+    let response = send(
+        &admin,
+        with_body(
+            "POST",
+            "/v1/bindings",
+            &json!({"motive": "reads", "group": "astreinte", "role": "lecteur",
+                    "scope": {"kind": "global"}}),
+        ),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let listed = json_of(send(&admin, get("/v1/bindings?group=astreinte")).await).await;
+    let items = listed["items"].as_array().unwrap();
+    assert_eq!(items.len(), 1, "{listed}");
+    assert_eq!(items[0]["role"], "lecteur");
+    let response = send(&admin, get("/v1/bindings?subject=x")).await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    // The record of the identity: directly, then by the group of its last session.
+    let record = json_of(send(&admin, get(&format!("/v1/identities/{someone}"))).await).await;
+    assert_eq!(
+        record["groups"],
+        json!([{"key": "astreinte", "via": "direct"}]),
+        "{record}"
+    );
+    assert_eq!(
+        record["bindings"],
+        json!([{"group": "astreinte", "role": "lecteur", "scope": {"kind": "global"}}])
+    );
+    assert_eq!(record["last_session"], Value::Null);
+    sqlx::query(
+        "UPDATE person SET issuer = $2, last_login_at = now(), last_login_groups = '{netops}'
+         WHERE id = $1",
+    )
+    .bind(someone)
+    .bind(issuer)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let record = json_of(send(&admin, get(&format!("/v1/identities/{someone}"))).await).await;
+    assert_eq!(
+        record["groups"],
+        json!([{"key": "astreinte", "via": "direct"}, {"key": "astreinte", "via": "netops"}])
+    );
+    assert_eq!(record["last_session"]["idp_groups"], json!(["netops"]));
+    assert!(record["last_session"]["at"].is_string());
+
+    // Its labels, in the dictionary, under a new revision.
+    let before = json_of(send(&admin, get("/v1/labels?spaces=group&lang=fr")).await).await;
+    assert_eq!(
+        before["spaces"]["group"]["astreinte"], "Astreinte",
+        "{before}"
+    );
+    let response = send(
+        &admin,
+        Request::patch(&group)
+            .header(header::CONTENT_TYPE, MERGE_PATCH)
+            .body(Body::from(
+                json!({"motive": "renamed", "labels": {"fr": "Astreinte réseau"}}).to_string(),
+            ))
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(
+        response.status(),
+        StatusCode::OK,
+        "{}",
+        json_of(response).await
+    );
+    let after = json_of(send(&admin, get("/v1/labels?spaces=group&lang=fr")).await).await;
+    assert_eq!(after["spaces"]["group"]["astreinte"], "Astreinte réseau");
+    assert_ne!(before["revision"], after["revision"]);
+
+    // A member leaves, then the group closes.
+    let closing = |uri: &str| {
+        Request::delete(uri)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(json!({"motive": "gone"}).to_string()))
+            .unwrap()
+    };
+    let response = send(&admin, closing(&direct)).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let listed = json_of(send(&admin, get(&members)).await).await;
+    assert_eq!(listed["items"].as_array().unwrap().len(), 1);
+    let response = send(&admin, closing(&group)).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let response = send(&admin, get(&group)).await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}

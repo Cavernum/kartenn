@@ -16,13 +16,18 @@ use axum::{Extension, Json};
 use kartenn_auth::secrets;
 use kartenn_core::audit::rfc3339;
 use kartenn_service::audit::{AuditJournal, RequestContext};
+use kartenn_service::authn::GroupVia;
 use kartenn_service::authn::Principal;
+use kartenn_service::authz::Subject;
+use kartenn_service::operations::GroupMember;
 use kartenn_service::operations::{BindingScope, Ref};
 use kartenn_service::reads::{objects_read, rbac_readable};
 use kartenn_service::{ChangesetRequest, Operation, RequestError};
 use kartenn_store_pg::rbac_read::{
-    self, AccountRead, AttachmentRead, BindingRead, IdentityRead, RoleRead,
+    self, AccountRead, AttachmentRead, BindingRead, GroupRead, IdentityRead, MemberRead, RoleRead,
 };
+
+use crate::auth::{GroupOf, HeldBinding, groups_and_bindings};
 use kartenn_store_pg::read;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -52,6 +57,10 @@ pub fn routes() -> OpenApiRouter<Api> {
     OpenApiRouter::new()
         .routes(routes!(roles))
         .routes(routes!(role, set_role, close_role))
+        .routes(routes!(groups, create_group))
+        .routes(routes!(group, set_group, close_group))
+        .routes(routes!(group_members, add_member))
+        .routes(routes!(group_member, remove_member))
         .routes(routes!(bindings, bind))
         .routes(routes!(binding, unbind))
         .routes(routes!(attachments, attach, detach))
@@ -91,8 +100,18 @@ async fn audit_read(
 /// A page of the list `name`, read at the current state: no filter, and `valid_at` or
 /// `as_of` on its first page → 400.
 async fn page_of(api: &Api, query: Option<&str>, name: &str) -> Result<(Page, Moment), Problem> {
+    let found = page_filtered(api, query, name).await?;
+    found.0.unfiltered()?;
+    Ok(found)
+}
+
+/// As [`page_of`], its filters left to the route.
+async fn page_filtered(
+    api: &Api,
+    query: Option<&str>,
+    name: &str,
+) -> Result<(Page, Moment), Problem> {
     let page = Page::from_query(query.unwrap_or_default(), &api.ring, name)?;
-    page.unfiltered()?;
     if page.after().is_none() && page.dates != Dates::default() {
         return Err(bad(format!("the {name} take neither valid_at nor as_of")));
     }
@@ -231,6 +250,13 @@ fn micros(name: &str, value: &str) -> Result<i64, Problem> {
 struct NoMembers {}
 
 written!(RoleWrite, RoleMembers, "The body that defines a role.");
+written!(GroupWrite, GroupMembers, "The body that creates a group.");
+written!(
+    GroupPatchWrite,
+    GroupPatch,
+    "The body that changes the labels of a group."
+);
+written!(MemberWrite, MemberMembers, "The body of a membership.");
 written!(BindWrite, BindMembers, "The body of a binding.");
 written!(AttachWrite, AttachMembers, "The body of an attachment.");
 written!(
@@ -516,13 +542,22 @@ fn binding_item(binding: &BindingRead) -> BindingItem {
     }
 }
 
-/// `GET /v1/bindings`.
+/// The filter of the bindings.
+#[derive(Debug, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+#[allow(dead_code)]
+struct BindingsParams {
+    /// The bindings of this group of kartenn only, by key (spec 025, REQ-025-11).
+    group: Option<String>,
+}
+
+/// `GET /v1/bindings[?group=<key>]`.
 #[utoipa::path(
     get,
     path = "/bindings",
     operation_id = "list_bindings",
     tag = "rights",
-    params(PageParams),
+    params(PageParams, BindingsParams),
     responses((status = 200, description = "The bindings.", body = Listing<BindingItem>))
 )]
 async fn bindings(
@@ -532,9 +567,17 @@ async fn bindings(
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
     readable(&api, &context).await?;
-    let (page, moment) = page_of(&api, query.as_deref(), "bindings").await?;
+    let (page, moment) = page_filtered(&api, query.as_deref(), "bindings").await?;
+    let mut group = None;
+    for (name, value) in &page.filters {
+        match name.as_str() {
+            "group" if group.is_none() => group = Some(value.as_str()),
+            "group" => return Err(bad("group is given more than once")),
+            _ => return Err(bad(format!("unknown parameter {name}"))),
+        }
+    }
     let after: Option<Uuid> = after(&page)?;
-    let found = rbac_read::bindings(&api.pool, after, limit(&page)).await?;
+    let found = rbac_read::bindings(&api.pool, group, after, limit(&page)).await?;
     served(
         &api,
         &context,
@@ -1140,6 +1183,469 @@ async fn revoke_secret(
     .await
 }
 
+// ---- Groups (spec 025, REQ-025-11) ----
+
+fn group_href(id: Uuid) -> String {
+    format!("/v1/groups/{id}")
+}
+
+/// A group of kartenn.
+#[derive(Debug, Serialize, ToSchema)]
+struct GroupItem {
+    /// Identifier.
+    id: Uuid,
+    /// Its URL.
+    href: String,
+    /// Stable key.
+    key: String,
+    /// Labels by language, `{<tag>: <text>}`: the dictionary `GET /v1/labels` serves them
+    /// resolved (space `group`).
+    #[schema(value_type = std::collections::BTreeMap<String, String>)]
+    labels: Value,
+    /// Delivered with kartenn (`secours`): its labels and bindings follow the code.
+    builtin: bool,
+    /// Its current members.
+    members: i64,
+    /// Its current bindings (`GET /v1/bindings?group=<key>`).
+    bindings: i64,
+}
+
+fn group_item(group: &GroupRead) -> GroupItem {
+    GroupItem {
+        id: group.id,
+        href: group_href(group.id),
+        key: group.key.clone(),
+        labels: group.labels.clone(),
+        builtin: group.builtin,
+        members: group.members,
+        bindings: group.bindings,
+    }
+}
+
+/// The group `id`, or 404.
+async fn group_of(api: &Api, id: Uuid) -> Result<GroupRead, Problem> {
+    rbac_read::group(&api.pool, id)
+        .await?
+        .ok_or_else(|| Problem::new(ProblemKind::NotFound))
+}
+
+/// `GET /v1/groups`.
+#[utoipa::path(
+    get,
+    path = "/groups",
+    operation_id = "list_groups",
+    tag = "rights",
+    params(PageParams),
+    responses((status = 200, description = "The groups, by key.", body = Listing<GroupItem>))
+)]
+async fn groups(
+    State(api): State<Api>,
+    Extension(context): Extension<RequestContext>,
+    RawQuery(query): RawQuery,
+    headers: HeaderMap,
+) -> Result<Response, Problem> {
+    readable(&api, &context).await?;
+    let (page, moment) = page_of(&api, query.as_deref(), "groups").await?;
+    let after: Option<String> = after(&page)?;
+    let found = rbac_read::groups(&api.pool, after.as_deref(), limit(&page)).await?;
+    served(
+        &api,
+        &context,
+        &headers,
+        (&page, &moment),
+        "groups",
+        found,
+        |g| json!(g.key),
+        (|g: &GroupRead| Some(g.id), group_item),
+    )
+    .await
+}
+
+/// `GET /v1/groups/{id}`.
+#[utoipa::path(
+    get,
+    path = "/groups/{id}",
+    operation_id = "show_group",
+    tag = "rights",
+    params(("id" = Uuid, Path, description = "The group.")),
+    responses((status = 200, description = "The group.", body = GroupItem))
+)]
+async fn group(
+    State(api): State<Api>,
+    Extension(context): Extension<RequestContext>,
+    Path(id): Path<Uuid>,
+) -> Result<Response, Problem> {
+    readable(&api, &context).await?;
+    let found = group_of(&api, id).await?;
+    audit_read(&api, &context, &[id], json!({ "group": id })).await?;
+    Ok(Json(group_item(&found)).into_response())
+}
+
+/// The members of a new group.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+struct GroupMembers {
+    /// Stable key, `^[a-z][a-z0-9_-]*$`.
+    #[schema(required = true, value_type = String)]
+    key: Option<String>,
+    /// Labels by language, `{<tag>: <text>}`: the default language of the instance at
+    /// least.
+    #[schema(required = true, value_type = std::collections::BTreeMap<String, String>)]
+    labels: Option<kartenn_service::operations::RawLabels>,
+}
+
+/// `POST /v1/groups` `{key, labels}`: 201 and `Location`; 409 when the key is taken.
+#[utoipa::path(
+    post,
+    path = "/groups",
+    operation_id = "create_group",
+    tag = "rights",
+    request_body = GroupWrite,
+    responses(
+        (status = 201, description = "Created.", body = ChangesetApplied),
+        (status = 202, description = "Held for a decision.", body = ChangesetPending),
+        (status = 409, description = "A group of this key exists.", body = Problem),
+    )
+)]
+async fn create_group(
+    State(api): State<Api>,
+    Extension(principal): Extension<Principal>,
+    Extension(context): Extension<RequestContext>,
+    headers: HeaderMap,
+    raw: Bytes,
+) -> Result<Response, Problem> {
+    let (members, reserved): (GroupMembers, _) = body(&headers, &raw, "application/json", false)?;
+    let key = required(members.key, "key")?;
+    let labels = required(members.labels, "labels")?;
+    if rbac_read::group_by_key(&api.pool, &key).await?.is_some() {
+        return Err(Problem::new(ProblemKind::Conflict).detail("a group of this key exists"));
+    }
+    let pointers = pointers();
+    let answer = answer(
+        &pointers,
+        StatusCode::CREATED,
+        Some(Location::Group(&key)),
+        None,
+    );
+    let operation = Operation::SetGroup {
+        key: key.clone(),
+        labels,
+    };
+    submit(
+        &api,
+        &principal,
+        &context,
+        (reserved, None),
+        vec![operation],
+        &answer,
+    )
+    .await
+}
+
+/// The labels of a group, as a JSON Merge Patch (RFC 7396).
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+struct GroupPatch {
+    /// Labels by language, replaced whole.
+    #[schema(value_type = std::collections::BTreeMap<String, String>)]
+    labels: Option<kartenn_service::operations::RawLabels>,
+}
+
+/// `PATCH /v1/groups/{id}` (JSON Merge Patch) `{labels}`: its key stays.
+#[utoipa::path(
+    patch,
+    path = "/groups/{id}",
+    operation_id = "set_group",
+    tag = "rights",
+    params(("id" = Uuid, Path, description = "The group.")),
+    request_body(content = GroupPatchWrite, content_type = "application/merge-patch+json"),
+    responses(
+        (status = 200, description = "Changed.", body = ChangesetApplied),
+        (status = 202, description = "Held for a decision.", body = ChangesetPending),
+    )
+)]
+async fn set_group(
+    State(api): State<Api>,
+    Extension(principal): Extension<Principal>,
+    Extension(context): Extension<RequestContext>,
+    Path(id): Path<Uuid>,
+    headers: HeaderMap,
+    raw: Bytes,
+) -> Result<Response, Problem> {
+    let (members, reserved): (GroupPatch, _) = body(&headers, &raw, MERGE_PATCH, false)?;
+    let labels = required(members.labels, "labels")?;
+    let found = group_of(&api, id).await?;
+    let pointers = pointers();
+    let answer = answer(&pointers, StatusCode::OK, None, None);
+    let operation = Operation::SetGroup {
+        key: found.key,
+        labels,
+    };
+    submit(
+        &api,
+        &principal,
+        &context,
+        (reserved, None),
+        vec![operation],
+        &answer,
+    )
+    .await
+}
+
+/// `DELETE /v1/groups/{id}`: closes the group, its memberships and its bindings.
+#[utoipa::path(
+    delete,
+    path = "/groups/{id}",
+    operation_id = "close_group",
+    tag = "rights",
+    params(("id" = Uuid, Path, description = "The group.")),
+    request_body(content = Option<Closure>, description = "The motive and the start of the closure."),
+    responses(
+        (status = 200, description = "Closed.", body = ChangesetApplied),
+        (status = 202, description = "Held for a decision.", body = ChangesetPending),
+    )
+)]
+async fn close_group(
+    State(api): State<Api>,
+    Extension(principal): Extension<Principal>,
+    Extension(context): Extension<RequestContext>,
+    Path(id): Path<Uuid>,
+    headers: HeaderMap,
+    raw: Bytes,
+) -> Result<Response, Problem> {
+    let reserved = closure(&headers, &raw)?;
+    let found = group_of(&api, id).await?;
+    let pointers = pointers();
+    let answer = answer(&pointers, StatusCode::OK, None, None);
+    let operation = Operation::CloseGroup { key: found.key };
+    submit(
+        &api,
+        &principal,
+        &context,
+        (reserved, None),
+        vec![operation],
+        &answer,
+    )
+    .await
+}
+
+fn member_href(group: Uuid, id: Uuid) -> String {
+    format!("/v1/groups/{group}/members/{id}")
+}
+
+/// A membership: an identity, or a group of an issuer as its tokens name it.
+#[derive(Debug, Serialize, ToSchema)]
+struct MemberItem {
+    /// Identifier of the membership.
+    id: Uuid,
+    /// Its URL.
+    href: String,
+    /// `identity` or `idp_group`.
+    kind: String,
+    /// The identity, for `identity`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    identity: Option<Uuid>,
+    /// Its display name, for `identity`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    /// The issuer, for `idp_group`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    issuer: Option<String>,
+    /// The group of the issuer, for `idp_group`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    group: Option<String>,
+    /// Its start, RFC 3339.
+    valid_from: String,
+    /// Its end, RFC 3339; `null` while open.
+    valid_to: Option<String>,
+}
+
+fn member_item(group: Uuid, member: &MemberRead) -> MemberItem {
+    MemberItem {
+        id: member.id,
+        href: member_href(group, member.id),
+        kind: member.kind.clone(),
+        identity: member.identity,
+        name: member.name.clone(),
+        issuer: member.issuer.clone(),
+        group: member.group_name.clone(),
+        valid_from: time(member.valid_from),
+        valid_to: member.valid_to.map(time),
+    }
+}
+
+/// `GET /v1/groups/{id}/members`.
+#[utoipa::path(
+    get,
+    path = "/groups/{id}/members",
+    operation_id = "list_members",
+    tag = "rights",
+    params(("id" = Uuid, Path, description = "The group."), PageParams),
+    responses((status = 200, description = "Its current members.", body = Listing<MemberItem>))
+)]
+async fn group_members(
+    State(api): State<Api>,
+    Extension(context): Extension<RequestContext>,
+    Path(id): Path<Uuid>,
+    RawQuery(query): RawQuery,
+    headers: HeaderMap,
+) -> Result<Response, Problem> {
+    readable(&api, &context).await?;
+    group_of(&api, id).await?;
+    let collection = format!("groups/{id}/members");
+    let (page, moment) = page_of(&api, query.as_deref(), &collection).await?;
+    let after: Option<Uuid> = after(&page)?;
+    let found = rbac_read::members(&api.pool, id, after, limit(&page)).await?;
+    served(
+        &api,
+        &context,
+        &headers,
+        (&page, &moment),
+        &collection,
+        found,
+        |m| json!(m.id),
+        (
+            |m: &MemberRead| Some(m.id),
+            |m: &MemberRead| member_item(id, m),
+        ),
+    )
+    .await
+}
+
+/// `GET /v1/groups/{id}/members/{member}`.
+#[utoipa::path(
+    get,
+    path = "/groups/{id}/members/{member}",
+    operation_id = "show_member",
+    tag = "rights",
+    params(
+        ("id" = Uuid, Path, description = "The group."),
+        ("member" = Uuid, Path, description = "The membership."),
+    ),
+    responses((status = 200, description = "The membership.", body = MemberItem))
+)]
+async fn group_member(
+    State(api): State<Api>,
+    Extension(context): Extension<RequestContext>,
+    Path((id, member)): Path<(Uuid, Uuid)>,
+) -> Result<Response, Problem> {
+    readable(&api, &context).await?;
+    let found = rbac_read::member(&api.pool, id, member)
+        .await?
+        .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
+    audit_read(&api, &context, &[member], json!({ "member": member })).await?;
+    Ok(Json(member_item(id, &found)).into_response())
+}
+
+/// The members of a membership: `identity`, or `issuer` and `group`.
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(deny_unknown_fields)]
+struct MemberMembers {
+    /// An identity (person, service or break-glass account).
+    identity: Option<Uuid>,
+    /// The issuer of a group, with `group`.
+    issuer: Option<String>,
+    /// A group of that issuer, as its tokens name it.
+    group: Option<String>,
+}
+
+/// `POST /v1/groups/{id}/members` `{identity}` or `{issuer, group}`: 201 and `Location`.
+#[utoipa::path(
+    post,
+    path = "/groups/{id}/members",
+    operation_id = "add_member",
+    tag = "rights",
+    params(
+        ("id" = Uuid, Path, description = "The group."),
+        ("Idempotency-Key" = Option<String>, Header, description = "Makes the write idempotent for 24 h."),
+    ),
+    request_body = MemberWrite,
+    responses(
+        (status = 201, description = "Added.", body = ChangesetApplied),
+        (status = 202, description = "Held for a decision.", body = ChangesetPending),
+    )
+)]
+async fn add_member(
+    State(api): State<Api>,
+    Extension(principal): Extension<Principal>,
+    Extension(context): Extension<RequestContext>,
+    Path(id): Path<Uuid>,
+    headers: HeaderMap,
+    raw: Bytes,
+) -> Result<Response, Problem> {
+    let idempotency_key = idempotency_key(&headers)?;
+    let (members, reserved): (MemberMembers, _) = body(&headers, &raw, "application/json", false)?;
+    let member = match (members.identity, members.issuer, members.group) {
+        (Some(id), None, None) => GroupMember::Identity { id },
+        (None, Some(issuer), Some(group)) => GroupMember::IdpGroup { issuer, group },
+        _ => {
+            return Err(invalid(
+                "",
+                "a member is an identity, or an issuer and its group",
+            ));
+        }
+    };
+    let found = group_of(&api, id).await?;
+    let pointers = pointers();
+    let answer = answer(&pointers, StatusCode::CREATED, Some(Location::Member), None);
+    let operation = Operation::AddMember {
+        local: None,
+        group: found.key,
+        member,
+    };
+    submit(
+        &api,
+        &principal,
+        &context,
+        (reserved, idempotency_key),
+        vec![operation],
+        &answer,
+    )
+    .await
+}
+
+/// `DELETE /v1/groups/{id}/members/{member}`: ends the membership.
+#[utoipa::path(
+    delete,
+    path = "/groups/{id}/members/{member}",
+    operation_id = "remove_member",
+    tag = "rights",
+    params(
+        ("id" = Uuid, Path, description = "The group."),
+        ("member" = Uuid, Path, description = "The membership."),
+    ),
+    request_body(content = Option<Closure>, description = "The motive and the start of the closure."),
+    responses(
+        (status = 200, description = "Ended.", body = ChangesetApplied),
+        (status = 202, description = "Held for a decision.", body = ChangesetPending),
+    )
+)]
+async fn remove_member(
+    State(api): State<Api>,
+    Extension(principal): Extension<Principal>,
+    Extension(context): Extension<RequestContext>,
+    Path((id, member)): Path<(Uuid, Uuid)>,
+    headers: HeaderMap,
+    raw: Bytes,
+) -> Result<Response, Problem> {
+    let reserved = closure(&headers, &raw)?;
+    rbac_read::member(&api.pool, id, member)
+        .await?
+        .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
+    let pointers = pointers();
+    let answer = answer(&pointers, StatusCode::OK, None, None);
+    let operation = Operation::RemoveMember { id: member };
+    submit(
+        &api,
+        &principal,
+        &context,
+        (reserved, None),
+        vec![operation],
+        &answer,
+    )
+    .await
+}
+
 // ---- Identities ----
 
 fn identity_href(id: Uuid) -> String {
@@ -1209,14 +1715,38 @@ async fn identities(
     .await
 }
 
-/// `GET /v1/identities/{id}`.
+/// The last session of a person (spec 025, Q-025-1).
+#[derive(Debug, Serialize, ToSchema)]
+struct LastSession {
+    /// Its opening, RFC 3339.
+    at: String,
+    /// The groups of its issuer it carried.
+    idp_groups: Vec<String>,
+}
+
+/// An identity, its groups of kartenn and its effective rights (spec 025, REQ-025-11).
+#[derive(Debug, Serialize, ToSchema)]
+struct IdentityDetail {
+    #[serde(flatten)]
+    identity: IdentityItem,
+    /// Its groups of kartenn, one per membership: `via` is `direct` or the group of its
+    /// issuer, as its last session carried it.
+    groups: Vec<GroupOf>,
+    /// The bindings that serve it, by the group that gives them.
+    bindings: Vec<HeldBinding>,
+    /// Its last session, for a person who logged in; `null` otherwise.
+    last_session: Option<LastSession>,
+}
+
+/// `GET /v1/identities/{id}`: the identity, its groups and its effective rights; a
+/// membership by a group of its issuer is read from its last session.
 #[utoipa::path(
     get,
     path = "/identities/{id}",
     operation_id = "show_identity",
     tag = "rights",
     params(("id" = Uuid, Path, description = "The identity.")),
-    responses((status = 200, description = "The identity.", body = IdentityItem))
+    responses((status = 200, description = "The identity.", body = IdentityDetail))
 )]
 async fn identity(
     State(api): State<Api>,
@@ -1227,8 +1757,44 @@ async fn identity(
     let found = rbac_read::identity(&api.pool, id)
         .await?
         .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
+    let subject = Subject {
+        id,
+        issuer: found.issuer.clone(),
+        groups: found.last_login_groups.clone().unwrap_or_default(),
+    };
+    let rights = kartenn_service::authn::Rights {
+        groups: rbac_read::groups_of(&api.pool, &subject)
+            .await?
+            .into_iter()
+            .map(|g| GroupVia {
+                key: g.key,
+                via: g.via,
+            })
+            .collect(),
+        bindings: rbac_read::bindings_of(&api.pool, &subject)
+            .await?
+            .into_iter()
+            .map(|b| kartenn_service::authn::HeldBinding {
+                group: b.group,
+                role: b.role,
+                scope_kind: b.scope_kind,
+                scope: b.scope_id,
+            })
+            .collect(),
+        ..Default::default()
+    };
+    let (groups, bindings) = groups_and_bindings(&rights);
     audit_read(&api, &context, &[id], json!({ "identity": id })).await?;
-    Ok(Json(identity_item(&found)).into_response())
+    Ok(Json(IdentityDetail {
+        identity: identity_item(&found),
+        groups,
+        bindings,
+        last_session: found.last_login_at.map(|at| LastSession {
+            at: time(at),
+            idp_groups: found.last_login_groups.clone().unwrap_or_default(),
+        }),
+    })
+    .into_response())
 }
 
 /// The state of an identity, as a JSON Merge Patch (RFC 7396).

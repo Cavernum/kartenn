@@ -117,7 +117,7 @@ pub async fn pseudonymise(
     let people: Vec<Uuid> = sqlx::query_scalar(
         "UPDATE person
          SET display_name = 'personne #' || left(id::text, 8), email = NULL, issuer = NULL, subject = NULL,
-             pseudonymized_at = now()
+             last_login_groups = NULL, pseudonymized_at = now()
          WHERE departed_at IS NOT NULL AND departed_at + make_interval(days => $1) <= now()
            AND pseudonymized_at IS NULL
          RETURNING id",
@@ -185,7 +185,7 @@ pub async fn pseudonymise_identity(
     sqlx::query(
         "UPDATE person
          SET display_name = 'personne #' || left(id::text, 8), email = NULL, issuer = NULL, subject = NULL,
-             pseudonymized_at = now()
+             last_login_groups = NULL, pseudonymized_at = now()
          WHERE id = $1",
     )
     .bind(id)

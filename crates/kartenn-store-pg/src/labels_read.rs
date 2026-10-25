@@ -64,6 +64,7 @@ pub async fn stored(
     let values = snapshot("property_enum_value", &["property_id", "key", "labels"])
         .map_err(|e| sql_err(&e))?;
     let roles = snapshot("role", &["key", "labels"]).map_err(|e| sql_err(&e))?;
+    let groups = snapshot("rbac_group", &["key", "labels"]).map_err(|e| sql_err(&e))?;
     let mut sql = format!(
         "SELECT 'value' AS space, d.key AS property, v.key, v.labels, d.sensitive
            FROM {values} v JOIN {declarations} d ON d.id = v.property_id
@@ -72,7 +73,9 @@ pub async fn stored(
          SELECT 'property', NULL, d.key, d.labels, d.sensitive FROM {declarations} d
           WHERE d.labels <> '{{}}'
          UNION ALL
-         SELECT 'role', NULL, r.key, r.labels, false FROM {roles} r WHERE r.labels <> '{{}}'"
+         SELECT 'role', NULL, r.key, r.labels, false FROM {roles} r WHERE r.labels <> '{{}}'
+         UNION ALL
+         SELECT 'group', NULL, g.key, g.labels, false FROM {groups} g WHERE g.labels <> '{{}}'"
     );
     for (space, table) in tables {
         // The space is a label of the code of a module (`[a-z_.]`); the table is checked.
@@ -104,6 +107,26 @@ pub async fn stored(
             sensitive,
         })
         .collect())
+}
+
+/// The keys of the groups of kartenn `subject` belongs to now, sorted (spec 025): their
+/// labels are in its dictionary.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn groups_held(pool: &PgPool, subject: &Subject) -> sqlx::Result<Vec<String>> {
+    sqlx::query_scalar(
+        "SELECT DISTINCT g.key FROM rbac_group g
+          WHERE g.valid_period @> now()
+            AND g.id IN (SELECT kartenn_member_of($1, $2, $3, now()))
+          ORDER BY g.key",
+    )
+    .bind(subject.id)
+    .bind(subject.issuer.as_deref())
+    .bind(&subject.groups)
+    .fetch_all(pool)
+    .await
 }
 
 /// The entries of the roles `subject` holds now, on any scope, and the keys of those

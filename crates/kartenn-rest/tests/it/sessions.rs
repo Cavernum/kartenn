@@ -466,14 +466,26 @@ async fn an_oidc_login_opens_a_session_that_lives_and_closes(pool: PgPool) {
     let body = json(me).await;
     assert_eq!(body["method"], "oidc");
     assert_eq!(body["kind"], "person");
-    assert_eq!(body["groups"], json!(["netops"]));
+    assert_eq!(body["idp_groups"], json!(["netops"]));
+    // Spec 025: its group of kartenn, by the group of its issuer.
+    assert_eq!(body["groups"], json!([{"key": "netops", "via": "netops"}]));
     assert_eq!(body["roles"], json!(["viewer"]));
     assert_eq!(
         body["bindings"],
-        json!([{"role": "viewer", "scope": {"kind": "global"}}])
+        json!([{"group": "netops", "role": "viewer", "scope": {"kind": "global"}}])
     );
     assert_eq!(body["global_permissions"], json!(["core.entity.read"]));
     assert_eq!(body["session"]["breakglass"], false);
+    // Spec 025, Q-025-1: the login keeps the groups of the issuer with the identity.
+    let kept: (Option<Vec<String>>, bool) = sqlx::query_as(
+        "SELECT last_login_groups, last_login_at IS NOT NULL FROM person
+         WHERE id = $1",
+    )
+    .bind(Uuid::parse_str(body["identity"].as_str().unwrap()).unwrap())
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(kept, (Some(vec!["netops".to_owned()]), true));
     // Inactivity first: 30 minutes from now.
     let ends = time::OffsetDateTime::parse(
         body["session"]["expires_at"].as_str().unwrap(),
@@ -570,7 +582,7 @@ async fn the_groups_are_refreshed_when_the_token_of_the_issuer_expires(pool: PgP
     let refreshed = Session::unseal(&f.ring, &[&refreshed]).unwrap();
     assert_eq!(refreshed.groups, ["admins"]);
     assert!(refreshed.refresh_at > unix_now());
-    assert_eq!(json(me).await["groups"], json!(["admins"]));
+    assert_eq!(json(me).await["idp_groups"], json!(["admins"]));
 
     // The issuer refuses: the session ends.
     let refused = f.forged(&session, |s| {

@@ -171,12 +171,33 @@ async fn group_key(pool: &PgPool, id: Uuid) -> Result<String, StoreError> {
     .map_err(store_err)
 }
 
-/// The group of a binding from its column (spec 025): a binding written before the groups
-/// names none, and is not given back.
-async fn binding_group(pool: &PgPool, row: &PgRow) -> Result<String, StoreError> {
+/// The group of a binding from its column (spec 025); for a binding written before the
+/// groups, the group its former subject received from the report of the bindings (task
+/// 025-4). `None`: a binding of a whole issuer, or of a subject whose bindings were all
+/// closed before the report — not given back.
+async fn binding_group(pool: &PgPool, row: &PgRow) -> Result<Option<String>, StoreError> {
     let group: Option<Uuid> = row.try_get("b_group_id").map_err(store_err)?;
-    let group = group.ok_or_else(|| store_err("a binding without group is not given back"))?;
-    group_key(pool, group).await
+    let group = match group {
+        Some(group) => Some(group),
+        None => sqlx::query_scalar(
+            "SELECT r.group_id FROM binding_history h
+             JOIN rbac_migration_report r ON r.kind = 'group'
+                  AND r.subject_kind = h.subject_kind
+                  AND r.identity_id IS NOT DISTINCT FROM h.subject_id
+                  AND r.issuer IS NOT DISTINCT FROM h.issuer
+                  AND r.group_name IS NOT DISTINCT FROM h.group_name
+             WHERE h.id = $1 AND h.group_id IS NULL
+             LIMIT 1",
+        )
+        .bind(row.try_get::<Uuid, _>("id").map_err(store_err)?)
+        .fetch_optional(pool)
+        .await
+        .map_err(store_err)?,
+    };
+    match group {
+        Some(group) => group_key(pool, group).await.map(Some),
+        None => Ok(None),
+    }
 }
 
 /// The roles the changeset `args.0` (applied at `args.1`) wrote, by their row or one of
@@ -386,12 +407,12 @@ async fn groups_touched(
 }
 
 /// The roles, bindings and issuer attachments the changeset `id` (applied at `at`) wrote,
-/// as they were before over `[from, ∞)` (spec 005, REQ-005-25, K16).
+/// as they were before over `[from, ∞)` (spec 005, REQ-005-25, K16); a binding that cannot
+/// be given back goes to `unsupported`.
 async fn rbac_touched(
     pool: &PgPool,
-    id: Uuid,
-    at: OffsetDateTime,
-    from: OffsetDateTime,
+    (id, at, from): (Uuid, OffsetDateTime, OffsetDateTime),
+    unsupported: &mut Vec<(String, Uuid)>,
 ) -> Result<Vec<RbacTouched>, StoreError> {
     let args = (id, at, from);
     let mut touched = roles_touched(pool, args).await?;
@@ -406,10 +427,14 @@ async fn rbac_touched(
         let before = match period_before(&row)? {
             Some(period) => {
                 let kind: String = row.try_get("b_scope_kind").map_err(store_err)?;
+                let Some(group) = binding_group(pool, &row).await? else {
+                    unsupported.push(("binding".to_owned(), row.try_get("id").map_err(store_err)?));
+                    continue;
+                };
                 Some(RbacBefore {
                     period,
                     state: RbacState::Binding {
-                        group: binding_group(pool, &row).await?,
+                        group,
                         role: role_key(pool, row.try_get("b_role_id").map_err(store_err)?).await?,
                         scope: scope(&kind, row.try_get("b_scope_id").map_err(store_err)?)?,
                     },
@@ -483,6 +508,28 @@ async fn module_objects(
         .collect()
 }
 
+/// The report of the bindings on groups (spec 025, G9, task 025-4), when `id` is its
+/// changeset: not undone, the former subjects grant nothing any more.
+async fn rbac_report(
+    pool: &PgPool,
+    id: Uuid,
+    default_start: OffsetDateTime,
+) -> Result<Option<UndoFacts>, StoreError> {
+    let reported: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM rbac_migration_report WHERE changeset_id = $1)",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .map_err(store_err)?;
+    Ok(reported.then(|| UndoFacts {
+        start: micros(default_start),
+        touched: Vec::new(),
+        unsupported: vec![("rbac_migration".to_owned(), id)],
+        rbac: Vec::new(),
+    }))
+}
+
 /// What the applied changeset `id` wrote; `None` if it is not applied.
 pub(crate) async fn facts(pool: &PgPool, id: Uuid) -> Result<Option<UndoFacts>, StoreError> {
     let row: Option<(Option<OffsetDateTime>, Option<OffsetDateTime>)> = sqlx::query_as(
@@ -495,6 +542,9 @@ pub(crate) async fn facts(pool: &PgPool, id: Uuid) -> Result<Option<UndoFacts>, 
     let Some((Some(at), Some(default_start))) = row else {
         return Ok(None);
     };
+    if let Some(facts) = rbac_report(pool, id, default_start).await? {
+        return Ok(Some(facts));
+    }
     // The earliest start: the changeset's period, or an operation's own (REQ-004-2).
     let payloads: Vec<serde_json::Value> =
         sqlx::query_scalar("SELECT payload FROM changeset_operation WHERE changeset_id = $1")
@@ -569,10 +619,12 @@ pub(crate) async fn facts(pool: &PgPool, id: Uuid) -> Result<Option<UndoFacts>, 
     .fetch_all(pool)
     .await
     .map_err(store_err)?;
+    let mut unsupported = unsupported;
+    let rbac = rbac_touched(pool, (id, at, from), &mut unsupported).await?;
     Ok(Some(UndoFacts {
         start,
         touched,
         unsupported,
-        rbac: rbac_touched(pool, id, at, from).await?,
+        rbac,
     }))
 }

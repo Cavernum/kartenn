@@ -3059,6 +3059,58 @@
         ],
         "type": "object"
       },
+      "GroupItem": {
+        "description": "A group of kartenn.",
+        "properties": {
+          "bindings": {
+            "description": "Its current bindings (`GET /v1/bindings?group=<key>`).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "builtin": {
+            "description": "Delivered with kartenn (`secours`): its labels and bindings follow the code.",
+            "type": "boolean"
+          },
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "key": {
+            "description": "Stable key.",
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Labels by language, `{<tag>: <text>}`: the dictionary `GET /v1/labels` serves them\nresolved (space `group`).",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "members": {
+            "description": "Its current members.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "href",
+          "key",
+          "labels",
+          "builtin",
+          "members",
+          "bindings"
+        ],
+        "type": "object"
+      },
       "GroupMember": {
         "description": "A member of a group of kartenn (spec 025, G2, G6): an identity or a group of an\nissuer, never another group of kartenn.",
         "oneOf": [
@@ -3110,23 +3162,176 @@
           }
         ]
       },
+      "GroupMembers": {
+        "additionalProperties": false,
+        "description": "The members of a new group.",
+        "properties": {
+          "key": {
+            "description": "Stable key, `^[a-z][a-z0-9_-]*$`.",
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Labels by language, `{<tag>: <text>}`: the default language of the instance at\nleast.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "key",
+          "labels"
+        ],
+        "type": "object"
+      },
+      "GroupOf": {
+        "description": "A group of kartenn of an identity, and how it belongs to it (spec 025, REQ-025-11).",
+        "properties": {
+          "key": {
+            "description": "The group, by key.",
+            "type": "string"
+          },
+          "via": {
+            "description": "`direct` (the identity itself is a member), or the group of its issuer that is.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "via"
+        ],
+        "type": "object"
+      },
+      "GroupPatch": {
+        "additionalProperties": false,
+        "description": "The labels of a group, as a JSON Merge Patch (RFC 7396).",
+        "properties": {
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Labels by language, replaced whole.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "labels"
+        ],
+        "type": "object"
+      },
+      "GroupPatchWrite": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Reserved"
+          },
+          {
+            "$ref": "#/components/schemas/GroupPatch"
+          }
+        ],
+        "description": "The body that changes the labels of a group."
+      },
+      "GroupWrite": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Reserved"
+          },
+          {
+            "$ref": "#/components/schemas/GroupMembers"
+          }
+        ],
+        "description": "The body that creates a group."
+      },
       "HeldBinding": {
         "description": "A binding that serves the caller.",
         "properties": {
+          "group": {
+            "description": "The group of kartenn that gives it, by key (spec 025, REQ-025-11).",
+            "type": "string"
+          },
           "role": {
             "description": "Role key.",
             "type": "string"
           },
           "scope": {
-            "$ref": "#/components/schemas/Scope",
+            "$ref": "#/components/schemas/HeldScope",
             "description": "Its scope."
           }
         },
         "required": [
+          "group",
           "role",
           "scope"
         ],
         "type": "object"
+      },
+      "HeldScope": {
+        "description": "The scope of a binding: `global`, or an object.",
+        "properties": {
+          "id": {
+            "description": "The object; absent when global.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "description": "`global`, `entity`, `site`, `domain` or `prefix`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "IdentityDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/IdentityItem"
+          },
+          {
+            "properties": {
+              "bindings": {
+                "description": "The bindings that serve it, by the group that gives them.",
+                "items": {
+                  "$ref": "#/components/schemas/HeldBinding"
+                },
+                "type": "array"
+              },
+              "groups": {
+                "description": "Its groups of kartenn, one per membership: `via` is `direct` or the group of its\nissuer, as its last session carried it.",
+                "items": {
+                  "$ref": "#/components/schemas/GroupOf"
+                },
+                "type": "array"
+              },
+              "last_session": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/LastSession",
+                    "description": "Its last session, for a person who logged in; `null` otherwise."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "groups",
+              "bindings"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "An identity, its groups of kartenn and its effective rights (spec 025, REQ-025-11)."
       },
       "IdentityItem": {
         "description": "An identity and its state.",
@@ -3627,6 +3832,27 @@
           "default_lang",
           "revision",
           "spaces"
+        ],
+        "type": "object"
+      },
+      "LastSession": {
+        "description": "The last session of a person (spec 025, Q-025-1).",
+        "properties": {
+          "at": {
+            "description": "Its opening, RFC 3339.",
+            "type": "string"
+          },
+          "idp_groups": {
+            "description": "The groups of its issuer it carried.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "at",
+          "idp_groups"
         ],
         "type": "object"
       },
@@ -4314,6 +4540,76 @@
         ],
         "type": "object"
       },
+      "Listing_GroupItem": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "description": "A group of kartenn.",
+              "properties": {
+                "bindings": {
+                  "description": "Its current bindings (`GET /v1/bindings?group=<key>`).",
+                  "format": "int64",
+                  "type": "integer"
+                },
+                "builtin": {
+                  "description": "Delivered with kartenn (`secours`): its labels and bindings follow the code.",
+                  "type": "boolean"
+                },
+                "href": {
+                  "description": "Its URL.",
+                  "type": "string"
+                },
+                "id": {
+                  "description": "Identifier.",
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "key": {
+                  "description": "Stable key.",
+                  "type": "string"
+                },
+                "labels": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "description": "Labels by language, `{<tag>: <text>}`: the dictionary `GET /v1/labels` serves them\nresolved (space `group`).",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "members": {
+                  "description": "Its current members.",
+                  "format": "int64",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "href",
+                "key",
+                "labels",
+                "builtin",
+                "members",
+                "bindings"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
       "Listing_IdentityItem": {
         "description": "A page of a list, as answered.",
         "properties": {
@@ -4509,6 +4805,89 @@
             "description": "The elements of the page.",
             "items": {
               "$ref": "#/components/schemas/MachineAddress"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
+      "Listing_MemberItem": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "description": "A membership: an identity, or a group of an issuer as its tokens name it.",
+              "properties": {
+                "group": {
+                  "description": "The group of the issuer, for `idp_group`.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "href": {
+                  "description": "Its URL.",
+                  "type": "string"
+                },
+                "id": {
+                  "description": "Identifier of the membership.",
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "identity": {
+                  "description": "The identity, for `identity`.",
+                  "format": "uuid",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "issuer": {
+                  "description": "The issuer, for `idp_group`.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "description": "`identity` or `idp_group`.",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Its display name, for `identity`.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "valid_from": {
+                  "description": "Its start, RFC 3339.",
+                  "type": "string"
+                },
+                "valid_to": {
+                  "description": "Its end, RFC 3339; `null` while open.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "href",
+                "kind",
+                "valid_from"
+              ],
+              "type": "object"
             },
             "type": "array"
           },
@@ -5539,7 +5918,7 @@
         "description": "The caller and their effective rights, summed up.",
         "properties": {
           "bindings": {
-            "description": "The bindings that serve the caller.",
+            "description": "The bindings that serve the caller, by the group that gives them.",
             "items": {
               "$ref": "#/components/schemas/HeldBinding"
             },
@@ -5553,9 +5932,9 @@
             "type": "array"
           },
           "groups": {
-            "description": "The groups of the identity.",
+            "description": "The groups of kartenn of the caller, one per membership (spec 025, REQ-025-11).",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/GroupOf"
             },
             "type": "array"
           },
@@ -5563,6 +5942,13 @@
             "description": "Identity.",
             "format": "uuid",
             "type": "string"
+          },
+          "idp_groups": {
+            "description": "The groups of its issuer its session or token carries.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "issuer": {
             "description": "The issuer of the identity.",
@@ -5609,12 +5995,118 @@
           "identity",
           "kind",
           "method",
+          "idp_groups",
           "groups",
           "roles",
           "bindings",
           "global_permissions"
         ],
         "type": "object"
+      },
+      "MemberItem": {
+        "description": "A membership: an identity, or a group of an issuer as its tokens name it.",
+        "properties": {
+          "group": {
+            "description": "The group of the issuer, for `idp_group`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "href": {
+            "description": "Its URL.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identifier of the membership.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "identity": {
+            "description": "The identity, for `identity`.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "issuer": {
+            "description": "The issuer, for `idp_group`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "description": "`identity` or `idp_group`.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Its display name, for `identity`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valid_from": {
+            "description": "Its start, RFC 3339.",
+            "type": "string"
+          },
+          "valid_to": {
+            "description": "Its end, RFC 3339; `null` while open.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "href",
+          "kind",
+          "valid_from"
+        ],
+        "type": "object"
+      },
+      "MemberMembers": {
+        "additionalProperties": false,
+        "description": "The members of a membership: `identity`, or `issuer` and `group`.",
+        "properties": {
+          "group": {
+            "description": "A group of that issuer, as its tokens name it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "identity": {
+            "description": "An identity (person, service or break-glass account).",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "issuer": {
+            "description": "The issuer of a group, with `group`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "MemberWrite": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Reserved"
+          },
+          {
+            "$ref": "#/components/schemas/MemberMembers"
+          }
+        ],
+        "description": "The body of a membership."
       },
       "Module": {
         "description": "A module of the build: a tag of its contract.",
@@ -13251,6 +13743,15 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "description": "The bindings of this group of kartenn only, by key (spec 025, REQ-025-11).",
+            "in": "query",
+            "name": "group",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -13275,7 +13776,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "`GET /v1/bindings`.",
+        "summary": "`GET /v1/bindings[?group=<key>]`.",
         "tags": [
           "rights"
         ]
@@ -19934,6 +20435,705 @@
         ]
       }
     },
+    "/v1/groups": {
+      "get": {
+        "operationId": "list_groups",
+        "parameters": [
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_GroupItem"
+                }
+              }
+            },
+            "description": "The groups, by key."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`GET /v1/groups`.",
+        "tags": [
+          "rights"
+        ]
+      },
+      "post": {
+        "operationId": "create_group",
+        "parameters": [
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Created."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A group of this key exists."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`POST /v1/groups` `{key, labels}`: 201 and `Location`; 409 when the key is taken.",
+        "tags": [
+          "rights"
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
+      }
+    },
+    "/v1/groups/{id}": {
+      "delete": {
+        "operationId": "close_group",
+        "parameters": [
+          {
+            "description": "The group.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/Closure"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "description": "The motive and the start of the closure."
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Closed. Simulated with `simulate=true`: `ChangesetSimulated`."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`DELETE /v1/groups/{id}`: closes the group, its memberships and its bindings.",
+        "tags": [
+          "rights"
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
+      },
+      "get": {
+        "operationId": "show_group",
+        "parameters": [
+          {
+            "description": "The group.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupItem"
+                }
+              }
+            },
+            "description": "The group."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`GET /v1/groups/{id}`.",
+        "tags": [
+          "rights"
+        ]
+      },
+      "patch": {
+        "operationId": "set_group",
+        "parameters": [
+          {
+            "description": "The group.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupPatchWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Changed. Simulated with `simulate=true`: `ChangesetSimulated`."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`PATCH /v1/groups/{id}` (JSON Merge Patch) `{labels}`: its key stays.",
+        "tags": [
+          "rights"
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
+      }
+    },
+    "/v1/groups/{id}/members": {
+      "get": {
+        "operationId": "list_members",
+        "parameters": [
+          {
+            "description": "The group.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The next page, from `links.next`; it freezes the dates and the filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The size of a page, 1 to 1 000; 100 by default.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing_MemberItem"
+                }
+              }
+            },
+            "description": "Its current members."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`GET /v1/groups/{id}/members`.",
+        "tags": [
+          "rights"
+        ]
+      },
+      "post": {
+        "operationId": "add_member",
+        "parameters": [
+          {
+            "description": "The group.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Makes the write idempotent for 24 h.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetSimulated"
+                }
+              }
+            },
+            "description": "Simulated (`simulate=true`): nothing is written."
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetApplied"
+                }
+              }
+            },
+            "description": "Added."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`POST /v1/groups/{id}/members` `{identity}` or `{issuer, group}`: 201 and `Location`.",
+        "tags": [
+          "rights"
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
+      }
+    },
+    "/v1/groups/{id}/members/{member}": {
+      "delete": {
+        "operationId": "remove_member",
+        "parameters": [
+          {
+            "description": "The group.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The membership.",
+            "in": "path",
+            "name": "member",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "in": "query",
+            "name": "apply",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17).",
+            "in": "query",
+            "name": "simulate",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/Closure"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "description": "The motive and the start of the closure."
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ChangesetApplied"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ChangesetSimulated"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Ended. Simulated with `simulate=true`: `ChangesetSimulated`."
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesetPending"
+                }
+              }
+            },
+            "description": "Held for a decision."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`DELETE /v1/groups/{id}/members/{member}`: ends the membership.",
+        "tags": [
+          "rights"
+        ],
+        "x-kartenn": {
+          "simulate": true
+        }
+      },
+      "get": {
+        "operationId": "show_member",
+        "parameters": [
+          {
+            "description": "The group.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The membership.",
+            "in": "path",
+            "name": "member",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberItem"
+                }
+              }
+            },
+            "description": "The membership."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "`GET /v1/groups/{id}/members/{member}`.",
+        "tags": [
+          "rights"
+        ]
+      }
+    },
     "/v1/identities": {
       "get": {
         "operationId": "list_identities",
@@ -20007,7 +21207,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/IdentityItem"
+                  "$ref": "#/components/schemas/IdentityDetail"
                 }
               }
             },
@@ -20024,7 +21224,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "`GET /v1/identities/{id}`.",
+        "summary": "`GET /v1/identities/{id}`: the identity, its groups and its effective rights; a\nmembership by a group of its issuer is read from its last session.",
         "tags": [
           "rights"
         ]

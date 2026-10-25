@@ -73,7 +73,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "actor", type: "string" },
     { name: "object", type: "string" },
   ],
-  "/v1/bindings": [],
+  "/v1/bindings": [{ name: "group", type: "string" }],
   "/v1/changesets": [
     { name: "state", type: "string" },
     { name: "author", type: "string" },
@@ -137,6 +137,8 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "axis", type: "string" },
   ],
   "/v1/flows/{id}/history": [],
+  "/v1/groups": [],
+  "/v1/groups/{id}/members": [],
   "/v1/identities": [],
   "/v1/imports": [],
   "/v1/inference-rules": [

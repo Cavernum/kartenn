@@ -181,6 +181,20 @@
    "collection:edges:graph_edges"
   ]
  },
+ "groups": {
+  "module": "rights",
+  "verbs": [
+   "collection:create:create_group",
+   "collection:list:list_groups",
+   "object:close:close_group",
+   "object:get:show_group",
+   "object:members.delete:remove_member",
+   "object:members.get:show_member",
+   "object:members.post:add_member",
+   "object:members:list_members",
+   "object:update:set_group"
+  ]
+ },
  "identities": {
   "module": "rights",
   "verbs": [

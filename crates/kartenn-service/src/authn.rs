@@ -186,6 +186,14 @@ pub trait Identities: Send + Sync {
         name: &str,
     ) -> impl Future<Output = Result<(Uuid, bool), StoreError>> + Send;
 
+    /// Records the login of the person `identity` now, with the groups of its issuer its
+    /// session carries (spec 025, Q-025-1): its record shows them.
+    fn record_login(
+        &self,
+        identity: Uuid,
+        groups: &[String],
+    ) -> impl Future<Output = Result<(), StoreError>> + Send;
+
     /// The state of an identity (REQ-005-3), if it exists.
     fn identity_state(
         &self,
@@ -316,15 +324,28 @@ pub struct Rights {
     pub name: Option<String>,
     /// The keys of the roles it holds, on any scope.
     pub roles: Vec<String>,
-    /// The bindings that serve it: its own, those of its groups and of its issuer.
+    /// The groups of kartenn it belongs to (spec 025, REQ-025-11), one per membership.
+    pub groups: Vec<GroupVia>,
+    /// The bindings that serve it: those of its groups of kartenn.
     pub bindings: Vec<HeldBinding>,
     /// The entries of the roles of its global bindings.
     pub global_permissions: Vec<String>,
 }
 
+/// A group of kartenn a subject belongs to, and how (spec 025, REQ-025-11).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GroupVia {
+    /// The group, by key.
+    pub key: String,
+    /// The group of its issuer that gives the membership; `None`: the identity itself.
+    pub via: Option<String>,
+}
+
 /// A binding that serves a subject.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeldBinding {
+    /// The group of kartenn that gives it, by key.
+    pub group: String,
     /// Role key.
     pub role: String,
     /// `global`, `entity`, `site`, `domain` or `prefix`.
@@ -541,6 +562,10 @@ pub async fn logged_in<I: Identities, J: AuditJournal>(
         at,
     )
     .await?;
+    identities
+        .record_login(principal.identity, &principal.groups)
+        .await
+        .map_err(AuthnError::Store)?;
     let event = principal
         .context(source)
         .event(&AUTHN_LOGIN_SUCCEEDED, Outcome::Success)

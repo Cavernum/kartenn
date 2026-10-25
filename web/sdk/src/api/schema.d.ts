@@ -447,7 +447,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** `GET /v1/bindings`. */
+    /** `GET /v1/bindings[?group=<key>]`. */
     get: operations["list_bindings"];
     put?: never;
     /** `POST /v1/bindings` `{group, role, scope}`: 201 and `Location`. */
@@ -1450,6 +1450,79 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/groups": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** `GET /v1/groups`. */
+    get: operations["list_groups"];
+    put?: never;
+    /** `POST /v1/groups` `{key, labels}`: 201 and `Location`; 409 when the key is taken. */
+    post: operations["create_group"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/groups/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** `GET /v1/groups/{id}`. */
+    get: operations["show_group"];
+    put?: never;
+    post?: never;
+    /** `DELETE /v1/groups/{id}`: closes the group, its memberships and its bindings. */
+    delete: operations["close_group"];
+    options?: never;
+    head?: never;
+    /** `PATCH /v1/groups/{id}` (JSON Merge Patch) `{labels}`: its key stays. */
+    patch: operations["set_group"];
+    trace?: never;
+  };
+  "/v1/groups/{id}/members": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** `GET /v1/groups/{id}/members`. */
+    get: operations["list_members"];
+    put?: never;
+    /** `POST /v1/groups/{id}/members` `{identity}` or `{issuer, group}`: 201 and `Location`. */
+    post: operations["add_member"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/groups/{id}/members/{member}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** `GET /v1/groups/{id}/members/{member}`. */
+    get: operations["show_member"];
+    put?: never;
+    post?: never;
+    /** `DELETE /v1/groups/{id}/members/{member}`: ends the membership. */
+    delete: operations["remove_member"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/identities": {
     parameters: {
       query?: never;
@@ -1474,7 +1547,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** `GET /v1/identities/{id}`. */
+    /**
+     * `GET /v1/identities/{id}`: the identity, its groups and its effective rights; a
+     *     membership by a group of its issuer is read from its last session.
+     */
     get: operations["show_identity"];
     put?: never;
     post?: never;
@@ -5087,6 +5163,37 @@ export interface components {
       /** @description Its kind of the core, or its qualified type. */
       kind: string;
     };
+    /** @description A group of kartenn. */
+    GroupItem: {
+      /**
+       * Format: int64
+       * @description Its current bindings (`GET /v1/bindings?group=<key>`).
+       */
+      bindings: number;
+      /** @description Delivered with kartenn (`secours`): its labels and bindings follow the code. */
+      builtin: boolean;
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier.
+       */
+      id: string;
+      /** @description Stable key. */
+      key: string;
+      /**
+       * @description Labels by language, `{<tag>: <text>}`: the dictionary `GET /v1/labels` serves them
+       *     resolved (space `group`).
+       */
+      labels: {
+        [key: string]: string;
+      };
+      /**
+       * Format: int64
+       * @description Its current members.
+       */
+      members: number;
+    };
     /**
      * @description A member of a group of kartenn (spec 025, G2, G6): an identity or a group of an
      *     issuer, never another group of kartenn.
@@ -5109,12 +5216,65 @@ export interface components {
           /** @enum {string} */
           kind: "idp_group";
         };
+    /** @description The members of a new group. */
+    GroupMembers: {
+      /** @description Stable key, `^[a-z][a-z0-9_-]*$`. */
+      key: string;
+      /**
+       * @description Labels by language, `{<tag>: <text>}`: the default language of the instance at
+       *     least.
+       */
+      labels: {
+        [key: string]: string;
+      };
+    };
+    /** @description A group of kartenn of an identity, and how it belongs to it (spec 025, REQ-025-11). */
+    GroupOf: {
+      /** @description The group, by key. */
+      key: string;
+      /** @description `direct` (the identity itself is a member), or the group of its issuer that is. */
+      via: string;
+    };
+    /** @description The labels of a group, as a JSON Merge Patch (RFC 7396). */
+    GroupPatch: {
+      /** @description Labels by language, replaced whole. */
+      labels: {
+        [key: string]: string;
+      };
+    };
+    /** @description The body that changes the labels of a group. */
+    GroupPatchWrite: components["schemas"]["Reserved"] & components["schemas"]["GroupPatch"];
+    /** @description The body that creates a group. */
+    GroupWrite: components["schemas"]["Reserved"] & components["schemas"]["GroupMembers"];
     /** @description A binding that serves the caller. */
     HeldBinding: {
+      /** @description The group of kartenn that gives it, by key (spec 025, REQ-025-11). */
+      group: string;
       /** @description Role key. */
       role: string;
       /** @description Its scope. */
-      scope: components["schemas"]["Scope"];
+      scope: components["schemas"]["HeldScope"];
+    };
+    /** @description The scope of a binding: `global`, or an object. */
+    HeldScope: {
+      /**
+       * Format: uuid
+       * @description The object; absent when global.
+       */
+      id?: string | null;
+      /** @description `global`, `entity`, `site`, `domain` or `prefix`. */
+      kind: string;
+    };
+    /** @description An identity, its groups of kartenn and its effective rights (spec 025, REQ-025-11). */
+    IdentityDetail: components["schemas"]["IdentityItem"] & {
+      /** @description The bindings that serve it, by the group that gives them. */
+      bindings: components["schemas"]["HeldBinding"][];
+      /**
+       * @description Its groups of kartenn, one per membership: `via` is `direct` or the group of its
+       *     issuer, as its last session carried it.
+       */
+      groups: components["schemas"]["GroupOf"][];
+      last_session?: components["schemas"]["LastSession"] | null;
     };
     /** @description An identity and its state. */
     IdentityItem: {
@@ -5289,6 +5449,13 @@ export interface components {
       spaces: Record<string, never>;
       /** @description The valid time asked for, when one was. */
       valid_at?: string | null;
+    };
+    /** @description The last session of a person (spec 025, Q-025-1). */
+    LastSession: {
+      /** @description Its opening, RFC 3339. */
+      at: string;
+      /** @description The groups of its issuer it carried. */
+      idp_groups: string[];
     };
     /** @description The limits a client must respect. */
     Limits: {
@@ -5553,6 +5720,42 @@ export interface components {
       links: components["schemas"]["ListingLinks"];
     };
     /** @description A page of a list, as answered. */
+    Listing_GroupItem: {
+      /** @description The elements of the page. */
+      items: {
+        /**
+         * Format: int64
+         * @description Its current bindings (`GET /v1/bindings?group=<key>`).
+         */
+        bindings: number;
+        /** @description Delivered with kartenn (`secours`): its labels and bindings follow the code. */
+        builtin: boolean;
+        /** @description Its URL. */
+        href: string;
+        /**
+         * Format: uuid
+         * @description Identifier.
+         */
+        id: string;
+        /** @description Stable key. */
+        key: string;
+        /**
+         * @description Labels by language, `{<tag>: <text>}`: the dictionary `GET /v1/labels` serves them
+         *     resolved (space `group`).
+         */
+        labels: {
+          [key: string]: string;
+        };
+        /**
+         * Format: int64
+         * @description Its current members.
+         */
+        members: number;
+      }[];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
     Listing_IdentityItem: {
       /** @description The elements of the page. */
       items: {
@@ -5629,6 +5832,38 @@ export interface components {
     Listing_MachineAddress: {
       /** @description The elements of the page. */
       items: components["schemas"]["MachineAddress"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
+    Listing_MemberItem: {
+      /** @description The elements of the page. */
+      items: {
+        /** @description The group of the issuer, for `idp_group`. */
+        group?: string | null;
+        /** @description Its URL. */
+        href: string;
+        /**
+         * Format: uuid
+         * @description Identifier of the membership.
+         */
+        id: string;
+        /**
+         * Format: uuid
+         * @description The identity, for `identity`.
+         */
+        identity?: string | null;
+        /** @description The issuer, for `idp_group`. */
+        issuer?: string | null;
+        /** @description `identity` or `idp_group`. */
+        kind: string;
+        /** @description Its display name, for `identity`. */
+        name?: string | null;
+        /** @description Its start, RFC 3339. */
+        valid_from: string;
+        /** @description Its end, RFC 3339; `null` while open. */
+        valid_to?: string | null;
+      }[];
       /** @description The links of the page. */
       links: components["schemas"]["ListingLinks"];
     };
@@ -5980,17 +6215,19 @@ export interface components {
     };
     /** @description The caller and their effective rights, summed up. */
     Me: {
-      /** @description The bindings that serve the caller. */
+      /** @description The bindings that serve the caller, by the group that gives them. */
       bindings: components["schemas"]["HeldBinding"][];
       /** @description The entries of the roles of the global bindings. */
       global_permissions: string[];
-      /** @description The groups of the identity. */
-      groups: string[];
+      /** @description The groups of kartenn of the caller, one per membership (spec 025, REQ-025-11). */
+      groups: components["schemas"]["GroupOf"][];
       /**
        * Format: uuid
        * @description Identity.
        */
       identity: string;
+      /** @description The groups of its issuer its session or token carries. */
+      idp_groups: string[];
       /** @description The issuer of the identity. */
       issuer?: string | null;
       /** @description `person`, `service_account` or `breakglass`. */
@@ -6003,6 +6240,47 @@ export interface components {
       roles: string[];
       session?: components["schemas"]["SessionState"] | null;
     };
+    /** @description A membership: an identity, or a group of an issuer as its tokens name it. */
+    MemberItem: {
+      /** @description The group of the issuer, for `idp_group`. */
+      group?: string | null;
+      /** @description Its URL. */
+      href: string;
+      /**
+       * Format: uuid
+       * @description Identifier of the membership.
+       */
+      id: string;
+      /**
+       * Format: uuid
+       * @description The identity, for `identity`.
+       */
+      identity?: string | null;
+      /** @description The issuer, for `idp_group`. */
+      issuer?: string | null;
+      /** @description `identity` or `idp_group`. */
+      kind: string;
+      /** @description Its display name, for `identity`. */
+      name?: string | null;
+      /** @description Its start, RFC 3339. */
+      valid_from: string;
+      /** @description Its end, RFC 3339; `null` while open. */
+      valid_to?: string | null;
+    };
+    /** @description The members of a membership: `identity`, or `issuer` and `group`. */
+    MemberMembers: {
+      /** @description A group of that issuer, as its tokens name it. */
+      group?: string | null;
+      /**
+       * Format: uuid
+       * @description An identity (person, service or break-glass account).
+       */
+      identity?: string | null;
+      /** @description The issuer of a group, with `group`. */
+      issuer?: string | null;
+    };
+    /** @description The body of a membership. */
+    MemberWrite: components["schemas"]["Reserved"] & components["schemas"]["MemberMembers"];
     /** @description A module of the build: a tag of its contract. */
     Module: {
       /** @description Its name, the tag of its operations in the contract. */
@@ -6474,12 +6752,13 @@ export interface components {
           secret: string;
         }
       | {
-          /** @description The author belongs to one of these groups, as `[issuer, group]` (005). */
-          author_groups?: [string, string][];
-          /** @description The author holds one of these roles (005). */
+          /**
+           * @description The author is a member of one of these groups of kartenn, by key, directly or
+           *     through a group of his issuer; no account is an author (025, REQ-025-13).
+           */
+          author_groups?: string[];
+          /** @description The author holds one of these roles through one of his groups (005, 025). */
           author_roles?: string[];
-          /** @description The author is one of these people. */
-          authors?: string[];
           /** @description The changeset binds one of these roles (005, REQ-005-25). */
           bound_roles?: string[];
           /** @description The changeset touches one of these addressing domains. */
@@ -9301,6 +9580,8 @@ export interface operations {
         cursor?: string;
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
+        /** @description The bindings of this group of kartenn only, by key (spec 025, REQ-025-11). */
+        group?: string;
       };
       header?: never;
       path?: never;
@@ -12967,6 +13248,427 @@ export interface operations {
       };
     };
   };
+  list_groups: {
+    parameters: {
+      query?: {
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The groups, by key. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_GroupItem"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  create_group: {
+    parameters: {
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["GroupWrite"];
+      };
+    };
+    responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
+      /** @description Created. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A group of this key exists. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_group: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The group. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The group. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["GroupItem"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  close_group: {
+    parameters: {
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description The group. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description The motive and the start of the closure. */
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["Closure"] | null;
+      };
+    };
+    responses: {
+      /** @description Closed. Simulated with `simulate=true`: `ChangesetSimulated`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  set_group: {
+    parameters: {
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description The group. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/merge-patch+json": components["schemas"]["GroupPatchWrite"];
+      };
+    };
+    responses: {
+      /** @description Changed. Simulated with `simulate=true`: `ChangesetSimulated`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  list_members: {
+    parameters: {
+      query?: {
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: never;
+      path: {
+        /** @description The group. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Its current members. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_MemberItem"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  add_member: {
+    parameters: {
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
+      };
+      header?: {
+        /** @description Makes the write idempotent for 24 h. */
+        "Idempotency-Key"?: string | null;
+      };
+      path: {
+        /** @description The group. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MemberWrite"];
+      };
+    };
+    responses: {
+      /** @description Simulated (`simulate=true`): nothing is written. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetSimulated"];
+        };
+      };
+      /** @description Added. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetApplied"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_member: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description The group. */
+        id: string;
+        /** @description The membership. */
+        member: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The membership. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MemberItem"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  remove_member: {
+    parameters: {
+      query?: {
+        /** @description `own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
+        apply?: string;
+        /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
+        simulate?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description The group. */
+        id: string;
+        /** @description The membership. */
+        member: string;
+      };
+      cookie?: never;
+    };
+    /** @description The motive and the start of the closure. */
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["Closure"] | null;
+      };
+    };
+    responses: {
+      /** @description Ended. Simulated with `simulate=true`: `ChangesetSimulated`. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            components["schemas"]["ChangesetApplied"] | components["schemas"]["ChangesetSimulated"];
+        };
+      };
+      /** @description Held for a decision. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ChangesetPending"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
   list_identities: {
     parameters: {
       query?: {
@@ -13019,7 +13721,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["IdentityItem"];
+          "application/json": components["schemas"]["IdentityDetail"];
         };
       };
       /** @description A problem (RFC 9457). */

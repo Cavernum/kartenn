@@ -93,21 +93,25 @@ const BINDINGS: &str = "SELECT b.id, g.key AS \"group\", r.key AS role, b.scope_
      JOIN rbac_group g ON g.id = b.group_id AND g.valid_period @> now()
      WHERE b.valid_period @> now()";
 
-/// The current bindings after the identifier `after`, by identifier.
+/// The current bindings after the identifier `after`, by identifier; those of the group
+/// `group` (by key) only, when given (spec 025, REQ-025-11).
 ///
 /// # Errors
 ///
 /// Database errors.
 pub async fn bindings(
     pool: &PgPool,
+    group: Option<&str>,
     after: Option<Uuid>,
     limit: i64,
 ) -> Result<Vec<BindingRead>, StoreError> {
     sqlx::query_as(sqlx::AssertSqlSafe(format!(
-        "{BINDINGS} AND ($1::uuid IS NULL OR b.id > $1) ORDER BY b.id LIMIT $2"
+        "{BINDINGS} AND ($1::uuid IS NULL OR b.id > $1) AND ($3::text IS NULL OR g.key = $3)
+         ORDER BY b.id LIMIT $2"
     )))
     .bind(after)
     .bind(limit)
+    .bind(group)
     .fetch_all(pool)
     .await
     .map_err(store_err)
@@ -349,10 +353,14 @@ pub struct IdentityRead {
     pub disabled: bool,
     /// Its sessions opened until then are revoked.
     pub revoked_after: Option<OffsetDateTime>,
+    /// The opening of its last session, for a person (spec 025, Q-025-1).
+    pub last_login_at: Option<OffsetDateTime>,
+    /// The groups of its issuer that session carried.
+    pub last_login_groups: Option<Vec<String>>,
 }
 
 const IDENTITIES: &str = "SELECT id, kind, display_name AS name, issuer,
-            disabled_at IS NOT NULL AS disabled, revoked_after
+            disabled_at IS NOT NULL AS disabled, revoked_after, last_login_at, last_login_groups
      FROM person";
 
 /// The identities after the identifier `after`, by identifier.
@@ -399,4 +407,197 @@ pub async fn created_binding(pool: &PgPool, changeset: Uuid) -> Result<Option<Uu
         .fetch_optional(pool)
         .await
         .map_err(store_err)
+}
+
+// ---- Groups (spec 025, REQ-025-11) ----
+
+/// A current group of kartenn.
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct GroupRead {
+    /// Identifier.
+    pub id: Uuid,
+    /// Key.
+    pub key: String,
+    /// Labels by language, `{<tag>: <text>}`.
+    pub labels: serde_json::Value,
+    /// Delivered with kartenn.
+    pub builtin: bool,
+    /// Its current members.
+    pub members: i64,
+    /// Its current bindings.
+    pub bindings: i64,
+}
+
+const GROUPS: &str = "SELECT g.id, g.key, g.labels, g.builtin,
+            (SELECT count(*) FROM group_member m
+              WHERE m.group_id = g.id AND m.valid_period @> now()) AS members,
+            (SELECT count(*) FROM binding b
+              WHERE b.group_id = g.id AND b.valid_period @> now()) AS bindings
+     FROM rbac_group g WHERE g.valid_period @> now()";
+
+/// The current groups after the key `after`, by key.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn groups(
+    pool: &PgPool,
+    after: Option<&str>,
+    limit: i64,
+) -> Result<Vec<GroupRead>, StoreError> {
+    sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "{GROUPS} AND ($1::text IS NULL OR g.key > $1) ORDER BY g.key LIMIT $2"
+    )))
+    .bind(after)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .map_err(store_err)
+}
+
+/// The current group `id`.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn group(pool: &PgPool, id: Uuid) -> Result<Option<GroupRead>, StoreError> {
+    sqlx::query_as(sqlx::AssertSqlSafe(format!("{GROUPS} AND g.id = $1")))
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .map_err(store_err)
+}
+
+/// The current group `key`.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn group_by_key(pool: &PgPool, key: &str) -> Result<Option<GroupRead>, StoreError> {
+    sqlx::query_as(sqlx::AssertSqlSafe(format!("{GROUPS} AND g.key = $1")))
+        .bind(key)
+        .fetch_optional(pool)
+        .await
+        .map_err(store_err)
+}
+
+/// A current membership.
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct MemberRead {
+    /// Identifier of the membership.
+    pub id: Uuid,
+    /// The group, by key.
+    pub group: String,
+    /// `identity` or `idp_group`.
+    pub kind: String,
+    /// The identity, for `identity`.
+    pub identity: Option<Uuid>,
+    /// Its display name.
+    pub name: Option<String>,
+    /// The issuer, for `idp_group`.
+    pub issuer: Option<String>,
+    /// The group of the issuer, for `idp_group`.
+    pub group_name: Option<String>,
+    /// Start of its period.
+    pub valid_from: OffsetDateTime,
+    /// End of its period; `None`: open.
+    pub valid_to: Option<OffsetDateTime>,
+}
+
+const MEMBERS: &str = "SELECT m.id, g.key AS \"group\", m.member_kind AS kind,
+            m.identity_id AS identity, p.display_name AS name, m.issuer, m.group_name,
+            lower(m.valid_period) AS valid_from, upper(m.valid_period) AS valid_to
+     FROM group_member m JOIN rbac_group g ON g.id = m.group_id AND g.valid_period @> now()
+     LEFT JOIN person p ON p.id = m.identity_id
+     WHERE m.valid_period @> now()";
+
+/// The current members of the group `group` after the membership `after`, by identifier.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn members(
+    pool: &PgPool,
+    group: Uuid,
+    after: Option<Uuid>,
+    limit: i64,
+) -> Result<Vec<MemberRead>, StoreError> {
+    sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "{MEMBERS} AND m.group_id = $1 AND ($2::uuid IS NULL OR m.id > $2) ORDER BY m.id LIMIT $3"
+    )))
+    .bind(group)
+    .bind(after)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .map_err(store_err)
+}
+
+/// The current membership `id` of the group `group`.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn member(
+    pool: &PgPool,
+    group: Uuid,
+    id: Uuid,
+) -> Result<Option<MemberRead>, StoreError> {
+    sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "{MEMBERS} AND m.group_id = $1 AND m.id = $2"
+    )))
+    .bind(group)
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+    .map_err(store_err)
+}
+
+/// The membership the changeset `changeset` created, with its group, if any.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn created_member(
+    pool: &PgPool,
+    changeset: Uuid,
+) -> Result<Option<(Uuid, Uuid)>, StoreError> {
+    sqlx::query_as("SELECT group_id, id FROM group_member WHERE changeset_id = $1 LIMIT 1")
+        .bind(changeset)
+        .fetch_optional(pool)
+        .await
+        .map_err(store_err)
+}
+
+/// A group of kartenn a subject belongs to.
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct GroupOf {
+    /// The group, by key.
+    pub key: String,
+    /// The group of the issuer that gives the membership; `None`: the identity itself.
+    pub via: Option<String>,
+}
+
+/// The current groups of kartenn `subject` belongs to, and by which membership (spec 025,
+/// REQ-025-4, 11): one row per membership, by key.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn groups_of(pool: &PgPool, subject: &Subject) -> Result<Vec<GroupOf>, StoreError> {
+    sqlx::query_as(
+        "SELECT g.key, m.group_name AS via FROM group_member m
+         JOIN rbac_group g ON g.id = m.group_id AND g.valid_period @> now()
+         WHERE m.valid_period @> now()
+           AND ((m.member_kind = 'identity' AND m.identity_id = $1)
+                OR (m.member_kind = 'idp_group' AND m.issuer = $2
+                    AND m.group_name = ANY($3)))
+         ORDER BY g.key, m.group_name NULLS FIRST",
+    )
+    .bind(subject.id)
+    .bind(subject.issuer.as_deref())
+    .bind(&subject.groups)
+    .fetch_all(pool)
+    .await
+    .map_err(store_err)
 }
