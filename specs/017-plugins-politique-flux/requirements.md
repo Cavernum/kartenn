@@ -150,7 +150,8 @@ doit montrer aussi : le décompte des combinaisons qui
 s'ouvrent, se ferment ou passent sous réserve (`policy.combinations`) avec leurs
 premières lignes et l'élément décisif avant et après ; les nœuds reclassés et leur nombre
 d'héritiers (`policy.reclassified`) ; et, où le module `flow` est présent, les flux
-déclarés qui cassent, guérissent ou changent d'issue (`flow.flows`). [REQ-010-18, 19,
+déclarés qui deviennent non conformes à la matrice de flux, redeviennent conformes ou
+changent d'issue (`flow.flows`). [REQ-010-18, 19,
 REQ-011-13, UC-7 ; Q-017-1 amendée, 021/X36]
 
 Acceptation :
@@ -163,7 +164,7 @@ Acceptation :
 Le plugin `policy` doit offrir, pour un changeset en attente ou appliqué, la lecture
 paginée de ses sections `policy.combinations`, `policy.reclassified` et `flow.flows`
 (`GET /v1/changesets/{id}/diff?section=`), pour que l'approbateur d'une politique
-d'approbation (`policy.opens`, `policy.closes`, `flow.breaks`) voie ce qu'il valide.
+d'approbation (`policy.opens`, `policy.closes`, `flow.nonconforming`) voie ce qu'il valide.
 [REQ-010-18, 20, REQ-011-6, 13 ; Q-017-1]
 
 Acceptation :

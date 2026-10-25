@@ -160,10 +160,11 @@ EB-17, EB-18).
 
 #### REQ-011-6 — Approbation
 Le module doit fournir aux politiques d'approbation (REQ-004-40) les déclencheurs
-`flow.created` (création ou prolongation d'un flux, REQ-011-4), `flow.breaks` (au moins
-N flux qui passent de `allowed` ou `partial` à `denied`) et `flow.waiver` (octroi ou
-prolongation d'une dérogation). Seul `flow.breaks` s'applique par défaut : à son
-installation, le module doit créer une politique d'approbation active `flow.breaks ≥ 1`,
+`flow.created` (création ou prolongation d'un flux, REQ-011-4), `flow.nonconforming` (au
+moins N flux qui deviennent non conformes à la matrice de flux : ils passent de `allowed`
+ou `partial` à `denied`) et `flow.waiver` (octroi ou prolongation d'une dérogation). Seul
+`flow.nonconforming` s'applique par défaut : à son installation, le module doit créer une
+politique d'approbation active `flow.nonconforming ≥ 1`,
 que l'administrateur peut désactiver (F5, F8, F20, EB-25).
 
 Acceptation :
@@ -221,7 +222,7 @@ Acceptation :
   autorisé par `allow admin prod → prod` : le flux passe `denied` dans le résultat du
   changeset.
 
-#### REQ-011-12 — Changement qui casse des flux
+#### REQ-011-12 — Changement qui rend des flux non conformes
 Quand un changeset fait passer des flux à `denied`, le module doit l'accepter, les
 rendre `noncompliant` (sauf dérogation valide), ouvrir l'anomalie (avertissement)
 `flow.verdict.denied` sur chacun et la fermer quand le flux redevient conforme ; quand

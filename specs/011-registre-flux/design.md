@@ -35,7 +35,7 @@ flowchart TD
   M9 --> T
   P10 --> T
   T --> R[Recalcul des évaluations sur la fenêtre]
-  R --> S[Différentiel des flux + anomalies + déclencheur flow.breaks + événements]
+  R --> S[Différentiel des flux + anomalies + déclencheur flow.nonconforming + événements]
 ```
 
 ## Changements
@@ -80,7 +80,7 @@ alimente `flow_rejection` (crochet de rejet du module, voir § Exigences, N38).
 | `flow.review.required` | erreur | application d'un flux dont l'issue n'est pas automatique sans `approve_review` |
 | `flow.review.end_required` | erreur | flux instruit sans fin, ou au-delà de `review_max_months` |
 | `flow.waiver.required` | erreur | enregistrement ou prolongation d'un flux refusé sans dérogation (REQ-011-8, 9) |
-| `flow.verdict.denied` | avertissement (anomalie) | flux enregistré qu'un autre changement casse, sans dérogation valide ; fermée quand il redevient conforme (REQ-011-12) |
+| `flow.verdict.denied` | avertissement (anomalie) | flux enregistré qu'un autre changement rend non conforme, sans dérogation valide ; fermée quand il redevient conforme (REQ-011-12) |
 | `flow.verdict.partial` | avertissement | REQ-011-10 |
 | `flow.waiver.invalid` | erreur | motif ou risque vide, fin absente ou au-delà du plafond, auteur = demandeur |
 | `flow.separation` | erreur | instructeur = demandeur |
@@ -162,8 +162,9 @@ Contribution au différentiel du module (section `flow.flows`, ordre du DAG : ap
 3. **Écriture** des seuls segments qui changent (verrous de ligne dans l'ordre des
    `flow_id`, F13), fusion des segments contigus égaux.
 4. **Différentiel** : flux dont la synthèse, un verdict ou l'issue change, décompte
-   `breaks` / `heals` / `outcome` ; anomalies ouvertes ou fermées (clause 7) ;
-   déclencheur `flow.breaks` évalué sur le décompte (N5) ; événements
+   `nonconforming` (flux qui deviennent non conformes à la matrice de flux) /
+   `conforming` (flux qui redeviennent conformes) / `outcome` ; anomalies ouvertes ou
+   fermées (clause 7) ; déclencheur `flow.nonconforming` évalué sur le décompte (N5) ; événements
    `outcome_changed` (N15, N35) émis à l'application.
 
 Simulation : même chemin, transaction annulée.

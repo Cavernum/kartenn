@@ -153,7 +153,7 @@ sequenceDiagram
   B->>A: POST /v1/changesets?simulate=true (tout le brouillon, débrayé)
   A-->>B: violations, sections policy.combinations, policy.reclassified, flow.flows
   B-->>M: sections de la dernière simulation (SDK)
-  M-->>R: pied de matrice : s'ouvre / se ferme / sous réserve ; flux qui cassent ou guérissent
+  M-->>R: pied de matrice : s'ouvre / se ferme / sous réserve ; flux qui deviennent non conformes ou redeviennent conformes
   R->>B: soumettre le brouillon (motif)
   B->>A: POST /v1/changesets (Idempotency-Key)
   A-->>B: 201 appliqué | 202 retenu (policy.opens…)
@@ -163,8 +163,8 @@ sequenceDiagram
 - La simulation est celle du brouillon du shell (relancée après une pause de saisie) ; le
   plugin lit ses sections par le SDK et les rend en **pied de matrice** ; le panneau du
   brouillon les rend aussi (021).
-- Rendu d'une section : décompte par nature (`opens`, `closes`, `pending` ; `breaks`,
-  `heals`, `outcome`), puis lignes (combinaison source, destination, service, élément
+- Rendu d'une section : décompte par nature (`opens`, `closes`, `pending` ;
+  `nonconforming`, `conforming`, `outcome`), puis lignes (combinaison source, destination, service, élément
   décisif avant et après) ; « voir tout » mène à `changes/<id>` une fois soumis.
 - Vue `changes/<changeset>` : `GET /v1/changesets/{id}` (motif, état, auteur, politique
   d'approbation), puis `GET /v1/changesets/{id}/diff?section=policy.combinations` (et

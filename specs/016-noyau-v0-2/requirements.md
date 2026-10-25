@@ -115,7 +115,7 @@ d'approbation par défaut qu'il déclare, marquées d'origine module, et ne jama
 réinstaller ensuite, même désactivées ou closes.
 
 Acceptation :
-- `flow.breaks ≥ 1` est active après le premier déploiement de la 011 ; désactivée par
+- `flow.nonconforming ≥ 1` est active après le premier déploiement de la 011 ; désactivée par
   l'administrateur, elle le reste après un redéploiement.
 
 #### REQ-016-9 — Fin de proposition notifiée au module (N38 ; amende REQ-004-23, ADR 0026)

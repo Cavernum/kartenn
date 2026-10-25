@@ -28,7 +28,7 @@ l'amendement de D30 (validité dérivée).
 - F6 flux refusé : instruction, puis dérogation datée, recertifiée, plafonnée (amendée).
 - F7 évaluations matérialisées (verdict, issue, conditions, score), figées à
   l'enregistrement, maintenues dans la transaction (amendée).
-- F8 un changement qui casse des flux est accepté, montré, approuvable par défaut.
+- F8 un changement qui rend des flux non conformes à la matrice de flux est accepté, montré, approuvable par défaut.
 - F9 différentiel des flux : basculements de verdict et d'issue.
 - F10 échéances des seuls flux datés et dérogations ; événements d'issue (amendée).
 - F11 requêtes : extrémité, service, état, issue, règle, demandeur, axes (amendée).
@@ -109,7 +109,7 @@ l'amendement de D30 (validité dérivée).
 - Décision : un flux suit les mécanismes de la 004 : droit de proposer
   (`flow.flow.propose`, REQ-004-41) et politiques d'approbation de l'administrateur. Le
   module ajoute les déclencheurs `flow.created` (création ou extension d'un flux) et
-  `flow.breaks` (F8). Seul `flow.breaks` est actif par défaut, par une politique créée à
+  `flow.nonconforming` (F8). Seul `flow.nonconforming` est actif par défaut, par une politique créée à
   l'installation du module (F8) ; le noyau n'impose toujours rien (REQ-004-39).
 - Décidé par : Claude (délégation de l'utilisateur, 2026-10-20)
 - Amendé le 2026-10-21 (Q2, Q3, EB-15, EB-25) : **triage** à l'enregistrement : une
@@ -158,12 +158,12 @@ l'amendement de D30 (validité dérivée).
   changements de condition ou de signal font aussi réévaluer ; un changement de règle
   d'inférence ne réévalue aucun flux (D23, S21 close).
 
-## F8 — Changement qui casse des flux
+## F8 — Changement qui rend des flux non conformes
 - Décision : un changeset (environnement, politique, rattachement) qui fait passer des
   flux enregistrés à `denied` est **accepté** ; le différentiel les nomme ; chaque flux
   touché reçoit l'anomalie `flow.verdict.denied` (avertissement), close quand il
   redevient conforme ; une approbation est exigée par défaut : le module installe une
-  politique active `flow.breaks ≥ 1`, que l'administrateur peut désactiver.
+  politique active `flow.nonconforming ≥ 1`, que l'administrateur peut désactiver.
 - Pourquoi : bloquer rendrait la politique otage des flux existants (fermer une cellule
   exigerait de clore d'abord tous les flux) ; le différentiel et l'approbation donnent la
   maîtrise (D25).
