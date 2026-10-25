@@ -72,7 +72,8 @@ onBeforeUnmount(() => window.removeEventListener("scroll", onScroll, { capture: 
 </script>
 
 <template>
-  <Teleport :to="portal">
+  <!-- Deferred: the layer of the frame may come after the button in the same render. -->
+  <Teleport defer :to="portal">
     <div
       :id="props.control.id"
       ref="bubble"
