@@ -29,7 +29,7 @@ const operations = computed(() => DRAFT_OPERATIONS.slice(0, props.count));
       <li v-for="op in operations" :key="op.key">
         <Stack gap="1">
           <Cluster justify="between" :wrap="false" gap="2">
-            <Cluster gap="2" :wrap="false" class="k-ecran-op">
+            <Cluster gap="2" :wrap="false" align="baseline" class="k-ecran-op">
               <Icon name="draft" />
               <code>{{ op.key }}</code>
               <span class="k-ecran-op__change">
@@ -60,16 +60,20 @@ const operations = computed(() => DRAFT_OPERATIONS.slice(0, props.count));
 
 <style>
 @layer components {
-  /* An operation on one line: the change gives way, the key and the button stay. */
+  /* An operation: the key and the button stay whole, the change wraps beside the key,
+   * never cut (revue du 2026-10-25). */
   .k-ecran-op {
     min-inline-size: 0;
   }
 
+  .k-ecran-op > .k-icon,
+  .k-ecran-op > code {
+    flex: none;
+  }
+
   .k-ecran-op__change {
     min-inline-size: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
 }
 </style>

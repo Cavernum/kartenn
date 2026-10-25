@@ -1,0 +1,24 @@
+- main:
+  - region "ExpandableGrid":
+    - heading "ExpandableGrid" [level=1]
+    - paragraph: "Motif : Grid compacte + Button qui ouvre un Dialog (Modal) avec la même grille"
+    - 'figure "few — Trois lignes : la grille garde sa hauteur naturelle"':
+      - text: 3 lignes
+      - 'button "Agrandir : Flux cassés"'
+      - grid "Flux cassés":
+        - rowgroup:
+          - row "Source Destination":
+            - columnheader "Source"
+            - columnheader "Destination"
+        - rowgroup:
+          - row "rece-batch prod-api":
+            - gridcell "rece-batch"
+            - gridcell "prod-api"
+          - row "rece-ci prod-api":
+            - gridcell "rece-ci"
+            - gridcell "prod-api"
+          - row "rece-web prod-api":
+            - gridcell "rece-web"
+            - gridcell "prod-api"
+      - code: few
+      - text: ""

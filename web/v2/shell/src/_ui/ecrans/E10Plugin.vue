@@ -4,16 +4,19 @@
 // of the chosen group, the next free VID), and the policy matrix of the 017 between
 // environments in its two-way grid (MatrixGrid: row and column headers of the same make,
 // both sticky; a crosshair on the hovered or active cell, the direction source →
-// destination in the corner and on the headers of the crosshair), the chosen cell in the
-// right panel of the frame with its simulated effect. Its changes go to the draft of the
-// shell, whose tab lists the changed cells by source → destination with their state before
-// and after, the simulated effect, the other operations of the draft, and the common foot.
+// destination in the corner and in arrowheads on the borders of the crosshair), the chosen
+// cell in the right panel of the frame with its simulated effect. Its changes go to the
+// draft of the shell, whose tab lists the changed cells by source → destination with their
+// state before and after, the simulated effect (a count, then the broken flows in a
+// compact grid that opens large: ExpandableGrid), the other operations of the draft, and
+// the common foot.
 import {
   Button,
   CodeBadge,
   Cluster,
   DataGrid,
   EnvChip,
+  ExpandableGrid,
   Icon,
   IconButton,
   InlineAlert,
@@ -30,7 +33,7 @@ import {
   type State,
   type ToolbarAction,
 } from "@kartenn/ui";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import AVenir from "./AVenir.vue";
 import Attributs from "./EcranAttributs.vue";
 import Barre from "./EcranBarre.vue";
@@ -155,15 +158,51 @@ const CHANGED = [
     label: "Accès recette vers production",
   },
 ];
-/** The simulated effect of the draft on the flows, and the flows it breaks. */
+/**
+ * The flows the draft breaks (25: the list is long, kept compact in the panel and opened
+ * large on demand, ExpandableGrid), each with the code of the rule that refuses it.
+ */
+const SOURCES = ["rece-batch", "rece-ci", "rece-web", "rece-etl", "rece-mon"];
+const TARGETS = [
+  ["prod-api", "tcp/443"],
+  ["prod-registry", "tcp/5000"],
+  ["prod-db", "tcp/5432"],
+  ["prod-cache", "tcp/6379"],
+  ["prod-bus", "tcp/5672"],
+] as const;
+interface Broken extends Record<string, unknown> {
+  key: string;
+  source: string;
+  destination: string;
+  service: string;
+  rule: string;
+}
+const BROKEN: Broken[] = Array.from({ length: 25 }, (_, i) => ({
+  key: `f${i}`,
+  source: SOURCES[i % 5]!,
+  destination: TARGETS[Math.floor(i / 5)]![0],
+  service: TARGETS[Math.floor(i / 5)]![1],
+  rule: i % 3 === 0 ? "flow.verdict.default" : "flow.verdict.denied",
+}));
+/** In the panel, the source and the destination; the service and the rule, enlarged. */
+const COMPACT = ["source", "destination"];
+const brokenColumns: GridColumn[] = [
+  { id: "source", label: "Source", width: "md", mono: true, sortable: true },
+  { id: "destination", label: "Destination", width: "fill", mono: true, sortable: true },
+  { id: "service", label: "Service", width: "sm", mono: true, sortable: true },
+  { id: "rule", label: "Règle", width: "lg", sortable: true },
+];
+const brokenSort = ref<GridSort>({ column: "destination", direction: "ascending" });
+const brokenRows = computed(() => {
+  const column = brokenSort.value.column;
+  const way = brokenSort.value.direction === "ascending" ? 1 : -1;
+  return [...BROKEN].sort((a, b) => way * String(a[column]).localeCompare(String(b[column])));
+});
+/** The simulated effect of the draft on the flows. */
 const EFFECT = [
   { key: "opens", label: "S'ouvrent sous réserve", value: "1", mono: true },
-  { key: "breaks", label: "Cassent", value: "2", mono: true },
+  { key: "breaks", label: "Cassent", value: String(BROKEN.length), mono: true },
   { key: "heals", label: "Guérissent", value: "0", mono: true },
-];
-const BROKEN = [
-  { message: "rece-batch → prod-api (tcp/443)", code: "flow.verdict.denied" },
-  { message: "rece-ci → prod-registry (tcp/5000)", code: "flow.verdict.denied" },
 ];
 </script>
 
@@ -260,7 +299,9 @@ const BROKEN = [
       </MatrixGrid>
       <template #footer>
         <span>Brouillon · 1 cellule · 1 en revue</span>
-        <span class="k-num">1 s'ouvre sous réserve · 2 flux cassent · 0 guérit</span>
+        <span class="k-num"
+          >1 s'ouvre sous réserve · {{ BROKEN.length }} flux cassent · 0 guérit</span
+        >
       </template>
     </Panneau>
     <template #detail>
@@ -276,7 +317,21 @@ const BROKEN = [
           <template #patterns><CodeBadge code="bastion-admin" /></template>
         </Attributs>
         <TextField label="Libellé" model-value="Accès recette vers production" />
-        <InlineAlert tone="warn" title="Effet simulé : 2 flux cassent" :items="BROKEN" />
+        <InlineAlert tone="warn" :title="`Effet simulé : ${BROKEN.length} flux cassent`" />
+        <ExpandableGrid
+          v-model:sort="brokenSort"
+          label="Flux cassés par Recette → Production"
+          :columns="brokenColumns"
+          :rows="brokenRows"
+          row-key="key"
+          :compact-columns="COMPACT"
+          :visible-rows="3"
+        >
+          <template #cell="{ column, value }">
+            <CodeBadge v-if="column.id === 'rule'" :code="String(value)" />
+            <template v-else>{{ value }}</template>
+          </template>
+        </ExpandableGrid>
       </Stack>
     </template>
     <template #detail-footer>
@@ -353,7 +408,22 @@ const BROKEN = [
         <Stack as="section" gap="2" aria-labelledby="k-e10-effect">
           <h2 id="k-e10-effect" class="k-ecran-subtitle">Effet simulé</h2>
           <Attributs :items="EFFECT" />
-          <InlineAlert tone="warn" title="2 flux cassent" :items="BROKEN" />
+          <InlineAlert tone="warn" :title="`${BROKEN.length} flux cassent`">
+            Ils passaient avant ce brouillon ; la règle qui les refuse est dans la liste.
+          </InlineAlert>
+          <ExpandableGrid
+            v-model:sort="brokenSort"
+            label="Flux cassés par le brouillon"
+            :columns="brokenColumns"
+            :rows="brokenRows"
+            row-key="key"
+            :compact-columns="COMPACT"
+          >
+            <template #cell="{ column, value }">
+              <CodeBadge v-if="column.id === 'rule'" :code="String(value)" />
+              <template v-else>{{ value }}</template>
+            </template>
+          </ExpandableGrid>
         </Stack>
         <Stack as="section" gap="2" aria-labelledby="k-e10-others">
           <Cluster justify="between" :wrap="false">

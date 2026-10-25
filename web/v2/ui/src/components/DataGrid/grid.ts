@@ -11,6 +11,11 @@ export interface GridColumn {
   align?: "start" | "end";
   /** Values in fixed pitch (addresses, prefixes, keys, identifiers). */
   mono?: boolean;
+  /**
+   * A message (a reason, a description): its cells wrap instead of clipping, the row grows.
+   * Keys, names and numbers stay on one line.
+   */
+  wrap?: boolean;
   sortable?: boolean;
   filterable?: boolean;
 }

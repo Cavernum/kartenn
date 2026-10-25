@@ -304,10 +304,28 @@ describe("grids (REQ-020-34, 35)", () => {
     expect(html).toMatch(/role="rowheader"[^>]*data-row="a"[^>]*data-cross="true"/);
     expect(html).toMatch(/role="columnheader"[^>]*data-column="b"[^>]*data-cross="true"/);
     expect(html).not.toMatch(/role="rowheader"[^>]*data-row="b"[^>]*data-cross/);
-    // The corner says the direction in words; its arrows, and those of the crosshair, hidden.
+    // The corner says the direction in words; its arrows hidden. The arrowheads of the
+    // crosshair sit on the source row header, the destination column header and the cell.
     expect(text(html)).toContain("Source → destination");
     expect(html).toContain('class="k-matrix__axes" aria-hidden="true"');
-    expect(html.match(/k-matrix__flow/g)).toHaveLength(4);
+    expect(html.match(/k-matrix__flow/g)).toHaveLength(2);
+    expect(html.match(/data-flow="/g)).toHaveLength(3);
+    expect(html).toMatch(/role="rowheader"[^>]*data-row="a"[^>]*data-flow="source"/);
+    expect(html).toMatch(/role="columnheader"[^>]*data-column="b"[^>]*data-flow="destination"/);
+    expect(html).toMatch(/role="gridcell"[^>]*data-row="a" data-column="b"[^>]*data-flow="cell"/);
+  });
+
+  it("MatrixGrid: no arrowhead without axes, nor while the crosshair is on a header", async () => {
+    const axis = [{ id: "a", label: "A" }];
+    const base = { label: "Matrice", corner: "Coin", rows: axis, columns: axis };
+    const plain = await render(MatrixGrid, { ...base, active: { row: "a", column: "a" } });
+    expect(plain).not.toContain("data-flow");
+    const header = await render(MatrixGrid, {
+      ...base,
+      active: { row: "a", column: "" },
+      axes: { rows: "Source", columns: "Destination" },
+    });
+    expect(header).not.toContain("data-flow");
   });
 
   it("Skeleton: one bar for a cell, hidden", async () => {

@@ -11,6 +11,7 @@ import BarChart from "../src/components/BarChart/BarChart.vue";
 import { layoutBars, niceCeil } from "../src/components/BarChart/chart.ts";
 import BarList from "../src/components/BarList/BarList.vue";
 import DiffList from "../src/components/DiffList/DiffList.vue";
+import ExpandableGrid from "../src/components/ExpandableGrid/ExpandableGrid.vue";
 import ErrorState from "../src/components/ErrorState/ErrorState.vue";
 import FilterChip from "../src/components/FilterChip/FilterChip.vue";
 import InlineAlert from "../src/components/InlineAlert/InlineAlert.vue";
@@ -96,6 +97,61 @@ describe("DataGrid", () => {
     expect(html).toContain('data-editing="true"');
     expect(html).toMatch(/<input[^>]*value="Postes"/);
     expect(text(html)).toContain("Libellé — 198.51.100.0/24");
+  });
+
+  it("lets the cells of a message column wrap, the others stay on one line", async () => {
+    const html = await render(DataGrid, {
+      label: "Préfixes",
+      columns: [columns[0], { ...columns[1], wrap: true }],
+      rows,
+      rowKey: "prefix",
+    });
+    expect(html.match(/data-wrap="true"/g)).toHaveLength(rows.length);
+    expect(html).toMatch(/data-column="label"[^>]*data-wrap="true"/);
+    expect(html).not.toMatch(/data-column="prefix"[^>]*data-wrap/);
+  });
+});
+
+describe("ExpandableGrid (revue du 2026-10-25)", () => {
+  const flows = Array.from({ length: 25 }, (_, i) => ({
+    key: `f${i}`,
+    source: `rece-${i}`,
+    destination: "prod-api",
+    rule: "flow.verdict.denied",
+  }));
+  const flowColumns: GridColumn[] = [
+    { id: "source", label: "Source", mono: true },
+    { id: "destination", label: "Destination", width: "fill", mono: true },
+    { id: "rule", label: "Règle", width: "lg" },
+  ];
+  const base = { label: "Flux cassés", columns: flowColumns, rows: flows, rowKey: "key" };
+
+  it("shows the row count, a few rows high, and a named button that opens a dialog", async () => {
+    const html = await render(ExpandableGrid, { ...base, visibleRows: 4 });
+    expect(text(html)).toContain("25 lignes");
+    expect(html).toContain("--k-expandable-grid-rows:4");
+    expect(html).toMatch(/<button[^>]*aria-haspopup="dialog"[^>]*aria-expanded="false"/);
+    expect(html).toContain('aria-label="Agrandir : Flux cassés"');
+    // Closed, one grid only; all the rows are in it (it scrolls, nothing is cut).
+    expect(html.match(/role="grid"/g)).toHaveLength(1);
+    expect(html.match(/role="row"/g)).toHaveLength(26);
+  });
+
+  it("keeps the compact columns in the compact grid only", async () => {
+    const html = await render(ExpandableGrid, {
+      ...base,
+      compactColumns: ["source", "destination"],
+    });
+    expect(html).toMatch(
+      /role="grid" aria-label="Flux cassés" aria-rowcount="26" aria-colcount="2"/,
+    );
+    expect(html).not.toContain("Règle");
+  });
+
+  it("says one row in the singular", async () => {
+    expect(text(await render(ExpandableGrid, { ...base, rows: flows.slice(0, 1) }))).toMatch(
+      /1 ligne(?!s)/,
+    );
   });
 });
 

@@ -1,0 +1,115 @@
+- main:
+  - region "ExpandableGrid":
+    - heading "ExpandableGrid" [level=1]
+    - paragraph: "Motif : Grid compacte + Button qui ouvre un Dialog (Modal) avec la même grille"
+    - figure /compact — \d+ flux, cinq lignes visibles, deux colonnes ; « Agrandir » ouvre le reste/:
+      - text: /\d+ lignes/
+      - 'button "Agrandir : Flux cassés"'
+      - grid "Flux cassés":
+        - rowgroup:
+          - row "Source Destination":
+            - columnheader "Source"
+            - columnheader "Destination"
+        - rowgroup:
+          - row "rece-batch prod-api":
+            - gridcell "rece-batch"
+            - gridcell "prod-api"
+          - row "rece-batch prod-registry":
+            - gridcell "rece-batch"
+            - gridcell "prod-registry"
+          - row "rece-batch prod-db":
+            - gridcell "rece-batch"
+            - gridcell "prod-db"
+          - row "rece-batch prod-cache":
+            - gridcell "rece-batch"
+            - gridcell "prod-cache"
+          - row "rece-batch prod-bus":
+            - gridcell "rece-batch"
+            - gridcell "prod-bus"
+          - row "rece-ci prod-api":
+            - gridcell "rece-ci"
+            - gridcell "prod-api"
+          - row "rece-ci prod-registry":
+            - gridcell "rece-ci"
+            - gridcell "prod-registry"
+          - row "rece-ci prod-db":
+            - gridcell "rece-ci"
+            - gridcell "prod-db"
+          - row "rece-ci prod-cache":
+            - gridcell "rece-ci"
+            - gridcell "prod-cache"
+          - row "rece-ci prod-bus":
+            - gridcell "rece-ci"
+            - gridcell "prod-bus"
+          - row "rece-etl prod-api":
+            - gridcell "rece-etl"
+            - gridcell "prod-api"
+          - row "rece-etl prod-registry":
+            - gridcell "rece-etl"
+            - gridcell "prod-registry"
+          - row "rece-etl prod-db":
+            - gridcell "rece-etl"
+            - gridcell "prod-db"
+          - row "rece-etl prod-cache":
+            - gridcell "rece-etl"
+            - gridcell "prod-cache"
+          - row "rece-etl prod-bus":
+            - gridcell "rece-etl"
+            - gridcell "prod-bus"
+          - row "rece-mon prod-api":
+            - gridcell "rece-mon"
+            - gridcell "prod-api"
+          - row "rece-mon prod-registry":
+            - gridcell "rece-mon"
+            - gridcell "prod-registry"
+          - row "rece-mon prod-db":
+            - gridcell "rece-mon"
+            - gridcell "prod-db"
+          - row "rece-mon prod-cache":
+            - gridcell "rece-mon"
+            - gridcell "prod-cache"
+          - row "rece-mon prod-bus":
+            - gridcell "rece-mon"
+            - gridcell "prod-bus"
+          - row "rece-web prod-api":
+            - gridcell "rece-web"
+            - gridcell "prod-api"
+          - row "rece-web prod-registry":
+            - gridcell "rece-web"
+            - gridcell "prod-registry"
+          - row "rece-web prod-db":
+            - gridcell "rece-web"
+            - gridcell "prod-db"
+          - row "rece-web prod-cache":
+            - gridcell "rece-web"
+            - gridcell "prod-cache"
+          - row "rece-web prod-bus":
+            - gridcell "rece-web"
+            - gridcell "prod-bus"
+      - code: compact
+      - text: ""
+    - 'figure "few — Trois lignes : la grille garde sa hauteur naturelle"':
+      - text: 3 lignes
+      - 'button "Agrandir : Flux cassés"'
+      - grid "Flux cassés":
+        - rowgroup:
+          - row "Source Destination":
+            - columnheader "Source"
+            - columnheader "Destination"
+        - rowgroup:
+          - row "rece-batch prod-api":
+            - gridcell "rece-batch"
+            - gridcell "prod-api"
+          - row "rece-ci prod-api":
+            - gridcell "rece-ci"
+            - gridcell "prod-api"
+          - row "rece-web prod-api":
+            - gridcell "rece-web"
+            - gridcell "prod-api"
+      - code: few
+      - text: ""
+    - 'figure "expanded — Agrandie : boîte de dialogue large, toutes les colonnes, tri et filtre"':
+      - link "Voir l'état expanded seul":
+        - /url: /_ui/c/ExpandableGrid?mode=light&densite=confortable&etat=expanded
+      - code: expanded
+      - text: ""

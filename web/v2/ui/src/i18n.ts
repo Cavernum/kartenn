@@ -76,6 +76,9 @@ const MESSAGES = {
     chartEmpty: "aucune donnée",
     chartPoint: "Point",
     chartValue: "Valeur",
+    enlarge: "Agrandir",
+    row: "ligne",
+    rows: "lignes",
   },
   en: {
     copy: "Copy",
@@ -140,6 +143,9 @@ const MESSAGES = {
     chartEmpty: "no data",
     chartPoint: "Point",
     chartValue: "Value",
+    enlarge: "Enlarge",
+    row: "row",
+    rows: "rows",
   },
 } as const satisfies Record<Locale, Record<string, string>>;
 

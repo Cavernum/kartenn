@@ -326,6 +326,12 @@ web/ui/src/
 - **Barres d'outils** : `Toolbar` mesure ses actions (`ResizeObserver`) et replie celles
   qui ne tiennent plus dans « … », de la fin vers le début (ordre de priorité déclaré) ;
   jamais de retour à la ligne.
+- **Messages jamais coupés** (revue du 2026-10-25) : une phrase (résultat d'une
+  simulation, description d'une opération, motif) va à la ligne ; l'ellipse
+  (`text-overflow: ellipsis`) ne sert qu'aux libellés, clés et titres, et seulement là où
+  le texte entier reste lisible ailleurs (infobulle, copie, colonne élargie, vue
+  agrandie). Une liste longue dans un lieu étroit est une `ExpandableGrid`, pas une liste
+  tronquée.
 - **Contrôle** : le parcours `layout.spec.ts` mesure `scrollWidth ≤ clientWidth` du
   document sur chaque maquette à 1024, 1280, 1440 et 1920 px, et l'égalité des bords gauches
   en-tête/cellule de chaque table (REQ-020-34).
@@ -364,7 +370,7 @@ sont listés.
 | 9 | `Switch` | Switch | — | réglages binaires seulement |
 | 10 | `Tabs` | Tabs (activation manuelle) | onglet de plugin en chargement, en erreur | onglets de fiche, onglets de plugins |
 | 11 | `Menu`, `MenuButton` | Menu Button, Menu | entrée désactivée avec motif | raccourcis affichés à droite ; le motif d'une entrée désactivée (permission manquante, politique) est son infobulle et sa description (`aria-describedby`) |
-| 12 | `Dialog`, `AlertDialog` | Dialog (Modal), Alert Dialog | — | focus piégé et rendu ; confirmation destructive |
+| 12 | `Dialog`, `AlertDialog` | Dialog (Modal), Alert Dialog | — | focus piégé et rendu ; confirmation destructive ; option `contained` : le corps tient dans la boîte, un enfant qui défile (une grille) défile en place, en-tête collant, titre et actions visibles (`ExpandableGrid`) |
 | 13 | `Drawer` | Dialog (modal) | ouvert | dialogue latéral modal (formulaire long) ; le panneau droit du cadre est `SidePanel` (#30) |
 | 14 | `Toast` | `role="status"` ou `alert` | succès, erreur persistante | pause au survol et au focus (WCAG 2.2.1) ; les erreurs restent jusqu'à fermeture |
 | 15 | `Tooltip` | Tooltip | — | jamais seul porteur d'une information nécessaire ; WCAG 1.4.13 |
@@ -372,7 +378,7 @@ sont listés.
 | 17 | `Breadcrumb` | Breadcrumb | élément courant | `aria-current="page"` |
 | 18 | `SidebarNav` | Disclosure (groupes) dans un repère `navigation` | replié en icônes, groupe ouvert, entrée active | entrées de plugins regroupées par espace (021) |
 | 19 | `CommandPalette` | Combobox dans un Dialog modal | aucune entrée, chargement | Ctrl+K ; commandes, navigation, objets récents |
-| 20 | `DataGrid` | Grid (données) | ligne sélectionnée, en brouillon, en revue, cellule en édition, invalide, en attente, cellule en chargement (`Skeleton`) | une seule grille, lignes en `subgrid` (§ « Structure avant style ») ; virtualisée ; tri `aria-sort` et filtre sur chaque colonne (REQ-020-34) ; colonnes redimensionnables au clavier ; colonne de plugin (W5) |
+| 20 | `DataGrid` | Grid (données) | ligne sélectionnée, en brouillon, en revue, cellule en édition, invalide, en attente, cellule en chargement (`Skeleton`) | une seule grille, lignes en `subgrid` (§ « Structure avant style ») ; virtualisée ; tri `aria-sort` et filtre sur chaque colonne (REQ-020-34) ; colonnes redimensionnables au clavier ; colonne de plugin (W5) ; une colonne de message (`wrap` : motif, description) va à la ligne et la ligne grandit, jamais coupée ; clés, noms et nombres restent sur une ligne (revue du 2026-10-25) |
 | 21 | `TreeGrid`, `Tree` | Treegrid ; Tree View | nœud déplié, chargement des enfants, en brouillon, cible acceptée, cible refusée, déplacement en attente, déplacement refusé | virtualisé, enfants paginés ; `aria-setsize="-1"` tant que la dernière page n'est pas lue ; parent `derived` (aucun déplacement) ou `declared` (déplacement contrôlé, REQ-020-31) ; invariant d'affichage (REQ-020-32) |
 | 22 | `CodeBadge` | Button (copier) | copié | chasse fixe ; annonce `role="status"` « Copié » |
 | 23 | `KeyLabel`, `EnvChip` | — | libellé absent (clé seule) | REQ-020-21 ; clé en infobulle et copiable |
@@ -386,9 +392,10 @@ sont listés.
 | 31 | `CommitForm` | — (champs étiquetés) | motif prérempli, motif requis manquant | résumé sur une ligne, description facultative ; Ctrl+Entrée émet `submit` (024/M9, REQ-020-37) |
 | 32 | `SplitButton` | Button + Menu Button | action choisie, entrée désactivée avec motif, chargement | action par défaut à gauche, chevron à droite (`aria-haspopup="menu"`) ; choisir une entrée change l'action du bouton sans la lancer (REQ-020-37) |
 | 33 | `Toolbar` | Toolbar | actions repliées dans « … » | flèches entre les actions (APG Toolbar) ; repli par priorité (REQ-020-36) |
-| 34 | `MatrixGrid` | Grid (données) | cellule active, cellule en brouillon, en revue, croix de survol | en-têtes de lignes et de colonnes de même composant, figés dans les deux sens ; virtualisée dans les deux sens au-delà de 50 × 50 (REQ-020-35) ; croix : la cellule survolée, sinon la cellule active, éclaire sa ligne et sa colonne, en-têtes compris (`data-cross`, fond `--k-hover`, en-têtes en `--k-text`) ; la cellule active garde son liseré d'accent (forme, pas seulement couleur) ; sens du flux (option `axes`) : le coin dit « lignes ↓ » et « colonnes → », et les en-têtes de la croix portent une flèche discrète (ligne : sort vers la droite, colonne : entre vers le bas), décoratives (`aria-hidden`), le sens étant dit par le nom de la grille et le coin (revue du 2026-10-25) |
+| 34 | `MatrixGrid` | Grid (données) | cellule active, cellule en brouillon, en revue, croix de survol | en-têtes de lignes et de colonnes de même composant, figés dans les deux sens ; virtualisée dans les deux sens au-delà de 50 × 50 (REQ-020-35) ; croix : la cellule survolée, sinon la cellule active, éclaire sa ligne et sa colonne, en-têtes compris (`data-cross`, fond `--k-hover`, en-têtes en `--k-text`) ; la cellule active garde son liseré d'accent (forme, pas seulement couleur) ; sens du flux (option `axes`) : le coin dit « Destination → » et « Source ↓ » (seul énoncé du sens au repos, quand la croix n'est sur aucune cellule) ; quand la croix est sur une cellule, de petites pointes d'accent (8 × 6 px, pseudo-éléments vides, hors de l'arbre d'accessibilité) sont posées sur des bordures : sur la bordure de fin de l'en-tête de la ligne source, pointe vers la grille ; sur la bordure basse de l'en-tête de la colonne destination, pointe vers le bas ; et deux sur la cellule montrée, sur sa bordure de début (pointe le long de la ligne, venue de la source) et sur sa bordure haute (pointe le long de la colonne, venue de la destination) : les deux chemins se rejoignent dans la cellule, qui est « de cette source vers cette destination » ; en écriture de droite à gauche, les pointes horizontales sont retournées ; plus aucune flèche dans le texte des en-têtes ; le sens est dit en mots par le nom de la grille et le coin (revue du 2026-10-25) |
 | 35 | `BarChart` | `role="img"` nommé par un résumé, table de données cachée | survol d'une barre (infobulle), série vide | histogramme d'une série dans le temps (une barre par point, ordre de lecture) en SVG maison, sans dépendance ; mesuré par `ResizeObserver`, dessiné en pixels CSS (traits nets, aucune déformation) ; hauteur par jeton ; jetons seulement (`--k-accent`, `--k-border`, `--k-text-muted`), clair et sombre ; résumé (nombre de points, bornes, maximum, dernier) ; valeurs en chiffres tabulaires ; infobulle `decorative` au survol (la table cachée porte les mêmes données) ; ligne de base, graduation du maximum, première et dernière étiquettes (revue du 2026-10-25) |
 | 36 | `BarList` | table (en-têtes de ligne, valeurs) | valeur au-delà de l'échelle | barres horizontales d'une distribution (occupation, part) : libellé, barre décorative (`aria-hidden`), valeur ; échelle commune (`max`, sinon la plus grande valeur) ; la valeur est toujours écrite, la barre ne fait que la montrer (revue du 2026-10-25) |
+| 37 | `ExpandableGrid` | Grid (données) + Button qui ouvre un Dialog (Modal) | compacte, agrandie | une liste qui peut être longue (flux cassés d'un brouillon, membres d'un groupe) gardée compacte dans un lieu étroit (panneau, section) : nombre de lignes au-dessus, quelques lignes visibles (`visibleRows`, 5 par défaut) puis la grille défile, colonnes réduites au besoin (`compactColumns`) ; bouton « Agrandir » (`IconButton`, nommé « Agrandir : <libellé> », `aria-haspopup="dialog"`) qui ouvre la même table dans une boîte large (`Dialog` `lg`, `contained`) : toutes les colonnes, tri et filtres partagés (tenus par l'hôte, comme pour `DataGrid`), focus piégé, Échap ferme et rend le focus au bouton ; rien n'est coupé en silence, le reste est à un bouton (revue du 2026-10-25) |
 
 Contrat d'édition en place (`DataGrid`, `TreeGrid`, REQ-020-19), indépendant du métier :
 - l'hôte fournit pour chaque cellule `editable: boolean` (droits, présent, `as_of`), un
@@ -462,7 +469,7 @@ l'utilisateur sur captures, en clair et en sombre, aux quatre largeurs ; la revu
 | E7 | Administration | rôles et liaisons, permissions `module.action` (spec 018), secret affiché une fois |
 | E8 | Palette et aide | palette Ctrl+K (commandes, navigation, objets), aide `?` des raccourcis |
 | E9 | États | vide (phrase + action), chargement (squelettes), erreur (code + `Request-Id`), 412 avec saisie gardée, 202 « proposé, en revue » |
-| E10 | Hôte de plugin | vue pleine page d'un plugin (VLAN) et matrice de politique (017, `MatrixGrid` : croix de survol, sens source → destination) dans le cadre du shell ; onglet Brouillon de la matrice : cellules changées par source → destination, avant et après (`DiffList`), effet simulé, autres opérations, pied commun (simulation, `CommitForm`, `SplitButton`) |
+| E10 | Hôte de plugin | vue pleine page d'un plugin (VLAN) et matrice de politique (017, `MatrixGrid` : croix de survol, sens source → destination) dans le cadre du shell ; onglet Brouillon de la matrice : cellules changées par source → destination, avant et après (`DiffList`), effet simulé (comptes, `InlineAlert` du nombre de flux cassés, puis la liste en `ExpandableGrid`), autres opérations, pied commun (simulation, `CommitForm`, `SplitButton`) |
 
 ## Régression visuelle (REQ-020-26, 27)
 

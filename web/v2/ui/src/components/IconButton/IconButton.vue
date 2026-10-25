@@ -14,6 +14,9 @@ import BlockedReason from "../internal/BlockedReason.vue";
 import Tooltip from "../Tooltip/Tooltip.vue";
 import { useTooltip } from "../Tooltip/tooltip.ts";
 import { isBlocked, type ButtonBaseProps } from "../Button/button.ts";
+// The sheet of `Button` (`.k-button`), which this button wears: loaded with it, so that an
+// icon button alone (a page that has no `Button`) is not left with the browser's looks.
+import "../Button/button.css";
 
 const props = withDefaults(defineProps<ButtonBaseProps & { icon: IconName; label: string }>(), {
   variant: "ghost",

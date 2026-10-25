@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // The footer of the draft tab (spec 021, « Cadre » : pied de l'onglet Brouillon; 024/M9):
-// the result of the simulation on one line, the motive in two fields (CommitForm), the
+// the result of the simulation (its sentence wraps, never cut), the motive in two fields (CommitForm), the
 // split button. Its default action follows the rights and the simulation: « Appliquer »
 // for who holds `apply_own` and when no policy holds the changeset, else « Soumettre en
 // revue »; an impossible action stays in the menu, disabled, with its reason.
@@ -93,24 +93,24 @@ const action = ref(props.simulation === "violations" ? "save" : props.held ? "re
 
 <style>
 @layer components {
-  /* The result of the simulation, on one line. */
+  /* The result of the simulation: the badge, then the sentence, which wraps under itself
+   * when the panel is narrow, never cut (revue du 2026-10-25). */
   .k-ecran-simulation {
     display: flex;
     gap: var(--k-space-2);
-    align-items: center;
+    align-items: baseline;
     min-inline-size: 0;
-    white-space: nowrap;
   }
 
-  .k-ecran-simulation > .k-status-badge {
+  .k-ecran-simulation > .k-status-badge,
+  .k-ecran-simulation > .k-icon {
     flex: none;
+    align-self: center;
   }
 
-  /* The sentence gives way to the badge. */
   .k-ecran-simulation > span:last-child {
     min-inline-size: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
   }
 }
 </style>

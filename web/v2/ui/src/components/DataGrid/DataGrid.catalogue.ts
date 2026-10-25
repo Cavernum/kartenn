@@ -97,6 +97,24 @@ export default {
       wide: true,
     },
     {
+      name: "wrap",
+      description: "Colonne de message (wrap) : le texte va à la ligne, jamais coupé",
+      props: {
+        ...base,
+        columns: columns.map((c) => (c.id === "label" ? { ...c, wrap: true } : c)),
+        rows: rows.map((row, i) =>
+          i === 1
+            ? {
+                ...row,
+                label:
+                  "Postes du siège, deuxième étage : la plage sera rendue au domaine après la migration des imprimantes.",
+              }
+            : row,
+        ),
+      },
+      wide: true,
+    },
+    {
       name: "loading",
       description:
         "Chargement : squelettes animés dans les cellules (immobiles sous mouvement réduit)",

@@ -24,6 +24,11 @@ const props = withDefaults(
     title: string;
     description?: string | undefined;
     size?: "sm" | "md" | "lg";
+    /**
+     * The body is held within the dialog: a child that scrolls (a grid) scrolls in place,
+     * its header sticky, the title and the actions in view (`ExpandableGrid`).
+     */
+    contained?: boolean;
   }>(),
   { description: undefined, size: "md" },
 );
@@ -51,6 +56,7 @@ function focusFirstField(event: Event): void {
       <DialogContent
         class="k-dialog"
         :data-size="props.size"
+        :data-contained="props.contained ? 'true' : undefined"
         v-bind="props.description ? {} : { 'aria-describedby': undefined }"
         @open-auto-focus="focusFirstField"
       >
@@ -106,6 +112,18 @@ function focusFirstField(event: Event): void {
 
   .k-dialog[data-size="lg"] {
     --k-dialog-size: var(--k-size-dialog-lg);
+  }
+
+  /* Contained: a column whose body shrinks to the room left, and its child with it. */
+  .k-dialog[data-contained] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .k-dialog[data-contained] > .k-dialog__body {
+    display: flex;
+    flex-direction: column;
+    min-block-size: 0;
   }
 
   .k-dialog__header {

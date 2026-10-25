@@ -1,0 +1,238 @@
+- main:
+  - dialog "Flux cassés":
+    - heading "Flux cassés" [level=2]
+    - button "Fermer"
+    - paragraph: /\d+ lignes/
+    - grid "Flux cassés":
+      - rowgroup:
+        - row "Source Destination Service Règle":
+          - columnheader "Source"
+          - columnheader "Destination"
+          - columnheader "Service"
+          - columnheader "Règle"
+      - rowgroup:
+        - row /rece-batch prod-api tcp\/\d+ Copier flow\.verdict\.default/:
+          - gridcell "rece-batch"
+          - gridcell "prod-api"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.default":
+            - button "Copier flow.verdict.default":
+              - text: ""
+              - code: flow.verdict.default
+            - status
+        - row /rece-batch prod-registry tcp\/\d+ Copier flow\.verdict\.denied/:
+          - gridcell "rece-batch"
+          - gridcell "prod-registry"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.denied":
+            - button "Copier flow.verdict.denied":
+              - text: ""
+              - code: flow.verdict.denied
+            - status
+        - row /rece-batch prod-db tcp\/\d+ Copier flow\.verdict\.denied/:
+          - gridcell "rece-batch"
+          - gridcell "prod-db"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.denied":
+            - button "Copier flow.verdict.denied":
+              - text: ""
+              - code: flow.verdict.denied
+            - status
+        - row /rece-batch prod-cache tcp\/\d+ Copier flow\.verdict\.default/:
+          - gridcell "rece-batch"
+          - gridcell "prod-cache"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.default":
+            - button "Copier flow.verdict.default":
+              - text: ""
+              - code: flow.verdict.default
+            - status
+        - row /rece-batch prod-bus tcp\/\d+ Copier flow\.verdict\.denied/:
+          - gridcell "rece-batch"
+          - gridcell "prod-bus"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.denied":
+            - button "Copier flow.verdict.denied":
+              - text: ""
+              - code: flow.verdict.denied
+            - status
+        - row /rece-ci prod-api tcp\/\d+ Copier flow\.verdict\.denied/:
+          - gridcell "rece-ci"
+          - gridcell "prod-api"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.denied":
+            - button "Copier flow.verdict.denied":
+              - text: ""
+              - code: flow.verdict.denied
+            - status
+        - row /rece-ci prod-registry tcp\/\d+ Copier flow\.verdict\.default/:
+          - gridcell "rece-ci"
+          - gridcell "prod-registry"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.default":
+            - button "Copier flow.verdict.default":
+              - text: ""
+              - code: flow.verdict.default
+            - status
+        - row /rece-ci prod-db tcp\/\d+ Copier flow\.verdict\.denied/:
+          - gridcell "rece-ci"
+          - gridcell "prod-db"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.denied":
+            - button "Copier flow.verdict.denied":
+              - text: ""
+              - code: flow.verdict.denied
+            - status
+        - row /rece-ci prod-cache tcp\/\d+ Copier flow\.verdict\.denied/:
+          - gridcell "rece-ci"
+          - gridcell "prod-cache"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.denied":
+            - button "Copier flow.verdict.denied":
+              - text: ""
+              - code: flow.verdict.denied
+            - status
+        - row /rece-ci prod-bus tcp\/\d+ Copier flow\.verdict\.default/:
+          - gridcell "rece-ci"
+          - gridcell "prod-bus"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.default":
+            - button "Copier flow.verdict.default":
+              - text: ""
+              - code: flow.verdict.default
+            - status
+        - row /rece-etl prod-api tcp\/\d+ Copier flow\.verdict\.default/:
+          - gridcell "rece-etl"
+          - gridcell "prod-api"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.default":
+            - button "Copier flow.verdict.default":
+              - text: ""
+              - code: flow.verdict.default
+            - status
+        - row /rece-etl prod-registry tcp\/\d+ Copier flow\.verdict\.denied/:
+          - gridcell "rece-etl"
+          - gridcell "prod-registry"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.denied":
+            - button "Copier flow.verdict.denied":
+              - text: ""
+              - code: flow.verdict.denied
+            - status
+        - row /rece-etl prod-db tcp\/\d+ Copier flow\.verdict\.denied/:
+          - gridcell "rece-etl"
+          - gridcell "prod-db"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.denied":
+            - button "Copier flow.verdict.denied":
+              - text: ""
+              - code: flow.verdict.denied
+            - status
+        - row /rece-etl prod-cache tcp\/\d+ Copier flow\.verdict\.default/:
+          - gridcell "rece-etl"
+          - gridcell "prod-cache"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.default":
+            - button "Copier flow.verdict.default":
+              - text: ""
+              - code: flow.verdict.default
+            - status
+        - row /rece-etl prod-bus tcp\/\d+ Copier flow\.verdict\.denied/:
+          - gridcell "rece-etl"
+          - gridcell "prod-bus"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.denied":
+            - button "Copier flow.verdict.denied":
+              - text: ""
+              - code: flow.verdict.denied
+            - status
+        - row /rece-mon prod-api tcp\/\d+ Copier flow\.verdict\.denied/:
+          - gridcell "rece-mon"
+          - gridcell "prod-api"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.denied":
+            - button "Copier flow.verdict.denied":
+              - text: ""
+              - code: flow.verdict.denied
+            - status
+        - row /rece-mon prod-registry tcp\/\d+ Copier flow\.verdict\.default/:
+          - gridcell "rece-mon"
+          - gridcell "prod-registry"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.default":
+            - button "Copier flow.verdict.default":
+              - text: ""
+              - code: flow.verdict.default
+            - status
+        - row /rece-mon prod-db tcp\/\d+ Copier flow\.verdict\.denied/:
+          - gridcell "rece-mon"
+          - gridcell "prod-db"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.denied":
+            - button "Copier flow.verdict.denied":
+              - text: ""
+              - code: flow.verdict.denied
+            - status
+        - row /rece-mon prod-cache tcp\/\d+ Copier flow\.verdict\.denied/:
+          - gridcell "rece-mon"
+          - gridcell "prod-cache"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.denied":
+            - button "Copier flow.verdict.denied":
+              - text: ""
+              - code: flow.verdict.denied
+            - status
+        - row /rece-mon prod-bus tcp\/\d+ Copier flow\.verdict\.default/:
+          - gridcell "rece-mon"
+          - gridcell "prod-bus"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.default":
+            - button "Copier flow.verdict.default":
+              - text: ""
+              - code: flow.verdict.default
+            - status
+        - row /rece-web prod-api tcp\/\d+ Copier flow\.verdict\.denied/:
+          - gridcell "rece-web"
+          - gridcell "prod-api"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.denied":
+            - button "Copier flow.verdict.denied":
+              - text: ""
+              - code: flow.verdict.denied
+            - status
+        - row /rece-web prod-registry tcp\/\d+ Copier flow\.verdict\.denied/:
+          - gridcell "rece-web"
+          - gridcell "prod-registry"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.denied":
+            - button "Copier flow.verdict.denied":
+              - text: ""
+              - code: flow.verdict.denied
+            - status
+        - row /rece-web prod-db tcp\/\d+ Copier flow\.verdict\.default/:
+          - gridcell "rece-web"
+          - gridcell "prod-db"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.default":
+            - button "Copier flow.verdict.default":
+              - text: ""
+              - code: flow.verdict.default
+            - status
+        - row /rece-web prod-cache tcp\/\d+ Copier flow\.verdict\.denied/:
+          - gridcell "rece-web"
+          - gridcell "prod-cache"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.denied":
+            - button "Copier flow.verdict.denied":
+              - text: ""
+              - code: flow.verdict.denied
+            - status
+        - row /rece-web prod-bus tcp\/\d+ Copier flow\.verdict\.denied/:
+          - gridcell "rece-web"
+          - gridcell "prod-bus"
+          - gridcell /tcp\/\d+/
+          - gridcell "Copier flow.verdict.denied":
+            - button "Copier flow.verdict.denied":
+              - text: ""
+              - code: flow.verdict.denied
+            - status
