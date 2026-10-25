@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { createSSRApp, h, type Component } from "vue";
+import { createCommentVNode, createSSRApp, h, type Component } from "vue";
 import { renderToString } from "vue/server-renderer";
 import { describe, expect, it } from "vitest";
 import Button from "../src/components/Button/Button.vue";
@@ -84,6 +84,21 @@ describe("SidePanel", () => {
   it("closed, leaves nothing", async () => {
     const html = await render(SidePanel, { label: "Panneau", tabs: [], open: false });
     expect(html.replace(/<!--[^>]*-->/g, "")).toBe("");
+  });
+
+  it("leaves out its footer when the host fills it with nothing for the tab in front", async () => {
+    const tabs = [
+      { value: "detail", label: "Détail" },
+      { value: "draft", label: "Brouillon" },
+    ];
+    const footer = ({ tab }: { tab: string }) =>
+      tab === "draft" ? [h("p", "Soumettre")] : [createCommentVNode("v-if")];
+    const shown = (tab: string) =>
+      renderToString(
+        createSSRApp({ render: () => h(SidePanel, { label: "Panneau", tabs, tab }, { footer }) }),
+      );
+    expect(await shown("draft")).toContain('class="k-side-panel__footer"');
+    expect(await shown("detail")).not.toContain("k-side-panel__footer");
   });
 
   it("closed with a rail, leaves a strip whose chevron reopens it", async () => {

@@ -17,8 +17,21 @@
 // panel leaves a strip in the flow at the end of its container (the host gives it an
 // `auto` track): a chevron button, « Ouvrir le panneau », reopens it on its last tab and
 // moves the focus there; closing it from inside gives the focus back to the strip. The
-// strip covers nothing, at any width (revue du 2026-10-25).
-import { computed, nextTick, ref, useId, watch } from "vue";
+// strip covers nothing, at any width (revue du 2026-10-25). The footer shows only when the
+// host fills it for the tab in front: no empty band under a tab without actions.
+import {
+  Comment,
+  Fragment,
+  Text,
+  computed,
+  isVNode,
+  nextTick,
+  ref,
+  useId,
+  useSlots,
+  watch,
+  type VNodeArrayChildren,
+} from "vue";
 import { t } from "../../i18n.ts";
 import IconButton from "../IconButton/IconButton.vue";
 import { isRtl } from "../internal/gridKeys.ts";
@@ -52,6 +65,26 @@ const tab = defineModel<string>("tab", { default: "" });
 /** The width of the panel, in CSS pixels. */
 const width = defineModel<number>("width", { default: 420 });
 const emit = defineEmits<{ close: [] }>();
+const slots = useSlots();
+
+/** The tab in front, for the footer. */
+const current = computed(() => tab.value || props.tabs[0]?.value);
+
+/** Whether rendered nodes hold anything but comments and blank text (an empty slot). */
+function filled(nodes: VNodeArrayChildren): boolean {
+  return nodes.some((node) => {
+    if (node === null || node === undefined || typeof node === "boolean") return false;
+    if (typeof node === "string" || typeof node === "number") return String(node).trim() !== "";
+    if (Array.isArray(node)) return filled(node);
+    if (!isVNode(node) || node.type === Comment) return false;
+    if (node.type === Text) return String(node.children ?? "").trim() !== "";
+    if (node.type === Fragment) return Array.isArray(node.children) && filled(node.children);
+    return true;
+  });
+}
+
+/** The footer shows only when the host fills it for the tab in front: no empty band. */
+const footerShown = (): boolean => !!slots.footer && filled(slots.footer({ tab: current.value }));
 
 const generated = useId();
 const id = computed(() => props.id ?? generated);
@@ -174,8 +207,8 @@ function onPointerup(event: PointerEvent): void {
       :label="t('panelClose')"
       @click="close"
     />
-    <footer v-if="$slots.footer" class="k-side-panel__footer">
-      <slot name="footer" :tab="tab || props.tabs[0]?.value" />
+    <footer v-if="footerShown()" class="k-side-panel__footer">
+      <slot name="footer" :tab="current" />
     </footer>
   </aside>
   <div v-if="props.rail" ref="strip" class="k-side-panel-rail">
