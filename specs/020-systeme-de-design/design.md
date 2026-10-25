@@ -513,7 +513,7 @@ l'utilisateur sur captures, en clair et en sombre, aux quatre largeurs ; la revu
 | E7 | Administration | rôles et liaisons, permissions `module.action` (spec 018), secret affiché une fois |
 | E8 | Palette et aide | palette Ctrl+K (commandes, navigation, objets), aide `?` des raccourcis |
 | E9 | États | vide (phrase + action), chargement (squelettes), erreur (code + `Request-Id`), 412 avec saisie gardée, 202 « proposé, en revue » |
-| E10 | Hôte de plugin | vue pleine page d'un plugin (VLAN) et matrice de politique (017, `MatrixGrid` : croix de survol, sens source → destination) dans le cadre du shell ; onglet Brouillon de la matrice : cellules changées par source → destination, avant et après (`DiffList`), effet simulé (comptes, `InlineAlert` du nombre de flux non conformes à la matrice après ce brouillon, puis la liste en `ExpandableGrid` avec leur protocole), autres opérations, pied commun (simulation, `CommitForm`, `SplitButton`) |
+| E10 | Hôte de plugin | vue pleine page d'un plugin (VLAN) et matrice de politique (017, `MatrixGrid` : croix de survol, sens source → destination) dans le cadre du shell ; onglet Brouillon de la matrice : cellules changées par source → destination, avant et après (`DiffList`), effet simulé (comptes, `InlineAlert` du nombre de flux non conformes à la matrice après ce brouillon, puis la liste en `ExpandableGrid` avec leur type de flux), autres opérations, pied commun (simulation, `CommitForm`, `SplitButton`) |
 
 ## Régression visuelle (REQ-020-26, 27)
 
