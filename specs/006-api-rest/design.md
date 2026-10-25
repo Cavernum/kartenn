@@ -237,9 +237,12 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   - identités : `{id, href, kind, name, issuer, disabled, revoked_after}` ; `GET
     /v1/identities`, `GET /v1/identities/{id}`, `PATCH` (Merge Patch) `{disabled,
     revoke_sessions}` ; la fiche (`GET …/{id}`) ajoute `groups` et `bindings` comme
-    `GET /v1/me`, et `last_session` (`{at, idp_groups}`, `null` sans connexion) : les
-    groupes de l'émetteur de sa dernière connexion, gardés avec la personne à chaque
-    connexion (025, Q-025-1), qui expliquent une appartenance par groupe de l'IdP ;
+    `GET /v1/me`, et `last_login_idp_groups` (`[string]`, toujours présent, `[]` sans
+    connexion) : les groupes de l'émetteur de sa dernière connexion, écrasés à chaque
+    connexion, sans sa date (005/K3 amendée ; 025, Q-025-1), qui expliquent une
+    appartenance par groupe de l'IdP. Ces noms révèlent l'organisation interne : ils ne
+    sont servis qu'au lecteur des droits (`core.rbac.read`, garde de toute la fiche) ;
+    la personne lit les siens, ceux de sa session, dans `idp_groups` de `GET /v1/me` ;
   - `GET /v1/me` (route de 005, sans permission ni audit) : `name`, `idp_groups` (les
     groupes de l'émetteur de la session ou du jeton), `groups` (`[{key, via}]`, les
     groupes kartenn, une entrée par appartenance, `via` = `direct` ou le groupe de

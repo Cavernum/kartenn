@@ -168,6 +168,14 @@ Statut : spec **validée le 2026-10-25**.
       par un jeton d'accès, qui n'est pas une session) ; effacés par la
       pseudonymisation. La fiche d'identité résout ses groupes et droits effectifs avec
       ces groupes-là.
+    - Reprise : date retirée le 2026-10-25 (Q-025-1, 005/K3 amendée) — migration
+      `0070_person_last_login_without_date.sql` (supprime `last_login_at`),
+      `record_login` n'écrit plus que les groupes ; la fiche sert
+      `last_login_idp_groups` (`[string]`, toujours présent, `[]` sans connexion) au lieu
+      de `last_session {at, idp_groups}`. Garde inchangée : toute la fiche sous
+      `core.rbac.read`, la personne lit ses groupes dans `GET /v1/me` (`idp_groups`) ;
+      test `rights::a_delegate_binds_without_escalation` : la fiche sans
+      `core.rbac.read` → 403.
     - Libellés d'un groupe au dictionnaire, espace `group` : servis à un lecteur des
       droits, et à chacun pour ses propres groupes (comme les rôles) ; écrire ou clore un
       groupe change la révision.
@@ -241,6 +249,8 @@ Statut : spec **validée le 2026-10-25**.
     - Fiche d'identité en table : groupes `clé (via)` comme `kartenn me`, liaisons
       `rôle (groupe, portée)`, dernière session aplatie (`last_session.at`,
       `last_session.idp_groups`) ; les formats de données gardent la réponse telle quelle.
+      Reprise du 2026-10-25 : une seule ligne `last_login_idp_groups` (`—` sans
+      connexion), la date retirée (tâche 5).
     - `kartenn me` : ligne « Groupes IdP » ; un groupe reçu par un groupe de l'IdP du même
       nom s'affiche `kartenn-admins (kartenn-admins)`, gardé tel quel (le `via` dit d'où
       vient l'appartenance) ; attente de la scène de connexion e2e mise à jour.

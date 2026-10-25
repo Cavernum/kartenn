@@ -90,6 +90,13 @@ WITH member_of AS (
   `/v1/bindings` garde ses routes, avec `group` (clé) pour sujet et un filtre `?group=`.
 - `GET /v1/me` et `GET /v1/identities/{id}` : `groups` (`[{key, via}]`, `via` = `direct`
   ou le groupe de l'IdP qui donne l'appartenance) et `bindings` effectifs.
+- La fiche `GET /v1/identities/{id}` ajoute `last_login_idp_groups` (`[string]`, `[]`
+  pour une identité qui ne s'est jamais connectée) : les groupes de l'IdP de la dernière
+  connexion, gardés sur `person.last_login_groups`, écrasés à chaque connexion par
+  `Identities::record_login`, effacés par la pseudonymisation, **sans date** (Q-025-1,
+  reprise du 2026-10-25 ; 005/K3 amendée). Ces noms révèlent l'organisation interne :
+  la fiche reste sous `core.rbac.read` ; la personne lit les siens, ceux de sa session,
+  dans `idp_groups` de `GET /v1/me`, sans accès à sa fiche.
 - Simulation (`?simulate=true`, 024) et brouillons (024) : les nouvelles opérations
   entrent dans `Operation` comme les autres.
 - Client Python et CLI (023) : `kartenn groups …`, `kartenn groups members …` ;
