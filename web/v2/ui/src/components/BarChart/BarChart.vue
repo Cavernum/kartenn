@@ -141,25 +141,30 @@ function leave(): void {
       <span>{{ props.points[0]!.label }}</span>
       <span>{{ props.points.at(-1)!.label }}</span>
     </div>
-    <table class="k-visually-hidden">
-      <caption>
-        {{
-          props.label
-        }}
-      </caption>
-      <thead>
-        <tr>
-          <th scope="col">{{ props.pointLabel ?? t("chartPoint") }}</th>
-          <th scope="col">{{ props.valueLabel ?? t("chartValue") }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="point in props.points" :key="point.key">
-          <th scope="row">{{ point.label }}</th>
-          <td>{{ write(point.value) }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <!-- Hidden in a box, not on the table: the caption sits in the wrapper box of the
+         table, outside its `overflow` and `clip-path` in some engines, and would show over
+         the plot (revue du 2026-10-25, soir). -->
+    <div class="k-visually-hidden">
+      <table>
+        <caption>
+          {{
+            props.label
+          }}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">{{ props.pointLabel ?? t("chartPoint") }}</th>
+            <th scope="col">{{ props.valueLabel ?? t("chartValue") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="point in props.points" :key="point.key">
+            <th scope="row">{{ point.label }}</th>
+            <td>{{ write(point.value) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     <Tooltip :control="tip" decorative>
       <template v-if="hovered !== null && props.points[hovered]">
         {{ props.points[hovered]!.label }} :
