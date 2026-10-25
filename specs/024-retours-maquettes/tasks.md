@@ -538,7 +538,13 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
       l'aspect natif).
     - E7 réorganisé par groupes : voir la tâche 8 de la 025.
     - Mouvement : politique de la 020 (§ Mouvement), note
-      `docs/reference/mouvement-interface.md` ; application en cours.
+      `docs/reference/mouvement-interface.md` ; appliquée (020, § Mouvement,
+      « Réalisation ») : amplitudes et rotations en jetons, couches de Reka entrées par
+      `@starting-style` et sorties par un fondu en animation (la `Presence` attend un
+      `animationend`), `SidePanel` par `<Transition>`, pas de barre d'onglet glissante ni
+      de toast, ligne de brouillon éclairée à son ajout (`data-fresh`), état `removed`
+      barré, réglage « Mouvement » (`data-motion="reduce"`), axe attend la fin des
+      animations.
 - [ ] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
   020) — REQ-024-29
 
