@@ -40,60 +40,92 @@
   - heading "Matrice de politique applicatif" [level=1]
   - region "Matrice applicatif":
     - heading "Matrice applicatif" [level=2]
-    - button "3 règles hors vue"
     - 'button "Type de flux : applicatif"'
     - paragraph:
       - text: "À venir :"
       - code: Select
       - text: /\(tâche \d+\)/
+    - toolbar "Actions de la matrice":
+      - button "3 règles hors vue"
+      - button "Simuler le brouillon"
+      - button "Exporter"
     - 'grid "Matrice applicatif : source en ligne, destination en colonne"':
       - rowgroup:
-        - row "Source ↓ · destination → Production Recette Développement":
-          - columnheader "Source ↓ · destination →"
+        - row "Source → destination Production Préproduction Recette Intégration Développement":
+          - columnheader "Source → destination"
           - columnheader "Production"
+          - columnheader "Préproduction"
           - columnheader "Recette"
+          - columnheader "Intégration"
           - columnheader "Développement"
       - rowgroup:
-        - row "Production Autoriser Interdire Interdire":
-          - gridcell "Production"
+        - row "Production Autoriser Interdire Interdire Interdire Interdire":
+          - rowheader "Production"
           - gridcell "Autoriser"
           - gridcell "Interdire"
           - gridcell "Interdire"
-        - row "Recette Sous motif (en brouillon) Autoriser Refus par défaut":
-          - gridcell "Recette"
+          - gridcell "Interdire"
+          - gridcell "Interdire"
+        - row "Préproduction Sous motif (en revue) Autoriser Refus par défaut Interdire Interdire":
+          - rowheader "Préproduction"
+          - gridcell "Sous motif (en revue)"
+          - gridcell "Autoriser"
+          - gridcell "Refus par défaut"
+          - gridcell "Interdire"
+          - gridcell "Interdire"
+        - row "Recette Sous motif (en brouillon) Refus par défaut Autoriser Autoriser Refus par défaut":
+          - rowheader "Recette"
           - gridcell "Sous motif (en brouillon)"
+          - gridcell "Refus par défaut"
+          - gridcell "Autoriser"
           - gridcell "Autoriser"
           - gridcell "Refus par défaut"
-        - row "Développement Interdire Refus par défaut Autoriser":
-          - gridcell "Développement"
+        - row "Intégration Interdire Refus par défaut Autoriser Autoriser Autoriser":
+          - rowheader "Intégration"
           - gridcell "Interdire"
           - gridcell "Refus par défaut"
           - gridcell "Autoriser"
-    - text: Brouillon · 1 cellule 1 s'ouvre sous réserve · 2 flux cassent · 0 guérit
-  - heading "Recette → Production" [level=2]
-  - term: État
-  - definition: Sous motif
-  - term: Motifs
-  - definition:
-    - button "Copier bastion-admin":
-      - text: ""
-      - code: bastion-admin
-    - status
-  - text: Libellé
-  - textbox "Libellé": Accès recette vers production
-  - status:
-    - paragraph: "Effet simulé : 2 flux cassent"
-    - list:
-      - listitem:
-        - text: /rece-batch → prod-api \(tcp\/\d+\)/
-        - button "Copier flow.verdict.denied":
-          - text: ""
-          - code: flow.verdict.denied
-        - status
-      - listitem:
-        - text: /rece-ci → prod-registry \(tcp\/\d+\)/
-        - button "Copier flow.verdict.denied":
-          - text: ""
-          - code: flow.verdict.denied
-        - status
+          - gridcell "Autoriser"
+          - gridcell "Autoriser"
+        - row "Développement Interdire Interdire Refus par défaut Autoriser Autoriser":
+          - rowheader "Développement"
+          - gridcell "Interdire"
+          - gridcell "Interdire"
+          - gridcell "Refus par défaut"
+          - gridcell "Autoriser"
+          - gridcell "Autoriser"
+    - text: Brouillon · 1 cellule · 1 en revue 1 s'ouvre sous réserve · 2 flux cassent · 0 guérit
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Panneau droit":
+    - tab "Détail" [selected]
+    - tab "Brouillon 3"
+  - tabpanel "Détail":
+    - heading "Recette → Production" [level=2]
+    - term: État
+    - definition: Sous motif
+    - term: Motifs
+    - definition:
+      - button "Copier bastion-admin":
+        - text: ""
+        - code: bastion-admin
+      - status
+    - text: Libellé
+    - textbox "Libellé": Accès recette vers production
+    - status:
+      - paragraph: "Effet simulé : 2 flux cassent"
+      - list:
+        - listitem:
+          - text: /rece-batch → prod-api \(tcp\/\d+\)/
+          - button "Copier flow.verdict.denied":
+            - text: ""
+            - code: flow.verdict.denied
+          - status
+        - listitem:
+          - text: /rece-ci → prod-registry \(tcp\/\d+\)/
+          - button "Copier flow.verdict.denied":
+            - text: ""
+            - code: flow.verdict.denied
+          - status
+  - button "Fermer le panneau"
   - button "Ajouter au brouillon"

@@ -427,6 +427,55 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
       pour tenir à 1024 px ; `k-web-shots --update` filtré par fichier s'écrit
       `k-web-shots --update all <fichier>` (le script passe `--update-snapshots` juste
       avant les arguments).
+    - Après la fusion des deux moitiés : `#picker` du cadre en surimpression hors du flux,
+      sous la pastille de date (au-dessus de la bande et de la surface), E6 y revient et la
+      pastille retrouve son `aria-controls` ; `ErrorState` garde un code long dans une
+      colonne étroite (`minmax(0, 1fr)`, codes à `max-inline-size: 100%`) ; `MatrixGrid` :
+      colonnes `minmax(max-content, 1fr)` et cellules d'au moins `--k-size-col-sm` (un état
+      et son icône ne sont plus coupés, la matrice défile), contenu aligné au début comme
+      les en-têtes ; en-tête des panneaux : actions sur le reste de la ligne, sans retour,
+      pour que leur `Toolbar` se replie (E1 à 1024 px) ; références des onze maquettes aux
+      quatre largeurs.
+    - Point ouvert (à arbitrer) : deux styles de code dans E9 — le 412 montre la règle
+      `core.precondition.failed` (M16), le 503 le type servi
+      `urn:kartenn:problem:unavailable` ; le serveur n'est pas touché.
+  - En cours (2026-10-25), E4 et E6 à E10 repris (le cadre, l'accueil, E1 à E3 et E5 vont
+    à part) ; références 1280 × 800 régénérées, autres largeurs après la fusion des deux
+    moitiés. Choix tranchés :
+    - Barre d'actions des maquettes `EcranBarre.vue` (aide de mise en page, hors
+      inventaire) : un état ou un contexte au début, puis un `Toolbar` qui prend le reste
+      de la ligne (`inline-size: 0`, sinon la piste `auto` du panneau grandit et rien ne se
+      replie) ; actions au début (`align="start"`) quand le panneau droit peut couvrir la
+      fin de la surface (E7, matrice de E10), à la fin sinon.
+    - E4 : encart « Approbation » retiré ; attributs du changeset en trois listes dans une
+      `Grid` `auto` au-dessus des onglets (plus de `Split`) ; nouvelle vue « droits »
+      (relecteur sans `vlan.apply` : Valider et Rejeter refusés par `forbidden`) ; vue
+      auteur : Valider refusé par `reason` (politique qui retient), notice
+      `changeset.approval.self` gardée ; Retirer refusé au relecteur par `reason`.
+    - E6 : sélecteur de période téléporté dans la couche `#k-ecran-layers`
+      (`Teleport defer`), `role="dialog"` non modal, fixé sous la barre d'état à la fin ;
+      le créneau `#picker` du cadre, qui pousse la page, n'est plus utilisé (la pastille
+      perd son `aria-controls` : à reprendre dans le cadre). Pas d'ombre (Stylelint la
+      réserve aux composants flottants) : bordure tiretée du `AVenir` et fond de surface.
+      Écritures refusées par `reason` dans un `Toolbar` ; encart d'avertissement retiré
+      (la bande le dit).
+    - E7 : le rôle choisi et la nouvelle liaison passent dans le `SidePanel` (onglets
+      Détail, Brouillon 0) ; permissions une par ligne (`CodeBadge` du nom servi puis
+      libellé, deux colonnes en `subgrid`) ; liaisons du rôle dans le panneau, qui défile ;
+      première colonne des tables de largeur fixe et colonne `fill` en dernier, pour que le
+      panneau couvre la fin de la table et non ses clés.
+    - E8 : contenu gardé ; accueil en `Grid` `auto` ; aide complétée de `]` et Alt+Bas,
+      Ctrl+Entrée décrit comme l'action du bouton scindé.
+    - E9 : table en chargement par `DataGrid loading` (squelettes animés dans les
+      cellules) ; zones empilées en pleine largeur (le `CodeBadge` d'un type de problème
+      long débordait d'une demi-colonne à 768 px, voir bibliothèque) ; 412 titré
+      « L'objet a changé depuis votre lecture », code `core.precondition.failed` (M16) à
+      côté ; 202 avec son motif `changeset.apply_own.missing` ; 503 garde le type servi
+      `urn:kartenn:problem:unavailable`.
+    - E10 : `MatrixGrid` sur cinq environnements (une cellule en brouillon, une en revue,
+      la cellule choisie active) ; détail de la cellule dans le `SidePanel` ; vue VLAN
+      sans `Split` : groupes au-dessus, VLAN du groupe dessous, `Renuméroter…` refusé par
+      `forbidden` (`vlan.edit`).
 - [ ] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
   020) — REQ-024-29
 

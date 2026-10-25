@@ -37,7 +37,8 @@
   - heading "Liaisons" [level=1]
   - region "Liaisons 4":
     - heading "Liaisons 4" [level=2]
-    - button "Créer"
+    - toolbar "Actions des liaisons":
+      - button "Créer"
     - grid "Liaisons":
       - rowgroup:
         - row "Sujet Rôle Portée Du Au":
@@ -72,32 +73,39 @@
           - 'gridcell "Domaine : dc-nord"'
           - gridcell /\d+-\d+-\d+/
           - gridcell "—"
-  - heading "Nouvelle liaison" [level=2]
-  - text: Sujet
-  - textbox "Sujet": Équipe supervision
-  - paragraph:
-    - text: "À venir :"
-    - code: Select
-    - text: /\(tâche \d+\)/
-  - text: Rôle
-  - textbox "Rôle": admin
-  - paragraph:
-    - text: "À venir :"
-    - code: Select
-    - text: /\(tâche \d+\)/
-  - text: Portée
-  - textbox "Portée": Globale
-  - text: Du
-  - textbox "Du": /\d+-\d+-\d+/
-  - alert:
-    - paragraph: Liaison refusée
-    - list:
-      - listitem:
-        - text: Vous ne pouvez accorder un rôle plus large que les vôtres.
-        - button "Copier core.binding.escalation":
-          - text: ""
-          - code: core.binding.escalation
-        - status
-  - text: La liaison prend effet à la date « Du ».
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Panneau droit":
+    - tab "Détail" [selected]
+    - tab "Brouillon 0"
+  - tabpanel "Détail":
+    - heading "Nouvelle liaison" [level=2]
+    - text: Sujet
+    - textbox "Sujet": Équipe supervision
+    - paragraph:
+      - text: "À venir :"
+      - code: Select
+      - text: /\(tâche \d+\)/
+    - text: Rôle
+    - textbox "Rôle": admin
+    - paragraph:
+      - text: "À venir :"
+      - code: Select
+      - text: /\(tâche \d+\)/
+    - text: Portée
+    - textbox "Portée": Globale
+    - text: Du
+    - textbox "Du": /\d+-\d+-\d+/
+    - paragraph: La liaison prend effet à cette date.
+    - alert:
+      - paragraph: Liaison refusée
+      - list:
+        - listitem:
+          - text: Vous ne pouvez accorder un rôle plus large que les vôtres.
+          - button "Copier core.binding.escalation":
+            - text: ""
+            - code: core.binding.escalation
+          - status
+  - button "Fermer le panneau"
   - button "Annuler"
   - button "Créer la liaison"

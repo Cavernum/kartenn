@@ -57,15 +57,20 @@
       - code: Toast
       - text: /\(tâche \d+\)/
     - status:
-      - paragraph: Proposé, en revue
-      - text: Votre modification de
-      - code: /\d+\.\d+\.\d+\.\d+/
-      - text: "attend une validation : changeset"
+      - paragraph: "/Proposé, en revue : votre modification de \\d+\\.\\d+\\.\\d+\\.\\d+ attend une validation\\./"
+      - text: Changeset
       - button "Copier 01JD4K8B2C3D4E5F6G7H8J9K0M":
         - text: ""
         - code: 01JD4K8B2C3D4E5F6G7H8J9K0M
       - status
-      - text: . La cellule garde la valeur lue d'ici là.
+      - text: ; la cellule garde la valeur lue d'ici là.
+      - list:
+        - listitem:
+          - text: Vous n'avez pas le droit d'appliquer vous-même les adresses (core.address.apply_own).
+          - button "Copier changeset.apply_own.missing":
+            - text: ""
+            - code: changeset.apply_own.missing
+          - status
     - grid "Adresses":
       - rowgroup:
         - row "Valeur Usage Propriétaire Site":

@@ -66,11 +66,18 @@ const shortcuts: Shortcut[] = [
   {
     id: "apply",
     keys: [["Control", "Enter"]],
-    action: "Appliquer maintenant (motif)",
-    scope: "Éditeur",
+    action: "Action choisie du bouton scindé (Appliquer, Soumettre)",
+    scope: "Brouillon",
   },
   { id: "esc", keys: [["Escape"]], action: "Fermer, annuler l'édition", scope: "Partout" },
   { id: "sidebar", keys: [["["]], action: "Replier la barre latérale", scope: "Hors champ" },
+  { id: "panel", keys: [["]"]], action: "Replier le panneau droit", scope: "Hors champ" },
+  {
+    id: "column",
+    keys: [["Alt", "ArrowDown"]],
+    action: "Filtrer la colonne",
+    scope: "En-tête de table",
+  },
 ];
 const shortcutColumns: GridColumn[] = [
   { id: "keys", label: "Touches", width: "md" },
@@ -86,7 +93,7 @@ const shortcutColumns: GridColumn[] = [
     space="referential"
     :crumbs="[{ label: 'Référentiel', to: '/' }, { label: 'Accueil' }]"
   >
-    <Grid :columns="3" gap="3">
+    <Grid columns="auto" gap="3">
       <Panneau title="Mes changesets en attente" detail="2">
         <StatusBadge state="review" label="2 en revue" />
         <a href="/changesets/01JD4K8B2C">Renumérotation salle B</a>

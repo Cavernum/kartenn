@@ -118,7 +118,7 @@ export const MOCKUPS: Mockup[] = [
     id: "E4",
     title: "Changeset et revue",
     shows:
-      "Différentiel groupé par objet, anomalies rattachées, actions de revue selon les droits, état « en revue ».",
+      "Différentiel groupé par objet, anomalies rattachées, actions de revue selon les droits (action interdite grisée, permission en infobulle, sans encart des droits), état « en revue ».",
     views: [
       {
         id: "relecteur",
@@ -126,9 +126,16 @@ export const MOCKUPS: Mockup[] = [
         description: "Changeset en revue, vu par qui a le droit de valider.",
       },
       {
+        id: "droits",
+        label: "Droit manquant",
+        description:
+          "Vu par un relecteur sans vlan.apply : Valider et Rejeter grisés, la permission en infobulle.",
+      },
+      {
         id: "auteur",
         label: "Auteur",
-        description: "Le même, vu par son auteur : valider est refusé avec son code.",
+        description:
+          "Vu par son auteur : une politique le retient, Valider grisé avec son motif, notice changeset.approval.self.",
       },
       {
         id: "rejet",
@@ -175,12 +182,13 @@ export const MOCKUPS: Mockup[] = [
     id: "E6",
     title: "Lecture au passé",
     shows:
-      "Bande ambre, pastille de date ouverte sur le sélecteur de période, écritures grisées avec motif, chronologie des versions.",
+      "Bande ambre, pastille de date et sélecteur de période ouvert en surimpression, écritures grisées avec motif, chronologie des versions.",
     views: [
       {
         id: "selecteur",
         label: "Sélecteur de date",
-        description: "Pastille de date ouverte sur le sélecteur (composant à venir).",
+        description:
+          "Pastille de date ouverte sur le sélecteur (composant à venir), en surimpression : la page ne bouge pas.",
       },
       {
         id: "chronologie",
@@ -197,12 +205,14 @@ export const MOCKUPS: Mockup[] = [
       {
         id: "roles",
         label: "Rôles",
-        description: "Rôles et permissions du rôle choisi (code servi et libellé).",
+        description:
+          "Rôles ; le rôle choisi dans le panneau droit : permissions une par ligne (nom servi et libellé), liaisons qui défilent dans le panneau.",
       },
       {
         id: "liaisons",
         label: "Liaisons",
-        description: "Liaisons : sujet, rôle, portée, période.",
+        description:
+          "Liaisons (sujet, rôle, portée, période) ; nouvelle liaison refusée dans le panneau droit.",
       },
       {
         id: "secret",
@@ -235,23 +245,25 @@ export const MOCKUPS: Mockup[] = [
     id: "E9",
     title: "États",
     shows:
-      "Vide (phrase + action), chargement (squelettes), erreur (code + Request-Id), 412 avec saisie gardée, 202 « proposé, en revue ».",
+      "Vide (phrase + action), chargement (squelettes dans les cellules), erreur en langage courant (code + Request-Id), 412 avec saisie gardée, 202 « proposé, en revue » avec son motif.",
     views: [
       {
         id: "zones",
         label: "Vide, chargement, erreur",
-        description: "Trois zones de données, chacune dans un de ses états.",
+        description:
+          "Trois zones de données, chacune dans un de ses états ; squelettes animés dans les cellules de la table.",
       },
       {
         id: "conflit",
         label: "412, saisie gardée",
-        description: "L'objet a changé entre-temps : valeur actuelle et saisie gardée.",
+        description:
+          "« L'objet a changé depuis votre lecture » : valeur actuelle, code à côté, saisie gardée.",
         modal: true,
       },
       {
         id: "revue",
         label: "202, proposé en revue",
-        description: "Écriture reçue mais soumise à revue : cellule « en revue ».",
+        description: "Écriture reçue mais soumise à revue, avec son motif : cellule « en revue ».",
       },
     ],
   },
@@ -259,7 +271,7 @@ export const MOCKUPS: Mockup[] = [
     id: "E10",
     title: "Hôte de plugin",
     shows:
-      "Vue pleine page d'un plugin (VLAN) et matrice de politique (spec 017) dans le cadre du shell.",
+      "Vue pleine page d'un plugin (VLAN) et matrice de politique (spec 017, MatrixGrid) dans le cadre du shell.",
     views: [
       {
         id: "vlan",
@@ -269,7 +281,8 @@ export const MOCKUPS: Mockup[] = [
       {
         id: "matrice",
         label: "Matrice de politique",
-        description: "Matrice entre environnements, cellule choisie, effet simulé.",
+        description:
+          "Matrice entre environnements (en-têtes figés des deux côtés), cellule choisie dans le panneau droit, effet simulé.",
       },
     ],
   },

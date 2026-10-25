@@ -32,20 +32,39 @@
   - button "Compte de Camille Martin"
 - main:
   - heading "Changeset Renumérotation salle B" [level=1]
-  - region "Renumérotation salle B":
-    - heading "Renumérotation salle B" [level=2]
+  - region "Renumérotation salle B 5 objets":
+    - heading "Renumérotation salle B 5 objets" [level=2]
     - text: En revue
-    - button "Valider" [disabled]
-    - button "Autres actions"
+    - toolbar "Actions de revue":
+      - button "Retirer"
+      - button "Valider" [disabled]
+      - button "Effet sur la politique"
+      - button "Copier l'identifiant"
     - status:
       - paragraph: "Vous êtes l'auteur de ce changeset : un autre relecteur doit le valider."
       - list:
         - listitem:
-          - text: Validation par l'auteur refusée
+          - text: Une politique d'approbation retient les changements de VLAN.
           - button "Copier changeset.approval.self":
             - text: ""
             - code: changeset.approval.self
           - status
+    - term: Nature
+    - definition: Avec approbation
+    - term: Auteur
+    - definition: Lou Bernard
+    - term: Soumis
+    - definition: /\d+-\d+-\d+ \d+:\d+/
+    - term: Effet au
+    - definition: présent
+    - term: Rétroactif
+    - definition: non
+    - term: Identifiant
+    - definition:
+      - button "Copier 01JD4K8B2C3D4E5F6G7H8J9K0M":
+        - text: ""
+        - code: 01JD4K8B2C3D4E5F6G7H8J9K0M
+      - status
     - tablist "Contenu du changeset":
       - tab "Différentiel 5" [selected]
       - tab "Opérations 4"
@@ -115,37 +134,3 @@
           - text: "anomalie : Site du VLAN (vlan.site.mismatch)"
           - deletion: "avant : site-ouest"
           - insertion: "après : site-est"
-    - heading "Changeset" [level=2]
-    - term: Nature
-    - definition: Avec approbation
-    - term: Auteur
-    - definition: Lou Bernard
-    - term: Soumis
-    - definition: /\d+-\d+-\d+ \d+:\d+/
-    - term: Effet au
-    - definition: présent
-    - term: Rétroactif
-    - definition: non
-    - term: Identifiant
-    - definition:
-      - button "Copier 01JD4K8B2C3D4E5F6G7H8J9K0M":
-        - text: ""
-        - code: 01JD4K8B2C3D4E5F6G7H8J9K0M
-      - status
-    - heading "Approbation renumerotation" [level=2]
-    - paragraph: "Droits requis pour valider :"
-    - text: Appliquer les préfixes
-    - button "Copier core.prefix.apply":
-      - text: ""
-      - code: core.prefix.apply
-    - status
-    - text: Appliquer les VLAN
-    - button "Copier vlan.apply":
-      - text: ""
-      - code: vlan.apply
-    - status
-    - text: Appliquer les propriétés
-    - button "Copier prop.*.apply":
-      - text: ""
-      - code: prop.*.apply
-    - status
