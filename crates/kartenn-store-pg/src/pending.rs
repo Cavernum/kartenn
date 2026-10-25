@@ -2,6 +2,7 @@
 //! 39 to 43; tasks 004-11 to 14).
 
 use kartenn_core::audit::{AuditEvent, CHANGESET_EXPIRED};
+use kartenn_core::rules::{self, Violation};
 use kartenn_service::ChangesetRequest;
 use kartenn_service::audit::{Instance, Outcome, RequestContext};
 use kartenn_service::port::{ApprovalPolicy, Pending, PendingChangeset, StoreError, WriteError};
@@ -254,7 +255,6 @@ pub(crate) async fn policies(conn: &mut PgConnection) -> Result<Vec<ApprovalPoli
                     min_diff_objects: min_diff_objects.and_then(|m| u64::try_from(m).ok()),
                     property_keys,
                     domains: anchors(&perimeters, "domain"),
-                    authors: anchors(&authors, "person"),
                     scopes: ["entity", "site", "prefix"]
                         .iter()
                         .flat_map(|kind| {
@@ -265,18 +265,7 @@ pub(crate) async fn policies(conn: &mut PgConnection) -> Result<Vec<ApprovalPoli
                         .collect(),
                     author_roles: texts(&authors, "role"),
                     bound_roles: texts(&perimeters, "bound_role"),
-                    author_groups: authors
-                        .as_array()
-                        .into_iter()
-                        .flatten()
-                        .filter_map(|a| {
-                            let g = a.get("group")?;
-                            Some((
-                                g.get(0)?.as_str()?.to_owned(),
-                                g.get(1)?.as_str()?.to_owned(),
-                            ))
-                        })
-                        .collect(),
+                    author_groups: texts(&authors, "group"),
                     module_triggers: module_triggers
                         .as_array()
                         .into_iter()
@@ -325,21 +314,49 @@ pub(crate) async fn set_policy(
                 .map(|r| serde_json::json!({ "bound_role": r })),
         )
         .collect();
+    // REQ-025-13: an author is a role or a group of kartenn in force, as the changeset
+    // leaves them; an account is neither.
+    let (roles, groups): (Vec<String>, Vec<String>) = sqlx::query_as(
+        "SELECT
+             ARRAY(SELECT a FROM unnest($1::text[]) a
+                   WHERE NOT EXISTS (SELECT 1 FROM role r
+                                     WHERE r.key = a AND r.valid_period @> now())),
+             ARRAY(SELECT a FROM unnest($2::text[]) a
+                   WHERE NOT EXISTS (SELECT 1 FROM rbac_group g
+                                     WHERE g.key = a AND g.valid_period @> now()))",
+    )
+    .bind(&policy.author_roles)
+    .bind(&policy.author_groups)
+    .fetch_one(&mut *conn)
+    .await
+    .map_err(|e| WriteError::Store(store_err(e)))?;
+    if !roles.is_empty() || !groups.is_empty() {
+        let unknown = roles
+            .iter()
+            .map(|r| format!("role '{r}'"))
+            .chain(groups.iter().map(|g| format!("group '{g}'")))
+            .collect::<Vec<_>>()
+            .join(", ");
+        return Err(WriteError::Rule(
+            Violation::new(
+                &rules::POLICY_AUTHOR,
+                format!(
+                    "the policy '{}': no {unknown} in force; an author is a role or a group of kartenn, not an account",
+                    policy.name
+                ),
+            )
+            .with_subjects([policy.id]),
+        ));
+    }
     let authors: Vec<serde_json::Value> = policy
-        .authors
+        .author_roles
         .iter()
-        .map(|p| serde_json::json!({ "person": p }))
-        .chain(
-            policy
-                .author_roles
-                .iter()
-                .map(|r| serde_json::json!({ "role": r })),
-        )
+        .map(|r| serde_json::json!({ "role": r }))
         .chain(
             policy
                 .author_groups
                 .iter()
-                .map(|(i, g)| serde_json::json!({ "group": [i, g] })),
+                .map(|g| serde_json::json!({ "group": g })),
         )
         .collect();
     sqlx::query(

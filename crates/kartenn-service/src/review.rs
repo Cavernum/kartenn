@@ -28,15 +28,13 @@ pub struct Exposure {
     pub property_keys: BTreeSet<String>,
     /// Addressing domains touched.
     pub domains: BTreeSet<Uuid>,
-    /// The author.
-    pub author: Uuid,
     /// The scope identifiers of the policies (entities, sites, prefixes) the changeset
     /// touches (005).
     pub scopes_touched: BTreeSet<Uuid>,
-    /// The roles the author holds (005).
+    /// The roles the author holds through his groups (005, 025).
     pub author_roles: BTreeSet<String>,
-    /// The author's groups, as (issuer, group) (005).
-    pub author_groups: BTreeSet<(String, String)>,
+    /// The groups of kartenn the author is a member of, by key (025, REQ-025-13).
+    pub author_groups: BTreeSet<String>,
     /// The roles the changeset binds (005).
     pub bound_roles: BTreeSet<String>,
     /// Measures of the modules, `<module>.<measure>` (REQ-016-7); absent counts as zero.
@@ -66,16 +64,12 @@ pub fn holds(policy: &ApprovalPolicy, exposure: &Exposure) -> bool {
                     .iter()
                     .any(|(_, s)| exposure.scopes_touched.contains(s))
         }),
-        // The author: by person, role or group.
-        (!policy.authors.is_empty()
-            || !policy.author_roles.is_empty()
-            || !policy.author_groups.is_empty())
-        .then(|| {
-            policy.authors.contains(&exposure.author)
-                || policy
-                    .author_roles
-                    .iter()
-                    .any(|r| exposure.author_roles.contains(r))
+        // The author: by role or by group of kartenn, never by account (REQ-025-13).
+        (!policy.author_roles.is_empty() || !policy.author_groups.is_empty()).then(|| {
+            policy
+                .author_roles
+                .iter()
+                .any(|r| exposure.author_roles.contains(r))
                 || policy
                     .author_groups
                     .iter()
@@ -148,17 +142,18 @@ pub(crate) async fn holding_policy<T: WriteTx>(
     } else {
         BTreeSet::new()
     };
-    let author_groups = author
-        .issuer
-        .iter()
-        .flat_map(|i| author.groups.iter().map(move |g| (i.clone(), g.clone())))
-        .collect();
+    // Membership at the date of the evaluation, direct or through a group of the issuer
+    // the author's session carries (025, REQ-025-13).
+    let author_groups = if policies.iter().any(|p| !p.author_groups.is_empty()) {
+        tx.groups_of(author).await?.into_iter().collect()
+    } else {
+        BTreeSet::new()
+    };
     let exposure = Exposure {
         operations: req.operations.len(),
         diff_objects: diff.iter().map(|d| d.count).sum(),
         property_keys,
         domains: domains.iter().copied().collect(),
-        author: req.author,
         scopes_touched,
         author_roles,
         author_groups,
@@ -683,7 +678,6 @@ mod tests {
             min_diff_objects: None,
             property_keys: Vec::new(),
             domains: Vec::new(),
-            authors: Vec::new(),
             scopes: Vec::new(),
             author_roles: Vec::new(),
             author_groups: Vec::new(),
@@ -700,10 +694,9 @@ mod tests {
             diff_objects: 4_096,
             property_keys: ["policy.environment".to_owned()].into(),
             domains: [Uuid::from_u128(7)].into(),
-            author: Uuid::from_u128(9),
             scopes_touched: [Uuid::from_u128(5)].into(),
             author_roles: ["auditor".to_owned()].into(),
-            author_groups: [("idp".to_owned(), "netops".to_owned())].into(),
+            author_groups: ["netops".to_owned()].into(),
             bound_roles: ["administrator".to_owned()].into(),
             measures: [("policy.opens".to_owned(), 2)].into(),
         };
@@ -729,7 +722,7 @@ mod tests {
         assert!(!holds(&both, &exposure));
         let keys = ApprovalPolicy {
             property_keys: vec!["policy.environment".into()],
-            authors: vec![Uuid::from_u128(9)],
+            author_groups: vec!["netops".into()],
             ..policy()
         };
         assert!(holds(&keys, &exposure));
@@ -778,24 +771,44 @@ mod tests {
             ..policy()
         };
         assert!(!holds(&elsewhere, &exposure));
+    }
+
+    /// REQ-025-13: an author by role or by group of kartenn, never by account.
+    #[test]
+    fn an_author_is_designated_by_role_or_group() {
+        let exposure = Exposure {
+            author_roles: ["auditor".to_owned()].into(),
+            author_groups: ["netops".to_owned()].into(),
+            ..Exposure::default()
+        };
         for authors in [
             ApprovalPolicy {
                 author_roles: vec!["auditor".into()],
                 ..policy()
             },
             ApprovalPolicy {
-                author_groups: vec![("idp".into(), "netops".into())],
+                author_groups: vec!["netops".into()],
+                ..policy()
+            },
+            ApprovalPolicy {
+                author_roles: vec!["administrator".into()],
+                author_groups: vec!["netops".into()],
                 ..policy()
             },
         ] {
             assert!(holds(&authors, &exposure));
         }
-        assert!(!holds(
-            &ApprovalPolicy {
+        for others in [
+            ApprovalPolicy {
                 author_roles: vec!["administrator".into()],
                 ..policy()
             },
-            &exposure
-        ));
+            ApprovalPolicy {
+                author_groups: vec!["astreinte".into()],
+                ..policy()
+            },
+        ] {
+            assert!(!holds(&others, &exposure));
+        }
     }
 }

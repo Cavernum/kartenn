@@ -316,6 +316,9 @@ Acceptation :
   entité, ni lier un rôle qui contient une permission qu'il n'a pas, à lui ou à un autre.
 
 #### REQ-005-27 — Périmètres des politiques d'approbation
+*Amendée par la 025 (REQ-025-13, G10, 2026-10-25) : le groupe est un groupe kartenn ; un
+compte nommé n'est plus un auteur désignable
+([025](../025-droits-par-groupes/requirements.md)).*
 kartenn doit permettre aux politiques d'approbation (004) de viser un périmètre (entité,
 site, sous-arbre) et de désigner des auteurs par rôle ou par groupe. [K14, 004 tâche 13]
 

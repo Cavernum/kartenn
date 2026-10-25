@@ -745,18 +745,16 @@ pub(crate) enum CoreOperationDto {
         /// The changeset touches one of these addressing domains.
         #[serde(default)]
         domains: Vec<Uuid>,
-        /// The author is one of these people.
-        #[serde(default)]
-        authors: Vec<Uuid>,
         /// The changeset touches one of these scopes (005, REQ-005-27).
         #[serde(default)]
         scopes: Vec<ScopeDto>,
-        /// The author holds one of these roles (005).
+        /// The author holds one of these roles through one of his groups (005, 025).
         #[serde(default)]
         author_roles: Vec<String>,
-        /// The author belongs to one of these groups, as `[issuer, group]` (005).
+        /// The author is a member of one of these groups of kartenn, by key, directly or
+        /// through a group of his issuer; no account is an author (025, REQ-025-13).
         #[serde(default)]
-        author_groups: Vec<(String, String)>,
+        author_groups: Vec<String>,
         /// The changeset binds one of these roles (005, REQ-005-25).
         #[serde(default)]
         bound_roles: Vec<String>,
@@ -1133,7 +1131,6 @@ impl From<CoreOperationDto> for Operation {
                 min_diff_objects,
                 property_keys,
                 domains,
-                authors,
                 scopes,
                 author_roles,
                 author_groups,
@@ -1146,7 +1143,6 @@ impl From<CoreOperationDto> for Operation {
                 min_diff_objects,
                 property_keys,
                 domains,
-                authors,
                 scopes: scopes.into_iter().map(Into::into).collect(),
                 author_roles,
                 author_groups,
@@ -1487,9 +1483,9 @@ mod tests {
             json!({"op": "add_service_secret", "account": id, "secret": secret}),
             json!({"op": "revoke_service_secret", "account": id, "secret": other}),
             json!({"op": "set_approval_policy", "name": "p", "min_operations": 3,
-                "min_diff_objects": 9, "property_keys": ["vlan"], "domains": [id], "authors": [other],
+                "min_diff_objects": 9, "property_keys": ["vlan"], "domains": [id],
                 "scopes": [{"kind": "global"}, {"kind": "prefix", "id": {"id": id}}],
-                "author_roles": ["r"], "author_groups": [["i", "g"]], "bound_roles": ["admin"],
+                "author_roles": ["r"], "author_groups": ["g"], "bound_roles": ["admin"],
                 "enabled": false}),
             json!({"op": "restore", "kind": "enum_value", "id": {"id": id}, "property": other, "before": id}),
             json!({"op": "bind_external", "object": {"id": id}, "kind": "site", "source": "s",

@@ -196,6 +196,8 @@ Acceptation :
 
 #### REQ-004-40 — Déclencheurs d'une politique
 *Amendée par la 016 (REQ-016-7, 8, 2026-10-21) : mesures de module, politiques par défaut.*
+*Amendée par la 025 (REQ-025-13, 2026-10-25) : l'auteur se désigne par rôle ou par groupe
+kartenn, plus par compte ([025](../025-droits-par-groupes/requirements.md)).*
 kartenn doit permettre de définir une politique d'approbation par une combinaison de
 déclencheurs : volume (opérations ou objets du différentiel au-delà d'un seuil),
 propriété (changement direct ou indirect), périmètre, auteur (rôle, groupe, compte de

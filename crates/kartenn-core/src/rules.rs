@@ -229,6 +229,8 @@ rules! {
         "Une politique d'approbation a un nom et au moins un déclencheur.";
     POLICY_TRIGGER = "core.approval_policy.trigger", Error, ["REQ-016-7"], "016/G3",
         "Un déclencheur de politique nomme une mesure déclarée par un module du build.";
+    POLICY_AUTHOR = "core.approval_policy.author", Error, ["REQ-025-13"], "025/G10",
+        "Les auteurs d'une politique d'approbation se désignent par un rôle ou un groupe kartenn en vigueur, jamais par un compte.";
     POLICY_FORBIDDEN = "changeset.policy.forbidden", Error, ["REQ-004-39", "REQ-004-40"], "004/C6",
         "Créer, modifier ou désactiver une politique d'approbation exige le droit d'administration des politiques.";
     RBAC_INVALID = "core.role.invalid", Error, ["REQ-005-17", "REQ-005-25"], "005/K12",

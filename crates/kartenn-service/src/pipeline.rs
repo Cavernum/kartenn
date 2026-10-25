@@ -781,7 +781,6 @@ fn plan_policy(
         min_diff_objects,
         property_keys,
         domains,
-        authors,
         scopes,
         author_roles,
         author_groups,
@@ -802,10 +801,9 @@ fn plan_policy(
         min_diff_objects: *min_diff_objects,
         property_keys: property_keys.clone(),
         domains: domains.clone(),
-        authors: authors.clone(),
         scopes: Vec::new(),
-        author_roles: author_roles.clone(),
-        author_groups: author_groups.clone(),
+        author_roles: author_roles.iter().map(|r| r.trim().to_owned()).collect(),
+        author_groups: author_groups.iter().map(|g| g.trim().to_owned()).collect(),
         bound_roles: bound_roles.iter().map(|r| r.trim().to_owned()).collect(),
         module_triggers: module_triggers
             .iter()
@@ -842,7 +840,6 @@ fn plan_policy(
         || !policy.property_keys.is_empty()
         || !policy.domains.is_empty()
         || !policy.scopes.is_empty()
-        || !policy.authors.is_empty()
         || !policy.author_roles.is_empty()
         || !policy.author_groups.is_empty()
         || !policy.bound_roles.is_empty()

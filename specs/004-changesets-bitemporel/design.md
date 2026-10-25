@@ -177,8 +177,17 @@ s'appliquent déjà.
 
 **Politiques** (C6) : table `approval_policy` (`id`, `name`, déclencheurs :
 `min_operations`, `min_diff_objects`, `property_keys[]`, `perimeters[]`,
-`authors[]` (rôles, groupes, comptes), `enabled`). Évaluées après le différentiel ; aucune
+`authors[]` (rôles, groupes kartenn), `enabled`). Évaluées après le différentiel ; aucune
 par défaut. Gérées par changeset (permission d'administration, 005).
+
+*Amendé par la 025 (REQ-025-13, G10) :* un auteur se désigne par rôle (`{"role": clé}` :
+l'auteur détient ce rôle par une liaison de l'un de ses groupes) ou par groupe kartenn
+(`{"group": clé}` : l'auteur en est membre, directement ou par un groupe de l'IdP de sa
+session, à la date de l'évaluation, soumission ou revalidation) ; jamais par compte. Un
+rôle ou un groupe absent à l'écriture de la politique est refusé
+(`core.approval_policy.author`). La migration `0067` retire les auteurs par compte
+(`person`) et par groupe de l'IdP (`[émetteur, groupe]`), politique par politique, en
+avertissement ; une politique restée sans déclencheur est désactivée.
 
 **Proposition** (C7) : si la vérification des droits échoue pour des opérations ou des
 effets, la couche service vérifie, pour chacun, la permission `…propose` correspondante ;
@@ -230,9 +239,9 @@ détient ces droits (prédicat RBAC, 005). Volume attendu faible ; pagination st
 - **Politiques** : opération `SetApprovalPolicy` (création ou remplacement par nom,
   désactivation). Une politique vise un changeset quand **tous** ses déclencheurs définis
   correspondent (au moins un) : nombre d'opérations, nombre d'objets du différentiel,
-  propriétés changées (directement ou par effet), domaines du périmètre, auteurs
-  (personnes). Périmètres par entité, site ou sous-arbre et auteurs par rôle ou groupe :
-  avec la 005.
+  propriétés changées (directement ou par effet), domaines du périmètre. Périmètres par
+  entité, site ou sous-arbre et auteurs par rôle ou groupe : avec la 005 ; auteurs par
+  rôle ou groupe kartenn seulement, plus par personne : avec la 025 (REQ-025-13).
 
 ### Imports (REQ-004-28 à 30)
 

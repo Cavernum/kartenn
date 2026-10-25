@@ -180,7 +180,7 @@ coupent au plus 5 s plus tard (précision de la tâche 13).
   (K7) — vérifié par le prédicat sur l'objet du périmètre ; refus :
   `core.binding.escalation`.
 - Politiques d'approbation (004) : périmètre (entité, site, sous-arbre) et auteurs par
-  rôle ou groupe, évalués avec le même modèle ; déclencheur `bound_roles` : le changeset
+  rôle ou groupe (groupe kartenn depuis la 025, REQ-025-13), évalués avec le même modèle ; déclencheur `bound_roles` : le changeset
   lie l'un de ces rôles (second administrateur pour le rôle administrateur), rangé avec
   les périmètres de la politique.
 - Le secret d'un compte de service est généré hors du pipeline (`SecretHasher`) :

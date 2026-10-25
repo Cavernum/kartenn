@@ -98,8 +98,38 @@ Statut : spec **validée le 2026-10-25**.
 - [ ] 5. Routes `groups`, `groups/{id}/members`, `bindings` sur groupe, `GET /v1/me` et
   identités — REQ-025-11 — verify : `k-check`, OpenAPI régénérée
   - où : `crates/kartenn-rest/src/rights.rs` ; `specs/006-api-rest/design.md` ligne 94.
-- [ ] 6. Politiques d'approbation : auteurs par rôle ou groupe kartenn — REQ-025-13
+- [x] 6. Politiques d'approbation : auteurs par rôle ou groupe kartenn — REQ-025-13
   - où : `specs/004-changesets-bitemporel/design.md` ligne 180 et son code.
+  - Résultat : `ApprovalPolicy::authors` retiré, `author_groups` devient une liste de clés
+    de groupes kartenn ; `WriteTx::groups_of` (`rbac::groups_of_on`, par
+    `kartenn_member_of` à `now()`, vues `_asserted`) lu par `review::holding_policy` ;
+    validation à l'écriture dans `pending::set_policy` ; migration `0067_policy_authors.sql` ;
+    tests `policies_designate_their_authors_by_group_of_kartenn` (service),
+    `policy_authors_keep_roles_and_groups_of_kartenn` (rejeu de la migration),
+    `an_author_is_designated_by_role_or_group` ; contrat, `schema.d.ts` et
+    `regles-noyau.md` régénérés ; 004 (design, REQ-004-40) et 005 (REQ-005-27, design)
+    amendées.
+  - Choix tranchés :
+    - Forme : `author_groups: ["clé", …]` (plus `[émetteur, groupe]`), champ `authors`
+      (comptes) supprimé de `set_approval_policy` ; stockage `{"group": clé}` à côté de
+      `{"role": clé}`. Un champ `authors` encore envoyé est ignoré, comme tout champ
+      inconnu d'une opération.
+    - Règle `core.approval_policy.author` : un rôle ou un groupe absent à l'écriture de la
+      politique est refusé (un identifiant de compte mis en clé de groupe tombe dessous) ;
+      contrôle dans le magasin (`set_policy`), sur les tables et non les vues
+      `_asserted`, pour qu'un groupe créé plus tôt dans le même changeset compte. Un groupe
+      clos ensuite laisse la politique en place, sans auteur qui corresponde.
+    - Évaluation : par rôle, les rôles des liaisons des groupes de l'auteur
+      (`roles_of`, inchangé) ; par groupe, l'appartenance directe ou par un groupe de l'IdP
+      de la session (instantané gardé avec le changeset en attente) à `now()`, donc à la
+      soumission puis à la revalidation.
+    - Migration des politiques existantes : la clé `compte-<clé>` de la tâche 4 n'étant
+      pas fixée et ses groupes n'étant créés que pour les identités liées, pas de
+      conversion : les auteurs par compte (`person`) et par groupe de l'IdP sont retirés
+      par `0067`, chaque politique listée en `WARNING` de la migration ; une politique
+      restée sans déclencheur est désactivée (et listée) plutôt que laissée active sans
+      effet. La sortie de `migrate` (tâche 4) pourra reprendre cette liste. Numéro `0067`
+      à renuméroter si la tâche 4 en prend un.
 - [ ] 7. Client Python et CLI : `group`, `group member`, `bind --group` — REQ-025-11
   - où : spec 023.
 - [x] 8. Maquette E7 par groupes (onglets, fiche d'identité en lecture) et design 021 —

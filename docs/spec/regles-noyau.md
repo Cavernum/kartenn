@@ -61,6 +61,7 @@ Sévérités fixées par la spécification (002/A4).
 | `core.review.operation` | erreur | Seules les opérations qu'un module déclare « de revue » se joignent à la validation d'une proposition. | REQ-016-11 | 016/G12 |
 | `changeset.policy.invalid` | erreur | Une politique d'approbation a un nom et au moins un déclencheur. | REQ-004-40 | 004/C6 |
 | `core.approval_policy.trigger` | erreur | Un déclencheur de politique nomme une mesure déclarée par un module du build. | REQ-016-7 | 016/G3 |
+| `core.approval_policy.author` | erreur | Les auteurs d'une politique d'approbation se désignent par un rôle ou un groupe kartenn en vigueur, jamais par un compte. | REQ-025-13 | 025/G10 |
 | `changeset.policy.forbidden` | erreur | Créer, modifier ou désactiver une politique d'approbation exige le droit d'administration des politiques. | REQ-004-39, REQ-004-40 | 004/C6 |
 | `core.role.invalid` | erreur | Un rôle a une clé, des libellés et des entrées du catalogue ; un émetteur et un groupe ne sont pas vides. | REQ-005-17, REQ-005-25 | 005/K12 |
 | `core.rbac.forbidden` | erreur | Administrer les rôles, les émetteurs, les comptes ou les liaisons exige la permission d'administration correspondante. | REQ-005-26 | 005/K7, K11 |
