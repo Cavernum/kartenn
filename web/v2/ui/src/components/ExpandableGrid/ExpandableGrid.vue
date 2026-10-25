@@ -4,7 +4,7 @@
 
 <script setup lang="ts" generic="R extends Record<string, unknown>">
 // A compact data grid that opens large (design « Inventaire », ExpandableGrid; revue du
-// 2026-10-25): a list that may be long (the flows a draft breaks, the members of a group)
+// 2026-10-25): a list that may be long (the flows a draft makes nonconforming, the members of a group)
 // kept to a few rows in a narrow place (a panel, a section), its row count above it and
 // an « Agrandir » button that opens the same table in a large modal dialog (APG Dialog
 // (Modal): focus trapped, Escape closes, the focus back on the button). Both grids are

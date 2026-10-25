@@ -7,9 +7,9 @@
 // destination in the corner and in arrowheads on the borders of the crosshair), the chosen
 // cell in the right panel of the frame with its simulated effect. Its changes go to the
 // draft of the shell, whose tab lists the changed cells by source → destination with their
-// state before and after, the simulated effect (a count, then the broken flows in a
-// compact grid that opens large: ExpandableGrid), the other operations of the draft, and
-// the common foot.
+// state before and after, the simulated effect (counts against the flow matrix, then the
+// flows that become nonconforming, with their protocol, in a compact grid that opens
+// large: ExpandableGrid), the other operations of the draft, and the common foot.
 import {
   Button,
   CodeBadge,
@@ -159,50 +159,69 @@ const CHANGED = [
   },
 ];
 /**
- * The flows the draft breaks (25: the list is long, kept compact in the panel and opened
- * large on demand, ExpandableGrid), each with the code of the rule that refuses it.
+ * The flows that the draft makes nonconforming to the matrix (25: the list is long, kept
+ * compact in the panel and opened large on demand, ExpandableGrid), each with its
+ * protocol, its service and the code of the rule that refuses it. The protocol carries
+ * the port when it has one (TCP/443, UDP/53; ICMP has none): one column, never empty;
+ * the service is the name of what answers there.
  */
 const SOURCES = ["rece-batch", "rece-ci", "rece-web", "rece-etl", "rece-mon"];
 const TARGETS = [
-  ["prod-api", "tcp/443"],
-  ["prod-registry", "tcp/5000"],
-  ["prod-db", "tcp/5432"],
-  ["prod-cache", "tcp/6379"],
-  ["prod-bus", "tcp/5672"],
+  ["prod-api", "TCP/443", "https"],
+  ["prod-registry", "TCP/5000", "registry"],
+  ["prod-db", "TCP/5432", "postgresql"],
+  ["prod-dns", "UDP/53", "dns"],
+  ["prod-gw", "ICMP", "echo"],
 ] as const;
-interface Broken extends Record<string, unknown> {
+interface Nonconforming extends Record<string, unknown> {
   key: string;
   source: string;
   destination: string;
+  protocol: string;
   service: string;
   rule: string;
 }
-const BROKEN: Broken[] = Array.from({ length: 25 }, (_, i) => ({
-  key: `f${i}`,
-  source: SOURCES[i % 5]!,
-  destination: TARGETS[Math.floor(i / 5)]![0],
-  service: TARGETS[Math.floor(i / 5)]![1],
-  rule: i % 3 === 0 ? "flow.verdict.default" : "flow.verdict.denied",
-}));
-/** In the panel, the source and the destination; the service and the rule, enlarged. */
-const COMPACT = ["source", "destination"];
-const brokenColumns: GridColumn[] = [
-  { id: "source", label: "Source", width: "md", mono: true, sortable: true },
+const NONCONFORMING: Nonconforming[] = Array.from({ length: 25 }, (_, i) => {
+  const [destination, protocol, service] = TARGETS[Math.floor(i / 5)]!;
+  return {
+    key: `f${i}`,
+    source: SOURCES[i % 5]!,
+    destination,
+    protocol,
+    service,
+    rule: i % 3 === 0 ? "flow.verdict.default" : "flow.verdict.denied",
+  };
+});
+/**
+ * In the panel, the source, the destination and the protocol; all columns, enlarged. The
+ * source is narrow (its keys are short) so that the three fit the panel at 1024 px.
+ */
+const COMPACT = ["source", "destination", "protocol"];
+const nonconformingColumns: GridColumn[] = [
+  { id: "source", label: "Source", width: "sm", mono: true, sortable: true },
   { id: "destination", label: "Destination", width: "fill", mono: true, sortable: true },
+  { id: "protocol", label: "Protocole", width: "sm", mono: true, sortable: true },
   { id: "service", label: "Service", width: "sm", mono: true, sortable: true },
   { id: "rule", label: "Règle", width: "lg", sortable: true },
 ];
-const brokenSort = ref<GridSort>({ column: "destination", direction: "ascending" });
-const brokenRows = computed(() => {
-  const column = brokenSort.value.column;
-  const way = brokenSort.value.direction === "ascending" ? 1 : -1;
-  return [...BROKEN].sort((a, b) => way * String(a[column]).localeCompare(String(b[column])));
+const nonconformingSort = ref<GridSort>({ column: "destination", direction: "ascending" });
+const nonconformingRows = computed(() => {
+  const column = nonconformingSort.value.column;
+  const way = nonconformingSort.value.direction === "ascending" ? 1 : -1;
+  return [...NONCONFORMING].sort(
+    (a, b) => way * String(a[column]).localeCompare(String(b[column])),
+  );
 });
-/** The simulated effect of the draft on the flows. */
+/** The simulated effect of the draft on the flows, against the flow matrix. */
 const EFFECT = [
   { key: "opens", label: "S'ouvrent sous réserve", value: "1", mono: true },
-  { key: "breaks", label: "Cassent", value: String(BROKEN.length), mono: true },
-  { key: "heals", label: "Guérissent", value: "0", mono: true },
+  {
+    key: "nonconforming",
+    label: "Non conformes",
+    value: String(NONCONFORMING.length),
+    mono: true,
+  },
+  { key: "conforming", label: "Conformes de nouveau", value: "0", mono: true },
 ];
 </script>
 
@@ -300,7 +319,8 @@ const EFFECT = [
       <template #footer>
         <span>Brouillon · 1 cellule · 1 en revue</span>
         <span class="k-num"
-          >1 s'ouvre sous réserve · {{ BROKEN.length }} flux cassent · 0 guérit</span
+          >1 s'ouvre sous réserve · {{ NONCONFORMING.length }} non conformes à la matrice · 0
+          conforme de nouveau</span
         >
       </template>
     </Panneau>
@@ -317,12 +337,15 @@ const EFFECT = [
           <template #patterns><CodeBadge code="bastion-admin" /></template>
         </Attributs>
         <TextField label="Libellé" model-value="Accès recette vers production" />
-        <InlineAlert tone="warn" :title="`Effet simulé : ${BROKEN.length} flux cassent`" />
+        <InlineAlert
+          tone="warn"
+          :title="`Effet simulé : ${NONCONFORMING.length} flux deviennent non conformes à la matrice`"
+        />
         <ExpandableGrid
-          v-model:sort="brokenSort"
-          label="Flux cassés par Recette → Production"
-          :columns="brokenColumns"
-          :rows="brokenRows"
+          v-model:sort="nonconformingSort"
+          label="Flux non conformes à la matrice par Recette → Production"
+          :columns="nonconformingColumns"
+          :rows="nonconformingRows"
           row-key="key"
           :compact-columns="COMPACT"
           :visible-rows="3"
@@ -408,14 +431,17 @@ const EFFECT = [
         <Stack as="section" gap="2" aria-labelledby="k-e10-effect">
           <h2 id="k-e10-effect" class="k-ecran-subtitle">Effet simulé</h2>
           <Attributs :items="EFFECT" />
-          <InlineAlert tone="warn" :title="`${BROKEN.length} flux cassent`">
-            Ils passaient avant ce brouillon ; la règle qui les refuse est dans la liste.
+          <InlineAlert
+            tone="warn"
+            :title="`${NONCONFORMING.length} flux deviennent non conformes à la matrice`"
+          >
+            Ils étaient conformes avant ce brouillon ; la règle qui les refuse est dans la liste.
           </InlineAlert>
           <ExpandableGrid
-            v-model:sort="brokenSort"
-            label="Flux cassés par le brouillon"
-            :columns="brokenColumns"
-            :rows="brokenRows"
+            v-model:sort="nonconformingSort"
+            label="Flux non conformes à la matrice après ce brouillon"
+            :columns="nonconformingColumns"
+            :rows="nonconformingRows"
             row-key="key"
             :compact-columns="COMPACT"
           >

@@ -117,21 +117,23 @@ describe("ExpandableGrid (revue du 2026-10-25)", () => {
     key: `f${i}`,
     source: `rece-${i}`,
     destination: "prod-api",
+    protocol: "TCP/443",
     rule: "flow.verdict.denied",
   }));
   const flowColumns: GridColumn[] = [
     { id: "source", label: "Source", mono: true },
     { id: "destination", label: "Destination", width: "fill", mono: true },
+    { id: "protocol", label: "Protocole", width: "sm", mono: true },
     { id: "rule", label: "Règle", width: "lg" },
   ];
-  const base = { label: "Flux cassés", columns: flowColumns, rows: flows, rowKey: "key" };
+  const base = { label: "Flux non conformes", columns: flowColumns, rows: flows, rowKey: "key" };
 
   it("shows the row count, a few rows high, and a named button that opens a dialog", async () => {
     const html = await render(ExpandableGrid, { ...base, visibleRows: 4 });
     expect(text(html)).toContain("25 lignes");
     expect(html).toContain("--k-expandable-grid-rows:4");
     expect(html).toMatch(/<button[^>]*aria-haspopup="dialog"[^>]*aria-expanded="false"/);
-    expect(html).toContain('aria-label="Agrandir : Flux cassés"');
+    expect(html).toContain('aria-label="Agrandir : Flux non conformes"');
     // Closed, one grid only; all the rows are in it (it scrolls, nothing is cut).
     expect(html.match(/role="grid"/g)).toHaveLength(1);
     expect(html.match(/role="row"/g)).toHaveLength(26);
@@ -140,11 +142,12 @@ describe("ExpandableGrid (revue du 2026-10-25)", () => {
   it("keeps the compact columns in the compact grid only", async () => {
     const html = await render(ExpandableGrid, {
       ...base,
-      compactColumns: ["source", "destination"],
+      compactColumns: ["source", "destination", "protocol"],
     });
     expect(html).toMatch(
-      /role="grid" aria-label="Flux cassés" aria-rowcount="26" aria-colcount="2"/,
+      /role="grid" aria-label="Flux non conformes" aria-rowcount="26" aria-colcount="3"/,
     );
+    expect(html).toContain("Protocole");
     expect(html).not.toContain("Règle");
   });
 
@@ -271,6 +274,16 @@ describe("filters, differential, view states", () => {
     expect(await render(InlineAlert, { tone: "warn", title: "Attention." })).toContain(
       'role="status"',
     );
+    // Another icon, the colour and the role of the tone kept.
+    const warn = await render(InlineAlert, { tone: "warn", title: "Lecture seule." });
+    const locked = await render(InlineAlert, {
+      tone: "warn",
+      title: "Lecture seule.",
+      icon: "lock",
+    });
+    expect(locked).toContain('role="status"');
+    expect(locked).toContain('data-tone="warn"');
+    expect(locked).not.toEqual(warn);
   });
 
   it("Skeleton: busy, said in words, the bars hidden", async () => {
