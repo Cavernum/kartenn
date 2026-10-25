@@ -206,7 +206,13 @@ export const MOCKUPS: Mockup[] = [
         id: "roles",
         label: "Rôles",
         description:
-          "Rôles ; le rôle choisi dans le panneau droit : permissions une par ligne (nom servi et libellé), liaisons qui défilent dans le panneau.",
+          "Rôles ; le rôle choisi dans le panneau droit : permissions une par ligne (libellé puis nom servi), liaisons qui défilent dans le panneau ; actions de chaque ligne dans une dernière colonne (retirer, modifier une liaison, refusées par motif sur une portée globale), « Ajouter » sous chaque liste.",
+      },
+      {
+        id: "edition",
+        label: "Rôle en édition",
+        description:
+          "Le même rôle modifié : une permission retirée (barrée, « Annuler le retrait »), une ajoutée en fin de liste, une liaison retirée, lignes au style du brouillon ; compteur et onglet « Brouillon 3 ».",
       },
       {
         id: "liaisons",

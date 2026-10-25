@@ -2,22 +2,27 @@
 // E7 — Administration (design « Maquettes »; 021, « Catalogue des écrans », Administration;
 // spec 018 : permissions servies `module.action` avec leur libellé; 024/M8, M13, M15):
 // roles, and the chosen role in the right panel (its permissions one per line, label then
-// served name; its bindings, which scroll in the panel); bindings with their scope and
-// period, a new one in the same right panel; a new secret of a service account shown once.
+// served name; its bindings, which scroll in the panel; each row ends with its actions, in
+// a column of fixed place); the same role edited (024-11): a removal and an addition of a
+// permission and a removal of a binding wait in the draft, marked on their rows, the draft
+// counter at 3; bindings with their scope and period, a new one in the same right panel;
+// a new secret of a service account shown once.
 import {
   Button,
   Cluster,
   CodeBadge,
   DataGrid,
   Dialog,
+  Icon,
+  IconButton,
   InlineAlert,
   KeyLabel,
-  SidePanel,
   Stack,
   StatusBadge,
   TextField,
   type GridColumn,
   type GridSort,
+  type RowState,
   type ToolbarAction,
 } from "@kartenn/ui";
 import { ref } from "vue";
@@ -27,10 +32,9 @@ import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
 
 const props = defineProps<{ vue: string }>();
-const panelTabs = [
-  { value: "detail", label: "Détail" },
-  { value: "draft", label: "Brouillon", count: 0 },
-];
+/** The chosen role in the panel: read (`roles`) or with operations in the draft (`edition`). */
+const roleShown = props.vue === "roles" || props.vue === "edition";
+const editing = props.vue === "edition";
 
 interface Role extends Record<string, unknown> {
   key: string;
@@ -69,32 +73,65 @@ const createActions: ToolbarAction[] = [
   { id: "create", label: "Créer", icon: "plus", variant: "primary", shortcut: ["c"] },
 ];
 const roleSort = ref<GridSort>({ column: "key", direction: "ascending" });
-const permissions = [
+/** The edited role is marked as in the draft in the table. */
+const roleState = (row: Role): RowState | undefined =>
+  editing && row.key === "lecteur-reseau" ? "draft" : undefined;
+/** A row waiting in the draft: removed (still shown, struck) or added (at the end). */
+type Pending = "removed" | "added" | undefined;
+const PENDING = {
+  removed: { icon: "minus", label: "Retrait en brouillon" },
+  added: { icon: "plus", label: "Ajout en brouillon" },
+} as const;
+
+interface Grant {
+  code: string;
+  label: string;
+  pending?: Pending;
+}
+const permissions: Grant[] = [
   { code: "core.prefix.read", label: "Lire les préfixes" },
   { code: "core.address.read", label: "Lire les adresses" },
   { code: "core.range.read", label: "Lire les plages" },
-  { code: "core.site.read", label: "Lire les sites" },
+  { code: "core.site.read", label: "Lire les sites", pending: editing ? "removed" : undefined },
   { code: "vlan.read", label: "Lire les VLAN" },
   { code: "vlan.group.read", label: "Lire les groupes de VLAN" },
   { code: "machines.read", label: "Lire les machines" },
   { code: "machines.interface.read", label: "Lire les interfaces" },
+  ...(editing
+    ? [{ code: "core.domain.read", label: "Lire les domaines", pending: "added" as const }]
+    : []),
 ];
-const roleBindings = [
+
+interface RoleBinding {
+  subject: string;
+  scope: string;
+  pending?: Pending;
+  /** Why this binding cannot be changed by the user (024/M14). */
+  reason?: string;
+}
+// A global scope is wider than the bindings of the user: refused (core.binding.escalation).
+const WIDER = "Portée plus large que vos liaisons (core.binding.escalation).";
+const roleBindings: RoleBinding[] = [
   { subject: "Équipe supervision", scope: "Site : site-ouest" },
-  { subject: "Équipe réseau", scope: "Globale" },
+  { subject: "Équipe réseau", scope: "Globale", reason: WIDER },
   { subject: "Lou Bernard", scope: "Entité : Atelier Nord" },
-  { subject: "Sam Leroy", scope: "Site : site-est" },
+  { subject: "Sam Leroy", scope: "Site : site-est", pending: editing ? "removed" : undefined },
   { subject: "Équipe sauvegarde", scope: "Domaine : dc-nord" },
   { subject: "Alex Morel", scope: "Site : site-ouest" },
-  { subject: "Équipe astreinte", scope: "Globale" },
+  { subject: "Équipe astreinte", scope: "Globale", reason: WIDER },
   { subject: "Noa Petit", scope: "Entité : Atelier Sud" },
   { subject: "export-dns", scope: "Domaine : dc-nord" },
 ];
 const roleActions: ToolbarAction[] = [
-  { id: "edit", label: "Modifier", icon: "pencil", shortcut: ["e"], priority: 3 },
-  { id: "add", label: "Ajouter une permission", icon: "plus", priority: 2 },
+  { id: "edit", label: "Modifier", icon: "pencil", shortcut: ["e"], priority: 2 },
   { id: "copy", label: "Dupliquer", icon: "copy", priority: 1 },
   { id: "delete", label: "Supprimer…", icon: "trash", reason: "Le rôle a 9 liaisons." },
+];
+/** The operations of the draft in the view `edition` (its tab « Brouillon 3 »). */
+const roleOperations = [
+  { what: "Retirer la permission", target: "core.site.read" },
+  { what: "Ajouter la permission", target: "core.domain.read" },
+  { what: "Retirer la liaison", target: "Sam Leroy · Site : site-est" },
 ];
 
 interface Binding extends Record<string, unknown> {
@@ -189,7 +226,8 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
     "
     :active="props.vue === 'liaisons' ? 'bindings' : props.vue === 'secret' ? 'accounts' : 'roles'"
     space="admin"
-    :draft="0"
+    :draft="editing ? roleOperations.length : 0"
+    :panel="props.vue === 'secret' ? undefined : 'detail'"
     :crumbs="[
       { label: 'Administration', to: '/admin' },
       props.vue === 'liaisons'
@@ -197,10 +235,10 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
         : props.vue === 'secret'
           ? { label: 'Comptes de service' }
           : { label: 'Rôles', to: '/admin/roles' },
-      ...(props.vue === 'roles' ? [{ label: 'lecteur-reseau', mono: true }] : []),
+      ...(roleShown ? [{ label: 'lecteur-reseau', mono: true }] : []),
     ]"
   >
-    <template v-if="props.vue === 'roles'">
+    <template v-if="roleShown">
       <Panneau title="Rôles" detail="6" main flush>
         <template #toolbar>
           <Barre label="Actions des rôles" :actions="createActions" align="start" />
@@ -213,6 +251,7 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
           row-key="key"
           selectable
           :selected="['lecteur-reseau']"
+          :row-state="roleState"
         >
           <template #cell="{ row, column, value }">
             <KeyLabel v-if="column.id === 'key'" :value="row.key" :label="row.label" show-key />
@@ -287,87 +326,177 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
       </Dialog>
     </template>
 
-    <template v-if="props.vue !== 'secret'" #drawer>
-      <SidePanel label="Panneau droit" :tabs="panelTabs" tab="detail">
-        <template #detail>
-          <Stack v-if="props.vue === 'roles'" gap="4">
-            <Stack gap="2">
-              <h2 class="k-ecran-subtitle">
-                Lecteur réseau <span class="k-mono k-ecran-muted">lecteur-reseau</span>
-              </h2>
-              <Barre label="Actions du rôle" :actions="roleActions" align="start" />
-            </Stack>
-            <section aria-labelledby="k-ecran-permissions">
-              <Stack gap="2">
-                <h3 id="k-ecran-permissions" class="k-ecran-subtitle">Permissions · 8</h3>
-                <ul class="k-ecran-list k-ecran-lignes k-ecran-lignes--valeur">
-                  <li v-for="permission in permissions" :key="permission.code">
-                    <span>{{ permission.label }}</span>
-                    <CodeBadge :code="permission.code" />
-                  </li>
-                </ul>
-              </Stack>
-            </section>
-            <section aria-labelledby="k-ecran-liaisons">
-              <Stack gap="2">
-                <h3 id="k-ecran-liaisons" class="k-ecran-subtitle">Liaisons · 9</h3>
-                <ul class="k-ecran-list k-ecran-lignes">
-                  <li v-for="binding in roleBindings" :key="binding.subject">
-                    <span>{{ binding.subject }}</span>
-                    <span class="k-ecran-muted">{{ binding.scope }}</span>
-                  </li>
-                </ul>
-              </Stack>
-            </section>
+    <template #detail>
+      <Stack v-if="roleShown" gap="4">
+        <Stack gap="2">
+          <h2 class="k-ecran-subtitle">
+            Lecteur réseau <span class="k-mono k-ecran-muted">lecteur-reseau</span>
+          </h2>
+          <Barre label="Actions du rôle" :actions="roleActions" align="start" />
+        </Stack>
+        <section aria-labelledby="k-ecran-permissions">
+          <Stack gap="2">
+            <h3 id="k-ecran-permissions" class="k-ecran-subtitle">
+              Permissions · 8
+              <span v-if="editing" class="k-ecran-muted k-ecran-poids">(brouillon : −1, +1)</span>
+            </h3>
+            <ul class="k-ecran-list k-ecran-lignes k-ecran-lignes--valeur">
+              <li v-for="grant in permissions" :key="grant.code" :data-pending="grant.pending">
+                <span class="k-ecran-ligne__texte">
+                  <Icon
+                    v-if="grant.pending"
+                    :name="PENDING[grant.pending].icon"
+                    meaningful
+                    :label="PENDING[grant.pending].label"
+                    class="k-ecran-ligne__marque"
+                  />
+                  <span class="k-ecran-ligne__libelle">{{ grant.label }}</span>
+                </span>
+                <CodeBadge :code="grant.code" />
+                <span class="k-ecran-ligne__actions">
+                  <IconButton
+                    v-if="grant.pending === 'removed'"
+                    icon="undo-2"
+                    size="sm"
+                    :label="`Annuler le retrait de ${grant.code}`"
+                  />
+                  <IconButton
+                    v-else-if="grant.pending === 'added'"
+                    icon="x"
+                    size="sm"
+                    :label="`Retirer l'ajout de ${grant.code} du brouillon`"
+                  />
+                  <IconButton
+                    v-else
+                    icon="trash"
+                    size="sm"
+                    :label="`Retirer la permission ${grant.code}`"
+                  />
+                </span>
+              </li>
+            </ul>
+            <span>
+              <Button size="sm" variant="ghost" icon="plus">Ajouter une permission</Button>
+            </span>
           </Stack>
-          <Stack v-else gap="3">
-            <h2 class="k-ecran-subtitle">Nouvelle liaison</h2>
-            <TextField label="Sujet" model-value="Équipe supervision" />
-            <AVenir component="Select" task="18">
-              <TextField label="Rôle" readonly mono model-value="admin" />
-            </AVenir>
-            <AVenir component="Select" task="18">
-              <TextField label="Portée" readonly model-value="Globale" />
-            </AVenir>
-            <TextField
-              label="Du"
-              mono
-              model-value="2026-01-15"
-              hint="La liaison prend effet à cette date."
-            />
-            <InlineAlert
-              tone="ko"
-              title="Liaison refusée"
-              :items="[
-                {
-                  message: 'Vous ne pouvez accorder un rôle plus large que les vôtres.',
-                  code: 'core.binding.escalation',
-                },
-              ]"
-            />
+        </section>
+        <section aria-labelledby="k-ecran-liaisons">
+          <Stack gap="2">
+            <h3 id="k-ecran-liaisons" class="k-ecran-subtitle">
+              Liaisons · 9
+              <span v-if="editing" class="k-ecran-muted k-ecran-poids">(brouillon : −1)</span>
+            </h3>
+            <ul class="k-ecran-list k-ecran-lignes">
+              <li
+                v-for="binding in roleBindings"
+                :key="binding.subject"
+                :data-pending="binding.pending"
+              >
+                <span class="k-ecran-ligne__texte">
+                  <Icon
+                    v-if="binding.pending"
+                    :name="PENDING[binding.pending].icon"
+                    meaningful
+                    :label="PENDING[binding.pending].label"
+                    class="k-ecran-ligne__marque"
+                  />
+                  <span class="k-ecran-ligne__libelle">{{ binding.subject }}</span>
+                </span>
+                <span class="k-ecran-muted">{{ binding.scope }}</span>
+                <span class="k-ecran-ligne__actions">
+                  <IconButton
+                    v-if="binding.pending === 'removed'"
+                    icon="undo-2"
+                    size="sm"
+                    :label="`Annuler le retrait de la liaison de ${binding.subject}`"
+                  />
+                  <template v-else>
+                    <IconButton
+                      icon="pencil"
+                      size="sm"
+                      :label="`Modifier la liaison de ${binding.subject}`"
+                      :reason="binding.reason"
+                    />
+                    <IconButton
+                      icon="trash"
+                      size="sm"
+                      :label="`Retirer la liaison de ${binding.subject}`"
+                      :reason="binding.reason"
+                    />
+                  </template>
+                </span>
+              </li>
+            </ul>
+            <span>
+              <Button size="sm" variant="ghost" icon="plus">Ajouter une liaison</Button>
+            </span>
           </Stack>
-        </template>
-        <template #draft>
-          <p class="k-ecran-muted">Le brouillon est vide.</p>
-        </template>
-        <template v-if="props.vue === 'liaisons'" #footer>
-          <Cluster gap="2" justify="end">
-            <Button variant="ghost">Annuler</Button>
-            <Button variant="primary" icon="check">Créer la liaison</Button>
+        </section>
+      </Stack>
+      <Stack v-else gap="3">
+        <h2 class="k-ecran-subtitle">Nouvelle liaison</h2>
+        <TextField label="Sujet" model-value="Équipe supervision" />
+        <AVenir component="Select" task="18">
+          <TextField label="Rôle" readonly mono model-value="admin" />
+        </AVenir>
+        <AVenir component="Select" task="18">
+          <TextField label="Portée" readonly model-value="Globale" />
+        </AVenir>
+        <TextField
+          label="Du"
+          mono
+          model-value="2026-01-15"
+          hint="La liaison prend effet à cette date."
+        />
+        <InlineAlert
+          tone="ko"
+          title="Liaison refusée"
+          :items="[
+            {
+              message: 'Vous ne pouvez accorder un rôle plus large que les vôtres.',
+              code: 'core.binding.escalation',
+            },
+          ]"
+        />
+      </Stack>
+    </template>
+    <template v-if="props.vue === 'liaisons'" #detail-footer>
+      <Cluster gap="2" justify="end">
+        <Button variant="ghost">Annuler</Button>
+        <Button variant="primary" icon="check">Créer la liaison</Button>
+      </Cluster>
+    </template>
+    <template v-if="editing" #draft>
+      <Stack as="ol" gap="2" class="k-ecran-list" aria-label="Opérations du brouillon">
+        <li v-for="op in roleOperations" :key="op.target">
+          <Cluster justify="between" :wrap="false" gap="2">
+            <Cluster gap="2" :wrap="false" class="k-ecran-op">
+              <Icon name="draft" />
+              <code>lecteur-reseau</code>
+              <span class="k-ecran-op__change"
+                >{{ op.what }} <span class="k-ecran-muted">({{ op.target }})</span></span
+              >
+            </Cluster>
+            <IconButton
+              icon="x"
+              size="sm"
+              :label="`Retirer l'opération « ${op.what} » ${op.target}`"
+            />
           </Cluster>
-        </template>
-      </SidePanel>
+        </li>
+      </Stack>
     </template>
   </Cadre>
 </template>
 
 <style>
 @layer components {
-  /* One entry per line, in two aligned columns: a subject and its scope; a label and its
-   * served name (024-11: the description on the left, the value on the right). */
+  /* One entry per line, in aligned columns: a subject and its scope; a label and its
+   * served name (024-11: the description on the left, the value on the right); then the
+   * actions of the row, in a last column at the end, at the same place on every row. */
   .k-ecran-lignes {
     display: grid;
-    grid-template-columns: max-content minmax(0, 1fr);
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
     gap: var(--k-space-1) var(--k-space-3);
     align-items: center;
   }
@@ -378,10 +507,55 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
     grid-template-columns: subgrid;
     align-items: center;
     min-block-size: var(--k-row-height);
+    padding-inline-start: var(--k-space-2);
+    border-radius: var(--k-radius-sm);
   }
 
   .k-ecran-lignes--valeur {
-    grid-template-columns: minmax(0, 1fr) max-content;
+    grid-template-columns: minmax(0, 1fr) max-content max-content;
+  }
+
+  /* A row waiting in the draft: the draft look of the grids (accent background and bar),
+   * its sign before the text; a removal stays in place, struck. */
+  .k-ecran-lignes > li[data-pending] {
+    background-color: var(--k-accent-soft);
+    box-shadow: var(--k-shadow-inset-accent);
+  }
+
+  .k-ecran-lignes > li[data-pending="removed"] .k-ecran-ligne__libelle {
+    color: var(--k-text-muted);
+    text-decoration: line-through;
+  }
+
+  .k-ecran-lignes > li[data-pending="removed"] .k-ecran-ligne__marque {
+    color: var(--k-diff-removed);
+  }
+
+  .k-ecran-lignes > li[data-pending="added"] .k-ecran-ligne__marque {
+    color: var(--k-diff-added);
+  }
+
+  .k-ecran-ligne__texte {
+    display: inline-flex;
+    gap: var(--k-space-1);
+    align-items: center;
+    min-inline-size: 0;
+  }
+
+  .k-ecran-ligne__marque {
+    flex: none;
+  }
+
+  /* The actions of a row, at the end of their column whatever their number. */
+  .k-ecran-ligne__actions {
+    display: inline-flex;
+    gap: var(--k-space-1);
+    align-items: center;
+    justify-self: end;
+  }
+
+  .k-ecran-poids {
+    font-weight: var(--k-weight-regular);
   }
 }
 </style>

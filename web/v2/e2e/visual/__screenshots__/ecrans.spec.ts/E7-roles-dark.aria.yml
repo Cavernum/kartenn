@@ -107,8 +107,8 @@
     - heading "Lecteur réseau lecteur-reseau" [level=2]
     - toolbar "Actions du rôle":
       - button "Modifier"
-      - button "Ajouter une permission"
-      - button "Plus d'actions"
+      - button "Dupliquer"
+      - button "Supprimer…" [disabled]
     - region "Permissions · 8":
       - heading "Permissions · 8" [level=3]
       - list:
@@ -118,58 +118,95 @@
             - text: ""
             - code: core.prefix.read
           - status
+          - button "Retirer la permission core.prefix.read"
         - listitem:
           - text: Lire les adresses
           - button "Copier core.address.read":
             - text: ""
             - code: core.address.read
           - status
+          - button "Retirer la permission core.address.read"
         - listitem:
           - text: Lire les plages
           - button "Copier core.range.read":
             - text: ""
             - code: core.range.read
           - status
+          - button "Retirer la permission core.range.read"
         - listitem:
           - text: Lire les sites
           - button "Copier core.site.read":
             - text: ""
             - code: core.site.read
           - status
+          - button "Retirer la permission core.site.read"
         - listitem:
           - text: Lire les VLAN
           - button "Copier vlan.read":
             - text: ""
             - code: vlan.read
           - status
+          - button "Retirer la permission vlan.read"
         - listitem:
           - text: Lire les groupes de VLAN
           - button "Copier vlan.group.read":
             - text: ""
             - code: vlan.group.read
           - status
+          - button "Retirer la permission vlan.group.read"
         - listitem:
           - text: Lire les machines
           - button "Copier machines.read":
             - text: ""
             - code: machines.read
           - status
+          - button "Retirer la permission machines.read"
         - listitem:
           - text: Lire les interfaces
           - button "Copier machines.interface.read":
             - text: ""
             - code: machines.interface.read
           - status
+          - button "Retirer la permission machines.interface.read"
+      - button "Ajouter une permission"
     - region "Liaisons · 9":
       - heading "Liaisons · 9" [level=3]
       - list:
-        - listitem: "Équipe supervision Site : site-ouest"
-        - listitem: Équipe réseau Globale
-        - listitem: "Lou Bernard Entité : Atelier Nord"
-        - listitem: "Sam Leroy Site : site-est"
-        - listitem: "Équipe sauvegarde Domaine : dc-nord"
-        - listitem: "Alex Morel Site : site-ouest"
-        - listitem: Équipe astreinte Globale
-        - listitem: "Noa Petit Entité : Atelier Sud"
-        - listitem: "export-dns Domaine : dc-nord"
+        - listitem:
+          - text: "Équipe supervision Site : site-ouest"
+          - button "Modifier la liaison de Équipe supervision"
+          - button "Retirer la liaison de Équipe supervision"
+        - listitem:
+          - text: Équipe réseau Globale
+          - button "Modifier la liaison de Équipe réseau" [disabled]
+          - button "Retirer la liaison de Équipe réseau" [disabled]
+        - listitem:
+          - text: "Lou Bernard Entité : Atelier Nord"
+          - button "Modifier la liaison de Lou Bernard"
+          - button "Retirer la liaison de Lou Bernard"
+        - listitem:
+          - text: "Sam Leroy Site : site-est"
+          - button "Modifier la liaison de Sam Leroy"
+          - button "Retirer la liaison de Sam Leroy"
+        - listitem:
+          - text: "Équipe sauvegarde Domaine : dc-nord"
+          - button "Modifier la liaison de Équipe sauvegarde"
+          - button "Retirer la liaison de Équipe sauvegarde"
+        - listitem:
+          - text: "Alex Morel Site : site-ouest"
+          - button "Modifier la liaison de Alex Morel"
+          - button "Retirer la liaison de Alex Morel"
+        - listitem:
+          - text: Équipe astreinte Globale
+          - button "Modifier la liaison de Équipe astreinte" [disabled]
+          - button "Retirer la liaison de Équipe astreinte" [disabled]
+        - listitem:
+          - text: "Noa Petit Entité : Atelier Sud"
+          - button "Modifier la liaison de Noa Petit"
+          - button "Retirer la liaison de Noa Petit"
+        - listitem:
+          - text: "export-dns Domaine : dc-nord"
+          - button "Modifier la liaison de export-dns"
+          - button "Retirer la liaison de export-dns"
+      - button "Ajouter une liaison"
   - button "Fermer le panneau"

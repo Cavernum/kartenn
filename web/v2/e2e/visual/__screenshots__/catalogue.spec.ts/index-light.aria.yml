@@ -204,6 +204,9 @@
         - link "E7 Administration — Rôles":
           - /url: /_ui/ecrans/E7?mode=light&vue=roles
       - listitem:
+        - link "E7 Administration — Rôle en édition":
+          - /url: /_ui/ecrans/E7?mode=light&vue=edition
+      - listitem:
         - link "E7 Administration — Liaisons":
           - /url: /_ui/ecrans/E7?mode=light&vue=liaisons
       - listitem:
