@@ -54,7 +54,6 @@
     - heading /Adresses 1 \d+/ [level=2]
     - toolbar "Actions sur les adresses":
       - button "Créer"
-      - button "Colonnes"
       - button "Importer"
     - button "Domaine = Centre de données nord"
     - button "Retirer le filtre Domaine = Centre de données nord"
@@ -156,6 +155,7 @@
           - gridcell /srv-app-\d+/
           - gridcell /\d+/
     - text: /8 affichées sur 1 \d+ Entrée vers le brouillon · Ctrl Entrée appliquer avec motif · Échap annuler/
+- button "Ouvrir le panneau"
 - menu "Action groupée":
   - menuitem "Changer l'usage…"
   - menuitem "Changer le propriétaire…"

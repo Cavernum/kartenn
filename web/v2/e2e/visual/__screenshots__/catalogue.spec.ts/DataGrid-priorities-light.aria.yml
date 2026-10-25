@@ -1,0 +1,29 @@
+- main:
+  - region "DataGrid":
+    - heading "DataGrid" [level=1]
+    - paragraph: "Motif : Grid (maison) ; une seule grille, lignes en subgrid ; tri et filtre de colonne"
+    - 'figure /priorities — Grille de \d+ px : colonnes de priorité 2 et 3 masquées, colonne de clé collante, « Colonnes » les rend/':
+      - button "Colonnes"
+      - grid "Préfixes du domaine":
+        - rowgroup:
+          - row "Préfixe Libellé":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs de bases/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs de bases"
+          - row /\d+\.\d+\.2\.0\/\d+ Postes du siège/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Postes du siège"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Supervision"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Sauvegardes"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+      - code: priorities
+      - text: ""

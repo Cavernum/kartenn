@@ -172,13 +172,15 @@ test.describe("Toolbar", () => {
   test("narrow, the folded actions are in « … »", async ({ page }) => {
     await state(page, "Toolbar", "narrow");
     const bar = page.getByRole("toolbar");
-    await expect(bar.getByRole("button")).toHaveCount(3);
+    // Under a container xs (360 px), the main action alone stays beside « … ».
+    await expect(bar.getByRole("button")).toHaveCount(2);
     await bar.getByRole("button", { name: "Créer" }).focus();
     await page.keyboard.press("End");
     const more = bar.getByRole("button", { name: "Plus d'actions" });
     await expect(more).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.getByRole("menuitem")).toHaveText([
+      "Modifier",
       "Importer",
       "Exporter",
       "Historique",
