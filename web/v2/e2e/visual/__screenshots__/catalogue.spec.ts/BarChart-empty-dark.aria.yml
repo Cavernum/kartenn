@@ -1,0 +1,37 @@
+- main:
+  - region "BarChart":
+    - heading "BarChart" [level=1]
+    - paragraph: "Motif : role img nommé par un résumé, table de données cachée"
+    - 'figure "empty — Série nulle : la ligne de base et l''échelle à 1"':
+      - figure:
+        - 'img /Changesets appliqués par jour : 7 valeurs, 9 janv\. – \d+ janv\. ; maximum 0 \(9 janv\.\) ; dernière 0/'
+        - table "Changesets appliqués par jour":
+          - caption: Changesets appliqués par jour
+          - rowgroup:
+            - row "Jour Appliqués":
+              - columnheader "Jour"
+              - columnheader "Appliqués"
+          - rowgroup:
+            - row "9 janv. 0":
+              - rowheader "9 janv."
+              - cell "0"
+            - row /\d+ janv\. 0/:
+              - rowheader /\d+ janv\./
+              - cell "0"
+            - row /\d+ janv\. 0/:
+              - rowheader /\d+ janv\./
+              - cell "0"
+            - row /\d+ janv\. 0/:
+              - rowheader /\d+ janv\./
+              - cell "0"
+            - row /\d+ janv\. 0/:
+              - rowheader /\d+ janv\./
+              - cell "0"
+            - row /\d+ janv\. 0/:
+              - rowheader /\d+ janv\./
+              - cell "0"
+            - row /\d+ janv\. 0/:
+              - rowheader /\d+ janv\./
+              - cell "0"
+      - code: empty
+      - text: ""

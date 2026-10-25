@@ -1,0 +1,23 @@
+- main:
+  - region "BarList":
+    - heading "BarList" [level=1]
+    - paragraph: "Motif : table (en-têtes de ligne, valeurs), barres décoratives"
+    - 'figure "over — Une valeur au-delà de l''échelle : barre pleine, coupée à sa fin"':
+      - table "Occupation des groupes de VLAN":
+        - caption: Occupation des groupes de VLAN
+        - rowgroup:
+          - row "Point Valeur":
+            - columnheader "Point"
+            - columnheader "Valeur"
+        - rowgroup:
+          - row /dmz \d+ %/:
+            - rowheader "dmz"
+            - cell /\d+ %/
+          - row /campus-est \d+ %/:
+            - rowheader "campus-est"
+            - cell /\d+ %/
+          - row "labo 6 %":
+            - rowheader "labo"
+            - cell "6 %"
+      - code: over
+      - text: ""

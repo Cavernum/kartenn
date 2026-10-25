@@ -1,0 +1,23 @@
+- main:
+  - region "BarList":
+    - heading "BarList" [level=1]
+    - paragraph: "Motif : table (en-têtes de ligne, valeurs), barres décoratives"
+    - figure "counts — Comptes, échelle sur la plus grande valeur":
+      - table "Objets par sorte":
+        - caption: Objets par sorte
+        - rowgroup:
+          - row "Point Valeur":
+            - columnheader "Point"
+            - columnheader "Valeur"
+        - rowgroup:
+          - row /Préfixes 1 \d+/:
+            - rowheader "Préfixes"
+            - cell /1 \d+/
+          - row /Plages \d+/:
+            - rowheader "Plages"
+            - cell /\d+/
+          - row /Entités \d+/:
+            - rowheader "Entités"
+            - cell /\d+/
+      - code: counts
+      - text: ""

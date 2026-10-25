@@ -19,6 +19,12 @@
         - link "AlertDialog":
           - /url: /_ui/c/AlertDialog?mode=light
       - listitem:
+        - link "BarChart":
+          - /url: /_ui/c/BarChart?mode=light
+      - listitem:
+        - link "BarList":
+          - /url: /_ui/c/BarList?mode=light
+      - listitem:
         - link "Breadcrumb":
           - /url: /_ui/c/Breadcrumb?mode=light
       - listitem:
@@ -224,3 +230,6 @@
       - listitem:
         - link "E10 Hôte de plugin — Matrice de politique":
           - /url: /_ui/ecrans/E10?mode=light&vue=matrice
+      - listitem:
+        - link "E10 Hôte de plugin — Brouillon de la matrice":
+          - /url: /_ui/ecrans/E10?mode=light&vue=brouillon
