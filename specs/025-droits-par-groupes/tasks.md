@@ -207,8 +207,43 @@ Statut : spec **validée le 2026-10-25**.
       restée sans déclencheur est désactivée (et listée) plutôt que laissée active sans
       effet. La sortie de `migrate` (tâche 4) pourra reprendre cette liste. Numéro `0067`
       à renuméroter si la tâche 4 en prend un.
-- [ ] 7. Client Python et CLI : `group`, `group member`, `bind --group` — REQ-025-11
+- [x] 7. Client Python et CLI : `group`, `group member`, `bind --group` — REQ-025-11
   - où : spec 023.
+  - Résultat : `kartenn_cli/rights.py` (référence d'un membre, corps de `members add`,
+    opérations de changeset des droits, rendu de la fiche d'identité) ; `CLIENT_KEYS`
+    et `_matched` dans `reads.py` ; `AddMemberCommand`, `BY_OPERATION`, paramètres de
+    chemin après le premier transmis (`_Write.rest`) dans `writes.py` ; alias
+    `members.list|add|remove` dans `tree.py` ; ligne « Groupes IdP » de `kartenn me` ;
+    tests `test_rights.py`, instantané `groups members` de `test_tree.ambr` ; scène
+    `test_groups_of_kartenn` de `e2e/test_sessions.py` ; 023 (design, § Groupes kartenn
+    et couverture) et 025 (design) amendées.
+  - Choix tranchés :
+    - Noms de la 023 : `kartenn groups …` et `kartenn groups members list|get|add|remove`
+      (collection au pluriel, non traduite), pas `group member` ; `bind --group` est
+      `bindings create --group`, déjà dérivé du contrat.
+    - Clé → UUID côté client sans toucher au serveur : `GET /v1/groups` n'a pas de filtre
+      `key`, la clé est cherchée sur les pages de la liste (table `CLIENT_KEYS`, une
+      entrée) ; absente → code 3, deux fois → code 2.
+    - Membre à l'ajout : UUID → identité, sinon `émetteur/groupe` coupé au **dernier**
+      `/` (l'émetteur est une URL) ; un groupe de l'IdP qui contient un `/` passe par
+      `--issuer`/`--group` (options dérivées gardées) ; les deux à la fois → code 2. Au
+      retrait et à la lecture, le texte est cherché parmi les membres (UUID de
+      l'appartenance, de l'identité, ou `émetteur/groupe` exact), sans ambiguïté de coupe.
+    - Identité désignée par son UUID : elle n'a pas de clé (le nom affiché n'est pas
+      unique).
+    - `members remove` se comporte comme `close` (motif, `Closure`) ; les paramètres de
+      chemin après le premier sont maintenant transmis par toute écriture (corrige au
+      passage `service-accounts secrets revoke`, qui ne les envoyait pas).
+    - `--into-changeset` pour les écritures des droits : opérations du noyau, groupe par
+      clé (lue sur le serveur pour `update`, `close`, `members add`), membre `remove` par
+      l'identifiant de l'appartenance ; avant, ces écritures étaient refusées
+      (`client.no-changeset-operation`).
+    - Fiche d'identité en table : groupes `clé (via)` comme `kartenn me`, liaisons
+      `rôle (groupe, portée)`, dernière session aplatie (`last_session.at`,
+      `last_session.idp_groups`) ; les formats de données gardent la réponse telle quelle.
+    - `kartenn me` : ligne « Groupes IdP » ; un groupe reçu par un groupe de l'IdP du même
+      nom s'affiche `kartenn-admins (kartenn-admins)`, gardé tel quel (le `via` dit d'où
+      vient l'appartenance) ; attente de la scène de connexion e2e mise à jour.
 - [x] 8. Maquette E7 par groupes (onglets, fiche d'identité en lecture) et design 021 —
   REQ-025-12 — verify : `k-web2-check`
   - où : `web/v2/shell/src/_ui/ecrans/E7Administration.vue` ; `specs/021-shell-v2/design.md`

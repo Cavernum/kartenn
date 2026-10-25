@@ -69,6 +69,9 @@ VERB_ALIASES: dict[str, str | None] = {
     "attachments.delete": "detach",
     "secrets": "secrets.add",
     "secrets.delete": "secrets.revoke",
+    "members": "members.list",
+    "members.post": "members.add",
+    "members.delete": "members.remove",
     "properties": "properties.show",
 }
 # Query parameters the commands own: a filter of the same name is `--filter-<name>`.

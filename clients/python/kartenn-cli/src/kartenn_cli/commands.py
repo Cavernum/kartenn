@@ -88,12 +88,16 @@ def command_class(resource: Resource, verb: Verb, catalog: Catalog) -> type[Verb
     """The class of a verb: lists, reads, then the other operations."""
     from kartenn_cli.reads import GetCommand, ListCommand, ReadCommand  # noqa: PLC0415
     from kartenn_cli.writes import (  # noqa: PLC0415
+        BY_OPERATION,
         ActionCommand,
         CloseCommand,
         CreateCommand,
         UpdateCommand,
     )
 
+    special = BY_OPERATION.get(verb.operation_id)
+    if special is not None:
+        return special
     if verb.name == "list":
         return ListCommand
     if verb.name == "get":

@@ -22,6 +22,7 @@ import click
 from kartenn_cli.base import Option
 from kartenn_cli.errors import NOT_FOUND, USAGE, CliError
 from kartenn_cli.i18n import t, tn
+from kartenn_cli.rights import shown_record, sub_ref
 from kartenn_cli.tree import VerbCommand
 
 if TYPE_CHECKING:
@@ -100,6 +101,8 @@ def resolve_ref(client: Client, catalog: Catalog, resource: Resource, text: str)
     if UUID.fullmatch(text):
         return text
     key = resource.key
+    if not key and resource.name in CLIENT_KEYS:
+        return _matched(client, resource, CLIENT_KEYS[resource.name], text)
     if not key:
         raise CliError(
             "client.key-unknown", t("ref.no_key", resource=resource.name, ref=text), exit_code=USAGE
@@ -124,6 +127,30 @@ def resolve_ref(client: Client, catalog: Catalog, resource: Resource, text: str)
             "client.ambiguous-reference", t("ref.ambiguous", ref=text, resource=resource.name)
         )
     return str(next(iter(page.items))["id"])
+
+
+# Collections named by a key their list cannot filter on (`{id}` is a UUID, spec 025): the
+# key is matched on the pages of the list, a few objects.
+CLIENT_KEYS = {"groups": "key"}
+
+
+def _matched(client: Client, resource: Resource, member: str, text: str) -> str:
+    found = [
+        str(item["id"])
+        for item in client.resource(resource.name).list(page_size=1000)
+        if item.get(member) == text
+    ]
+    if not found:
+        raise CliError(
+            "client.reference-not-found",
+            t("ref.not_found", ref=text, resource=resource.name),
+            exit_code=NOT_FOUND,
+        )
+    if len(found) > 1:
+        raise CliError(
+            "client.ambiguous-reference", t("ref.ambiguous", ref=text, resource=resource.name)
+        )
+    return found[0]
 
 
 # Lists --------------------------------------------------------------------------------
@@ -340,7 +367,7 @@ class ReadCommand(VerbCommand):
             if index == 0:
                 ref = resolve_ref(found.client, self.catalog, self.resource, value)
             else:
-                params[name] = value
+                params[name] = sub_ref(found.client, operation, name, value, ref)
         for param in operation.params:
             if param.location == "query" and param.name in ctx.params:
                 value = ctx.params[param.name]
@@ -357,8 +384,10 @@ class ReadCommand(VerbCommand):
         ref, params = self.params_of(ctx, found)
         resource = client.resource(self.resource.name)
         output = _output(found, ctx, self.resource)
-        if self.verb == "get":
-            output.value(dict(resource.get(ref, **params)))
+        get = self.resource.verb("get")
+        if get is not None and get.operation_id == self.operation.operation_id:
+            record = dict(resource.get(ref, **params))
+            output.value(shown_record(self.operation.operation_id, record, output))
             return
         verb = next(
             v.name for v in self.resource.verbs if v.operation_id == self.operation.operation_id

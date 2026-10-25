@@ -115,9 +115,10 @@ def test_login_by_the_browser(cli: Cli) -> None:
     assert "Connecté : Alice Exemple (https://127.0.0.1:9444)." in shown
     me = cli("me")
     assert lines(me) == [
-        "Identité  Alice Exemple (https://127.0.0.1:9444)  (person, bearer)",
-        "Groupes   kartenn-admins",
-        "Rôles     administrator",
+        "Identité     Alice Exemple (https://127.0.0.1:9444)  (person, bearer)",
+        "Groupes      kartenn-admins (kartenn-admins)",
+        "Groupes IdP  kartenn-admins",
+        "Rôles        administrator",
     ]
 
 
@@ -153,6 +154,55 @@ def test_login_by_the_device_flow(cli: Cli) -> None:
     out, err = process.communicate(timeout=60)
     assert process.returncode == 0, out + err
     assert "Connecté : Alice Exemple (https://127.0.0.1:9444)." in out
+
+
+def test_groups_of_kartenn(cli: Cli) -> None:
+    """Spec 025 from the CLI: Alice, administrator by the group of her issuer, makes a
+    group named by its key, gives it a group of the issuer as member and a binding, reads
+    them, then closes it; the same writes go through a local changeset."""
+    run = cli(
+        "groups", "create", "--key", "reseau", "--set", 'labels={"fr": "Réseau"}',
+        "--motive", MOTIVE,
+    )  # fmt: skip
+    assert re.search(r"^Créé : /v1/groups/<uuid>$", run.both, re.MULTILINE), run.both
+    member = f"{ISSUER}/lecteurs"
+    add = ("groups", "members", "add", "reseau", member, "--motive", MOTIVE)
+    simulated = cli(*add, "--dry-run")
+    assert "Simulation — rien n'est écrit" in simulated.out, simulated.both
+    assert items(cli("groups", "members", "list", "reseau", "-o", "json")) == []
+    run = cli(*add)
+    created = r"^Créé : /v1/groups/<uuid>/members/<uuid>$"
+    assert re.search(created, run.both, re.MULTILINE), run.both
+    members = items(cli("groups", "members", "list", "reseau", "-o", "json"))
+    assert [(m["kind"], m["issuer"], m["group"]) for m in members] == [
+        ("idp_group", ISSUER, "lecteurs")
+    ]
+    cli(
+        "bindings", "create", "--group", "reseau", "--role", "reader",
+        "--set", 'scope={"kind": "global"}', "--motive", MOTIVE,
+    )  # fmt: skip
+    bound = items(cli("bindings", "list", "--group", "reseau", "-o", "json"))
+    assert [(b["group"], b["role"]) for b in bound] == [("reseau", "reader")]
+    shown = cli("groups", "get", "reseau", "-o", "json")
+    assert json.loads(shown.out)["members"] == 1
+    # A bearer token opens no session (spec 025, Q-025-1): Alice's card has no last one.
+    alice = json.loads(cli("me", "-o", "json").out)["identity"]
+    card = lines(cli("identities", "get", alice, "-o", "table"))
+    assert any(re.fullmatch(r"last_session +—", line) for line in card), card
+    cli("groups", "members", "remove", "reseau", member, "--motive", MOTIVE)
+    assert items(cli("groups", "members", "list", "reseau", "-o", "json")) == []
+    cli("groups", "close", "reseau", "--motive", MOTIVE)
+    assert "reseau" not in ids_by(cli, "groups", "list")
+    # The same group, composed in a local changeset (operations of the core).
+    cli("changeset", "new", "--motive", MOTIVE)
+    labels = 'labels={"fr": "Réseau"}'
+    cli("groups", "create", "--key", "reseau-2", "--set", labels, "--into-changeset")
+    cli("groups", "members", "add", "kartenn-admins", member, "--into-changeset")
+    run = cli("changeset", "apply")
+    assert re.match(r"Changeset <uuid> appliqué\.", normalized(run.out)), run.both
+    assert "reseau-2" in ids_by(cli, "groups", "list")
+    cli("groups", "members", "remove", "kartenn-admins", member, "--motive", MOTIVE)
+    cli("groups", "close", "reseau-2", "--motive", MOTIVE)
 
 
 # 2, 3. Help of the root and of a module discovered -------------------------------------

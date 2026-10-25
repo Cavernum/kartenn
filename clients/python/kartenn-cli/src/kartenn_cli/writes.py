@@ -22,6 +22,7 @@ import click
 from kartenn_cli.base import Option
 from kartenn_cli.errors import DRY_RUN_REFUSED, PENDING, USAGE, CliError
 from kartenn_cli.i18n import t
+from kartenn_cli.rights import member_body, rights_operation, sub_ref
 from kartenn_cli.tree import VerbCommand, first_line
 
 if TYPE_CHECKING:
@@ -32,6 +33,8 @@ if TYPE_CHECKING:
     from kartenn_cli.runtime import Runtime
 
 __all__ = [
+    "BY_OPERATION",
+    "AddMemberCommand",
     "CloseCommand",
     "CreateCommand",
     "UpdateCommand",
@@ -455,6 +458,14 @@ class _Write(VerbCommand):
             return None
         return resolve_ref(found.client, self.catalog, self.resource, ctx.params[names[0].lower()])
 
+    def rest(self, ctx: click.Context, found: Runtime, identifier: str | None) -> dict[str, str]:
+        """The path parameters after the first (`secrets revoke REF SECRET`)."""
+        names = self.operation.path_params[1:]
+        return {
+            name: sub_ref(found.client, self.operation, name, ctx.params[name.lower()], identifier)
+            for name in names
+        }
+
     def body(self, ctx: click.Context, found: Runtime) -> dict[str, Any]:
         return gather_body(self, ctx, found)
 
@@ -473,10 +484,15 @@ class _Write(VerbCommand):
         motive = motive_of(ctx, found, required=self.motive_required() and not staged)
         valid_from = _date(found, ctx.params.get("valid_from"))
         identifier = self.identifier(ctx, found)
+        rest = self.rest(ctx, found, identifier)
         members = self.body(ctx, found)
         if ctx.params.get("into_changeset"):
             from kartenn_cli.changeset import add_operation  # noqa: PLC0415
 
+            staged = rights_operation(found.client, self.operation, members, identifier, rest)
+            if staged is not None:
+                add_operation(staged[0], summary=staged[1])
+                return
             operation = changeset_operation(
                 self.catalog,
                 self.resource,
@@ -491,9 +507,9 @@ class _Write(VerbCommand):
         if valid_from:
             content["valid_from"] = valid_from
         if ctx.params.get("dry_run"):
-            self.dry_run(ctx, found, identifier, content, valid_from)
+            self.dry_run(ctx, found, identifier, content, valid_from, rest=rest)
             return
-        result = self.send(found, identifier, content, _headers(ctx))
+        result = self.send(found, identifier, content, _headers(ctx), rest=rest)
         render_outcome(
             found,
             result,
@@ -511,7 +527,7 @@ class _Write(VerbCommand):
                 shown.append(str(part))
         return "/".join(shown)
 
-    def send(
+    def send(  # noqa: PLR0913 - a write, whole
         self,
         found: Runtime,
         identifier: str | None,
@@ -519,8 +535,10 @@ class _Write(VerbCommand):
         headers: dict[str, str] | None,
         *,
         simulate: bool = False,
+        rest: Mapping[str, str] | None = None,
     ) -> object:
         params = {} if identifier is None else {self.operation.path_params[0]: identifier}
+        params.update(rest or {})
         etag = None
         if self.operation.needs_if_match and identifier is not None:
             etag = found.client.resource(self.resource.name).get(identifier).etag
@@ -533,13 +551,15 @@ class _Write(VerbCommand):
             **params,
         )
 
-    def dry_run(
+    def dry_run(  # noqa: PLR0913 - a write, whole
         self,
         ctx: click.Context,
         found: Runtime,
         identifier: str | None,
         content: dict[str, Any],
         valid_from: str | None,
+        *,
+        rest: Mapping[str, str] | None = None,
     ) -> None:
         """The same write with `?simulate=true` (spec 024, REQ-024-17): nothing is
         written; exit 8 when it would be refused. A write that submits no changeset is
@@ -553,7 +573,8 @@ class _Write(VerbCommand):
 
         def run() -> Simulation:
             return cast(
-                "Simulation", self.send(found, identifier, sent, _headers(ctx), simulate=True)
+                "Simulation",
+                self.send(found, identifier, sent, _headers(ctx), simulate=True, rest=rest),
             )
 
         report_simulation(
@@ -597,3 +618,30 @@ class ActionCommand(_Write):
             return False
         required = cast("list[str]", resolve_schema(self.catalog, body).get("required") or [])
         return "motive" in required
+
+
+class AddMemberCommand(ActionCommand):
+    """`groups members add GROUP [MEMBER]` (spec 025): an identity by its UUID, a group of
+    an issuer as `issuer/group`; or `--identity`, `--issuer` and `--group`."""
+
+    def build_params(self) -> list[click.Parameter]:
+        params = super().build_params()
+        member = click.Argument(["member"], required=False, metavar="MEMBER")
+        params.insert(len(self.operation.path_params), member)
+        return params
+
+    def body(self, ctx: click.Context, found: Runtime) -> dict[str, Any]:
+        body = super().body(ctx, found)
+        text = ctx.params.get("member")
+        if text is not None:
+            if any(body.get(name) is not None for name in ("identity", "issuer", "group")):
+                raise CliError("client.invalid-reference", t("group.member_twice"), exit_code=USAGE)
+            body.update(member_body(str(text)))
+        return body
+
+
+# The writes whose operation needs more than its verb (spec 025).
+BY_OPERATION: dict[str, type[_Write]] = {
+    "add_member": AddMemberCommand,
+    "remove_member": CloseCommand,
+}
