@@ -168,6 +168,9 @@
         - link "E4 Changeset et revue — Relecteur":
           - /url: /_ui/ecrans/E4?mode=light&vue=relecteur
       - listitem:
+        - link "E4 Changeset et revue — Droit manquant":
+          - /url: /_ui/ecrans/E4?mode=light&vue=droits
+      - listitem:
         - link "E4 Changeset et revue — Auteur":
           - /url: /_ui/ecrans/E4?mode=light&vue=auteur
       - listitem:

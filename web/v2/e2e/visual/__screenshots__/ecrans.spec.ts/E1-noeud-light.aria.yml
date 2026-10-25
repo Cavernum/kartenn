@@ -116,7 +116,7 @@
     - toolbar /Actions sur \d+\.\d+\.\d+\.\d+\/\d+/:
       - button "Créer"
       - button "Prochain libre"
-      - button "Copier les valeurs"
+      - button "Plus d'actions"
     - button "Autres actions"
     - button /Inclus dans = \d+\.\d+\.\d+\.\d+\/\d+/
     - button /Retirer le filtre Inclus dans = \d+\.\d+\.\d+\.\d+\/\d+/

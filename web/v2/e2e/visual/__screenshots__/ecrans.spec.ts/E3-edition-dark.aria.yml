@@ -55,7 +55,7 @@
     - toolbar "Actions sur les adresses":
       - button "Créer"
       - button "Colonnes"
-      - button "Plus d'actions"
+      - button "Importer"
     - button "Domaine = Centre de données nord"
     - button "Retirer le filtre Domaine = Centre de données nord"
     - button /Inclus dans = \d+\.\d+\.2\.0\/\d+/

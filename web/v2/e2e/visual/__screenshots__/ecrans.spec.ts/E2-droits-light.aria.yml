@@ -159,3 +159,6 @@
     - definition: supervision
     - term: Groupe
     - definition: campus-ouest
+- tooltip "Il faut core.address.edit":
+  - text: ""
+  - code: core.address.edit
