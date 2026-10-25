@@ -215,7 +215,8 @@ ne vide pas l'écran) avec ses trois états.
   vienne (arbre, table, palette, menu) ; ajoute au brouillon, ou applique par le bouton
   scindé.
 - **Administration** : écrans de la 007 sur `DataGrid`, `Dialog`, `FormField` ; permission
-  en `CodeBadge` (nom servi) et libellé.
+  en libellé à gauche puis `CodeBadge` (nom servi) à droite, en colonnes alignées
+  (024-11).
 - **Hôte des plugins** : composants hôtes de la 007 (`ExtensionElement`, `PluginView`)
   repris dans le cadre ; vue de plugin sous son espace.
 
@@ -641,7 +642,9 @@ tri et filtre de 130 à 260 ms).
 - **Version absente du corps** (lecture composite) : invalidation sans condition.
 - **Préchargement refusé (403)** : ignoré ; la navigation affiche le refus.
 - **412 sur une cellule** : dialogue de fusion ancré à la cellule ; Échap garde la saisie
-  dans le brouillon de l'éditeur.
+  dans le brouillon de l'éditeur. Le motif du refus s'y montre en ton d'erreur (`ko` :
+  icône, bordure et fond teintés, code `core.precondition.failed`), le reste du dialogue
+  restant neutre (024-11).
 - **Déplacement refusé par le serveur après acceptation du client** : nœud jamais déplacé, état « refusé » avec code ; l'écart entre `canMove` et la règle serveur est consigné (table des codes à compléter).
 - **Bascule hors présent pendant une édition** : l'édition en cours est annulée et sa
   saisie proposée au brouillon (avec `valid_from`).

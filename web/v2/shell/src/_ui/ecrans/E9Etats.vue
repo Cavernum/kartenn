@@ -139,7 +139,7 @@ const cellState = (row: Row, column: GridColumn): CellState | undefined => {
     >
       <Stack gap="3">
         <InlineAlert
-          tone="warn"
+          tone="ko"
           title="Vous avez lu la version v4, la version actuelle est la v5."
           :items="[
             {

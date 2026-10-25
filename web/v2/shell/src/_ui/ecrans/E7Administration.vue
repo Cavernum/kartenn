@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // E7 — Administration (design « Maquettes »; 021, « Catalogue des écrans », Administration;
 // spec 018 : permissions servies `module.action` avec leur libellé; 024/M8, M13, M15):
-// roles, and the chosen role in the right panel (its permissions one per line, served name
-// and label; its bindings, which scroll in the panel); bindings with their scope and
+// roles, and the chosen role in the right panel (its permissions one per line, label then
+// served name; its bindings, which scroll in the panel); bindings with their scope and
 // period, a new one in the same right panel; a new secret of a service account shown once.
 import {
   Button,
@@ -300,10 +300,10 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
             <section aria-labelledby="k-ecran-permissions">
               <Stack gap="2">
                 <h3 id="k-ecran-permissions" class="k-ecran-subtitle">Permissions · 8</h3>
-                <ul class="k-ecran-list k-ecran-lignes">
+                <ul class="k-ecran-list k-ecran-lignes k-ecran-lignes--valeur">
                   <li v-for="permission in permissions" :key="permission.code">
-                    <CodeBadge :code="permission.code" />
                     <span>{{ permission.label }}</span>
+                    <CodeBadge :code="permission.code" />
                   </li>
                 </ul>
               </Stack>
@@ -363,8 +363,8 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
 
 <style>
 @layer components {
-  /* One entry per line, in two aligned columns: a served name and its label, a subject and
-   * its scope. */
+  /* One entry per line, in two aligned columns: a subject and its scope; a label and its
+   * served name (024-11: the description on the left, the value on the right). */
   .k-ecran-lignes {
     display: grid;
     grid-template-columns: max-content minmax(0, 1fr);
@@ -378,6 +378,10 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
     grid-template-columns: subgrid;
     align-items: center;
     min-block-size: var(--k-row-height);
+  }
+
+  .k-ecran-lignes--valeur {
+    grid-template-columns: minmax(0, 1fr) max-content;
   }
 }
 </style>
