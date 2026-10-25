@@ -145,3 +145,15 @@ désormais un groupe kartenn ; un compte nommé n'est plus un auteur désignable
   de sa dernière session, en lecture, avec la date de la session, pour expliquer une
   appartenance indirecte. Ils sont gardés avec la session (005) ; une identité sans
   session n'en montre aucun.
+  - Reprise le 2026-10-25 (arbitrage de l'utilisateur) : les sessions sont des cookies
+    scellés (ADR 0020), le serveur n'en garde rien. La tâche 5 avait ajouté à `person` la
+    date et les groupes de l'IdP de la dernière connexion, ce qui contredisait 005/K3
+    (minimisation : émetteur, `sub` et nom affiché seuls). Décision : on garde **les
+    groupes de l'IdP de la dernière connexion, sans date** (`person.last_login_groups`,
+    écrasés à chaque connexion, effacés par la pseudonymisation) ; la date n'est pas
+    gardée, parce qu'elle permettrait de suivre l'activité d'une personne. K3 est amendée
+    en ce sens. La fiche dit « groupes de l'IdP lors de sa dernière connexion », sans
+    horodatage ; une identité qui ne s'est jamais connectée n'en montre aucun. Points
+    sensibles notés : ces noms de groupes révèlent l'organisation interne, ils ne sont
+    servis qu'à un lecteur des droits (`core.rbac.admin` ou lecture des identités) et à
+    la personne elle-même.

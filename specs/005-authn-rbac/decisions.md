@@ -41,6 +41,12 @@ formats sont la 006, qui appelle ce que la 005 fournit.
 - Rejeté : courriel conservé (donnée de plus sans usage établi) ; pré-enregistrement
   (lourd pour les prestataires).
 - Décidé par : recommandation acceptée
+- Amendé le 2026-10-25 (025/Q-025-1, arbitrage de l'utilisateur) : s'ajoutent les
+  groupes de l'IdP de la dernière connexion (`person.last_login_groups`), écrasés à
+  chaque connexion et effacés par la pseudonymisation, pour expliquer à un administrateur
+  les appartenances d'une personne par son IdP (usage établi). La date de connexion n'est
+  pas gardée (suivi d'activité). Les groupes lus dans le jeton à chaque requête (K4)
+  restent la source des droits : la colonne ne sert qu'à l'affichage.
 
 ## K4 — Origine des droits, confinement des émetteurs
 - Décision : les **liaisons** (rôle × périmètre) sont administrées dans kartenn et visent
