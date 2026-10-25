@@ -11,7 +11,9 @@
 // 420 px by default, resized by a handle at its inline start (APG Window Splitter, written
 // here: Reka's Splitter injects a <style>, refused by the CSP): Left and Right arrows by a
 // step, Home and End to the bounds, the pointer by dragging. Escape closes it and gives
-// the focus back to what opened it. Closed, it leaves nothing behind.
+// the focus back to what opened it. Closed, it leaves nothing behind. On a narrow window
+// the host sets `cover`: the panel takes the whole width of its container, without handle
+// (spec 021, « Cadre » : at 768 px the panel covers the surface).
 import { computed, nextTick, ref, useId, watch } from "vue";
 import { t } from "../../i18n.ts";
 import IconButton from "../IconButton/IconButton.vue";
@@ -31,6 +33,8 @@ const props = withDefaults(
     max?: number;
     /** The step of an arrow on the handle. */
     step?: number;
+    /** Over the whole container (narrow window): full width, not resizable. */
+    cover?: boolean;
   }>(),
   { id: undefined, min: 320, max: 720, step: 16 },
 );
@@ -119,9 +123,11 @@ function onPointerup(event: PointerEvent): void {
     class="k-side-panel"
     :aria-label="props.label"
     :style="size"
+    :data-cover="props.cover ? 'true' : undefined"
     @keydown="onKeydown"
   >
     <div
+      v-if="!props.cover"
       ref="handle"
       class="k-side-panel__handle"
       role="separator"
@@ -174,6 +180,11 @@ function onPointerup(event: PointerEvent): void {
     background-color: var(--k-surface);
     border-inline-start: var(--k-border-width) solid var(--k-border-strong);
     box-shadow: var(--k-shadow-overlay);
+  }
+
+  .k-side-panel[data-cover] {
+    inline-size: 100%;
+    border-inline-start: 0;
   }
 
   /* The handle: a strip astride the inline-start edge. */

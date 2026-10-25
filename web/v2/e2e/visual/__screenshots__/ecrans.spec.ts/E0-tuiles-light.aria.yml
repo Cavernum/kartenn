@@ -1,0 +1,133 @@
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel" [expanded]
+  - list:
+    - listitem:
+      - link "Accueil":
+        - /url: /
+    - listitem:
+      - link "Topographie":
+        - /url: /topology
+    - listitem:
+      - link "Domaines":
+        - /url: /domains
+    - listitem:
+      - link "Préfixes":
+        - /url: /prefixes
+    - listitem:
+      - link "Plages":
+        - /url: /ranges
+    - listitem:
+      - link "Adresses":
+        - /url: /addresses
+    - listitem:
+      - link "Entités":
+        - /url: /entities
+    - listitem:
+      - link "Sites":
+        - /url: /sites
+    - listitem:
+      - link /Anomalies \d+/:
+        - /url: /anomalies
+  - button "Changesets"
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem: Accueil
+  - button "Présent"
+  - button "Brouillon ( 3 )"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Accueil" [level=1]
+  - heading "Objets lisibles par vous" [level=2]
+  - term: Domaines
+  - definition: "4"
+  - term: Préfixes
+  - definition: /1 \d+/
+  - term: Plages
+  - definition: /\d+/
+  - term: Adresses
+  - definition: /\d+ \d+/
+  - term: Entités
+  - definition: /\d+/
+  - term: Sites
+  - definition: "9"
+  - heading "Changesets appliqués tous auteurs" [level=2]
+  - term: 7 derniers jours
+  - definition: /\d+/
+  - term: /\d+ derniers jours/
+  - definition: /\d+/
+  - paragraph:
+    - text: "À venir :"
+    - code: BarChart
+    - text: (tâche à planifier)
+  - list /Changesets appliqués par jour, sur \d+ jours/:
+    - listitem: "/\\d+ déc\\. : 4/"
+    - listitem: "/\\d+ déc\\. : 6/"
+    - listitem: "/\\d+ déc\\. : 3/"
+    - listitem: "/\\d+ déc\\. : 0/"
+    - listitem: "/\\d+ déc\\. : 0/"
+    - listitem: "/\\d+ déc\\. : 5/"
+    - listitem: "/\\d+ déc\\. : 7/"
+    - listitem: "/\\d+ déc\\. : 4/"
+    - listitem: "/\\d+ déc\\. : 6/"
+    - listitem: "/\\d+ déc\\. : 2/"
+    - listitem: "/\\d+ déc\\. : 0/"
+    - listitem: "/\\d+ déc\\. : 0/"
+    - listitem: "/\\d+ déc\\. : 8/"
+    - listitem: "/\\d+ déc\\. : 5/"
+    - listitem: "/\\d+ déc\\. : 3/"
+    - listitem: "1 janv. : 6"
+    - listitem: "2 janv. : 4"
+    - listitem: "3 janv. : 0"
+    - listitem: "4 janv. : 0"
+    - listitem: "5 janv. : 7"
+    - listitem: "6 janv. : 9"
+    - listitem: "7 janv. : 5"
+    - listitem: "8 janv. : 3"
+    - listitem: "9 janv. : 6"
+    - listitem: "/\\d+ janv\\. : 0/"
+    - listitem: "/\\d+ janv\\. : 0/"
+    - listitem: "/\\d+ janv\\. : 8/"
+    - listitem: "/\\d+ janv\\. : 6/"
+    - listitem: "/\\d+ janv\\. : \\d+/"
+    - listitem: "/\\d+ janv\\. : 7/"
+  - heading "À instruire changesets d'autres auteurs" [level=2]
+  - term: En attente de votre validation
+  - definition: "3"
+  - button "Instruire"
+  - heading "Mes changesets en attente" [level=2]
+  - term: Soumis, en revue
+  - definition: "2"
+  - button "Voir mes changesets"
+  - heading "Anomalies ouvertes" [level=2]
+  - term: Sur les objets que vous lisez
+  - definition: /\d+/
+  - text: 3 nouvelles depuis hier
+  - heading "VLAN plugin VLAN" [level=2]
+  - term: Réservés
+  - definition: /\d+/
+  - term: Obsolètes
+  - definition: "5"
+  - term: Groupe le plus rempli
+  - definition: /campus-ouest, \d+ %/
+  - heading "Flux plugin Flux" [level=2]
+  - term: Non conformes
+  - definition: "4"
+  - term: /Dérogations finissant sous \d+ jours/
+  - definition: "2"
+  - heading "Politique plugin Politique" [level=2]
+  - text: Chargement de la tuile Politique
+  - status: Chargement
+  - paragraph:
+    - text: Compteurs calculés
+    - time: il y a 2 min
+    - text: ", relus à chaque changement."

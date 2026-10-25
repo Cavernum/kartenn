@@ -1,9 +1,10 @@
 /**
  * The mock-ups of the design system (spec 020, design « Maquettes », REQ-020-25; tasks 13
- * and 14): ten screens built with the visual version of the components of `@kartenn/ui`,
- * on fictitious data, to be validated by the user on captures (task 15). Each mock-up has
- * one or more views (`?vue=`), each one URL and one capture per mode and density. Pure
- * data: the captures (`e2e/visual/ecrans.spec.ts`) read this list.
+ * and 14; revised by the 024, task 11): eleven screens (E0 to E10) built with the
+ * components of `@kartenn/ui`, on fictitious data, to be validated by the user on captures.
+ * Each mock-up has one or more views (`?vue=`), each one URL and one capture per width
+ * (1440, 1280, 1024, 768 px) and mode. Pure data: the captures (`e2e/visual/ecrans.spec.ts`)
+ * read this list.
  */
 
 /** A view of a mock-up: a state of the screen, shown alone. */
@@ -13,6 +14,8 @@ export interface MockupView {
   description: string;
   /** A modal layer is open (dialog, palette): it hides the rest of the page and traps focus. */
   modal?: boolean;
+  /** The element that has the focus in the capture (a refused action and its tooltip). */
+  focus?: string;
 }
 
 export interface Mockup {
@@ -25,20 +28,41 @@ export interface Mockup {
 
 export const MOCKUPS: Mockup[] = [
   {
-    id: "E1",
-    title: "Référentiel",
+    id: "E0",
+    title: "Accueil",
     shows:
-      "Barre latérale, barre d'état, arbre des préfixes, table filtrée par environnement avec une ligne en brouillon et une en revue.",
+      "Tableau de bord : tuiles du cœur (GET /v1/stats) et widget de deux plugins, une tuile en chargement.",
+    views: [
+      {
+        id: "tuiles",
+        label: "Tableau de bord",
+        description:
+          "Objets par sorte, changesets appliqués et histogramme, à instruire, les miens, anomalies ; tuiles VLAN et Flux ; Politique en chargement.",
+      },
+    ],
+  },
+  {
+    id: "E1",
+    title: "Topographie",
+    shows:
+      "Barre latérale, barre d'état, arbre des préfixes avec « + » sur un nœud, table filtrée par environnement avec une ligne en brouillon et une en revue, panneau droit sur l'onglet Détail.",
     views: [
       {
         id: "noeud",
         label: "Nœud choisi",
-        description: "Arbre à parent déduit, contenu du nœud choisi, filtre d'environnement.",
+        description:
+          "Arbre à parent déduit, contenu du nœud choisi filtré, détail de la ligne choisie dans le panneau droit.",
+      },
+      {
+        id: "ajout",
+        label: "Ajout depuis l'arbre",
+        description:
+          "« + » d'un nœud : panneau d'édition de la sorte (le même partout), nœud pour parent.",
       },
       {
         id: "replie",
         label: "Barre latérale repliée",
-        description: "Même écran, barre latérale repliée en icônes (touche [).",
+        description: "Même écran, barre latérale repliée en icônes (touche [), panneau fermé.",
       },
     ],
   },
@@ -61,7 +85,14 @@ export const MOCKUPS: Mockup[] = [
       {
         id: "actions",
         label: "Menu d'actions",
-        description: "Menu « Actions » ouvert : actions du cœur puis des plugins.",
+        description:
+          "Menu « Actions » ouvert : actions du cœur puis des plugins, les refusées grisées.",
+      },
+      {
+        id: "droits",
+        label: "Action refusée",
+        description: "Action interdite au focus : infobulle « Il faut core.address.edit ».",
+        focus: ".k-button[aria-disabled='true']",
       },
     ],
   },
@@ -118,22 +149,32 @@ export const MOCKUPS: Mockup[] = [
     id: "E5",
     title: "Brouillon",
     shows:
-      "Panneau latéral ouvert sur une liste, opérations, simulation en cours puis avec violations codées, soumission avec motif.",
+      "Panneau droit sur l'onglet Brouillon au-dessus d'une liste, opérations, simulation en cours puis avec violations codées, CommitForm et SplitButton ouvert ; page /drafts.",
     views: [
       {
         id: "simulation",
         label: "Simulation en cours",
-        description: "Panneau non modal qui pousse la liste ; simulation en cours.",
+        description:
+          "Panneau non modal sur la fin de la liste ; simulation en cours, « Appliquer » attend.",
       },
       {
         id: "violations",
         label: "Violations",
-        description: "Simulation terminée : violations codées par opération.",
+        description:
+          "Simulation terminée : violations en clair et codées par opération ; seul l'enregistrement reste possible.",
       },
       {
         id: "soumission",
         label: "Soumission",
-        description: "Simulation valide, motif saisi, soumission (Ctrl+Entrée).",
+        description:
+          "Simulation valide mais retenue par une politique : chevron ouvert, « Appliquer » grisé avec son motif.",
+        modal: true,
+        focus: "[role='menuitem'][aria-disabled='true']",
+      },
+      {
+        id: "liste",
+        label: "Mes brouillons",
+        description: "Page /drafts : reprendre, créer, supprimer ; suppression annoncée.",
       },
     ],
   },

@@ -1,0 +1,68 @@
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets" [expanded]
+  - list:
+    - listitem:
+      - link "Changesets":
+        - /url: /changesets
+    - listitem:
+      - link "À instruire 3":
+        - /url: /proposals
+    - listitem:
+      - link "Mes brouillons 3":
+        - /url: /drafts
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Changesets":
+          - /url: /changesets
+      - listitem: Mes brouillons
+  - button "Présent"
+  - button "Brouillon ( 3 )"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Mes brouillons" [level=1]
+  - region /Mes brouillons 3 sur \d+/:
+    - heading /Mes brouillons 3 sur \d+/ [level=2]
+    - button "Nouveau brouillon"
+    - grid "Mes brouillons":
+      - rowgroup:
+        - row "Titre Opérations Modifié le Suppression Actions":
+          - columnheader "Titre"
+          - columnheader "Opérations"
+          - columnheader "Modifié le"
+          - columnheader "Suppression"
+          - columnheader "Actions"
+      - rowgroup:
+        - row /\(en brouillon\) Bascule des VIP de la salle B \(actif\) 3 \d+-\d+-\d+ \d+:\d+ — Actions sur « Bascule des VIP de la salle B »/:
+          - gridcell "(en brouillon) Bascule des VIP de la salle B (actif)"
+          - gridcell "3"
+          - gridcell /\d+-\d+-\d+ \d+:\d+/
+          - gridcell "—"
+          - gridcell "Actions sur « Bascule des VIP de la salle B »":
+            - button "Actions sur « Bascule des VIP de la salle B »"
+        - row /Nettoyage des réservations \d+ \d+-\d+-\d+ \d+:\d+ — Actions sur « Nettoyage des réservations »/:
+          - gridcell "Nettoyage des réservations"
+          - gridcell /\d+/
+          - gridcell /\d+-\d+-\d+ \d+:\d+/
+          - gridcell "—"
+          - gridcell "Actions sur « Nettoyage des réservations »":
+            - button "Actions sur « Nettoyage des réservations »"
+        - row /Plan d'adressage de la salle C \d+ \d+-\d+-\d+ \d+:\d+ le \d+-\d+-\d+ Actions sur « Plan d'adressage de la salle C »/:
+          - gridcell "Plan d'adressage de la salle C"
+          - gridcell /\d+/
+          - gridcell /\d+-\d+-\d+ \d+:\d+/
+          - gridcell /le \d+-\d+-\d+/
+          - gridcell "Actions sur « Plan d'adressage de la salle C »":
+            - button "Actions sur « Plan d'adressage de la salle C »"
+    - text: /Un brouillon sans modification depuis \d+ jours est supprimé ; la date s'annonce une semaine avant\./

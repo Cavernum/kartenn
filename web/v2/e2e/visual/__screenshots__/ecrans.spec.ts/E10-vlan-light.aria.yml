@@ -1,0 +1,122 @@
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Réseau" [expanded]
+  - list:
+    - listitem:
+      - link "VLAN":
+        - /url: /x/vlan/vlans
+    - listitem:
+      - link "Groupes de VLAN":
+        - /url: /x/vlan/groups
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Réseau":
+          - /url: /x/vlan
+      - listitem:
+        - link "Groupes de VLAN":
+          - /url: /x/vlan/groups
+      - listitem: campus-ouest
+  - button "Présent"
+  - button "Brouillon ( 3 )"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Groupe de VLAN campus-ouest" [level=1]
+  - heading "Groupes de VLAN 3" [level=2]
+  - grid "Groupes de VLAN":
+    - rowgroup:
+      - row "Groupe Ancre VID Occupation Libres":
+        - columnheader "Groupe"
+        - columnheader "Ancre"
+        - columnheader "VID"
+        - columnheader "Occupation"
+        - columnheader "Libres"
+    - rowgroup:
+      - row /campus-ouest site-ouest \d+–\d+ \d+ % \d+/ [selected]:
+        - gridcell "campus-ouest"
+        - gridcell "site-ouest"
+        - gridcell /\d+–\d+/
+        - gridcell /\d+ %/
+        - gridcell /\d+/
+      - row /campus-est site-est \d+–\d+ \d+ % \d+/:
+        - gridcell "campus-est"
+        - gridcell "site-est"
+        - gridcell /\d+–\d+/
+        - gridcell /\d+ %/
+        - gridcell /\d+/
+      - row /labo dmz-labo \d+–\d+ 6 % \d+/:
+        - gridcell "labo"
+        - gridcell "dmz-labo"
+        - gridcell /\d+–\d+/
+        - gridcell "6 %"
+        - gridcell /\d+/
+  - region /campus-ouest VID \d+–\d+ · ancre site-ouest/:
+    - heading /campus-ouest VID \d+–\d+ · ancre site-ouest/ [level=2]
+    - text: /\d+ sur \d+ utilisés · \d+ libres/
+    - toolbar "Actions du groupe":
+      - 'button /Prochain libre : \d+/'
+      - button "Créer"
+      - button "Exporter"
+      - button "Renuméroter…" [disabled]
+    - grid "VLAN du groupe campus-ouest":
+      - rowgroup:
+        - row "VID Nom Statut (filtrée) Réseaux Interfaces":
+          - columnheader "VID"
+          - columnheader "Nom"
+          - columnheader "Statut (filtrée)"
+          - columnheader "Réseaux"
+          - columnheader "Interfaces"
+      - rowgroup:
+        - row /\d+ admin Actif \d+\.\d+\.2\.0\/\d+ \d+/:
+          - gridcell /\d+/
+          - gridcell "admin"
+          - gridcell "Actif"
+          - gridcell /\d+\.\d+\.2\.0\/\d+/
+          - gridcell /\d+/
+        - row /\d+ serveurs Actif 2 réseaux \d+/:
+          - gridcell /\d+/
+          - gridcell "serveurs"
+          - gridcell "Actif"
+          - gridcell "2 réseaux"
+          - gridcell /\d+/
+        - row /\d+ voix Déprécié — 0/:
+          - gridcell /\d+/
+          - gridcell "voix"
+          - gridcell "Déprécié"
+          - gridcell "—"
+          - gridcell "0"
+        - row /\(en brouillon\) \d+ sauvegarde Actif — 0/:
+          - gridcell /\(en brouillon\) \d+/
+          - gridcell "sauvegarde"
+          - gridcell "Actif"
+          - gridcell "—"
+          - gridcell "0"
+        - row /\d+ reserve-wifi Réservé — 0/:
+          - gridcell /\d+/
+          - gridcell "reserve-wifi"
+          - gridcell "Réservé"
+          - gridcell "—"
+          - gridcell "0"
+        - row /\d+ serveurs-b Actif \d+\.\d+\.2\.0\/\d+ \d+/:
+          - gridcell /\d+/
+          - gridcell "serveurs-b"
+          - gridcell "Actif"
+          - gridcell /\d+\.\d+\.2\.0\/\d+/
+          - gridcell /\d+/
+        - row /\d+ supervision Actif \d+\.\d+\.\d+\.\d+\/\d+ 6/:
+          - gridcell /\d+/
+          - gridcell "supervision"
+          - gridcell "Actif"
+          - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+          - gridcell "6"
+    - text: "/7 VLAN sur \\d+ · 1 en brouillon Colonne « Interfaces » : plugin Machines/"

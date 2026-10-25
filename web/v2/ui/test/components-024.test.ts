@@ -18,6 +18,7 @@ import Skeleton from "../src/components/Skeleton/Skeleton.vue";
 import SplitButton from "../src/components/SplitButton/SplitButton.vue";
 import Toolbar from "../src/components/Toolbar/Toolbar.vue";
 import { foldActions, type ToolbarAction } from "../src/components/Toolbar/toolbar.ts";
+import TreeGrid from "../src/components/TreeGrid/TreeGrid.vue";
 
 // The components of the 024 (spec 020, inventory 30 to 34; REQ-020-23, 34 to 37;
 // 024/M8, M9, M12, M14, M15): roles, names and ARIA states as rendered on the server, and
@@ -82,6 +83,40 @@ describe("SidePanel", () => {
   it("closed, leaves nothing", async () => {
     const html = await render(SidePanel, { label: "Panneau", tabs: [], open: false });
     expect(html).toBe("<!---->");
+  });
+
+  it("covering a narrow window, has no handle", async () => {
+    const html = await render(SidePanel, { label: "Panneau", tabs: [], cover: true });
+    expect(html).toContain('data-cover="true"');
+    expect(html).not.toContain('role="separator"');
+  });
+});
+
+describe("TreeGrid (024/M10)", () => {
+  const nodes = [
+    { id: "d", label: "Domaine" },
+    { id: "p", label: "Salle A", objectKey: "192.0.2.0/24" },
+  ];
+
+  it("names the « + » of the nodes the host chooses, and only them", async () => {
+    const html = await render(TreeGrid, {
+      label: "Arbre",
+      treeLabel: "Préfixe",
+      nodes,
+      addLabel: (node: { objectKey?: string }) =>
+        node.objectKey ? `Ajouter dans ${node.objectKey}` : undefined,
+    });
+    expect(html.match(/aria-label="Ajouter dans [^"]+"/g)).toEqual([
+      'aria-label="Ajouter dans 192.0.2.0/24"',
+    ]);
+    expect(html).toMatch(
+      /tabindex="-1"[^>]*aria-label="Ajouter dans|aria-label="Ajouter dans[^>]*tabindex="-1"/,
+    );
+  });
+
+  it("without addLabel, no button", async () => {
+    const html = await render(TreeGrid, { label: "Arbre", treeLabel: "Préfixe", nodes });
+    expect(html).not.toContain("k-tree-grid__add");
   });
 });
 

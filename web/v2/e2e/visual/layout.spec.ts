@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { MOCKUPS } from "../../shell/src/_ui/ecrans/registry.ts";
 import { expect, open, test } from "../fixtures/index.ts";
 
 // Structure before style (spec 020, design « Structure avant style »; REQ-020-34, 36):
@@ -71,6 +72,38 @@ for (const width of WIDTHS) {
       const fits = await bar.evaluate((el) => el.scrollWidth <= el.clientWidth);
       expect(fits, "the toolbar overflows").toBe(true);
     });
+  });
+}
+
+// The mock-ups (REQ-024-26): from 1024 to 1920 px, neither the page nor a slot of the frame
+// (status bar, surface) scrolls sideways — long content scrolls inside its own container
+// (a grid, a panel) — and every grid aligns its header on its cells.
+for (const width of [1024, 1280, 1440, 1920] as const) {
+  test.describe(`mock-ups at ${width} px`, () => {
+    test.use({ viewport: { width, height: 900 } });
+
+    for (const mockup of MOCKUPS) {
+      for (const view of mockup.views) {
+        test(`${mockup.id} ${view.id}: no sideways scroll, aligned grids`, async ({ page }) => {
+          await open(page, `/_ui/ecrans/${mockup.id}?vue=${view.id}`);
+          await page.locator(".k-ecran").waitFor();
+          await expectNoSideScroll(page);
+          const slots = await page.locator(".k-ecran__bar, .k-ecran__surface").evaluateAll((els) =>
+            els.map((el) => ({
+              slot: el.className,
+              over: el.scrollWidth - el.clientWidth,
+            })),
+          );
+          for (const { slot, over } of slots)
+            expect(over, `${slot} scrolls sideways`).toBeLessThanOrEqual(0);
+          for (const [g, rows] of (await edges(page)).entries()) {
+            const [head, ...body] = rows;
+            for (const [r, row] of body.entries())
+              expect(row, `grid ${g + 1}, row ${r + 2}`).toEqual(head);
+          }
+        });
+      }
+    }
   });
 }
 

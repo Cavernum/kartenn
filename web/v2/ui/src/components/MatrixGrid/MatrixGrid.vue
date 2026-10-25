@@ -185,7 +185,7 @@ function onKeydown(event: KeyboardEvent): void {
     display: grid;
     grid-template-columns:
       minmax(var(--k-size-col-md), max-content)
-      repeat(var(--k-matrix-count), minmax(var(--k-size-col-sm), 1fr));
+      repeat(var(--k-matrix-count), minmax(max-content, 1fr));
     align-content: start;
     min-inline-size: 0;
     max-block-size: 100%;
@@ -225,7 +225,9 @@ function onKeydown(event: KeyboardEvent): void {
     display: flex;
     gap: var(--k-space-1);
     align-items: center;
-    min-inline-size: 0;
+    /* A column is as wide as its widest cell (a state and its icon are never clipped), and
+     * at least `--k-size-col-sm`; the matrix scrolls when they no longer fit. */
+    min-inline-size: var(--k-size-col-sm);
     padding-inline: var(--k-cell-padding-inline);
     white-space: nowrap;
     border-block-end: var(--k-border-width) solid var(--k-border);
@@ -269,8 +271,8 @@ function onKeydown(event: KeyboardEvent): void {
     text-overflow: ellipsis;
   }
 
+  /* Aligned on the start, as the headers. */
   .k-matrix__cell {
-    justify-content: center;
     font-variant-numeric: tabular-nums;
   }
 

@@ -127,5 +127,16 @@ export default {
       },
       wide: true,
     },
+    {
+      name: "add",
+      description: "« + » d'un nœud : ajout direct dans le nœud choisi (survol, focus, sélection)",
+      props: {
+        ...base,
+        selected: "p3",
+        addLabel: (node: TreeNode) =>
+          node.objectKey ? `Ajouter dans ${node.objectKey}` : undefined,
+      },
+      wide: true,
+    },
   ],
 } satisfies CatalogueEntry;

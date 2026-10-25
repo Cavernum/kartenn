@@ -1,0 +1,136 @@
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets" [expanded]
+  - list:
+    - listitem:
+      - link "Changesets":
+        - /url: /changesets
+    - listitem:
+      - link "À instruire 3":
+        - /url: /proposals
+    - listitem:
+      - link "Mes brouillons 3":
+        - /url: /drafts
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Changesets":
+          - /url: /changesets
+      - listitem: Renumérotation salle B
+  - button "Présent"
+  - button "Brouillon ( 0 )"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Changeset Renumérotation salle B" [level=1]
+  - region "Renumérotation salle B 5 objets":
+    - heading "Renumérotation salle B 5 objets" [level=2]
+    - text: En revue
+    - toolbar "Actions de revue":
+      - button "Retirer"
+      - button "Valider" [disabled]
+      - button "Effet sur la politique"
+      - button "Copier l'identifiant"
+    - status:
+      - paragraph: "Vous êtes l'auteur de ce changeset : un autre relecteur doit le valider."
+      - list:
+        - listitem:
+          - text: Une politique d'approbation retient les changements de VLAN.
+          - button "Copier changeset.approval.self":
+            - text: ""
+            - code: changeset.approval.self
+          - status
+    - term: Nature
+    - definition: Avec approbation
+    - term: Auteur
+    - definition: Lou Bernard
+    - term: Soumis
+    - definition: /\d+-\d+-\d+ \d+:\d+/
+    - term: Effet au
+    - definition: présent
+    - term: Rétroactif
+    - definition: non
+    - term: Identifiant
+    - definition:
+      - button "Copier 01JD4K8B2C3D4E5F6G7H8J9K0M":
+        - text: ""
+        - code: 01JD4K8B2C3D4E5F6G7H8J9K0M
+      - status
+    - tablist "Contenu du changeset":
+      - tab "Différentiel 5" [selected]
+      - tab "Opérations 4"
+      - tab "Violations 1"
+      - tab "Sections de modules 2"
+    - tabpanel "Différentiel 5":
+      - status:
+        - paragraph: Une anomalie rattachée
+        - list:
+          - listitem:
+            - text: /Le VLAN \d+ reste sur le site ouest, ses réseaux passent à l'est\./
+            - button "Copier vlan.site.mismatch":
+              - text: ""
+              - code: vlan.site.mismatch
+            - status
+      - 'heading /modifié : Serveurs \d+\.\d+\.2\.0\/\d+ 1/ [level=3]':
+        - 'button /modifié : Serveurs \d+\.\d+\.2\.0\/\d+ 1/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.2\.0\/\d+/
+          - text: ""
+      - list:
+        - listitem:
+          - text: "modifié : Site (core.site)"
+          - deletion: "avant : site-ouest"
+          - insertion: "après : site-est"
+      - 'heading /modifié : Supervision \d+\.\d+\.\d+\.\d+\/\d+ 2/ [level=3]':
+        - 'button /modifié : Supervision \d+\.\d+\.\d+\.\d+\/\d+ 2/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list:
+        - listitem:
+          - text: "modifié : Valeur"
+          - deletion: "/avant : \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+/"
+          - insertion: "/après : \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+/"
+        - listitem:
+          - text: "ajouté : Propriétaire (core.owner)"
+          - insertion: "après : Atelier Nord"
+      - 'heading /ajouté : Supervision salle B \d+\.\d+\.\d+\.\d+\/\d+ 2/ [level=3]':
+        - 'button /ajouté : Supervision salle B \d+\.\d+\.\d+\.\d+\/\d+ 2/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list:
+        - listitem:
+          - text: "ajouté : Valeur"
+          - insertion: "/après : \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+/"
+        - listitem:
+          - text: "ajouté : Nature"
+          - insertion: "après : réseau"
+      - 'heading /retiré : Ancienne passerelle \d+\.\d+\.\d+\.\d+ 1/ [level=3]':
+        - 'button /retiré : Ancienne passerelle \d+\.\d+\.\d+\.\d+ 1/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+/
+          - text: ""
+      - list:
+        - listitem:
+          - text: "retiré : Usage"
+          - deletion: "avant : passerelle"
+      - 'heading /anomalie : VLAN \d+ serveurs vlan:\d+ 1/ [level=3]':
+        - 'button /anomalie : VLAN \d+ serveurs vlan:\d+ 1/ [expanded]':
+          - text: ""
+          - code: /vlan:\d+/
+          - text: ""
+      - list:
+        - listitem:
+          - text: "anomalie : Site du VLAN (vlan.site.mismatch)"
+          - deletion: "avant : site-ouest"
+          - insertion: "après : site-est"

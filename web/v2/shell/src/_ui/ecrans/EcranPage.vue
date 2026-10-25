@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// A mock-up of the catalogue (design « Maquettes »): `/_ui/ecrans/<E1…E10>?vue=<id>`, with
+// A mock-up of the catalogue (design « Maquettes »): `/_ui/ecrans/<E0…E10>?vue=<id>`, with
 // the switches of mode, density and language in the query like every page of the
 // catalogue, but without its frame: the mock-up takes the whole page, as the shell will.
 import { providePortalTarget } from "@kartenn/ui";
@@ -16,7 +16,8 @@ watchEffect(() => applySwitches(document.documentElement, readSwitches(route.que
 providePortalTarget("#k-ecran-layers");
 
 const SCREENS: Record<string, Component> = {
-  E1: defineAsyncComponent(() => import("./E1Referentiel.vue")),
+  E0: defineAsyncComponent(() => import("./E0Accueil.vue")),
+  E1: defineAsyncComponent(() => import("./E1Topographie.vue")),
   E2: defineAsyncComponent(() => import("./E2Fiche.vue")),
   E3: defineAsyncComponent(() => import("./E3Adresses.vue")),
   E4: defineAsyncComponent(() => import("./E4Changeset.vue")),

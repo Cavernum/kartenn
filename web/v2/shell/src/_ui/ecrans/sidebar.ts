@@ -10,6 +10,7 @@ export const SPACES: SidebarGroup[] = [
     label: "Référentiel",
     entries: [
       { id: "home", label: "Accueil", icon: "house", to: "/" },
+      { id: "topology", label: "Topographie", icon: "folder-tree", to: "/topology" },
       { id: "domains", label: "Domaines", icon: "domain", to: "/domains" },
       { id: "prefixes", label: "Préfixes", icon: "prefix", to: "/prefixes" },
       { id: "ranges", label: "Plages", icon: "range", to: "/ranges" },
@@ -31,7 +32,7 @@ export const SPACES: SidebarGroup[] = [
         to: "/proposals",
         badge: 3,
       },
-      { id: "draft", label: "Brouillon", icon: "draft", to: "/draft", badge: 2 },
+      { id: "draft", label: "Mes brouillons", icon: "draft", to: "/drafts", badge: 3 },
     ],
   },
   {

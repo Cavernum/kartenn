@@ -42,6 +42,7 @@ const emit = defineEmits<{ retry: [] }>();
 @layer components {
   .k-error-state {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--k-space-2);
     justify-items: center;
     padding: var(--k-space-8) var(--k-space-4);
@@ -68,6 +69,8 @@ const emit = defineEmits<{ retry: [] }>();
     flex-wrap: wrap;
     gap: var(--k-space-2);
     justify-content: center;
+    /* A long code (a problem type) stays in a narrow column: the badge truncates. */
+    max-inline-size: 100%;
   }
 }
 </style>
