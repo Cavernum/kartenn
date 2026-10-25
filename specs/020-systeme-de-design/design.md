@@ -310,6 +310,79 @@ popover) ; `--k-size-dialog-sm` / `-md` / `-lg` 400 / 560 / 720 px ; `--k-size-m
 `minmax(md, 1fr)`. Un test vérifie que toute propriété lue par une feuille existe (jeton
 public, alias local déclaré, ou valeur posée par CSSOM).
 
+### Adaptation à la largeur (relecture du 2026-10-25)
+
+Demande de l'utilisateur : l'aspect sur grand écran est bon, l'interface doit maintenant
+s'adapter visiblement à la taille de l'écran. Note
+[`mise-en-page-adaptative.md`](../../docs/reference/mise-en-page-adaptative.md).
+
+Principe : **le cadre suit la fenêtre, les composants suivent leur conteneur.** Seul le
+cadre (barre latérale, barre d'état, bande, panneau) lit la largeur de la fenêtre, par
+`@media` en syntaxe d'intervalle ; tout composant lit la largeur qu'on lui donne, par
+`@container` sur sa racine (`container-type: inline-size`, jamais `size`), pour s'adapter
+de la même façon que le panneau soit ouvert ou non. Aucune media query dans un composant,
+aucun écouteur `resize` là où CSS suffit (un `ResizeObserver` reste permis quand il mesure
+un contenu, comme le repli de la `Toolbar` ou le tracé d'un `BarChart`).
+
+Classes de largeur du cadre (seuils choisis par kartenn ; aucune source n'en fixe) :
+
+| Classe | Fenêtre | Cadre |
+|---|---|---|
+| large | ≥ 1280 px | barre latérale dépliée ; panneau de 420 px à côté de la surface |
+| standard | 1024 – 1279 px | barre latérale dépliée, repliable ; panneau à côté tant que la surface garde au moins 640 px, en surimpression sinon |
+| étroite | 600 – 1023 px | barre latérale en rail (icônes) ; panneau en surimpression (`cover`) |
+| compacte | < 600 px | une colonne ; barre latérale en tiroir ouvert par un bouton de la barre d'état ; barre d'état réduite (pastille de date et compteur du brouillon en icône) ; panneau en feuille plein écran avec retour |
+
+Les seuils ne sont pas des jetons CSS (une media query ne lit pas de propriété, et
+`@custom-media` n'existe pas encore) : une seule liste dans `components/layout.ts`
+(`WIDTH_CLASSES`), recopiée dans les feuilles du cadre, un test vérifie l'égalité.
+Le cadre pose sa classe en attribut (`data-width="compact"`…) pour les rares règles qui en
+dépendent hors du cadre.
+
+Composants :
+
+- **Tuiles et formulaires** : grilles intrinsèques
+  `repeat(auto-fit, minmax(min(100%, var(--k-size-tile-min)), 1fr))` ; champs côte à côte
+  tant que le conteneur le permet, une colonne sinon ; `subgrid` pour aligner libellés et
+  valeurs de blocs voisins.
+- **`Toolbar`** : replie ses actions selon la largeur de son conteneur (déjà mesurée) ;
+  sous 360 px de conteneur, seul le menu « Plus » et l'action principale restent.
+- **Grilles (`DataGrid`, `TreeGrid`, `MatrixGrid`, `ExpandableGrid`)** : défilement dans
+  leur propre région, focalisable et nommée (exception « tableaux de données » de WCAG
+  1.4.10, note 2) ; en-tête, barre d'outils et filtres restent hors de cette région et
+  se replient. Colonnes à priorité (`priority` sur `GridColumn` : 1 toujours, 2 masquée
+  sous un conteneur `md`, 3 sous `lg`) masquées par `@container`, jamais sans accès : un
+  sélecteur de colonnes les rend, et la ligne choisie montre tout dans le panneau. Colonne
+  de clé collante. `scrollbar-gutter: stable`. Une liste simple (une clé, deux ou trois
+  attributs) peut passer en liste de lignes empilées sous un conteneur `sm` ; une
+  matrice, jamais (son sens est en deux dimensions).
+- **Panneau latéral** : son contenu suit les mêmes règles ; en feuille plein écran, son
+  en-tête porte un bouton retour au lieu de la croix.
+- **Couches** : dialogues à `min(var(--k-size-dialog-*), 100% - 2 × marge)` ; en classe
+  compacte, un dialogue `lg` et la vue agrandie d'une grille prennent tout l'écran.
+
+Espacement et texte : densité en jetons fixes (`rem`), pas de `clamp()` sur le texte
+courant ni les grilles (alignement et densité d'abord ; le zoom couvre 1.4.4) ; `clamp()`
+pour les titres de page, la marge de la surface et `--k-size-tile-min` seulement. Hauteurs
+en `min-height`, jamais fixes (1.4.12). `text-wrap: balance` sur titres et légendes de
+tuiles (amélioration progressive).
+
+Tactile : sous `(any-pointer: coarse)`, les cibles des actions principales passent à
+44 px (`--k-size-target-coarse`) ; 24 px restent le plancher partout (2.5.8). Sous
+`(hover: none)`, rien n'est réservé au survol (le « + » d'un nœud, les actions de ligne
+restent visibles sur la ligne choisie).
+
+Fenêtre : cadre en `min-block-size: 100dvh` (repli `100vh`) ; `<meta name="viewport"
+content="width=device-width, initial-scale=1">`, sans `maximum-scale` ni
+`user-scalable=no` ; jamais d'orientation imposée (1.3.4) ; pas de détection d'appareil.
+`:has()` ancré sur un conteneur précis (cadre avec panneau ouvert, champ en erreur), jamais
+sur `:root` ni `body`. Le positionnement par ancre reste une amélioration progressive
+(menus près d'un bord).
+
+Vérification : captures des maquettes ajoutées à 390 px (classe compacte) ; `layout.spec`
+vérifie à 320 px (1280 px à 400 %, note 1 de 1.4.10) qu'aucune page ne défile
+horizontalement hors des régions de grille, et que chaque classe montre le cadre attendu.
+
 ## Architecture CSS (REQ-020-12 à 14)
 
 ```
