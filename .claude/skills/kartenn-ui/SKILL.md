@@ -101,7 +101,7 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `Tabs` | Tabs (activation manuelle) | ◐ |
 | `Menu` (bouton et menu) | Menu Button, Menu ; entrée désactivée focalisable (`aria-disabled`), motif en description et infobulle | ◐ |
 | `Dialog`, `AlertDialog`, `Drawer` | Dialog (Modal), Alert Dialog ; `Drawer` modal seulement | ◐ |
-| `SidePanel` | `complementary` non modal + Tabs ; surimpression de la surface (hôte positionné, surface `isolation: isolate`), redimensionnable (Window Splitter maison) | ● |
+| `SidePanel` | `complementary` non modal + Tabs ; surimpression de la surface (hôte positionné, surface `isolation: isolate`), redimensionnable (Window Splitter maison) ; `cover` sous 1024 px (toute la surface, sans poignée) | ● |
 | `CommitForm`, `SplitButton` | champs étiquetés, Ctrl+Entrée ; Button + Menu Button (entrées désactivées avec motif) | ● |
 | `Toolbar` | Toolbar ; actions repliées dans « … » par priorité | ● |
 | `MatrixGrid` | Grid ; en-têtes de lignes et de colonnes figés (virtualisation au-delà de 50 × 50 à venir) | ● |
@@ -110,7 +110,7 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `Breadcrumb`, `SidebarNav` | Breadcrumb ; Disclosure dans `navigation` | ◐ |
 | `CommandPalette` | Combobox dans un Dialog modal (liste `position="inline"`, sans Viewport) | ◐ |
 | `DataGrid` | Grid (maison) ; une seule grille, lignes en `subgrid` (024) ; tri (`aria-sort`) et filtre de colonne (Alt+Bas, `filter`) ; navigation au clavier (virtualisation et édition à venir) | ◐ |
-| `TreeGrid`, `Tree` | Treegrid ; Tree View ; garde d'affichage `misplaced` | ◐ (`TreeGrid`) |
+| `TreeGrid`, `Tree` | Treegrid ; Tree View ; garde d'affichage `misplaced` ; « + » d'un nœud (`addLabel`, événement `add`, 024/M10) | ◐ (`TreeGrid`) |
 | `CodeBadge`, `KeyLabel`, `EnvChip`, `StatusBadge` | Button (copier, nom = contenu, « Copier » caché) ; — | ◐ |
 | `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `aria-busy` (reflet animé, immobile sous mouvement réduit) ; `alert` ; `status` | ◐ |
 | `DatePill`, `DraftCounter`, `TimeBand` | Button ; bascule du panneau (`aria-expanded`, `aria-controls`) et Menu Button des brouillons ; `status` | ◐ (`DraftCounter` ●) |

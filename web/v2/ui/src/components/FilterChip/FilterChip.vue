@@ -117,7 +117,11 @@ const sentence = computed(() =>
     border-radius: var(--k-radius-md);
   }
 
+  /* At least 24 × 24 px inside the border (WCAG 2.5.8): chips sit side by side. */
   .k-filter-chip__remove {
+    justify-content: center;
+    min-inline-size: var(--k-control-height-sm);
+    min-block-size: var(--k-control-height-sm);
     padding-inline: var(--k-space-1);
     color: var(--k-text-muted);
     border-inline-start: var(--k-border-width) solid var(--k-border-strong);

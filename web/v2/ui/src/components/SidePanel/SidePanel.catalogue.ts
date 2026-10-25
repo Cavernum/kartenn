@@ -49,6 +49,7 @@ const demo = defineComponent({
     open: Boolean,
     tab: { type: String, default: "detail" },
     width: { type: Number, default: 420 },
+    cover: Boolean,
   },
   setup(props) {
     const open = ref(props.open);
@@ -88,6 +89,7 @@ const demo = defineComponent({
                 id: PANEL,
                 label: "Panneau droit",
                 tabs,
+                cover: props.cover,
                 open: open.value,
                 "onUpdate:open": (v: boolean) => (open.value = v),
                 tab: tab.value,
@@ -157,6 +159,13 @@ export default {
       name: "resized",
       description: "Redimensionné à 560 px (poignée)",
       props: { open: true, tab: "detail", width: 560 },
+      demo,
+      wide: true,
+    },
+    {
+      name: "cover",
+      description: "Fenêtre étroite : le panneau couvre toute la surface, sans poignée",
+      props: { open: true, tab: "draft", cover: true },
       demo,
       wide: true,
     },

@@ -8,13 +8,18 @@
 // `aria-posinset`, `aria-expanded`; the states the host decides (draft, children loading,
 // drop target accepted or refused, move pending or refused, with reason and code). The
 // tree never moves a node itself: it renders the parent of its model, checked at each
-// render outside production (REQ-020-32). Virtualisation, keyboard, editing and moves come
-// with the complete version (task 26).
+// render outside production (REQ-020-32). Direct addition (024/M10): when the host names
+// the « + » of a node (`addLabel`), the node cell ends with a button that emits `add` with
+// the node id; it shows on the selected row, on hover and on focus within the row, and is
+// reached from the keyboard with the arrows of the complete version (the shortcut `c` of
+// the screen creates meanwhile). Virtualisation, keyboard, editing and moves come with
+// the complete version (task 26).
 import { computed } from "vue";
 import { t } from "../../i18n.ts";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import { columnsTemplate, type GridColumn } from "../DataGrid/grid.ts";
 import Icon from "../Icon/Icon.vue";
+import IconButton from "../IconButton/IconButton.vue";
 import { flatten, misplaced, type TreeNode, type TreeNodeState, type TreeRow } from "./tree.ts";
 
 const props = withDefaults(
@@ -27,9 +32,18 @@ const props = withDefaults(
     expanded?: string[];
     selected?: string | undefined;
     nodeState?: ((node: TreeNode) => TreeNodeState | undefined) | undefined;
+    /** The name of the « + » of a node (« Ajouter dans 192.0.2.0/24 »); none, no button. */
+    addLabel?: ((node: TreeNode) => string | undefined) | undefined;
   }>(),
-  { columns: () => [], expanded: () => [], selected: undefined, nodeState: undefined },
+  {
+    columns: () => [],
+    expanded: () => [],
+    selected: undefined,
+    nodeState: undefined,
+    addLabel: undefined,
+  },
 );
+const emit = defineEmits<{ add: [id: string] }>();
 
 const rows = computed(() => {
   const list = flatten(props.nodes, new Set(props.expanded));
@@ -152,6 +166,15 @@ const word = (node: TreeNode) => {
               <span>{{ refusal(row.node)!.reason }}</span>
               <CodeBadge v-if="refusal(row.node)!.code" :code="refusal(row.node)!.code!" />
             </span>
+            <IconButton
+              v-if="props.addLabel?.(row.node)"
+              icon="plus"
+              size="sm"
+              tabindex="-1"
+              class="k-tree-grid__add"
+              :label="props.addLabel(row.node)!"
+              @click.stop="emit('add', row.node.id)"
+            />
           </div>
           <div
             v-for="(column, c) in props.columns"
@@ -313,6 +336,19 @@ const word = (node: TreeNode) => {
     font-size: var(--k-text-sm);
     line-height: var(--k-text-sm-line);
     color: var(--k-state-ko-fg);
+  }
+
+  /* The « + » of a node, at the end of its cell: shown where the user is. */
+  .k-tree-grid__add {
+    flex: none;
+    margin-inline-start: auto;
+    opacity: 0;
+  }
+
+  .k-tree-grid__row:hover .k-tree-grid__add,
+  .k-tree-grid__row:focus-within .k-tree-grid__add,
+  .k-tree-grid__row[aria-selected="true"] .k-tree-grid__add {
+    opacity: 1;
   }
 
   .k-tree-grid__bar {

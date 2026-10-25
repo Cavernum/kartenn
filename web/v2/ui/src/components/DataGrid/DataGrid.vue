@@ -534,5 +534,14 @@ function onKeydown(event: KeyboardEvent): void {
     border: var(--k-border-width) solid var(--k-state-ko-fg);
     border-radius: var(--k-radius-md);
   }
+
+  /* The sentence wraps; the code beside it stays whole (024/M16). */
+  .k-data-grid__error > span:first-child {
+    min-inline-size: 0;
+  }
+
+  .k-data-grid__error > .k-code-badge {
+    flex: none;
+  }
 }
 </style>
