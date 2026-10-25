@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // E6 — Lecture au passé (design « Maquettes »; 021, « Cadre » : bande, « Édition en
 // place » : hors présent; 024/M14, M15): the amber band, the date pill open on the period
-// picker, laid over the page (a non-modal dialog in the layers of the frame: the page does
-// not move; the picker itself is still to come, a marked stand-in), writes greyed with
+// picker, laid over the page (a non-modal dialog in the `picker` slot of the frame, out of
+// the flow under the date pill: the page does not move; the picker itself is still to
+// come, a marked stand-in), writes greyed with
 // their reason in their tooltip, the chronology of versions with the one valid at the date
 // read.
 import {
@@ -133,7 +134,7 @@ const sort = ref<GridSort>({ column: "version", direction: "descending" });
       </DataGrid>
     </Panneau>
     <!-- The picker lies over the page, under the date pill: the page keeps its layout. -->
-    <Teleport v-if="picker" defer to="#k-ecran-layers">
+    <template v-if="picker" #picker>
       <div role="dialog" aria-labelledby="k-ecran-periode" class="k-ecran-surimpression">
         <AVenir component="PeriodPicker" task="20">
           <section class="k-ecran-periode">
@@ -165,19 +166,16 @@ const sort = ref<GridSort>({ column: "version", direction: "descending" });
           </section>
         </AVenir>
       </div>
-    </Teleport>
+    </template>
   </Cadre>
 </template>
 
 <style>
 @layer components {
-  /* A non-modal layer under the end of the status bar, over the band and the page. */
+  /* A non-modal layer: the frame lays it under the date pill, over the band and the page. */
   .k-ecran-surimpression {
-    position: fixed;
-    inset-block-start: var(--k-size-status-bar);
-    inset-inline-end: var(--k-space-2);
-    z-index: var(--k-z-overlay);
     inline-size: var(--k-size-panel-lg);
+    max-inline-size: 100%;
     background-color: var(--k-surface);
     border-radius: var(--k-radius-md);
   }
