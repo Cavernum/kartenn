@@ -1,5 +1,5 @@
 //! The report of the bindings of the former subjects on groups (spec 025, REQ-025-14, G9;
-//! task 025-4): written by the migration `0067_rbac_bindings_reported`, listed once by
+//! task 025-4): written by the migration `0068_rbac_bindings_reported`, listed once by
 //! the migration job and audited (`rbac.migration.reported`).
 
 use kartenn_core::audit::RBAC_MIGRATION_REPORTED;
