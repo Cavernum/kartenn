@@ -480,6 +480,17 @@ horizontalement hors des régions de grille, et que chaque classe montre le cadr
   (E5, liste) et la liste des identités (E7) ; les groupes, rôles et comptes de service
   ont quatre attributs ou plus et gardent leurs colonnes à priorité. `layout.spec` ne
   compare plus les bords des colonnes d'une grille empilée. État de catalogue `stacked`.
+- `subgrid` entre blocs voisins : la liste d'attributs des maquettes (`EcranAttributs`)
+  est une seule grille dont chaque attribut est un `subgrid` ; ses colonnes restent en
+  fractions (2 : 3), si bien que des blocs de même largeur empilés (panneaux du côté
+  d'E2, tuiles d'E4 en une colonne) alignent déjà leurs valeurs, et une largeur au
+  contenu les désalignerait d'un panneau à l'autre. Côte à côte, des blocs posés dans une
+  grille `.k-ecran-attrs-tiles` (en-tête d'E4) partagent ses lignes (`subgrid` en lignes,
+  `span` du nombre d'attributs posé par CSSOM) : à 768 px, quand « Soumis » passe sur deux
+  lignes, « Auteur », « Effet au » et « Identifiant » restent sur la même. Les formulaires
+  des maquettes posent leurs libellés au-dessus des champs : rien à aligner entre eux ;
+  les panneaux d'E2 ne sont pas traversés (un `subgrid` à travers `Panneau` lierait sa
+  structure à son contenu).
 
 ## Architecture CSS (REQ-020-12 à 14)
 
