@@ -42,7 +42,8 @@ const draftActions: SplitAction[] = [
 
 /**
  * The frame of the panel: a surface (title, draft counter, table) and the panel over its
- * end; the counter opens the panel on its draft tab and closes it from there.
+ * end; the counter opens the panel on its draft tab and, open, closes it; closed, the
+ * panel leaves its strip (`rail`) at the end of the frame.
  */
 const demo = defineComponent({
   props: {
@@ -58,7 +59,7 @@ const demo = defineComponent({
     const summary = ref("Maintenance du référentiel");
     const action = ref("apply");
     function toggle(): void {
-      if (open.value && tab.value === "draft") open.value = false;
+      if (open.value) open.value = false;
       else {
         open.value = true;
         tab.value = "draft";
@@ -74,7 +75,7 @@ const demo = defineComponent({
             h(Cluster, { gap: "3", wrap: false }, () => [
               h(DraftCounter, {
                 count: 3,
-                expanded: open.value && tab.value === "draft",
+                expanded: open.value,
                 controls: PANEL,
                 onToggle: toggle,
               }),
@@ -90,6 +91,7 @@ const demo = defineComponent({
                 label: "Panneau droit",
                 tabs,
                 cover: props.cover,
+                rail: true,
                 open: open.value,
                 "onUpdate:open": (v: boolean) => (open.value = v),
                 tab: tab.value,
@@ -171,10 +173,20 @@ export default {
     },
     {
       name: "closed",
-      description: "Replié : rien ne reste ; le compteur du brouillon le rouvre",
+      description:
+        "Replié : une languette au bord de fin, dans le flux, dont le chevron le rouvre (le compteur aussi)",
       props: { open: false },
       demo,
       wide: true,
+    },
+    {
+      name: "rail-focus",
+      description: "Focus sur le chevron de la languette « Ouvrir le panneau »",
+      props: { open: false },
+      demo,
+      wide: true,
+      interaction: "focus",
+      target: ".k-side-panel-rail__open",
     },
     {
       name: "handle-focus",

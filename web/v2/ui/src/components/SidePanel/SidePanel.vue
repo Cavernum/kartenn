@@ -13,13 +13,19 @@
 // step, Home and End to the bounds, the pointer by dragging. Escape closes it and gives
 // the focus back to what opened it. Closed, it leaves nothing behind. On a narrow window
 // the host sets `cover`: the panel takes the whole width of its container, without handle
-// (spec 021, « Cadre » : at 768 px the panel covers the surface).
+// (spec 021, « Cadre » : at 768 px the panel covers the surface). With `rail`, the closed
+// panel leaves a strip in the flow at the end of its container (the host gives it an
+// `auto` track): a chevron button, « Ouvrir le panneau », reopens it on its last tab and
+// moves the focus there; closing it from inside gives the focus back to the strip. The
+// strip covers nothing, at any width (revue du 2026-10-25).
 import { computed, nextTick, ref, useId, watch } from "vue";
 import { t } from "../../i18n.ts";
 import IconButton from "../IconButton/IconButton.vue";
 import { isRtl } from "../internal/gridKeys.ts";
 import Tabs from "../Tabs/Tabs.vue";
 import type { TabItem } from "../Tabs/tabs.ts";
+
+defineOptions({ inheritAttrs: false });
 
 const props = withDefaults(
   defineProps<{
@@ -35,6 +41,8 @@ const props = withDefaults(
     step?: number;
     /** Over the whole container (narrow window): full width, not resizable. */
     cover?: boolean;
+    /** Closed, leave a strip with a button that reopens it. */
+    rail?: boolean;
   }>(),
   { id: undefined, min: 320, max: 720, step: 16 },
 );
@@ -48,6 +56,7 @@ const emit = defineEmits<{ close: [] }>();
 const generated = useId();
 const id = computed(() => props.id ?? generated);
 const panel = ref<HTMLElement | null>(null);
+const strip = ref<HTMLElement | null>(null);
 const handle = ref<HTMLElement | null>(null);
 const size = computed(() => ({ "--k-side-panel-width": `${width.value}px` }));
 const clamp = (value: number) => Math.round(Math.max(props.min, Math.min(props.max, value)));
@@ -70,7 +79,15 @@ async function close(): Promise<void> {
   emit("close");
   await nextTick();
   if (inside && opener && opener !== document.body && opener.isConnected) opener.focus();
+  else if (inside) strip.value?.querySelector<HTMLElement>("button")?.focus();
   opener = null;
+}
+
+/** The strip reopens the panel and moves the focus to its active tab. */
+async function reopen(): Promise<void> {
+  open.value = true;
+  await nextTick();
+  panel.value?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
 }
 
 function onKeydown(event: KeyboardEvent): void {
@@ -118,6 +135,7 @@ function onPointerup(event: PointerEvent): void {
 <template>
   <aside
     v-if="open"
+    v-bind="$attrs"
     :id="id"
     ref="panel"
     class="k-side-panel"
@@ -160,6 +178,18 @@ function onPointerup(event: PointerEvent): void {
       <slot name="footer" :tab="tab || props.tabs[0]?.value" />
     </footer>
   </aside>
+  <div v-if="props.rail" ref="strip" class="k-side-panel-rail">
+    <IconButton
+      v-if="!open"
+      class="k-side-panel-rail__open"
+      icon="chevron-left"
+      size="sm"
+      variant="secondary"
+      :label="t('panelOpen')"
+      aria-expanded="false"
+      @click="reopen"
+    />
+  </div>
 </template>
 
 <style>
@@ -228,6 +258,24 @@ function onPointerup(event: PointerEvent): void {
     position: absolute;
     inset-block-start: calc((var(--k-control-height-lg) - var(--k-control-height-sm)) / 2);
     inset-inline-end: var(--k-space-2);
+  }
+
+  /* The strip of the closed panel: in the flow, at the end, the width of a small control
+   * and its margins; its button at the height of the tab list. */
+  .k-side-panel-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    inline-size: calc(var(--k-control-height-sm) + var(--k-space-2));
+    min-block-size: 0;
+    padding-block-start: calc((var(--k-control-height-lg) - var(--k-control-height-sm)) / 2);
+    background-color: var(--k-surface);
+    border-inline-start: var(--k-border-width) solid var(--k-border-strong);
+  }
+
+  /* The chevron points to where the panel comes from. */
+  .k-side-panel-rail__open:dir(rtl) .k-icon {
+    scale: -1 1;
   }
 
   .k-side-panel__footer {
