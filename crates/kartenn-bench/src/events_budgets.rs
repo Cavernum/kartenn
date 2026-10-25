@@ -123,18 +123,13 @@ async fn person(pool: &PgPool, scope: (&str, Option<Uuid>)) -> anyhow::Result<Uu
         .execute(pool)
         .await?;
     }
-    sqlx::query(
-        "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, scope_id,
-                              valid_period, changeset_id)
-         VALUES (gen_random_uuid(), 'identity', $1, $2, $3, $4,
-                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
-    )
-    .bind(identity)
-    .bind(role)
-    .bind(scope.0)
-    .bind(scope.1)
-    .execute(pool)
-    .await?;
+    sqlx::query(crate::rbac::BIND_IDENTITY)
+        .bind(identity)
+        .bind(role)
+        .bind(scope.0)
+        .bind(scope.1)
+        .execute(pool)
+        .await?;
     Ok(identity)
 }
 

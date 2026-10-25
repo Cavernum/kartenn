@@ -56,17 +56,14 @@ async fn person(pool: &PgPool, entries: &[&str]) -> Uuid {
         .await
         .unwrap();
     }
-    sqlx::query(
-        "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, scope_id,
-                              valid_period, changeset_id)
-         VALUES (gen_random_uuid(), 'identity', $1, $2, 'global', NULL,
-                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
-    )
-    .bind(identity)
-    .bind(role)
-    .execute(pool)
-    .await
-    .unwrap();
+    sqlx::query(kartenn_testing::BIND_IDENTITY)
+        .bind(identity)
+        .bind(role)
+        .bind("global")
+        .bind(None::<Uuid>)
+        .execute(pool)
+        .await
+        .unwrap();
     identity
 }
 

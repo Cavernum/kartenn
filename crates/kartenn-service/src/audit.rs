@@ -409,7 +409,9 @@ fn rbac_event(
     op: &crate::rbac::RbacOp,
 ) -> Result<Option<AuditEvent>, RequestError> {
     use crate::rbac::RbacOp;
-    use kartenn_core::audit::{RBAC_BINDING_CHANGED, RBAC_ROLE_CHANGED, SERVICE_ACCOUNT_CHANGED};
+    use kartenn_core::audit::{
+        RBAC_BINDING_CHANGED, RBAC_GROUP_CHANGED, RBAC_ROLE_CHANGED, SERVICE_ACCOUNT_CHANGED,
+    };
     let account = |id: Uuid, change: &str| -> Result<AuditEvent, RequestError> {
         event(&SERVICE_ACCOUNT_CHANGED, Outcome::Success)?
             .target("service_account", [id])
@@ -425,13 +427,14 @@ fn rbac_event(
         }
         RbacOp::Bind {
             id,
+            group,
             role,
             scope_kind,
             scope,
-            ..
         } => event(&RBAC_BINDING_CHANGED, Outcome::Success)?
             .target("binding", [*id])
-            .detail("role", role.as_str())
+            .detail("group", group.as_str())
+            .and_then(|e| e.detail("role", role.as_str()))
             .and_then(|e| {
                 e.detail(
                     "scope",
@@ -443,6 +446,29 @@ fn rbac_event(
         RbacOp::Unbind { id } => {
             event(&RBAC_BINDING_CHANGED, Outcome::Success)?.target("binding", [*id])
         }
+        // Spec 025, REQ-025-10.
+        RbacOp::SetGroup { key, .. } | RbacOp::CloseGroup { key } => {
+            let change = if matches!(op, RbacOp::SetGroup { .. }) {
+                "set"
+            } else {
+                "closed"
+            };
+            event(&RBAC_GROUP_CHANGED, Outcome::Success)?
+                .target("group", [crate::rbac::RBAC_OBJECT])
+                .detail("group", key.as_str())
+                .and_then(|e| e.detail("change", change))
+                .map_err(|e| audit_err(&e))?
+        }
+        RbacOp::AddMember { id, group, .. } => event(&RBAC_GROUP_CHANGED, Outcome::Success)?
+            .target("group_member", [*id])
+            .detail("group", group.as_str())
+            .and_then(|e| e.detail("change", "member_added"))
+            .map_err(|e| audit_err(&e))?,
+        // Its group is that of the membership it ends, in the changeset.
+        RbacOp::RemoveMember { id } => event(&RBAC_GROUP_CHANGED, Outcome::Success)?
+            .target("group_member", [*id])
+            .detail("change", "member_removed")
+            .map_err(|e| audit_err(&e))?,
         RbacOp::CreateAccount { id, .. } => account(*id, "created")?,
         RbacOp::AddSecret { account: id, .. } => account(*id, "secret_added")?,
         RbacOp::RevokeSecret { account: id, .. } => account(*id, "secret_revoked")?,

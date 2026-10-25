@@ -422,6 +422,10 @@ pub(crate) fn references(op: &Operation) -> Vec<(Ref, ObjectKind)> {
         | Operation::SetApprovalPolicy { .. }
         | Operation::SetRole { .. }
         | Operation::CloseRole { .. }
+        | Operation::SetGroup { .. }
+        | Operation::CloseGroup { .. }
+        | Operation::AddMember { .. }
+        | Operation::RemoveMember { .. }
         | Operation::Unbind { .. }
         | Operation::SetIdentityState { .. }
         | Operation::CreateServiceAccount { .. }
@@ -1044,6 +1048,10 @@ fn plan(
                 }
                 Operation::SetRole { .. }
                 | Operation::CloseRole { .. }
+                | Operation::SetGroup { .. }
+                | Operation::CloseGroup { .. }
+                | Operation::AddMember { .. }
+                | Operation::RemoveMember { .. }
                 | Operation::Bind { .. }
                 | Operation::Unbind { .. }
                 | Operation::AttachIssuer { .. }

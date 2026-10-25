@@ -134,17 +134,14 @@ async fn importer(pool: &PgPool) -> Uuid {
     .await
     .unwrap();
     let role = everything(pool).await;
-    sqlx::query(
-        "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, scope_id,
-                              valid_period, changeset_id)
-         VALUES (gen_random_uuid(), 'identity', $1, $2, 'global', NULL,
-                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
-    )
-    .bind(identity)
-    .bind(role)
-    .execute(pool)
-    .await
-    .unwrap();
+    sqlx::query(kartenn_testing::BIND_IDENTITY)
+        .bind(identity)
+        .bind(role)
+        .bind("global")
+        .bind(None::<Uuid>)
+        .execute(pool)
+        .await
+        .unwrap();
     identity
 }
 
@@ -170,10 +167,19 @@ async fn group_importer(pool: &PgPool) -> Subject {
     .await
     .unwrap();
     sqlx::query(
-        "INSERT INTO binding (id, subject_kind, issuer, group_name, role_id, scope_kind,
-                              scope_id, valid_period, changeset_id)
-         VALUES (gen_random_uuid(), 'group', $1, 'admins', $2, 'global', NULL,
-                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+        "WITH g AS (
+            INSERT INTO rbac_group (id, key, labels, valid_period, changeset_id)
+            VALUES (gen_random_uuid(), 'admins', '{\"fr\": \"A\"}',
+                    tstzrange(now() - interval '1 day', NULL), gen_random_uuid())
+            RETURNING id),
+         m AS (
+            INSERT INTO group_member (id, group_id, member_kind, issuer, group_name,
+                                      valid_period, changeset_id)
+            SELECT gen_random_uuid(), g.id, 'idp_group', $1, 'admins',
+                   tstzrange(now() - interval '1 day', NULL), gen_random_uuid() FROM g)
+         INSERT INTO binding (id, group_id, role_id, scope_kind, valid_period, changeset_id)
+         SELECT gen_random_uuid(), g.id, $2, 'global',
+                tstzrange(now() - interval '1 day', NULL), gen_random_uuid() FROM g",
     )
     .bind(ISSUER)
     .bind(role)

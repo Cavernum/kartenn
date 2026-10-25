@@ -29,20 +29,21 @@ pub struct Stored<'a> {
     pub valid_until: OffsetDateTime,
 }
 
-/// The delivered role a break-glass account holds (K17).
-pub const ROLE: &str = "administrator";
+/// The delivered group a break-glass account belongs to (spec 025, G7; 005/K17), bound to
+/// the administrator role on the global scope by the synchronisation of the core.
+pub const GROUP: &str = kartenn_core::authz::SECOURS.key;
 
 /// Creates the account, with the connection of the owner of the schema; its identifier.
 ///
-/// In the same transaction, binds the account to the delivered role `administrator`,
-/// global scope, from now to `valid_until` (spec 005, K17): the bootstrap of a new
-/// instance. The subcommand has no calling identity, so the binding is written here, under
-/// a changeset of the system author, rather than through the pipeline.
+/// In the same transaction, makes the account a member of the delivered group `secours`
+/// from now to `valid_until` (spec 025, G7; 005, K17): the bootstrap of a new instance.
+/// The subcommand has no calling identity, so the membership is written here, under a
+/// changeset of the system author, rather than through the pipeline.
 ///
 /// # Errors
 ///
 /// Database errors: a name taken, a connection without the owner's rights, or no
-/// delivered `administrator` role yet (the migration job synchronises it).
+/// delivered group `secours` yet (the migration job synchronises it).
 pub async fn create(
     pool: &PgPool,
     account: &Stored<'_>,
@@ -70,7 +71,7 @@ pub async fn create(
     .map_err(store_err)?;
     let start = OffsetDateTime::now_utc();
     if account.valid_until > start {
-        bind_administrator(&mut tx, id, account, start).await?;
+        join_secours(&mut tx, id, account, start).await?;
     }
     let until =
         At(i64::try_from(account.valid_until.unix_timestamp_nanos() / 1_000).map_err(store_err)?);
@@ -80,33 +81,31 @@ pub async fn create(
         .target("person", [id])
         .detail("valid_until", rfc3339(until))
         .map_err(store_err)?
-        .detail("role", ROLE)
-        .map_err(store_err)?
-        .detail("scope", "global")
+        .detail("group", GROUP)
         .map_err(store_err)?;
     crate::audit_journal::insert(&mut *tx, &event, instance).await?;
     tx.commit().await.map_err(store_err)?;
     Ok(id)
 }
 
-/// Binds the account `id` to [`ROLE`], global scope, over `[start, valid_until)`, under a
-/// changeset of the system author (K17).
-async fn bind_administrator(
+/// Makes the account `id` a member of [`GROUP`] over `[start, valid_until)`, under a
+/// changeset of the system author (spec 025, G7).
+async fn join_secours(
     tx: &mut sqlx::PgConnection,
     id: Uuid,
     account: &Stored<'_>,
     start: OffsetDateTime,
 ) -> Result<(), StoreError> {
-    let role: Option<Uuid> = sqlx::query_scalar(
-        "SELECT id FROM role WHERE key = $1 AND builtin AND valid_period @> now()",
+    let group: Option<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM rbac_group WHERE key = $1 AND builtin AND valid_period @> now()",
     )
-    .bind(ROLE)
+    .bind(GROUP)
     .fetch_optional(&mut *tx)
     .await
     .map_err(store_err)?;
-    let role = role.ok_or_else(|| {
+    let group = group.ok_or_else(|| {
         StoreError(format!(
-            "no delivered role '{ROLE}': run `kartenn-server migrate` first"
+            "no delivered group '{GROUP}': run `kartenn-server migrate` first"
         ))
     })?;
     let changeset = Uuid::now_v7();
@@ -123,13 +122,13 @@ async fn bind_administrator(
     .await
     .map_err(store_err)?;
     sqlx::query(
-        "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, valid_period,
-                              changeset_id)
-         VALUES ($1, 'identity', $2, $3, 'global', tstzrange($4, $5), $6)",
+        "INSERT INTO group_member (id, group_id, member_kind, identity_id, valid_period,
+                                   changeset_id)
+         VALUES ($1, $2, 'identity', $3, tstzrange($4, $5), $6)",
     )
     .bind(Uuid::now_v7())
+    .bind(group)
     .bind(id)
-    .bind(role)
     .bind(start)
     .bind(account.valid_until)
     .bind(changeset)

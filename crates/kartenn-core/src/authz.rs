@@ -69,8 +69,8 @@ permissions! {
     ANOMALY_ACKNOWLEDGE ="core.anomaly.acknowledge", false, "Acquitter, avec un motif, une anomalie d'un objet du périmètre.";
     PROPERTY_ADMIN = "core.property.admin", true, "Déclarer une propriété, changer sa sensibilité.";
     APPROVAL_POLICY_ADMIN = "core.approval_policy.admin", false, "Créer, modifier ou désactiver une politique d'approbation.";
-    RBAC_READ = "core.rbac.read", true, "Lire les rôles, liaisons, rattachements, comptes de service et l'état des identités.";
-    RBAC_ADMIN = "core.rbac.admin", false, "Poser ou clore des liaisons dans le périmètre, pour des rôles dont on détient les permissions.";
+    RBAC_READ = "core.rbac.read", true, "Lire les rôles, groupes, membres, liaisons, rattachements, comptes de service et l'état des identités.";
+    RBAC_ADMIN = "core.rbac.admin", false, "Créer des groupes, poser ou clore leurs liaisons et leurs membres dans le périmètre, pour des rôles dont on détient les permissions.";
     ROLE_ADMIN = "core.role.admin", true, "Définir, modifier ou clore un rôle.";
     ISSUER_ADMIN = "core.issuer.admin", true, "Rattacher un émetteur OIDC à des entités ou au périmètre global.";
     ACCOUNT_ADMIN = "core.account.admin", true, "Gérer les comptes de service, désactiver une identité, révoquer ses sessions.";
@@ -461,6 +461,29 @@ pub static ADMINISTRATOR: BuiltinRole = BuiltinRole {
 
 /// The delivered roles.
 pub static BUILTIN_ROLES: &[&BuiltinRole] = &[&READER, &EDITOR, &APPROVER, &ADMINISTRATOR];
+
+/// A group of kartenn delivered with kartenn (spec 025, G7): its labels and its bindings
+/// change only by the synchronisation of the core; its members are managed as any.
+#[derive(Debug, PartialEq, Eq)]
+pub struct BuiltinGroup {
+    /// Stable key.
+    pub key: &'static str,
+    /// Its labels in French and English.
+    pub labels: crate::labels::Compiled,
+    /// The delivered roles it holds on the global scope.
+    pub roles: &'static [&'static str],
+}
+
+/// The group of the break-glass accounts (spec 025, G7; 005/K17): the administrator role on
+/// the global scope; an account enters it at its creation, for its validity.
+pub static SECOURS: BuiltinGroup = BuiltinGroup {
+    key: "secours",
+    labels: crate::labels::Compiled::new("Secours", "Break-glass"),
+    roles: &["administrator"],
+};
+
+/// The delivered groups.
+pub static BUILTIN_GROUPS: &[&BuiltinGroup] = &[&SECOURS];
 
 impl BuiltinRole {
     /// Its entries in a build with the permissions `modules`: the delivered roles that

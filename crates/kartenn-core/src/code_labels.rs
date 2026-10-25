@@ -103,11 +103,11 @@ pub static PERMISSIONS_EN: &[(&str, &str)] = &[
     ),
     (
         "core.rbac.read",
-        "Read the roles, bindings, attachments, service accounts and the state of the identities.",
+        "Read the roles, groups, members, bindings, attachments, service accounts and the state of the identities.",
     ),
     (
         "core.rbac.admin",
-        "Set or close bindings in the scope, for roles whose permissions one holds.",
+        "Create groups, set or close their bindings and their members in the scope, for roles whose permissions one holds.",
     ),
     ("core.role.admin", "Define, change or close a role."),
     (
@@ -391,7 +391,31 @@ pub static RULES_EN: &[(&str, &str)] = &[
     ("core.role.unknown", "A binding designates a role in force."),
     (
         "core.binding.requester",
-        "A binding does not designate a « requester » identity: a requester is not an account; the person who later logs in through its issuer becomes one.",
+        "A group has no « requester » identity as member: a requester is not an account; the person who later logs in through its issuer becomes one.",
+    ),
+    (
+        "core.binding.group_closed",
+        "A binding designates a group in force: a group closed since a pending changeset that binds it was written puts that changeset in conflict at its approval.",
+    ),
+    (
+        "core.group.invalid",
+        "A group has a key and labels; a member is an identity or a non-empty group of an issuer, present at most once in a group at a given date.",
+    ),
+    (
+        "core.group.unknown",
+        "A membership designates a group in force.",
+    ),
+    (
+        "core.group.nested",
+        "A kartenn group is a member of no other: a member is an identity or a group of the issuer, the form of a membership admits nothing else.",
+    ),
+    (
+        "core.group.escalation",
+        "A member is added to or removed from a group, or the group closed, only by one who could create each of its bindings: administer the rights on their scope and hold each entry of their roles.",
+    ),
+    (
+        "core.group.builtin",
+        "A delivered group, its labels and its bindings change only by the synchronisation of the core; its members are managed as those of any group.",
     ),
     (
         "core.object.forbidden",

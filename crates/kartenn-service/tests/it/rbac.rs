@@ -8,7 +8,7 @@ use kartenn_service::audit::{Instance, RequestContext};
 use kartenn_service::authz::{Authorizer, Subject, Unrestricted};
 use kartenn_service::declarations::{core_declarations, sync_modules};
 use kartenn_service::expected::Sources;
-use kartenn_service::operations::{BindingScope, BindingSubject, RawInput};
+use kartenn_service::operations::{BindingScope, GroupMember, RawInput};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::pipeline::PendingKind;
 use kartenn_service::rbac::{RENAME_MOTIVE, rename_permissions, sync_roles};
@@ -274,14 +274,13 @@ impl Tree {
         id
     }
 
-    /// Binds `role` on a scope (`global` or the name of an object of the tree) to an
-    /// identity, a group or a whole issuer, until `until` days from now (unbounded with
-    /// `None`).
+    /// Binds `role` on a scope (`global` or the name of an object of the tree), until
+    /// `until` days from now (unbounded with `None`), to a new group of kartenn whose
+    /// member is an identity or a group of an issuer (spec 025).
     async fn bind(&self, subject: Binding<'_>, role: Uuid, scope: &str, until: Option<i32>) {
         let (kind, id, issuer, group) = match subject {
             Binding::Identity(id) => ("identity", Some(id), None, None),
-            Binding::Group(issuer, group) => ("group", None, Some(issuer), Some(group)),
-            Binding::Issuer(issuer) => ("issuer", None, Some(issuer), None),
+            Binding::Group(issuer, group) => ("idp_group", None, Some(issuer), Some(group)),
         };
         let (scope_kind, scope_id) = match scope {
             "global" => ("global", None),
@@ -296,13 +295,25 @@ impl Tree {
             }
         };
         sqlx::query(
-            "INSERT INTO binding (id, subject_kind, subject_id, issuer, group_name, role_id,
-                                  scope_kind, scope_id, valid_period, changeset_id)
-             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7,
-                     tstzrange(now() - interval '2 days',
-                               CASE WHEN $8::int IS NULL THEN NULL
-                                    ELSE now() + make_interval(days => $8::int) END),
-                     gen_random_uuid())",
+            "WITH g AS (
+                INSERT INTO rbac_group (id, key, labels, valid_period, changeset_id)
+                VALUES (gen_random_uuid(), 't-' || replace(gen_random_uuid()::text, '-', ''),
+                        '{\"fr\": \"t\"}', tstzrange(now() - interval '2 days', NULL),
+                        gen_random_uuid())
+                RETURNING id),
+             m AS (
+                INSERT INTO group_member (id, group_id, member_kind, identity_id, issuer,
+                                          group_name, valid_period, changeset_id)
+                SELECT gen_random_uuid(), g.id, $1, $2, $3, $4,
+                       tstzrange(now() - interval '2 days', NULL), gen_random_uuid() FROM g)
+             INSERT INTO binding (id, group_id, role_id, scope_kind, scope_id, valid_period,
+                                  changeset_id)
+             SELECT gen_random_uuid(), g.id, $5, $6, $7,
+                    tstzrange(now() - interval '2 days',
+                              CASE WHEN $8::int IS NULL THEN NULL
+                                   ELSE now() + make_interval(days => $8::int) END),
+                    gen_random_uuid()
+             FROM g",
         )
         .bind(kind)
         .bind(id)
@@ -353,7 +364,6 @@ impl Tree {
 enum Binding<'a> {
     Identity(Uuid),
     Group(&'a str, &'a str),
-    Issuer(&'a str),
 }
 
 const OBJECTS: [&str; 7] = [
@@ -447,12 +457,26 @@ async fn an_issuer_is_confined_to_its_entities(pool: PgPool) {
         "another group"
     );
     // The internal IdP, attached globally, reaches everything its bindings give, sites
-    // (without owner) included; a whole-issuer binding serves all its people.
+    // (without owner) included; no binding serves a whole issuer (spec 025, G3).
     t.attach(IDP, None).await;
-    t.bind(Binding::Issuer(IDP), reader, "global", None).await;
+    t.bind(Binding::Group(IDP, "staff"), reader, "global", None)
+        .await;
     assert_eq!(
-        t.allowed(&person(Some(IDP), &[]), read, &OBJECTS).await,
+        t.allowed(&person(Some(IDP), &["staff"]), read, &OBJECTS)
+            .await,
         OBJECTS.to_vec()
+    );
+    assert!(
+        t.allowed(&person(Some(IDP), &[]), read, &OBJECTS)
+            .await
+            .is_empty(),
+        "an identity in no group holds nothing, its issuer attached"
+    );
+    // A group of an issuer serves the identities of that issuer only (REQ-025-4).
+    assert!(
+        t.allowed(&person(Some(VENDOR_IDP), &["staff"]), read, &OBJECTS)
+            .await
+            .is_empty()
     );
 }
 
@@ -804,14 +828,26 @@ async fn a_right_to_edit_alone_makes_a_proposal(pool: PgPool) {
     assert_eq!(rules_of(&outcome), ["core.object.forbidden"]);
 }
 
-fn bind_op(subject: Uuid, role: &str, scope: BindingScope) -> Operation {
-    Operation::Bind {
-        local: None,
-        subject: BindingSubject::Identity { id: subject },
-        role: role.into(),
-        scope,
+impl Tree {
+    /// A binding of `role` on `scope` to a new group whose member is `subject`.
+    async fn bind_op(&self, subject: Uuid, role: &str, scope: BindingScope) -> Operation {
+        let group: String = sqlx::query_scalar(kartenn_testing::GROUP_OF)
+            .bind(subject)
+            .fetch_one(&self.pool)
+            .await
+            .unwrap();
+        Operation::Bind {
+            local: None,
+            group,
+            role: role.into(),
+            scope,
+        }
     }
 }
+
+/// The binding serving the only group of `identity`.
+const BINDING_OF: &str = "SELECT b.id FROM binding b
+     JOIN group_member m ON m.group_id = b.group_id WHERE m.identity_id = $1";
 
 fn set_role(key: &str, entries: &[&str]) -> Operation {
     Operation::SetRole {
@@ -1135,13 +1171,14 @@ async fn an_administrator_binds_and_unbinds(pool: PgPool) {
             &root,
             vec![
                 set_role("auditor", &["core.address.read"]),
-                bind_op(
+                t.bind_op(
                     user.id,
                     "auditor",
                     BindingScope::Entity {
                         id: Ref::Id(t.ids["branch"]),
                     },
-                ),
+                )
+                .await,
             ],
         )
         .await;
@@ -1151,7 +1188,7 @@ async fn an_administrator_binds_and_unbinds(pool: PgPool) {
             .await,
         ["10.5.0.7"]
     );
-    let binding: Uuid = sqlx::query_scalar("SELECT id FROM binding WHERE subject_id = $1")
+    let binding: Uuid = sqlx::query_scalar(BINDING_OF)
         .bind(user.id)
         .fetch_one(&pool)
         .await
@@ -1225,7 +1262,7 @@ async fn a_delegate_cannot_escalate(pool: PgPool) {
     let outcome = t
         .submit_as(
             &delegate,
-            vec![bind_op(user.id, "auditor", entity("branch"))],
+            vec![t.bind_op(user.id, "auditor", entity("branch")).await],
         )
         .await;
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
@@ -1243,7 +1280,7 @@ async fn a_delegate_cannot_escalate(pool: PgPool) {
         ("manager", entity("branch"), None),
     ] {
         let outcome = t
-            .submit_as(&delegate, vec![bind_op(user.id, role, scope)])
+            .submit_as(&delegate, vec![t.bind_op(user.id, role, scope).await])
             .await;
         match rule {
             Some(rule) => assert_eq!(rules_of(&outcome), [rule], "{role} on {scope:?}"),
@@ -1275,12 +1312,12 @@ async fn an_undo_cannot_escalate(pool: PgPool) {
                         "core.address.apply_own",
                     ],
                 ),
-                bind_op(user.id, "writer", branch),
+                t.bind_op(user.id, "writer", branch).await,
             ],
         )
         .await;
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
-    let binding: Uuid = sqlx::query_scalar("SELECT id FROM binding WHERE subject_id = $1")
+    let binding: Uuid = sqlx::query_scalar(BINDING_OF)
         .bind(user.id)
         .fetch_one(&pool)
         .await
@@ -1434,7 +1471,7 @@ async fn binding_the_administrator_role_waits_for_a_second_administrator(pool: P
     match t
         .submit_as(
             &root,
-            vec![bind_op(newcomer.id, "root", BindingScope::Global)],
+            vec![t.bind_op(newcomer.id, "root", BindingScope::Global).await],
         )
         .await
     {
@@ -1444,7 +1481,10 @@ async fn binding_the_administrator_role_waits_for_a_second_administrator(pool: P
     let outcome = t
         .submit_as(
             &root,
-            vec![bind_op(newcomer.id, "reader_too", BindingScope::Global)],
+            vec![
+                t.bind_op(newcomer.id, "reader_too", BindingScope::Global)
+                    .await,
+            ],
         )
         .await;
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
@@ -1517,4 +1557,305 @@ async fn policies_hold_by_scope_and_by_role(pool: PgPool) {
         Outcome::Pending { kind, .. } => assert_eq!(kind, PendingKind::Approval),
         other => panic!("expected an approval, got {other:?}"),
     }
+}
+
+fn set_group(key: &str) -> Operation {
+    Operation::SetGroup {
+        key: key.into(),
+        labels: [("fr".into(), key.into())].into(),
+    }
+}
+
+fn add_member(group: &str, id: Uuid) -> Operation {
+    Operation::AddMember {
+        local: None,
+        group: group.into(),
+        member: GroupMember::Identity { id },
+    }
+}
+
+fn bind_group(group: &str, role: &str, scope: BindingScope) -> Operation {
+    Operation::Bind {
+        local: None,
+        group: group.into(),
+        role: role.into(),
+        scope,
+    }
+}
+
+impl Tree {
+    /// The membership of `identity` in the group `group`, in force now.
+    async fn membership(&self, group: &str, identity: Uuid) -> Option<Uuid> {
+        sqlx::query_scalar(
+            "SELECT m.id FROM group_member m
+             JOIN rbac_group g ON g.id = m.group_id AND g.valid_period @> now()
+             WHERE g.key = $1 AND m.identity_id = $2 AND m.valid_period @> now()",
+        )
+        .bind(group)
+        .bind(identity)
+        .fetch_optional(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// A root, holding every permission everywhere.
+    async fn root(&self) -> Subject {
+        let root = self.identity().await;
+        let admin = self.role("root", &["*"]).await;
+        self.bind(Binding::Identity(root.id), admin, "global", None)
+            .await;
+        root
+    }
+}
+
+// REQ-025-2, 4, 8: the rights of an identity are those of the groups it belongs to,
+// directly or by a group of its issuer, while it belongs to them.
+#[kartenn_testing::pg_test]
+async fn rights_come_and_go_with_the_memberships(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let root = t.root().await;
+    let outcome = t
+        .submit_as(
+            &root,
+            vec![
+                set_role("auditor", &["core.address.read"]),
+                set_group("auditors"),
+                bind_group("auditors", "auditor", BindingScope::Global),
+                Operation::AddMember {
+                    local: None,
+                    group: "auditors".into(),
+                    member: GroupMember::IdpGroup {
+                        issuer: IDP.into(),
+                        group: "audit".into(),
+                    },
+                },
+            ],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let (read, objects) = ("core.address.read", ["10.5.0.7"]);
+    let user = t.identity().await;
+    assert!(t.allowed(&user, read, &objects).await.is_empty());
+    t.attach(IDP, None).await;
+    let audit = person(Some(IDP), &["audit"]);
+    assert_eq!(t.allowed(&audit, read, &objects).await, objects);
+    assert!(
+        t.allowed(&person(Some(VENDOR_IDP), &["audit"]), read, &objects)
+            .await
+            .is_empty(),
+        "the group of another issuer"
+    );
+    // A member directly, until removed; a membership over a past period gives nothing.
+    let outcome = t
+        .submit_as(&root, vec![add_member("auditors", user.id)])
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert_eq!(t.allowed(&user, read, &objects).await, objects);
+    let twice = t
+        .submit_as(&root, vec![add_member("auditors", user.id)])
+        .await;
+    assert_eq!(rules_of(&twice), ["core.group.invalid"]);
+    let membership = t.membership("auditors", user.id).await.unwrap();
+    let outcome = t
+        .submit_as(&root, vec![Operation::RemoveMember { id: membership }])
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    sqlx::query(
+        "INSERT INTO group_member (id, group_id, member_kind, identity_id, valid_period,
+                                   changeset_id)
+         SELECT gen_random_uuid(), id, 'identity', $1,
+                tstzrange(now() - interval '2 days', now() - interval '1 day'), gen_random_uuid()
+         FROM rbac_group WHERE key = 'auditors'",
+    )
+    .bind(user.id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    assert!(t.allowed(&user, read, &objects).await.is_empty());
+    // Unknown groups.
+    let user_id = user.id;
+    for (op, rule) in [
+        (add_member("nobody", user_id), "core.group.unknown"),
+        (
+            bind_group("nobody", "auditor", BindingScope::Global),
+            "core.binding.group_closed",
+        ),
+    ] {
+        assert_eq!(rules_of(&t.submit_as(&root, vec![op]).await), [rule]);
+    }
+    // Closing the group ends its bindings and its memberships.
+    let outcome = t
+        .submit_as(
+            &root,
+            vec![Operation::CloseGroup {
+                key: "auditors".into(),
+            }],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert!(t.allowed(&audit, read, &objects).await.is_empty());
+    let left: i64 = sqlx::query_scalar(
+        "SELECT (SELECT count(*) FROM binding WHERE group_id = g.id AND valid_period @> now())
+              + (SELECT count(*) FROM group_member WHERE group_id = g.id
+                 AND valid_period @> now())
+         FROM rbac_group g WHERE g.key = 'auditors'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(left, 0);
+}
+
+// INV-27, REQ-025-7, 8 (G5): adding or removing a member of a group, oneself included, or
+// closing it, asks what creating each of its bindings asks; an empty group asks
+// `core.rbac.admin` somewhere.
+#[kartenn_testing::pg_test]
+async fn a_delegate_cannot_escalate_through_a_group(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let root = t.root().await;
+    let entity = |name: &str| BindingScope::Entity {
+        id: Ref::Id(t.ids[name]),
+    };
+    let outcome = t
+        .submit_as(
+            &root,
+            vec![
+                set_role("auditor", &["core.address.read"]),
+                set_role("writer", &["core.address.read", "core.address.edit"]),
+                set_group("everywhere"),
+                bind_group("everywhere", "auditor", BindingScope::Global),
+                set_group("vendor-team"),
+                bind_group("vendor-team", "auditor", entity("vendor")),
+                set_group("branch-writers"),
+                bind_group("branch-writers", "writer", entity("branch")),
+                set_group("branch-team"),
+                bind_group("branch-team", "auditor", entity("branch")),
+                set_group("empty"),
+            ],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    // The delegate administers the entity `group` (`branch` below) and reads addresses.
+    let delegate = t.identity().await;
+    let manager = t
+        .role("manager", &["core.rbac.admin", "core.address.read"])
+        .await;
+    t.bind(Binding::Identity(delegate.id), manager, "group", None)
+        .await;
+    let user = t.identity().await;
+    let groups = ["everywhere", "vendor-team", "branch-writers", "branch-team"];
+    let outcome = t
+        .submit_as(
+            &root,
+            groups.iter().map(|g| add_member(g, user.id)).collect(),
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let refused = Some("core.group.escalation");
+    for (group, rule) in [
+        // Wider than the delegate's scope, or outside it.
+        ("everywhere", refused),
+        ("vendor-team", refused),
+        // In its scope, a role holding a permission the delegate lacks.
+        ("branch-writers", refused),
+        ("branch-team", None),
+        ("empty", None),
+    ] {
+        let newcomer = t.identity().await.id;
+        let mut operations = vec![add_member(group, newcomer), add_member(group, delegate.id)];
+        if let Some(id) = t.membership(group, user.id).await {
+            operations.push(Operation::RemoveMember { id });
+        }
+        operations.push(Operation::CloseGroup { key: group.into() });
+        for op in operations {
+            let outcome = t.submit_as(&delegate, vec![op.clone()]).await;
+            match rule {
+                Some(rule) => assert_eq!(rules_of(&outcome), [rule], "{group}: {op:?}"),
+                None => assert!(
+                    matches!(outcome, Outcome::Applied { .. }),
+                    "{group}: {op:?}: {outcome:?}"
+                ),
+            }
+        }
+    }
+    // Without `core.rbac.admin` anywhere, not even an empty group.
+    let nobody = t.identity().await;
+    assert_eq!(
+        rules_of(&t.submit_as(&nobody, vec![set_group("mine")]).await),
+        ["core.rbac.forbidden"]
+    );
+    let outcome = t
+        .submit_as(
+            &delegate,
+            vec![
+                set_group("mine"),
+                bind_group("mine", "auditor", entity("branch")),
+                add_member("mine", user.id),
+            ],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+}
+
+// REQ-025-9 (G7): the group `secours`, delivered, holds the administrator role on the
+// global scope; it changes only by the synchronisation, its members as those of any group.
+#[kartenn_testing::pg_test]
+async fn the_group_secours_is_delivered_and_kept(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    sync_roles(&t.store, MAX_OPERATIONS).await.unwrap();
+    let bound: Vec<(Uuid, String, String)> = sqlx::query_as(
+        "SELECT b.id, r.key, b.scope_kind FROM binding b
+         JOIN rbac_group g ON g.id = b.group_id AND g.builtin AND g.valid_period @> now()
+         JOIN role r ON r.id = b.role_id AND r.valid_period @> now()
+         WHERE g.key = 'secours' AND b.valid_period @> now()",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        bound
+            .iter()
+            .map(|(_, r, s)| (r.as_str(), s.as_str()))
+            .collect::<Vec<_>>(),
+        [("administrator", "global")]
+    );
+    assert!(
+        sync_roles(&t.store, MAX_OPERATIONS)
+            .await
+            .unwrap()
+            .is_none(),
+        "once"
+    );
+    let root = t.root().await;
+    for op in [
+        set_group("secours"),
+        Operation::CloseGroup {
+            key: "secours".into(),
+        },
+        bind_group("secours", "reader", BindingScope::Global),
+        Operation::Unbind { id: bound[0].0 },
+    ] {
+        let outcome = t.submit_as(&root, vec![op.clone()]).await;
+        assert_eq!(rules_of(&outcome), ["core.group.builtin"], "{op:?}");
+    }
+    // A member, by a global administrator only (G5): then an administrator everywhere.
+    let user = t.identity().await;
+    let delegate = t.identity().await;
+    let manager = t
+        .role("manager", &["core.rbac.admin", "core.address.read"])
+        .await;
+    t.bind(Binding::Identity(delegate.id), manager, "group", None)
+        .await;
+    let outcome = t
+        .submit_as(&delegate, vec![add_member("secours", user.id)])
+        .await;
+    assert_eq!(rules_of(&outcome), ["core.group.escalation"]);
+    let outcome = t
+        .submit_as(&root, vec![add_member("secours", user.id)])
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    assert_eq!(
+        t.allowed(&user, "core.address.read", &["172.16.0.9"]).await,
+        ["172.16.0.9"]
+    );
 }

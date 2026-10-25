@@ -56,6 +56,59 @@ impl Pair {
     }
 }
 
+/// Binds the role `$2` on the scope `$3`, object `$4`, to the identity `$1` through a
+/// group of kartenn of its own, from a day ago (spec 025: a binding serves a group).
+pub(crate) const BIND_IDENTITY: &str = "WITH g AS (
+        INSERT INTO rbac_group (id, key, labels, valid_period, changeset_id)
+        VALUES (gen_random_uuid(), 'b-' || replace(gen_random_uuid()::text, '-', ''),
+                '{\"fr\": \"b\"}', tstzrange(now() - interval '1 day', NULL), gen_random_uuid())
+        RETURNING id),
+     m AS (
+        INSERT INTO group_member (id, group_id, member_kind, identity_id, valid_period, changeset_id)
+        SELECT gen_random_uuid(), g.id, 'identity', $1::uuid,
+               tstzrange(now() - interval '1 day', NULL), gen_random_uuid() FROM g)
+    INSERT INTO binding (id, group_id, role_id, scope_kind, scope_id, valid_period, changeset_id)
+    SELECT gen_random_uuid(), g.id, $2::uuid, $3::text, $4::uuid,
+           tstzrange(now() - interval '1 day', NULL), gen_random_uuid() FROM g";
+
+/// A group of kartenn `key` over [`SINCE`], whose only member is the identity `identity`
+/// or else the group `idp_group` of [`ISSUER`]; its identifier.
+pub(crate) async fn group(
+    pool: &PgPool,
+    key: &str,
+    identity: Option<Uuid>,
+    idp_group: Option<&str>,
+) -> anyhow::Result<Uuid> {
+    let id = Uuid::now_v7();
+    let nil = Uuid::nil();
+    sqlx::query(
+        "INSERT INTO rbac_group (id, key, labels, valid_period, changeset_id)
+         VALUES ($1, $2, jsonb_build_object('fr', $2::text), $3::tstzrange, $4)",
+    )
+    .bind(id)
+    .bind(key)
+    .bind(SINCE)
+    .bind(nil)
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "INSERT INTO group_member (id, group_id, member_kind, identity_id, issuer, group_name,
+                                   valid_period, changeset_id)
+         VALUES ($1, $2, CASE WHEN $3::uuid IS NULL THEN 'idp_group' ELSE 'identity' END, $3,
+                 CASE WHEN $3::uuid IS NULL THEN $4::text END, $5, $6::tstzrange, $7)",
+    )
+    .bind(Uuid::now_v7())
+    .bind(id)
+    .bind(identity)
+    .bind(ISSUER)
+    .bind(idp_group)
+    .bind(SINCE)
+    .bind(nil)
+    .execute(pool)
+    .await?;
+    Ok(id)
+}
+
 /// The role, the global attachment of the issuer and the bindings of `person`.
 pub(crate) async fn bind(
     pool: &PgPool,
@@ -114,17 +167,21 @@ pub(crate) async fn bind(
         let group = (rows.len() >= OWN + data.domains.len()).then_some(rows.len() % GROUPS);
         rows.push((group, "prefix", prefix));
     }
+    // The person's own group, and a group of kartenn for each group of the issuer.
+    let own = group(pool, "bench-own", Some(person), None).await?;
+    let mut groups = Vec::with_capacity(GROUPS);
+    for g in 0..GROUPS {
+        let name = format!("g{g:02}");
+        groups.push(group(pool, &format!("bench-{name}"), None, Some(&name)).await?);
+    }
     for (group, scope_kind, scope) in rows {
         sqlx::query(
-            "INSERT INTO binding (id, subject_kind, subject_id, issuer, group_name, role_id,
-                                  scope_kind, scope_id, valid_period, changeset_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::tstzrange, $10)",
+            "INSERT INTO binding (id, group_id, role_id, scope_kind, scope_id, valid_period,
+                                  changeset_id)
+             VALUES ($1, $2, $3, $4, $5, $6::tstzrange, $7)",
         )
         .bind(Uuid::now_v7())
-        .bind(if group.is_some() { "group" } else { "identity" })
-        .bind(group.is_none().then_some(person))
-        .bind(group.is_some().then_some(ISSUER))
-        .bind(group.map(|g| format!("g{g:02}")))
+        .bind(group.map_or(own, |g| groups[g]))
         .bind(role)
         .bind(scope_kind)
         .bind(scope)
@@ -133,9 +190,11 @@ pub(crate) async fn bind(
         .execute(pool)
         .await?;
     }
-    sqlx::raw_sql("ANALYZE binding, role, role_permission, issuer_attachment")
-        .execute(pool)
-        .await?;
+    sqlx::raw_sql(
+        "ANALYZE binding, rbac_group, group_member, role, role_permission, issuer_attachment",
+    )
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
@@ -206,7 +265,8 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         .await
         .map_err(|e| anyhow!(e.0))?;
     let bindings: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM binding WHERE subject_id = $1 OR group_name LIKE 'g%'",
+        "SELECT count(*) FROM binding WHERE group_id IN (
+             SELECT group_id FROM group_member WHERE identity_id = $1 OR group_name LIKE 'g%')",
     )
     .bind(author)
     .fetch_one(&pool)

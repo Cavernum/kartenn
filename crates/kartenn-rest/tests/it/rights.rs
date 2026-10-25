@@ -58,19 +58,14 @@ async fn person_on(pool: &PgPool, entries: &[&str], scope: Option<(&str, Uuid)>)
         .await
         .unwrap();
     }
-    sqlx::query(
-        "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, scope_id,
-                              valid_period, changeset_id)
-         VALUES (gen_random_uuid(), 'identity', $1, $2, $3, $4,
-                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
-    )
-    .bind(identity)
-    .bind(role)
-    .bind(scope.map_or("global", |(kind, _)| kind))
-    .bind(scope.map(|(_, id)| id))
-    .execute(pool)
-    .await
-    .unwrap();
+    sqlx::query(kartenn_testing::BIND_IDENTITY)
+        .bind(identity)
+        .bind(role)
+        .bind(scope.map_or("global", |(kind, _)| kind))
+        .bind(scope.map(|(_, id)| id))
+        .execute(pool)
+        .await
+        .unwrap();
     identity
 }
 
@@ -206,12 +201,16 @@ async fn a_delegate_binds_without_escalation(pool: PgPool) {
         .await,
     );
     let someone = person(&pool, &[]).await;
+    let group: String = sqlx::query_scalar(kartenn_testing::GROUP_OF)
+        .bind(someone)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     let binding = |role: &str, scope: Value| {
         with_body(
             "POST",
             "/v1/bindings",
-            &json!({"motive": "delegated", "subject": {"kind": "identity", "id": someone},
-                    "role": role, "scope": scope}),
+            &json!({"motive": "delegated", "group": group, "role": role, "scope": scope}),
         )
     };
 
@@ -234,7 +233,7 @@ async fn a_delegate_binds_without_escalation(pool: PgPool) {
         .to_owned();
     let read = json_of(send(&admin, get(&location)).await).await;
     assert_eq!(read["role"], "viewer");
-    assert_eq!(read["subject"], json!({"kind": "identity", "id": someone}));
+    assert_eq!(read["group"], json!(group));
     assert_eq!(read["scope"], json!({"kind": "entity", "id": unit}));
 
     // A role holding a permission the delegate lacks: escalation.

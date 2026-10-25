@@ -10,7 +10,7 @@ use kartenn_core::values::Cardinality;
 use kartenn_service::operations::ModuleOperation;
 use kartenn_service::operations::RawLabels;
 use kartenn_service::operations::{
-    BindingScope, BindingSubject, DeclarationInput, Named, ObligationInput, PeriodSpec, RawInput,
+    BindingScope, DeclarationInput, GroupMember, Named, ObligationInput, PeriodSpec, RawInput,
     SecretRecord, TypeInput,
 };
 use kartenn_service::port::ImportItem;
@@ -390,40 +390,6 @@ impl From<SecretDto> for SecretRecord {
     }
 }
 
-/// Who a binding serves (005, K4).
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-#[schema(as = BindingSubject)]
-pub(crate) enum SubjectDto {
-    /// One identity.
-    Identity {
-        /// Its identifier.
-        id: Uuid,
-    },
-    /// The members of a group of an issuer.
-    Group {
-        /// Issuer.
-        issuer: String,
-        /// Group.
-        group: String,
-    },
-    /// Every identity of an issuer (K5).
-    Issuer {
-        /// Issuer.
-        issuer: String,
-    },
-}
-
-impl From<SubjectDto> for BindingSubject {
-    fn from(s: SubjectDto) -> Self {
-        match s {
-            SubjectDto::Identity { id } => Self::Identity { id },
-            SubjectDto::Group { issuer, group } => Self::Group { issuer, group },
-            SubjectDto::Issuer { issuer } => Self::Issuer { issuer },
-        }
-    }
-}
-
 /// A trigger of an approval policy on a measure of a module (REQ-016-7).
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
@@ -433,6 +399,35 @@ pub(crate) struct ModuleTriggerDto {
     measure: String,
     /// The policy holds from this value up.
     threshold: u64,
+}
+
+/// A member of a group of kartenn (spec 025, G2, G6): an identity or a group of an
+/// issuer, never another group of kartenn.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[schema(as = GroupMember)]
+pub(crate) enum MemberDto {
+    /// One identity.
+    Identity {
+        /// Its identifier.
+        id: Uuid,
+    },
+    /// The identities of an issuer whose session carries the group `group`.
+    IdpGroup {
+        /// Issuer.
+        issuer: String,
+        /// Group, as the issuer serves it.
+        group: String,
+    },
+}
+
+impl From<MemberDto> for GroupMember {
+    fn from(m: MemberDto) -> Self {
+        match m {
+            MemberDto::Identity { id } => Self::Identity { id },
+            MemberDto::IdpGroup { issuer, group } => Self::IdpGroup { issuer, group },
+        }
+    }
 }
 
 /// Where a binding acts (005, K14): its scope and what lies below.
@@ -641,12 +636,39 @@ pub(crate) enum CoreOperationDto {
         /// Key.
         key: String,
     },
-    /// Binds a role on a scope to a subject (005, REQ-005-18, 25, 26).
+    /// Defines a group of kartenn, or replaces its labels (spec 025, REQ-025-1).
+    SetGroup {
+        /// Stable key.
+        key: String,
+        /// Labels by language, `{<tag>: <text>}`: the default language at least.
+        labels: RawLabels,
+    },
+    /// Closes a group, its bindings and its memberships (spec 025, REQ-025-8).
+    CloseGroup {
+        /// Key.
+        key: String,
+    },
+    /// Adds a member to a group (spec 025, REQ-025-2, 7).
+    AddMember {
+        /// Local name of the membership.
+        local: Option<u32>,
+        /// The group, by key.
+        group: String,
+        /// Who.
+        member: MemberDto,
+    },
+    /// Ends a membership (spec 025, REQ-025-7).
+    RemoveMember {
+        /// The membership.
+        id: Uuid,
+    },
+    /// Binds a role on a scope to a group of kartenn (005, REQ-005-25, 26; spec 025,
+    /// REQ-025-4, 6).
     Bind {
         /// Local name of the binding.
         local: Option<u32>,
-        /// Who.
-        subject: SubjectDto,
+        /// The group, by key.
+        group: String,
         /// Role key.
         role: String,
         /// Where.
@@ -1048,14 +1070,26 @@ impl From<CoreOperationDto> for Operation {
                 entries,
             },
             CoreOperationDto::CloseRole { key } => Self::CloseRole { key },
+            CoreOperationDto::SetGroup { key, labels } => Self::SetGroup { key, labels },
+            CoreOperationDto::CloseGroup { key } => Self::CloseGroup { key },
+            CoreOperationDto::AddMember {
+                local,
+                group,
+                member,
+            } => Self::AddMember {
+                local,
+                group,
+                member: member.into(),
+            },
+            CoreOperationDto::RemoveMember { id } => Self::RemoveMember { id },
             CoreOperationDto::Bind {
                 local,
-                subject,
+                group,
                 role,
                 scope,
             } => Self::Bind {
                 local,
-                subject: subject.into(),
+                group,
                 role,
                 scope: scope.into(),
             },
@@ -1366,6 +1400,10 @@ mod tests {
             Operation::CreateAddress { .. } => "create_address",
             Operation::SetRole { .. } => "set_role",
             Operation::CloseRole { .. } => "close_role",
+            Operation::SetGroup { .. } => "set_group",
+            Operation::CloseGroup { .. } => "close_group",
+            Operation::AddMember { .. } => "add_member",
+            Operation::RemoveMember { .. } => "remove_member",
             Operation::Bind { .. } => "bind",
             Operation::Unbind { .. } => "unbind",
             Operation::AttachIssuer { .. } => "attach_issuer",
@@ -1432,7 +1470,14 @@ mod tests {
                 "address": "10.0.0.1", "usage": "gateway"}),
             json!({"op": "set_role", "key": "r", "labels": {"fr": "R"}, "entries": ["*"]}),
             json!({"op": "close_role", "key": "r"}),
-            json!({"op": "bind", "local": 5, "subject": {"kind": "group", "issuer": "i", "group": "g"},
+            json!({"op": "set_group", "key": "g", "labels": {"fr": "G"}}),
+            json!({"op": "close_group", "key": "g"}),
+            json!({"op": "add_member", "local": 10, "group": "g",
+                "member": {"kind": "identity", "id": id}}),
+            json!({"op": "add_member", "local": null, "group": "g",
+                "member": {"kind": "idp_group", "issuer": "i", "group": "netops"}}),
+            json!({"op": "remove_member", "id": id}),
+            json!({"op": "bind", "local": 5, "group": "g",
                 "role": "r", "scope": {"kind": "entity", "id": {"local": 2}}}),
             json!({"op": "unbind", "id": id}),
             json!({"op": "attach_issuer", "issuer": "i", "entity": {"id": id}}),
@@ -1486,7 +1531,7 @@ mod tests {
             assert_eq!(Operation::from(mirrored), direct, "{sample}");
             named.insert(name(&direct));
         }
-        assert_eq!(named.len(), 37, "one sample per operation of the service");
+        assert_eq!(named.len(), 41, "one sample per operation of the service");
         let item = json!({"external_id": "x", "operation": samples()[1]});
         let direct: ImportItem = serde_json::from_value(item.clone()).unwrap();
         let mirrored: ImportItemDto = serde_json::from_value(item).unwrap();

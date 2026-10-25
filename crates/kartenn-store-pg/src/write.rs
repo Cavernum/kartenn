@@ -1050,6 +1050,21 @@ impl WriteTx for PgTx {
         Ok(labels.map(|l| l.0))
     }
 
+    async fn group_labels(
+        &mut self,
+        key: &str,
+    ) -> Result<Option<kartenn_service::operations::RawLabels>, StoreError> {
+        let labels: Option<sqlx::types::Json<kartenn_service::operations::RawLabels>> =
+            sqlx::query_scalar(
+                "SELECT labels FROM rbac_group WHERE key = $1 AND valid_period @> now()",
+            )
+            .bind(key)
+            .fetch_optional(&mut *self.tx)
+            .await
+            .map_err(store_err)?;
+        Ok(labels.map(|l| l.0))
+    }
+
     async fn custom_roles_citing(
         &mut self,
         permissions: &[&str],
@@ -1057,8 +1072,30 @@ impl WriteTx for PgTx {
         crate::rbac_admin::custom_roles_citing(&mut self.tx, permissions).await
     }
 
-    async fn binding_scope(&mut self, binding: Uuid) -> Result<Option<Uuid>, StoreError> {
-        crate::rbac_admin::binding_scope(&mut self.tx, binding).await
+    async fn stored_binding(
+        &mut self,
+        binding: Uuid,
+    ) -> Result<Option<kartenn_service::port::StoredBinding>, StoreError> {
+        crate::rbac_admin::stored_binding(&mut self.tx, binding).await
+    }
+
+    async fn stored_group(
+        &mut self,
+        key: &str,
+    ) -> Result<Option<kartenn_service::port::StoredGroup>, StoreError> {
+        crate::rbac_admin::stored_group(&mut self.tx, key).await
+    }
+
+    async fn member_group(&mut self, member: Uuid) -> Result<Option<String>, StoreError> {
+        crate::rbac_admin::member_group(&mut self.tx, member).await
+    }
+
+    async fn scopes_holding(
+        &mut self,
+        subject: &kartenn_service::authz::Subject,
+        permission: &str,
+    ) -> Result<Vec<Uuid>, StoreError> {
+        crate::rbac_admin::scopes_holding(&mut self.tx, subject, permission).await
     }
 
     async fn lock(&mut self, domains: &[Uuid], public_space: bool) -> Result<(), StoreError> {

@@ -62,14 +62,17 @@ fn over(op: Operation, period: PeriodSpec, start: i64) -> Operation {
 }
 
 /// The operations that undo the administration a changeset wrote (spec 005, K16), in an
-/// order that keeps each one valid: removals, closed roles, roles given back, then the
-/// bindings and attachments given back (a binding finds its role).
+/// order that keeps each one valid: removals, closed roles and groups, roles and groups
+/// given back, memberships given back, then the bindings and attachments given back (a
+/// binding finds its role and its group; spec 025, REQ-025-10).
 fn rbac_inverse(
     touched: Vec<RbacTouched>,
     start: i64,
     conflicts: &mut Vec<RbacConflict>,
 ) -> Vec<Operation> {
-    let mut stages: [Vec<Operation>; 4] = Default::default();
+    // Removals, closures, roles and groups given back, memberships, then bindings and
+    // attachments (spec 025: a membership finds its group, a binding its group and role).
+    let mut stages: [Vec<Operation>; 5] = Default::default();
     for t in touched {
         if let Some(by) = t.later {
             conflicts.push(RbacConflict { row: t.row, by });
@@ -77,6 +80,31 @@ fn rbac_inverse(
         }
         let (stage, op) = match (t.row, t.before, t.after) {
             (RbacRow::Binding { id }, None, true) => (0, Operation::Unbind { id }),
+            (RbacRow::Member { id }, None, true) => (0, Operation::RemoveMember { id }),
+            (RbacRow::Group { key }, None, true) => (1, Operation::CloseGroup { key }),
+            (
+                RbacRow::Group { key },
+                Some(RbacBefore {
+                    period,
+                    state: RbacState::Group { labels },
+                }),
+                _,
+            ) => (2, over(Operation::SetGroup { key, labels }, period, start)),
+            (
+                RbacRow::Member { .. },
+                Some(RbacBefore {
+                    period,
+                    state: RbacState::Member { group, member },
+                }),
+                false,
+            ) => {
+                let add = Operation::AddMember {
+                    local: None,
+                    group,
+                    member,
+                };
+                (3, over(add, period, start))
+            }
             (RbacRow::Attachment { issuer, entity }, None, true) => (
                 0,
                 Operation::DetachIssuer {
@@ -108,29 +136,24 @@ fn rbac_inverse(
                 RbacRow::Binding { .. },
                 Some(RbacBefore {
                     period,
-                    state:
-                        RbacState::Binding {
-                            subject,
-                            role,
-                            scope,
-                        },
+                    state: RbacState::Binding { group, role, scope },
                 }),
                 false,
             ) => {
                 let bind = Operation::Bind {
                     local: None,
-                    subject,
+                    group,
                     role,
                     scope,
                 };
-                (3, over(bind, period, start))
+                (4, over(bind, period, start))
             }
             (RbacRow::Attachment { issuer, entity }, Some(RbacBefore { period, .. }), false) => {
                 let attach = Operation::AttachIssuer {
                     issuer,
                     entity: entity.map(Ref::Id),
                 };
-                (3, over(attach, period, start))
+                (4, over(attach, period, start))
             }
             // Created then ended by the changeset, or still in force as before.
             _ => continue,

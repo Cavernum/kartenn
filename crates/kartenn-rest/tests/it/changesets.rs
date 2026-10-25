@@ -63,17 +63,14 @@ async fn writer(pool: &PgPool, verbs: &[&str]) -> Uuid {
         .await
         .unwrap();
     }
-    sqlx::query(
-        "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, scope_id,
-                              valid_period, changeset_id)
-         VALUES (gen_random_uuid(), 'identity', $1, $2, 'global', NULL,
-                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
-    )
-    .bind(identity)
-    .bind(role)
-    .execute(pool)
-    .await
-    .unwrap();
+    sqlx::query(kartenn_testing::BIND_IDENTITY)
+        .bind(identity)
+        .bind(role)
+        .bind("global")
+        .bind(None::<Uuid>)
+        .execute(pool)
+        .await
+        .unwrap();
     identity
 }
 
@@ -98,12 +95,12 @@ async fn colleague(pool: &PgPool, of: Uuid) -> Uuid {
     .fetch_one(pool)
     .await
     .unwrap();
+    // A member of the groups of `of`.
     sqlx::query(
-        "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, scope_id,
-                              valid_period, changeset_id)
-         SELECT gen_random_uuid(), 'identity', $1, role_id, scope_kind, scope_id,
-                valid_period, changeset_id
-         FROM binding WHERE subject_id = $2",
+        "INSERT INTO group_member (id, group_id, member_kind, identity_id, valid_period,
+                                   changeset_id)
+         SELECT gen_random_uuid(), group_id, 'identity', $1, valid_period, changeset_id
+         FROM group_member WHERE identity_id = $2",
     )
     .bind(identity)
     .bind(of)

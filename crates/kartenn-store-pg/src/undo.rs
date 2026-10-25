@@ -1,6 +1,6 @@
 //! What an applied changeset wrote, to undo it (spec 004, REQ-004-34, 35; task 004-20).
 
-use kartenn_service::operations::{BindingScope, BindingSubject, PeriodSpec, Ref};
+use kartenn_service::operations::{BindingScope, GroupMember, PeriodSpec, Ref};
 use kartenn_service::port::{
     RbacBefore, RbacRow, RbacState, RbacTouched, StoreError, Touched, UndoFacts,
 };
@@ -158,18 +158,25 @@ fn scope(kind: &str, id: Option<Uuid>) -> Result<BindingScope, StoreError> {
     })
 }
 
-/// The subject of a binding from its columns.
-fn subject(row: &PgRow) -> Result<BindingSubject, StoreError> {
-    let kind: String = row.try_get("b_subject_kind").map_err(store_err)?;
-    let id: Option<Uuid> = row.try_get("b_subject_id").map_err(store_err)?;
-    let issuer: Option<String> = row.try_get("b_issuer").map_err(store_err)?;
-    let group: Option<String> = row.try_get("b_group_name").map_err(store_err)?;
-    match (kind.as_str(), id, issuer, group) {
-        ("identity", Some(id), _, _) => Ok(BindingSubject::Identity { id }),
-        ("group", _, Some(issuer), Some(group)) => Ok(BindingSubject::Group { issuer, group }),
-        ("issuer", _, Some(issuer), _) => Ok(BindingSubject::Issuer { issuer }),
-        _ => Err(store_err(format!("a malformed {kind} binding subject"))),
-    }
+/// The key of the group `id`, from any of its versions.
+async fn group_key(pool: &PgPool, id: Uuid) -> Result<String, StoreError> {
+    sqlx::query_scalar(
+        "SELECT key FROM rbac_group WHERE id = $1
+         UNION ALL SELECT key FROM rbac_group_history WHERE id = $1
+         LIMIT 1",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .map_err(store_err)
+}
+
+/// The group of a binding from its column (spec 025): a binding written before the groups
+/// names none, and is not given back.
+async fn binding_group(pool: &PgPool, row: &PgRow) -> Result<String, StoreError> {
+    let group: Option<Uuid> = row.try_get("b_group_id").map_err(store_err)?;
+    let group = group.ok_or_else(|| store_err("a binding without group is not given back"))?;
+    group_key(pool, group).await
 }
 
 /// The roles the changeset `args.0` (applied at `args.1`) wrote, by their row or one of
@@ -265,6 +272,119 @@ async fn roles_touched(
     Ok(touched)
 }
 
+/// The member of a membership from its columns `b_member_kind`, `b_identity_id`,
+/// `b_issuer`, `b_group_name`.
+fn member(row: &PgRow) -> Result<GroupMember, StoreError> {
+    let kind: String = row.try_get("b_member_kind").map_err(store_err)?;
+    let identity: Option<Uuid> = row.try_get("b_identity_id").map_err(store_err)?;
+    let issuer: Option<String> = row.try_get("b_issuer").map_err(store_err)?;
+    let group: Option<String> = row.try_get("b_group_name").map_err(store_err)?;
+    match (kind.as_str(), identity, issuer, group) {
+        ("identity", Some(id), _, _) => Ok(GroupMember::Identity { id }),
+        ("idp_group", _, Some(issuer), Some(group)) => Ok(GroupMember::IdpGroup { issuer, group }),
+        _ => Err(store_err(format!("a malformed {kind} member"))),
+    }
+}
+
+/// The groups and the memberships the changeset `args.0` (applied at `args.1`) wrote, as
+/// they were before over `[args.2, ∞)` (spec 025, REQ-025-10).
+async fn groups_touched(
+    pool: &PgPool,
+    args: (Uuid, OffsetDateTime, OffsetDateTime),
+) -> Result<Vec<RbacTouched>, StoreError> {
+    let (id, at, from) = args;
+    let mut touched = Vec::new();
+    let sql = rbac_sql("rbac_group", &["id"], &["key", "labels"], "");
+    for row in rbac_rows(pool, sql, args).await? {
+        let group: Uuid = row.try_get("id").map_err(store_err)?;
+        let before = match period_before(&row)? {
+            Some(period) => Some(RbacBefore {
+                period,
+                state: RbacState::Group {
+                    labels: row
+                        .try_get::<sqlx::types::Json<_>, _>("b_labels")
+                        .map_err(store_err)?
+                        .0,
+                },
+            }),
+            None => None,
+        };
+        // For a group it created, a binding or a membership of another changeset, which
+        // closing the group would end.
+        let later: Option<Uuid> = sqlx::query_scalar(
+            "SELECT changeset_id FROM (
+                 SELECT changeset_id, sys_start, valid_period FROM binding WHERE group_id = $1
+                 UNION ALL
+                 SELECT changeset_id, sys_start, valid_period FROM binding_history
+                 WHERE group_id = $1
+                 UNION ALL
+                 SELECT changeset_id, sys_start, valid_period FROM group_member
+                 WHERE group_id = $1
+                 UNION ALL
+                 SELECT changeset_id, sys_start, valid_period FROM group_member_history
+                 WHERE group_id = $1) w
+             WHERE $5 AND sys_start > $2 AND changeset_id <> $3
+               AND valid_period && tstzrange($4, NULL)
+             ORDER BY sys_start LIMIT 1",
+        )
+        .bind(group)
+        .bind(at)
+        .bind(id)
+        .bind(from)
+        .bind(before.is_none())
+        .fetch_optional(pool)
+        .await
+        .map_err(store_err)?;
+        touched.push(RbacTouched {
+            row: RbacRow::Group {
+                key: group_key(pool, group).await?,
+            },
+            before,
+            after: row.try_get("after").map_err(store_err)?,
+            later: row
+                .try_get::<Option<Uuid>, _>("later")
+                .map_err(store_err)?
+                .or(later),
+        });
+    }
+    let sql = rbac_sql(
+        "group_member",
+        &["id"],
+        &[
+            "group_id",
+            "member_kind",
+            "identity_id",
+            "issuer",
+            "group_name",
+        ],
+        "",
+    );
+    for row in rbac_rows(pool, sql, args).await? {
+        let before = match period_before(&row)? {
+            Some(period) => {
+                let group: Uuid = row.try_get("b_group_id").map_err(store_err)?;
+                Some(RbacBefore {
+                    period,
+                    state: RbacState::Member {
+                        group: group_key(pool, group).await?,
+                        member: member(&row)?,
+                    },
+                })
+            }
+            None => None,
+        };
+        touched.push(RbacTouched {
+            row: RbacRow::Member {
+                id: row.try_get("id").map_err(store_err)?,
+            },
+            before,
+            after: row.try_get("after").map_err(store_err)?,
+            later: row.try_get("later").map_err(store_err)?,
+        });
+    }
+    Ok(touched)
+}
+
 /// The roles, bindings and issuer attachments the changeset `id` (applied at `at`) wrote,
 /// as they were before over `[from, ∞)` (spec 005, REQ-005-25, K16).
 async fn rbac_touched(
@@ -275,18 +395,11 @@ async fn rbac_touched(
 ) -> Result<Vec<RbacTouched>, StoreError> {
     let args = (id, at, from);
     let mut touched = roles_touched(pool, args).await?;
+    touched.extend(groups_touched(pool, args).await?);
     let sql = rbac_sql(
         "binding",
         &["id"],
-        &[
-            "subject_kind",
-            "subject_id",
-            "issuer",
-            "group_name",
-            "role_id",
-            "scope_kind",
-            "scope_id",
-        ],
+        &["group_id", "role_id", "scope_kind", "scope_id"],
         "",
     );
     for row in rbac_rows(pool, sql, args).await? {
@@ -296,7 +409,7 @@ async fn rbac_touched(
                 Some(RbacBefore {
                     period,
                     state: RbacState::Binding {
-                        subject: subject(&row)?,
+                        group: binding_group(pool, &row).await?,
                         role: role_key(pool, row.try_get("b_role_id").map_err(store_err)?).await?,
                         scope: scope(&kind, row.try_get("b_scope_id").map_err(store_err)?)?,
                     },

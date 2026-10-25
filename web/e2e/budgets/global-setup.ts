@@ -23,13 +23,25 @@ export default async function globalSetup(): Promise<void> {
     const writes: [string, object][] = [
       ["/v1/auth/breakglass", { name: "e2e", passphrase, code: totp(secret) }],
       ["/v1/issuer-attachments", { motive: "browser bench", issuer: ISSUER }],
+      // The group of kartenn whose member is the group of the issuer (spec 025).
       [
-        "/v1/bindings",
+        "/v1/changesets?apply=own",
         {
           motive: "browser bench",
-          subject: { kind: "group", issuer: ISSUER, group: "kartenn-admins" },
-          role: "reader",
-          scope: { kind: "global" },
+          operations: [
+            { op: "set_group", key: "kartenn-admins", labels: { fr: "kartenn-admins" } },
+            {
+              op: "add_member",
+              group: "kartenn-admins",
+              member: { kind: "idp_group", issuer: ISSUER, group: "kartenn-admins" },
+            },
+            {
+              op: "bind",
+              group: "kartenn-admins",
+              role: "reader",
+              scope: { kind: "global" },
+            },
+          ],
         },
       ],
     ];

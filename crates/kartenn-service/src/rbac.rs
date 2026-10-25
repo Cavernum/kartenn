@@ -8,8 +8,9 @@ use uuid::Uuid;
 
 use crate::authz::{Authorizer, Subject};
 use crate::declarations::SYSTEM_AUTHOR;
-use crate::operations::{BindingScope, BindingSubject, Operation, Ref, SecretRecord};
+use crate::operations::{BindingScope, GroupMember, Operation, Ref, SecretRecord};
 use crate::pipeline::Planned;
+use crate::port::StoredBinding;
 use crate::port::{StoreError, WriteTx};
 
 /// The object that stands for the settings of the RBAC (roles, issuers, accounts) in
@@ -33,12 +34,38 @@ pub enum RbacOp {
         /// Key.
         key: String,
     },
+    /// Defines a group of kartenn or replaces its labels (spec 025, REQ-025-1).
+    SetGroup {
+        /// Key.
+        key: String,
+        /// Labels by language, checked.
+        labels: kartenn_core::labels::Labels,
+    },
+    /// Closes a group, its bindings and its memberships (REQ-025-8).
+    CloseGroup {
+        /// Key.
+        key: String,
+    },
+    /// A new membership (REQ-025-2).
+    AddMember {
+        /// Its identifier.
+        id: Uuid,
+        /// The group, by key.
+        group: String,
+        /// Who.
+        member: GroupMember,
+    },
+    /// Ends a membership.
+    RemoveMember {
+        /// The membership.
+        id: Uuid,
+    },
     /// A new binding.
     Bind {
         /// Its identifier.
         id: Uuid,
-        /// Who.
-        subject: BindingSubject,
+        /// The group, by key.
+        group: String,
         /// Role key.
         role: String,
         /// `global`, `entity`, `site`, `domain` or `prefix`.
@@ -104,7 +131,11 @@ impl RbacOp {
     #[must_use]
     pub const fn object(&self) -> Uuid {
         match self {
-            Self::Bind { id, .. } | Self::Unbind { id } | Self::CreateAccount { id, .. } => *id,
+            Self::Bind { id, .. }
+            | Self::Unbind { id }
+            | Self::AddMember { id, .. }
+            | Self::RemoveMember { id }
+            | Self::CreateAccount { id, .. } => *id,
             Self::IdentityState { identity, .. } => *identity,
             Self::AddSecret { account, .. } | Self::RevokeSecret { account, .. } => *account,
             _ => RBAC_OBJECT,
@@ -147,27 +178,69 @@ fn secret_record(secret: &SecretRecord) -> Result<SecretRecord, Violation> {
     }
 }
 
-/// Plans a binding: a subject well formed, a role key, its scope resolved.
+/// Whether `key` is the key of a group of kartenn: a lower-case letter, then lower-case
+/// letters, digits, `_` and `-`, 128 characters at most (spec 025, REQ-025-1).
+fn group_key(key: &str) -> Result<String, Violation> {
+    let key = key.trim();
+    let valid = key.len() <= 128
+        && key.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+        && key
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-');
+    if valid {
+        Ok(key.to_owned())
+    } else {
+        Err(group_invalid(format!("invalid group key '{key}'")))
+    }
+}
+
+fn group_invalid(message: String) -> Violation {
+    Violation::new(&rules::GROUP_INVALID, message)
+}
+
+/// Plans an operation on a group or its members (spec 025, REQ-025-1, 2).
+fn plan_group(op: &Operation, id: Uuid) -> Option<Result<RbacOp, Violation>> {
+    Some(match op {
+        Operation::SetGroup { key, labels } => group_key(key).and_then(|key| {
+            let labels = kartenn_core::labels::Labels::parse_map(labels)?;
+            if labels.is_empty() {
+                return Err(group_invalid(format!("the group '{key}' needs a label")));
+            }
+            Ok(RbacOp::SetGroup { key, labels })
+        }),
+        Operation::CloseGroup { key } => group_key(key).map(|key| RbacOp::CloseGroup { key }),
+        Operation::AddMember { group, member, .. } => group_key(group).and_then(|group| {
+            let member = match member {
+                GroupMember::Identity { id } => GroupMember::Identity { id: *id },
+                GroupMember::IdpGroup { issuer, group } => {
+                    let (issuer, name) = (issuer.trim(), group.trim());
+                    if issuer.is_empty() || name.is_empty() {
+                        return Err(group_invalid(
+                            "a group of an issuer names its issuer and its group".into(),
+                        ));
+                    }
+                    GroupMember::IdpGroup {
+                        issuer: issuer.to_owned(),
+                        group: name.to_owned(),
+                    }
+                }
+            };
+            Ok(RbacOp::AddMember { id, group, member })
+        }),
+        Operation::RemoveMember { id } => Ok(RbacOp::RemoveMember { id: *id }),
+        _ => return None,
+    })
+}
+
+/// Plans a binding: a group key, a role key, its scope resolved.
 fn plan_bind(
     id: Uuid,
-    subject: &BindingSubject,
+    group: &str,
     role: &str,
     scope: BindingScope,
     resolve: &impl Fn(Ref) -> Uuid,
 ) -> Result<RbacOp, Violation> {
-    let subject = match subject {
-        BindingSubject::Identity { id } => BindingSubject::Identity { id: *id },
-        BindingSubject::Group { issuer: i, group } => {
-            if group.trim().is_empty() {
-                return Err(invalid("a group is not empty".into()));
-            }
-            BindingSubject::Group {
-                issuer: issuer(i)?,
-                group: group.trim().to_owned(),
-            }
-        }
-        BindingSubject::Issuer { issuer: i } => BindingSubject::Issuer { issuer: issuer(i)? },
-    };
+    let group = group_key(group)?;
     let (scope_kind, scope) = match scope {
         BindingScope::Global => ("global", None),
         BindingScope::Entity { id } => ("entity", Some(resolve(id))),
@@ -177,7 +250,7 @@ fn plan_bind(
     };
     Ok(RbacOp::Bind {
         id,
-        subject,
+        group,
         role: role_key(role)?,
         scope_kind,
         scope,
@@ -231,12 +304,13 @@ pub(crate) fn plan(
             })
         })(),
         Operation::CloseRole { key } => role_key(key).map(|key| RbacOp::CloseRole { key }),
+        Operation::SetGroup { .. }
+        | Operation::CloseGroup { .. }
+        | Operation::AddMember { .. }
+        | Operation::RemoveMember { .. } => plan_group(op, id)?,
         Operation::Bind {
-            subject,
-            role,
-            scope,
-            ..
-        } => plan_bind(id, subject, role, *scope, &resolve),
+            group, role, scope, ..
+        } => plan_bind(id, group, role, *scope, &resolve),
         Operation::Unbind { id } => Ok(RbacOp::Unbind { id: *id }),
         Operation::AttachIssuer { issuer: i, entity } => issuer(i).map(|issuer| RbacOp::Attach {
             issuer,
@@ -307,11 +381,12 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
         )
     };
     undeclared(tx, planned, violations).await?;
+    let system = subject.id == SYSTEM_AUTHOR;
     for p in planned {
         let Planned::Rbac(op) = p else { continue };
         let (permission, scope) = match op {
             RbacOp::SetRole { key, .. } | RbacOp::CloseRole { key } => {
-                if builtin(key) && subject.id != SYSTEM_AUTHOR {
+                if builtin(key) && !system {
                     violations.push(Violation::new(
                         &rules::RBAC_BUILTIN,
                         format!("the role '{key}' is delivered with kartenn"),
@@ -320,14 +395,45 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
                 }
                 ("core.role.admin", RBAC_OBJECT)
             }
+            // Spec 025, G5: a group asks what each of its bindings asks.
+            RbacOp::SetGroup { .. }
+            | RbacOp::CloseGroup { .. }
+            | RbacOp::AddMember { .. }
+            | RbacOp::RemoveMember { .. } => {
+                let found = check_group(
+                    tx,
+                    authorizer,
+                    subject,
+                    planned,
+                    op,
+                    required.as_deref_mut(),
+                )
+                .await?;
+                violations.extend(found);
+                continue;
+            }
             RbacOp::Attach { .. } | RbacOp::Detach { .. } => ("core.issuer.admin", RBAC_OBJECT),
             RbacOp::IdentityState { .. }
             | RbacOp::CreateAccount { .. }
             | RbacOp::AddSecret { .. }
             | RbacOp::RevokeSecret { .. } => ("core.account.admin", RBAC_OBJECT),
-            RbacOp::Bind { scope, .. } => ("core.rbac.admin", scope.unwrap_or(RBAC_OBJECT)),
-            RbacOp::Unbind { id } => match tx.binding_scope(*id).await? {
-                Some(scope) => ("core.rbac.admin", scope),
+            RbacOp::Bind { group, scope, .. } => {
+                if !system
+                    && (builtin_group(group)
+                        || tx.stored_group(group).await?.is_some_and(|g| g.builtin))
+                {
+                    violations.push(delivered(group).with_subjects([op.object()]));
+                    continue;
+                }
+                ("core.rbac.admin", scope.unwrap_or(RBAC_OBJECT))
+            }
+            // As it was before the changeset, which may end it.
+            RbacOp::Unbind { id } => match tx.stored_binding(*id).await? {
+                Some(binding) if binding.builtin && !system => {
+                    violations.push(delivered(&binding.group).with_subjects([*id]));
+                    continue;
+                }
+                Some(binding) => ("core.rbac.admin", binding.scope),
                 // An unknown binding: refused by the write.
                 None => continue,
             },
@@ -345,32 +451,14 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
         }
         // No escalation: every entry of the role, held by the author on the scope.
         if let RbacOp::Bind { role, id, .. } = op {
-            let entries = match planned.iter().find_map(|p| match p {
-                Planned::Rbac(RbacOp::SetRole { key, entries, .. }) if key == role => {
-                    Some(entries.clone())
-                }
-                _ => None,
-            }) {
-                Some(entries) => Some(entries),
-                None => tx.role_entries(role).await?,
-            };
-            let Some(entries) = entries else {
+            let Some(entries) = entries_of(tx, planned, role).await? else {
                 violations.push(
                     Violation::new(&rules::RBAC_UNKNOWN_ROLE, format!("no role '{role}'"))
                         .with_subjects([*id]),
                 );
                 continue;
             };
-            let mut lacking = Vec::new();
-            for entry in &entries {
-                if !authorizer
-                    .authorize_in(tx, subject, entry, &[scope])
-                    .await?
-                    .is_empty()
-                {
-                    lacking.push(entry.as_str());
-                }
-            }
+            let lacking = lacking(tx, authorizer, subject, &entries, scope).await?;
             if !lacking.is_empty() {
                 violations.push(
                     Violation::new(
@@ -386,6 +474,173 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
         }
     }
     Ok(())
+}
+
+/// The violation of a change of a delivered group (spec 025, G7).
+fn delivered(key: &str) -> Violation {
+    Violation::new(
+        &rules::GROUP_BUILTIN,
+        format!("the group '{key}' is delivered with kartenn"),
+    )
+}
+
+/// The rights of an operation on a group or on its members (spec 025, G5, G7): a
+/// delivered group changes only by the synchronisation of the core; otherwise, what
+/// [`group_rights`] asks, of the bindings of the group before the changeset (none to set
+/// its labels).
+async fn check_group<T: WriteTx + Send, A: Authorizer>(
+    tx: &mut T,
+    authorizer: &A,
+    subject: &Subject,
+    planned: &[Planned],
+    op: &RbacOp,
+    required: Option<&mut crate::rights::Required>,
+) -> Result<Option<Violation>, StoreError> {
+    let key = match op {
+        RbacOp::SetGroup { key, .. }
+        | RbacOp::CloseGroup { key }
+        | RbacOp::AddMember { group: key, .. } => key.clone(),
+        RbacOp::RemoveMember { id } => match tx.member_group(*id).await? {
+            Some(key) => key,
+            // An unknown membership: refused by the write.
+            None => return Ok(None),
+        },
+        _ => return Ok(None),
+    };
+    let stored = tx.stored_group(&key).await?;
+    let changes_the_group = matches!(op, RbacOp::SetGroup { .. } | RbacOp::CloseGroup { .. });
+    if changes_the_group
+        && subject.id != SYSTEM_AUTHOR
+        && (builtin_group(&key) || stored.as_ref().is_some_and(|g| g.builtin))
+    {
+        return Ok(Some(delivered(&key).with_subjects([op.object()])));
+    }
+    let bindings = match (op, stored) {
+        (RbacOp::SetGroup { .. }, _) | (_, None) => Vec::new(),
+        (_, Some(group)) => group.bindings,
+    };
+    let group = GroupCheck {
+        key: &key,
+        bindings: &bindings,
+        object: op.object(),
+    };
+    group_rights(tx, authorizer, subject, planned, &group, required).await
+}
+
+/// Whether `key` is a group delivered with kartenn (spec 025, G7).
+fn builtin_group(key: &str) -> bool {
+    kartenn_core::authz::BUILTIN_GROUPS
+        .iter()
+        .any(|g| g.key == key)
+}
+
+/// The entries of the role `role`: as the changeset sets it, or as stored; `None` if it
+/// does not exist.
+async fn entries_of<T: WriteTx + Send>(
+    tx: &mut T,
+    planned: &[Planned],
+    role: &str,
+) -> Result<Option<Vec<String>>, StoreError> {
+    match planned.iter().find_map(|p| match p {
+        Planned::Rbac(RbacOp::SetRole { key, entries, .. }) if key == role => Some(entries.clone()),
+        _ => None,
+    }) {
+        Some(entries) => Ok(Some(entries)),
+        None => tx.role_entries(role).await,
+    }
+}
+
+/// The entries among `entries` that `subject` lacks on `scope`.
+async fn lacking<T: WriteTx + Send, A: Authorizer>(
+    tx: &mut T,
+    authorizer: &A,
+    subject: &Subject,
+    entries: &[String],
+    scope: Uuid,
+) -> Result<Vec<String>, StoreError> {
+    let mut lacking = Vec::new();
+    for entry in entries {
+        if !authorizer
+            .authorize_in(tx, subject, entry, &[scope])
+            .await?
+            .is_empty()
+        {
+            lacking.push(entry.clone());
+        }
+    }
+    Ok(lacking)
+}
+
+/// A group whose members or existence an operation changes.
+struct GroupCheck<'a> {
+    /// Its key.
+    key: &'a str,
+    /// Its bindings before the changeset: none for a new group, or to set its labels.
+    bindings: &'a [StoredBinding],
+    /// The object of the operation.
+    object: Uuid,
+}
+
+/// What the author of an operation on a group lacks (spec 025, G5, REQ-025-7, 8): for
+/// each binding of the group, what creating it asks (K7: `core.rbac.admin` on its scope,
+/// every entry of its role there); for a group without binding, `core.rbac.admin`
+/// somewhere. The bindings the same changeset writes are checked by their own rule.
+async fn group_rights<T: WriteTx + Send, A: Authorizer>(
+    tx: &mut T,
+    authorizer: &A,
+    subject: &Subject,
+    planned: &[Planned],
+    group: &GroupCheck<'_>,
+    mut required: Option<&mut crate::rights::Required>,
+) -> Result<Option<Violation>, StoreError> {
+    const ADMIN: &str = "core.rbac.admin";
+    if group.bindings.is_empty() {
+        let mut scopes = tx.scopes_holding(subject, ADMIN).await?;
+        scopes.push(RBAC_OBJECT);
+        scopes.sort_unstable();
+        scopes.dedup();
+        let denied = authorizer.authorize_in(tx, subject, ADMIN, &scopes).await?;
+        return Ok((denied.len() == scopes.len()).then(|| {
+            Violation::new(
+                &rules::RBAC_FORBIDDEN,
+                format!("this administration needs {ADMIN}"),
+            )
+            .with_subjects([group.object])
+        }));
+    }
+    for binding in group.bindings {
+        if let Some(required) = required.as_deref_mut() {
+            required.push((ADMIN.to_owned(), vec![binding.scope]));
+        }
+        let lacks = if authorizer
+            .authorize_in(tx, subject, ADMIN, &[binding.scope])
+            .await?
+            .is_empty()
+        {
+            // A role closed since grants nothing: nothing to lack.
+            match entries_of(tx, planned, &binding.role).await? {
+                Some(entries) => lacking(tx, authorizer, subject, &entries, binding.scope).await?,
+                None => Vec::new(),
+            }
+        } else {
+            vec![ADMIN.to_owned()]
+        };
+        if !lacks.is_empty() {
+            return Ok(Some(
+                Violation::new(
+                    &rules::GROUP_ESCALATION,
+                    format!(
+                        "the group '{}' binds the role '{}' where the author lacks {}",
+                        group.key,
+                        binding.role,
+                        lacks.join(", ")
+                    ),
+                )
+                .with_subjects([group.object]),
+            ));
+        }
+    }
+    Ok(None)
 }
 
 /// The property permissions of the roles `planned` sets whose key is declared neither in
@@ -517,8 +772,10 @@ pub async fn rename_permissions<S: crate::port::Store>(
         .map(Some)
 }
 
-/// Synchronises the delivered roles with the code (K12): one system changeset setting
-/// each role whose entries or label differ. Called by the migration job.
+/// Synchronises the delivered roles and groups with the code (K12; spec 025, G7): one
+/// system changeset setting each role whose entries or label differ, each delivered group
+/// whose labels differ, and binding each group to the roles it lacks on the global scope.
+/// Called by the migration job.
 ///
 /// # Errors
 ///
@@ -549,6 +806,43 @@ pub async fn sync_roles<S: crate::port::Store>(
                 key: role.key.to_owned(),
                 labels: wanted_labels,
                 entries: wanted,
+            });
+        }
+    }
+    // The delivered groups (spec 025, G7): their labels, and their roles on the global
+    // scope, after the roles they name.
+    for group in kartenn_core::authz::BUILTIN_GROUPS {
+        let mut tx = store.begin().await?;
+        let labels = tx.group_labels(group.key).await?;
+        let bound: Vec<String> = tx
+            .stored_group(group.key)
+            .await?
+            .map(|g| {
+                g.bindings
+                    .into_iter()
+                    .filter(|b| b.scope == RBAC_OBJECT)
+                    .map(|b| b.role)
+                    .collect()
+            })
+            .unwrap_or_default();
+        tx.rollback().await?;
+        let wanted_labels = group.labels.raw();
+        if labels.as_ref() != Some(&wanted_labels) {
+            operations.push(Operation::SetGroup {
+                key: group.key.to_owned(),
+                labels: wanted_labels,
+            });
+        }
+        for role in group
+            .roles
+            .iter()
+            .filter(|r| !bound.iter().any(|b| b == *r))
+        {
+            operations.push(Operation::Bind {
+                local: None,
+                group: group.key.to_owned(),
+                role: (*role).to_owned(),
+                scope: BindingScope::Global,
             });
         }
     }

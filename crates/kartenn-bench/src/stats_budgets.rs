@@ -76,13 +76,13 @@ async fn everything(pool: &PgPool, person: Uuid) -> anyhow::Result<()> {
     .bind(nil)
     .execute(pool)
     .await?;
+    let group = crate::rbac::group(pool, "bench-stats", Some(person), None).await?;
     sqlx::query(
-        "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind,
-                              valid_period, changeset_id)
-         VALUES ($1, 'identity', $2, $3, 'global', $4::tstzrange, $5)",
+        "INSERT INTO binding (id, group_id, role_id, scope_kind, valid_period, changeset_id)
+         VALUES ($1, $2, $3, 'global', $4::tstzrange, $5)",
     )
     .bind(Uuid::now_v7())
-    .bind(person)
+    .bind(group)
     .bind(role)
     .bind(SINCE)
     .bind(nil)

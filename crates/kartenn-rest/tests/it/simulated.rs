@@ -55,10 +55,20 @@ async fn admin(pool: &PgPool) -> Uuid {
     for statement in [
         "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
          VALUES ($1, '*', tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
-        "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, scope_id,
-                              valid_period, changeset_id)
-         VALUES (gen_random_uuid(), 'identity', $2, $1, 'global', NULL,
-                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+        "WITH g AS (
+            INSERT INTO rbac_group (id, key, labels, valid_period, changeset_id)
+            VALUES (gen_random_uuid(), 't-' || replace(gen_random_uuid()::text, '-', ''),
+                    '{\"fr\": \"t\"}', tstzrange(now() - interval '1 day', NULL),
+                    gen_random_uuid())
+            RETURNING id),
+         m AS (
+            INSERT INTO group_member (id, group_id, member_kind, identity_id, valid_period,
+                                      changeset_id)
+            SELECT gen_random_uuid(), g.id, 'identity', $2,
+                   tstzrange(now() - interval '1 day', NULL), gen_random_uuid() FROM g)
+         INSERT INTO binding (id, group_id, role_id, scope_kind, valid_period, changeset_id)
+         SELECT gen_random_uuid(), g.id, $1, 'global',
+                tstzrange(now() - interval '1 day', NULL), gen_random_uuid() FROM g",
     ] {
         sqlx::query(statement)
             .bind(role)

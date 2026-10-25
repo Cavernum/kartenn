@@ -13,7 +13,7 @@ use kartenn_service::audit::RequestContext;
 use kartenn_service::authn::{AuthnError, IdentityKind, authenticate_breakglass};
 use kartenn_service::authz::Subject;
 use kartenn_service::expected::Sources;
-use kartenn_service::operations::{BindingScope, BindingSubject};
+use kartenn_service::operations::{BindingScope, GroupMember};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::rbac::sync_roles;
 use kartenn_service::{ChangesetRequest, Operation, Outcome, submit_in};
@@ -88,21 +88,33 @@ async fn rescue(
     (account, id)
 }
 
-/// Binds the group `operators` of an OIDC issuer to `reader`, as `who`, under the RBAC.
+/// Creates the group `operators`, whose member is the group `operators` of an OIDC issuer,
+/// and binds it to `reader`, as `who`, under the RBAC.
 async fn bind_operators(pool: &PgPool, who: &Subject) -> Outcome {
     let request = ChangesetRequest {
         author: who.id,
         motive: "first operators".into(),
         period: None,
-        operations: vec![Operation::Bind {
-            local: None,
-            subject: BindingSubject::Group {
-                issuer: "https://idp.example".into(),
-                group: "operators".into(),
+        operations: vec![
+            Operation::SetGroup {
+                key: "operators".into(),
+                labels: [("fr".into(), "Opérateurs".into())].into(),
             },
-            role: "reader".into(),
-            scope: BindingScope::Global,
-        }],
+            Operation::AddMember {
+                local: None,
+                group: "operators".into(),
+                member: GroupMember::IdpGroup {
+                    issuer: "https://idp.example".into(),
+                    group: "operators".into(),
+                },
+            },
+            Operation::Bind {
+                local: None,
+                group: "operators".into(),
+                role: "reader".into(),
+                scope: BindingScope::Global,
+            },
+        ],
         simulate: false,
         idempotency_key: None,
         apply_own: true,
@@ -129,15 +141,14 @@ async fn a_new_instance_is_bootstrapped_by_a_break_glass_account(pool: PgPool) {
         OffsetDateTime::now_utc() + Duration::from_hours(1),
     )
     .await;
-    // The creation names the role and its scope (K17).
-    let (role, scope): (String, String) = sqlx::query_as(
-        "SELECT details ->> 'role', details ->> 'scope' FROM audit.event
-         WHERE name = 'account.breakglass.created'",
+    // The creation names the delivered group (K17, spec 025 G7).
+    let group: String = sqlx::query_scalar(
+        "SELECT details ->> 'group' FROM audit.event WHERE name = 'account.breakglass.created'",
     )
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!((role.as_str(), scope.as_str()), ("administrator", "global"));
+    assert_eq!(group, "secours");
     // A break-glass login, then the first binding of an OIDC group.
     let otp = format!(
         "{:06}",
@@ -160,7 +171,7 @@ async fn a_new_instance_is_bootstrapped_by_a_break_glass_account(pool: PgPool) {
 }
 
 #[kartenn_testing::pg_test]
-async fn the_bootstrap_binding_ends_with_the_account(pool: PgPool) {
+async fn the_bootstrap_membership_ends_with_the_account(pool: PgPool) {
     delivered_roles(&pool).await;
     let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
     let (_, id) = rescue(
@@ -170,16 +181,16 @@ async fn the_bootstrap_binding_ends_with_the_account(pool: PgPool) {
     )
     .await;
     let ends: bool = sqlx::query_scalar(
-        "SELECT upper(b.valid_period) = a.valid_until
-         FROM binding b JOIN breakglass_account a ON a.account_id = b.subject_id
-         WHERE b.subject_id = $1",
+        "SELECT upper(m.valid_period) = a.valid_until
+         FROM group_member m JOIN breakglass_account a ON a.account_id = m.identity_id
+         WHERE m.identity_id = $1",
     )
     .bind(id)
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert!(ends, "the binding ends with the account");
-    // Past its end, the binding no longer gives the right.
+    assert!(ends, "the membership ends with the account");
+    // Past its end, the membership no longer gives the right.
     tokio::time::sleep(Duration::from_millis(2_500)).await;
     let outcome = bind_operators(&pool, &Subject::from(id)).await;
     assert!(!matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");

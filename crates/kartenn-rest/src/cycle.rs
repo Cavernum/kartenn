@@ -1037,6 +1037,8 @@ fn rbac_row(row: &RbacRow) -> Value {
     match row {
         RbacRow::Role { key } => json!({ "role": key }),
         RbacRow::Binding { id } => json!({ "binding": id }),
+        RbacRow::Group { key } => json!({ "group": key }),
+        RbacRow::Member { id } => json!({ "member": id }),
         RbacRow::Attachment { issuer, entity } => {
             json!({ "attachment": { "issuer": issuer, "entity": entity } })
         }

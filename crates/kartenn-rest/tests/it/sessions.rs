@@ -438,10 +438,19 @@ async fn an_oidc_login_opens_a_session_that_lives_and_closes(pool: PgPool) {
     .await
     .unwrap();
     sqlx::query(
-        "INSERT INTO binding (id, subject_kind, issuer, group_name, role_id, scope_kind,
-                              valid_period, changeset_id)
-         VALUES (gen_random_uuid(), 'group', $1, 'netops', $2, 'global',
-                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+        "WITH g AS (
+            INSERT INTO rbac_group (id, key, labels, valid_period, changeset_id)
+            VALUES (gen_random_uuid(), 'netops', '{\"fr\": \"N\"}',
+                    tstzrange(now() - interval '1 day', NULL), gen_random_uuid())
+            RETURNING id),
+         m AS (
+            INSERT INTO group_member (id, group_id, member_kind, issuer, group_name,
+                                      valid_period, changeset_id)
+            SELECT gen_random_uuid(), g.id, 'idp_group', $1, 'netops',
+                   tstzrange(now() - interval '1 day', NULL), gen_random_uuid() FROM g)
+         INSERT INTO binding (id, group_id, role_id, scope_kind, valid_period, changeset_id)
+         SELECT gen_random_uuid(), g.id, $2, 'global',
+                tstzrange(now() - interval '1 day', NULL), gen_random_uuid() FROM g",
     )
     .bind(&issuer)
     .bind(role)

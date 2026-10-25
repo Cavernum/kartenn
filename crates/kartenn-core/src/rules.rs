@@ -241,8 +241,20 @@ rules! {
         "Un rôle livré ne change que par la synchronisation du noyau.";
     RBAC_UNKNOWN_ROLE = "core.role.unknown", Error, ["REQ-005-25"], "005/K6",
         "Une liaison désigne un rôle en vigueur.";
-    RBAC_REQUESTER = "core.binding.requester", Error, ["REQ-016-12"], "016/G10",
-        "Une liaison ne désigne pas une identité « requester » : un demandeur n'est pas un compte ; la personne qui se connecte ensuite par son émetteur en devient un.";
+    RBAC_REQUESTER = "core.binding.requester", Error, ["REQ-016-12", "REQ-025-2"], "016/G10, 025/G2",
+        "Un groupe n'a pas pour membre une identité « requester » : un demandeur n'est pas un compte ; la personne qui se connecte ensuite par son émetteur en devient un.";
+    GROUP_CLOSED = "core.binding.group_closed", Error, ["REQ-025-4"], "025/G1",
+        "Une liaison désigne un groupe en vigueur : un groupe clos depuis l'écriture d'un changeset en attente qui le lie met ce changeset en conflit à son approbation.";
+    GROUP_INVALID = "core.group.invalid", Error, ["REQ-025-1", "REQ-025-2"], "025/G2",
+        "Un groupe a une clé et des libellés ; un membre est une identité ou un groupe non vide d'un émetteur, présent au plus une fois dans un groupe à une même date.";
+    GROUP_UNKNOWN = "core.group.unknown", Error, ["REQ-025-2"], "025/G2",
+        "Une appartenance désigne un groupe en vigueur.";
+    GROUP_NESTED = "core.group.nested", Error, ["REQ-025-3"], "025/G6",
+        "Un groupe kartenn n'est membre d'aucun autre : un membre est une identité ou un groupe de l'émetteur, la forme d'une appartenance n'en admet pas d'autre.";
+    GROUP_ESCALATION = "core.group.escalation", Error, ["REQ-025-7", "REQ-025-8"], "025/G5",
+        "On n'ajoute ni ne retire un membre d'un groupe, ni ne le clôt, que si l'on pourrait créer chacune de ses liaisons : administrer les droits sur leur périmètre et détenir chaque entrée de leurs rôles.";
+    GROUP_BUILTIN = "core.group.builtin", Error, ["REQ-025-9"], "025/G7",
+        "Un groupe livré, ses libellés et ses liaisons ne changent que par la synchronisation du noyau ; ses membres se gèrent comme ceux d'un autre groupe.";
     OBJECT_FORBIDDEN = "core.object.forbidden", Error, ["REQ-005-22"], "005/K12",
         "Créer, modifier ou clore un objet exige la permission d'édition de sa sorte sur l'objet.";
     LABEL_INVALID = "core.label.invalid", Error, ["REQ-018-9"], "018/R7, R9, RFC 5646 §2.1",

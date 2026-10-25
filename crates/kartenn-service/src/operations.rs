@@ -451,13 +451,39 @@ pub enum Operation {
         /// Key.
         key: String,
     },
-    /// Binds a role on a scope to a subject, over the operation's period (005,
-    /// REQ-005-18, 25, 26).
+    /// Defines a group of kartenn, or replaces its labels (spec 025, REQ-025-1).
+    SetGroup {
+        /// Stable key.
+        key: String,
+        /// Labels by language: the default language at least.
+        labels: RawLabels,
+    },
+    /// Closes a group, its bindings and its memberships (spec 025, REQ-025-8).
+    CloseGroup {
+        /// Key.
+        key: String,
+    },
+    /// Adds a member to a group, over the operation's period (spec 025, REQ-025-2, 7).
+    AddMember {
+        /// Local name of the membership.
+        local: Option<u32>,
+        /// The group, by key.
+        group: String,
+        /// Who.
+        member: GroupMember,
+    },
+    /// Ends a membership (spec 025, REQ-025-7).
+    RemoveMember {
+        /// The membership.
+        id: Uuid,
+    },
+    /// Binds a role on a scope to a group of kartenn, over the operation's period (005,
+    /// REQ-005-25, 26; spec 025, REQ-025-4, 6): never to an identity nor an issuer.
     Bind {
         /// Local name of the binding.
         local: Option<u32>,
-        /// Who.
-        subject: BindingSubject,
+        /// The group, by key.
+        group: String,
         /// Role key.
         role: String,
         /// Where.
@@ -887,12 +913,16 @@ impl Operation {
             | Self::CreateSite { local, .. }
             | Self::DeclareProperty { local, .. }
             | Self::Bind { local, .. }
+            | Self::AddMember { local, .. }
             | Self::CreateServiceAccount { local, .. }
             | Self::AddEnumValue { local, .. } => *local,
             Self::AddServiceSecret { .. }
             | Self::RevokeServiceSecret { .. }
             | Self::SetRole { .. }
             | Self::CloseRole { .. }
+            | Self::SetGroup { .. }
+            | Self::CloseGroup { .. }
+            | Self::RemoveMember { .. }
             | Self::Unbind { .. }
             | Self::AttachIssuer { .. }
             | Self::DetachIssuer { .. }
@@ -934,26 +964,22 @@ pub struct SecretRecord {
     pub expires_at: Option<i64>,
 }
 
-/// Who a binding serves (005, K4).
+/// A member of a group of kartenn (spec 025, G2, G6): an identity, or a group of an issuer
+/// as its tokens name it; never another group of kartenn.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub enum BindingSubject {
+pub enum GroupMember {
     /// One identity (person, service or break-glass account).
     Identity {
         /// Its identifier.
         id: Uuid,
     },
-    /// The members of a group of an issuer.
-    Group {
+    /// The identities of an issuer whose session carries the group `group`.
+    IdpGroup {
         /// Issuer.
         issuer: String,
-        /// Group.
+        /// Group, as the issuer serves it.
         group: String,
-    },
-    /// Every identity of an issuer (K5).
-    Issuer {
-        /// Issuer.
-        issuer: String,
     },
 }
 

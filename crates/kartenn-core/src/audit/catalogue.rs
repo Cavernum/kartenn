@@ -129,15 +129,18 @@ events! {
     RBAC_ROLE_CHANGED = "rbac.role.changed", Info, High, ["role"], ["REQ-012-8"],
         "Entity Management 3004 / Update", "iam",
         "Un rôle ou ses permissions ont changé.";
-    RBAC_BINDING_CHANGED = "rbac.binding.changed", Info, High, ["role", "scope"], ["REQ-012-8"],
+    RBAC_BINDING_CHANGED = "rbac.binding.changed", Info, High, ["group", "role", "scope"], ["REQ-012-8", "REQ-025-10"],
         "Entity Management 3004 / Update", "iam",
-        "Une liaison sujet × rôle × périmètre a été créée ou retirée.";
+        "Une liaison groupe × rôle × périmètre a été créée ou retirée.";
+    RBAC_GROUP_CHANGED = "rbac.group.changed", Info, High, ["group", "change"], ["REQ-012-8", "REQ-025-10"],
+        "Entity Management 3004 / Update", "iam",
+        "Un groupe a été créé, renommé ou clos (`change` : `set`, `closed`), ou un membre y est entré ou en est sorti (`member_added`, `member_removed`).";
     SERVICE_ACCOUNT_CHANGED = "account.service.changed", Info, High, ["change"], ["REQ-012-8"],
         "Account Change 3001 / Create", "iam",
         "Un compte de service a été créé, renouvelé ou révoqué.";
-    BREAKGLASS_CREATED = "account.breakglass.created", Warn, High, ["valid_until", "role", "scope"], ["REQ-005-14"],
+    BREAKGLASS_CREATED = "account.breakglass.created", Warn, High, ["valid_until", "group"], ["REQ-005-14", "REQ-025-9"],
         "Account Change 3001 / Create", "iam",
-        "Un compte de secours a été créé, hors de l'API, par le propriétaire du schéma, avec le rôle d'administration global jusqu'à sa fin de validité (K17).";
+        "Un compte de secours a été créé, hors de l'API, par le propriétaire du schéma, membre du groupe livré `secours` (rôle d'administration global) jusqu'à sa fin de validité (K17, 025/G7).";
     APPROVAL_POLICY_CHANGED = "policy.approval.changed", Info, High, ["enabled"], ["REQ-012-8"],
         "Entity Management 3004 / Update", "configuration",
         "Une politique d'approbation a été créée, modifiée ou désactivée.";
