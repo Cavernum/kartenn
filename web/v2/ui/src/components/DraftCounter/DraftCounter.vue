@@ -47,7 +47,7 @@ const items = computed<MenuItem[]>(() => [
       @click="emit('toggle')"
     >
       <Icon :name="props.expanded ? 'x' : 'draft'" />
-      <span>{{ t("draft") }}</span>
+      <span class="k-draft-counter__word">{{ t("draft") }}</span>
       <span class="k-draft-counter__count"
         ><span class="k-visually-hidden">(</span>{{ props.count
         }}<span class="k-visually-hidden">)</span></span
@@ -111,6 +111,17 @@ const items = computed<MenuItem[]>(() => [
 
   .k-draft-counter__toggle[aria-expanded="true"] {
     box-shadow: var(--k-shadow-inset-accent);
+  }
+
+  /* In the compact frame (its `data-width`), the icon and the count: the word stays in the
+   * name, hidden on screen only. */
+  [data-width="compact"] .k-draft-counter__word {
+    position: absolute;
+    inline-size: var(--k-space-px);
+    block-size: var(--k-space-px);
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .k-draft-counter__count {

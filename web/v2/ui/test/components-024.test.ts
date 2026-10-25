@@ -199,8 +199,15 @@ describe("Toolbar (REQ-020-36)", () => {
 
   it("folds the lowest priority first, from the end, room left for « … »", () => {
     expect(foldActions(actions, widths, 530, 10, 30)).toEqual(["export"]);
-    expect(foldActions(actions, widths, 300, 10, 30)).toEqual(["export", "import", "history"]);
-    expect(foldActions(actions, widths, 30, 10, 30)).toHaveLength(5);
+    expect(foldActions(actions, widths, 300, 10, 30, 0)).toEqual(["export", "import", "history"]);
+    // Under a container xs (360 px), the main action alone stays (layout.test.ts).
+    expect(foldActions(actions, widths, 300, 10, 30)).toEqual([
+      "edit",
+      "import",
+      "export",
+      "history",
+    ]);
+    expect(foldActions(actions, widths, 30, 10, 30, 0)).toHaveLength(5);
   });
 
   it("is a named toolbar, one tab stop once mounted", async () => {
