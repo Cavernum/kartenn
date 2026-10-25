@@ -10,7 +10,15 @@
 // `subgrid` (« Structure avant style »). Keyboard of the pattern over a roving focus,
 // headers included; Enter or Space on a cell asks the host to act (`activate`).
 // Virtualisation beyond 50 × 50 comes with the screens that need it.
-import { computed, nextTick, ref } from "vue";
+// Crosshair (revue du 2026-10-25): the hovered cell, else the active one, lights its row
+// and its column, headers included (`data-cross`), so that one sees which entries of both
+// axes it joins; the active cell keeps its accent edge (a shape, not a colour alone). With
+// `axes`, the matrix says the direction of what it holds (a flow: rows are the source,
+// columns the destination): the corner reads « rows ↓ » and « columns → », and the headers
+// of the crosshair carry a discreet arrow (the row's leaves towards the columns, the
+// column's enters from the rows). The arrows are decorative: the name of the grid and the
+// corner say the direction in words.
+import { computed, nextTick, ref, shallowRef } from "vue";
 import { t } from "../../i18n.ts";
 import Icon from "../Icon/Icon.vue";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
@@ -25,8 +33,10 @@ const props = withDefaults(
     columns: MatrixAxis[];
     value?: ((row: MatrixAxis, column: MatrixAxis) => string | undefined) | undefined;
     cellState?: ((row: MatrixAxis, column: MatrixAxis) => MatrixCellState | undefined) | undefined;
+    /** What the rows and the columns are, for a directed matrix (« Source », « Destination »). */
+    axes?: { rows: string; columns: string } | undefined;
   }>(),
-  { value: undefined, cellState: undefined },
+  { value: undefined, cellState: undefined, axes: undefined },
 );
 /** The cell that holds the roving focus (the corner when unset). */
 const active = defineModel<MatrixCell | undefined>("active", { default: undefined });
@@ -43,6 +53,23 @@ const isActive = (row: string, column: string) =>
   active.value?.row === row && active.value.column === column;
 
 const WORDS = { draft: "inDraft", review: "inReview" } as const;
+
+/** The cell under the pointer, if any: it leads the crosshair over the active one. */
+const hover = shallowRef<MatrixCell | null>(null);
+const cross = computed<MatrixCell>(() => hover.value ?? current.value);
+/** Whether a cell or a header lies on the crosshair (`""` is a header of the other axis). */
+const onCross = (row: string, column: string): "true" | undefined =>
+  (row !== "" && row === cross.value.row) || (column !== "" && column === cross.value.column)
+    ? "true"
+    : undefined;
+/** The crosshair stands on a cell of the body: its headers carry the arrows of direction. */
+const crossCell = computed(() => cross.value.row !== "" && cross.value.column !== "");
+
+function onPointerover(event: PointerEvent): void {
+  const cell = cellOf(event.target);
+  const next = cell && cell.row !== "" && cell.column !== "" ? cell : null;
+  if (next?.row !== hover.value?.row || next?.column !== hover.value?.column) hover.value = next;
+}
 
 async function focusActive(): Promise<void> {
   await nextTick();
@@ -96,6 +123,8 @@ function onKeydown(event: KeyboardEvent): void {
     :style="count"
     @keydown="onKeydown"
     @focusin="onFocusin"
+    @pointerover="onPointerover"
+    @pointerleave="hover = null"
   >
     <div role="rowgroup" class="k-matrix__head">
       <div role="row" aria-rowindex="1" class="k-matrix__row">
@@ -107,7 +136,18 @@ function onKeydown(event: KeyboardEvent): void {
           aria-colindex="1"
           :tabindex="tabindex('', '')"
         >
-          {{ props.corner }}
+          <template v-if="props.axes">
+            <span class="k-matrix__axes" aria-hidden="true">
+              <span class="k-matrix__axis" data-axis="columns"
+                >{{ props.axes.columns }}<Icon name="arrow-right" class="k-matrix__flow"
+              /></span>
+              <span class="k-matrix__axis" data-axis="rows"
+                >{{ props.axes.rows }}<Icon name="arrow-down" class="k-matrix__flow"
+              /></span>
+            </span>
+            <span class="k-visually-hidden">{{ props.corner }}</span>
+          </template>
+          <template v-else>{{ props.corner }}</template>
         </div>
         <div
           v-for="(column, c) in props.columns"
@@ -118,9 +158,15 @@ function onKeydown(event: KeyboardEvent): void {
           data-row=""
           :data-column="column.id"
           :data-active="isActive('', column.id) ? 'true' : undefined"
+          :data-cross="onCross('', column.id)"
           :aria-colindex="c + 2"
           :tabindex="tabindex('', column.id)"
         >
+          <Icon
+            v-if="props.axes && crossCell && cross.column === column.id"
+            name="arrow-down"
+            class="k-matrix__flow"
+          />
           <span class="k-matrix__text">{{ column.label }}</span>
         </div>
       </div>
@@ -140,10 +186,17 @@ function onKeydown(event: KeyboardEvent): void {
           :data-row="row.id"
           data-column=""
           :data-active="isActive(row.id, '') ? 'true' : undefined"
+          :data-cross="onCross(row.id, '')"
           aria-colindex="1"
           :tabindex="tabindex(row.id, '')"
         >
           <span class="k-matrix__text">{{ row.label }}</span>
+          <Icon
+            v-if="props.axes && crossCell && cross.row === row.id"
+            name="arrow-right"
+            class="k-matrix__flow"
+            data-dir="inline"
+          />
         </div>
         <div
           v-for="(column, c) in props.columns"
@@ -154,6 +207,7 @@ function onKeydown(event: KeyboardEvent): void {
           :data-column="column.id"
           :data-state="props.cellState?.(row, column)"
           :data-active="isActive(row.id, column.id) ? 'true' : undefined"
+          :data-cross="onCross(row.id, column.id)"
           :aria-colindex="c + 2"
           :tabindex="tabindex(row.id, column.id)"
         >
@@ -280,6 +334,53 @@ function onKeydown(event: KeyboardEvent): void {
   .k-matrix__header:focus-visible,
   .k-matrix__cell:focus-visible {
     outline-offset: calc(var(--k-focus-width) * -1);
+  }
+
+  /* The crosshair: its cells lightly, its headers more, in the text colour. */
+  .k-matrix__cell[data-cross] {
+    background-color: var(--k-hover);
+  }
+
+  .k-matrix__header[data-cross] {
+    color: var(--k-text);
+    background-color: var(--k-accent-soft);
+  }
+
+  /* The arrows of direction: small, at the end of a row header, before a column label. */
+  .k-matrix__flow {
+    flex: none;
+    color: var(--k-accent);
+  }
+
+  .k-matrix__row-header > .k-matrix__flow {
+    margin-inline-start: auto;
+  }
+
+  .k-matrix__flow[data-dir="inline"]:dir(rtl),
+  .k-matrix__axis[data-axis="columns"] > .k-matrix__flow:dir(rtl) {
+    scale: -1 1;
+  }
+
+  /* The corner of a directed matrix: the columns to the end on top, the rows below. */
+  .k-matrix__axes {
+    display: grid;
+    flex: 1;
+    gap: var(--k-space-0-5);
+    padding-block: var(--k-space-0-5);
+  }
+
+  .k-matrix__axis {
+    display: inline-flex;
+    gap: var(--k-space-0-5);
+    align-items: center;
+  }
+
+  .k-matrix__axis[data-axis="columns"] {
+    justify-self: end;
+  }
+
+  .k-matrix__axis > .k-matrix__flow {
+    color: var(--k-text-muted);
   }
 
   /* The active cell: the inner accent edge, and its headers named in the same way. */
