@@ -175,6 +175,15 @@ describe("tokens", () => {
       expect(low).toEqual([]);
     });
 
+    // A skeleton is decorative (no 3:1 due), but must read as a bar on its surface, still
+    // under reduced motion, and its sheen must stand out of it (review of 2026-10-25).
+    it(`skeleton bars and their sheen stand out in ${mode} mode`, () => {
+      for (const bg of ["--k-surface", "--k-surface-sunken", "--k-hover"]) {
+        expect(pair(palette, "--k-skeleton", bg), bg).toBeGreaterThanOrEqual(1.2);
+      }
+      expect(pair(palette, "--k-skeleton-sheen", "--k-skeleton")).toBeGreaterThanOrEqual(1.25);
+    });
+
     // The four states of REQ-020-7 (`info` is the accent, which the first hue shares).
     it(`environment hues differ from the states in ${mode} mode`, () => {
       const states = (["ok", "warn", "ko", "review"] as const).map((s) =>

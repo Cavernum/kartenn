@@ -110,6 +110,14 @@ d'un dialogue modal, `rgb(16 24 40 / .36)` en clair, `rgb(0 0 0 / .56)` en sombr
 test des contrastes couvre `text` sur `hover` et `active`, `accent-fg` sur
 `accent-hover`, `danger-fg` sur `danger` et `danger-hover`.
 
+Chargement (revue du 2026-10-25) : `--k-skeleton`, remplissage d'une barre de squelette
+(texte 14 % sur `surface`), et `--k-skeleton-sheen`, le reflet qui la traverse, plus
+clair que la barre dans les deux modes (`surface` en clair, texte 30 % sur `surface` en
+sombre). Décoratifs, ils n'ont pas de 3:1 dû, mais un test garde la barre lisible sur
+`surface`, `surface-sunken` et `hover` (≥ 1,2:1, environ 1,4:1 sur `surface`) et le reflet
+détaché de la barre (≥ 1,25:1) : l'ancien couple (`surface-sunken`, reflet `hover`, 1,1:1
+et 1,04:1) ne se voyait pas.
+
 Contrastes calculés le 2026-10-23 (à recalculer par le test) : `text`/`surface` 17,6 et
 14,3 ; `text-muted`/`accent-soft` 4,64 et 5,02 ; `accent`/`surface` 6,67 et 5,52 ;
 `border-control`/`surface` 3,5 et 3,4 ; `band-fg`/`band-bg` 7,8 et 9,1 ;
@@ -337,7 +345,7 @@ sont listés.
 | 22 | `CodeBadge` | Button (copier) | copié | chasse fixe ; annonce `role="status"` « Copié » |
 | 23 | `KeyLabel`, `EnvChip` | — | libellé absent (clé seule) | REQ-020-21 ; clé en infobulle et copiable |
 | 24 | `StatusBadge` | — | les six états | couleur + icône + libellé |
-| 25 | `Skeleton`, `EmptyState`, `ErrorState` | `aria-busy` ; — ; `role="alert"` | — | REQ-020-23 ; `Skeleton` animé d'un reflet (`--k-duration-*`, immobile sous mouvement réduit) ; `ErrorState` montre la phrase courante, le code et `Request-Id` (`CodeBadge`) |
+| 25 | `Skeleton`, `EmptyState`, `ErrorState` | `aria-busy` ; — ; `role="alert"` | — | REQ-020-23 ; `Skeleton` : barres de 12 px (`--k-space-3`) en `--k-skeleton`, animées d'un reflet `--k-skeleton-sheen` (bande de la moitié de la barre, 2 × `--k-duration-spin`, linéaire), immobiles sous mouvement réduit, remplissage gardé ; aussi dans les cellules d'un `DataGrid` en chargement ; `ErrorState` montre la phrase courante, le code et `Request-Id` (`CodeBadge`) |
 | 26 | `InlineAlert` | `role="status"` ou `alert` | quatre états | violations sous un formulaire |
 | 27 | `DatePill`, `DraftCounter`, `TimeBand` | Button ; Button (bascule, `aria-expanded`) et Menu Button (liste des brouillons) ; `role="status"` | hors présent ; compteur à 0 ; panneau ouvert | barre d'état de la 021 ; `DatePill` ouvre `PeriodPicker` en surimpression ; `DraftCounter` ouvert (`expanded`) : son icône de brouillon devient une croix, ce que fera le prochain clic (revue du 2026-10-25) |
 | 28 | `Kbd`, `ShortcutHint` | — | — | rendu des raccourcis dans menus, infobulles, aide `?` |

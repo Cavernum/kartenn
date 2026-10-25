@@ -7,7 +7,8 @@
 // the size of what comes (rows of `--k-row-height`, lines of text), so that the data take
 // the same place when they arrive (no layout shift). `aria-busy` and a hidden word say it.
 // A sheen runs over the bars (a loading indicator, the one looping animation allowed with
-// the spinner, REQ-020-11), still under reduced motion. `cell`: one bar alone, for a cell
+// the spinner, REQ-020-11); under reduced motion the bars stand still, their fill
+// (`--k-skeleton`) alone telling the place. `cell`: one bar alone, for a cell
 // of a grid that says its loading itself (`DataGrid`).
 import { t } from "../../i18n.ts";
 
@@ -76,9 +77,7 @@ const props = withDefaults(
   /* The sheen: a lighter band that crosses each bar, from the inline start. */
   .k-skeleton__bar,
   .k-skeleton__block {
-    --k-skeleton-sheen: var(--k-hover);
-
-    background-color: var(--k-surface-sunken);
+    background-color: var(--k-skeleton);
     background-image: linear-gradient(to right, transparent, var(--k-skeleton-sheen), transparent);
     background-repeat: no-repeat;
     background-size: 50% 100%;
@@ -91,7 +90,7 @@ const props = withDefaults(
   .k-skeleton__bar {
     display: block;
     inline-size: 100%;
-    block-size: var(--k-space-2);
+    block-size: var(--k-space-3);
     border-radius: var(--k-radius-sm);
   }
 
@@ -123,7 +122,7 @@ const props = withDefaults(
     }
   }
 
-  /* Reduced motion: the bars stand still, without their sheen (REQ-020-11). */
+  /* Reduced motion: the bars stand still, without their sheen, their fill kept (REQ-020-11). */
   @media (prefers-reduced-motion: reduce) {
     .k-skeleton__bar,
     .k-skeleton__block {
