@@ -56,7 +56,7 @@ expression du besoin [`../010-politique-flux/besoin/`](../010-politique-flux/bes
 - Décidé par : Claude (délégation)
 
 ## G3 — Déclencheurs d'approbation de module (N5)
-- Décision : un module déclare des **mesures** nommées (`policy.opens`, `flow.breaks`…)
+- Décision : un module déclare des **mesures** nommées (`policy.opens`, `flow.nonconforming`…)
   calculées par son gestionnaire à partir de ses sections du différentiel, dans la
   transaction de simulation et d'application. Une politique d'approbation gagne une liste
   `module_triggers` de couples (mesure, seuil) ; elle retient le changeset quand chaque
@@ -64,7 +64,7 @@ expression du besoin [`../010-politique-flux/besoin/`](../010-politique-flux/bes
   désactiver une politique reste réservé à `core.approval_policy.admin`. Un module peut
   déclarer des politiques **par défaut**, installées une seule fois au premier déploiement
   du module, marquées `origin = module`, désactivables par l'administrateur et jamais
-  réinstallées ensuite (F8 : `flow.breaks ≥ 1`).
+  réinstallées ensuite (F8 : `flow.nonconforming ≥ 1`).
 - Pourquoi : N5, N30, F5, F8 ; REQ-004-39 tient (le noyau n'impose rien ; le module
   propose, l'administrateur dispose).
 - Rejeté : déclencheur évalué par du code du module à chaque politique (opaque, non

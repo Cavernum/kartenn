@@ -8,8 +8,8 @@ date: 2026-10-22
 ## Context
 
 Le registre de flux (spec 011, D30) doit répondre vite à « quels flux sont non conformes
-à telle date ? », montrer dans le différentiel d'un changeset les flux qu'il casse ou
-guérit (REQ-011-13), et ouvrir ou fermer des anomalies au moment où une politique, une
+à telle date ? », montrer dans le différentiel d'un changeset les flux qu'il rend non
+conformes à la matrice de flux ou qui le redeviennent (REQ-011-13), et ouvrir ou fermer des anomalies au moment où une politique, une
 classification ou un rattachement change (REQ-011-11, 12). Le verdict d'un flux dépend
 de quatre sources qui changent indépendamment : les extrémités et leurs adresses (002,
 009), les valeurs résolues des axes (003), la politique (010, ADR 0030) et la date. La
@@ -28,7 +28,8 @@ un état et une validité dérivés, sans date de fin obligatoire pour un flux c
    d'axe est touché ; tous les flux vivants si la politique (hors règles d'inférence) est
    écrite. Le recalcul va de maintenant à la fin du flux, coupé aux bornes des versions
    lues ; seuls les segments qui diffèrent de l'état stocké sont réécrits. La section
-   `flow.flows` nomme les flux qui basculent (`breaks`, `heals`, issue).
+   `flow.flows` nomme les flux qui basculent (`nonconforming`, `conforming`,
+   issue).
 3. **État et validité dérivés** : l'état (demandé, programmé, actif, non conforme, dérogé,
    expiré, retiré, rejeté) se calcule de la date, de la synthèse et de la dérogation ;
    rien n'est stocké. Un flux conforme sans fin reste valide tant que la politique
@@ -44,8 +45,8 @@ un état et une validité dérivés, sans date de fin obligatoire pour un flux c
 - **Calcul à la lecture** : simple, mais aucun différentiel possible sans tout recalculer,
   et « non conformes au 1er mars » coûte une évaluation complète du registre.
 - **Recalcul par tâche de fond** : découple l'écriture, mais le différentiel d'un changeset
-  ne pourrait pas nommer les flux cassés avant l'application, et l'approbation `flow.breaks`
-  (F8) perdrait son objet.
+  ne pourrait pas nommer les flux devenus non conformes avant l'application, et
+  l'approbation `flow.nonconforming` (F8) perdrait son objet.
 - **État stocké** (colonne `state`) : il dériverait de la date et demanderait une tâche
   pour chaque bascule ; refusé par F4.
 

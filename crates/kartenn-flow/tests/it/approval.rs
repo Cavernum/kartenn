@@ -1,6 +1,7 @@
 //! The approval policies and the anomalies of the registry (task 011-6; REQ-011-6, 12):
-//! the policy `flow.breaks ≥ 1` installed with the module, and the anomaly
-//! `flow.verdict.denied` opened on a flow a changeset breaks, closed when it heals.
+//! the policy `flow.nonconforming ≥ 1` installed with the module, and the anomaly
+//! `flow.verdict.denied` opened on a flow a changeset makes non-conforming to the flow
+//! matrix, closed when it conforms again.
 
 use std::sync::Arc;
 
@@ -61,10 +62,10 @@ async fn compliant_flow(env: &Env) -> Uuid {
     flow_between(&env.pool, source, destination).await
 }
 
-/// REQ-011-6: the module installs the active policy `flow.breaks ≥ 1`; a changeset that
-/// breaks a registered flow waits for an approval.
+/// REQ-011-6: the module installs the active policy `flow.nonconforming ≥ 1`; a changeset
+/// that makes a registered flow non-conforming waits for an approval.
 #[kartenn_testing::pg_test]
-async fn acceptance_of_req_011_6_breaking_a_flow_waits_for_an_approval(pool: PgPool) {
+async fn acceptance_of_req_011_6_a_nonconforming_flow_waits_for_an_approval(pool: PgPool) {
     let env = Env::new(&pool).await;
     let registry = ModuleRegistry::new(vec![
         Arc::new(Vlan),
@@ -76,15 +77,15 @@ async fn acceptance_of_req_011_6_breaking_a_flow_waits_for_an_approval(pool: PgP
     let installed = kartenn_store_pg::pending::install_default_policies(&pool, &registry)
         .await
         .unwrap();
-    assert_eq!(installed, ["flow.breaks"]);
+    assert_eq!(installed, ["flow.nonconforming"]);
     let (enabled, triggers): (bool, serde_json::Value) = sqlx::query_as(
-        "SELECT enabled, module_triggers FROM approval_policy WHERE name = 'flow.breaks'",
+        "SELECT enabled, module_triggers FROM approval_policy WHERE name = 'flow.nonconforming'",
     )
     .fetch_one(&pool)
     .await
     .unwrap();
     assert!(enabled);
-    assert_eq!(triggers, json!([["flow.breaks", 1]]));
+    assert_eq!(triggers, json!([["flow.nonconforming", 1]]));
     compliant_flow(&env).await;
     let close = close_the_rule(&pool).await;
     let outcome = env
@@ -110,12 +111,16 @@ async fn acceptance_of_req_011_6_breaking_a_flow_waits_for_an_approval(pool: PgP
 /// anomaly `flow.verdict.denied` on it; one that makes it allowed again closes it, and a
 /// changeset that touches no flow leaves it open.
 #[kartenn_testing::pg_test]
-async fn acceptance_of_req_011_12_the_anomaly_of_a_broken_flow(pool: PgPool) {
+async fn acceptance_of_req_011_12_the_anomaly_of_a_nonconforming_flow(pool: PgPool) {
     let env = Env::new(&pool).await;
     let id = compliant_flow(&env).await;
     assert_eq!(open_anomalies(&pool, id).await, 0);
     env.applied(vec![close_the_rule(&pool).await]).await;
-    assert_eq!(open_anomalies(&pool, id).await, 1, "broken: noncompliant");
+    assert_eq!(
+        open_anomalies(&pool, id).await,
+        1,
+        "nonconforming: noncompliant"
+    );
     env.applied(vec![Operation::CreateEntity {
         local: None,
         slug: "unrelated".into(),
@@ -131,7 +136,11 @@ async fn acceptance_of_req_011_12_the_anomaly_of_a_broken_flow(pool: PgPool) {
                 "destination": { "policy.environment": ["dev"] } }),
     )])
     .await;
-    assert_eq!(open_anomalies(&pool, id).await, 0, "healed: closed");
+    assert_eq!(
+        open_anomalies(&pool, id).await,
+        0,
+        "conforming again: closed"
+    );
 }
 
 async fn flow_type(pool: &PgPool) -> Uuid {

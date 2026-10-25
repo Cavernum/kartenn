@@ -133,7 +133,7 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     maintenant à la fin du flux, coupé aux bornes des versions de la politique, des
     rattachements, des origines et valeurs lues et d'un préfixe extrémité ; comparaison
     à l'état stocké, segments contigus égaux fusionnés, réécriture seulement s'il
-    diffère ; section `flow.flows` : décompte `breaks`, `heals`, `outcome` puis un rang
+    diffère ; section `flow.flows` : décompte `nonconforming`, `conforming`, `outcome` puis un rang
     par flux existant dont la synthèse, un verdict ou l'issue bascule, avant, après et
     élément décisif ; `drift`, l'oracle), `src/pg.rs` (`state_of`, `read_states`,
     `write_states` remplacent `write_evaluation`), `src/handler.rs` (`diff` ; `check`
@@ -150,23 +150,24 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     `inference`, et le test vérifie l'absence de réécriture sur une écriture de politique
     neutre ; la réécriture porte sur tout le flux à partir de maintenant quand un segment
     change ; la révision de politique ne compte pas dans la comparaison ; un flux créé
-    par le changeset n'a pas de rang dans la section (il a son triage) ; `breaks` compte
-    les flux qui passent à `denied` (synthèse absente comprise), `heals` l'inverse ;
+    par le changeset n'a pas de rang dans la section (il a son triage) ; `nonconforming`
+    compte les flux qui passent à `denied` (synthèse absente comprise), `conforming`
+    l'inverse ;
     héritiers d'une valeur à venir absents du différentiel des propriétés (fenêtre
     future) : rattrapés par l'index des origines ; anomalies et déclencheurs en tâche 6.
-- [x] 6. Déclencheurs `flow.created`, `flow.breaks` (politique par défaut à
+- [x] 6. Déclencheurs `flow.created`, `flow.nonconforming` (politique par défaut à
   l'installation), `flow.waiver` ; anomalies `flow.verdict.denied` ouvertes et fermées ;
   crochet de rejet (N38) et `flow_rejection` — REQ-011-6, 12, 25 — verify : politique
-  `flow.breaks ≥ 1` installée et active ; rejet motivé enregistré
+  `flow.nonconforming ≥ 1` installée et active ; rejet motivé enregistré
   - où : déclencheurs de module (tâche 010-9), anomalies (ADR 0026 clause 7)
   - dépend de : 5
-  - fait : `src/approval.rs` (mesures `created`, `breaks`, `waiver` ; politique par défaut
-    `flow.breaks` = `breaks ≥ 1` ; anomalies des flux qui basculent, lues dans la section
+  - fait : `src/approval.rs` (mesures `created`, `nonconforming`, `waiver` ; politique par
+    défaut `flow.nonconforming` = `nonconforming ≥ 1` ; anomalies des flux qui basculent, lues dans la section
     `flow.flows`), `Handler::measure`, `Handler::check`, `Module::{measures,
     default_policies}`, `pg::written_counts` ; crochet de rejet déjà en 011-3 ; tests
-    `tests/it/approval.rs` (politique installée, active, changeset cassant en attente
-    d'approbation ; anomalie ouverte, laissée par un changeset sans rapport, fermée à la
-    guérison), `requests.rs::a_rejected_request_is_a_nonconformity`.
+    `tests/it/approval.rs` (politique installée, active, changeset qui rend un flux
+    non conforme en attente d'approbation ; anomalie ouverte, laissée par un changeset
+    sans rapport, fermée quand le flux redevient conforme), `requests.rs::a_rejected_request_is_a_nonconformity`.
   - choix : `flow.verdict.denied` devient l'avertissement (anomalie) ; le refus à
     l'enregistrement sans dérogation prend la règle d'erreur `flow.waiver.required` (une
     règle n'a qu'une sévérité) ; seuls les flux dont l'évaluation bascule sont réévalués

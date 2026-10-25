@@ -286,8 +286,8 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         },
     )
     .await?;
-    // The approval policies installed by the modules would hold a changeset that breaks a
-    // flow (011-6): the measures are of the write itself.
+    // The approval policies installed by the modules would hold a changeset that makes a
+    // flow non-conforming (011-6): the measures are of the write itself.
     sqlx::query("UPDATE approval_policy SET enabled = false")
         .execute(&pool)
         .await?;

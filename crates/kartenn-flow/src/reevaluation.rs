@@ -593,8 +593,9 @@ async fn reevaluate(
 }
 
 /// Re-evaluates every flow the changeset of `context` touches and gives the section
-/// `flow.flows` (REQ-011-11, 13): first its counts (`breaks`: flows that become denied,
-/// `heals`: denied flows that no longer are, `outcome`: flows whose outcome changes), then
+/// `flow.flows` (REQ-011-11, 13): first its counts (`nonconforming`: flows that become
+/// non-conforming to the flow matrix, i.e. denied; `conforming`: denied flows that conform
+/// again; `outcome`: flows whose outcome changes), then
 /// each existing flow whose summary, a verdict or the outcome flips, before and after,
 /// with its decisive element. A flow the changeset creates has nothing before: it is not
 /// listed.
@@ -610,7 +611,7 @@ pub(crate) async fn section(
         .fetch_one(&mut *conn)
         .await
         .map_err(|e| store(&e))?;
-    let (mut breaks, mut heals, mut outcome) = (0_u64, 0_u64, 0_u64);
+    let (mut nonconforming, mut conforming, mut outcome) = (0_u64, 0_u64, 0_u64);
     let mut rows = Vec::new();
     // Every write of the changeset is done: the policy holds still over the pass.
     let mut pass = Pass::default();
@@ -623,8 +624,8 @@ pub(crate) async fn section(
         if r.before.is_empty() || r.before.verdicts() == r.after.verdicts() {
             continue;
         }
-        breaks += u64::from(!r.before.denied() && r.after.denied());
-        heals += u64::from(r.before.denied() && !r.after.denied());
+        nonconforming += u64::from(!r.before.denied() && r.after.denied());
+        conforming += u64::from(r.before.denied() && !r.after.denied());
         outcome += u64::from(r.before.outcome() != r.after.outcome());
         rows.push(DiffRow {
             object: r.flow,
@@ -643,8 +644,8 @@ pub(crate) async fn section(
         before: None,
         after: Some(json!({
             "flows": rows.len(),
-            "breaks": breaks,
-            "heals": heals,
+            "nonconforming": nonconforming,
+            "conforming": conforming,
             "outcome": outcome,
         })),
         period: None,

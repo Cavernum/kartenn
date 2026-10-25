@@ -325,7 +325,7 @@ Registre de flux implémenté sur les tâches 1 à 9 (crate `kartenn-flow`, feat
 montée par défaut) : demande, triage et revue forcée, séparation des rôles (le demandeur
 n'instruit ni ne déroge), dérogation datée et plafonnée, évaluations matérialisées et
 réévaluées dans la transaction (ADR 0031, oracle contre recalcul complet), section de
-différentiel `flow.flows`, anomalies et approbation `flow.breaks`, lectures datées,
+différentiel `flow.flows`, anomalies et approbation `flow.nonconforming`, lectures datées,
 échéances J-30, J-7 et terme, routes `/v1/flows`. Invariants INV-64 à 66.
 
 Écarts au design, le code faisant foi (design, § « Écarts au design ») :
