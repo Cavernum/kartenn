@@ -64,6 +64,10 @@ la validation est écrite sur `jsonwebtoken` seul.
 
 ### Modèle de données — migration `0028_rbac.sql`
 
+*Amendé par la 025/G1, G2 (2026-10-25, migrations 0066 et 0068) : tables `rbac_group` et
+`group_member` ; `binding` ne vise plus qu'un groupe (`group_id`), ses colonnes de sujet
+ne restent que dans `binding_history` ([025](../025-droits-par-groupes/design.md)).*
+
 - `person` (existante) devient la table des **identités** : colonnes `kind`
   (`person`, `service_account`, `breakglass`, et `system` pour kartenn lui-même),
   `disabled_at`, `revoked_after` ;
@@ -71,9 +75,10 @@ la validation est écrite sur `jsonwebtoken` seul.
   d'être écrit (K3).
 - Tables versionnées comme les objets du noyau (`valid_period`, historique, ADR 0017) :
   - `role (id, key, label, builtin)` et `role_permission (role_id, permission)` ;
-  - `binding (id, subject_kind, subject_id, issuer, group_name, role_id, scope_kind,
-    scope_id)` : `subject_kind` ∈ (`identity`, `group`, `issuer`) avec les colonnes
-    utiles seulement (`CHECK`) ; `scope_kind` ∈ (`global`, `entity`, `site`, `domain`,
+  - `rbac_group (id, key, labels, builtin)` et `group_member (id, group_id,
+    identity_id | issuer + group_name)` (025) ;
+  - `binding (id, group_id, role_id, scope_kind, scope_id)` (jusqu'à la 025 : `subject_kind`
+    ∈ `identity`, `group`, `issuer` et `subject_id`, `issuer`, `group_name`) ; `scope_kind` ∈ (`global`, `entity`, `site`, `domain`,
     `prefix`), `scope_id` nul pour `global` ; la période applicative borne la liaison
     (liaison temporaire, K6) ;
   - `issuer_attachment (issuer, entity_id)` : `entity_id` nul = rattachement global (K13).
@@ -104,9 +109,13 @@ la validation est écrite sur `jsonwebtoken` seul.
 
 ### Décision (REQ-005-18 à 20, 23)
 
+*Amendé par la 025/G1, G3 (2026-10-25) : le sujet d'une liaison est un groupe kartenn,
+résolu par `kartenn_member_of` ; plus de liaison d'identité ni d'émetteur entier
+([025](../025-droits-par-groupes/design.md)).*
+
 1. **Périmètres du sujet** : une requête lit, à la date de la requête, les liaisons
-   valides dont le sujet est l'identité, l'un de ses groupes (`issuer`, `group_name`) ou
-   son émetteur entier, jointes aux rôles qui contiennent la permission ; résultat :
+   valides des groupes kartenn dont le sujet est membre à cette date, en identité ou par
+   l'un de ses groupes de l'IdP (`issuer`, `group_name`) (`kartenn_member_of`), jointes aux rôles qui contiennent la permission ; résultat :
    `Visibility { global, entities, sites, domains, prefixes, confinement }`, les ensembles
    d'entités et de sites étant étendus à leurs descendants (CTE récursive, à la date).
 2. **Confinement** : pour une identité d'émetteur, `confinement` = descendants des entités
@@ -153,8 +162,14 @@ coupent au plus 5 s plus tard (précision de la tâche 13).
 
 ### Administration (REQ-005-25 à 27)
 
+*Amendé par la 025/G4, G5 (2026-10-25) : opérations de groupe et d'appartenance, `Bind`
+sur un groupe, anti-escalade étendue aux membres (`core.group.escalation`), groupes
+livrés ([025](../025-droits-par-groupes/design.md)).*
+
 - Opérations : `SetRole` (crée ou remplace les permissions), `CloseRole` (clôt aussi ses
-  liaisons) ; `Bind`, `Unbind` (clôture de la période) ; `AttachIssuer`, `DetachIssuer` ;
+  liaisons) ; `SetGroup`, `CloseGroup` (clôt aussi ses appartenances et liaisons),
+  `AddMember`, `RemoveMember` (025) ; `Bind` (groupe, rôle, périmètre), `Unbind` (clôture
+  de la période) ; `AttachIssuer`, `DetachIssuer` ;
   `CreateServiceAccount`, `AddServiceSecret`, `RevokeServiceSecret` ; `SetIdentityState`
   (désactiver, réactiver, révoquer les sessions ; personnes et comptes de service
   seulement, jamais un compte de secours ni kartenn). Une permission `prop.<clé>.<action>`
@@ -167,18 +182,22 @@ coupent au plus 5 s plus tard (précision de la tâche 13).
   avant l'application, en vigueur sur `[début, ∞)`) et s'il en reste un après.
   L'inverse en tire des opérations ordinaires : rôle créé → `CloseRole`, rôle d'avant →
   `SetRole` (libellé, permissions) ; liaison créée → `Unbind`, liaison d'avant disparue →
-  `Bind` (sujet, clé du rôle, périmètre ; nouvel identifiant) ; rattachement créé →
+  `Bind` (groupe, clé du rôle, périmètre ; nouvel identifiant) ; rattachement créé →
   `DetachIssuer`, disparu → `AttachIssuer`. Une période d'avant bornée ou qui commence
   après le début passe par `Within`. Les rôles viennent avant les liaisons, pour qu'une
   liaison recréée trouve son rôle rendu. Conflit (laissé de côté, listé) : une ligne de
   la même clé écrite après l'application par un autre changeset, ou, pour un rôle créé,
   une liaison de ce rôle écrite par un autre changeset. Les comptes de service, leurs
-  secrets et l'état des identités restent listés comme non pris en charge.
+  secrets et l'état des identités restent listés comme non pris en charge. Groupes et
+  appartenances s'annulent de même (025, `groups_touched`), une liaison d'avant la 025
+  sur le groupe que le report lui a donné.
 - Contrôles (nouvelles règles du pipeline) : `core.role.admin`, `core.issuer.admin` et
   `core.account.admin` sur le périmètre global ; une liaison exige `core.rbac.admin` sur
   un périmètre qui contient le sien et toutes les permissions du rôle sur ce périmètre
   (K7) — vérifié par le prédicat sur l'objet du périmètre ; refus :
-  `core.binding.escalation`.
+  `core.binding.escalation`. Un membre ajouté ou retiré, ou un groupe clos, exige la même
+  chose pour chaque liaison valide du groupe (`core.group.escalation`, 025/G5) ; une
+  liaison d'un groupe livré hors synchronisation : `core.group.builtin`.
 - Politiques d'approbation (004) : périmètre (entité, site, sous-arbre) et auteurs par
   rôle ou groupe (groupe kartenn depuis la 025, REQ-025-13), évalués avec le même modèle ; déclencheur `bound_roles` : le changeset
   lie l'un de ces rôles (second administrateur pour le rôle administrateur), rangé avec
@@ -223,13 +242,15 @@ coupent au plus 5 s plus tard (précision de la tâche 13).
   deux requêtes simultanées avec le même code n'en ouvrent qu'une) et ouvre une session
   d'au plus 1 h (006) ; 100 échecs consécutifs (phrase ou code faux, comptés en base)
   désactivent le compte et produisent `authn.account.locked`.
-- **Amorçage (K17)** : dans la même transaction, la sous-commande écrit une liaison
-  `binding (subject_kind = identity, subject_id = <identité du compte>, role =
-  administrator, scope_kind = global)` sur la période `[création, valid_until)`, avec sa
-  trace d'historique, directement par l'adaptateur (`kartenn_store_pg::breakglass::create`)
-  et non par le pipeline : la sous-commande n'a pas d'identité appelante. La liaison
-  prend fin avec le compte ; un compte désactivé n'ouvre plus de session, donc plus
-  d'effet. `account.breakglass.created` porte `role` et `scope` en détail. Les parcours
+- **Amorçage (K17, amendé par la 025/G7)** : dans la même transaction, la sous-commande
+  fait du compte un membre du groupe livré `secours` (`group_member`, identité du compte)
+  sur la période `[création, valid_until)`, avec sa trace d'historique, directement par
+  l'adaptateur (`kartenn_store_pg::breakglass::create`) et non par le pipeline : la
+  sous-commande n'a pas d'identité appelante. Le groupe `secours` est lié au rôle
+  `administrator` global par la synchronisation des rôles livrés ; jusqu'à la 025, la
+  sous-commande écrivait une liaison nominale de l'identité. L'appartenance prend fin
+  avec le compte ; un compte désactivé n'ouvre plus de session, donc plus d'effet.
+  `account.breakglass.created` porte `group` (`secours`) en détail. Les parcours
   de bout en bout (`web/e2e/serve.sh`), qui posent aujourd'hui ce rôle en SQL, passeront
   par la sous-commande.
 

@@ -56,6 +56,12 @@ formats sont la 006, qui appelle ce que la 005 fournit.
 - Rejeté : correspondance dans la configuration (ni auditée ni modifiable sans
   redéploiement) ; rôles fournis par l'IdP (délègue le contrôle à des IdP tiers).
 - Décidé par : recommandation acceptée
+- Amendé le 2026-10-25 (025/G1, G2, G3, REQ-025-4) : une liaison ne vise plus qu'un
+  **groupe kartenn** ; identités, comptes de service et groupes d'un émetteur en sont
+  membres, et les droits d'une identité sont l'union des liaisons des groupes dont elle
+  est membre, directement ou par un groupe de son jeton. Plus de liaison nominale ni
+  d'émetteur entier. Le confinement par émetteur ne change pas.
+- Décidé par (amendement) : l'utilisateur (spec 025)
 
 ## K5 — Droits sans liaison
 - Décision : **refus par défaut** ; la lecture est un droit comme un autre
@@ -66,6 +72,10 @@ formats sont la 006, qui appelle ce que la 005 fournit.
   (ASVS) ; le sujet « émetteur entier » évite de lier chaque personne.
 - Rejeté : lecture ouverte à toute identité authentifiée.
 - Décidé par : recommandation acceptée
+- Amendé le 2026-10-25 (025/G3) : le sujet « émetteur entier » disparaît, sans
+  remplaçant ; pour ouvrir un droit à tous les comptes d'un IdP, l'IdP sert un groupe qui
+  les contient, membre d'un groupe kartenn. Le refus par défaut ne change pas.
+- Décidé par (amendement) : l'utilisateur (spec 025)
 
 ## K6 — Administration des rôles et liaisons
 - Décision : **par changesets** (D11) : opérations de rôle et de liaison dans le
@@ -76,6 +86,11 @@ formats sont la 006, qui appelle ce que la 005 fournit.
   l'expiration ne demande aucun mécanisme de plus.
 - Rejeté : API d'administration hors pipeline (ni historique daté ni approbation).
 - Décidé par : recommandation acceptée
+- Amendé le 2026-10-25 (025/G2, G4, REQ-025-10) : groupes et appartenances s'administrent
+  de même (changesets, bitemporel, annulables) ; une appartenance temporaire est une
+  période applicative bornée, comme une liaison temporaire. Les liaisons se gèrent depuis
+  leur groupe.
+- Décidé par (amendement) : l'utilisateur (spec 025)
 
 ## K7 — Délégation, anti-escalade
 - Décision : `core.rbac.admin` sur un périmètre permet d'y poser des liaisons, **dans ce
@@ -86,6 +101,11 @@ formats sont la 006, qui appelle ce que la 005 fournit.
   quiconque, lui compris, au-delà de ses propres droits.
 - Rejeté : administrateurs globaux seuls (goulet pour les prestataires et filiales).
 - Décidé par : recommandation acceptée
+- Amendé le 2026-10-25 (025/G5, REQ-025-6 à 8) : la règle vaut aussi pour
+  l'appartenance : ajouter ou retirer un membre d'un groupe exige, pour chaque liaison
+  valide du groupe, ce que K7 exige pour la créer (`core.group.escalation`) ; clore un
+  groupe, ce que G5 exige pour chacune de ses liaisons et appartenances.
+- Décidé par (amendement) : l'utilisateur (spec 025)
 
 ## K8 — Secrets des comptes de service (amende D13)
 - Décision : kartenn **génère** les secrets des comptes de service (256 bits aléatoires,
@@ -233,6 +253,12 @@ formats sont la 006, qui appelle ce que la 005 fournit.
   `Restore` (contrôles des liaisons à réécrire pour elle, identifiants conservés au prix
   d'un chemin de droits distinct).
 - Décidé par : utilisateur (inverses, 2026-10-18) ; forme : recommandation de Claude
+- Amendé le 2026-10-25 (025/G4, REQ-025-10) : groupes et appartenances s'annulent de
+  même (`CloseGroup`, `SetGroup`, `RemoveMember`, `AddMember`, nouvel identifiant pour
+  une appartenance reprise) ; une liaison antérieure à la 025 rendue par l'annulation l'est
+  sur le groupe que le report de la migration a donné à son ancien sujet, sinon elle est
+  listée comme non annulable.
+- Décidé par (amendement) : l'utilisateur (spec 025)
 
 ## K17 — Premier administrateur d'une instance neuve (précise K9)
 - Constat : K9 donne au compte de secours des « droits élevés » sans dire comment ; une
@@ -254,3 +280,11 @@ formats sont la 006, qui appelle ce que la 005 fournit.
 - Rejeté : sous-commande d'amorçage d'un groupe OIDC (second chemin hors API à
   sécuriser) ; les deux.
 - Décidé par : l'utilisateur (2026-10-21)
+- Amendé le 2026-10-25 (025/G7, REQ-025-9) : plus de liaison nominale ; `breakglass
+  create` fait du compte un **membre** du groupe livré `secours` sur `[création,
+  valid_until)`, groupe que la synchronisation des rôles livrés lie au rôle
+  `administrator` global. `account.breakglass.created` nomme le groupe. Le reste (seule
+  voie d'amorçage, écriture directe par l'adaptateur, fin avec le compte) ne change pas ;
+  le compte de secours sert ensuite à faire entrer des groupes OIDC dans des groupes
+  kartenn.
+- Décidé par (amendement) : l'utilisateur (spec 025)
