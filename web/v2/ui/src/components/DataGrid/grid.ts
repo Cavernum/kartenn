@@ -25,6 +25,11 @@ export interface GridColumn {
    * its values show in the panel of the chosen row.
    */
   priority?: 1 | 2 | 3;
+  /**
+   * The actions of the row (a menu, buttons): when the rows of a simple list stack (`stack`
+   * on the grid), they go beside the key, without their column's label.
+   */
+  actions?: boolean;
 }
 
 /**

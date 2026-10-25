@@ -460,9 +460,26 @@ horizontalement hors des régions de grille, et que chaque classe montre le cadr
   masque plus qu'à 1024 px et moins. `layout.spec` vérifie qu'à 1440 px, panneau ouvert,
   le panneau finit avec le corps, qu'aucune colonne d'E1 n'est masquée et qu'aucun
   sélecteur « Colonnes » ne paraît.
-- Non fait : listes simples empilées sous `sm` (optionnel) ; `subgrid` entre blocs
-  voisins de formulaires ; champs côte à côte des formulaires (aucun formulaire à
-  plusieurs colonnes dans les maquettes).
+- Non fait ce jour-là : listes simples empilées sous `sm` ; `subgrid` entre blocs
+  voisins ; champs côte à côte des formulaires (aucun formulaire à plusieurs colonnes dans
+  les maquettes). Les deux premiers sont faits le lendemain (ci-dessous).
+
+**Réalisé (2026-10-26).**
+
+- Listes simples empilées : option `stack` du `DataGrid` (pas de composant à part). Sous un
+  conteneur `sm` (480 px), la grille n'a plus qu'une piste ; chaque ligne devient une
+  petite grille (libellé, valeur, fin) : la clé et les actions de la ligne sur la première
+  ligne, puis un attribut par ligne, le libellé de sa colonne devant la valeur (contenu
+  généré `attr(data-label) / ""`, texte de remplacement vide : l'en-tête de colonne nomme
+  déjà la cellule), libellés et valeurs alignés par `subgrid` de la ligne. Toutes les
+  colonnes se montrent (le sélecteur « Colonnes » se retire s'il n'y a pas de choix de
+  l'utilisateur), la colonne de clé ne colle plus ; l'en-tête devient une bande de
+  contrôles de tri et de filtre qui va à la ligne. La sémantique reste celle d'une grille
+  (lignes, cellules, `aria-colindex`, mêmes touches). Une colonne d'actions de ligne se
+  déclare `actions` sur `GridColumn` : sans libellé, à côté de la clé. Pris par `/drafts`
+  (E5, liste) et la liste des identités (E7) ; les groupes, rôles et comptes de service
+  ont quatre attributs ou plus et gardent leurs colonnes à priorité. `layout.spec` ne
+  compare plus les bords des colonnes d'une grille empilée. État de catalogue `stacked`.
 
 ## Architecture CSS (REQ-020-12 à 14)
 
@@ -576,7 +593,7 @@ sont listés.
 | 17 | `Breadcrumb` | Breadcrumb | élément courant | `aria-current="page"` |
 | 18 | `SidebarNav` | Disclosure (groupes) dans un repère `navigation` | replié en icônes, groupe ouvert, entrée active | entrées de plugins regroupées par espace (021) |
 | 19 | `CommandPalette` | Combobox dans un Dialog modal | aucune entrée, chargement | Ctrl+K ; commandes, navigation, objets récents |
-| 20 | `DataGrid` | Grid (données) | ligne sélectionnée, en brouillon, en revue, cellule en édition, invalide, en attente, cellule en chargement (`Skeleton`) | une seule grille, lignes en `subgrid` (§ « Structure avant style ») ; virtualisée ; tri `aria-sort` et filtre sur chaque colonne (REQ-020-34) ; colonnes redimensionnables au clavier ; colonne de plugin (W5) ; une colonne de message (`wrap` : motif, description) va à la ligne et la ligne grandit, jamais coupée ; clés, noms et nombres restent sur une ligne (revue du 2026-10-25) ; racine conteneur, colonnes à `priority` masquées par `@container`, sélecteur « Colonnes » (`columnVisibility`), colonne de clé collante (§ « Adaptation à la largeur ») |
+| 20 | `DataGrid` | Grid (données) | ligne sélectionnée, en brouillon, en revue, cellule en édition, invalide, en attente, cellule en chargement (`Skeleton`) | une seule grille, lignes en `subgrid` (§ « Structure avant style ») ; virtualisée ; tri `aria-sort` et filtre sur chaque colonne (REQ-020-34) ; colonnes redimensionnables au clavier ; colonne de plugin (W5) ; une colonne de message (`wrap` : motif, description) va à la ligne et la ligne grandit, jamais coupée ; clés, noms et nombres restent sur une ligne (revue du 2026-10-25) ; racine conteneur, colonnes à `priority` masquées par `@container`, sélecteur « Colonnes » (`columnVisibility`), colonne de clé collante ; liste simple empilée sous `sm` (`stack`, colonne `actions`) (§ « Adaptation à la largeur ») |
 | 21 | `TreeGrid`, `Tree` | Treegrid ; Tree View | nœud déplié, chargement des enfants, en brouillon, cible acceptée, cible refusée, déplacement en attente, déplacement refusé | virtualisé, enfants paginés ; `aria-setsize="-1"` tant que la dernière page n'est pas lue ; parent `derived` (aucun déplacement) ou `declared` (déplacement contrôlé, REQ-020-31) ; invariant d'affichage (REQ-020-32) |
 | 22 | `CodeBadge` | Button (copier) | copié | chasse fixe ; annonce `role="status"` « Copié » |
 | 23 | `KeyLabel`, `EnvChip` | — | libellé absent (clé seule) | REQ-020-21 ; clé en infobulle et copiable |

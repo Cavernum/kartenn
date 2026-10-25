@@ -321,6 +321,7 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
           row-key="key"
           selectable
           :selected="['lou.bernard']"
+          stack
         >
           <template #cell="{ row, column, value }">
             <StatusBadge

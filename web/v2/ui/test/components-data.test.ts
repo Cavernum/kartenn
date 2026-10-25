@@ -110,6 +110,33 @@ describe("DataGrid", () => {
     expect(html).toMatch(/data-column="label"[^>]*data-wrap="true"/);
     expect(html).not.toMatch(/data-column="prefix"[^>]*data-wrap/);
   });
+
+  // Design « Adaptation à la largeur »: a simple list stacks its rows under a container
+  // `sm`; still a grid of rows and cells, each attribute after the label of its column.
+  it("stacks a simple list: labels on the attribute cells, not on the key nor the actions", async () => {
+    const stacked = await render(DataGrid, {
+      label: "Préfixes",
+      columns: [
+        ...columns,
+        { id: "used", label: "Occupation", priority: 2 },
+        { id: "menu", label: "Actions", actions: true },
+      ],
+      rows,
+      rowKey: "prefix",
+      stack: true,
+    });
+    expect(stacked).toMatch(/<div class="k-data-grid-frame"[^>]*data-stack="true"/);
+    expect(stacked).toMatch(/role="grid"/);
+    expect(stacked.match(/role="row"/g)).toHaveLength(rows.length + 1);
+    expect(stacked.match(/data-label="Libellé"/g)).toHaveLength(rows.length);
+    expect(stacked.match(/data-label="Occupation"/g)).toHaveLength(rows.length);
+    expect(stacked).not.toMatch(/data-column="prefix"[^>]*data-label/);
+    expect(stacked).not.toMatch(/data-label="Actions"/);
+    expect(stacked).toMatch(/data-column="menu"[^>]*data-actions="true"/);
+    const plain = await render(DataGrid, { label: "Préfixes", columns, rows, rowKey: "prefix" });
+    expect(plain).not.toContain("data-stack");
+    expect(plain).not.toContain("data-label");
+  });
 });
 
 describe("ExpandableGrid (revue du 2026-10-25)", () => {
