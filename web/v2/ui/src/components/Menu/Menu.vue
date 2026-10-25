@@ -8,10 +8,13 @@
 // `aria-keyshortcuts`). A disabled entry stays listed and reachable by the arrows
 // (`aria-disabled`; choosing it does nothing): its reason, or « Il faut <permission> »,
 // is its description and a tooltip beside it while it has the focus (024/M14). The
-// trigger is a `Button`, or an `IconButton` when `iconOnly`.
+// trigger is a `Button`, or an `IconButton` when `iconOnly`. A checkbox entry
+// (`menuitemcheckbox`, `aria-checked`) keeps the menu open when chosen (a column chooser).
 import {
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemIndicator,
   DropdownMenuLabel,
   DropdownMenuPortal,
   DropdownMenuRoot,
@@ -46,7 +49,7 @@ const props = withDefaults(
   }>(),
   { icon: undefined, variant: "secondary", size: "md", align: "start" },
 );
-const emit = defineEmits<{ select: [id: string] }>();
+const emit = defineEmits<{ select: [id: string]; open: [open: boolean] }>();
 const portal = injectPortalTarget();
 const base = useId();
 
@@ -86,7 +89,11 @@ function onSelect(entry: MenuEntry, event: Event): void {
 </script>
 
 <template>
-  <DropdownMenuRoot :default-open="props.defaultOpen" :modal="false">
+  <DropdownMenuRoot
+    :default-open="props.defaultOpen"
+    :modal="false"
+    @update:open="(now: boolean) => emit('open', now)"
+  >
     <DropdownMenuTrigger as-child>
       <IconButton
         v-if="props.iconOnly"
@@ -107,6 +114,22 @@ function onSelect(entry: MenuEntry, event: Event): void {
           <DropdownMenuLabel v-else-if="item.kind === 'label'" class="k-menu__label">
             {{ item.label }}
           </DropdownMenuLabel>
+          <DropdownMenuCheckboxItem
+            v-else-if="item.kind === 'checkbox'"
+            class="k-menu__item"
+            :model-value="item.checked"
+            @select="
+              (event: Event) => {
+                event.preventDefault();
+                emit('select', item.id);
+              }
+            "
+          >
+            <span class="k-menu__check">
+              <DropdownMenuItemIndicator><Icon name="check" /></DropdownMenuItemIndicator>
+            </span>
+            <span class="k-menu__text">{{ item.label }}</span>
+          </DropdownMenuCheckboxItem>
           <DropdownMenuItem
             v-else-if="isEntry(item)"
             v-aria-disabled="isBlocked(item)"
@@ -231,6 +254,14 @@ function onSelect(entry: MenuEntry, event: Event): void {
 
   .k-menu__item[data-danger] .k-menu__icon {
     color: currentcolor;
+  }
+
+  /* The tick of a checkbox entry, in a box of an icon's width: labels align. */
+  .k-menu__check {
+    display: inline-flex;
+    flex: none;
+    inline-size: var(--k-icon-size);
+    color: var(--k-accent);
   }
 
   .k-menu__text {
