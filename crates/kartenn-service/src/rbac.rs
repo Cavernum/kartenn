@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::authz::{Authorizer, Subject};
 use crate::declarations::SYSTEM_AUTHOR;
-use crate::operations::{BindingScope, BindingSubject, Operation, Ref, SecretRecord};
+use crate::operations::{BindingScope, Operation, Ref, SecretRecord};
 use crate::pipeline::Planned;
 use crate::port::{StoreError, WriteTx};
 
@@ -37,8 +37,8 @@ pub enum RbacOp {
     Bind {
         /// Its identifier.
         id: Uuid,
-        /// Who.
-        subject: BindingSubject,
+        /// The group, by key.
+        group: String,
         /// Role key.
         role: String,
         /// `global`, `entity`, `site`, `domain` or `prefix`.
@@ -147,27 +147,31 @@ fn secret_record(secret: &SecretRecord) -> Result<SecretRecord, Violation> {
     }
 }
 
-/// Plans a binding: a subject well formed, a role key, its scope resolved.
+/// Whether `key` is the key of a group of kartenn: a lower-case letter, then lower-case
+/// letters, digits, `_` and `-`, 128 characters at most (spec 025, REQ-025-1).
+fn group_key(key: &str) -> Result<String, Violation> {
+    let key = key.trim();
+    let valid = key.len() <= 128
+        && key.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+        && key
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-');
+    if valid {
+        Ok(key.to_owned())
+    } else {
+        Err(invalid(format!("invalid group key '{key}'")))
+    }
+}
+
+/// Plans a binding: a group key, a role key, its scope resolved.
 fn plan_bind(
     id: Uuid,
-    subject: &BindingSubject,
+    group: &str,
     role: &str,
     scope: BindingScope,
     resolve: &impl Fn(Ref) -> Uuid,
 ) -> Result<RbacOp, Violation> {
-    let subject = match subject {
-        BindingSubject::Identity { id } => BindingSubject::Identity { id: *id },
-        BindingSubject::Group { issuer: i, group } => {
-            if group.trim().is_empty() {
-                return Err(invalid("a group is not empty".into()));
-            }
-            BindingSubject::Group {
-                issuer: issuer(i)?,
-                group: group.trim().to_owned(),
-            }
-        }
-        BindingSubject::Issuer { issuer: i } => BindingSubject::Issuer { issuer: issuer(i)? },
-    };
+    let group = group_key(group)?;
     let (scope_kind, scope) = match scope {
         BindingScope::Global => ("global", None),
         BindingScope::Entity { id } => ("entity", Some(resolve(id))),
@@ -177,7 +181,7 @@ fn plan_bind(
     };
     Ok(RbacOp::Bind {
         id,
-        subject,
+        group,
         role: role_key(role)?,
         scope_kind,
         scope,
@@ -232,11 +236,8 @@ pub(crate) fn plan(
         })(),
         Operation::CloseRole { key } => role_key(key).map(|key| RbacOp::CloseRole { key }),
         Operation::Bind {
-            subject,
-            role,
-            scope,
-            ..
-        } => plan_bind(id, subject, role, *scope, &resolve),
+            group, role, scope, ..
+        } => plan_bind(id, group, role, *scope, &resolve),
         Operation::Unbind { id } => Ok(RbacOp::Unbind { id: *id }),
         Operation::AttachIssuer { issuer: i, entity } => issuer(i).map(|issuer| RbacOp::Attach {
             issuer,

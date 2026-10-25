@@ -15,45 +15,81 @@ async fn account(pool: &PgPool, kind: &str) -> Uuid {
     .unwrap()
 }
 
-/// Subject kind, identity, issuer, group, scope kind, scope, accepted.
-type Case<'a> = (
-    &'a str,
+/// Group, former subject kind, former subject, scope kind, scope, accepted.
+type BindingCase<'a> = (
     Option<Uuid>,
     Option<&'a str>,
-    Option<&'a str>,
+    Option<Uuid>,
     &'a str,
     Option<Uuid>,
     bool,
 );
 
+/// Kind, identity, issuer, group of the issuer, accepted.
+type MemberCase<'a> = (
+    &'a str,
+    Option<Uuid>,
+    Option<&'a str>,
+    Option<&'a str>,
+    bool,
+);
+
 #[kartenn_testing::pg_test]
-async fn bindings_name_their_subject_and_scope_consistently(pool: PgPool) {
-    let insert = "INSERT INTO binding (id, subject_kind, subject_id, issuer, group_name, role_id,
+async fn bindings_name_their_group_and_scope_consistently(pool: PgPool) {
+    // A new binding names a group and nothing else (spec 025, REQ-025-4).
+    let insert = "INSERT INTO binding (id, group_id, subject_kind, subject_id, role_id,
                   scope_kind, scope_id, valid_period, changeset_id)
-                  VALUES (gen_random_uuid(), $1, $2, $3, $4, gen_random_uuid(), $5, $6,
+                  VALUES (gen_random_uuid(), $1, $2, $3, gen_random_uuid(), $4, $5,
                           tstzrange(now(), NULL), gen_random_uuid())";
     let id = Some(Uuid::now_v7());
-    let issuer = Some("https://idp.example.invalid");
-    let cases: [Case<'_>; 7] = [
-        ("identity", id, None, None, "global", None, true),
-        ("group", None, issuer, Some("netops"), "entity", id, true),
-        ("issuer", None, issuer, None, "domain", id, true),
-        ("identity", None, None, None, "global", None, false),
-        ("group", None, issuer, None, "global", None, false),
-        ("issuer", id, issuer, None, "global", None, false),
-        ("identity", id, None, None, "entity", None, false),
+    let cases: [BindingCase<'_>; 5] = [
+        (id, None, None, "global", None, true),
+        (id, None, None, "entity", id, true),
+        (id, Some("identity"), id, "global", None, false),
+        (None, None, None, "global", None, false),
+        (id, None, None, "entity", None, false),
     ];
-    for (kind, subject, iss, group, scope, scope_id, ok) in cases {
+    for (group, kind, subject, scope, scope_id, ok) in cases {
         let result = sqlx::query(insert)
+            .bind(group)
             .bind(kind)
             .bind(subject)
-            .bind(iss)
-            .bind(group)
             .bind(scope)
             .bind(scope_id)
             .execute(&pool)
             .await;
-        assert_eq!(result.is_ok(), ok, "{kind} {scope}: {result:?}");
+        assert_eq!(result.is_ok(), ok, "{group:?} {kind:?} {scope}: {result:?}");
+    }
+}
+
+#[kartenn_testing::pg_test]
+async fn members_are_identities_or_groups_of_an_issuer_once(pool: PgPool) {
+    let person = account(&pool, "person").await;
+    let group = Uuid::now_v7();
+    let insert = "INSERT INTO group_member (id, group_id, member_kind, identity_id, issuer,
+                  group_name, valid_period, changeset_id)
+                  VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, tstzrange(now(), NULL),
+                          gen_random_uuid())";
+    let issuer = Some("https://idp.example.invalid");
+    let cases: [MemberCase<'_>; 6] = [
+        ("identity", Some(person), None, None, true),
+        ("idp_group", None, issuer, Some("netops"), true),
+        // The same member twice at once.
+        ("identity", Some(person), None, None, false),
+        ("idp_group", None, issuer, Some("netops"), false),
+        ("idp_group", None, issuer, None, false),
+        ("identity", Some(person), issuer, None, false),
+    ];
+    for (kind, identity, iss, name, ok) in cases {
+        let result = sqlx::query(insert)
+            .bind(group)
+            .bind(kind)
+            .bind(identity)
+            .bind(iss)
+            .bind(name)
+            .execute(&pool)
+            .await;
+        assert_eq!(result.is_ok(), ok, "{kind} {name:?}: {result:?}");
     }
 }
 

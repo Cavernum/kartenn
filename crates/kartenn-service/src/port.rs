@@ -403,8 +403,8 @@ pub enum RbacState {
     },
     /// A binding.
     Binding {
-        /// Who.
-        subject: crate::operations::BindingSubject,
+        /// The group, by key.
+        group: String,
         /// Role key.
         role: String,
         /// Where.

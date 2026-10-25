@@ -385,6 +385,10 @@
         "additionalProperties": false,
         "description": "The members of a binding.",
         "properties": {
+          "group": {
+            "description": "The group of kartenn it serves, by key (spec 025, REQ-025-4).",
+            "type": "string"
+          },
           "role": {
             "description": "Role key.",
             "type": "string"
@@ -392,14 +396,10 @@
           "scope": {
             "$ref": "#/components/schemas/Scope",
             "description": "Where it acts."
-          },
-          "subject": {
-            "$ref": "#/components/schemas/BindingSubject",
-            "description": "Who it serves."
           }
         },
         "required": [
-          "subject",
+          "group",
           "role",
           "scope"
         ],
@@ -419,6 +419,10 @@
       "BindingItem": {
         "description": "A binding.",
         "properties": {
+          "group": {
+            "description": "The group of kartenn it serves, by key (spec 025, REQ-025-4).",
+            "type": "string"
+          },
           "href": {
             "description": "Its URL.",
             "type": "string"
@@ -436,10 +440,6 @@
             "$ref": "#/components/schemas/Scope",
             "description": "Where it acts."
           },
-          "subject": {
-            "$ref": "#/components/schemas/SubjectItem",
-            "description": "Who it serves."
-          },
           "valid_from": {
             "description": "Its start, RFC 3339.",
             "type": "string"
@@ -455,7 +455,7 @@
         "required": [
           "id",
           "href",
-          "subject",
+          "group",
           "role",
           "scope",
           "valid_from"
@@ -556,77 +556,6 @@
             },
             "required": [
               "id",
-              "kind"
-            ],
-            "type": "object"
-          }
-        ]
-      },
-      "BindingSubject": {
-        "description": "Who a binding serves (005, K4).",
-        "oneOf": [
-          {
-            "description": "One identity.",
-            "properties": {
-              "id": {
-                "description": "Its identifier.",
-                "format": "uuid",
-                "type": "string"
-              },
-              "kind": {
-                "enum": [
-                  "identity"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "kind"
-            ],
-            "type": "object"
-          },
-          {
-            "description": "The members of a group of an issuer.",
-            "properties": {
-              "group": {
-                "description": "Group.",
-                "type": "string"
-              },
-              "issuer": {
-                "description": "Issuer.",
-                "type": "string"
-              },
-              "kind": {
-                "enum": [
-                  "group"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "issuer",
-              "group",
-              "kind"
-            ],
-            "type": "object"
-          },
-          {
-            "description": "Every identity of an issuer (K5).",
-            "properties": {
-              "issuer": {
-                "description": "Issuer.",
-                "type": "string"
-              },
-              "kind": {
-                "enum": [
-                  "issuer"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "issuer",
               "kind"
             ],
             "type": "object"
@@ -3912,6 +3841,10 @@
             "items": {
               "description": "A binding.",
               "properties": {
+                "group": {
+                  "description": "The group of kartenn it serves, by key (spec 025, REQ-025-4).",
+                  "type": "string"
+                },
                 "href": {
                   "description": "Its URL.",
                   "type": "string"
@@ -3929,10 +3862,6 @@
                   "$ref": "#/components/schemas/Scope",
                   "description": "Where it acts."
                 },
-                "subject": {
-                  "$ref": "#/components/schemas/SubjectItem",
-                  "description": "Who it serves."
-                },
                 "valid_from": {
                   "description": "Its start, RFC 3339.",
                   "type": "string"
@@ -3948,7 +3877,7 @@
               "required": [
                 "id",
                 "href",
-                "subject",
+                "group",
                 "role",
                 "scope",
                 "valid_from"
@@ -6520,8 +6449,12 @@
             "type": "object"
           },
           {
-            "description": "Binds a role on a scope to a subject (005, REQ-005-18, 25, 26).",
+            "description": "Binds a role on a scope to a group of kartenn (005, REQ-005-25, 26; spec 025,\nREQ-025-4, 6).",
             "properties": {
+              "group": {
+                "description": "The group, by key.",
+                "type": "string"
+              },
               "local": {
                 "description": "Local name of the binding.",
                 "format": "int32",
@@ -6544,14 +6477,10 @@
               "scope": {
                 "$ref": "#/components/schemas/BindingScope",
                 "description": "Where."
-              },
-              "subject": {
-                "$ref": "#/components/schemas/BindingSubject",
-                "description": "Who."
               }
             },
             "required": [
-              "subject",
+              "group",
               "role",
               "scope",
               "op"
@@ -9717,85 +9646,6 @@
           "computed_at"
         ],
         "type": "object"
-      },
-      "SubjectItem": {
-        "description": "Who a binding serves, as served.",
-        "oneOf": [
-          {
-            "description": "One identity.",
-            "properties": {
-              "id": {
-                "description": "Its identifier.",
-                "format": "uuid",
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "kind": {
-                "enum": [
-                  "identity"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind"
-            ],
-            "type": "object"
-          },
-          {
-            "description": "The members of a group of an issuer.",
-            "properties": {
-              "group": {
-                "description": "Group.",
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "issuer": {
-                "description": "Issuer.",
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "kind": {
-                "enum": [
-                  "group"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind"
-            ],
-            "type": "object"
-          },
-          {
-            "description": "Every identity of an issuer.",
-            "properties": {
-              "issuer": {
-                "description": "Issuer.",
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "kind": {
-                "enum": [
-                  "issuer"
-                ],
-                "type": "string"
-              }
-            },
-            "required": [
-              "kind"
-            ],
-            "type": "object"
-          }
-        ]
       },
       "Submission": {
         "additionalProperties": false,
@@ -13382,7 +13232,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "`POST /v1/bindings` `{subject, role, scope}`: 201 and `Location`.",
+        "summary": "`POST /v1/bindings` `{group, role, scope}`: 201 and `Location`.",
         "tags": [
           "rights"
         ],

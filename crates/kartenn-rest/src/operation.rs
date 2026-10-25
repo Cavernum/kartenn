@@ -10,8 +10,8 @@ use kartenn_core::values::Cardinality;
 use kartenn_service::operations::ModuleOperation;
 use kartenn_service::operations::RawLabels;
 use kartenn_service::operations::{
-    BindingScope, BindingSubject, DeclarationInput, Named, ObligationInput, PeriodSpec, RawInput,
-    SecretRecord, TypeInput,
+    BindingScope, DeclarationInput, Named, ObligationInput, PeriodSpec, RawInput, SecretRecord,
+    TypeInput,
 };
 use kartenn_service::port::ImportItem;
 use kartenn_service::{ObjectKind, Operation, Ref};
@@ -390,40 +390,6 @@ impl From<SecretDto> for SecretRecord {
     }
 }
 
-/// Who a binding serves (005, K4).
-#[derive(Debug, Clone, Deserialize, ToSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-#[schema(as = BindingSubject)]
-pub(crate) enum SubjectDto {
-    /// One identity.
-    Identity {
-        /// Its identifier.
-        id: Uuid,
-    },
-    /// The members of a group of an issuer.
-    Group {
-        /// Issuer.
-        issuer: String,
-        /// Group.
-        group: String,
-    },
-    /// Every identity of an issuer (K5).
-    Issuer {
-        /// Issuer.
-        issuer: String,
-    },
-}
-
-impl From<SubjectDto> for BindingSubject {
-    fn from(s: SubjectDto) -> Self {
-        match s {
-            SubjectDto::Identity { id } => Self::Identity { id },
-            SubjectDto::Group { issuer, group } => Self::Group { issuer, group },
-            SubjectDto::Issuer { issuer } => Self::Issuer { issuer },
-        }
-    }
-}
-
 /// A trigger of an approval policy on a measure of a module (REQ-016-7).
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
@@ -641,12 +607,13 @@ pub(crate) enum CoreOperationDto {
         /// Key.
         key: String,
     },
-    /// Binds a role on a scope to a subject (005, REQ-005-18, 25, 26).
+    /// Binds a role on a scope to a group of kartenn (005, REQ-005-25, 26; spec 025,
+    /// REQ-025-4, 6).
     Bind {
         /// Local name of the binding.
         local: Option<u32>,
-        /// Who.
-        subject: SubjectDto,
+        /// The group, by key.
+        group: String,
         /// Role key.
         role: String,
         /// Where.
@@ -1050,12 +1017,12 @@ impl From<CoreOperationDto> for Operation {
             CoreOperationDto::CloseRole { key } => Self::CloseRole { key },
             CoreOperationDto::Bind {
                 local,
-                subject,
+                group,
                 role,
                 scope,
             } => Self::Bind {
                 local,
-                subject: subject.into(),
+                group,
                 role,
                 scope: scope.into(),
             },
@@ -1432,7 +1399,7 @@ mod tests {
                 "address": "10.0.0.1", "usage": "gateway"}),
             json!({"op": "set_role", "key": "r", "labels": {"fr": "R"}, "entries": ["*"]}),
             json!({"op": "close_role", "key": "r"}),
-            json!({"op": "bind", "local": 5, "subject": {"kind": "group", "issuer": "i", "group": "g"},
+            json!({"op": "bind", "local": 5, "group": "g",
                 "role": "r", "scope": {"kind": "entity", "id": {"local": 2}}}),
             json!({"op": "unbind", "id": id}),
             json!({"op": "attach_issuer", "issuer": "i", "entity": {"id": id}}),

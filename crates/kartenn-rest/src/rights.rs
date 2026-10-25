@@ -42,7 +42,6 @@ use crate::compression::Secret;
 use crate::cursor::{Listing, Page, PageParams, next_href, respond_page};
 use crate::dated::{Dates, Moment};
 use crate::objects::{Api, audited, bad, instant, store};
-use crate::operation::SubjectDto;
 use crate::problem::{Problem, ProblemKind};
 use crate::resources::{
     Closure, MERGE_PATCH, Reserved, WHOLE, invalid, members, reserved, typed, written,
@@ -483,29 +482,6 @@ fn binding_href(id: Uuid) -> String {
     format!("/v1/bindings/{id}")
 }
 
-/// Who a binding serves, as served.
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-enum SubjectItem {
-    /// One identity.
-    Identity {
-        /// Its identifier.
-        id: Option<Uuid>,
-    },
-    /// The members of a group of an issuer.
-    Group {
-        /// Issuer.
-        issuer: Option<String>,
-        /// Group.
-        group: Option<String>,
-    },
-    /// Every identity of an issuer.
-    Issuer {
-        /// Issuer.
-        issuer: Option<String>,
-    },
-}
-
 /// A binding.
 #[derive(Debug, Serialize, ToSchema)]
 struct BindingItem {
@@ -513,8 +489,8 @@ struct BindingItem {
     id: Uuid,
     /// Its URL.
     href: String,
-    /// Who it serves.
-    subject: SubjectItem,
+    /// The group of kartenn it serves, by key (spec 025, REQ-025-4).
+    group: String,
     /// Role key.
     role: String,
     /// Where it acts.
@@ -529,7 +505,7 @@ fn binding_item(binding: &BindingRead) -> BindingItem {
     BindingItem {
         id: binding.id,
         href: binding_href(binding.id),
-        subject: subject(binding),
+        group: binding.group.clone(),
         role: binding.role.clone(),
         scope: Scope {
             kind: binding.scope_kind.clone(),
@@ -537,21 +513,6 @@ fn binding_item(binding: &BindingRead) -> BindingItem {
         },
         valid_from: time(binding.valid_from),
         valid_to: binding.valid_to.map(time),
-    }
-}
-
-fn subject(binding: &BindingRead) -> SubjectItem {
-    match binding.subject_kind.as_str() {
-        "identity" => SubjectItem::Identity {
-            id: binding.subject_id,
-        },
-        "group" => SubjectItem::Group {
-            issuer: binding.issuer.clone(),
-            group: binding.group_name.clone(),
-        },
-        _ => SubjectItem::Issuer {
-            issuer: binding.issuer.clone(),
-        },
     }
 }
 
@@ -613,9 +574,9 @@ async fn binding(
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 struct BindMembers {
-    /// Who it serves.
-    #[schema(required = true, value_type = SubjectDto)]
-    subject: Option<SubjectDto>,
+    /// The group of kartenn it serves, by key (spec 025, REQ-025-4).
+    #[schema(required = true, value_type = String)]
+    group: Option<String>,
     /// Role key.
     #[schema(required = true, value_type = String)]
     role: Option<String>,
@@ -624,7 +585,7 @@ struct BindMembers {
     scope: Option<Scope>,
 }
 
-/// `POST /v1/bindings` `{subject, role, scope}`: 201 and `Location`.
+/// `POST /v1/bindings` `{group, role, scope}`: 201 and `Location`.
 #[utoipa::path(
     post,
     path = "/bindings",
@@ -646,12 +607,12 @@ async fn bind(
 ) -> Result<Response, Problem> {
     let idempotency_key = idempotency_key(&headers)?;
     let (members, reserved): (BindMembers, _) = body(&headers, &raw, "application/json", false)?;
-    let subject = required(members.subject, "subject")?;
+    let group = required(members.group, "group")?;
     let role = required(members.role, "role")?;
     let scope = required(members.scope, "scope")?;
     let operation = Operation::Bind {
         local: None,
-        subject: subject.into(),
+        group,
         role,
         scope: scope.try_into()?,
     };

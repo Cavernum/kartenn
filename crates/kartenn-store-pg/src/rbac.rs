@@ -361,9 +361,7 @@ pub async fn visibilities_on(
          LEFT JOIN prefix p ON b.scope_kind = 'prefix' AND p.id = b.scope_id
                            AND p.valid_period @> $2
          WHERE b.valid_period @> $2
-           AND ((b.subject_kind = 'identity' AND b.subject_id = $3)
-                OR (b.subject_kind = 'group' AND b.issuer = $4 AND b.group_name = ANY($5))
-                OR (b.subject_kind = 'issuer' AND b.issuer = $4))",
+           AND b.group_id IN (SELECT kartenn_member_of($3, $4, $5, $2))",
     )
     .bind(&wanted)
     .bind(at)
@@ -684,9 +682,7 @@ pub async fn roles_of_on(
         "SELECT DISTINCT r.key FROM binding b
          JOIN role r ON r.id = b.role_id AND r.valid_period @> now()
          WHERE b.valid_period @> now()
-           AND ((b.subject_kind = 'identity' AND b.subject_id = $1)
-                OR (b.subject_kind = 'group' AND b.issuer = $2 AND b.group_name = ANY($3))
-                OR (b.subject_kind = 'issuer' AND b.issuer = $2))
+           AND b.group_id IN (SELECT kartenn_member_of($1, $2, $3, now()))
          ORDER BY r.key",
     )
     .bind(subject.id)

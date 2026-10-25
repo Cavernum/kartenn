@@ -450,7 +450,7 @@ export interface paths {
     /** `GET /v1/bindings`. */
     get: operations["list_bindings"];
     put?: never;
-    /** `POST /v1/bindings` `{subject, role, scope}`: 201 and `Location`. */
+    /** `POST /v1/bindings` `{group, role, scope}`: 201 and `Location`. */
     post: operations["bind"];
     delete?: never;
     options?: never;
@@ -4044,17 +4044,19 @@ export interface components {
     };
     /** @description The members of a binding. */
     BindMembers: {
+      /** @description The group of kartenn it serves, by key (spec 025, REQ-025-4). */
+      group: string;
       /** @description Role key. */
       role: string;
       /** @description Where it acts. */
       scope: components["schemas"]["Scope"];
-      /** @description Who it serves. */
-      subject: components["schemas"]["BindingSubject"];
     };
     /** @description The body of a binding. */
     BindWrite: components["schemas"]["Reserved"] & components["schemas"]["BindMembers"];
     /** @description A binding. */
     BindingItem: {
+      /** @description The group of kartenn it serves, by key (spec 025, REQ-025-4). */
+      group: string;
       /** @description Its URL. */
       href: string;
       /**
@@ -4066,8 +4068,6 @@ export interface components {
       role: string;
       /** @description Where it acts. */
       scope: components["schemas"]["Scope"];
-      /** @description Who it serves. */
-      subject: components["schemas"]["SubjectItem"];
       /** @description Its start, RFC 3339. */
       valid_from: string;
       /** @description Its end, RFC 3339; `null` while open. */
@@ -4102,31 +4102,6 @@ export interface components {
           id: components["schemas"]["Ref"];
           /** @enum {string} */
           kind: "prefix";
-        };
-    /** @description Who a binding serves (005, K4). */
-    BindingSubject:
-      | {
-          /**
-           * Format: uuid
-           * @description Its identifier.
-           */
-          id: string;
-          /** @enum {string} */
-          kind: "identity";
-        }
-      | {
-          /** @description Group. */
-          group: string;
-          /** @description Issuer. */
-          issuer: string;
-          /** @enum {string} */
-          kind: "group";
-        }
-      | {
-          /** @description Issuer. */
-          issuer: string;
-          /** @enum {string} */
-          kind: "issuer";
         };
     /** @description The proofs of a break-glass login. */
     Breakglass: {
@@ -5399,6 +5374,8 @@ export interface components {
     Listing_BindingItem: {
       /** @description The elements of the page. */
       items: {
+        /** @description The group of kartenn it serves, by key (spec 025, REQ-025-4). */
+        group: string;
         /** @description Its URL. */
         href: string;
         /**
@@ -5410,8 +5387,6 @@ export interface components {
         role: string;
         /** @description Where it acts. */
         scope: components["schemas"]["Scope"];
-        /** @description Who it serves. */
-        subject: components["schemas"]["SubjectItem"];
         /** @description Its start, RFC 3339. */
         valid_from: string;
         /** @description Its end, RFC 3339; `null` while open. */
@@ -6352,6 +6327,8 @@ export interface components {
           op: "close_role";
         }
       | {
+          /** @description The group, by key. */
+          group: string;
           /**
            * Format: int32
            * @description Local name of the binding.
@@ -6363,8 +6340,6 @@ export interface components {
           role: string;
           /** @description Where. */
           scope: components["schemas"]["BindingScope"];
-          /** @description Who. */
-          subject: components["schemas"]["BindingSubject"];
         }
       | {
           /**
@@ -7541,31 +7516,6 @@ export interface components {
       /** @description The pending changesets of the caller. */
       pending: components["schemas"]["PendingStats"];
     };
-    /** @description Who a binding serves, as served. */
-    SubjectItem:
-      | {
-          /**
-           * Format: uuid
-           * @description Its identifier.
-           */
-          id?: string | null;
-          /** @enum {string} */
-          kind: "identity";
-        }
-      | {
-          /** @description Group. */
-          group?: string | null;
-          /** @description Issuer. */
-          issuer?: string | null;
-          /** @enum {string} */
-          kind: "group";
-        }
-      | {
-          /** @description Issuer. */
-          issuer?: string | null;
-          /** @enum {string} */
-          kind: "issuer";
-        };
     /** @description The body of a submission (design « Écritures », arbitrage of 2026-10-19). */
     Submission: {
       /** @description Why; required by the rules. */

@@ -68,6 +68,7 @@ Sévérités fixées par la spécification (002/A4).
 | `core.role.builtin` | erreur | Un rôle livré ne change que par la synchronisation du noyau. | REQ-005-17 | 005/K12 |
 | `core.role.unknown` | erreur | Une liaison désigne un rôle en vigueur. | REQ-005-25 | 005/K6 |
 | `core.binding.requester` | erreur | Une liaison ne désigne pas une identité « requester » : un demandeur n'est pas un compte ; la personne qui se connecte ensuite par son émetteur en devient un. | REQ-016-12 | 016/G10 |
+| `core.binding.group_closed` | erreur | Une liaison désigne un groupe en vigueur : un groupe clos depuis l'écriture d'un changeset en attente qui le lie met ce changeset en conflit à son approbation. | REQ-025-4 | 025/G1 |
 | `core.object.forbidden` | erreur | Créer, modifier ou clore un objet exige la permission d'édition de sa sorte sur l'objet. | REQ-005-22 | 005/K12 |
 | `core.label.invalid` | erreur | Un libellé a de 1 à 200 caractères sans caractère de contrôle, sous une étiquette de langue BCP 47 ; une table de libellés non vide contient la langue par défaut. | REQ-018-9 | 018/R7, R9, RFC 5646 §2.1 |
 | `core.object.dependents` | erreur | Un objet n'est clos que si aucun objet vivant d'un module n'y fait référence ; la cascade explicite clôt ou détache les dépendants selon la politique de chaque référence. | REQ-008-10 | D33, ADR 0026 |

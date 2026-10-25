@@ -88,19 +88,14 @@ async fn person(pool: &PgPool, permissions: &[&str], scope: (&str, Option<Uuid>)
         .await
         .unwrap();
     }
-    sqlx::query(
-        "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, scope_id,
-                              valid_period, changeset_id)
-         VALUES (gen_random_uuid(), 'identity', $1, $2, $3, $4,
-                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
-    )
-    .bind(identity)
-    .bind(role)
-    .bind(scope.0)
-    .bind(scope.1)
-    .execute(pool)
-    .await
-    .unwrap();
+    sqlx::query(kartenn_testing::BIND_IDENTITY)
+        .bind(identity)
+        .bind(role)
+        .bind(scope.0)
+        .bind(scope.1)
+        .execute(pool)
+        .await
+        .unwrap();
     Principal {
         identity,
         kind: IdentityKind::Person,
@@ -772,7 +767,7 @@ async fn a_revocation_ends_the_stream_and_a_binding_removed_starts_it_over(pool:
     client.next(WAIT).await.unwrap();
     sqlx::query(
         "UPDATE binding SET valid_period = tstzrange(lower(valid_period), now())
-                 WHERE subject_id = $1",
+                 WHERE group_id IN (SELECT group_id FROM group_member WHERE identity_id = $1)",
     )
     .bind(reader.identity)
     .execute(&pool)

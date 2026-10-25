@@ -118,9 +118,7 @@ pub async fn held(pool: &PgPool, subject: &Subject) -> sqlx::Result<(Vec<String>
            JOIN role r ON r.id = b.role_id AND r.valid_period @> now()
            LEFT JOIN role_permission p ON p.role_id = r.id AND p.valid_period @> now()
           WHERE b.valid_period @> now()
-            AND ((b.subject_kind = 'identity' AND b.subject_id = $1)
-                 OR (b.subject_kind = 'group' AND b.issuer = $2 AND b.group_name = ANY($3))
-                 OR (b.subject_kind = 'issuer' AND b.issuer = $2))",
+            AND b.group_id IN (SELECT kartenn_member_of($1, $2, $3, now()))",
     )
     .bind(subject.id)
     .bind(subject.issuer.as_deref())

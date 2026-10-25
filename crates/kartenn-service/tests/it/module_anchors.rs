@@ -289,19 +289,14 @@ impl Kit {
             issuer: None,
             groups: Vec::new(),
         };
-        sqlx::query(
-            "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, scope_id,
-                                  valid_period, changeset_id)
-             VALUES (gen_random_uuid(), 'identity', $1, $2, $3, $4,
-                     tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
-        )
-        .bind(who.id)
-        .bind(role)
-        .bind(kind)
-        .bind(self.ids[scope])
-        .execute(&self.pool)
-        .await
-        .unwrap();
+        sqlx::query(kartenn_testing::BIND_IDENTITY)
+            .bind(who.id)
+            .bind(role)
+            .bind(kind)
+            .bind(self.ids[scope])
+            .execute(&self.pool)
+            .await
+            .unwrap();
         who
     }
 

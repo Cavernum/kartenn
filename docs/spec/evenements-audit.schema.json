@@ -598,6 +598,7 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "group": {},
             "on_behalf_of": {
               "format": "uuid",
               "type": "string"

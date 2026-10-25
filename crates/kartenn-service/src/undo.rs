@@ -108,18 +108,13 @@ fn rbac_inverse(
                 RbacRow::Binding { .. },
                 Some(RbacBefore {
                     period,
-                    state:
-                        RbacState::Binding {
-                            subject,
-                            role,
-                            scope,
-                        },
+                    state: RbacState::Binding { group, role, scope },
                 }),
                 false,
             ) => {
                 let bind = Operation::Bind {
                     local: None,
-                    subject,
+                    group,
                     role,
                     scope,
                 };

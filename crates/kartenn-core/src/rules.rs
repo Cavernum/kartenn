@@ -243,6 +243,8 @@ rules! {
         "Une liaison désigne un rôle en vigueur.";
     RBAC_REQUESTER = "core.binding.requester", Error, ["REQ-016-12"], "016/G10",
         "Une liaison ne désigne pas une identité « requester » : un demandeur n'est pas un compte ; la personne qui se connecte ensuite par son émetteur en devient un.";
+    GROUP_CLOSED = "core.binding.group_closed", Error, ["REQ-025-4"], "025/G1",
+        "Une liaison désigne un groupe en vigueur : un groupe clos depuis l'écriture d'un changeset en attente qui le lie met ce changeset en conflit à son approbation.";
     OBJECT_FORBIDDEN = "core.object.forbidden", Error, ["REQ-005-22"], "005/K12",
         "Créer, modifier ou clore un objet exige la permission d'édition de sa sorte sur l'objet.";
     LABEL_INVALID = "core.label.invalid", Error, ["REQ-018-9"], "018/R7, R9, RFC 5646 §2.1",

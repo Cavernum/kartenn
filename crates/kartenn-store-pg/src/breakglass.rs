@@ -122,13 +122,41 @@ async fn bind_administrator(
     .execute(&mut *tx)
     .await
     .map_err(store_err)?;
+    // A group of its own, bound to the role (spec 025, G1: a binding serves a group).
+    let group = Uuid::now_v7();
     sqlx::query(
-        "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, valid_period,
-                              changeset_id)
-         VALUES ($1, 'identity', $2, $3, 'global', tstzrange($4, $5), $6)",
+        "INSERT INTO rbac_group (id, key, labels, valid_period, changeset_id)
+         VALUES ($1, $2, jsonb_build_object('fr', $3::text), tstzrange($4, $5), $6)",
+    )
+    .bind(group)
+    .bind(format!("breakglass-{}", group.simple()))
+    .bind(format!("Secours {}", account.name))
+    .bind(start)
+    .bind(account.valid_until)
+    .bind(changeset)
+    .execute(&mut *tx)
+    .await
+    .map_err(store_err)?;
+    sqlx::query(
+        "INSERT INTO group_member (id, group_id, member_kind, identity_id, valid_period,
+                                   changeset_id)
+         VALUES ($1, $2, 'identity', $3, tstzrange($4, $5), $6)",
     )
     .bind(Uuid::now_v7())
+    .bind(group)
     .bind(id)
+    .bind(start)
+    .bind(account.valid_until)
+    .bind(changeset)
+    .execute(&mut *tx)
+    .await
+    .map_err(store_err)?;
+    sqlx::query(
+        "INSERT INTO binding (id, group_id, role_id, scope_kind, valid_period, changeset_id)
+         VALUES ($1, $2, $3, 'global', tstzrange($4, $5), $6)",
+    )
+    .bind(Uuid::now_v7())
+    .bind(group)
     .bind(role)
     .bind(start)
     .bind(account.valid_until)

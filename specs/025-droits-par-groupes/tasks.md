@@ -2,12 +2,35 @@
 
 Statut : spec **validée le 2026-10-25**.
 
-- [ ] 1. Migration `0066_rbac_groups.sql`, tables `rbac_group`, `group_member`, `binding`
+- [x] 1. Migration `0066_rbac_groups.sql`, tables `rbac_group`, `group_member`, `binding`
   sur `group_id` ; résolution `kartenn_member_of` ; `visibility_on`, droits effectifs et
   libellés sur la nouvelle résolution — REQ-025-1, 2, 4, 5 — verify : `k-check`
   - où : `crates/kartenn-store-pg/migrations/0028_rbac.sql` (modèle de `role`,
     `binding`) ; `crates/kartenn-store-pg/src/rbac.rs::visibility_on` (prédicat
     `subject_kind`) ; `rbac_read.rs`, `labels_read.rs` ; test voisin `tests/rbac.rs`.
+  - Résultat : `binding.group_id` lu par `kartenn_member_of(identité, émetteur, groupes,
+    date)` (fonction SQL `STABLE`) dans `visibilities_on`, `roles_of_on`, `bindings_of`,
+    `global_entries`, `labels_read::held` ; `Operation::Bind { group }` (clé) ;
+    `BindingSubject` retiré ; `rbac_schema` (forme des liaisons et des membres),
+    `an_issuer_is_confined_to_its_entities` (plus de liaison d'émetteur entier).
+  - Choix tranchés :
+    - `rbac_group` porte `labels` (jsonb par langue, comme `role` depuis la 018) plutôt
+      qu'un `label` texte ; clé `^[a-z][a-z0-9_-]*$`, 128 caractères au plus (le tiret
+      sert aux clés `idp-…` et `compte-…` de la migration, G9).
+    - `group_member.identity_id` sans clé étrangère, comme `binding.subject_id` avant
+      lui ; unicité d'un membre par groupe et par période par contrainte d'exclusion.
+    - Pas de clé étrangère `binding.group_id` (clé logique, comme `role_id`).
+    - Les colonnes `subject_kind`, `subject_id`, `issuer`, `group_name` de `binding`
+      restent, nullables, pour la tâche 4 : une ligne neuve ne nomme que son groupe
+      (`CHECK`), une ancienne ne donne plus rien ; l'historique les garde.
+    - Une liaison vers un groupe absent ou clos : `core.binding.group_closed` (le nom du
+      design), à l'écriture comme à l'approbation.
+    - `rbac.binding.changed` porte aussi `group`.
+    - REST minimal : `POST /v1/bindings` et la vue d'une liaison prennent `group` (clé) au
+      lieu de `subject` ; contrat et `schema.d.ts` régénérés.
+    - Tests : `kartenn_testing::BIND_IDENTITY` et `GROUP_OF` (un groupe par identité) pour
+      les raccourcis SQL des tests ; le compte de secours, en attendant la tâche 3, reçoit
+      un groupe à lui lié au rôle administrateur.
 - [ ] 2. Opérations `SetGroup`, `CloseGroup`, `AddMember`, `RemoveMember`, `Bind` sur
   groupe ; règles `core.group.escalation`, `core.group.builtin` ; annulation —
   REQ-025-3, 6, 7, 8, 10 — verify : `k-check`, INV-27 étendu

@@ -34,7 +34,7 @@ use kartenn_service::aggregate::FailureAggregator;
 use kartenn_service::audit::{AuditStatus, Instance};
 use kartenn_service::authn::StateCache;
 use kartenn_service::authz::Unrestricted;
-use kartenn_service::operations::{BindingScope, BindingSubject};
+use kartenn_service::operations::BindingScope;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::reads::ReadAudit;
 use kartenn_service::{ChangesetRequest, Operation, Outcome, submit};
@@ -192,6 +192,11 @@ impl Fixture {
         .await
         .unwrap();
         let role = format!("role_{}", name.replace('-', "_"));
+        let group: String = sqlx::query_scalar(kartenn_testing::GROUP_OF)
+            .bind(id)
+            .fetch_one(&self.pool)
+            .await
+            .unwrap();
         let bound = submit(
             &self.store,
             &Unrestricted,
@@ -203,7 +208,7 @@ impl Fixture {
                 },
                 Operation::Bind {
                     local: None,
-                    subject: BindingSubject::Identity { id },
+                    group,
                     role,
                     scope: BindingScope::Global,
                 },
@@ -528,11 +533,12 @@ async fn the_real_person_logging_in_takes_back_the_requester_record(pool: PgPool
     assert_eq!(id, named, "one record for one person");
     assert_eq!(kind, "person");
     assert_eq!(name, "J. Doe");
-    // No binding names the record: it holds no right of its own.
-    let bindings: i64 = sqlx::query_scalar("SELECT count(*) FROM binding WHERE subject_id = $1")
-        .bind(id)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    // No group holds the record: it holds no right of its own.
+    let bindings: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM group_member WHERE identity_id = $1")
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(bindings, 0);
 }

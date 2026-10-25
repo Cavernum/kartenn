@@ -73,14 +73,8 @@ pub async fn role(pool: &PgPool, key: &str) -> Result<Option<RoleRead>, StoreErr
 pub struct BindingRead {
     /// Identifier.
     pub id: Uuid,
-    /// `identity`, `group` or `issuer`.
-    pub subject_kind: String,
-    /// The identity.
-    pub subject_id: Option<Uuid>,
-    /// The issuer of a group or of every identity.
-    pub issuer: Option<String>,
-    /// The group.
-    pub group_name: Option<String>,
+    /// The group it serves, by key (spec 025, REQ-025-4).
+    pub group: String,
     /// Role key.
     pub role: String,
     /// `global`, `entity`, `site`, `domain` or `prefix`.
@@ -93,10 +87,10 @@ pub struct BindingRead {
     pub valid_to: Option<OffsetDateTime>,
 }
 
-const BINDINGS: &str = "SELECT b.id, b.subject_kind, b.subject_id, b.issuer, b.group_name,
-            r.key AS role, b.scope_kind, b.scope_id,
+const BINDINGS: &str = "SELECT b.id, g.key AS \"group\", r.key AS role, b.scope_kind, b.scope_id,
             lower(b.valid_period) AS valid_from, upper(b.valid_period) AS valid_to
      FROM binding b JOIN role r ON r.id = b.role_id AND r.valid_period @> now()
+     JOIN rbac_group g ON g.id = b.group_id AND g.valid_period @> now()
      WHERE b.valid_period @> now()";
 
 /// The current bindings after the identifier `after`, by identifier.
@@ -132,17 +126,15 @@ pub async fn binding(pool: &PgPool, id: Uuid) -> Result<Option<BindingRead>, Sto
         .map_err(store_err)
 }
 
-/// The current bindings that serve `subject`: its own, those of its groups at its issuer
-/// and those of its issuer, by role and scope.
+/// The current bindings that serve `subject`: those of the groups of kartenn it belongs
+/// to, directly or by a group of its issuer (spec 025, REQ-025-4), by role and scope.
 ///
 /// # Errors
 ///
 /// Database errors.
 pub async fn bindings_of(pool: &PgPool, subject: &Subject) -> Result<Vec<BindingRead>, StoreError> {
     sqlx::query_as(sqlx::AssertSqlSafe(format!(
-        "{BINDINGS} AND ((b.subject_kind = 'identity' AND b.subject_id = $1)
-                         OR (b.subject_kind = 'group' AND b.issuer = $2 AND b.group_name = ANY($3))
-                         OR (b.subject_kind = 'issuer' AND b.issuer = $2))
+        "{BINDINGS} AND b.group_id IN (SELECT kartenn_member_of($1, $2, $3, now()))
          ORDER BY r.key, b.scope_kind, b.scope_id, b.id"
     )))
     .bind(subject.id)
@@ -164,9 +156,7 @@ pub async fn global_entries(pool: &PgPool, subject: &Subject) -> Result<Vec<Stri
          JOIN role r ON r.id = b.role_id AND r.valid_period @> now()
          JOIN role_permission rp ON rp.role_id = r.id AND rp.valid_period @> now()
          WHERE b.valid_period @> now() AND b.scope_kind = 'global'
-           AND ((b.subject_kind = 'identity' AND b.subject_id = $1)
-                OR (b.subject_kind = 'group' AND b.issuer = $2 AND b.group_name = ANY($3))
-                OR (b.subject_kind = 'issuer' AND b.issuer = $2))
+           AND b.group_id IN (SELECT kartenn_member_of($1, $2, $3, now()))
          ORDER BY rp.permission",
     )
     .bind(subject.id)

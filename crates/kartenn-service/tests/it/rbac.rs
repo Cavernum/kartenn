@@ -8,7 +8,7 @@ use kartenn_service::audit::{Instance, RequestContext};
 use kartenn_service::authz::{Authorizer, Subject, Unrestricted};
 use kartenn_service::declarations::{core_declarations, sync_modules};
 use kartenn_service::expected::Sources;
-use kartenn_service::operations::{BindingScope, BindingSubject, RawInput};
+use kartenn_service::operations::{BindingScope, RawInput};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::pipeline::PendingKind;
 use kartenn_service::rbac::{RENAME_MOTIVE, rename_permissions, sync_roles};
@@ -274,14 +274,13 @@ impl Tree {
         id
     }
 
-    /// Binds `role` on a scope (`global` or the name of an object of the tree) to an
-    /// identity, a group or a whole issuer, until `until` days from now (unbounded with
-    /// `None`).
+    /// Binds `role` on a scope (`global` or the name of an object of the tree), until
+    /// `until` days from now (unbounded with `None`), to a new group of kartenn whose
+    /// member is an identity or a group of an issuer (spec 025).
     async fn bind(&self, subject: Binding<'_>, role: Uuid, scope: &str, until: Option<i32>) {
         let (kind, id, issuer, group) = match subject {
             Binding::Identity(id) => ("identity", Some(id), None, None),
-            Binding::Group(issuer, group) => ("group", None, Some(issuer), Some(group)),
-            Binding::Issuer(issuer) => ("issuer", None, Some(issuer), None),
+            Binding::Group(issuer, group) => ("idp_group", None, Some(issuer), Some(group)),
         };
         let (scope_kind, scope_id) = match scope {
             "global" => ("global", None),
@@ -296,13 +295,25 @@ impl Tree {
             }
         };
         sqlx::query(
-            "INSERT INTO binding (id, subject_kind, subject_id, issuer, group_name, role_id,
-                                  scope_kind, scope_id, valid_period, changeset_id)
-             VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7,
-                     tstzrange(now() - interval '2 days',
-                               CASE WHEN $8::int IS NULL THEN NULL
-                                    ELSE now() + make_interval(days => $8::int) END),
-                     gen_random_uuid())",
+            "WITH g AS (
+                INSERT INTO rbac_group (id, key, labels, valid_period, changeset_id)
+                VALUES (gen_random_uuid(), 't-' || replace(gen_random_uuid()::text, '-', ''),
+                        '{\"fr\": \"t\"}', tstzrange(now() - interval '2 days', NULL),
+                        gen_random_uuid())
+                RETURNING id),
+             m AS (
+                INSERT INTO group_member (id, group_id, member_kind, identity_id, issuer,
+                                          group_name, valid_period, changeset_id)
+                SELECT gen_random_uuid(), g.id, $1, $2, $3, $4,
+                       tstzrange(now() - interval '2 days', NULL), gen_random_uuid() FROM g)
+             INSERT INTO binding (id, group_id, role_id, scope_kind, scope_id, valid_period,
+                                  changeset_id)
+             SELECT gen_random_uuid(), g.id, $5, $6, $7,
+                    tstzrange(now() - interval '2 days',
+                              CASE WHEN $8::int IS NULL THEN NULL
+                                   ELSE now() + make_interval(days => $8::int) END),
+                    gen_random_uuid()
+             FROM g",
         )
         .bind(kind)
         .bind(id)
@@ -353,7 +364,6 @@ impl Tree {
 enum Binding<'a> {
     Identity(Uuid),
     Group(&'a str, &'a str),
-    Issuer(&'a str),
 }
 
 const OBJECTS: [&str; 7] = [
@@ -447,12 +457,26 @@ async fn an_issuer_is_confined_to_its_entities(pool: PgPool) {
         "another group"
     );
     // The internal IdP, attached globally, reaches everything its bindings give, sites
-    // (without owner) included; a whole-issuer binding serves all its people.
+    // (without owner) included; no binding serves a whole issuer (spec 025, G3).
     t.attach(IDP, None).await;
-    t.bind(Binding::Issuer(IDP), reader, "global", None).await;
+    t.bind(Binding::Group(IDP, "staff"), reader, "global", None)
+        .await;
     assert_eq!(
-        t.allowed(&person(Some(IDP), &[]), read, &OBJECTS).await,
+        t.allowed(&person(Some(IDP), &["staff"]), read, &OBJECTS)
+            .await,
         OBJECTS.to_vec()
+    );
+    assert!(
+        t.allowed(&person(Some(IDP), &[]), read, &OBJECTS)
+            .await
+            .is_empty(),
+        "an identity in no group holds nothing, its issuer attached"
+    );
+    // A group of an issuer serves the identities of that issuer only (REQ-025-4).
+    assert!(
+        t.allowed(&person(Some(VENDOR_IDP), &["staff"]), read, &OBJECTS)
+            .await
+            .is_empty()
     );
 }
 
@@ -804,14 +828,26 @@ async fn a_right_to_edit_alone_makes_a_proposal(pool: PgPool) {
     assert_eq!(rules_of(&outcome), ["core.object.forbidden"]);
 }
 
-fn bind_op(subject: Uuid, role: &str, scope: BindingScope) -> Operation {
-    Operation::Bind {
-        local: None,
-        subject: BindingSubject::Identity { id: subject },
-        role: role.into(),
-        scope,
+impl Tree {
+    /// A binding of `role` on `scope` to a new group whose member is `subject`.
+    async fn bind_op(&self, subject: Uuid, role: &str, scope: BindingScope) -> Operation {
+        let group: String = sqlx::query_scalar(kartenn_testing::GROUP_OF)
+            .bind(subject)
+            .fetch_one(&self.pool)
+            .await
+            .unwrap();
+        Operation::Bind {
+            local: None,
+            group,
+            role: role.into(),
+            scope,
+        }
     }
 }
+
+/// The binding serving the only group of `identity`.
+const BINDING_OF: &str = "SELECT b.id FROM binding b
+     JOIN group_member m ON m.group_id = b.group_id WHERE m.identity_id = $1";
 
 fn set_role(key: &str, entries: &[&str]) -> Operation {
     Operation::SetRole {
@@ -1135,13 +1171,14 @@ async fn an_administrator_binds_and_unbinds(pool: PgPool) {
             &root,
             vec![
                 set_role("auditor", &["core.address.read"]),
-                bind_op(
+                t.bind_op(
                     user.id,
                     "auditor",
                     BindingScope::Entity {
                         id: Ref::Id(t.ids["branch"]),
                     },
-                ),
+                )
+                .await,
             ],
         )
         .await;
@@ -1151,7 +1188,7 @@ async fn an_administrator_binds_and_unbinds(pool: PgPool) {
             .await,
         ["10.5.0.7"]
     );
-    let binding: Uuid = sqlx::query_scalar("SELECT id FROM binding WHERE subject_id = $1")
+    let binding: Uuid = sqlx::query_scalar(BINDING_OF)
         .bind(user.id)
         .fetch_one(&pool)
         .await
@@ -1225,7 +1262,7 @@ async fn a_delegate_cannot_escalate(pool: PgPool) {
     let outcome = t
         .submit_as(
             &delegate,
-            vec![bind_op(user.id, "auditor", entity("branch"))],
+            vec![t.bind_op(user.id, "auditor", entity("branch")).await],
         )
         .await;
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
@@ -1243,7 +1280,7 @@ async fn a_delegate_cannot_escalate(pool: PgPool) {
         ("manager", entity("branch"), None),
     ] {
         let outcome = t
-            .submit_as(&delegate, vec![bind_op(user.id, role, scope)])
+            .submit_as(&delegate, vec![t.bind_op(user.id, role, scope).await])
             .await;
         match rule {
             Some(rule) => assert_eq!(rules_of(&outcome), [rule], "{role} on {scope:?}"),
@@ -1275,12 +1312,12 @@ async fn an_undo_cannot_escalate(pool: PgPool) {
                         "core.address.apply_own",
                     ],
                 ),
-                bind_op(user.id, "writer", branch),
+                t.bind_op(user.id, "writer", branch).await,
             ],
         )
         .await;
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
-    let binding: Uuid = sqlx::query_scalar("SELECT id FROM binding WHERE subject_id = $1")
+    let binding: Uuid = sqlx::query_scalar(BINDING_OF)
         .bind(user.id)
         .fetch_one(&pool)
         .await
@@ -1434,7 +1471,7 @@ async fn binding_the_administrator_role_waits_for_a_second_administrator(pool: P
     match t
         .submit_as(
             &root,
-            vec![bind_op(newcomer.id, "root", BindingScope::Global)],
+            vec![t.bind_op(newcomer.id, "root", BindingScope::Global).await],
         )
         .await
     {
@@ -1444,7 +1481,10 @@ async fn binding_the_administrator_role_waits_for_a_second_administrator(pool: P
     let outcome = t
         .submit_as(
             &root,
-            vec![bind_op(newcomer.id, "reader_too", BindingScope::Global)],
+            vec![
+                t.bind_op(newcomer.id, "reader_too", BindingScope::Global)
+                    .await,
+            ],
         )
         .await;
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");

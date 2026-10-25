@@ -104,19 +104,14 @@ impl Env {
             .await
             .unwrap();
         }
-        sqlx::query(
-            "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, scope_id,
-                                  valid_period, changeset_id)
-             VALUES (gen_random_uuid(), 'identity', $1, $2,
-                     CASE WHEN $3::uuid IS NULL THEN 'global' ELSE 'entity' END, $3,
-                     tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
-        )
-        .bind(identity)
-        .bind(role)
-        .bind(entity)
-        .execute(pool)
-        .await
-        .unwrap();
+        sqlx::query(kartenn_testing::BIND_IDENTITY)
+            .bind(identity)
+            .bind(role)
+            .bind(if entity.is_some() { "entity" } else { "global" })
+            .bind(entity)
+            .execute(pool)
+            .await
+            .unwrap();
         identity
     }
 }

@@ -4,7 +4,7 @@ use kartenn_core::objects::{AddressUsage, Nature};
 use kartenn_core::values::Cardinality;
 use kartenn_service::authz::Unrestricted;
 use kartenn_service::operations::{
-    BindingScope, BindingSubject, DeclarationInput, PeriodSpec, RawInput, SecretRecord, TypeInput,
+    BindingScope, DeclarationInput, PeriodSpec, RawInput, SecretRecord, TypeInput,
 };
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::port::RbacRow;
@@ -32,6 +32,29 @@ impl Fixture {
             "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 't') RETURNING id",
         )
         .fetch_one(pool)
+        .await
+        .unwrap();
+        // The groups `admins` (the author) and `noc` (the group `noc` of the issuer).
+        sqlx::query(
+            "WITH g AS (
+                INSERT INTO rbac_group (id, key, labels, valid_period, changeset_id)
+                VALUES (gen_random_uuid(), 'admins', '{\"fr\": \"A\"}',
+                        tstzrange(now() - interval '1 day', NULL), gen_random_uuid()),
+                       (gen_random_uuid(), 'noc', '{\"fr\": \"N\"}',
+                        tstzrange(now() - interval '1 day', NULL), gen_random_uuid())
+                RETURNING id, key)
+             INSERT INTO group_member (id, group_id, member_kind, identity_id, issuer,
+                                       group_name, valid_period, changeset_id)
+             SELECT gen_random_uuid(), g.id,
+                    CASE g.key WHEN 'admins' THEN 'identity' ELSE 'idp_group' END,
+                    CASE g.key WHEN 'admins' THEN $1::uuid END,
+                    CASE g.key WHEN 'noc' THEN $2 END, CASE g.key WHEN 'noc' THEN 'noc' END,
+                    tstzrange(now() - interval '1 day', NULL), gen_random_uuid()
+             FROM g",
+        )
+        .bind(author)
+        .bind(IDP)
+        .execute(pool)
         .await
         .unwrap();
         let mut f = Self {
@@ -284,11 +307,12 @@ impl Fixture {
         .unwrap()
     }
 
-    /// The bindings in force now and later: subject kind, role key, scope kind, start.
+    /// The bindings in force now and later: group key, role key, scope kind, start.
     async fn bindings(&self) -> Vec<(String, String, String, bool)> {
         sqlx::query_as(
-            "SELECT b.subject_kind, r.key, b.scope_kind, lower(b.valid_period) > now()
+            "SELECT g.key, r.key, b.scope_kind, lower(b.valid_period) > now()
              FROM binding b JOIN role r ON r.id = b.role_id AND r.valid_period @> now()
+             JOIN rbac_group g ON g.id = b.group_id AND g.valid_period @> now()
              WHERE upper_inf(b.valid_period) ORDER BY 1, 3",
         )
         .fetch_all(&self.pool)
@@ -326,10 +350,10 @@ fn auditor(label: &str, entries: &[&str]) -> Operation {
     }
 }
 
-fn bind(subject: BindingSubject, scope: BindingScope) -> Operation {
+fn bind(group: &str, scope: BindingScope) -> Operation {
     Operation::Bind {
         local: None,
-        subject,
+        group: group.into(),
         role: "auditor".into(),
         scope,
     }
@@ -342,7 +366,7 @@ async fn an_administration_changeset_is_undone(pool: PgPool) {
         .applied(vec![
             auditor("Auditor", &["core.audit.read"]),
             bind(
-                BindingSubject::Identity { id: f.author },
+                "admins",
                 BindingScope::Domain {
                     id: Ref::Id(f.domain),
                 },
@@ -393,15 +417,9 @@ async fn undoing_a_closure_gives_the_role_and_its_bindings_back(pool: PgPool) {
     let f = Fixture::new(&pool).await;
     f.applied(vec![
         auditor("Auditor", &["core.audit.read", "core.address.read"]),
+        bind("admins", BindingScope::Global),
         bind(
-            BindingSubject::Identity { id: f.author },
-            BindingScope::Global,
-        ),
-        bind(
-            BindingSubject::Group {
-                issuer: IDP.into(),
-                group: "noc".into(),
-            },
+            "noc",
             BindingScope::Domain {
                 id: Ref::Id(f.domain),
             },
@@ -459,10 +477,7 @@ async fn undoing_the_end_of_a_future_binding_gives_it_back_on_its_period(pool: P
                 start: tomorrow,
                 end: None,
             },
-            operation: Box::new(bind(
-                BindingSubject::Identity { id: f.author },
-                BindingScope::Global,
-            )),
+            operation: Box::new(bind("admins", BindingScope::Global)),
         },
     ])
     .await;
@@ -482,7 +497,7 @@ async fn undoing_the_end_of_a_future_binding_gives_it_back_on_its_period(pool: P
     assert_eq!(
         f.bindings().await,
         [(
-            "identity".to_owned(),
+            "admins".to_owned(),
             "auditor".to_owned(),
             "global".to_owned(),
             true
@@ -497,12 +512,7 @@ async fn a_later_administration_is_a_conflict(pool: PgPool) {
         .applied(vec![auditor("Auditor", &["core.audit.read"])])
         .await;
     // Another changeset binds the role: closing it would end that binding.
-    let bound = f
-        .applied(vec![bind(
-            BindingSubject::Identity { id: f.author },
-            BindingScope::Global,
-        )])
-        .await;
+    let bound = f.applied(vec![bind("admins", BindingScope::Global)]).await;
     let undo = inverse(&f.store, created, f.author).await.unwrap().unwrap();
     assert!(undo.request.operations.is_empty());
     assert_eq!(

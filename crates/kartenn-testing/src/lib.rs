@@ -438,6 +438,37 @@ pub fn applied_by_author(method: &str, uri: &str) -> String {
     format!("{uri}{separator}apply=own")
 }
 
+/// A group of kartenn whose only member is the identity `$1`, from a day ago without
+/// end; returns its key, for an operation `bind` of a test (spec 025).
+pub const GROUP_OF: &str = "WITH g AS (
+        INSERT INTO rbac_group (id, key, labels, valid_period, changeset_id)
+        VALUES (gen_random_uuid(), 't-' || replace(gen_random_uuid()::text, '-', ''),
+                '{\"fr\": \"t\"}', tstzrange(now() - interval '1 day', NULL), gen_random_uuid())
+        RETURNING id, key),
+     m AS (
+        INSERT INTO group_member (id, group_id, member_kind, identity_id, valid_period, changeset_id)
+        SELECT gen_random_uuid(), g.id, 'identity', $1::uuid,
+               tstzrange(now() - interval '1 day', NULL), gen_random_uuid() FROM g)
+    SELECT key FROM g";
+
+/// Binds the role `$2` on the scope `$3` (`global`, `entity`, …), object `$4` (null for
+/// global), to the identity `$1` through a group of kartenn of its own, from a day ago
+/// without end; returns the binding (spec 025: a binding serves a group, never an
+/// identity). The shortcut of the tests that give an identity its rights directly.
+pub const BIND_IDENTITY: &str = "WITH g AS (
+        INSERT INTO rbac_group (id, key, labels, valid_period, changeset_id)
+        VALUES (gen_random_uuid(), 't-' || replace(gen_random_uuid()::text, '-', ''),
+                '{\"fr\": \"t\"}', tstzrange(now() - interval '1 day', NULL), gen_random_uuid())
+        RETURNING id),
+     m AS (
+        INSERT INTO group_member (id, group_id, member_kind, identity_id, valid_period, changeset_id)
+        SELECT gen_random_uuid(), g.id, 'identity', $1::uuid,
+               tstzrange(now() - interval '1 day', NULL), gen_random_uuid() FROM g)
+    INSERT INTO binding (id, group_id, role_id, scope_kind, scope_id, valid_period, changeset_id)
+    SELECT gen_random_uuid(), g.id, $2::uuid, $3::text, $4::uuid,
+           tstzrange(now() - interval '1 day', NULL), gen_random_uuid() FROM g
+    RETURNING id";
+
 fn hex(bytes: &[u8]) -> String {
     use std::fmt::Write;
     bytes.iter().fold(String::new(), |mut s, b| {

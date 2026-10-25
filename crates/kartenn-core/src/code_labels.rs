@@ -394,6 +394,10 @@ pub static RULES_EN: &[(&str, &str)] = &[
         "A binding does not designate a « requester » identity: a requester is not an account; the person who later logs in through its issuer becomes one.",
     ),
     (
+        "core.binding.group_closed",
+        "A binding designates a group in force: a group closed since a pending changeset that binds it was written puts that changeset in conflict at its approval.",
+    ),
+    (
         "core.object.forbidden",
         "Creating, changing or closing an object needs the edit permission of its kind on the object.",
     ),

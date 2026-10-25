@@ -425,13 +425,14 @@ fn rbac_event(
         }
         RbacOp::Bind {
             id,
+            group,
             role,
             scope_kind,
             scope,
-            ..
         } => event(&RBAC_BINDING_CHANGED, Outcome::Success)?
             .target("binding", [*id])
-            .detail("role", role.as_str())
+            .detail("group", group.as_str())
+            .and_then(|e| e.detail("role", role.as_str()))
             .and_then(|e| {
                 e.detail(
                     "scope",

@@ -4,7 +4,6 @@
 
 use kartenn_core::authz::BUILTIN_ROLES;
 use kartenn_core::rules::{self, Violation};
-use kartenn_service::operations::BindingSubject;
 use kartenn_service::port::{StoreError, WriteError};
 use kartenn_service::rbac::{RBAC_OBJECT, RbacOp};
 use sqlx::PgConnection;
@@ -217,12 +216,29 @@ async fn set_role(
     Ok(())
 }
 
-/// A new binding.
+/// The group `key` in force at `at` (now if null).
+async fn group_id(
+    conn: &mut PgConnection,
+    key: &str,
+    at: Option<OffsetDateTime>,
+) -> Result<Option<Uuid>, StoreError> {
+    sqlx::query_scalar(
+        "SELECT id FROM rbac_group
+         WHERE key = $1 AND valid_period @> coalesce($2::timestamptz, now())",
+    )
+    .bind(key)
+    .bind(at)
+    .fetch_optional(&mut *conn)
+    .await
+    .map_err(store_err)
+}
+
+/// A new binding of `role` to the group `group` (spec 025, REQ-025-4).
 #[allow(clippy::too_many_arguments)] // a binding, its period and its changeset
 async fn bind(
     conn: &mut PgConnection,
     id: Uuid,
-    subject: &BindingSubject,
+    group: &str,
     role: &str,
     (scope_kind, scope): (&str, Option<Uuid>),
     at: Option<OffsetDateTime>,
@@ -235,42 +251,21 @@ async fn bind(
                 .with_subjects([id]),
         ));
     };
-    if let BindingSubject::Identity { id: identity } = subject {
-        // A requester is not an account (016/G10, INV-60): refused before any write.
-        let kind: Option<String> = sqlx::query_scalar("SELECT kind FROM person WHERE id = $1")
-            .bind(identity)
-            .fetch_optional(&mut *conn)
-            .await
-            .map_err(write_err)?;
-        if kind.as_deref() == Some("requester") {
-            return Err(WriteError::Rule(
-                Violation::new(
-                    &rules::RBAC_REQUESTER,
-                    format!("identity {identity} is a requester, not an account"),
-                )
-                .with_subjects([id]),
-            ));
-        }
-    }
-    let (kind, subject_id, issuer, group) = match subject {
-        BindingSubject::Identity { id } => ("identity", Some(*id), None, None),
-        BindingSubject::Group { issuer, group } => {
-            ("group", None, Some(issuer.as_str()), Some(group.as_str()))
-        }
-        BindingSubject::Issuer { issuer } => ("issuer", None, Some(issuer.as_str()), None),
+    // A group closed since a pending changeset named it: a conflict at its approval.
+    let Some(group_id) = group_id(conn, group, at).await? else {
+        return Err(WriteError::Rule(
+            Violation::new(&rules::GROUP_CLOSED, format!("no group '{group}'")).with_subjects([id]),
+        ));
     };
     sqlx::query(sqlx::AssertSqlSafe(format!(
-        "INSERT INTO binding (id, subject_kind, subject_id, issuer, group_name, role_id,
-                              scope_kind, scope_id, valid_period, changeset_id)
-         VALUES ($3, $4, $5, $6, $7, $8, $9, $10, {PERIOD}, $11)"
+        "INSERT INTO binding (id, group_id, role_id, scope_kind, scope_id, valid_period,
+                              changeset_id)
+         VALUES ($3, $4, $5, $6, $7, {PERIOD}, $8)"
     )))
     .bind(at)
     .bind(until)
     .bind(id)
-    .bind(kind)
-    .bind(subject_id)
-    .bind(issuer)
-    .bind(group)
+    .bind(group_id)
     .bind(role_id)
     .bind(scope_kind)
     .bind(scope)
@@ -447,7 +442,7 @@ pub(crate) async fn write(
         }
         RbacOp::Bind {
             id,
-            subject,
+            group,
             role,
             scope_kind,
             scope,
@@ -455,7 +450,7 @@ pub(crate) async fn write(
             bind(
                 conn,
                 *id,
-                subject,
+                group,
                 role,
                 (scope_kind, *scope),
                 at,

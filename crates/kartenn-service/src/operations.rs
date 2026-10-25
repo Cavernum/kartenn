@@ -451,13 +451,13 @@ pub enum Operation {
         /// Key.
         key: String,
     },
-    /// Binds a role on a scope to a subject, over the operation's period (005,
-    /// REQ-005-18, 25, 26).
+    /// Binds a role on a scope to a group of kartenn, over the operation's period (005,
+    /// REQ-005-25, 26; spec 025, REQ-025-4, 6): never to an identity nor an issuer.
     Bind {
         /// Local name of the binding.
         local: Option<u32>,
-        /// Who.
-        subject: BindingSubject,
+        /// The group, by key.
+        group: String,
         /// Role key.
         role: String,
         /// Where.
@@ -932,29 +932,6 @@ pub struct SecretRecord {
     /// Expiry (microseconds since the epoch), if any.
     #[serde(default)]
     pub expires_at: Option<i64>,
-}
-
-/// Who a binding serves (005, K4).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum BindingSubject {
-    /// One identity (person, service or break-glass account).
-    Identity {
-        /// Its identifier.
-        id: Uuid,
-    },
-    /// The members of a group of an issuer.
-    Group {
-        /// Issuer.
-        issuer: String,
-        /// Group.
-        group: String,
-    },
-    /// Every identity of an issuer (K5).
-    Issuer {
-        /// Issuer.
-        issuer: String,
-    },
 }
 
 /// A trigger of an approval policy on a measure of a module (REQ-016-7).

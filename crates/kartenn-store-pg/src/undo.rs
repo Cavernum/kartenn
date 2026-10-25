@@ -1,6 +1,6 @@
 //! What an applied changeset wrote, to undo it (spec 004, REQ-004-34, 35; task 004-20).
 
-use kartenn_service::operations::{BindingScope, BindingSubject, PeriodSpec, Ref};
+use kartenn_service::operations::{BindingScope, PeriodSpec, Ref};
 use kartenn_service::port::{
     RbacBefore, RbacRow, RbacState, RbacTouched, StoreError, Touched, UndoFacts,
 };
@@ -158,18 +158,25 @@ fn scope(kind: &str, id: Option<Uuid>) -> Result<BindingScope, StoreError> {
     })
 }
 
-/// The subject of a binding from its columns.
-fn subject(row: &PgRow) -> Result<BindingSubject, StoreError> {
-    let kind: String = row.try_get("b_subject_kind").map_err(store_err)?;
-    let id: Option<Uuid> = row.try_get("b_subject_id").map_err(store_err)?;
-    let issuer: Option<String> = row.try_get("b_issuer").map_err(store_err)?;
-    let group: Option<String> = row.try_get("b_group_name").map_err(store_err)?;
-    match (kind.as_str(), id, issuer, group) {
-        ("identity", Some(id), _, _) => Ok(BindingSubject::Identity { id }),
-        ("group", _, Some(issuer), Some(group)) => Ok(BindingSubject::Group { issuer, group }),
-        ("issuer", _, Some(issuer), _) => Ok(BindingSubject::Issuer { issuer }),
-        _ => Err(store_err(format!("a malformed {kind} binding subject"))),
-    }
+/// The key of the group `id`, from any of its versions.
+async fn group_key(pool: &PgPool, id: Uuid) -> Result<String, StoreError> {
+    sqlx::query_scalar(
+        "SELECT key FROM rbac_group WHERE id = $1
+         UNION ALL SELECT key FROM rbac_group_history WHERE id = $1
+         LIMIT 1",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .map_err(store_err)
+}
+
+/// The group of a binding from its column (spec 025): a binding written before the groups
+/// names none, and is not given back.
+async fn binding_group(pool: &PgPool, row: &PgRow) -> Result<String, StoreError> {
+    let group: Option<Uuid> = row.try_get("b_group_id").map_err(store_err)?;
+    let group = group.ok_or_else(|| store_err("a binding without group is not given back"))?;
+    group_key(pool, group).await
 }
 
 /// The roles the changeset `args.0` (applied at `args.1`) wrote, by their row or one of
@@ -278,15 +285,7 @@ async fn rbac_touched(
     let sql = rbac_sql(
         "binding",
         &["id"],
-        &[
-            "subject_kind",
-            "subject_id",
-            "issuer",
-            "group_name",
-            "role_id",
-            "scope_kind",
-            "scope_id",
-        ],
+        &["group_id", "role_id", "scope_kind", "scope_id"],
         "",
     );
     for row in rbac_rows(pool, sql, args).await? {
@@ -296,7 +295,7 @@ async fn rbac_touched(
                 Some(RbacBefore {
                     period,
                     state: RbacState::Binding {
-                        subject: subject(&row)?,
+                        group: binding_group(pool, &row).await?,
                         role: role_key(pool, row.try_get("b_role_id").map_err(store_err)?).await?,
                         scope: scope(&kind, row.try_get("b_scope_id").map_err(store_err)?)?,
                     },

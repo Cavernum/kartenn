@@ -189,19 +189,14 @@ async fn bind(pool: &PgPool, who: &Principal, domain: Uuid) -> Uuid {
     .execute(pool)
     .await
     .unwrap();
-    sqlx::query_scalar(
-        "INSERT INTO binding (id, subject_kind, subject_id, role_id, scope_kind, scope_id,
-                              valid_period, changeset_id)
-         VALUES (gen_random_uuid(), 'identity', $1, $2, 'domain', $3,
-                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())
-         RETURNING id",
-    )
-    .bind(who.identity)
-    .bind(role)
-    .bind(domain)
-    .fetch_one(pool)
-    .await
-    .unwrap()
+    sqlx::query_scalar(kartenn_testing::BIND_IDENTITY)
+        .bind(who.identity)
+        .bind(role)
+        .bind("domain")
+        .bind(domain)
+        .fetch_one(pool)
+        .await
+        .unwrap()
 }
 
 #[kartenn_testing::pg_test]

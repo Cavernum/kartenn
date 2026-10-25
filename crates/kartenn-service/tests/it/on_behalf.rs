@@ -9,7 +9,7 @@ use kartenn_service::authn::{
 };
 use kartenn_service::authz::{Grants, Unrestricted};
 use kartenn_service::expected::Sources;
-use kartenn_service::operations::{BindingScope, BindingSubject};
+use kartenn_service::operations::BindingScope;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, Operation, Outcome, submit, submit_in};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
@@ -63,6 +63,11 @@ fn requester() -> Requester {
 async fn connector(pool: &PgPool, store: &PgStore) -> Uuid {
     let admin = identity(pool, "person").await;
     let account = identity(pool, "service_account").await;
+    let group: String = sqlx::query_scalar(kartenn_testing::GROUP_OF)
+        .bind(account)
+        .fetch_one(pool)
+        .await
+        .unwrap();
     let bound = submit(
         store,
         &Unrestricted,
@@ -76,7 +81,7 @@ async fn connector(pool: &PgPool, store: &PgStore) -> Uuid {
                 },
                 Operation::Bind {
                     local: None,
-                    subject: BindingSubject::Identity { id: account },
+                    group,
                     role: "connector".into(),
                     scope: BindingScope::Global,
                 },
@@ -246,32 +251,6 @@ async fn the_requester_who_logs_in_becomes_a_person_under_the_issuer_name(pool: 
     let id = act_on_behalf(&store, &journal(&pool), &sa, &named, Source::default())
         .await
         .unwrap();
-    // A requester is not an account: no binding names it.
-    let bind = |by: Uuid| {
-        request(
-            by,
-            vec![Operation::Bind {
-                local: None,
-                subject: BindingSubject::Identity { id },
-                role: "connector".into(),
-                scope: BindingScope::Global,
-            }],
-        )
-    };
-    let refused = submit(
-        &store,
-        &Unrestricted,
-        &bind(identity(&pool, "person").await),
-        MAX_OPERATIONS,
-    )
-    .await
-    .unwrap();
-    match refused {
-        Outcome::Refused { violations, .. } => {
-            assert_eq!(violations[0].rule.id, "core.binding.requester");
-        }
-        other => panic!("expected a refusal, got {other:?}"),
-    }
     // The real person logs in through the issuer: the same row, now a person, named by
     // the issuer.
     let (logged, disabled) = store
@@ -298,14 +277,23 @@ async fn the_requester_who_logs_in_becomes_a_person_under_the_issuer_name(pool: 
             .global_permissions
             .is_empty()
     );
-    let bound = submit(
-        &store,
-        &Unrestricted,
-        &bind(identity(&pool, "person").await),
-        MAX_OPERATIONS,
-    )
-    .await
-    .unwrap();
+    let group: String = sqlx::query_scalar(kartenn_testing::GROUP_OF)
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let bind = request(
+        identity(&pool, "person").await,
+        vec![Operation::Bind {
+            local: None,
+            group,
+            role: "connector".into(),
+            scope: BindingScope::Global,
+        }],
+    );
+    let bound = submit(&store, &Unrestricted, &bind, MAX_OPERATIONS)
+        .await
+        .unwrap();
     assert!(matches!(bound, Outcome::Applied { .. }), "{bound:?}");
     assert!(
         store
