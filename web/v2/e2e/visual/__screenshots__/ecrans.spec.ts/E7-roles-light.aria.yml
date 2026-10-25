@@ -10,17 +10,23 @@
   - button "Administration" [expanded]
   - list:
     - listitem:
-      - link "Identités":
-        - /url: /admin/identities
+      - link "Groupes":
+        - /url: /admin/groups
     - listitem:
       - link "Rôles":
         - /url: /admin/roles
     - listitem:
-      - link "Liaisons":
-        - /url: /admin/bindings
+      - link "Identités":
+        - /url: /admin/identities
     - listitem:
       - link "Comptes de service":
         - /url: /admin/accounts
+    - listitem:
+      - link "Émetteurs":
+        - /url: /admin/issuers
+    - listitem:
+      - link "Audit":
+        - /url: /admin/audit
   - button "Barre latérale" [expanded]
 - banner:
   - navigation "Fil d'Ariane":
@@ -33,7 +39,7 @@
           - /url: /admin/roles
       - listitem: lecteur-reseau
   - button "Présent"
-  - button "Brouillon ( 0 )"
+  - button "Brouillon ( 0 )" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
@@ -44,28 +50,28 @@
       - button "Créer"
     - grid "Rôles":
       - rowgroup:
-        - row "Rôle Intégré Permissions Liaisons Description":
+        - row "Rôle Intégré Permissions Groupes Description":
           - columnheader "Rôle"
           - columnheader "Intégré"
           - columnheader "Permissions"
-          - columnheader "Liaisons"
+          - columnheader "Groupes"
           - columnheader "Description"
       - rowgroup:
-        - row /Lecteur reader oui \d+ \d+ Lecture de tout le référentiel/:
+        - row /Lecteur reader oui \d+ 6 Lecture de tout le référentiel/:
           - gridcell "Lecteur reader":
             - text: ""
             - code: reader
           - gridcell "oui"
           - gridcell /\d+/
-          - gridcell /\d+/
+          - gridcell "6"
           - gridcell "Lecture de tout le référentiel"
-        - row /Éditeur editor oui \d+ \d+ Édition du référentiel, sans l'administration/:
+        - row /Éditeur editor oui \d+ 3 Édition du référentiel, sans l'administration/:
           - gridcell "Éditeur editor":
             - text: ""
             - code: editor
           - gridcell "oui"
           - gridcell /\d+/
-          - gridcell /\d+/
+          - gridcell "3"
           - gridcell "Édition du référentiel, sans l'administration"
         - row /Administrateur admin oui \d+ 2 Tous les droits/:
           - gridcell "Administrateur admin":
@@ -75,21 +81,21 @@
           - gridcell /\d+/
           - gridcell "2"
           - gridcell "Tous les droits"
-        - row "Lecteur réseau lecteur-reseau non 8 9 Lecture du réseau et des machines" [selected]:
+        - row "Lecteur réseau lecteur-reseau non 8 4 Lecture du réseau et des machines" [selected]:
           - gridcell "Lecteur réseau lecteur-reseau":
             - text: ""
             - code: lecteur-reseau
           - gridcell "non"
           - gridcell "8"
-          - gridcell "9"
+          - gridcell "4"
           - gridcell "Lecture du réseau et des machines"
-        - row "Instructeur instructeur-flux non 3 4 Instruction des demandes de flux":
+        - row "Instructeur instructeur-flux non 3 2 Instruction des demandes de flux":
           - gridcell "Instructeur instructeur-flux":
             - text: ""
             - code: instructeur-flux
           - gridcell "non"
           - gridcell "3"
-          - gridcell "4"
+          - gridcell "2"
           - gridcell "Instruction des demandes de flux"
         - row "import-ipam non 8 1 Compte d'import":
           - gridcell "import-ipam":
@@ -169,44 +175,23 @@
           - status
           - button "Retirer la permission machines.interface.read"
       - button "Ajouter une permission"
-    - region "Liaisons · 9":
-      - heading "Liaisons · 9" [level=3]
+    - region "Groupes liés · 4":
+      - heading "Groupes liés · 4" [level=3]
       - list:
         - listitem:
-          - text: "Équipe supervision Site : site-ouest"
-          - button "Modifier la liaison de Équipe supervision"
-          - button "Retirer la liaison de Équipe supervision"
+          - text: Astreinte
+          - code: astreinte
+          - text: Globale
         - listitem:
-          - text: Équipe réseau Globale
-          - button "Modifier la liaison de Équipe réseau" [disabled]
-          - button "Retirer la liaison de Équipe réseau" [disabled]
+          - text: Équipe réseau
+          - code: reseau
+          - text: "Entité : Atelier Nord"
         - listitem:
-          - text: "Lou Bernard Entité : Atelier Nord"
-          - button "Modifier la liaison de Lou Bernard"
-          - button "Retirer la liaison de Lou Bernard"
+          - text: Équipe sauvegarde
+          - code: sauvegarde
+          - text: "Domaine : dc-nord"
         - listitem:
-          - text: "Sam Leroy Site : site-est"
-          - button "Modifier la liaison de Sam Leroy"
-          - button "Retirer la liaison de Sam Leroy"
-        - listitem:
-          - text: "Équipe sauvegarde Domaine : dc-nord"
-          - button "Modifier la liaison de Équipe sauvegarde"
-          - button "Retirer la liaison de Équipe sauvegarde"
-        - listitem:
-          - text: "Alex Morel Site : site-ouest"
-          - button "Modifier la liaison de Alex Morel"
-          - button "Retirer la liaison de Alex Morel"
-        - listitem:
-          - text: Équipe astreinte Globale
-          - button "Modifier la liaison de Équipe astreinte" [disabled]
-          - button "Retirer la liaison de Équipe astreinte" [disabled]
-        - listitem:
-          - text: "Noa Petit Entité : Atelier Sud"
-          - button "Modifier la liaison de Noa Petit"
-          - button "Retirer la liaison de Noa Petit"
-        - listitem:
-          - text: "export-dns Domaine : dc-nord"
-          - button "Modifier la liaison de export-dns"
-          - button "Retirer la liaison de export-dns"
-      - button "Ajouter une liaison"
+          - text: Équipe supervision
+          - code: supervision
+          - text: "Entité : Atelier Nord"
   - button "Fermer le panneau"

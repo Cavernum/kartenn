@@ -200,25 +200,44 @@ export const MOCKUPS: Mockup[] = [
   {
     id: "E7",
     title: "Administration",
-    shows: "Rôles et liaisons, permissions module.action (spec 018), secret affiché une fois.",
+    shows:
+      "Droits par groupes (spec 025) : groupes, rôles, identités ; permissions module.action (spec 018), secret affiché une fois.",
     views: [
+      {
+        id: "groupes",
+        label: "Groupes",
+        description:
+          "Groupes ; le groupe choisi dans le panneau droit : membres (identités, groupes de l'IdP « émetteur / groupe », sorte à droite), puis rôles sur périmètres (libellé et clé, périmètre) ; actions de chaque ligne dans une dernière colonne, « Ajouter » sous chaque liste.",
+      },
+      {
+        id: "groupe-edition",
+        label: "Groupe en édition",
+        description:
+          "Le même groupe modifié : un membre et un rôle retirés (barrés, « Annuler le retrait »), un groupe de l'IdP et un rôle ajoutés en fin de liste, au style du brouillon ; compteur et onglet « Brouillon 4 ».",
+      },
+      {
+        id: "groupe-refus",
+        label: "Groupe hors périmètre",
+        description:
+          "Un groupe lié sur un périmètre global, pour un administrateur d'entité : membres et rôles refusés par motif « Périmètre plus large que le vôtre » (core.group.escalation, core.binding.escalation).",
+      },
+      {
+        id: "secours",
+        label: "Groupe livré",
+        description:
+          "Le groupe livré secours : ni modifiable ni clos (core.group.builtin) ; ses membres se gèrent seulement par un administrateur global.",
+      },
+      {
+        id: "identite",
+        label: "Identité",
+        description:
+          "Identités ; l'identité choisie, en lecture pour ses droits : état et actions (désactiver, révoquer les sessions), groupes kartenn avec « via » (direct ou groupe de l'IdP), droits effectifs, groupes de l'IdP de sa dernière session datée.",
+      },
       {
         id: "roles",
         label: "Rôles",
         description:
-          "Rôles ; le rôle choisi dans le panneau droit : permissions une par ligne (libellé puis nom servi), liaisons qui défilent dans le panneau ; actions de chaque ligne dans une dernière colonne (retirer, modifier une liaison, refusées par motif sur une portée globale), « Ajouter » sous chaque liste.",
-      },
-      {
-        id: "edition",
-        label: "Rôle en édition",
-        description:
-          "Le même rôle modifié : une permission retirée (barrée, « Annuler le retrait »), une ajoutée en fin de liste, une liaison retirée, lignes au style du brouillon ; compteur et onglet « Brouillon 3 ».",
-      },
-      {
-        id: "liaisons",
-        label: "Liaisons",
-        description:
-          "Liaisons (sujet, rôle, portée, période) ; nouvelle liaison refusée dans le panneau droit.",
+          "Rôles ; le rôle choisi : permissions une par ligne (libellé puis nom servi, action Retirer), groupes liés en lecture (les liaisons se gèrent depuis le groupe).",
       },
       {
         id: "secret",

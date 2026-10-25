@@ -217,18 +217,38 @@ ne vide pas l'écran) avec ses trois états.
   tirés du schéma de création ou de `PATCH` de la sorte (contrat), mêmes champs d'où qu'on
   vienne (arbre, table, palette, menu) ; ajoute au brouillon, ou applique par le bouton
   scindé.
-- **Administration** : écrans de la 007 sur `DataGrid`, `Dialog`, `FormField` ; permission
-  en libellé à gauche puis `CodeBadge` (nom servi) à droite, en colonnes alignées
-  (024-11). Le rôle choisi s'ouvre dans l'onglet Détail du panneau droit : permissions puis
-  liaisons, une par ligne, chaque ligne finie par une colonne d'actions à place fixe
-  (`IconButton` : retirer une permission ; modifier, retirer une liaison), « Ajouter une
-  permission » et « Ajouter une liaison » sous leur liste. Pas de mode d'édition à part :
-  chaque action va au brouillon (édition *place*), et la ligne le montre au style du
-  brouillon des grilles (fond et barre d'accent) avec son signe : un retrait reste à sa
-  place, barré, son action devient « Annuler le retrait » ; un ajout vient en fin de liste,
-  son action le retire du brouillon ; le compteur « Brouillon n » compte chaque opération.
-  Une action interdite reste visible, refusée par `forbidden` ou `reason` (une liaison de
-  portée plus large que celles de l'utilisateur : `core.binding.escalation`).
+- **Administration** (droits par groupes, spec 025) : écrans de la 007 sur `DataGrid`,
+  `Dialog`, `FormField`. Entrées de l'espace : **Groupes**, **Rôles**, **Identités**,
+  **Comptes de service**, **Émetteurs**, **Audit** ; plus d'entrée « Liaisons » : une
+  liaison (un rôle sur un périmètre) s'ajoute, se modifie et se retire depuis son groupe
+  (025, G4). Listes du panneau droit en colonnes alignées (024-11) : l'entrée à gauche
+  (libellé puis clé, qui passe à la ligne avant la clé, jamais dans la clé), la valeur à
+  droite (sorte, périmètre, nom servi, avec la fin d'une appartenance ou d'une liaison
+  temporaire en seconde ligne), puis une colonne d'actions à place fixe (`IconButton`).
+  - Le groupe choisi s'ouvre dans l'onglet Détail : ses membres (identités et groupes de
+    l'IdP `émetteur / groupe`, la sorte affichée : personne, compte de service, compte de
+    secours, groupe de l'IdP ; action Retirer), puis ses « Rôles sur périmètres » (libellé
+    et clé du rôle, périmètre ; actions Modifier, Retirer) ; « Ajouter un membre » et
+    « Ajouter un rôle » sous leur liste ; Modifier et Clore le groupe en tête.
+  - Pas de mode d'édition à part : chaque action va au brouillon (édition *place*), et la
+    ligne le montre au style du brouillon des grilles (fond et barre d'accent) avec son
+    signe : un retrait reste à sa place, barré, son action devient « Annuler le retrait » ;
+    un ajout vient en fin de liste, son action le retire du brouillon ; le compteur
+    « Brouillon n » compte chaque opération.
+  - Une action interdite reste visible, refusée par `forbidden` ou `reason` : un groupe lié
+    sur un périmètre plus large que celui de l'utilisateur refuse l'ajout et le retrait de
+    membres et sa clôture (« Périmètre plus large que le vôtre », `core.group.escalation`)
+    et la modification de ses liaisons (`core.binding.escalation`) ; le groupe livré
+    `secours` est marqué « Groupe livré », ni modifiable ni clos, ses liaisons non plus
+    (`core.group.builtin`), ses membres gérés seulement par un administrateur global.
+  - L'identité choisie : état (`StatusBadge`) et actions Désactiver, Révoquer les
+    sessions ; en lecture, ses groupes kartenn avec « via » (direct, ou le groupe de l'IdP
+    qui l'y fait entrer), ses droits effectifs (rôle, périmètre, groupe qui le donne) et
+    les groupes de l'IdP de sa dernière session, datée, avec le groupe kartenn de chacun
+    (025, Q-025-1 ; aucun sans session).
+  - Le rôle choisi : permissions, une par ligne (libellé à gauche, `CodeBadge` du nom servi
+    à droite, action Retirer), « Ajouter une permission » ; puis les groupes qui le
+    portent, avec leur périmètre, en lecture.
 - **Hôte des plugins** : composants hôtes de la 007 (`ExtensionElement`, `PluginView`)
   repris dans le cadre ; vue de plugin sous son espace.
 
@@ -255,7 +275,7 @@ applique) ; *form* = panneau d'édition de la sorte dans le panneau droit (`Edit
 | À instruire | `/proposals` | propositions que l'utilisateur peut valider ; « Instruire dans Flux » sur les demandes de flux | menu | `motive-required`, `changeset-refused` |
 | Brouillons | panneau, `/drafts`, `/drafts/:id` | opérations, simulation, soumission en lot avec un motif, liste et reprise des brouillons | form | codes de la simulation, `draft-limit`, `changeset.apply_own.missing` |
 | Imports | `/imports`, `/imports/:id` | lot par morceaux, tri, lancement, rapport | form | `invalid-import` |
-| Administration | `/admin/identities`, `roles`, `bindings`, `accounts`, `issuers`, `audit`, `observability`, `about` | droits, périmètres, journal d'audit ; permissions servies avec libellé | form | `core.binding.escalation`, `audit.chain.broken` |
+| Administration | `/admin/groups`, `roles`, `identities`, `accounts`, `issuers`, `audit`, `observability`, `about` | droits par groupes (025), périmètres, journal d'audit ; permissions servies avec libellé | form | `core.group.escalation`, `core.binding.escalation`, `core.group.builtin`, `audit.chain.broken` |
 
 ### Plugin VLAN (espace `network`)
 

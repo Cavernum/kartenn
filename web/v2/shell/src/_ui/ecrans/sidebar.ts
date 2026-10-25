@@ -79,10 +79,12 @@ export const SPACES: SidebarGroup[] = [
     id: "admin",
     label: "Administration",
     entries: [
-      { id: "identities", label: "Identités", icon: "user", to: "/admin/identities" },
+      { id: "groups", label: "Groupes", icon: "users", to: "/admin/groups" },
       { id: "roles", label: "Rôles", icon: "key-round", to: "/admin/roles" },
-      { id: "bindings", label: "Liaisons", icon: "users", to: "/admin/bindings" },
+      { id: "identities", label: "Identités", icon: "user", to: "/admin/identities" },
       { id: "accounts", label: "Comptes de service", icon: "server", to: "/admin/accounts" },
+      { id: "issuers", label: "Émetteurs", icon: "globe", to: "/admin/issuers" },
+      { id: "audit", label: "Audit", icon: "rotate-ccw-clock", to: "/admin/audit" },
     ],
   },
 ];

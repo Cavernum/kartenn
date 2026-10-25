@@ -77,17 +77,23 @@
         - /url: /x/flow/review
   - list "Administration":
     - listitem:
-      - link "Identités":
-        - /url: /admin/identities
+      - link "Groupes":
+        - /url: /admin/groups
     - listitem:
       - link "Rôles":
         - /url: /admin/roles
     - listitem:
-      - link "Liaisons":
-        - /url: /admin/bindings
+      - link "Identités":
+        - /url: /admin/identities
     - listitem:
       - link "Comptes de service":
         - /url: /admin/accounts
+    - listitem:
+      - link "Émetteurs":
+        - /url: /admin/issuers
+    - listitem:
+      - link "Audit":
+        - /url: /admin/audit
   - button "Barre latérale"
 - banner:
   - navigation "Fil d'Ariane":
@@ -227,3 +233,4 @@
           - gridcell "Production"
           - gridcell "Atelier Nord"
     - text: /6 objets sur \d+ · 1 en brouillon · 1 en revue Au présent/
+- button "Ouvrir le panneau"
