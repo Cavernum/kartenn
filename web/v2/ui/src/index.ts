@@ -74,6 +74,7 @@ export type {
   GridSort,
   RowState,
 } from "./components/DataGrid/grid.ts";
+export { default as ExpandableGrid } from "./components/ExpandableGrid/ExpandableGrid.vue";
 export { default as MatrixGrid } from "./components/MatrixGrid/MatrixGrid.vue";
 export type { MatrixAxis, MatrixCell, MatrixCellState } from "./components/MatrixGrid/matrix.ts";
 export { moveInGrid } from "./components/internal/gridKeys.ts";

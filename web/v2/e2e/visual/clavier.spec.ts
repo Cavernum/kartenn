@@ -261,6 +261,38 @@ test.describe("DataGrid (Grid)", () => {
   });
 });
 
+test.describe("ExpandableGrid (Grid + Dialog (Modal))", () => {
+  test("the button opens the whole table in a dialog; Escape gives the focus back", async ({
+    page,
+  }) => {
+    await state(page, "ExpandableGrid", "compact");
+    // By its attribute: the open dialog hides the rest of the page from the tree.
+    const enlarge = page.locator('button[aria-label="Agrandir : Flux cassés"]');
+    await expect(enlarge).toHaveAttribute("aria-haspopup", "dialog");
+    await expect(page.getByRole("grid")).toHaveAttribute("aria-colcount", "2");
+    await enlarge.focus();
+    await page.keyboard.press("Enter");
+    const dialog = page.getByRole("dialog", { name: "Flux cassés" });
+    await expect(dialog).toBeVisible();
+    await expect(enlarge).toHaveAttribute("aria-expanded", "true");
+    const grid = dialog.getByRole("grid", { name: "Flux cassés" });
+    await expect(grid).toHaveAttribute("aria-colcount", "4");
+    await expect(grid).toHaveAttribute("aria-rowcount", "26");
+    // The sort is shared: sorting in the dialog sorts the compact grid too.
+    const source = grid.getByRole("columnheader", { name: "Source" });
+    await source.focus();
+    await page.keyboard.press("Enter");
+    await expect(source).toHaveAttribute("aria-sort", "descending");
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(enlarge).toBeFocused();
+    await expect(page.getByRole("columnheader", { name: "Source" })).toHaveAttribute(
+      "aria-sort",
+      "descending",
+    );
+  });
+});
+
 test.describe("DraftCounter (toggle + Menu Button)", () => {
   test("toggles the panel, lists the drafts", async ({ page }) => {
     await state(page, "DraftCounter", "drafts");
