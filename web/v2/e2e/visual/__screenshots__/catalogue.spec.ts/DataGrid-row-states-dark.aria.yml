@@ -2,7 +2,7 @@
   - region "DataGrid":
     - heading "DataGrid" [level=1]
     - paragraph: "Motif : Grid (maison) ; une seule grille, lignes en subgrid ; tri et filtre de colonne"
-    - figure "row-states — Lignes en brouillon et en revue":
+    - figure "row-states — Lignes en brouillon, en revue, retirée dans le brouillon (barrée) ; une ligne qui entre dans un brouillon s'éclaire puis s'estompe":
       - grid "Préfixes du domaine":
         - rowgroup:
           - row "Préfixe Libellé Environnement Occupation Responsable":
@@ -36,8 +36,8 @@
             - gridcell "Production"
             - gridcell "3 %"
             - gridcell "Équipe réseau"
-          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités Recette \d+ % Équipe postes/:
-            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+          - row /\(retirée dans le brouillon\) \d+\.\d+\.\d+\.\d+\/\d+ Invités Recette \d+ % Équipe postes/:
+            - gridcell /\(retirée dans le brouillon\) \d+\.\d+\.\d+\.\d+\/\d+/
             - gridcell "Invités"
             - gridcell "Recette"
             - gridcell /\d+ %/

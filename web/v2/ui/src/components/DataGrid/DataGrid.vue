@@ -13,7 +13,7 @@
 // host opens it). The states of rows and cells are decided by the host (draft, review,
 // pending, error with its code); loading, the rows are skeletons in the cells.
 // Virtualisation and the editing keys come with the complete version (020, task 25).
-import { computed, nextTick, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { t } from "../../i18n.ts";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import Icon from "../Icon/Icon.vue";
@@ -99,6 +99,43 @@ function stateWord(row: R, column: GridColumn): string | undefined {
 function errorOf(row: R, column: GridColumn): { error: string; code?: string } | undefined {
   const state = props.cellState?.(row, column);
   return typeof state === "object" ? state : undefined;
+}
+
+const ROW_MARKS = {
+  draft: { icon: "draft", word: "inDraft" },
+  review: { icon: "eye", word: "inReview" },
+  removed: { icon: "minus", word: "removedInDraft" },
+} as const;
+/** The icon and the hidden word of a row with a state. */
+const markOf = (row: R) => ROW_MARKS[props.rowState?.(row) ?? "draft"];
+
+/**
+ * The rows that just joined a draft (design « Mouvement »): their background fades from
+ * the soft accent once, without moving their neighbours. A row is fresh when its state
+ * turns to `draft` after the first render; a row the host hides (filter) and shows again
+ * keeps its last state, so it does not flash again. Cleared at the end of its animation.
+ */
+const fresh = ref(new Set<string>());
+const known = new Map<string, RowState | undefined>();
+let firstRender = true;
+watch(
+  () => props.rows.map((row) => [keyOf(row), props.rowState?.(row)] as const),
+  (entries) => {
+    const next = new Set<string>();
+    for (const [key, state] of entries) {
+      if (!firstRender && state === "draft" && known.get(key) !== "draft") next.add(key);
+      known.set(key, state);
+    }
+    firstRender = false;
+    if (next.size > 0 || fresh.value.size > 0) fresh.value = next;
+  },
+  { immediate: true },
+);
+function onAnimationend(key: string, event: AnimationEvent): void {
+  if (event.animationName !== "k-row-fresh" || !fresh.value.has(key)) return;
+  const next = new Set(fresh.value);
+  next.delete(key);
+  fresh.value = next;
 }
 
 function sortBy(column: GridColumn): void {
@@ -253,6 +290,8 @@ function onKeydown(event: KeyboardEvent): void {
         :aria-rowindex="r + 2"
         :aria-selected="props.selectable ? isSelected(row) : undefined"
         :data-row-state="props.rowState?.(row)"
+        :data-fresh="fresh.has(keyOf(row)) ? 'true' : undefined"
+        @animationend="onAnimationend(keyOf(row), $event)"
       >
         <div
           v-for="(column, c) in props.columns"
@@ -283,13 +322,8 @@ function onKeydown(event: KeyboardEvent): void {
           />
           <template v-else>
             <template v-if="c === 0 && props.rowState?.(row)">
-              <Icon
-                :name="props.rowState?.(row) === 'draft' ? 'draft' : 'eye'"
-                class="k-data-grid__row-mark"
-              />
-              <span class="k-visually-hidden"
-                >({{ props.rowState?.(row) === "draft" ? t("inDraft") : t("inReview") }})</span
-              >
+              <Icon :name="markOf(row).icon" class="k-data-grid__row-mark" />
+              <span class="k-visually-hidden">({{ t(markOf(row).word) }})</span>
             </template>
             <span class="k-data-grid__value">
               <slot name="cell" :row="row" :column="column" :value="row[column.id]">{{
@@ -396,6 +430,37 @@ function onKeydown(event: KeyboardEvent): void {
 
   .k-data-grid__row[data-row-state="review"] {
     background-color: var(--k-state-review-bg);
+  }
+
+  /* Removed in a draft: struck through and muted, in its place until the draft applies. */
+  .k-data-grid__row[data-row-state="removed"] .k-data-grid__row-mark {
+    color: var(--k-diff-removed);
+  }
+
+  .k-data-grid__row[data-row-state="removed"] .k-data-grid__value {
+    color: var(--k-text-muted);
+    text-decoration-line: line-through;
+  }
+
+  /* Motion (design « Mouvement »): hover, selection and states change the background by a
+   * colour fade; a row that just joined a draft starts on the soft accent, which fades
+   * out over `slow`. Nothing moves; sort, filter and refresh are never animated. */
+  .k-data-grid__body .k-data-grid__row {
+    transition-property: background-color;
+    transition-duration: var(--k-duration-fade);
+    transition-timing-function: var(--k-ease-standard);
+  }
+
+  .k-data-grid__row[data-fresh] {
+    animation-name: k-row-fresh;
+    animation-duration: var(--k-duration-slow);
+    animation-timing-function: var(--k-ease-standard);
+  }
+
+  @keyframes k-row-fresh {
+    from {
+      background-color: var(--k-accent-soft);
+    }
   }
 
   .k-data-grid__header,
