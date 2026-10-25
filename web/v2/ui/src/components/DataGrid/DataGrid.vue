@@ -13,22 +13,33 @@
 // host opens it). The states of rows and cells are decided by the host (draft, review,
 // pending, error with its code); loading, the rows are skeletons in the cells.
 // Virtualisation and the editing keys come with the complete version (020, task 25).
-import { computed, nextTick, ref, watch } from "vue";
+// Adaptation to the width (design « Adaptation à la largeur »): the root is a container;
+// the grid scrolls in its own region (`scrollbar-gutter: stable`), its key column sticks
+// at the inline start, and under a container `md` (`lg`) the columns of priority 2 (3)
+// hide, a column chooser above the grid showing them again. The arrows skip what is
+// hidden. The class and style of the host go to the root, other attributes to the grid.
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useAttrs, watch } from "vue";
 import { t } from "../../i18n.ts";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import Icon from "../Icon/Icon.vue";
+import ColumnChooser from "../internal/ColumnChooser.vue";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
 import Skeleton from "../Skeleton/Skeleton.vue";
 import TextField from "../TextField/TextField.vue";
 import {
-  columnsTemplate,
+  columnTemplates,
   nextSort,
+  priorityOf,
+  renderedColumns,
   type CellRef,
   type CellState,
+  type ColumnVisibility,
   type GridColumn,
   type GridSort,
   type RowState,
 } from "./grid.ts";
+
+defineOptions({ inheritAttrs: false });
 
 const props = withDefaults(
   defineProps<{
@@ -68,8 +79,36 @@ const emit = defineEmits<{
   activate: [cell: CellRef];
 }>();
 
+/** The user's choice of columns (column chooser). */
+const visibility = defineModel<ColumnVisibility>("columnVisibility", { default: () => ({}) });
+const attrs = useAttrs();
+const rootAttrs = computed(() => ({ class: attrs.class, style: attrs.style }));
+const gridAttrs = computed(() =>
+  Object.fromEntries(Object.entries(attrs).filter(([key]) => key !== "class" && key !== "style")),
+);
+
 const grid = ref<HTMLElement | null>(null);
-const template = computed(() => ({ "--k-grid-columns": columnsTemplate(props.columns) }));
+const root = ref<HTMLElement | null>(null);
+/** The columns rendered (the user's hidden ones left out), in order. */
+const shown = computed(() => renderedColumns(props.columns, visibility.value));
+const template = computed(() => columnTemplates(props.columns, visibility.value));
+/** The priority a cell carries for the container queries; none for an always shown one. */
+const priority = (column: GridColumn) => {
+  const p = priorityOf(props.columns, column, visibility.value);
+  return p > 1 ? p : undefined;
+};
+/** The index of a column among all of them (`aria-colindex`), hidden ones counted. */
+const colIndex = (column: GridColumn) => props.columns.indexOf(column) + 1;
+/** The columns on screen now: the rendered ones whose header takes room. */
+function onScreen(): GridColumn[] {
+  const visible = shown.value.filter((column) => {
+    const header = grid.value?.querySelector(
+      `[role="columnheader"][data-column="${CSS.escape(column.id)}"]`,
+    );
+    return !!header && header.getClientRects().length > 0;
+  });
+  return visible.length > 0 ? visible : shown.value;
+}
 const keyOf = (row: R) => String(row[props.rowKey]);
 const isSelected = (row: R) => props.selected.includes(keyOf(row));
 const ariaSort = (column: GridColumn) =>
@@ -184,179 +223,196 @@ function onKeydown(event: KeyboardEvent): void {
     event.preventDefault();
     return;
   }
+  // The arrows move over the columns on screen only.
+  const columns = onScreen();
   const from = {
     row: Math.max(0, rowKeys.value.indexOf(cell.row)),
     column: Math.max(
       0,
-      props.columns.findIndex((c) => c.id === cell.column),
+      columns.findIndex((c) => c.id === cell.column),
     ),
   };
-  const to = moveInGrid(
-    from,
-    event,
-    rowKeys.value.length,
-    props.columns.length,
-    isRtl(grid.value!),
-  );
+  const to = moveInGrid(from, event, rowKeys.value.length, columns.length, isRtl(grid.value!));
   if (!to) return;
   event.preventDefault();
-  active.value = { row: rowKeys.value[to.row]!, column: props.columns[to.column]!.id };
+  active.value = { row: rowKeys.value[to.row]!, column: columns[to.column]!.id };
   void focusActive();
 }
+
+// A container query may hide the column of the cell that holds the roving focus: the stop
+// goes back to the key column of its row, so that Tab still reaches the grid.
+let observer: ResizeObserver | undefined;
+onMounted(() => {
+  if (typeof ResizeObserver === "undefined" || !root.value) return;
+  observer = new ResizeObserver(() => {
+    const cell = active.value;
+    if (cell && !onScreen().some((c) => c.id === cell.column))
+      active.value = { row: cell.row, column: props.columns[0]?.id ?? "" };
+  });
+  observer.observe(root.value);
+});
+onBeforeUnmount(() => observer?.disconnect());
 </script>
 
 <template>
-  <div
-    ref="grid"
-    class="k-data-grid"
-    role="grid"
-    :aria-label="props.label"
-    :aria-rowcount="(props.loading ? props.loadingRows : props.rows.length) + 1"
-    :aria-colcount="props.columns.length"
-    :aria-multiselectable="props.selectable ? 'true' : undefined"
-    :aria-busy="props.loading ? 'true' : undefined"
-    :style="template"
-    @keydown="onKeydown"
-    @focusin="onFocusin"
-  >
-    <div role="rowgroup" class="k-data-grid__head">
-      <div role="row" aria-rowindex="1" class="k-data-grid__row">
-        <div
-          v-for="(column, c) in props.columns"
-          :key="column.id"
-          role="columnheader"
-          class="k-data-grid__header"
-          :data-column="column.id"
-          data-row=""
-          :data-align="column.align"
-          :data-sortable="column.sortable ? 'true' : undefined"
-          :aria-colindex="c + 1"
-          :aria-sort="ariaSort(column)"
-          :tabindex="tabindex('', column.id)"
-          @click="sortBy(column)"
-        >
-          <span class="k-data-grid__label">{{ column.label }}</span>
-          <Icon
-            v-if="column.sortable"
-            :name="
-              sort?.column !== column.id
-                ? 'arrow-up-down'
-                : sort.direction === 'ascending'
-                  ? 'arrow-up'
-                  : 'arrow-down'
-            "
-            class="k-data-grid__sort"
-            :data-active="sort?.column === column.id ? 'true' : undefined"
-          />
-          <span
-            v-if="column.filterable"
-            class="k-data-grid__filter"
-            :data-active="isFiltered(column) ? 'true' : undefined"
-            @click.stop="emit('filter', column.id)"
-          >
-            <Icon name="funnel" />
-            <span v-if="isFiltered(column)" class="k-visually-hidden">({{ t("filtered") }})</span>
-          </span>
-        </div>
-      </div>
-    </div>
-    <div v-if="props.loading" role="rowgroup" class="k-data-grid__body">
-      <div
-        v-for="r in props.loadingRows"
-        :key="r"
-        role="row"
-        class="k-data-grid__row"
-        :aria-rowindex="r + 1"
-      >
-        <div
-          v-for="(column, c) in props.columns"
-          :key="column.id"
-          role="gridcell"
-          class="k-data-grid__cell"
-          :data-align="column.align"
-          :aria-colindex="c + 1"
-        >
-          <span v-if="r === 1 && c === 0" class="k-visually-hidden">{{ t("loading") }}</span>
-          <Skeleton variant="cell" :rows="r" :columns="c" />
-        </div>
-      </div>
-    </div>
-    <div v-else role="rowgroup" class="k-data-grid__body">
-      <div
-        v-for="(row, r) in props.rows"
-        :key="keyOf(row)"
-        role="row"
-        class="k-data-grid__row"
-        :aria-rowindex="r + 2"
-        :aria-selected="props.selectable ? isSelected(row) : undefined"
-        :data-row-state="props.rowState?.(row)"
-        :data-fresh="fresh.has(keyOf(row)) ? 'true' : undefined"
-        @animationend="onAnimationend(keyOf(row), $event)"
-      >
-        <div
-          v-for="(column, c) in props.columns"
-          :key="column.id"
-          role="gridcell"
-          class="k-data-grid__cell"
-          :class="{ 'k-mono': column.mono }"
-          :data-row="keyOf(row)"
-          :data-column="column.id"
-          :data-align="column.align"
-          :data-wrap="column.wrap ? 'true' : undefined"
-          :data-state="stateOf(row, column)"
-          :data-editing="isEditing(row, column) ? 'true' : undefined"
-          :aria-colindex="c + 1"
-          :aria-busy="stateOf(row, column) === 'pending' ? 'true' : undefined"
-          :aria-invalid="errorOf(row, column) ? 'true' : undefined"
-          :tabindex="isEditing(row, column) ? undefined : tabindex(keyOf(row), column.id)"
-        >
-          <TextField
-            v-if="isEditing(row, column)"
-            :label="`${column.label} — ${keyOf(row)}`"
-            hide-label
-            size="md"
-            :mono="column.mono ?? false"
-            :model-value="String(row[column.id] ?? '')"
-            :error="errorOf(row, column)?.error"
-            class="k-data-grid__editor"
-          />
-          <template v-else>
-            <template v-if="c === 0 && props.rowState?.(row)">
-              <Icon :name="markOf(row).icon" class="k-data-grid__row-mark" />
-              <span class="k-visually-hidden">({{ t(markOf(row).word) }})</span>
-            </template>
-            <span class="k-data-grid__value">
-              <slot name="cell" :row="row" :column="column" :value="row[column.id]">{{
-                row[column.id]
-              }}</slot>
-            </span>
-            <Icon
-              v-if="stateOf(row, column) === 'pending'"
-              name="loader-circle"
-              class="k-spinner k-data-grid__mark"
-            />
-            <Icon
-              v-else-if="stateOf(row, column) === 'error'"
-              name="circle-x"
-              class="k-data-grid__mark"
-            />
-            <Icon
-              v-else-if="stateOf(row, column) === 'review'"
-              name="eye"
-              class="k-data-grid__mark"
-            />
-            <span v-if="stateWord(row, column)" class="k-visually-hidden"
-              >({{ stateWord(row, column) }})</span
-            >
-          </template>
+  <div ref="root" class="k-data-grid-frame" v-bind="rootAttrs">
+    <ColumnChooser v-model="visibility" :columns="props.columns" :grid="grid" />
+    <div
+      ref="grid"
+      v-bind="gridAttrs"
+      class="k-data-grid"
+      role="grid"
+      :aria-label="props.label"
+      :aria-rowcount="(props.loading ? props.loadingRows : props.rows.length) + 1"
+      :aria-colcount="props.columns.length"
+      :aria-multiselectable="props.selectable ? 'true' : undefined"
+      :aria-busy="props.loading ? 'true' : undefined"
+      :style="template"
+      @keydown="onKeydown"
+      @focusin="onFocusin"
+    >
+      <div role="rowgroup" class="k-data-grid__head">
+        <div role="row" aria-rowindex="1" class="k-data-grid__row">
           <div
-            v-if="errorOf(row, column)"
-            class="k-data-grid__error"
-            :data-side="c >= props.columns.length / 2 ? 'end' : 'start'"
-            role="alert"
+            v-for="column in shown"
+            :key="column.id"
+            role="columnheader"
+            class="k-data-grid__header"
+            :data-column="column.id"
+            data-row=""
+            :data-align="column.align"
+            :data-priority="priority(column)"
+            :data-sortable="column.sortable ? 'true' : undefined"
+            :aria-colindex="colIndex(column)"
+            :aria-sort="ariaSort(column)"
+            :tabindex="tabindex('', column.id)"
+            @click="sortBy(column)"
           >
-            <span>{{ errorOf(row, column)!.error }}</span>
-            <CodeBadge v-if="errorOf(row, column)!.code" :code="errorOf(row, column)!.code!" />
+            <span class="k-data-grid__label">{{ column.label }}</span>
+            <Icon
+              v-if="column.sortable"
+              :name="
+                sort?.column !== column.id
+                  ? 'arrow-up-down'
+                  : sort.direction === 'ascending'
+                    ? 'arrow-up'
+                    : 'arrow-down'
+              "
+              class="k-data-grid__sort"
+              :data-active="sort?.column === column.id ? 'true' : undefined"
+            />
+            <span
+              v-if="column.filterable"
+              class="k-data-grid__filter"
+              :data-active="isFiltered(column) ? 'true' : undefined"
+              @click.stop="emit('filter', column.id)"
+            >
+              <Icon name="funnel" />
+              <span v-if="isFiltered(column)" class="k-visually-hidden">({{ t("filtered") }})</span>
+            </span>
+          </div>
+        </div>
+      </div>
+      <div v-if="props.loading" role="rowgroup" class="k-data-grid__body">
+        <div
+          v-for="r in props.loadingRows"
+          :key="r"
+          role="row"
+          class="k-data-grid__row"
+          :aria-rowindex="r + 1"
+        >
+          <div
+            v-for="(column, c) in shown"
+            :key="column.id"
+            role="gridcell"
+            class="k-data-grid__cell"
+            :data-align="column.align"
+            :data-priority="priority(column)"
+            :aria-colindex="colIndex(column)"
+          >
+            <span v-if="r === 1 && c === 0" class="k-visually-hidden">{{ t("loading") }}</span>
+            <Skeleton variant="cell" :rows="r" :columns="c" />
+          </div>
+        </div>
+      </div>
+      <div v-else role="rowgroup" class="k-data-grid__body">
+        <div
+          v-for="(row, r) in props.rows"
+          :key="keyOf(row)"
+          role="row"
+          class="k-data-grid__row"
+          :aria-rowindex="r + 2"
+          :aria-selected="props.selectable ? isSelected(row) : undefined"
+          :data-row-state="props.rowState?.(row)"
+          :data-fresh="fresh.has(keyOf(row)) ? 'true' : undefined"
+          @animationend="onAnimationend(keyOf(row), $event)"
+        >
+          <div
+            v-for="(column, c) in shown"
+            :key="column.id"
+            role="gridcell"
+            class="k-data-grid__cell"
+            :class="{ 'k-mono': column.mono }"
+            :data-row="keyOf(row)"
+            :data-column="column.id"
+            :data-align="column.align"
+            :data-priority="priority(column)"
+            :data-wrap="column.wrap ? 'true' : undefined"
+            :data-state="stateOf(row, column)"
+            :data-editing="isEditing(row, column) ? 'true' : undefined"
+            :aria-colindex="colIndex(column)"
+            :aria-busy="stateOf(row, column) === 'pending' ? 'true' : undefined"
+            :aria-invalid="errorOf(row, column) ? 'true' : undefined"
+            :tabindex="isEditing(row, column) ? undefined : tabindex(keyOf(row), column.id)"
+          >
+            <TextField
+              v-if="isEditing(row, column)"
+              :label="`${column.label} — ${keyOf(row)}`"
+              hide-label
+              size="md"
+              :mono="column.mono ?? false"
+              :model-value="String(row[column.id] ?? '')"
+              :error="errorOf(row, column)?.error"
+              class="k-data-grid__editor"
+            />
+            <template v-else>
+              <template v-if="c === 0 && props.rowState?.(row)">
+                <Icon :name="markOf(row).icon" class="k-data-grid__row-mark" />
+                <span class="k-visually-hidden">({{ t(markOf(row).word) }})</span>
+              </template>
+              <span class="k-data-grid__value">
+                <slot name="cell" :row="row" :column="column" :value="row[column.id]">{{
+                  row[column.id]
+                }}</slot>
+              </span>
+              <Icon
+                v-if="stateOf(row, column) === 'pending'"
+                name="loader-circle"
+                class="k-spinner k-data-grid__mark"
+              />
+              <Icon
+                v-else-if="stateOf(row, column) === 'error'"
+                name="circle-x"
+                class="k-data-grid__mark"
+              />
+              <Icon
+                v-else-if="stateOf(row, column) === 'review'"
+                name="eye"
+                class="k-data-grid__mark"
+              />
+              <span v-if="stateWord(row, column)" class="k-visually-hidden"
+                >({{ stateWord(row, column) }})</span
+              >
+            </template>
+            <div
+              v-if="errorOf(row, column)"
+              class="k-data-grid__error"
+              :data-side="c >= shown.length / 2 ? 'end' : 'start'"
+              role="alert"
+            >
+              <span>{{ errorOf(row, column)!.error }}</span>
+              <CodeBadge v-if="errorOf(row, column)!.code" :code="errorOf(row, column)!.code!" />
+            </div>
           </div>
         </div>
       </div>
@@ -366,9 +422,31 @@ function onKeydown(event: KeyboardEvent): void {
 
 <style>
 @layer components {
-  /* One grid: the columns are set here, once; rows and row groups are subgrids of it. */
+  /* The root: a container that takes the width it is given, the chooser above the grid,
+   * the grid in the room left (a host's height bound applies here). */
+  .k-data-grid-frame {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    min-inline-size: 0;
+    min-block-size: 0;
+    container-type: inline-size;
+  }
+
+  .k-data-grid-frame > .k-column-chooser {
+    padding-block-end: var(--k-space-1);
+  }
+
+  .k-data-grid-frame > .k-data-grid {
+    grid-row: 2;
+  }
+
+  /* One grid: the columns are set here, once; rows and row groups are subgrids of it. It
+   * scrolls in itself, a region named by its label (WCAG 1.4.10, note 2). */
   .k-data-grid {
     --k-grid-columns: var(--k-size-col-md);
+    --k-grid-columns-below-lg: var(--k-grid-columns);
+    --k-grid-columns-below-md: var(--k-grid-columns);
 
     position: relative;
     display: grid;
@@ -376,6 +454,7 @@ function onKeydown(event: KeyboardEvent): void {
     align-content: start;
     min-inline-size: 0;
     overflow: auto;
+    scrollbar-gutter: stable;
     color: var(--k-text);
     background-color: var(--k-surface);
     border: var(--k-border-width) solid var(--k-border-strong);
@@ -391,16 +470,64 @@ function onKeydown(event: KeyboardEvent): void {
   }
 
   /* The header sticks in the scroll container of the rows (the grid itself). */
+  /* Over the key column, which sticks too. */
   .k-data-grid__head {
     position: sticky;
     inset-block-start: 0;
-    z-index: var(--k-z-sticky);
+    z-index: calc(var(--k-z-sticky) + 1);
     background-color: var(--k-surface-sunken);
   }
 
   .k-data-grid__row {
     min-block-size: var(--k-row-height);
     border-block-end: var(--k-border-width) solid var(--k-border);
+  }
+
+  /* Opaque rows: the sticky key cell takes their background, whatever their state. */
+  .k-data-grid__head .k-data-grid__row {
+    background-color: inherit;
+  }
+
+  .k-data-grid__body .k-data-grid__row {
+    background-color: var(--k-surface);
+  }
+
+  /* The key column sticks at the inline start while the grid scrolls sideways. */
+  .k-data-grid__row > :first-child {
+    position: sticky;
+    inset-inline-start: 0;
+    z-index: var(--k-z-sticky);
+    background-color: inherit;
+  }
+
+  .k-data-grid__row[aria-selected="true"] > :first-child {
+    box-shadow: var(--k-shadow-inset-accent);
+  }
+
+  .k-data-grid__row > [data-state="error"]:first-child {
+    z-index: var(--k-z-overlay);
+  }
+
+  /* Columns of priority 3 (2) leave a container under `lg` (`md`): the template drops
+   * them (set by CSSOM), the cells hide (design « Adaptation à la largeur »). */
+  @container (width < 960px) {
+    .k-data-grid {
+      grid-template-columns: var(--k-grid-columns-below-lg);
+    }
+
+    .k-data-grid [data-priority="3"] {
+      display: none;
+    }
+  }
+
+  @container (width < 640px) {
+    .k-data-grid {
+      grid-template-columns: var(--k-grid-columns-below-md);
+    }
+
+    .k-data-grid [data-priority="2"] {
+      display: none;
+    }
   }
 
   .k-data-grid__head .k-data-grid__row {

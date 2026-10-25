@@ -18,6 +18,91 @@ export interface GridColumn {
   wrap?: boolean;
   sortable?: boolean;
   filterable?: boolean;
+  /**
+   * How long the column stays when its grid narrows (design « Adaptation à la largeur »):
+   * 1 always (the default, and always the first column, the key), 2 hidden under a
+   * container `md`, 3 under `lg`. A hidden column is one choice away (column chooser) and
+   * its values show in the panel of the chosen row.
+   */
+  priority?: 1 | 2 | 3;
+}
+
+/**
+ * The user's choice of columns, by id: `true` always shown, `false` never; a column left
+ * out follows its priority and the width of the grid.
+ */
+export type ColumnVisibility = Record<string, boolean>;
+
+/** The priority a column follows: the user's choice first, the key always shown. */
+export function priorityOf(
+  columns: readonly GridColumn[],
+  column: GridColumn,
+  visibility: ColumnVisibility,
+): 1 | 2 | 3 {
+  if (column === columns[0] || visibility[column.id] === true) return 1;
+  return column.priority ?? 1;
+}
+
+/** The columns rendered: all but the ones the user hid (never the key). */
+export function renderedColumns(
+  columns: readonly GridColumn[],
+  visibility: ColumnVisibility,
+): GridColumn[] {
+  return columns.filter((column, i) => i === 0 || visibility[column.id] !== false);
+}
+
+/**
+ * The templates of the grid, set on it by CSSOM: every rendered column, then without the
+ * columns its container hides under `lg` (priority 3) and under `md` (priorities 2 and 3).
+ */
+export function columnTemplates(
+  columns: readonly GridColumn[],
+  visibility: ColumnVisibility,
+): Record<string, string> {
+  const rendered = renderedColumns(columns, visibility);
+  const upTo = (max: number) =>
+    columnsTemplate(rendered.filter((c) => priorityOf(columns, c, visibility) <= max));
+  return {
+    "--k-grid-columns": upTo(3),
+    "--k-grid-columns-below-lg": upTo(2),
+    "--k-grid-columns-below-md": upTo(1),
+  };
+}
+
+/**
+ * The entries of the column chooser: one per column that may hide, checked when it shows
+ * (`shown` tells which do, as measured when the chooser opens).
+ */
+export function chooserItems(
+  columns: readonly GridColumn[],
+  visibility: ColumnVisibility,
+  shown: (id: string) => boolean,
+): { kind: "checkbox"; id: string; label: string; checked: boolean }[] {
+  return columns
+    .filter((column, i) => i > 0 && (column.priority ?? 1) > 1)
+    .map((column) => ({
+      kind: "checkbox",
+      id: column.id,
+      label: column.label,
+      checked: visibility[column.id] ?? shown(column.id),
+    }));
+}
+
+/** The choice after the user flips the column `id`, shown or not until then. */
+export function toggleColumn(
+  visibility: ColumnVisibility,
+  id: string,
+  shownNow: boolean,
+): ColumnVisibility {
+  return { ...visibility, [id]: !(visibility[id] ?? shownNow) };
+}
+
+/** The greatest priority among the columns: 1 when none may hide (no chooser). */
+export function maxPriority(columns: readonly GridColumn[]): 1 | 2 | 3 {
+  return columns.reduce<1 | 2 | 3>(
+    (max, column, i) => (i > 0 && (column.priority ?? 1) > max ? column.priority! : max),
+    1,
+  );
 }
 
 /**

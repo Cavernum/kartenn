@@ -64,6 +64,28 @@ const many = Array.from({ length: 30 }, (_, i) => ({
 }));
 const sticky = () => h(DemoFrame, () => h(DataGrid as Component, { ...base, rows: many }));
 
+/**
+ * Columns of priority 2 and 3 in a grid of 420 px (a container under `md`): they hide, the
+ * key column sticks, « Colonnes » shows them again (design « Adaptation à la largeur »).
+ */
+const prioritized: GridColumn[] = columns.map((c) =>
+  c.id === "env" || c.id === "owner"
+    ? { ...c, priority: 3 }
+    : c.id === "used"
+      ? { ...c, priority: 2 }
+      : c,
+);
+const visibility = ref<Record<string, boolean>>({});
+const narrow = () =>
+  h("div", { style: { maxInlineSize: "var(--k-size-panel-lg)" } }, [
+    h(DataGrid as Component, {
+      ...base,
+      columns: prioritized,
+      columnVisibility: visibility.value,
+      "onUpdate:columnVisibility": (next: Record<string, boolean>) => (visibility.value = next),
+    }),
+  ]);
+
 export default {
   component: DataGrid,
   pattern: "Grid (maison) ; une seule grille, lignes en subgrid ; tri et filtre de colonne",
@@ -141,6 +163,14 @@ export default {
       description: "Trente lignes dans un cadre : l'en-tête reste collé, aligné sur les cellules",
       props: {},
       demo: sticky,
+      wide: true,
+    },
+    {
+      name: "priorities",
+      description:
+        "Grille de 420 px : colonnes de priorité 2 et 3 masquées, colonne de clé collante, « Colonnes » les rend",
+      props: {},
+      demo: narrow,
       wide: true,
     },
     {
