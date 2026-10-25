@@ -135,6 +135,9 @@ events! {
     RBAC_GROUP_CHANGED = "rbac.group.changed", Info, High, ["group", "change"], ["REQ-012-8", "REQ-025-10"],
         "Entity Management 3004 / Update", "iam",
         "Un groupe a été créé, renommé ou clos (`change` : `set`, `closed`), ou un membre y est entré ou en est sorti (`member_added`, `member_removed`).";
+    RBAC_MIGRATION_REPORTED = "rbac.migration.reported", Info, High, ["groups", "closed"], ["REQ-025-14"],
+        "Entity Management 3004 / Update", "iam",
+        "Le job de migration a listé le report des liaisons d'avant les groupes : groupes créés (`groups`, clés) et liaisons d'émetteur entier closes (`closed`, identifiants).";
     SERVICE_ACCOUNT_CHANGED = "account.service.changed", Info, High, ["change"], ["REQ-012-8"],
         "Account Change 3001 / Create", "iam",
         "Un compte de service a été créé, renouvelé ou révoqué.";

@@ -649,6 +649,31 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "closed": {},
+            "groups": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "rbac.migration.reported"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
             "change": {},
             "on_behalf_of": {
               "format": "uuid",

@@ -35,6 +35,7 @@ mod properties;
 pub mod property_read;
 pub mod rbac;
 mod rbac_admin;
+pub mod rbac_migration;
 pub mod rbac_read;
 pub mod read;
 pub mod registry;

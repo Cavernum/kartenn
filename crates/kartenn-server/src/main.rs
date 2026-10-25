@@ -178,7 +178,16 @@ async fn main() -> anyhow::Result<ExitCode> {
                 configured(config_file.as_deref(), rest.first().map(String::as_str))?;
             let pool = connect(&database).await?;
             let modules = kartenn_server::modules::registry()?;
-            kartenn_store_pg::maintenance::deploy(&pool, &modules).await?;
+            let deployed = kartenn_store_pg::maintenance::deploy(&pool, &modules).await?;
+            // The bindings reported on groups (spec 025, REQ-025-14): `compte-…` groups to
+            // regroup by hand, bindings of whole issuers closed.
+            for line in deployed
+                .rbac_report
+                .iter()
+                .flat_map(kartenn_store_pg::rbac_migration::Report::lines)
+            {
+                println!("{line}");
+            }
             println!("kartenn {}: deployed", env!("CARGO_PKG_VERSION"));
             Ok(ExitCode::SUCCESS)
         }
