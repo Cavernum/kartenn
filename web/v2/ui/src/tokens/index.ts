@@ -143,10 +143,17 @@ export const tokens = [
   "--k-duration-fade",
   "--k-duration-short",
   "--k-duration-medium",
+  "--k-duration-slow",
   "--k-duration-spin",
   "--k-ease-standard",
   "--k-ease-exit",
   "--k-ease-linear",
+  "--k-motion-shift-sm",
+  "--k-motion-shift-md",
+  "--k-motion-shift-lg",
+  "--k-motion-scale",
+  "--k-turn-quarter",
+  "--k-turn-half",
 ] as const;
 
 /** A public token of kartenn. */

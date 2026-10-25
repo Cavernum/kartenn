@@ -17,7 +17,10 @@ import {
   SidePanel,
   SidebarNav,
   TimeBand,
+  applyMotion,
+  currentMotion,
   type Crumb,
+  type MotionSetting,
   type DraftSummary,
   type MenuItem,
   type TabItem,
@@ -57,17 +60,30 @@ const slots = useSlots();
 const ZONE = "Europe/Paris";
 const PANEL = "k-ecran-panel";
 
-const userMenu: MenuItem[] = [
+// « Mouvement » toggles between the system's preference and reduced motion (SCR40): the
+// one entry of the mock-up that acts, on the root, as the real frame will.
+const motion = ref<MotionSetting>(typeof document === "undefined" ? "system" : currentMotion());
+const userMenu = computed<MenuItem[]>(() => [
   { kind: "label", label: "Camille Martin" },
   { id: "lang", label: "Langue : français", icon: "languages" },
   { id: "theme", label: "Thème : celui du système", icon: "monitor" },
   { id: "density", label: "Densité : compacte", icon: "layers" },
+  {
+    id: "motion",
+    label: motion.value === "reduce" ? "Mouvement : réduit" : "Mouvement : celui du système",
+    icon: "move",
+  },
   { id: "keys", label: "Raccourcis à une touche : activés", icon: "keyboard" },
   { id: "help", label: "Raccourcis", icon: "circle-question-mark", shortcut: ["?"] },
   { kind: "separator" },
   { id: "about", label: "À propos", icon: "info" },
   { id: "logout", label: "Se déconnecter", icon: "log-out" },
-];
+]);
+function onUserMenu(id: string): void {
+  if (id !== "motion") return;
+  motion.value = motion.value === "reduce" ? "system" : "reduce";
+  applyMotion(motion.value);
+}
 const drafts: DraftSummary[] = DRAFTS.map((draft, i) => ({
   id: draft.id,
   label: draft.title,
@@ -134,6 +150,7 @@ function toggleDraft(): void {
             variant="ghost"
             align="end"
             :items="userMenu"
+            @select="onUserMenu"
           />
         </div>
       </header>

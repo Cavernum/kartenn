@@ -21,6 +21,8 @@ export type { Locale, MessageKey } from "./i18n.ts";
 export { copyText } from "./clipboard.ts";
 export { provideLink, providePortalTarget } from "./context.ts";
 export { formatInstant } from "./time.ts";
+export { applyMotion, currentMotion } from "./motion.ts";
+export type { MotionSetting } from "./motion.ts";
 export type { CopyOutcome } from "./clipboard.ts";
 export type { Align, ControlSize, Space } from "./components/layout.ts";
 

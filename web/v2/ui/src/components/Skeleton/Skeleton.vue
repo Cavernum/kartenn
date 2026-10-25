@@ -7,7 +7,8 @@
 // the size of what comes (rows of `--k-row-height`, lines of text), so that the data take
 // the same place when they arrive (no layout shift). `aria-busy` and a hidden word say it.
 // A sheen runs over the bars (a loading indicator, the one looping animation allowed with
-// the spinner, REQ-020-11); under reduced motion the bars stand still, their fill
+// the spinner, REQ-020-11), twice, then rests on the fill before 5 s (WCAG 2.2.2); under
+// reduced motion (the system's or `data-motion="reduce"`) the bars stand still, their fill
 // (`--k-skeleton`) alone telling the place. `cell`: one bar alone, for a cell
 // of a grid that says its loading itself (`DataGrid`).
 import { t } from "../../i18n.ts";
@@ -84,7 +85,11 @@ const props = withDefaults(
     animation-name: k-shimmer;
     animation-duration: calc(var(--k-duration-spin) * 2);
     animation-timing-function: var(--k-ease-linear);
-    animation-iteration-count: infinite;
+
+    /* Two passes of 1.8 s, then the fixed fill (the band rests past the end): nothing
+     * moves on its own beyond 5 s (WCAG 2.2.2). */
+    animation-iteration-count: 2;
+    animation-fill-mode: forwards;
   }
 
   .k-skeleton__bar {
@@ -129,6 +134,12 @@ const props = withDefaults(
       background-image: none;
       animation-name: none;
     }
+  }
+
+  :root[data-motion="reduce"] .k-skeleton__bar,
+  :root[data-motion="reduce"] .k-skeleton__block {
+    background-image: none;
+    animation-name: none;
   }
 }
 </style>
