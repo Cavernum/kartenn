@@ -326,6 +326,10 @@
         - text: ":"
         - code: /\d+[hmsp]+/
       - listitem:
+        - code: "--k-duration-spin"
+        - text: ":"
+        - code: /\d+[hmsp]+/
+      - listitem:
         - code: "--k-ease-standard"
         - text: ":"
         - code: cubic-bezier(.2, 0, 0, 1)
@@ -333,3 +337,7 @@
         - code: "--k-ease-exit"
         - text: ":"
         - code: cubic-bezier(.4, 0, 1, 1)
+      - listitem:
+        - code: "--k-ease-linear"
+        - text: ":"
+        - code: linear

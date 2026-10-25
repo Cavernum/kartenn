@@ -1,0 +1,161 @@
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel" [expanded]
+  - list:
+    - listitem:
+      - link "Accueil":
+        - /url: /
+    - listitem:
+      - link "Topographie":
+        - /url: /topology
+    - listitem:
+      - link "Domaines":
+        - /url: /domains
+    - listitem:
+      - link "Préfixes":
+        - /url: /prefixes
+    - listitem:
+      - link "Plages":
+        - /url: /ranges
+    - listitem:
+      - link "Adresses":
+        - /url: /addresses
+    - listitem:
+      - link "Entités":
+        - /url: /entities
+    - listitem:
+      - link "Sites":
+        - /url: /sites
+    - listitem:
+      - link /Anomalies \d+/:
+        - /url: /anomalies
+  - button "Changesets"
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Référentiel":
+          - /url: /
+      - listitem:
+        - link "Centre de données nord":
+          - /url: /domains/dc-nord
+      - listitem:
+        - link "Préfixes":
+          - /url: /prefixes
+      - listitem: /\d+\.\d+\.\d+\.\d+\/\d+/
+  - button "Présent"
+  - button "Brouillon ( 3 )"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading /Préfixe \d+\.\d+\.\d+\.\d+\/\d+/ [level=1]
+  - region /\d+\.\d+\.\d+\.\d+\/\d+ préfixe · réseau · Supervision/:
+    - heading /\d+\.\d+\.\d+\.\d+\/\d+ préfixe · réseau · Supervision/ [level=2]
+    - button "Modifier"
+    - button "Actions"
+    - tablist "Sections de la fiche":
+      - tab "Propriétés 5" [selected]
+      - tab /Contenu \d+/
+      - tab "Historique 4"
+      - tab "Anomalies 1"
+      - tab "VLAN"
+      - tab "Machines 6"
+      - tab "Flux (en chargement)"
+    - tabpanel "Propriétés 5":
+      - grid /Propriétés résolues de \d+\.\d+\.\d+\.\d+\/\d+/:
+        - rowgroup:
+          - row "Propriété Valeur Source":
+            - columnheader "Propriété"
+            - columnheader "Valeur"
+            - columnheader "Source"
+        - rowgroup:
+          - row /Propriétaire core\.owner Atelier Nord Héritée de \d+\.\d+\.2\.0\/\d+/:
+            - gridcell "Propriétaire core.owner":
+              - text: ""
+              - code: core.owner
+            - gridcell "Atelier Nord"
+            - gridcell /Héritée de \d+\.\d+\.2\.0\/\d+/
+          - row "Site core.site site-ouest Directe":
+            - gridcell "Site core.site":
+              - text: ""
+              - code: core.site
+            - gridcell "site-ouest"
+            - gridcell "Directe"
+          - row "Environnement policy.environment Production Inférée règle env-par-site":
+            - gridcell "Environnement policy.environment":
+              - text: ""
+              - code: policy.environment
+            - gridcell "Production"
+            - gridcell "Inférée règle env-par-site"
+          - row "TTL DNS dns.ttl — Sans valeur":
+            - gridcell "TTL DNS dns.ttl":
+              - text: ""
+              - code: dns.ttl
+            - gridcell "—"
+            - gridcell "Sans valeur"
+          - row "Contact core.contact •••••• Masquée droit de lecture manquant":
+            - gridcell "Contact core.contact":
+              - text: ""
+              - code: core.contact
+            - gridcell "••••••"
+            - gridcell "Masquée droit de lecture manquant"
+      - paragraph:
+        - text: "À venir :"
+        - code: Popover
+        - text: /\(tâche \d+\)/
+      - status:
+        - paragraph: "Propriétaire : valeur héritée"
+        - text: Héritée de
+        - code: /\d+\.\d+\.2\.0\/\d+/
+        - text: (Salle A), où elle est posée directement depuis la version v3 ; aucune règle ne la remplace ici. Posée par le changeset
+        - button "Copier 01JD4K8B2C3D4E5F6G7H8J9K0M":
+          - text: ""
+          - code: 01JD4K8B2C3D4E5F6G7H8J9K0M
+        - status
+        - text: .
+      - status:
+        - paragraph: Une propriété attendue manque
+        - text: Le TTL DNS (
+        - code: dns.ttl
+        - text: ) est attendu sur les réseaux de production.
+        - button "Copier prop.assignment.required":
+          - text: ""
+          - code: prop.assignment.required
+        - status
+    - heading "Attributs" [level=2]
+    - term: Domaine
+    - definition: Centre de données nord
+    - term: Nature
+    - definition: Réseau
+    - term: Point à point
+    - definition: non
+    - term: Anycast
+    - definition: non
+    - term: Identifiant
+    - definition:
+      - button "Copier 01JD4K7Q9V2M8X3N5P6R7S8T9W":
+        - text: ""
+        - code: 01JD4K7Q9V2M8X3N5P6R7S8T9W
+      - status
+    - heading /Occupation \d+ %/ [level=2]
+    - term: Utilisées
+    - definition: /\d+ sur \d+/
+    - term: Plages
+    - definition: /1 \(\d+ adresses\)/
+    - term: Prochain libre
+    - definition: /\d+\.\d+\.\d+\.\d+/
+    - button /Réserver \d+\.\d+\.\d+\.\d+/ [disabled]
+    - heading "VLAN porté plugin VLAN" [level=2]
+    - term: VID
+    - definition: /\d+/
+    - term: Nom
+    - definition: supervision
+    - term: Groupe
+    - definition: campus-ouest

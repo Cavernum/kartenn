@@ -1,0 +1,133 @@
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration" [expanded]
+  - list:
+    - listitem:
+      - link "Identités":
+        - /url: /admin/identities
+    - listitem:
+      - link "Rôles":
+        - /url: /admin/roles
+    - listitem:
+      - link "Liaisons":
+        - /url: /admin/bindings
+    - listitem:
+      - link "Comptes de service":
+        - /url: /admin/accounts
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Administration":
+          - /url: /admin
+      - listitem:
+        - link "Rôles":
+          - /url: /admin/roles
+      - listitem: lecteur-reseau
+  - button "Présent"
+  - button "Brouillon ( 0 )"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Rôles" [level=1]
+  - region "Rôles 6":
+    - heading "Rôles 6" [level=2]
+    - button "Créer"
+    - grid "Rôles":
+      - rowgroup:
+        - row "Rôle Intégré Permissions Liaisons":
+          - columnheader "Rôle"
+          - columnheader "Intégré"
+          - columnheader "Permissions"
+          - columnheader "Liaisons"
+      - rowgroup:
+        - row /Lecteur reader oui \d+ \d+/:
+          - gridcell "Lecteur reader":
+            - text: ""
+            - code: reader
+          - gridcell "oui"
+          - gridcell /\d+/
+          - gridcell /\d+/
+        - row /Éditeur editor oui \d+ \d+/:
+          - gridcell "Éditeur editor":
+            - text: ""
+            - code: editor
+          - gridcell "oui"
+          - gridcell /\d+/
+          - gridcell /\d+/
+        - row /Administrateur admin oui \d+ 2/:
+          - gridcell "Administrateur admin":
+            - text: ""
+            - code: admin
+          - gridcell "oui"
+          - gridcell /\d+/
+          - gridcell "2"
+        - row "Lecteur réseau lecteur-reseau non 6 5" [selected]:
+          - gridcell "Lecteur réseau lecteur-reseau":
+            - text: ""
+            - code: lecteur-reseau
+          - gridcell "non"
+          - gridcell "6"
+          - gridcell "5"
+        - row "Instructeur instructeur-flux non 3 4":
+          - gridcell "Instructeur instructeur-flux":
+            - text: ""
+            - code: instructeur-flux
+          - gridcell "non"
+          - gridcell "3"
+          - gridcell "4"
+        - row "import-ipam non 8 1":
+          - gridcell "import-ipam":
+            - code: import-ipam
+          - gridcell "non"
+          - gridcell "8"
+          - gridcell "1"
+  - heading "Lecteur réseau lecteur-reseau" [level=2]
+  - button "Modifier"
+  - heading "Permissions · 6" [level=3]
+  - list:
+    - listitem:
+      - text: Lire les préfixes
+      - button "Copier core.prefix.read":
+        - text: ""
+        - code: core.prefix.read
+      - status
+    - listitem:
+      - text: Lire les adresses
+      - button "Copier core.address.read":
+        - text: ""
+        - code: core.address.read
+      - status
+    - listitem:
+      - text: Lire les VLAN
+      - button "Copier vlan.read":
+        - text: ""
+        - code: vlan.read
+      - status
+    - listitem:
+      - text: Lire les groupes de VLAN
+      - button "Copier vlan.group.read":
+        - text: ""
+        - code: vlan.group.read
+      - status
+    - listitem:
+      - text: Lire les machines
+      - button "Copier machines.read":
+        - text: ""
+        - code: machines.read
+      - status
+    - listitem:
+      - text: Lire les interfaces
+      - button "Copier machines.interface.read":
+        - text: ""
+        - code: machines.interface.read
+      - status
+  - button "Ajouter une permission"
