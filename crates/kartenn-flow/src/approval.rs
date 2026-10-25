@@ -1,6 +1,6 @@
 //! What the module gives the approval policies and the anomalies (task 011-6; REQ-011-6,
-//! 12, 25): the measures `created`, `breaks` and `waiver` of a changeset, the policy
-//! `flow.breaks ≥ 1` installed with the module, and the anomaly `flow.verdict.denied` of
+//! 12, 25): the measures `created`, `nonconforming` and `waiver` of a changeset, the
+//! policy `flow.nonconforming ≥ 1` installed with the module, and the anomaly `flow.verdict.denied` of
 //! the registered flows the changeset makes noncompliant, closed once they comply again.
 
 use kartenn_core::rules::Violation;
@@ -15,14 +15,15 @@ use crate::reevaluation::{FLOW_ROW, SECTION, SUMMARY_ROW};
 use crate::rules::VERDICT_DENIED;
 
 /// The measures of the module (REQ-011-6): flows created or prolonged, flows that become
-/// denied, waivers granted or prolonged.
-pub const MEASURES: &[&str] = &["created", "breaks", "waiver"];
+/// non-conforming to the flow matrix (denied), waivers granted or prolonged.
+pub const MEASURES: &[&str] = &["created", "nonconforming", "waiver"];
 
-/// The policy the module installs once (REQ-011-6, F8): a changeset that breaks at least
-/// one registered flow waits for an approval; an administrator may disable it.
+/// The policy the module installs once (REQ-011-6, F8): a changeset that makes at least
+/// one registered flow non-conforming waits for an approval; an administrator may disable
+/// it.
 pub static DEFAULT_POLICIES: &[DefaultPolicy] = &[DefaultPolicy {
-    name: "flow.breaks",
-    triggers: &[("breaks", 1)],
+    name: "flow.nonconforming",
+    triggers: &[("nonconforming", 1)],
 }];
 
 /// The values of [`MEASURES`] for the changeset of `context`: the operations it wrote and
@@ -36,22 +37,22 @@ pub(crate) async fn measures(
     context: &CheckContext<'_>,
 ) -> Result<Vec<(&'static str, u64)>, StoreError> {
     let (created, waiver) = pg::written_counts(conn).await?;
-    let breaks = context
+    let nonconforming = context
         .section(SECTION)
         .and_then(|s| s.rows.iter().find(|r| r.kind == SUMMARY_ROW))
-        .and_then(|r| r.after.as_ref()?.get("breaks")?.as_u64())
+        .and_then(|r| r.after.as_ref()?.get("nonconforming")?.as_u64())
         .unwrap_or(0);
     Ok(vec![
         ("created", created),
-        ("breaks", breaks),
+        ("nonconforming", nonconforming),
         ("waiver", waiver),
     ])
 }
 
 /// The anomalies of the flows the changeset re-evaluated (REQ-011-12): each flow whose
 /// evaluation flipped is evaluated anew under `flow.verdict.denied`, a warning when it is
-/// denied now and no waiver covers now, so that the anomaly opens on a flow that breaks
-/// and closes on one that heals. A flow the changeset creates has its triage instead.
+/// denied now and no waiver covers now, so that the anomaly opens on a flow that becomes
+/// non-conforming and closes on one that conforms again. A flow the changeset creates has its triage instead.
 ///
 /// # Errors
 ///

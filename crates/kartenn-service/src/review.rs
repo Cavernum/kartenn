@@ -760,7 +760,7 @@ mod tests {
         };
         assert!(holds(&opens, &exposure));
         let unmeasured = ApprovalPolicy {
-            module_triggers: vec![("policy.opens".into(), 1), ("flow.breaks".into(), 1)],
+            module_triggers: vec![("policy.opens".into(), 1), ("flow.nonconforming".into(), 1)],
             ..policy()
         };
         assert!(

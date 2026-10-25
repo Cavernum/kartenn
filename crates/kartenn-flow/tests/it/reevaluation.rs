@@ -160,7 +160,7 @@ async fn acceptance_of_req_011_13_the_differential_of_the_flows(pool: PgPool) {
     assert_eq!(section.count, 4);
     assert_eq!(
         section.rows[0].after,
-        Some(json!({ "flows": 3, "breaks": 3, "heals": 0, "outcome": 3 }))
+        Some(json!({ "flows": 3, "nonconforming": 3, "conforming": 0, "outcome": 3 }))
     );
     for row in &section.rows[1..] {
         assert!(flows.contains(&row.object));

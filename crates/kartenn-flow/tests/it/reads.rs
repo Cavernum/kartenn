@@ -348,7 +348,7 @@ async fn evaluations_at_a_past_assertion(pool: PgPool) {
     assert_eq!(current[0].verdict, "denied");
 }
 
-/// REQ-011-25: a broken flow is a non-conformity of its requester, with the rule in cause
+/// REQ-011-25: a non-conforming flow is a non-conformity of its requester, with the rule in cause
 /// when there is one; another requester does not see it.
 #[kartenn_testing::pg_test]
 async fn a_requester_sees_their_nonconformities_only(pool: PgPool) {
