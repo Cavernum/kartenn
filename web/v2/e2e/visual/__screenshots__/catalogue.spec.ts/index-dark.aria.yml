@@ -201,14 +201,23 @@
         - link "E6 Lecture au passé — Chronologie":
           - /url: /_ui/ecrans/E6?mode=dark&vue=chronologie
       - listitem:
+        - link "E7 Administration — Groupes":
+          - /url: /_ui/ecrans/E7?mode=dark&vue=groupes
+      - listitem:
+        - link "E7 Administration — Groupe en édition":
+          - /url: /_ui/ecrans/E7?mode=dark&vue=groupe-edition
+      - listitem:
+        - link "E7 Administration — Groupe hors périmètre":
+          - /url: /_ui/ecrans/E7?mode=dark&vue=groupe-refus
+      - listitem:
+        - link "E7 Administration — Groupe livré":
+          - /url: /_ui/ecrans/E7?mode=dark&vue=secours
+      - listitem:
+        - link "E7 Administration — Identité":
+          - /url: /_ui/ecrans/E7?mode=dark&vue=identite
+      - listitem:
         - link "E7 Administration — Rôles":
           - /url: /_ui/ecrans/E7?mode=dark&vue=roles
-      - listitem:
-        - link "E7 Administration — Rôle en édition":
-          - /url: /_ui/ecrans/E7?mode=dark&vue=edition
-      - listitem:
-        - link "E7 Administration — Liaisons":
-          - /url: /_ui/ecrans/E7?mode=dark&vue=liaisons
       - listitem:
         - link "E7 Administration — Secret affiché une fois":
           - /url: /_ui/ecrans/E7?mode=dark&vue=secret

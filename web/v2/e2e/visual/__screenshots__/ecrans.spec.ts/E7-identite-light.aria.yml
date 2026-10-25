@@ -1,0 +1,148 @@
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration" [expanded]
+  - list:
+    - listitem:
+      - link "Groupes":
+        - /url: /admin/groups
+    - listitem:
+      - link "Rôles":
+        - /url: /admin/roles
+    - listitem:
+      - link "Identités":
+        - /url: /admin/identities
+    - listitem:
+      - link "Comptes de service":
+        - /url: /admin/accounts
+    - listitem:
+      - link "Émetteurs":
+        - /url: /admin/issuers
+    - listitem:
+      - link "Audit":
+        - /url: /admin/audit
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Administration":
+          - /url: /admin
+      - listitem:
+        - link "Identités":
+          - /url: /admin/identities
+      - listitem: lou.bernard
+  - button "Présent"
+  - button "Brouillon ( 0 )" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Identités" [level=1]
+  - region "Identités 6":
+    - heading "Identités 6" [level=2]
+    - grid "Identités":
+      - rowgroup:
+        - row "Identité État Groupes Émetteur Dernière session":
+          - columnheader "Identité"
+          - columnheader "État"
+          - columnheader "Groupes"
+          - columnheader "Émetteur"
+          - columnheader "Dernière session"
+      - rowgroup:
+        - row /Camille Martin Active 2 idp-interne \d+-\d+-\d+ \d+:\d+/:
+          - gridcell "Camille Martin"
+          - gridcell "Active"
+          - gridcell "2"
+          - gridcell "idp-interne"
+          - gridcell /\d+-\d+-\d+ \d+:\d+/
+        - row /Lou Bernard Active 3 idp-interne \d+-\d+-\d+ \d+:\d+/ [selected]:
+          - gridcell "Lou Bernard"
+          - gridcell "Active"
+          - gridcell "3"
+          - gridcell "idp-interne"
+          - gridcell /\d+-\d+-\d+ \d+:\d+/
+        - row /Alex Morel Active 1 idp-interne \d+-\d+-\d+ \d+:\d+/:
+          - gridcell "Alex Morel"
+          - gridcell "Active"
+          - gridcell "1"
+          - gridcell "idp-interne"
+          - gridcell /\d+-\d+-\d+ \d+:\d+/
+        - row /Sam Leroy Désactivée 1 idp-interne \d+-\d+-\d+ \d+:\d+/:
+          - gridcell "Sam Leroy"
+          - gridcell "Désactivée"
+          - gridcell "1"
+          - gridcell "idp-interne"
+          - gridcell /\d+-\d+-\d+ \d+:\d+/
+        - row "Noa Petit Active 0 idp-interne —":
+          - gridcell "Noa Petit"
+          - gridcell "Active"
+          - gridcell "0"
+          - gridcell "idp-interne"
+          - gridcell "—"
+        - row "secours Active 1 local —":
+          - gridcell "secours"
+          - gridcell "Active"
+          - gridcell "1"
+          - gridcell "local"
+          - gridcell "—"
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Panneau droit":
+    - tab "Détail" [selected]
+    - tab "Brouillon 0"
+  - tabpanel "Détail":
+    - heading "Lou Bernard lou.bernard" [level=2]
+    - text: Active
+    - toolbar "Actions de l'identité":
+      - button "Désactiver"
+      - button "Révoquer les sessions"
+    - region "Groupes · 3":
+      - heading "Groupes · 3" [level=3]
+      - list:
+        - listitem:
+          - text: Astreinte
+          - code: astreinte
+          - text: via idp-interne / astreinte
+        - listitem:
+          - text: Équipe réseau
+          - code: reseau
+          - text: direct
+        - listitem:
+          - text: Équipe supervision
+          - code: supervision
+          - text: via idp-interne / supervision-n1
+    - region "Droits effectifs · 4":
+      - heading "Droits effectifs · 4" [level=3]
+      - list:
+        - listitem:
+          - text: Éditeur
+          - code: editor
+          - text: "Entité : Atelier Nord par Équipe réseau"
+        - listitem:
+          - text: Lecteur réseau
+          - code: lecteur-reseau
+          - text: "Entité : Atelier Nord par Équipe supervision"
+        - listitem:
+          - text: Instructeur
+          - code: instructeur-flux
+          - text: "Site : site-ouest par Équipe supervision"
+        - listitem:
+          - text: Lecteur
+          - code: reader
+          - text: Globale par Astreinte
+    - region /Groupes de l'IdP · 3 \(session du \d+-\d+-\d+ \d+:\d+\)/:
+      - heading /Groupes de l'IdP · 3 \(session du \d+-\d+-\d+ \d+:\d+\)/ [level=3]:
+        - text: ""
+        - time: /\d+-\d+-\d+ \d+:\d+/
+        - text: ""
+      - list:
+        - listitem: idp-interne / astreinte Astreinte
+        - listitem: idp-interne / supervision-n1 Équipe supervision
+        - listitem: idp-interne / tous-agents aucun groupe kartenn
+  - button "Fermer le panneau"

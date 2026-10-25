@@ -1,0 +1,140 @@
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration" [expanded]
+  - list:
+    - listitem:
+      - link "Groupes":
+        - /url: /admin/groups
+    - listitem:
+      - link "Rôles":
+        - /url: /admin/roles
+    - listitem:
+      - link "Identités":
+        - /url: /admin/identities
+    - listitem:
+      - link "Comptes de service":
+        - /url: /admin/accounts
+    - listitem:
+      - link "Émetteurs":
+        - /url: /admin/issuers
+    - listitem:
+      - link "Audit":
+        - /url: /admin/audit
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Administration":
+          - /url: /admin
+      - listitem:
+        - link "Groupes":
+          - /url: /admin/groups
+      - listitem: astreinte
+  - button "Présent"
+  - button "Brouillon ( 0 )" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Groupes" [level=1]
+  - region "Groupes 6":
+    - heading "Groupes 6" [level=2]
+    - toolbar "Actions des groupes":
+      - button "Créer"
+    - grid "Groupes":
+      - rowgroup:
+        - row "Groupe Livré Membres Rôles Description":
+          - columnheader "Groupe"
+          - columnheader "Livré"
+          - columnheader "Membres"
+          - columnheader "Rôles"
+          - columnheader "Description"
+      - rowgroup:
+        - row "Secours secours oui 1 1 Compte de secours, administrateur global":
+          - gridcell "Secours secours":
+            - text: ""
+            - code: secours
+          - gridcell "oui"
+          - gridcell "1"
+          - gridcell "1"
+          - gridcell "Compte de secours, administrateur global"
+        - row "Équipe supervision supervision non 5 3 Lecture du réseau, instruction":
+          - gridcell "Équipe supervision supervision":
+            - text: ""
+            - code: supervision
+          - gridcell "non"
+          - gridcell "5"
+          - gridcell "3"
+          - gridcell "Lecture du réseau, instruction"
+        - row /Équipe réseau reseau non \d+ 2 Édition du réseau de l'atelier nord/:
+          - gridcell "Équipe réseau reseau":
+            - text: ""
+            - code: reseau
+          - gridcell "non"
+          - gridcell /\d+/
+          - gridcell "2"
+          - gridcell "Édition du réseau de l'atelier nord"
+        - row "Astreinte astreinte non 3 1 Lecture de tout le référentiel" [selected]:
+          - gridcell "Astreinte astreinte":
+            - text: ""
+            - code: astreinte
+          - gridcell "non"
+          - gridcell "3"
+          - gridcell "1"
+          - gridcell "Lecture de tout le référentiel"
+        - row "Équipe sauvegarde sauvegarde non 4 1 Lecture des machines du domaine":
+          - gridcell "Équipe sauvegarde sauvegarde":
+            - text: ""
+            - code: sauvegarde
+          - gridcell "non"
+          - gridcell "4"
+          - gridcell "1"
+          - gridcell "Lecture des machines du domaine"
+        - row "compte-sync-ipam non 1 1 Reporté par la migration, à regrouper":
+          - gridcell "compte-sync-ipam":
+            - code: compte-sync-ipam
+          - gridcell "non"
+          - gridcell "1"
+          - gridcell "1"
+          - gridcell "Reporté par la migration, à regrouper"
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Panneau droit":
+    - tab "Détail" [selected]
+    - tab "Brouillon 0"
+  - tabpanel "Détail":
+    - heading "Astreinte astreinte" [level=2]
+    - toolbar "Actions du groupe":
+      - button "Modifier"
+      - button "Clore…" [disabled]
+    - region "Membres · 3":
+      - heading "Membres · 3" [level=3]
+      - list:
+        - listitem:
+          - text: idp-interne / astreinte groupe de l'IdP
+          - button "Retirer idp-interne / astreinte du groupe" [disabled]
+        - listitem:
+          - text: Camille Martin personne
+          - button "Retirer Camille Martin du groupe" [disabled]
+        - listitem:
+          - text: sync-ipam compte de service
+          - button "Retirer sync-ipam du groupe" [disabled]
+      - button "Ajouter un membre" [disabled]
+    - region "Rôles sur périmètres · 1":
+      - heading "Rôles sur périmètres · 1" [level=3]
+      - list:
+        - listitem:
+          - text: Lecteur
+          - code: reader
+          - text: Globale
+          - button "Modifier le rôle reader · Globale" [disabled]
+          - button "Retirer le rôle reader · Globale" [disabled]
+      - button "Ajouter un rôle"
+  - button "Fermer le panneau"
