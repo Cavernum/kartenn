@@ -3,15 +3,21 @@
 // 024/M8, M12): a full-page view of a plugin in the frame of the shell (VLAN groups, the VLAN
 // of the chosen group, the next free VID), and the policy matrix of the 017 between
 // environments in its two-way grid (MatrixGrid: row and column headers of the same make,
-// both sticky), the chosen cell in the right panel with its simulated effect; its changes
-// go to the draft of the shell.
+// both sticky; a crosshair on the hovered or active cell, the direction source →
+// destination in the corner and on the headers of the crosshair), the chosen cell in the
+// right panel of the frame with its simulated effect. Its changes go to the draft of the
+// shell, whose tab lists the changed cells by source → destination with their state before
+// and after, the simulated effect, the other operations of the draft, and the common foot.
 import {
   Button,
   CodeBadge,
+  Cluster,
   DataGrid,
+  EnvChip,
+  Icon,
+  IconButton,
   InlineAlert,
   MatrixGrid,
-  SidePanel,
   Stack,
   StatusBadge,
   TextField,
@@ -28,8 +34,10 @@ import { ref } from "vue";
 import AVenir from "./AVenir.vue";
 import Attributs from "./EcranAttributs.vue";
 import Barre from "./EcranBarre.vue";
+import Brouillon from "./EcranBrouillon.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
+import Soumission from "./EcranSoumission.vue";
 
 const props = defineProps<{ vue: string }>();
 
@@ -100,6 +108,13 @@ const ENVS: MatrixAxis[] = [
   { id: "inte", label: "Intégration" },
   { id: "deve", label: "Développement" },
 ];
+/** The hue of each environment (REQ-020-8), for its chip in the draft tab. */
+const HUE = { prod: 1, preprod: 4, rece: 2, inte: 5, deve: 3 } as const;
+const env = (id: keyof typeof HUE) => ({
+  value: id,
+  label: ENVS.find((e) => e.id === id)!.label,
+  hue: HUE[id],
+});
 const MATRIX: Record<string, Verdict[]> = {
   prod: ["allow", "deny", "deny", "deny", "deny"],
   preprod: ["conditional", "allow", "default", "deny", "deny"],
@@ -127,9 +142,28 @@ const matrixActions: ToolbarAction[] = [
   { id: "simulate", label: "Simuler le brouillon", icon: "flow", priority: 1 },
   { id: "export", label: "Exporter" },
 ];
-const panelTabs = [
-  { value: "detail", label: "Détail" },
-  { value: "draft", label: "Brouillon", count: 3 },
+
+/** The cells of the matrix changed by the draft: source, destination, before and after. */
+const CHANGED = [
+  {
+    key: "rece:prod",
+    source: env("rece"),
+    destination: env("prod"),
+    before: "default" as Verdict,
+    after: "conditional" as Verdict,
+    pattern: "bastion-admin",
+    label: "Accès recette vers production",
+  },
+];
+/** The simulated effect of the draft on the flows, and the flows it breaks. */
+const EFFECT = [
+  { key: "opens", label: "S'ouvrent sous réserve", value: "1", mono: true },
+  { key: "breaks", label: "Cassent", value: "2", mono: true },
+  { key: "heals", label: "Guérissent", value: "0", mono: true },
+];
+const BROKEN = [
+  { message: "rece-batch → prod-api (tcp/443)", code: "flow.verdict.denied" },
+  { message: "rece-ci → prod-registry (tcp/5000)", code: "flow.verdict.denied" },
 ];
 </script>
 
@@ -193,6 +227,7 @@ const panelTabs = [
     active="matrix"
     space="policy"
     :draft="3"
+    :panel="props.vue === 'brouillon' ? 'draft' : 'detail'"
     :crumbs="[
       { label: 'Politique', to: '/x/policy' },
       { label: 'Matrice', to: '/x/policy/matrix' },
@@ -211,6 +246,7 @@ const panelTabs = [
         v-model:active="active"
         label="Matrice applicatif : source en ligne, destination en colonne"
         corner="Source → destination"
+        :axes="{ rows: 'Source', columns: 'Destination' }"
         :rows="ENVS"
         :columns="ENVS"
         :cell-state="cellState"
@@ -227,38 +263,109 @@ const panelTabs = [
         <span class="k-num">1 s'ouvre sous réserve · 2 flux cassent · 0 guérit</span>
       </template>
     </Panneau>
-    <template #drawer>
-      <SidePanel label="Panneau droit" :tabs="panelTabs" tab="detail">
-        <template #detail>
-          <Stack gap="3">
-            <h2 class="k-ecran-subtitle">Recette → Production</h2>
-            <Attributs
-              :items="[
-                { key: 'state', label: 'État' },
-                { key: 'patterns', label: 'Motifs' },
-              ]"
-            >
-              <template #state><StatusBadge state="warn" label="Sous motif" /></template>
-              <template #patterns><CodeBadge code="bastion-admin" /></template>
-            </Attributs>
-            <TextField label="Libellé" model-value="Accès recette vers production" />
-            <InlineAlert
-              tone="warn"
-              title="Effet simulé : 2 flux cassent"
-              :items="[
-                { message: 'rece-batch → prod-api (tcp/443)', code: 'flow.verdict.denied' },
-                { message: 'rece-ci → prod-registry (tcp/5000)', code: 'flow.verdict.denied' },
-              ]"
-            />
+    <template #detail>
+      <Stack gap="3">
+        <h2 class="k-ecran-subtitle">Recette → Production</h2>
+        <Attributs
+          :items="[
+            { key: 'state', label: 'État' },
+            { key: 'patterns', label: 'Motifs' },
+          ]"
+        >
+          <template #state><StatusBadge state="warn" label="Sous motif" /></template>
+          <template #patterns><CodeBadge code="bastion-admin" /></template>
+        </Attributs>
+        <TextField label="Libellé" model-value="Accès recette vers production" />
+        <InlineAlert tone="warn" title="Effet simulé : 2 flux cassent" :items="BROKEN" />
+      </Stack>
+    </template>
+    <template #detail-footer>
+      <Cluster justify="end">
+        <Button variant="primary" icon="draft" :shortcut="['Enter']">Ajouter au brouillon</Button>
+      </Cluster>
+    </template>
+    <template #draft>
+      <Stack gap="4">
+        <Stack as="section" gap="2" aria-labelledby="k-e10-cells">
+          <Cluster justify="between" :wrap="false">
+            <h2 id="k-e10-cells" class="k-ecran-subtitle">Matrice applicatif</h2>
+            <span class="k-ecran-muted k-num">{{ CHANGED.length }} cellule</span>
+          </Cluster>
+          <Stack as="ol" gap="3" class="k-ecran-list">
+            <li v-for="cell in CHANGED" :key="cell.key" class="k-ecran-cell">
+              <Stack gap="2">
+                <Cluster justify="between" :wrap="false" gap="2">
+                  <span class="k-ecran-cell__flow">
+                    <span class="k-visually-hidden">De</span>
+                    <EnvChip v-bind="cell.source" />
+                    <Icon name="arrow-right" class="k-ecran-cell__arrow" />
+                    <span class="k-visually-hidden">vers</span>
+                    <EnvChip v-bind="cell.destination" />
+                  </span>
+                  <IconButton
+                    icon="x"
+                    size="sm"
+                    :label="`Retirer la cellule ${cell.source.label} → ${cell.destination.label}`"
+                  />
+                </Cluster>
+                <Attributs
+                  :items="[
+                    { key: 'state', label: 'État' },
+                    { key: 'pattern', label: 'Motif' },
+                    { key: 'label', label: 'Libellé' },
+                  ]"
+                >
+                  <template #state>
+                    <span class="k-ecran-change">
+                      <del
+                        ><span class="k-visually-hidden">avant : </span
+                        ><StatusBadge
+                          :state="VERDICT[cell.before].state"
+                          :label="VERDICT[cell.before].label"
+                      /></del>
+                      <Icon name="arrow-right" class="k-ecran-cell__arrow" />
+                      <ins
+                        ><span class="k-visually-hidden">après : </span
+                        ><StatusBadge
+                          :state="VERDICT[cell.after].state"
+                          :label="VERDICT[cell.after].label"
+                      /></ins>
+                    </span>
+                  </template>
+                  <template #pattern>
+                    <ins class="k-ecran-change"
+                      ><span class="k-ecran-change__sign" aria-hidden="true">+</span
+                      ><span class="k-visually-hidden">ajouté : </span
+                      ><CodeBadge :code="cell.pattern"
+                    /></ins>
+                  </template>
+                  <template #label>
+                    <ins class="k-ecran-change"
+                      ><span class="k-ecran-change__sign" aria-hidden="true">+</span
+                      ><span class="k-visually-hidden">ajouté : </span>{{ cell.label }}</ins
+                    >
+                  </template>
+                </Attributs>
+              </Stack>
+            </li>
           </Stack>
-        </template>
-        <template #draft>
-          <p class="k-ecran-muted">3 opérations, dont la cellule Recette → Production.</p>
-        </template>
-        <template #footer>
-          <Button variant="primary" icon="draft" :shortcut="['Enter']">Ajouter au brouillon</Button>
-        </template>
-      </SidePanel>
+        </Stack>
+        <Stack as="section" gap="2" aria-labelledby="k-e10-effect">
+          <h2 id="k-e10-effect" class="k-ecran-subtitle">Effet simulé</h2>
+          <Attributs :items="EFFECT" />
+          <InlineAlert tone="warn" title="2 flux cassent" :items="BROKEN" />
+        </Stack>
+        <Stack as="section" gap="2" aria-labelledby="k-e10-others">
+          <Cluster justify="between" :wrap="false">
+            <h2 id="k-e10-others" class="k-ecran-subtitle">Autres opérations</h2>
+            <span class="k-ecran-muted k-num">2</span>
+          </Cluster>
+          <Brouillon :count="2" />
+        </Stack>
+      </Stack>
+    </template>
+    <template #draft-footer>
+      <Soumission held policy="Changements de matrice" summary="Accès recette vers production" />
     </template>
   </Cadre>
 </template>
@@ -269,6 +376,39 @@ const panelTabs = [
   .k-ecran-panel__body[data-flush] > .k-matrix {
     border: 0;
     border-radius: 0;
+  }
+
+  /* A changed cell of the draft: source → destination, then its changes. */
+  .k-ecran-cell {
+    padding-block-end: var(--k-space-3);
+    border-block-end: var(--k-border-width) solid var(--k-border);
+  }
+
+  .k-ecran-cell__flow,
+  .k-ecran-change {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--k-space-1);
+    align-items: center;
+    min-inline-size: 0;
+  }
+
+  .k-ecran-cell__arrow {
+    flex: none;
+    color: var(--k-text-muted);
+  }
+
+  /* Before and after are said by hidden words and a sign; the badges keep their look. */
+  .k-ecran-change del,
+  ins.k-ecran-change,
+  .k-ecran-change ins {
+    text-decoration: none;
+  }
+
+  .k-ecran-change__sign {
+    font-family: var(--k-font-mono);
+    font-weight: var(--k-weight-semibold);
+    color: var(--k-diff-added);
   }
 }
 </style>

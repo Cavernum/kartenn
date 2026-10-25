@@ -1,11 +1,20 @@
 <script setup lang="ts">
 // E0 — Accueil (design « Maquettes », 024/M10; 021, « Écrans » : Accueil): a dashboard of
 // tiles on `Grid`. Tiles of the core first (objects by kind, changesets applied over 7 and
-// 30 days with their histogram by day, to apply, mine pending, open anomalies), fed by the
-// fixture of `GET /v1/stats`; then the `widget` tiles of two plugins (VLAN, Flux), and the
-// one of a third still loading (Politique). The instant of the snapshot at the foot.
-import { Button, Grid, Skeleton, Stack, StatusBadge } from "@kartenn/ui";
-import AVenir from "./AVenir.vue";
+// 30 days with their histogram by day, `BarChart`, to apply, mine pending, open
+// anomalies), fed by the fixture of `GET /v1/stats`; then the `widget` tiles of two plugins
+// (VLAN with the occupation of its groups in a `BarList`, Flux), and the one of a third
+// still loading (Politique). The instant of the snapshot at the foot.
+import {
+  BarChart,
+  BarList,
+  Button,
+  Grid,
+  Skeleton,
+  Stack,
+  StatusBadge,
+  type ChartPoint,
+} from "@kartenn/ui";
 import Attributs from "./EcranAttributs.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
@@ -22,16 +31,18 @@ const kinds = (Object.keys(STATS.objects) as (keyof typeof STATS.objects)[]).map
 
 /** The days of the histogram, today last (UTC days of the fixture). */
 const DAY = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", timeZone: "UTC" });
-const peak = Math.max(...STATS.changesets.by_day);
-const days = STATS.changesets.by_day.map((count, i, all) => {
+const days: ChartPoint[] = STATS.changesets.by_day.map((value, i, all) => {
   const date = new Date(Date.UTC(2026, 0, 15 - (all.length - 1 - i)));
-  return {
-    key: i,
-    label: DAY.format(date),
-    count,
-    height: { "--k-ecran-bar": String(count / peak) },
-  };
+  return { key: date.toISOString().slice(0, 10), label: DAY.format(date), value };
 });
+
+/** The occupation of the VLAN groups, as the widget of the plugin counts it. */
+const groups: ChartPoint[] = STATS.modules.vlan.groups.map((g) => ({
+  key: g.key,
+  label: g.key,
+  value: g.used,
+}));
+const percent = (value: number) => `${value} %`;
 </script>
 
 <template>
@@ -51,13 +62,12 @@ const days = STATS.changesets.by_day.map((count, i, all) => {
             <dd class="k-num">{{ STATS.changesets.applied_30d }}</dd>
           </div>
         </dl>
-        <AVenir component="BarChart" task="à planifier">
-          <ol class="k-ecran-bars" aria-label="Changesets appliqués par jour, sur 30 jours">
-            <li v-for="day in days" :key="day.key" class="k-ecran-bars__day" :style="day.height">
-              <span class="k-visually-hidden">{{ day.label }} : {{ day.count }}</span>
-            </li>
-          </ol>
-        </AVenir>
+        <BarChart
+          label="Changesets appliqués par jour, sur 30 jours"
+          :points="days"
+          point-label="Jour (UTC)"
+          value-label="Changesets appliqués"
+        />
       </Panneau>
       <Panneau title="À instruire" detail="changesets d'autres auteurs">
         <dl class="k-ecran-figures">
@@ -99,8 +109,17 @@ const days = STATS.changesets.by_day.map((count, i, all) => {
               label: 'Obsolètes',
               value: String(STATS.modules.vlan.deprecated),
             },
-            { key: 'group', label: 'Groupe le plus rempli', value: 'campus-ouest, 92 %' },
           ]"
+        />
+        <p class="k-ecran-muted">Occupation des groupes</p>
+        <BarList
+          label="Occupation des groupes de VLAN"
+          :items="groups"
+          :max="100"
+          mono
+          :format="percent"
+          point-label="Groupe"
+          value-label="Occupation"
         />
       </Panneau>
       <Panneau title="Flux" detail="plugin Flux">
@@ -159,23 +178,6 @@ const days = STATS.changesets.by_day.map((count, i, all) => {
     font-size: var(--k-text-2xl);
     line-height: var(--k-text-2xl-line);
     font-weight: var(--k-weight-semibold);
-  }
-
-  /* Stand-in of the bar chart to come: one bar per day, its height set by CSSOM. */
-  .k-ecran-bars {
-    display: flex;
-    gap: var(--k-space-0-5);
-    align-items: end;
-    block-size: var(--k-space-12);
-    list-style: none;
-  }
-
-  .k-ecran-bars__day {
-    flex: 1;
-    min-inline-size: 0;
-    block-size: calc(var(--k-space-12) * var(--k-ecran-bar, 0));
-    min-block-size: var(--k-space-px);
-    background-color: var(--k-accent);
   }
 }
 </style>

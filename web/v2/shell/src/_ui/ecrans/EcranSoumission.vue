@@ -14,12 +14,19 @@ const props = withDefaults(
     simulation?: "running" | "violations" | "valid";
     /** A policy holds the changeset: « Appliquer » is refused, the review is the default. */
     held?: boolean;
+    /** The name of the policy that holds it. */
+    policy?: string;
     /** The chevron of the split button open (its menu in the layer of the frame). */
     menuOpen?: boolean;
     summary?: string;
     description?: string;
   }>(),
-  { simulation: "valid", summary: "Maintenance du référentiel", description: "" },
+  {
+    simulation: "valid",
+    policy: "Revue des VIP",
+    summary: "Maintenance du référentiel",
+    description: "",
+  },
 );
 
 const summary = ref(props.summary);
@@ -33,7 +40,7 @@ const actions = computed<SplitAction[]>(() => {
         ? "La simulation n'est pas finie."
         : undefined;
   const held = props.held
-    ? "La politique « Revue des VIP » retient ce changeset : il passe en revue."
+    ? `La politique « ${props.policy} » retient ce changeset : il passe en revue.`
     : undefined;
   return [
     {
@@ -66,7 +73,7 @@ const action = ref(props.simulation === "violations" ? "save" : props.held ? "re
     </template>
     <template v-else-if="props.held">
       <StatusBadge state="review" label="Revue requise" />
-      <span>Simulation valide ; politique « Revue des VIP ».</span>
+      <span>Simulation valide ; politique « {{ props.policy }} ».</span>
     </template>
     <template v-else>
       <StatusBadge state="ok" label="Simulation valide" />

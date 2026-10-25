@@ -282,7 +282,13 @@ export const MOCKUPS: Mockup[] = [
         id: "matrice",
         label: "Matrice de politique",
         description:
-          "Matrice entre environnements (en-têtes figés des deux côtés), cellule choisie dans le panneau droit, effet simulé.",
+          "Matrice entre environnements (en-têtes figés des deux côtés, croix sur la cellule choisie, sens source → destination), cellule choisie dans le panneau droit, effet simulé.",
+      },
+      {
+        id: "brouillon",
+        label: "Brouillon de la matrice",
+        description:
+          "Onglet Brouillon : cellule changée par source → destination, état avant et après, motif et libellé ajoutés, effet simulé, autres opérations, pied (simulation, CommitForm, SplitButton).",
       },
     ],
   },
