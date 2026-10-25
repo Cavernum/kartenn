@@ -267,5 +267,22 @@ Statut : spec **validée le 2026-10-25**.
     (150), sous-arbre et occupation 13,4 ms (200), changeset unitaire 31,6 ms (200).
     Décision sur une adresse selon les groupes kartenn résolus (50 groupes de l'IdP au
     jeton) : 0 → 0,9 ms, 1 → 2,9 ms, 5 → 2,8 ms, 155 → 12,5 ms.
-- [ ] 10. Amendements de texte : 005 (K4, K7, K17, REQ-005-18, 26, 27 renvoient à la
+- [x] 10. Amendements de texte : 005 (K4, K7, K17, REQ-005-18, 26, 27 renvoient à la
   025), `docs/spec/` (interfaces, invariants, permissions), README des specs.
+  - Résultat : 005 amendée (K4, K5, K6, K7, K16, K17 ; REQ-005-14, 18, 25, 26 et
+    glossaire ; design § Modèle de données, Décision, Administration, Amorçage) ;
+    `docs/spec/interfaces.md` (§ Autorisation), `data.md` (tables `rbac_group`,
+    `group_member`, `rbac_migration_report`, `kartenn_member_of`, dernière connexion) ;
+    ADR 0021 (amendement) ; D36 (001) ; REQ-021-12 et tâche 021-15 ; ligne
+    Administration de la 012 ; README des specs. INV-27, `permissions.md`,
+    `regles-noyau.md` et `evenements-audit.md` étaient à jour (tâches 2 à 5).
+  - Choix tranchés :
+    - Forme des amendements : celle du dépôt (« Amendé le … (025/Gn) » et « Décidé par
+      (amendement) » dans les décisions, « *Amendée par la 025 …* » en tête des
+      exigences) ; un énoncé devenu faux (sujets d'une liaison, liaison nominale de
+      l'amorçage) est corrigé dans le texte, l'ancien état dit dans la note.
+    - Gardés exprès : le texte d'origine de K4, K5, K17 (historique) ; les mentions de
+      l'ancien modèle dans les choix tranchés des tâches 005, les décisions et la
+      migration de la 025, l'ADR 0021 (contexte, avant son amendement) ; le
+      « sujet (identité, émetteur, groupes) » de `architecture.md`, qui est le
+      `Principal` de l'authentification.

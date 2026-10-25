@@ -28,14 +28,17 @@ d'audit). Sources :
   `iss`).
 - **Identité** : sujet authentifié : personne (émetteur, `sub`), compte de service ou
   compte de secours.
-- **Groupe** : valeur du claim de groupes d'un émetteur, lue dans le jeton, jamais
-  stockée.
+- **Groupe de l'IdP** : valeur du claim de groupes d'un émetteur, lue dans le jeton ;
+  seuls ceux de la dernière connexion sont gardés, pour l'affichage (025, Q-025-1).
+- **Groupe kartenn** : groupe tenu par kartenn, dont les membres sont des identités et
+  des groupes de l'IdP (025).
 - **Permission** : droit élémentaire `<module>.<objet>.<action>` ou `prop.<clé>.<action>`.
 - **Rôle** : ensemble nommé de permissions.
 - **Périmètre** : global, entité, site, domaine ou sous-arbre de préfixes ; hérité vers
   le bas.
-- **Liaison** : sujet × rôle × périmètre, valable sur une période applicative ; le sujet
-  est une identité, un groupe d'un émetteur ou un émetteur entier.
+- **Liaison** : groupe kartenn × rôle × périmètre, valable sur une période applicative
+  (amendé par la 025/G1 : le sujet était une identité, un groupe d'un émetteur ou un
+  émetteur entier).
 - **Confinement** : borne des droits obtenus par un émetteur : les objets dont l'entité
   propriétaire est dans les sous-arbres rattachés à cet émetteur, ou tout (rattachement
   global).
@@ -185,17 +188,21 @@ l'audit (REQ-012-19). [K14]
 ### E. Comptes de secours
 
 #### REQ-005-14 — Création hors API
+*Amendée par la 025 (REQ-025-9, G7, 2026-10-25) : le compte devient membre du groupe livré
+`secours`, lié au rôle `administrator` global, au lieu d'une liaison nominale ;
+l'événement nomme le groupe ([025](../025-droits-par-groupes/requirements.md)).*
 kartenn ne doit créer un compte humain de secours que par une sous-commande du binaire
 exécutée avec le rôle propriétaire du schéma, pour une durée de validité bornée ; aucun
-n'existe par défaut. La même sous-commande doit lier l'identité du compte au rôle livré
-`administrator`, portée globale, jusqu'à la fin de validité du compte : c'est la seule
-voie d'amorçage d'une instance neuve. [K9, K17]
+n'existe par défaut. La même sous-commande doit faire du compte un membre du groupe livré
+`secours` (lié au rôle livré `administrator`, portée globale) jusqu'à la fin de validité
+du compte : c'est la seule voie d'amorçage d'une instance neuve. [K9, K17]
 
 Acceptation :
 - Aucune opération de l'API ni du pipeline ne crée ni ne modifie un compte de secours.
 - Sur une instance neuve, un compte créé par la sous-commande ouvre une session de secours
-  qui peut lier un groupe OIDC à un rôle ; `account.breakglass.created` nomme le rôle et
-  la portée ; après `valid_until`, la liaison n'a plus d'effet.
+  qui peut faire entrer un groupe OIDC dans un groupe kartenn lié à un rôle ;
+  `account.breakglass.created` nomme le groupe ; après `valid_until`, l'appartenance n'a
+  plus d'effet.
 
 #### REQ-005-15 — Deux facteurs
 kartenn doit exiger d'un compte de secours un mot de passe d'au moins 15 caractères,
@@ -224,9 +231,12 @@ permettre des rôles personnalisés ; une permission inconnue du catalogue doit 
 refusée. [K12, D36]
 
 #### REQ-005-18 — Liaisons et périmètres
+*Amendée par la 025 (REQ-025-4, G1, G3, 2026-10-25) : une liaison vise un groupe kartenn,
+dont le sujet est membre directement ou par un groupe de son jeton ; plus de liaison à
+une identité ni à un émetteur entier ([025](../025-droits-par-groupes/requirements.md)).*
 kartenn doit accorder une permission à un sujet sur un objet si et seulement si une
-liaison valide à la date de la requête associe ce sujet (l'identité, l'un de ses groupes
-ou son émetteur entier) à un rôle qui contient la permission, sur un périmètre qui
+liaison valide à la date de la requête associe un groupe kartenn dont ce sujet est
+membre à cette date (en identité, ou par l'un des groupes de son jeton) à un rôle qui contient la permission, sur un périmètre qui
 contient l'objet (héritage vers le bas : global, entité, site, domaine, sous-arbre de
 préfixes), **et** si l'objet est dans le confinement de l'émetteur du sujet. [K4, K5,
 K13, K14]
@@ -234,7 +244,7 @@ K13, K14]
 Acceptation :
 - Lecteur sur l'entité E : lit les adresses dont le propriétaire résolu est dans le
   sous-arbre de E, pas les autres.
-- Une liaison globale d'une identité d'un émetteur rattaché à l'entité F n'ouvre que le
+- Une liaison globale d'un groupe dont est membre une identité d'un émetteur rattaché à l'entité F n'ouvre que le
   sous-arbre de F.
 - Une liaison dont la période est échue n'accorde plus rien.
 
@@ -291,6 +301,8 @@ Acceptation :
 ### H. Administration
 
 #### REQ-005-25 — Par changesets
+*Amendée par la 025 (REQ-025-10, 2026-10-25) : groupes et appartenances passent aussi par
+un changeset et s'annulent ([025](../025-droits-par-groupes/requirements.md)).*
 kartenn doit faire passer toute création ou modification de rôle, de liaison, de
 rattachement d'émetteur et de compte de service par un changeset (validé, versionné en
 bitemporel, audité, soumis aux politiques d'approbation, simulable et annulable). [K6,
@@ -306,6 +318,9 @@ Acceptation :
   non annulables.
 
 #### REQ-005-26 — Délégation sans escalade
+*Amendée par la 025 (REQ-025-6 à 8, G5, 2026-10-25) : ajouter ou retirer un membre d'un
+groupe, ou le clore, exige pour chacune de ses liaisons ce qu'exige leur création
+(`core.group.escalation`) ([025](../025-droits-par-groupes/requirements.md)).*
 kartenn doit n'autoriser une liaison que si son auteur détient `core.rbac.admin` sur un
 périmètre qui contient celui de la liaison, et toutes les permissions du rôle lié sur ce
 périmètre ; définir ou modifier un rôle exige `core.role.admin`, rattacher un émetteur
@@ -314,6 +329,8 @@ périmètre ; définir ou modifier un rôle exige `core.role.admin`, rattacher u
 Acceptation :
 - Un administrateur d'entité ne peut ni lier le rôle administrateur au-dessus de son
   entité, ni lier un rôle qui contient une permission qu'il n'a pas, à lui ou à un autre.
+- Il ne peut ni entrer quelqu'un, lui compris, dans un groupe lié au-dessus de son
+  entité, ni l'en sortir.
 
 #### REQ-005-27 — Périmètres des politiques d'approbation
 *Amendée par la 025 (REQ-025-13, G10, 2026-10-25) : le groupe est un groupe kartenn ; un
