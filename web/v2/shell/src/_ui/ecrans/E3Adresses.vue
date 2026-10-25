@@ -1,7 +1,10 @@
 <script setup lang="ts">
 // E3 — Liste d'adresses (design « Maquettes »; 021, « Listes des collections », « Édition
 // en place », « Filtres »): typed filters as chips (one chip = one parameter of the API),
-// a cell being edited, a cell refused with its code, multiple selection and a group action.
+// a cell being edited, a cell refused in plain language with its code beside (024/M16),
+// multiple selection and a group action. One grid (header and rows share their columns),
+// sort and filter on every column, the filtered ones marked (024/M12); the actions fold
+// into « … » when the header narrows.
 import {
   Button,
   Cluster,
@@ -11,10 +14,14 @@ import {
   Kbd,
   KeyLabel,
   Menu,
+  Toolbar,
   type CellState,
   type GridColumn,
+  type GridSort,
   type MenuItem,
+  type ToolbarAction,
 } from "@kartenn/ui";
+import { ref } from "vue";
 import AVenir from "./AVenir.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
@@ -107,20 +114,29 @@ const rows: Row[] = [
   },
 ];
 const columns: GridColumn[] = [
-  { id: "value", label: "Valeur", width: "md", mono: true, sortable: true },
-  { id: "usage", label: "Usage", width: "sm", filterable: true },
-  { id: "env", label: "Environnement", width: "md", filterable: true },
+  { id: "value", label: "Valeur", width: "md", mono: true, sortable: true, filterable: true },
+  { id: "usage", label: "Usage", width: "sm", sortable: true, filterable: true },
+  { id: "env", label: "Environnement", width: "md", sortable: true, filterable: true },
   { id: "owner", label: "Propriétaire", width: "fill", sortable: true, filterable: true },
-  { id: "site", label: "Site", width: "md", mono: true, filterable: true },
-  { id: "machine", label: "Machine", width: "md", mono: true },
-  { id: "vlan", label: "VLAN", width: "xs", align: "end", mono: true },
+  { id: "site", label: "Site", width: "md", mono: true, sortable: true, filterable: true },
+  { id: "machine", label: "Machine", width: "md", mono: true, sortable: true, filterable: true },
+  { id: "vlan", label: "VLAN", width: "sm", align: "end", mono: true, sortable: true },
+];
+const sort = ref<GridSort | undefined>({ column: "value", direction: "ascending" });
+const actions: ToolbarAction[] = [
+  { id: "create", label: "Créer", icon: "plus", variant: "primary", shortcut: ["c"], priority: 3 },
+  { id: "columns", label: "Colonnes", icon: "layers", variant: "ghost", priority: 1 },
+  { id: "import", label: "Importer", icon: "clipboard-paste", variant: "ghost" },
 ];
 const cellState = (row: Row, column: GridColumn): CellState | undefined => {
   if (selecting) return undefined;
   if (row.value === "192.0.2.11" && column.id === "usage") return "draft";
   if (row.value === "192.0.2.13" && column.id === "site") return "pending";
   if (row.value === "192.0.2.70" && column.id === "usage")
-    return { error: "Usage refusé dans une plage DHCP", code: "core.address.range_usage" };
+    return {
+      error: "Une adresse d'une plage DHCP ne peut pas être un hôte fixe.",
+      code: "core.address.range_usage",
+    };
   return undefined;
 };
 const bulk: MenuItem[] = [
@@ -143,8 +159,7 @@ const bulk: MenuItem[] = [
   >
     <Panneau title="Adresses" detail="1 284" main flush>
       <template #actions>
-        <Button variant="ghost" icon="layers">Colonnes</Button>
-        <Button variant="primary" icon="plus" :shortcut="['c']">Créer</Button>
+        <Toolbar label="Actions sur les adresses" align="end" :actions="actions" />
       </template>
       <template #toolbar>
         <Cluster gap="2">
@@ -183,11 +198,12 @@ const bulk: MenuItem[] = [
         <Button variant="ghost" size="sm" icon="x">Annuler la sélection</Button>
       </Cluster>
       <DataGrid
+        v-model:sort="sort"
         label="Adresses, filtrées"
         :columns="columns"
         :rows="rows"
         row-key="value"
-        :sort="{ column: 'value', direction: 'ascending' }"
+        :filtered="['value', 'usage', 'owner']"
         :selectable="selecting"
         :selected="selecting ? ['192.0.2.10', '192.0.2.12', '192.0.2.72'] : []"
         :cell-state="cellState"

@@ -2,11 +2,11 @@
 // E2 — Fiche d'un préfixe (design « Maquettes »; 021, « Catalogue des écrans », Fiche
 // d'objet et Historique): title and actions, tabs of the core then of the plugins,
 // resolved properties with the explanation of an inherited value, occupancy and next free,
-// history of bitemporal versions, menu of actions.
+// history of bitemporal versions, menu of actions. Refused actions stay visible, greyed,
+// their tooltip naming the missing permission (024/M14): no permanent box of the rights.
 import {
   Button,
   CodeBadge,
-  Cluster,
   DataGrid,
   EnvChip,
   InlineAlert,
@@ -17,6 +17,7 @@ import {
   StatusBadge,
   Tabs,
   type GridColumn,
+  type GridSort,
   type MenuItem,
   type TabItem,
 } from "@kartenn/ui";
@@ -29,7 +30,8 @@ import { DOMAIN, ENV, ID } from "./donnees.ts";
 
 const props = defineProps<{ vue: string }>();
 const tab = ref(props.vue === "historique" ? "history" : "properties");
-
+const propertySort = ref<GridSort | undefined>({ column: "key", direction: "ascending" });
+const versionSort = ref<GridSort | undefined>({ column: "version", direction: "descending" });
 const tabs: TabItem[] = [
   { value: "properties", label: "Propriétés", count: 5 },
   { value: "content", label: "Contenu", count: 12 },
@@ -73,9 +75,9 @@ const properties: Property[] = [
   },
 ];
 const propertyColumns: GridColumn[] = [
-  { id: "key", label: "Propriété", width: "fill" },
-  { id: "value", label: "Valeur", width: "md" },
-  { id: "source", label: "Source", width: "lg" },
+  { id: "key", label: "Propriété", width: "fill", sortable: true, filterable: true },
+  { id: "value", label: "Valeur", width: "md", sortable: true },
+  { id: "source", label: "Source", width: "lg", sortable: true, filterable: true },
 ];
 const SOURCE: Record<Property["source"], string> = {
   inherited: "Héritée",
@@ -128,10 +130,10 @@ const versions: Version[] = [
   },
 ];
 const versionColumns: GridColumn[] = [
-  { id: "version", label: "Version, changeset", width: "md", mono: true },
-  { id: "valid", label: "Valide", width: "lg", mono: true },
-  { id: "known", label: "Connue du", width: "md", mono: true },
-  { id: "motive", label: "Motif", width: "fill" },
+  { id: "version", label: "Version, changeset", width: "md", mono: true, sortable: true },
+  { id: "valid", label: "Valide", width: "lg", mono: true, sortable: true },
+  { id: "known", label: "Connue du", width: "md", mono: true, sortable: true },
+  { id: "motive", label: "Motif", width: "fill", filterable: true },
 ];
 
 const actions: MenuItem[] = [
@@ -142,15 +144,14 @@ const actions: MenuItem[] = [
     id: "domain",
     label: "Changer de domaine…",
     icon: "move",
-    disabled: true,
-    reason: "Le domaine est immuable",
+    reason: "Le domaine d'un objet ne change pas après sa création (core.domain.immutable).",
   },
   { kind: "separator" },
   { kind: "label", label: "Plugins" },
   { id: "compliance", label: "Vérifier la conformité", icon: "clipboard-check" },
-  { id: "flow", label: "Demander un flux…", icon: "flow" },
+  { id: "flow", label: "Demander un flux…", icon: "flow", forbidden: "flow.request" },
   { kind: "separator" },
-  { id: "close", label: "Clore…", icon: "trash", danger: true },
+  { id: "close", label: "Clore…", icon: "trash", danger: true, forbidden: "core.prefix.apply" },
 ];
 </script>
 
@@ -182,6 +183,7 @@ const actions: MenuItem[] = [
           <template #properties>
             <Stack gap="3">
               <DataGrid
+                v-model:sort="propertySort"
                 label="Propriétés résolues de 192.0.2.64/26"
                 :columns="propertyColumns"
                 :rows="properties"
@@ -216,18 +218,18 @@ const actions: MenuItem[] = [
                 </InlineAlert>
               </AVenir>
               <InlineAlert tone="warn" title="Une propriété attendue manque">
-                <code>dns.ttl</code> est attendue sur les réseaux de production (règle
-                <code>prop.assignment.required</code>).
+                Le TTL DNS (<code>dns.ttl</code>) est attendu sur les réseaux de production.
+                <CodeBadge code="prop.assignment.required" />
               </InlineAlert>
             </Stack>
           </template>
           <template #history>
             <DataGrid
+              v-model:sort="versionSort"
               label="Versions de 192.0.2.64/26"
               :columns="versionColumns"
               :rows="versions"
               row-key="version"
-              :sort="{ column: 'version', direction: 'descending' }"
             >
               <template #cell="{ row, column, value }">
                 <template v-if="column.id === 'version'"
@@ -263,9 +265,11 @@ const actions: MenuItem[] = [
                   { key: 'free', label: 'Prochain libre', value: '192.0.2.103', mono: true },
                 ]"
               />
-              <Cluster gap="2">
-                <Button size="sm" icon="plus">Réserver 192.0.2.103</Button>
-              </Cluster>
+              <div>
+                <Button size="sm" icon="plus" forbidden="core.address.edit"
+                  >Réserver 192.0.2.103</Button
+                >
+              </div>
             </Panneau>
             <Panneau title="VLAN porté" detail="plugin VLAN">
               <Attributs
