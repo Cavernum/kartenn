@@ -130,7 +130,7 @@ Vocabulary, L2]
 |---|---|
 | Authentification | réussite et échec (avec la méthode), verrouillage, réutilisation de jeton refusée, expiration, déconnexion |
 | Autorisation | **tout** refus de droit ; validation et rejet d'un changeset en attente |
-| Administration | rôles, liaisons et permissions modifiés ; comptes de service créés, renouvelés ou révoqués ; politiques d'approbation ; déclarations de propriétés |
+| Administration | rôles, groupes et leurs membres (025), liaisons et permissions modifiés ; comptes de service créés, renouvelés ou révoqués ; politiques d'approbation ; déclarations de propriétés |
 | Écritures | chaque changement d'état d'un changeset (soumis, appliqué, refusé, en attente, retiré, rejeté, expiré), avec sa référence |
 | Exploitation | démarrage, arrêt, migration, changement de configuration ou de niveau de log, sortie désactivée ou inaccessible, scellement, échec de vérification de la chaîne |
 | Données | toute requête de lecture (REQ-012-18) ; consultation et export du journal d'audit ; exports en masse ; pseudonymisation d'une personne |

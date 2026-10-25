@@ -217,12 +217,18 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   connexion par l'émetteur et le sujet qu'il porte, par la fonction
   `kartenn_promote_requester`), émetteur et `sub` pour une personne (une
   identité par couple), nom affiché seul, `disabled_at`, `revoked_after` (sessions
-  ouvertes avant refusées). Le nom d'un compte de service ou de secours est unique dans
+  ouvertes avant refusées), `last_login_at` et `last_login_groups` (groupes de l'IdP de
+  la dernière connexion, pour la fiche d'identité ; 0069, effacés par la
+  pseudonymisation). Le nom d'un compte de service ou de secours est unique dans
   sa sorte (migrations 0031, 0032) et sert d'identifiant de connexion.
 - **Bitemporels** (déclencheur de versionnement, ADR 0017) : `role` (clé unique sur la
-  période, `builtin` pour les rôles livrés), `role_permission`, `binding` (sujet :
-  identité, groupe d'un émetteur ou émetteur ; périmètre : global, entité, site,
-  domaine, préfixe ; clore un rôle clôt ses liaisons), `issuer_attachment` (entité, ou
+  période, `builtin` pour les rôles livrés), `role_permission`, `rbac_group` (clé unique
+  sur la période, libellés par langue, `builtin` pour le groupe livré `secours` ;
+  migration 0066), `group_member` (identité, ou émetteur et nom de groupe de l'IdP ; un
+  membre une fois par groupe et par période), `binding` (groupe kartenn, rôle,
+  périmètre : global, entité, site, domaine, préfixe ; clore un rôle ou un groupe clôt
+  ses liaisons ; les anciennes colonnes de sujet, retirées par la 0068, ne restent que
+  dans `binding_history`), `issuer_attachment` (entité, ou
   aucune pour un rattachement global). « Qui avait tel rôle à telle date » se lit par
   une lecture datée.
 - **Non versionnés** : `service_secret` (empreinte HMAC-SHA-256 et identifiant de clé du
@@ -230,7 +236,12 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   différée) ; `breakglass_account` (empreinte Argon2id, secret TOTP scellé sous le
   trousseau, dernier pas TOTP accepté, échecs consécutifs, fin de validité), écrit par
   le seul propriétaire du schéma : le rôle applicatif n'y met à jour que le pas et les
-  échecs.
+  échecs ; `rbac_migration_report` (report des liaisons d'avant les groupes par la 0068 :
+  groupes créés, liaisons d'émetteur entier retirées ; lu une fois par le job de
+  migration, `reported_at`).
+- **Fonction `kartenn_member_of`** (0066) : groupes kartenn d'une identité, de son
+  émetteur et des groupes de son jeton à une date ; lue par les visibilités, les droits
+  effectifs et les libellés.
 - **Fonctions SQL** : `kartenn_owner` et `kartenn_site` (propriétaire et site résolus
   d'un objet, 0028) ; `kartenn_visible` (un objet dans une visibilité : global, domaine,
   sous-arbres, puis entités et sites, borné par le confinement ; 0029, réécrite en 0033

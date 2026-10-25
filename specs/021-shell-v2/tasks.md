@@ -396,10 +396,13 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (le stockage IndexedDB disparaît) ; design 021 « Cadre » (panneau droit, pied du
     brouillon) ; `web/v2/sdk/src/draft.ts`
   - dépend de : 12
-- [ ] 15. Administration : rôles, liaisons, émetteurs, comptes de service et secret,
-  identités, audit et export, imports ; permissions en nom servi et libellé —
-  REQ-021-12 — verify : parcours `admin` réécrit ; capture E7
-  - où : `web/shell/src/admin/*`, `views/AdminView.vue`
+- [ ] 15. Administration : groupes (membres, liaisons), rôles, émetteurs, comptes de
+  service et secret, identités (groupes et droits effectifs en lecture), audit et
+  export, imports ; permissions en nom servi et libellé — REQ-021-12, 025/REQ-025-12 —
+  verify : parcours `admin` réécrit ; capture E7
+  - où : `web/shell/src/admin/*`, `views/AdminView.vue` ; maquette
+    `web/v2/shell/src/_ui/ecrans/E7Administration.vue` (vues `groupes`,
+    `groupe-edition`, `groupe-refus`, `secours`, `identite`), design 021 § Administration.
   - dépend de : 13
 - [ ] 16. Hôte des plugins et session : emplacements dans le nouveau cadre, point `widget`
   de l'Accueil, actions sur le type `changeset`, onglets sur les types de module, frontière

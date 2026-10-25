@@ -40,3 +40,13 @@ filtrage des listes. Refus par défaut ; pas de règle de refus explicite.
 - Un objet sans propriétaire résolu n'est visible que d'un sujet non confiné.
 - Les droits de l'auteur d'un changeset en attente sont revalidés avec un instantané de
   ses groupes.
+
+## Amendement — 2026-10-25 (spec 025)
+
+- Le sujet d'une liaison n'est plus l'identité, un groupe de son émetteur ou l'émetteur
+  entier, mais un **groupe kartenn** (025/G1, G3) : la décision part des liaisons des
+  groupes dont le sujet est membre à la date, en identité ou par un groupe de son jeton,
+  résolus en SQL par `kartenn_member_of` (migration 0066). Visibilité, prédicat et
+  confinement par émetteur sont inchangés.
+- Mesure au banc `bench-rbac` avec 50 groupes de l'IdP résolus en 0 à 155 groupes
+  kartenn : budgets de D14 tenus (025/REQ-025-15).

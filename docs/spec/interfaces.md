@@ -97,9 +97,13 @@ son corps.
   (`core.<objet>.<action>`, `prop.<clé>.<action>`, `prop.*.<action>` hors propriétés
   sensibles, `*`) ; rôles livrés `reader`, `editor`, `approver`, `administrator`,
   synchronisés par le job de migration et non modifiables.
-- Rôle = ensemble de permissions ; liaison = sujet (identité, groupe d'un émetteur,
-  émetteur entier) × rôle × périmètre (global, entité, site, domaine, sous-arbre de
-  préfixes), héritée vers le bas. **Refus par défaut**, pas de règle de refus.
+- Rôle = ensemble de permissions ; liaison = **groupe kartenn** × rôle × périmètre
+  (global, entité, site, domaine, sous-arbre de préfixes), héritée vers le bas ; jamais
+  une identité ni un émetteur entier (spec 025). Membres d'un groupe : identités
+  (personnes, comptes de service) et groupes de l'IdP (émetteur, nom du groupe du
+  jeton), sur une période ; pas de groupe imbriqué. Les droits d'une identité sont
+  l'union des liaisons des groupes dont elle est membre, directement ou par un groupe de
+  son jeton. **Refus par défaut**, pas de règle de refus.
 - **Confinement** : un émetteur rattaché à des entités n'accorde rien hors de leurs
   sous-arbres, quelles que soient les liaisons ; rattachement global possible. Les
   rattachements vivent en base, pas dans la configuration.
@@ -112,19 +116,25 @@ son corps.
   exige, sur les mêmes objets et effets, `….apply` (changeset d'un autre) ou
   `….apply_own` (le sien) ; une permission d'une autre action (`core.role.admin`,
   `flow.request`) vaut les deux (spec 024).
-- Administration par changesets : rôles, liaisons, rattachements, comptes de service,
-  état des identités ; un administrateur délégué n'accorde que ce qu'il détient sur le
-  périmètre (`core.binding.escalation`). L'annulation inverse les rôles, liaisons et
-  rattachements par des opérations ordinaires (`CloseRole`/`SetRole`,
+- Administration par changesets : rôles, groupes, appartenances, liaisons,
+  rattachements, comptes de service, état des identités ; un administrateur délégué
+  n'accorde que ce qu'il détient sur le périmètre, ni par une liaison
+  (`core.binding.escalation`) ni par un membre ajouté ou retiré d'un groupe dont une
+  liaison le dépasse (`core.group.escalation`) ; le groupe livré `secours` (lié au rôle
+  administrateur global, membres : comptes de secours) ne change que par la
+  synchronisation (`core.group.builtin`). L'annulation inverse les rôles, groupes,
+  appartenances, liaisons et rattachements par des opérations ordinaires
+  (`CloseRole`/`SetRole`, `CloseGroup`/`SetGroup`, `RemoveMember`/`AddMember`,
   `Unbind`/`Bind`, `DetachIssuer`/`AttachIssuer`), soumises aux mêmes contrôles ; une
   liaison rendue reçoit un nouvel identifiant ; ce qu'un changeset plus récent a écrit
   est un conflit laissé de côté (005/K16). Comptes de service, secrets et état des
   identités ne s'annulent pas : listés comme non pris en charge.
 - Politiques d'approbation dans le même modèle : périmètre (domaine, entité, site,
-  sous-arbre), auteur (personne, rôle, groupe), rôle lié (`bound_roles`, par exemple un
+  sous-arbre), auteur (rôle, groupe kartenn), rôle lié (`bound_roles`, par exemple un
   second administrateur pour toute liaison du rôle administrateur) ; les modifier exige
   `core.approval_policy.admin`.
-- Budgets : tenus avec 1 000 liaisons et 50 groupes (banc `bench-rbac`, 005/K15).
+- Budgets : tenus avec 1 000 liaisons et 50 groupes de l'IdP par identité, résolus en
+  groupes kartenn (banc `bench-rbac`, 005/K15, 025/REQ-025-15).
 
 ## Shell Web et plugins UI (D17, ADR 0011, ADR 0025 ; spec 007)
 

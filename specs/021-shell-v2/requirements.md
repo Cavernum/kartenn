@@ -216,7 +216,11 @@ Acceptation :
   identité ; un 412 à l'écriture relit le brouillon et rejoue l'ajout.
 
 #### REQ-021-12 — Administration
-Le shell doit offrir l'administration de la 007 (rôles, liaisons, émetteurs, comptes de
+*Amendée par la 025 (REQ-025-12, G4, 2026-10-25) : plus d'écran « Liaisons » ; les
+liaisons se gèrent depuis leur groupe, la fiche d'une identité montre ses groupes et ses
+droits effectifs en lecture ([025](../025-droits-par-groupes/requirements.md)).*
+Le shell doit offrir l'administration de la 007 (groupes et leurs membres et liaisons,
+rôles, émetteurs, comptes de
 service et secrets montrés une fois, identités, audit et son export, imports) ; les
 permissions y sont affichées sous leur nom servi (`module.action` quand la ressource est
 le module, spec 018), en chasse fixe, avec leur libellé quand il existe. [X12,
