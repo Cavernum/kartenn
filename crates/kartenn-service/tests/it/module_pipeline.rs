@@ -178,7 +178,6 @@ async fn approval_policy_counts_module_operations(pool: PgPool) {
         min_diff_objects: None,
         property_keys: Vec::new(),
         domains: Vec::new(),
-        authors: Vec::new(),
         scopes: Vec::new(),
         author_roles: Vec::new(),
         author_groups: Vec::new(),

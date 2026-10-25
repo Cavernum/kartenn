@@ -491,15 +491,15 @@ pub struct ApprovalPolicy {
     pub property_keys: Vec<String>,
     /// The changeset touches one of these addressing domains.
     pub domains: Vec<Uuid>,
-    /// The author is one of these people.
-    pub authors: Vec<Uuid>,
     /// The changeset touches an object of one of these scopes (005, REQ-005-27): `entity`,
     /// `site` or `prefix`, with its subtree; with `domains`, one perimeter trigger.
     pub scopes: Vec<(String, Uuid)>,
-    /// The author holds one of these roles (005); with `authors`, one author trigger.
+    /// The author holds one of these roles through one of his groups (005, 025); with
+    /// `author_groups`, one author trigger. No account is an author (REQ-025-13).
     pub author_roles: Vec<String>,
-    /// The author belongs to one of these groups (issuer, group) (005).
-    pub author_groups: Vec<(String, String)>,
+    /// The author is a member of one of these groups of kartenn, by key, directly or
+    /// through a group of his issuer (025, REQ-025-13).
+    pub author_groups: Vec<String>,
     /// The changeset binds one of these roles (005, REQ-005-25: a second administrator
     /// for any binding of the administrator role).
     pub bound_roles: Vec<String>,
@@ -770,6 +770,13 @@ pub trait WriteTx {
 
     /// The keys of the roles `subject` holds now, on any scope (005, REQ-005-27).
     fn roles_of(
+        &mut self,
+        subject: &crate::authz::Subject,
+    ) -> impl Future<Output = Result<Vec<String>, StoreError>> + Send;
+
+    /// The keys of the groups of kartenn `subject` is a member of now, directly or through
+    /// a group of his issuer (025, REQ-025-13).
+    fn groups_of(
         &mut self,
         subject: &crate::authz::Subject,
     ) -> impl Future<Output = Result<Vec<String>, StoreError>> + Send;

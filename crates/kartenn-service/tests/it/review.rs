@@ -128,6 +128,16 @@ impl Fixture {
         .unwrap()
     }
 
+    /// A new group of kartenn whose only member is the author, by key (spec 025: a policy
+    /// designates its authors by group, REQ-025-13).
+    async fn author_group(&self) -> String {
+        sqlx::query_scalar(kartenn_testing::GROUP_OF)
+            .bind(self.author)
+            .fetch_one(&self.pool)
+            .await
+            .unwrap()
+    }
+
     async fn applied(&self, operations: Vec<Operation>) -> Uuid {
         match self.submit_as(&Unrestricted, operations).await {
             Outcome::Applied { changeset, .. } => changeset,
@@ -207,7 +217,6 @@ fn policy(name: &str, min_diff_objects: u64) -> Operation {
         min_diff_objects: Some(min_diff_objects),
         property_keys: Vec::new(),
         domains: Vec::new(),
-        authors: Vec::new(),
         scopes: Vec::new(),
         author_roles: Vec::new(),
         author_groups: Vec::new(),
@@ -233,7 +242,6 @@ async fn a_policy_holds_large_changesets_for_an_approver(pool: PgPool) {
                 min_diff_objects: None,
                 property_keys: Vec::new(),
                 domains: Vec::new(),
-                authors: Vec::new(),
                 scopes: Vec::new(),
                 author_roles: Vec::new(),
                 author_groups: Vec::new(),
@@ -322,10 +330,9 @@ async fn a_pending_changeset_is_revalidated_rejected_withdrawn_or_expired(pool: 
         min_diff_objects: None,
         property_keys: Vec::new(),
         domains: Vec::new(),
-        authors: vec![f.author],
         scopes: Vec::new(),
         author_roles: Vec::new(),
-        author_groups: Vec::new(),
+        author_groups: vec![f.author_group().await],
         bound_roles: Vec::new(),
         module_triggers: Vec::new(),
         enabled: true,
@@ -692,10 +699,9 @@ async fn the_application_follows_the_author_and_the_policies(pool: PgPool) {
         min_diff_objects: None,
         property_keys: Vec::new(),
         domains: Vec::new(),
-        authors: vec![f.author],
         scopes: Vec::new(),
         author_roles: Vec::new(),
-        author_groups: Vec::new(),
+        author_groups: vec![f.author_group().await],
         bound_roles: Vec::new(),
         module_triggers: Vec::new(),
         enabled: true,

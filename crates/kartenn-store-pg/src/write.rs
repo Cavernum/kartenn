@@ -1033,6 +1033,13 @@ impl WriteTx for PgTx {
         crate::rbac::roles_of_on(&mut self.tx, subject).await
     }
 
+    async fn groups_of(
+        &mut self,
+        subject: &kartenn_service::authz::Subject,
+    ) -> Result<Vec<String>, StoreError> {
+        crate::rbac::groups_of_on(&mut self.tx, subject).await
+    }
+
     async fn role_entries(&mut self, key: &str) -> Result<Option<Vec<String>>, StoreError> {
         crate::rbac_admin::role_entries(&mut self.tx, key).await
     }

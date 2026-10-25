@@ -408,7 +408,6 @@ async fn acceptance_of_req_011_6_a_policy_holds_an_extension(pool: PgPool) {
         min_diff_objects: None,
         property_keys: Vec::new(),
         domains: Vec::new(),
-        authors: Vec::new(),
         scopes: Vec::new(),
         author_roles: Vec::new(),
         author_groups: Vec::new(),

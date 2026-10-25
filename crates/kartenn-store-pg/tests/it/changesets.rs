@@ -129,6 +129,65 @@ async fn pending_requirements_take_the_edit_verb(pool: PgPool) -> sqlx::Result<(
     Ok(())
 }
 
+/// Spec 025, migration 0067 (REQ-025-13): the authors of the policies naming an account or
+/// a group of an issuer are dropped; a policy left without a trigger is disabled. Its
+/// block is run again on rows written as before.
+#[kartenn_testing::pg_test]
+async fn policy_authors_keep_roles_and_groups_of_kartenn(pool: PgPool) -> sqlx::Result<()> {
+    let migration = include_str!("../../migrations/0067_policy_authors.sql");
+    let block = &migration[migration.find("DO $$").expect("the rewrite")..];
+    let person = person(&pool).await?;
+    for (name, min_operations, authors) in [
+        (
+            "mixed",
+            None,
+            serde_json::json!([{"person": person}, {"role": "auditor"}, {"group": "astreinte"}]),
+        ),
+        (
+            "volume",
+            Some(10),
+            serde_json::json!([{"group": ["https://idp.example.invalid", "netops"]}]),
+        ),
+        ("someone", None, serde_json::json!([{"person": person}])),
+        ("kept", None, serde_json::json!([{"group": "astreinte"}])),
+    ] {
+        sqlx::query(
+            "INSERT INTO approval_policy (id, name, min_operations, authors)
+             VALUES (gen_random_uuid(), $1, $2, $3)",
+        )
+        .bind(name)
+        .bind(min_operations)
+        .bind(authors)
+        .execute(&pool)
+        .await?;
+    }
+    sqlx::raw_sql(sqlx::AssertSqlSafe(block))
+        .execute(&pool)
+        .await?;
+    let rows: Vec<(String, serde_json::Value, bool)> =
+        sqlx::query_as("SELECT name, authors, enabled FROM approval_policy ORDER BY name")
+            .fetch_all(&pool)
+            .await?;
+    assert_eq!(
+        rows,
+        [
+            (
+                "kept".to_owned(),
+                serde_json::json!([{"group": "astreinte"}]),
+                true
+            ),
+            (
+                "mixed".to_owned(),
+                serde_json::json!([{"role": "auditor"}, {"group": "astreinte"}]),
+                true
+            ),
+            ("someone".to_owned(), serde_json::json!([]), false),
+            ("volume".to_owned(), serde_json::json!([]), true),
+        ]
+    );
+    Ok(())
+}
+
 #[kartenn_testing::pg_test]
 async fn idempotency_keys_are_unique_per_identity(pool: PgPool) -> sqlx::Result<()> {
     let author = person(&pool).await?;

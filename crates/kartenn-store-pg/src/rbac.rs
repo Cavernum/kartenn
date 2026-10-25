@@ -695,6 +695,31 @@ pub async fn roles_of_on(
     .map_err(store_err)
 }
 
+/// The keys of the groups of kartenn `subject` is a member of now, directly or through a
+/// group of his issuer (spec 025, REQ-025-13), as asserted before the writes of the
+/// transaction.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn groups_of_on(
+    conn: &mut PgConnection,
+    subject: &Subject,
+) -> Result<Vec<String>, StoreError> {
+    sqlx::query_scalar(
+        "SELECT DISTINCT g.key FROM rbac_group_asserted g
+         WHERE g.valid_period @> now()
+           AND g.id IN (SELECT kartenn_member_of($1, $2, $3, now()))
+         ORDER BY g.key",
+    )
+    .bind(subject.id)
+    .bind(subject.issuer.as_deref())
+    .bind(&subject.groups)
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(store_err)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

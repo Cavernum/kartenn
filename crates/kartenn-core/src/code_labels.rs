@@ -369,6 +369,10 @@ pub static RULES_EN: &[(&str, &str)] = &[
         "A trigger of a policy names a measure declared by a module of the build.",
     ),
     (
+        "core.approval_policy.author",
+        "The authors of an approval policy are designated by a role or a group of kartenn in force, never by an account.",
+    ),
+    (
         "changeset.policy.forbidden",
         "Creating, changing or disabling an approval policy needs the right to administer the policies.",
     ),

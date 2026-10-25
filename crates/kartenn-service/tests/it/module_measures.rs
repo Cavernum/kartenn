@@ -39,7 +39,6 @@ fn policy(name: &str, measure: &str, threshold: u64) -> Operation {
         min_diff_objects: None,
         property_keys: Vec::new(),
         domains: Vec::new(),
-        authors: Vec::new(),
         scopes: Vec::new(),
         author_roles: Vec::new(),
         author_groups: Vec::new(),

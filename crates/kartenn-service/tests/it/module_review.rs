@@ -298,7 +298,6 @@ async fn review_operations_join_a_proposal_only(pool: PgPool) {
                 min_diff_objects: None,
                 property_keys: Vec::new(),
                 domains: Vec::new(),
-                authors: Vec::new(),
                 scopes: Vec::new(),
                 author_roles: Vec::new(),
                 author_groups: Vec::new(),

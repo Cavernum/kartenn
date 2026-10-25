@@ -6474,12 +6474,13 @@ export interface components {
           secret: string;
         }
       | {
-          /** @description The author belongs to one of these groups, as `[issuer, group]` (005). */
-          author_groups?: [string, string][];
-          /** @description The author holds one of these roles (005). */
+          /**
+           * @description The author is a member of one of these groups of kartenn, by key, directly or
+           *     through a group of his issuer; no account is an author (025, REQ-025-13).
+           */
+          author_groups?: string[];
+          /** @description The author holds one of these roles through one of his groups (005, 025). */
           author_roles?: string[];
-          /** @description The author is one of these people. */
-          authors?: string[];
           /** @description The changeset binds one of these roles (005, REQ-005-25). */
           bound_roles?: string[];
           /** @description The changeset touches one of these addressing domains. */

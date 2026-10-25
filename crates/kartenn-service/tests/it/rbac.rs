@@ -1455,7 +1455,6 @@ async fn binding_the_administrator_role_waits_for_a_second_administrator(pool: P
                 min_diff_objects: None,
                 property_keys: Vec::new(),
                 domains: Vec::new(),
-                authors: Vec::new(),
                 scopes: Vec::new(),
                 author_roles: Vec::new(),
                 author_groups: Vec::new(),
@@ -1497,7 +1496,6 @@ fn policy_op(name: &str, scopes: Vec<BindingScope>, author_roles: Vec<String>) -
         min_diff_objects: None,
         property_keys: Vec::new(),
         domains: Vec::new(),
-        authors: Vec::new(),
         scopes,
         author_roles,
         author_groups: Vec::new(),
@@ -1557,6 +1555,96 @@ async fn policies_hold_by_scope_and_by_role(pool: PgPool) {
         Outcome::Pending { kind, .. } => assert_eq!(kind, PendingKind::Approval),
         other => panic!("expected an approval, got {other:?}"),
     }
+}
+
+fn author_policy(name: &str, author_roles: Vec<String>, author_groups: Vec<String>) -> Operation {
+    Operation::SetApprovalPolicy {
+        name: name.into(),
+        min_operations: None,
+        min_diff_objects: None,
+        property_keys: Vec::new(),
+        domains: Vec::new(),
+        scopes: Vec::new(),
+        author_roles,
+        author_groups,
+        bound_roles: Vec::new(),
+        module_triggers: Vec::new(),
+        enabled: true,
+    }
+}
+
+// REQ-025-13: a policy designates its authors by a group of kartenn, the author being a
+// member of it directly or through a group of his issuer; never by an account.
+#[kartenn_testing::pg_test]
+async fn policies_designate_their_authors_by_group_of_kartenn(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let root = t.root().await;
+    let writer = t
+        .role("writer", &["core.address.edit", "core.address.apply_own"])
+        .await;
+    let direct = t.identity().await;
+    // An account, an unknown group or an unknown role is no author.
+    for (roles, groups) in [
+        (Vec::new(), vec![direct.id.to_string()]),
+        (Vec::new(), vec!["astreinte".to_owned()]),
+        (vec!["nobody".to_owned()], Vec::new()),
+    ] {
+        let outcome = t
+            .submit_as(&root, vec![author_policy("refused", roles, groups)])
+            .await;
+        assert_eq!(rules_of(&outcome), ["core.approval_policy.author"]);
+    }
+    let outcome = t
+        .submit_as(
+            &root,
+            vec![
+                set_group("astreinte"),
+                bind_group("astreinte", "writer", BindingScope::Global),
+                add_member("astreinte", direct.id),
+                Operation::AddMember {
+                    local: None,
+                    group: "astreinte".into(),
+                    member: GroupMember::IdpGroup {
+                        issuer: IDP.into(),
+                        group: "oncall".into(),
+                    },
+                },
+            ],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    let outcome = t
+        .submit_as(
+            &root,
+            vec![author_policy(
+                "on-call",
+                Vec::new(),
+                vec!["astreinte".into()],
+            )],
+        )
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
+    t.attach(IDP, None).await;
+    let through_idp = Subject {
+        issuer: Some(IDP.into()),
+        groups: vec!["oncall".into()],
+        ..t.identity().await
+    };
+    let outsider = t.identity().await;
+    t.bind(Binding::Identity(outsider.id), writer, "global", None)
+        .await;
+    let lab = t.ids["lab"];
+    // Members, directly or through the issuer: held; the same rights elsewhere: applied.
+    for (who, address) in [(&direct, "10.6.0.10"), (&through_idp, "10.6.0.11")] {
+        match t.submit_as(who, vec![new_address(lab, address)]).await {
+            Outcome::Pending { kind, .. } => assert_eq!(kind, PendingKind::Approval),
+            other => panic!("expected an approval, got {other:?}"),
+        }
+    }
+    let outcome = t
+        .submit_as(&outsider, vec![new_address(lab, "10.6.0.12")])
+        .await;
+    assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
 }
 
 fn set_group(key: &str) -> Operation {

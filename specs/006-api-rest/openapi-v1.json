@@ -6844,32 +6844,15 @@
             "description": "Creates or replaces, by name, an approval policy (REQ-004-20, 40).",
             "properties": {
               "author_groups": {
-                "description": "The author belongs to one of these groups, as `[issuer, group]` (005).",
-                "items": {
-                  "items": false,
-                  "prefixItems": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "string"
-                    }
-                  ],
-                  "type": "array"
-                },
-                "type": "array"
-              },
-              "author_roles": {
-                "description": "The author holds one of these roles (005).",
+                "description": "The author is a member of one of these groups of kartenn, by key, directly or\nthrough a group of his issuer; no account is an author (025, REQ-025-13).",
                 "items": {
                   "type": "string"
                 },
                 "type": "array"
               },
-              "authors": {
-                "description": "The author is one of these people.",
+              "author_roles": {
+                "description": "The author holds one of these roles through one of his groups (005, 025).",
                 "items": {
-                  "format": "uuid",
                   "type": "string"
                 },
                 "type": "array"
