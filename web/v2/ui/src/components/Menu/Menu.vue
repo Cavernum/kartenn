@@ -115,8 +115,8 @@ function onSelect(entry: MenuEntry, event: Event): void {
             :aria-describedby="hasReason(item) ? reasonId(item) : undefined"
             :aria-keyshortcuts="item.shortcut ? ariaKeyshortcuts(item.shortcut) : undefined"
             @select="(event: Event) => onSelect(item, event)"
-            @focus="(event: FocusEvent) => onFocus(item, event)"
-            @blur="tip.hide()"
+            @focusin="(event: FocusEvent) => onFocus(item, event)"
+            @focusout="tip.hide()"
           >
             <Icon v-if="item.icon" :name="item.icon" class="k-menu__icon" />
             <span class="k-menu__text">{{ item.label }}</span>
