@@ -5,9 +5,6 @@
     - figure "short — Deux niveaux":
       - navigation "Fil d'Ariane":
         - list:
-          - listitem:
-            - link "Changesets":
-              - /url: /changesets
           - listitem: À instruire
       - code: short
       - text: ""

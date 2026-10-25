@@ -145,6 +145,16 @@ function focusFirstField(event: Event): void {
     --k-dialog-size: var(--k-size-dialog-lg);
   }
 
+  /* In the compact frame (its `data-width`, design « Adaptation à la largeur »), a large
+   * dialog (the enlarged view of a grid among them) takes the whole window. */
+  [data-width="compact"] .k-dialog[data-size="lg"] {
+    inline-size: 100%;
+    block-size: 100%;
+    max-block-size: 100%;
+    border: 0;
+    border-radius: 0;
+  }
+
   /* Contained: a column whose body shrinks to the room left, and its child with it. */
   .k-dialog[data-contained] {
     display: flex;

@@ -177,9 +177,16 @@ const rows: Row[] = [
 ];
 const columns: GridColumn[] = [
   { id: "value", label: "Objet", width: "fill", mono: true, sortable: true },
-  { id: "usage", label: "Usage", width: "sm", sortable: true, filterable: true },
-  { id: "env", label: "Environnement", width: "md", sortable: true, filterable: true },
-  { id: "owner", label: "Propriétaire", width: "md", sortable: true, filterable: true },
+  { id: "usage", label: "Usage", width: "sm", sortable: true, filterable: true, priority: 2 },
+  { id: "env", label: "Environnement", width: "md", sortable: true, filterable: true, priority: 3 },
+  {
+    id: "owner",
+    label: "Propriétaire",
+    width: "md",
+    sortable: true,
+    filterable: true,
+    priority: 2,
+  },
 ];
 const sort = ref<GridSort | undefined>({ column: "value", direction: "ascending" });
 const KIND: Record<Row["kind"], { label: string; icon: IconName }> = {

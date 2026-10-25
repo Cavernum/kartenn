@@ -7,9 +7,10 @@ export const FIXED_TIME = new Date("2026-01-15T10:00:00+01:00");
 /**
  * The widths of the captures of the mock-ups and screens, at a height of 900 px
  * (REQ-020-26 revised by the 024, REQ-024-27); the states of the components stay at the
- * 1280 × 800 of the `visual` project.
+ * 1280 × 800 of the `visual` project. 390 px shows the compact class of the frame (spec 020,
+ * « Adaptation à la largeur »).
  */
-export const SCREEN_WIDTHS = [1440, 1280, 1024, 768] as const;
+export const SCREEN_WIDTHS = [1440, 1280, 1024, 768, 390] as const;
 export const SCREEN_HEIGHT = 900;
 
 /**

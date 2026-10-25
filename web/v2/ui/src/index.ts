@@ -24,7 +24,8 @@ export { formatInstant } from "./time.ts";
 export { applyMotion, currentMotion } from "./motion.ts";
 export type { MotionSetting } from "./motion.ts";
 export type { CopyOutcome } from "./clipboard.ts";
-export type { Align, ControlSize, Space } from "./components/layout.ts";
+export type { Align, ControlSize, Space, WidthClass } from "./components/layout.ts";
+export { CONTAINER_WIDTHS, WIDTH_CLASSES, widthClass, widthQuery } from "./components/layout.ts";
 
 export { default as Stack } from "./components/Stack/Stack.vue";
 export { default as Cluster } from "./components/Cluster/Cluster.vue";
@@ -51,7 +52,7 @@ export { default as TimeBand } from "./components/TimeBand/TimeBand.vue";
 export { default as Tabs } from "./components/Tabs/Tabs.vue";
 export type { TabItem } from "./components/Tabs/tabs.ts";
 export { default as Menu } from "./components/Menu/Menu.vue";
-export type { MenuDivider, MenuEntry, MenuItem } from "./components/Menu/menu.ts";
+export type { MenuCheckbox, MenuDivider, MenuEntry, MenuItem } from "./components/Menu/menu.ts";
 export { default as Dialog } from "./components/Dialog/Dialog.vue";
 export { default as AlertDialog } from "./components/AlertDialog/AlertDialog.vue";
 export { default as Drawer } from "./components/Drawer/Drawer.vue";

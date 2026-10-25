@@ -64,7 +64,7 @@ export default {
     },
     {
       name: "narrow",
-      description: "240 px : seules les actions prioritaires restent",
+      description: "240 px (sous 360 px) : seule l'action principale reste, à côté de « … »",
       props: { actions, size: "sm" },
       demo,
     },

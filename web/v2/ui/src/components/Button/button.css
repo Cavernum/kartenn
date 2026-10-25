@@ -113,4 +113,13 @@
     background-color: transparent;
     border-color: currentcolor;
   }
+
+  /* A coarse pointer (touch, design « Adaptation à la largeur »): the main actions at the
+   * size of a finger; 24 px stay the floor elsewhere (WCAG 2.5.8). */
+  @media (any-pointer: coarse) {
+    .k-button[data-variant="primary"],
+    .k-button[data-variant="danger"] {
+      min-block-size: var(--k-size-target-coarse);
+    }
+  }
 }

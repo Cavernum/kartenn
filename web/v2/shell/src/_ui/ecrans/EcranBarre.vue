@@ -27,22 +27,26 @@ const props = withDefaults(
 @layer components {
   .k-ecran-barre {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--k-space-3);
     align-items: center;
     min-inline-size: 0;
   }
 
+  /* Its own width at most; on a narrow surface it wraps rather than widen it. */
   .k-ecran-barre__start {
     display: flex;
-    flex-shrink: 0;
+    flex-wrap: wrap;
+    flex-shrink: 1;
     gap: var(--k-space-2);
+    min-inline-size: 0;
     align-items: center;
   }
 
   /* The toolbar takes the rest of the line and adds nothing to the min-content width of
    * the bar: an auto track around it (the panel) does not grow, the toolbar folds. */
   .k-ecran-barre > .k-toolbar {
-    flex-grow: 1;
+    flex: 1 1 var(--k-size-col-md);
     inline-size: 0;
   }
 }

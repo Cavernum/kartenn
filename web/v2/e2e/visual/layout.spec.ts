@@ -107,6 +107,88 @@ for (const width of [1024, 1280, 1440, 1920] as const) {
   });
 }
 
+// Reflow (WCAG 1.4.10; spec 020, « Adaptation à la largeur »): at 320 px (1280 px at
+// 400 %), no mock-up scrolls sideways, neither the page nor a slot of the frame; only a
+// grid scrolls in its own region.
+test.describe("mock-ups at 320 px", () => {
+  test.use({ viewport: { width: 320, height: 640 } });
+
+  for (const mockup of MOCKUPS) {
+    for (const view of mockup.views) {
+      test(`${mockup.id} ${view.id}: no sideways scroll outside the grids`, async ({ page }) => {
+        await open(page, `/_ui/ecrans/${mockup.id}?vue=${view.id}`);
+        await page.locator(".k-ecran").waitFor();
+        await expectNoSideScroll(page);
+        const slots = await page
+          .locator(".k-ecran__bar, .k-ecran__surface, .k-side-panel .k-tabs__panel")
+          .evaluateAll((els) =>
+            els.map((el) => ({ slot: el.className, over: el.scrollWidth - el.clientWidth })),
+          );
+        for (const { slot, over } of slots)
+          expect(over, `${slot} scrolls sideways`).toBeLessThanOrEqual(0);
+      });
+    }
+  }
+});
+
+// The frame of each width class (WIDTH_CLASSES): its attribute, the sidebar, the panel.
+const FRAMES = [
+  { width: 1440, name: "wide", sidebar: "expanded", panel: "beside" },
+  { width: 1100, name: "standard", sidebar: "expanded", panel: "over" },
+  { width: 768, name: "narrow", sidebar: "collapsed", panel: "cover" },
+  { width: 390, name: "compact", sidebar: "drawer", panel: "sheet" },
+] as const;
+
+for (const frame of FRAMES) {
+  test.describe(`frame at ${frame.width} px`, () => {
+    test.use({ viewport: { width: frame.width, height: 900 } });
+
+    test(`${frame.name}: sidebar ${frame.sidebar}, panel ${frame.panel}`, async ({ page }) => {
+      await open(page, "/_ui/ecrans/E1?vue=noeud");
+      const root = page.locator(".k-ecran");
+      await expect(root).toHaveAttribute("data-width", frame.name);
+
+      const panel = page.locator(".k-side-panel");
+      const box = await panel.boundingBox();
+      const surface = await page.locator(".k-ecran__surface").boundingBox();
+      expect(box && surface).toBeTruthy();
+      if (frame.panel === "beside") {
+        // In its own column: the surface ends where the panel starts.
+        expect(Math.round(surface!.x + surface!.width)).toBeLessThanOrEqual(Math.round(box!.x));
+      } else if (frame.panel === "over") {
+        expect(Math.round(box!.x)).toBeLessThan(Math.round(surface!.x + surface!.width));
+        expect(Math.round(box!.width)).toBeLessThan(Math.round(surface!.width));
+      } else if (frame.panel === "cover") {
+        expect(Math.round(box!.x)).toBe(Math.round(surface!.x));
+      } else {
+        expect([box!.x, box!.y, box!.width, box!.height].map(Math.round)).toEqual([
+          0,
+          0,
+          frame.width,
+          900,
+        ]);
+        await page.getByRole("button", { name: "Retour" }).click();
+        await expect(panel).toBeHidden();
+      }
+
+      // The sheet closed (compact), the bar is reachable again.
+      const nav = page.getByRole("navigation", { name: "Navigation principale" });
+      const menu = page.getByRole("button", { name: "Navigation principale" });
+      if (frame.sidebar === "drawer") {
+        await expect(nav).toBeHidden();
+        await menu.click();
+        await expect(page.getByRole("dialog", { name: "Navigation principale" })).toBeVisible();
+        await expect(nav).toBeVisible();
+        await page.keyboard.press("Escape");
+        await expect(menu).toBeFocused();
+      } else {
+        await expect(menu).toBeHidden();
+        await expect(nav).toHaveAttribute("data-state", frame.sidebar);
+      }
+    });
+  });
+}
+
 test.describe("sticky headers", () => {
   test("DataGrid: the header stays at the top of its scroll container", async ({ page }) => {
     await open(page, "/_ui/c/DataGrid?etat=sticky");

@@ -93,9 +93,13 @@ const ICONS: Record<AlertTone, IconName> = {
     color: var(--k-inline-alert-fg);
   }
 
+  /* One elastic column: a long code shortens (its badge), a word breaks; never wider than
+   * the alert. */
   .k-inline-alert__body {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     flex: 1;
+    overflow-wrap: anywhere;
     gap: var(--k-space-1);
     min-inline-size: 0;
   }
@@ -108,6 +112,7 @@ const ICONS: Record<AlertTone, IconName> = {
 
   .k-inline-alert__items {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--k-space-1);
     padding: 0;
     margin: 0;

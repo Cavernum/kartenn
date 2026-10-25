@@ -36,7 +36,7 @@ const past = computed(() => props.at !== null);
       }}</time>
       <span class="k-date-pill__zone">{{ props.timeZone }}</span>
     </template>
-    <span v-else>{{ t("present") }}</span>
+    <span v-else class="k-date-pill__text">{{ t("present") }}</span>
     <Icon name="chevron-down" class="k-date-pill__chevron" />
   </button>
 </template>
@@ -95,6 +95,19 @@ const past = computed(() => props.at !== null);
 
   .k-date-pill[data-state="present"] .k-icon {
     color: var(--k-text-muted);
+  }
+
+  /* In the compact frame (its `data-width`, design « Adaptation à la largeur »), the icon
+   * alone: the date, the zone or « présent » stay its name, hidden on screen only. */
+  [data-width="compact"] .k-date-pill__date,
+  [data-width="compact"] .k-date-pill__zone,
+  [data-width="compact"] .k-date-pill__text {
+    position: absolute;
+    inline-size: var(--k-space-px);
+    block-size: var(--k-space-px);
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 </style>

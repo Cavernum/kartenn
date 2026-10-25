@@ -48,6 +48,13 @@ const props = defineProps<{ items: Crumb[]; label?: string }>();
     min-inline-size: 0;
   }
 
+  /* In the compact frame (its `data-width`, design « Adaptation à la largeur »), the
+   * current page alone: the path is the drawer's navigation. */
+  [data-width="compact"] .k-breadcrumb__item:not(:last-child),
+  [data-width="compact"] .k-breadcrumb__separator {
+    display: none;
+  }
+
   .k-breadcrumb__list {
     display: flex;
     align-items: center;

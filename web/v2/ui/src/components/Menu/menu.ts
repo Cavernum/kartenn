@@ -24,4 +24,15 @@ export interface MenuEntry {
 /** A separator, or the title of a group. */
 export type MenuDivider = { kind: "separator" } | { kind: "label"; label: string };
 
-export type MenuItem = MenuEntry | MenuDivider;
+/**
+ * An entry that is on or off (APG Menu, `menuitemcheckbox`): choosing it emits `select`
+ * with its id and keeps the menu open; the host flips `checked`.
+ */
+export interface MenuCheckbox {
+  kind: "checkbox";
+  id: string;
+  label: string;
+  checked: boolean;
+}
+
+export type MenuItem = MenuEntry | MenuDivider | MenuCheckbox;

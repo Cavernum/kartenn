@@ -18,7 +18,10 @@
 // `auto` track): a chevron button, « Ouvrir le panneau », reopens it on its last tab and
 // moves the focus there; closing it from inside gives the focus back to the strip. The
 // strip covers nothing, at any width (revue du 2026-10-25). The footer shows only when the
-// host fills it for the tab in front: no empty band under a tab without actions.
+// host fills it for the tab in front: no empty band under a tab without actions. With
+// `sheet` (compact frame, design « Adaptation à la largeur »), it covers the whole window,
+// a back button at its start instead of the cross, and takes the focus when it opens. The
+// host may also lay it beside the surface, in the flow (its own sheet decides).
 import {
   Comment,
   Fragment,
@@ -56,6 +59,11 @@ const props = withDefaults(
     cover?: boolean;
     /** Closed, leave a strip with a button that reopens it. */
     rail?: boolean;
+    /**
+     * A sheet over the whole window (compact frame): a back button at the start instead of
+     * the cross, no handle, the focus moved to its active tab when it opens.
+     */
+    sheet?: boolean;
   }>(),
   { id: undefined, min: 320, max: 720, step: 16 },
 );
@@ -115,6 +123,13 @@ async function close(): Promise<void> {
   else if (inside) strip.value?.querySelector<HTMLElement>("button")?.focus();
   opener = null;
 }
+
+// A sheet hides all else: opened, it takes the focus on its active tab.
+watch(open, async (now) => {
+  if (!now || !props.sheet) return;
+  await nextTick();
+  panel.value?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
+});
 
 /** The strip reopens the panel and moves the focus to its active tab. */
 async function reopen(): Promise<void> {
@@ -176,10 +191,11 @@ function onPointerup(event: PointerEvent): void {
       :aria-label="props.label"
       :style="size"
       :data-cover="props.cover ? 'true' : undefined"
+      :data-sheet="props.sheet ? 'true' : undefined"
       @keydown="onKeydown"
     >
       <div
-        v-if="!props.cover"
+        v-if="!props.cover && !props.sheet"
         ref="handle"
         class="k-side-panel__handle"
         role="separator"
@@ -202,6 +218,15 @@ function onPointerup(event: PointerEvent): void {
         </template>
       </Tabs>
       <IconButton
+        v-if="props.sheet"
+        class="k-side-panel__back"
+        icon="arrow-left"
+        size="sm"
+        :label="t('panelBack')"
+        @click="close"
+      />
+      <IconButton
+        v-else
         class="k-side-panel__close"
         icon="x"
         size="sm"
@@ -252,6 +277,30 @@ function onPointerup(event: PointerEvent): void {
   .k-side-panel[data-cover] {
     inline-size: 100%;
     border-inline-start: 0;
+  }
+
+  /* A sheet: the whole window, over the frame; its back button at the start. */
+  .k-side-panel[data-sheet] {
+    position: fixed;
+    inset: 0;
+    z-index: var(--k-z-overlay);
+    inline-size: 100%;
+    border-inline-start: 0;
+    box-shadow: none;
+  }
+
+  .k-side-panel[data-sheet] > .k-side-panel__tabs > .k-tabs__list {
+    padding-inline: var(--k-space-8) var(--k-space-2);
+  }
+
+  .k-side-panel__back {
+    position: absolute;
+    inset-block-start: calc((var(--k-control-height-lg) - var(--k-control-height-sm)) / 2);
+    inset-inline-start: var(--k-space-2);
+  }
+
+  .k-side-panel__back:dir(rtl) .k-icon {
+    scale: -1 1;
   }
 
   /* Motion (design « Mouvement »): opened or closed by the user (never at the first

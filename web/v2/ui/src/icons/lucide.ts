@@ -10,6 +10,7 @@
 
 import {
   ArrowDown,
+  ArrowLeft,
   ArrowRight,
   ArrowUp,
   ArrowUpDown,
@@ -27,6 +28,7 @@ import {
   ClipboardCheck,
   ClipboardPaste,
   Clock,
+  Columns3,
   Command,
   Copy,
   Database,
@@ -52,6 +54,7 @@ import {
   Lock,
   LogOut,
   Maximize2,
+  Menu,
   Minus,
   Monitor,
   Moon,
@@ -83,6 +86,7 @@ import type { IconNode } from "./types.ts";
 
 export const lucideIcons = {
   "arrow-down": ArrowDown,
+  "arrow-left": ArrowLeft,
   "arrow-right": ArrowRight,
   "arrow-up": ArrowUp,
   "arrow-up-down": ArrowUpDown,
@@ -100,6 +104,7 @@ export const lucideIcons = {
   "clipboard-check": ClipboardCheck,
   "clipboard-paste": ClipboardPaste,
   clock: Clock,
+  "columns-3": Columns3,
   command: Command,
   copy: Copy,
   database: Database,
@@ -125,6 +130,7 @@ export const lucideIcons = {
   lock: Lock,
   "log-out": LogOut,
   "maximize-2": Maximize2,
+  menu: Menu,
   minus: Minus,
   monitor: Monitor,
   moon: Moon,

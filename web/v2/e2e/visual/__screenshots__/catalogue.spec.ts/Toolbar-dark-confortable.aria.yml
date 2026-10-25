@@ -23,10 +23,9 @@
       - status
       - code: folded
       - text: ""
-    - 'figure /narrow — \d+ px : seules les actions prioritaires restent/':
+    - 'figure /narrow — \d+ px \(sous \d+ px\) : seule l''action principale reste, à côté de « … »/':
       - toolbar "Actions sur les préfixes":
         - button "Créer"
-        - button "Modifier"
         - button "Plus d'actions"
       - status
       - code: narrow

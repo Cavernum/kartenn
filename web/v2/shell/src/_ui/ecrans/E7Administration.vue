@@ -199,10 +199,10 @@ const bindingCount = (g: ShownGroup): number =>
 
 const groupColumns: GridColumn[] = [
   { id: "key", label: "Groupe", width: "lg", sortable: true, filterable: true },
-  { id: "builtin", label: "Livré", width: "sm", sortable: true, filterable: true },
-  { id: "members", label: "Membres", width: "sm", align: "end", sortable: true },
-  { id: "roles", label: "Rôles", width: "sm", align: "end", sortable: true },
-  { id: "about", label: "Description", width: "fill", filterable: true },
+  { id: "builtin", label: "Livré", width: "sm", sortable: true, filterable: true, priority: 3 },
+  { id: "members", label: "Membres", width: "sm", align: "end", sortable: true, priority: 2 },
+  { id: "roles", label: "Rôles", width: "sm", align: "end", sortable: true, priority: 3 },
+  { id: "about", label: "Description", width: "fill", filterable: true, priority: 2 },
 ];
 const groupSort = ref<GridSort>({ column: "key", direction: "ascending" });
 const groupState = (row: Record<string, unknown>): RowState | undefined =>
@@ -219,10 +219,17 @@ const groupOperations = [
 // of the table (024/M8), not its key columns.
 const roleColumns: GridColumn[] = [
   { id: "key", label: "Rôle", width: "lg", sortable: true, filterable: true },
-  { id: "builtin", label: "Intégré", width: "sm", sortable: true, filterable: true },
-  { id: "permissions", label: "Permissions", width: "sm", align: "end", sortable: true },
-  { id: "groups", label: "Groupes", width: "sm", align: "end", sortable: true },
-  { id: "about", label: "Description", width: "fill", filterable: true },
+  { id: "builtin", label: "Intégré", width: "sm", sortable: true, filterable: true, priority: 3 },
+  {
+    id: "permissions",
+    label: "Permissions",
+    width: "sm",
+    align: "end",
+    sortable: true,
+    priority: 2,
+  },
+  { id: "groups", label: "Groupes", width: "sm", align: "end", sortable: true, priority: 3 },
+  { id: "about", label: "Description", width: "fill", filterable: true, priority: 2 },
 ];
 const roleSort = ref<GridSort>({ column: "key", direction: "ascending" });
 const roleActions: ToolbarAction[] = [
@@ -234,9 +241,16 @@ const roleActions: ToolbarAction[] = [
 const identityColumns: GridColumn[] = [
   { id: "name", label: "Identité", width: "lg", sortable: true, filterable: true },
   { id: "state", label: "État", width: "md", filterable: true },
-  { id: "groups", label: "Groupes", width: "sm", align: "end", sortable: true },
-  { id: "issuer", label: "Émetteur", width: "md", mono: true, filterable: true },
-  { id: "lastSession", label: "Dernière session", width: "fill", mono: true, sortable: true },
+  { id: "groups", label: "Groupes", width: "sm", align: "end", sortable: true, priority: 3 },
+  { id: "issuer", label: "Émetteur", width: "md", mono: true, filterable: true, priority: 2 },
+  {
+    id: "lastSession",
+    label: "Dernière session",
+    width: "fill",
+    mono: true,
+    sortable: true,
+    priority: 2,
+  },
 ];
 const identitySort = ref<GridSort>({ column: "name", direction: "ascending" });
 const identityActions: ToolbarAction[] = [
@@ -247,9 +261,9 @@ const identityActions: ToolbarAction[] = [
 const accountColumns: GridColumn[] = [
   { id: "name", label: "Compte", width: "fill", mono: true, sortable: true },
   { id: "state", label: "État", width: "md", filterable: true },
-  { id: "groups", label: "Groupes", width: "sm", align: "end", sortable: true },
-  { id: "secrets", label: "Secrets", width: "sm", align: "end", sortable: true },
-  { id: "lastUse", label: "Dernier usage", width: "lg", mono: true, sortable: true },
+  { id: "groups", label: "Groupes", width: "sm", align: "end", sortable: true, priority: 3 },
+  { id: "secrets", label: "Secrets", width: "sm", align: "end", sortable: true, priority: 2 },
+  { id: "lastUse", label: "Dernier usage", width: "lg", mono: true, sortable: true, priority: 2 },
 ];
 const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
 </script>
