@@ -256,7 +256,7 @@ describe("grids (REQ-020-34, 35)", () => {
       loadingRows: 3,
     });
     expect(html).toContain('aria-busy="true"');
-    expect(html.match(/class="k-skeleton__bar"/g)).toHaveLength(6);
+    expect(html.match(/class="k-skeleton__bar k-skeleton-fill"/g)).toHaveLength(6);
     expect(text(html)).toContain("Chargement");
   });
 
@@ -335,10 +335,19 @@ describe("grids (REQ-020-34, 35)", () => {
     expect(header).not.toContain("data-flow");
   });
 
-  it("Skeleton: one bar for a cell, hidden", async () => {
+  it("Skeleton: one bar for a cell, hidden, with the shared fill", async () => {
     expect(await render(Skeleton, { variant: "cell" })).toMatch(
-      /^<span class="k-skeleton__bar"[^>]*aria-hidden="true"/,
+      /^<span class="k-skeleton__bar k-skeleton-fill"[^>]*aria-hidden="true"/,
     );
+  });
+
+  it("Skeleton: every bar and block takes the shared fill", async () => {
+    for (const variant of ["rows", "text", "block"] as const) {
+      const html = await render(Skeleton, { variant, rows: 2, columns: 2 });
+      const bars = html.match(/class="k-skeleton__(bar|block)[^"]*"/g) ?? [];
+      expect(bars.length, variant).toBeGreaterThan(0);
+      for (const bar of bars) expect(bar, variant).toContain("k-skeleton-fill");
+    }
   });
 });
 

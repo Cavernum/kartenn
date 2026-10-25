@@ -6,11 +6,10 @@
 // The loading state of a data view (design « Inventaire », line 25; REQ-020-23): bars of
 // the size of what comes (rows of `--k-row-height`, lines of text), so that the data take
 // the same place when they arrive (no layout shift). `aria-busy` and a hidden word say it.
-// A sheen runs over the bars (a loading indicator, the one looping animation allowed with
-// the spinner, REQ-020-11), twice, then rests on the fill before 5 s (WCAG 2.2.2); under
-// reduced motion (the system's or `data-motion="reduce"`) the bars stand still, their fill
-// (`--k-skeleton`) alone telling the place. `cell`: one bar alone, for a cell
-// of a grid that says its loading itself (`DataGrid`).
+// Every bar and block takes the shared fill `k-skeleton-fill` (shared.css): a sheen that
+// runs as long as the place loads, still under reduced motion (the system's or
+// `data-motion="reduce"`), its fill alone telling the place. `cell`: one bar alone, for a
+// cell of a grid that says its loading itself (`DataGrid`).
 import { t } from "../../i18n.ts";
 
 const props = withDefaults(
@@ -22,7 +21,7 @@ const props = withDefaults(
 <template>
   <span
     v-if="props.variant === 'cell'"
-    class="k-skeleton__bar"
+    class="k-skeleton__bar k-skeleton-fill"
     :data-width="(props.rows + props.columns) % 3"
     aria-hidden="true"
   ></span>
@@ -33,7 +32,7 @@ const props = withDefaults(
         <span
           v-for="column in props.columns"
           :key="column"
-          class="k-skeleton__bar"
+          class="k-skeleton__bar k-skeleton-fill"
           :data-width="(row + column) % 3"
         ></span>
       </div>
@@ -42,19 +41,22 @@ const props = withDefaults(
       <span
         v-for="row in props.rows"
         :key="row"
-        class="k-skeleton__bar k-skeleton__line"
+        class="k-skeleton__bar k-skeleton__line k-skeleton-fill"
         :data-width="row === props.rows ? 2 : 0"
         aria-hidden="true"
       ></span>
     </template>
-    <span v-else class="k-skeleton__block" aria-hidden="true"></span>
+    <span v-else class="k-skeleton__block k-skeleton-fill" aria-hidden="true"></span>
   </div>
 </template>
 
 <style>
 @layer components {
+  /* As wide as its container, whatever the layout around it (a flex column aligned at
+   * the start would shrink it to nothing). */
   .k-skeleton {
     display: grid;
+    inline-size: 100%;
     min-inline-size: 0;
   }
 
@@ -73,23 +75,6 @@ const props = withDefaults(
 
   .k-skeleton__row > .k-skeleton__bar {
     flex: 1;
-  }
-
-  /* The sheen: a lighter band that crosses each bar, from the inline start. */
-  .k-skeleton__bar,
-  .k-skeleton__block {
-    background-color: var(--k-skeleton);
-    background-image: linear-gradient(to right, transparent, var(--k-skeleton-sheen), transparent);
-    background-repeat: no-repeat;
-    background-size: 50% 100%;
-    animation-name: k-shimmer;
-    animation-duration: calc(var(--k-duration-spin) * 2);
-    animation-timing-function: var(--k-ease-linear);
-
-    /* Two passes of 1.8 s, then the fixed fill (the band rests past the end): nothing
-     * moves on its own beyond 5 s (WCAG 2.2.2). */
-    animation-iteration-count: 2;
-    animation-fill-mode: forwards;
   }
 
   .k-skeleton__bar {
@@ -115,31 +100,6 @@ const props = withDefaults(
     display: block;
     min-block-size: var(--k-size-panel-sm);
     border-radius: var(--k-radius-md);
-  }
-
-  @keyframes k-shimmer {
-    from {
-      background-position: -100% 0;
-    }
-
-    to {
-      background-position: 200% 0;
-    }
-  }
-
-  /* Reduced motion: the bars stand still, without their sheen, their fill kept (REQ-020-11). */
-  @media (prefers-reduced-motion: reduce) {
-    .k-skeleton__bar,
-    .k-skeleton__block {
-      background-image: none;
-      animation-name: none;
-    }
-  }
-
-  :root[data-motion="reduce"] .k-skeleton__bar,
-  :root[data-motion="reduce"] .k-skeleton__block {
-    background-image: none;
-    animation-name: none;
   }
 }
 </style>

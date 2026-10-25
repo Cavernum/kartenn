@@ -63,6 +63,51 @@
     animation-iteration-count: infinite;
   }
 
+  /* The fill of a loading placeholder (`Skeleton`'s bars and blocks, the cells of a
+   * `DataGrid` in loading, any place that waits for its data; REQ-020-23): the one rule of
+   * every skeleton, no copy in a component. A grey bar (`--k-skeleton`) crossed by a
+   * lighter band (`--k-skeleton-sheen`, half its width) from the inline start, as long as
+   * the place loads (`infinite`, a loading indicator, REQ-020-11). The stop that WCAG 2.2.2
+   * asks of what moves more than 5 s is the reduced motion, the system's or the setting
+   * « Mouvement : réduit » (`data-motion="reduce"`): the band goes, the fill stays. */
+  .k-skeleton-fill {
+    background-color: var(--k-skeleton);
+    background-image: linear-gradient(to right, transparent, var(--k-skeleton-sheen), transparent);
+    background-repeat: no-repeat;
+    background-size: 50% 100%;
+    background-position: -100% 0;
+    animation-name: k-shimmer;
+    animation-duration: calc(var(--k-duration-spin) * 2);
+    animation-timing-function: var(--k-ease-linear);
+    animation-iteration-count: infinite;
+  }
+
+  .k-skeleton-fill:dir(rtl) {
+    animation-direction: reverse;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .k-skeleton-fill {
+      background-image: none;
+      animation-name: none;
+    }
+  }
+
+  :root[data-motion="reduce"] .k-skeleton-fill {
+    background-image: none;
+    animation-name: none;
+  }
+
+  @keyframes k-shimmer {
+    from {
+      background-position: -100% 0;
+    }
+
+    to {
+      background-position: 200% 0;
+    }
+  }
+
   /* The chevron of a disclosure (tree node, group of the sidebar or of a diff; design
    * « Mouvement »): one glyph pointing to the inline end, turned a quarter down when open
    * (`data-open`). The glyph alone turns; what it opens appears at once. */

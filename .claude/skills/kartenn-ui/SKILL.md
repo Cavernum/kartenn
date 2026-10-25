@@ -61,7 +61,9 @@ non servi avant la bascule) ; `web/` ne reçoit que des correctifs.
   focus placé sans attendre ; pas de `mode="out-in"`, pas de View Transitions, pas de
   minuterie. Jamais animés : tri, filtre, actualisation, valeurs, défilement, contenu d'un
   nœud, changement de page. Chevron de repli : `k-chevron` + `data-open`. Aucune animation
-  en boucle hors indicateur de chargement ; le reflet du squelette s'arrête avant 5 s.
+  en boucle hors indicateur de chargement ; le reflet du squelette (classe partagée
+  `k-skeleton-fill`, jamais recopiée) tourne tant que la zone charge, arrêté par le
+  mouvement réduit (système ou `data-motion="reduce"`, le mécanisme de WCAG 2.2.2).
 
 ### Structure avant style (spec 020 § « Structure avant style », 024/M12, M15)
 
@@ -132,7 +134,7 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `ExpandableGrid` | `DataGrid` compacte (compte de lignes, `visibleRows`, `compactColumns`) + `IconButton` « Agrandir » qui ouvre la même table dans un `Dialog` `lg` `contained` (focus piégé, Échap, focus rendu au bouton) ; tri et filtres de l'hôte, partagés | ● |
 | `TreeGrid`, `Tree` | Treegrid ; Tree View ; garde d'affichage `misplaced` ; « + » d'un nœud (`addLabel`, événement `add`, 024/M10) | ◐ (`TreeGrid`) |
 | `CodeBadge`, `KeyLabel`, `EnvChip`, `StatusBadge` | Button (copier, nom = contenu, « Copier » caché) ; — | ◐ |
-| `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `aria-busy` (reflet animé deux fois puis fond fixe, immobile sous mouvement réduit) ; `alert` ; `status` | ◐ |
+| `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `aria-busy` (reflet en boucle `k-skeleton-fill`, fond fixe sous mouvement réduit) ; `alert` ; `status` | ◐ |
 | `DatePill`, `DraftCounter`, `TimeBand` | Button ; bascule du panneau (`aria-expanded`, `aria-controls` ; ouvert, icône en croix) et Menu Button des brouillons ; `status` | ◐ (`DraftCounter` ●) |
 | `Kbd`, `ShortcutHint` | — ; `kbd` imbriqués, noms de touches dans la langue | ◐ (`Kbd`) |
 | `DiffList` | liste groupée, Disclosure ; signe, mot caché, `del`/`ins` | ◐ |
