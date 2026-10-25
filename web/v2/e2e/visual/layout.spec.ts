@@ -133,7 +133,7 @@ test.describe("mock-ups at 320 px", () => {
 
 // The frame of each width class (WIDTH_CLASSES): its attribute, the sidebar, the panel.
 const FRAMES = [
-  { width: 1440, name: "wide", sidebar: "expanded", panel: "beside" },
+  { width: 1440, name: "wide", sidebar: "expanded", panel: "over" },
   { width: 1100, name: "standard", sidebar: "expanded", panel: "over" },
   { width: 768, name: "narrow", sidebar: "collapsed", panel: "cover" },
   { width: 390, name: "compact", sidebar: "drawer", panel: "sheet" },
@@ -152,12 +152,23 @@ for (const frame of FRAMES) {
       const box = await panel.boundingBox();
       const surface = await page.locator(".k-ecran__surface").boundingBox();
       expect(box && surface).toBeTruthy();
-      if (frame.panel === "beside") {
-        // In its own column: the surface ends where the panel starts.
-        expect(Math.round(surface!.x + surface!.width)).toBeLessThanOrEqual(Math.round(box!.x));
-      } else if (frame.panel === "over") {
+      if (frame.panel === "over") {
+        // Over the end of the surface, which keeps its whole width (« par-dessus partout »):
+        // the panel ends with the body, past the surface and its strip.
+        const body = await page.locator(".k-ecran__body").boundingBox();
         expect(Math.round(box!.x)).toBeLessThan(Math.round(surface!.x + surface!.width));
+        expect(Math.round(box!.x + box!.width)).toBe(Math.round(body!.x + body!.width));
         expect(Math.round(box!.width)).toBeLessThan(Math.round(surface!.width));
+        if (frame.name === "wide") {
+          // The grid reads the surface, not what the panel leaves: nothing is hidden.
+          await expect(page.getByRole("button", { name: "Colonnes" })).toHaveCount(0);
+          const hidden = await page
+            .locator(".k-ecran__surface [data-priority]")
+            .evaluateAll(
+              (els) => els.filter((el) => getComputedStyle(el).display === "none").length,
+            );
+          expect(hidden).toBe(0);
+        }
       } else if (frame.panel === "cover") {
         expect(Math.round(box!.x)).toBe(Math.round(surface!.x));
       } else {

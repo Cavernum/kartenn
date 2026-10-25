@@ -309,8 +309,8 @@ popover) ; `--k-size-dialog-sm` / `-md` / `-lg` 400 / 560 / 720 px ; `--k-size-m
 `--k-size-col-xs` / `-sm` / `-md` / `-lg` 56 / 96 / 160 / 240 px, `fill` valant
 `minmax(md, 1fr)`. Un test vérifie que toute propriété lue par une feuille existe (jeton
 public, alias local déclaré, ou valeur posée par CSSOM). Adaptation à la largeur
-(2026-10-25) : `--k-size-tile-min`, `--k-size-target-coarse` 44 px, `--k-size-viewport`,
-`--k-size-surface-min` 640 px, `--k-size-panel-beside` (§ « Adaptation à la largeur »).
+(2026-10-25) : `--k-size-tile-min`, `--k-size-target-coarse` 44 px, `--k-size-viewport`
+(§ « Adaptation à la largeur »).
 
 ### Adaptation à la largeur (relecture du 2026-10-25)
 
@@ -330,10 +330,17 @@ Classes de largeur du cadre (seuils choisis par kartenn ; aucune source n'en fix
 
 | Classe | Fenêtre | Cadre |
 |---|---|---|
-| large | ≥ 1280 px | barre latérale dépliée ; panneau de 420 px à côté de la surface |
-| standard | 1024 – 1279 px | barre latérale dépliée, repliable ; panneau à côté tant que la surface garde au moins 640 px, en surimpression sinon |
+| large | ≥ 1280 px | barre latérale dépliée ; panneau de 420 px en surimpression de la fin de la surface |
+| standard | 1024 – 1279 px | barre latérale dépliée, repliable ; panneau en surimpression de la fin de la surface |
 | étroite | 600 – 1023 px | barre latérale en rail (icônes) ; panneau en surimpression (`cover`) |
 | compacte | < 600 px | une colonne ; barre latérale en tiroir ouvert par un bouton de la barre d'état ; barre d'état réduite (pastille de date et compteur du brouillon en icône) ; panneau en feuille plein écran avec retour |
+
+Le panneau passe **par-dessus la surface à toute largeur** (décision de l'utilisateur du
+2026-10-25, « par-dessus partout », comme 024/M8) : la surface garde sa largeur et toutes
+ses colonnes, le panneau en couvre la fin (classes large et standard), toute la surface
+(étroite) ou toute la fenêtre (compacte). Un panneau à côté, dans sa propre piste, a été
+essayé puis retiré : il retirait de la largeur à la surface, et les grilles masquaient
+des colonnes dès qu'il s'ouvrait.
 
 Les seuils ne sont pas des jetons CSS (une media query ne lit pas de propriété, et
 `@custom-media` n'existe pas encore) : une seule liste dans `components/layout.ts`
@@ -395,21 +402,18 @@ horizontalement hors des régions de grille, et que chaque classe montre le cadr
   `CONTAINER_WIDTHS` (aucune `@media` de largeur dans un composant ; `pointer` et `hover`
   restent permis).
 - Jetons : `--k-size-tile-min` (`clamp(200px, 22vw, 280px)`), `--k-size-target-coarse`
-  (44 px), `--k-size-viewport` (`100vh`, `100dvh` sous `@supports`),
-  `--k-size-surface-min` (640 px) et `--k-size-panel-beside`
-  (`calc(100cqi - --k-size-surface-min)`, lu dans le conteneur où il sert).
+  (44 px) et `--k-size-viewport` (`100vh`, `100dvh` sous `@supports`).
 - Cadre : `data-width` posé par `matchMedia` sur les requêtes de `widthQuery()` ; la
-  hauteur suit `--k-size-viewport` (la règle `:root:has(.k-ecran)` disparaît). Le corps
-  est un conteneur nommé `k-ecran-body` : à 960 px et plus (640 de surface + 320 de
-  panneau), le panneau ouvert prend la piste de fin, dans le flux, à
-  `min(largeur choisie, --k-size-panel-beside)`, la languette s'efface ; en dessous il
-  reste en surimpression. Classe étroite : rail (état de `SidebarNav` posé par le script),
+  hauteur suit `--k-size-viewport` (la règle `:root:has(.k-ecran)` disparaît). Classes
+  large et standard : le panneau ouvert reste en surimpression de la fin de la surface,
+  qui garde sa largeur (les grilles ne lisent que la largeur réelle de la surface : à
+  1440 px, E1 panneau ouvert montre toutes ses colonnes, sans sélecteur « Colonnes ») ;
+  fermé, il laisse sa languette au bord de fin du corps, comme avant. Classe étroite : rail (état de `SidebarNav` posé par le script),
   `cover`. Classe compacte : `SidebarNav` masquée, bouton « Navigation principale » dans la
   barre d'état qui ouvre un `Drawer` (côté début) avec la navigation, marge réduite,
   pastille de date et compteur en icône (règles `[data-width="compact"]` de leurs
   feuilles), fil d'Ariane réduit à la page courante (même attribut), panneau en
-  `sheet` ; tant que la feuille est ouverte, barre, bande et surface sont `inert`. Le corps
-  n'est pas conteneur en classe compacte (la feuille `fixed` se pose sur la fenêtre). Sous
+  `sheet` ; tant que la feuille est ouverte, barre, bande et surface sont `inert`. Sous
   la classe large, la zone horaire de la pastille ne reste que dans son nom ; sous 1024 px,
   la marge de la surface passe à `--k-space-2`. La surface est un conteneur nommé
   `k-surface` (tuile large d'E0 ramenée à une colonne sous `md`).
@@ -439,9 +443,14 @@ horizontalement hors des régions de grille, et que chaque classe montre le cadr
 - Maquettes : `priority` sur les colonnes secondaires d'E1, E3, E5, E7 et E10 ; l'action
   fictive « Colonnes » d'E3 retirée (le sélecteur la remplace). Captures à 390 px ;
   `layout.spec` : maquettes à 320 px, cadre attendu à 1440, 1100, 768 et 390 px.
-- Écart à 024/M8 : en classe large (et standard quand la surface garde 640 px), le
-  panneau n'est plus en surimpression mais à côté de la surface, comme le tableau
-  ci-dessus le fixe.
+- Retiré le même jour (« par-dessus partout ») : le panneau à côté de la surface (corps
+  conteneur `k-ecran-body`, piste propre à 960 px et plus, languette effacée) et ses
+  jetons `--k-size-surface-min` et `--k-size-panel-beside` ; 024/M8 s'applique de nouveau
+  à toute largeur. La colonne « Environnement » d'E1 passe en priorité 2 : la grille d'E1
+  est dans un `Split`, sa piste principale reste sous `lg` même à 1440 px ; elle ne se
+  masque plus qu'à 1024 px et moins. `layout.spec` vérifie qu'à 1440 px, panneau ouvert,
+  le panneau finit avec le corps, qu'aucune colonne d'E1 n'est masquée et qu'aucun
+  sélecteur « Colonnes » ne paraît.
 - Non fait : listes simples empilées sous `sm` (optionnel) ; `subgrid` entre blocs
   voisins de formulaires ; champs côte à côte des formulaires (aucun formulaire à
   plusieurs colonnes dans les maquettes).
@@ -568,7 +577,7 @@ sont listés.
 | 27 | `DatePill`, `DraftCounter`, `TimeBand` | Button ; Button (bascule, `aria-expanded`) et Menu Button (liste des brouillons) ; `role="status"` | hors présent ; compteur à 0 ; panneau ouvert | barre d'état de la 021 ; `DatePill` ouvre `PeriodPicker` en surimpression ; `DraftCounter` ouvert (`expanded`) : son icône de brouillon devient une croix, ce que fera le prochain clic (revue du 2026-10-25) |
 | 28 | `Kbd`, `ShortcutHint` | — | — | rendu des raccourcis dans menus, infobulles, aide `?` |
 | 29 | `DiffList` | liste groupée par objet, Disclosure | ajout, retrait, modification, anomalie | avant/après par attribut et propriété ; virtualisée au-delà de 200 lignes |
-| 30 | `SidePanel` | région `complementary` (non modale) + Tabs | ouvert, replié, onglet actif, redimensionné, replié en languette | panneau droit de la 021 : surimpression de la surface, 420 px par défaut, poignée redimensionnable au clavier (Window Splitter), Échap ferme et rend le focus au déclencheur (024/M8) ; option `rail` : replié, il laisse au bord de fin une languette dans le flux (piste `auto` de l'hôte, une largeur de contrôle) dont le bouton à chevron « Ouvrir le panneau » (`aria-expanded="false"`) le rouvre sur son dernier onglet et y porte le focus ; la languette ne couvre jamais la surface, à toute largeur, `cover` compris ; le pied ne paraît que si l'hôte le remplit pour l'onglet devant (pas de bande vide) (revue du 2026-10-25) ; le cadre le pose à côté de la surface quand elle garde `--k-size-surface-min` ; option `sheet` (classe compacte) : feuille sur toute la fenêtre, bouton « Retour » au lieu de la croix, focus sur l'onglet actif à l'ouverture |
+| 30 | `SidePanel` | région `complementary` (non modale) + Tabs | ouvert, replié, onglet actif, redimensionné, replié en languette | panneau droit de la 021 : surimpression de la surface, 420 px par défaut, poignée redimensionnable au clavier (Window Splitter), Échap ferme et rend le focus au déclencheur (024/M8) ; option `rail` : replié, il laisse au bord de fin une languette dans le flux (piste `auto` de l'hôte, une largeur de contrôle) dont le bouton à chevron « Ouvrir le panneau » (`aria-expanded="false"`) le rouvre sur son dernier onglet et y porte le focus ; la languette ne couvre jamais la surface, à toute largeur, `cover` compris ; le pied ne paraît que si l'hôte le remplit pour l'onglet devant (pas de bande vide) (revue du 2026-10-25) ; par-dessus la surface à toute largeur, jamais à côté (« par-dessus partout », 2026-10-25) ; option `sheet` (classe compacte) : feuille sur toute la fenêtre, bouton « Retour » au lieu de la croix, focus sur l'onglet actif à l'ouverture |
 | 31 | `CommitForm` | — (champs étiquetés) | motif prérempli, motif requis manquant | résumé sur une ligne, description facultative ; Ctrl+Entrée émet `submit` (024/M9, REQ-020-37) |
 | 32 | `SplitButton` | Button + Menu Button | action choisie, entrée désactivée avec motif, chargement | action par défaut à gauche, chevron à droite (`aria-haspopup="menu"`) ; choisir une entrée change l'action du bouton sans la lancer (REQ-020-37) |
 | 33 | `Toolbar` | Toolbar | actions repliées dans « … » | flèches entre les actions (APG Toolbar) ; repli par priorité (REQ-020-36) ; sous 360 px, une barre qui doit replier ne garde que son action principale (`primary`, sinon la plus prioritaire) |

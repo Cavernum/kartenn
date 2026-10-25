@@ -174,14 +174,10 @@
     --k-size-col-lg: 240px;
     /* Adaptation to the width (design « Adaptation à la largeur »): the least width of a
      * tile of an intrinsic grid, the target of a main action under a coarse pointer, the
-     * height of the window (dynamic where supported, below), the least width of the work
-     * surface beside the right panel, and the widest that panel may then be (its
-     * container, read where it is used, less that surface). */
+     * height of the window (dynamic where supported, below). */
     --k-size-tile-min: clamp(200px, 22vw, 280px);
     --k-size-target-coarse: 44px;
     --k-size-viewport: 100vh;
-    --k-size-surface-min: 640px;
-    --k-size-panel-beside: calc(100cqi - var(--k-size-surface-min));
 
     /* Motion (REQ-020-11) */
     --k-duration-instant: 0ms;

@@ -46,31 +46,51 @@
   - heading "Identités" [level=1]
   - region "Identités 6":
     - heading "Identités 6" [level=2]
-    - button "Colonnes"
     - grid "Identités":
       - rowgroup:
-        - row "Identité État":
+        - row "Identité État Groupes Émetteur Dernière session":
           - columnheader "Identité"
           - columnheader "État"
+          - columnheader "Groupes"
+          - columnheader "Émetteur"
+          - columnheader "Dernière session"
       - rowgroup:
-        - row "Camille Martin Active":
+        - row /Camille Martin Active 2 idp-interne \d+-\d+-\d+ \d+:\d+/:
           - gridcell "Camille Martin"
           - gridcell "Active"
-        - row "Lou Bernard Active" [selected]:
+          - gridcell "2"
+          - gridcell "idp-interne"
+          - gridcell /\d+-\d+-\d+ \d+:\d+/
+        - row /Lou Bernard Active 3 idp-interne \d+-\d+-\d+ \d+:\d+/ [selected]:
           - gridcell "Lou Bernard"
           - gridcell "Active"
-        - row "Alex Morel Active":
+          - gridcell "3"
+          - gridcell "idp-interne"
+          - gridcell /\d+-\d+-\d+ \d+:\d+/
+        - row /Alex Morel Active 1 idp-interne \d+-\d+-\d+ \d+:\d+/:
           - gridcell "Alex Morel"
           - gridcell "Active"
-        - row "Sam Leroy Désactivée":
+          - gridcell "1"
+          - gridcell "idp-interne"
+          - gridcell /\d+-\d+-\d+ \d+:\d+/
+        - row /Sam Leroy Désactivée 1 idp-interne \d+-\d+-\d+ \d+:\d+/:
           - gridcell "Sam Leroy"
           - gridcell "Désactivée"
-        - row "Noa Petit Active":
+          - gridcell "1"
+          - gridcell "idp-interne"
+          - gridcell /\d+-\d+-\d+ \d+:\d+/
+        - row "Noa Petit Active 0 idp-interne —":
           - gridcell "Noa Petit"
           - gridcell "Active"
-        - row "secours Active":
+          - gridcell "0"
+          - gridcell "idp-interne"
+          - gridcell "—"
+        - row "secours Active 1 local —":
           - gridcell "secours"
           - gridcell "Active"
+          - gridcell "1"
+          - gridcell "local"
+          - gridcell "—"
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
   - tablist "Panneau droit":

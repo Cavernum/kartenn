@@ -48,35 +48,62 @@
     - heading "Rôles 6" [level=2]
     - toolbar "Actions des rôles":
       - button "Créer"
-    - button "Colonnes"
     - grid "Rôles":
       - rowgroup:
-        - row "Rôle":
+        - row "Rôle Intégré Permissions Groupes Description":
           - columnheader "Rôle"
+          - columnheader "Intégré"
+          - columnheader "Permissions"
+          - columnheader "Groupes"
+          - columnheader "Description"
       - rowgroup:
-        - row "Lecteur reader":
+        - row /Lecteur reader oui \d+ 6 Lecture de tout le référentiel/:
           - gridcell "Lecteur reader":
             - text: ""
             - code: reader
-        - row "Éditeur editor":
+          - gridcell "oui"
+          - gridcell /\d+/
+          - gridcell "6"
+          - gridcell "Lecture de tout le référentiel"
+        - row /Éditeur editor oui \d+ 3 Édition du référentiel, sans l'administration/:
           - gridcell "Éditeur editor":
             - text: ""
             - code: editor
-        - row "Administrateur admin":
+          - gridcell "oui"
+          - gridcell /\d+/
+          - gridcell "3"
+          - gridcell "Édition du référentiel, sans l'administration"
+        - row /Administrateur admin oui \d+ 2 Tous les droits/:
           - gridcell "Administrateur admin":
             - text: ""
             - code: admin
-        - row "Lecteur réseau lecteur-reseau" [selected]:
+          - gridcell "oui"
+          - gridcell /\d+/
+          - gridcell "2"
+          - gridcell "Tous les droits"
+        - row "Lecteur réseau lecteur-reseau non 8 4 Lecture du réseau et des machines" [selected]:
           - gridcell "Lecteur réseau lecteur-reseau":
             - text: ""
             - code: lecteur-reseau
-        - row "Instructeur instructeur-flux":
+          - gridcell "non"
+          - gridcell "8"
+          - gridcell "4"
+          - gridcell "Lecture du réseau et des machines"
+        - row "Instructeur instructeur-flux non 3 2 Instruction des demandes de flux":
           - gridcell "Instructeur instructeur-flux":
             - text: ""
             - code: instructeur-flux
-        - row "import-ipam":
+          - gridcell "non"
+          - gridcell "3"
+          - gridcell "2"
+          - gridcell "Instruction des demandes de flux"
+        - row "import-ipam non 8 1 Compte d'import":
           - gridcell "import-ipam":
             - code: import-ipam
+          - gridcell "non"
+          - gridcell "8"
+          - gridcell "1"
+          - gridcell "Compte d'import"
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
   - tablist "Panneau droit":

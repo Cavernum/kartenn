@@ -47,7 +47,8 @@
       - text: /\(tâche \d+\)/
     - toolbar "Actions de la matrice":
       - button "3 règles hors vue"
-      - button "Plus d'actions"
+      - button "Simuler le brouillon"
+      - button "Exporter"
     - 'grid "Matrice applicatif : source en ligne, destination en colonne"':
       - rowgroup:
         - row "Source → destination Production Préproduction Recette Intégration Développement":

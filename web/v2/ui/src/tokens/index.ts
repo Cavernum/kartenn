@@ -142,8 +142,6 @@ export const tokens = [
   "--k-size-tile-min",
   "--k-size-target-coarse",
   "--k-size-viewport",
-  "--k-size-surface-min",
-  "--k-size-panel-beside",
   "--k-duration-instant",
   "--k-duration-fade",
   "--k-duration-short",
