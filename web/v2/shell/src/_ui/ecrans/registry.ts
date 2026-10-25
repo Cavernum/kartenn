@@ -313,7 +313,7 @@ export const MOCKUPS: Mockup[] = [
         id: "brouillon",
         label: "Brouillon de la matrice",
         description:
-          "Onglet Brouillon : cellule changée par source → destination, état avant et après, motif et libellé ajoutés, effet simulé, autres opérations, pied (simulation, CommitForm, SplitButton).",
+          "Onglet Brouillon : cellules changées dans les matrices de deux types de flux (type, source → destination, état avant et après, motif et libellé ajoutés), effet simulé groupé par type de flux, autres opérations, pied (simulation, CommitForm, SplitButton).",
       },
     ],
   },
