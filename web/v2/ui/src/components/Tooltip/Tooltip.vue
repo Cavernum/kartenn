@@ -113,6 +113,20 @@ onBeforeUnmount(() => window.removeEventListener("scroll", onScroll, { capture: 
     box-shadow: var(--k-shadow-overlay);
   }
 
+  /* Motion (design « Mouvement »): it fades in once its delay is over, and leaves at once.
+   * The fade is not motion: it stays under reduced motion. */
+  .k-tooltip {
+    transition-property: opacity;
+    transition-duration: var(--k-duration-fade);
+    transition-timing-function: var(--k-ease-standard);
+  }
+
+  @starting-style {
+    .k-tooltip {
+      opacity: 0;
+    }
+  }
+
   .k-tooltip[hidden] {
     display: none;
   }

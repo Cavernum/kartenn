@@ -142,8 +142,9 @@ const word = (node: TreeNode) => {
           >
             <Icon
               v-if="hasChildren(row.node)"
-              :name="isExpanded(row.node) ? 'chevron-down' : 'chevron-right'"
-              class="k-tree-grid__twisty"
+              name="chevron-right"
+              class="k-tree-grid__twisty k-chevron"
+              :data-open="isExpanded(row.node) ? 'true' : undefined"
             />
             <span v-else class="k-tree-grid__twisty" aria-hidden="true"></span>
             <Icon v-if="row.node.icon" :name="row.node.icon" class="k-tree-grid__icon" />
@@ -234,6 +235,11 @@ const word = (node: TreeNode) => {
     grid-template-columns: var(--k-grid-columns);
     min-block-size: var(--k-row-height);
     border-block-end: var(--k-border-width) solid var(--k-border);
+
+    /* Hovered or selected: a colour fade, nothing moves (design « Mouvement »). */
+    transition-property: background-color;
+    transition-duration: var(--k-duration-fade);
+    transition-timing-function: var(--k-ease-standard);
   }
 
   .k-tree-grid__head .k-tree-grid__row {

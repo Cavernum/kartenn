@@ -38,7 +38,11 @@ const word = (kind: DiffKind) => t(kind);
           :aria-controls="`${id}-${group.id}`"
           @click="toggle(group.id)"
         >
-          <Icon :name="closed.has(group.id) ? 'chevron-right' : 'chevron-down'" />
+          <Icon
+            name="chevron-right"
+            class="k-chevron"
+            :data-open="closed.has(group.id) ? undefined : 'true'"
+          />
           <span class="k-diff-list__sign" :data-kind="group.kind" aria-hidden="true">{{
             DIFF_SIGNS[group.kind]
           }}</span>

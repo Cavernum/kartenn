@@ -123,6 +123,27 @@ function onSelect(id: string): void {
     border: var(--k-border-width) solid var(--k-border-strong);
     border-radius: var(--k-radius-lg);
     box-shadow: var(--k-shadow-modal);
+
+    /* Motion (design « Mouvement »): the one of a dialog, from its top edge. */
+    transform-origin: top;
+    transition-property: opacity, scale;
+    transition-duration: max(var(--k-duration-medium), var(--k-duration-fade));
+    transition-timing-function: var(--k-ease-standard);
+  }
+
+  @starting-style {
+    .k-palette {
+      opacity: 0;
+      scale: var(--k-motion-scale);
+    }
+  }
+
+  .k-palette[data-state="closed"] {
+    pointer-events: none;
+    animation-name: k-fade-out;
+    animation-duration: max(var(--k-duration-short), var(--k-duration-fade));
+    animation-timing-function: var(--k-ease-exit);
+    animation-fill-mode: forwards;
   }
 
   .k-palette__search {

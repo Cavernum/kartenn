@@ -166,62 +166,66 @@ function onPointerup(event: PointerEvent): void {
 </script>
 
 <template>
-  <aside
-    v-if="open"
-    v-bind="$attrs"
-    :id="id"
-    ref="panel"
-    class="k-side-panel"
-    :aria-label="props.label"
-    :style="size"
-    :data-cover="props.cover ? 'true' : undefined"
-    @keydown="onKeydown"
-  >
-    <div
-      v-if="!props.cover"
-      ref="handle"
-      class="k-side-panel__handle"
-      role="separator"
-      tabindex="0"
-      aria-orientation="vertical"
-      :aria-label="t('panelResize')"
-      :aria-controls="id"
-      :aria-valuenow="width"
-      :aria-valuemin="props.min"
-      :aria-valuemax="props.max"
-      @keydown="onHandleKeydown"
-      @pointerdown="onPointerdown"
-      @pointermove="onPointermove"
-      @pointerup="onPointerup"
-      @pointercancel="onPointerup"
-    ></div>
-    <Tabs v-model="tab" :tabs="props.tabs" :label="props.label" class="k-side-panel__tabs">
-      <template v-for="item in props.tabs" :key="item.value" #[item.value]>
-        <slot :name="item.value" />
-      </template>
-    </Tabs>
-    <IconButton
-      class="k-side-panel__close"
-      icon="x"
-      size="sm"
-      :label="t('panelClose')"
-      @click="close"
-    />
-    <footer v-if="footerShown()" class="k-side-panel__footer">
-      <slot name="footer" :tab="current" />
-    </footer>
-  </aside>
+  <Transition name="k-side-panel">
+    <aside
+      v-if="open"
+      v-bind="$attrs"
+      :id="id"
+      ref="panel"
+      class="k-side-panel"
+      :aria-label="props.label"
+      :style="size"
+      :data-cover="props.cover ? 'true' : undefined"
+      @keydown="onKeydown"
+    >
+      <div
+        v-if="!props.cover"
+        ref="handle"
+        class="k-side-panel__handle"
+        role="separator"
+        tabindex="0"
+        aria-orientation="vertical"
+        :aria-label="t('panelResize')"
+        :aria-controls="id"
+        :aria-valuenow="width"
+        :aria-valuemin="props.min"
+        :aria-valuemax="props.max"
+        @keydown="onHandleKeydown"
+        @pointerdown="onPointerdown"
+        @pointermove="onPointermove"
+        @pointerup="onPointerup"
+        @pointercancel="onPointerup"
+      ></div>
+      <Tabs v-model="tab" :tabs="props.tabs" :label="props.label" class="k-side-panel__tabs">
+        <template v-for="item in props.tabs" :key="item.value" #[item.value]>
+          <slot :name="item.value" />
+        </template>
+      </Tabs>
+      <IconButton
+        class="k-side-panel__close"
+        icon="x"
+        size="sm"
+        :label="t('panelClose')"
+        @click="close"
+      />
+      <footer v-if="footerShown()" class="k-side-panel__footer">
+        <slot name="footer" :tab="current" />
+      </footer>
+    </aside>
+  </Transition>
   <div v-if="props.rail" ref="strip" class="k-side-panel-rail">
-    <IconButton
-      v-if="!open"
-      class="k-side-panel-rail__open"
-      icon="chevron-left"
-      size="sm"
-      variant="secondary"
-      :label="t('panelOpen')"
-      aria-expanded="false"
-      @click="reopen"
-    />
+    <Transition name="k-side-panel-rail">
+      <IconButton
+        v-if="!open"
+        class="k-side-panel-rail__open"
+        icon="chevron-left"
+        size="sm"
+        variant="secondary"
+        :label="t('panelOpen')"
+        aria-expanded="false"
+        @click="reopen"
+      />
+    </Transition>
   </div>
 </template>
 
@@ -248,6 +252,50 @@ function onPointerup(event: PointerEvent): void {
   .k-side-panel[data-cover] {
     inline-size: 100%;
     border-inline-start: 0;
+  }
+
+  /* Motion (design « Mouvement »): opened or closed by the user (never at the first
+   * render), the panel slides from its edge and fades; the surface under it keeps its
+   * width. Interactive from its first frame, the focus placed at once. Vue's
+   * `<Transition>` classes, the one place of a class of state. */
+  .k-side-panel-enter-active {
+    transition-property: opacity, translate;
+    transition-duration: max(var(--k-duration-medium), var(--k-duration-fade));
+    transition-timing-function: var(--k-ease-standard);
+  }
+
+  .k-side-panel-leave-active {
+    pointer-events: none;
+    transition-property: opacity, translate;
+    transition-duration: max(var(--k-duration-short), var(--k-duration-fade));
+    transition-timing-function: var(--k-ease-exit);
+  }
+
+  .k-side-panel-enter-from,
+  .k-side-panel-leave-to {
+    opacity: 0;
+    translate: var(--k-motion-shift-lg) 0;
+  }
+
+  .k-side-panel-enter-from:dir(rtl),
+  .k-side-panel-leave-to:dir(rtl) {
+    translate: calc(var(--k-motion-shift-lg) * -1) 0;
+  }
+
+  /* The chevron of the strip comes the same way, in. */
+  .k-side-panel-rail-enter-active {
+    transition-property: opacity, translate;
+    transition-duration: max(var(--k-duration-medium), var(--k-duration-fade));
+    transition-timing-function: var(--k-ease-standard);
+  }
+
+  .k-side-panel-rail-enter-from {
+    opacity: 0;
+    translate: var(--k-motion-shift-sm) 0;
+  }
+
+  .k-side-panel-rail-enter-from:dir(rtl) {
+    translate: calc(var(--k-motion-shift-sm) * -1) 0;
   }
 
   /* The handle: a strip astride the inline-start edge. */

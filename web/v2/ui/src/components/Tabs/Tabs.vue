@@ -87,7 +87,7 @@ const active = computed({
     border-start-start-radius: var(--k-radius-md);
     border-start-end-radius: var(--k-radius-md);
     transition-property: color, border-color;
-    transition-duration: var(--k-duration-short);
+    transition-duration: var(--k-duration-fade);
     transition-timing-function: var(--k-ease-standard);
   }
 

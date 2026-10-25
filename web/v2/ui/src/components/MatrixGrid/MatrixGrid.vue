@@ -345,7 +345,15 @@ function onKeydown(event: KeyboardEvent): void {
     outline-offset: calc(var(--k-focus-width) * -1);
   }
 
-  /* The crosshair: its cells lightly, its headers more, in the text colour. */
+  /* The crosshair: its cells lightly, its headers more, in the text colour; it follows the
+   * pointer by a colour fade, nothing moves (design « Mouvement »). */
+  .k-matrix__header,
+  .k-matrix__cell {
+    transition-property: background-color, color;
+    transition-duration: var(--k-duration-fade);
+    transition-timing-function: var(--k-ease-standard);
+  }
+
   .k-matrix__cell[data-cross] {
     background-color: var(--k-hover);
   }

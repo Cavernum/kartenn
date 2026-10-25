@@ -94,6 +94,7 @@ function onSelect(entry: MenuEntry, event: Event): void {
         :label="props.label"
         :variant="props.variant"
         :size="props.size"
+        :data-chevron="props.icon === 'chevron-down' ? 'true' : undefined"
       />
       <Button v-else :icon="props.icon" :variant="props.variant" :size="props.size">
         {{ props.label }}<Icon name="chevron-down" class="k-menu__chevron" />
@@ -157,6 +158,44 @@ function onSelect(entry: MenuEntry, event: Event): void {
     border: var(--k-border-width) solid var(--k-border-strong);
     border-radius: var(--k-radius-lg);
     box-shadow: var(--k-shadow-overlay);
+    transition-property: opacity, translate;
+    transition-duration: max(var(--k-duration-short), var(--k-duration-fade));
+    transition-timing-function: var(--k-ease-standard);
+  }
+
+  /* Motion (design « Mouvement »): the menu comes 4 px out of its anchor, then fades out.
+   * Interactive from its first frame; Reka focuses its first entry at once. */
+  @starting-style {
+    .k-menu {
+      opacity: 0;
+      translate: 0 calc(var(--k-motion-shift-sm) * -1);
+    }
+
+    .k-menu[data-side="top"] {
+      translate: 0 var(--k-motion-shift-sm);
+    }
+  }
+
+  .k-menu[data-state="closed"] {
+    pointer-events: none;
+    animation-name: k-fade-out;
+    animation-duration: var(--k-duration-fade);
+    animation-timing-function: var(--k-ease-exit);
+    animation-fill-mode: forwards;
+  }
+
+  /* The chevron of the trigger (a glyph of its own, or the icon of a chevron-only button)
+   * turns while its menu is open; the glyph alone. */
+  .k-menu__chevron,
+  .k-icon-button[data-chevron] > .k-icon {
+    transition-property: rotate;
+    transition-duration: var(--k-duration-short);
+    transition-timing-function: var(--k-ease-standard);
+  }
+
+  .k-button[aria-expanded="true"] .k-menu__chevron,
+  .k-icon-button[data-chevron][aria-expanded="true"] > .k-icon {
+    rotate: var(--k-turn-half);
   }
 
   .k-menu__item {

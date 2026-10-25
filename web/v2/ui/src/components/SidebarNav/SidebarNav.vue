@@ -67,7 +67,11 @@ const state = computed(() => (collapsed.value ? "collapsed" : "expanded"));
           :aria-controls="`${id}-${group.id}`"
           @click="toggle(group.id)"
         >
-          <Icon :name="isOpen(group.id) ? 'chevron-down' : 'chevron-right'" />
+          <Icon
+            name="chevron-right"
+            class="k-chevron"
+            :data-open="isOpen(group.id) ? 'true' : undefined"
+          />
           {{ group.label }}
         </button>
         <ul

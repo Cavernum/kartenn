@@ -38,6 +38,16 @@ export async function snap(page: Page, state: string): Promise<void> {
  * `disabled`: rules left out, each with its reason at the call.
  */
 export async function expectAccessible(page: Page, disabled: string[] = []): Promise<void> {
+  // A layer fades in, even under reduced motion (spec 020, « Mouvement »): the finite
+  // animations and transitions end first, so that axe reads the colours of an opaque layer.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => Number.isFinite(Number(a.effect?.getComputedTiming().endTime)))
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
+  );
   const results = await new AxeBuilder({ page })
     .options({ preload: false })
     .disableRules(disabled)
