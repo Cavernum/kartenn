@@ -331,6 +331,43 @@ test.describe("MatrixGrid (Grid)", () => {
     expect(await focusedCell(page)).toBe("|");
     await expect(grid.locator("[tabindex='0']")).toHaveCount(1);
   });
+
+  test("the crosshair follows the focus, its headers marked beyond colour", async ({ page }) => {
+    await state(page, "MatrixGrid", "rest");
+    const grid = page.getByRole("grid");
+    await grid.locator("[tabindex='0']").focus();
+    expect(await focusedCell(page)).toBe("desks|servers");
+    await page.keyboard.press("ArrowRight");
+    const source = grid.getByRole("rowheader", { name: "Postes du siège" });
+    const destination = grid.getByRole("columnheader", { name: "Postes du siège" });
+    await expect(source).toHaveAttribute("data-cross", "true");
+    await expect(source).toHaveAttribute("data-flow", "source");
+    await expect(destination).toHaveAttribute("data-flow", "destination");
+    await expect(destination).toHaveCSS("text-decoration-line", "underline");
+    await expect(grid.getByRole("columnheader", { name: "Serveurs" })).not.toHaveAttribute(
+      "data-cross",
+    );
+  });
+
+  test("a focused cell scrolls out from under the sticky headers", async ({ page }) => {
+    await state(page, "MatrixGrid", "large");
+    const grid = page.getByRole("grid");
+    await grid.locator("[tabindex='0']").focus();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.press("Home");
+    await page.keyboard.press("ArrowRight");
+    expect(await focusedCell(page)).toBe("zone-24|zone-1");
+    const cell = (await page.locator(":focus").boundingBox())!;
+    const header = (await grid.getByRole("rowheader", { name: "zone-24" }).boundingBox())!;
+    expect(cell.x).toBeGreaterThanOrEqual(header.x + header.width - 1);
+    await page.keyboard.press("Control+Home");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("PageDown");
+    await page.keyboard.press("PageUp");
+    const top = (await page.locator(":focus").boundingBox())!;
+    const head = (await grid.getByRole("columnheader", { name: "zone-01" }).boundingBox())!;
+    expect(top.y).toBeGreaterThanOrEqual(head.y + head.height - 1);
+  });
 });
 
 test.describe("DataGrid (Grid)", () => {
