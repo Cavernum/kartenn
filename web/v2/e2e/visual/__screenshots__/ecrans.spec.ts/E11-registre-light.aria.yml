@@ -33,10 +33,10 @@
   - heading "Flux" [level=1]
   - region "Flux":
     - heading "Flux" [level=2]
-    - text: "8"
+    - text: "9"
     - toolbar "Actions sur les flux":
       - button "Proposer des flux"
-      - button "Tester un flux"
+      - button "Tester une connexion"
       - button "Exporter"
     - button "Domaine = Centre de données nord"
     - button "Retirer le filtre Domaine = Centre de données nord"
@@ -53,7 +53,7 @@
       - text: /\(tâche \d+\)/
     - grid "Flux déclarés et ouverts, filtrés":
       - rowgroup:
-        - row "Source (filtrée) Destination (filtrée) Service Type de flux État (filtrée) Synthèse Issue Dérogation, échéance":
+        - row "Source (filtrée) Destination (filtrée) Service Type de flux État (filtrée) Conformité, issue Échéance":
           - columnheader "Source (filtrée)":
             - text: ""
             - 'button "Filtrer : Source"'
@@ -72,80 +72,87 @@
             - text: ""
             - 'button "Filtrer : État"'
             - text: ""
-          - columnheader "Synthèse":
+          - columnheader "Conformité, issue":
             - text: ""
-            - 'button "Filtrer : Synthèse"'
-          - columnheader "Issue":
-            - text: ""
-            - 'button "Filtrer : Issue"'
-          - columnheader "Dérogation, échéance"
+            - 'button "Filtrer : Conformité, issue"'
+          - columnheader "Échéance"
       - rowgroup:
-        - row /srv-web-\d+ srv-app-\d+ eth0 API interne api-interne Applicatif Actif Conforme Automatique —/:
-          - gridcell /srv-web-\d+/:
-            - link /srv-web-\d+/:
+        - row /srv-web-\d+ · eth0 srv-app-\d+ · eth0 API interne api Applicatif Actif Conforme Automatique —/:
+          - gridcell /srv-web-\d+ · eth0/:
+            - link /srv-web-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-web-02&mode=light
-          - gridcell /srv-app-\d+ eth0/:
-            - link /srv-app-\d+ eth0/:
+          - gridcell /srv-app-\d+ · eth0/:
+            - link /srv-app-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=light
-          - gridcell "API interne api-interne":
+          - gridcell "API interne api":
             - text: ""
-            - code: api-interne
+            - code: api
           - gridcell "Applicatif"
           - gridcell "Actif"
-          - gridcell "Conforme"
-          - gridcell "Automatique"
+          - gridcell "Conforme Automatique"
           - gridcell "—"
-        - row /srv-app-\d+ eth0 srv-db-\d+ PostgreSQL postgres Base de données Actif Conforme Automatique —/:
-          - gridcell /srv-app-\d+ eth0/:
-            - link /srv-app-\d+ eth0/:
+        - row /\d+\.\d+\.\d+\.\d+\/\d+ srv-app-\d+ · eth0 Web chiffré https Applicatif Actif Conforme Automatique —/:
+          - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/:
+            - link /\d+\.\d+\.\d+\.\d+\/\d+/:
+              - /url: /_ui/ecrans/E2?mode=light
+          - gridcell /srv-app-\d+ · eth0/:
+            - link /srv-app-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=light
-          - gridcell /srv-db-\d+/:
-            - link /srv-db-\d+/:
+          - gridcell "Web chiffré https":
+            - text: ""
+            - code: https
+          - gridcell "Applicatif"
+          - gridcell "Actif"
+          - gridcell "Conforme Automatique"
+          - gridcell "—"
+        - row /srv-app-\d+ · eth0 \d+\.\d+\.\d+\.\d+ PostgreSQL postgres Base de données Actif Conforme Automatique —/:
+          - gridcell /srv-app-\d+ · eth0/:
+            - link /srv-app-\d+ · eth0/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=light
+          - gridcell /\d+\.\d+\.\d+\.\d+/:
+            - link /\d+\.\d+\.\d+\.\d+/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-db-02&mode=light
           - gridcell "PostgreSQL postgres":
             - text: ""
             - code: postgres
           - gridcell "Base de données"
           - gridcell "Actif"
-          - gridcell "Conforme"
-          - gridcell "Automatique"
+          - gridcell "Conforme Automatique"
           - gridcell "—"
-        - row /bastion-\d+ srv-app-\d+ Shell sécurisé ssh Administratif Actif Conforme Automatique Fin \d+-\d+-\d+/:
-          - gridcell /bastion-\d+/:
-            - link /bastion-\d+/:
+        - row /bastion-\d+ · eth0 srv-app-\d+ · eth1 Shell sécurisé ssh Administratif Actif Conforme Automatique \d+-\d+-\d+/:
+          - gridcell /bastion-\d+ · eth0/:
+            - link /bastion-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=bastion-01&mode=light
-          - gridcell /srv-app-\d+/:
-            - link /srv-app-\d+/:
+          - gridcell /srv-app-\d+ · eth1/:
+            - link /srv-app-\d+ · eth1/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=light
           - gridcell "Shell sécurisé ssh":
             - text: ""
             - code: ssh
           - gridcell "Administratif"
           - gridcell "Actif"
-          - gridcell "Conforme"
-          - gridcell "Automatique"
-          - gridcell /Fin \d+-\d+-\d+/
-        - row /srv-rec-\d+ srv-app-\d+ eth0 Web chiffré https Applicatif Demandé Sous réserve Instruction —/:
-          - gridcell /srv-rec-\d+/:
-            - link /srv-rec-\d+/:
+          - gridcell "Conforme Automatique"
+          - gridcell /\d+-\d+-\d+/
+        - row /srv-rec-\d+ · eth0 srv-app-\d+ · eth0 Web chiffré https Applicatif Demandé Sous réserve Instruction —/:
+          - gridcell /srv-rec-\d+ · eth0/:
+            - link /srv-rec-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-rec-03&mode=light
-          - gridcell /srv-app-\d+ eth0/:
-            - link /srv-app-\d+ eth0/:
+          - gridcell /srv-app-\d+ · eth0/:
+            - link /srv-app-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=light
           - gridcell "Web chiffré https":
             - text: ""
             - code: https
           - gridcell "Applicatif"
           - gridcell "Demandé"
-          - gridcell "Sous réserve"
-          - gridcell "Instruction"
+          - gridcell "Sous réserve Instruction"
           - gridcell "—"
-        - row /dev-web-\d+ srv-db-\d+ PostgreSQL postgres Base de données Dérogé Non conforme Non conforme Dérogation \d+-\d+-\d+/:
-          - gridcell /dev-web-\d+/:
-            - link /dev-web-\d+/:
+        - row /dev-web-\d+ · eth0 srv-db-\d+ · eth0 PostgreSQL postgres Base de données Dérogé Non conforme \d+-\d+-\d+/:
+          - gridcell /dev-web-\d+ · eth0/:
+            - link /dev-web-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=dev-web-01&mode=light
-          - gridcell /srv-db-\d+/:
-            - link /srv-db-\d+/:
+          - gridcell /srv-db-\d+ · eth0/:
+            - link /srv-db-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-db-02&mode=light
           - gridcell "PostgreSQL postgres":
             - text: ""
@@ -153,26 +160,24 @@
           - gridcell "Base de données"
           - gridcell "Dérogé"
           - gridcell "Non conforme"
-          - gridcell "Non conforme"
-          - gridcell /Dérogation \d+-\d+-\d+/
-        - row /srv-app-\d+ eth0 srv-sauv-\d+ Partage NFS nfs Fichier Actif Conforme Automatique —/:
-          - gridcell /srv-app-\d+ eth0/:
-            - link /srv-app-\d+ eth0/:
+          - gridcell /\d+-\d+-\d+/
+        - row /srv-app-\d+ · eth0 \d+\.\d+\.\d+\.\d+ Partage NFS nfs Fichier Actif Conforme Automatique —/:
+          - gridcell /srv-app-\d+ · eth0/:
+            - link /srv-app-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=light
-          - gridcell /srv-sauv-\d+/:
-            - link /srv-sauv-\d+/:
+          - gridcell /\d+\.\d+\.\d+\.\d+/:
+            - link /\d+\.\d+\.\d+\.\d+/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-sauv-01&mode=light
           - gridcell "Partage NFS nfs":
             - text: ""
             - code: nfs
           - gridcell "Fichier"
           - gridcell "Actif"
-          - gridcell "Conforme"
-          - gridcell "Automatique"
+          - gridcell "Conforme Automatique"
           - gridcell "—"
-        - row /srv-app-\d+ \d+\.\d+\.\d+\.\d+\/\d+ Shell sécurisé ssh Administratif Non conforme Non conforme Non conforme —/:
-          - gridcell /srv-app-\d+/:
-            - link /srv-app-\d+/:
+        - row /srv-app-\d+ · eth0 \d+\.\d+\.\d+\.\d+\/\d+ Shell sécurisé ssh Administratif Non conforme Non conforme —/:
+          - gridcell /srv-app-\d+ · eth0/:
+            - link /srv-app-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-07&mode=light
           - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/:
             - link /\d+\.\d+\.\d+\.\d+\/\d+/:
@@ -183,22 +188,20 @@
           - gridcell "Administratif"
           - gridcell "Non conforme"
           - gridcell "Non conforme"
-          - gridcell "Non conforme"
           - gridcell "—"
-        - row /srv-rec-\d+ srv-app-\d+ eth0 Web chiffré https Applicatif Échu Sous réserve Instruction Fin \d+-\d+-\d+/:
-          - gridcell /srv-rec-\d+/:
-            - link /srv-rec-\d+/:
+        - row /srv-rec-\d+ · eth0 srv-app-\d+ · eth0 Web chiffré https Applicatif Échu Sous réserve Instruction \d+-\d+-\d+/:
+          - gridcell /srv-rec-\d+ · eth0/:
+            - link /srv-rec-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-rec-04&mode=light
-          - gridcell /srv-app-\d+ eth0/:
-            - link /srv-app-\d+ eth0/:
+          - gridcell /srv-app-\d+ · eth0/:
+            - link /srv-app-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=light
           - gridcell "Web chiffré https":
             - text: ""
             - code: https
           - gridcell "Applicatif"
           - gridcell "Échu"
-          - gridcell "Sous réserve"
-          - gridcell "Instruction"
-          - gridcell /Fin \d+-\d+-\d+/
-    - text: 8 flux · 1 demandé · 1 non conforme à la matrice · 1 dérogé Synthèse et issue lues contre la matrice de flux du jour
+          - gridcell "Sous réserve Instruction"
+          - gridcell /\d+-\d+-\d+/
+    - text: "9 flux · 1 demandé · 1 non conforme à la matrice · 1 dérogé Échéance : fin de la dérogation d'un flux dérogé, sinon fin du flux"
 - button "Ouvrir le panneau"

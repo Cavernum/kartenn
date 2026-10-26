@@ -323,19 +323,19 @@ export const MOCKUPS: Mockup[] = [
     id: "E11",
     title: "Flux",
     shows:
-      "Registre des flux (filtres typés, état, synthèse contre la matrice de flux, issue), proposition de flux en tableau dans un changeset avec la ligne choisie dans le panneau du bas, tester un flux sans écriture, flux d'une machine dans son onglet d'information.",
+      "Registre des flux (filtres typés, état, conformité à la matrice de flux, issue), proposition de flux en tableau dans un changeset avec la ligne choisie dans le panneau du bas, tester une connexion (ouvert, conforme) sans écriture, flux des interfaces d'une machine dans son onglet d'information. Une extrémité est une adresse, une interface ou un préfixe, jamais une machine.",
     views: [
       {
         id: "registre",
         label: "Registre",
         description:
-          "Flux déclarés et ouverts : source et destination en liens vers leur fiche, service (libellé et clé), type de flux, état, synthèse, issue, dérogation ou échéance ; filtres typés en pastilles ; « Proposer des flux ».",
+          "Flux déclarés et ouverts : source et destination (interface, adresse ou préfixe) en liens vers la fiche de leur machine, service (libellé et clé), type de flux, état, conformité et issue, échéance ; filtres typés en pastilles ; « Proposer des flux », « Tester une connexion ».",
       },
       {
         id: "proposition",
         label: "Proposition",
         description:
-          "Formulaire en tableau, une ligne par flux (« Ajouter un flux »), verdict de chaque ligne (badge et code) : conforme automatique, sous réserve (justification manquante, en édition), non conforme (règle deny), non classé ; la ligne choisie dans le panneau du bas : extrémités développées en machines, interfaces, adresses et valeurs d'axes, puis synthèse, issue, élément décisif et son texte, extrait de la matrice, verdict par paire, conditions non remplies, suite.",
+          "Formulaire en tableau, une ligne par flux (« Ajouter un flux »), verdict de chaque ligne (badge et code) : conforme automatique, sous réserve (justification manquante, en édition), non conforme (règle deny), non classé ; la ligne choisie dans le panneau du bas, un sujet par onglet (Extrémités, Matrice, Verdicts), chacun ouvert sur la même réponse d'une ligne (synthèse, issue, élément décisif, paires autorisées).",
       },
       {
         id: "envoi",
@@ -345,15 +345,33 @@ export const MOCKUPS: Mockup[] = [
       },
       {
         id: "tester",
-        label: "Tester un flux",
+        label: "Tester une connexion : ouvert et conforme",
         description:
-          "Source, destination, objet (transport et port), dossier facultatif ; synthèse partielle, 6 verdicts (2 adresses × 3), explication (éléments décisifs et combinaisons, valeurs résolues avec origine, règles écartées, condition non évaluée sans dossier), suite ; « Déclarer ce flux » préremplit une ligne de la proposition. Aucune écriture.",
+          "Adresse vers interface (2 paires), transport et port : couverte par un flux actif dont la source est un préfixe, autorisée par la matrice. Réponse en une ligne, puis « Ouvert ? » (flux cités) et « Conforme ? » (règle décisive, cellule), puis les deux réponses par paire d'adresses. Aucune écriture.",
+      },
+      {
+        id: "tester-derogation",
+        label: "Tester une connexion : ouvert mais non conforme",
+        description:
+          "Interface vers adresse, service : ouverte par un flux dérogé (dérogation et échéance citées) qu'une règle deny interdit.",
+      },
+      {
+        id: "tester-a-declarer",
+        label: "Tester une connexion : non ouvert mais conforme",
+        description:
+          "Une machine saisie en source demande le choix de son interface ou d'une adresse ; aucun flux ne couvre les paires, la matrice les autorise : « Déclarer ce flux » préremplit une ligne de la proposition.",
+      },
+      {
+        id: "tester-ferme",
+        label: "Tester une connexion : non ouvert et non conforme",
+        description:
+          "Interface vers interface : aucun flux ne couvre les paires, une règle deny les interdit.",
       },
       {
         id: "machine",
         label: "Flux d'une machine",
         description:
-          "Fiche de srv-app-01, onglet Information : attributs, puis ses flux entrants et sortants en liste compacte, chacun nommant l'autre extrémité par un lien vers sa fiche, avec service, type de flux et conformité à la matrice.",
+          "Fiche de srv-app-01, onglet Information : attributs, puis les flux de ses interfaces, entrants et sortants, en liste compacte : l'interface (et l'adresse ou le préfixe qui l'atteint), l'autre extrémité (interface, adresse ou préfixe, en lien vers la fiche de sa machine), service, type de flux, conformité à la matrice.",
       },
     ],
   },

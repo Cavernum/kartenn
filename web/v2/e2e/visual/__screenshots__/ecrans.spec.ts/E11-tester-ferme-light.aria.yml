@@ -1,0 +1,116 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 5":
+        - /url: /x/flow/review
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem:
+        - link "Registre":
+          - /url: /x/flow/flows
+      - listitem: Tester une connexion
+  - button "Présent"
+  - button "Brouillon 3 opérations"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Tester une connexion" [level=1]
+  - heading "Tester une connexion" [level=2]
+  - text: sans écriture
+  - navigation "Cas de la maquette":
+    - text: ""
+    - link "Ouvert et conforme":
+      - /url: /_ui/ecrans/E11?vue=tester&mode=light
+    - link "Ouvert mais non conforme":
+      - /url: /_ui/ecrans/E11?vue=tester-derogation&mode=light
+    - link "Non ouvert mais conforme":
+      - /url: /_ui/ecrans/E11?vue=tester-a-declarer&mode=light
+    - link "Non ouvert et non conforme":
+      - /url: /_ui/ecrans/E11?vue=tester-ferme&mode=light
+  - text: Source
+  - textbox "Source": /srv-app-\d+ · eth0/
+  - paragraph: Adresse, interface ou préfixe
+  - text: Destination
+  - textbox "Destination": /srv-rec-\d+ · eth0/
+  - paragraph: Adresse, interface ou préfixe
+  - group "Objet":
+    - text: ""
+    - button "Service" [pressed]
+    - button "Transport et port"
+    - button "Type de flux"
+    - text: Service
+    - textbox "Service": https
+  - text: Date
+  - textbox "Date": /\d+-\d+-\d+/
+  - paragraph: Ouvert et conforme à cette date
+  - button "Tester"
+  - text: "Aucune écriture : registre et matrice lus à la date."
+  - region "Résultat":
+    - heading "Résultat" [level=2]
+    - text: /srv-app-\d+ · eth0 → srv-rec-\d+ · eth0 · https/
+    - paragraph:
+      - text: Non ouvert et non conforme 2 paires d'adresses · Web chiffré
+      - code: https
+      - text: /· lu le \d+-\d+-\d+, politique r42/
+    - paragraph: "Aucun flux du registre ne couvre ces paires et deny-prod-hors-prod les interdit : une déclaration serait non conforme, approuvable seulement avec une dérogation."
+    - region "Ouvert ? Non ouvert":
+      - heading "Ouvert ? Non ouvert" [level=3]
+      - paragraph: Un flux du registre, actif ou dérogé, couvre-t-il chaque paire pour ce service ?
+      - paragraph:
+        - text: Aucun flux actif ou dérogé ne couvre ces paires pour
+        - code: https
+        - text: .
+    - region "Conforme ? Non conforme":
+      - heading "Conforme ? Non conforme" [level=3]
+      - paragraph: La matrice de flux autorise-t-elle chaque paire ?
+      - paragraph:
+        - button "Copier deny-prod-hors-prod":
+          - text: ""
+          - code: deny-prod-hors-prod
+        - status
+        - text: règle décisive Production vers Recette Applicatif
+      - paragraph: La production ne pousse rien vers la recette ni le développement.
+    - region "Par paire d'adresses":
+      - heading "Par paire d'adresses" [level=3]
+      - 'grid "Ouvert et conforme, par paire d''adresses : 2 paires d''adresses"':
+        - rowgroup:
+          - row "Adresse source Adresse destination Ouvert Conforme":
+            - columnheader "Adresse source"
+            - columnheader "Adresse destination"
+            - columnheader "Ouvert"
+            - columnheader "Conforme"
+        - rowgroup:
+          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ Non ouvert Non conforme deny-prod-hors-prod/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "Non ouvert"
+            - gridcell "Non conforme deny-prod-hors-prod":
+              - text: ""
+              - code: deny-prod-hors-prod
+          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ Non ouvert Non conforme deny-prod-hors-prod/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "Non ouvert"
+            - gridcell "Non conforme deny-prod-hors-prod":
+              - text: ""
+              - code: deny-prod-hors-prod
+- button "Ouvrir le panneau"

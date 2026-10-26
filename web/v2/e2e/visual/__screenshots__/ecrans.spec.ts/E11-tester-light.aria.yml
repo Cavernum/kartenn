@@ -27,20 +27,31 @@
       - listitem:
         - link "Registre":
           - /url: /x/flow/flows
-      - listitem: Tester un flux
+      - listitem: Tester une connexion
   - button "Présent"
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
-  - heading "Tester un flux" [level=1]
-  - heading "Tester un flux" [level=2]
-  - text: sans écriture Source
-  - textbox "Source": /srv-web-\d+/
-  - paragraph: Machine, interface, adresse ou préfixe
+  - heading "Tester une connexion" [level=1]
+  - heading "Tester une connexion" [level=2]
+  - text: sans écriture
+  - navigation "Cas de la maquette":
+    - text: ""
+    - link "Ouvert et conforme":
+      - /url: /_ui/ecrans/E11?vue=tester&mode=light
+    - link "Ouvert mais non conforme":
+      - /url: /_ui/ecrans/E11?vue=tester-derogation&mode=light
+    - link "Non ouvert mais conforme":
+      - /url: /_ui/ecrans/E11?vue=tester-a-declarer&mode=light
+    - link "Non ouvert et non conforme":
+      - /url: /_ui/ecrans/E11?vue=tester-ferme&mode=light
+  - text: Source
+  - textbox "Source": /\d+\.\d+\.\d+\.\d+/
+  - paragraph: Adresse, interface ou préfixe
   - text: Destination
-  - textbox "Destination": /srv-app-\d+/
-  - paragraph: Machine, interface, adresse ou préfixe
+  - textbox "Destination": /srv-app-\d+ · eth0/
+  - paragraph: Adresse, interface ou préfixe
   - group "Objet":
     - text: ""
     - button "Service"
@@ -48,168 +59,67 @@
     - button "Type de flux"
     - text: Transport et port
     - textbox "Transport et port": /tcp\/\d+/
-  - text: Référence du dossier
-  - textbox "Référence du dossier":
-    - /placeholder: ticketing:CHG-…
-  - paragraph: "Facultatif : sans dossier, ses conditions ne sont pas évaluées"
-  - button "Évaluer"
-  - text: "Aucune écriture : la même évaluation qu'une déclaration."
+  - text: Date
+  - textbox "Date": /\d+-\d+-\d+/
+  - paragraph: Ouvert et conforme à cette date
+  - button "Tester"
+  - text: "Aucune écriture : registre et matrice lus à la date."
   - region "Résultat":
     - heading "Résultat" [level=2]
-    - text: /srv-web-\d+ → srv-app-\d+ · tcp\/\d+/
-    - button "Déclarer ce flux"
-    - term: Synthèse
-    - definition: Partielle 4 paires autorisées sur 6
-    - term: Issue
-    - definition: Non conforme
-    - term: Service
-    - definition:
-      - code: /tcp\/\d+/
-      - text: Web chiffré
+    - text: /\d+\.\d+\.\d+\.\d+ → srv-app-\d+ · eth0 · tcp\/\d+/
+    - paragraph:
+      - text: Ouvert et conforme 2 paires d'adresses · Web chiffré
       - code: https
-    - term: Type de flux
-    - definition: Applicatif
-    - term: Lu à
-    - definition: /\d+-\d+-\d+, politique r42/
-    - status:
-      - paragraph: Avertissement
+      - text: /· lu le \d+-\d+-\d+, politique r42/
+    - paragraph: "/Couvert par flux-\\d+ et autorisé par app-meme-env : rien à faire\\./"
+    - region "Ouvert ? Ouvert":
+      - heading "Ouvert ? Ouvert" [level=3]
+      - paragraph: Un flux du registre, actif ou dérogé, couvre-t-il chaque paire pour ce service ?
       - list:
         - listitem:
-          - text: "Synthèse partielle : 4 paires autorisées sur 6."
-          - button "Copier flow.verdict.partial":
-            - text: ""
-            - code: flow.verdict.partial
-          - status
-    - region "Verdict par paire d'adresses":
-      - heading "Verdict par paire d'adresses" [level=3]
-      - 'grid "Verdict par paire d''adresses : 4 paires autorisées sur 6"':
+          - link /flux-\d+/:
+            - /url: /_ui/ecrans/E11?vue=registre&mode=light
+          - text: Actif
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: →
+          - code: /srv-app-\d+ · eth0/
+    - region "Conforme ? Conforme":
+      - heading "Conforme ? Conforme" [level=3]
+      - paragraph: La matrice de flux autorise-t-elle chaque paire ?
+      - paragraph:
+        - button "Copier app-meme-env":
+          - text: ""
+          - code: app-meme-env
+        - status
+        - text: règle décisive Production vers Production Applicatif
+      - paragraph: Les applications d'un même environnement se parlent par leurs services déclarés.
+      - paragraph: "Issue d'une déclaration, dossier non évalué : Instruction"
+    - region "Par paire d'adresses":
+      - heading "Par paire d'adresses" [level=3]
+      - 'grid "Ouvert et conforme, par paire d''adresses : 2 paires d''adresses"':
         - rowgroup:
-          - row "Adresse source Adresse destination Verdict Élément décisif":
+          - row "Adresse source Adresse destination Ouvert Conforme":
             - columnheader "Adresse source"
             - columnheader "Adresse destination"
-            - columnheader "Verdict"
-            - columnheader "Élément décisif"
+            - columnheader "Ouvert"
+            - columnheader "Conforme"
         - rowgroup:
-          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ eth0 Autorisé app-meme-env \(prod, prod\)/:
+          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ Ouvert flux-\d+ Conforme app-meme-env/:
             - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell /\d+\.\d+\.\d+\.\d+ eth0/
-            - gridcell "Autorisé"
-            - gridcell "app-meme-env (prod, prod)":
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /Ouvert flux-\d+/:
+              - text: ""
+              - code: /flux-\d+/
+            - gridcell "Conforme app-meme-env":
+              - text: ""
               - code: app-meme-env
-              - text: ""
-          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ eth0 Autorisé app-meme-env \(prod, prod\)/:
+          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ Ouvert flux-\d+ Conforme app-meme-env/:
             - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell /\d+\.\d+\.\d+\.\d+ eth0/
-            - gridcell "Autorisé"
-            - gridcell "app-meme-env (prod, prod)":
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /Ouvert flux-\d+/:
+              - text: ""
+              - code: /flux-\d+/
+            - gridcell "Conforme app-meme-env":
+              - text: ""
               - code: app-meme-env
-              - text: ""
-          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ eth1 Refusé no_rule \(prod, admin\)/:
-            - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell /\d+\.\d+\.\d+\.\d+ eth1/
-            - gridcell "Refusé"
-            - gridcell "no_rule (prod, admin)":
-              - code: no_rule
-              - text: ""
-          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ eth0 Autorisé app-meme-env \(prod, prod\)/:
-            - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell /\d+\.\d+\.\d+\.\d+ eth0/
-            - gridcell "Autorisé"
-            - gridcell "app-meme-env (prod, prod)":
-              - code: app-meme-env
-              - text: ""
-          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ eth0 Autorisé app-meme-env \(prod, prod\)/:
-            - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell /\d+\.\d+\.\d+\.\d+ eth0/
-            - gridcell "Autorisé"
-            - gridcell "app-meme-env (prod, prod)":
-              - code: app-meme-env
-              - text: ""
-          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ eth1 Refusé no_rule \(prod, admin\)/:
-            - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell /\d+\.\d+\.\d+\.\d+ eth1/
-            - gridcell "Refusé"
-            - gridcell "no_rule (prod, admin)":
-              - code: no_rule
-              - text: ""
-    - region "Explication":
-      - heading "Explication" [level=3]
-      - list:
-        - listitem:
-          - text: Autorisé
-          - button "Copier app-meme-env":
-            - text: ""
-            - code: app-meme-env
-          - status
-          - text: règle, combinaison
-          - code: (prod, prod)
-          - text: · 4 paires
-          - paragraph: Les applications d'un même environnement se parlent par leurs services déclarés.
-        - listitem:
-          - text: Refusé
-          - button "Copier no_rule":
-            - text: ""
-            - code: no_rule
-          - status
-          - text: cause, combinaison
-          - code: (prod, admin)
-          - text: · 2 paires
-          - paragraph: "Aucune règle n'autorise le type Applicatif de production vers administration : le refus par défaut s'applique."
-      - heading "Valeurs résolues des axes cités" [level=4]
-      - grid "Valeurs résolues des axes cités, par adresse":
-        - rowgroup:
-          - row "Adresse Extrémité Environnement Sensibilité":
-            - columnheader "Adresse"
-            - columnheader "Extrémité"
-            - columnheader "Environnement"
-            - columnheader "Sensibilité"
-        - rowgroup:
-          - row /\d+\.\d+\.\d+\.\d+ Source srv-web-\d+ eth0 Production héritée de \d+\.\d+\.2\.0\/\d+ Interne héritée de \d+\.\d+\.2\.0\/\d+/:
-            - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell /Source srv-web-\d+ eth0/
-            - gridcell /Production héritée de \d+\.\d+\.2\.0\/\d+/
-            - gridcell /Interne héritée de \d+\.\d+\.2\.0\/\d+/
-          - row /\d+\.\d+\.\d+\.\d+ Source srv-web-\d+ eth0 Production héritée de \d+\.\d+\.2\.0\/\d+ Interne héritée de \d+\.\d+\.2\.0\/\d+/:
-            - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell /Source srv-web-\d+ eth0/
-            - gridcell /Production héritée de \d+\.\d+\.2\.0\/\d+/
-            - gridcell /Interne héritée de \d+\.\d+\.2\.0\/\d+/
-          - row /\d+\.\d+\.\d+\.\d+ Destination srv-app-\d+ eth0 Production héritée de \d+\.\d+\.2\.0\/\d+ Interne héritée de \d+\.\d+\.2\.0\/\d+/:
-            - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell /Destination srv-app-\d+ eth0/
-            - gridcell /Production héritée de \d+\.\d+\.2\.0\/\d+/
-            - gridcell /Interne héritée de \d+\.\d+\.2\.0\/\d+/
-          - row /\d+\.\d+\.\d+\.\d+ Destination srv-app-\d+ eth0 Production héritée de \d+\.\d+\.2\.0\/\d+ Interne héritée de \d+\.\d+\.2\.0\/\d+/:
-            - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell /Destination srv-app-\d+ eth0/
-            - gridcell /Production héritée de \d+\.\d+\.2\.0\/\d+/
-            - gridcell /Interne héritée de \d+\.\d+\.2\.0\/\d+/
-          - row /\d+\.\d+\.\d+\.\d+ Destination srv-app-\d+ eth1 Administration posée sur \d+\.\d+\.\d+\.\d+\/\d+ Interne héritée de \d+\.\d+\.2\.0\/\d+/:
-            - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell /Destination srv-app-\d+ eth1/
-            - gridcell /Administration posée sur \d+\.\d+\.\d+\.\d+\/\d+/
-            - gridcell /Interne héritée de \d+\.\d+\.2\.0\/\d+/
-      - heading "Règles écartées" [level=4]
-      - list:
-        - listitem:
-          - code: app-meme-env
-          - text: La destination n'est pas en production, recette, développement.
-        - listitem:
-          - code: rece-vers-prod
-          - text: La source n'est pas en recette.
-        - listitem:
-          - code: deny-deve-prod
-          - text: La source n'est pas en développement.
-      - heading "Conditions" [level=4]
-      - list:
-        - listitem:
-          - text: "Non évaluée : sans dossier"
-          - button "Copier justification-requise":
-            - text: ""
-            - code: justification-requise
-          - status
-          - paragraph: Un flux entre deux environnements différents porte une justification dans son dossier.
-    - status:
-      - paragraph: Suite attendue
-      - text: "/Déclaré tel quel, ce flux part en instruction : les 2 paires vers l'interface d'administration de srv-app-\\d+ n'y sont approuvables qu'avec une dérogation\\. Viser l'interface eth0 le rend conforme à la matrice de flux\\./"
 - button "Ouvrir le panneau"

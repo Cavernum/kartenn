@@ -46,36 +46,36 @@
           - columnheader "Destination"
           - columnheader "Verdict"
       - rowgroup:
-        - row /\(en brouillon\) srv-web-\d+ srv-app-\d+ eth0 Conforme Copier app-meme-env/:
-          - gridcell /\(en brouillon\) srv-web-\d+/
-          - gridcell /srv-app-\d+ eth0/
+        - row /\(en brouillon\) srv-web-\d+ · eth0 srv-app-\d+ · eth0 Conforme Copier app-meme-env/:
+          - gridcell /\(en brouillon\) srv-web-\d+ · eth0/
+          - gridcell /srv-app-\d+ · eth0/
           - gridcell "Conforme Copier app-meme-env":
             - text: ""
             - button "Copier app-meme-env":
               - text: ""
               - code: app-meme-env
             - status
-        - row /\(en brouillon\) srv-rec-\d+ srv-app-\d+ eth0 Sous réserve Copier rece-vers-prod/ [selected]:
-          - gridcell /\(en brouillon\) srv-rec-\d+/
-          - gridcell /srv-app-\d+ eth0/
+        - row /\(en brouillon\) srv-rec-\d+ · eth0 srv-app-\d+ · eth0 Sous réserve Copier rece-vers-prod/ [selected]:
+          - gridcell /\(en brouillon\) srv-rec-\d+ · eth0/
+          - gridcell /srv-app-\d+ · eth0/
           - gridcell "Sous réserve Copier rece-vers-prod":
             - text: ""
             - button "Copier rece-vers-prod":
               - text: ""
               - code: rece-vers-prod
             - status
-        - row /\(en brouillon\) dev-web-\d+ srv-db-\d+ Non conforme Copier deny-deve-prod/:
-          - gridcell /\(en brouillon\) dev-web-\d+/
-          - gridcell /srv-db-\d+/
+        - row /\(en brouillon\) dev-web-\d+ · eth0 srv-db-\d+ · eth0 Non conforme Copier deny-deve-prod/:
+          - gridcell /\(en brouillon\) dev-web-\d+ · eth0/
+          - gridcell /srv-db-\d+ · eth0/
           - gridcell "Non conforme Copier deny-deve-prod":
             - text: ""
             - button "Copier deny-deve-prod":
               - text: ""
               - code: deny-deve-prod
             - status
-        - row /\(en brouillon\) srv-new-\d+ srv-app-\d+ eth0 Non conforme Copier unclassified/:
-          - gridcell /\(en brouillon\) srv-new-\d+/
-          - gridcell /srv-app-\d+ eth0/
+        - row /\(en brouillon\) \d+\.\d+\.\d+\.\d+ srv-app-\d+ · eth0 Non conforme Copier unclassified/:
+          - gridcell /\(en brouillon\) \d+\.\d+\.\d+\.\d+/
+          - gridcell /srv-app-\d+ · eth0/
           - gridcell "Non conforme Copier unclassified":
             - text: ""
             - button "Copier unclassified":
@@ -94,25 +94,25 @@
       - text: 4 créations
       - list:
         - listitem:
-          - text: /srv-web-\d+ vers srv-app-\d+ eth0 api-interne · Applicatif Conforme/
+          - text: /srv-web-\d+ · eth0 vers srv-app-\d+ · eth0 api · Applicatif Conforme/
           - button "Copier app-meme-env":
             - text: ""
             - code: app-meme-env
           - status
         - listitem:
-          - text: /srv-rec-\d+ vers srv-app-\d+ eth0 https · Applicatif Sous réserve/
+          - text: /srv-rec-\d+ · eth0 vers srv-app-\d+ · eth0 https · Applicatif Sous réserve/
           - button "Copier rece-vers-prod":
             - text: ""
             - code: rece-vers-prod
           - status
         - listitem:
-          - text: /dev-web-\d+ vers srv-db-\d+ postgres · Base de données Non conforme/
+          - text: /dev-web-\d+ · eth0 vers srv-db-\d+ · eth0 postgres · Base de données Non conforme/
           - button "Copier deny-deve-prod":
             - text: ""
             - code: deny-deve-prod
           - status
         - listitem:
-          - text: /srv-new-\d+ vers srv-app-\d+ eth0 tcp\/\d+ · Applicatif Non conforme/
+          - text: /\d+\.\d+\.\d+\.\d+ vers srv-app-\d+ · eth0 tcp\/\d+ · Applicatif Non conforme/
           - button "Copier unclassified":
             - text: ""
             - code: unclassified

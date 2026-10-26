@@ -57,53 +57,67 @@
       - definition: eth0 (Service), eth1 (Administration)
       - term: Adresses
       - definition: "3"
-      - region "Flux":
-        - heading "Flux" [level=3]
+      - region "Flux de ses interfaces":
+        - heading "Flux de ses interfaces" [level=3]
         - text: conformité à la matrice de flux du jour
-        - heading "Entrants 4" [level=4]
-        - list "Entrants 4":
+        - heading "Entrants 5" [level=4]
+        - list "Entrants 5":
           - listitem:
+            - code: eth0
             - text: depuis
-            - link /srv-web-\d+/:
+            - link /srv-web-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-web-02&mode=dark
-            - text: par eth0 API interne
-            - code: api-interne
+            - text: API interne
+            - code: api
             - text: Applicatif Conforme
           - listitem:
+            - code: eth0
             - text: depuis
-            - link /bastion-\d+/:
+            - link /\d+\.\d+\.\d+\.\d+\/\d+/:
+              - /url: /_ui/ecrans/E2?mode=dark
+            - text: préfixe Web chiffré
+            - code: https
+            - text: Applicatif Conforme
+          - listitem:
+            - code: eth1
+            - text: depuis
+            - link /bastion-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=bastion-01&mode=dark
             - text: Shell sécurisé
             - code: ssh
             - text: Administratif Conforme
           - listitem:
+            - code: eth0
             - text: depuis
-            - link /srv-rec-\d+/:
+            - link /srv-rec-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-rec-03&mode=dark
-            - text: par eth0 Web chiffré
+            - text: Web chiffré
             - code: https
             - text: Applicatif Sous réserve Demandé
           - listitem:
+            - code: eth0
             - text: depuis
-            - link /srv-rec-\d+/:
+            - link /srv-rec-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-rec-04&mode=dark
-            - text: par eth0 Web chiffré
+            - text: Web chiffré
             - code: https
             - text: Applicatif Sous réserve Échu
         - heading "Sortants 2" [level=4]
         - list "Sortants 2":
           - listitem:
+            - code: eth0
             - text: vers
-            - link /srv-db-\d+/:
+            - link /\d+\.\d+\.\d+\.\d+/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-db-02&mode=dark
-            - text: par eth0 PostgreSQL
+            - text: /srv-db-\d+ · eth0 PostgreSQL/
             - code: postgres
             - text: Base de données Conforme
           - listitem:
+            - code: eth0
             - text: vers
-            - link /srv-sauv-\d+/:
+            - link /\d+\.\d+\.\d+\.\d+/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-sauv-01&mode=dark
-            - text: par eth0 Partage NFS
+            - text: /srv-sauv-\d+ · eth0 Partage NFS/
             - code: nfs
             - text: Fichier Conforme
 - button "Ouvrir le panneau"
