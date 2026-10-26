@@ -241,6 +241,7 @@
           - deletion: "avant : Hôte"
           - insertion: "après : VIP"
           - button /Retirer l'opération « Usage » sur \d+\.\d+\.\d+\.\d+/
+  - button "Largeur du panneau"
   - button "Fermer le panneau"
   - status: Revue requise Simulation valide ; politique « Changements de matrice ».
   - text: Résumé (obligatoire)

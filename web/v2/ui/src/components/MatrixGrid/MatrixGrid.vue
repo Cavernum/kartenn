@@ -27,6 +27,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 
 import { t } from "../../i18n.ts";
 import Icon from "../Icon/Icon.vue";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
+import { fitPanelInset } from "../internal/panelInset.ts";
 import type { MatrixAxis, MatrixCell, MatrixCellState } from "./matrix.ts";
 
 const props = withDefaults(
@@ -102,6 +103,7 @@ function onFocusin(event: FocusEvent): void {
   const cell = cellOf(event.target);
   if (cell && (cell.row !== current.value.row || cell.column !== current.value.column))
     active.value = cell;
+  fitPanelInset(event.currentTarget as HTMLElement, event.target);
 }
 
 // The headers stick: what takes the focus scrolls out from under them (WCAG 2.4.11), the
@@ -262,6 +264,7 @@ function onKeydown(event: KeyboardEvent): void {
    * one track per column of the matrix. */
   .k-matrix {
     --k-matrix-key: var(--k-space-0);
+    --k-grid-panel-inset: var(--k-space-0);
 
     display: grid;
     grid-template-columns:
@@ -271,9 +274,11 @@ function onKeydown(event: KeyboardEvent): void {
     min-inline-size: 0;
     max-block-size: 100%;
     overflow: auto;
-    /* The sticky headers never hide a focused cell (WCAG 2.4.11). */
+    /* Neither the sticky headers nor the side panel over its end hide a focused cell
+     * (WCAG 2.4.11; internal/panelInset.ts). */
     scroll-padding-block-start: var(--k-header-height);
-    scroll-padding-inline-start: var(--k-matrix-key);
+    scroll-padding-inline: var(--k-matrix-key) var(--k-grid-panel-inset);
+    padding-inline-end: var(--k-grid-panel-inset);
     color: var(--k-text);
     background-color: var(--k-surface);
     border: var(--k-border-width) solid var(--k-border-strong);

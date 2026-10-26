@@ -45,6 +45,7 @@
           - paragraph: /\d+\.\d+\.\d+\.\d+\/\d+/
           - paragraph: Supervision · Production
           - paragraph: "/Occupation : \\d+ %/"
+        - button "Largeur du panneau"
         - button "Fermer le panneau"
       - code: resized
       - text: ""

@@ -166,4 +166,5 @@
           - 'button "Modifier le rôle reader · Domaine : dc-nord"'
           - 'button "Retirer le rôle reader · Domaine : dc-nord"'
       - button "Ajouter un rôle"
+  - button "Largeur du panneau"
   - button "Fermer le panneau"

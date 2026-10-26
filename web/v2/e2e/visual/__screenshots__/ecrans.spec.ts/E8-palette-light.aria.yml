@@ -1,3 +1,5 @@
+- main:
+  - figure
 - dialog "Palette de commandes":
   - combobox "Palette de commandes" [expanded]
   - listbox "Palette de commandes":

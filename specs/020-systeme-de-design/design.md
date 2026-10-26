@@ -592,9 +592,31 @@ et `ui-reviewer` des maquettes E0 à E10.
   place reste au titre de la page) ; légende de la matrice dans E10 (pas de prop de
   `MatrixGrid`) ; description repliée plutôt qu'une rangée d'action collante dans le pied
   du brouillon.
-- Reste : alternative au glissement de la poignée (2.5.7) autre que le clavier ; tri,
-  colonnes et édition au clavier de `TreeGrid` (version complète) ; un `scroll-padding` des
-  grilles qui tienne compte du panneau (seule la surface le reçoit).
+- Reste : tri, colonnes et édition au clavier de `TreeGrid` (version complète).
+- Suite (même jour). Redimensionner sans glisser (2.5.7) : à côté de la croix, un menu
+  « Largeur du panneau » (icône `move-horizontal`, entrées `menuitemradio` « Étroit » = borne
+  basse, « Standard » = 420 px, « Large » = borne haute, la largeur courante cochée), absent
+  en `cover` et en `sheet` (pas de poignée) ; un clic ou deux tapes suffisent. Grilles sous
+  le panneau (2.4.11) : le panneau marque aussi son conteneur `data-k-side-panel` ; quand
+  une cellule de `DataGrid`, `TreeGrid` ou `MatrixGrid` prend le focus et que la grille
+  défile en ligne sous le panneau, la part de sa zone de défilement qu'il couvre devient
+  `--k-grid-panel-inset`, à la fois `scroll-padding-inline-end` (la cellule sort de dessous)
+  et `padding-inline-end` (la place de faire sortir les dernières colonnes : une marge de
+  défilement seule ne prolonge pas le défilement) ; mesure dans `internal/panelInset.ts`,
+  effacée par le panneau quand il se ferme ou change de largeur. Une grille qui finit avant
+  le panneau, ou ne défile pas, garde sa mise en page. Tests : Vitest (menu présent hors
+  `cover`/`sheet`, largeurs proposées, part couverte), clavier (menu, E10 `matrice` à
+  1024 px : `Fin` amène la dernière colonne hors du panneau), tactile (deux tapes).
+- Choix tranchés (suite) : un menu de trois largeurs plutôt que des boutons pas à pas
+  (un seul arrêt de tabulation, l'état dit par `aria-checked`) ; « Standard » = 420 px
+  même si l'hôte ouvre le panneau à une autre largeur ; mesure au focus plutôt qu'un
+  observateur de taille (rien ne bouge tant qu'aucune cellule n'a le focus) ; marge appliquée
+  seulement à une grille qui défile déjà en ligne (ses pistes sont à leur minimum : rien ne
+  se réagence).
+- Reste (suite) : une grille qui ne défile pas mais passe sous le panneau (E3 à 1280 px :
+  ses dernières colonnes) garde des cellules masquées au focus ; y remédier demande de
+  réagencer la grille dans la part visible à l'ouverture du panneau (captures des écrans
+  panneau ouvert changées) — arbitrage à demander.
 
 ## Architecture CSS (REQ-020-12 à 14)
 
@@ -718,7 +740,7 @@ sont listés.
 | 27 | `DatePill`, `DraftCounter`, `TimeBand` | Button ; Button (bascule, `aria-expanded`) et Menu Button (liste des brouillons) ; `role="status"` | hors présent ; compteur à 0 ; panneau ouvert | barre d'état de la 021 ; `DatePill` ouvre `PeriodPicker` en surimpression ; `DraftCounter` ouvert (`expanded`) : son icône de brouillon devient une croix, ce que fera le prochain clic (revue du 2026-10-25) |
 | 28 | `Kbd`, `ShortcutHint` | — | — | rendu des raccourcis dans menus, infobulles, aide `?` |
 | 29 | `DiffList` | liste groupée par objet, Disclosure | ajout, retrait, modification, anomalie | avant/après par attribut et propriété ; virtualisée au-delà de 200 lignes |
-| 30 | `SidePanel` | région `complementary` (non modale) + Tabs | ouvert, replié, onglet actif, redimensionné, replié en languette | panneau droit de la 021 : surimpression de la surface, 420 px par défaut, poignée redimensionnable au clavier (Window Splitter), Échap ferme et rend le focus au déclencheur (024/M8) ; option `rail` : replié, il laisse au bord de fin une languette dans le flux (piste `auto` de l'hôte, une largeur de contrôle) dont le bouton à chevron « Ouvrir le panneau » (`aria-expanded="false"`) le rouvre sur son dernier onglet et y porte le focus ; la languette ne couvre jamais la surface, à toute largeur, `cover` compris ; le pied ne paraît que si l'hôte le remplit pour l'onglet devant (pas de bande vide) (revue du 2026-10-25) ; par-dessus la surface à toute largeur, jamais à côté (« par-dessus partout », 2026-10-25) ; option `sheet` (classe compacte) : feuille sur toute la fenêtre, bouton « Retour » au lieu de la croix, focus sur l'onglet actif à l'ouverture |
+| 30 | `SidePanel` | région `complementary` (non modale) + Tabs | ouvert, replié, onglet actif, redimensionné, replié en languette | panneau droit de la 021 : surimpression de la surface, 420 px par défaut, poignée redimensionnable au clavier (Window Splitter), menu « Largeur du panneau » (Étroit, Standard, Large) à côté de la croix pour redimensionner sans glisser (2.5.7), Échap ferme et rend le focus au déclencheur (024/M8) ; option `rail` : replié, il laisse au bord de fin une languette dans le flux (piste `auto` de l'hôte, une largeur de contrôle) dont le bouton à chevron « Ouvrir le panneau » (`aria-expanded="false"`) le rouvre sur son dernier onglet et y porte le focus ; la languette ne couvre jamais la surface, à toute largeur, `cover` compris ; le pied ne paraît que si l'hôte le remplit pour l'onglet devant (pas de bande vide) (revue du 2026-10-25) ; par-dessus la surface à toute largeur, jamais à côté (« par-dessus partout », 2026-10-25) ; option `sheet` (classe compacte) : feuille sur toute la fenêtre, bouton « Retour » au lieu de la croix, focus sur l'onglet actif à l'ouverture |
 | 31 | `CommitForm` | — (champs étiquetés) | motif prérempli, motif requis manquant | résumé sur une ligne, description facultative ; Ctrl+Entrée émet `submit` (024/M9, REQ-020-37) |
 | 32 | `SplitButton` | Button + Menu Button | action choisie, entrée désactivée avec motif, chargement | action par défaut à gauche, chevron à droite (`aria-haspopup="menu"`) ; choisir une entrée change l'action du bouton sans la lancer (REQ-020-37) |
 | 33 | `Toolbar` | Toolbar | actions repliées dans « … » | flèches entre les actions (APG Toolbar) ; repli par priorité (REQ-020-36) ; sous 360 px, une barre qui doit replier ne garde que son action principale (`primary`, sinon la plus prioritaire) |

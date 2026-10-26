@@ -146,6 +146,7 @@
                 - text: ""
                 - code: core.address.outside_network
               - status
+  - button "Largeur du panneau"
   - button "Fermer le panneau"
   - status: 2 violations Corriger ou retirer les opérations en cause pour appliquer ou soumettre ; le brouillon s'enregistre tel quel, violations comprises.
   - text: Résumé (obligatoire)

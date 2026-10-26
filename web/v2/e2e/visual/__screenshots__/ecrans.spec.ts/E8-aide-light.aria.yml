@@ -1,3 +1,5 @@
+- main:
+  - figure
 - dialog "Raccourcis clavier":
   - banner:
     - heading "Raccourcis clavier" [level=2]

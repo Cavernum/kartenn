@@ -38,6 +38,7 @@ import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import Icon from "../Icon/Icon.vue";
 import ColumnChooser from "../internal/ColumnChooser.vue";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
+import { fitPanelInset } from "../internal/panelInset.ts";
 import Skeleton from "../Skeleton/Skeleton.vue";
 import TextField from "../TextField/TextField.vue";
 import {
@@ -229,6 +230,7 @@ function onFocusin(event: FocusEvent): void {
   const cell = cellOf(event.target);
   if (cell && (cell.row !== current.value.row || cell.column !== current.value.column))
     active.value = cell;
+  fitPanelInset(event.currentTarget as HTMLElement, event.target);
 }
 
 /** The widgets inside a cell (a link, a copy button): out of the tab order, reached by keys. */
@@ -560,6 +562,7 @@ onBeforeUnmount(() => observer?.disconnect());
     --k-grid-columns-below-lg: var(--k-grid-columns);
     --k-grid-columns-below-md: var(--k-grid-columns);
     --k-data-grid-key: var(--k-space-0);
+    --k-grid-panel-inset: var(--k-space-0);
 
     position: relative;
     display: grid;
@@ -568,9 +571,11 @@ onBeforeUnmount(() => observer?.disconnect());
     min-inline-size: 0;
     overflow: auto;
     scrollbar-gutter: stable;
-    /* The sticky header and key column never hide a focused cell (WCAG 2.4.11). */
+    /* Neither the sticky header and key column nor the side panel over its end hide a
+     * focused cell (WCAG 2.4.11; internal/panelInset.ts). */
     scroll-padding-block-start: var(--k-header-height);
-    scroll-padding-inline-start: var(--k-data-grid-key);
+    scroll-padding-inline: var(--k-data-grid-key) var(--k-grid-panel-inset);
+    padding-inline-end: var(--k-grid-panel-inset);
     color: var(--k-text);
     background-color: var(--k-surface);
     border: var(--k-border-width) solid var(--k-border-strong);

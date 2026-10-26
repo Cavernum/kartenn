@@ -128,6 +128,7 @@
         - text: "Créer l'adresse :"
         - insertion: "ajouté : Hôte, Service Pilote"
         - button /Retirer l'opération « Créer l'adresse » sur \d+\.\d+\.\d+\.\d+/
+  - button "Largeur du panneau"
   - button "Fermer le panneau"
   - status: Simulation en cours…
   - text: Résumé (obligatoire)

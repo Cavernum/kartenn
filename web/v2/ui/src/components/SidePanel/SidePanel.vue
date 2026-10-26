@@ -10,7 +10,10 @@
 // isolated stacking context, so that no sticky header of the surface passes over it.
 // 420 px by default, resized by a handle at its inline start (APG Window Splitter, written
 // here: Reka's Splitter injects a <style>, refused by the CSP): Left and Right arrows by a
-// step, Home and End to the bounds, the pointer by dragging. Escape closes it and gives
+// step, Home and End to the bounds, the pointer by dragging — or in one click, without
+// dragging (WCAG 2.5.7), by the menu « Largeur du panneau » beside the close button:
+// « Étroit » (the lower bound), « Standard » (420 px), « Large » (the upper bound), the
+// current one checked (`menuitemradio`). Escape closes it and gives
 // the focus back to what opened it. Closed, it leaves nothing behind. On a narrow window
 // the host sets `cover`: the panel takes the whole width of its container, without handle
 // (spec 021, « Cadre » : at 768 px the panel covers the surface). With `rail`, the closed
@@ -28,7 +31,10 @@
 // `[data-k-modal-scope]` (or `body`), is `inert` — the target of floating layers stays live.
 // Over the end of the surface (neither), it publishes its width on its container as
 // `--k-side-panel-inset`, which the host gives as `scroll-padding-inline-end` to what scrolls
-// under it: a control that takes the focus scrolls out from under the panel.
+// under it: a control that takes the focus scrolls out from under the panel. It also marks
+// the container `data-k-side-panel`: a grid that scrolls in it measures the part of it the
+// panel covers into its own scroll padding (`internal/panelInset.ts`), cleared when the
+// panel closes or changes width.
 import {
   Comment,
   Fragment,
@@ -48,8 +54,12 @@ import { t } from "../../i18n.ts";
 import IconButton from "../IconButton/IconButton.vue";
 import { isRtl } from "../internal/gridKeys.ts";
 import { inertOthers } from "../internal/inertOthers.ts";
+import { clearPanelInsets } from "../internal/panelInset.ts";
+import Menu from "../Menu/Menu.vue";
+import type { MenuItem } from "../Menu/menu.ts";
 import Tabs from "../Tabs/Tabs.vue";
 import type { TabItem } from "../Tabs/tabs.ts";
+import { PANEL_STANDARD, widthPresets } from "./sidePanel.ts";
 
 defineOptions({ inheritAttrs: false });
 
@@ -81,7 +91,7 @@ const open = defineModel<boolean>("open", { default: true });
 /** The active tab. */
 const tab = defineModel<string>("tab", { default: "" });
 /** The width of the panel, in CSS pixels. */
-const width = defineModel<number>("width", { default: 420 });
+const width = defineModel<number>("width", { default: PANEL_STANDARD });
 const emit = defineEmits<{ close: [] }>();
 const slots = useSlots();
 
@@ -153,6 +163,8 @@ function release(): void {
   restore?.();
   restore = null;
   host?.style.removeProperty("--k-side-panel-inset");
+  host?.removeAttribute("data-k-side-panel");
+  if (host) clearPanelInsets(host);
   host = null;
 }
 watch(
@@ -164,6 +176,7 @@ watch(
     if (!cover && !sheet) {
       host = el.parentElement;
       host?.style.setProperty("--k-side-panel-inset", `${w}px`);
+      host?.setAttribute("data-k-side-panel", "");
       return;
     }
     const focused = document.activeElement;
@@ -224,6 +237,23 @@ function onHandleKeydown(event: KeyboardEvent): void {
   if (next === null) return;
   event.preventDefault();
   width.value = clamp(next);
+}
+
+/** The widths in one click (WCAG 2.5.7), the current one checked. */
+const presets = computed(() => widthPresets(props.min, props.max));
+const widthItems = computed<MenuItem[]>(() =>
+  presets.value.map((preset) => ({
+    kind: "radio" as const,
+    id: preset.id,
+    label: t(
+      preset.id === "narrow" ? "panelNarrow" : preset.id === "wide" ? "panelWide" : "panelStandard",
+    ),
+    checked: width.value === preset.width,
+  })),
+);
+function onWidth(id: string): void {
+  const preset = presets.value.find((p) => p.id === id);
+  if (preset) width.value = preset.width;
 }
 
 let drag: { x: number; width: number; sign: number } | null = null;
@@ -291,14 +321,26 @@ function onPointerup(event: PointerEvent): void {
           <slot :name="item.value" />
         </template>
       </Tabs>
-      <IconButton
-        v-if="!props.sheet"
-        class="k-side-panel__close"
-        icon="x"
-        size="sm"
-        :label="t('panelClose')"
-        @click="close"
-      />
+      <div v-if="!props.sheet" class="k-side-panel__actions">
+        <Menu
+          v-if="!props.cover"
+          :label="t('panelWidth')"
+          :items="widthItems"
+          icon="move-horizontal"
+          icon-only
+          variant="ghost"
+          size="sm"
+          align="end"
+          @select="onWidth"
+        />
+        <IconButton
+          class="k-side-panel__close"
+          icon="x"
+          size="sm"
+          :label="t('panelClose')"
+          @click="close"
+        />
+      </div>
       <footer v-if="footerShown()" class="k-side-panel__footer">
         <slot name="footer" :tab="current" />
       </footer>
@@ -449,6 +491,13 @@ function onPointerup(event: PointerEvent): void {
     padding-inline: var(--k-space-2) var(--k-space-8);
   }
 
+  /* Resizable, the width menu comes before it. */
+  .k-side-panel:not([data-cover], [data-sheet]) > .k-side-panel__tabs > .k-tabs__list {
+    padding-inline-end: calc(
+      var(--k-control-height-sm) * 2 + var(--k-space-1) + var(--k-space-2) * 2
+    );
+  }
+
   /* A scroll cue (relecture du 2026-10-26): a shade at the bottom edge of the tab panel
    * while more lies below — the shade stays with the box (`scroll`), a cover of the
    * surface colour at the end of the content (`local`) hides it once the end shows. */
@@ -468,10 +517,13 @@ function onPointerup(event: PointerEvent): void {
       100% var(--k-space-2);
   }
 
-  .k-side-panel__close {
+  /* The width menu and the close button, at the end of the tab list. */
+  .k-side-panel__actions {
     position: absolute;
     inset-block-start: calc((var(--k-control-height-lg) - var(--k-control-height-sm)) / 2);
     inset-inline-end: var(--k-space-2);
+    display: flex;
+    gap: var(--k-space-1);
   }
 
   /* The strip of the closed panel: in the flow, at the end, the width of a small control

@@ -203,4 +203,5 @@
           - text: Équipe supervision
           - code: supervision
           - text: "Entité : Atelier Nord"
+  - button "Largeur du panneau"
   - button "Fermer le panneau"

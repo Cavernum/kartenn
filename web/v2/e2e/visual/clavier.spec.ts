@@ -62,6 +62,37 @@ test.describe("SidePanel (complementary + Tabs, Window Splitter)", () => {
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 
+  test("the width menu sets a width without dragging (2.5.7), the current one checked", async ({
+    page,
+  }) => {
+    await state(page, "SidePanel", "draft");
+    const panel = page.getByRole("complementary", { name: "Panneau droit" });
+    const handle = panel.getByRole("separator", { name: "Redimensionner le panneau" });
+    const trigger = panel.getByRole("button", { name: "Largeur du panneau" });
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    const menu = page.getByRole("menu");
+    await expect(menu.getByRole("menuitemradio", { name: "Standard" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await expect(menu.getByRole("menuitemradio", { name: "Étroit" })).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    await expect(menu).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await expect(handle).toHaveAttribute("aria-valuenow", "720");
+    expect(Math.round((await panel.boundingBox())!.width)).toBe(720);
+    await page.keyboard.press("Enter");
+    await expect(menu.getByRole("menuitemradio", { name: "Large" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await page.keyboard.press("Enter");
+    await expect(handle).toHaveAttribute("aria-valuenow", "320");
+  });
+
   test("the close button closes it; the counter closes it from the draft tab", async ({ page }) => {
     await state(page, "SidePanel", "draft");
     const panel = page.getByRole("complementary", { name: "Panneau droit" });
@@ -176,6 +207,29 @@ test.describe("Narrow frame (768 px)", () => {
     await page.keyboard.press("Enter");
     await expect(panel).toBeHidden();
     await expect(page.locator(".k-ecran__surface")).toHaveJSProperty("inert", false);
+  });
+});
+
+test.describe("Standard frame (1024 px)", () => {
+  test.use({ viewport: { width: 1024, height: 900 } });
+
+  test("a focused cell of a grid scrolls out from under the panel", async ({ page }) => {
+    await page.goto("/_ui/ecrans/E10?vue=matrice");
+    const panel = page.getByRole("complementary", { name: "Panneau droit" });
+    await expect(panel).toBeVisible();
+    const grid = page.getByRole("grid", { name: /^Matrice Applicatif/ });
+    await grid.locator("[tabindex='0']").focus();
+    await page.keyboard.press("Control+Home");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("End");
+    const cell = (await page.locator(":focus").boundingBox())!;
+    const edge = (await panel.boundingBox())!.x;
+    expect(cell.x + cell.width).toBeLessThanOrEqual(edge + 1);
+    expect(cell.x).toBeGreaterThanOrEqual((await grid.boundingBox())!.x);
+    // Closed, the panel takes its room back from the grid.
+    await expect(grid).not.toHaveCSS("padding-inline-end", "0px");
+    await panel.getByRole("button", { name: "Fermer le panneau" }).click();
+    await expect(grid).toHaveCSS("padding-inline-end", "0px");
   });
 });
 
