@@ -287,13 +287,16 @@ les avertissements ; l'issue et la suite attendue (S31, Q14).
 
 #### REQ-010-13 — Extrémités
 Le module doit accepter comme extrémité une adresse, un préfixe (évalué sur ses propres
-classifications) et, où le module Machines est présent, une interface ou une machine,
-développées en leurs adresses à `valid_at` ; il doit rendre un verdict par paire
-d'adresses (D22).
+classifications) et, où le module Machines est présent, une interface, développée en
+ses adresses à `valid_at` ; il doit rendre un verdict par paire d'adresses (D22). Il
+doit refuser une machine (`policy.endpoint.machine`) : une ouverture se fait sur une
+adresse, une interface ou un sous-réseau, jamais sur toutes les adresses d'une machine
+(amendement du 2026-10-26, 011/F21).
 
 Acceptation :
-- Machine A (2 adresses) vers machine B (3 adresses), service `ssh` : 6 verdicts.
-- Une machine sans adresse à la date : réponse vide avec le motif `no_address`.
+- Interface A (2 adresses) vers interface B (3 adresses), service `ssh` : 6 verdicts.
+- Une interface sans adresse à la date : réponse vide avec le motif `no_address`.
+- Une machine comme extrémité : refusée (`policy.endpoint.machine`).
 
 #### REQ-010-14 — Objet de la requête
 Le module doit accepter comme objet de la requête : un service ; un couple

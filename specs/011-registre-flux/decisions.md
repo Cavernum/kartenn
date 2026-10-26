@@ -339,3 +339,24 @@ l'amendement de D30 (validité dérivée).
 - Décidé par : l'utilisateur (2026-10-22, Q-017-4, option B, plafonds F5 et F6 et
   séparation F12 respectés) ; plafond compté depuis la décision, refus d'un flux
   terminé, retrait de la fin traité comme prolongation : Claude, choix de conception
+
+## F21 — Extrémités sans machine ; ouvert et conforme (amende F3 ; REQ-011-2, 10 ; REQ-010-13)
+- Constat (2026-10-26, relecture de la maquette E11, spec 024) : une machine comme
+  extrémité, développée en toutes ses adresses, ne correspond pas à la pratique : une
+  ouverture se fait sur une adresse, une interface ou un sous-réseau. Et tester une
+  connexion mêlait deux questions : la paire est-elle **ouverte** (un flux du registre la
+  couvre) et est-elle **conforme** (la matrice l'autorise) ?
+- Décision : une extrémité est une adresse, un préfixe ou une interface ; une machine
+  est refusée (`flow.endpoint.machine` au registre, `policy.endpoint.machine` à la
+  requête de conformité). La machine reste un contexte (l'interface d'une machine) et
+  un point d'entrée de lecture (REQ-011-14, 15 : les flux de ses interfaces et adresses).
+  Le test d'une connexion (REQ-011-26) répond séparément « ouvert » (flux `active` ou
+  `waived` qui couvrent la paire et le service) et « conforme » (verdict), et se résume
+  en quatre cas.
+- Pourquoi : une règle de pare-feu vise des adresses ou des réseaux ; un flux déclaré
+  sur une machine ouvrirait sans le dire ses interfaces d'administration. Un flux peut
+  être ouvert et non conforme (dérogation, politique changée) ou conforme sans être
+  ouvert (à déclarer) : les confondre cache l'un des deux.
+- Rejeté : garder la machine au contrat et la masquer dans l'interface (deux vérités).
+- Décidé par : l'utilisateur (2026-10-26, arbitrages « Retirer la machine » et
+  « Couvert par un flux du registre ») ; codes et migration : tâche 14.

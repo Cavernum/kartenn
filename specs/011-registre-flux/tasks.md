@@ -406,3 +406,22 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     contrôlé) ; un flux expiré se refuse dès la planification (`now()` lu à la
     préparation) ; la portion ajoutée est évaluée à `max(fin courante, maintenant)` ;
     tests réunis dans un module `extensions`.
+
+## P6 — Amendements (relecture E11, 2026-10-26)
+
+- [ ] 14. Extrémités sans machine et test d'une connexion (F21) : refus d'une machine
+  comme extrémité au registre (`flow.endpoint.machine`) et à la requête de conformité
+  (`policy.endpoint.machine`) ; flux existants dont une extrémité est une machine :
+  migration qui les clôt par changeset système en les nommant (pas d'alias, projet non
+  gelé), choix à noter ; lecture « ouvert » (flux `active` ou `waived` couvrant une
+  paire d'adresses et un service à une date) et réponse en quatre cas, sans écriture,
+  par la requête de conformité ou une route voisine (choix à noter ; contrat OpenAPI et
+  SDK régénérés) ; client Python et CLI suivent — REQ-011-2, 10, 26 ; REQ-010-13 —
+  verify : un test par cas d'acceptation de REQ-011-26 et de REQ-010-13 ; `k-check`,
+  `k-py-check`, `k-web-check`
+  - où : `crates/kartenn-flow/src/model.rs` et `handler.rs` (validation des
+    extrémités, imiter le refus d'une plage, F3) ; module Politique (développement des
+    extrémités, `no_address`) ; `src/rules.rs` des deux modules ; `src/rest.rs` ;
+    tests `crates/kartenn-flow/tests/it/requests.rs`, `tests/it/rest.rs` ;
+    `specs/006-api-rest/openapi-v1.json` ; `web/sdk`, `web/v2/sdk` (`scripts/gen.mjs`) ;
+    `clients/python`

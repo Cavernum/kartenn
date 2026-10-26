@@ -660,6 +660,16 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
     REQ-010-15) ; environnement `admin` ajouté à `ENV` (teinte 6) pour les interfaces
     d'administration ; liens des fiches vers la même vue avec `?machine=`, le préfixe
     vers E2.
+  - Relecture d'E11 (2026-10-26). Arbitrages et choix tranchés :
+    - Extrémités : adresse, interface ou sous-réseau, jamais une machine (011/F21,
+      tâche 011-14) ; la machine n'apparaît que comme contexte d'une interface.
+    - Tester une connexion : deux réponses distinctes, **ouvert** (flux du registre
+      `active` ou `waived` qui couvre la paire) et **conforme** (matrice), résumées en
+      quatre cas (REQ-011-26).
+    - Proposition : le panneau du bas était trop chargé et ses tableaux débordaient.
+      Un seul sujet par onglet (Extrémités, Matrice, Verdicts), aucun tableau plus large
+      que le panneau, l'essentiel lisible à la hauteur par défaut.
+    - Registre à 1440 : plus de colonne coupée.
 - [ ] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
   020) — REQ-024-29
 

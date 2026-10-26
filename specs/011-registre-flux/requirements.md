@@ -29,7 +29,11 @@ décisions [`decisions.md`](decisions.md) (F1 à F18) ; D20, D22, D25, D28 à D3
 - **Flux** : demande enregistrée (source, destination, service, dossier, demandeur,
   entité), avec son évaluation courante et son historique.
 - **Sorte** : `requested` (demandé, v0.2) ou `observed` (constaté, réservé à la v0.3).
-- **Extrémité** : adresse, préfixe, interface ou machine.
+- **Extrémité** : adresse, préfixe (sous-réseau) ou interface ; jamais une machine (F21).
+- **Flux ouvert** : couvert, à une date, par un flux du registre `active` ou `waived`
+  dont la source contient l'adresse source, la destination l'adresse destination, et
+  dont le service est celui demandé. **Conforme** : autorisé par la matrice de flux
+  (verdict `allowed`). Les deux se lisent séparément (F21, REQ-011-26).
 - **Évaluation d'un flux** : évaluations (010) de chaque paire d'adresses des extrémités
   pour son service (verdict, issue, conditions non remplies, score), et leur
   **synthèse** (`allowed`, `partial`, `denied` ; issue la plus défavorable).
@@ -56,7 +60,7 @@ facultative (valeurs de l'axe de sensibilité, indicateur de données personnell
 entité et une période dont la fin est **facultative** (F2, Q3, Q16).
 
 Acceptation :
-- Flux `ssh` de la machine `bastion-1` vers le réseau `10.5.0.0/24`, référence
+- Flux `ssh` de l'interface `bastion-1/eth0` vers le réseau `10.5.0.0/24`, référence
   `ticketing:CHG-1042`, sans justification ni date de fin : accepté s'il est conforme.
 - Sans référence externe : refusé (`flow.reference.missing`).
 - Le système se nomme par la clé de sa valeur de liste fermée (`ticketing`), celle que
@@ -66,8 +70,8 @@ Acceptation :
 
 #### REQ-011-2 — Extrémités
 Le module doit accepter comme extrémité une adresse, un préfixe ou, où le module
-Machines est présent, une interface ou une machine, valides sur toute la période du
-flux ; il doit refuser une plage (F3).
+Machines est présent, une interface, valides sur toute la période du flux ; il doit
+refuser une plage (F3) et une machine (`flow.endpoint.machine`, F21).
 
 #### REQ-011-3 — Clôture d'une extrémité
 Si un changeset clôt un objet désigné comme extrémité d'un flux actif ou à venir, alors
@@ -204,8 +208,8 @@ Acceptation :
   `noncompliant`.
 
 #### REQ-011-10 — Partiel
-Quand la synthèse d'un flux est `partial` (une machine dont seule une partie des
-adresses est autorisée), le module doit soumettre la demande à l'instruction (l'issue
+Quand la synthèse d'un flux est `partial` (une interface ou un préfixe dont seule une
+partie des adresses est autorisée), le module doit soumettre la demande à l'instruction (l'issue
 de synthèse est la plus défavorable, REQ-010-15) et signaler l'avertissement
 `flow.verdict.partial`.
 
@@ -270,6 +274,25 @@ période, état, sorte) les non-conformités — demandes rejetées à l'instruc
 pédagogique ; un demandeur doit voir celles de ses propres demandes ; un flux
 `noncompliant` doit être acquittable comme une anomalie (REQ-002-36) (F17, UC-10,
 EB-27, N37).
+
+#### REQ-011-26 — Test d'une connexion : ouvert et conforme
+Quand on teste une connexion (source et destination : adresse, interface ou préfixe ;
+objet : service, couple transport/port ou type de flux ; date), le module doit
+répondre, pour chaque paire d'adresses et chaque service, à deux questions distinctes,
+sans aucune écriture : **ouvert** (les flux du registre `active` ou `waived` qui la
+couvrent, ou aucun) et **conforme** (verdict et explication de REQ-010-11, 12) ; et
+résumer le test en l'un des quatre cas : ouvert et conforme ; ouvert mais non conforme
+(dérogation, ou politique changée depuis l'ouverture) ; non ouvert mais conforme (à
+déclarer, issue de REQ-010-36) ; non ouvert et non conforme (F21).
+
+Acceptation :
+- `192.0.2.10` → `198.51.100.20`, `https`, couvert par un flux `active` dont la
+  destination est `198.51.100.0/24`, verdict `allowed` : ouvert et conforme, le flux
+  cité.
+- Même paire, flux `waived` sous une règle `deny` : ouvert mais non conforme, la
+  dérogation et la règle citées.
+- Aucun flux couvrant, verdict `allowed` : non ouvert mais conforme, issue rendue.
+- Un flux `requested` ou `expired` ne rend pas la paire ouverte.
 
 ### F. Droits et API
 
