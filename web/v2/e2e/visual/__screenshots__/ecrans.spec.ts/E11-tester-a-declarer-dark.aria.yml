@@ -1,0 +1,129 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 5":
+        - /url: /x/flow/review
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem:
+        - link "Registre":
+          - /url: /x/flow/flows
+      - listitem: Tester une connexion
+  - button "Présent"
+  - button "Brouillon 3 opérations"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Tester une connexion" [level=1]
+  - heading "Tester une connexion" [level=2]
+  - text: sans écriture
+  - navigation "Cas de la maquette":
+    - text: ""
+    - link "Ouvert et conforme":
+      - /url: /_ui/ecrans/E11?vue=tester&mode=dark
+    - link "Ouvert mais non conforme":
+      - /url: /_ui/ecrans/E11?vue=tester-derogation&mode=dark
+    - link "Non ouvert mais conforme":
+      - /url: /_ui/ecrans/E11?vue=tester-a-declarer&mode=dark
+    - link "Non ouvert et non conforme":
+      - /url: /_ui/ecrans/E11?vue=tester-ferme&mode=dark
+  - text: Source
+  - textbox "Source": /srv-web-\d+/
+  - paragraph: Adresse, interface ou préfixe
+  - 'group /srv-web-\d+ est une machine : choisir son interface ou une adresse/':
+    - text: ""
+    - radio /srv-web-\d+ · eth0 \d+\.\d+\.\d+\.\d+, \d+\.\d+\.\d+\.\d+/ [checked]
+    - code: /srv-web-\d+ · eth0/
+    - text: /\d+\.\d+\.\d+\.\d+, \d+\.\d+\.\d+\.\d+/
+    - radio /\d+\.\d+\.\d+\.\d+ eth0/
+    - code: /\d+\.\d+\.\d+\.\d+/
+    - text: eth0
+    - radio /\d+\.\d+\.\d+\.\d+ eth0/
+    - code: /\d+\.\d+\.\d+\.\d+/
+    - text: eth0
+  - text: Destination
+  - textbox "Destination": /\d+\.\d+\.\d+\.\d+/
+  - paragraph: Adresse, interface ou préfixe
+  - group "Objet":
+    - text: ""
+    - button "Service"
+    - button "Transport et port" [pressed]
+    - button "Type de flux"
+    - text: Transport et port
+    - textbox "Transport et port": /tcp\/\d+/
+  - text: Date
+  - textbox "Date": /\d+-\d+-\d+/
+  - paragraph: Ouvert et conforme à cette date
+  - button "Tester"
+  - text: "Aucune écriture : registre et matrice lus à la date."
+  - region "Résultat":
+    - heading "Résultat" [level=2]
+    - text: /srv-web-\d+ · eth0 → \d+\.\d+\.\d+\.\d+ · tcp\/\d+/
+    - button "Déclarer ce flux"
+    - paragraph:
+      - text: Non ouvert mais conforme 2 paires d'adresses · PostgreSQL
+      - code: postgres
+      - text: /· lu le \d+-\d+-\d+, politique r42/
+    - paragraph: "Aucun flux du registre ne couvre ces paires ; bdd-meme-env les autorise : déclarer ce flux l'ouvre, après instruction si son issue le demande."
+    - region "Ouvert ? Non ouvert":
+      - heading "Ouvert ? Non ouvert" [level=3]
+      - paragraph: Un flux du registre, actif ou dérogé, couvre-t-il chaque paire pour ce service ?
+      - paragraph:
+        - text: Aucun flux actif ou dérogé ne couvre ces paires pour
+        - code: postgres
+        - text: .
+    - region "Conforme ? Conforme":
+      - heading "Conforme ? Conforme" [level=3]
+      - paragraph: La matrice de flux autorise-t-elle chaque paire ?
+      - paragraph:
+        - button "Copier bdd-meme-env":
+          - text: ""
+          - code: bdd-meme-env
+        - status
+        - text: règle décisive Production vers Production Base de données
+      - paragraph: Une base n'est lue que depuis son propre environnement.
+      - paragraph: "Issue d'une déclaration, dossier non évalué : Instruction"
+    - region "Par paire d'adresses":
+      - heading "Par paire d'adresses" [level=3]
+      - 'grid "Ouvert et conforme, par paire d''adresses : 2 paires d''adresses"':
+        - rowgroup:
+          - row "Adresse source Adresse destination Ouvert Conforme":
+            - columnheader "Adresse source"
+            - columnheader "Adresse destination"
+            - columnheader "Ouvert"
+            - columnheader "Conforme"
+        - rowgroup:
+          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ Non ouvert Conforme bdd-meme-env/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "Non ouvert"
+            - gridcell "Conforme bdd-meme-env":
+              - text: ""
+              - code: bdd-meme-env
+          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ Non ouvert Conforme bdd-meme-env/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "Non ouvert"
+            - gridcell "Conforme bdd-meme-env":
+              - text: ""
+              - code: bdd-meme-env
+- button "Ouvrir le panneau"

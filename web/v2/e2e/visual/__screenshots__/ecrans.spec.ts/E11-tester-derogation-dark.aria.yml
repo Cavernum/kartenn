@@ -1,0 +1,116 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 5":
+        - /url: /x/flow/review
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem:
+        - link "Registre":
+          - /url: /x/flow/flows
+      - listitem: Tester une connexion
+  - button "Présent"
+  - button "Brouillon 3 opérations"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Tester une connexion" [level=1]
+  - heading "Tester une connexion" [level=2]
+  - text: sans écriture
+  - navigation "Cas de la maquette":
+    - text: ""
+    - link "Ouvert et conforme":
+      - /url: /_ui/ecrans/E11?vue=tester&mode=dark
+    - link "Ouvert mais non conforme":
+      - /url: /_ui/ecrans/E11?vue=tester-derogation&mode=dark
+    - link "Non ouvert mais conforme":
+      - /url: /_ui/ecrans/E11?vue=tester-a-declarer&mode=dark
+    - link "Non ouvert et non conforme":
+      - /url: /_ui/ecrans/E11?vue=tester-ferme&mode=dark
+  - text: Source
+  - textbox "Source": /dev-web-\d+ · eth0/
+  - paragraph: Adresse, interface ou préfixe
+  - text: Destination
+  - textbox "Destination": /\d+\.\d+\.\d+\.\d+/
+  - paragraph: Adresse, interface ou préfixe
+  - group "Objet":
+    - text: ""
+    - button "Service" [pressed]
+    - button "Transport et port"
+    - button "Type de flux"
+    - text: Service
+    - textbox "Service": postgres
+  - text: Date
+  - textbox "Date": /\d+-\d+-\d+/
+  - paragraph: Ouvert et conforme à cette date
+  - button "Tester"
+  - text: "Aucune écriture : registre et matrice lus à la date."
+  - region "Résultat":
+    - heading "Résultat" [level=2]
+    - text: /dev-web-\d+ · eth0 → \d+\.\d+\.\d+\.\d+ · postgres/
+    - paragraph:
+      - text: Ouvert mais non conforme 1 paire d'adresses · PostgreSQL
+      - code: postgres
+      - text: /· lu le \d+-\d+-\d+, politique r42/
+    - paragraph: "/Ouvert par la dérogation de flux-\\d+ jusqu'au \\d+-\\d+-\\d+, alors que deny-deve-prod l'interdit : recertifier la dérogation avant son échéance, ou clore le flux\\./"
+    - region "Ouvert ? Ouvert":
+      - heading "Ouvert ? Ouvert" [level=3]
+      - paragraph: Un flux du registre, actif ou dérogé, couvre-t-il chaque paire pour ce service ?
+      - list:
+        - listitem:
+          - link /flux-\d+/:
+            - /url: /_ui/ecrans/E11?vue=registre&mode=dark
+          - text: Dérogé
+          - code: /dev-web-\d+ · eth0/
+          - text: →
+          - code: /srv-db-\d+ · eth0/
+          - text: /· dérogation jusqu'au \d+-\d+-\d+/
+    - region "Conforme ? Non conforme":
+      - heading "Conforme ? Non conforme" [level=3]
+      - paragraph: La matrice de flux autorise-t-elle chaque paire ?
+      - paragraph:
+        - button "Copier deny-deve-prod":
+          - text: ""
+          - code: deny-deve-prod
+        - status
+        - text: règle décisive Développement vers Production Base de données
+      - paragraph: "Le développement n'atteint jamais la production : ses données n'en sortent pas, ses outils n'y entrent pas."
+    - region "Par paire d'adresses":
+      - heading "Par paire d'adresses" [level=3]
+      - 'grid "Ouvert et conforme, par paire d''adresses : 1 paire d''adresses"':
+        - rowgroup:
+          - row "Adresse source Adresse destination Ouvert Conforme":
+            - columnheader "Adresse source"
+            - columnheader "Adresse destination"
+            - columnheader "Ouvert"
+            - columnheader "Conforme"
+        - rowgroup:
+          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ Ouvert flux-\d+ Non conforme deny-deve-prod/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /Ouvert flux-\d+/:
+              - text: ""
+              - code: /flux-\d+/
+            - gridcell "Non conforme deny-deve-prod":
+              - text: ""
+              - code: deny-deve-prod
+- button "Ouvrir le panneau"

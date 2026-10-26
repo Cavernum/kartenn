@@ -48,12 +48,12 @@
           - columnheader "Référence"
           - columnheader "Justification"
       - rowgroup:
-        - row /\(en brouillon\) srv-web-\d+ srv-app-\d+ eth0 API interne api-interne Conforme Copier app-meme-env ticketing:CHG-\d+ Appels du portail vers l'API métier/:
-          - gridcell /\(en brouillon\) srv-web-\d+/
-          - gridcell /srv-app-\d+ eth0/
-          - gridcell "API interne api-interne":
+        - row /\(en brouillon\) srv-web-\d+ · eth0 srv-app-\d+ · eth0 API interne api Conforme Copier app-meme-env ticketing:CHG-\d+ Appels du portail vers l'API métier/:
+          - gridcell /\(en brouillon\) srv-web-\d+ · eth0/
+          - gridcell /srv-app-\d+ · eth0/
+          - gridcell "API interne api":
             - text: ""
-            - code: api-interne
+            - code: api
           - gridcell "Conforme Copier app-meme-env":
             - text: ""
             - button "Copier app-meme-env":
@@ -62,9 +62,9 @@
             - status
           - gridcell /ticketing:CHG-\d+/
           - gridcell "Appels du portail vers l'API métier"
-        - row /\(en brouillon\) srv-rec-\d+ srv-app-\d+ eth0 Web chiffré https Sous réserve Copier rece-vers-prod ticketing:CHG-\d+ Justification — ligne-2/ [selected]:
-          - gridcell /\(en brouillon\) srv-rec-\d+/
-          - gridcell /srv-app-\d+ eth0/
+        - row /\(en brouillon\) srv-rec-\d+ · eth0 srv-app-\d+ · eth0 Web chiffré https Sous réserve Copier rece-vers-prod ticketing:CHG-\d+ Justification — ligne-2/ [selected]:
+          - gridcell /\(en brouillon\) srv-rec-\d+ · eth0/
+          - gridcell /srv-app-\d+ · eth0/
           - gridcell "Web chiffré https":
             - text: ""
             - code: https
@@ -78,9 +78,9 @@
           - gridcell "Justification — ligne-2":
             - text: ""
             - textbox "Justification — ligne-2"
-        - row /\(en brouillon\) dev-web-\d+ srv-db-\d+ PostgreSQL postgres Non conforme Copier deny-deve-prod ticketing:CHG-\d+ Jeu de données pour les tests de charge/:
-          - gridcell /\(en brouillon\) dev-web-\d+/
-          - gridcell /srv-db-\d+/
+        - row /\(en brouillon\) dev-web-\d+ · eth0 srv-db-\d+ · eth0 PostgreSQL postgres Non conforme Copier deny-deve-prod ticketing:CHG-\d+ Jeu de données pour les tests de charge/:
+          - gridcell /\(en brouillon\) dev-web-\d+ · eth0/
+          - gridcell /srv-db-\d+ · eth0/
           - gridcell "PostgreSQL postgres":
             - text: ""
             - code: postgres
@@ -92,12 +92,12 @@
             - status
           - gridcell /ticketing:CHG-\d+/
           - gridcell "Jeu de données pour les tests de charge"
-        - row /\(en brouillon\) srv-new-\d+ srv-app-\d+ eth0 tcp\/\d+ api-interne Non conforme Copier unclassified ticketing:CHG-\d+ Nouveau collecteur de journaux/:
-          - gridcell /\(en brouillon\) srv-new-\d+/
-          - gridcell /srv-app-\d+ eth0/
-          - gridcell /tcp\/\d+ api-interne/:
+        - row /\(en brouillon\) \d+\.\d+\.\d+\.\d+ srv-app-\d+ · eth0 tcp\/\d+ api Non conforme Copier unclassified ticketing:CHG-\d+ Nouveau collecteur de journaux/:
+          - gridcell /\(en brouillon\) \d+\.\d+\.\d+\.\d+/
+          - gridcell /srv-app-\d+ · eth0/
+          - gridcell /tcp\/\d+ api/:
             - code: /tcp\/\d+/
-            - code: api-interne
+            - code: api
           - gridcell "Non conforme Copier unclassified":
             - text: ""
             - button "Copier unclassified":
@@ -110,113 +110,43 @@
 - complementary "Flux choisi":
   - separator "Redimensionner le panneau"
   - tablist "Onglets du panneau":
-    - tab "Flux choisi" [selected]
-  - tabpanel "Flux choisi":
-    - heading /srv-rec-\d+ srv-app-\d+ eth0 · https/ [level=2]
-    - region "Éléments utilisés":
-      - heading "Éléments utilisés" [level=3]
-      - text: Source
-      - list:
-        - listitem:
-          - link /srv-rec-\d+/:
-            - /url: /_ui/ecrans/E11?vue=machine&machine=srv-rec-03&mode=light
-          - text: machine
-          - list:
-            - listitem:
-              - code: eth0
-              - text: Service
-              - list:
-                - listitem:
-                  - code: /\d+\.\d+\.\d+\.\d+/
-                  - text: /Recette Environnement posée sur l'adresse · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
-      - text: Destination
-      - list:
-        - listitem:
-          - link /srv-app-\d+/:
-            - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=light
-          - text: machine
-          - list:
-            - listitem:
-              - code: eth0
-              - text: Service
-              - list:
-                - listitem:
-                  - code: /\d+\.\d+\.\d+\.\d+/
-                  - text: /Production Environnement héritée de \d+\.\d+\.2\.0\/\d+ · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
-                - listitem:
-                  - code: /\d+\.\d+\.\d+\.\d+/
-                  - text: /Production Environnement héritée de \d+\.\d+\.2\.0\/\d+ · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
-    - region "Contre la matrice de flux":
-      - heading "Contre la matrice de flux" [level=3]
-      - term: Synthèse
-      - definition: Sous réserve 2 paires autorisées sur 2
-      - term: Issue
-      - definition: Instruction
-      - term: Élément décisif
-      - definition:
-        - button "Copier rece-vers-prod":
-          - text: ""
-          - code: rece-vers-prod
-        - status
-        - text: règle
-      - term: Cellule
-      - definition: Recette Applicatif Production
-      - paragraph: La recette lit les API de production pour ses jeux de contrôle, sous le motif api-lecture.
-      - 'grid "Extrait de la matrice Applicatif : source en ligne, destination en colonne"':
-        - rowgroup:
-          - row "Source → destination Production Recette Développement":
-            - columnheader "Source → destination"
-            - columnheader "Production"
-            - columnheader "Recette"
-            - columnheader "Développement"
-        - rowgroup:
-          - row "Production Autoriser Interdire Interdire":
-            - rowheader "Production"
-            - gridcell "Autoriser"
-            - gridcell "Interdire"
-            - gridcell "Interdire"
-          - row "Recette Sous motif Autoriser Refus par défaut":
-            - rowheader "Recette"
-            - gridcell "Sous motif"
-            - gridcell "Autoriser"
-            - gridcell "Refus par défaut"
-          - row "Développement Interdire Refus par défaut Autoriser":
-            - rowheader "Développement"
-            - gridcell "Interdire"
-            - gridcell "Refus par défaut"
-            - gridcell "Autoriser"
-      - 'grid "Verdict par paire d''adresses : 2 paires autorisées sur 2"':
-        - rowgroup:
-          - row "Adresse source Adresse destination Verdict Élément décisif":
-            - columnheader "Adresse source"
-            - columnheader "Adresse destination"
-            - columnheader "Verdict"
-            - columnheader "Élément décisif"
-        - rowgroup:
-          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ Sous réserve rece-vers-prod/:
-            - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell "Sous réserve"
-            - gridcell "rece-vers-prod":
-              - code: rece-vers-prod
-          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ Sous réserve rece-vers-prod/:
-            - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell "Sous réserve"
-            - gridcell "rece-vers-prod":
-              - code: rece-vers-prod
-      - region "Conditions non remplies":
-        - heading "Conditions non remplies" [level=4]
-        - list:
-          - listitem:
-            - button "Copier justification-requise":
-              - text: ""
-              - code: justification-requise
-            - status
-            - text: Un flux entre deux environnements différents porte une justification dans son dossier.
+    - tab "Extrémités" [selected]
+    - tab "Matrice"
+    - tab "Verdicts 2"
+  - tabpanel "Extrémités":
+    - heading /srv-rec-\d+ · eth0 vers srv-app-\d+ · eth0 · https · Applicatif/ [level=2]
+    - paragraph:
+      - text: Sous réserve Instruction
+      - button "Copier rece-vers-prod":
+        - text: ""
+        - code: rece-vers-prod
+      - status
+      - text: 2 paires autorisées sur 2
+    - region "Source interface":
+      - heading "Source interface" [level=3]
       - paragraph:
-        - strong: "Suite :"
-        - text: "Proposition à instruire : un instructeur l'approuve avec une date de fin, ou la rejette avec son motif."
+        - code: /srv-rec-\d+ · eth0/
+        - text: Service ·
+        - link /fiche de srv-rec-\d+/:
+          - /url: /_ui/ecrans/E11?vue=machine&machine=srv-rec-03&mode=light
+      - list:
+        - listitem:
+          - code: /\d+\.\d+\.\d+\.\d+/
+          - text: /Recette Environnement posée sur l'adresse · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
+    - region "Destination interface":
+      - heading "Destination interface" [level=3]
+      - paragraph:
+        - code: /srv-app-\d+ · eth0/
+        - text: Service ·
+        - link /fiche de srv-app-\d+/:
+          - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=light
+      - list:
+        - listitem:
+          - code: /\d+\.\d+\.\d+\.\d+/
+          - text: /Production Environnement héritée de \d+\.\d+\.2\.0\/\d+ · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
+        - listitem:
+          - code: /\d+\.\d+\.\d+\.\d+/
+          - text: /Production Environnement héritée de \d+\.\d+\.2\.0\/\d+ · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
   - button "Hauteur du panneau"
   - button "Fermer le panneau"
 - button "Ouvrir le panneau"

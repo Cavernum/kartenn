@@ -372,12 +372,7 @@ export interface FlowService {
 }
 export const SERVICES: Record<string, FlowService> = {
   https: { key: "https", label: "Web chiffré", flowType: "application", ports: ["tcp/443"] },
-  "api-interne": {
-    key: "api-interne",
-    label: "API interne",
-    flowType: "application",
-    ports: ["tcp/8443"],
-  },
+  api: { key: "api", label: "API interne", flowType: "application", ports: ["tcp/8443"] },
   ssh: { key: "ssh", label: "Shell sécurisé", flowType: "admin", ports: ["tcp/22"] },
   postgres: { key: "postgres", label: "PostgreSQL", flowType: "database", ports: ["tcp/5432"] },
   nfs: { key: "nfs", label: "Partage NFS", flowType: "file", ports: ["tcp/2049", "udp/2049"] },
@@ -525,9 +520,12 @@ export const MACHINES: Record<string, FlowMachine> = Object.fromEntries(
   ].map((m) => [m.key, m]),
 );
 
-/** An end of a flow (REQ-011-2): a machine, one of its interfaces, a prefix, an address. */
+/**
+ * An end of a flow (REQ-011-2, 011/F21): an address, an interface, a prefix; never a
+ * machine. The machine is only the context of an interface (or of an address it carries).
+ */
 export type FlowEnd =
-  | { kind: "machine"; machine: string }
+  | { kind: "address"; value: string }
   | { kind: "interface"; machine: string; iface: string }
   | { kind: "prefix"; value: string; address: FlowAddress };
 
@@ -536,6 +534,12 @@ export const SUPERVISION_PREFIX: FlowEnd = {
   kind: "prefix",
   value: "192.0.2.64/26",
   address: addr("192.0.2.64/26", "prod", "posée sur le préfixe"),
+};
+/** The prefix of the web front ends, the source of a flow that covers their addresses. */
+export const FRONT_PREFIX: FlowEnd = {
+  kind: "prefix",
+  value: "192.0.2.16/28",
+  address: addr("192.0.2.16/28", "prod", "posée sur le préfixe"),
 };
 
 /**
@@ -652,33 +656,44 @@ export interface RegisteredFlow {
   /** The end of the flow, if dated. */
   end?: string;
 }
-const m = (key: string): FlowEnd => ({ kind: "machine", machine: key });
-const i = (key: string, name: string): FlowEnd => ({
+/** An interface of a machine as an end. */
+export const ifaceEnd = (machine: string, iface: string): FlowEnd => ({
   kind: "interface",
-  machine: key,
-  iface: name,
+  machine,
+  iface,
 });
+/** An address as an end. */
+export const addressEnd = (value: string): FlowEnd => ({ kind: "address", value });
+const i = ifaceEnd;
 export const FLOWS: RegisteredFlow[] = [
   {
     key: "flux-1041",
-    source: m("srv-web-02"),
+    source: i("srv-web-02", "eth0"),
     destination: i("srv-app-01", "eth0"),
-    service: "api-interne",
+    service: "api",
     state: "active",
     reference: "ticketing:CHG-1041",
   },
   {
+    key: "flux-1046",
+    source: FRONT_PREFIX,
+    destination: i("srv-app-01", "eth0"),
+    service: "https",
+    state: "active",
+    reference: "ticketing:CHG-1046",
+  },
+  {
     key: "flux-1042",
     source: i("srv-app-01", "eth0"),
-    destination: m("srv-db-02"),
+    destination: addressEnd("192.0.2.30"),
     service: "postgres",
     state: "active",
     reference: "ticketing:CHG-1042",
   },
   {
     key: "flux-1043",
-    source: m("bastion-01"),
-    destination: m("srv-app-01"),
+    source: i("bastion-01", "eth0"),
+    destination: i("srv-app-01", "eth1"),
     service: "ssh",
     state: "active",
     reference: "ticketing:CHG-1043",
@@ -686,7 +701,7 @@ export const FLOWS: RegisteredFlow[] = [
   },
   {
     key: "flux-1050",
-    source: m("srv-rec-03"),
+    source: i("srv-rec-03", "eth0"),
     destination: i("srv-app-01", "eth0"),
     service: "https",
     state: "requested",
@@ -694,8 +709,8 @@ export const FLOWS: RegisteredFlow[] = [
   },
   {
     key: "flux-1037",
-    source: m("dev-web-01"),
-    destination: m("srv-db-02"),
+    source: i("dev-web-01", "eth0"),
+    destination: i("srv-db-02", "eth0"),
     service: "postgres",
     state: "waived",
     reference: "ticketing:CHG-1037",
@@ -705,14 +720,14 @@ export const FLOWS: RegisteredFlow[] = [
   {
     key: "flux-1044",
     source: i("srv-app-01", "eth0"),
-    destination: m("srv-sauv-01"),
+    destination: addressEnd("198.51.100.40"),
     service: "nfs",
     state: "active",
     reference: "ticketing:CHG-1044",
   },
   {
     key: "flux-1029",
-    source: m("srv-app-07"),
+    source: i("srv-app-07", "eth0"),
     destination: SUPERVISION_PREFIX,
     service: "ssh",
     state: "noncompliant",
@@ -720,7 +735,7 @@ export const FLOWS: RegisteredFlow[] = [
   },
   {
     key: "flux-0988",
-    source: m("srv-rec-04"),
+    source: i("srv-rec-04", "eth0"),
     destination: i("srv-app-01", "eth0"),
     service: "https",
     state: "expired",

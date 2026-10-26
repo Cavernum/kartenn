@@ -1,18 +1,18 @@
 <script setup lang="ts">
-// E11 — Flux (design « Maquettes », row E11; 011, REQ-011-1, 2, 5, 14, 15, 20, 21, 24, 25;
-// 010, REQ-010-11 to 15, 36, 38): the register of the declared flows, with typed filters,
-// state, synthesis against the flow matrix and outcome; the proposal of new flows in a
-// changeset, a form in a table (one row per flow, rows added on the fly, each row's
-// verdict inline), the chosen row in the bottom panel (the elements used: ends developed
-// into machines, interfaces, addresses with their environment and the values of the
-// axes cited; and what the row gives against the flow matrix: verdict per address pair,
-// decisive element and its text, the cell of the matrix in a small excerpt, conditions
-// not met, outcome); the draft of the proposal with its simulated effect and the common
-// footer; « Tester un flux », which evaluates without writing (QUERY /v1/verdicts) and
-// leads to a prefilled row; the flows of a machine in its information tab, each naming
-// its other end by a link to its card. Flows are « conformes » or « non conformes à la
-// matrice de flux ». The verdicts are worked out here, from the rules of `donnees.ts`, in
-// the order of REQ-010-11, so that every view tells the same story.
+// E11 — Flux (design « Maquettes », row E11; 011, REQ-011-1, 2, 5, 14, 15, 20, 21, 24 to
+// 26, F21; 010, REQ-010-11 to 15, 36, 38). An end of a flow is an address, an interface
+// or a prefix, never a machine: the machine is only the context of an interface. Views:
+// the register of the declared flows (typed filters, state, conformity to the flow matrix
+// and outcome, term); the proposal of new flows in a changeset, a form in a table (one row
+// per flow, each row's verdict inline), the chosen row in the bottom panel, one subject
+// per tab (its ends and their addresses, its cell of the matrix, its verdict per pair of
+// addresses), each tab opening on the same one-line answer; the draft of the proposal;
+// « Tester une connexion », which answers apart « ouvert » (a flow of the register,
+// `active` or `waived`, covers the pair) and « conforme » (the matrix allows it), summed
+// up in one of four cases, one view each, without writing; the flows of a machine in its
+// information tab, by interface, each naming its other end. Flows are « conformes » or
+// « non conformes à la matrice de flux ». The verdicts are worked out here, from the rules
+// of `donnees.ts`, in the order of REQ-010-11, so that every view tells the same story.
 import {
   Button,
   CodeBadge,
@@ -56,6 +56,8 @@ import {
   MACHINES,
   RULES,
   SERVICES,
+  addressEnd,
+  ifaceEnd,
   type EnvKey,
   type FlowAddress,
   type FlowEnd,
@@ -79,37 +81,96 @@ function view(vue: string, extra: Record<string, string> = {}): RouteLocationRaw
   }
   return { path: "/_ui/ecrans/E11", query };
 }
-/** The card of a machine (the view `machine`), or of the prefix (E2). */
-function cardOf(end: FlowEnd): RouteLocationRaw {
+
+// ——— Ends and their addresses (REQ-011-2, REQ-010-13, 011/F21) ———
+
+/** The machine and interface that carry an address. */
+interface Owner {
+  machine: string;
+  iface: string;
+}
+function ownerOf(value: string): Owner | null {
+  for (const m of Object.values(MACHINES))
+    for (const i of m.interfaces)
+      if (i.addresses.some((a) => a.value === value)) return { machine: m.key, iface: i.name };
+  return null;
+}
+function addressOf(value: string): FlowAddress {
+  const owner = ownerOf(value);
+  const found = owner
+    ? MACHINES[owner.machine]!.interfaces.find((i) => i.name === owner.iface)!.addresses.find(
+        (a) => a.value === value,
+      )
+    : undefined;
+  return (
+    found ?? {
+      value,
+      env: null,
+      envFrom: "aucune valeur",
+      sensitivity: "—",
+      sensitivityFrom: "aucune valeur",
+    }
+  );
+}
+/** The name of an end: an address, an interface (`machine · interface`), a prefix. */
+const endName = (end: FlowEnd): string =>
+  end.kind === "interface" ? `${end.machine} · ${end.iface}` : end.value;
+const KIND: Record<FlowEnd["kind"], string> = {
+  address: "Adresse",
+  interface: "Interface",
+  prefix: "Préfixe",
+};
+/** The machine an end belongs to (an interface's, an address's); none for a prefix. */
+function machineOf(end: FlowEnd): string | null {
+  if (end.kind === "interface") return end.machine;
+  if (end.kind === "address") return ownerOf(end.value)?.machine ?? null;
+  return null;
+}
+/** The card of the machine of an end, or of the prefix (E2); none for a lone address. */
+function cardOf(end: FlowEnd): RouteLocationRaw | null {
   if (end.kind === "prefix") {
     const mode = route.query.mode;
     return { path: "/_ui/ecrans/E2", query: typeof mode === "string" ? { mode } : {} };
   }
-  return view("machine", { machine: end.machine });
+  const machine = machineOf(end);
+  return machine ? view("machine", { machine }) : null;
 }
-
-// ——— Ends, addresses, verdicts (REQ-010-11, 13, 15, 36) ———
-
-/** The name of an end: a machine, a machine and its interface, a prefix. */
-const endName = (end: FlowEnd): string =>
-  end.kind === "machine"
-    ? end.machine
-    : end.kind === "interface"
-      ? `${end.machine} ${end.iface}`
-      : end.value;
+/** The interface that carries an address end, as context: « srv-db-02 · eth0 ». */
+function contextOf(end: FlowEnd): string | null {
+  if (end.kind !== "address") return null;
+  const owner = ownerOf(end.value);
+  return owner ? `${owner.machine} · ${owner.iface}` : null;
+}
+/** The role of an interface end (Service, Administration…). */
+const roleOf = (end: FlowEnd): string =>
+  end.kind === "interface"
+    ? (MACHINES[end.machine]!.interfaces.find((i) => i.name === end.iface)?.role ?? "")
+    : "";
 /** An address of an end, with the interface that carries it. */
 interface EndAddress {
   address: FlowAddress;
-  iface: string | null;
+  owner: Owner | null;
 }
-/** The addresses of an end at the date (REQ-010-13): a machine gives all of its own. */
+/** The addresses of an end at the date (REQ-010-13); a prefix is evaluated on its own. */
 function addressesOf(end: FlowEnd): EndAddress[] {
-  if (end.kind === "prefix") return [{ address: end.address, iface: null }];
-  const m = MACHINES[end.machine]!;
-  return m.interfaces
-    .filter((i) => end.kind === "machine" || i.name === end.iface)
-    .flatMap((i) => i.addresses.map((address) => ({ address, iface: i.name })));
+  if (end.kind === "prefix") return [{ address: end.address, owner: null }];
+  if (end.kind === "address") return [{ address: addressOf(end.value), owner: ownerOf(end.value) }];
+  const i = MACHINES[end.machine]!.interfaces.find((x) => x.name === end.iface)!;
+  return i.addresses.map((address) => ({
+    address,
+    owner: { machine: end.machine, iface: end.iface },
+  }));
 }
+const ipv4 = (value: string) => value.split(".").reduce((n, part) => n * 256 + Number(part), 0);
+/** Whether an end contains an address: one of its own, or within the prefix. */
+function contains(end: FlowEnd, value: string): boolean {
+  if (end.kind !== "prefix") return addressesOf(end).some((a) => a.address.value === value);
+  const [network, length] = end.value.split("/");
+  const base = ipv4(network!);
+  return ipv4(value) >= base && ipv4(value) < base + 2 ** (32 - Number(length));
+}
+
+// ——— Verdicts (REQ-010-11, 12, 15, 36) ———
 
 /** The state of a cell of the matrix, as E10 shows it. */
 type CellVerdict = "allow" | "deny" | "conditional" | "default";
@@ -247,14 +308,12 @@ interface Evaluation {
   /** The pair whose verdict weighs most: a refusal, then a reserve. */
   decisive: Pair;
   conditions: Condition[];
-  /** Three discarded rules at most, and why (REQ-010-12). */
-  discarded: { key: string; why: string }[];
 }
 const WEIGHT: Record<PairVerdict, number> = { denied: 2, conditional: 1, allowed: 0 };
 /**
  * Evaluates a flow (010): a verdict per pair of addresses, synthesis, outcome. `dossier`:
- * whether a justification is given; null without dossier (« Tester un flux »): the
- * conditions on the dossier are then not evaluated, and the outcome is never automatic.
+ * whether a justification is given; null without dossier (a test): the conditions on the
+ * dossier are then not evaluated, and the outcome is never automatic.
  */
 function evaluate(
   source: FlowEnd,
@@ -287,19 +346,7 @@ function evaluate(
       : synthesis === "conditional" || conditions.length > 0 || dossier === null
         ? "review"
         : "automatic";
-  const cell = decisive.cell;
-  const discarded = cell
-    ? RULES.filter((r) => r.flowTypes.includes(type) && r.key !== decisive.decisive.key)
-        .filter((r) => !covers(r, type, cell.source, cell.destination))
-        .slice(0, 3)
-        .map((r) => ({
-          key: r.key,
-          why: !r.sources.includes(cell.source)
-            ? `La source n'est pas en ${r.sources.map(envWord).join(", ")}.`
-            : `La destination n'est pas en ${(r.destinations.length ? r.destinations : r.sources).map(envWord).join(", ")}.`,
-        }))
-    : [];
-  return { type, pairs, synthesis, outcome, decisive, conditions, discarded };
+  return { type, pairs, synthesis, outcome, decisive, conditions };
 }
 const pairsAllowed = (e: Evaluation) => e.pairs.filter((p) => p.verdict !== "denied").length;
 const pairsSentence = (e: Evaluation) =>
@@ -338,9 +385,13 @@ const registerRows: RegisterRow[] = FLOWS.map((flow) => {
     state: STATE[flow.state].label,
     synthesis: e.synthesis,
     outcome: e.outcome,
-    term: flow.waiver ? `Dérogation ${flow.waiver}` : flow.end ? `Fin ${flow.end}` : "",
+    term: flow.waiver ?? flow.end ?? "",
   };
 });
+// Widths that hold at 1440 px beside the expanded sidebar (the surface is about 1170 px):
+// the conformity and the outcome share a column (the outcome of a non-conforming flow is
+// non-conforming, said once), the term is a date whose kind the state tells (« Dérogé »:
+// the end of the waiver). Under a container `lg`, the type and the term leave first.
 const registerColumns: GridColumn[] = [
   { id: "source", label: "Source", width: "md", mono: true, sortable: true, filterable: true },
   {
@@ -351,12 +402,11 @@ const registerColumns: GridColumn[] = [
     sortable: true,
     filterable: true,
   },
-  { id: "service", label: "Service", width: "lg", sortable: true, filterable: true, priority: 2 },
+  { id: "service", label: "Service", width: "md", sortable: true, filterable: true, priority: 2 },
   { id: "flowType", label: "Type de flux", width: "md", filterable: true, priority: 3 },
   { id: "state", label: "État", width: "md", sortable: true, filterable: true },
-  { id: "synthesis", label: "Synthèse", width: "md", sortable: true, filterable: true },
-  { id: "outcome", label: "Issue", width: "md", filterable: true, priority: 2 },
-  { id: "term", label: "Dérogation, échéance", width: "md", sortable: true, priority: 3 },
+  { id: "synthesis", label: "Conformité, issue", width: "lg", sortable: true, filterable: true },
+  { id: "term", label: "Échéance", width: "sm", mono: true, sortable: true, priority: 3 },
 ];
 const registerSort = ref<GridSort | undefined>({ column: "source", direction: "ascending" });
 const registerActions: ToolbarAction[] = [
@@ -368,7 +418,7 @@ const registerActions: ToolbarAction[] = [
     shortcut: ["c"],
     priority: 3,
   },
-  { id: "test", label: "Tester un flux", icon: "search", priority: 2 },
+  { id: "test", label: "Tester une connexion", icon: "search", priority: 2 },
   { id: "export", label: "Exporter", variant: "ghost" },
 ];
 function onRegisterAction(id: string): void {
@@ -376,6 +426,151 @@ function onRegisterAction(id: string): void {
   else if (id === "test") void router.push(view("tester"));
 }
 const count = (state: FlowState) => FLOWS.filter((f) => f.state === state).length;
+
+// ——— « Tester une connexion » (REQ-011-26, REQ-010-14, 38): ouvert, conforme; no write ———
+
+/** The four answers of a test (REQ-011-26): text, icon and colour. */
+type TestCase = "open-conform" | "open-nonconform" | "closed-conform" | "closed-nonconform";
+const CASE: Record<TestCase, { state: State; label: string }> = {
+  "open-conform": { state: "ok", label: "Ouvert et conforme" },
+  "open-nonconform": { state: "ko", label: "Ouvert mais non conforme" },
+  "closed-conform": { state: "info", label: "Non ouvert mais conforme" },
+  "closed-nonconform": { state: "neutral", label: "Non ouvert et non conforme" },
+};
+const OPEN = {
+  true: { state: "info" as State, label: "Ouvert" },
+  false: { state: "neutral" as State, label: "Non ouvert" },
+};
+const CONFORM = {
+  true: { state: "ok" as State, label: "Conforme" },
+  false: { state: "ko" as State, label: "Non conforme" },
+};
+/** A test of the mock-up: what is typed, what it resolves to. */
+interface Test {
+  view: string;
+  case: TestCase;
+  source: string;
+  sourceEnd: FlowEnd;
+  /** A machine typed as source: the interface or address to pick (011/F21). */
+  pick?: string;
+  destination: string;
+  destinationEnd: FlowEnd;
+  object: { kind: "service" | "port"; value: string; service: string };
+}
+const TESTS: Test[] = [
+  {
+    view: "tester",
+    case: "open-conform",
+    source: "192.0.2.20",
+    sourceEnd: addressEnd("192.0.2.20"),
+    destination: "srv-app-01 · eth0",
+    destinationEnd: ifaceEnd("srv-app-01", "eth0"),
+    object: { kind: "port", value: "tcp/443", service: "https" },
+  },
+  {
+    view: "tester-derogation",
+    case: "open-nonconform",
+    source: "dev-web-01 · eth0",
+    sourceEnd: ifaceEnd("dev-web-01", "eth0"),
+    destination: "192.0.2.30",
+    destinationEnd: addressEnd("192.0.2.30"),
+    object: { kind: "service", value: "postgres", service: "postgres" },
+  },
+  {
+    view: "tester-a-declarer",
+    case: "closed-conform",
+    source: "srv-web-02",
+    sourceEnd: ifaceEnd("srv-web-02", "eth0"),
+    pick: "srv-web-02",
+    destination: "192.0.2.30",
+    destinationEnd: addressEnd("192.0.2.30"),
+    object: { kind: "port", value: "tcp/5432", service: "postgres" },
+  },
+  {
+    view: "tester-ferme",
+    case: "closed-nonconform",
+    source: "srv-app-01 · eth0",
+    sourceEnd: ifaceEnd("srv-app-01", "eth0"),
+    destination: "srv-rec-03 · eth0",
+    destinationEnd: ifaceEnd("srv-rec-03", "eth0"),
+    object: { kind: "service", value: "https", service: "https" },
+  },
+];
+const test = TESTS.find((t) => t.view === props.vue) ?? TESTS[0]!;
+/** The test that « Déclarer ce flux » turns into a row of the proposal. */
+const DECLARED = TESTS.find((t) => t.case === "closed-conform")!;
+const OBJECTS = [
+  { id: "service", label: "Service" },
+  { id: "port", label: "Transport et port" },
+  { id: "type", label: "Type de flux" },
+] as const;
+const testObject = ref<string>(test.object.kind);
+const tested = evaluate(test.sourceEnd, test.destinationEnd, test.object.service, null);
+/** The flows of the register that cover a pair: open (`active`, `waived`) or not. */
+function coverOf(pair: Pair) {
+  const covering = FLOWS.filter(
+    (f) =>
+      f.service === test.object.service &&
+      contains(f.source, pair.source.address.value) &&
+      contains(f.destination, pair.destination.address.value),
+  );
+  const opening = covering.filter((f) => f.state === "active" || f.state === "waived");
+  return { opening, others: covering.filter((f) => !opening.includes(f)) };
+}
+interface TestPair extends Record<string, unknown> {
+  key: string;
+  pair: Pair;
+  opening: RegisteredFlow[];
+  open: boolean;
+  conform: boolean;
+}
+const testPairs: TestPair[] = tested.pairs.map((pair) => {
+  const { opening } = coverOf(pair);
+  return {
+    key: pair.key,
+    pair,
+    opening,
+    open: opening.length > 0,
+    conform: pair.verdict !== "denied",
+  };
+});
+/** The flows that open the pairs, each once; the ones that cover them without opening. */
+const openingFlows = [...new Set(testPairs.flatMap((p) => p.opening))];
+const otherFlows = [...new Set(tested.pairs.flatMap((p) => coverOf(p).others))];
+const allOpen = testPairs.every((p) => p.open);
+const allConform = testPairs.every((p) => p.conform);
+const testCase: TestCase = allOpen
+  ? allConform
+    ? "open-conform"
+    : "open-nonconform"
+  : allConform
+    ? "closed-conform"
+    : "closed-nonconform";
+/** What the answer means and what to do (REQ-011-26, REQ-010-36). */
+const testNext = computed(() => {
+  const rule = tested.decisive.decisive.key;
+  const flow = openingFlows[0];
+  switch (testCase) {
+    case "open-conform":
+      return `Couvert par ${openingFlows.map((f) => f.key).join(", ")} et autorisé par ${rule} : rien à faire.`;
+    case "open-nonconform":
+      return flow?.state === "waived"
+        ? `Ouvert par la dérogation de ${flow.key} jusqu'au ${flow.waiver}, alors que ${rule} l'interdit : recertifier la dérogation avant son échéance, ou clore le flux.`
+        : `Ouvert par ${flow?.key}, que la politique interdit depuis : le flux est non conforme, à régulariser par une dérogation ou à clore.`;
+    case "closed-conform":
+      return `Aucun flux du registre ne couvre ces paires ; ${rule} les autorise : déclarer ce flux l'ouvre, après instruction si son issue le demande.`;
+    default:
+      return `Aucun flux du registre ne couvre ces paires et ${rule} les interdit : une déclaration serait non conforme, approuvable seulement avec une dérogation.`;
+  }
+});
+const pairCount = `${testPairs.length} paire${testPairs.length > 1 ? "s" : ""} d'adresses`;
+const testPairColumns: GridColumn[] = [
+  { id: "source", label: "Adresse source", width: "md", mono: true },
+  { id: "destination", label: "Adresse destination", width: "md", mono: true },
+  { id: "open", label: "Ouvert", width: "lg" },
+  { id: "conform", label: "Conforme", width: "fill" },
+];
+const declare = () => void router.push(view("proposition", { depuis: "test" }));
 
 // ——— The proposal (REQ-011-1, 21): a form in a table ———
 
@@ -389,30 +584,18 @@ interface Proposal {
   reference: string;
   justification: string;
 }
-const machineEnd = (machine: string): FlowEnd => ({ kind: "machine", machine });
-const ifaceEnd = (machine: string, iface: string): FlowEnd => ({
-  kind: "interface",
-  machine,
-  iface,
-});
-/** The row prefilled by « Déclarer ce flux » (the test of the view `tester`). */
-const TESTED = {
-  source: machineEnd("srv-web-02"),
-  destination: machineEnd("srv-app-01"),
-  object: { kind: "port" as const, value: "tcp/443", service: "https" },
-};
 const BASE: Proposal[] = [
   {
     key: "ligne-1",
-    source: machineEnd("srv-web-02"),
+    source: ifaceEnd("srv-web-02", "eth0"),
     destination: ifaceEnd("srv-app-01", "eth0"),
-    object: { kind: "service", value: "api-interne", service: "api-interne" },
+    object: { kind: "service", value: "api", service: "api" },
     reference: "ticketing:CHG-2041",
     justification: "Appels du portail vers l'API métier",
   },
   {
     key: "ligne-2",
-    source: machineEnd("srv-rec-03"),
+    source: ifaceEnd("srv-rec-03", "eth0"),
     destination: ifaceEnd("srv-app-01", "eth0"),
     object: { kind: "service", value: "https", service: "https" },
     reference: "ticketing:CHG-2042",
@@ -420,17 +603,17 @@ const BASE: Proposal[] = [
   },
   {
     key: "ligne-3",
-    source: machineEnd("dev-web-01"),
-    destination: machineEnd("srv-db-02"),
+    source: ifaceEnd("dev-web-01", "eth0"),
+    destination: ifaceEnd("srv-db-02", "eth0"),
     object: { kind: "service", value: "postgres", service: "postgres" },
     reference: "ticketing:CHG-2043",
     justification: "Jeu de données pour les tests de charge",
   },
   {
     key: "ligne-4",
-    source: machineEnd("srv-new-05"),
+    source: addressEnd("203.0.113.50"),
     destination: ifaceEnd("srv-app-01", "eth0"),
-    object: { kind: "port", value: "tcp/8443", service: "api-interne" },
+    object: { kind: "port", value: "tcp/8443", service: "api" },
     reference: "ticketing:CHG-2044",
     justification: "Nouveau collecteur de journaux",
   },
@@ -438,7 +621,17 @@ const BASE: Proposal[] = [
 const prefilled = route.query.depuis === "test";
 const proposals = ref<Proposal[]>(
   prefilled
-    ? [...BASE, { key: "ligne-5", ...TESTED, reference: "", justification: "" }]
+    ? [
+        ...BASE,
+        {
+          key: "ligne-5",
+          source: DECLARED.sourceEnd,
+          destination: DECLARED.destinationEnd,
+          object: DECLARED.object,
+          reference: "",
+          justification: "",
+        },
+      ]
     : [...BASE],
 );
 /** The evaluation of a row, once its source, destination and object are given. */
@@ -457,7 +650,6 @@ interface ProposalRow extends Record<string, unknown> {
   reference: string;
   justification: string;
   verdict: string;
-  outcome: string;
 }
 const proposalRows = computed<ProposalRow[]>(() =>
   proposals.value.map((p) => {
@@ -473,16 +665,17 @@ const proposalRows = computed<ProposalRow[]>(() =>
       reference: p.reference,
       justification: p.justification,
       verdict: evaluation ? SYNTHESIS[evaluation.synthesis].label : "",
-      outcome: evaluation ? OUTCOME[evaluation.outcome].label : "",
     };
   }),
 );
 const proposalColumns: GridColumn[] = [
-  { id: "source", label: "Source", width: "md", mono: true },
+  // The source carries the mark of the draft row: wider, so that an interface holds.
+  { id: "source", label: "Source", width: "lg", mono: true },
   { id: "destination", label: "Destination", width: "md", mono: true },
-  { id: "object", label: "Service ou port", width: "lg", priority: 2 },
+  // The object leaves under a container `lg` before the verdict: the bottom panel names it.
+  { id: "object", label: "Service ou port", width: "md", priority: 3 },
   // The verdict before the fields of the dossier, in view without scrolling the grid; the
-  // flow type of the row is in its cell of the matrix (bottom panel) and in the draft.
+  // flow type of the row is in the tab « Matrice » of the bottom panel and in the draft.
   { id: "verdict", label: "Verdict", width: "fill" },
   { id: "reference", label: "Référence", width: "md", mono: true, priority: 3 },
   { id: "justification", label: "Justification", width: "md", priority: 3 },
@@ -533,7 +726,25 @@ const proposalCellState = (row: ProposalRow, column: GridColumn): CellState | un
   row.key === "ligne-2" && column.id === "justification" && !row.justification
     ? "draft"
     : undefined;
-const BOTTOM: TabItem[] = [{ value: "ligne", label: "Flux choisi" }];
+/** One subject per tab of the bottom panel, each slot named `bottom-<value>`. */
+const BOTTOM = computed<TabItem[]>(() => {
+  const pairs = chosenRow.value?.evaluation?.pairs.length;
+  return [
+    { value: "extremites", label: "Extrémités" },
+    { value: "matrice", label: "Matrice" },
+    pairs === undefined
+      ? { value: "verdicts", label: "Verdicts" }
+      : { value: "verdicts", label: "Verdicts", count: pairs },
+  ];
+});
+const BOTTOM_SLOTS = ["extremites", "matrice", "verdicts"].map((value) => ({
+  value,
+  slot: `bottom-${value}`,
+}));
+const SIDES = [
+  { id: "source", label: "Source" },
+  { id: "destination", label: "Destination" },
+] as const;
 /** The flows of the proposal, counted by outcome (the simulated effect). */
 const byOutcome = computed(() => {
   const counts: Record<Outcome, number> = { automatic: 0, review: 0, noncompliant: 0 };
@@ -542,63 +753,24 @@ const byOutcome = computed(() => {
 });
 const incomplete = computed(() => proposalRows.value.filter((r) => !r.evaluation).length);
 
-/** The environments of the excerpt of the matrix: the usual three, and the cell's. */
-const EXCERPT: EnvKey[] = ["prod", "rece", "deve"];
+/**
+ * The excerpt of the matrix: the environments of the decisive cell, and a neighbour when
+ * both are the same; two by two at most, so that it holds in the panel.
+ */
+const NEIGHBOUR: EnvKey[] = ["rece", "prod", "deve"];
 function excerptOf(cell: { source: EnvKey; destination: EnvKey }): MatrixAxis[] {
-  const ids = [...new Set([...EXCERPT, cell.source, cell.destination])];
+  const ids =
+    cell.source === cell.destination
+      ? [cell.source, NEIGHBOUR.find((env) => env !== cell.source)!]
+      : [cell.source, cell.destination];
   return ids.map((id) => ({ id, label: ENV[id].label }));
 }
 const excerptActive = computed<MatrixCell | undefined>(() => {
   const cell = chosenRow.value?.evaluation?.decisive.cell;
   return cell ? { row: cell.source, column: cell.destination } : undefined;
 });
-const pairColumns: GridColumn[] = [
-  { id: "source", label: "Adresse source", width: "md", mono: true },
-  { id: "destination", label: "Adresse destination", width: "md", mono: true },
-  { id: "verdict", label: "Verdict", width: "md" },
-  { id: "decisive", label: "Élément décisif", width: "fill" },
-];
 
-// ——— « Tester un flux » (REQ-010-14, 38): no write ———
-
-const tested = evaluate(TESTED.source, TESTED.destination, TESTED.object.service, null);
-type TestObject = "service" | "port" | "type";
-const testObject = ref<TestObject>("port");
-const OBJECTS: { id: TestObject; label: string }[] = [
-  { id: "service", label: "Service" },
-  { id: "port", label: "Transport et port" },
-  { id: "type", label: "Type de flux" },
-];
-/** The decisive elements of the test, each once, with the pairs it decided. */
-const testDecisive = computed(() => {
-  const seen = new Map<string, { decisive: Decisive; pairs: number; verdict: PairVerdict }>();
-  for (const p of tested.pairs) {
-    const known = seen.get(p.decisive.key);
-    if (known) known.pairs += 1;
-    else seen.set(p.decisive.key, { decisive: p.decisive, pairs: 1, verdict: p.verdict });
-  }
-  return [...seen.values()];
-});
-/** The addresses of the test, each with the values of the axes cited and their origin. */
-const testAddresses = computed(() =>
-  [
-    ...addressesOf(TESTED.source).map((a) => ({ ...a, end: "Source", machine: "srv-web-02" })),
-    ...addressesOf(TESTED.destination).map((a) => ({
-      ...a,
-      end: "Destination",
-      machine: "srv-app-01",
-    })),
-  ].map((a) => ({ ...a, key: a.address.value })),
-);
-const resolvedColumns: GridColumn[] = [
-  { id: "address", label: "Adresse", width: "md", mono: true },
-  { id: "end", label: "Extrémité", width: "md", priority: 2 },
-  { id: "env", label: "Environnement", width: "lg" },
-  { id: "sensitivity", label: "Sensibilité", width: "fill", priority: 3 },
-];
-const declare = () => void router.push(view("proposition", { depuis: "test" }));
-
-// ——— A machine's card: its flows in the information tab (REQ-011-15) ———
+// ——— A machine's card: the flows of its interfaces in the information tab (REQ-011-15) ———
 
 const machineKey = computed(() => {
   const asked = route.query.machine;
@@ -611,25 +783,43 @@ const machineTabs = computed<TabItem[]>(() => [
   { value: "interfaces", label: "Interfaces", count: shownMachine.value.interfaces.length },
   { value: "history", label: "Historique", count: 3 },
 ]);
-const touches = (end: FlowEnd, machine: string) => end.kind !== "prefix" && end.machine === machine;
-/** A flow of the machine: the other end, the service, the conformity. */
+/**
+ * How an end reaches the machine: by one of its interfaces, by an address of one, or by a
+ * prefix that contains one of its addresses; null when it does not.
+ */
+function reach(end: FlowEnd): { by: string; through?: string } | null {
+  if (end.kind === "interface") return end.machine === machineKey.value ? { by: end.iface } : null;
+  for (const i of shownMachine.value.interfaces)
+    for (const a of i.addresses)
+      if (end.kind === "address" ? end.value === a.value : contains(end, a.value))
+        return end.kind === "address"
+          ? { by: i.name, through: a.value }
+          : { by: i.name, through: end.value };
+  return null;
+}
+/** A flow of the machine: by which interface, the other end, the service, the conformity. */
 interface MachineFlow {
   key: string;
   flow: RegisteredFlow;
-  own: FlowEnd;
+  by: { by: string; through?: string };
   other: FlowEnd;
   synthesis: Synthesis;
 }
 function machineFlows(direction: "in" | "out"): MachineFlow[] {
-  return FLOWS.filter((f) =>
-    touches(direction === "in" ? f.destination : f.source, machineKey.value),
-  ).map((flow) => ({
-    key: flow.key,
-    flow,
-    own: direction === "in" ? flow.destination : flow.source,
-    other: direction === "in" ? flow.source : flow.destination,
-    synthesis: evaluate(flow.source, flow.destination, flow.service, true).synthesis,
-  }));
+  return FLOWS.flatMap((flow) => {
+    const own = direction === "in" ? flow.destination : flow.source;
+    const by = reach(own);
+    if (!by) return [];
+    return [
+      {
+        key: flow.key,
+        flow,
+        by,
+        other: direction === "in" ? flow.source : flow.destination,
+        synthesis: evaluate(flow.source, flow.destination, flow.service, true).synthesis,
+      },
+    ];
+  });
 }
 const incoming = computed(() => machineFlows("in"));
 const outgoing = computed(() => machineFlows("out"));
@@ -683,11 +873,14 @@ const addressCount = computed(() =>
         :filtered="['source', 'destination', 'state']"
       >
         <template #cell="{ row, column }">
-          <RouterLink
-            v-if="column.id === 'source' || column.id === 'destination'"
-            :to="cardOf(column.id === 'source' ? row.flow.source : row.flow.destination)"
-            >{{ row[column.id] }}</RouterLink
-          >
+          <template v-if="column.id === 'source' || column.id === 'destination'">
+            <RouterLink
+              v-if="cardOf(column.id === 'source' ? row.flow.source : row.flow.destination)"
+              :to="cardOf(column.id === 'source' ? row.flow.source : row.flow.destination)!"
+              >{{ row[column.id] }}</RouterLink
+            >
+            <template v-else>{{ row[column.id] }}</template>
+          </template>
           <KeyLabel
             v-else-if="column.id === 'service'"
             :value="row.service"
@@ -699,16 +892,17 @@ const addressCount = computed(() =>
             :state="STATE[row.flow.state].state"
             :label="STATE[row.flow.state].label"
           />
-          <StatusBadge
-            v-else-if="column.id === 'synthesis'"
-            :state="SYNTHESIS[row.synthesis].state"
-            :label="SYNTHESIS[row.synthesis].label"
-          />
-          <StatusBadge
-            v-else-if="column.id === 'outcome'"
-            :state="OUTCOME[row.outcome].state"
-            :label="OUTCOME[row.outcome].label"
-          />
+          <span v-else-if="column.id === 'synthesis'" class="k-e11-verdict">
+            <StatusBadge
+              :state="SYNTHESIS[row.synthesis].state"
+              :label="SYNTHESIS[row.synthesis].label"
+            />
+            <StatusBadge
+              v-if="row.outcome !== 'noncompliant'"
+              :state="OUTCOME[row.outcome].state"
+              :label="OUTCOME[row.outcome].label"
+            />
+          </span>
           <span v-else-if="column.id === 'term' && !row.term" class="k-ecran-muted">—</span>
           <template v-else>{{ row[column.id] }}</template>
         </template>
@@ -718,7 +912,9 @@ const addressCount = computed(() =>
           >{{ FLOWS.length }} flux · {{ count("requested") }} demandé ·
           {{ count("noncompliant") }} non conforme à la matrice · {{ count("waived") }} dérogé</span
         >
-        <span class="k-ecran-muted">Synthèse et issue lues contre la matrice de flux du jour</span>
+        <span class="k-ecran-muted"
+          >Échéance : fin de la dérogation d'un flux dérogé, sinon fin du flux</span
+        >
       </template>
     </Panneau>
   </Cadre>
@@ -798,179 +994,183 @@ const addressCount = computed(() =>
       </template>
     </Panneau>
 
-    <!-- The chosen row: the elements used, then what it gives against the matrix. -->
-    <template #bottom-ligne>
-      <Stack v-if="chosenRow" gap="3">
-        <h2 class="k-ecran-subtitle k-e11-title">
-          <span class="k-mono">{{ chosenRow.source || "—" }}</span>
-          <Icon name="arrow-right" class="k-e11-muted-icon" />
-          <span class="k-mono">{{ chosenRow.destination || "—" }}</span>
-          <span v-if="chosenRow.object" class="k-ecran-muted">· {{ chosenRow.object }}</span>
-        </h2>
+    <!-- The chosen row, one subject per tab; each opens on the same one-line answer. -->
+    <template v-for="tab in BOTTOM_SLOTS" :key="tab.value" #[tab.slot]>
+      <div v-if="chosenRow" class="k-e11-bottom">
+        <div class="k-e11-answer">
+          <h2 class="k-ecran-subtitle k-e11-title">
+            <span class="k-mono">{{ chosenRow.source || "—" }}</span>
+            <Icon name="arrow-right" class="k-e11-muted-icon" />
+            <span class="k-visually-hidden">vers</span>
+            <span class="k-mono">{{ chosenRow.destination || "—" }}</span>
+            <span v-if="chosenRow.object" class="k-ecran-muted"
+              >· {{ chosenRow.object }} · {{ chosenRow.flowType }}</span
+            >
+          </h2>
+          <p v-if="chosenRow.evaluation" class="k-e11-verdict k-e11-summary">
+            <StatusBadge
+              :state="SYNTHESIS[chosenRow.evaluation.synthesis].state"
+              :label="SYNTHESIS[chosenRow.evaluation.synthesis].label"
+            />
+            <StatusBadge
+              v-if="chosenRow.evaluation.outcome !== 'noncompliant'"
+              :state="OUTCOME[chosenRow.evaluation.outcome].state"
+              :label="OUTCOME[chosenRow.evaluation.outcome].label"
+            />
+            <CodeBadge :code="chosenRow.evaluation.decisive.decisive.key" />
+            <span class="k-num k-ecran-muted">{{ pairsSentence(chosenRow.evaluation) }}</span>
+          </p>
+        </div>
         <InlineAlert
           v-if="!chosenRow.evaluation"
           tone="info"
           title="Ligne à compléter : source, destination et service (ou transport et port) l'évaluent contre la matrice de flux."
         />
-        <div v-else class="k-e11-split">
-          <Stack as="section" gap="2" aria-labelledby="k-e11-used">
-            <h3 id="k-e11-used" class="k-ecran-subtitle">Éléments utilisés</h3>
-            <div v-for="side in ['source', 'destination'] as const" :key="side" class="k-e11-end">
-              <span class="k-ecran-muted">{{ side === "source" ? "Source" : "Destination" }}</span>
-              <ul class="k-e11-tree">
-                <li v-if="chosenRow.proposal[side]!.kind === 'prefix'">
-                  <code>{{ endName(chosenRow.proposal[side]!) }}</code> préfixe
-                </li>
-                <li v-else>
-                  <span class="k-e11-node">
-                    <Icon name="server" class="k-e11-muted-icon" />
-                    <RouterLink :to="cardOf(chosenRow.proposal[side]!)" class="k-mono">{{
-                      MACHINES[(chosenRow.proposal[side] as { machine: string }).machine]!.key
-                    }}</RouterLink>
-                    <span class="k-ecran-muted">machine</span>
-                  </span>
-                  <ul>
-                    <li
-                      v-for="i in MACHINES[
-                        (chosenRow.proposal[side] as { machine: string }).machine
-                      ]!.interfaces.filter(
-                        (i) =>
-                          chosenRow!.proposal[side]!.kind === 'machine' ||
-                          (chosenRow!.proposal[side] as { iface: string }).iface === i.name,
-                      )"
-                      :key="i.name"
-                    >
-                      <span class="k-e11-node">
-                        <Icon name="interface" class="k-e11-muted-icon" />
-                        <code>{{ i.name }}</code>
-                        <span class="k-ecran-muted">{{ i.role }}</span>
-                      </span>
-                      <ul>
-                        <li v-for="a in i.addresses" :key="a.value" class="k-e11-address">
-                          <span class="k-e11-node">
-                            <Icon name="address" class="k-e11-muted-icon" />
-                            <code>{{ a.value }}</code>
-                            <EnvChip v-if="a.env" v-bind="ENV[a.env]" />
-                            <StatusBadge v-else state="warn" label="Sans environnement" />
-                          </span>
-                          <span class="k-ecran-muted k-e11-axes"
-                            >Environnement {{ a.envFrom }} · Sensibilité {{ a.sensitivity }}
-                            {{ a.sensitivityFrom }}</span
-                          >
-                        </li>
-                      </ul>
-                    </li>
-                  </ul>
-                </li>
-              </ul>
-            </div>
-          </Stack>
-          <Stack as="section" gap="2" aria-labelledby="k-e11-matrix">
-            <h3 id="k-e11-matrix" class="k-ecran-subtitle">Contre la matrice de flux</h3>
-            <Attributs
-              :items="[
-                { key: 'synthesis', label: 'Synthèse' },
-                { key: 'outcome', label: 'Issue' },
-                { key: 'decisive', label: 'Élément décisif' },
-                { key: 'cell', label: 'Cellule' },
-              ]"
-            >
-              <template #synthesis>
-                <Cluster gap="2">
-                  <StatusBadge
-                    :state="SYNTHESIS[chosenRow.evaluation.synthesis].state"
-                    :label="SYNTHESIS[chosenRow.evaluation.synthesis].label"
-                  />
-                  <span class="k-num k-ecran-muted">{{ pairsSentence(chosenRow.evaluation) }}</span>
-                </Cluster>
+
+        <!-- Extrémités: each end, its kind, its context, its addresses and their values. -->
+        <div v-else-if="tab.value === 'extremites'" class="k-e11-ends">
+          <section
+            v-for="side in SIDES"
+            :key="side.id"
+            class="k-e11-end"
+            :aria-labelledby="`k-e11-end-${side.id}`"
+          >
+            <h3 :id="`k-e11-end-${side.id}`" class="k-e11-h4">
+              {{ side.label }}
+              <span class="k-ecran-muted">{{
+                KIND[chosenRow.proposal[side.id]!.kind].toLowerCase()
+              }}</span>
+            </h3>
+            <p class="k-e11-node">
+              <code v-if="chosenRow.proposal[side.id]!.kind === 'interface'">{{
+                endName(chosenRow.proposal[side.id]!)
+              }}</code>
+              <template v-if="chosenRow.proposal[side.id]!.kind === 'prefix'">
+                <span class="k-ecran-muted">évalué sur ses propres valeurs</span>
               </template>
-              <template #outcome>
-                <StatusBadge
-                  :state="OUTCOME[chosenRow.evaluation.outcome].state"
-                  :label="OUTCOME[chosenRow.evaluation.outcome].label"
-                />
+              <template v-else-if="machineOf(chosenRow.proposal[side.id]!)">
+                <span class="k-ecran-muted">{{
+                  chosenRow.proposal[side.id]!.kind === "address"
+                    ? `sur ${contextOf(chosenRow.proposal[side.id]!)} ·`
+                    : `${roleOf(chosenRow.proposal[side.id]!)} ·`
+                }}</span>
+                <RouterLink :to="cardOf(chosenRow.proposal[side.id]!)!"
+                  >fiche de {{ machineOf(chosenRow.proposal[side.id]!) }}</RouterLink
+                >
               </template>
-              <template #decisive>
-                <Cluster gap="2">
-                  <CodeBadge :code="chosenRow.evaluation.decisive.decisive.key" />
-                  <span class="k-ecran-muted">{{
-                    chosenRow.evaluation.decisive.decisive.kind === "rule" ? "règle" : "cause"
-                  }}</span>
-                </Cluster>
-              </template>
-              <template #cell>
-                <span v-if="chosenRow.evaluation.decisive.cell" class="k-e11-node">
-                  <EnvChip v-bind="ENV[chosenRow.evaluation.decisive.cell.source]" />
-                  <Icon name="arrow-right" class="k-e11-muted-icon" />
-                  <span>{{ FLOW_TYPE[chosenRow.evaluation.type] }}</span>
-                  <Icon name="arrow-right" class="k-e11-muted-icon" />
-                  <EnvChip v-bind="ENV[chosenRow.evaluation.decisive.cell.destination]" />
+            </p>
+            <ul class="k-e11-addresses">
+              <li
+                v-for="a in addressesOf(chosenRow.proposal[side.id]!)"
+                :key="a.address.value"
+                class="k-e11-address"
+              >
+                <span class="k-e11-node">
+                  <code>{{ a.address.value }}</code>
+                  <EnvChip v-if="a.address.env" v-bind="ENV[a.address.env]" />
+                  <StatusBadge v-else state="warn" label="Sans environnement" />
                 </span>
-                <span v-else class="k-ecran-muted">aucune : une extrémité sans environnement</span>
+                <span class="k-ecran-muted k-e11-axes"
+                  >Environnement {{ a.address.envFrom }} · Sensibilité {{ a.address.sensitivity }}
+                  {{ a.address.sensitivityFrom }}</span
+                >
+              </li>
+            </ul>
+          </section>
+        </div>
+
+        <!-- Matrice: the decisive cell, its rule and text, a two-by-two excerpt. -->
+        <div v-else-if="tab.value === 'matrice'" class="k-e11-matrix">
+          <Attributs
+            :items="[
+              { key: 'cell', label: 'Cellule' },
+              { key: 'decisive', label: 'Élément décisif' },
+              {
+                key: 'combination',
+                label: 'Combinaison',
+                value: chosenRow.evaluation.decisive.decisive.combination,
+                mono: true,
+              },
+            ]"
+          >
+            <template #cell>
+              <span v-if="chosenRow.evaluation.decisive.cell" class="k-e11-node">
+                <EnvChip v-bind="ENV[chosenRow.evaluation.decisive.cell.source]" />
+                <Icon name="arrow-right" class="k-e11-muted-icon" />
+                <span class="k-visually-hidden">vers</span>
+                <EnvChip v-bind="ENV[chosenRow.evaluation.decisive.cell.destination]" />
+                <span class="k-ecran-muted">{{ FLOW_TYPE[chosenRow.evaluation.type] }}</span>
+              </span>
+              <span v-else class="k-ecran-muted">aucune : une adresse sans environnement</span>
+            </template>
+            <template #decisive>
+              <span class="k-e11-node">
+                <CodeBadge :code="chosenRow.evaluation.decisive.decisive.key" />
+                <span class="k-ecran-muted">{{
+                  chosenRow.evaluation.decisive.decisive.kind === "rule" ? "règle" : "cause"
+                }}</span>
+              </span>
+            </template>
+          </Attributs>
+          <p class="k-e11-text">{{ chosenRow.evaluation.decisive.decisive.text }}</p>
+          <MatrixGrid
+            v-if="chosenRow.evaluation.decisive.cell"
+            :active="excerptActive"
+            :label="`Extrait de la matrice ${FLOW_TYPE[chosenRow.evaluation.type]} : source en ligne, destination en colonne`"
+            corner="Source → dest."
+            :axes="{ rows: 'Source', columns: 'Destination' }"
+            :rows="excerptOf(chosenRow.evaluation.decisive.cell)"
+            :columns="excerptOf(chosenRow.evaluation.decisive.cell)"
+            class="k-e11-excerpt"
+          >
+            <template #cell="{ row, column }">
+              <StatusBadge
+                :state="
+                  CELL[
+                    decide(chosenRow.evaluation.type, row.id as EnvKey, column.id as EnvKey).verdict
+                  ].state
+                "
+                :label="
+                  CELL[
+                    decide(chosenRow.evaluation.type, row.id as EnvKey, column.id as EnvKey).verdict
+                  ].label
+                "
+              />
+            </template>
+          </MatrixGrid>
+        </div>
+
+        <!-- Verdicts: one line per pair of addresses, then the conditions and what follows. -->
+        <div v-else class="k-e11-verdicts">
+          <ul class="k-e11-pairs" aria-label="Verdict par paire d'adresses">
+            <li v-for="p in chosenRow.evaluation.pairs" :key="p.key" class="k-e11-pair">
+              <span class="k-e11-node k-mono"
+                >{{ p.source.address.value
+                }}<Icon name="arrow-right" class="k-e11-muted-icon" /><span
+                  class="k-visually-hidden"
+                  >vers</span
+                >{{ p.destination.address.value }}</span
+              >
+              <StatusBadge :state="PAIR[p.verdict].state" :label="PAIR[p.verdict].label" />
+              <CodeBadge :code="p.decisive.key" />
+            </li>
+          </ul>
+          <Stack gap="1">
+            <p class="k-e11-text">
+              <strong>Conditions non remplies : </strong>
+              <template v-if="chosenRow.evaluation.conditions.length">
+                <template v-for="c in chosenRow.evaluation.conditions" :key="c.key">
+                  <code>{{ c.key }}</code> — {{ c.text }}
+                </template>
               </template>
-            </Attributs>
-            <p class="k-e11-text">{{ chosenRow.evaluation.decisive.decisive.text }}</p>
-            <MatrixGrid
-              v-if="chosenRow.evaluation.decisive.cell"
-              :active="excerptActive"
-              :label="`Extrait de la matrice ${FLOW_TYPE[chosenRow.evaluation.type]} : source en ligne, destination en colonne`"
-              corner="Source → destination"
-              :axes="{ rows: 'Source', columns: 'Destination' }"
-              :rows="excerptOf(chosenRow.evaluation.decisive.cell)"
-              :columns="excerptOf(chosenRow.evaluation.decisive.cell)"
-              class="k-e11-excerpt"
-            >
-              <template #cell="{ row, column }">
-                <StatusBadge
-                  :state="
-                    CELL[
-                      decide(chosenRow.evaluation.type, row.id as EnvKey, column.id as EnvKey)
-                        .verdict
-                    ].state
-                  "
-                  :label="
-                    CELL[
-                      decide(chosenRow.evaluation.type, row.id as EnvKey, column.id as EnvKey)
-                        .verdict
-                    ].label
-                  "
-                />
-              </template>
-            </MatrixGrid>
-            <DataGrid
-              :label="`Verdict par paire d'adresses : ${pairsSentence(chosenRow.evaluation)}`"
-              :columns="pairColumns"
-              :rows="chosenRow.evaluation.pairs"
-              row-key="key"
-            >
-              <template #cell="{ row, column }">
-                <template v-if="column.id === 'source'">{{ row.source.address.value }}</template>
-                <template v-else-if="column.id === 'destination'">{{
-                  row.destination.address.value
-                }}</template>
-                <StatusBadge
-                  v-else-if="column.id === 'verdict'"
-                  :state="PAIR[row.verdict].state"
-                  :label="PAIR[row.verdict].label"
-                />
-                <code v-else>{{ row.decisive.key }}</code>
-              </template>
-            </DataGrid>
-            <Stack as="section" gap="1" aria-labelledby="k-e11-conditions">
-              <h4 id="k-e11-conditions" class="k-e11-h4">Conditions non remplies</h4>
-              <ul v-if="chosenRow.evaluation.conditions.length" class="k-e11-list">
-                <li v-for="c in chosenRow.evaluation.conditions" :key="c.key">
-                  <CodeBadge :code="c.key" /> {{ c.text }}
-                </li>
-              </ul>
-              <p v-else class="k-ecran-muted">Aucune.</p>
-            </Stack>
+              <template v-else>aucune.</template>
+            </p>
             <p class="k-e11-text">
               <strong>Suite : </strong>{{ NEXT[chosenRow.evaluation.outcome] }}
             </p>
           </Stack>
         </div>
-      </Stack>
+      </div>
     </template>
 
     <!-- The draft of the proposal: the flows, the simulated effect, the common footer. -->
@@ -1043,31 +1243,59 @@ const addressCount = computed(() =>
     </template>
   </Cadre>
 
-  <!-- « Tester un flux »: evaluates without writing. -->
+  <!-- « Tester une connexion »: ouvert and conforme, apart; no write. -->
   <Cadre
-    v-else-if="props.vue === 'tester'"
-    title="Tester un flux"
+    v-else-if="props.vue.startsWith('tester')"
+    title="Tester une connexion"
     active="flows"
     space="flows"
     :crumbs="[
       { label: 'Flux', to: '/x/flow' },
       { label: 'Registre', to: '/x/flow/flows' },
-      { label: 'Tester un flux' },
+      { label: 'Tester une connexion' },
     ]"
   >
-    <Panneau title="Tester un flux" detail="sans écriture">
+    <Panneau title="Tester une connexion" detail="sans écriture">
+      <nav class="k-e11-cases" aria-label="Cas de la maquette">
+        <span class="k-ecran-muted">Cas de la maquette :</span>
+        <RouterLink
+          v-for="t in TESTS"
+          :key="t.view"
+          :to="view(t.view)"
+          :aria-current="t.view === test.view ? 'page' : undefined"
+          class="k-e11-case"
+          >{{ CASE[t.case].label }}</RouterLink
+        >
+      </nav>
       <div class="k-e11-form">
-        <TextField
-          label="Source"
-          model-value="srv-web-02"
-          mono
-          hint="Machine, interface, adresse ou préfixe"
-        />
+        <Stack gap="2">
+          <TextField
+            label="Source"
+            :model-value="test.source"
+            mono
+            hint="Adresse, interface ou préfixe"
+          />
+          <fieldset v-if="test.pick" class="k-e11-object">
+            <legend>{{ test.pick }} est une machine : choisir son interface ou une adresse</legend>
+            <label v-for="i in MACHINES[test.pick]!.interfaces" :key="i.name" class="k-e11-choice">
+              <input type="radio" name="k-e11-pick" checked />
+              <code>{{ test.pick }} · {{ i.name }}</code>
+              <span class="k-ecran-muted">{{ i.addresses.map((a) => a.value).join(", ") }}</span>
+            </label>
+            <template v-for="i in MACHINES[test.pick]!.interfaces" :key="`${i.name}-a`">
+              <label v-for="a in i.addresses" :key="a.value" class="k-e11-choice">
+                <input type="radio" name="k-e11-pick" />
+                <code>{{ a.value }}</code>
+                <span class="k-ecran-muted">{{ i.name }}</span>
+              </label>
+            </template>
+          </fieldset>
+        </Stack>
         <TextField
           label="Destination"
-          model-value="srv-app-01"
+          :model-value="test.destination"
           mono
-          hint="Machine, interface, adresse ou préfixe"
+          hint="Adresse, interface ou préfixe"
         />
         <fieldset class="k-e11-object">
           <legend>Objet</legend>
@@ -1081,161 +1309,161 @@ const addressCount = computed(() =>
               >{{ o.label }}</Button
             >
           </Cluster>
-          <TextField label="Transport et port" model-value="tcp/443" mono hide-label />
+          <TextField
+            :label="test.object.kind === 'port' ? 'Transport et port' : 'Service'"
+            :model-value="test.object.value"
+            mono
+            hide-label
+          />
         </fieldset>
         <TextField
-          label="Référence du dossier"
-          model-value=""
+          label="Date"
+          model-value="2026-01-15"
           mono
-          placeholder="ticketing:CHG-…"
-          hint="Facultatif : sans dossier, ses conditions ne sont pas évaluées"
+          hint="Ouvert et conforme à cette date"
         />
       </div>
       <Cluster gap="2">
-        <Button variant="primary" icon="search" :shortcut="['Control', 'Enter']">Évaluer</Button>
-        <span class="k-ecran-muted">Aucune écriture : la même évaluation qu'une déclaration.</span>
+        <Button variant="primary" icon="search" :shortcut="['Control', 'Enter']">Tester</Button>
+        <span class="k-ecran-muted">Aucune écriture : registre et matrice lus à la date.</span>
       </Cluster>
     </Panneau>
-    <Panneau title="Résultat" detail="srv-web-02 → srv-app-01 · tcp/443" main>
-      <template #actions>
+    <Panneau
+      title="Résultat"
+      :detail="`${endName(test.sourceEnd)} → ${endName(test.destinationEnd)} · ${test.object.value}`"
+      main
+    >
+      <template v-if="testCase === 'closed-conform'" #actions>
         <Button variant="primary" icon="plus" @click="declare">Déclarer ce flux</Button>
       </template>
       <Stack gap="4">
-        <Attributs
-          columns
-          :items="[
-            { key: 'synthesis', label: 'Synthèse' },
-            { key: 'outcome', label: 'Issue' },
-            { key: 'service', label: 'Service' },
-            { key: 'type', label: 'Type de flux', value: FLOW_TYPE[tested.type] },
-            { key: 'at', label: 'Lu à', value: '2026-01-15, politique r42' },
-          ]"
-        >
-          <template #synthesis>
-            <Cluster gap="2">
-              <StatusBadge
-                :state="SYNTHESIS[tested.synthesis].state"
-                :label="SYNTHESIS[tested.synthesis].label"
-              />
-              <span class="k-num k-ecran-muted">{{ pairsSentence(tested) }}</span>
-            </Cluster>
-          </template>
-          <template #outcome>
-            <StatusBadge
-              :state="OUTCOME[tested.outcome].state"
-              :label="OUTCOME[tested.outcome].label"
-            />
-          </template>
-          <template #service>
-            <span class="k-e11-port"
-              ><code>tcp/443</code><Icon name="arrow-right" class="k-e11-muted-icon" /><KeyLabel
-                value="https"
-                :label="SERVICES.https!.label"
+        <!-- The answer, on one line, then what it means. -->
+        <div class="k-e11-answer">
+          <p class="k-e11-verdict k-e11-summary">
+            <StatusBadge :state="CASE[testCase].state" :label="CASE[testCase].label" />
+            <span class="k-num k-ecran-muted"
+              >{{ pairCount }} ·
+              <KeyLabel
+                :value="test.object.service"
+                :label="SERVICES[test.object.service]!.label"
                 show-key
-            /></span>
-          </template>
-        </Attributs>
-        <InlineAlert
-          tone="warn"
-          title="Avertissement"
-          :items="[
-            {
-              message: `Synthèse partielle : ${pairsSentence(tested)}.`,
-              code: 'flow.verdict.partial',
-            },
-          ]"
-        />
-        <Stack as="section" gap="2" aria-labelledby="k-e11-pairs">
-          <h3 id="k-e11-pairs" class="k-ecran-subtitle">Verdict par paire d'adresses</h3>
-          <DataGrid
-            :label="`Verdict par paire d'adresses : ${pairsSentence(tested)}`"
-            :columns="pairColumns"
-            :rows="tested.pairs"
-            row-key="key"
-          >
-            <template #cell="{ row, column }">
-              <template v-if="column.id === 'source'">{{ row.source.address.value }}</template>
-              <template v-else-if="column.id === 'destination'"
-                >{{ row.destination.address.value }}
-                <span class="k-ecran-muted">{{ row.destination.iface }}</span></template
-              >
-              <StatusBadge
-                v-else-if="column.id === 'verdict'"
-                :state="PAIR[row.verdict].state"
-                :label="PAIR[row.verdict].label"
               />
-              <span v-else class="k-e11-node"
-                ><code>{{ row.decisive.key }}</code
-                ><span class="k-ecran-muted">{{ row.decisive.combination }}</span></span
-              >
-            </template>
-          </DataGrid>
-        </Stack>
-        <Stack as="section" gap="2" aria-labelledby="k-e11-why">
-          <h3 id="k-e11-why" class="k-ecran-subtitle">Explication</h3>
-          <ul class="k-e11-list">
-            <li v-for="d in testDecisive" :key="d.decisive.key">
-              <Cluster gap="2">
-                <StatusBadge :state="PAIR[d.verdict].state" :label="PAIR[d.verdict].label" />
-                <CodeBadge :code="d.decisive.key" />
+              · lu le 2026-01-15, politique r42</span
+            >
+          </p>
+          <p class="k-e11-text">{{ testNext }}</p>
+        </div>
+
+        <!-- Two questions, two answers. -->
+        <div class="k-e11-questions">
+          <section class="k-e11-question" aria-labelledby="k-e11-open">
+            <h3 id="k-e11-open" class="k-e11-question__title">
+              <span>Ouvert ?</span>
+              <StatusBadge
+                :state="OPEN[String(allOpen) as 'true' | 'false'].state"
+                :label="OPEN[String(allOpen) as 'true' | 'false'].label"
+              />
+            </h3>
+            <p class="k-ecran-muted k-e11-text">
+              Un flux du registre, actif ou dérogé, couvre-t-il chaque paire pour ce service ?
+            </p>
+            <ul v-if="openingFlows.length" class="k-e11-list">
+              <li v-for="f in openingFlows" :key="f.key" class="k-e11-node">
+                <RouterLink :to="view('registre')" class="k-mono">{{ f.key }}</RouterLink>
+                <StatusBadge :state="STATE[f.state].state" :label="STATE[f.state].label" />
                 <span class="k-ecran-muted"
-                  >{{ d.decisive.kind === "rule" ? "règle" : "cause" }}, combinaison
-                  <code>{{ d.decisive.combination }}</code> · {{ d.pairs }} paires</span
+                  ><code>{{ endName(f.source) }}</code> → <code>{{ endName(f.destination) }}</code
+                  ><template v-if="f.waiver"> · dérogation jusqu'au {{ f.waiver }}</template></span
                 >
-              </Cluster>
-              <p class="k-e11-text">{{ d.decisive.text }}</p>
-            </li>
-          </ul>
-          <h4 class="k-e11-h4">Valeurs résolues des axes cités</h4>
+              </li>
+            </ul>
+            <p v-else class="k-e11-text">
+              Aucun flux actif ou dérogé ne couvre ces paires pour
+              <code>{{ test.object.service }}</code
+              >.
+            </p>
+            <ul v-if="otherFlows.length" class="k-e11-list">
+              <li v-for="f in otherFlows" :key="f.key" class="k-e11-node">
+                <RouterLink :to="view('registre')" class="k-mono">{{ f.key }}</RouterLink>
+                <StatusBadge :state="STATE[f.state].state" :label="STATE[f.state].label" />
+                <span class="k-ecran-muted">la couvre sans l'ouvrir</span>
+              </li>
+            </ul>
+          </section>
+          <section class="k-e11-question" aria-labelledby="k-e11-conform">
+            <h3 id="k-e11-conform" class="k-e11-question__title">
+              <span>Conforme ?</span>
+              <StatusBadge
+                :state="CONFORM[String(allConform) as 'true' | 'false'].state"
+                :label="CONFORM[String(allConform) as 'true' | 'false'].label"
+              />
+            </h3>
+            <p class="k-ecran-muted k-e11-text">
+              La matrice de flux autorise-t-elle chaque paire ?
+            </p>
+            <p class="k-e11-node">
+              <CodeBadge :code="tested.decisive.decisive.key" />
+              <span class="k-ecran-muted">{{
+                tested.decisive.decisive.kind === "rule" ? "règle décisive" : "cause"
+              }}</span>
+              <template v-if="tested.decisive.cell">
+                <EnvChip v-bind="ENV[tested.decisive.cell.source]" />
+                <Icon name="arrow-right" class="k-e11-muted-icon" />
+                <span class="k-visually-hidden">vers</span>
+                <EnvChip v-bind="ENV[tested.decisive.cell.destination]" />
+                <span class="k-ecran-muted">{{ FLOW_TYPE[tested.type] }}</span>
+              </template>
+            </p>
+            <p class="k-e11-text">{{ tested.decisive.decisive.text }}</p>
+            <p v-if="allConform" class="k-e11-node">
+              <span class="k-ecran-muted">Issue d'une déclaration, dossier non évalué :</span>
+              <StatusBadge
+                :state="OUTCOME[tested.outcome].state"
+                :label="OUTCOME[tested.outcome].label"
+              />
+            </p>
+          </section>
+        </div>
+
+        <!-- Per pair of addresses, the two answers. -->
+        <Stack as="section" gap="2" aria-labelledby="k-e11-pairs">
+          <h3 id="k-e11-pairs" class="k-ecran-subtitle">Par paire d'adresses</h3>
           <DataGrid
-            label="Valeurs résolues des axes cités, par adresse"
-            :columns="resolvedColumns"
-            :rows="testAddresses"
+            :label="`Ouvert et conforme, par paire d'adresses : ${pairCount}`"
+            :columns="testPairColumns"
+            :rows="testPairs"
             row-key="key"
+            stack
           >
             <template #cell="{ row, column }">
-              <template v-if="column.id === 'address'">{{ row.address.value }}</template>
-              <template v-else-if="column.id === 'end'"
-                >{{ row.end }}
-                <span class="k-ecran-muted">{{ row.machine }} {{ row.iface }}</span></template
-              >
-              <span v-else-if="column.id === 'env'" class="k-e11-node">
-                <EnvChip v-if="row.address.env" v-bind="ENV[row.address.env]" />
-                <span class="k-ecran-muted">{{ row.address.envFrom }}</span>
+              <template v-if="column.id === 'source'">{{ row.pair.source.address.value }}</template>
+              <template v-else-if="column.id === 'destination'">{{
+                row.pair.destination.address.value
+              }}</template>
+              <span v-else-if="column.id === 'open'" class="k-e11-verdict">
+                <StatusBadge
+                  :state="OPEN[String(row.open) as 'true' | 'false'].state"
+                  :label="OPEN[String(row.open) as 'true' | 'false'].label"
+                />
+                <code v-if="row.opening.length">{{
+                  row.opening.map((f: RegisteredFlow) => f.key).join(", ")
+                }}</code>
               </span>
-              <template v-else
-                >{{ row.address.sensitivity }}
-                <span class="k-ecran-muted">{{ row.address.sensitivityFrom }}</span></template
-              >
+              <span v-else class="k-e11-verdict">
+                <StatusBadge
+                  :state="CONFORM[String(row.conform) as 'true' | 'false'].state"
+                  :label="CONFORM[String(row.conform) as 'true' | 'false'].label"
+                />
+                <code>{{ row.pair.decisive.key }}</code>
+              </span>
             </template>
           </DataGrid>
-          <h4 class="k-e11-h4">Règles écartées</h4>
-          <ul class="k-e11-list">
-            <li v-for="r in tested.discarded" :key="r.key">
-              <code>{{ r.key }}</code> <span class="k-ecran-muted">{{ r.why }}</span>
-            </li>
-          </ul>
-          <h4 class="k-e11-h4">Conditions</h4>
-          <ul class="k-e11-list">
-            <li v-for="c in tested.conditions" :key="c.key">
-              <Cluster gap="2">
-                <StatusBadge state="neutral" label="Non évaluée : sans dossier" />
-                <CodeBadge :code="c.key" />
-              </Cluster>
-              <p class="k-e11-text">{{ c.text }}</p>
-            </li>
-          </ul>
         </Stack>
-        <InlineAlert tone="warn" title="Suite attendue">
-          Déclaré tel quel, ce flux part en instruction : les 2 paires vers l'interface
-          d'administration de srv-app-01 n'y sont approuvables qu'avec une dérogation. Viser
-          l'interface eth0 le rend conforme à la matrice de flux.
-        </InlineAlert>
       </Stack>
     </Panneau>
   </Cadre>
 
-  <!-- A machine's card: its flows in the information tab, the other end as a link. -->
+  <!-- A machine's card: the flows of its interfaces in the information tab. -->
   <Cadre
     v-else
     :title="`Machine ${shownMachine.key}`"
@@ -1277,7 +1505,7 @@ const addressCount = computed(() =>
             </Attributs>
             <Stack as="section" gap="2" aria-labelledby="k-e11-flows">
               <Cluster gap="2" align="baseline">
-                <h3 id="k-e11-flows" class="k-ecran-subtitle">Flux</h3>
+                <h3 id="k-e11-flows" class="k-ecran-subtitle">Flux de ses interfaces</h3>
                 <span class="k-ecran-muted">conformité à la matrice de flux du jour</span>
               </Cluster>
               <div
@@ -1299,12 +1527,22 @@ const addressCount = computed(() =>
                 >
                   <li v-for="f in group.flows" :key="f.key" class="k-e11-flow">
                     <span class="k-e11-flow__end">
+                      <code>{{ f.by.by }}</code>
+                      <span v-if="f.by.through" class="k-ecran-muted k-mono">{{
+                        f.by.through
+                      }}</span>
+                    </span>
+                    <span class="k-e11-flow__end">
                       <span class="k-ecran-muted">{{ group.word }}</span>
-                      <RouterLink :to="cardOf(f.other)" class="k-mono">{{
+                      <RouterLink v-if="cardOf(f.other)" :to="cardOf(f.other)!" class="k-mono">{{
                         endName(f.other)
                       }}</RouterLink>
-                      <span v-if="f.own.kind === 'interface'" class="k-ecran-muted"
-                        >par {{ f.own.iface }}</span
+                      <code v-else>{{ endName(f.other) }}</code>
+                      <span v-if="contextOf(f.other)" class="k-ecran-muted">{{
+                        contextOf(f.other)
+                      }}</span>
+                      <span v-else-if="f.other.kind === 'prefix'" class="k-ecran-muted"
+                        >préfixe</span
                       >
                     </span>
                     <KeyLabel
@@ -1377,30 +1615,42 @@ const addressCount = computed(() =>
     border-block-end: var(--k-border-width) solid var(--k-border);
   }
 
-  /* The bottom panel: the elements used, then the verdict, side by side when it holds. */
-  .k-e11-split {
+  /* A tab of the bottom panel: the answer on top, then its one subject; it reads its own
+   * width, so that nothing in it is wider than the panel. */
+  .k-e11-bottom {
+    display: grid;
+    gap: var(--k-space-3);
+    container-type: inline-size;
+  }
+
+  .k-e11-answer {
+    display: grid;
+    gap: var(--k-space-1);
+  }
+
+  .k-e11-summary {
+    gap: var(--k-space-2);
+  }
+
+  /* Extrémités: source and destination side by side while they hold. */
+  .k-e11-ends,
+  .k-e11-questions {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--k-size-panel-md)), 1fr));
-    gap: var(--k-space-4);
+    gap: var(--k-space-3) var(--k-space-5);
     align-items: start;
   }
 
   .k-e11-end {
     display: grid;
     gap: var(--k-space-1);
+    min-inline-size: 0;
   }
 
-  .k-e11-tree,
-  .k-e11-tree ul {
+  .k-e11-addresses {
     display: grid;
     gap: var(--k-space-1);
     list-style: none;
-  }
-
-  .k-e11-tree ul {
-    padding-inline-start: var(--k-space-4);
-    border-inline-start: var(--k-border-width) solid var(--k-border);
-    margin-inline-start: var(--k-space-2);
   }
 
   .k-e11-address {
@@ -1408,9 +1658,78 @@ const addressCount = computed(() =>
   }
 
   .k-e11-axes {
-    padding-inline-start: var(--k-space-5);
     font-size: var(--k-text-sm);
     line-height: var(--k-text-sm-line);
+  }
+
+  /* Matrice: the attributes and the text, the excerpt beside them while it holds. */
+  .k-e11-matrix {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    grid-template-areas: "attrs excerpt" "text excerpt";
+    gap: var(--k-space-2) var(--k-space-5);
+    align-items: start;
+  }
+
+  .k-e11-matrix > .k-ecran-attrs {
+    grid-area: attrs;
+  }
+
+  .k-e11-matrix > .k-e11-text {
+    grid-area: text;
+  }
+
+  .k-e11-excerpt {
+    grid-area: excerpt;
+    max-inline-size: max-content;
+  }
+
+  @container (width < 720px) {
+    .k-e11-matrix {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: "attrs" "text" "excerpt";
+    }
+  }
+
+  /* Under the width of the excerpt, the cell above says it: no matrix wider than the panel. */
+  @container (width < 440px) {
+    .k-e11-excerpt {
+      display: none;
+    }
+  }
+
+  /* Verdicts: one line per pair, its columns aligned by a subgrid. */
+  .k-e11-verdicts {
+    display: grid;
+    gap: var(--k-space-3);
+  }
+
+  .k-e11-pairs {
+    display: grid;
+    grid-template-columns: repeat(2, max-content) minmax(0, max-content);
+    gap: var(--k-space-1) var(--k-space-4);
+    list-style: none;
+  }
+
+  .k-e11-pair {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+  }
+
+  @container (width < 440px) {
+    .k-e11-pairs {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .k-e11-pair {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--k-space-1);
+      padding-block-end: var(--k-space-1);
+      border-block-end: var(--k-border-width) solid var(--k-border);
+    }
   }
 
   .k-e11-text {
@@ -1427,8 +1746,24 @@ const addressCount = computed(() =>
     list-style: none;
   }
 
-  .k-e11-excerpt {
-    max-inline-size: max-content;
+  /* The cases of the mock-up: links, the current one marked by weight and underline. */
+  .k-e11-cases {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--k-space-1) var(--k-space-3);
+    align-items: baseline;
+  }
+
+  .k-e11-case {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: var(--k-control-height-sm);
+  }
+
+  .k-e11-case[aria-current="page"] {
+    font-weight: var(--k-weight-semibold);
+    color: var(--k-text);
+    text-decoration-thickness: var(--k-space-0-5);
   }
 
   /* The form of the test: fields side by side while the panel holds them. */
@@ -1452,6 +1787,32 @@ const addressCount = computed(() =>
     margin-block-end: var(--k-space-1);
   }
 
+  .k-e11-choice {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--k-space-1) var(--k-space-2);
+    align-items: center;
+    min-block-size: var(--k-control-height-sm);
+  }
+
+  /* The two questions of a test, each in its own block. */
+  .k-e11-question {
+    display: grid;
+    gap: var(--k-space-2);
+    align-content: start;
+    min-inline-size: 0;
+    padding-block-start: var(--k-space-2);
+    border-block-start: var(--k-border-width) solid var(--k-border);
+  }
+
+  .k-e11-question__title {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--k-space-2);
+    align-items: center;
+    font-weight: var(--k-weight-semibold);
+  }
+
   /* The flows of a machine: a compact list, its columns aligned by a subgrid. */
   .k-e11-flows {
     display: grid;
@@ -1461,7 +1822,7 @@ const addressCount = computed(() =>
 
   .k-e11-flow-list {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, max-content)) minmax(0, 1fr);
+    grid-template-columns: repeat(4, minmax(0, max-content)) minmax(0, 1fr);
     gap: var(--k-space-1) var(--k-space-5);
     list-style: none;
   }
@@ -1484,13 +1845,15 @@ const addressCount = computed(() =>
     min-inline-size: 0;
   }
 
-  @container (width < 640px) {
+  @container (width < 720px) {
     .k-e11-flow-list {
       grid-template-columns: minmax(0, 1fr);
     }
 
     .k-e11-flow {
-      gap: var(--k-space-1);
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--k-space-1) var(--k-space-3);
       padding-block: var(--k-space-1);
     }
   }
