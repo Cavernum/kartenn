@@ -246,7 +246,7 @@ describe("CommitForm and SplitButton (REQ-020-37)", () => {
 
   it("SplitButton: the chosen action, a chevron that opens a menu", async () => {
     const actions = [
-      { id: "apply", label: "Appliquer", forbidden: "changeset.apply_own" },
+      { id: "apply", label: "Appliquer", forbidden: "changeset.approval.self" },
       { id: "review", label: "Soumettre en revue" },
     ];
     const chosen = await render(SplitButton, { actions, action: "review" });
@@ -257,7 +257,7 @@ describe("CommitForm and SplitButton (REQ-020-37)", () => {
     // Chosen while forbidden: the button itself is refused, with the permission.
     const refused = await render(SplitButton, { actions, action: "apply" });
     expect(refused).toContain('aria-disabled="true"');
-    expect(text(refused)).toContain("Il faut changeset.apply_own");
+    expect(text(refused)).toContain("Il faut changeset.approval.self");
   });
 });
 

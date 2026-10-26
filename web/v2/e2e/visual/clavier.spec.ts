@@ -377,8 +377,8 @@ test.describe("SplitButton (Button + Menu Button)", () => {
     const main = page.getByRole("button", { name: "Appliquer" });
     await expect(main).toHaveAttribute("aria-disabled", "true");
     await main.focus();
-    await expect(page.getByRole("tooltip")).toHaveText("Il faut changeset.apply_own");
-    await expect(main).toHaveAccessibleDescription("Il faut changeset.apply_own");
+    await expect(page.getByRole("tooltip")).toHaveText("Il faut changeset.approval.self");
+    await expect(main).toHaveAccessibleDescription("Il faut changeset.approval.self");
     await page.keyboard.press("Enter");
     await expect(page.getByRole("status")).toHaveText("");
     await page.keyboard.press("Escape");

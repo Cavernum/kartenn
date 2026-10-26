@@ -245,24 +245,24 @@ describe("simulation and submission (024 § A, B)", () => {
     stop();
   });
 
-  it("submits with ?apply=own: applied, the draft gone from the tab, what it named read again", async () => {
+  it("submits with ?approval=self: applied, the draft gone from the tab, what it named read again", async () => {
     const s = setup();
     await s.drafts.create({ title: "t", operations: [close] });
     s.drafts.setActive(D1);
     const prefix = s.reads.object("core.prefix", P1, null);
     s.queryClient.setQueryData(prefix.queryKey, { data: { id: P1 }, etag: '"p"' });
-    const outcome = await s.drafts.submit(D1, { applyOwn: true, idempotencyKey: "k" });
+    const outcome = await s.drafts.submit(D1, { approvalSelf: true, idempotencyKey: "k" });
     expect(outcome).toEqual({ kind: "applied", changeset: C1, warnings: [] });
     const post = s.seen.at(-1)!;
-    expect(post.url).toBe(`/v1/drafts/${D1}/submission?apply=own`);
+    expect(post.url).toBe(`/v1/drafts/${D1}/submission?approval=self`);
     expect(post.headers.get("If-Match")).toBe('"1"');
     expect(post.headers.get("Idempotency-Key")).toBe("k");
     expect(s.drafts.active()).toBeNull();
     expect(s.stale(prefix.queryKey)).toBe(true);
   });
 
-  it("202: proposed with the code of its reason; without applyOwn, no parameter", async () => {
-    const reason = { code: "changeset.apply_own.missing", message: "lacks", objects: [P1] };
+  it("202: proposed with the code of its reason; without approvalSelf, no parameter", async () => {
+    const reason = { code: "changeset.approval.self.missing", message: "lacks", objects: [P1] };
     const s = setup((r) =>
       r.url.includes("/submission")
         ? json(
@@ -278,7 +278,7 @@ describe("simulation and submission (024 § A, B)", () => {
         : undefined,
     );
     await s.drafts.create({ title: "t" });
-    expect(await s.drafts.submit(D1, { applyOwn: false })).toEqual({
+    expect(await s.drafts.submit(D1, { approvalSelf: false })).toEqual({
       kind: "proposed",
       changeset: C1,
       review: "approval",
@@ -297,7 +297,7 @@ describe("simulation and submission (024 § A, B)", () => {
     );
     await s.drafts.create({ title: "t" });
     s.drafts.setActive(D1);
-    const outcome = await s.drafts.submit(D1, { applyOwn: true });
+    const outcome = await s.drafts.submit(D1, { approvalSelf: true });
     expect(outcome.kind).toBe("invalid");
     expect(s.drafts.active()).toBe(D1);
     expect(s.queryClient.getQueryData(s.drafts.get(D1).queryKey)).toBeDefined();

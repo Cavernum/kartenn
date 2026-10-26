@@ -2,7 +2,7 @@
 // The footer of the draft tab (spec 021, « Cadre » : pied de l'onglet Brouillon; 024/M9):
 // the result of the simulation (its sentence wraps, never cut), the motive in two fields (CommitForm), the
 // split button. Its default action follows the rights and the simulation: « Appliquer »
-// for who holds `apply_own` and when no policy holds the changeset, else « Soumettre en
+// for who holds `approval.self` and when no policy holds the changeset, else « Soumettre en
 // revue »; an impossible action stays in the menu, disabled, with its reason.
 // « Appliquer » prefills a generic summary.
 import { Cluster, CommitForm, Icon, SplitButton, StatusBadge, type SplitAction } from "@kartenn/ui";

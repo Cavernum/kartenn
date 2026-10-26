@@ -103,8 +103,8 @@ const cellState = (row: Row, column: GridColumn): CellState | undefined => {
             :items="[
               {
                 message:
-                  'Vous n\'avez pas le droit d\'appliquer vous-même les adresses (core.address.apply_own).',
-                code: 'changeset.apply_own.missing',
+                  'Vous n\'avez pas le droit d\'appliquer vous-même les adresses (core.address.approval.self).',
+                code: 'changeset.approval.self.missing',
               },
             ]"
           >
