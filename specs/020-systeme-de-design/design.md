@@ -659,6 +659,82 @@ et `ui-reviewer` des maquettes E0 à E10.
   pied) reste sous le panneau latéral comme avant ; test clavier sur la vue `selection`
   d'E3 (dans `edition`, l'éditeur tient l'arrêt de la grille).
 
+**Réalisé (2026-10-26, cinquième relecture).** Tâche 11 de la 024, bloc « Cinquième
+relecture ».
+
+- Panneau de droite, « tout s'adapte » : en classes large et standard, le `SidePanel` est
+  dans le flux, dans la piste `auto` de son hôte, après un écart `--k-space-3` où tient la
+  moitié extérieure de sa poignée (elle ne couvre ni la surface ni sa barre de
+  défilement) ; la surface entière (en-tête, filtres, grilles, pieds) prend la largeur
+  qu'il laisse, et les grilles replient leurs colonnes par leurs `@container` habituels.
+  L'hôte est un conteneur `inline-size` (`.k-ecran__body`, `DemoFrame`) : le panneau ne
+  dépasse jamais `--k-size-panel-room-inline` (le conteneur moins `--k-size-panel-md` pour
+  la surface et l'écart) ; la poignée et le menu de largeur bornent le modèle à la même
+  place mesurée. Ouvert, il prend la piste de sa languette (la languette n'est rendue que
+  fermé) ; en sortie, il quitte le flux (`position: absolute` sur `-leave-active`) : la
+  surface reprend sa largeur d'un coup pendant que le panneau glisse et se fond. Retirés :
+  `internal/panelInset.ts` (`attachPanel`, `joinPanel`, `coveredInset`), `data-k-panel-fit`,
+  `--k-grid-panel-inset`, `--k-side-panel-inset`, `data-k-side-panel`, la marge de
+  défilement de la surface et la marge du pied d'un panneau principal. `cover` (étroite)
+  et `sheet` (compacte) inchangés ; en `cover`, l'élément rendu `inert` est désormais
+  `.k-ecran__work`.
+- `BottomPanel` (nouveau, inventaire n° 38) : même API que le `SidePanel` (onglets, croix,
+  retour du focus, Échap laissé aux champs et aux popups ouverts, pied seulement rempli),
+  poignée horizontale (Haut monte, Bas descend, Début, Fin, pointeur) et menu « Hauteur du
+  panneau » (icône `move-vertical`, Basse = borne basse, Standard = 320 px, Haute = borne
+  haute ; 160 à 640 px). Dans le flux, rangée `auto` d'un hôte conteneur `size`, borné par
+  `--k-size-panel-room-block` (le conteneur moins `--k-size-panel-sm`) ; en `sheet`, la même
+  feuille que le panneau de droite (dialogue modal, « Retour » d'abord, `inertOthers`
+  jusqu'à `[data-k-modal-scope]`). Fermé, il ne laisse rien. `filled` et `ownsEscape`
+  passent dans `internal/panel.ts`, partagés par les deux panneaux. Catalogue : `open`,
+  `tabs`, `resized`, `sheet`, `closed`, `handle-focus` (`DemoFrame` gagne `bottom`).
+- Cadre des maquettes : `.k-ecran__work` (surface puis panneau du bas) à côté du panneau de
+  droite ; props `bottom` (onglets) et `bottomLabel`, emplacements `bottom-<onglet>` et
+  `bottom-<onglet>-footer`. E1 `noeud` : le détail de la ligne choisie passe en bas, ses
+  attributs en plusieurs colonnes (`EcranAttributs` `columns` : paires de pistes
+  terme / valeur répétées en `auto-fill`, chaque attribut un `subgrid` de deux pistes) ;
+  arbre et table gardent toute leur largeur, le panneau de droite reste fermé (languette,
+  compteur du brouillon).
+- Poignées et contours : une règle partagée `.k-panel-handle` (`components/shared.css`),
+  cible invisible de 24 px à cheval sur le bord ; son trait est le contour du panneau
+  (plus de `border-inline-start` ni d'ombre sur le panneau à côté) : 2 px dessinés, mis à
+  l'échelle ½ au repos (1 px), 1 au survol et au focus, en `--k-accent`, transition
+  d'échelle et de couleur en `--k-duration-short` / `--k-ease-standard`. Le focus ajoute
+  une pastille de 6 × 32 px en `--k-focus-ring` au milieu du trait, sans anneau autour de
+  la cible : la bande bleue de 8 px et l'anneau qui l'entourait disparaissent.
+- E6 : la couche du sélecteur de période (`.k-ecran__picker` du cadre) prend
+  `--k-shadow-modal`, une bordure `--k-border-control` et un fond propre, nouveau jeton
+  `--k-surface-raised` (#f5f9fe clair, #1d2735 sombre) ; le cadre « À venir » qu'elle
+  contient prend son fond (plus de fond creusé).
+- Permission : `apply_own` devient `approval.self` dans `web/v2` (SDK : option
+  `approvalSelf`, paramètre `?approval=self`, défaut des écritures ; code
+  `changeset.approval.self.missing` ; maquettes E9, `SplitButton`, tests). Le schéma
+  généré (`sdk/src/api/schema.d.ts`) suit le serveur et n'est pas retouché à la main.
+- Tests : Vitest (poignée `k-panel-handle`, plus de languette panneau ouvert ;
+  `BottomPanel` : région, poignée horizontale, menu, feuille, préréglages) ; clavier
+  (E3 à 1024 et 1280 px : surface réduite, barre d'outils dans son panneau, cellules
+  atteintes ; matrice d'E10 à 1024 px ; `BottomPanel` au clavier et par le menu ; E1 :
+  détail en bas, attributs côte à côte, la surface reprend sa hauteur à la fermeture) ;
+  `layout.spec` (à 1280 et 1440 px, chaque vue non modale panneau ouvert — le compteur
+  l'ouvre au besoin : la surface finit avant le panneau, aucun élément visible de la
+  surface n'est peint au-delà de son bord, chaque sélecteur « Colonnes » reste dans sa
+  grille et chaque barre d'outils dans son panneau ; panneau du bas sous la surface, de
+  même largeur, ou en feuille à 390 px).
+- Choix tranchés : panneau dans le flux plutôt que réserve de place calculée (aucune
+  mesure, `@container` fait le reste) ; écart de 12 px avant le panneau pour la moitié
+  extérieure de la poignée ; surface minimale de `--k-size-panel-md` (320 px) en largeur
+  et `--k-size-panel-sm` (240 px) en hauteur, par deux jetons en unités de conteneur ; le
+  modèle de largeur ou de hauteur borné à la place mesurée (`aria-valuemax` garde la
+  borne déclarée) ; épaisseur du trait par `scale` (une transformation, pas une
+  propriété de mise en page) ; indicateur de focus = trait de 2 px + pastille (2.4.7 ;
+  l'aire de 2.4.13, AAA, n'est pas visée pour une cible invisible) ; E1 `ajout` garde le
+  formulaire à droite (contenu étroit, champs l'un sous l'autre), le panneau du bas
+  restant à la vue `noeud` ; un seul onglet « Détail » au panneau du bas d'E1 ; pas de
+  languette pour le panneau du bas (la sélection le rouvre) ; `--k-surface-raised` plutôt
+  qu'un mélange ad hoc dans la maquette ; ombre de couche posée dans le cadre (le
+  conteneur qui défile, sinon l'ombre serait rognée), avec une exception
+  `kartenn/floating-shadow` commentée (doublure de `PeriodPicker`, composant flottant).
+
 ## Architecture CSS (REQ-020-12 à 14)
 
 ```
@@ -781,7 +857,7 @@ sont listés.
 | 27 | `DatePill`, `DraftCounter`, `TimeBand` | Button ; Button (bascule, `aria-expanded`) et Menu Button (liste des brouillons) ; `role="status"` | hors présent ; compteur à 0 ; panneau ouvert | barre d'état de la 021 ; `DatePill` ouvre `PeriodPicker` en surimpression ; `DraftCounter` ouvert (`expanded`) : son icône de brouillon devient une croix, ce que fera le prochain clic (revue du 2026-10-25) |
 | 28 | `Kbd`, `ShortcutHint` | — | — | rendu des raccourcis dans menus, infobulles, aide `?` |
 | 29 | `DiffList` | liste groupée par objet, Disclosure | ajout, retrait, modification, anomalie | avant/après par attribut et propriété ; virtualisée au-delà de 200 lignes |
-| 30 | `SidePanel` | région `complementary` (non modale) + Tabs | ouvert, replié, onglet actif, redimensionné, replié en languette | panneau droit de la 021 : surimpression de la surface, 420 px par défaut, poignée redimensionnable au clavier (Window Splitter), menu « Largeur du panneau » (Étroit, Standard, Large) à côté de la croix pour redimensionner sans glisser (2.5.7), Échap ferme et rend le focus au déclencheur (024/M8) ; option `rail` : replié, il laisse au bord de fin une languette dans le flux (piste `auto` de l'hôte, une largeur de contrôle) dont le bouton à chevron « Ouvrir le panneau » (`aria-expanded="false"`) le rouvre sur son dernier onglet et y porte le focus ; la languette ne couvre jamais la surface, à toute largeur, `cover` compris ; le pied ne paraît que si l'hôte le remplit pour l'onglet devant (pas de bande vide) (revue du 2026-10-25) ; par-dessus la surface à toute largeur, jamais à côté (« par-dessus partout », 2026-10-25) ; option `sheet` (classe compacte) : feuille sur toute la fenêtre, bouton « Retour » au lieu de la croix, focus sur l'onglet actif à l'ouverture |
+| 30 | `SidePanel` | région `complementary` (non modale) + Tabs | ouvert, replié, onglet actif, redimensionné, replié en languette | panneau droit de la 021 : à côté de la surface, qui se réduit à la largeur qu'il laisse (« tout s'adapte », 2026-10-26 ; hôte conteneur `inline-size`, piste `auto`), 420 px par défaut, poignée redimensionnable au clavier (Window Splitter), menu « Largeur du panneau » (Étroit, Standard, Large) à côté de la croix pour redimensionner sans glisser (2.5.7), Échap ferme et rend le focus au déclencheur (024/M8) ; option `rail` : replié, il laisse au bord de fin une languette dans le flux (piste `auto` de l'hôte, une largeur de contrôle) dont le bouton à chevron « Ouvrir le panneau » (`aria-expanded="false"`) le rouvre sur son dernier onglet et y porte le focus ; la languette ne couvre jamais la surface, à toute largeur, `cover` compris ; le pied ne paraît que si l'hôte le remplit pour l'onglet devant (pas de bande vide) (revue du 2026-10-25) ; option `cover` (classe étroite) : par-dessus tout son conteneur ; option `sheet` (classe compacte) : feuille sur toute la fenêtre, bouton « Retour » au lieu de la croix, focus sur l'onglet actif à l'ouverture |
 | 31 | `CommitForm` | — (champs étiquetés) | motif prérempli, motif requis manquant | résumé sur une ligne, description facultative ; Ctrl+Entrée émet `submit` (024/M9, REQ-020-37) |
 | 32 | `SplitButton` | Button + Menu Button | action choisie, entrée désactivée avec motif, chargement | action par défaut à gauche, chevron à droite (`aria-haspopup="menu"`) ; choisir une entrée change l'action du bouton sans la lancer (REQ-020-37) |
 | 33 | `Toolbar` | Toolbar | actions repliées dans « … » | flèches entre les actions (APG Toolbar) ; repli par priorité (REQ-020-36) ; sous 360 px, une barre qui doit replier ne garde que son action principale (`primary`, sinon la plus prioritaire) |
@@ -789,6 +865,7 @@ sont listés.
 | 35 | `BarChart` | `role="img"` nommé par un résumé, table de données cachée (dans une boîte `k-visually-hidden` : sa légende, hors de la boîte de la table, débordait sinon sur le tracé dans certains moteurs, revue du 2026-10-25, soir) | survol d'une barre (infobulle), série vide | histogramme d'une série dans le temps (une barre par point, ordre de lecture) en SVG maison, sans dépendance ; mesuré par `ResizeObserver`, dessiné en pixels CSS (traits nets, aucune déformation) ; hauteur par jeton ; jetons seulement (`--k-accent`, `--k-border`, `--k-text-muted`), clair et sombre ; résumé (nombre de points, bornes, maximum, dernier) ; valeurs en chiffres tabulaires ; infobulle `decorative` au survol (la table cachée porte les mêmes données) ; ligne de base, graduation du maximum, première et dernière étiquettes (revue du 2026-10-25) |
 | 36 | `BarList` | table (en-têtes de ligne, valeurs) | valeur au-delà de l'échelle | barres horizontales d'une distribution (occupation, part) : libellé, barre décorative (`aria-hidden`), valeur ; échelle commune (`max`, sinon la plus grande valeur) ; la valeur est toujours écrite, la barre ne fait que la montrer (revue du 2026-10-25) |
 | 37 | `ExpandableGrid` | Grid (données) + Button qui ouvre un Dialog (Modal) | compacte, agrandie | une liste qui peut être longue (flux qu'un brouillon rend non conformes à la matrice, membres d'un groupe) gardée compacte dans un lieu étroit (panneau, section) : nombre de lignes au-dessus, quelques lignes visibles (`visibleRows`, 5 par défaut) puis la grille défile, colonnes réduites au besoin (`compactColumns`) ; bouton « Agrandir » (`IconButton`, nommé « Agrandir : <libellé> », `aria-haspopup="dialog"`) qui ouvre la même table dans une boîte large (`Dialog` `lg`, `contained`) : toutes les colonnes, tri et filtres partagés (tenus par l'hôte, comme pour `DataGrid`), focus piégé, Échap ferme et rend le focus au bouton ; rien n'est coupé en silence, le reste est à un bouton (revue du 2026-10-25) |
+| 38 | `BottomPanel` | région `complementary` (non modale) + Tabs ; poignée Window Splitter horizontale ; en feuille, Dialog (Modal) | ouvert, onglets, redimensionné, feuille compacte, fermé, focus de la poignée | frère du `SidePanel` pour un contenu large (« Panneau du bas », 2026-10-26) : sous la surface, dans une rangée `auto` de son hôte (conteneur `size`), il pousse — la surface perd de la hauteur, jamais de largeur ; 320 px de haut par défaut, borné par `--k-size-panel-room-block` ; poignée au bord haut (Haut, Bas, Début, Fin ; pointeur), menu « Hauteur du panneau » (Basse, Standard, Haute) pour redimensionner sans glisser (2.5.7) ; Échap et la croix ferment et rendent le focus ; fermé, il ne laisse rien ; option `sheet` (classe compacte) : la même feuille plein écran que le `SidePanel` |
 
 Contrat d'édition en place (`DataGrid`, `TreeGrid`, REQ-020-19), indépendant du métier :
 - l'hôte fournit pour chaque cellule `editable: boolean` (droits, présent, `as_of`), un
