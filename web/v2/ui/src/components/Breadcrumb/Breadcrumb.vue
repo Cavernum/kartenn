@@ -72,7 +72,15 @@ const props = defineProps<{ items: Crumb[]; label?: string }>();
     padding-inline-end: var(--k-space-1);
   }
 
+  /* Short of room, the current page wins: it keeps its whole name (up to the width of the
+   * path) and the earlier crumbs give way first (relecture du 2026-10-26). */
+  .k-breadcrumb__item:last-child {
+    flex-shrink: 0;
+    max-inline-size: 100%;
+  }
+
   .k-breadcrumb__separator {
+    flex: none;
     color: var(--k-text-muted);
   }
 
