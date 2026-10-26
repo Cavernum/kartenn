@@ -43,7 +43,9 @@ const rows = [
 
 describe("DataGrid", () => {
   it("shares one template of tokens between head and rows", () => {
-    expect(columnsTemplate(columns)).toBe("var(--k-size-col-md) minmax(var(--k-size-col-md), 1fr)");
+    expect(columnsTemplate(columns)).toBe(
+      "minmax(auto, var(--k-size-col-md)) minmax(var(--k-size-col-md), 1fr)",
+    );
   });
 
   it("is a named grid, rows and columns counted and indexed, sort said", async () => {

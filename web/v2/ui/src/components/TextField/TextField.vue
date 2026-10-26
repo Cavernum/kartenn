@@ -101,8 +101,11 @@ const describedBy = computed(
 
 <style>
 @layer components {
+  /* One elastic column: the field takes the width it is given, never the intrinsic width
+   * of its input (an editor in a grid cell stays in its cell). */
   .k-text-field {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--k-space-1);
     min-inline-size: 0;
   }

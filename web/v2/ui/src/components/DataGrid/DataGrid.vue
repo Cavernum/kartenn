@@ -382,6 +382,7 @@ onBeforeUnmount(() => observer?.disconnect());
             data-row=""
             :data-align="column.align"
             :data-priority="priority(column)"
+            :data-width="column.width ?? 'md'"
             :data-sortable="column.sortable ? 'true' : undefined"
             :aria-colindex="colIndex(column)"
             :aria-sort="ariaSort(column)"
@@ -432,6 +433,7 @@ onBeforeUnmount(() => observer?.disconnect());
             class="k-data-grid__cell"
             :data-align="column.align"
             :data-priority="priority(column)"
+            :data-width="column.width ?? 'md'"
             :data-actions="column.actions ? 'true' : undefined"
             :aria-colindex="colIndex(column)"
           >
@@ -462,6 +464,7 @@ onBeforeUnmount(() => observer?.disconnect());
             :data-column="column.id"
             :data-align="column.align"
             :data-priority="priority(column)"
+            :data-width="column.width ?? 'md'"
             :data-wrap="column.wrap ? 'true' : undefined"
             :data-label="props.stack && c > 0 && !column.actions ? column.label : undefined"
             :data-actions="column.actions ? 'true' : undefined"
@@ -513,12 +516,13 @@ onBeforeUnmount(() => observer?.disconnect());
             </template>
             <div
               v-if="errorOf(row, column)"
-              class="k-data-grid__error"
+              class="k-data-grid__error-line"
               :data-side="c >= shown.length / 2 ? 'end' : 'start'"
-              role="alert"
             >
-              <span>{{ errorOf(row, column)!.error }}</span>
-              <CodeBadge v-if="errorOf(row, column)!.code" :code="errorOf(row, column)!.code!" />
+              <div class="k-data-grid__error" role="alert">
+                <span>{{ errorOf(row, column)!.error }}</span>
+                <CodeBadge v-if="errorOf(row, column)!.code" :code="errorOf(row, column)!.code!" />
+              </div>
             </div>
           </div>
         </div>
@@ -684,6 +688,7 @@ onBeforeUnmount(() => observer?.disconnect());
     .k-data-grid-frame[data-stack] .k-data-grid__cell {
       position: relative;
       display: grid;
+      min-inline-size: 0;
       grid-column: 1 / -1;
       grid-template-columns: subgrid;
       min-block-size: var(--k-control-height-sm);
@@ -783,11 +788,31 @@ onBeforeUnmount(() => observer?.disconnect());
     white-space: nowrap;
   }
 
+  /* A column is as wide as its token, and never narrower than its header: title, sort and
+   * filter whole (the body cells hold the token, the header its min-content; the template
+   * is `minmax(auto, token)`, grid.ts). */
   .k-data-grid__header {
+    min-inline-size: min-content;
     font-size: var(--k-text-sm);
     line-height: var(--k-text-sm-line);
     font-weight: var(--k-weight-medium);
     color: var(--k-text-muted);
+  }
+
+  .k-data-grid__cell[data-width="xs"] {
+    min-inline-size: var(--k-size-col-xs);
+  }
+
+  .k-data-grid__cell[data-width="sm"] {
+    min-inline-size: var(--k-size-col-sm);
+  }
+
+  .k-data-grid__cell[data-width="md"] {
+    min-inline-size: var(--k-size-col-md);
+  }
+
+  .k-data-grid__cell[data-width="lg"] {
+    min-inline-size: var(--k-size-col-lg);
   }
 
   .k-data-grid__header[data-sortable] {
@@ -901,25 +926,47 @@ onBeforeUnmount(() => observer?.disconnect());
   }
 
   /* The editor takes the whole cell, at the height of the row. */
-  .k-data-grid__error[data-side="end"] {
-    inset-inline: auto 0;
-  }
-
   .k-data-grid__cell[data-editing] {
     padding-inline: 0;
   }
 
   .k-data-grid__editor {
     flex: 1;
+    min-inline-size: 0;
   }
 
-  /* The error of a cell, under it, over the next row. */
+  /* The error of a cell, on a line of its own under the value: the row grows to hold it,
+   * the next row moves down, nothing is hidden (relecture du 2026-10-26). Wider than its
+   * column, the message overflows on the empty second line of its neighbours, towards the
+   * end (or, in the second half of the columns, towards the start: an end-aligned line
+   * overflows at its start). The other cells of the row keep their content on the first
+   * line. */
+  .k-data-grid__cell[data-state="error"] {
+    flex-wrap: wrap;
+    row-gap: var(--k-space-1);
+  }
+
+  .k-data-grid__row:has(> [data-state="error"]) > .k-data-grid__cell {
+    align-items: start;
+    padding-block: var(--k-space-1);
+  }
+
+  .k-data-grid__error-line {
+    display: flex;
+    flex: 0 0 100%;
+    justify-content: start;
+    min-inline-size: 0;
+  }
+
+  .k-data-grid__error-line[data-side="end"] {
+    justify-content: end;
+  }
+
   .k-data-grid__error {
-    position: absolute;
-    inset-block-start: 100%;
-    inset-inline-start: 0;
+    position: relative;
     z-index: var(--k-z-overlay);
     display: flex;
+    flex: none;
     flex-wrap: nowrap;
     gap: var(--k-space-2);
     align-items: center;

@@ -147,11 +147,14 @@ export interface CellRef {
   column: string;
 }
 
+// A token is the width of a column, never narrower than its header (title, sort and
+// filter whole: the `auto` minimum is the min-content of the header cell, the body cells
+// counting for nothing; relecture du 2026-10-26).
 const WIDTHS = {
-  xs: "var(--k-size-col-xs)",
-  sm: "var(--k-size-col-sm)",
-  md: "var(--k-size-col-md)",
-  lg: "var(--k-size-col-lg)",
+  xs: "minmax(auto, var(--k-size-col-xs))",
+  sm: "minmax(auto, var(--k-size-col-sm))",
+  md: "minmax(auto, var(--k-size-col-md))",
+  lg: "minmax(auto, var(--k-size-col-lg))",
   fill: "minmax(var(--k-size-col-md), 1fr)",
 } as const;
 

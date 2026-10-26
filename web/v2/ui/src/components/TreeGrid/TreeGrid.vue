@@ -210,6 +210,7 @@ const word = (node: TreeNode) => {
             :data-column="column.id"
             :data-align="column.align"
             :data-priority="priority(column)"
+            :data-width="column.width ?? 'md'"
             :aria-colindex="colIndex(column)"
           >
             {{ column.label }}
@@ -297,6 +298,7 @@ const word = (node: TreeNode) => {
               :class="{ 'k-mono': column.mono }"
               :data-align="column.align"
               :data-priority="priority(column)"
+              :data-width="column.width ?? 'md'"
               :aria-colindex="colIndex(column)"
               tabindex="-1"
             >
@@ -441,6 +443,24 @@ const word = (node: TreeNode) => {
     min-inline-size: 0;
     padding-inline: var(--k-cell-padding-inline);
     white-space: nowrap;
+  }
+
+  /* Each row is a grid of its own: every cell holds its column's token, so that the
+   * `minmax(auto, token)` tracks (grid.ts) keep the same width in every row. */
+  .k-tree-grid [data-width="xs"] {
+    min-inline-size: var(--k-size-col-xs);
+  }
+
+  .k-tree-grid [data-width="sm"] {
+    min-inline-size: var(--k-size-col-sm);
+  }
+
+  .k-tree-grid [data-width="md"] {
+    min-inline-size: var(--k-size-col-md);
+  }
+
+  .k-tree-grid [data-width="lg"] {
+    min-inline-size: var(--k-size-col-lg);
   }
 
   .k-tree-grid__header[data-align="end"],
