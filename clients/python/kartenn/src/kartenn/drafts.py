@@ -10,7 +10,7 @@ result = kn.drafts.submit(draft)    # Applied | Pending, or raises Refused (the 
 
 A draft belongs to its author alone; a service account has none. Each modification sends
 the version read in `If-Match` (a draft given as an identifier is read first). A submission
-asks to apply its changeset (`apply=own`) as every write of the client, and carries an
+asks to apply its changeset (`approval=self`) as every write of the client, and carries an
 `Idempotency-Key`: retried after a cut, the first answer comes back.
 """
 
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 __all__ = ["AsyncDrafts", "Drafts"]
 
-_APPLY = "apply"
+_APPROVAL = "approval"
 
 
 def _record(answer: Any) -> Record:  # noqa: ANN401 - a response
@@ -104,11 +104,13 @@ class _Drafts:
         request = self._context.request(catalog.operation("delete_draft"), ref=ref, etag=etag)
         checked((yield request))
 
-    def submit(self, ref: object, *, apply_own: bool, key: str | None) -> Plan[Applied | Pending]:
+    def submit(
+        self, ref: object, *, approval_self: bool, key: str | None
+    ) -> Plan[Applied | Pending]:
         # The version read: a draft modified since is not submitted (412).
         ref, etag = yield from self._read(ref, None)
         catalog = yield from self._context.catalog()
-        params: dict[str, object] = {} if apply_own else {_APPLY: None}
+        params: dict[str, object] = {} if approval_self else {_APPROVAL: None}
         request = self._context.request(
             catalog.operation("submit_draft"), ref=ref, params=params, key=key, etag=etag
         )
@@ -182,11 +184,11 @@ class Drafts:
         self._run(self._plans.delete(ref, etag))
 
     def submit(
-        self, ref: object, *, apply_own: bool = True, idempotency_key: str | None = None
+        self, ref: object, *, approval_self: bool = True, idempotency_key: str | None = None
     ) -> Applied | Pending:
-        """Its changeset: applied when `apply_own` and its author may, pending otherwise;
+        """Its changeset: applied when `approval_self` and its author may, pending otherwise;
         the draft is then deleted. Refused, it raises `Refused` and the draft stays."""
-        plan = self._plans.submit(ref, apply_own=apply_own, key=idempotency_key)
+        plan = self._plans.submit(ref, approval_self=approval_self, key=idempotency_key)
         return cast("Applied | Pending", self._run(plan))
 
 
@@ -231,7 +233,7 @@ class AsyncDrafts:
         await self._run(self._plans.delete(ref, etag))
 
     async def submit(
-        self, ref: object, *, apply_own: bool = True, idempotency_key: str | None = None
+        self, ref: object, *, approval_self: bool = True, idempotency_key: str | None = None
     ) -> Applied | Pending:
-        plan = self._plans.submit(ref, apply_own=apply_own, key=idempotency_key)
+        plan = self._plans.submit(ref, approval_self=approval_self, key=idempotency_key)
         return cast("Applied | Pending", await self._run(plan))

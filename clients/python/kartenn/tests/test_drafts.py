@@ -34,7 +34,7 @@ PENDING: dict[str, Any] = {
     "state": "pending",
     "kind": "approval",
     "diff": [],
-    "reason": {"code": "changeset.apply_own.missing", "message": "m"},
+    "reason": {"code": "changeset.approval.self.missing", "message": "m"},
 }
 
 
@@ -105,13 +105,13 @@ def test_submit_applies_or_waits_or_keeps_the_draft(tmp_path: Path) -> None:
         assert read.method == "GET"
         # The version read: a draft modified since is not submitted.
         assert sent.headers["if-match"] == '"3"'
-        assert sent.url.params.get("apply") == "own"
+        assert sent.url.params.get("approval") == "self"
         assert sent.headers["idempotency-key"] == "k1"
         server.route("POST", "/v1/drafts/{id}/submission", httpx2.Response(202, json=PENDING))
-        result = kn.drafts.submit(Record(DRAFT, etag='"1"'), apply_own=False)
+        result = kn.drafts.submit(Record(DRAFT, etag='"1"'), approval_self=False)
         assert isinstance(result, Pending)
-        assert result.reason == "changeset.apply_own.missing"
-        assert "apply" not in server.seen[-1].url.params
+        assert result.reason == "changeset.approval.self.missing"
+        assert "approval" not in server.seen[-1].url.params
         server.route(
             "POST",
             "/v1/drafts/{id}/submission",

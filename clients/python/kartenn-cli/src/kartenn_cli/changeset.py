@@ -229,7 +229,7 @@ def apply(
     found = _found(ctx)
     data = _read()
     # Spec 024 (REQ-024-13): applied by its author who may, unless only submitted.
-    result = _builder(found, data).submit(apply_own=not submit_only)
+    result = _builder(found, data).submit(approval_self=not submit_only)
     local_path().unlink(missing_ok=True)
     render_outcome(found, result, output=output, require_applied=require_applied)
 

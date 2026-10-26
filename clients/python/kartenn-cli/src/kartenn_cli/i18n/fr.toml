@@ -65,7 +65,7 @@ on_behalf_of = "Écrire pour le compte d'une identité (Kartenn-On-Behalf-Of)."
 dry_run = "Simuler le changeset : rien n'est écrit (code 8 s'il serait refusé)."
 into_changeset = "Ajouter l'écriture au changeset local (kartenn changeset new)."
 require_applied = "Code 10 si l'écriture attend une approbation."
-submit_only = "Soumettre le changeset sans l'appliquer, même sous apply_own : il attend un autre."
+submit_only = "Soumettre le changeset sans l'appliquer, même sous approval.self : il attend un autre."
 
 [config]
 help = "Profils de configuration (sans aucun secret)."
