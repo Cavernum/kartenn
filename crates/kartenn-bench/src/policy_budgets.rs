@@ -302,7 +302,7 @@ fn addresses_request(author: Uuid, domain: Uuid, base: [u8; 2], count: usize) ->
         operations,
         simulate: false,
         idempotency_key: None,
-        apply_own: true,
+        approval_self: true,
     }
 }
 
@@ -878,7 +878,7 @@ async fn measure(
             )?],
             simulate: true,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         })
     };
     let (mut wide, mut empty) = (Vec::new(), Vec::new());

@@ -72,7 +72,7 @@ impl Tree {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         };
         let outcome = submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
             .await
@@ -718,7 +718,7 @@ impl Tree {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         };
         submit_in(
             &self.store,
@@ -757,11 +757,11 @@ async fn writes_need_the_right_of_their_kind_in_their_scope(pool: PgPool) {
             "editor",
             &[
                 "core.address.edit",
-                "core.address.apply_own",
+                "core.address.approval.self",
                 "core.prefix.edit",
-                "core.prefix.apply_own",
+                "core.prefix.approval.self",
                 "prop.*.edit",
-                "prop.*.apply_own",
+                "prop.*.approval.self",
             ],
         )
         .await;
@@ -1095,7 +1095,7 @@ async fn a_role_read_before_the_rename_keeps_the_old_name(pool: PgPool) {
 }
 
 /// REQ-024-9: the migration job replaces the retired verbs of the custom roles in one
-/// system changeset: `write` gives `edit` and `apply_own`, `propose` gives `edit`,
+/// system changeset: `write` gives `edit` and `approval.self`, `propose` gives `edit`,
 /// `core.changeset.approve` every `apply`; a second run submits nothing.
 #[kartenn_testing::pg_test]
 async fn custom_roles_take_the_verbs_of_spec_024_once(pool: PgPool) {
@@ -1129,10 +1129,10 @@ async fn custom_roles_take_the_verbs_of_spec_024_once(pool: PgPool) {
     assert_eq!(
         entries("writers").await,
         [
-            "core.address.apply_own",
+            "core.address.approval.self",
             "core.address.edit",
             "core.address.read",
-            "prop.*.apply_own",
+            "prop.*.approval.self",
             "prop.*.edit"
         ]
     );
@@ -1149,6 +1149,49 @@ async fn custom_roles_take_the_verbs_of_spec_024_once(pool: PgPool) {
             .iter()
             .all(|e| e.rsplit('.').next() == Some("apply")),
         "{approvers:?}"
+    );
+    assert!(
+        rename_permissions(&t.store, MAX_OPERATIONS)
+            .await
+            .unwrap()
+            .is_none()
+    );
+}
+
+/// Task 024-11: the migration job renames the action of one's own changesets in the custom
+/// roles (anciennement `apply_own`), a property of a key of several segments and the
+/// pattern included, in one system changeset; a second run submits nothing.
+#[kartenn_testing::pg_test]
+async fn custom_roles_take_approval_self_once(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    t.role(
+        "maintainers",
+        &[
+            "core.address.edit",
+            "core.address.apply_own",
+            "prop.*.apply_own",
+            "prop.core.owner.apply_own",
+        ],
+    )
+    .await;
+    let outcome = rename_permissions(&t.store, MAX_OPERATIONS).await.unwrap();
+    assert!(
+        matches!(outcome, Some(Outcome::Applied { .. })),
+        "{outcome:?}"
+    );
+    let entries = kartenn_store_pg::rbac_read::role(&pool, "maintainers")
+        .await
+        .unwrap()
+        .unwrap()
+        .entries;
+    assert_eq!(
+        entries,
+        [
+            "core.address.approval.self",
+            "core.address.edit",
+            "prop.*.approval.self",
+            "prop.core.owner.approval.self",
+        ]
     );
     assert!(
         rename_permissions(&t.store, MAX_OPERATIONS)
@@ -1240,7 +1283,7 @@ async fn a_delegate_cannot_escalate(pool: PgPool) {
                     &[
                         "core.address.read",
                         "core.address.edit",
-                        "core.address.apply_own",
+                        "core.address.approval.self",
                     ],
                 ),
             ],
@@ -1309,7 +1352,7 @@ async fn an_undo_cannot_escalate(pool: PgPool) {
                     &[
                         "core.address.read",
                         "core.address.edit",
-                        "core.address.apply_own",
+                        "core.address.approval.self",
                     ],
                 ),
                 t.bind_op(user.id, "writer", branch).await,
@@ -1531,7 +1574,7 @@ async fn policies_hold_by_scope_and_by_role(pool: PgPool) {
     let contractor = t
         .role(
             "contractor",
-            &["core.address.edit", "core.address.apply_own"],
+            &["core.address.edit", "core.address.approval.self"],
         )
         .await;
     let outcome = t
@@ -1580,7 +1623,10 @@ async fn policies_designate_their_authors_by_group_of_kartenn(pool: PgPool) {
     let t = Tree::new(&pool).await;
     let root = t.root().await;
     let writer = t
-        .role("writer", &["core.address.edit", "core.address.apply_own"])
+        .role(
+            "writer",
+            &["core.address.edit", "core.address.approval.self"],
+        )
         .await;
     let direct = t.identity().await;
     // An account, an unknown group or an unknown role is no author.

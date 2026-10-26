@@ -56,7 +56,7 @@ async fn an_object_is_read_with_its_resolved_properties(pool: PgPool) {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         };
         let store = store.clone();
         async move {

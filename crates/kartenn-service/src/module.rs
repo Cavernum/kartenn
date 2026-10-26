@@ -1210,7 +1210,7 @@ pub async fn run_job<S: crate::port::Store>(store: &S, name: &str) -> Result<boo
                 operations: Vec::new(),
                 simulate: false,
                 idempotency_key: None,
-                apply_own: true,
+                approval_self: true,
             };
             let objects: Vec<Uuid> = found
                 .reevaluated

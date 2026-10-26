@@ -166,7 +166,7 @@ impl Fixture {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         };
         let outcome = submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
             .await
@@ -478,7 +478,7 @@ async fn external_references_filter_by_system_and_identifier(pool: PgPool) {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         };
         match submit(&f.store, &Unrestricted, &request, MAX_OPERATIONS)
             .await

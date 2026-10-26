@@ -44,27 +44,27 @@ permissions! {
     ENTITY_READ = "core.entity.read", false, "Lire les entités.";
     ENTITY_EDIT = "core.entity.edit", false, "Créer, modifier ou clore une entité dans un changeset et le soumettre.";
     ENTITY_APPLY = "core.entity.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche une entité.";
-    ENTITY_APPLY_OWN = "core.entity.apply_own", false, "Appliquer son propre changeset qui touche une entité.";
+    ENTITY_APPROVAL_SELF = "core.entity.approval.self", false, "Appliquer son propre changeset qui touche une entité.";
     SITE_READ = "core.site.read", false, "Lire les sites.";
     SITE_EDIT = "core.site.edit", false, "Créer, modifier ou clore un site dans un changeset et le soumettre.";
     SITE_APPLY = "core.site.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche un site.";
-    SITE_APPLY_OWN = "core.site.apply_own", false, "Appliquer son propre changeset qui touche un site.";
+    SITE_APPROVAL_SELF = "core.site.approval.self", false, "Appliquer son propre changeset qui touche un site.";
     DOMAIN_READ = "core.domain.read", false, "Lire les domaines d'adressage.";
     DOMAIN_EDIT = "core.domain.edit", false, "Créer, modifier ou clore un domaine d'adressage dans un changeset et le soumettre.";
     DOMAIN_APPLY = "core.domain.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche un domaine d'adressage.";
-    DOMAIN_APPLY_OWN = "core.domain.apply_own", false, "Appliquer son propre changeset qui touche un domaine d'adressage.";
+    DOMAIN_APPROVAL_SELF = "core.domain.approval.self", false, "Appliquer son propre changeset qui touche un domaine d'adressage.";
     PREFIX_READ = "core.prefix.read", false, "Lire les préfixes.";
     PREFIX_EDIT = "core.prefix.edit", false, "Créer, modifier ou clore un préfixe dans un changeset et le soumettre.";
     PREFIX_APPLY = "core.prefix.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche un préfixe.";
-    PREFIX_APPLY_OWN = "core.prefix.apply_own", false, "Appliquer son propre changeset qui touche un préfixe.";
+    PREFIX_APPROVAL_SELF = "core.prefix.approval.self", false, "Appliquer son propre changeset qui touche un préfixe.";
     RANGE_READ = "core.range.read", false, "Lire les plages.";
     RANGE_EDIT = "core.range.edit", false, "Créer, modifier ou clore une plage dans un changeset et le soumettre.";
     RANGE_APPLY = "core.range.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche une plage.";
-    RANGE_APPLY_OWN = "core.range.apply_own", false, "Appliquer son propre changeset qui touche une plage.";
+    RANGE_APPROVAL_SELF = "core.range.approval.self", false, "Appliquer son propre changeset qui touche une plage.";
     ADDRESS_READ = "core.address.read", false, "Lire les adresses.";
     ADDRESS_EDIT = "core.address.edit", false, "Créer, modifier ou clore une adresse dans un changeset et le soumettre.";
     ADDRESS_APPLY = "core.address.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche une adresse.";
-    ADDRESS_APPLY_OWN = "core.address.apply_own", false, "Appliquer son propre changeset qui touche une adresse.";
+    ADDRESS_APPROVAL_SELF = "core.address.approval.self", false, "Appliquer son propre changeset qui touche une adresse.";
     CHANGESET_READ = "core.changeset.read", true, "Lire les changesets, leurs opérations et leur différentiel.";
     ANOMALY_ACKNOWLEDGE ="core.anomaly.acknowledge", false, "Acquitter, avec un motif, une anomalie d'un objet du périmètre.";
     PROPERTY_ADMIN = "core.property.admin", true, "Déclarer une propriété, changer sa sensibilité.";
@@ -81,8 +81,45 @@ permissions! {
     DRAFT_ADMIN = "core.draft.admin", true, "Lire, supprimer ou attribuer à un autre le brouillon d'une personne.";
 }
 
+/// The action that applies one's own changeset (spec 024, M7; task 024-11, fifth review):
+/// two segments, `<resource>.approval.self`.
+pub const APPROVAL_SELF: &str = "approval.self";
+
+/// The actions of two segments; any other action is the last segment of a name.
+const COMPOUND_ACTIONS: [&str; 1] = [APPROVAL_SELF];
+
 /// Actions of a property permission (spec 024, Q-024-6).
-pub const PROPERTY_ACTIONS: [&str; 4] = ["read", "edit", "apply", "apply_own"];
+pub const PROPERTY_ACTIONS: [&str; 4] = ["read", "edit", "apply", APPROVAL_SELF];
+
+/// The actions retired from the catalogue (spec 024, REQ-024-9; task 024-11): refused in a
+/// role, their names replaced in the custom roles by [`retired`].
+pub const RETIRED_ACTIONS: [&str; 3] = ["write", "propose", RETIRED_APPROVAL_SELF];
+
+/// The former name of [`APPROVAL_SELF`] (anciennement `apply_own`, task 024-11).
+const RETIRED_APPROVAL_SELF: &str = "apply_own";
+
+/// `name` split into its resource and its action: the action is a compound action of
+/// [`COMPOUND_ACTIONS`] when the name ends with one (`prop.custom.x.approval.self` gives
+/// `prop.custom.x` and `approval.self`, a key of several segments included), else its last
+/// segment. `None` for a name of one segment.
+#[must_use]
+pub fn split_action(name: &str) -> Option<(&str, &str)> {
+    COMPOUND_ACTIONS
+        .iter()
+        .find_map(|action| {
+            name.strip_suffix(action)
+                .and_then(|r| r.strip_suffix('.'))
+                .filter(|r| !r.is_empty())
+                .map(|resource| (resource, *action))
+        })
+        .or_else(|| name.rsplit_once('.'))
+}
+
+/// The action of `name` ([`split_action`]), or `name` itself when it has one segment.
+#[must_use]
+pub fn action_of(name: &str) -> &str {
+    split_action(name).map_or(name, |(_, action)| action)
+}
 
 /// What a subject does with a changeset (spec 024, M7): edit it (create and submit it),
 /// apply someone else's, or apply its own.
@@ -93,18 +130,18 @@ pub enum Verb {
     /// Apply or reject a pending changeset of someone else.
     Apply,
     /// Apply one's own pending changeset.
-    ApplyOwn,
+    ApprovalSelf,
 }
 
 /// The permission of `verb` that matches the edit permission `edit` (spec 024, M7):
-/// `<resource>.apply` or `<resource>.apply_own` for `<resource>.edit`. A permission of
+/// `<resource>.apply` or `<resource>.approval.self` for `<resource>.edit`. A permission of
 /// another action (`core.role.admin`, `flow.request`) has no apply of its own: it is its
 /// own edit, apply and apply of one's own changesets.
 #[must_use]
 pub fn verb_permission(edit: &str, verb: Verb) -> String {
     match (edit.strip_suffix(".edit"), verb) {
         (Some(resource), Verb::Apply) => format!("{resource}.apply"),
-        (Some(resource), Verb::ApplyOwn) => format!("{resource}.apply_own"),
+        (Some(resource), Verb::ApprovalSelf) => format!("{resource}.{APPROVAL_SELF}"),
         _ => edit.to_owned(),
     }
 }
@@ -114,8 +151,9 @@ pub fn verb_permission(edit: &str, verb: Verb) -> String {
 pub const RETIRED_APPROVE: &str = "core.changeset.approve";
 
 /// The permissions that replace the retired entry `entry` (spec 024, REQ-024-9), or `None`
-/// for an entry that is not retired: `<r>.write` → `<r>.edit`, `<r>.apply_own`;
-/// `<r>.propose` → `<r>.edit`; [`RETIRED_APPROVE`] → every `<r>.apply` of `catalogue` and
+/// for an entry that is not retired: `<r>.write` → `<r>.edit`, `<r>.approval.self`;
+/// `<r>.propose` → `<r>.edit`; the former name of `<r>.approval.self` → `<r>.approval.self`
+/// (task 024-11); [`RETIRED_APPROVE`] → every `<r>.apply` of `catalogue` and
 /// `prop.*.apply`. A name renamed by spec 018 is renamed first. `<r>` is a resource of
 /// `catalogue` (one with an edit permission) or a property, `prop.<key>` or `prop.*`.
 #[must_use]
@@ -128,13 +166,13 @@ pub fn retired(entry: &str, catalogue: &[&Permission]) -> Option<Vec<String>> {
     if name == RETIRED_APPROVE {
         let mut applies: Vec<String> = catalogue
             .iter()
-            .filter(|p| p.name.rsplit('.').next() == Some("apply"))
+            .filter(|p| action_of(p.name) == "apply")
             .map(|p| p.name.to_owned())
             .collect();
         applies.push("prop.*.apply".into());
         return Some(applies);
     }
-    let (resource, action) = name.rsplit_once('.')?;
+    let (resource, action) = split_action(name)?;
     let known = resource.starts_with("prop.")
         || catalogue
             .iter()
@@ -142,24 +180,25 @@ pub fn retired(entry: &str, catalogue: &[&Permission]) -> Option<Vec<String>> {
     match action {
         "write" if known => Some(vec![
             format!("{resource}.edit"),
-            format!("{resource}.apply_own"),
+            format!("{resource}.{APPROVAL_SELF}"),
         ]),
         "propose" if known => Some(vec![format!("{resource}.edit")]),
+        RETIRED_APPROVAL_SELF if known => Some(vec![format!("{resource}.{APPROVAL_SELF}")]),
         _ => renamed.map(|new| vec![new.to_owned()]),
     }
 }
 
 /// The retired names of `catalogue` and what replaces each (spec 024, REQ-024-9; spec 018,
-/// R3): `<r>.write` and `<r>.propose` of each resource with an edit permission, the names
-/// renamed by spec 018, `prop.*.write`, `prop.*.propose` and [`RETIRED_APPROVE`]. The
-/// labels of the history and of the audit journal name them (018/R6).
+/// R3): the names of the [`RETIRED_ACTIONS`] of each resource with an edit permission and
+/// of `prop.*`, the names renamed by spec 018 and [`RETIRED_APPROVE`]. The labels of the
+/// history and of the audit journal name them (018/R6).
 #[must_use]
 pub fn retired_names(catalogue: &[&Permission]) -> Vec<(String, Vec<String>)> {
     let mut olds: Vec<String> = catalogue
         .iter()
         .filter_map(|p| p.name.strip_suffix(".edit"))
         .chain(std::iter::once("prop.*"))
-        .flat_map(|r| [format!("{r}.write"), format!("{r}.propose")])
+        .flat_map(|r| RETIRED_ACTIONS.map(|action| format!("{r}.{action}")))
         .collect();
     olds.extend(RENAMED_PERMISSIONS.iter().map(|(old, _)| (*old).to_owned()));
     olds.push(RETIRED_APPROVE.to_owned());
@@ -190,13 +229,16 @@ pub static RENAMED_PERMISSIONS: &[(&str, &str)] = &[
 /// The problems of a catalogue against the naming rule of spec 018 (REQ-018-1, R2, R5):
 /// `<module>.<resource>.<action>`, or `<module>.<action>` when the resource is named after
 /// the module (never `<module>.<module>.<action>`), lowercase, unique, and no resource
-/// named after an action of the catalogue (so that `<module>.<action>` stays unambiguous).
+/// named after an action of the catalogue, nor after the first segment of a compound
+/// action (so that `<module>.<action>` stays unambiguous). The action is one segment, or
+/// two for `approval.self` ([`split_action`]).
 #[must_use]
 pub fn catalogue_problems(permissions: &[&Permission]) -> Vec<String> {
     let mut problems = Vec::new();
     let actions: std::collections::BTreeSet<&str> = permissions
         .iter()
-        .filter_map(|p| p.name.rsplit('.').next())
+        .map(|p| action_of(p.name))
+        .chain(COMPOUND_ACTIONS.iter().filter_map(|a| a.split('.').next()))
         .collect();
     let mut seen = std::collections::BTreeSet::new();
     for p in permissions {
@@ -204,9 +246,11 @@ pub fn catalogue_problems(permissions: &[&Permission]) -> Vec<String> {
         if !seen.insert(name) {
             problems.push(format!("`{name}`: duplicate"));
         }
-        let segments: Vec<&str> = name.split('.').collect();
-        let well_formed = (2..=3).contains(&segments.len())
-            && segments.iter().all(|s| {
+        let (head, action) = split_action(name).unwrap_or((name, ""));
+        let segments: Vec<&str> = head.split('.').collect();
+        let well_formed = !action.is_empty()
+            && (1..=2).contains(&segments.len())
+            && segments.iter().copied().chain(action.split('.')).all(|s| {
                 s.bytes().next().is_some_and(|b| b.is_ascii_lowercase())
                     && s.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
             });
@@ -214,12 +258,12 @@ pub fn catalogue_problems(permissions: &[&Permission]) -> Vec<String> {
             problems.push(format!("`{name}`: not `<module>[.<resource>].<action>`"));
             continue;
         }
-        if matches!(segments.last(), Some(&("write" | "propose"))) {
+        if RETIRED_ACTIONS.contains(&action) {
             problems.push(format!(
-                "`{name}`: a retired action, `edit`, `apply` and `apply_own` replace it"
+                "`{name}`: a retired action, `edit`, `apply` and `{APPROVAL_SELF}` replace it"
             ));
         }
-        if let [module, resource, _] = segments[..] {
+        if let [module, resource] = segments[..] {
             if resource == module {
                 problems.push(format!("`{name}`: the resource repeats the module"));
             }
@@ -264,7 +308,7 @@ pub struct TypePermissions {
     pub kind: &'static str,
     /// Its read permission.
     pub read: &'static str,
-    /// Its edit permission; its applications end in `.apply` and `.apply_own` when it ends
+    /// Its edit permission; its applications end in `.apply` and `.approval.self` when it ends
     /// in `.edit` ([`verb_permission`]).
     pub edit: &'static str,
 }
@@ -334,41 +378,45 @@ pub fn permission(name: &str) -> Option<&'static Permission> {
 }
 
 /// Whether `entry` may stand in a role: a catalogue permission, `prop.<key>.<action>`,
-/// `prop.*.<action>`, or `*`. The key of a property permission is checked against the
-/// declarations by the service (`rbac::check`). An old name of [`RENAMED_PERMISSIONS`] or
-/// a retired verb ([`retired`]) is refused, with no alias (spec 018, REQ-018-3, Q-018-2;
-/// spec 024, REQ-024-9).
+/// `prop.*.<action>`, or `*`, the action of one or two segments ([`split_action`]). The
+/// key of a property permission is checked against the declarations by the service
+/// (`rbac::check`). An old name of [`RENAMED_PERMISSIONS`] or a retired action
+/// ([`RETIRED_ACTIONS`], [`retired`]) is refused, with no alias (spec 018, REQ-018-3,
+/// Q-018-2; spec 024, REQ-024-9).
 #[must_use]
 pub fn valid_role_entry(entry: &str) -> bool {
     if RENAMED_PERMISSIONS.iter().any(|(old, _)| *old == entry)
         || entry == RETIRED_APPROVE
-        || matches!(entry.rsplit('.').next(), Some("write" | "propose"))
+        || RETIRED_ACTIONS.contains(&action_of(entry))
     {
         return false;
     }
     if entry == "*" || permission(entry).is_some() {
         return true;
     }
-    entry
-        .strip_prefix("prop.")
-        .and_then(|rest| rest.rsplit_once('.'))
+    property_key(entry)
         .is_some_and(|(key, action)| !key.is_empty() && PROPERTY_ACTIONS.contains(&action))
 }
 
+/// The key and the action of a property permission `prop.<key>.<action>` (`*` for the
+/// pattern), the action of one or two segments ([`split_action`]); `None` for another
+/// permission.
+#[must_use]
+pub fn property_key(permission: &str) -> Option<(&str, &str)> {
+    permission.strip_prefix("prop.").and_then(split_action)
+}
+
 /// Whether a role holding `entry` grants `permission`, `sensitive` telling whether the
-/// property of a property permission is sensitive.
+/// property of a property permission is sensitive. `prop.*.<action>` grants the
+/// permissions of the same action only: `prop.*.apply` not `prop.<key>.approval.self`,
+/// nor the reverse.
 #[must_use]
 pub fn grants(entry: &str, permission: &str, sensitive: bool) -> bool {
     if entry == "*" || entry == permission {
         return true;
     }
-    match (
-        entry.strip_prefix("prop.*."),
-        permission.strip_prefix("prop."),
-    ) {
-        (Some(action), Some(rest)) => {
-            !sensitive && rest.rsplit_once('.').is_some_and(|(_, a)| a == action)
-        }
+    match (entry.strip_prefix("prop.*."), property_key(permission)) {
+        (Some(action), Some((_, a))) => !sensitive && a == action,
         _ => false,
     }
 }
@@ -420,13 +468,13 @@ pub static EDITOR: BuiltinRole = BuiltinRole {
         "core.range.edit",
         "core.address.edit",
         "prop.*.edit",
-        "core.entity.apply_own",
-        "core.site.apply_own",
-        "core.domain.apply_own",
-        "core.prefix.apply_own",
-        "core.range.apply_own",
-        "core.address.apply_own",
-        "prop.*.apply_own",
+        "core.entity.approval.self",
+        "core.site.approval.self",
+        "core.domain.approval.self",
+        "core.prefix.approval.self",
+        "core.range.approval.self",
+        "core.address.approval.self",
+        "prop.*.approval.self",
     ],
 };
 
@@ -498,7 +546,7 @@ impl BuiltinRole {
                 entries.extend(
                     modules
                         .iter()
-                        .filter(|p| p.name.rsplit('.').next() == Some(action) && !p.global_only)
+                        .filter(|p| action_of(p.name) == action && !p.global_only)
                         .map(|p| p.name),
                 );
             }
@@ -520,14 +568,15 @@ pub fn catalogue_markdown_with(modules: &[&'static Permission]) -> String {
         "<!-- Généré par kartenn-core (authz::catalogue_markdown) : ne pas modifier à la main. -->\n\n\
          # Catalogue des permissions\n\n\
          Permissions du noyau (spec 005, REQ-005-16). S'y ajoutent, par propriété déclarée,\n\
-         `prop.<clé>.edit`, `prop.<clé>.apply` et `prop.<clé>.apply_own`, et `prop.<clé>.read`\n\
+         `prop.<clé>.edit`, `prop.<clé>.apply` et `prop.<clé>.approval.self`, et `prop.<clé>.read`\n\
          pour une propriété sensible. Un rôle peut contenir `prop.*.<action>` (toute propriété\n\
          non sensible) et `*` (tout). « Global » : ne s'accorde que sur le périmètre global.\n\n\
          Toute modification passe par un changeset (spec 024, M7) : `edit` le crée et le\n\
          soumet, en attente ; `apply` applique ou rejette le changeset d'un autre ;\n\
-         `apply_own` applique le sien, sauf quand une politique d'approbation le retient.\n\
-         Une permission d'une autre action (`core.role.admin`, `flow.request`) vaut\n\
-         édition et application.\n\n\
+         `approval.self` applique le sien, sauf quand une politique d'approbation le\n\
+         retient. Une action compte un segment, ou deux pour `approval.self`. Une\n\
+         permission d'une autre action (`core.role.admin`, `flow.request`) vaut édition\n\
+         et application.\n\n\
          | Permission | Global | Description |\n\
          |---|---|---|\n",
     );
@@ -650,8 +699,12 @@ mod tests {
             "core.prefix.apply"
         );
         assert_eq!(
-            verb_permission("vlan.edit", Verb::ApplyOwn),
-            "vlan.apply_own"
+            verb_permission("vlan.edit", Verb::ApprovalSelf),
+            "vlan.approval.self"
+        );
+        assert_eq!(
+            verb_permission("prop.custom.x.edit", Verb::ApprovalSelf),
+            "prop.custom.x.approval.self"
         );
         assert_eq!(verb_permission("prop.*.edit", Verb::Edit), "prop.*.edit");
         assert_eq!(
@@ -660,7 +713,7 @@ mod tests {
         );
         for p in PERMISSIONS {
             if let Some(resource) = p.name.strip_suffix(".edit") {
-                for verb in [Verb::Apply, Verb::ApplyOwn] {
+                for verb in [Verb::Apply, Verb::ApprovalSelf] {
                     let applied = verb_permission(p.name, verb);
                     assert!(permission(&applied).is_some(), "{resource}: {applied}");
                 }
@@ -668,9 +721,10 @@ mod tests {
         }
     }
 
-    /// REQ-024-9: `write` gives `edit` and `apply_own`, `propose` gives `edit`, `approve`
-    /// gives every `apply`; the names of spec 018 are renamed first; every retired name is
-    /// refused in a role.
+    /// REQ-024-9: `write` gives `edit` and `approval.self`, `propose` gives `edit`,
+    /// `approve` gives every `apply`, the former name of `approval.self` gives it (task
+    /// 024-11); the names of spec 018 are renamed first; every retired name is refused in
+    /// a role.
     #[test]
     fn retired_verbs_are_replaced_and_refused() {
         static VLAN_EDIT: Permission = Permission {
@@ -688,9 +742,25 @@ mod tests {
             retired("core.prefix.write", &catalogue),
             Some(vec![
                 "core.prefix.edit".into(),
-                "core.prefix.apply_own".into()
+                "core.prefix.approval.self".into()
             ])
         );
+        let former = format!("core.prefix.{RETIRED_APPROVAL_SELF}");
+        assert_eq!(
+            retired(&former, &catalogue),
+            Some(vec!["core.prefix.approval.self".into()])
+        );
+        assert!(!valid_role_entry(&former));
+        let former_property = format!("prop.custom.x.{RETIRED_APPROVAL_SELF}");
+        assert_eq!(
+            retired(&former_property, &catalogue),
+            Some(vec!["prop.custom.x.approval.self".into()])
+        );
+        assert!(!valid_role_entry(&former_property));
+        assert!(!valid_role_entry(&format!(
+            "prop.*.{RETIRED_APPROVAL_SELF}"
+        )));
+        assert_eq!(retired("core.prefix.approval.self", &catalogue), None);
         assert_eq!(
             retired("prop.custom.rack.propose", &catalogue),
             Some(vec!["prop.custom.rack.edit".into()])
@@ -703,7 +773,7 @@ mod tests {
         let with_vlan = [&VLAN_EDIT];
         assert_eq!(
             retired("vlan.vlan.write", &with_vlan),
-            Some(vec!["vlan.edit".into(), "vlan.apply_own".into()])
+            Some(vec!["vlan.edit".into(), "vlan.approval.self".into()])
         );
         for (old, new) in retired_names(&catalogue) {
             assert!(!valid_role_entry(&old), "{old}");
@@ -733,8 +803,69 @@ mod tests {
         assert!(!valid_role_entry("core.nothing.read"));
         assert!(!valid_role_entry("prop.custom.x.delete"));
         assert!(valid_role_entry("prop.custom.x.read"));
-        assert!(valid_role_entry("prop.custom.x.apply_own"));
+        assert!(valid_role_entry("prop.custom.x.approval.self"));
+        assert!(valid_role_entry("prop.*.approval.self"));
+        assert!(valid_role_entry("core.site.approval.self"));
         assert!(valid_role_entry("core.draft.admin"));
+        // The action has one or two segments: `self` alone is no action.
+        assert!(!valid_role_entry("prop.custom.x.self"));
+        assert!(!valid_role_entry("prop.approval.self"));
+        assert!(!valid_role_entry("core.site.self"));
+    }
+
+    /// Task 024-11: the action is read by its known suffix, a key of several segments
+    /// included.
+    #[test]
+    fn an_action_has_one_or_two_segments() {
+        assert_eq!(
+            split_action("prop.custom.x.approval.self"),
+            Some(("prop.custom.x", "approval.self"))
+        );
+        assert_eq!(
+            split_action("vlan.approval.self"),
+            Some(("vlan", "approval.self"))
+        );
+        assert_eq!(
+            split_action("prop.custom.approval.edit"),
+            Some(("prop.custom.approval", "edit"))
+        );
+        assert_eq!(split_action("core.site.read"), Some(("core.site", "read")));
+        assert_eq!(split_action("approval.self"), Some(("approval", "self")));
+        assert_eq!(action_of("core.site.approval.self"), "approval.self");
+        assert_eq!(
+            property_key("prop.custom.x.approval.self"),
+            Some(("custom.x", "approval.self"))
+        );
+        assert_eq!(property_key("core.site.edit"), None);
+    }
+
+    /// Task 024-11: a catalogue may name `<module>[.<resource>].approval.self`; a resource
+    /// named after the first segment of the action is refused.
+    #[test]
+    fn a_catalogue_names_the_two_segment_action() {
+        static SHORT: Permission = Permission {
+            name: "flow.approval.self",
+            summary: "",
+            global_only: false,
+        };
+        static LONG: Permission = Permission {
+            name: "flow.waiver.approval.self",
+            summary: "",
+            global_only: false,
+        };
+        static AMBIGUOUS: Permission = Permission {
+            name: "flow.approval.edit",
+            summary: "",
+            global_only: false,
+        };
+        static TOO_LONG: Permission = Permission {
+            name: "flow.a.b.approval.self",
+            summary: "",
+            global_only: false,
+        };
+        assert_eq!(catalogue_problems(&[&SHORT, &LONG]), Vec::<String>::new());
+        assert_eq!(catalogue_problems(&[&AMBIGUOUS]).len(), 1);
+        assert_eq!(catalogue_problems(&[&TOO_LONG]).len(), 1);
     }
 
     #[test]
@@ -743,7 +874,36 @@ mod tests {
         assert!(!grants("prop.*.edit", "prop.custom.secret.edit", true));
         assert!(!grants("prop.*.edit", "prop.custom.rack.read", false));
         assert!(!grants("prop.*.edit", "core.address.edit", false));
-        assert!(!grants("prop.*.apply", "prop.custom.rack.apply_own", false));
+        assert!(!grants(
+            "prop.*.apply",
+            "prop.custom.rack.approval.self",
+            false
+        ));
+        assert!(!grants(
+            "prop.*.approval.self",
+            "prop.custom.rack.apply",
+            false
+        ));
+        assert!(grants(
+            "prop.*.approval.self",
+            "prop.custom.rack.approval.self",
+            false
+        ));
+        assert!(!grants(
+            "prop.*.approval.self",
+            "prop.custom.secret.approval.self",
+            true
+        ));
+        assert!(!grants(
+            "prop.*.self",
+            "prop.custom.rack.approval.self",
+            false
+        ));
+        assert!(!grants(
+            "prop.*.approval.self",
+            "core.address.approval.self",
+            false
+        ));
         assert!(grants("*", "prop.custom.secret.read", true));
         assert!(grants("core.address.read", "core.address.read", false));
         assert!(!grants("core.address.read", "core.address.edit", false));

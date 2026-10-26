@@ -285,7 +285,7 @@ pub async fn create(
         operations: vec![operation(name, members)?],
         simulate: false,
         idempotency_key,
-        apply_own: context.apply_own,
+        approval_self: context.approval_self,
     };
     let pointers = [WHOLE.to_owned()];
     let answer = Answer {
@@ -380,7 +380,7 @@ pub async fn modify_nullable(
         ],
         simulate: false,
         idempotency_key: None,
-        apply_own: context.apply_own,
+        approval_self: context.approval_self,
     };
     let pointers = [WHOLE.to_owned(), WHOLE.to_owned()];
     let answer = Answer {
@@ -448,7 +448,7 @@ pub async fn act(
         ],
         simulate: false,
         idempotency_key: None,
-        apply_own: context.apply_own,
+        approval_self: context.approval_self,
     };
     let pointers = [WHOLE.to_owned(), WHOLE.to_owned()];
     let answer = Answer {
@@ -534,7 +534,7 @@ async fn submitted(
         operations: vec![operation(name, members)?],
         simulate: false,
         idempotency_key: idempotency_key(headers)?,
-        apply_own: context.apply_own,
+        approval_self: context.approval_self,
     };
     let pointers = [WHOLE.to_owned()];
     let answer = Answer {
@@ -596,7 +596,7 @@ pub async fn close(
         }],
         simulate: false,
         idempotency_key: None,
-        apply_own: context.apply_own,
+        approval_self: context.approval_self,
     };
     let pointers = [WHOLE.to_owned()];
     let answer = Answer {

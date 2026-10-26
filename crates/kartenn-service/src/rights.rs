@@ -4,7 +4,7 @@
 //! `prop.<key>.edit` on its object, independently of the right to modify the object;
 //! every existing object whose resolved value the changeset changes, directly or through
 //! the structure, needs the same permission. Whoever applies the changeset needs, on the
-//! same objects, the matching `apply` (someone else's changeset) or `apply_own` (one's
+//! same objects, the matching `apply` (someone else's changeset) or `approval.self` (one's
 //! own): [`kartenn_core::authz::verb_permission`]. Rights are asked in groups, one call
 //! per permission.
 
@@ -273,7 +273,7 @@ fn written(planned: &[Planned], phase: Phase) -> BTreeMap<String, BTreeSet<Uuid>
 
 /// Checks the right of `check` on the objects of the changeset in `phase` (REQ-005-22;
 /// spec 024, REQ-024-10, 11): `core.<kind>.edit` on each for its author, its `apply` or
-/// `apply_own` for whoever applies it, seen from the transaction. Every edit permission
+/// `approval.self` for whoever applies it, seen from the transaction. Every edit permission
 /// asked is added to `required` when given.
 #[allow(clippy::too_many_arguments)] // the context of a changeset, passed down unbundled
 pub(crate) async fn check_objects<T: WriteTx + Send, A: Authorizer>(

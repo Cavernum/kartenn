@@ -119,10 +119,10 @@ impl Env {
             &[
                 "vlan.group.read",
                 "vlan.group.edit",
-                "vlan.group.apply_own",
+                "vlan.group.approval.self",
                 "vlan.read",
                 "vlan.edit",
-                "vlan.apply_own",
+                "vlan.approval.self",
                 "core.prefix.read",
             ],
             None,
@@ -496,7 +496,7 @@ async fn writer_on_other_entity_gets_403(pool: PgPool) {
                 "vlan.group.read",
                 "vlan.read",
                 "vlan.edit",
-                "vlan.apply_own",
+                "vlan.approval.self",
             ],
             Some(("entity", acme)),
         )

@@ -165,7 +165,7 @@ async fn a_role_entry_may_omit_the_module_resource(pool: PgPool) {
         ("flow.waiver.grant", true),
         ("core.address.read", true),
         ("prop.custom.rack.edit", true),
-        ("prop.*.apply_own", true),
+        ("prop.*.approval.self", true),
         ("*", true),
         ("flow", false),
         ("flow.", false),

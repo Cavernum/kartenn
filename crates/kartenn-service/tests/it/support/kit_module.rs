@@ -79,8 +79,8 @@ static GROUP_APPLY: Permission = Permission {
     summary: "Appliquer le changeset d'un autre sur un groupe du kit.",
     global_only: false,
 };
-static GROUP_APPLY_OWN: Permission = Permission {
-    name: "kit.group.apply_own",
+static GROUP_APPROVAL_SELF: Permission = Permission {
+    name: "kit.group.approval.self",
     summary: "Appliquer son changeset sur un groupe du kit.",
     global_only: false,
 };
@@ -98,7 +98,7 @@ static PERMISSIONS: &[&Permission] = &[
     &GROUP_READ,
     &GROUP_EDIT,
     &GROUP_APPLY,
-    &GROUP_APPLY_OWN,
+    &GROUP_APPROVAL_SELF,
     &ITEM_READ,
     &ITEM_REQUEST,
 ];

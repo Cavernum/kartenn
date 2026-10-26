@@ -3,42 +3,43 @@
 # Catalogue des permissions
 
 Permissions du noyau (spec 005, REQ-005-16). S'y ajoutent, par propriété déclarée,
-`prop.<clé>.edit`, `prop.<clé>.apply` et `prop.<clé>.apply_own`, et `prop.<clé>.read`
+`prop.<clé>.edit`, `prop.<clé>.apply` et `prop.<clé>.approval.self`, et `prop.<clé>.read`
 pour une propriété sensible. Un rôle peut contenir `prop.*.<action>` (toute propriété
 non sensible) et `*` (tout). « Global » : ne s'accorde que sur le périmètre global.
 
 Toute modification passe par un changeset (spec 024, M7) : `edit` le crée et le
 soumet, en attente ; `apply` applique ou rejette le changeset d'un autre ;
-`apply_own` applique le sien, sauf quand une politique d'approbation le retient.
-Une permission d'une autre action (`core.role.admin`, `flow.request`) vaut
-édition et application.
+`approval.self` applique le sien, sauf quand une politique d'approbation le
+retient. Une action compte un segment, ou deux pour `approval.self`. Une
+permission d'une autre action (`core.role.admin`, `flow.request`) vaut édition
+et application.
 
 | Permission | Global | Description |
 |---|---|---|
 | `core.entity.read` | — | Lire les entités. |
 | `core.entity.edit` | — | Créer, modifier ou clore une entité dans un changeset et le soumettre. |
 | `core.entity.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche une entité. |
-| `core.entity.apply_own` | — | Appliquer son propre changeset qui touche une entité. |
+| `core.entity.approval.self` | — | Appliquer son propre changeset qui touche une entité. |
 | `core.site.read` | — | Lire les sites. |
 | `core.site.edit` | — | Créer, modifier ou clore un site dans un changeset et le soumettre. |
 | `core.site.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche un site. |
-| `core.site.apply_own` | — | Appliquer son propre changeset qui touche un site. |
+| `core.site.approval.self` | — | Appliquer son propre changeset qui touche un site. |
 | `core.domain.read` | — | Lire les domaines d'adressage. |
 | `core.domain.edit` | — | Créer, modifier ou clore un domaine d'adressage dans un changeset et le soumettre. |
 | `core.domain.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche un domaine d'adressage. |
-| `core.domain.apply_own` | — | Appliquer son propre changeset qui touche un domaine d'adressage. |
+| `core.domain.approval.self` | — | Appliquer son propre changeset qui touche un domaine d'adressage. |
 | `core.prefix.read` | — | Lire les préfixes. |
 | `core.prefix.edit` | — | Créer, modifier ou clore un préfixe dans un changeset et le soumettre. |
 | `core.prefix.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche un préfixe. |
-| `core.prefix.apply_own` | — | Appliquer son propre changeset qui touche un préfixe. |
+| `core.prefix.approval.self` | — | Appliquer son propre changeset qui touche un préfixe. |
 | `core.range.read` | — | Lire les plages. |
 | `core.range.edit` | — | Créer, modifier ou clore une plage dans un changeset et le soumettre. |
 | `core.range.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche une plage. |
-| `core.range.apply_own` | — | Appliquer son propre changeset qui touche une plage. |
+| `core.range.approval.self` | — | Appliquer son propre changeset qui touche une plage. |
 | `core.address.read` | — | Lire les adresses. |
 | `core.address.edit` | — | Créer, modifier ou clore une adresse dans un changeset et le soumettre. |
 | `core.address.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche une adresse. |
-| `core.address.apply_own` | — | Appliquer son propre changeset qui touche une adresse. |
+| `core.address.approval.self` | — | Appliquer son propre changeset qui touche une adresse. |
 | `core.changeset.read` | oui | Lire les changesets, leurs opérations et leur différentiel. |
 | `core.anomaly.acknowledge` | — | Acquitter, avec un motif, une anomalie d'un objet du périmètre. |
 | `core.property.admin` | oui | Déclarer une propriété, changer sa sensibilité. |
@@ -56,23 +57,23 @@ Une permission d'une autre action (`core.role.admin`, `flow.request`) vaut
 | `vlan.group.read` | — | Lire les groupes de VLAN. |
 | `vlan.group.edit` | — | Créer, modifier ou clore un groupe de VLAN dans un changeset et le soumettre. |
 | `vlan.group.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche un groupe de VLAN. |
-| `vlan.group.apply_own` | — | Appliquer son propre changeset qui touche un groupe de VLAN. |
+| `vlan.group.approval.self` | — | Appliquer son propre changeset qui touche un groupe de VLAN. |
 | `vlan.read` | — | Lire les VLAN. |
 | `vlan.edit` | — | Créer, modifier ou clore un VLAN dans un changeset et le soumettre. |
 | `vlan.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche un VLAN. |
-| `vlan.apply_own` | — | Appliquer son propre changeset qui touche un VLAN. |
+| `vlan.approval.self` | — | Appliquer son propre changeset qui touche un VLAN. |
 | `machines.cluster.read` | — | Lire les clusters. |
 | `machines.cluster.edit` | — | Créer, modifier ou clore un cluster dans un changeset et le soumettre. |
 | `machines.cluster.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche un cluster. |
-| `machines.cluster.apply_own` | — | Appliquer son propre changeset qui touche un cluster. |
+| `machines.cluster.approval.self` | — | Appliquer son propre changeset qui touche un cluster. |
 | `machines.read` | — | Lire les machines. |
 | `machines.edit` | — | Créer, modifier ou clore une machine dans un changeset et le soumettre. |
 | `machines.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche une machine. |
-| `machines.apply_own` | — | Appliquer son propre changeset qui touche une machine. |
+| `machines.approval.self` | — | Appliquer son propre changeset qui touche une machine. |
 | `machines.interface.read` | — | Lire les interfaces. |
 | `machines.interface.edit` | — | Créer, modifier ou clore une interface dans un changeset et le soumettre. |
 | `machines.interface.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche une interface. |
-| `machines.interface.apply_own` | — | Appliquer son propre changeset qui touche une interface. |
+| `machines.interface.approval.self` | — | Appliquer son propre changeset qui touche une interface. |
 | `policy.catalogue.read` | — | Lire la politique : axes, valeurs, types de flux, services, règles, motifs, conditions et signaux. |
 | `policy.verdict.read` | — | Demander un verdict de conformité entre deux extrémités dont on détient la lecture. |
 | `policy.flow.request` | — | Demander un flux pour une entité : verdict de toute paire, explication réduite aux valeurs, règles, motifs et conditions. |
@@ -88,14 +89,14 @@ Une permission d'une autre action (`core.role.admin`, `flow.request`) vaut
 | `flow.waiver.grant` | — | Accorder une dérogation à un flux refusé. |
 | `flow.edit` | — | Écrire directement un flux (maintenance) dans un changeset et le soumettre, avec la lecture de ses deux extrémités. |
 | `flow.apply` | — | Appliquer ou rejeter le changeset d'un autre qui écrit directement un flux. |
-| `flow.apply_own` | — | Appliquer son propre changeset qui écrit directement un flux. |
+| `flow.approval.self` | — | Appliquer son propre changeset qui écrit directement un flux. |
 
 ## Rôles livrés
 
 | Rôle | Clé | Contenu |
 |---|---|---|
 | Lecteur | `reader` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `vlan.group.read`, `vlan.read`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read` |
-| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.entity.edit`, `core.site.edit`, `core.domain.edit`, `core.prefix.edit`, `core.range.edit`, `core.address.edit`, `prop.*.edit`, `core.entity.apply_own`, `core.site.apply_own`, `core.domain.apply_own`, `core.prefix.apply_own`, `core.range.apply_own`, `core.address.apply_own`, `prop.*.apply_own`, `vlan.group.read`, `vlan.read`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read` |
+| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.entity.edit`, `core.site.edit`, `core.domain.edit`, `core.prefix.edit`, `core.range.edit`, `core.address.edit`, `prop.*.edit`, `core.entity.approval.self`, `core.site.approval.self`, `core.domain.approval.self`, `core.prefix.approval.self`, `core.range.approval.self`, `core.address.approval.self`, `prop.*.approval.self`, `vlan.group.read`, `vlan.read`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read` |
 | Approbateur | `approver` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.entity.apply`, `core.site.apply`, `core.domain.apply`, `core.prefix.apply`, `core.range.apply`, `core.address.apply`, `prop.*.apply`, `vlan.group.read`, `vlan.read`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read`, `vlan.group.apply`, `vlan.apply`, `machines.cluster.apply`, `machines.apply`, `machines.interface.apply`, `flow.apply` |
 | Administrateur | `administrator` | `*` |
 
@@ -107,41 +108,54 @@ l'historique et le journal d'audit.
 
 | Ancien nom | Nouveaux noms |
 |---|---|
-| `core.entity.write` | `core.entity.edit`, `core.entity.apply_own` |
+| `core.entity.write` | `core.entity.edit`, `core.entity.approval.self` |
 | `core.entity.propose` | `core.entity.edit` |
-| `core.site.write` | `core.site.edit`, `core.site.apply_own` |
+| `core.entity.apply_own` | `core.entity.approval.self` |
+| `core.site.write` | `core.site.edit`, `core.site.approval.self` |
 | `core.site.propose` | `core.site.edit` |
-| `core.domain.write` | `core.domain.edit`, `core.domain.apply_own` |
+| `core.site.apply_own` | `core.site.approval.self` |
+| `core.domain.write` | `core.domain.edit`, `core.domain.approval.self` |
 | `core.domain.propose` | `core.domain.edit` |
-| `core.prefix.write` | `core.prefix.edit`, `core.prefix.apply_own` |
+| `core.domain.apply_own` | `core.domain.approval.self` |
+| `core.prefix.write` | `core.prefix.edit`, `core.prefix.approval.self` |
 | `core.prefix.propose` | `core.prefix.edit` |
-| `core.range.write` | `core.range.edit`, `core.range.apply_own` |
+| `core.prefix.apply_own` | `core.prefix.approval.self` |
+| `core.range.write` | `core.range.edit`, `core.range.approval.self` |
 | `core.range.propose` | `core.range.edit` |
-| `core.address.write` | `core.address.edit`, `core.address.apply_own` |
+| `core.range.apply_own` | `core.range.approval.self` |
+| `core.address.write` | `core.address.edit`, `core.address.approval.self` |
 | `core.address.propose` | `core.address.edit` |
-| `vlan.group.write` | `vlan.group.edit`, `vlan.group.apply_own` |
+| `core.address.apply_own` | `core.address.approval.self` |
+| `vlan.group.write` | `vlan.group.edit`, `vlan.group.approval.self` |
 | `vlan.group.propose` | `vlan.group.edit` |
-| `vlan.write` | `vlan.edit`, `vlan.apply_own` |
+| `vlan.group.apply_own` | `vlan.group.approval.self` |
+| `vlan.write` | `vlan.edit`, `vlan.approval.self` |
 | `vlan.propose` | `vlan.edit` |
-| `machines.cluster.write` | `machines.cluster.edit`, `machines.cluster.apply_own` |
+| `vlan.apply_own` | `vlan.approval.self` |
+| `machines.cluster.write` | `machines.cluster.edit`, `machines.cluster.approval.self` |
 | `machines.cluster.propose` | `machines.cluster.edit` |
-| `machines.write` | `machines.edit`, `machines.apply_own` |
+| `machines.cluster.apply_own` | `machines.cluster.approval.self` |
+| `machines.write` | `machines.edit`, `machines.approval.self` |
 | `machines.propose` | `machines.edit` |
-| `machines.interface.write` | `machines.interface.edit`, `machines.interface.apply_own` |
+| `machines.apply_own` | `machines.approval.self` |
+| `machines.interface.write` | `machines.interface.edit`, `machines.interface.approval.self` |
 | `machines.interface.propose` | `machines.interface.edit` |
-| `flow.write` | `flow.edit`, `flow.apply_own` |
+| `machines.interface.apply_own` | `machines.interface.approval.self` |
+| `flow.write` | `flow.edit`, `flow.approval.self` |
 | `flow.propose` | `flow.edit` |
-| `prop.*.write` | `prop.*.edit`, `prop.*.apply_own` |
+| `flow.apply_own` | `flow.approval.self` |
+| `prop.*.write` | `prop.*.edit`, `prop.*.approval.self` |
 | `prop.*.propose` | `prop.*.edit` |
+| `prop.*.apply_own` | `prop.*.approval.self` |
 | `vlan.vlan.read` | `vlan.read` |
-| `vlan.vlan.write` | `vlan.edit`, `vlan.apply_own` |
+| `vlan.vlan.write` | `vlan.edit`, `vlan.approval.self` |
 | `vlan.vlan.propose` | `vlan.edit` |
 | `machines.machine.read` | `machines.read` |
-| `machines.machine.write` | `machines.edit`, `machines.apply_own` |
+| `machines.machine.write` | `machines.edit`, `machines.approval.self` |
 | `machines.machine.propose` | `machines.edit` |
 | `flow.flow.read` | `flow.read` |
 | `flow.flow.request` | `flow.request` |
 | `flow.flow.review` | `flow.review` |
-| `flow.flow.write` | `flow.edit`, `flow.apply_own` |
+| `flow.flow.write` | `flow.edit`, `flow.approval.self` |
 | `flow.flow.waive` | `flow.waiver.grant` |
 | `core.changeset.approve` | `core.entity.apply`, `core.site.apply`, `core.domain.apply`, `core.prefix.apply`, `core.range.apply`, `core.address.apply`, `vlan.group.apply`, `vlan.apply`, `machines.cluster.apply`, `machines.apply`, `machines.interface.apply`, `flow.apply`, `prop.*.apply` |

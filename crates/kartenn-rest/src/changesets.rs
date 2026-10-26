@@ -81,12 +81,12 @@ struct Body {
     operations: Vec<OperationDto>,
 }
 
-/// Whether to simulate: `simulate=true|false`, at most once; `apply` is read by
-/// [`apply_own`]; anything else → 400.
+/// Whether to simulate: `simulate=true|false`, at most once; `approval` is read by
+/// [`approval_self`]; anything else → 400.
 pub(crate) fn simulate(query: Option<&str>) -> Result<bool, Problem> {
     let mut simulate = None;
     for (name, value) in form_urlencoded::parse(query.unwrap_or_default().as_bytes()) {
-        if name == APPLY {
+        if name == APPROVAL {
             continue;
         }
         if name != SIMULATE {
@@ -125,27 +125,27 @@ pub(crate) fn simulate_asked(query: Option<&str>) -> Result<bool, Problem> {
 }
 
 /// The parameter of a write that applies its changeset when its author may (spec 024,
-/// REQ-024-13).
-pub const APPLY: &str = "apply";
+/// REQ-024-13; task 024-11).
+pub const APPROVAL: &str = "approval";
 
-/// Whether a write asks to apply the changeset it submits (`apply=own`, spec 024,
-/// REQ-024-13): `apply` at most once, `own` its only value, anything else → 400; the other
-/// parameters are its route's. Read once for every request by the authentication, into
-/// its [`RequestContext`].
-pub(crate) fn apply_own(query: Option<&str>) -> Result<bool, Problem> {
-    let mut apply = false;
+/// Whether a write asks to apply the changeset it submits (`approval=self`, spec 024,
+/// REQ-024-13): `approval` at most once, `self` its only value, anything else → 400; the
+/// other parameters are its route's. Read once for every request by the authentication,
+/// into its [`RequestContext`].
+pub(crate) fn approval_self(query: Option<&str>) -> Result<bool, Problem> {
+    let mut asked = false;
     for (name, value) in form_urlencoded::parse(query.unwrap_or_default().as_bytes()) {
-        if name != APPLY {
+        if name != APPROVAL {
             continue;
         }
-        if value != "own" {
-            return Err(bad("apply must be own"));
+        if value != "self" {
+            return Err(bad("approval must be self"));
         }
-        if std::mem::replace(&mut apply, true) {
-            return Err(bad("apply is given more than once"));
+        if std::mem::replace(&mut asked, true) {
+            return Err(bad("approval is given more than once"));
         }
     }
-    Ok(apply)
+    Ok(asked)
 }
 
 /// Name of the header of an idempotent submission (draft-ietf-httpapi-idempotency-key).
@@ -647,8 +647,8 @@ pub(crate) struct ChangesetPending {
     /// The counted differential.
     #[schema(value_type = Vec<DiffCountDto>)]
     diff: Value,
-    /// Why its author did not apply it, when the write asked to (`apply=own`, spec 024,
-    /// REQ-024-13): `changeset.apply_own.missing` or `changeset.approval.self`.
+    /// Why its author did not apply it, when the write asked to (`approval=self`, spec 024,
+    /// REQ-024-13): `changeset.approval.self.missing` or `changeset.approval.self`.
     #[serde(skip_serializing_if = "Option::is_none")]
     reason: Option<PendingReason>,
     /// The secret the changeset generated, shown once.
@@ -660,8 +660,8 @@ pub(crate) struct ChangesetPending {
 /// Why a changeset its author asked to apply stays pending (spec 024, REQ-024-13).
 #[derive(Debug, Serialize, ToSchema)]
 pub(crate) struct PendingReason {
-    /// The code of the rule: `changeset.apply_own.missing` (its author lacks `apply_own`
-    /// on some object or effect) or `changeset.approval.self` (a policy holds it, or a
+    /// The code of the rule: `changeset.approval.self.missing` (its author lacks
+    /// `approval.self` on some object or effect) or `changeset.approval.self` (a policy holds it, or a
     /// module requires its review).
     code: String,
     /// What holds it; for a lack, each permission lacking.
@@ -966,7 +966,7 @@ pub(crate) async fn answered(
     Ok(response)
 }
 
-/// `POST /v1/changesets[?simulate=true][&apply=own]` with `{motive, valid_from, valid_to,
+/// `POST /v1/changesets[?simulate=true][&approval=self]` with `{motive, valid_from, valid_to,
 /// operations}`: pending (202), or applied by its author (201) when asked and allowed
 /// (spec 024, REQ-024-10, 13). The problems come in the order of HTTP (REQ-006-22): the authentication
 /// (layer 6) before the syntax, the syntax (400, 415) before the rules (422).
@@ -977,12 +977,12 @@ pub(crate) async fn answered(
     tag = "changesets",
     params(
         ("simulate" = Option<bool>, Query, description = "Validate and report without writing."),
-        ("apply" = Option<String>, Query, description = "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). Any write route takes it."),
+        ("approval" = Option<String>, Query, description = "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). Any write route takes it."),
         ("Idempotency-Key" = Option<String>, Header, description = "Makes the submission idempotent for 24 h."),
     ),
     request_body = Body,
     responses(
-        (status = 201, description = "Applied by its author (`apply=own`).", body = ChangesetApplied),
+        (status = 201, description = "Applied by its author (`approval=self`).", body = ChangesetApplied),
         (status = 202, description = "Submitted, pending its application.", body = ChangesetPending),
         (status = 200, description = "Simulated.", body = ChangesetSimulated),
     )
@@ -1005,7 +1005,7 @@ async fn submit(
         operations: body.operations.into_iter().map(Into::into).collect(),
         simulate,
         idempotency_key,
-        apply_own: context.apply_own,
+        approval_self: context.approval_self,
     };
     submit_answered(&api, &context, &request, &Answer::SUBMISSION).await
 }

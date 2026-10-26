@@ -128,7 +128,7 @@ async fn an_import_pauses_on_a_faulty_batch_and_resumes(pool: PgPool) {
         }],
         simulate: false,
         idempotency_key: None,
-        apply_own: true,
+        approval_self: true,
     };
     assert!(matches!(
         submit(&store, &Unrestricted, &request, MAX_OPERATIONS)
@@ -224,7 +224,7 @@ async fn an_import_needs_identifiers_and_known_references(pool: PgPool) {
         operations,
         simulate: false,
         idempotency_key: None,
-        apply_own: true,
+        approval_self: true,
     };
     let created = submit(
         &store,

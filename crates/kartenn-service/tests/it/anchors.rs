@@ -57,7 +57,7 @@ impl Fixture {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         };
         submit(&self.store, authorizer, &request, MAX_OPERATIONS)
             .await
@@ -405,7 +405,7 @@ async fn the_owner_is_resolved_and_guarded(pool: PgPool) {
         f.refused_as(
             &Grants::new()
                 .everywhere(f.author, "core.prefix.edit")
-                .everywhere(f.author, "core.prefix.apply_own"),
+                .everywhere(f.author, "core.prefix.approval.self"),
             vec![close(ObjectKind::Prefix, taken)]
         )
         .await

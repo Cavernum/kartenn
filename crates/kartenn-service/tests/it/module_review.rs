@@ -33,7 +33,7 @@ fn request(author: Uuid, operations: Vec<Operation>) -> ChangesetRequest {
         operations,
         simulate: false,
         idempotency_key: None,
-        apply_own: true,
+        approval_self: true,
     }
 }
 
@@ -41,7 +41,7 @@ fn request(author: Uuid, operations: Vec<Operation>) -> ChangesetRequest {
 fn editor(author: Uuid) -> Grants {
     Grants::new()
         .everywhere(author, "dummy.thing.edit")
-        .everywhere(author, "dummy.thing.apply_own")
+        .everywhere(author, "dummy.thing.approval.self")
 }
 
 /// The author's edit, still held when validated, and what `validator` holds: the
@@ -190,7 +190,7 @@ async fn validation_needs_the_review_permission(pool: PgPool) {
     let writer = applier(author, validator, false);
     let refused = validate(&store, &writer, id, validator, Vec::new()).await;
     assert_eq!(rule(&refused), rules::APPROVAL_FORBIDDEN.id);
-    // The author, even with apply_own and the review permission: refused.
+    // The author, even with approval.self and the review permission: refused.
     let author_reviews = editor(author).everywhere(author, "dummy.thing.review");
     let own = validate(&store, &author_reviews, id, author, Vec::new()).await;
     assert_eq!(rule(&own), rules::APPROVAL_SELF.id);

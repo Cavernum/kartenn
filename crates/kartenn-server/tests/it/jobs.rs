@@ -332,7 +332,7 @@ async fn an_import_runs_with_the_groups_of_its_author(pool: PgPool) {
             }],
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         },
         kartenn_service::pipeline::MAX_OPERATIONS,
     )

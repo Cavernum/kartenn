@@ -12,7 +12,7 @@ use sqlx::PgPool;
 use sqlx::types::Uuid;
 
 const EDIT: &str = "prop.custom.environment.edit";
-const OWN: &str = "prop.custom.environment.apply_own";
+const OWN: &str = "prop.custom.environment.approval.self";
 
 /// Edit and apply one's own changesets everywhere (spec 024): what `write` gave.
 fn writer(who: Uuid) -> Grants {
@@ -128,7 +128,7 @@ impl Fixture {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         };
         submit(&self.store, authorizer, &request, MAX_OPERATIONS)
             .await
@@ -143,7 +143,7 @@ impl Fixture {
             .iter()
             .fold(grants.clone(), |g, kind| {
                 g.everywhere(self.contractor, &format!("core.{kind}.edit"))
-                    .everywhere(self.contractor, &format!("core.{kind}.apply_own"))
+                    .everywhere(self.contractor, &format!("core.{kind}.approval.self"))
             })
     }
 

@@ -42,9 +42,9 @@ pub struct RequestContext {
     /// named in every event of the request and on its changeset; never a source of rights.
     pub on_behalf_of: Option<Uuid>,
     /// The request asks to apply the changeset it submits when its author may
-    /// (`?apply=own`, spec 024, REQ-024-13): a write sets
-    /// [`crate::ChangesetRequest::apply_own`] from it.
-    pub apply_own: bool,
+    /// (`?approval=self`, spec 024, REQ-024-13): a write sets
+    /// [`crate::ChangesetRequest::approval_self`] from it.
+    pub approval_self: bool,
     /// The draft the request submits (`POST /v1/drafts/{id}/submission`, spec 024,
     /// REQ-024-5): its changeset names it, and it is deleted with its creation.
     pub draft: Option<crate::port::DraftOrigin>,
@@ -83,7 +83,7 @@ impl RequestContext {
             correlation: Correlation::default(),
             groups: Vec::new(),
             on_behalf_of: None,
-            apply_own: false,
+            approval_self: false,
             draft: None,
             simulate: false,
         }
@@ -98,7 +98,7 @@ impl RequestContext {
             correlation: Correlation::default(),
             groups: Vec::new(),
             on_behalf_of: None,
-            apply_own: false,
+            approval_self: false,
             draft: None,
             simulate: false,
         }
@@ -264,7 +264,7 @@ const RIGHTS_RULES: [&str; 7] = [
     rules::POLICY_FORBIDDEN.id,
     rules::APPROVAL_FORBIDDEN.id,
     rules::APPROVAL_SELF.id,
-    rules::APPLY_OWN_MISSING.id,
+    rules::APPROVAL_SELF_MISSING.id,
     rules::CHANGESET_NOT_AUTHOR.id,
     rules::REVIEW_OPERATION.id,
 ];

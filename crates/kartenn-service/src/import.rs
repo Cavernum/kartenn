@@ -430,8 +430,8 @@ pub async fn run_import<S: Store, A: Authorizer>(
             operations,
             simulate: false,
             idempotency_key: None,
-            // Spec 024: applied by its author who holds `apply_own`, pending otherwise.
-            apply_own: true,
+            // Spec 024: applied by its author who holds `approval.self`, pending otherwise.
+            approval_self: true,
         };
         let report = match submit_in(
             store,

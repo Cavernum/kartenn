@@ -54,7 +54,7 @@ impl PropertyKey {
 
     /// Permission required to assign the property in a changeset (REQ-003-17; spec 024,
     /// Q-024-6): `prop.<key>.edit`; its applications are `prop.<key>.apply` and
-    /// `prop.<key>.apply_own` ([`crate::authz::verb_permission`]).
+    /// `prop.<key>.approval.self` ([`crate::authz::verb_permission`]).
     #[must_use]
     pub fn edit_permission(&self) -> String {
         format!("prop.{self}.edit")

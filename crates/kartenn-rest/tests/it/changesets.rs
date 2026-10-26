@@ -29,7 +29,7 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 /// A person who reads domains and prefixes everywhere and may `verbs` them: `edit` and
-/// `apply_own`, or only `edit` (spec 024).
+/// `approval.self`, or only `edit` (spec 024).
 async fn writer(pool: &PgPool, verbs: &[&str]) -> Uuid {
     let identity: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'p') RETURNING id",
@@ -44,7 +44,7 @@ async fn writer(pool: &PgPool, verbs: &[&str]) -> Uuid {
                  gen_random_uuid())",
     )
     .bind(role)
-    .bind(format!("writer_{}", verbs.join("_")))
+    .bind(format!("writer_{}", verbs.join("_").replace('.', "_")))
     .execute(pool)
     .await
     .unwrap();
@@ -79,7 +79,7 @@ async fn app(pool: &PgPool) -> Router {
 }
 
 /// Edit and apply one's own changesets: what `write` gave.
-const OWN: &[&str] = &["edit", "apply_own"];
+const OWN: &[&str] = &["edit", "approval.self"];
 /// Edit only: what `propose` gave.
 const EDIT: &[&str] = &["edit"];
 
@@ -240,11 +240,11 @@ async fn a_proposal_answers_202_with_its_link(pool: PgPool) {
     assert_eq!(domains(&pool).await, 0);
 }
 
-/// Spec 024, REQ-024-10, 13: without `apply=own`, pending even for who may apply it; with
-/// it, applied (201) when allowed, pending (202) with the reason otherwise, never lost; an
-/// `apply` other than `own` is refused.
+/// Spec 024, REQ-024-10, 13: without `approval=self`, pending even for who may apply it;
+/// with it, applied (201) when allowed, pending (202) with the reason otherwise, never lost;
+/// an `approval` other than `self` is refused.
 #[kartenn_testing::pg_test]
-async fn apply_own_applies_or_falls_back_to_pending(pool: PgPool) {
+async fn approval_self_applies_or_falls_back_to_pending(pool: PgPool) {
     let maintainer = app(&pool).await;
     let editor = app_of(&pool, EDIT).await;
     let post = |app: &Router, uri: &'static str, prefix: &'static str| {
@@ -262,19 +262,19 @@ async fn apply_own_applies_or_falls_back_to_pending(pool: PgPool) {
             (status, json_of(response).await)
         }
     };
-    let (status, body) = post(&maintainer, "/v1/changesets?apply=none", "10.0.0.0/24").await;
+    let (status, body) = post(&maintainer, "/v1/changesets?approval=none", "10.0.0.0/24").await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
     let (status, body) = post(&maintainer, "/v1/changesets", "10.0.0.0/24").await;
     assert_eq!(status, StatusCode::ACCEPTED, "{body}");
     assert_eq!(body["state"], "pending");
     assert!(body.get("reason").is_none(), "{body}");
-    let (status, body) = post(&editor, "/v1/changesets?apply=own", "10.2.0.0/24").await;
+    let (status, body) = post(&editor, "/v1/changesets?approval=self", "10.2.0.0/24").await;
     assert_eq!(status, StatusCode::ACCEPTED, "{body}");
     assert_eq!(body["state"], "pending");
-    assert_eq!(body["reason"]["code"], "changeset.apply_own.missing");
+    assert_eq!(body["reason"]["code"], "changeset.approval.self.missing");
     // The permissions lacking are named, as by the other refusals of rights.
     let message = body["reason"]["message"].as_str().unwrap();
-    assert!(message.contains("core.domain.apply_own"), "{message}");
+    assert!(message.contains("core.domain.approval.self"), "{message}");
     assert!(!body["reason"]["objects"].as_array().unwrap().is_empty());
     let id: Uuid = body["changeset"]["id"].as_str().unwrap().parse().unwrap();
     let (state, audited): (String, Vec<String>) = (
@@ -291,7 +291,7 @@ async fn apply_own_applies_or_falls_back_to_pending(pool: PgPool) {
     );
     assert_eq!(state, "pending", "the changeset is kept");
     assert_eq!(audited, ["changeset.state.pending"]);
-    let (status, body) = post(&maintainer, "/v1/changesets?apply=own", "10.1.0.0/24").await;
+    let (status, body) = post(&maintainer, "/v1/changesets?approval=self", "10.1.0.0/24").await;
     assert_eq!(status, StatusCode::CREATED, "{body}");
     assert_eq!(body["state"], "applied");
 }

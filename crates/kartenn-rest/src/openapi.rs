@@ -346,33 +346,33 @@ fn finish(document: &mut OpenApi) {
             if public {
                 operation.security = Some(Vec::new());
             }
-            apply_own(operation);
+            approval_self(operation);
         }
     }
     crate::simulation::declare(document);
 }
 
-/// A write that submits a changeset (it may answer 202) takes `apply=own` (spec 024,
+/// A write that submits a changeset (it may answer 202) takes `approval=self` (spec 024,
 /// REQ-024-13), read by the authentication for every route.
-fn apply_own(operation: &mut Operation) {
+fn approval_self(operation: &mut Operation) {
     if !operation.responses.responses.contains_key("202") {
         return;
     }
     let parameters = operation.parameters.get_or_insert_default();
     if parameters
         .iter()
-        .any(|p| matches!(p, RefOr::T(p) if p.name == crate::changesets::APPLY))
+        .any(|p| matches!(p, RefOr::T(p) if p.name == crate::changesets::APPROVAL))
     {
         return;
     }
     parameters.push(RefOr::T(
         ParameterBuilder::new()
-            .name(crate::changesets::APPLY)
+            .name(crate::changesets::APPROVAL)
             .parameter_in(ParameterIn::Query)
             .required(Required::False)
             .description(Some(
-                "`own`: apply the changeset in the same transaction when its author holds \
-                 `apply_own` on everything it touches and no policy holds it; pending \
+                "`self`: apply the changeset in the same transaction when its author holds \
+                 `approval.self` on everything it touches and no policy holds it; pending \
                  otherwise, with the reason (spec 024, REQ-024-13).",
             ))
             .schema(Some(String::schema()))

@@ -139,7 +139,7 @@ impl Env {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         };
         let outcome = submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
             .await
@@ -275,13 +275,13 @@ impl Env {
             &[
                 "machines.cluster.read",
                 "machines.cluster.edit",
-                "machines.cluster.apply_own",
+                "machines.cluster.approval.self",
                 "machines.read",
                 "machines.edit",
-                "machines.apply_own",
+                "machines.approval.self",
                 "machines.interface.read",
                 "machines.interface.edit",
-                "machines.interface.apply_own",
+                "machines.interface.approval.self",
                 "core.address.read",
                 "core.prefix.read",
                 "vlan.read",

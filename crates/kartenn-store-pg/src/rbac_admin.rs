@@ -92,11 +92,17 @@ pub(crate) async fn role_entries(
     Ok(Some(entries))
 }
 
-/// See [`kartenn_service::WriteTx::custom_roles_citing`].
+/// See [`kartenn_service::WriteTx::custom_roles_citing`]. A property permission of a
+/// retired action ([`kartenn_core::authz::RETIRED_ACTIONS`]) cites one too, whatever its
+/// key.
 pub(crate) async fn custom_roles_citing(
     conn: &mut PgConnection,
     permissions: &[&str],
 ) -> Result<Vec<kartenn_service::rbac::StoredRole>, StoreError> {
+    let retired = format!(
+        "^prop\\..+\\.({})$",
+        kartenn_core::authz::RETIRED_ACTIONS.join("|")
+    );
     let rows: Vec<(
         String,
         sqlx::types::Json<kartenn_service::operations::RawLabels>,
@@ -107,10 +113,11 @@ pub(crate) async fn custom_roles_citing(
          JOIN role_permission p ON p.role_id = r.id AND p.valid_period @> now()
          WHERE r.valid_period @> now() AND NOT r.builtin
          GROUP BY r.key, r.labels
-         HAVING bool_or(p.permission = ANY($1) OR p.permission ~ '^prop\\..+\\.(write|propose)$')
+         HAVING bool_or(p.permission = ANY($1) OR p.permission ~ $2)
          ORDER BY r.key",
     )
     .bind(permissions)
+    .bind(retired)
     .fetch_all(&mut *conn)
     .await
     .map_err(store_err)?;

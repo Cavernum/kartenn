@@ -95,7 +95,7 @@ impl Env {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         };
         submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
             .await
@@ -235,7 +235,7 @@ impl Env {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         };
         let authorizer = PgAuthorizer::new(self.pool.clone()).with_modules(self.registry.clone());
         submit(&self.store, &authorizer, &request, MAX_OPERATIONS)
@@ -364,7 +364,7 @@ impl Env {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         }
     }
 
@@ -1021,7 +1021,7 @@ async fn vlan_read_required(pool: PgPool) {
         "machines.read",
         "machines.interface.read",
         "machines.interface.edit",
-        "machines.interface.apply_own",
+        "machines.interface.approval.self",
     ];
     // A writer of the interfaces of `acme` who does not read the VLAN.
     let blind = env.granted(acme, &writer).await;
@@ -1045,7 +1045,7 @@ async fn vlan_read_required(pool: PgPool) {
                 "machines.read",
                 "machines.interface.read",
                 "machines.interface.edit",
-                "machines.interface.apply_own",
+                "machines.interface.approval.self",
                 "vlan.read",
             ],
         )
@@ -1198,7 +1198,7 @@ async fn attach_needs_address_read_only(pool: PgPool) {
                 "machines.read",
                 "machines.interface.read",
                 "machines.interface.edit",
-                "machines.interface.apply_own",
+                "machines.interface.approval.self",
                 "core.address.read",
             ],
         )

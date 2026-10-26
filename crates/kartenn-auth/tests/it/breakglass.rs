@@ -117,7 +117,7 @@ async fn bind_operators(pool: &PgPool, who: &Subject) -> Outcome {
         ],
         simulate: false,
         idempotency_key: None,
-        apply_own: true,
+        approval_self: true,
     };
     submit_in(
         &PgStore::new(pool.clone()),

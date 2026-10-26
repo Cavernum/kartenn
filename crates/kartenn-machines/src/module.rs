@@ -196,15 +196,15 @@ permissions! {
     CLUSTER_READ = "machines.cluster.read", "Lire les clusters.";
     CLUSTER_EDIT = "machines.cluster.edit", "Créer, modifier ou clore un cluster dans un changeset et le soumettre.";
     CLUSTER_APPLY = "machines.cluster.apply", "Appliquer ou rejeter le changeset d'un autre qui touche un cluster.";
-    CLUSTER_APPLY_OWN = "machines.cluster.apply_own", "Appliquer son propre changeset qui touche un cluster.";
+    CLUSTER_APPROVAL_SELF = "machines.cluster.approval.self", "Appliquer son propre changeset qui touche un cluster.";
     MACHINE_READ = "machines.read", "Lire les machines.";
     MACHINE_EDIT = "machines.edit", "Créer, modifier ou clore une machine dans un changeset et le soumettre.";
     MACHINE_APPLY = "machines.apply", "Appliquer ou rejeter le changeset d'un autre qui touche une machine.";
-    MACHINE_APPLY_OWN = "machines.apply_own", "Appliquer son propre changeset qui touche une machine.";
+    MACHINE_APPROVAL_SELF = "machines.approval.self", "Appliquer son propre changeset qui touche une machine.";
     INTERFACE_READ = "machines.interface.read", "Lire les interfaces.";
     INTERFACE_EDIT = "machines.interface.edit", "Créer, modifier ou clore une interface dans un changeset et le soumettre.";
     INTERFACE_APPLY = "machines.interface.apply", "Appliquer ou rejeter le changeset d'un autre qui touche une interface.";
-    INTERFACE_APPLY_OWN = "machines.interface.apply_own", "Appliquer son propre changeset qui touche une interface.";
+    INTERFACE_APPROVAL_SELF = "machines.interface.approval.self", "Appliquer son propre changeset qui touche une interface.";
 }
 
 /// An address of the core, as a reference names it.

@@ -16,7 +16,7 @@ pub(crate) static ENGLISH: English = English {
             "Apply or reject the changeset of someone else that touches a cluster.",
         ),
         (
-            "machines.cluster.apply_own",
+            "machines.cluster.approval.self",
             "Apply one's own changeset that touches a cluster.",
         ),
         ("machines.read", "Read the machines."),
@@ -29,7 +29,7 @@ pub(crate) static ENGLISH: English = English {
             "Apply or reject the changeset of someone else that touches a machine.",
         ),
         (
-            "machines.apply_own",
+            "machines.approval.self",
             "Apply one's own changeset that touches a machine.",
         ),
         ("machines.interface.read", "Read the interfaces."),
@@ -42,7 +42,7 @@ pub(crate) static ENGLISH: English = English {
             "Apply or reject the changeset of someone else that touches an interface.",
         ),
         (
-            "machines.interface.apply_own",
+            "machines.interface.approval.self",
             "Apply one's own changeset that touches an interface.",
         ),
     ],

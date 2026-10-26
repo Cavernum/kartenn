@@ -924,8 +924,8 @@ pub async fn layer(
         Err(refusal) => return refusal.into_response(),
     }
     // Spec 024, REQ-024-13: a write applies its changeset when asked and allowed.
-    match crate::changesets::apply_own(request.uri().query()) {
-        Ok(apply) => context.apply_own = apply && !method.is_safe(),
+    match crate::changesets::approval_self(request.uri().query()) {
+        Ok(asked) => context.approval_self = asked && !method.is_safe(),
         Err(problem) => return problem.into_response(),
     }
     // Spec 024, REQ-024-17: a write simulated writes nothing; a route that submits no

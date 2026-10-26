@@ -227,7 +227,7 @@ fn self_applicable(found: &PendingChangeset) -> Result<(), &'static str> {
 }
 
 /// Whether `subject` could apply `found` (spec 024, REQ-024-11, 12): someone else under
-/// `apply` of everything it requires, its author under `apply_own` when no policy holds
+/// `apply` of everything it requires, its author under `approval.self` when no policy holds
 /// it; the event stream tells them its state (spec 022, REQ-022-17).
 ///
 /// # Errors
@@ -245,7 +245,7 @@ pub async fn may_validate<A: Authorizer>(
 }
 
 /// The objects `validator` lacks the application of: `apply` of each permission the
-/// changeset requires for someone else, `apply_own` for its author (spec 024, M7). A
+/// changeset requires for someone else, `approval.self` for its author (spec 024, M7). A
 /// changeset that records no requirement (journaled before spec 024) is decided by none:
 /// its perimeter is refused, and it is validated by the pipeline alone.
 async fn may_decide<A: Authorizer>(
@@ -257,7 +257,7 @@ async fn may_decide<A: Authorizer>(
         return Ok(found.pending.perimeter.clone());
     }
     let verb = if found.request.author == validator.id {
-        Verb::ApplyOwn
+        Verb::ApprovalSelf
     } else {
         Verb::Apply
     };
@@ -346,7 +346,7 @@ pub async fn validate_pending_with<S: Store, A: Authorizer>(
     let authored = found.request.operations.len();
     found.request.operations.extend(operations);
     let validator_id = validator.id;
-    // Spec 024, REQ-024-11, 12: its author applies it under `apply_own` (checked by the
+    // Spec 024, REQ-024-11, 12: its author applies it under `approval.self` (checked by the
     // pipeline), unless a policy holds it or a module requires its review.
     if found.request.author == validator_id
         && let Err(why) = self_applicable(&found)

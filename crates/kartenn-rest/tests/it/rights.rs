@@ -187,7 +187,7 @@ async fn a_delegate_binds_without_escalation(pool: PgPool) {
         &[
             "core.entity.read",
             "core.entity.edit",
-            "core.entity.apply_own",
+            "core.entity.approval.self",
         ],
     )
     .await;
