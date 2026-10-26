@@ -9,8 +9,9 @@
 // is required and empty, in which case the error is said under it and the focus goes
 // back to it. The host runs the action chosen beside it (`SplitButton`, which shows the
 // shortcut).
-import { computed, ref, useId } from "vue";
+import { computed, nextTick, ref, useId } from "vue";
 import { t } from "../../i18n.ts";
+import Button from "../Button/Button.vue";
 import TextField from "../TextField/TextField.vue";
 
 const props = withDefaults(
@@ -22,6 +23,11 @@ const props = withDefaults(
     /** An error from the host, under the summary. */
     error?: string | undefined;
     disabled?: boolean;
+    /**
+     * An empty description stays behind a button « Ajouter une description » until asked
+     * for (a form in a short footer: the panel keeps its height for the draft).
+     */
+    collapsible?: boolean;
   }>(),
   { summaryLabel: undefined, descriptionLabel: undefined, error: undefined },
 );
@@ -36,6 +42,17 @@ const missing = ref(false);
 const shownError = computed(
   () => props.error ?? (missing.value && !summary.value.trim() ? t("summaryMissing") : undefined),
 );
+
+/** The description field shows: not collapsible, asked for, or holding text. */
+const opened = ref(false);
+const descriptionShown = computed(
+  () => !props.collapsible || opened.value || description.value !== "",
+);
+async function openDescription(): Promise<void> {
+  opened.value = true;
+  await nextTick();
+  form.value?.querySelector<HTMLTextAreaElement>("textarea")?.focus();
+}
 
 function focusSummary(): void {
   form.value?.querySelector<HTMLInputElement>("input")?.focus();
@@ -74,7 +91,17 @@ defineExpose({ submit, focus: focusSummary });
       :disabled="props.disabled"
       autocomplete="off"
     />
-    <div class="k-commit-form__field">
+    <span v-if="!descriptionShown">
+      <Button
+        variant="ghost"
+        size="sm"
+        icon="plus"
+        :disabled="props.disabled"
+        @click="openDescription"
+        >{{ t("descriptionAdd") }}</Button
+      >
+    </span>
+    <div v-else class="k-commit-form__field">
       <label :for="`${id}-description`" class="k-commit-form__label">{{
         props.descriptionLabel ?? t("descriptionOptional")
       }}</label>

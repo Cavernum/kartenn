@@ -80,7 +80,7 @@ const action = ref(props.simulation === "violations" ? "save" : props.held ? "re
       <span>0 violation · effet au présent</span>
     </template>
   </p>
-  <CommitForm v-model:summary="summary" v-model:description="description" required />
+  <CommitForm v-model:summary="summary" v-model:description="description" required collapsible />
   <Cluster justify="end">
     <SplitButton
       v-model:action="action"

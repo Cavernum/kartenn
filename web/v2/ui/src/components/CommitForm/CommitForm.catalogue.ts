@@ -13,6 +13,7 @@ const demo = defineComponent({
     summary: { type: String, default: "" },
     description: { type: String, default: "" },
     required: Boolean,
+    collapsible: Boolean,
     error: { type: String, default: undefined },
   },
   setup(props) {
@@ -27,6 +28,7 @@ const demo = defineComponent({
           description: description.value,
           "onUpdate:description": (v: string) => (description.value = v),
           required: props.required,
+          collapsible: props.collapsible,
           error: props.error,
           onSubmit: () => (sent.value = `Soumis : ${summary.value}`),
         }),
@@ -54,6 +56,13 @@ export default {
         summary: "Bascule des adresses de la salle B",
         description: "Les passerelles changent de plage ; les VIP suivent.",
       },
+      demo,
+    },
+    {
+      name: "collapsible",
+      description:
+        "Pied court (onglet Brouillon) : la description vide reste derrière « Ajouter une description »",
+      props: { required: true, collapsible: true, summary: "Maintenance du référentiel" },
       demo,
     },
     {

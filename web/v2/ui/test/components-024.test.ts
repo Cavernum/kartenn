@@ -175,6 +175,14 @@ describe("CommitForm and SplitButton (REQ-020-37)", () => {
     expect(html).toContain("<textarea");
   });
 
+  it("CommitForm collapsible: an empty description behind a button, a filled one shown", async () => {
+    const empty = await render(CommitForm, { collapsible: true });
+    expect(empty).not.toContain("<textarea");
+    expect(text(empty)).toContain("Ajouter une description");
+    const filled = await render(CommitForm, { collapsible: true, description: "Les VIP suivent." });
+    expect(filled).toContain("<textarea");
+  });
+
   it("CommitForm: the error of the host is said under the summary", async () => {
     const html = await render(CommitForm, { error: "Le résumé est obligatoire." });
     expect(html).toContain('aria-invalid="true"');
