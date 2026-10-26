@@ -615,6 +615,18 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
     - Validé : petite largeur (rail masqué, compteur du brouillon qui ouvre le
       panneau), compteur sans libellé visible, widgets d'E0, `DataGrid` (hors erreur de
       cellule), `DiffValue`, `CommitForm`.
+- [ ] 11b. Maquette E11 Flux (020, tableau des maquettes) : registre, proposition en
+  tableau dans un changeset, tester un flux, flux d'une machine dans son onglet
+  d'information (demande de l'utilisateur, cinquième relecture du 2026-10-26).
+  - où : `web/v2/shell/src/_ui/ecrans/` (nouvel `E11Flux.vue`, `registry.ts`,
+    `donnees.ts`) ; imiter `E10Plugin.vue` (matrice, brouillon de la matrice, effet
+    simulé) et `E3Adresses.vue` (édition en place, ligne ajoutée) ; contrat :
+    `QUERY /v1/verdicts` (010, REQ-010-11 à 15, 38), `/v1/flows` (011, REQ-011-1, 2,
+    14, 15, 20, 21) ; captures `web/v2/e2e/visual/ecrans.spec.ts`.
+  - Arbitrages de l'utilisateur : la navigation de machine en machine passe par
+    l'onglet d'information de la fiche (chaque flux y nomme l'autre extrémité, en
+    lien), pas par un tableau ni un graphe ; tester un flux a sa page, avec
+    « Déclarer ce flux ».
 - [ ] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
   020) — REQ-024-29
 
