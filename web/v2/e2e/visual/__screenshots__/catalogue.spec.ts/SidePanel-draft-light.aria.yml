@@ -46,6 +46,7 @@
             - listitem: /Brouillon \d+\.\d+\.\d+\.\d+\/\d+/
             - listitem: /Brouillon \d+\.\d+\.\d+\.\d+/
             - listitem: /Brouillon \d+\.\d+\.\d+\.\d+\/\d+/
+        - button "Largeur du panneau"
         - button "Fermer le panneau"
         - paragraph: Simulation valide
         - text: Résumé (obligatoire)

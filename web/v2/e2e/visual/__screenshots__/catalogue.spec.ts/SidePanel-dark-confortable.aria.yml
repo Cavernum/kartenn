@@ -45,6 +45,7 @@
           - paragraph: /\d+\.\d+\.\d+\.\d+\/\d+/
           - paragraph: Supervision · Production
           - paragraph: "/Occupation : \\d+ %/"
+        - button "Largeur du panneau"
         - button "Fermer le panneau"
       - code: detail
       - text: ""
@@ -92,6 +93,7 @@
             - listitem: /Brouillon \d+\.\d+\.\d+\.\d+\/\d+/
             - listitem: /Brouillon \d+\.\d+\.\d+\.\d+/
             - listitem: /Brouillon \d+\.\d+\.\d+\.\d+\/\d+/
+        - button "Largeur du panneau"
         - button "Fermer le panneau"
         - paragraph: Simulation valide
         - text: Résumé (obligatoire)
@@ -145,6 +147,7 @@
           - paragraph: /\d+\.\d+\.\d+\.\d+\/\d+/
           - paragraph: Supervision · Production
           - paragraph: "/Occupation : \\d+ %/"
+        - button "Largeur du panneau"
         - button "Fermer le panneau"
       - code: resized
       - text: ""
@@ -371,6 +374,7 @@
           - paragraph: /\d+\.\d+\.\d+\.\d+\/\d+/
           - paragraph: Supervision · Production
           - paragraph: "/Occupation : \\d+ %/"
+        - button "Largeur du panneau"
         - button "Fermer le panneau"
       - code: handle-focus
       - text: ""

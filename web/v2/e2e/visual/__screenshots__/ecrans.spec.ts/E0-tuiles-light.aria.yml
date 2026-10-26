@@ -182,6 +182,7 @@
   - term: Sur les objets que vous lisez
   - definition: /\d+/
   - text: 3 nouvelles depuis hier
+  - button "Voir les anomalies"
   - heading "VLAN" [level=2]
   - text: plugin VLAN
   - term: Réservés

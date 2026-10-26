@@ -185,6 +185,7 @@
     - definition: /\d+\.\d+\.\d+\.\d+\/\d+/
     - term: Domaine
     - definition: Centre de données nord
+  - button "Largeur du panneau"
   - button "Fermer le panneau"
   - button "Ajouter au brouillon"
   - button "Choisir l'action"

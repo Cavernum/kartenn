@@ -179,6 +179,7 @@
     - term: VLAN
     - definition: /\d+/
     - paragraph: Créée par le brouillon actif ; pas encore appliquée.
+  - button "Largeur du panneau"
   - button "Fermer le panneau"
   - button "Ouvrir la fiche"
   - button "Modifier"

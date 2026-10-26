@@ -97,6 +97,10 @@
           - gridcell "Refus par défaut"
           - gridcell "Autoriser"
           - gridcell "Autoriser"
+    - list "Légende de la matrice":
+      - listitem: dans le brouillon
+      - listitem: en revue
+      - listitem: cellule choisie
     - text: /Brouillon · 1 cellule de cette matrice sur 2 · 1 en revue 1 s'ouvre sous réserve · \d+ non conformes à cette matrice · 0 conforme de nouveau/
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
@@ -119,7 +123,7 @@
     - textbox "Libellé": Lecture des API de production depuis la recette
     - status:
       - paragraph: "/Effet simulé : \\d+ flux applicatifs deviennent non conformes à la matrice/"
-    - text: /\d+ lignes/
+    - text: /3 sur \d+ lignes/
     - 'button "Agrandir : Flux applicatifs non conformes à la matrice par Recette → Production"'
     - grid "Flux applicatifs non conformes à la matrice par Recette → Production":
       - rowgroup:
@@ -157,5 +161,6 @@
         - row "rece-web prod-registry":
           - gridcell "rece-web"
           - gridcell "prod-registry"
+  - button "Largeur du panneau"
   - button "Fermer le panneau"
   - button "Ajouter au brouillon"

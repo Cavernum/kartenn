@@ -148,4 +148,5 @@
           - button "Modifier le rôle admin · Globale" [disabled]
           - button "Retirer le rôle admin · Globale" [disabled]
       - button "Ajouter un rôle" [disabled]
+  - button "Largeur du panneau"
   - button "Fermer le panneau"

@@ -144,4 +144,5 @@
         - listitem: idp-interne / astreinte Astreinte
         - listitem: idp-interne / supervision-n1 Équipe supervision
         - listitem: idp-interne / tous-agents aucun groupe kartenn
+  - button "Largeur du panneau"
   - button "Fermer le panneau"

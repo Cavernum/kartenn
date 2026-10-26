@@ -177,4 +177,5 @@
           - text: "Site : site-ouest"
           - 'button "Retirer l''ajout du rôle editor · Site : site-ouest du brouillon"'
       - button "Ajouter un rôle"
+  - button "Largeur du panneau"
   - button "Fermer le panneau"

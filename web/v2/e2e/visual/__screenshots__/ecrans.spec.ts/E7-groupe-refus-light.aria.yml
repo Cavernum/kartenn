@@ -152,4 +152,5 @@
           - button "Modifier le rôle reader · Globale" [disabled]
           - button "Retirer le rôle reader · Globale" [disabled]
       - button "Ajouter un rôle" [disabled]
+  - button "Largeur du panneau"
   - button "Fermer le panneau"
