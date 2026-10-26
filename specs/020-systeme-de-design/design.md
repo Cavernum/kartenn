@@ -514,6 +514,21 @@ horizontalement hors des régions de grille, et que chaque classe montre le cadr
   le « + » de `TreeGrid` était déjà traité. Les noms des entrées de la barre latérale en
   rail n'ont pas encore d'infobulle (tâche 23) : le bouton « Barre latérale » la déplie ;
   l'infobulle à venir s'ouvrira au focus, comme les autres.
+- E10 à 390 px : la matrice défile en deux dimensions dans sa région, en-têtes de lignes
+  et de colonnes collés (vérifié). La piste des en-têtes de lignes de `MatrixGrid` passe
+  de `minmax(--k-size-col-md, max-content)` à `max-content` : collée, elle prenait 160 px
+  sur 340 ; elle prend son plus long libellé (≈ 110 px), les cellules gagnent la place.
+- E0 de 600 à 900 px (classe étroite) : les tuiles passent de deux à trois colonnes sans
+  débordement, mais les en-têtes de panneaux coupaient titre et détail d'une ellipse
+  (« lisibles par v… », « Changesets appliqué » rogné). En-tête de panneau des maquettes
+  (`EcranPanneau`) : le titre n'est plus coupé, il va à la ligne (son détail d'abord) ;
+  quand titre et actions ne tiennent plus côte à côte, les actions passent sur une ligne
+  à elles, à la fin (plus de bouton par-dessus le titre, comme sur E2 à 390 px ou dans la
+  piste de contenu d'E1 à 768 px). Une `Toolbar` en actions ne compte que pour son plancher
+  — action principale et « … », publié par la barre en `--k-toolbar-floor` (CSSOM,
+  `floorWidth`), sa largeur propre neutralisée par `contain: inline-size` : elle reste sur
+  la ligne du titre et se replie tant que ce plancher y tient, sans dépendre de l'état
+  replié du moment (pas d'hystérésis).
 
 ## Architecture CSS (REQ-020-12 à 14)
 

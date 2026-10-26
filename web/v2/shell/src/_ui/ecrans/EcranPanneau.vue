@@ -59,25 +59,32 @@ const id = useId();
     border-radius: var(--k-radius-md);
   }
 
+  /* The title, then the actions at the end. When the title (whole, on one line) and the
+   * actions no longer fit side by side, the actions go to a line of their own, at the
+   * end (design « Adaptation à la largeur »): neither covers the other. */
   .k-ecran-panel__header {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--k-space-2);
     align-items: center;
     justify-content: space-between;
     min-block-size: var(--k-size-status-bar);
+    padding-block: var(--k-space-1);
     padding-inline: var(--k-space-3) var(--k-space-2);
     border-block-end: var(--k-border-width) solid var(--k-border);
   }
 
+  /* A title too long even for a line of its own goes to the line, its detail first,
+   * never clipped (« Structure avant style », messages): a narrow tile keeps all its
+   * words. */
   .k-ecran-panel__title {
     display: flex;
-    gap: var(--k-space-2);
-    flex: none;
+    flex-wrap: wrap;
+    column-gap: var(--k-space-2);
+    flex: 0 1 auto;
     align-items: baseline;
-    max-inline-size: 60%;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    max-inline-size: 100%;
+    overflow-wrap: break-word;
     font-size: var(--k-text-md);
     line-height: var(--k-text-md-line);
     font-weight: var(--k-weight-semibold);
@@ -90,27 +97,34 @@ const id = useId();
 
   .k-ecran-panel__detail {
     min-inline-size: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
     color: var(--k-text-muted);
     font-weight: var(--k-weight-regular);
     font-variant-numeric: tabular-nums;
   }
 
-  /* The actions take the rest of the header, on one line: a toolbar in there folds into
-   * « … » instead of pushing the panel wider (024/M15). */
+  /* Buttons alone keep their width. A toolbar takes the rest of the header, on one line,
+   * and folds into « … » instead of pushing the panel wider (024/M15): its width does not
+   * count, its floor does (`--k-toolbar-floor`, its main action and « … »), so that it
+   * goes under the title only when even folded it no longer fits beside it. */
   .k-ecran-panel__actions {
     display: flex;
-    flex: 1 1 0;
+    flex: none;
     flex-wrap: nowrap;
     gap: var(--k-space-2);
     align-items: center;
     justify-content: end;
-    min-inline-size: 0;
+    max-inline-size: 100%;
+    margin-inline-start: auto;
+  }
+
+  .k-ecran-panel__actions:has(> .k-toolbar) {
+    flex: 1 1 0;
   }
 
   .k-ecran-panel__actions > .k-toolbar {
     flex: 1 1 0;
+    min-inline-size: var(--k-toolbar-floor);
+    contain: inline-size;
   }
 
   .k-ecran-panel__toolbar {

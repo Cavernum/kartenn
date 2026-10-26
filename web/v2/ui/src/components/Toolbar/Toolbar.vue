@@ -16,7 +16,7 @@ import { isRtl } from "../internal/gridKeys.ts";
 import type { ControlSize } from "../layout.ts";
 import Menu from "../Menu/Menu.vue";
 import type { MenuItem } from "../Menu/menu.ts";
-import { foldActions, type ToolbarAction } from "./toolbar.ts";
+import { floorWidth, foldActions, type ToolbarAction } from "./toolbar.ts";
 
 const props = withDefaults(
   defineProps<{
@@ -75,6 +75,9 @@ function fold(): void {
   const more = parseFloat(style.getPropertyValue("--k-toolbar-more")) || 0;
   const next = foldActions(props.actions, widths, el.clientWidth, gap, more);
   if (next.join() !== folded.value.join()) folded.value = next;
+  // The narrowest it folds to, for a host that lays it beside a title (CSSOM, REQ-020-14).
+  const floor = Math.ceil(floorWidth(props.actions, widths, gap, more));
+  el.style.setProperty("--k-toolbar-floor", `${floor}px`);
 }
 
 let observer: ResizeObserver | undefined;
