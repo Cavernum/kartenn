@@ -159,19 +159,35 @@ describe("SidePanel", () => {
   });
 });
 
-describe("scroll padding of a grid under the panel", () => {
-  const port = { left: 100, right: 900 };
+describe("a grid under the panel fits within what stays visible", () => {
+  const box = { left: 100, right: 900 };
 
-  it("is the part of the scrollport the panel covers at its end", () => {
-    expect(coveredInset(port, { left: 600, right: 1020 })).toBe(300);
+  it("gives up the part of its box the panel covers at its end", () => {
+    expect(coveredInset(box, { left: 600, right: 1020 })).toBe(300);
     // Right to left, the panel is at the left.
-    expect(coveredInset(port, { left: 0, right: 420 })).toBe(320);
+    expect(coveredInset(box, { left: 0, right: 420 })).toBe(320);
   });
 
-  it("is nothing for a grid that ends before the panel, at most the whole port", () => {
-    expect(coveredInset(port, { left: 950, right: 1370 })).toBe(0);
-    expect(coveredInset(port, { left: -400, right: 20 })).toBe(0);
-    expect(coveredInset(port, { left: 0, right: 1420 })).toBe(800);
+  it("gives up nothing when it ends before the panel, or when the panel covers it all", () => {
+    expect(coveredInset(box, { left: 950, right: 1370 })).toBe(0);
+    expect(coveredInset(box, { left: -400, right: 20 })).toBe(0);
+    // No visible part to fit in: it keeps its layout.
+    expect(coveredInset(box, { left: 0, right: 1420 })).toBe(0);
+  });
+
+  it("marks the root of every grid, its frame or the matrix itself", async () => {
+    const columns: GridColumn[] = [{ id: "prefix", label: "Préfixe" }];
+    const axis = [{ id: "a", label: "A" }];
+    const grids = [
+      await render(DataGrid, { label: "Préfixes", columns, rows: [], rowKey: "prefix" }),
+      await render(TreeGrid, { label: "Arbre", treeLabel: "Préfixe", nodes: [] }),
+      await render(MatrixGrid, { label: "Matrice", corner: "→", rows: axis, columns: axis }),
+    ];
+    expect(grids.map((html) => /^<div[^>]*data-k-panel-fit="(\w+)"/.exec(html)?.[1])).toEqual([
+      "padding",
+      "padding",
+      "margin",
+    ]);
   });
 });
 

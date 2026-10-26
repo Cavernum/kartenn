@@ -210,30 +210,98 @@ test.describe("Narrow frame (768 px)", () => {
   });
 });
 
+/**
+ * E3 with the panel opened over the end of the surface (020, « Adaptation à la largeur »,
+ * 2026-10-26; WCAG 2.4.11): the grid of addresses fits within what stays visible, its
+ * columns of lower priority folded, the rest of the page where it was; Tab and the arrows
+ * reach every cell of a row, each one wholly beside the panel. Closed, the grid unfolds.
+ */
+async function addressesBesidePanel(page: Page): Promise<void> {
+  // The view of a selection: a roving stop on a cell (in the editing view, the editor holds
+  // it). Its menu of bulk actions opens with the page; Escape closes it.
+  await page.goto("/_ui/ecrans/E3?vue=selection");
+  await expect(page.getByRole("menu")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toBeHidden();
+  const grid = page.getByRole("grid", { name: "Adresses, filtrées" });
+  const actions = page.getByRole("toolbar", { name: "Actions sur les adresses" });
+  // A column of priority 2: shown on the whole surface, folded beside the panel.
+  const usage = grid.getByRole("columnheader", { name: /^Usage/ });
+  await expect(usage).toBeVisible();
+  const before = await actions.boundingBox();
+  await page.getByRole("button", { name: /^Brouillon\s*\d+\s*opération/ }).click();
+  const panel = page.getByRole("complementary", { name: "Panneau droit" });
+  await expect(panel).toBeVisible();
+  const edge = (await panel.boundingBox())!.x;
+  await expect(usage).toBeHidden();
+  const box = (await grid.boundingBox())!;
+  expect(box.x + box.width).toBeLessThan(edge);
+  expect(await actions.boundingBox()).toEqual(before);
+
+  // From the skip link, Tab to the grid (its one stop), then along its header and its
+  // first row: every cell wholly beside the panel, the last one included.
+  await page.getByRole("link", { name: "Aller au contenu" }).focus();
+  await page.keyboard.press("Enter");
+  for (let i = 0; i < 40; i += 1) {
+    if (await page.evaluate(() => !!document.activeElement?.closest('[role="grid"]'))) break;
+    await page.keyboard.press("Tab");
+  }
+  expect(await focusedCell(page)).toBe("192.0.2.72|value");
+  const seen = new Set<string>();
+  for (const down of [0, 1]) {
+    await page.keyboard.press("Control+Home");
+    if (down) await page.keyboard.press("ArrowDown");
+    for (;;) {
+      const cell = (await page.locator(":focus").boundingBox())!;
+      expect(cell.x + cell.width).toBeLessThanOrEqual(edge + 1);
+      const key = await focusedCell(page);
+      seen.add(key);
+      await page.keyboard.press("ArrowRight");
+      if ((await focusedCell(page)) === key) break;
+    }
+  }
+  // The header row has no key; « Usage » and « Environnement » folded, the arrows skip them.
+  expect([...seen]).toEqual(["|value", "|owner", "192.0.2.10|value", "192.0.2.10|owner"]);
+
+  await panel.getByRole("button", { name: "Fermer le panneau" }).click();
+  await expect(usage).toBeVisible();
+  expect(await actions.boundingBox()).toEqual(before);
+}
+
 test.describe("Standard frame (1024 px)", () => {
   test.use({ viewport: { width: 1024, height: 900 } });
 
-  test("a focused cell of a grid scrolls out from under the panel", async ({ page }) => {
+  test("a grid under the panel fits beside it, every cell reached there", async ({ page }) => {
+    await addressesBesidePanel(page);
+  });
+
+  test("a matrix under the panel fits beside it and scrolls in line", async ({ page }) => {
     await page.goto("/_ui/ecrans/E10?vue=matrice");
     const panel = page.getByRole("complementary", { name: "Panneau droit" });
     await expect(panel).toBeVisible();
     const grid = page.getByRole("grid", { name: /^Matrice Applicatif/ });
+    const edge = (await panel.boundingBox())!.x;
+    const box = (await grid.boundingBox())!;
+    expect(box.x + box.width).toBeLessThan(edge);
     await grid.locator("[tabindex='0']").focus();
     await page.keyboard.press("Control+Home");
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("End");
     const cell = (await page.locator(":focus").boundingBox())!;
-    const edge = (await panel.boundingBox())!.x;
     expect(cell.x + cell.width).toBeLessThanOrEqual(edge + 1);
-    expect(cell.x).toBeGreaterThanOrEqual((await grid.boundingBox())!.x);
-    // Closed, the panel takes its room back from the grid.
-    await expect(grid).not.toHaveCSS("padding-inline-end", "0px");
+    expect(cell.x).toBeGreaterThanOrEqual(box.x);
+    // Closed, the panel gives its room back to the matrix.
+    await expect(grid).not.toHaveCSS("margin-inline-end", "0px");
     await panel.getByRole("button", { name: "Fermer le panneau" }).click();
-    await expect(grid).toHaveCSS("padding-inline-end", "0px");
+    await expect(grid).toHaveCSS("margin-inline-end", "0px");
   });
 });
 
 test.describe("Wide frame (1280 px)", () => {
+  test("a grid under the panel fits beside it, every cell reached there", async ({ page }) => {
+    await addressesBesidePanel(page);
+  });
+
   test("the panel over the end of the surface sets its scroll padding", async ({ page }) => {
     await page.goto("/_ui/ecrans/E3?vue=edition");
     const surface = page.locator(".k-ecran__surface");

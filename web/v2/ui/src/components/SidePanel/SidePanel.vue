@@ -32,9 +32,9 @@
 // Over the end of the surface (neither), it publishes its width on its container as
 // `--k-side-panel-inset`, which the host gives as `scroll-padding-inline-end` to what scrolls
 // under it: a control that takes the focus scrolls out from under the panel. It also marks
-// the container `data-k-side-panel`: a grid that scrolls in it measures the part of it the
-// panel covers into its own scroll padding (`internal/panelInset.ts`), cleared when the
-// panel closes or changes width.
+// the container `data-k-side-panel`, and every grid in it fits within the part the panel
+// leaves visible while it is open (`internal/panelInset.ts`): its columns of lower priority
+// fold, the rest scrolls in line; nothing else moves.
 import {
   Comment,
   Fragment,
@@ -54,7 +54,7 @@ import { t } from "../../i18n.ts";
 import IconButton from "../IconButton/IconButton.vue";
 import { isRtl } from "../internal/gridKeys.ts";
 import { inertOthers } from "../internal/inertOthers.ts";
-import { clearPanelInsets } from "../internal/panelInset.ts";
+import { attachPanel } from "../internal/panelInset.ts";
 import Menu from "../Menu/Menu.vue";
 import type { MenuItem } from "../Menu/menu.ts";
 import Tabs from "../Tabs/Tabs.vue";
@@ -159,12 +159,14 @@ watch(open, async (now) => {
 const portal = injectPortalTarget();
 let restore: (() => void) | null = null;
 let host: HTMLElement | null = null;
+let detach: (() => void) | null = null;
 function release(): void {
   restore?.();
   restore = null;
   host?.style.removeProperty("--k-side-panel-inset");
   host?.removeAttribute("data-k-side-panel");
-  if (host) clearPanelInsets(host);
+  detach?.();
+  detach = null;
   host = null;
 }
 watch(
@@ -177,6 +179,7 @@ watch(
       host = el.parentElement;
       host?.style.setProperty("--k-side-panel-inset", `${w}px`);
       host?.setAttribute("data-k-side-panel", "");
+      if (host) detach = attachPanel(host);
       return;
     }
     const focused = document.activeElement;

@@ -59,51 +59,33 @@
       - button "Créer"
       - button "Importer"
       - button "Copier les valeurs"
+    - button "Colonnes"
     - grid "Adresses":
       - rowgroup:
-        - row "Valeur Usage Propriétaire Site (filtrée)":
+        - row "Valeur Propriétaire":
           - columnheader "Valeur"
-          - columnheader "Usage":
-            - text: ""
-            - 'button "Filtrer : Usage"'
           - columnheader "Propriétaire":
             - text: ""
             - 'button "Filtrer : Propriétaire"'
-          - columnheader "Site (filtrée)":
-            - text: ""
-            - 'button "Filtrer : Site"'
-            - text: ""
       - rowgroup:
-        - row /\d+\.\d+\.\d+\.\d+ Hôte Atelier Nord site-ouest/:
+        - row /\d+\.\d+\.\d+\.\d+ Atelier Nord/:
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "Hôte"
           - gridcell "Atelier Nord"
-          - gridcell "site-ouest"
-        - row /\(en brouillon\) \d+\.\d+\.\d+\.\d+ VIP Atelier Nord site-ouest/:
+        - row /\(en brouillon\) \d+\.\d+\.\d+\.\d+ Atelier Nord/:
           - gridcell /\(en brouillon\) \d+\.\d+\.\d+\.\d+/
-          - gridcell "VIP"
           - gridcell "Atelier Nord"
-          - gridcell "site-ouest"
-        - row /\(en brouillon\) \d+\.\d+\.\d+\.\d+ Hôte Atelier Sud site-ouest/:
+        - row /\(en brouillon\) \d+\.\d+\.\d+\.\d+ Atelier Sud/:
           - gridcell /\(en brouillon\) \d+\.\d+\.\d+\.\d+/
-          - gridcell "Hôte"
           - gridcell "Atelier Sud"
-          - gridcell "site-ouest"
-        - row /\d+\.\d+\.\d+\.\d+ Hôte Service Pilote site-ouest/:
+        - row /\d+\.\d+\.\d+\.\d+ Service Pilote/:
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "Hôte"
           - gridcell "Service Pilote"
-          - gridcell "site-ouest"
-        - row /\(en brouillon\) \d+\.\d+\.\d+\.\d+ Hôte Service Pilote site-ouest/:
+        - row /\(en brouillon\) \d+\.\d+\.\d+\.\d+ Service Pilote/:
           - gridcell /\(en brouillon\) \d+\.\d+\.\d+\.\d+/
-          - gridcell "Hôte"
           - gridcell "Service Pilote"
-          - gridcell "site-ouest"
-        - row /\d+\.\d+\.\d+\.\d+ Réservée Service Pilote site-ouest/:
+        - row /\d+\.\d+\.\d+\.\d+ Service Pilote/:
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "Réservée"
           - gridcell "Service Pilote"
-          - gridcell "site-ouest"
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
   - tablist "Onglets du panneau":

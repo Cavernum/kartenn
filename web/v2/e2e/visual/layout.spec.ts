@@ -18,8 +18,14 @@ function edges(page: Page): Promise<number[][][]> {
   return page.locator("[role='grid']").evaluateAll((grids) =>
     grids
       .filter((grid) => {
-        const frame = grid.closest("[data-stack]");
-        return !frame || frame.clientWidth >= 480;
+        // Its container is its content box: under the side panel, the part it covers is
+        // padding (internal/panelInset.ts).
+        const frame = grid.closest<HTMLElement>("[data-stack]");
+        if (!frame) return true;
+        const style = getComputedStyle(frame);
+        const inner =
+          frame.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        return inner >= 480;
       })
       .map((grid) =>
         [...grid.querySelectorAll("[role='row']")].map((row) =>
@@ -166,15 +172,11 @@ for (const frame of FRAMES) {
         expect(Math.round(box!.x)).toBeLessThan(Math.round(surface!.x + surface!.width));
         expect(Math.round(box!.x + box!.width)).toBe(Math.round(body!.x + body!.width));
         expect(Math.round(box!.width)).toBeLessThan(Math.round(surface!.width));
-        if (frame.name === "wide") {
-          // The grid reads the surface, not what the panel leaves: nothing is hidden.
-          await expect(page.getByRole("button", { name: "Colonnes" })).toHaveCount(0);
-          const hidden = await page
-            .locator(".k-ecran__surface [data-priority]")
-            .evaluateAll(
-              (els) => els.filter((el) => getComputedStyle(el).display === "none").length,
-            );
-          expect(hidden).toBe(0);
+        // A grid it covers fits within what it leaves (020, 2026-10-26): it ends before the
+        // panel, its columns of lower priority folded, all of them reached by « Colonnes ».
+        for (const grid of await page.locator(".k-ecran__surface [role='grid']").all()) {
+          const g = (await grid.boundingBox())!;
+          expect(Math.round(g.x + g.width)).toBeLessThanOrEqual(Math.round(box!.x));
         }
       } else if (frame.panel === "cover") {
         expect(Math.round(box!.x)).toBe(Math.round(surface!.x));

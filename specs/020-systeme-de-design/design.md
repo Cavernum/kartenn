@@ -349,7 +349,11 @@ Le panneau passe **par-dessus la surface à toute largeur** (décision de l'util
 ses colonnes, le panneau en couvre la fin (classes large et standard), toute la surface
 (étroite) ou toute la fenêtre (compacte). Un panneau à côté, dans sa propre piste, a été
 essayé puis retiré : il retirait de la largeur à la surface, et les grilles masquaient
-des colonnes dès qu'il s'ouvrait.
+des colonnes dès qu'il s'ouvrait. Seule exception (décision de l'utilisateur du
+2026-10-26) : une grille que le panneau couvre tient, tant qu'il est ouvert, dans la part
+de la surface qu'il laisse visible — ses colonnes de moindre priorité se replient, le reste
+défile en ligne ; le reste de la page ne bouge pas (§ « Réalisé (2026-10-26,
+relectures) », « Suite 2 »).
 
 Les seuils ne sont pas des jetons CSS (une media query ne lit pas de propriété, et
 `@custom-media` n'existe pas encore) : une seule liste dans `components/layout.ts`
@@ -613,10 +617,39 @@ et `ui-reviewer` des maquettes E0 à E10.
   observateur de taille (rien ne bouge tant qu'aucune cellule n'a le focus) ; marge appliquée
   seulement à une grille qui défile déjà en ligne (ses pistes sont à leur minimum : rien ne
   se réagence).
-- Reste (suite) : une grille qui ne défile pas mais passe sous le panneau (E3 à 1280 px :
-  ses dernières colonnes) garde des cellules masquées au focus ; y remédier demande de
-  réagencer la grille dans la part visible à l'ouverture du panneau (captures des écrans
-  panneau ouvert changées) — arbitrage à demander.
+- Suite 2 (même jour, arbitrage de l'utilisateur sur le « reste » de la suite : une grille
+  qui ne défilait pas mais passait sous le panneau, E3 à 1280 px, 375 px de la grille
+  « Adresses » couverts, gardait des cellules masquées au focus). Panneau ouvert par-dessus
+  la fin de la surface (large, standard), toute grille qu'il couvre tient dans la part
+  visible : `SidePanel` attache son conteneur (`attachPanel` de `internal/panelInset.ts`),
+  la racine de chaque grille porte `data-k-panel-fit`, et la part couverte, plus un écart
+  `--k-space-3`, devient son `--k-grid-panel-inset` — marge intérieure de fin du cadre de
+  `DataGrid` et `TreeGrid` (leur conteneur : `@container` ne voit plus que la part
+  visible, les colonnes à `priority` se replient, « Colonnes » les rend, le reste défile
+  en ligne ; une liste `stack` peut s'empiler), marge extérieure de fin de `MatrixGrid`
+  (jamais de colonne repliée : elle rétrécit et défile en ligne). Mesuré à l'ouverture,
+  au changement de largeur du panneau, quand le conteneur ou une grille change de taille
+  (`ResizeObserver`, au cadre suivant) et quand une grille se monte sous le panneau
+  ouvert ; effacé à la fermeture. La boîte du panneau se lit par `offsetLeft` (sa
+  translation d'entrée ne fausse pas la mesure). Rien n'est animé : la grille prend sa
+  place d'un coup pendant que le panneau glisse (« Mouvement » : pas d'animation de mise
+  en page ; `docs/reference/mouvement-interface.md`). Remplace la marge de défilement au
+  focus de la suite : la grille ne passe plus sous le panneau. Captures des écrans
+  panneau ouvert (E1, E5, E7, E10, `SidePanel`) et instantanés ARIA réécrits et relus.
+  Tests : Vitest (part couverte, racines marquées), clavier (E3 à 1280 et 1024 px :
+  Tab jusqu'à la grille, flèches sur l'en-tête et une ligne, chaque cellule entière à
+  côté du panneau, « Usage » replié puis rendu à la fermeture, barre d'actions immobile ;
+  E10 `matrice` à 1024 px), `layout.spec` (à 1440 et 1100 px, les grilles finissent avant
+  le panneau ; l'alignement lit la boîte de contenu du cadre).
+- Choix tranchés (suite 2) : marge intérieure du cadre plutôt que largeur imposée (le
+  cadre garde sa boîte : la mesure ne boucle pas, `@container` lit la boîte de contenu) ;
+  marge extérieure pour `MatrixGrid`, sans cadre (pas d'enveloppe ajoutée à son API),
+  rendue à la mesure ; écart `--k-space-3` entre la grille et le panneau ; grille couverte
+  en entier laissée telle quelle (aucune part visible où tenir) ; mesure au cadre suivant
+  hors du rappel du `ResizeObserver` (une marge changée dans le rappel resterait non
+  livrée) ; seule la grille cède sa place, son panneau d'écran (`Panneau`, titre, filtres,
+  pied) reste sous le panneau latéral comme avant ; test clavier sur la vue `selection`
+  d'E3 (dans `edition`, l'éditeur tient l'arrêt de la grille).
 
 ## Architecture CSS (REQ-020-12 à 14)
 
