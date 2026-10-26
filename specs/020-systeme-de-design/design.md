@@ -529,6 +529,10 @@ horizontalement hors des régions de grille, et que chaque classe montre le cadr
   `floorWidth`), sa largeur propre neutralisée par `contain: inline-size` : elle reste sur
   la ligne du titre et se replie tant que ce plancher y tient, sans dépendre de l'état
   replié du moment (pas d'hystérésis).
+- Reste : champs côte à côte des formulaires (aucun dans les maquettes) ; infobulles du
+  rail (tâche 23) ; en classe compacte, la languette du panneau fermé garde sa piste
+  (≈ 30 px sur 390) ; à 390 px, l'arbre d'E1 (`replie`) coupe ses libellés devant les
+  préfixes (« Serv… ») — à reprendre avec la version complète de `TreeGrid`.
 
 ## Architecture CSS (REQ-020-12 à 14)
 
