@@ -51,68 +51,37 @@
     - text: "6"
     - toolbar "Actions des rôles":
       - button "Créer"
+    - button "Colonnes"
     - grid "Rôles":
       - rowgroup:
-        - row "Rôle Intégré Permissions Groupes Description":
+        - row "Rôle":
           - columnheader "Rôle":
             - text: ""
             - 'button "Filtrer : Rôle"'
-          - columnheader "Intégré":
-            - text: ""
-            - 'button "Filtrer : Intégré"'
-          - columnheader "Permissions"
-          - columnheader "Groupes"
-          - columnheader "Description":
-            - text: ""
-            - 'button "Filtrer : Description"'
       - rowgroup:
-        - row /Lecteur reader oui \d+ 6 Lecture de tout le référentiel/:
+        - row "Lecteur reader":
           - gridcell "Lecteur reader":
             - text: ""
             - code: reader
-          - gridcell "oui"
-          - gridcell /\d+/
-          - gridcell "6"
-          - gridcell "Lecture de tout le référentiel"
-        - row /Éditeur editor oui \d+ 3 Édition du référentiel, sans l'administration/:
+        - row "Éditeur editor":
           - gridcell "Éditeur editor":
             - text: ""
             - code: editor
-          - gridcell "oui"
-          - gridcell /\d+/
-          - gridcell "3"
-          - gridcell "Édition du référentiel, sans l'administration"
-        - row /Administrateur admin oui \d+ 2 Tous les droits/:
+        - row "Administrateur admin":
           - gridcell "Administrateur admin":
             - text: ""
             - code: admin
-          - gridcell "oui"
-          - gridcell /\d+/
-          - gridcell "2"
-          - gridcell "Tous les droits"
-        - row "Lecteur réseau lecteur-reseau non 8 4 Lecture du réseau et des machines" [selected]:
+        - row "Lecteur réseau lecteur-reseau" [selected]:
           - gridcell "Lecteur réseau lecteur-reseau":
             - text: ""
             - code: lecteur-reseau
-          - gridcell "non"
-          - gridcell "8"
-          - gridcell "4"
-          - gridcell "Lecture du réseau et des machines"
-        - row "Instructeur instructeur-flux non 3 2 Instruction des demandes de flux":
+        - row "Instructeur instructeur-flux":
           - gridcell "Instructeur instructeur-flux":
             - text: ""
             - code: instructeur-flux
-          - gridcell "non"
-          - gridcell "3"
-          - gridcell "2"
-          - gridcell "Instruction des demandes de flux"
-        - row "import-ipam non 8 1 Compte d'import":
+        - row "import-ipam":
           - gridcell "import-ipam":
             - code: import-ipam
-          - gridcell "non"
-          - gridcell "8"
-          - gridcell "1"
-          - gridcell "Compte d'import"
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
   - tablist "Onglets du panneau":

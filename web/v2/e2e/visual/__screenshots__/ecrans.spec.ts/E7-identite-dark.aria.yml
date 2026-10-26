@@ -49,50 +49,35 @@
   - region "Identités":
     - heading "Identités" [level=2]
     - text: "6"
+    - button "Colonnes"
     - grid "Identités":
       - rowgroup:
-        - row "Identité État Groupes Émetteur":
+        - row "Identité État":
           - columnheader "Identité":
             - text: ""
             - 'button "Filtrer : Identité"'
           - columnheader "État":
             - text: ""
             - 'button "Filtrer : État"'
-          - columnheader "Groupes"
-          - columnheader "Émetteur":
-            - text: ""
-            - 'button "Filtrer : Émetteur"'
       - rowgroup:
-        - row "Camille Martin Active 2 idp-interne":
+        - row "Camille Martin Active":
           - gridcell "Camille Martin"
           - gridcell "Active"
-          - gridcell "2"
-          - gridcell "idp-interne"
-        - row "Lou Bernard Active 3 idp-interne" [selected]:
+        - row "Lou Bernard Active" [selected]:
           - gridcell "Lou Bernard"
           - gridcell "Active"
-          - gridcell "3"
-          - gridcell "idp-interne"
-        - row "Alex Morel Active 1 idp-interne":
+        - row "Alex Morel Active":
           - gridcell "Alex Morel"
           - gridcell "Active"
-          - gridcell "1"
-          - gridcell "idp-interne"
-        - row "Sam Leroy Désactivée 1 idp-interne":
+        - row "Sam Leroy Désactivée":
           - gridcell "Sam Leroy"
           - gridcell "Désactivée"
-          - gridcell "1"
-          - gridcell "idp-interne"
-        - row "Noa Petit Active 0 idp-interne":
+        - row "Noa Petit Active":
           - gridcell "Noa Petit"
           - gridcell "Active"
-          - gridcell "0"
-          - gridcell "idp-interne"
-        - row "secours Active 1 local":
+        - row "secours Active":
           - gridcell "secours"
           - gridcell "Active"
-          - gridcell "1"
-          - gridcell "local"
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
   - tablist "Onglets du panneau":

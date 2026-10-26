@@ -51,68 +51,37 @@
     - text: "6"
     - toolbar "Actions des groupes":
       - button "Créer"
+    - button "Colonnes"
     - grid "Groupes":
       - rowgroup:
-        - row "Groupe Livré Membres Rôles Description":
+        - row "Groupe":
           - columnheader "Groupe":
             - text: ""
             - 'button "Filtrer : Groupe"'
-          - columnheader "Livré":
-            - text: ""
-            - 'button "Filtrer : Livré"'
-          - columnheader "Membres"
-          - columnheader "Rôles"
-          - columnheader "Description":
-            - text: ""
-            - 'button "Filtrer : Description"'
       - rowgroup:
-        - row "Secours secours oui 1 1 Compte de secours, administrateur global":
+        - row "Secours secours":
           - gridcell "Secours secours":
             - text: ""
             - code: secours
-          - gridcell "oui"
-          - gridcell "1"
-          - gridcell "1"
-          - gridcell "Compte de secours, administrateur global"
-        - row "Équipe supervision supervision non 5 3 Lecture du réseau, instruction":
+        - row "Équipe supervision supervision":
           - gridcell "Équipe supervision supervision":
             - text: ""
             - code: supervision
-          - gridcell "non"
-          - gridcell "5"
-          - gridcell "3"
-          - gridcell "Lecture du réseau, instruction"
-        - row /Équipe réseau reseau non \d+ 2 Édition du réseau de l'atelier nord/:
+        - row "Équipe réseau reseau":
           - gridcell "Équipe réseau reseau":
             - text: ""
             - code: reseau
-          - gridcell "non"
-          - gridcell /\d+/
-          - gridcell "2"
-          - gridcell "Édition du réseau de l'atelier nord"
-        - row "Astreinte astreinte non 3 1 Lecture de tout le référentiel" [selected]:
+        - row "Astreinte astreinte" [selected]:
           - gridcell "Astreinte astreinte":
             - text: ""
             - code: astreinte
-          - gridcell "non"
-          - gridcell "3"
-          - gridcell "1"
-          - gridcell "Lecture de tout le référentiel"
-        - row "Équipe sauvegarde sauvegarde non 4 1 Lecture des machines du domaine":
+        - row "Équipe sauvegarde sauvegarde":
           - gridcell "Équipe sauvegarde sauvegarde":
             - text: ""
             - code: sauvegarde
-          - gridcell "non"
-          - gridcell "4"
-          - gridcell "1"
-          - gridcell "Lecture des machines du domaine"
-        - row "compte-sync-ipam non 1 1 Reporté par la migration, à regrouper":
+        - row "compte-sync-ipam":
           - gridcell "compte-sync-ipam":
             - code: compte-sync-ipam
-          - gridcell "non"
-          - gridcell "1"
-          - gridcell "1"
-          - gridcell "Reporté par la migration, à regrouper"
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
   - tablist "Onglets du panneau":
