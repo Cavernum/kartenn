@@ -4,7 +4,7 @@
 // simulation, its violations in plain language with their code (024/M16). The frame shows
 // it in every mock-up; E5 shows its states. The footer (simulation, motive, action) is
 // `EcranSoumission`.
-import { Cluster, Icon, IconButton, InlineAlert, Stack } from "@kartenn/ui";
+import { Cluster, DiffValue, Icon, IconButton, InlineAlert, Stack } from "@kartenn/ui";
 import { computed } from "vue";
 import { DRAFT_OPERATIONS } from "./donnees.ts";
 
@@ -33,11 +33,12 @@ const operations = computed(() => DRAFT_OPERATIONS.slice(0, props.count));
               <Icon name="draft" />
               <code>{{ op.key }}</code>
               <span class="k-ecran-op__change">
-                {{ op.what }}<template v-if="op.before"> : </template>
-                <del v-if="op.before">{{ op.before }}</del>
-                <template v-if="op.before"> → </template>
-                <ins v-if="op.before">{{ op.after }}</ins>
-                <span v-else class="k-ecran-muted"> ({{ op.after }})</span>
+                {{ op.what }} :
+                <DiffValue v-if="op.before" kind="changed">
+                  <template #before>{{ op.before }}</template>
+                  {{ op.after }}
+                </DiffValue>
+                <DiffValue v-else kind="added">{{ op.after }}</DiffValue>
               </span>
             </Cluster>
             <IconButton

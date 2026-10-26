@@ -103,6 +103,7 @@ export { default as BarList } from "./components/BarList/BarList.vue";
 export { layoutBars, niceCeil } from "./components/BarChart/chart.ts";
 export type { BarLayout, ChartPoint } from "./components/BarChart/chart.ts";
 export { default as DiffList } from "./components/DiffList/DiffList.vue";
+export { default as DiffValue } from "./components/DiffValue/DiffValue.vue";
 export { DIFF_SIGNS } from "./components/DiffList/diff.ts";
 export type { DiffChange, DiffGroup, DiffKind } from "./components/DiffList/diff.ts";
 export { default as Skeleton } from "./components/Skeleton/Skeleton.vue";

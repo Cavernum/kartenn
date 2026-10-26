@@ -11,6 +11,7 @@ import BarChart from "../src/components/BarChart/BarChart.vue";
 import { layoutBars, niceCeil } from "../src/components/BarChart/chart.ts";
 import BarList from "../src/components/BarList/BarList.vue";
 import DiffList from "../src/components/DiffList/DiffList.vue";
+import DiffValue from "../src/components/DiffValue/DiffValue.vue";
 import ExpandableGrid from "../src/components/ExpandableGrid/ExpandableGrid.vue";
 import ErrorState from "../src/components/ErrorState/ErrorState.vue";
 import FilterChip from "../src/components/FilterChip/FilterChip.vue";
@@ -399,5 +400,23 @@ describe("charts (revue du 2026-10-25)", () => {
     expect(html).toContain("--k-bar-list-ratio:1");
     expect(html.match(/data-state="over"/g)).toHaveLength(1);
     expect(text(html)).toContain("87 %");
+  });
+});
+
+describe("DiffValue (relecture du 2026-10-26)", () => {
+  const value = (kind: "added" | "removed" | "changed", slots: Record<string, () => string>) =>
+    renderToString(createSSRApp({ render: () => h(DiffValue, { kind }, slots) }));
+
+  it("added: an ins, its sign hidden from the name, its word said, the value after", async () => {
+    const html = await value("added", { default: () => "Lecture des API" });
+    expect(html).toMatch(/<ins class="k-diff-value" data-kind="added">/);
+    expect(html).toContain('<span class="k-diff-value__sign" aria-hidden="true">+</span>');
+    expect(text(html)).toContain("+ajouté : Lecture des API");
+  });
+
+  it("removed: a del with « − »; changed: before, then after", async () => {
+    expect(await value("removed", { default: () => "x" })).toMatch(/<del[^>]*data-kind="removed"/);
+    const changed = await value("changed", { before: () => "Hôte", default: () => "VIP" });
+    expect(text(changed)).toMatch(/avant : Hôte.*après : VIP/);
   });
 });

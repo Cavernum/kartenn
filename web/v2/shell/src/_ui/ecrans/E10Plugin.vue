@@ -17,6 +17,7 @@ import {
   CodeBadge,
   Cluster,
   DataGrid,
+  DiffValue,
   EnvChip,
   ExpandableGrid,
   Icon,
@@ -457,34 +458,24 @@ const EFFECT = [
                   ]"
                 >
                   <template #state>
-                    <span class="k-ecran-change">
-                      <del
-                        ><span class="k-visually-hidden">avant : </span
-                        ><StatusBadge
+                    <DiffValue kind="changed">
+                      <template #before>
+                        <StatusBadge
                           :state="VERDICT[cell.before].state"
                           :label="VERDICT[cell.before].label"
-                      /></del>
-                      <Icon name="arrow-right" class="k-ecran-cell__arrow" />
-                      <ins
-                        ><span class="k-visually-hidden">après : </span
-                        ><StatusBadge
-                          :state="VERDICT[cell.after].state"
-                          :label="VERDICT[cell.after].label"
-                      /></ins>
-                    </span>
+                        />
+                      </template>
+                      <StatusBadge
+                        :state="VERDICT[cell.after].state"
+                        :label="VERDICT[cell.after].label"
+                      />
+                    </DiffValue>
                   </template>
                   <template #pattern>
-                    <ins class="k-ecran-change"
-                      ><span class="k-ecran-change__sign" aria-hidden="true">+</span
-                      ><span class="k-visually-hidden">ajouté : </span
-                      ><CodeBadge :code="cell.pattern"
-                    /></ins>
+                    <DiffValue kind="added"><CodeBadge :code="cell.pattern" /></DiffValue>
                   </template>
                   <template #label>
-                    <ins class="k-ecran-change"
-                      ><span class="k-ecran-change__sign" aria-hidden="true">+</span
-                      ><span class="k-visually-hidden">ajouté : </span>{{ cell.label }}</ins
-                    >
+                    <DiffValue kind="added">{{ cell.label }}</DiffValue>
                   </template>
                 </Attributs>
               </Stack>
@@ -562,8 +553,7 @@ const EFFECT = [
     border-block-end: var(--k-border-width) solid var(--k-border);
   }
 
-  .k-ecran-cell__flow,
-  .k-ecran-change {
+  .k-ecran-cell__flow {
     display: inline-flex;
     flex-wrap: wrap;
     gap: var(--k-space-1);
@@ -574,19 +564,6 @@ const EFFECT = [
   .k-ecran-cell__arrow {
     flex: none;
     color: var(--k-text-muted);
-  }
-
-  /* Before and after are said by hidden words and a sign; the badges keep their look. */
-  .k-ecran-change del,
-  ins.k-ecran-change,
-  .k-ecran-change ins {
-    text-decoration: none;
-  }
-
-  .k-ecran-change__sign {
-    font-family: var(--k-font-mono);
-    font-weight: var(--k-weight-semibold);
-    color: var(--k-diff-added);
   }
 }
 </style>
