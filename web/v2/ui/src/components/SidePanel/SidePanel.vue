@@ -449,10 +449,23 @@ function onPointerup(event: PointerEvent): void {
     padding-inline: var(--k-space-2) var(--k-space-8);
   }
 
+  /* A scroll cue (relecture du 2026-10-26): a shade at the bottom edge of the tab panel
+   * while more lies below — the shade stays with the box (`scroll`), a cover of the
+   * surface colour at the end of the content (`local`) hides it once the end shows. */
   .k-side-panel__tabs > .k-tabs__panel {
     min-block-size: 0;
     padding: var(--k-space-3);
     overflow: auto;
+    background-color: var(--k-surface);
+    background-image:
+      linear-gradient(var(--k-surface), var(--k-surface)),
+      linear-gradient(to top, var(--k-border-strong), transparent);
+    background-repeat: no-repeat;
+    background-attachment: local, scroll;
+    background-position: bottom;
+    background-size:
+      100% var(--k-space-4),
+      100% var(--k-space-2);
   }
 
   .k-side-panel__close {
