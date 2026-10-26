@@ -45,33 +45,43 @@ const lines = computed(() =>
 </script>
 
 <template>
-  <table class="k-bar-list">
+  <!-- Explicit roles: laid out as a grid, a table loses its own in some engines. -->
+  <table class="k-bar-list" role="table" :aria-label="props.label">
     <caption class="k-visually-hidden">
       {{
         props.label
       }}
     </caption>
-    <thead class="k-visually-hidden">
-      <tr>
-        <th scope="col">{{ props.pointLabel ?? t("chartPoint") }}</th>
-        <th scope="col">{{ props.valueLabel ?? t("chartValue") }}</th>
+    <thead class="k-visually-hidden" role="rowgroup">
+      <tr role="row">
+        <th scope="col" role="columnheader">{{ props.pointLabel ?? t("chartPoint") }}</th>
+        <th scope="col" role="columnheader">{{ props.valueLabel ?? t("chartValue") }}</th>
       </tr>
     </thead>
-    <tbody class="k-bar-list__body">
+    <tbody class="k-bar-list__body" role="rowgroup">
       <tr
         v-for="line in lines"
         :key="line.key"
+        role="row"
         class="k-bar-list__line"
         :data-state="line.over ? 'over' : undefined"
       >
-        <th scope="row" class="k-bar-list__label" :class="{ 'k-mono': props.mono }">
+        <th
+          scope="row"
+          role="rowheader"
+          class="k-bar-list__label"
+          :class="{ 'k-mono': props.mono }"
+        >
           {{ line.label }}
         </th>
-        <td class="k-bar-list__value">
+        <td role="cell" class="k-bar-list__value">
           <span class="k-bar-list__track" aria-hidden="true"
             ><span class="k-bar-list__fill" :style="line.ratio"></span
           ></span>
-          <span class="k-num">{{ write(line.value) }}</span>
+          <span class="k-num"
+            >{{ write(line.value)
+            }}<span v-if="line.over" class="k-visually-hidden"> ({{ t("chartOver") }})</span></span
+          >
         </td>
       </tr>
     </tbody>
