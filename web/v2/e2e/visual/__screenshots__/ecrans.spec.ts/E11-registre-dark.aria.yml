@@ -1,0 +1,204 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 5":
+        - /url: /x/flow/review
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem: Registre
+  - button "Présent"
+  - button "Brouillon 3 opérations"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Flux" [level=1]
+  - region "Flux":
+    - heading "Flux" [level=2]
+    - text: "8"
+    - toolbar "Actions sur les flux":
+      - button "Proposer des flux"
+      - button "Tester un flux"
+      - button "Exporter"
+    - button "Domaine = Centre de données nord"
+    - button "Retirer le filtre Domaine = Centre de données nord"
+    - button /Extrémité ⊂ \d+\.\d+\.2\.0\/\d+/
+    - button /Retirer le filtre Extrémité ⊂ \d+\.\d+\.2\.0\/\d+/
+    - button "Sorte = Déclaré"
+    - button "Retirer le filtre Sorte = Déclaré"
+    - button "État ∈ Demandé, Actif, Non conforme, Dérogé, Échu"
+    - button "Retirer le filtre État"
+    - button "Ajouter un filtre"
+    - paragraph:
+      - text: "À venir :"
+      - code: FilterPicker
+      - text: /\(tâche \d+\)/
+    - grid "Flux déclarés et ouverts, filtrés":
+      - rowgroup:
+        - row "Source (filtrée) Destination (filtrée) Service Type de flux État (filtrée) Synthèse Issue Dérogation, échéance":
+          - columnheader "Source (filtrée)":
+            - text: ""
+            - 'button "Filtrer : Source"'
+            - text: ""
+          - columnheader "Destination (filtrée)":
+            - text: ""
+            - 'button "Filtrer : Destination"'
+            - text: ""
+          - columnheader "Service":
+            - text: ""
+            - 'button "Filtrer : Service"'
+          - columnheader "Type de flux":
+            - text: ""
+            - 'button "Filtrer : Type de flux"'
+          - columnheader "État (filtrée)":
+            - text: ""
+            - 'button "Filtrer : État"'
+            - text: ""
+          - columnheader "Synthèse":
+            - text: ""
+            - 'button "Filtrer : Synthèse"'
+          - columnheader "Issue":
+            - text: ""
+            - 'button "Filtrer : Issue"'
+          - columnheader "Dérogation, échéance"
+      - rowgroup:
+        - row /srv-web-\d+ srv-app-\d+ eth0 API interne api-interne Applicatif Actif Conforme Automatique —/:
+          - gridcell /srv-web-\d+/:
+            - link /srv-web-\d+/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-web-02&mode=dark
+          - gridcell /srv-app-\d+ eth0/:
+            - link /srv-app-\d+ eth0/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=dark
+          - gridcell "API interne api-interne":
+            - text: ""
+            - code: api-interne
+          - gridcell "Applicatif"
+          - gridcell "Actif"
+          - gridcell "Conforme"
+          - gridcell "Automatique"
+          - gridcell "—"
+        - row /srv-app-\d+ eth0 srv-db-\d+ PostgreSQL postgres Base de données Actif Conforme Automatique —/:
+          - gridcell /srv-app-\d+ eth0/:
+            - link /srv-app-\d+ eth0/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=dark
+          - gridcell /srv-db-\d+/:
+            - link /srv-db-\d+/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-db-02&mode=dark
+          - gridcell "PostgreSQL postgres":
+            - text: ""
+            - code: postgres
+          - gridcell "Base de données"
+          - gridcell "Actif"
+          - gridcell "Conforme"
+          - gridcell "Automatique"
+          - gridcell "—"
+        - row /bastion-\d+ srv-app-\d+ Shell sécurisé ssh Administratif Actif Conforme Automatique Fin \d+-\d+-\d+/:
+          - gridcell /bastion-\d+/:
+            - link /bastion-\d+/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=bastion-01&mode=dark
+          - gridcell /srv-app-\d+/:
+            - link /srv-app-\d+/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=dark
+          - gridcell "Shell sécurisé ssh":
+            - text: ""
+            - code: ssh
+          - gridcell "Administratif"
+          - gridcell "Actif"
+          - gridcell "Conforme"
+          - gridcell "Automatique"
+          - gridcell /Fin \d+-\d+-\d+/
+        - row /srv-rec-\d+ srv-app-\d+ eth0 Web chiffré https Applicatif Demandé Sous réserve Instruction —/:
+          - gridcell /srv-rec-\d+/:
+            - link /srv-rec-\d+/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-rec-03&mode=dark
+          - gridcell /srv-app-\d+ eth0/:
+            - link /srv-app-\d+ eth0/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=dark
+          - gridcell "Web chiffré https":
+            - text: ""
+            - code: https
+          - gridcell "Applicatif"
+          - gridcell "Demandé"
+          - gridcell "Sous réserve"
+          - gridcell "Instruction"
+          - gridcell "—"
+        - row /dev-web-\d+ srv-db-\d+ PostgreSQL postgres Base de données Dérogé Non conforme Non conforme Dérogation \d+-\d+-\d+/:
+          - gridcell /dev-web-\d+/:
+            - link /dev-web-\d+/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=dev-web-01&mode=dark
+          - gridcell /srv-db-\d+/:
+            - link /srv-db-\d+/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-db-02&mode=dark
+          - gridcell "PostgreSQL postgres":
+            - text: ""
+            - code: postgres
+          - gridcell "Base de données"
+          - gridcell "Dérogé"
+          - gridcell "Non conforme"
+          - gridcell "Non conforme"
+          - gridcell /Dérogation \d+-\d+-\d+/
+        - row /srv-app-\d+ eth0 srv-sauv-\d+ Partage NFS nfs Fichier Actif Conforme Automatique —/:
+          - gridcell /srv-app-\d+ eth0/:
+            - link /srv-app-\d+ eth0/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=dark
+          - gridcell /srv-sauv-\d+/:
+            - link /srv-sauv-\d+/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-sauv-01&mode=dark
+          - gridcell "Partage NFS nfs":
+            - text: ""
+            - code: nfs
+          - gridcell "Fichier"
+          - gridcell "Actif"
+          - gridcell "Conforme"
+          - gridcell "Automatique"
+          - gridcell "—"
+        - row /srv-app-\d+ \d+\.\d+\.\d+\.\d+\/\d+ Shell sécurisé ssh Administratif Non conforme Non conforme Non conforme —/:
+          - gridcell /srv-app-\d+/:
+            - link /srv-app-\d+/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-07&mode=dark
+          - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/:
+            - link /\d+\.\d+\.\d+\.\d+\/\d+/:
+              - /url: /_ui/ecrans/E2?mode=dark
+          - gridcell "Shell sécurisé ssh":
+            - text: ""
+            - code: ssh
+          - gridcell "Administratif"
+          - gridcell "Non conforme"
+          - gridcell "Non conforme"
+          - gridcell "Non conforme"
+          - gridcell "—"
+        - row /srv-rec-\d+ srv-app-\d+ eth0 Web chiffré https Applicatif Échu Sous réserve Instruction Fin \d+-\d+-\d+/:
+          - gridcell /srv-rec-\d+/:
+            - link /srv-rec-\d+/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-rec-04&mode=dark
+          - gridcell /srv-app-\d+ eth0/:
+            - link /srv-app-\d+ eth0/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=dark
+          - gridcell "Web chiffré https":
+            - text: ""
+            - code: https
+          - gridcell "Applicatif"
+          - gridcell "Échu"
+          - gridcell "Sous réserve"
+          - gridcell "Instruction"
+          - gridcell /Fin \d+-\d+-\d+/
+    - text: 8 flux · 1 demandé · 1 non conforme à la matrice · 1 dérogé Synthèse et issue lues contre la matrice de flux du jour
+- button "Ouvrir le panneau"

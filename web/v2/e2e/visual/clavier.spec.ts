@@ -400,6 +400,43 @@ test.describe("BottomPanel (complementary + Tabs, Window Splitter)", () => {
   });
 });
 
+test.describe("E11: proposal of flows (Grid + BottomPanel)", () => {
+  test("« Ajouter un flux » adds a row, focused; Enter or Space on a row shows it below", async ({
+    page,
+  }) => {
+    await page.goto("/_ui/ecrans/E11?vue=proposition");
+    const grid = page.getByRole("grid", { name: "Flux proposés dans le changeset" });
+    const panel = page.getByRole("complementary", { name: "Flux choisi" });
+    await expect(panel).toBeVisible();
+    await panel.getByRole("button", { name: "Fermer le panneau" }).click();
+    await expect(panel).toBeHidden();
+    const rows = grid.getByRole("row");
+    await expect(rows).toHaveCount(5);
+    // The button adds an empty row at the end, the focus on its source.
+    await page.getByRole("button", { name: /^Ajouter un flux/ }).focus();
+    await page.keyboard.press("Enter");
+    await expect(rows).toHaveCount(6);
+    expect(await focusedCell(page)).toBe("nouvelle-1|source");
+    await expect(rows.nth(5)).toContainText("À évaluer");
+    // Up to the flow refused by a deny rule: Enter chooses it and opens the bottom panel.
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("ArrowUp");
+    expect(await focusedCell(page)).toBe("ligne-3|source");
+    await page.keyboard.press("Enter");
+    await expect(panel).toBeVisible();
+    await expect(rows.nth(3)).toHaveAttribute("aria-selected", "true");
+    await expect(panel.getByRole("heading", { level: 2 })).toContainText("dev-web-01");
+    await expect(panel).toContainText("deny-deve-prod");
+    expect(await focusedCell(page)).toBe("ligne-3|source");
+    // Space on the new row chooses it: the panel asks to complete it.
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Space");
+    await expect(rows.nth(5)).toHaveAttribute("aria-selected", "true");
+    await expect(panel).toContainText("Ligne à compléter");
+  });
+});
+
 test.describe("CommitForm", () => {
   test("Ctrl+Enter submits, unless the required summary is empty", async ({ page }) => {
     await state(page, "CommitForm", "empty");

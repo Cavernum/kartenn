@@ -9,6 +9,8 @@ export const ENV = {
   prod: { value: "prod", label: "Production", hue: 1 },
   rece: { value: "rece", label: "Recette", hue: 2 },
   deve: { value: "deve", label: "Développement", hue: 3 },
+  /** The environment of the administration interfaces (E11). */
+  admin: { value: "admin", label: "Administration", hue: 6 },
 } as const;
 export type EnvKey = keyof typeof ENV;
 
@@ -346,4 +348,383 @@ export const IDENTITY_RIGHTS = [
     group: "Équipe supervision",
   },
   { role: "reader", roleLabel: "Lecteur", scope: "Globale", group: "Astreinte" },
+];
+
+// Flows (E11; specs 010 and 011): flow types, services, machines and their addresses with
+// the values of the axes the policy cites, the rules of the policy (the matrix of each
+// flow type is read from them), and the register of flows.
+
+/** The flow types (010, REQ-010-4: the example set), key and label. */
+export const FLOW_TYPE = {
+  application: "Applicatif",
+  admin: "Administratif",
+  database: "Base de données",
+  file: "Fichier",
+} as const;
+export type FlowTypeKey = keyof typeof FLOW_TYPE;
+
+/** A service (D29): one flow type and its transport/port pairs. */
+export interface FlowService {
+  key: string;
+  label: string;
+  flowType: FlowTypeKey;
+  ports: string[];
+}
+export const SERVICES: Record<string, FlowService> = {
+  https: { key: "https", label: "Web chiffré", flowType: "application", ports: ["tcp/443"] },
+  "api-interne": {
+    key: "api-interne",
+    label: "API interne",
+    flowType: "application",
+    ports: ["tcp/8443"],
+  },
+  ssh: { key: "ssh", label: "Shell sécurisé", flowType: "admin", ports: ["tcp/22"] },
+  postgres: { key: "postgres", label: "PostgreSQL", flowType: "database", ports: ["tcp/5432"] },
+  nfs: { key: "nfs", label: "Partage NFS", flowType: "file", ports: ["tcp/2049", "udp/2049"] },
+};
+
+/**
+ * An address and the values of the axes cited by the policy, with their origin
+ * (REQ-010-12): the environment (`policy.environment`, null: none, the address is
+ * unclassified) and the sensitivity.
+ */
+export interface FlowAddress {
+  value: string;
+  env: EnvKey | null;
+  envFrom: string;
+  sensitivity: string;
+  sensitivityFrom: string;
+}
+/** An interface of a machine (module Machines) and its role. */
+export interface FlowInterface {
+  name: string;
+  role: string;
+  addresses: FlowAddress[];
+}
+/** A machine: declared environment, site, owner, interfaces. */
+export interface FlowMachine {
+  key: string;
+  env: EnvKey | null;
+  site: string;
+  owner: string;
+  system: string;
+  interfaces: FlowInterface[];
+}
+const addr = (
+  value: string,
+  env: EnvKey | null,
+  envFrom: string,
+  sensitivity = "Interne",
+  sensitivityFrom = "héritée de 192.0.2.0/24",
+): FlowAddress => ({ value, env, envFrom, sensitivity, sensitivityFrom });
+const iface = (name: string, role: string, ...addresses: FlowAddress[]): FlowInterface => ({
+  name,
+  role,
+  addresses,
+});
+const machine = (
+  key: string,
+  env: EnvKey | null,
+  site: string,
+  system: string,
+  ...interfaces: FlowInterface[]
+): FlowMachine => ({ key, env, site, owner: "Atelier Nord", system, interfaces });
+const FROM_SERVERS = "héritée de 192.0.2.0/26";
+const FROM_ADMIN = "posée sur 198.51.100.0/28";
+export const MACHINES: Record<string, FlowMachine> = Object.fromEntries(
+  [
+    machine(
+      "srv-app-01",
+      "prod",
+      "site-ouest",
+      "Linux",
+      iface(
+        "eth0",
+        "Service",
+        addr("192.0.2.10", "prod", FROM_SERVERS),
+        addr("192.0.2.14", "prod", FROM_SERVERS),
+      ),
+      iface("eth1", "Administration", addr("198.51.100.5", "admin", FROM_ADMIN)),
+    ),
+    machine(
+      "srv-web-02",
+      "prod",
+      "site-ouest",
+      "Linux",
+      iface(
+        "eth0",
+        "Service",
+        addr("192.0.2.20", "prod", FROM_SERVERS),
+        addr("192.0.2.21", "prod", FROM_SERVERS),
+      ),
+    ),
+    machine(
+      "srv-db-02",
+      "prod",
+      "site-ouest",
+      "Linux",
+      iface(
+        "eth0",
+        "Service",
+        addr("192.0.2.30", "prod", FROM_SERVERS, "Confidentiel", "posée sur l'adresse"),
+      ),
+    ),
+    machine(
+      "bastion-01",
+      "admin",
+      "site-ouest",
+      "Linux",
+      iface("eth0", "Administration", addr("198.51.100.2", "admin", FROM_ADMIN)),
+    ),
+    machine(
+      "srv-sauv-01",
+      "prod",
+      "site-est",
+      "Linux",
+      iface("eth0", "Sauvegarde", addr("198.51.100.40", "prod", "posée sur 198.51.100.32/28")),
+    ),
+    machine(
+      "srv-app-07",
+      "prod",
+      "site-est",
+      "Linux",
+      iface("eth0", "Service", addr("192.0.2.72", "prod", "héritée de 192.0.2.64/26")),
+    ),
+    machine(
+      "srv-rec-03",
+      "rece",
+      "site-ouest",
+      "Linux",
+      iface("eth0", "Service", addr("192.0.2.12", "rece", "posée sur l'adresse")),
+    ),
+    machine(
+      "srv-rec-04",
+      "rece",
+      "site-ouest",
+      "Linux",
+      iface("eth0", "Service", addr("192.0.2.13", "rece", "posée sur l'adresse")),
+    ),
+    machine(
+      "dev-web-01",
+      "deve",
+      "site-est",
+      "Linux",
+      iface("eth0", "Service", addr("192.0.2.70", "deve", "posée sur l'adresse")),
+    ),
+    machine(
+      "srv-new-05",
+      null,
+      "site-est",
+      "Linux",
+      iface(
+        "eth0",
+        "Service",
+        addr("203.0.113.50", null, "aucune valeur, ni posée ni héritée", "—", "aucune valeur"),
+      ),
+    ),
+  ].map((m) => [m.key, m]),
+);
+
+/** An end of a flow (REQ-011-2): a machine, one of its interfaces, a prefix, an address. */
+export type FlowEnd =
+  | { kind: "machine"; machine: string }
+  | { kind: "interface"; machine: string; iface: string }
+  | { kind: "prefix"; value: string; address: FlowAddress };
+
+/** The prefix of the supervision (E2), an end of a flow evaluated on its own values. */
+export const SUPERVISION_PREFIX: FlowEnd = {
+  kind: "prefix",
+  value: "192.0.2.64/26",
+  address: addr("192.0.2.64/26", "prod", "posée sur le préfixe"),
+};
+
+/**
+ * A rule of the policy (010): effect, flow types, environments of source and destination,
+ * the pattern a conditional `allow` waits for, its pedagogical text. The matrix of a flow
+ * type is read from them: `deny` wins, then an `allow` without pattern, then one with.
+ */
+export interface FlowRule {
+  key: string;
+  effect: "allow" | "deny";
+  flowTypes: FlowTypeKey[];
+  sources: EnvKey[];
+  /** Empty: the environment of the source (« même environnement »). */
+  destinations: EnvKey[];
+  pattern?: string;
+  text: string;
+}
+const ALL_TYPES: FlowTypeKey[] = ["application", "admin", "database", "file"];
+export const RULES: FlowRule[] = [
+  {
+    key: "app-meme-env",
+    effect: "allow",
+    flowTypes: ["application"],
+    sources: ["prod", "rece", "deve"],
+    destinations: [],
+    text: "Les applications d'un même environnement se parlent par leurs services déclarés.",
+  },
+  {
+    key: "rece-vers-prod",
+    effect: "allow",
+    flowTypes: ["application"],
+    sources: ["rece"],
+    destinations: ["prod"],
+    pattern: "api-lecture",
+    text: "La recette lit les API de production pour ses jeux de contrôle, sous le motif api-lecture.",
+  },
+  {
+    key: "deny-deve-prod",
+    effect: "deny",
+    flowTypes: ALL_TYPES,
+    sources: ["deve"],
+    destinations: ["prod"],
+    text: "Le développement n'atteint jamais la production : ses données n'en sortent pas, ses outils n'y entrent pas.",
+  },
+  {
+    key: "deny-prod-hors-prod",
+    effect: "deny",
+    flowTypes: ["application", "database", "file"],
+    sources: ["prod"],
+    destinations: ["rece", "deve"],
+    text: "La production ne pousse rien vers la recette ni le développement.",
+  },
+  {
+    key: "admin-par-bastion",
+    effect: "allow",
+    flowTypes: ["admin"],
+    sources: ["admin"],
+    destinations: ["prod", "rece", "deve", "admin"],
+    text: "L'administration part du bastion, vers tout environnement.",
+  },
+  {
+    key: "deny-admin-hors-bastion",
+    effect: "deny",
+    flowTypes: ["admin"],
+    sources: ["prod", "rece", "deve"],
+    destinations: ["prod", "rece", "deve"],
+    text: "L'administration ne part que du bastion : une machine n'en administre pas une autre.",
+  },
+  {
+    key: "bdd-meme-env",
+    effect: "allow",
+    flowTypes: ["database"],
+    sources: ["prod", "rece", "deve"],
+    destinations: [],
+    text: "Une base n'est lue que depuis son propre environnement.",
+  },
+  {
+    key: "deny-rece-vers-prod-bdd",
+    effect: "deny",
+    flowTypes: ["database", "file"],
+    sources: ["rece"],
+    destinations: ["prod"],
+    text: "La recette ne lit pas les données de production : elle passe par les API.",
+  },
+  {
+    key: "fichier-prod",
+    effect: "allow",
+    flowTypes: ["file"],
+    sources: ["prod"],
+    destinations: ["prod"],
+    text: "Les sauvegardes et partages de la production restent en production.",
+  },
+];
+
+/** A condition of eligibility (REQ-010-36): key and pedagogical text. */
+export const CONDITION_JUSTIFICATION = {
+  key: "justification-requise",
+  text: "Un flux entre deux environnements différents porte une justification dans son dossier.",
+} as const;
+
+/** The state of a flow (REQ-011-5) shown by the register. */
+export type FlowState = "requested" | "active" | "noncompliant" | "waived" | "expired";
+
+/** A flow of the register (REQ-011-1): its ends, its service, its state, its term. */
+export interface RegisteredFlow {
+  key: string;
+  source: FlowEnd;
+  destination: FlowEnd;
+  service: string;
+  state: FlowState;
+  reference: string;
+  /** The end of its waiver (REQ-011-9), if any. */
+  waiver?: string;
+  /** The end of the flow, if dated. */
+  end?: string;
+}
+const m = (key: string): FlowEnd => ({ kind: "machine", machine: key });
+const i = (key: string, name: string): FlowEnd => ({
+  kind: "interface",
+  machine: key,
+  iface: name,
+});
+export const FLOWS: RegisteredFlow[] = [
+  {
+    key: "flux-1041",
+    source: m("srv-web-02"),
+    destination: i("srv-app-01", "eth0"),
+    service: "api-interne",
+    state: "active",
+    reference: "ticketing:CHG-1041",
+  },
+  {
+    key: "flux-1042",
+    source: i("srv-app-01", "eth0"),
+    destination: m("srv-db-02"),
+    service: "postgres",
+    state: "active",
+    reference: "ticketing:CHG-1042",
+  },
+  {
+    key: "flux-1043",
+    source: m("bastion-01"),
+    destination: m("srv-app-01"),
+    service: "ssh",
+    state: "active",
+    reference: "ticketing:CHG-1043",
+    end: "2026-06-30",
+  },
+  {
+    key: "flux-1050",
+    source: m("srv-rec-03"),
+    destination: i("srv-app-01", "eth0"),
+    service: "https",
+    state: "requested",
+    reference: "ticketing:CHG-1050",
+  },
+  {
+    key: "flux-1037",
+    source: m("dev-web-01"),
+    destination: m("srv-db-02"),
+    service: "postgres",
+    state: "waived",
+    reference: "ticketing:CHG-1037",
+    waiver: "2026-03-31",
+    end: "2026-03-31",
+  },
+  {
+    key: "flux-1044",
+    source: i("srv-app-01", "eth0"),
+    destination: m("srv-sauv-01"),
+    service: "nfs",
+    state: "active",
+    reference: "ticketing:CHG-1044",
+  },
+  {
+    key: "flux-1029",
+    source: m("srv-app-07"),
+    destination: SUPERVISION_PREFIX,
+    service: "ssh",
+    state: "noncompliant",
+    reference: "ticketing:CHG-1029",
+  },
+  {
+    key: "flux-0988",
+    source: m("srv-rec-04"),
+    destination: i("srv-app-01", "eth0"),
+    service: "https",
+    state: "expired",
+    reference: "ticketing:CHG-0988",
+    end: "2025-12-31",
+  },
 ];

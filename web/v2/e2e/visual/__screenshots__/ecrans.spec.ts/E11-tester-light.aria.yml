@@ -1,0 +1,215 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 5":
+        - /url: /x/flow/review
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem:
+        - link "Registre":
+          - /url: /x/flow/flows
+      - listitem: Tester un flux
+  - button "Présent"
+  - button "Brouillon 3 opérations"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Tester un flux" [level=1]
+  - heading "Tester un flux" [level=2]
+  - text: sans écriture Source
+  - textbox "Source": /srv-web-\d+/
+  - paragraph: Machine, interface, adresse ou préfixe
+  - text: Destination
+  - textbox "Destination": /srv-app-\d+/
+  - paragraph: Machine, interface, adresse ou préfixe
+  - group "Objet":
+    - text: ""
+    - button "Service"
+    - button "Transport et port" [pressed]
+    - button "Type de flux"
+    - text: Transport et port
+    - textbox "Transport et port": /tcp\/\d+/
+  - text: Référence du dossier
+  - textbox "Référence du dossier":
+    - /placeholder: ticketing:CHG-…
+  - paragraph: "Facultatif : sans dossier, ses conditions ne sont pas évaluées"
+  - button "Évaluer"
+  - text: "Aucune écriture : la même évaluation qu'une déclaration."
+  - region "Résultat":
+    - heading "Résultat" [level=2]
+    - text: /srv-web-\d+ → srv-app-\d+ · tcp\/\d+/
+    - button "Déclarer ce flux"
+    - term: Synthèse
+    - definition: Partielle 4 paires autorisées sur 6
+    - term: Issue
+    - definition: Non conforme
+    - term: Service
+    - definition:
+      - code: /tcp\/\d+/
+      - text: Web chiffré
+      - code: https
+    - term: Type de flux
+    - definition: Applicatif
+    - term: Lu à
+    - definition: /\d+-\d+-\d+, politique r42/
+    - status:
+      - paragraph: Avertissement
+      - list:
+        - listitem:
+          - text: "Synthèse partielle : 4 paires autorisées sur 6."
+          - button "Copier flow.verdict.partial":
+            - text: ""
+            - code: flow.verdict.partial
+          - status
+    - region "Verdict par paire d'adresses":
+      - heading "Verdict par paire d'adresses" [level=3]
+      - 'grid "Verdict par paire d''adresses : 4 paires autorisées sur 6"':
+        - rowgroup:
+          - row "Adresse source Adresse destination Verdict Élément décisif":
+            - columnheader "Adresse source"
+            - columnheader "Adresse destination"
+            - columnheader "Verdict"
+            - columnheader "Élément décisif"
+        - rowgroup:
+          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ eth0 Autorisé app-meme-env \(prod, prod\)/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /\d+\.\d+\.\d+\.\d+ eth0/
+            - gridcell "Autorisé"
+            - gridcell "app-meme-env (prod, prod)":
+              - code: app-meme-env
+              - text: ""
+          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ eth0 Autorisé app-meme-env \(prod, prod\)/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /\d+\.\d+\.\d+\.\d+ eth0/
+            - gridcell "Autorisé"
+            - gridcell "app-meme-env (prod, prod)":
+              - code: app-meme-env
+              - text: ""
+          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ eth1 Refusé no_rule \(prod, admin\)/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /\d+\.\d+\.\d+\.\d+ eth1/
+            - gridcell "Refusé"
+            - gridcell "no_rule (prod, admin)":
+              - code: no_rule
+              - text: ""
+          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ eth0 Autorisé app-meme-env \(prod, prod\)/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /\d+\.\d+\.\d+\.\d+ eth0/
+            - gridcell "Autorisé"
+            - gridcell "app-meme-env (prod, prod)":
+              - code: app-meme-env
+              - text: ""
+          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ eth0 Autorisé app-meme-env \(prod, prod\)/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /\d+\.\d+\.\d+\.\d+ eth0/
+            - gridcell "Autorisé"
+            - gridcell "app-meme-env (prod, prod)":
+              - code: app-meme-env
+              - text: ""
+          - row /\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ eth1 Refusé no_rule \(prod, admin\)/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /\d+\.\d+\.\d+\.\d+ eth1/
+            - gridcell "Refusé"
+            - gridcell "no_rule (prod, admin)":
+              - code: no_rule
+              - text: ""
+    - region "Explication":
+      - heading "Explication" [level=3]
+      - list:
+        - listitem:
+          - text: Autorisé
+          - button "Copier app-meme-env":
+            - text: ""
+            - code: app-meme-env
+          - status
+          - text: règle, combinaison
+          - code: (prod, prod)
+          - text: · 4 paires
+          - paragraph: Les applications d'un même environnement se parlent par leurs services déclarés.
+        - listitem:
+          - text: Refusé
+          - button "Copier no_rule":
+            - text: ""
+            - code: no_rule
+          - status
+          - text: cause, combinaison
+          - code: (prod, admin)
+          - text: · 2 paires
+          - paragraph: "Aucune règle n'autorise le type Applicatif de production vers administration : le refus par défaut s'applique."
+      - heading "Valeurs résolues des axes cités" [level=4]
+      - grid "Valeurs résolues des axes cités, par adresse":
+        - rowgroup:
+          - row "Adresse Extrémité Environnement Sensibilité":
+            - columnheader "Adresse"
+            - columnheader "Extrémité"
+            - columnheader "Environnement"
+            - columnheader "Sensibilité"
+        - rowgroup:
+          - row /\d+\.\d+\.\d+\.\d+ Source srv-web-\d+ eth0 Production héritée de \d+\.\d+\.2\.0\/\d+ Interne héritée de \d+\.\d+\.2\.0\/\d+/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /Source srv-web-\d+ eth0/
+            - gridcell /Production héritée de \d+\.\d+\.2\.0\/\d+/
+            - gridcell /Interne héritée de \d+\.\d+\.2\.0\/\d+/
+          - row /\d+\.\d+\.\d+\.\d+ Source srv-web-\d+ eth0 Production héritée de \d+\.\d+\.2\.0\/\d+ Interne héritée de \d+\.\d+\.2\.0\/\d+/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /Source srv-web-\d+ eth0/
+            - gridcell /Production héritée de \d+\.\d+\.2\.0\/\d+/
+            - gridcell /Interne héritée de \d+\.\d+\.2\.0\/\d+/
+          - row /\d+\.\d+\.\d+\.\d+ Destination srv-app-\d+ eth0 Production héritée de \d+\.\d+\.2\.0\/\d+ Interne héritée de \d+\.\d+\.2\.0\/\d+/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /Destination srv-app-\d+ eth0/
+            - gridcell /Production héritée de \d+\.\d+\.2\.0\/\d+/
+            - gridcell /Interne héritée de \d+\.\d+\.2\.0\/\d+/
+          - row /\d+\.\d+\.\d+\.\d+ Destination srv-app-\d+ eth0 Production héritée de \d+\.\d+\.2\.0\/\d+ Interne héritée de \d+\.\d+\.2\.0\/\d+/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /Destination srv-app-\d+ eth0/
+            - gridcell /Production héritée de \d+\.\d+\.2\.0\/\d+/
+            - gridcell /Interne héritée de \d+\.\d+\.2\.0\/\d+/
+          - row /\d+\.\d+\.\d+\.\d+ Destination srv-app-\d+ eth1 Administration posée sur \d+\.\d+\.\d+\.\d+\/\d+ Interne héritée de \d+\.\d+\.2\.0\/\d+/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /Destination srv-app-\d+ eth1/
+            - gridcell /Administration posée sur \d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /Interne héritée de \d+\.\d+\.2\.0\/\d+/
+      - heading "Règles écartées" [level=4]
+      - list:
+        - listitem:
+          - code: app-meme-env
+          - text: La destination n'est pas en production, recette, développement.
+        - listitem:
+          - code: rece-vers-prod
+          - text: La source n'est pas en recette.
+        - listitem:
+          - code: deny-deve-prod
+          - text: La source n'est pas en développement.
+      - heading "Conditions" [level=4]
+      - list:
+        - listitem:
+          - text: "Non évaluée : sans dossier"
+          - button "Copier justification-requise":
+            - text: ""
+            - code: justification-requise
+          - status
+          - paragraph: Un flux entre deux environnements différents porte une justification dans son dossier.
+    - status:
+      - paragraph: Suite attendue
+      - text: "/Déclaré tel quel, ce flux part en instruction : les 2 paires vers l'interface d'administration de srv-app-\\d+ n'y sont approuvables qu'avec une dérogation\\. Viser l'interface eth0 le rend conforme à la matrice de flux\\./"
+- button "Ouvrir le panneau"
