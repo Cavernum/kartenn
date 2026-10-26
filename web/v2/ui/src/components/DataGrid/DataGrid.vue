@@ -743,6 +743,17 @@ onBeforeUnmount(() => observer?.disconnect());
     color: var(--k-accent);
   }
 
+  /* A finger (design « Adaptation à la largeur », « Tactile »): the funnel, a target of its
+   * own inside a sortable header, at the floor of 24 px (WCAG 2.5.8). */
+  @media (any-pointer: coarse) {
+    .k-data-grid__filter {
+      justify-content: center;
+      align-items: center;
+      min-inline-size: var(--k-control-height-sm);
+      min-block-size: var(--k-control-height-sm);
+    }
+  }
+
   .k-data-grid__value {
     min-inline-size: 0;
     overflow: hidden;

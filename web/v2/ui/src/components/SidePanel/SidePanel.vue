@@ -357,6 +357,17 @@ function onPointerup(event: PointerEvent): void {
     touch-action: none;
   }
 
+  /* A finger: the handle takes 24 px, still astride the edge (WCAG 2.5.8); its colour
+   * keeps the width of the strip. */
+  @media (any-pointer: coarse) {
+    .k-side-panel__handle {
+      inset-inline-start: calc(var(--k-control-height-sm) / -2);
+      inline-size: var(--k-control-height-sm);
+      padding-inline: calc((var(--k-control-height-sm) - var(--k-space-2)) / 2);
+      background-clip: content-box;
+    }
+  }
+
   .k-side-panel__handle:hover,
   .k-side-panel__handle:focus-visible {
     background-color: var(--k-accent);

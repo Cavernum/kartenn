@@ -26,6 +26,12 @@ export interface TooltipControl {
   hide(soon?: boolean): void;
   /** Keeps it open (the pointer entered the bubble). */
   hold(): void;
+  /**
+   * Opens it on `el` at once, until the next press outside `el` and the bubble: a tap,
+   * where no hover comes and not every engine moves the focus (design « Adaptation à la
+   * largeur », « Tactile » : nothing reserved to hovering).
+   */
+  pin(el: HTMLElement): void;
   /** Listeners for the anchor; `enabled` says whether it has a tooltip now. */
   listeners(enabled: () => boolean): Record<string, (event: Event) => void>;
 }
@@ -39,6 +45,13 @@ export function useTooltip(): TooltipControl {
     if (timer !== undefined) clearTimeout(timer);
     timer = undefined;
   };
+  let unpin: (() => void) | undefined;
+  const release = () => {
+    unpin?.();
+    unpin = undefined;
+  };
+  /** A touch pointer leaves its target when the finger lifts: not a reason to close. */
+  const isTouch = (event: Event) => (event as PointerEvent).pointerType === "touch";
 
   const control: TooltipControl = {
     id,
@@ -52,16 +65,33 @@ export function useTooltip(): TooltipControl {
     },
     hide(soon = false) {
       clear();
+      release();
       if (soon) timer = setTimeout(() => (open.value = false), GRACE);
       else open.value = false;
     },
     hold: clear,
+    pin(el) {
+      control.show(el);
+      release();
+      const away = (event: PointerEvent) => {
+        const target = event.target as Node | null;
+        const bubble = document.getElementById(id);
+        if (!target || !(el.contains(target) || bubble?.contains(target))) control.hide();
+      };
+      document.addEventListener("pointerdown", away, { capture: true });
+      unpin = () => document.removeEventListener("pointerdown", away, { capture: true });
+    },
     listeners: (enabled) => ({
       pointerenter: (event) => {
-        if (enabled() && (event as PointerEvent).pointerType !== "touch")
-          control.show(event.currentTarget as HTMLElement, true);
+        if (enabled() && !isTouch(event)) control.show(event.currentTarget as HTMLElement, true);
       },
-      pointerleave: () => control.hide(true),
+      pointerleave: (event) => {
+        if (!isTouch(event)) control.hide(true);
+      },
+      // A tap (or Enter, Space) on a refused control says why, without hover nor focus.
+      click: (event) => {
+        if (enabled()) control.pin(event.currentTarget as HTMLElement);
+      },
       focus: (event) => {
         if (enabled()) control.show(event.currentTarget as HTMLElement);
       },
@@ -75,6 +105,9 @@ export function useTooltip(): TooltipControl {
       },
     }),
   };
-  onBeforeUnmount(clear);
+  onBeforeUnmount(() => {
+    clear();
+    release();
+  });
   return control;
 }

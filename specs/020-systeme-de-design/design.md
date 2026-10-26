@@ -495,6 +495,25 @@ horizontalement hors des régions de grille, et que chaque classe montre le cadr
   (`DemoFrame`, 400 px de large) dont la containment de mise en page (`contain: layout
   paint`) fait le bloc conteneur de ce qui est fixé à la fenêtre : la feuille couvre le
   cadre, pas la page du catalogue.
+- Audit tactile (`e2e/visual/touch.spec.ts`, émulation tactile de Chromium :
+  `(any-pointer: coarse)` et `(hover: none)` vrais) : chaque vue des maquettes à 1280,
+  768 et 390 px (à 390, aussi feuille fermée) ; toute cible fait 24 × 24 px ou respecte
+  l'exception d'espacement de 2.5.8 (un cercle de 24 px sur son centre ne touche aucune
+  autre cible ni le cercle d'une autre petite), lien dans une phrase exempté ; boutons
+  `primary` et `danger` à 44 px. Trouvé et corrigé : l'entonnoir d'en-tête du `DataGrid`
+  (16 px dans un en-tête qui trie) passe à `--k-control-height-sm` sous pointeur grossier ;
+  la poignée du `SidePanel` (8 px) prend 24 px, sa couleur gardant 8 px
+  (`background-clip`).
+- Rien de réservé au survol : `useTooltip` gagne `pin(el)` (ouvre tout de suite, jusqu'au
+  prochain appui hors de l'ancre et de la bulle) ; un appui (ou Entrée, Espace) sur un
+  `Button` ou un `IconButton` refusé l'ouvre, sans compter sur le focus (tous les moteurs
+  ne focalisent pas un bouton touché) ; un pointeur tactile qui quitte l'ancre en levant
+  le doigt ne la ferme plus. Une entrée refusée d'un `Menu`, choisie au doigt, montre son
+  motif ; une barre de `BarChart` touchée montre sa valeur. Le reste du survol est
+  décoratif (fonds de lignes, croix de `MatrixGrid` aussi posée par la cellule active),
+  le « + » de `TreeGrid` était déjà traité. Les noms des entrées de la barre latérale en
+  rail n'ont pas encore d'infobulle (tâche 23) : le bouton « Barre latérale » la déplie ;
+  l'infobulle à venir s'ouvrira au focus, comme les autres.
 
 ## Architecture CSS (REQ-020-12 à 14)
 
