@@ -69,10 +69,10 @@
       - text: ; la cellule garde la valeur lue d'ici là.
       - list:
         - listitem:
-          - text: Vous n'avez pas le droit d'appliquer vous-même les adresses (core.address.apply_own).
-          - button "Copier changeset.apply_own.missing":
+          - text: Vous n'avez pas le droit d'appliquer vous-même les adresses (core.address.approval.self).
+          - button "Copier changeset.approval.self.missing":
             - text: ""
-            - code: changeset.apply_own.missing
+            - code: changeset.approval.self.missing
           - status
     - grid "Adresses":
       - rowgroup:

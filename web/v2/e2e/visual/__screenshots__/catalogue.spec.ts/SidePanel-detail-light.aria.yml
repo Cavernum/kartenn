@@ -2,7 +2,7 @@
   - region "SidePanel":
     - heading "SidePanel" [level=1]
     - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter ; en feuille, Dialog (Modal)"
-    - figure "detail — Ouvert sur l'onglet Détail, en surimpression de la fin de la surface":
+    - figure "detail — Ouvert sur l'onglet Détail, à côté de la surface, qui se réduit à la largeur qu'il laisse":
       - button "Brouillon 3 opérations" [expanded]
       - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
       - grid "Préfixes":

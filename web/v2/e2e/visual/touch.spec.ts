@@ -107,7 +107,7 @@ for (const width of [1280, 768, 390] as const) {
           await open(page, `/_ui/ecrans/${mockup.id}?vue=${view.id}`);
           await page.locator(".k-ecran").waitFor();
           await expectTouchable(page, "page");
-          const back = page.locator(".k-side-panel__back");
+          const back = page.locator(".k-side-panel__back, .k-bottom-panel__back");
           if (width === 390 && (await back.count()) > 0 && !view.modal) {
             await back.click();
             await expectTouchable(page, "sheet closed");

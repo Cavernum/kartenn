@@ -183,12 +183,12 @@ test.describe("Compact frame (390 px)", () => {
     await page.keyboard.press("Enter");
     const sheet = page.getByRole("dialog", { name: "Panneau droit" });
     await expect(sheet.getByRole("tab", { name: /Brouillon/ })).toBeFocused();
-    await expect(page.locator(".k-ecran__surface")).toHaveJSProperty("inert", true);
+    await expect(page.locator(".k-ecran__work")).toHaveJSProperty("inert", true);
     await expect(page.locator(".k-ecran__bar")).toHaveJSProperty("inert", true);
     await sheet.getByRole("button", { name: "Retour" }).click();
     await expect(sheet).toBeHidden();
     await expect(counter).toBeFocused();
-    await expect(page.locator(".k-ecran__surface")).toHaveJSProperty("inert", false);
+    await expect(page.locator(".k-ecran__work")).toHaveJSProperty("inert", false);
   });
 });
 
@@ -202,19 +202,21 @@ test.describe("Narrow frame (768 px)", () => {
     await page.keyboard.press("Enter");
     const panel = page.getByRole("complementary", { name: "Panneau droit" });
     await expect(panel).toBeVisible();
-    await expect(page.locator(".k-ecran__surface")).toHaveJSProperty("inert", true);
+    // The work (surface and bottom panel) beside it goes inert.
+    await expect(page.locator(".k-ecran__work")).toHaveJSProperty("inert", true);
     await expect(page.locator(".k-ecran__bar")).toHaveJSProperty("inert", false);
     await page.keyboard.press("Enter");
     await expect(panel).toBeHidden();
-    await expect(page.locator(".k-ecran__surface")).toHaveJSProperty("inert", false);
+    await expect(page.locator(".k-ecran__work")).toHaveJSProperty("inert", false);
   });
 });
 
 /**
- * E3 with the panel opened over the end of the surface (020, « Adaptation à la largeur »,
- * 2026-10-26; WCAG 2.4.11): the grid of addresses fits within what stays visible, its
- * columns of lower priority folded, the rest of the page where it was; Tab and the arrows
- * reach every cell of a row, each one wholly beside the panel. Closed, the grid unfolds.
+ * E3 with the panel opened beside the surface (020, « Adaptation à la largeur », « tout
+ * s'adapte », 2026-10-26): the whole surface shrinks to what the panel leaves, the grid of
+ * addresses folds its columns of lower priority, its toolbar stays within its panel; Tab
+ * and the arrows reach every cell of a row, each one wholly beside the panel. Closed, the
+ * grid unfolds.
  */
 async function addressesBesidePanel(page: Page): Promise<void> {
   // The view of a selection: a roving stop on a cell (in the editing view, the editor holds
@@ -228,15 +230,20 @@ async function addressesBesidePanel(page: Page): Promise<void> {
   // A column of priority 2: shown on the whole surface, folded beside the panel.
   const usage = grid.getByRole("columnheader", { name: /^Usage/ });
   await expect(usage).toBeVisible();
-  const before = await actions.boundingBox();
   await page.getByRole("button", { name: /^Brouillon\s*\d+\s*opération/ }).click();
   const panel = page.getByRole("complementary", { name: "Panneau droit" });
   await expect(panel).toBeVisible();
   const edge = (await panel.boundingBox())!.x;
   await expect(usage).toBeHidden();
+  const surface = (await page.locator(".k-ecran__surface").boundingBox())!;
+  expect(surface.x + surface.width).toBeLessThanOrEqual(edge);
   const box = (await grid.boundingBox())!;
   expect(box.x + box.width).toBeLessThan(edge);
-  expect(await actions.boundingBox()).toEqual(before);
+  // The toolbar within the panel of the grid, the panel within the surface.
+  const main = (await page.locator(".k-ecran-panel[data-main]").boundingBox())!;
+  const bar = (await actions.boundingBox())!;
+  expect(bar.x + bar.width).toBeLessThanOrEqual(main.x + main.width + 0.5);
+  expect(main.x + main.width).toBeLessThanOrEqual(surface.x + surface.width + 0.5);
 
   // From the skip link, Tab to the grid (its one stop), then along its header and its
   // first row: every cell wholly beside the panel, the last one included.
@@ -265,17 +272,16 @@ async function addressesBesidePanel(page: Page): Promise<void> {
 
   await panel.getByRole("button", { name: "Fermer le panneau" }).click();
   await expect(usage).toBeVisible();
-  expect(await actions.boundingBox()).toEqual(before);
 }
 
 test.describe("Standard frame (1024 px)", () => {
   test.use({ viewport: { width: 1024, height: 900 } });
 
-  test("a grid under the panel fits beside it, every cell reached there", async ({ page }) => {
+  test("the surface shrinks beside the panel, every cell of its grid reached", async ({ page }) => {
     await addressesBesidePanel(page);
   });
 
-  test("a matrix under the panel fits beside it and scrolls in line", async ({ page }) => {
+  test("a matrix beside the panel scrolls in line", async ({ page }) => {
     await page.goto("/_ui/ecrans/E10?vue=matrice");
     const panel = page.getByRole("complementary", { name: "Panneau droit" });
     await expect(panel).toBeVisible();
@@ -290,25 +296,107 @@ test.describe("Standard frame (1024 px)", () => {
     const cell = (await page.locator(":focus").boundingBox())!;
     expect(cell.x + cell.width).toBeLessThanOrEqual(edge + 1);
     expect(cell.x).toBeGreaterThanOrEqual(box.x);
-    // Closed, the panel gives its room back to the matrix.
-    await expect(grid).not.toHaveCSS("margin-inline-end", "0px");
+    // Closed, the panel gives its room back to the surface, and the matrix widens.
     await panel.getByRole("button", { name: "Fermer le panneau" }).click();
-    await expect(grid).toHaveCSS("margin-inline-end", "0px");
+    await expect.poll(async () => (await grid.boundingBox())!.width).toBeGreaterThan(box.width);
   });
 });
 
 test.describe("Wide frame (1280 px)", () => {
-  test("a grid under the panel fits beside it, every cell reached there", async ({ page }) => {
+  test("the surface shrinks beside the panel, every cell of its grid reached", async ({ page }) => {
     await addressesBesidePanel(page);
   });
 
-  test("the panel over the end of the surface sets its scroll padding", async ({ page }) => {
+  test("beside the panel, the surface stays live and takes its width back at once", async ({
+    page,
+  }) => {
     await page.goto("/_ui/ecrans/E3?vue=edition");
     const surface = page.locator(".k-ecran__surface");
-    await expect(surface).toHaveCSS("scroll-padding-inline-end", "0px");
+    const whole = (await surface.boundingBox())!.width;
     await page.getByRole("button", { name: /^Brouillon\s*\d+\s*opération/ }).click();
-    await expect(surface).toHaveCSS("scroll-padding-inline-end", "420px");
+    const panel = page.getByRole("complementary", { name: "Panneau droit" });
+    await expect(panel).toBeVisible();
     await expect(surface).toHaveJSProperty("inert", false);
+    // The panel (420 px and its gap) takes the place of the strip.
+    const narrowed = (await surface.boundingBox())!.width;
+    expect(narrowed).toBeLessThan(whole - 380);
+    await panel.getByRole("button", { name: "Fermer le panneau" }).click();
+    // The strip of the closed panel takes its track again.
+    const strip = (await page.locator(".k-side-panel-rail").boundingBox())!.width;
+    expect(Math.round((await surface.boundingBox())!.width)).toBe(Math.round(whole));
+    expect(strip).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The bottom panel (020, « Panneau du bas »): on E1, the detail of the chosen row under the
+ * tree and the table, which keep their whole width; its handle by the keyboard, its height
+ * menu without dragging (WCAG 2.5.7), Escape closes it and the surface takes its height back.
+ */
+test.describe("BottomPanel (complementary + Tabs, Window Splitter)", () => {
+  test("arrows, Home and End on the handle; the menu in one click; Escape closes it", async ({
+    page,
+  }) => {
+    await state(page, "BottomPanel", "open");
+    const panel = page.getByRole("complementary", { name: "Panneau du bas" });
+    await expect(panel).toBeVisible();
+    const handle = panel.getByRole("separator", { name: "Redimensionner le panneau" });
+    await expect(handle).toHaveAttribute("aria-orientation", "horizontal");
+    await handle.focus();
+    await expect(handle).toHaveAttribute("aria-valuenow", "240");
+    await page.keyboard.press("ArrowUp");
+    await expect(handle).toHaveAttribute("aria-valuenow", "256");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await expect(handle).toHaveAttribute("aria-valuenow", "224");
+    await page.keyboard.press("Home");
+    await expect(handle).toHaveAttribute("aria-valuenow", "160");
+    expect(Math.round((await panel.boundingBox())!.height)).toBe(160);
+    // The menu: « Standard » in one click, the current height checked.
+    const trigger = panel.getByRole("button", { name: "Hauteur du panneau" });
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    const menu = page.getByRole("menu");
+    await expect(menu.getByRole("menuitemradio", { name: "Basse" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    await expect(menu).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await expect(handle).toHaveAttribute("aria-valuenow", "320");
+    expect(Math.round((await panel.boundingBox())!.height)).toBe(320);
+    // Escape closes it; the surface takes the whole height back, its width unchanged.
+    const surface = page.locator(".k-demo-frame__surface");
+    const before = (await surface.boundingBox())!;
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
+    const after = (await surface.boundingBox())!;
+    expect(after.height).toBeGreaterThan(before.height + 300);
+    expect(after.width).toBe(before.width);
+  });
+
+  test("E1: the detail under the tree and the table, which keep their width", async ({ page }) => {
+    await page.goto("/_ui/ecrans/E1?vue=noeud");
+    const panel = page.getByRole("complementary", { name: "Détail de l'objet choisi" });
+    await expect(panel).toBeVisible();
+    await expect(page.getByRole("complementary", { name: "Panneau droit" })).toBeHidden();
+    const surface = (await page.locator(".k-ecran__surface").boundingBox())!;
+    const box = (await panel.boundingBox())!;
+    expect(Math.round(box.x)).toBe(Math.round(surface.x));
+    expect(Math.round(box.width)).toBe(Math.round(surface.width));
+    expect(box.y).toBeGreaterThanOrEqual(surface.y + surface.height);
+    // Its attributes in several columns: « Sorte » and « Usage » side by side.
+    const kind = (await panel.getByText("Sorte", { exact: true }).boundingBox())!;
+    const usage = (await panel.getByText("Usage", { exact: true }).boundingBox())!;
+    expect(Math.round(usage.y)).toBe(Math.round(kind.y));
+    // The close button gives the whole height back to the surface.
+    await panel.getByRole("button", { name: "Fermer le panneau" }).click();
+    await expect(panel).toBeHidden();
+    const whole = (await page.locator(".k-ecran__surface").boundingBox())!;
+    expect(whole.height).toBeGreaterThan(surface.height + box.height);
+    expect(whole.width).toBe(surface.width);
   });
 });
 
