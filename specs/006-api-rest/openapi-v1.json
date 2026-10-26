@@ -22839,6 +22839,15 @@
             }
           },
           {
+            "description": "Of this medium, a key of `machines.interface_media`.",
+            "in": "query",
+            "name": "media",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
             "in": "query",
             "name": "q",

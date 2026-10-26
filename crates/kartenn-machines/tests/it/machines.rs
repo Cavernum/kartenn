@@ -1335,6 +1335,69 @@ async fn admin_adds_a_role_value(pool: PgPool) {
     );
 }
 
+/// REQ-009-26: the medium of an interface, a closed list the module ships and an
+/// administrator extends, optional, on interfaces only.
+#[kartenn_testing::pg_test]
+async fn interface_media_values(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let media = env.property("machines.interface_media").await;
+    let mut shipped: Vec<String> = kartenn_machines::module::INTERFACE_MEDIAS
+        .iter()
+        .map(|&v| v.to_owned())
+        .collect();
+    shipped.sort();
+    assert_eq!(env.values(media).await, shipped);
+    let m = env.create("m", "physical", json!({})).await;
+    // An interface without a medium is valid.
+    env.applied(vec![
+        op(
+            "create_interface",
+            json!({"machine": {"id": m}, "name": "eth1"}),
+        ),
+        op(
+            "create_interface",
+            json!({"machine": {"id": m}, "name": "eth2"}),
+        ),
+    ])
+    .await;
+    let (eth1, eth2) = (
+        env.interface(m, "eth1").await,
+        env.interface(m, "eth2").await,
+    );
+    assert_eq!(env.explained(eth1, media).await, (None, None));
+    env.applied(vec![assign(eth2, "machines.interface", media, "sfp")])
+        .await;
+    let (value, origin) = env.explained(eth2, media).await;
+    assert!(value.is_some_and(|v| v.contains("sfp")));
+    assert_eq!(origin, Some(eth2));
+    // Outside the list, or on a machine: refused.
+    let refused = env
+        .submit(vec![assign(
+            eth1,
+            "machines.interface",
+            media,
+            "token-ring",
+        )])
+        .await;
+    assert!(matches!(refused, Outcome::Refused { .. }), "{refused:?}");
+    let refused = env
+        .submit(vec![assign(m, "machines.machine", media, "ethernet")])
+        .await;
+    assert!(matches!(refused, Outcome::Refused { .. }), "{refused:?}");
+    // An administrator adds a value, kept by a new sync of the declarations.
+    env.applied(vec![Operation::AddEnumValue {
+        local: None,
+        property: Ref::Id(media),
+        key: "qsfp".into(),
+        labels: std::collections::BTreeMap::new(),
+    }])
+    .await;
+    env.applied(vec![assign(eth1, "machines.interface", media, "qsfp")])
+        .await;
+    sync(&env.store, &env.registry).await;
+    assert!(env.values(media).await.contains(&"qsfp".to_owned()));
+}
+
 /// A module that puts its own properties on machines (the policy of the 010, M3, M8).
 #[derive(Debug)]
 struct Inventory;
