@@ -9,7 +9,8 @@
 // its container without stretching its strokes; its height is a token. The SVG is one
 // image (`role="img"`) named by a summary (count, bounds, maximum, last value); a table
 // hidden on screen carries every value. Hovering a bar shows its label and value in a
-// tooltip, decorative since the table says the same. Tokens only: light and dark follow.
+// tooltip, decorative since the table says the same; the image takes the focus and the
+// arrows show the bars the same way (relecture du 2026-10-26). Tokens only.
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { currentLocale, t } from "../../i18n.ts";
 import Tooltip from "../Tooltip/Tooltip.vue";
@@ -91,6 +92,51 @@ function leave(event: PointerEvent): void {
 watch(tip.open, (open) => {
   if (!open) hovered.value = null;
 });
+
+// The keyboard (WCAG 2.1.1, 1.4.13): the image takes the focus; the arrows, Home and End
+// move over the bars, each shown as the pointer shows it (tooltip) and said by a polite
+// live region; Escape closes the tooltip, leaving the focus out closes it.
+const svg = ref<SVGSVGElement | null>(null);
+const said = ref("");
+function showBar(i: number): void {
+  const hit = svg.value?.querySelectorAll(".k-bar-chart__hit")[i];
+  const p = props.points[i];
+  if (!hit || !p) return;
+  hovered.value = i;
+  tip.show(hit as unknown as HTMLElement);
+  said.value = `${p.label} : ${write.value(p.value)}`;
+}
+function onFocus(): void {
+  if (props.points.length) showBar(hovered.value ?? props.points.length - 1);
+}
+function onBlur(): void {
+  tip.hide();
+  said.value = "";
+}
+function onKeydown(event: KeyboardEvent): void {
+  const last = props.points.length - 1;
+  if (last < 0) return;
+  const at = hovered.value ?? last;
+  const rtl = getComputedStyle(event.currentTarget as Element).direction === "rtl";
+  const next =
+    event.key === (rtl ? "ArrowLeft" : "ArrowRight")
+      ? Math.min(last, at + 1)
+      : event.key === (rtl ? "ArrowRight" : "ArrowLeft")
+        ? Math.max(0, at - 1)
+        : event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? last
+            : null;
+  if (event.key === "Escape" && tip.open.value) {
+    event.preventDefault();
+    tip.hide();
+    return;
+  }
+  if (next === null) return;
+  event.preventDefault();
+  showBar(next);
+}
 </script>
 
 <template>
@@ -102,14 +148,19 @@ watch(tip.open, (open) => {
     </div>
     <div ref="plot" class="k-bar-chart__plot">
       <svg
+        ref="svg"
         class="k-bar-chart__svg"
         role="img"
+        :tabindex="props.points.length ? 0 : undefined"
         :aria-label="summary"
         :width="size.width"
         :height="size.height"
         :viewBox="`0 0 ${size.width} ${size.height}`"
         shape-rendering="crispEdges"
         @pointerleave="leave"
+        @focus="onFocus"
+        @blur="onBlur"
+        @keydown="onKeydown"
       >
         <line
           v-for="(_, i) in ticks"
@@ -152,6 +203,7 @@ watch(tip.open, (open) => {
     <!-- Hidden in a box, not on the table: the caption sits in the wrapper box of the
          table, outside its `overflow` and `clip-path` in some engines, and would show over
          the plot (revue du 2026-10-25, soir). -->
+    <span class="k-visually-hidden" aria-live="polite">{{ said }}</span>
     <div class="k-visually-hidden">
       <table>
         <caption>

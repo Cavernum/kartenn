@@ -310,6 +310,26 @@ test.describe("Tooltip", () => {
   });
 });
 
+test.describe("BarChart (img + table)", () => {
+  test("the image takes the focus; the arrows show each bar's value", async ({ page }) => {
+    await state(page, "BarChart", "week");
+    const chart = page.getByRole("img", { name: /^Changesets appliqués par jour/ });
+    const bubble = page.locator(".k-tooltip:not([hidden])");
+    await chart.focus();
+    await expect(bubble).toBeVisible();
+    const last = await bubble.textContent();
+    await page.keyboard.press("Home");
+    await expect(bubble).not.toHaveText(last!);
+    const first = await bubble.textContent();
+    await page.keyboard.press("ArrowRight");
+    await expect(bubble).not.toHaveText(first!);
+    await page.keyboard.press("End");
+    await expect(bubble).toHaveText(last!);
+    await page.keyboard.press("Escape");
+    await expect(bubble).toBeHidden();
+  });
+});
+
 test.describe("MatrixGrid (Grid)", () => {
   test("arrows, Home, End, Ctrl+Home, Ctrl+End over headers and cells", async ({ page }) => {
     await state(page, "MatrixGrid", "cell-states");

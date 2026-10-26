@@ -363,9 +363,11 @@ describe("charts (revue du 2026-10-25)", () => {
       pointLabel: "Jour",
       valueLabel: "Appliqués",
     });
+    // An image that takes the focus: the arrows show each bar's value.
     expect(html).toContain(
-      'role="img" aria-label="Changesets appliqués par jour : 3 valeurs, 13 janv. – 15 janv. ; maximum 11 (14 janv.) ; dernière 7"',
+      'role="img" tabindex="0" aria-label="Changesets appliqués par jour : 3 valeurs, 13 janv. – 15 janv. ; maximum 11 (14 janv.) ; dernière 7"',
     );
+    expect(html).toContain('aria-live="polite"');
     // Hidden by a box around it: its caption, outside the table box, is hidden too.
     expect(html).toMatch(/<div class="k-visually-hidden"><table><caption>/);
     expect(html.match(/<th scope="row">/g)).toHaveLength(3);
