@@ -326,10 +326,11 @@ describe("filters, differential, view states", () => {
     expect(locked).not.toEqual(warn);
   });
 
-  it("Skeleton: busy, said in words, the bars hidden", async () => {
+  it("Skeleton: an empty status region first (filled once mounted), the bars hidden", async () => {
     const html = await render(Skeleton, { rows: 2, columns: 3 });
-    expect(html).toContain('aria-busy="true"');
-    expect(text(html)).toContain("Chargement");
+    // Not busy: a busy region would hold back the announcement of its status.
+    expect(html).not.toContain("aria-busy");
+    expect(html).toContain('role="status"></span>');
     expect(html.match(/class="k-skeleton__row" aria-hidden="true"/g)).toHaveLength(2);
   });
 });

@@ -5,17 +5,28 @@
 <script setup lang="ts">
 // The loading state of a data view (design « Inventaire », line 25; REQ-020-23): bars of
 // the size of what comes (rows of `--k-row-height`, lines of text), so that the data take
-// the same place when they arrive (no layout shift). `aria-busy` and a hidden word say it.
+// the same place when they arrive (no layout shift). A hidden word in a status region says
+// it (no `aria-busy` around it: a busy region holds back its announcements).
 // Every bar and block takes the shared fill `k-skeleton-fill` (shared.css): a sheen that
 // runs as long as the place loads, still under reduced motion (the system's or
 // `data-motion="reduce"`), its fill alone telling the place. `cell`: one bar alone, for a
-// cell of a grid that says its loading itself (`DataGrid`).
+// cell of a grid that says its loading itself (`DataGrid`). The live region is there,
+// empty, before the word comes: one inserted with its text is not announced (relecture du
+// 2026-10-26).
+import { onBeforeUnmount, onMounted, ref } from "vue";
 import { t } from "../../i18n.ts";
 
 const props = withDefaults(
   defineProps<{ variant?: "rows" | "text" | "block" | "cell"; rows?: number; columns?: number }>(),
   { variant: "rows", rows: 5, columns: 4 },
 );
+
+const said = ref(false);
+let frame = 0;
+onMounted(() => {
+  frame = requestAnimationFrame(() => (said.value = true));
+});
+onBeforeUnmount(() => cancelAnimationFrame(frame));
 </script>
 
 <template>
@@ -25,8 +36,8 @@ const props = withDefaults(
     :data-width="(props.rows + props.columns) % 3"
     aria-hidden="true"
   ></span>
-  <div v-else class="k-skeleton" :data-variant="props.variant" aria-busy="true">
-    <span class="k-visually-hidden" role="status">{{ t("loading") }}</span>
+  <div v-else class="k-skeleton" :data-variant="props.variant">
+    <span class="k-visually-hidden" role="status">{{ said ? t("loading") : "" }}</span>
     <template v-if="props.variant === 'rows'">
       <div v-for="row in props.rows" :key="row" class="k-skeleton__row" aria-hidden="true">
         <span
