@@ -40,6 +40,7 @@ export const DATED_PATHS: ReadonlySet<string> = new Set([
   "/v1/entities/{id}/properties/{key}/suggestion",
   "/v1/environments",
   "/v1/environments/{id}",
+  "/v1/flow-checks",
   "/v1/flow-nonconformities",
   "/v1/flow-types",
   "/v1/flow-types/{id}",

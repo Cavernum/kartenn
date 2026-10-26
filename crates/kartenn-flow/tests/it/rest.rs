@@ -610,3 +610,202 @@ async fn nonconformities_page_by_cursor(pool: PgPool) {
     assert_eq!(status, StatusCode::BAD_REQUEST, "{problem}");
     assert_eq!(problem["type"], "urn:kartenn:problem:invalid-cursor");
 }
+
+/// A host address of the domain, in a network already created.
+async fn host(env: &Env, address: &str) -> Uuid {
+    env.applied(vec![kartenn_service::Operation::CreateAddress {
+        local: None,
+        domain: kartenn_service::Ref::Id(env.domain),
+        address: address.into(),
+        usage: kartenn_core::objects::AddressUsage::Host,
+    }])
+    .await;
+    sqlx::query_scalar("SELECT id FROM address WHERE address = $1::inet")
+        .bind(address)
+        .fetch_one(&env.pool)
+        .await
+        .unwrap()
+}
+
+/// `GET /v1/flow-checks` of `source` to `destination` (`<kind>:<id>`) for `ssh`, with
+/// `extra` parameters.
+async fn checked(app: &Router, source: &str, destination: &str, extra: &str) -> Value {
+    let (status, answer) = call(
+        app,
+        Method::GET,
+        &format!("/v1/flow-checks?source={source}&destination={destination}&service=ssh{extra}"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{answer}");
+    answer
+}
+
+/// The flows cited by the first pair of a test.
+fn opening(answer: &Value) -> Vec<(String, String)> {
+    answer["pairs"][0]["flows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| {
+            (
+                f["id"].as_str().unwrap().to_owned(),
+                f["state"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect()
+}
+
+/// REQ-011-26 (F21): a connection test answers « open » (the flows `active` or `waived`
+/// that cover the pair and the service) apart from « conformant » (the verdict), sums them
+/// up in one of four cases, and writes nothing.
+#[kartenn_testing::pg_test]
+#[allow(clippy::too_many_lines)] // the cases of acceptance, in turn
+async fn acceptance_of_req_011_26_open_and_conformant(pool: PgPool) {
+    use crate::requests::{flow, later, policy};
+
+    let env = Env::new(&pool).await;
+    let prod = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
+    let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
+    let other = host(&env, "10.1.0.2").await;
+    let network: Uuid = sqlx::query_scalar("SELECT id FROM prefix WHERE prefix = '10.2.0.0/24'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    // A flow `active` whose destination is the network of the destination.
+    let mut fields = env.fields(prod, dev).await;
+    fields["destination"] = json!({ "kind": "prefix", "id": { "id": network } });
+    env.applied(vec![flow("request", fields)]).await;
+    let wide: Uuid = sqlx::query_scalar("SELECT id FROM flow.flow")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let reader = env.app(
+        env.granted(&["policy.verdict.read", "core.address.read", "flow.read"])
+            .await,
+    );
+    let (src, dst) = (format!("address:{prod}"), format!("address:{dev}"));
+    let flows = || async {
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM flow.flow")
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+    };
+    let before = flows().await;
+
+    // Open and conformant, the flow cited; the same in the QUERY form.
+    let answer = checked(&reader, &src, &dst, "").await;
+    assert_eq!(answer["case"], "open_conformant", "{answer}");
+    assert_eq!(answer["pairs"][0]["open"], true);
+    assert_eq!(answer["pairs"][0]["conformant"], true);
+    assert_eq!(opening(&answer), [(wide.to_string(), "active".to_owned())]);
+    assert_eq!(answer["verdict"]["synthesis"]["verdict"], "allowed");
+    let (status, queried) = call(
+        &reader,
+        Method::from_bytes(b"QUERY").unwrap(),
+        "/v1/flow-checks",
+        Some(json!({ "source": { "kind": "address", "id": prod },
+                     "destination": { "kind": "address", "id": dev },
+                     "service": "ssh" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{queried}");
+    assert_eq!(queried["case"], answer["case"]);
+
+    // No covering flow, verdict allowed: not open but conformant, the outcome given.
+    let answer = checked(&reader, &format!("address:{other}"), &dst, "").await;
+    assert_eq!(answer["case"], "not_open_conformant", "{answer}");
+    assert!(answer["verdict"]["evaluations"][0]["outcome"].is_string());
+    assert!(opening(&answer).is_empty());
+
+    // A dated flow opens the pair until its end; expired, it no longer does.
+    env.applied(vec![{
+        let mut fields = env.fields(other, dev).await;
+        fields["end"] = json!(later(1));
+        flow("request", fields)
+    }])
+    .await;
+    let answer = checked(&reader, &format!("address:{other}"), &dst, "").await;
+    assert_eq!(answer["case"], "open_conformant", "{answer}");
+    let at = format!("&valid_at={}", later(3));
+    let answer = checked(&reader, &format!("address:{other}"), &dst, &at).await;
+    assert_eq!(answer["case"], "not_open_conformant", "{answer}");
+
+    // A request pending a review does not open the pair: not open, not conformant.
+    let requester = env.person().await;
+    let outcome = env
+        .submit_as(
+            &crate::requests::grants(requester, crate::requests::REQUEST),
+            requester,
+            vec![flow("request", env.fields(dev, prod).await)],
+        )
+        .await;
+    crate::requests::proposal(&outcome);
+    let answer = checked(&reader, &dst, &src, "").await;
+    assert_eq!(answer["case"], "not_open_nonconformant", "{answer}");
+
+    // A reader of the verdicts who may not read the flow: nothing open for them.
+    let blind = env.app(
+        env.granted(&["policy.verdict.read", "core.address.read"])
+            .await,
+    );
+    let answer = checked(&blind, &src, &dst, "").await;
+    assert_eq!(answer["case"], "not_open_conformant", "{answer}");
+
+    // A rule `deny` makes the flow noncompliant; waived, it is open but not conformant,
+    // the waiver and the rule cited.
+    let admin: Uuid =
+        sqlx::query_scalar("SELECT id FROM policy.policy_flow_type WHERE key = 'admin'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    env.applied(vec![policy(
+        "rule.create",
+        json!({ "key": "no-prod-dev", "labels": { "fr": "Pas de prod vers dev" },
+                "effect": "deny", "flow_types": [{ "id": admin }],
+                "source": { "policy.environment": ["prod"] },
+                "destination": { "policy.environment": ["dev"] },
+                "texts": { "fr": { "body": "Interdit." } } }),
+    )])
+    .await;
+    // Granted by another than its requester.
+    let outcome = env
+        .submit_as(
+            &kartenn_service::authz::Unrestricted,
+            env.person().await,
+            vec![flow(
+                "waive",
+                json!({ "flow": { "id": wide }, "reason": "migration",
+                        "accepted_risk": "admin access", "end": later(30) }),
+            )],
+        )
+        .await;
+    assert!(
+        matches!(outcome, kartenn_service::Outcome::Applied { .. }),
+        "{outcome:?}"
+    );
+    let answer = checked(&reader, &src, &dst, "").await;
+    assert_eq!(answer["case"], "open_nonconformant", "{answer}");
+    assert_eq!(opening(&answer), [(wide.to_string(), "waived".to_owned())]);
+    assert_eq!(
+        answer["verdict"]["evaluations"][0]["decisive"]["rule"],
+        "no-prod-dev"
+    );
+
+    // A machine is refused; nothing was written.
+    let (web, _) = crate::endpoints::machine(&env, "web", prod).await;
+    let (status, problem) = call(
+        &reader,
+        Method::GET,
+        &format!("/v1/flow-checks?source=machine:{web}&destination={dst}&service=ssh"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{problem}");
+    assert_eq!(problem["violations"][0]["rule"], "policy.endpoint.machine");
+    assert_eq!(
+        flows().await,
+        before + 1,
+        "only the dated flow was requested"
+    );
+}

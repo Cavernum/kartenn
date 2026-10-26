@@ -2,7 +2,9 @@
 //! design « API »), mounted by kartenn-server: the flows as a collection, dated, paged and
 //! filtered; a request by `POST /v1/flows`, triaged (REQ-011-21), answered with the flow
 //! and its evaluations; the evaluations of a flow at (`valid_at`, `as_of`); the
-//! non-conformities; the flows of an address, a prefix, an interface or a machine.
+//! non-conformities; the flows of an address, a prefix, an interface or a machine; the
+//! test of a connection by `GET` and `QUERY /v1/flow-checks` (REQ-011-26): the query of
+//! compliance of the 010 and, for each of its evaluations, the flows that open it.
 //!
 //! Rights (REQ-011-17): a flow is read under `flow.read` on its entity, by the
 //! predicate of the core (ADR 0021); its requester reads it too, with the explanation
@@ -14,7 +16,7 @@ use axum::Extension;
 use axum::body::{Body, Bytes};
 use axum::extract::{Path, RawQuery, State};
 use axum::http::{HeaderMap, StatusCode, header};
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use kartenn_rest::ModuleRouter;
 use kartenn_rest::kit::{
@@ -267,8 +269,8 @@ pub struct NonconformityDto {
 pub struct FlowRequestDto {
     /// `requested` (default) or `observed`.
     kind: Option<String>,
-    /// The source: `{ "kind": "address" | "prefix" | "interface" | "machine" | "range",
-    /// "id": { "id": … } }`.
+    /// The source: `{ "kind": "address" | "prefix" | "interface", "id": { "id": … } }`; a
+    /// range is refused (`flow.endpoint.invalid`), a machine too (`flow.endpoint.machine`).
     #[schema(value_type = Object)]
     source: Value,
     /// The destination, as the source.
@@ -1082,8 +1084,290 @@ async fn request(
     Ok(Response::from_parts(parts, Body::from(body)))
 }
 
+// ---------------------------------------------------------------- test of a connection
+
+/// A flow that opens a pair (REQ-011-26).
+#[derive(Debug, Serialize, ToSchema)]
+#[schema(as = FlowOpening)]
+pub struct OpeningDto {
+    /// The flow.
+    id: Uuid,
+    /// `active` or `waived` (a waiver covers the date: the policy denies it).
+    state: String,
+    /// The end of the flow, if dated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    end: Option<String>,
+}
+
+/// One evaluation of the test: is it open, is it conformant (REQ-011-26).
+#[derive(Debug, Serialize, ToSchema)]
+#[schema(as = FlowCheckPair)]
+pub struct CheckPairDto {
+    /// Index of the evaluation in `verdict.evaluations`.
+    evaluation: usize,
+    /// Whether a flow of the registry the caller reads opens it; absent in a reduced
+    /// answer, which names no address.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    open: Option<bool>,
+    /// The flows that open it, `active` or `waived`, those the caller reads.
+    flows: Vec<OpeningDto>,
+    /// Whether the policy allows it (verdict other than `denied`).
+    conformant: bool,
+    /// `open_conformant`, `open_nonconformant`, `not_open_conformant` or
+    /// `not_open_nonconformant`; absent when `open` is.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    case: Option<String>,
+}
+
+/// The test of a connection (REQ-011-26, F21): the query of compliance, and for each of
+/// its evaluations whether a flow of the registry opens it; nothing is written.
+#[derive(Debug, Serialize, ToSchema)]
+#[schema(as = FlowCheck)]
+pub struct CheckDto {
+    /// The answer of the query of compliance (`QUERY /v1/verdicts`).
+    verdict: kartenn_policy::rest::VerdictDto,
+    /// One per evaluation, in its order.
+    pairs: Vec<CheckPairDto>,
+    /// The test summed up: open when every evaluation is, conformant when every one is;
+    /// absent without evaluation (`verdict.empty`) or in a reduced answer.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    case: Option<String>,
+}
+
+/// The name of one of the four cases (REQ-011-26).
+fn case_of(open: bool, conformant: bool) -> String {
+    match (open, conformant) {
+        (true, true) => "open_conformant",
+        (true, false) => "open_nonconformant",
+        (false, true) => "not_open_conformant",
+        (false, false) => "not_open_nonconformant",
+    }
+    .into()
+}
+
+/// The identifiers of the services of `keys` at `at`.
+async fn services_of(
+    api: &Api,
+    keys: &[String],
+    at: OffsetDateTime,
+) -> Result<HashMap<String, Uuid>, Problem> {
+    let rows: Vec<(String, Uuid)> = sqlx::query_as(
+        "SELECT key, id FROM policy.policy_service WHERE key = ANY($1) AND valid_period @> $2",
+    )
+    .bind(keys)
+    .bind(at)
+    .fetch_all(&api.pool)
+    .await
+    .map_err(|e| kit::store(&e))?;
+    Ok(rows.into_iter().collect())
+}
+
+/// Tests the connection of `dto` for the caller (REQ-011-26): the query of compliance,
+/// then the flows that open each evaluation, those the caller reads.
+#[allow(clippy::too_many_lines)] // the steps of the test, in their order
+async fn check(
+    api: &Api,
+    principal: &Principal,
+    context: &RequestContext,
+    dto: kartenn_policy::rest::VerdictQueryDto,
+) -> Result<Response, Problem> {
+    use kartenn_policy::evaluate::Verdict;
+    use kartenn_policy::verdict::Access;
+
+    let answered = kartenn_policy::rest::evaluate(api, principal, dto).await?;
+    let (moment, answer) = (answered.moment, answered.answer);
+    let full = answer.access == Access::Full;
+    let keys: Vec<String> = answer
+        .evaluations
+        .iter()
+        .filter_map(|e| e.evaluation.service.as_ref().map(ToString::to_string))
+        .collect();
+    let services = services_of(api, &keys, moment.valid_at).await?;
+    // Each evaluation whose points and service are named, by index.
+    let mut asked = Vec::new();
+    let mut tested = Vec::new();
+    for (i, e) in answer.evaluations.iter().enumerate() {
+        let source = answer.sources.get(e.source).and_then(|p| p.id);
+        let destination = answer.destinations.get(e.destination).and_then(|p| p.id);
+        let service = e
+            .evaluation
+            .service
+            .as_ref()
+            .and_then(|k| services.get(&k.to_string()).copied());
+        if let (Some(source), Some(destination), Some(service)) = (source, destination, service) {
+            asked.push(i);
+            tested.push(read::Tested {
+                source,
+                destination,
+                service,
+            });
+        }
+    }
+    let mut conn = api.pool.acquire().await.map_err(|e| kit::store(&e))?;
+    let opened = read::open(&mut conn, dates(&moment), &tested).await?;
+    drop(conn);
+    let ids: Vec<Uuid> = opened.iter().flatten().filter_map(|v| v.id).collect();
+    let scope = kit::scope(api, principal, kit::now(api).await?).await?;
+    let seen = visible(api, &scope, principal, moment.valid_at, &ids).await?;
+    let mut flows_of: HashMap<usize, Vec<OpeningDto>> = HashMap::new();
+    for (i, views) in asked.into_iter().zip(opened) {
+        flows_of.insert(
+            i,
+            views
+                .into_iter()
+                .filter(|v| v.id.is_some_and(|id| seen.contains(&id)))
+                .map(|v| OpeningDto {
+                    id: v.id.unwrap_or_default(),
+                    state: v.state.into(),
+                    end: v.end.map(rfc3339),
+                })
+                .collect(),
+        );
+    }
+    let pairs: Vec<CheckPairDto> = answer
+        .evaluations
+        .iter()
+        .enumerate()
+        .map(|(i, e)| {
+            let flows = flows_of.remove(&i).unwrap_or_default();
+            let conformant = e.evaluation.verdict != Verdict::Denied;
+            let open = full.then_some(!flows.is_empty());
+            CheckPairDto {
+                evaluation: i,
+                open,
+                flows,
+                conformant,
+                case: open.map(|o| case_of(o, conformant)),
+            }
+        })
+        .collect();
+    let case = (full && !pairs.is_empty()).then(|| {
+        case_of(
+            pairs.iter().all(|p| p.open == Some(true)),
+            pairs.iter().all(|p| p.conformant),
+        )
+    });
+    let cited: Vec<Uuid> = pairs
+        .iter()
+        .flat_map(|p| p.flows.iter().map(|f| f.id))
+        .collect();
+    kit::record_read(
+        api,
+        context,
+        FLOW,
+        &cited,
+        json!({
+            "check": [answered.query.source.id, answered.query.destination.id],
+            "valid_at": rfc3339(moment.valid_at),
+            "as_of": rfc3339(moment.as_of()),
+        }),
+    )
+    .await?;
+    let mut response = axum::Json(CheckDto {
+        verdict: kartenn_policy::rest::verdict_dto(answer),
+        pairs,
+        case,
+    })
+    .into_response();
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("no-store"),
+    );
+    Ok(response)
+}
+
+/// `GET /v1/flow-checks?source=<kind>:<id>&destination=…&service=…`: the test of a
+/// connection by the parameters of `GET /v1/verdicts` (REQ-011-26).
+async fn check_get(
+    State(api): State<Api>,
+    Extension(principal): Extension<Principal>,
+    Extension(context): Extension<RequestContext>,
+    RawQuery(raw): RawQuery,
+) -> Result<Response, Problem> {
+    let dto = kartenn_policy::rest::query_of_params(raw.as_deref())?;
+    check(&api, &principal, &context, dto).await
+}
+
+/// `QUERY /v1/flow-checks` with the body of `QUERY /v1/verdicts`; any other method but
+/// `GET` and `HEAD` → 405.
+async fn check_query(State(api): State<Api>, request: axum::extract::Request) -> Response {
+    let (principal, context, dto) = match kartenn_policy::rest::query_body(request).await {
+        Ok(found) => found,
+        Err(response) => return response,
+    };
+    match check(&api, &principal, &context, dto).await {
+        Ok(response) => response,
+        Err(problem) => problem.into_response(),
+    }
+}
+
+/// Adds to the path item of `/flow-checks` the `QUERY` of its body, in the extension
+/// `x-query` (design 006 « Versions et contrat »).
+fn check_query_extension(mut router: ModuleRouter) -> ModuleRouter {
+    let operation = op(
+        "query_flow_check",
+        "flow",
+        "Tests a connection (REQ-011-26): the query of compliance, and whether a flow of \
+         the registry opens each of its evaluations; nothing is written.",
+    )
+    .body("application/json", "PolicyVerdictQuery", true)
+    .answers("200", "The test.", "FlowCheck")
+    .build();
+    let document = router.get_openapi_mut();
+    let item = document
+        .paths
+        .paths
+        .get_mut("/flow-checks")
+        .expect("the path of a QUERY is routed");
+    item.extensions.get_or_insert_default().merge(
+        utoipa::openapi::extensions::ExtensionsBuilder::new()
+            .add(
+                kartenn_rest::openapi::QUERY_EXTENSION,
+                serde_json::to_value(&operation).expect("an operation serialises"),
+            )
+            .build(),
+    );
+    router
+}
+
+/// The routes of the test of a connection (REQ-011-26).
+fn check_routes(router: ModuleRouter) -> ModuleRouter {
+    let check_op = op(
+        "show_flow_check",
+        "flow",
+        "Tests a connection, by parameters (REQ-011-26): the query of compliance, and \
+         whether a flow of the registry opens each of its evaluations; nothing is written.",
+    )
+    .query(
+        "source",
+        "The source, `<kind>:<id>` (address, prefix or interface).",
+    )
+    .query(
+        "destination",
+        "The destination, `<kind>:<id>` (address, prefix or interface).",
+    )
+    .query("service", "A service, by its key.")
+    .query("transport", "A transport, with `port`.")
+    .query("port", "A port, with `transport`.")
+    .query("flow_type", "A flow type, by its key.")
+    .query("entity", "The entity of the request.")
+    .params::<DatesParams>()
+    .answers("200", "The test.", "FlowCheck")
+    .build();
+    let router = router.routes(documented(
+        "/flow-checks",
+        vec![(HttpMethod::Get, check_op)],
+        Vec::new(),
+        get(check_get).fallback(check_query),
+    ));
+    check_query_extension(router)
+}
+
 fn schemas() -> Vec<(String, RefOr<Schema>)> {
     let mut schemas = Vec::new();
+    schemas_of::<OpeningDto>(&mut schemas);
+    schemas_of::<CheckPairDto>(&mut schemas);
+    schemas_of::<CheckDto>(&mut schemas);
     schemas_of::<FlowDto>(&mut schemas);
     schemas_of::<ReviewDto>(&mut schemas);
     schemas_of::<TriageDto>(&mut schemas);
@@ -1344,5 +1628,6 @@ pub fn routes() -> ModuleRouter {
     router = object_routes(router, "addresses", EndpointKind::Address, "address");
     router = object_routes(router, "prefixes", EndpointKind::Prefix, "prefix");
     router = object_routes(router, "interfaces", EndpointKind::Interface, "interface");
-    object_routes(router, "machines", EndpointKind::Machine, "machine")
+    router = object_routes(router, "machines", EndpointKind::Machine, "machine");
+    check_routes(router)
 }

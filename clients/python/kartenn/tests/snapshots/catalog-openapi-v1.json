@@ -137,6 +137,13 @@
    "object:get:show_environments"
   ]
  },
+ "flow-checks": {
+  "module": "flow",
+  "verbs": [
+   "collection:list:show_flow_check",
+   "collection:query:query_flow_check"
+  ]
+ },
  "flow-nonconformities": {
   "module": "flow",
   "verbs": [
