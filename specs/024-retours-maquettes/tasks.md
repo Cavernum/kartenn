@@ -670,6 +670,33 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
       Un seul sujet par onglet (Extrémités, Matrice, Verdicts), aucun tableau plus large
       que le panneau, l'essentiel lisible à la hauteur par défaut.
     - Registre à 1440 : plus de colonne coupée.
+  - Résultat (reprise, branche `feat/e11-rework`) : extrémités en adresse, interface
+    (`srv-app-01 · eth0`) ou préfixe dans toutes les vues (`FlowEnd` sans machine dans
+    `donnees.ts`, registre refait : un flux de préfixe `flux-1046`, des adresses en
+    destination) ; `proposition` : panneau du bas en trois onglets (Extrémités, Matrice,
+    Verdicts), chacun ouvert sur la même réponse d'une ligne (synthèse, issue, élément
+    décisif, paires autorisées), sans tableau (listes en `subgrid`, `Attributs`, extrait
+    de matrice 2 × 2 masqué sous 440 px de conteneur, la cellule restant écrite) ; `tester`
+    devient « Tester une connexion » : réponse en une ligne parmi les quatre cas (texte,
+    icône, couleur), « Ouvert ? » (flux `active` ou `waived` cités, en lien ; flux qui
+    couvrent sans ouvrir) et « Conforme ? » (règle décisive, cellule, texte), puis les deux
+    réponses par paire d'adresses ; une vue par cas (`tester`, `tester-derogation`,
+    `tester-a-declarer`, `tester-ferme`) et des liens « Cas de la maquette » entre elles ;
+    une machine saisie en source demande le choix de son interface ou d'une adresse
+    (`tester-a-declarer`) ; `machine` : flux de ses interfaces, chacun avec l'interface (et
+    l'adresse ou le préfixe qui l'atteint) et l'autre extrémité en lien vers la fiche de
+    sa machine ; registre à 1440 sans défilement latéral. Test clavier inchangé (même
+    comportement), captures régénérées (3 vues de plus). Choix notés : conformité et issue
+    dans une même colonne du registre et du résumé, l'issue tue quand elle redit « non
+    conforme » ; colonne « Échéance » réduite à la date (l'état dit si c'est une
+    dérogation) ; clé de service `api-interne` raccourcie en `api` ; colonne « Service ou
+    port » de la proposition en priorité 3 (le panneau du bas la nomme) ; couleurs des
+    cas : ouvert et conforme `ok`, ouvert mais non conforme `ko` (conflit), non ouvert mais
+    conforme `info`, non ouvert et non conforme `neutral` ; « ouvert » d'un test = toutes
+    ses paires ouvertes ; test sans dossier, champ « Date » à la place de la référence ;
+    issue d'une déclaration affichée « dossier non évalué ». Reste : la ligne E11 du
+    design 020 parle encore d'« extrémités développées en machines » et de « tester un
+    flux ».
 - [ ] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
   020) — REQ-024-29
 
