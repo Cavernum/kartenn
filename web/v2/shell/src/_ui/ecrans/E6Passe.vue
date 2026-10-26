@@ -11,6 +11,7 @@ import {
   Cluster,
   DataGrid,
   Stack,
+  StatusBadge,
   TextField,
   type GridColumn,
   type GridSort,
@@ -77,6 +78,7 @@ const versions: Version[] = [
 ];
 const columns: GridColumn[] = [
   { id: "version", label: "Version", width: "sm", mono: true, sortable: true },
+  { id: "read", label: "Lecture", width: "sm" },
   { id: "valid", label: "Valide", width: "lg", mono: true, sortable: true },
   { id: "known", label: "Connue du", width: "md", mono: true, sortable: true },
   { id: "motive", label: "Motif", width: "fill", filterable: true },
@@ -121,14 +123,15 @@ const sort = ref<GridSort>({ column: "version", direction: "descending" });
         :columns="columns"
         :rows="versions"
         row-key="version"
-        selectable="single"
-        :selected="['v3']"
       >
+        <!-- The version read is a state of its own, said by a badge in its column: neither
+             mixed with the key nor drawn like a selection (relecture du 2026-10-26). -->
         <template #cell="{ row, column, value }">
-          <template v-if="column.id === 'version'"
-            >{{ row.version
-            }}<span v-if="row.version === 'v3'" class="k-ecran-muted"> · lue</span></template
-          >
+          <StatusBadge
+            v-if="column.id === 'read' && row.version === 'v3'"
+            state="info"
+            label="Lue"
+          />
           <template v-else>{{ value }}</template>
         </template>
       </DataGrid>
