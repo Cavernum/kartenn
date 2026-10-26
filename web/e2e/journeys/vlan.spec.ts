@@ -21,7 +21,7 @@ async function network(page: Page, value: string): Promise<string> {
       if (found) return found;
       const domains = await fetch(`/v1/domains?slug=${domain}`);
       const id = ((await domains.json()) as { items: { id: string }[] }).items[0]!.id;
-      const created = await fetch("/v1/changesets?apply=own", {
+      const created = await fetch("/v1/changesets?approval=self", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

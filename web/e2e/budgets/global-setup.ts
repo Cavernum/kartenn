@@ -25,7 +25,7 @@ export default async function globalSetup(): Promise<void> {
       ["/v1/issuer-attachments", { motive: "browser bench", issuer: ISSUER }],
       // The group of kartenn whose member is the group of the issuer (spec 025).
       [
-        "/v1/changesets?apply=own",
+        "/v1/changesets?approval=self",
         {
           motive: "browser bench",
           operations: [

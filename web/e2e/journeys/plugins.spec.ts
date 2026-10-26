@@ -125,7 +125,7 @@ test("an action is absent without its permission", async ({ page, login }) => {
   await page.goto(`/prefixes/${prefix}`);
   await expect(page.getByRole("tab", { name: "Notes" })).toBeVisible();
   // Bob edits addresses (spec 024): the example's draft action is his, not « Réserver »,
-  // which asks apply_own.
+  // which asks approval.self.
   await page.getByRole("button", { name: "Actions" }).click();
   await expect(page.getByRole("menuitem").first()).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Réserver" })).toHaveCount(0);
