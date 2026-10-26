@@ -146,8 +146,11 @@ const tabs = computed<TabItem[]>(() => [
   { value: "detail", label: "Détail" },
   { value: "draft", label: "Brouillon", count: props.draft },
 ]);
-/** The bottom panel, open at first on its first tab when the screen gives one. */
-const bottomOpen = ref(props.bottom !== undefined);
+/**
+ * The bottom panel, open at first on its first tab when the screen gives one; a screen
+ * that reopens it (the chosen row of E11) binds `v-model:bottom-open`.
+ */
+const bottomOpen = defineModel<boolean>("bottomOpen", { default: true });
 const bottomTab = ref<string>(props.bottom?.[0]?.value ?? "");
 /** The counter opens the panel on the draft, or closes it, whatever its tab. */
 function toggleDraft(): void {
