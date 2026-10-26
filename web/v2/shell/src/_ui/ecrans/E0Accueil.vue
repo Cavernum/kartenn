@@ -99,6 +99,9 @@ const percent = (value: number) => `${value} %`;
           </div>
         </dl>
         <StatusBadge state="warn" label="3 nouvelles depuis hier" />
+        <template #footer>
+          <Button size="sm" variant="ghost" icon="triangle-alert">Voir les anomalies</Button>
+        </template>
       </Panneau>
       <Panneau title="VLAN" detail="plugin VLAN">
         <Attributs
