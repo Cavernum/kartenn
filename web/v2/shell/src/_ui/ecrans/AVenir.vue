@@ -1,7 +1,8 @@
 <script setup lang="ts">
-// The place of a component not written yet (P4 of the 020): a dashed frame that names it
+// The place of a component not written yet (P4 of the 020): a sunken frame that names it
 // and its task, around the closest stand-in. Never in a screen of the 021: the mock-ups
-// only, so that the reviewer sees what is missing.
+// only, so that the reviewer sees what is missing. Not dashed: a dashed edge is the mark of
+// a draft (a filter being written), and the frame read as one (relecture du 2026-10-26).
 const props = defineProps<{
   component: string;
   task: string;
@@ -32,7 +33,7 @@ const props = defineProps<{
     gap: var(--k-space-2);
     align-content: start;
     padding: var(--k-space-2);
-    border: var(--k-border-width) dashed var(--k-border-control);
+    background-color: var(--k-surface-sunken);
     border-radius: var(--k-radius-md);
   }
 
