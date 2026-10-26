@@ -303,7 +303,7 @@ const EFFECT = [
         :columns="groupColumns"
         :rows="groups"
         row-key="key"
-        selectable
+        selectable="single"
         :selected="['campus-ouest']"
       />
     </Panneau>

@@ -254,6 +254,8 @@ describe("grids (REQ-020-34, 35)", () => {
       column: 0,
     });
     expect(moveInGrid(at, key("a"), 4, 3)).toBeNull();
+    // Alt+arrows belong to the browser and to the filter of a header.
+    expect(moveInGrid(at, { ...key("ArrowLeft"), altKey: true }, 4, 3)).toBeNull();
   });
 
   it("sorts ascending first, then the other way", () => {
@@ -292,6 +294,12 @@ describe("grids (REQ-020-34, 35)", () => {
     });
     expect(text(html)).toContain("(filtrée)");
     expect(html.match(/k-data-grid__filter/g)).toHaveLength(2);
+    // The funnel is a named button out of the tab order; the header keeps its own name.
+    expect(
+      html.match(/<button type="button" tabindex="-1" class="k-data-grid__filter"/g),
+    ).toHaveLength(2);
+    expect(html).toMatch(/aria-label="Filtrer : [^"]+"/);
+    expect(html).toMatch(/role="columnheader"[^>]*aria-label="[^"]+ \(filtrée\)"/);
   });
 
   it("MatrixGrid: row and column headers of the same make, the corner the entry point", async () => {

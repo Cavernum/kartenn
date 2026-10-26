@@ -296,7 +296,7 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
           :columns="groupColumns"
           :rows="GROUPS"
           row-key="key"
-          selectable
+          selectable="single"
           :selected="[group.key]"
           :row-state="groupState"
         >
@@ -319,7 +319,7 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
           :columns="identityColumns"
           :rows="IDENTITIES"
           row-key="key"
-          selectable
+          selectable="single"
           :selected="['lou.bernard']"
           stack
         >
@@ -346,7 +346,7 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
           :columns="roleColumns"
           :rows="ROLES"
           row-key="key"
-          selectable
+          selectable="single"
           :selected="['lecteur-reseau']"
         >
           <template #cell="{ row, column, value }">

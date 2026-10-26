@@ -66,6 +66,19 @@ describe("DataGrid", () => {
     expect(html.match(/tabindex="0"/g)).toHaveLength(1);
   });
 
+  it("selects one row only when `single`: no aria-multiselectable", async () => {
+    const html = await render(DataGrid, {
+      label: "Préfixes",
+      columns,
+      rows,
+      rowKey: "prefix",
+      selectable: "single",
+      selected: ["198.51.100.0/24"],
+    });
+    expect(html).not.toContain("aria-multiselectable");
+    expect(html).toContain('aria-selected="true"');
+  });
+
   it("renders the states the host decides, in words and with the code of an error", async () => {
     const html = await render(DataGrid, {
       label: "Préfixes",

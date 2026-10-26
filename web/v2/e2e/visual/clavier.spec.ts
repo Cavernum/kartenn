@@ -365,6 +365,79 @@ test.describe("DataGrid (Grid)", () => {
     await expect(env).toContainText("(filtrée)");
     await page.keyboard.press("Alt+ArrowDown");
     await expect(env).not.toContainText("(filtrée)");
+    // The funnel is a named button, out of the tab order.
+    const funnel = env.getByRole("button", { name: "Filtrer : Environnement" });
+    await expect(funnel).toHaveAttribute("tabindex", "-1");
+    await funnel.click();
+    await expect(env).toHaveAccessibleName("Environnement (filtrée)");
+  });
+
+  test("Space and Ctrl+A select rows (aria-multiselectable)", async ({ page }) => {
+    await state(page, "DataGrid", "selected");
+    const grid = page.getByRole("grid");
+    await expect(grid).toHaveAttribute("aria-multiselectable", "true");
+    const rows = grid.getByRole("row");
+    await expect(rows.nth(1)).toHaveAttribute("aria-selected", "false");
+    await grid.getByRole("columnheader", { name: /Préfixe/ }).focus();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Space");
+    await expect(rows.nth(1)).toHaveAttribute("aria-selected", "true");
+    await page.keyboard.press("Shift+Space");
+    await expect(rows.nth(1)).toHaveAttribute("aria-selected", "false");
+    await page.keyboard.press("Control+a");
+    await expect(grid.locator('[role="row"][aria-selected="true"]')).toHaveCount(5);
+    await page.keyboard.press("Control+a");
+    await expect(grid.locator('[role="row"][aria-selected="true"]')).toHaveCount(0);
+  });
+
+  test("a widget in a cell: Enter goes in, Escape comes back; one tab stop", async ({ page }) => {
+    await state(page, "DataGrid", "cell-states");
+    const grid = page.getByRole("grid");
+    const error = grid.locator('[role="gridcell"][data-state="error"]');
+    const copy = error.getByRole("button");
+    await expect(copy).toHaveAttribute("tabindex", "-1");
+    await grid.getByRole("columnheader", { name: "Préfixe" }).focus();
+    await error.focus();
+    await page.keyboard.press("Enter");
+    await expect(copy).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(error).toBeFocused();
+    await page.keyboard.press("F2");
+    await expect(copy).toBeFocused();
+    await page.keyboard.press("F2");
+    await expect(error).toBeFocused();
+  });
+
+  test("the column chooser: checkbox entries; hiding the stop's column keeps a stop", async ({
+    page,
+  }) => {
+    await state(page, "DataGrid", "priorities");
+    const grid = page.getByRole("grid");
+    const chooser = page.getByRole("button", { name: "Colonnes" });
+    await chooser.focus();
+    await page.keyboard.press("Enter");
+    const used = page.getByRole("menuitemcheckbox", { name: "Occupation" });
+    await expect(used).toHaveAttribute("aria-checked", "false");
+    await used.focus();
+    await page.keyboard.press("Enter");
+    // Checked, and the menu stays open.
+    await expect(used).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
+    await expect(chooser).toBeFocused();
+    const header = grid.getByRole("columnheader", { name: "Occupation" });
+    await expect(header).toBeVisible();
+    // The roving stop on that column, then the column hidden again.
+    await grid.getByRole("columnheader", { name: /Préfixe/ }).focus();
+    await page.keyboard.press("End");
+    await expect(header).toBeFocused();
+    await chooser.click();
+    await page.getByRole("menuitemcheckbox", { name: "Occupation" }).click();
+    await page.keyboard.press("Escape");
+    await expect(header).toBeHidden();
+    await expect(grid.locator("[tabindex='0']")).toHaveCount(1);
+    expect(
+      await grid.locator("[tabindex='0']").evaluate((el) => (el as HTMLElement).dataset.column),
+    ).toBe("prefix");
   });
 });
 

@@ -121,7 +121,7 @@ const sort = ref<GridSort>({ column: "version", direction: "descending" });
         :columns="columns"
         :rows="versions"
         row-key="version"
-        selectable
+        selectable="single"
         :selected="['v3']"
       >
         <template #cell="{ row, column, value }">

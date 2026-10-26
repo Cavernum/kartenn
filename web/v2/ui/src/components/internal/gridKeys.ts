@@ -16,15 +16,17 @@ export const PAGE_ROWS = 10;
  * « Keyboard interaction » of data grids): arrows by one cell, Home and End to the ends
  * of the row, Ctrl+Home and Ctrl+End to the first and last cell, Page Up and Page Down by
  * a page of rows; null for a key the grid leaves alone. The inline arrows follow the
- * direction of the text (`rtl`).
+ * direction of the text (`rtl`). With Alt, nothing: Alt+Left and Alt+Right belong to the
+ * browser (history), Alt+Down to the filter of a header.
  */
 export function moveInGrid(
   from: GridPosition,
-  event: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey">,
+  event: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey"> & { altKey?: boolean },
   rows: number,
   columns: number,
   rtl = false,
 ): GridPosition | null {
+  if (event.altKey) return null;
   const clamp = (row: number, column: number): GridPosition => ({
     row: Math.max(0, Math.min(rows - 1, row)),
     column: Math.max(0, Math.min(columns - 1, column)),

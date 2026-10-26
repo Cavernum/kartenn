@@ -139,6 +139,8 @@ const columns: GridColumn[] = [
   { id: "vlan", label: "VLAN", width: "sm", align: "end", mono: true, sortable: true, priority: 2 },
 ];
 const sort = ref<GridSort | undefined>({ column: "value", direction: "ascending" });
+/** The selected rows: Space toggles one, Ctrl+A all (the grid's keys). */
+const selection = ref<string[]>(selecting ? ["192.0.2.10", "192.0.2.12", "192.0.2.72"] : []);
 const actions: ToolbarAction[] = [
   { id: "create", label: "Créer", icon: "plus", variant: "primary", shortcut: ["c"], priority: 3 },
   { id: "import", label: "Importer", icon: "clipboard-paste", variant: "ghost" },
@@ -205,7 +207,11 @@ const bulk: MenuItem[] = [
         </Cluster>
       </template>
       <Cluster v-if="selecting" gap="3" class="k-ecran-selection">
-        <span class="k-num" role="status">3 adresses sélectionnées</span>
+        <span class="k-num" role="status">{{
+          selection.length === 1
+            ? "1 adresse sélectionnée"
+            : `${selection.length} adresses sélectionnées`
+        }}</span>
         <Menu label="Action groupée" icon="layers" :items="bulk" default-open />
         <AVenir component="Checkbox" task="17" inline>
           <Button variant="ghost" size="sm">Tout sélectionner (1 284)</Button>
@@ -214,13 +220,13 @@ const bulk: MenuItem[] = [
       </Cluster>
       <DataGrid
         v-model:sort="sort"
+        v-model:selected="selection"
         label="Adresses, filtrées"
         :columns="columns"
         :rows="rows"
         row-key="value"
         :filtered="['value', 'usage', 'owner']"
         :selectable="selecting"
-        :selected="selecting ? ['192.0.2.10', '192.0.2.12', '192.0.2.72'] : []"
         :cell-state="cellState"
         :active="
           selecting
