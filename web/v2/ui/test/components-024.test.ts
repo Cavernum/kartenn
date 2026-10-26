@@ -17,7 +17,7 @@ import SidePanel from "../src/components/SidePanel/SidePanel.vue";
 import Skeleton from "../src/components/Skeleton/Skeleton.vue";
 import SplitButton from "../src/components/SplitButton/SplitButton.vue";
 import Toolbar from "../src/components/Toolbar/Toolbar.vue";
-import { foldActions, type ToolbarAction } from "../src/components/Toolbar/toolbar.ts";
+import { floorWidth, foldActions, type ToolbarAction } from "../src/components/Toolbar/toolbar.ts";
 import TreeGrid from "../src/components/TreeGrid/TreeGrid.vue";
 import { icons } from "../src/icons/index.ts";
 
@@ -208,6 +208,13 @@ describe("Toolbar (REQ-020-36)", () => {
       "history",
     ]);
     expect(foldActions(actions, widths, 30, 10, 30, 0)).toHaveLength(5);
+  });
+
+  it("says the narrowest it folds to: the main action and « … », or its one action", () => {
+    const narrow = new Map([...widths, ["create", 80]]);
+    expect(floorWidth(actions, narrow, 10, 30)).toBe(120);
+    expect(floorWidth(actions.slice(0, 1), narrow, 10, 30)).toBe(80);
+    expect(floorWidth([], narrow, 10, 30)).toBe(0);
   });
 
   it("is a named toolbar, one tab stop once mounted", async () => {

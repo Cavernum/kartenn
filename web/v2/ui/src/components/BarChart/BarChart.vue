@@ -10,7 +10,7 @@
 // image (`role="img"`) named by a summary (count, bounds, maximum, last value); a table
 // hidden on screen carries every value. Hovering a bar shows its label and value in a
 // tooltip, decorative since the table says the same. Tokens only: light and dark follow.
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { currentLocale, t } from "../../i18n.ts";
 import Tooltip from "../Tooltip/Tooltip.vue";
 import { useTooltip } from "../Tooltip/tooltip.ts";
@@ -75,14 +75,22 @@ const summary = computed(() => {
 
 const tip = useTooltip();
 const hovered = shallowRef<number | null>(null);
+// A tap shows the value of its bar until the next press elsewhere (« Tactile »): a touch
+// pointer leaves the chart as the finger lifts.
 function enter(event: PointerEvent, i: number): void {
   hovered.value = i;
-  tip.show(event.currentTarget as unknown as HTMLElement);
+  const bar = event.currentTarget as unknown as HTMLElement;
+  if (event.pointerType === "touch") tip.pin(bar);
+  else tip.show(bar);
 }
-function leave(): void {
+function leave(event: PointerEvent): void {
+  if (event.pointerType === "touch") return;
   hovered.value = null;
   tip.hide(true);
 }
+watch(tip.open, (open) => {
+  if (!open) hovered.value = null;
+});
 </script>
 
 <template>

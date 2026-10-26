@@ -96,7 +96,7 @@ const draftColumns: GridColumn[] = [
   { id: "operations", label: "Opérations", width: "md", align: "end", sortable: true, priority: 2 },
   { id: "updated", label: "Modifié le", width: "md", mono: true, sortable: true, priority: 3 },
   { id: "expires", label: "Suppression", width: "md", sortable: true, priority: 3 },
-  { id: "actions", label: "Actions", width: "sm" },
+  { id: "actions", label: "Actions", width: "sm", actions: true },
 ];
 const draftSort = ref<GridSort | undefined>({ column: "updated", direction: "descending" });
 const draftState = (row: DraftRow): RowState | undefined =>
@@ -134,6 +134,7 @@ const draftMenu = (row: DraftRow): MenuItem[] => [
         :rows="draftRows"
         row-key="id"
         :row-state="draftState"
+        stack
       >
         <template #cell="{ row, column, value }">
           <template v-if="column.id === 'title'">

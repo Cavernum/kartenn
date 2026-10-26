@@ -39,6 +39,22 @@ export function mainAction(actions: readonly ToolbarAction[]): ToolbarAction | u
 }
 
 /**
+ * The narrowest the bar folds to: its main action and the « … » button (`more` pixels),
+ * or its one action. A host that lays the bar beside other content reads it (published as
+ * `--k-toolbar-floor`) to know when the bar no longer fits there.
+ */
+export function floorWidth(
+  actions: readonly ToolbarAction[],
+  widths: ReadonlyMap<string, number>,
+  gap: number,
+  more: number,
+): number {
+  const main = mainAction(actions);
+  const own = main ? (widths.get(main.id) ?? 0) : 0;
+  return actions.length > 1 ? own + gap + more : own;
+}
+
+/**
  * The actions to fold so that the others fit in `available` pixels (REQ-020-36): none if
  * all fit; else, from the lowest priority and from the end, until the rest and the « … »
  * button (`more` pixels) fit. `widths` are the measured widths, `gap` the space between

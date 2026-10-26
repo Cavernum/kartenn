@@ -460,9 +460,79 @@ horizontalement hors des régions de grille, et que chaque classe montre le cadr
   masque plus qu'à 1024 px et moins. `layout.spec` vérifie qu'à 1440 px, panneau ouvert,
   le panneau finit avec le corps, qu'aucune colonne d'E1 n'est masquée et qu'aucun
   sélecteur « Colonnes » ne paraît.
-- Non fait : listes simples empilées sous `sm` (optionnel) ; `subgrid` entre blocs
-  voisins de formulaires ; champs côte à côte des formulaires (aucun formulaire à
-  plusieurs colonnes dans les maquettes).
+- Non fait ce jour-là : listes simples empilées sous `sm` ; `subgrid` entre blocs
+  voisins ; champs côte à côte des formulaires (aucun formulaire à plusieurs colonnes dans
+  les maquettes). Les deux premiers sont faits le lendemain (ci-dessous).
+
+**Réalisé (2026-10-26).**
+
+- Listes simples empilées : option `stack` du `DataGrid` (pas de composant à part). Sous un
+  conteneur `sm` (480 px), la grille n'a plus qu'une piste ; chaque ligne devient une
+  petite grille (libellé, valeur, fin) : la clé et les actions de la ligne sur la première
+  ligne, puis un attribut par ligne, le libellé de sa colonne devant la valeur (contenu
+  généré `attr(data-label) / ""`, texte de remplacement vide : l'en-tête de colonne nomme
+  déjà la cellule), libellés et valeurs alignés par `subgrid` de la ligne. Toutes les
+  colonnes se montrent (le sélecteur « Colonnes » se retire s'il n'y a pas de choix de
+  l'utilisateur), la colonne de clé ne colle plus ; l'en-tête devient une bande de
+  contrôles de tri et de filtre qui va à la ligne. La sémantique reste celle d'une grille
+  (lignes, cellules, `aria-colindex`, mêmes touches). Une colonne d'actions de ligne se
+  déclare `actions` sur `GridColumn` : sans libellé, à côté de la clé. Pris par `/drafts`
+  (E5, liste) et la liste des identités (E7) ; les groupes, rôles et comptes de service
+  ont quatre attributs ou plus et gardent leurs colonnes à priorité. `layout.spec` ne
+  compare plus les bords des colonnes d'une grille empilée. État de catalogue `stacked`.
+- `subgrid` entre blocs voisins : la liste d'attributs des maquettes (`EcranAttributs`)
+  est une seule grille dont chaque attribut est un `subgrid` ; ses colonnes restent en
+  fractions (2 : 3), si bien que des blocs de même largeur empilés (panneaux du côté
+  d'E2, tuiles d'E4 en une colonne) alignent déjà leurs valeurs, et une largeur au
+  contenu les désalignerait d'un panneau à l'autre. Côte à côte, des blocs posés dans une
+  grille `.k-ecran-attrs-tiles` (en-tête d'E4) partagent ses lignes (`subgrid` en lignes,
+  `span` du nombre d'attributs posé par CSSOM) : à 768 px, quand « Soumis » passe sur deux
+  lignes, « Auteur », « Effet au » et « Identifiant » restent sur la même. Les formulaires
+  des maquettes posent leurs libellés au-dessus des champs : rien à aligner entre eux ;
+  les panneaux d'E2 ne sont pas traversés (un `subgrid` à travers `Panneau` lierait sa
+  structure à son contenu).
+- Catalogue : état `sheet` du `SidePanel`, dans un cadre de démonstration `phone`
+  (`DemoFrame`, 400 px de large) dont la containment de mise en page (`contain: layout
+  paint`) fait le bloc conteneur de ce qui est fixé à la fenêtre : la feuille couvre le
+  cadre, pas la page du catalogue.
+- Audit tactile (`e2e/visual/touch.spec.ts`, émulation tactile de Chromium :
+  `(any-pointer: coarse)` et `(hover: none)` vrais) : chaque vue des maquettes à 1280,
+  768 et 390 px (à 390, aussi feuille fermée) ; toute cible fait 24 × 24 px ou respecte
+  l'exception d'espacement de 2.5.8 (un cercle de 24 px sur son centre ne touche aucune
+  autre cible ni le cercle d'une autre petite), lien dans une phrase exempté ; boutons
+  `primary` et `danger` à 44 px. Trouvé et corrigé : l'entonnoir d'en-tête du `DataGrid`
+  (16 px dans un en-tête qui trie) passe à `--k-control-height-sm` sous pointeur grossier ;
+  la poignée du `SidePanel` (8 px) prend 24 px, sa couleur gardant 8 px
+  (`background-clip`).
+- Rien de réservé au survol : `useTooltip` gagne `pin(el)` (ouvre tout de suite, jusqu'au
+  prochain appui hors de l'ancre et de la bulle) ; un appui (ou Entrée, Espace) sur un
+  `Button` ou un `IconButton` refusé l'ouvre, sans compter sur le focus (tous les moteurs
+  ne focalisent pas un bouton touché) ; un pointeur tactile qui quitte l'ancre en levant
+  le doigt ne la ferme plus. Une entrée refusée d'un `Menu`, choisie au doigt, montre son
+  motif ; une barre de `BarChart` touchée montre sa valeur. Le reste du survol est
+  décoratif (fonds de lignes, croix de `MatrixGrid` aussi posée par la cellule active),
+  le « + » de `TreeGrid` était déjà traité. Les noms des entrées de la barre latérale en
+  rail n'ont pas encore d'infobulle (tâche 23) : le bouton « Barre latérale » la déplie ;
+  l'infobulle à venir s'ouvrira au focus, comme les autres.
+- E10 à 390 px : la matrice défile en deux dimensions dans sa région, en-têtes de lignes
+  et de colonnes collés (vérifié). La piste des en-têtes de lignes de `MatrixGrid` passe
+  de `minmax(--k-size-col-md, max-content)` à `max-content` : collée, elle prenait 160 px
+  sur 340 ; elle prend son plus long libellé (≈ 110 px), les cellules gagnent la place.
+- E0 de 600 à 900 px (classe étroite) : les tuiles passent de deux à trois colonnes sans
+  débordement, mais les en-têtes de panneaux coupaient titre et détail d'une ellipse
+  (« lisibles par v… », « Changesets appliqué » rogné). En-tête de panneau des maquettes
+  (`EcranPanneau`) : le titre n'est plus coupé, il va à la ligne (son détail d'abord) ;
+  quand titre et actions ne tiennent plus côte à côte, les actions passent sur une ligne
+  à elles, à la fin (plus de bouton par-dessus le titre, comme sur E2 à 390 px ou dans la
+  piste de contenu d'E1 à 768 px). Une `Toolbar` en actions ne compte que pour son plancher
+  — action principale et « … », publié par la barre en `--k-toolbar-floor` (CSSOM,
+  `floorWidth`), sa largeur propre neutralisée par `contain: inline-size` : elle reste sur
+  la ligne du titre et se replie tant que ce plancher y tient, sans dépendre de l'état
+  replié du moment (pas d'hystérésis).
+- Reste : champs côte à côte des formulaires (aucun dans les maquettes) ; infobulles du
+  rail (tâche 23) ; en classe compacte, la languette du panneau fermé garde sa piste
+  (≈ 30 px sur 390) ; à 390 px, l'arbre d'E1 (`replie`) coupe ses libellés devant les
+  préfixes (« Serv… ») — à reprendre avec la version complète de `TreeGrid`.
 
 ## Architecture CSS (REQ-020-12 à 14)
 
@@ -576,7 +646,7 @@ sont listés.
 | 17 | `Breadcrumb` | Breadcrumb | élément courant | `aria-current="page"` |
 | 18 | `SidebarNav` | Disclosure (groupes) dans un repère `navigation` | replié en icônes, groupe ouvert, entrée active | entrées de plugins regroupées par espace (021) |
 | 19 | `CommandPalette` | Combobox dans un Dialog modal | aucune entrée, chargement | Ctrl+K ; commandes, navigation, objets récents |
-| 20 | `DataGrid` | Grid (données) | ligne sélectionnée, en brouillon, en revue, cellule en édition, invalide, en attente, cellule en chargement (`Skeleton`) | une seule grille, lignes en `subgrid` (§ « Structure avant style ») ; virtualisée ; tri `aria-sort` et filtre sur chaque colonne (REQ-020-34) ; colonnes redimensionnables au clavier ; colonne de plugin (W5) ; une colonne de message (`wrap` : motif, description) va à la ligne et la ligne grandit, jamais coupée ; clés, noms et nombres restent sur une ligne (revue du 2026-10-25) ; racine conteneur, colonnes à `priority` masquées par `@container`, sélecteur « Colonnes » (`columnVisibility`), colonne de clé collante (§ « Adaptation à la largeur ») |
+| 20 | `DataGrid` | Grid (données) | ligne sélectionnée, en brouillon, en revue, cellule en édition, invalide, en attente, cellule en chargement (`Skeleton`) | une seule grille, lignes en `subgrid` (§ « Structure avant style ») ; virtualisée ; tri `aria-sort` et filtre sur chaque colonne (REQ-020-34) ; colonnes redimensionnables au clavier ; colonne de plugin (W5) ; une colonne de message (`wrap` : motif, description) va à la ligne et la ligne grandit, jamais coupée ; clés, noms et nombres restent sur une ligne (revue du 2026-10-25) ; racine conteneur, colonnes à `priority` masquées par `@container`, sélecteur « Colonnes » (`columnVisibility`), colonne de clé collante ; liste simple empilée sous `sm` (`stack`, colonne `actions`) (§ « Adaptation à la largeur ») |
 | 21 | `TreeGrid`, `Tree` | Treegrid ; Tree View | nœud déplié, chargement des enfants, en brouillon, cible acceptée, cible refusée, déplacement en attente, déplacement refusé | virtualisé, enfants paginés ; `aria-setsize="-1"` tant que la dernière page n'est pas lue ; parent `derived` (aucun déplacement) ou `declared` (déplacement contrôlé, REQ-020-31) ; invariant d'affichage (REQ-020-32) |
 | 22 | `CodeBadge` | Button (copier) | copié | chasse fixe ; annonce `role="status"` « Copié » |
 | 23 | `KeyLabel`, `EnvChip` | — | libellé absent (clé seule) | REQ-020-21 ; clé en infobulle et copiable |

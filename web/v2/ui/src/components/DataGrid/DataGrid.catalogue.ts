@@ -86,6 +86,25 @@ const narrow = () =>
     }),
   ]);
 
+/**
+ * A simple list (a key, three attributes) in 420 px, a container under `sm`: its rows
+ * stack, every column shown, the header a strip of sort and filter controls.
+ */
+const listColumns: GridColumn[] = prioritized.filter((c) => c.id !== "env");
+const stacked = () =>
+  h("div", { style: { maxInlineSize: "var(--k-size-panel-lg)" } }, [
+    h(DataGrid as Component, {
+      ...base,
+      columns: listColumns,
+      stack: true,
+      selectable: true,
+      selected: [prefixes[1]],
+      sort: { column: "prefix", direction: "ascending" },
+      filtered: ["prefix"],
+      rowState: (row: Row) => (row.prefix === prefixes[2] ? "draft" : undefined),
+    }),
+  ]);
+
 export default {
   component: DataGrid,
   pattern: "Grid (maison) ; une seule grille, lignes en subgrid ; tri et filtre de colonne",
@@ -171,6 +190,14 @@ export default {
         "Grille de 420 px : colonnes de priorité 2 et 3 masquées, colonne de clé collante, « Colonnes » les rend",
       props: {},
       demo: narrow,
+      wide: true,
+    },
+    {
+      name: "stacked",
+      description:
+        "Liste simple (stack) dans 420 px : lignes empilées, la clé puis chaque attribut sous son libellé, toutes les colonnes montrées",
+      props: {},
+      demo: stacked,
       wide: true,
     },
     {

@@ -51,6 +51,7 @@ const demo = defineComponent({
     tab: { type: String, default: "detail" },
     width: { type: Number, default: 420 },
     cover: Boolean,
+    sheet: Boolean,
   },
   setup(props) {
     const open = ref(props.open);
@@ -68,7 +69,7 @@ const demo = defineComponent({
     return () =>
       h(
         DemoFrame,
-        { size: "md" },
+        { size: props.sheet ? "phone" : "md" },
         {
           default: () => [
             // The counter at the start: the panel covers the end of the surface.
@@ -91,6 +92,7 @@ const demo = defineComponent({
                 label: "Panneau droit",
                 tabs,
                 cover: props.cover,
+                sheet: props.sheet,
                 rail: true,
                 open: open.value,
                 "onUpdate:open": (v: boolean) => (open.value = v),
@@ -168,6 +170,14 @@ export default {
       name: "cover",
       description: "Fenêtre étroite : le panneau couvre toute la surface, sans poignée",
       props: { open: true, tab: "draft", cover: true },
+      demo,
+      wide: true,
+    },
+    {
+      name: "sheet",
+      description:
+        "Fenêtre compacte : feuille plein écran (ici, tout le cadre de 400 px), « Retour » au début de ses onglets",
+      props: { open: true, tab: "draft", sheet: true },
       demo,
       wide: true,
     },

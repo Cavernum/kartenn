@@ -82,9 +82,19 @@ const vAriaDisabled: Directive<HTMLElement, boolean> = {
 };
 
 function onSelect(entry: MenuEntry, event: Event): void {
-  // A disabled entry keeps the menu open and runs nothing.
-  if (isBlocked(entry)) event.preventDefault();
-  else emit("select", entry.id);
+  // A disabled entry keeps the menu open and runs nothing; chosen by a tap, where no focus
+  // came, it shows its reason (« Tactile »: nothing reserved to hovering or focus).
+  if (isBlocked(entry)) {
+    event.preventDefault();
+    // Reka's select event is not dispatched: the entry is found by its reason's id.
+    const item = hasReason(entry)
+      ? document.getElementById(reasonId(entry))?.closest<HTMLElement>("[role='menuitem']")
+      : null;
+    if (item) {
+      shown.value = entry;
+      tip.pin(item);
+    }
+  } else emit("select", entry.id);
 }
 </script>
 

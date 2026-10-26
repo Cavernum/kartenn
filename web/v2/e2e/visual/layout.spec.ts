@@ -9,12 +9,19 @@ import { expect, open, test } from "../fixtures/index.ts";
 
 const WIDTHS = [1440, 1280, 1024, 768] as const;
 
-/** The left edges of the cells of each row of each grid on the page, rounded to 0.1 px. */
+/**
+ * The left edges of the cells of each row of each grid on the page, rounded to 0.1 px. A
+ * simple list whose rows stack (`stack`, a container under `sm`) has no columns to align:
+ * left out.
+ */
 function edges(page: Page): Promise<number[][][]> {
-  return page
-    .locator("[role='grid']")
-    .evaluateAll((grids) =>
-      grids.map((grid) =>
+  return page.locator("[role='grid']").evaluateAll((grids) =>
+    grids
+      .filter((grid) => {
+        const frame = grid.closest("[data-stack]");
+        return !frame || frame.clientWidth >= 480;
+      })
+      .map((grid) =>
         [...grid.querySelectorAll("[role='row']")].map((row) =>
           [...row.children]
             .filter((cell) =>
@@ -23,7 +30,7 @@ function edges(page: Page): Promise<number[][][]> {
             .map((cell) => Math.round(cell.getBoundingClientRect().left * 10) / 10),
         ),
       ),
-    );
+  );
 }
 
 async function expectNoSideScroll(page: Page): Promise<void> {

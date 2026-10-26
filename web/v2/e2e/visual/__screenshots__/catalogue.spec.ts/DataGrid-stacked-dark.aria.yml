@@ -1,0 +1,40 @@
+- main:
+  - region "DataGrid":
+    - heading "DataGrid" [level=1]
+    - paragraph: "Motif : Grid (maison) ; une seule grille, lignes en subgrid ; tri et filtre de colonne"
+    - 'figure /stacked — Liste simple \(stack\) dans \d+ px : lignes empilées, la clé puis chaque attribut sous son libellé, toutes les colonnes montrées/':
+      - grid "Préfixes du domaine":
+        - rowgroup:
+          - row "Préfixe (filtrée) Libellé Occupation Responsable":
+            - columnheader "Préfixe (filtrée)"
+            - columnheader "Libellé"
+            - columnheader "Occupation"
+            - columnheader "Responsable"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs de bases \d+ % Équipe réseau/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs de bases"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.2\.0\/\d+ Postes du siège \d+ % Équipe postes/ [selected]:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Postes du siège"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /\(en brouillon\) \d+\.\d+\.\d+\.\d+\/\d+ Supervision \d+ % Exploitation/:
+            - gridcell /\(en brouillon\) \d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Supervision"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes 3 % Équipe réseau/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "3 %"
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+      - code: stacked
+      - text: ""

@@ -18,6 +18,11 @@
 // at the inline start, and under a container `md` (`lg`) the columns of priority 2 (3)
 // hide, a column chooser above the grid showing them again. The arrows skip what is
 // hidden. The class and style of the host go to the root, other attributes to the grid.
+// With `stack` (a simple list), under a container `sm` the rows stack instead: the key on
+// a line with the row's actions, then one line per attribute, the column's label before
+// the value (generated content, its alternative text empty: the column header names the
+// cell already), labels and values aligned by a subgrid of the row; every column shows,
+// the header is a strip of controls. Still a grid of rows and cells, same keys.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useAttrs, watch } from "vue";
 import { t } from "../../i18n.ts";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
@@ -58,6 +63,12 @@ const props = withDefaults(
     /** The rows are coming: skeleton rows in the cells, the grid busy. */
     loading?: boolean;
     loadingRows?: number;
+    /**
+     * A simple list (a key, two or three attributes): under a container `sm`, its rows
+     * stack, the key on top, each attribute on a line of its own after its column's label;
+     * the header becomes a strip of sort and filter controls.
+     */
+    stack?: boolean;
   }>(),
   {
     selected: () => [],
@@ -255,7 +266,12 @@ onBeforeUnmount(() => observer?.disconnect());
 </script>
 
 <template>
-  <div ref="root" class="k-data-grid-frame" v-bind="rootAttrs">
+  <div
+    ref="root"
+    class="k-data-grid-frame"
+    v-bind="rootAttrs"
+    :data-stack="props.stack ? 'true' : undefined"
+  >
     <ColumnChooser v-model="visibility" :columns="props.columns" :grid="grid" />
     <div
       ref="grid"
@@ -328,6 +344,7 @@ onBeforeUnmount(() => observer?.disconnect());
             class="k-data-grid__cell"
             :data-align="column.align"
             :data-priority="priority(column)"
+            :data-actions="column.actions ? 'true' : undefined"
             :aria-colindex="colIndex(column)"
           >
             <span v-if="r === 1 && c === 0" class="k-visually-hidden">{{ t("loading") }}</span>
@@ -358,6 +375,8 @@ onBeforeUnmount(() => observer?.disconnect());
             :data-align="column.align"
             :data-priority="priority(column)"
             :data-wrap="column.wrap ? 'true' : undefined"
+            :data-label="props.stack && c > 0 && !column.actions ? column.label : undefined"
+            :data-actions="column.actions ? 'true' : undefined"
             :data-state="stateOf(row, column)"
             :data-editing="isEditing(row, column) ? 'true' : undefined"
             :aria-colindex="colIndex(column)"
@@ -534,6 +553,76 @@ onBeforeUnmount(() => observer?.disconnect());
     min-block-size: var(--k-header-height);
   }
 
+  /* A simple list under a container `sm` (`stack`): its rows stack. One track for the
+   * grid; the header a wrapping strip of its controls, in the flow; a row a grid of its
+   * own (label, value, end), the key and the actions on its first line, each attribute
+   * below as a subgrid of it: labels and values align down the row. Every column shows
+   * (nothing to hide, no chooser), the key column no longer sticks. */
+  @container (width < 480px) {
+    .k-data-grid-frame[data-stack] > .k-column-chooser:not([data-chosen]) {
+      display: none;
+    }
+
+    .k-data-grid-frame[data-stack] .k-data-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .k-data-grid-frame[data-stack] .k-data-grid__head {
+      position: static;
+    }
+
+    .k-data-grid-frame[data-stack] .k-data-grid__head .k-data-grid__row {
+      display: flex;
+      flex-wrap: wrap;
+      column-gap: var(--k-space-1);
+    }
+
+    .k-data-grid-frame[data-stack] .k-data-grid__header {
+      display: flex;
+      position: relative;
+    }
+
+    .k-data-grid-frame[data-stack] .k-data-grid__body .k-data-grid__row {
+      grid-template-columns: max-content minmax(0, 1fr) auto;
+      column-gap: 0;
+      padding-block: var(--k-space-1);
+    }
+
+    .k-data-grid-frame[data-stack] .k-data-grid__cell {
+      position: relative;
+      display: grid;
+      grid-column: 1 / -1;
+      grid-template-columns: subgrid;
+      min-block-size: var(--k-control-height-sm);
+    }
+
+    .k-data-grid-frame[data-stack] .k-data-grid__cell:first-child {
+      display: flex;
+      grid-column: 1 / 3;
+      font-weight: var(--k-weight-medium);
+    }
+
+    .k-data-grid-frame[data-stack] .k-data-grid__cell[data-actions] {
+      display: flex;
+      grid-row: 1;
+      grid-column: 3;
+    }
+
+    .k-data-grid-frame[data-stack] .k-data-grid__cell[data-label]::before {
+      grid-column: 1;
+      padding-inline-end: var(--k-space-3);
+      font-family: var(--k-font-sans);
+      font-size: var(--k-text-sm);
+      line-height: var(--k-text-sm-line);
+      color: var(--k-text-muted);
+      content: attr(data-label) / "";
+    }
+
+    .k-data-grid-frame[data-stack] .k-data-grid__cell[data-label] > .k-data-grid__value {
+      grid-column: 2;
+    }
+  }
+
   .k-data-grid__body .k-data-grid__row:hover {
     background-color: var(--k-hover);
   }
@@ -652,6 +741,17 @@ onBeforeUnmount(() => observer?.disconnect());
 
   .k-data-grid__filter[data-active] {
     color: var(--k-accent);
+  }
+
+  /* A finger (design « Adaptation à la largeur », « Tactile »): the funnel, a target of its
+   * own inside a sortable header, at the floor of 24 px (WCAG 2.5.8). */
+  @media (any-pointer: coarse) {
+    .k-data-grid__filter {
+      justify-content: center;
+      align-items: center;
+      min-inline-size: var(--k-control-height-sm);
+      min-block-size: var(--k-control-height-sm);
+    }
   }
 
   .k-data-grid__value {
