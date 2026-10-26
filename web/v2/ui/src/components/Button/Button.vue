@@ -11,6 +11,7 @@
 // hover and focus and in its description. Its sheet is `button.css`, shared with
 // `IconButton`.
 import { computed } from "vue";
+import { t } from "../../i18n.ts";
 import Icon from "../Icon/Icon.vue";
 import Kbd from "../Kbd/Kbd.vue";
 import BlockedReason from "../internal/BlockedReason.vue";
@@ -61,7 +62,11 @@ function onClick(event: MouseEvent): void {
   >
     <Icon v-if="props.loading" class="k-spinner" name="loader-circle" />
     <Icon v-else-if="props.icon" :name="props.icon" />
-    <span class="k-button__label"><slot /></span>
+    <span class="k-button__label"
+      ><slot /><span v-if="props.loading" class="k-visually-hidden">
+        ({{ t("loading") }})</span
+      ></span
+    >
     <Kbd v-if="props.shortcut" :keys="props.shortcut" aria-hidden="true" />
     <Tooltip v-if="blocked" :control="tip">
       <BlockedReason :forbidden="props.forbidden" :reason="props.reason" />
