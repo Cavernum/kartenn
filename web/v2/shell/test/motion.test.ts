@@ -1,5 +1,12 @@
 // @vitest-environment happy-dom
-import { DataGrid, SidePanel, applyMotion, currentMotion, type RowState } from "@kartenn/ui";
+import {
+  DataGrid,
+  MatrixGrid,
+  SidePanel,
+  applyMotion,
+  currentMotion,
+  type RowState,
+} from "@kartenn/ui";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, h, nextTick, ref, type App } from "vue";
 
@@ -125,5 +132,108 @@ describe("DataGrid, a row that joins a draft", () => {
     expect(root.querySelector('[data-row-state="removed"]')?.textContent).toContain(
       "retirée dans le brouillon",
     );
+  });
+});
+
+describe("DataGrid, the error of a cell (WCAG 1.4.13)", () => {
+  const columns = [
+    { id: "id", label: "Id" },
+    { id: "owner", label: "Responsable" },
+  ];
+  const rows = [
+    { id: "a", owner: "Équipe" },
+    { id: "b", owner: "Inconnu" },
+  ];
+  const grid = () =>
+    mount(() =>
+      h(DataGrid, {
+        label: "Grille",
+        columns,
+        rows,
+        rowKey: "id",
+        active: { row: "b", column: "owner" },
+        cellState: (row: Record<string, unknown>, column: { id: string }) =>
+          row.id === "b" && column.id === "owner"
+            ? { error: "Responsable inconnu.", code: "core.owner.unknown" }
+            : undefined,
+      }),
+    );
+  const pointer = (type: string, relatedTarget: EventTarget | null = null) =>
+    new PointerEvent(type, { pointerType: "mouse", relatedTarget });
+
+  it("opens under focus, closes on Escape until the focus leaves, the cell unchanged", async () => {
+    grid();
+    await nextTick();
+    const cell = document.querySelector<HTMLElement>('[aria-invalid="true"]')!;
+    const message = document.getElementById(cell.getAttribute("aria-describedby")!)!;
+    const layer = message.closest<HTMLElement>(".k-cell-error")!;
+    expect(message.textContent).toContain("Responsable inconnu.");
+    expect(message.textContent).toContain("core.owner.unknown");
+    expect(cell.textContent).not.toContain("Responsable inconnu.");
+    expect(layer.hidden).toBe(true);
+
+    cell.focus();
+    await nextTick();
+    expect(layer.hidden).toBe(false);
+    expect(cell.dataset.errorOpen).toBe("true");
+
+    cell.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
+    );
+    await nextTick();
+    expect(layer.hidden).toBe(true);
+    expect(cell.hasAttribute("data-error-open")).toBe(false);
+
+    // Back to the cell: open again.
+    cell.blur();
+    await nextTick();
+    cell.focus();
+    await nextTick();
+    expect(layer.hidden).toBe(false);
+  });
+
+  it("stays open while the pointer goes from the cell onto its message", async () => {
+    grid();
+    await nextTick();
+    const cell = document.querySelector<HTMLElement>('[aria-invalid="true"]')!;
+    const message = document.getElementById(cell.getAttribute("aria-describedby")!)!;
+    const layer = message.closest<HTMLElement>(".k-cell-error")!;
+    cell.dispatchEvent(pointer("pointerenter"));
+    await nextTick();
+    expect(layer.hidden).toBe(false);
+    cell.dispatchEvent(pointer("pointerleave", message));
+    await nextTick();
+    expect(layer.hidden).toBe(false);
+    message.dispatchEvent(pointer("pointerleave", document.body));
+    await nextTick();
+    expect(layer.hidden).toBe(true);
+  });
+});
+
+describe("MatrixGrid, hovering a header", () => {
+  const axes = [
+    { id: "x", label: "X" },
+    { id: "y", label: "Y" },
+  ];
+
+  it("lights its row alone, without arrows of direction", async () => {
+    const root = mount(() =>
+      h(MatrixGrid, {
+        label: "Matrice",
+        corner: "Source → destination",
+        rows: axes,
+        columns: axes,
+        axes: { rows: "Source", columns: "Destination" },
+      }),
+    );
+    await nextTick();
+    const header = root.querySelector<HTMLElement>('[role="rowheader"][data-row="y"]')!;
+    header.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+    await nextTick();
+    const crossed = [...root.querySelectorAll<HTMLElement>("[data-cross]")].map(
+      (el) => `${el.dataset.row}|${el.dataset.column}`,
+    );
+    expect(crossed).toEqual(["y|", "y|x", "y|y"]);
+    expect(root.querySelectorAll("[data-flow]")).toHaveLength(0);
   });
 });

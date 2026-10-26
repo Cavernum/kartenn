@@ -735,6 +735,74 @@ relecture ».
   conteneur qui défile, sinon l'ombre serait rognée), avec une exception
   `kartenn/floating-shadow` commentée (doublure de `PeriodPicker`, composant flottant).
 
+**Réalisé (2026-10-26, erreur de cellule et matrice).** Tâche 11 de la 024, bloc
+« Cinquième relecture », puces « Erreur d'une cellule (E3) » et « E10 (matrice) ».
+
+- Erreur d'une cellule (`DataGrid`) : la ligne à elle sous la valeur disparaît (plus de
+  `k-data-grid__error-line`, la ligne ne grandit plus). Au repos, la cellule invalide garde
+  la taille de ses voisines : teinte `--k-state-ko-bg`, bord `--k-state-ko-fg` tracé à
+  l'intérieur par un pseudo-élément (le contour reste à l'anneau de focus, posé en dedans
+  du bord), icône `circle-x`, `aria-invalid`. Le message (texte et `CodeBadge`) est un
+  composant interne, `DataGrid/CellError.vue`, dans la couche des couches flottantes
+  (`providePortalTarget`), `position: fixed` placée par CSSOM ; il reste dans le document,
+  caché, et la cellule le nomme par `aria-describedby`. Ouvert tant que la cellule est
+  survolée ou a le focus (le pointeur d'abord), y compris quand le pointeur passe sur le
+  message, adjacent : ni écart ni délai, donc aucune minuterie ; Échap le ferme jusqu'à ce
+  que la cellule n'ait plus ni survol ni focus (WCAG 1.4.13), entendu par la grille puis,
+  focus ailleurs, par le document. Cellule en édition : l'erreur reste à l'éditeur, pas de
+  couche.
+- Forme : `cellError.ts` (`placeCellError`, pur, testé) calcule la place et deux chemins
+  SVG. Le message, au moins aussi large que la cellule (au plus `--k-size-panel-lg`), se
+  pose sous elle, aligné sur son début ; près du bord de fin, aligné sur sa fin ; près du
+  bas de la fenêtre, au-dessus (la forme est retournée). Un trait unique
+  (`--k-state-ko-fg`, `--k-border-width`) fait le haut et les deux côtés de la cellule puis
+  le tour du message hors de la jonction ; là où le message déborde la cellule, un
+  arrondi concave (rayon `--k-radius-md`, borné par le débord) les raccorde ; coins
+  extérieurs du message arrondis. Le remplissage (`--k-state-ko-bg`, la teinte de la
+  cellule) couvre le message et les arrondis, jamais la cellule, dont le contenu reste
+  visible ; ouvert, le bord de la cellule s'efface au profit du trait. Défilement et
+  redimensionnement replacent la couche ; la cellule hors de la vue de sa grille (défilée,
+  sous l'en-tête), la couche est masquée. Fondu d'entrée en
+  `max(--k-duration-short, --k-duration-fade)`, sortie immédiate, comme une infobulle.
+- Le bouton de copie du code, widget de la cellule déporté dans la couche, sort de
+  l'ordre de tabulation ; Entrée ou F2 sur la cellule y va, Échap ou F2 en revient ; le
+  focus dans le message garde la couche ouverte.
+- Matrice (`MatrixGrid`, E10) : les flèches de direction (source → cellule →
+  destination) sont toujours dessinées, transparentes hors du chemin, et apparaissent en
+  fondu d'opacité (`max(short, fade)`, `--k-ease-standard`) et s'effacent en `fade`
+  (`--k-ease-exit`) ; le soulignement des en-têtes de la croix est toujours posé, sa
+  couleur passe de transparent à `currentcolor` avec la teinte ; la cellule survolée prend
+  un bord `--k-border-strong` (couleur du contour en fondu), un en-tête survolé passe au
+  texte plein et allume sa seule ligne ou sa seule colonne (sans flèches) ; la marque d'un
+  état (brouillon, revue) entre en fondu depuis `@starting-style`, la teinte de l'état
+  suivant la transition de couleur de fond déjà posée. Couleurs et opacité seulement, rien
+  sur la mise en page, aucune minuterie ; sous mouvement réduit, les fondus durent 80 ms.
+- Tests : Vitest (rendu serveur : message hors de la cellule, caché, nommé par
+  `aria-describedby`, code présent ; cellule en édition sans couche ; `placeCellError` :
+  sous la cellule, arrondi concave, remplissage hors de la cellule, largeur minimale,
+  retournement au-dessus et alignement de fin, RTL ; happy-dom : focus, Échap, retour du
+  focus, passage du pointeur de la cellule au message ; survol d'un en-tête de matrice) ;
+  clavier (focus sur la cellule → message visible, sous la cellule, cellule de même boîte
+  qu'au repos et que sa voisine ; Échap le cache, le focus revenu le rouvre ; bouton de
+  copie atteint par Entrée et F2). Captures : catalogue `cell-states` (repos),
+  `cell-error-hover`, `cell-error-focus` ; E3 `edition` capturée cellule refusée au focus
+  (`focus` du registre).
+- Choix tranchés : couche en `fixed` dans la couche des couches flottantes plutôt
+  qu'absolue dans la grille (jamais rognée par la zone qui défile, ne l'agrandit pas) ;
+  trait et remplissage en SVG calculé plutôt qu'en bordures et pseudo-éléments (un seul
+  contour continu, retournable) ; coins hauts de la cellule droits (ceux de la grille) ;
+  remplissage à la teinte de la cellule plutôt que `--k-surface`, pour une seule forme ;
+  texte en `--k-text` ; pas d'ombre (le trait suffit, et `kartenn/floating-shadow` la
+  réserve aux couches nommées) ; message sans rôle `tooltip` (il porte un bouton) ;
+  le pointeur prime sur le focus quand les deux désignent deux cellules ; Échap entendu
+  aussi par le document pour un message ouvert au seul survol. Matrice : flèches toujours
+  présentes et transparentes (seul moyen d'un fondu de sortie sans minuterie) ; survol
+  d'un en-tête = sa ligne ou sa colonne seule.
+- Reste : la matrice n'a pas de groupes repliables ; « ouverture d'un groupe » n'a pas
+  d'objet dans E10 aujourd'hui (l'agrandissement d'`ExpandableGrid` est déjà animé par
+  `Dialog`). À 390 px, la colonne de la cellule refusée d'E3 est masquée par priorité : la
+  capture n'y montre pas le message.
+
 ## Architecture CSS (REQ-020-12 à 14)
 
 ```
