@@ -125,19 +125,19 @@
         - listitem:
           - text: Éditeur
           - code: editor
-          - text: "Entité : Atelier Nord par Équipe réseau"
+          - text: "Entité : Atelier Nord via le groupe Équipe réseau"
         - listitem:
           - text: Lecteur réseau
           - code: lecteur-reseau
-          - text: "Entité : Atelier Nord par Équipe supervision"
+          - text: "Entité : Atelier Nord via le groupe Équipe supervision"
         - listitem:
           - text: Instructeur
           - code: instructeur-flux
-          - text: "Site : site-ouest par Équipe supervision"
+          - text: "Site : site-ouest via le groupe Équipe supervision"
         - listitem:
           - text: Lecteur
           - code: reader
-          - text: Globale par Astreinte
+          - text: Globale via le groupe Astreinte
     - region "Groupes de l'IdP lors de sa dernière connexion · 3":
       - heading "Groupes de l'IdP lors de sa dernière connexion · 3" [level=3]
       - list:

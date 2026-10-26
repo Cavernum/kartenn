@@ -1,0 +1,26 @@
+- main:
+  - region "DiffValue":
+    - heading "DiffValue" [level=1]
+    - paragraph: "Motif : — (ins / del, signe et mot caché)"
+    - 'figure "added — Valeur ajoutée : « + » attaché à la valeur, qui va à la ligne dans sa boîte"':
+      - insertion: "ajouté : Lecture des API de production depuis la recette"
+      - code: added
+      - text: ""
+    - 'figure "removed — Valeur retirée : « − »"':
+      - deletion: "retiré : Accès historique des sauvegardes"
+      - code: removed
+      - text: ""
+    - figure "code — Valeur ajoutée en code copiable (CodeBadge)":
+      - insertion:
+        - text: "ajouté :"
+        - button "Copier api-lecture":
+          - text: ""
+          - code: api-lecture
+        - status
+      - code: code
+      - text: ""
+    - figure "changed — Avant → après (mots cachés « avant », « après »)":
+      - deletion: "avant : Refus par défaut"
+      - insertion: "après : Sous motif"
+      - code: changed
+      - text: ""

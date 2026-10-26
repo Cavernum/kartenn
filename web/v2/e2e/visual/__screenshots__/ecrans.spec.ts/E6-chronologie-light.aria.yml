@@ -85,8 +85,9 @@
   - text: "4"
   - grid /Versions de \d+\.\d+\.\d+\.\d+\/\d+ ; la v3 est celle de la date lue/:
     - rowgroup:
-      - row "Version Valide Connue du Motif":
+      - row "Version Lecture Valide Connue du Motif":
         - columnheader "Version"
+        - columnheader "Lecture"
         - columnheader "Valide"
         - columnheader "Connue du"
         - columnheader "Motif":
@@ -95,21 +96,25 @@
     - rowgroup:
       - row /v4 \d+-\d+-\d+ → … \d+-\d+-\d+ Bascule des VIP salle B/:
         - gridcell "v4"
+        - gridcell
         - gridcell /\d+-\d+-\d+ → …/
         - gridcell /\d+-\d+-\d+/
         - gridcell "Bascule des VIP salle B"
-      - row /v3 · lue \d+-\d+-\d+ → \d+-\d+-\d+ \d+-\d+-\d+ Rattachement au site ouest/ [selected]:
-        - gridcell "v3 · lue"
+      - row /v3 Lue \d+-\d+-\d+ → \d+-\d+-\d+ \d+-\d+-\d+ Rattachement au site ouest/:
+        - gridcell "v3"
+        - gridcell "Lue"
         - gridcell /\d+-\d+-\d+ → \d+-\d+-\d+/
         - gridcell /\d+-\d+-\d+/
         - gridcell "Rattachement au site ouest"
       - row /v2 \d+-\d+-\d+ → \d+-\d+-\d+ \d+-\d+-\d+ Correction rétroactive du propriétaire/:
         - gridcell "v2"
+        - gridcell
         - gridcell /\d+-\d+-\d+ → \d+-\d+-\d+/
         - gridcell /\d+-\d+-\d+/
         - gridcell "Correction rétroactive du propriétaire"
       - row /v1 \d+-\d+-\d+ → \d+-\d+-\d+ \d+-\d+-\d+ Import initial/:
         - gridcell "v1"
+        - gridcell
         - gridcell /\d+-\d+-\d+ → \d+-\d+-\d+/
         - gridcell /\d+-\d+-\d+/
         - gridcell "Import initial"

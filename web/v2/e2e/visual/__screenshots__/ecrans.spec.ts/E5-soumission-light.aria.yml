@@ -114,27 +114,25 @@
       - listitem:
         - code: /\d+\.\d+\.\d+\.\d+/
         - text: "Usage :"
-        - deletion: Hôte
-        - text: →
-        - insertion: VIP
+        - deletion: "avant : Hôte"
+        - insertion: "après : VIP"
         - button /Retirer l'opération « Usage » sur \d+\.\d+\.\d+\.\d+/
       - listitem:
         - code: /\d+\.\d+\.\d+\.\d+/
         - text: "Propriétaire :"
-        - deletion: Atelier Nord
-        - text: →
-        - insertion: Atelier Sud
+        - deletion: "avant : Atelier Nord"
+        - insertion: "après : Atelier Sud"
         - button /Retirer l'opération « Propriétaire » sur \d+\.\d+\.\d+\.\d+/
       - listitem:
         - code: /\d+\.\d+\.\d+\.\d+/
-        - text: Créer l'adresse (Hôte, Service Pilote)
+        - text: "Créer l'adresse :"
+        - insertion: "ajouté : Hôte, Service Pilote"
         - button /Retirer l'opération « Créer l'adresse » sur \d+\.\d+\.\d+\.\d+/
   - button "Fermer le panneau"
   - status: Revue requise Simulation valide ; politique « Revue des VIP ».
   - text: Résumé (obligatoire)
   - textbox "Résumé (obligatoire)": Bascule des VIP de la salle B
-  - text: Description (facultative)
-  - textbox "Description (facultative)"
+  - button "Ajouter une description"
   - button "Soumettre en revue"
   - button "Choisir l'action" [expanded]
 - menu "Choisir l'action":

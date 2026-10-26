@@ -1,0 +1,11 @@
+- main:
+  - region "CommitForm":
+    - heading "CommitForm" [level=1]
+    - paragraph: "Motif : champs étiquetés ; Ctrl+Entrée émet submit"
+    - 'figure "collapsible — Pied court (onglet Brouillon) : la description vide reste derrière « Ajouter une description »"':
+      - text: Résumé (obligatoire)
+      - textbox "Résumé (obligatoire)": Maintenance du référentiel
+      - button "Ajouter une description"
+      - status
+      - code: collapsible
+      - text: ""

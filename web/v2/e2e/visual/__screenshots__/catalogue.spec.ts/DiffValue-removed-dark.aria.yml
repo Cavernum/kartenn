@@ -1,0 +1,8 @@
+- main:
+  - region "DiffValue":
+    - heading "DiffValue" [level=1]
+    - paragraph: "Motif : — (ins / del, signe et mot caché)"
+    - 'figure "removed — Valeur retirée : « − »"':
+      - deletion: "retiré : Accès historique des sauvegardes"
+      - code: removed
+      - text: ""
