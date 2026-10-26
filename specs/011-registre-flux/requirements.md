@@ -322,7 +322,8 @@ avec le changeset en attente pour une prolongation à instruire (F15, F20).
 
 #### REQ-011-19 — Budgets
 Le module doit respecter (p95 serveur, 10⁶ objets, 10⁵ flux, politique du banc 010) :
-demande machine × machine 16 × 16, triage compris, < 300 ms ; réévaluation de 10⁴ flux
+demande interface × interface 16 × 16 (machine × machine avant F21), triage compris,
+< 300 ms ; réévaluation de 10⁴ flux
 dans un changeset < 3 s ajoutées ; réévaluation de 10⁵ flux par un changement de
 politique dans le budget exceptionnel de la 003 (< 60 s) ; page filtrée de flux ou de
 non-conformités < 150 ms ; réévaluation complète en tâche de fond < 5 min (F14).

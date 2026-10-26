@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use kartenn_core::period::Instant;
-use kartenn_machines::read::{addresses_of_interfaces, addresses_of_machines, instant};
+use kartenn_machines::read::{addresses_of_interfaces, instant};
 use kartenn_policy::evaluate::{
     Dossier, Endpoint as Side, Evaluation, Requested, Synthesis, evaluate, synthesis,
     unknown_service,
@@ -106,8 +106,8 @@ fn axes_read(parts: &Parts) -> BTreeSet<AxisKey> {
 }
 
 /// The points each endpoint of `flows` develops into at `at`, in one query per kind of
-/// endpoint: an address or a prefix, itself; an interface or a machine, its addresses
-/// (port of reading of the 009). With the width of each and whether they are addresses.
+/// endpoint: an address or a prefix, itself; an interface, its addresses (port of reading
+/// of the 009); a range or a machine, nothing (F3, F21). With the width of each and whether they are addresses.
 async fn develop(
     conn: &mut PgConnection,
     flows: &[&Flow],
@@ -130,8 +130,11 @@ async fn develop(
     for id in ids(EndpointKind::Address) {
         out.insert((EndpointKind::Address, id), (vec![(id, 1)], true));
     }
-    for id in ids(EndpointKind::Range) {
-        out.insert((EndpointKind::Range, id), (Vec::new(), false));
+    // Never endpoints (F3, F21): no point, the check of the flow refuses them.
+    for kind in [EndpointKind::Range, EndpointKind::Machine] {
+        for id in ids(kind) {
+            out.insert((kind, id), (Vec::new(), false));
+        }
     }
     let prefixes = ids(EndpointKind::Prefix);
     if !prefixes.is_empty() {
@@ -151,25 +154,13 @@ async fn develop(
             out.insert((EndpointKind::Prefix, id), (vec![(id, width)], false));
         }
     }
-    for kind in [EndpointKind::Interface, EndpointKind::Machine] {
-        let owners = ids(kind);
-        if owners.is_empty() {
-            continue;
-        }
+    let owners = ids(EndpointKind::Interface);
+    if !owners.is_empty() {
         for id in &owners {
-            out.insert((kind, *id), (Vec::new(), true));
+            out.insert((EndpointKind::Interface, *id), (Vec::new(), true));
         }
-        let found = if kind == EndpointKind::Interface {
-            addresses_of_interfaces(conn, &owners, t, None).await?
-        } else {
-            addresses_of_machines(conn, &owners, t, None).await?
-        };
-        for (owner, address) in found {
-            if let Some((points, _)) = out.get_mut(&(kind, owner))
-                // A machine holds an address once, whatever its interfaces.
-                && (kind == EndpointKind::Interface
-                    || !points.iter().any(|(a, _)| *a == address.address))
-            {
+        for (owner, address) in addresses_of_interfaces(conn, &owners, t, None).await? {
+            if let Some((points, _)) = out.get_mut(&(EndpointKind::Interface, owner)) {
                 points.push((address.address, 1));
             }
         }

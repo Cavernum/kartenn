@@ -610,8 +610,8 @@ collections (`/v1/policy-axes`, `/v1/environments`, `/v1/flow-types`, `/v1/servi
 Le module doit respecter (p95 serveur, jeu de 10⁶ objets de REQ-002-45 avec 6 axes,
 50 environnements, 20 types de flux, 1 000 services, 10⁴ règles, 100 motifs,
 50 conditions, 30 signaux) : verdict d'une paire d'adresses pour un service, conditions
-et signaux compris, < 50 ms ; machine × machine (16 × 16 adresses) pour un type de flux
-de 10 services < 300 ms ; port brut couvert par 20 services < 100 ms ; différentiel de
+et signaux compris, < 50 ms ; interface × interface (16 × 16 adresses ; machine × machine
+avant 011/F21) pour un type de flux de 10 services < 300 ms ; port brut couvert par 20 services < 100 ms ; différentiel de
 politique d'un changeset de règles < 1 s ; rapport d'audit < 10 min (S20, D14).
 
 ## Non-objectifs

@@ -30,7 +30,11 @@ pub(crate) static ENGLISH: English = English {
     rules: &[
         (
             "flow.endpoint.invalid",
-            "An endpoint is an address, a prefix or, with the Machines module, an interface or a machine, valid over the whole period of the flow; never a range.",
+            "An endpoint is an address, a prefix or, with the Machines module, an interface, valid over the whole period of the flow; never a range.",
+        ),
+        (
+            "flow.endpoint.machine",
+            "A machine is not an endpoint: a flow opens on an address, an interface or a subnet, never on every address of a machine.",
         ),
         (
             "flow.service.closed",

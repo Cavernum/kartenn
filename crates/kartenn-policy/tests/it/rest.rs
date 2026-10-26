@@ -550,6 +550,45 @@ async fn a_verdict_is_asked_in_both_forms(pool: PgPool) {
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
+/// REQ-010-13 (011/F21): a machine as endpoint is refused, `policy.endpoint.machine`, in
+/// both forms, before anything is read.
+#[kartenn_testing::pg_test]
+async fn acceptance_of_req_010_13_a_machine_is_refused(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    policy(&env).await;
+    let destination = env.host("10.2.0.0/24", "dev", "10.2.0.7").await;
+    let auditor = env.app(
+        env.person(&["policy.verdict.read", "core.address.read"])
+            .await,
+    );
+    let machine = Uuid::now_v7();
+    let (status, _, problem) = call(
+        &auditor,
+        Method::from_bytes(b"QUERY").unwrap(),
+        "/v1/verdicts",
+        Some(json!({ "source": { "kind": "machine", "id": machine },
+                     "destination": { "kind": "address", "id": destination },
+                     "service": "ssh" })),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{problem}");
+    assert_eq!(problem["violations"][0]["rule"], "policy.endpoint.machine");
+    assert_eq!(problem["violations"][0]["pointer"], "/source");
+    let (status, _, problem) = call(
+        &auditor,
+        Method::GET,
+        &format!(
+            "/v1/verdicts?source=address:{destination}&destination=machine:{machine}&service=ssh"
+        ),
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{problem}");
+    assert_eq!(problem["violations"][0]["rule"], "policy.endpoint.machine");
+}
+
 #[kartenn_testing::pg_test]
 async fn a_report_is_asked_for_and_read(pool: PgPool) {
     let env = Env::new(&pool).await;

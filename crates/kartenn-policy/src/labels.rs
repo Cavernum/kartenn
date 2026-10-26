@@ -138,6 +138,10 @@ pub(crate) static ENGLISH: English = English {
             "The key of an object of the policy is unique over its period among the objects of its type.",
         ),
         (
+            "policy.endpoint.machine",
+            "An endpoint of a query of compliance is an address, a prefix or an interface; never a machine, whose opening would aim at every address.",
+        ),
+        (
             "policy.reference.closed",
             "An object of the policy cites only values, flow types, services, patterns and rules alive over its period.",
         ),

@@ -22,7 +22,9 @@ macro_rules! rules {
 rules! {
     FLOW_RULES;
     ENDPOINT_INVALID = "flow.endpoint.invalid", Error, ["REQ-011-2"], "011/F3",
-        "Une extrémité est une adresse, un préfixe ou, avec le module Machines, une interface ou une machine, valide sur toute la période du flux ; jamais une plage.";
+        "Une extrémité est une adresse, un préfixe ou, avec le module Machines, une interface, valide sur toute la période du flux ; jamais une plage.";
+    ENDPOINT_MACHINE = "flow.endpoint.machine", Error, ["REQ-011-2"], "011/F21",
+        "Une machine n'est pas une extrémité : un flux s'ouvre sur une adresse, une interface ou un sous-réseau, jamais sur toutes les adresses d'une machine.";
     SERVICE_CLOSED = "flow.service.closed", Error, ["REQ-011-1"], "011/F2",
         "Le service d'un flux est actif sur toute sa période.";
     REFERENCE_MISSING = "flow.reference.missing", Error, ["REQ-011-1"], "011/F2, Q3",

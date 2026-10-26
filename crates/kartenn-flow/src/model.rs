@@ -9,8 +9,8 @@ use unicode_normalization::UnicodeNormalization;
 use uuid::Uuid;
 
 use crate::rules::{
-    ENDPOINT_INVALID, FIELD_INVALID, KIND_RESERVED, REFERENCE_MISSING, REVIEW_END_REQUIRED,
-    SEPARATION, SERVICE_CLOSED, UPDATE_IDENTITY, WAIVER_INVALID,
+    ENDPOINT_INVALID, ENDPOINT_MACHINE, FIELD_INVALID, KIND_RESERVED, REFERENCE_MISSING,
+    REVIEW_END_REQUIRED, SEPARATION, SERVICE_CLOSED, UPDATE_IDENTITY, WAIVER_INVALID,
 };
 
 /// Longest instructed flow, in months, by default (`[flow] review_max_months`, F17).
@@ -40,7 +40,8 @@ pub enum EndpointKind {
     Prefix,
     /// An interface, where the Machines module is present.
     Interface,
-    /// A machine, where the Machines module is present.
+    /// A machine: never an endpoint (F21); named by the flows closed by the migration
+    /// job, and an entry point of the reads (REQ-011-14, 15).
     Machine,
     /// A range: never an endpoint (F3).
     Range,
@@ -98,7 +99,7 @@ pub struct Flow {
 /// What the checks of a flow need to know of the referential, over the flow's period.
 #[derive(Debug, Clone, Default)]
 pub struct Facts {
-    /// Whether the Machines module is present (interfaces and machines as endpoints).
+    /// Whether the Machines module is present (interfaces as endpoints).
     pub machines_present: bool,
     /// Periods over which the source endpoint exists.
     pub source_versions: Vec<Period>,
@@ -137,10 +138,19 @@ pub fn check(flow: &Flow, facts: &Facts) -> Vec<Violation> {
     ] {
         let allowed = match endpoint.kind {
             EndpointKind::Address | EndpointKind::Prefix => true,
-            EndpointKind::Interface | EndpointKind::Machine => facts.machines_present,
-            EndpointKind::Range => false,
+            EndpointKind::Interface => facts.machines_present,
+            EndpointKind::Machine | EndpointKind::Range => false,
         };
-        if !allowed {
+        if endpoint.kind == EndpointKind::Machine {
+            // F21: a flow opens on an address, an interface or a subnet.
+            out.push(
+                Violation::new(
+                    &ENDPOINT_MACHINE,
+                    format!("the {side} is a machine: name one of its interfaces or addresses"),
+                )
+                .with_subjects([endpoint.id]),
+            );
+        } else if !allowed {
             out.push(
                 Violation::new(
                     &ENDPOINT_INVALID,
@@ -349,7 +359,7 @@ mod tests {
         Flow {
             kind: FlowKind::Requested,
             source: Endpoint {
-                kind: EndpointKind::Machine,
+                kind: EndpointKind::Interface,
                 id: Uuid::from_u128(10),
             },
             destination: Endpoint {
@@ -405,7 +415,7 @@ mod tests {
     }
 
     #[test]
-    fn a_range_or_a_machine_without_the_module_is_not_an_endpoint() {
+    fn a_range_or_an_interface_without_the_module_is_not_an_endpoint() {
         let mut f = flow();
         f.destination.kind = EndpointKind::Range;
         assert_eq!(ids(&check(&f, &facts())), ["flow.endpoint.invalid"]);
@@ -415,6 +425,18 @@ mod tests {
             ids(&check(&flow(), &no_machines)),
             ["flow.endpoint.invalid"]
         );
+    }
+
+    /// F21: a machine is refused, with or without the module.
+    #[test]
+    fn a_machine_is_not_an_endpoint() {
+        let mut f = flow();
+        f.destination.kind = EndpointKind::Machine;
+        assert_eq!(ids(&check(&f, &facts())), ["flow.endpoint.machine"]);
+        let mut no_machines = facts();
+        no_machines.machines_present = false;
+        f.source.kind = EndpointKind::Address;
+        assert_eq!(ids(&check(&f, &no_machines)), ["flow.endpoint.machine"]);
     }
 
     #[test]
