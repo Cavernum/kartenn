@@ -28,9 +28,9 @@ const operations = computed(() => DRAFT_OPERATIONS.slice(0, props.count));
     <Stack v-else as="ol" gap="2" class="k-ecran-list" aria-label="Opérations du brouillon">
       <li v-for="op in operations" :key="op.key">
         <Stack gap="1">
-          <Cluster justify="between" :wrap="false" gap="2">
-            <Cluster gap="2" :wrap="false" align="baseline" class="k-ecran-op">
-              <Icon name="draft" />
+          <Cluster justify="between" :wrap="false" gap="2" align="start">
+            <Cluster gap="2" :wrap="false" align="start" class="k-ecran-op">
+              <span class="k-ecran-op__mark"><Icon name="draft" /></span>
               <code>{{ op.key }}</code>
               <span class="k-ecran-op__change">
                 {{ op.what }} :
@@ -63,11 +63,20 @@ const operations = computed(() => DRAFT_OPERATIONS.slice(0, props.count));
 @layer components {
   /* An operation: the key and the button stay whole, the change wraps beside the key,
    * never cut (revue du 2026-10-25). */
+  /* Its first line centred on the remove button beside it; the mark centred on that line,
+   * whatever the lines that follow (relecture du 2026-10-26). */
   .k-ecran-op {
     min-inline-size: 0;
+    padding-block-start: calc((var(--k-control-height-sm) - var(--k-text-md-line)) / 2);
   }
 
-  .k-ecran-op > .k-icon,
+  .k-ecran-op__mark {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    block-size: var(--k-text-md-line);
+  }
+
   .k-ecran-op > code {
     flex: none;
   }

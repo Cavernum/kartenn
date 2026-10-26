@@ -69,7 +69,10 @@ const action = ref(props.simulation === "violations" ? "save" : props.held ? "re
     </template>
     <template v-else-if="props.simulation === 'violations'">
       <StatusBadge state="ko" label="2 violations" />
-      <span>Corriger ou retirer les opérations en cause.</span>
+      <span
+        >Corriger ou retirer les opérations en cause pour appliquer ou soumettre ; le brouillon
+        s'enregistre tel quel, violations comprises.</span
+      >
     </template>
     <template v-else-if="props.held">
       <StatusBadge state="review" label="Revue requise" />
