@@ -176,19 +176,22 @@ mesurée à 16,3 ms pour 30 ms au banc `bench-properties` réduit (2026-10-21).
 
 Registre de flux (011, REQ-011-19) : banc `bench-flow` (011-10), 10⁵ flux sur le jeu de
 référence, politique au gabarit du banc 010 sans motifs, conditions ni signaux. **Tenu**
-au banc complet le 2026-10-22 (p95 serveur) :
+au banc complet le 2026-10-27 (p95 serveur ; extrémités interface × interface depuis
+011/F21) :
 
 | Budget | Mesuré | Limite |
 |---|---|---|
-| Demande machine × machine 16 × 16, triage compris (interface × interface depuis 011/F21, à remesurer) | 297 ms | 300 ms |
-| Réévaluation de 10⁴ flux dans un changeset (ajoutée) | 2,4 s | 3 s |
-| Réévaluation de 10⁵ flux par un changement de politique | 12,8 s | 60 s |
-| Règle d'un type de flux (5·10³ flux) | 2,0 s | 60 s |
-| Page filtrée de flux | 130 ms | 150 ms |
-| Page de non-conformités | 26 ms | 150 ms |
+| Demande interface × interface 16 × 16, triage compris | 59,5 ms | 300 ms |
+| Réévaluation de 10⁴ flux dans un changeset (ajoutée) | 2,37 s | 3 s |
+| Réévaluation de 10⁵ flux par un changement de politique | 11,95 s | 60 s |
+| Règle d'un type de flux (5·10³ flux) | 1,23 s | 60 s |
+| Page filtrée de flux | 142 ms | 150 ms |
+| Page de non-conformités | 25,2 ms | 150 ms |
 
-La marge de la demande est mince : environ 210 ms sont le différentiel des propriétés du
-noyau pour l'ancre `core.owner`. La réévaluation complète en tâche de fond (< 5 min)
+La demande, mesurée à 297 ms machine × machine le 2026-10-22, retrouve de la marge.
+Restent minces la page filtrée de flux (95 % du budget) et la réévaluation de 10⁴ flux
+(79 %). Au même passage, `bench-policy` complet tient : interface × interface 16 × 16
+pour un type de flux de 10 services, 22,6 ms pour 300 ms. La réévaluation complète en tâche de fond (< 5 min)
 n'est **pas mesurée** : aucune tâche de fond ne la porte encore.
 
 ## Flux d'événements (spec 022, ADR 0034)
