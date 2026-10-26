@@ -35,6 +35,7 @@ import {
 import Icon from "../Icon/Icon.vue";
 import IconButton from "../IconButton/IconButton.vue";
 import ColumnChooser from "../internal/ColumnChooser.vue";
+import { fitPanelInset } from "../internal/panelInset.ts";
 
 defineOptions({ inheritAttrs: false });
 import { flatten, misplaced, type TreeNode, type TreeNodeState, type TreeRow } from "./tree.ts";
@@ -157,6 +158,7 @@ function onKeydown(event: KeyboardEvent): void {
 function onFocusin(event: FocusEvent): void {
   const id = (event.target as HTMLElement).closest<HTMLElement>("[data-node]")?.dataset.node;
   if (id && id !== focusRow.value) focusRow.value = id;
+  fitPanelInset(event.currentTarget as HTMLElement, event.target);
 }
 
 function stateOf(node: TreeNode): string | undefined {
@@ -351,9 +353,14 @@ const word = (node: TreeNode) => {
     --k-grid-columns: var(--k-size-col-md);
     --k-grid-columns-below-lg: var(--k-grid-columns);
     --k-grid-columns-below-md: var(--k-grid-columns);
+    --k-grid-panel-inset: var(--k-space-0);
 
     overflow: auto;
     scrollbar-gutter: stable;
+    /* The side panel over its end never hides a focused cell (WCAG 2.4.11;
+     * internal/panelInset.ts). */
+    scroll-padding-inline-end: var(--k-grid-panel-inset);
+    padding-inline-end: var(--k-grid-panel-inset);
     color: var(--k-text);
     background-color: var(--k-surface);
     border: var(--k-border-width) solid var(--k-border-strong);

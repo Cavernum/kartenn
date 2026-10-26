@@ -28,7 +28,10 @@
 // `[data-k-modal-scope]` (or `body`), is `inert` — the target of floating layers stays live.
 // Over the end of the surface (neither), it publishes its width on its container as
 // `--k-side-panel-inset`, which the host gives as `scroll-padding-inline-end` to what scrolls
-// under it: a control that takes the focus scrolls out from under the panel.
+// under it: a control that takes the focus scrolls out from under the panel. It also marks
+// the container `data-k-side-panel`: a grid that scrolls in it measures the part of it the
+// panel covers into its own scroll padding (`internal/panelInset.ts`), cleared when the
+// panel closes or changes width.
 import {
   Comment,
   Fragment,
@@ -48,6 +51,7 @@ import { t } from "../../i18n.ts";
 import IconButton from "../IconButton/IconButton.vue";
 import { isRtl } from "../internal/gridKeys.ts";
 import { inertOthers } from "../internal/inertOthers.ts";
+import { clearPanelInsets } from "../internal/panelInset.ts";
 import Tabs from "../Tabs/Tabs.vue";
 import type { TabItem } from "../Tabs/tabs.ts";
 
@@ -153,6 +157,8 @@ function release(): void {
   restore?.();
   restore = null;
   host?.style.removeProperty("--k-side-panel-inset");
+  host?.removeAttribute("data-k-side-panel");
+  if (host) clearPanelInsets(host);
   host = null;
 }
 watch(
@@ -164,6 +170,7 @@ watch(
     if (!cover && !sheet) {
       host = el.parentElement;
       host?.style.setProperty("--k-side-panel-inset", `${w}px`);
+      host?.setAttribute("data-k-side-panel", "");
       return;
     }
     const focused = document.activeElement;

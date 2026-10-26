@@ -12,6 +12,7 @@ import { nextSort, type GridColumn } from "../src/components/DataGrid/grid.ts";
 import DraftCounter from "../src/components/DraftCounter/DraftCounter.vue";
 import IconButton from "../src/components/IconButton/IconButton.vue";
 import { moveInGrid } from "../src/components/internal/gridKeys.ts";
+import { coveredInset } from "../src/components/internal/panelInset.ts";
 import MatrixGrid from "../src/components/MatrixGrid/MatrixGrid.vue";
 import SidePanel from "../src/components/SidePanel/SidePanel.vue";
 import Skeleton from "../src/components/Skeleton/Skeleton.vue";
@@ -133,6 +134,22 @@ describe("SidePanel", () => {
     const html = await render(SidePanel, { label: "Panneau", tabs: [], cover: true });
     expect(html).toContain('data-cover="true"');
     expect(html).not.toContain('role="separator"');
+  });
+});
+
+describe("scroll padding of a grid under the panel", () => {
+  const port = { left: 100, right: 900 };
+
+  it("is the part of the scrollport the panel covers at its end", () => {
+    expect(coveredInset(port, { left: 600, right: 1020 })).toBe(300);
+    // Right to left, the panel is at the left.
+    expect(coveredInset(port, { left: 0, right: 420 })).toBe(320);
+  });
+
+  it("is nothing for a grid that ends before the panel, at most the whole port", () => {
+    expect(coveredInset(port, { left: 950, right: 1370 })).toBe(0);
+    expect(coveredInset(port, { left: -400, right: 20 })).toBe(0);
+    expect(coveredInset(port, { left: 0, right: 1420 })).toBe(800);
   });
 });
 

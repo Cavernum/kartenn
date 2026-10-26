@@ -179,6 +179,29 @@ test.describe("Narrow frame (768 px)", () => {
   });
 });
 
+test.describe("Standard frame (1024 px)", () => {
+  test.use({ viewport: { width: 1024, height: 900 } });
+
+  test("a focused cell of a grid scrolls out from under the panel", async ({ page }) => {
+    await page.goto("/_ui/ecrans/E10?vue=matrice");
+    const panel = page.getByRole("complementary", { name: "Panneau droit" });
+    await expect(panel).toBeVisible();
+    const grid = page.getByRole("grid", { name: /^Matrice Applicatif/ });
+    await grid.locator("[tabindex='0']").focus();
+    await page.keyboard.press("Control+Home");
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("End");
+    const cell = (await page.locator(":focus").boundingBox())!;
+    const edge = (await panel.boundingBox())!.x;
+    expect(cell.x + cell.width).toBeLessThanOrEqual(edge + 1);
+    expect(cell.x).toBeGreaterThanOrEqual((await grid.boundingBox())!.x);
+    // Closed, the panel takes its room back from the grid.
+    await expect(grid).not.toHaveCSS("padding-inline-end", "0px");
+    await panel.getByRole("button", { name: "Fermer le panneau" }).click();
+    await expect(grid).toHaveCSS("padding-inline-end", "0px");
+  });
+});
+
 test.describe("Wide frame (1280 px)", () => {
   test("the panel over the end of the surface sets its scroll padding", async ({ page }) => {
     await page.goto("/_ui/ecrans/E3?vue=edition");
