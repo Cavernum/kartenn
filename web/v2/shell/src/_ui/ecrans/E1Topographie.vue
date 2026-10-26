@@ -2,9 +2,11 @@
 // E1 — Topographie (design « Maquettes »; 021, « Catalogue des écrans » : Topographie;
 // 024/M10, M13): the prefix tree of a domain (parent deduced, no move) with a « + » on its
 // nodes, the content of the chosen node filtered by environment, one row in a draft and
-// one in review. The right panel shows the chosen row (Détail tab); the « + » of a node
-// opens there the edit panel of the kind, with the node as parent — the same panel as
-// from the table, the palette or the menu « Créer ».
+// one in review. The bottom panel shows the chosen row, its attributes in several columns
+// (wide content: the tree and the table keep their whole width; 020, « Panneau du bas »);
+// the « + » of a node opens the edit panel of the kind in the right panel, with the node as
+// parent — the same panel as from the table, the palette or the menu « Créer » (a narrow
+// form: its fields one under the other).
 import {
   Button,
   Cluster,
@@ -26,6 +28,7 @@ import {
   type MenuItem,
   type RowState,
   type SplitAction,
+  type TabItem,
   type ToolbarAction,
   type TreeNode,
 } from "@kartenn/ui";
@@ -38,6 +41,8 @@ import { DOMAIN, ENV, usageLabel, type EnvKey } from "./donnees.ts";
 
 const props = defineProps<{ vue: string }>();
 const adding = props.vue === "ajout";
+/** The bottom panel of the node view: the detail of the chosen row (wide content). */
+const BOTTOM: TabItem[] = [{ value: "detail", label: "Détail" }];
 
 const nodes: TreeNode[] = [
   {
@@ -230,7 +235,9 @@ const addAction = ref("draft");
     title="Topographie : 192.0.2.64/26"
     active="topology"
     space="referential"
-    :panel="props.vue === 'replie' ? undefined : 'detail'"
+    :panel="adding ? 'detail' : undefined"
+    :bottom="props.vue === 'noeud' ? BOTTOM : undefined"
+    bottom-label="Détail de l'objet choisi"
     :collapsed="props.vue === 'replie'"
     :crumbs="[
       { label: 'Topographie', to: '/topology' },
@@ -299,8 +306,8 @@ const addAction = ref("draft");
         </template>
       </Panneau>
     </Split>
-    <template #detail>
-      <Stack v-if="adding" gap="3">
+    <template v-if="adding" #detail>
+      <Stack gap="3">
         <h2 class="k-ecran-subtitle">Ajouter dans <code>192.0.2.64/26</code></h2>
         <Cluster gap="1" role="group" aria-label="Sorte d'objet">
           <Button size="sm" icon="address" :pressed="true">Adresse</Button>
@@ -331,12 +338,27 @@ const addAction = ref("draft");
           ]"
         />
       </Stack>
-      <Stack v-else gap="3">
-        <Cluster gap="2" justify="between">
+    </template>
+    <template v-if="adding" #detail-footer>
+      <Cluster justify="end">
+        <SplitButton
+          v-model:action="addAction"
+          :actions="addActions"
+          :shortcut="['Control', 'Enter']"
+        />
+      </Cluster>
+    </template>
+    <!-- The chosen row in the bottom panel: its attributes in several columns, the tree and
+         the table keep their whole width. -->
+    <template #bottom-detail>
+      <Stack gap="2">
+        <Cluster gap="2">
           <h2 class="k-ecran-subtitle"><code>192.0.2.101</code></h2>
           <StatusBadge state="neutral" label="En brouillon" />
+          <span class="k-ecran-muted">Créée par le brouillon actif ; pas encore appliquée.</span>
         </Cluster>
         <Attributs
+          columns
           :items="[
             { key: 'kind', label: 'Sorte', value: 'Adresse' },
             { key: 'usage', label: 'Usage' },
@@ -349,21 +371,11 @@ const addAction = ref("draft");
           <template #usage><KeyLabel value="host" :label="usageLabel('host')" /></template>
           <template #env><EnvChip v-bind="ENV.prod" /></template>
         </Attributs>
-        <p class="k-ecran-muted">Créée par le brouillon actif ; pas encore appliquée.</p>
       </Stack>
     </template>
-    <template #detail-footer>
-      <Cluster v-if="adding" justify="end">
-        <SplitButton
-          v-model:action="addAction"
-          :actions="addActions"
-          :shortcut="['Control', 'Enter']"
-        />
-      </Cluster>
-      <Cluster v-else justify="end" gap="2">
-        <Button variant="ghost" icon="external-link">Ouvrir la fiche</Button>
-        <Button icon="pencil" :shortcut="['e']">Modifier</Button>
-      </Cluster>
+    <template #bottom-detail-footer>
+      <Button variant="ghost" icon="external-link">Ouvrir la fiche</Button>
+      <Button icon="pencil" :shortcut="['e']">Modifier</Button>
     </template>
   </Cadre>
 </template>

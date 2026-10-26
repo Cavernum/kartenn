@@ -4,18 +4,27 @@
 
 <script setup lang="ts">
 // A piece of the frame for the catalogue: a container of fixed height, positioned, with an
-// isolated surface that scrolls inside it (« Structure avant style ») and room for the
-// right panel laid over it, and an `auto` track at the end for the strip of the closed
-// panel. Shows the sticky headers, the scroll in place, the overlay. `phone`: the width of
-// a compact window, and a containing block for what is fixed to the window (layout
-// containment): a sheet covers the frame, not the page of the catalogue, and only the frame
-// goes inert under it.
-const props = withDefaults(defineProps<{ size?: "sm" | "md" | "phone" }>(), { size: "sm" });
+// isolated surface that scrolls inside it (« Structure avant style ») and an `auto` track at
+// the end for the right panel beside it, or the strip of the closed panel (« tout
+// s'adapte »: the surface shrinks to what the panel leaves). With `bottom`, the track is an
+// `auto` row under the surface, for the bottom panel (the surface loses height). Shows the
+// sticky headers, the scroll in place. `phone`: the width of a compact window, and a
+// containing block for what is fixed to the window (layout containment): a sheet covers the
+// frame, not the page of the catalogue, and only the frame goes inert under it.
+const props = withDefaults(defineProps<{ size?: "sm" | "md" | "phone"; bottom?: boolean }>(), {
+  size: "sm",
+  bottom: false,
+});
 </script>
 
 <template>
   <!-- A sheet inside goes modal over the frame only (`data-k-modal-scope`). -->
-  <div class="k-demo-frame" :data-size="props.size" data-k-modal-scope>
+  <div
+    class="k-demo-frame"
+    :data-size="props.size"
+    :data-bottom="props.bottom ? 'true' : undefined"
+    data-k-modal-scope
+  >
     <div class="k-demo-frame__surface"><slot /></div>
     <slot name="panel" />
   </div>
@@ -33,6 +42,18 @@ const props = withDefaults(defineProps<{ size?: "sm" | "md" | "phone" }>(), { si
     background-color: var(--k-bg);
     border: var(--k-border-width) solid var(--k-border-strong);
     border-radius: var(--k-radius-md);
+    container-type: inline-size;
+  }
+
+  .k-demo-frame[data-bottom] {
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
+    container-type: size;
+  }
+
+  /* Taller: room for the surface above a panel of standard height. */
+  .k-demo-frame[data-bottom][data-size="md"] {
+    block-size: var(--k-size-dialog-lg);
   }
 
   .k-demo-frame[data-size="md"] {

@@ -41,8 +41,8 @@ const draftActions: SplitAction[] = [
 ];
 
 /**
- * The frame of the panel: a surface (title, draft counter, table) and the panel over its
- * end; the counter opens the panel on its draft tab and, open, closes it; closed, the
+ * The frame of the panel: a surface (title, draft counter, table) and the panel beside it,
+ * the surface shrunk to what it leaves; the counter opens the panel on its draft tab and, open, closes it; closed, the
  * panel leaves its strip (`rail`) at the end of the frame.
  */
 const demo = defineComponent({
@@ -72,7 +72,6 @@ const demo = defineComponent({
         { size: props.sheet ? "phone" : "md" },
         {
           default: () => [
-            // The counter at the start: the panel covers the end of the surface.
             h(Cluster, { gap: "3", wrap: false }, () => [
               h(DraftCounter, {
                 count: 3,
@@ -148,7 +147,8 @@ export default {
   states: [
     {
       name: "detail",
-      description: "Ouvert sur l'onglet Détail, en surimpression de la fin de la surface",
+      description:
+        "Ouvert sur l'onglet Détail, à côté de la surface, qui se réduit à la largeur qu'il laisse",
       props: { open: true, tab: "detail" },
       demo,
       wide: true,

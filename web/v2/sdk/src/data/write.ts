@@ -38,8 +38,8 @@ export interface QuickWrite {
 export type WriteOutcome<I = Record<string, unknown>> =
   | { kind: "applied"; changeset: string | null; warnings: readonly Violation[] }
   /**
-   * Held for a decision; `reason` says why a write that asked to apply (`?apply=own`) did
-   * not: `changeset.apply_own.missing` or `changeset.approval.self` (024, REQ-024-13).
+   * Held for a decision; `reason` says why a write that asked to apply (`?approval=self`) did
+   * not: `changeset.approval.self.missing` or `changeset.approval.self` (024, REQ-024-13).
    */
   | {
       kind: "proposed";
@@ -201,8 +201,8 @@ export function createWrites({ client, queryClient, invalidation, pause }: Write
       if (optimistic) queryClient.setQueryData<Entry>(key, previous);
     };
     try {
-      // Applied at once when its author holds `apply_own`, held otherwise (024, REQ-024-13).
-      const url = `${collection}/${encodeURIComponent(id)}?apply=own`;
+      // Applied at once when its author holds `approval.self`, held otherwise (024, REQ-024-13).
+      const url = `${collection}/${encodeURIComponent(id)}?approval=self`;
       const answer = await client.request("PATCH", url, {
         body: { ...patch, motive },
         ifMatch: tag,

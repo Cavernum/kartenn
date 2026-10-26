@@ -54,8 +54,8 @@ export type DraftSubmitOutcome =
   | Refusal<DraftPeriod>;
 
 export interface SubmitOptions {
-  /** `?apply=own`: applied at once when its author may (024, REQ-024-13). */
-  applyOwn: boolean;
+  /** `?approval=self`: applied at once when its author may (024, REQ-024-13). */
+  approvalSelf: boolean;
   /** The period of the changeset; now and unbounded by default. */
   period?: DraftPeriod;
   /** Kept by the caller until the answer, so that a retry replays it (REQ-006-15). */
@@ -272,7 +272,7 @@ export function createDrafts(deps: DraftDeps) {
   const submit = async (id: string, options: SubmitOptions): Promise<DraftSubmitOutcome> => {
     const period = options.period ?? {};
     const key = options.idempotencyKey ?? crypto.randomUUID();
-    const url = `${path(id)}/submission${options.applyOwn ? "?apply=own" : ""}`;
+    const url = `${path(id)}/submission${options.approvalSelf ? "?approval=self" : ""}`;
     const operations = queryClient.getQueryData<Entry<Draft>>(get(id).queryKey)?.data.operations;
     ending.add(id);
     try {

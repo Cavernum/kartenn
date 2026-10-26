@@ -22,7 +22,7 @@
 // opens a closed node, or goes to the first child of an open one; Left closes an open node,
 // or goes to the parent. Enter or F2 moves into the « + » of the row, Escape or F2 back.
 // The open nodes are the model `expanded`. Columns, editing and moves remain to come.
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, useAttrs, watch } from "vue";
+import { computed, nextTick, ref, useAttrs, watch } from "vue";
 import { t } from "../../i18n.ts";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import {
@@ -35,7 +35,6 @@ import {
 import Icon from "../Icon/Icon.vue";
 import IconButton from "../IconButton/IconButton.vue";
 import ColumnChooser from "../internal/ColumnChooser.vue";
-import { joinPanel, leavePanel } from "../internal/panelInset.ts";
 
 defineOptions({ inheritAttrs: false });
 import { flatten, misplaced, type TreeNode, type TreeNodeState, type TreeRow } from "./tree.ts";
@@ -160,15 +159,6 @@ function onFocusin(event: FocusEvent): void {
   if (id && id !== focusRow.value) focusRow.value = id;
 }
 
-// Under an open side panel, the tree fits within what stays visible (internal/panelInset.ts).
-const root = ref<HTMLElement | null>(null);
-onMounted(() => {
-  if (root.value) joinPanel(root.value);
-});
-onBeforeUnmount(() => {
-  if (root.value) leavePanel(root.value);
-});
-
 function stateOf(node: TreeNode): string | undefined {
   const state = props.nodeState?.(node);
   if (state === undefined || typeof state === "string") return state;
@@ -194,7 +184,7 @@ const word = (node: TreeNode) => {
 </script>
 
 <template>
-  <div ref="root" class="k-tree-grid-frame" v-bind="rootAttrs" data-k-panel-fit="padding">
+  <div class="k-tree-grid-frame" v-bind="rootAttrs">
     <ColumnChooser v-model="visibility" :columns="all" :grid="grid" />
     <div
       ref="grid"
@@ -341,15 +331,11 @@ const word = (node: TreeNode) => {
 @layer components {
   /* The root: a container, the chooser above the tree, the tree in the room left. */
   .k-tree-grid-frame {
-    /* Under the side panel, the part it covers (internal/panelInset.ts). */
-    --k-grid-panel-inset: var(--k-space-0);
-
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     grid-template-columns: minmax(0, 1fr);
     min-inline-size: 0;
     min-block-size: 0;
-    padding-inline-end: var(--k-grid-panel-inset);
     container-type: inline-size;
   }
 

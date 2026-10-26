@@ -53,7 +53,7 @@
           - /url: /topology?node=p1
       - listitem: /\d+\.\d+\.\d+\.\d+\/\d+/
   - button "Présent"
-  - button "Brouillon 3 opérations" [expanded]
+  - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
@@ -157,15 +157,14 @@
             - img "Adresse"
             - text: ""
     - text: /6 objets sur \d+ · 1 en brouillon · 1 en revue Au présent/
-- complementary "Panneau droit":
+- complementary "Détail de l'objet choisi":
   - separator "Redimensionner le panneau"
   - tablist "Onglets du panneau":
     - tab "Détail" [selected]
-    - tab "Brouillon 3"
   - tabpanel "Détail":
     - heading /\d+\.\d+\.\d+\.\d+/ [level=2]:
       - code: /\d+\.\d+\.\d+\.\d+/
-    - text: En brouillon
+    - text: En brouillon Créée par le brouillon actif ; pas encore appliquée.
     - term: Sorte
     - definition: Adresse
     - term: Usage
@@ -178,8 +177,8 @@
     - definition: /srv-app-\d+/
     - term: VLAN
     - definition: /\d+/
-    - paragraph: Créée par le brouillon actif ; pas encore appliquée.
-  - button "Largeur du panneau"
+  - button "Hauteur du panneau"
   - button "Fermer le panneau"
   - button "Ouvrir la fiche"
   - button "Modifier"
+- button "Ouvrir le panneau"

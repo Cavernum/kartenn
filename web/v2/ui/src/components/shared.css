@@ -108,6 +108,102 @@
     }
   }
 
+  /* The handle of a panel (`SidePanel` at its inline start, `BottomPanel` at its block
+   * start; design « Adaptation à la largeur », « Poignées et contours »): an invisible
+   * target of 24 px astride the edge of the panel (WCAG 2.5.8) whose line is the outline
+   * of the panel — 1 px at rest, 2 px and the accent under the pointer and the focus, in
+   * a transition of scale and colour (« Mouvement »: transform and colour only). The focus
+   * adds a grip in the middle of the line, no ring around the target (WCAG 2.4.7). */
+  .k-panel-handle {
+    position: absolute;
+    z-index: var(--k-z-sticky);
+    touch-action: none;
+  }
+
+  .k-panel-handle[aria-orientation="vertical"] {
+    inset-block: 0;
+    inset-inline-start: calc(var(--k-control-height-sm) / -2);
+    inline-size: var(--k-control-height-sm);
+    cursor: col-resize;
+  }
+
+  .k-panel-handle[aria-orientation="horizontal"] {
+    inset-inline: 0;
+    inset-block-start: calc(var(--k-control-height-sm) / -2);
+    block-size: var(--k-control-height-sm);
+    cursor: row-resize;
+  }
+
+  .k-panel-handle::before,
+  .k-panel-handle::after {
+    position: absolute;
+    content: "";
+    transition-duration: var(--k-duration-short);
+    transition-timing-function: var(--k-ease-standard);
+  }
+
+  /* The line: 2 px drawn, half of it at rest, on the side of the panel. */
+  .k-panel-handle::before {
+    background-color: var(--k-border-strong);
+    transition-property: scale, background-color;
+  }
+
+  .k-panel-handle[aria-orientation="vertical"]::before {
+    inset-block: 0;
+    inset-inline-start: 50%;
+    inline-size: calc(var(--k-border-width) * 2);
+    transform-origin: left;
+    scale: 0.5 1;
+  }
+
+  .k-panel-handle[aria-orientation="vertical"]:dir(rtl)::before {
+    transform-origin: right;
+  }
+
+  .k-panel-handle[aria-orientation="horizontal"]::before {
+    inset-inline: 0;
+    inset-block-start: 50%;
+    block-size: calc(var(--k-border-width) * 2);
+    transform-origin: top;
+    scale: 1 0.5;
+  }
+
+  .k-panel-handle:hover::before,
+  .k-panel-handle:focus-visible::before {
+    background-color: var(--k-accent);
+    scale: 1 1;
+  }
+
+  /* The grip of the focus: a short bar on the middle of the line. */
+  .k-panel-handle::after {
+    background-color: var(--k-focus-ring);
+    border-radius: var(--k-radius-full);
+    opacity: 0;
+    transition-property: opacity;
+  }
+
+  .k-panel-handle[aria-orientation="vertical"]::after {
+    inset-block-start: calc(50% - var(--k-space-4));
+    inset-inline-start: calc(50% - var(--k-border-width) * 2);
+    inline-size: calc(var(--k-border-width) * 6);
+    block-size: var(--k-space-8);
+  }
+
+  .k-panel-handle[aria-orientation="horizontal"]::after {
+    inset-block-start: calc(50% - var(--k-border-width) * 2);
+    inset-inline-start: calc(50% - var(--k-space-4));
+    inline-size: var(--k-space-8);
+    block-size: calc(var(--k-border-width) * 6);
+  }
+
+  .k-panel-handle:focus-visible {
+    outline: none;
+  }
+
+  .k-panel-handle:focus-visible::after {
+    opacity: 1;
+  }
+
   /* The chevron of a disclosure (tree node, group of the sidebar or of a diff; design
    * « Mouvement »): one glyph pointing to the inline end, turned a quarter down when open
    * (`data-open`). The glyph alone turns; what it opens appears at once. */

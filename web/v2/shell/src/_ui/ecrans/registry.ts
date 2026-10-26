@@ -45,13 +45,13 @@ export const MOCKUPS: Mockup[] = [
     id: "E1",
     title: "Topographie",
     shows:
-      "Barre latérale, barre d'état, arbre des préfixes avec « + » sur un nœud, table filtrée par environnement avec une ligne en brouillon et une en revue, panneau droit sur l'onglet Détail.",
+      "Barre latérale, barre d'état, arbre des préfixes avec « + » sur un nœud, table filtrée par environnement avec une ligne en brouillon et une en revue, détail de la ligne choisie dans le panneau du bas.",
     views: [
       {
         id: "noeud",
         label: "Nœud choisi",
         description:
-          "Arbre à parent déduit, contenu du nœud choisi filtré, détail de la ligne choisie dans le panneau droit.",
+          "Arbre à parent déduit, contenu du nœud choisi filtré, détail de la ligne choisie dans le panneau du bas, en plusieurs colonnes ; arbre et table gardent toute leur largeur.",
       },
       {
         id: "ajout",

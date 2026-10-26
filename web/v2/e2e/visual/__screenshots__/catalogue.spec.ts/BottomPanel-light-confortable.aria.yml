@@ -1,0 +1,310 @@
+- main:
+  - region "BottomPanel":
+    - heading "BottomPanel" [level=1]
+    - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter horizontale ; en feuille, Dialog (Modal)"
+    - figure "open — Ouvert sous la surface, sur l'onglet Détail en plusieurs colonnes ; la table garde toute sa largeur":
+      - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
+      - grid "Préfixes":
+        - rowgroup:
+          - row "Préfixe Libellé Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.2\.0\/\d+ Supervision \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Supervision"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Réserve \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Réserve"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Salle B \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Salle B"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell /\d+ %/
+          - row /\d+:db8::\/\d+ Sauvegardes 7 %/:
+            - gridcell /\d+:db8::\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "7 %"
+      - button /Détail de \d+\.\d+\.\d+\.\d+\/\d+/
+      - complementary "Panneau du bas":
+        - separator "Redimensionner le panneau"
+        - tablist "Onglets du panneau":
+          - tab "Détail" [selected]
+          - tab "Historique 3"
+        - tabpanel "Détail":
+          - term: Préfixe
+          - definition: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - term: Libellé
+          - definition: Supervision
+          - term: Environnement
+          - definition: Production
+          - term: Occupation
+          - definition: /\d+ %/
+          - term: Propriétaire
+          - definition: Atelier Nord
+          - term: VLAN
+          - definition: /\d+/
+        - button "Hauteur du panneau"
+        - button "Fermer le panneau"
+      - code: open
+      - text: ""
+    - figure "tabs — Deuxième onglet (Historique)":
+      - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
+      - grid "Préfixes":
+        - rowgroup:
+          - row "Préfixe Libellé Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.2\.0\/\d+ Supervision \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Supervision"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Réserve \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Réserve"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Salle B \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Salle B"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell /\d+ %/
+          - row /\d+:db8::\/\d+ Sauvegardes 7 %/:
+            - gridcell /\d+:db8::\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "7 %"
+      - button /Détail de \d+\.\d+\.\d+\.\d+\/\d+/
+      - complementary "Panneau du bas":
+        - separator "Redimensionner le panneau"
+        - tablist "Onglets du panneau":
+          - tab "Détail"
+          - tab "Historique 3" [selected]
+        - tabpanel "Historique 3":
+          - list:
+            - listitem: Appliqué Créé
+            - listitem: Appliqué Libellé changé
+            - listitem: Appliqué VLAN ajouté
+        - button "Hauteur du panneau"
+        - button "Fermer le panneau"
+      - code: tabs
+      - text: ""
+    - 'figure /resized — Redimensionné à \d+ px \(poignée ou menu « Hauteur du panneau » : Basse\)/':
+      - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
+      - grid "Préfixes":
+        - rowgroup:
+          - row "Préfixe Libellé Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.2\.0\/\d+ Supervision \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Supervision"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Réserve \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Réserve"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Salle B \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Salle B"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell /\d+ %/
+          - row /\d+:db8::\/\d+ Sauvegardes 7 %/:
+            - gridcell /\d+:db8::\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "7 %"
+      - button /Détail de \d+\.\d+\.\d+\.\d+\/\d+/
+      - complementary "Panneau du bas":
+        - separator "Redimensionner le panneau"
+        - tablist "Onglets du panneau":
+          - tab "Détail" [selected]
+          - tab "Historique 3"
+        - tabpanel "Détail":
+          - term: Préfixe
+          - definition: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - term: Libellé
+          - definition: Supervision
+          - term: Environnement
+          - definition: Production
+          - term: Occupation
+          - definition: /\d+ %/
+          - term: Propriétaire
+          - definition: Atelier Nord
+          - term: VLAN
+          - definition: /\d+/
+        - button "Hauteur du panneau"
+        - button "Fermer le panneau"
+      - code: resized
+      - text: ""
+    - 'figure "sheet — Fenêtre compacte : la même feuille plein écran que le panneau de droite, « Retour » au début"':
+      - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
+      - grid "Préfixes":
+        - rowgroup:
+          - row "Préfixe Libellé Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.2\.0\/\d+ Supervision \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Supervision"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Réserve \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Réserve"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Salle B \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Salle B"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell /\d+ %/
+          - row /\d+:db8::\/\d+ Sauvegardes 7 %/:
+            - gridcell /\d+:db8::\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "7 %"
+      - button /Détail de \d+\.\d+\.\d+\.\d+\/\d+/
+      - dialog "Panneau du bas":
+        - button "Retour"
+        - tablist "Onglets du panneau":
+          - tab "Détail" [selected]
+          - tab "Historique 3"
+        - tabpanel "Détail":
+          - term: Préfixe
+          - definition: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - term: Libellé
+          - definition: Supervision
+          - term: Environnement
+          - definition: Production
+          - term: Occupation
+          - definition: /\d+ %/
+          - term: Propriétaire
+          - definition: Atelier Nord
+          - term: VLAN
+          - definition: /\d+/
+      - code: sheet
+      - text: ""
+    - 'figure "closed — Fermé : il ne laisse rien ; la surface reprend toute la hauteur"':
+      - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
+      - grid "Préfixes":
+        - rowgroup:
+          - row "Préfixe Libellé Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.2\.0\/\d+ Supervision \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Supervision"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Réserve \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Réserve"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Salle B \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Salle B"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell /\d+ %/
+          - row /\d+:db8::\/\d+ Sauvegardes 7 %/:
+            - gridcell /\d+:db8::\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "7 %"
+      - button /Détail de \d+\.\d+\.\d+\.\d+\/\d+/
+      - code: closed
+      - text: ""
+    - 'figure "handle-focus — Focus sur la poignée (Haut, Bas, Début, Fin) : trait de 2 px et sa pastille"':
+      - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
+      - grid "Préfixes":
+        - rowgroup:
+          - row "Préfixe Libellé Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.2\.0\/\d+ Supervision \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Supervision"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Réserve \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Réserve"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Salle B \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Salle B"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell /\d+ %/
+          - row /\d+:db8::\/\d+ Sauvegardes 7 %/:
+            - gridcell /\d+:db8::\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "7 %"
+      - button /Détail de \d+\.\d+\.\d+\.\d+\/\d+/
+      - complementary "Panneau du bas":
+        - separator "Redimensionner le panneau"
+        - tablist "Onglets du panneau":
+          - tab "Détail" [selected]
+          - tab "Historique 3"
+        - tabpanel "Détail":
+          - term: Préfixe
+          - definition: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - term: Libellé
+          - definition: Supervision
+          - term: Environnement
+          - definition: Production
+          - term: Occupation
+          - definition: /\d+ %/
+          - term: Propriétaire
+          - definition: Atelier Nord
+          - term: VLAN
+          - definition: /\d+/
+        - button "Hauteur du panneau"
+        - button "Fermer le panneau"
+      - code: handle-focus
+      - text: ""

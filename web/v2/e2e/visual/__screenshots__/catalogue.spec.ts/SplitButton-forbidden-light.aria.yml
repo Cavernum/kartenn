@@ -1,7 +1,7 @@
 - main:
-  - tooltip "Il faut changeset.apply_own":
+  - tooltip "Il faut changeset.approval.self":
     - text: ""
-    - code: changeset.apply_own
+    - code: changeset.approval.self
   - region "SplitButton":
     - heading "SplitButton" [level=1]
     - paragraph: "Motif : Button + Menu Button (entrées désactivées avec motif)"

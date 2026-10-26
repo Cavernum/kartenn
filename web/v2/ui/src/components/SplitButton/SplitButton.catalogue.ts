@@ -17,7 +17,7 @@ const held = [
   REVIEW,
   SAVE,
 ];
-const forbidden = [{ ...APPLY, forbidden: "changeset.apply_own" }, REVIEW, SAVE];
+const forbidden = [{ ...APPLY, forbidden: "changeset.approval.self" }, REVIEW, SAVE];
 
 /** The button at the width of the panel; the action run is said under it. */
 const demo = defineComponent({

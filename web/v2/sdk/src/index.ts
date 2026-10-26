@@ -100,7 +100,7 @@ export { api, queryClient, reads } from "./instance.ts";
 
 /**
  * The drafts of the caller on the server (spec 024 § A): their queries, their writes
- * under `If-Match`, the simulation waited 400 ms, the submission (`applyOwn`), and the
+ * under `If-Match`, the simulation waited 400 ms, the submission (`approvalSelf`), and the
  * active draft of the tab.
  */
 export const drafts = {

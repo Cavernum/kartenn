@@ -18,8 +18,7 @@ function edges(page: Page): Promise<number[][][]> {
   return page.locator("[role='grid']").evaluateAll((grids) =>
     grids
       .filter((grid) => {
-        // Its container is its content box: under the side panel, the part it covers is
-        // padding (internal/panelInset.ts).
+        // Its container is its content box.
         const frame = grid.closest<HTMLElement>("[data-stack]");
         if (!frame) return true;
         const style = getComputedStyle(frame);
@@ -133,7 +132,9 @@ test.describe("mock-ups at 320 px", () => {
         await page.locator(".k-ecran").waitFor();
         await expectNoSideScroll(page);
         const slots = await page
-          .locator(".k-ecran__bar, .k-ecran__surface, .k-side-panel .k-tabs__panel")
+          .locator(
+            ".k-ecran__bar, .k-ecran__surface, .k-side-panel .k-tabs__panel, .k-bottom-panel .k-tabs__panel",
+          )
           .evaluateAll((els) =>
             els.map((el) => ({ slot: el.className, over: el.scrollWidth - el.clientWidth })),
           );
@@ -144,10 +145,91 @@ test.describe("mock-ups at 320 px", () => {
   }
 });
 
+// « Tout s'adapte » (020, « Adaptation à la largeur », 2026-10-26): at the wide and standard
+// classes, every view of every mock-up with the right panel open (the draft counter opens
+// it where the view leaves it closed) has nothing of its surface under the panel — no
+// element, header, filter, grid or footer, painted past its edge — and every toolbar of a
+// grid stays within the grid, every toolbar of a panel within the panel.
+for (const width of [1280, 1440] as const) {
+  test.describe(`panel open at ${width} px`, () => {
+    test.use({ viewport: { width, height: 900 } });
+
+    for (const mockup of MOCKUPS) {
+      for (const view of mockup.views.filter((v) => !v.modal)) {
+        test(`${mockup.id} ${view.id}: nothing under the panel, toolbars inside`, async ({
+          page,
+        }) => {
+          await open(page, `/_ui/ecrans/${mockup.id}?vue=${view.id}`);
+          await page.locator(".k-ecran").waitFor();
+          const panel = page.locator(".k-side-panel");
+          if (!(await panel.isVisible())) {
+            await page.getByRole("button", { name: /^Brouillon\s*\d+\s*opération/ }).click();
+          }
+          await expect(panel).toBeVisible();
+          await expect(panel).not.toHaveAttribute("data-cover");
+          // Past the exit of a menu the view opened, the layout is settled.
+          await page.waitForTimeout(50);
+          const report = await page.evaluate(() => {
+            const side = document.querySelector<HTMLElement>(".k-side-panel")!;
+            const edge = side.getBoundingClientRect().left;
+            const surface = document.querySelector<HTMLElement>(".k-ecran__surface")!;
+            /** The part of `el` left visible by the ancestors that clip it, up to the surface. */
+            const visible = (el: Element) => {
+              const r = el.getBoundingClientRect();
+              let left = r.left;
+              let right = r.right;
+              for (
+                let a = el.parentElement;
+                a && a !== surface.parentElement;
+                a = a.parentElement
+              ) {
+                if (getComputedStyle(a).overflowX === "visible") continue;
+                const c = a.getBoundingClientRect();
+                left = Math.max(left, c.left);
+                right = Math.min(right, c.right);
+              }
+              return { left, right, width: r.width };
+            };
+            const under = [...surface.querySelectorAll("*")]
+              .filter((el) => {
+                const v = visible(el);
+                return v.width > 0 && v.right > v.left && v.right > edge + 0.5;
+              })
+              .map((el) => `${el.tagName.toLowerCase()}.${el.className}`.slice(0, 80));
+            const inside = (inner: Element, outer: Element) => {
+              const i = inner.getBoundingClientRect();
+              const o = outer.getBoundingClientRect();
+              return i.left >= o.left - 0.5 && i.right <= o.right + 0.5;
+            };
+            const outside: string[] = [];
+            for (const frame of surface.querySelectorAll(".k-data-grid-frame, .k-tree-grid-frame"))
+              for (const bar of frame.querySelectorAll(":scope > .k-column-chooser"))
+                if (!inside(bar, frame)) outside.push(`chooser of ${frame.className}`);
+            for (const box of surface.querySelectorAll(".k-ecran-panel"))
+              for (const bar of box.querySelectorAll("[role='toolbar'], .k-column-chooser"))
+                if (!inside(bar, box)) outside.push(`${bar.className} of a panel`);
+            return {
+              surfaceEnd: surface.getBoundingClientRect().right,
+              edge,
+              under,
+              outside,
+            };
+          });
+          expect(report.surfaceEnd, "the surface ends before the panel").toBeLessThanOrEqual(
+            report.edge + 0.5,
+          );
+          expect(report.under, "painted under the panel").toEqual([]);
+          expect(report.outside, "toolbars out of their grid or panel").toEqual([]);
+        });
+      }
+    }
+  });
+}
+
 // The frame of each width class (WIDTH_CLASSES): its attribute, the sidebar, the panel.
 const FRAMES = [
-  { width: 1440, name: "wide", sidebar: "expanded", panel: "over" },
-  { width: 1100, name: "standard", sidebar: "expanded", panel: "over" },
+  { width: 1440, name: "wide", sidebar: "expanded", panel: "beside" },
+  { width: 1100, name: "standard", sidebar: "expanded", panel: "beside" },
   { width: 768, name: "narrow", sidebar: "collapsed", panel: "cover" },
   { width: 390, name: "compact", sidebar: "drawer", panel: "sheet" },
 ] as const;
@@ -157,7 +239,8 @@ for (const frame of FRAMES) {
     test.use({ viewport: { width: frame.width, height: 900 } });
 
     test(`${frame.name}: sidebar ${frame.sidebar}, panel ${frame.panel}`, async ({ page }) => {
-      await open(page, "/_ui/ecrans/E1?vue=noeud");
+      // The view whose right panel opens (the add form); the node view uses the bottom one.
+      await open(page, "/_ui/ecrans/E1?vue=ajout");
       const root = page.locator(".k-ecran");
       await expect(root).toHaveAttribute("data-width", frame.name);
 
@@ -165,15 +248,13 @@ for (const frame of FRAMES) {
       const box = await panel.boundingBox();
       const surface = await page.locator(".k-ecran__surface").boundingBox();
       expect(box && surface).toBeTruthy();
-      if (frame.panel === "over") {
-        // Over the end of the surface, which keeps its whole width (« par-dessus partout »):
-        // the panel ends with the body, past the surface and its strip.
+      if (frame.panel === "beside") {
+        // Beside the surface, which shrinks to what it leaves (« tout s'adapte »): the panel
+        // ends with the body, the surface before it; no strip while it is open.
         const body = await page.locator(".k-ecran__body").boundingBox();
-        expect(Math.round(box!.x)).toBeLessThan(Math.round(surface!.x + surface!.width));
         expect(Math.round(box!.x + box!.width)).toBe(Math.round(body!.x + body!.width));
-        expect(Math.round(box!.width)).toBeLessThan(Math.round(surface!.width));
-        // A grid it covers fits within what it leaves (020, 2026-10-26): it ends before the
-        // panel, its columns of lower priority folded, all of them reached by « Colonnes ».
+        expect(Math.round(surface!.x + surface!.width)).toBeLessThanOrEqual(Math.round(box!.x));
+        await expect(page.locator(".k-side-panel-rail")).toHaveCount(0);
         for (const grid of await page.locator(".k-ecran__surface [role='grid']").all()) {
           const g = (await grid.boundingBox())!;
           expect(Math.round(g.x + g.width)).toBeLessThanOrEqual(Math.round(box!.x));
@@ -205,6 +286,32 @@ for (const frame of FRAMES) {
         await expect(menu).toBeHidden();
         await expect(nav).toHaveAttribute("data-state", frame.sidebar);
       }
+    });
+
+    // The bottom panel (E1, the node view): it pushes — under the surface, as wide as it,
+    // the surface losing height only; in the compact class, a sheet over the window.
+    test(`${frame.name}: bottom panel ${frame.panel === "sheet" ? "sheet" : "under the surface"}`, async ({
+      page,
+    }) => {
+      await open(page, "/_ui/ecrans/E1?vue=noeud");
+      const bottom = page.locator(".k-bottom-panel");
+      await expect(bottom).toBeVisible();
+      const box = (await bottom.boundingBox())!;
+      if (frame.panel === "sheet") {
+        expect([box.x, box.y, box.width, box.height].map(Math.round)).toEqual([
+          0,
+          0,
+          frame.width,
+          900,
+        ]);
+        return;
+      }
+      const surface = (await page.locator(".k-ecran__surface").boundingBox())!;
+      const work = (await page.locator(".k-ecran__work").boundingBox())!;
+      expect(Math.round(box.x)).toBe(Math.round(surface.x));
+      expect(Math.round(box.width)).toBe(Math.round(surface.width));
+      expect(Math.round(box.y + box.height)).toBe(Math.round(work.y + work.height));
+      expect(surface.y + surface.height).toBeLessThanOrEqual(box.y);
     });
   });
 }

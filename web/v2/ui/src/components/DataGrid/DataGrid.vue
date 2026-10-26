@@ -38,7 +38,6 @@ import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import Icon from "../Icon/Icon.vue";
 import ColumnChooser from "../internal/ColumnChooser.vue";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
-import { joinPanel, leavePanel } from "../internal/panelInset.ts";
 import Skeleton from "../Skeleton/Skeleton.vue";
 import TextField from "../TextField/TextField.vue";
 import {
@@ -341,17 +340,13 @@ let observer: ResizeObserver | undefined;
 onMounted(() => {
   measureKey();
   if (typeof ResizeObserver === "undefined" || !root.value) return;
-  joinPanel(root.value);
   observer = new ResizeObserver(() => {
     keepStop();
     measureKey();
   });
   observer.observe(root.value);
 });
-onBeforeUnmount(() => {
-  observer?.disconnect();
-  if (root.value) leavePanel(root.value);
-});
+onBeforeUnmount(() => observer?.disconnect());
 </script>
 
 <template>
@@ -359,7 +354,6 @@ onBeforeUnmount(() => {
     ref="root"
     class="k-data-grid-frame"
     v-bind="rootAttrs"
-    data-k-panel-fit="padding"
     :data-stack="props.stack ? 'true' : undefined"
   >
     <ColumnChooser v-model="visibility" :columns="props.columns" :grid="grid" />
@@ -541,18 +535,13 @@ onBeforeUnmount(() => {
 <style>
 @layer components {
   /* The root: a container that takes the width it is given, the chooser above the grid,
-   * the grid in the room left (a host's height bound applies here). Under the side panel,
-   * the part it covers is padding: the container shrinks to what stays visible, the
-   * columns of lower priority fold (WCAG 2.4.11; internal/panelInset.ts). */
+   * the grid in the room left (a host's height bound applies here). */
   .k-data-grid-frame {
-    --k-grid-panel-inset: var(--k-space-0);
-
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     grid-template-columns: minmax(0, 1fr);
     min-inline-size: 0;
     min-block-size: 0;
-    padding-inline-end: var(--k-grid-panel-inset);
     container-type: inline-size;
   }
 
