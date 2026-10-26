@@ -52,7 +52,13 @@ export { default as TimeBand } from "./components/TimeBand/TimeBand.vue";
 export { default as Tabs } from "./components/Tabs/Tabs.vue";
 export type { TabItem } from "./components/Tabs/tabs.ts";
 export { default as Menu } from "./components/Menu/Menu.vue";
-export type { MenuCheckbox, MenuDivider, MenuEntry, MenuItem } from "./components/Menu/menu.ts";
+export type {
+  MenuCheckbox,
+  MenuDivider,
+  MenuEntry,
+  MenuItem,
+  MenuRadio,
+} from "./components/Menu/menu.ts";
 export { default as Dialog } from "./components/Dialog/Dialog.vue";
 export { default as AlertDialog } from "./components/AlertDialog/AlertDialog.vue";
 export { default as Drawer } from "./components/Drawer/Drawer.vue";

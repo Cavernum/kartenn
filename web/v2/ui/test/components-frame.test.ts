@@ -88,7 +88,14 @@ describe("status bar", () => {
 
   it("DraftCounter: its count in the name, muted at zero, controls the panel", async () => {
     const html = await render(DraftCounter, { count: 3, expanded: true, controls: "draft" });
-    expect(html.replace(/<[^>]+>/g, "")).toContain("Brouillon(3)");
+    // Its name says what the figure counts, after the visible words.
+    const name = (markup: string) =>
+      markup
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    expect(name(html)).toBe("Brouillon 3 opérations");
+    expect(name(await render(DraftCounter, { count: 1 }))).toBe("Brouillon 1 opération");
     expect(html).toContain('aria-expanded="true"');
     expect(html).toContain('aria-controls="draft"');
     expect(await render(DraftCounter, { count: 0 })).toContain('data-state="empty"');

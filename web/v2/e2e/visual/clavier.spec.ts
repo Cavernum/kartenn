@@ -5,8 +5,8 @@ import { expect, test } from "../fixtures/index.ts";
 // 35, 36, 37; 024/M8, M9, M14): each component of the 024 driven by the keyboard alone on
 // its catalogue page, its ARIA states read back.
 
-/** The draft counter: « Brouillon », then its count in hidden brackets. */
-const COUNTER = { name: /^Brouillon\s*\(\s*3\s*\)$/ };
+/** The draft counter: « Brouillon », then what its figure counts. */
+const COUNTER = { name: /^Brouillon\s*3\s*opérations$/ };
 
 /**
  * A state of the catalogue, with the real clock: Vue drops an event that reaches a
@@ -135,7 +135,7 @@ test.describe("Compact frame (390 px)", () => {
   }) => {
     await page.goto("/_ui/ecrans/E3?vue=edition");
     await expect(page.getByRole("button", { name: "Ouvrir le panneau" })).toHaveCount(0);
-    const counter = page.getByRole("button", { name: /^Brouillon \(/ });
+    const counter = page.getByRole("button", { name: /^Brouillon\s*\d+\s*opération/ });
     await counter.focus();
     await page.keyboard.press("Enter");
     const sheet = page.getByRole("dialog", { name: "Panneau droit" });
@@ -154,7 +154,7 @@ test.describe("Narrow frame (768 px)", () => {
 
   test("the panel over the whole surface makes it inert, not the bar", async ({ page }) => {
     await page.goto("/_ui/ecrans/E3?vue=edition");
-    const counter = page.getByRole("button", { name: /^Brouillon \(/ });
+    const counter = page.getByRole("button", { name: /^Brouillon\s*\d+\s*opération/ });
     await counter.focus();
     await page.keyboard.press("Enter");
     const panel = page.getByRole("complementary", { name: "Panneau droit" });
@@ -172,7 +172,7 @@ test.describe("Wide frame (1280 px)", () => {
     await page.goto("/_ui/ecrans/E3?vue=edition");
     const surface = page.locator(".k-ecran__surface");
     await expect(surface).toHaveCSS("scroll-padding-inline-end", "0px");
-    await page.getByRole("button", { name: /^Brouillon \(/ }).click();
+    await page.getByRole("button", { name: /^Brouillon\s*\d+\s*opération/ }).click();
     await expect(surface).toHaveCSS("scroll-padding-inline-end", "420px");
     await expect(surface).toHaveJSProperty("inert", false);
   });
@@ -524,11 +524,16 @@ test.describe("DraftCounter (toggle + Menu Button)", () => {
     const list = page.getByRole("button", { name: "Liste des brouillons" });
     await expect(list).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(page.getByRole("menuitem")).toHaveText([
+    // The active draft is the checked one of a set, not a check icon alone.
+    const radios = page.getByRole("menuitemradio");
+    await expect(radios).toHaveText([
       "Salle B (3)",
       "Reprise des VIP (12)",
       "Brouillon du 14 janvier (1)",
     ]);
+    await expect(radios.nth(0)).toHaveAttribute("aria-checked", "true");
+    await expect(radios.nth(1)).toHaveAttribute("aria-checked", "false");
+    await expect(page.getByRole("group").getByRole("menuitemradio")).toHaveCount(3);
   });
 });
 

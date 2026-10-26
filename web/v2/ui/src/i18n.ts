@@ -84,6 +84,8 @@ const MESSAGES = {
     enlarge: "Agrandir",
     row: "ligne",
     rows: "lignes",
+    operation: "opération",
+    operations: "opérations",
   },
   en: {
     copy: "Copy",
@@ -156,6 +158,8 @@ const MESSAGES = {
     enlarge: "Enlarge",
     row: "row",
     rows: "rows",
+    operation: "operation",
+    operations: "operations",
   },
 } as const satisfies Record<Locale, Record<string, string>>;
 
