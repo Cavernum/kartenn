@@ -71,6 +71,111 @@ test.describe("SidePanel (complementary + Tabs, Window Splitter)", () => {
     await panel.getByRole("button", { name: "Fermer le panneau" }).click();
     await expect(panel).toBeHidden();
   });
+
+  test("the strip reopens it on its tab; closing gives the focus back to the strip", async ({
+    page,
+  }) => {
+    await state(page, "SidePanel", "closed");
+    const reopen = page.getByRole("button", { name: "Ouvrir le panneau" });
+    await reopen.focus();
+    await page.keyboard.press("Enter");
+    const panel = page.getByRole("complementary", { name: "Panneau droit" });
+    await expect(panel.getByRole("tab", { name: "Détail" })).toBeFocused();
+    await expect(panel.getByRole("tablist", { name: "Onglets du panneau" })).toBeVisible();
+    // Escape in a field belongs to the field: the panel stays.
+    await panel.getByRole("tab", { name: /Brouillon/ }).click();
+    await panel.getByRole("textbox", { name: /Résumé/ }).focus();
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeVisible();
+    await panel.getByRole("tab", { name: /Brouillon/ }).focus();
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
+    await expect(page.getByRole("button", { name: "Ouvrir le panneau" })).toBeFocused();
+  });
+
+  test("covering the surface, makes it inert", async ({ page }) => {
+    await state(page, "SidePanel", "cover");
+    const surface = page.locator(".k-demo-frame__surface");
+    await expect(surface).toHaveJSProperty("inert", true);
+    const panel = page.getByRole("complementary", { name: "Panneau droit" });
+    await panel.getByRole("tab", { name: /Brouillon/ }).focus();
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
+    await expect(surface).toHaveJSProperty("inert", false);
+  });
+
+  test("as a sheet: a modal dialog, « Retour » first, the frame inert under it", async ({
+    page,
+  }) => {
+    await state(page, "SidePanel", "sheet");
+    const sheet = page.getByRole("dialog", { name: "Panneau droit" });
+    const surface = page.locator(".k-demo-frame__surface");
+    await expect(sheet).toHaveAttribute("aria-modal", "true");
+    await expect(surface).toHaveJSProperty("inert", true);
+    // « Retour » is the first stop of the sheet, before its tabs.
+    await sheet.getByRole("tab", { name: /Brouillon/ }).focus();
+    await page.keyboard.press("Shift+Tab");
+    const back = sheet.getByRole("button", { name: "Retour" });
+    await expect(back).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(sheet).toBeHidden();
+    await expect(surface).toHaveJSProperty("inert", false);
+    // Reopened, it takes the focus on its tab.
+    await expect(page.getByRole("button", { name: "Ouvrir le panneau" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(sheet.getByRole("tab", { name: /Brouillon/ })).toBeFocused();
+  });
+});
+
+test.describe("Compact frame (390 px)", () => {
+  test.use({ viewport: { width: 390, height: 800 } });
+
+  test("no strip of the panel; the counter opens the sheet, modal over the frame", async ({
+    page,
+  }) => {
+    await page.goto("/_ui/ecrans/E3?vue=edition");
+    await expect(page.getByRole("button", { name: "Ouvrir le panneau" })).toHaveCount(0);
+    const counter = page.getByRole("button", { name: /^Brouillon \(/ });
+    await counter.focus();
+    await page.keyboard.press("Enter");
+    const sheet = page.getByRole("dialog", { name: "Panneau droit" });
+    await expect(sheet.getByRole("tab", { name: /Brouillon/ })).toBeFocused();
+    await expect(page.locator(".k-ecran__surface")).toHaveJSProperty("inert", true);
+    await expect(page.locator(".k-ecran__bar")).toHaveJSProperty("inert", true);
+    await sheet.getByRole("button", { name: "Retour" }).click();
+    await expect(sheet).toBeHidden();
+    await expect(counter).toBeFocused();
+    await expect(page.locator(".k-ecran__surface")).toHaveJSProperty("inert", false);
+  });
+});
+
+test.describe("Narrow frame (768 px)", () => {
+  test.use({ viewport: { width: 768, height: 800 } });
+
+  test("the panel over the whole surface makes it inert, not the bar", async ({ page }) => {
+    await page.goto("/_ui/ecrans/E3?vue=edition");
+    const counter = page.getByRole("button", { name: /^Brouillon \(/ });
+    await counter.focus();
+    await page.keyboard.press("Enter");
+    const panel = page.getByRole("complementary", { name: "Panneau droit" });
+    await expect(panel).toBeVisible();
+    await expect(page.locator(".k-ecran__surface")).toHaveJSProperty("inert", true);
+    await expect(page.locator(".k-ecran__bar")).toHaveJSProperty("inert", false);
+    await page.keyboard.press("Enter");
+    await expect(panel).toBeHidden();
+    await expect(page.locator(".k-ecran__surface")).toHaveJSProperty("inert", false);
+  });
+});
+
+test.describe("Wide frame (1280 px)", () => {
+  test("the panel over the end of the surface sets its scroll padding", async ({ page }) => {
+    await page.goto("/_ui/ecrans/E3?vue=edition");
+    const surface = page.locator(".k-ecran__surface");
+    await expect(surface).toHaveCSS("scroll-padding-inline-end", "0px");
+    await page.getByRole("button", { name: /^Brouillon \(/ }).click();
+    await expect(surface).toHaveCSS("scroll-padding-inline-end", "420px");
+    await expect(surface).toHaveJSProperty("inert", false);
+  });
 });
 
 test.describe("CommitForm", () => {

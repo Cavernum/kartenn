@@ -77,8 +77,23 @@ describe("SidePanel", () => {
     expect(html).toMatch(
       /role="separator" tabindex="0" aria-orientation="vertical" aria-label="Redimensionner le panneau" aria-controls="panel" aria-valuenow="420" aria-valuemin="320" aria-valuemax="720"/,
     );
+    // Its tab list has a name of its own, not the region's.
     expect(html).toContain('role="tablist"');
+    expect(html).toContain('aria-label="Onglets du panneau"');
     expect(html).toContain('aria-label="Fermer le panneau"');
+  });
+
+  it("as a sheet, is a modal dialog whose back button comes first", async () => {
+    const html = await render(SidePanel, {
+      label: "Panneau droit",
+      tabs: [{ value: "draft", label: "Brouillon" }],
+      sheet: true,
+    });
+    expect(html).not.toContain("<aside");
+    expect(html).toMatch(/<div[^>]*role="dialog" aria-modal="true" aria-label="Panneau droit"/);
+    expect(html.indexOf('aria-label="Retour"')).toBeLessThan(html.indexOf('role="tablist"'));
+    expect(html).not.toContain("Fermer le panneau");
+    expect(html).not.toContain('role="separator"');
   });
 
   it("closed, leaves nothing", async () => {
@@ -105,9 +120,9 @@ describe("SidePanel", () => {
     const html = await render(SidePanel, { label: "Panneau", tabs: [], open: false, rail: true });
     expect(html).not.toContain("<aside");
     expect(html).toContain('class="k-side-panel-rail"');
-    expect(html).toMatch(
-      /aria-label="Ouvrir le panneau"[^>]*aria-expanded="false"|aria-expanded="false"[^>]*aria-label="Ouvrir le panneau"/,
-    );
+    // Its name says the action: no `aria-expanded` beside it.
+    expect(html).toContain('aria-label="Ouvrir le panneau"');
+    expect(html).not.toContain("aria-expanded");
     const open = await render(SidePanel, { label: "Panneau", tabs: [], rail: true });
     expect(open).toContain("<aside");
     expect(open).toContain('class="k-side-panel-rail"');

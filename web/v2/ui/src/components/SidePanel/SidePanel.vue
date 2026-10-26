@@ -21,6 +21,14 @@
 // host fills it for the tab in front: no empty band under a tab without actions. With
 // `sheet` (compact frame, design « Adaptation à la largeur »), it covers the whole window,
 // a back button at its start instead of the cross, and takes the focus when it opens.
+//
+// What it hides leaves the focus order (WCAG 2.4.3, 2.4.11; relecture du 2026-10-26): with
+// `cover`, the other children of its container are `inert` while it is open; a sheet is a
+// modal dialog (`role="dialog"`, `aria-modal`) and everything beside it, up to the nearest
+// `[data-k-modal-scope]` (or `body`), is `inert` — the target of floating layers stays live.
+// Over the end of the surface (neither), it publishes its width on its container as
+// `--k-side-panel-inset`, which the host gives as `scroll-padding-inline-end` to what scrolls
+// under it: a control that takes the focus scrolls out from under the panel.
 import {
   Comment,
   Fragment,
@@ -28,15 +36,18 @@ import {
   computed,
   isVNode,
   nextTick,
+  onBeforeUnmount,
   ref,
   useId,
   useSlots,
   watch,
   type VNodeArrayChildren,
 } from "vue";
+import { injectPortalTarget } from "../../context.ts";
 import { t } from "../../i18n.ts";
 import IconButton from "../IconButton/IconButton.vue";
 import { isRtl } from "../internal/gridKeys.ts";
+import { inertOthers } from "../internal/inertOthers.ts";
 import Tabs from "../Tabs/Tabs.vue";
 import type { TabItem } from "../Tabs/tabs.ts";
 
@@ -123,12 +134,46 @@ async function close(): Promise<void> {
   opener = null;
 }
 
+const focusTab = () =>
+  panel.value?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
+
 // A sheet hides all else: opened, it takes the focus on its active tab.
 watch(open, async (now) => {
   if (!now || !props.sheet) return;
   await nextTick();
-  panel.value?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
+  focusTab();
 });
+
+// What the open panel covers entirely goes inert; over the end of the surface, its width
+// is published for the scroll padding of what it covers.
+const portal = injectPortalTarget();
+let restore: (() => void) | null = null;
+let host: HTMLElement | null = null;
+function release(): void {
+  restore?.();
+  restore = null;
+  host?.style.removeProperty("--k-side-panel-inset");
+  host = null;
+}
+watch(
+  [open, panel, () => props.cover, () => props.sheet, width],
+  ([now, el, cover, sheet, w]) => {
+    // Released as soon as it closes, before its exit ends: the focus goes back at once.
+    release();
+    if (!now || !el) return;
+    if (!cover && !sheet) {
+      host = el.parentElement;
+      host?.style.setProperty("--k-side-panel-inset", `${w}px`);
+      return;
+    }
+    const focused = document.activeElement;
+    restore = inertOthers(el, sheet ? "scope" : "siblings", [document.querySelector(portal)]);
+    // The focus was in what just went inert: it moves to the panel, not to `body`.
+    if (focused instanceof HTMLElement && focused.closest("[inert]")) focusTab();
+  },
+  { flush: "post" },
+);
+onBeforeUnmount(release);
 
 /** The strip reopens the panel and moves the focus to its active tab. */
 async function reopen(): Promise<void> {
@@ -137,8 +182,26 @@ async function reopen(): Promise<void> {
   panel.value?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
 }
 
+/**
+ * Whether Escape belongs to the focused control: a field being typed in (it may cancel its
+ * own input), or a popup it opened (a combobox, a menu button).
+ */
+function ownsEscape(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const popup = target.getAttribute("role") === "combobox" || target.hasAttribute("aria-haspopup");
+  if (target.isContentEditable || (popup && target.getAttribute("aria-expanded") === "true"))
+    return true;
+  if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
+  return (
+    target instanceof HTMLInputElement &&
+    !["button", "checkbox", "radio", "submit", "reset", "range", "color", "file"].includes(
+      target.type,
+    )
+  );
+}
+
 function onKeydown(event: KeyboardEvent): void {
-  if (event.key === "Escape" && !event.defaultPrevented) {
+  if (event.key === "Escape" && !event.defaultPrevented && !ownsEscape(event.target)) {
     event.preventDefault();
     void close();
   }
@@ -181,18 +244,30 @@ function onPointerup(event: PointerEvent): void {
 
 <template>
   <Transition name="k-side-panel">
-    <aside
+    <component
+      :is="props.sheet ? 'div' : 'aside'"
       v-if="open"
       v-bind="$attrs"
       :id="id"
       ref="panel"
       class="k-side-panel"
+      :role="props.sheet ? 'dialog' : undefined"
+      :aria-modal="props.sheet ? 'true' : undefined"
       :aria-label="props.label"
       :style="size"
       :data-cover="props.cover ? 'true' : undefined"
       :data-sheet="props.sheet ? 'true' : undefined"
       @keydown="onKeydown"
     >
+      <!-- The back button of a sheet comes first, where it shows. -->
+      <IconButton
+        v-if="props.sheet"
+        class="k-side-panel__back"
+        icon="arrow-left"
+        size="sm"
+        :label="t('panelBack')"
+        @click="close"
+      />
       <div
         v-if="!props.cover && !props.sheet"
         ref="handle"
@@ -211,21 +286,13 @@ function onPointerup(event: PointerEvent): void {
         @pointerup="onPointerup"
         @pointercancel="onPointerup"
       ></div>
-      <Tabs v-model="tab" :tabs="props.tabs" :label="props.label" class="k-side-panel__tabs">
+      <Tabs v-model="tab" :tabs="props.tabs" :label="t('panelTabs')" class="k-side-panel__tabs">
         <template v-for="item in props.tabs" :key="item.value" #[item.value]>
           <slot :name="item.value" />
         </template>
       </Tabs>
       <IconButton
-        v-if="props.sheet"
-        class="k-side-panel__back"
-        icon="arrow-left"
-        size="sm"
-        :label="t('panelBack')"
-        @click="close"
-      />
-      <IconButton
-        v-else
+        v-if="!props.sheet"
         class="k-side-panel__close"
         icon="x"
         size="sm"
@@ -235,7 +302,7 @@ function onPointerup(event: PointerEvent): void {
       <footer v-if="footerShown()" class="k-side-panel__footer">
         <slot name="footer" :tab="current" />
       </footer>
-    </aside>
+    </component>
   </Transition>
   <div v-if="props.rail" ref="strip" class="k-side-panel-rail">
     <Transition name="k-side-panel-rail">
@@ -246,7 +313,6 @@ function onPointerup(event: PointerEvent): void {
         size="sm"
         variant="secondary"
         :label="t('panelOpen')"
-        aria-expanded="false"
         @click="reopen"
       />
     </Transition>
@@ -258,6 +324,8 @@ function onPointerup(event: PointerEvent): void {
   /* Over the end of the surface, at the height of its container. */
   .k-side-panel {
     --k-side-panel-width: var(--k-size-panel-lg);
+    /* Its own width, published on its container, is no inset inside it. */
+    --k-side-panel-inset: var(--k-space-0);
 
     position: absolute;
     inset-block: 0;
@@ -346,26 +414,18 @@ function onPointerup(event: PointerEvent): void {
     translate: calc(var(--k-motion-shift-sm) * -1) 0;
   }
 
-  /* The handle: a strip astride the inline-start edge. */
+  /* The handle: astride the inline-start edge, a target of 24 px for any pointer (WCAG
+   * 2.5.8), its colour a strip of 8 px in the middle. */
   .k-side-panel__handle {
     position: absolute;
     inset-block: 0;
-    inset-inline-start: calc(var(--k-space-1) * -1);
+    inset-inline-start: calc(var(--k-control-height-sm) / -2);
     z-index: var(--k-z-sticky);
-    inline-size: var(--k-space-2);
+    inline-size: var(--k-control-height-sm);
+    padding-inline: calc((var(--k-control-height-sm) - var(--k-space-2)) / 2);
     cursor: col-resize;
     touch-action: none;
-  }
-
-  /* A finger: the handle takes 24 px, still astride the edge (WCAG 2.5.8); its colour
-   * keeps the width of the strip. */
-  @media (any-pointer: coarse) {
-    .k-side-panel__handle {
-      inset-inline-start: calc(var(--k-control-height-sm) / -2);
-      inline-size: var(--k-control-height-sm);
-      padding-inline: calc((var(--k-control-height-sm) - var(--k-space-2)) / 2);
-      background-clip: content-box;
-    }
+    background-clip: content-box;
   }
 
   .k-side-panel__handle:hover,
@@ -373,8 +433,9 @@ function onPointerup(event: PointerEvent): void {
     background-color: var(--k-accent);
   }
 
+  /* The ring around the coloured strip, not the whole target: no ring over the panel. */
   .k-side-panel__handle:focus-visible {
-    outline-offset: 0;
+    outline-offset: calc((var(--k-space-2) - var(--k-control-height-sm)) / 2);
   }
 
   .k-side-panel__tabs {
