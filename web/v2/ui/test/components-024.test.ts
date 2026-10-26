@@ -15,6 +15,7 @@ import { moveInGrid } from "../src/components/internal/gridKeys.ts";
 import { coveredInset } from "../src/components/internal/panelInset.ts";
 import MatrixGrid from "../src/components/MatrixGrid/MatrixGrid.vue";
 import SidePanel from "../src/components/SidePanel/SidePanel.vue";
+import { widthPresets } from "../src/components/SidePanel/sidePanel.ts";
 import Skeleton from "../src/components/Skeleton/Skeleton.vue";
 import SplitButton from "../src/components/SplitButton/SplitButton.vue";
 import Toolbar from "../src/components/Toolbar/Toolbar.vue";
@@ -134,6 +135,27 @@ describe("SidePanel", () => {
     const html = await render(SidePanel, { label: "Panneau", tabs: [], cover: true });
     expect(html).toContain('data-cover="true"');
     expect(html).not.toContain('role="separator"');
+    expect(html).not.toContain("Largeur du panneau");
+  });
+
+  it("resizable, has a width menu besides the handle (WCAG 2.5.7)", async () => {
+    const html = await render(SidePanel, { label: "Panneau", tabs: [] });
+    const trigger = /<button[^>]*aria-label="Largeur du panneau"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(trigger).toContain('aria-haspopup="menu"');
+    // Before the close button, after the tabs.
+    expect(html.indexOf("Largeur du panneau")).toBeGreaterThan(html.indexOf('role="tablist"'));
+    expect(html.indexOf("Largeur du panneau")).toBeLessThan(html.indexOf("Fermer le panneau"));
+    const sheet = await render(SidePanel, { label: "Panneau", tabs: [], sheet: true });
+    expect(sheet).not.toContain("Largeur du panneau");
+  });
+
+  it("offers the bounds and the standard width, the standard one within the bounds", () => {
+    expect(widthPresets(320, 720)).toEqual([
+      { id: "narrow", width: 320 },
+      { id: "standard", width: 420 },
+      { id: "wide", width: 720 },
+    ]);
+    expect(widthPresets(480, 600).map((p) => p.width)).toEqual([480, 480, 600]);
   });
 });
 

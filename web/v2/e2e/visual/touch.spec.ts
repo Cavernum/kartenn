@@ -140,6 +140,20 @@ test.describe("touch: a tap instead of hovering", () => {
     await expect(page.getByRole("menu")).toBeVisible();
   });
 
+  test("the side panel takes a width in two taps, without dragging (2.5.7)", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    // The real clock: Vue drops an event reaching a handler attached at the same instant.
+    await page.goto("/_ui/c/SidePanel?etat=draft");
+    await page.locator("[data-state-name]").first().waitFor();
+    const panel = page.getByRole("complementary", { name: "Panneau droit" });
+    await panel.getByRole("button", { name: "Largeur du panneau" }).tap();
+    await page.getByRole("menuitemradio", { name: "Étroit" }).tap();
+    await expect(page.getByRole("menu")).toBeHidden();
+    await expect(
+      panel.getByRole("separator", { name: "Redimensionner le panneau" }),
+    ).toHaveAttribute("aria-valuenow", "320");
+  });
+
   test("a bar of a chart shows its value", async ({ page }) => {
     await open(page, "/_ui/c/BarChart?etat=days");
     await page.locator(".k-bar-chart__hit").nth(2).tap();
