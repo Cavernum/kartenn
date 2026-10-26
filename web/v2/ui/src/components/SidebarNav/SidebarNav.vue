@@ -8,7 +8,7 @@
 // entries, the active entry `aria-current="page"`, the collapse toggle at the bottom (`[`).
 // Collapsed, it shows icons only: each entry keeps its name, the labels are hidden on
 // screen only (the tooltips come with the complete version, task 23).
-import { computed, ref, useId } from "vue";
+import { computed, nextTick, onMounted, ref, useId, watch } from "vue";
 import { t } from "../../i18n.ts";
 import Icon from "../Icon/Icon.vue";
 import LinkTo from "../internal/LinkTo.vue";
@@ -39,6 +39,23 @@ function toggle(group: string): void {
   closedGroups.value = next;
 }
 const state = computed(() => (collapsed.value ? "collapsed" : "expanded"));
+
+// The current entry is always in view (relecture du 2026-10-26): in a rail every space is
+// open, and the entries of the last ones fall under the fold of a short window. The list
+// scrolls itself (never the page), the entry centred when it was out of view.
+const scroller = ref<HTMLElement | null>(null);
+async function revealCurrent(): Promise<void> {
+  await nextTick();
+  const list = scroller.value;
+  const entry = list?.querySelector<HTMLElement>('[aria-current="page"]');
+  if (!list || !entry) return;
+  const top = entry.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+  const bottom = top + entry.offsetHeight;
+  if (top >= list.scrollTop && bottom <= list.scrollTop + list.clientHeight) return;
+  list.scrollTop = top - (list.clientHeight - entry.offsetHeight) / 2;
+}
+onMounted(revealCurrent);
+watch(() => [props.active, collapsed.value], revealCurrent);
 </script>
 
 <template>
@@ -57,7 +74,7 @@ const state = computed(() => (collapsed.value ? "collapsed" : "expanded"));
       <span class="k-sidebar__label">{{ props.paletteLabel ?? t("search") }}</span>
       <Kbd :keys="['Mod', 'k']" aria-hidden="true" class="k-sidebar__kbd" />
     </button>
-    <div class="k-sidebar__groups">
+    <div ref="scroller" class="k-sidebar__groups">
       <section v-for="group in props.groups" :key="group.id" class="k-sidebar__group">
         <button
           v-if="!collapsed"
