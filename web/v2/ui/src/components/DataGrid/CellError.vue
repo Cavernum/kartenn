@@ -208,6 +208,12 @@ function onPointerleave(event: PointerEvent): void {
 
   .k-cell-error[hidden] {
     display: none;
+    opacity: 0;
+    translate: 0 calc(var(--k-motion-shift-sm) * -1);
+  }
+
+  .k-cell-error[data-side="block-start"][hidden] {
+    translate: 0 var(--k-motion-shift-sm);
   }
 
   /* Scrolled out of the view of its grid: the message waits, unseen. */
@@ -264,17 +270,32 @@ function onPointerleave(event: PointerEvent): void {
     flex: none;
   }
 
-  /* Motion (design « Mouvement »): the tab fades in from its cell, and leaves at once, as a
-   * tooltip. The fade is not motion: it stays under reduced motion. */
+  /* Motion (design « Mouvement »): the whole layer (message, joined outline and fill) fades
+   * in and slides a few pixels away from its cell, toward the side it opens (down under the
+   * cell, up when turned above), in `medium` `standard`; it leaves the same way back, shorter
+   * (`short` `exit`): `display` follows the transition (`allow-discrete`), no timer, and a
+   * transition under way turns back at once. The cell never moves. Under reduced motion the
+   * shift is 0 and the durations give way to the 80 ms fade. */
   .k-cell-error {
-    transition-property: opacity;
+    transition-property: opacity, translate, display;
     transition-duration: max(var(--k-duration-short), var(--k-duration-fade));
+    transition-timing-function: var(--k-ease-exit);
+    transition-behavior: allow-discrete;
+  }
+
+  .k-cell-error:not([hidden]) {
+    transition-duration: max(var(--k-duration-medium), var(--k-duration-fade));
     transition-timing-function: var(--k-ease-standard);
   }
 
   @starting-style {
-    .k-cell-error {
+    .k-cell-error:not([hidden]) {
       opacity: 0;
+      translate: 0 calc(var(--k-motion-shift-sm) * -1);
+    }
+
+    .k-cell-error[data-side="block-start"]:not([hidden]) {
+      translate: 0 var(--k-motion-shift-sm);
     }
   }
 }

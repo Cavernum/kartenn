@@ -764,6 +764,13 @@ relecture ».
   redimensionnement replacent la couche ; la cellule hors de la vue de sa grille (défilée,
   sous l'en-tête), la couche est masquée. Fondu d'entrée en
   `max(--k-duration-short, --k-duration-fade)`, sortie immédiate, comme une infobulle.
+- Mouvement de la couche (validée, demande de l'utilisateur) : la couche entière (message,
+  trait et remplissage joints) entre en fondu et glisse de `--k-motion-shift-sm` en
+  s'éloignant de la cellule (vers le bas sous elle, vers le haut retournée au-dessus), en
+  `medium` / `--k-ease-standard`, et sort par le chemin inverse, plus courte (`short` /
+  `--k-ease-exit`) ; opacité et `translate` seulement, `display` en `allow-discrete`, sans
+  minuterie, réversible en cours ; la cellule ne bouge pas ; sous mouvement réduit, aucun
+  glissement et un fondu de 80 ms.
 - Le bouton de copie du code, widget de la cellule déporté dans la couche, sort de
   l'ordre de tabulation ; Entrée ou F2 sur la cellule y va, Échap ou F2 en revient ; le
   focus dans le message garde la couche ouverte.
