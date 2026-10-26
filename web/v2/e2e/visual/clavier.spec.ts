@@ -130,6 +130,18 @@ test.describe("SidePanel (complementary + Tabs, Window Splitter)", () => {
 test.describe("Compact frame (390 px)", () => {
   test.use({ viewport: { width: 390, height: 800 } });
 
+  test("the drawer of the sidebar gives the focus back to its button", async ({ page }) => {
+    await page.goto("/_ui/ecrans/E3?vue=edition");
+    const nav = page.getByRole("button", { name: "Navigation principale" });
+    await nav.focus();
+    await page.keyboard.press("Enter");
+    const drawer = page.getByRole("dialog", { name: "Navigation principale" });
+    await expect(drawer).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(drawer).toBeHidden();
+    await expect(nav).toBeFocused();
+  });
+
   test("no strip of the panel; the counter opens the sheet, modal over the frame", async ({
     page,
   }) => {
