@@ -4,8 +4,8 @@
 //! addresses and service, their synthesis, read without any write.
 //!
 //! The endpoints are developed into their addresses at `valid_at` (an address: itself; a
-//! prefix: itself, on its own classifications; an interface or a machine: its addresses,
-//! port of reading of the 009). The values of the axes are read for every address in one
+//! prefix: itself, on its own classifications; an interface: its addresses, port of
+//! reading of the 009; never a machine, 011/F21). The values of the axes are read for every address in one
 //! grouped read (N9) and, for an axis carried by the machine, composed with the values of
 //! the machines attached (S27): their union, or the value of the tree when no machine
 //! carries one. The verdicts are those of [`crate::evaluate::evaluate`] on the snapshot
@@ -19,7 +19,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use kartenn_core::period::Instant;
-use kartenn_machines::read::{addresses_of_interface, addresses_of_machine, instant};
+use kartenn_machines::read::{addresses_of_interface, instant};
 use kartenn_service::authz::{Authorizer, Subject};
 use kartenn_service::port::{Reader, StoreError};
 use kartenn_service::reads::read_permission;
@@ -51,7 +51,8 @@ pub const FLOW_REQUEST: &str = "policy.flow.request";
 /// The axis whose values are environments, always read (S22).
 const ENVIRONMENT: &str = "policy.environment";
 
-/// The kind of an endpoint (REQ-010-13).
+/// The kind of an endpoint (REQ-010-13): never a machine (`policy.endpoint.machine`,
+/// 011/F21), refused before the query.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EndpointKind {
     /// An address of the core.
@@ -60,8 +61,6 @@ pub enum EndpointKind {
     Prefix,
     /// An interface of the module Machines.
     Interface,
-    /// A machine of the module Machines.
-    Machine,
 }
 
 impl EndpointKind {
@@ -71,7 +70,6 @@ impl EndpointKind {
             Self::Address => "address",
             Self::Prefix => "prefix",
             Self::Interface => "machines.interface",
-            Self::Machine => "machines.machine",
         }
     }
 }
@@ -211,7 +209,7 @@ pub struct Answer {
     pub synthesis: Option<Synthesis>,
     /// Why there is no evaluation, if so.
     pub empty: Option<Empty>,
-    /// Addresses of a readable machine or interface the caller may not read one by one:
+    /// Addresses of a readable interface the caller may not read one by one:
     /// left out, counted (design 010 « Droits »).
     pub hidden: usize,
 }
@@ -325,15 +323,6 @@ async fn develop<R: Reader>(
             .into_iter()
             .map(|a| (a.address, 1))
             .collect(),
-        EndpointKind::Machine => {
-            let mut seen = BTreeSet::new();
-            addresses_of_machine(conn, endpoint.id, valid_at, as_of)
-                .await?
-                .into_iter()
-                .filter(|a| seen.insert(a.address))
-                .map(|a| (a.address, 1))
-                .collect()
-        }
     };
     if points.len() > MAX_ADDRESSES {
         return Err(QueryError::TooLarge(format!(
@@ -419,7 +408,7 @@ pub async fn query<R: Reader, A: Authorizer>(
     };
     let mut source = develop(conn, reader, query.source, valid_at, as_of).await?;
     let mut destination = develop(conn, reader, query.destination, valid_at, as_of).await?;
-    // Addresses of a machine or an interface the caller may not read one by one: left out
+    // Addresses of an interface the caller may not read one by one: left out
     // and counted, in a full answer (a reduced one shows no address).
     let mut hidden = 0;
     if access == Access::Full
@@ -480,9 +469,9 @@ pub async fn query<R: Reader, A: Authorizer>(
         return Ok(answer);
     }
     let requested = query.object.requested();
-    // The addresses of a machine mostly resolve the same values: each distinct pair of
+    // The addresses of an interface mostly resolve the same values: each distinct pair of
     // endpoints is evaluated once per service, its evaluation shared by the pairs of
-    // points that resolve it (machine × machine, REQ-010-28).
+    // points that resolve it (interface × interface, REQ-010-28).
     let classes = |developed: &Developed| -> (Vec<&Endpoint>, Vec<usize>) {
         let mut distinct: Vec<&Endpoint> = Vec::new();
         let class = developed

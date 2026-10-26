@@ -73,6 +73,7 @@ alimente `flow_rejection` (crochet de rejet du module, voir § Exigences, N38).
 | Règle | Sévérité | Cas |
 |---|---|---|
 | `flow.endpoint.invalid` | erreur | plage, objet absent ou invalide sur une partie de la période |
+| `flow.endpoint.machine` | erreur | machine comme extrémité (F21) ; les flux d'avant F21 sont clos par le job de migration |
 | `flow.service.closed` | erreur | service non actif sur toute la période |
 | `flow.reference.missing` | erreur | aucune référence externe |
 | `flow.reference.system` | erreur | système d'une référence externe (ou de « pour le compte de ») qui ne nomme aucune valeur de `core.external_system` valide au début de l'opération |
@@ -206,6 +207,7 @@ de la 005 sur `entity_id` (ADR 0021).
 | `GET /v1/flows/{id}/evaluations` | évaluations par paire, datées, avec explications (réduites selon REQ-010-25) |
 | `GET /v1/flow-nonconformities` | non-conformités filtrées |
 | `GET /v1/{collection}/{id}/flows` | flux d'un objet (REQ-011-15), pour adresses, préfixes, interfaces, machines |
+| `GET`, `QUERY /v1/flow-checks` | test d'une connexion (REQ-011-26, F21), paramètres et corps de `GET`/`QUERY /v1/verdicts` : `verdict` (réponse de la requête de conformité), `pairs` (par évaluation : `open`, flux `active` ou `waived` qui l'ouvrent et que l'appelant lit, `conformant` = verdict autre que `denied`, `case`), `case` du test (ouvert si chaque évaluation l'est, conforme si chacune l'est) ; sans écriture ; `open` et `case` absents d'une réponse réduite (REQ-010-25) |
 | `POST /v1/changesets/{id}/approve`, `…/reject` | instruction (004), avec `approve_review` ajouté par l'instructeur |
 
 ## Exigences envers le noyau, le contrat de module et la 009
@@ -226,7 +228,8 @@ Celles de la 010 (design 010, § Exigences : N1 à N37, M1 à M10) s'appliquent,
 
 | Cas | Comportement |
 |---|---|
-| Machine sans adresse sur une partie de la période | évaluation vide sur ce segment, synthèse `denied` motif `no_address` |
+| Interface sans adresse sur une partie de la période | évaluation vide sur ce segment, synthèse `denied` motif `no_address` |
+| Flux d'avant F21 dont une extrémité est une machine | clos par le job de migration (`kartenn-server migrate`), un changeset système par lot d'opérations, motif `flow endpoints without machine 011`, chaque flux nommé par une clôture ; une demande en attente qui nomme une machine est refusée à son application |
 | Adresse d'extrémité close (cascade) | flux clos dans la même cascade |
 | Flux expiré dont la politique change | pas de réévaluation hors de sa période |
 | Flux conforme sans fin dont la politique change | réévalué ; `noncompliant` s'il bascule, sans écriture d'état |

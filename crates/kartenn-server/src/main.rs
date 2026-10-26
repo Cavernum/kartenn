@@ -188,6 +188,10 @@ async fn main() -> anyhow::Result<ExitCode> {
             {
                 println!("{line}");
             }
+            // The data the modules change after the deployment (spec 011, F21).
+            for line in kartenn_server::modules::migrate_data(&pool, &modules).await? {
+                println!("{line}");
+            }
             println!("kartenn {}: deployed", env!("CARGO_PKG_VERSION"));
             Ok(ExitCode::SUCCESS)
         }

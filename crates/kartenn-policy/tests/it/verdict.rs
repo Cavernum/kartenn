@@ -143,6 +143,18 @@ impl Env {
         .await
         .unwrap()
     }
+
+    /// The interface `eth0` of a new machine `name`, holding `addresses`.
+    async fn interface(&self, name: &str, addresses: &[Uuid]) -> Uuid {
+        let machine = self.machine(name, addresses).await;
+        sqlx::query_scalar(
+            "SELECT id FROM machines.interface WHERE machine_id = $1 AND valid_period @> now()",
+        )
+        .bind(machine)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
 }
 
 fn at() -> OffsetDateTime {
@@ -184,8 +196,9 @@ async fn system(env: &Env, q: &Query) -> Answer {
     answer(env, &Grants::new(), None, q).await.unwrap()
 }
 
-/// REQ-010-13: machine A (2 addresses) to machine B (3 addresses), `ssh`: 6 verdicts; a
-/// machine without address: an empty answer, `no_address`.
+/// REQ-010-13: interface A (2 addresses) to interface B (3 addresses), `ssh`: 6 verdicts;
+/// an interface without address: an empty answer, `no_address`. A machine is refused
+/// before the query (`rest.rs`, `acceptance_of_req_010_13_a_machine_is_refused`).
 #[kartenn_testing::pg_test]
 async fn acceptance_of_req_010_13(pool: PgPool) {
     let env = Env::new(&pool).await;
@@ -200,13 +213,13 @@ async fn acceptance_of_req_010_13(pool: PgPool) {
     for value in ["10.2.0.1", "10.2.0.2", "10.2.0.3"] {
         b_addresses.push(env.address(value).await);
     }
-    let a = env.machine("a", &a_addresses).await;
-    let b = env.machine("b", &b_addresses).await;
+    let a = env.interface("a", &a_addresses).await;
+    let b = env.interface("b", &b_addresses).await;
     let found = system(
         &env,
         &ask(
-            of(EndpointKind::Machine, a),
-            of(EndpointKind::Machine, b),
+            of(EndpointKind::Interface, a),
+            of(EndpointKind::Interface, b),
             service("ssh"),
         ),
     )
@@ -222,12 +235,12 @@ async fn acceptance_of_req_010_13(pool: PgPool) {
     assert_eq!((synthesis.allowed, synthesis.denied), (6, 0));
     assert_eq!(found.empty, None);
 
-    let empty = env.machine("bare", &[]).await;
+    let empty = env.interface("bare", &[]).await;
     let found = system(
         &env,
         &ask(
-            of(EndpointKind::Machine, empty),
-            of(EndpointKind::Machine, b),
+            of(EndpointKind::Interface, empty),
+            of(EndpointKind::Interface, b),
             service("ssh"),
         ),
     )
@@ -450,7 +463,7 @@ async fn acceptance_of_req_010_31(pool: PgPool) {
 
 /// The bounds: an endpoint of more than 64 addresses is refused (`policy.query.too_large`).
 #[kartenn_testing::pg_test]
-async fn a_machine_of_too_many_addresses_is_refused(pool: PgPool) {
+async fn an_interface_of_too_many_addresses_is_refused(pool: PgPool) {
     let env = Env::new(&pool).await;
     policy(&env).await;
     env.network("10.1.0.0/24", "prod").await;
@@ -458,9 +471,9 @@ async fn a_machine_of_too_many_addresses_is_refused(pool: PgPool) {
     for i in 1..=65 {
         addresses.push(env.address(&format!("10.1.0.{i}")).await);
     }
-    let big = env.machine("big", &addresses).await;
+    let big = env.interface("big", &addresses).await;
     let q = ask(
-        of(EndpointKind::Machine, big),
+        of(EndpointKind::Interface, big),
         of(EndpointKind::Address, addresses[0]),
         service("ssh"),
     );

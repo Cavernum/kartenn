@@ -280,7 +280,7 @@ status = "État de l'import ID."
 list = "Lister les imports."
 
 [named]
-endpoint = "Extrémité « {given} » : TYPE:RÉF (machine:bastion-1, prefix:interne/198.51.100.0/24) ou un objet JSON."
+endpoint = "Extrémité « {given} » : TYPE:RÉF (address:interne/192.0.2.10, prefix:interne/198.51.100.0/24, interface:UUID) ou un objet JSON."
 
 [check]
 help = "Verdict d'une communication source → destination pour un service."
@@ -306,6 +306,20 @@ port = "Port."
 flow_type = "Type de flux."
 entity = "Entité (l'application)."
 exit_status = "Code 9 si le verdict est « refusé »."
+
+[flow_check]
+help = "Tester une connexion : ouverte (un flux du registre la couvre) et conforme (le verdict)."
+case = "Test"
+open_conformant = "ouverte et conforme"
+open_nonconformant = "ouverte mais non conforme"
+not_open_conformant = "non ouverte mais conforme (à déclarer)"
+not_open_nonconformant = "ni ouverte ni conforme"
+flows = "Flux       "
+none = "Aucun flux du registre ne l'ouvre."
+
+[flow_check.state]
+active = "actif"
+waived = "sous dérogation"
 
 [matrix]
 help = "Matrice environnements × types de flux."
@@ -333,7 +347,7 @@ id = "Lire un rapport existant."
 help = "Demander un flux : enregistré, ou à instruire."
 
 [request.opt]
-source = "Source : TYPE:RÉF (machine:app-recette-2)."
+source = "Source : TYPE:RÉF (address:interne/192.0.2.10, interface:UUID)."
 destination = "Destination : TYPE:RÉF (prefix:interne/203.0.113.0/28)."
 service = "Service."
 entity = "Entité (l'application)."

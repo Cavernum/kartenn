@@ -34,6 +34,7 @@
     -h, --help  Cette aide.
   
   Parcours:
+    check    Tester une connexion : ouverte (un flux du registre la couvre) et conforme (le verdict).
     request  Demander un flux : enregistré, ou à instruire.
     review   Instruire la demande d'un flux : --approve ou --reject.
   

@@ -774,7 +774,7 @@ async fn set_cell(
 #[serde(deny_unknown_fields)]
 #[schema(as = PolicyEndpoint)]
 pub struct EndpointDto {
-    /// `address`, `prefix`, `interface` or `machine`.
+    /// `address`, `prefix` or `interface`; a machine is refused (`policy.endpoint.machine`).
     kind: String,
     /// The object.
     id: Uuid,
@@ -1132,7 +1132,9 @@ fn synthesis(s: Synthesis) -> SynthesisDto {
     }
 }
 
-fn verdict_dto(answer: Answer) -> VerdictDto {
+/// The answer as the contract gives it (`PolicyVerdict`).
+#[must_use]
+pub fn verdict_dto(answer: Answer) -> VerdictDto {
     VerdictDto {
         access: match answer.access {
             Access::Full => "full",
@@ -1160,7 +1162,24 @@ fn endpoint(name: &str, dto: &EndpointDto) -> Result<EndpointRef, Problem> {
         "address" => EndpointKind::Address,
         "prefix" => EndpointKind::Prefix,
         "interface" => EndpointKind::Interface,
-        "machine" => EndpointKind::Machine,
+        "machine" => {
+            // 011/F21: an opening aims at an address, an interface or a subnet.
+            let detail = format!(
+                "{name}: a machine is not an endpoint, name one of its interfaces or addresses"
+            );
+            return Err(Problem::new(ProblemKind::InvalidMember)
+                .detail(detail.clone())
+                .extension(
+                    "violations",
+                    json!([{
+                        "rule": crate::rules::ENDPOINT_MACHINE.id,
+                        "severity": "error",
+                        "detail": detail,
+                        "subjects": [dto.id],
+                        "pointer": format!("/{name}"),
+                    }]),
+                ));
+        }
         "range" => {
             return Err(Problem::new(ProblemKind::InvalidMember).detail(format!(
                 "{name}: a range carries no classification (policy.query.unsupported_endpoint)"
@@ -1240,13 +1259,29 @@ fn query_of(dto: VerdictQueryDto, moment: &Moment) -> Result<Query, Problem> {
     })
 }
 
-/// Answers the query of compliance `dto` for the caller (REQ-010-13, 25).
-async fn answer(
+/// A query of compliance answered for a caller, before its read is recorded.
+#[derive(Debug)]
+pub struct Answered {
+    /// The query as normalised.
+    pub query: Query,
+    /// Its dates.
+    pub moment: Moment,
+    /// The answer.
+    pub answer: Answer,
+}
+
+/// Answers the query of compliance `dto` for the caller, without recording the read: for
+/// the routes that build on it, such as the test of a connection (011/REQ-011-26).
+///
+/// # Errors
+///
+/// The problem the route answers: 400, 404 (an endpoint absent or not readable), 422
+/// (a machine, a range, a query too large), or a failure.
+pub async fn evaluate(
     api: &Api,
     principal: &Principal,
-    context: &RequestContext,
     dto: VerdictQueryDto,
-) -> Result<Response, Problem> {
+) -> Result<Answered, Problem> {
     let mut dates = Map::new();
     if let Some(at) = &dto.valid_at {
         dates.insert("valid_at".into(), at.clone().into());
@@ -1270,6 +1305,25 @@ async fn answer(
         }
         Err(QueryError::Store(e)) => return Err(Problem::from(e)),
     };
+    Ok(Answered {
+        query: q,
+        moment,
+        answer,
+    })
+}
+
+/// Answers the query of compliance `dto` for the caller (REQ-010-13, 25).
+async fn answer(
+    api: &Api,
+    principal: &Principal,
+    context: &RequestContext,
+    dto: VerdictQueryDto,
+) -> Result<Response, Problem> {
+    let Answered {
+        query: q,
+        moment,
+        answer,
+    } = evaluate(api, principal, dto).await?;
     let ids = [q.source.id, q.destination.id];
     kit::record_read(
         api,
@@ -1333,16 +1387,15 @@ fn endpoint_param(name: &str, text: &str) -> Result<EndpointDto, Problem> {
     })
 }
 
-/// `GET /v1/verdicts?source=<kind>:<id>&destination=…&service=…`: the simple form of the
-/// query (design « API »).
-async fn verdicts_get(
-    State(api): State<Api>,
-    Extension(principal): Extension<Principal>,
-    Extension(context): Extension<RequestContext>,
-    RawQuery(raw): RawQuery,
-) -> Result<Response, Problem> {
+/// The query of the parameters `raw` of `GET /v1/verdicts` (`source=<kind>:<id>`,
+/// `destination=…`, `service=…`…), as its body would give it.
+///
+/// # Errors
+///
+/// 400 for a parameter unknown, repeated, missing or malformed.
+pub fn query_of_params(raw: Option<&str>) -> Result<VerdictQueryDto, Problem> {
     let mut seen = Map::new();
-    for (name, value) in form_urlencoded_pairs(&raw.unwrap_or_default()) {
+    for (name, value) in form_urlencoded_pairs(raw.unwrap_or_default()) {
         const KNOWN: &[&str] = &[
             "source",
             "destination",
@@ -1387,22 +1440,46 @@ async fn verdicts_get(
         valid_at: text("valid_at"),
         as_of: text("as_of"),
     };
+    Ok(dto)
+}
+
+/// `GET /v1/verdicts?source=<kind>:<id>&destination=…&service=…`: the simple form of the
+/// query (design « API »).
+async fn verdicts_get(
+    State(api): State<Api>,
+    Extension(principal): Extension<Principal>,
+    Extension(context): Extension<RequestContext>,
+    RawQuery(raw): RawQuery,
+) -> Result<Response, Problem> {
+    let dto = query_of_params(raw.as_deref())?;
     answer(&api, &principal, &context, dto).await
 }
 
-/// `QUERY /v1/verdicts` (RFC 10008) with the body [`VerdictQueryDto`]; any other method but
-/// `GET` and `HEAD` → 405.
-async fn verdicts_query(State(api): State<Api>, request: Request) -> Response {
+/// The caller and the body [`VerdictQueryDto`] of a `QUERY` (RFC 10008) on a route whose
+/// `GET` takes the parameters of [`query_of_params`].
+///
+/// # Errors
+///
+/// The response to give: 405 for another method than `GET`, `HEAD` and `QUERY`, 415
+/// without JSON, 401 without a caller, 400 for a malformed body.
+///
+/// # Panics
+///
+/// Never: `QUERY` is a token.
+#[allow(clippy::result_large_err)] // the response itself, given as it is
+pub async fn query_body(
+    request: Request,
+) -> Result<(Principal, RequestContext, VerdictQueryDto), Response> {
     let query_method = Method::from_bytes(b"QUERY").expect("QUERY is a token");
     if request.method() != query_method {
-        return (
+        return Err((
             [(
                 header::ALLOW,
                 axum::http::HeaderValue::from_static("GET, HEAD, QUERY"),
             )],
             Problem::new(ProblemKind::MethodNotAllowed).detail("allowed: GET, HEAD, QUERY"),
         )
-            .into_response();
+            .into_response());
     }
     let json = request
         .headers()
@@ -1411,23 +1488,32 @@ async fn verdicts_query(State(api): State<Api>, request: Request) -> Response {
         .and_then(|v| v.split(';').next())
         .is_some_and(|v| v.trim().eq_ignore_ascii_case("application/json"));
     if !json {
-        return Problem::new(ProblemKind::UnsupportedMediaType)
+        return Err(Problem::new(ProblemKind::UnsupportedMediaType)
             .detail("a QUERY takes application/json")
-            .into_response();
+            .into_response());
     }
     let (parts, body) = request.into_parts();
     let (Some(principal), Some(context)) = (
         parts.extensions.get::<Principal>().cloned(),
         parts.extensions.get::<RequestContext>().cloned(),
     ) else {
-        return Problem::new(ProblemKind::Unauthenticated).into_response();
+        return Err(Problem::new(ProblemKind::Unauthenticated).into_response());
     };
     let Ok(body) = axum::body::to_bytes(body, usize::MAX).await else {
-        return Problem::new(ProblemKind::BadRequest).into_response();
+        return Err(Problem::new(ProblemKind::BadRequest).into_response());
     };
-    let dto: VerdictQueryDto = match serde_json::from_slice(&body) {
-        Ok(dto) => dto,
-        Err(e) => return kit::bad(format!("the body: {e}")).into_response(),
+    match serde_json::from_slice(&body) {
+        Ok(dto) => Ok((principal, context, dto)),
+        Err(e) => Err(kit::bad(format!("the body: {e}")).into_response()),
+    }
+}
+
+/// `QUERY /v1/verdicts` (RFC 10008) with the body [`VerdictQueryDto`]; any other method but
+/// `GET` and `HEAD` → 405.
+async fn verdicts_query(State(api): State<Api>, request: Request) -> Response {
+    let (principal, context, dto) = match query_body(request).await {
+        Ok(found) => found,
+        Err(response) => return response,
     };
     match answer(&api, &principal, &context, dto).await {
         Ok(response) => response,

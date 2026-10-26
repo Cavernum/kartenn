@@ -180,7 +180,7 @@ au banc complet le 2026-10-22 (p95 serveur) :
 
 | Budget | Mesuré | Limite |
 |---|---|---|
-| Demande machine × machine 16 × 16, triage compris | 297 ms | 300 ms |
+| Demande machine × machine 16 × 16, triage compris (interface × interface depuis 011/F21, à remesurer) | 297 ms | 300 ms |
 | Réévaluation de 10⁴ flux dans un changeset (ajoutée) | 2,4 s | 3 s |
 | Réévaluation de 10⁵ flux par un changement de politique | 12,8 s | 60 s |
 | Règle d'un type de flux (5·10³ flux) | 2,0 s | 60 s |

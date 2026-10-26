@@ -15,7 +15,7 @@ from kartenn_cli.named import named_commands, replaced
 if TYPE_CHECKING:
     from syrupy.assertion import SnapshotAssertion
 
-MACHINE = "aa000000-0000-7000-8000-000000000001"
+INTERFACE = "aa000000-0000-7000-8000-000000000001"
 FLOW = "4f9a0000-0000-7000-8000-000000000001"
 CHANGESET = "0c410000-0000-7000-8000-000000000001"
 VERDICT: dict[str, Any] = {
@@ -53,22 +53,23 @@ APPLIED: dict[str, Any] = {
 def test_policy_check(server: FakeServer, snapshot: SnapshotAssertion) -> None:
     server.route("GET", "/v1/verdicts", VERDICT)
     # The endpoints go as `<kind>:<id>` (the contract), a natural key resolved first;
-    # machines have none (x-kartenn): a UUID.
-    machine = "7c1e0000-0000-7000-8000-000000000001"
+    # an interface by its UUID.
+    interface = "7c1e0000-0000-7000-8000-000000000001"
     prefix = "7c1e0000-0000-7000-8000-000000000002"
-    a, b = f"machine:{machine}", f"prefix:{prefix}"
+    a, b = f"interface:{interface}", f"prefix:{prefix}"
     result = kartenn("policy", "check", a, b, "--service", "ssh")
     assert result.exit_code == 0, result.output
     assert result.stdout == snapshot
     params = server.seen[-1].url.params
     assert (params["source"], params["destination"], params["service"]) == (
-        f"machine:{machine}",
+        f"interface:{interface}",
         f"prefix:{prefix}",
         "ssh",
     )
-    bastion = kartenn("policy", "check", "machine:bastion-1", f"prefix:{prefix}")
-    assert bastion.exit_code == 2
-    assert "client.key-unknown" in bastion.output
+    # A natural key of a collection without one (machines, x-kartenn) is not resolved.
+    unknown = kartenn("policy", "check", "machine:bastion-1", f"prefix:{prefix}")
+    assert unknown.exit_code == 2
+    assert "client.key-unknown" in unknown.output
     denied = copy.deepcopy(VERDICT)
     denied["synthesis"]["verdict"] = "denied"
     denied["access"] = "reduced"
@@ -83,6 +84,43 @@ def test_policy_check(server: FakeServer, snapshot: SnapshotAssertion) -> None:
     as_json = kartenn("policy", "check", a, b, "-o", "json")
     assert kartenn("policy", "check", "a", "b").exit_code == 2
     assert json.loads(as_json.stdout)["synthesis"]["verdict"] == "denied"
+
+
+def test_flow_check(server: FakeServer) -> None:
+    """REQ-011-26: open and conformant apart, summed up in one of four cases."""
+    opened: dict[str, Any] = {
+        "verdict": VERDICT,
+        "pairs": [
+            {
+                "evaluation": 0,
+                "open": True,
+                "flows": [{"id": FLOW, "state": "waived"}],
+                "conformant": True,
+                "case": "open_conformant",
+            }
+        ],
+        "case": "open_conformant",
+    }
+    server.route("GET", "/v1/flow-checks", opened)
+    a, b = f"interface:{INTERFACE}", "prefix:7c1e0000-0000-7000-8000-000000000002"
+    result = kartenn("flow", "check", a, b, "--service", "ssh")
+    assert result.exit_code == 0, result.output
+    lines = result.stdout.splitlines()
+    assert lines[0] == "Test  ✓ ouverte et conforme"
+    assert f"{FLOW} (sous dérogation)" in lines[1]
+    assert any(line.startswith("Verdict") for line in lines)
+    params = server.seen[-1].url.params
+    assert (params["source"], params["service"]) == (a, "ssh")
+    verdict = copy.deepcopy(VERDICT)
+    verdict["synthesis"]["verdict"] = "denied"
+    pair: dict[str, Any] = {"evaluation": 0, "open": False, "flows": [], "conformant": False}
+    pair["case"] = "not_open_nonconformant"
+    closed: dict[str, Any] = {"verdict": verdict, "pairs": [pair], "case": pair["case"]}
+    server.route("GET", "/v1/flow-checks", closed)
+    refused = kartenn("--lang", "en", "flow", "check", a, b, "--exit-status")
+    assert refused.exit_code == 9
+    assert "neither open nor conformant" in refused.stdout
+    assert "No flow of the registry opens it." in refused.stdout
 
 
 def test_policy_matrix(server: FakeServer) -> None:
@@ -177,7 +215,7 @@ def test_flow_request_and_review(server: FakeServer) -> None:
     }
     server.route("POST", "/v1/flows", httpx2.Response(202, json=pending))
     result = kartenn(
-        "flow", "request", "--source", f"machine:{MACHINE}",
+        "flow", "request", "--source", f"interface:{INTERFACE}",
         "--destination", '{"kind": "prefix", "id": {"id": "p"}}',
         "--service", "https", "--entity", "exemple", "--ref", "ticketing:CHG-2048",
         "--justification", "Appel", "--end", "2027-04-30", "--motive", "nouvelle recette",
@@ -186,7 +224,7 @@ def test_flow_request_and_review(server: FakeServer) -> None:
     assert result.exit_code == 0, result.output
     assert "à instruire" not in result.stdout or CHANGESET in result.stdout
     assert body(server.seen[-1]) == {
-        "source": {"kind": "machine", "id": {"id": MACHINE}},
+        "source": {"kind": "interface", "id": {"id": INTERFACE}},
         "destination": {"kind": "prefix", "id": {"id": "p"}},
         "service": {"id": "s1"},
         "entity": {"id": "e1"},
@@ -234,8 +272,8 @@ def test_flow_request_and_review(server: FakeServer) -> None:
 def test_named_commands_need_their_operations() -> None:
     catalog = derive("u", capabilities(), CONTRACT)
     assert set(named_commands("policy", catalog)) == {"check", "matrix", "report", "reports"}
-    assert set(named_commands("flow", catalog)) == {"request", "review"}
-    assert replaced("flow", catalog) == {"create"}
+    assert set(named_commands("flow", catalog)) == {"request", "review", "check"}
+    assert replaced("flow", catalog) == {"create", "checks"}
     no_flow = derive(
         "u",
         capabilities(modules=[m for m in capabilities()["modules"] if m["name"] != "flow"]),

@@ -3,7 +3,7 @@
 //! (`policy.environment` on the first containers below the roots of the domains), then
 //! 10⁵ registered flows between addresses, 10⁴ of them leaving one container.
 //!
-//! Measured: the request of a flow machine × machine 16 × 16, triage included; the
+//! Measured: the request of a flow interface × interface 16 × 16, triage included; the
 //! changeset that reclassifies the container 10⁴ flows leave, against the same changeset
 //! on a container no flow touches (the added time of the re-evaluation); a write of the
 //! policy, which re-evaluates every living flow (011-5); filtered pages of flows and of
@@ -556,16 +556,18 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     .await?
     .into_iter()
     .collect();
-    let machine = |m: usize| {
+    // A machine is no endpoint (011/F21): the flows name the interface holding its
+    // addresses.
+    let interface = |m: usize| {
         machines
-            .get(&format!("bench-flow-machine-{m}"))
+            .get(&format!("bench-flow-interface-{m}"))
             .copied()
-            .context("a machine of the requests is missing")
+            .context("an interface of the requests is missing")
     };
     progress(&format!("machines: {:?}", started.elapsed()));
     let mut budgets = Vec::new();
 
-    // The request of a flow machine × machine, its 256 pairs evaluated and triaged.
+    // The request of a flow interface × interface, its 256 pairs evaluated and triaged.
     let mut samples = Vec::new();
     let mut applied = 0;
     for (n, &(a, b, k)) in pairs.iter().enumerate() {
@@ -574,8 +576,8 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
             "request",
             json!({
                 "local": 1,
-                "source": {"kind": "machine", "id": {"id": machine(a)?}},
-                "destination": {"kind": "machine", "id": {"id": machine(b)?}},
+                "source": {"kind": "interface", "id": {"id": interface(a)?}},
+                "destination": {"kind": "interface", "id": {"id": interface(b)?}},
                 "service": {"id": services[k * SERVICES_PER_TYPE]},
                 "external_refs": [{"system": "bench", "id": format!("BENCH-M-{n}")}],
                 "entity": {"id": entities[n % ENTITIES]},
@@ -585,12 +587,12 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         match outcome {
             Outcome::Applied { .. } => applied += 1,
             Outcome::Pending { .. } => {}
-            other => bail!("a request machine × machine not taken: {other:?}"),
+            other => bail!("a request interface × interface not taken: {other:?}"),
         }
         samples.push(elapsed);
     }
     budgets.push(Budget {
-        name: "request a flow machine x machine 16 x 16, triage included, p95",
+        name: "request a flow interface x interface 16 x 16, triage included, p95",
         limit: Duration::from_millis(300),
         measured: p95(samples),
         note: format!(

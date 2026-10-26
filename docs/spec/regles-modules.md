@@ -67,13 +67,15 @@ spécification du module.
 | `policy.axis.invalid` | erreur | Un axe est une propriété vivante de liste fermée ou de référence externe, portée par l'arbre d'adressage ou par la machine selon son porteur ; policy.environment est un axe imposé. | REQ-010-29 | 010/S22 |
 | `policy.value.unknown` | erreur | Les attributs d'une valeur décrivent une valeur vivante d'un axe. | REQ-010-2, REQ-010-30 | 010/S2 |
 | `policy.key.duplicate` | erreur | La clé d'un objet de la politique est unique sur sa période parmi les objets de son type. | REQ-010-4, REQ-010-5, REQ-010-8 | 010/design « Données » |
+| `policy.endpoint.machine` | erreur | Une extrémité de la requête de conformité est une adresse, un préfixe ou une interface ; jamais une machine, dont une ouverture viserait toutes les adresses. | REQ-010-13 | 011/F21 |
 | `policy.reference.closed` | erreur | Un objet de la politique ne cite que des valeurs, types de flux, services, motifs et règles vivants sur sa période. | REQ-010-2, REQ-010-8 | 010/design « Opérations » |
 
 ## `flow`
 
 | Identifiant | Sévérité | Règle | Exigences | Source |
 |---|---|---|---|---|
-| `flow.endpoint.invalid` | erreur | Une extrémité est une adresse, un préfixe ou, avec le module Machines, une interface ou une machine, valide sur toute la période du flux ; jamais une plage. | REQ-011-2 | 011/F3 |
+| `flow.endpoint.invalid` | erreur | Une extrémité est une adresse, un préfixe ou, avec le module Machines, une interface, valide sur toute la période du flux ; jamais une plage. | REQ-011-2 | 011/F3 |
+| `flow.endpoint.machine` | erreur | Une machine n'est pas une extrémité : un flux s'ouvre sur une adresse, une interface ou un sous-réseau, jamais sur toutes les adresses d'une machine. | REQ-011-2 | 011/F21 |
 | `flow.service.closed` | erreur | Le service d'un flux est actif sur toute sa période. | REQ-011-1 | 011/F2 |
 | `flow.reference.missing` | erreur | Un flux porte au moins une référence externe. | REQ-011-1 | 011/F2, Q3 |
 | `flow.reference.system` | erreur | Une référence externe nomme son système par la clé d'une valeur de la liste fermée des systèmes externes (ou par son identifiant) valide au début de l'opération. | REQ-011-1, REQ-016-3 | 011/F2, 016/G9 |

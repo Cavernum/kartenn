@@ -14,7 +14,7 @@ workspace = true
 
 [features]
 # Its routes under `/v1`, mounted by kartenn-server (REQ-011-18, design « API »).
-rest = ["dep:axum", "dep:kartenn-rest", "dep:kartenn-store-pg", "dep:utoipa", "dep:utoipa-axum"]
+rest = ["dep:axum", "dep:kartenn-rest", "dep:kartenn-store-pg", "dep:utoipa", "dep:utoipa-axum", "kartenn-policy/rest"]
 
 [dependencies]
 axum = { version = "0.8.9", default-features = false, features = ["json"], optional = true }

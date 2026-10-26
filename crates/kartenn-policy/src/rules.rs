@@ -69,6 +69,8 @@ rules! {
         "Les attributs d'une valeur décrivent une valeur vivante d'un axe.";
     KEY_DUPLICATE = "policy.key.duplicate", Error, ["REQ-010-4", "REQ-010-5", "REQ-010-8"], "010/design « Données »",
         "La clé d'un objet de la politique est unique sur sa période parmi les objets de son type.";
+    ENDPOINT_MACHINE = "policy.endpoint.machine", Error, ["REQ-010-13"], "011/F21",
+        "Une extrémité de la requête de conformité est une adresse, un préfixe ou une interface ; jamais une machine, dont une ouverture viserait toutes les adresses.";
     REFERENCE_CLOSED = "policy.reference.closed", Error, ["REQ-010-2", "REQ-010-8"], "010/design « Opérations »",
         "Un objet de la politique ne cite que des valeurs, types de flux, services, motifs et règles vivants sur sa période.";
 }

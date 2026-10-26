@@ -193,7 +193,10 @@ def test_layout_of_the_reference_contract(server: FakeServer) -> None:
     found = layout(Runtime(Settings()).catalog)
     assert found.mains == {"flow": "flows", "machines": "machines", "vlan": "vlans"}
     assert found.modules["policy"]["rules"] == "policy-rules"
-    assert found.modules["flow"] == {"nonconformities": "flow-nonconformities"}
+    assert found.modules["flow"] == {
+        "nonconformities": "flow-nonconformities",
+        "checks": "flow-checks",
+    }
     assert found.modules["machines"] == {"clusters": "clusters", "interfaces": "interfaces"}
     assert found.resources["audit"] == "audit-events"
     assert "changesets" not in found.resources

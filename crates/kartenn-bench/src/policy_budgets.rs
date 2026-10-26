@@ -3,7 +3,7 @@
 //! of the size of the budget (6 axes, 50 environments, 20 flow types, 1 000 services,
 //! 10⁴ rules, 100 patterns, 50 conditions, 30 signals) and 2 000 rules of inference.
 //! Measures, through the router of the module: the verdict of a pair of addresses for a
-//! service, machine × machine (16 × 16 addresses) for a flow type of 10 services, a raw
+//! service, interface × interface (16 × 16 addresses) for a flow type of 10 services, a raw
 //! port covered by 20 services, the suggestion of the inference; through the write
 //! pipeline: the policy differential of a changeset of rules, the control of the
 //! inference on a changeset of 10⁴ objects; the background tasks: the audit report (and,
@@ -54,7 +54,7 @@ const INFERENCE_RULES: usize = 2_000;
 /// The services of `ft00` (a flow type of 10 services) and those that also cover tcp/443.
 const FT00_SERVICES: usize = 10;
 const PORT_443_SERVICES: usize = 20;
-/// Machines of 16 addresses for machine × machine, on each side.
+/// Machines of 16 addresses, by their interface, for interface × interface, on each side.
 const WIDE_MACHINES: usize = 10;
 const MACHINE_ADDRESSES: usize = 16;
 /// Objects of the changeset of the control of the inference (REQ-010-54).
@@ -201,7 +201,7 @@ fn rule_items(
     patterns: &[Uuid],
 ) -> anyhow::Result<Vec<ImportItem>> {
     let mut items = Vec::with_capacity(RULES + 1);
-    // The rule every machine × machine draw evaluates: env00 to env01 for ft00.
+    // The rule every interface × interface draw evaluates: env00 to env01 for ft00.
     items.push(item(op(
         "rule.create",
         json!({ "key": "bench-wide", "labels": { "fr": "Banc large" }, "effect": "allow",
@@ -541,8 +541,11 @@ async fn measure(
         }
     }
     import(&store, author, "bench-policy-machines", items).await?;
+    // A machine is no endpoint (011/F21): the queries name the interface of each.
     let wide: Vec<(String, Uuid)> = sqlx::query_as(
-        "SELECT name, id FROM machines.machine WHERE name LIKE 'policy%' AND upper_inf(valid_period) ORDER BY name",
+        "SELECT m.name, i.id FROM machines.machine m
+           JOIN machines.interface i ON i.machine_id = m.id AND upper_inf(i.valid_period)
+          WHERE m.name LIKE 'policy%' AND upper_inf(m.valid_period) ORDER BY m.name",
     )
     .fetch_all(pool)
     .await?;
@@ -645,24 +648,24 @@ async fn measure(
         ),
     });
 
-    // Machine × machine, 16 × 16 addresses, a flow type of 10 services.
+    // Interface × interface, 16 × 16 addresses, a flow type of 10 services.
     let mut samples = Vec::new();
     let mut verdicts = 0;
     for _ in 0..100 {
         let (_, source) = sources_side[rng.random_range(0..WIDE_MACHINES)];
         let (_, destination) = destinations[rng.random_range(0..WIDE_MACHINES)];
         let uri = format!(
-            "/v1/verdicts?source=machine:{source}&destination=machine:{destination}&flow_type=ft00"
+            "/v1/verdicts?source=interface:{source}&destination=interface:{destination}&flow_type=ft00"
         );
         let (elapsed, answer) = get(&app, &uri).await?;
         verdicts += answer["evaluations"].as_array().map_or(0, Vec::len);
         samples.push(elapsed);
     }
     if verdicts == 0 {
-        bail!("machine × machine answers no verdict");
+        bail!("interface × interface answers no verdict");
     }
     budgets.push(Budget {
-        name: "machine × machine 16 × 16, flow type of 10 services, p95",
+        name: "interface × interface 16 × 16, flow type of 10 services, p95",
         limit: Duration::from_millis(300),
         measured: p95(samples),
         note: format!(

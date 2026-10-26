@@ -47,6 +47,51 @@ pub fn sources() -> kartenn_service::expected::Sources {
     sources
 }
 
+/// The changes of data the modules of the build make after the deployment, by the
+/// migration job, each one idempotent: the flows a machine is an endpoint of, closed
+/// (spec 011, F21). Gives the lines to print.
+///
+/// # Errors
+///
+/// A failure of the database, or a changeset refused.
+#[allow(clippy::unused_async)] // without the module flow, nothing to wait for
+pub async fn migrate_data(
+    pool: &sqlx::PgPool,
+    modules: &Arc<ModuleRegistry>,
+) -> anyhow::Result<Vec<String>> {
+    #[allow(unused_mut)]
+    let mut lines = Vec::new();
+    #[cfg(feature = "flow")]
+    {
+        let store =
+            kartenn_store_pg::write::PgStore::new(pool.clone()).with_modules(modules.clone());
+        let (flows, outcomes) = kartenn_flow::migration::close_machine_flows(
+            &store,
+            pool,
+            kartenn_service::pipeline::MAX_OPERATIONS,
+        )
+        .await?;
+        for outcome in outcomes {
+            if let kartenn_service::Outcome::Refused { violations, .. } = outcome {
+                let reasons = violations
+                    .iter()
+                    .map(|v| format!("{}: {}", v.rule.id, v.message))
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                anyhow::bail!("closing the flows of a machine: {reasons}");
+            }
+        }
+        lines.extend(
+            flows.iter().map(|id| {
+                format!("flow {id}: closed, a machine is no longer an endpoint (011/F21)")
+            }),
+        );
+    }
+    #[cfg(not(feature = "flow"))]
+    let _ = (pool, modules);
+    Ok(lines)
+}
+
 /// The registry of the modules of the build.
 ///
 /// # Errors

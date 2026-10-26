@@ -8,6 +8,8 @@
 //! except the non-conformities, which [`NonconformityFilter::requester`] narrows to the
 //! requests of one requester (REQ-011-25).
 
+use std::collections::HashMap;
+
 use kartenn_service::port::StoreError;
 use serde_json::{Value, json};
 use sqlx::types::time::OffsetDateTime;
@@ -79,6 +81,8 @@ pub struct FlowFilter {
     pub external_ref: Option<(Uuid, String)>,
     /// A value of an axis an endpoint address carries at the date.
     pub axis: Option<AxisValue>,
+    /// Only these applied flows (the test of a connection, REQ-011-26).
+    pub ids: Option<Vec<Uuid>>,
 }
 
 impl FlowFilter {
@@ -108,7 +112,11 @@ impl FlowFilter {
         let Some(review) = &row.review else {
             return false;
         };
-        if self.within_prefix.is_some() || self.machine.is_some() || self.axis.is_some() {
+        if self.within_prefix.is_some()
+            || self.machine.is_some()
+            || self.axis.is_some()
+            || self.ids.is_some()
+        {
             return false;
         }
         let f = &row.flow;
@@ -780,6 +788,11 @@ async fn applied(
                                           WHERE ev.property_id = d.id AND ev.key = x.value))"
         ));
     }
+    if let Some(ids) = &filter.ids {
+        q.push(" AND f.id = ANY(");
+        q.push_bind(ids.clone());
+        q.push(")");
+    }
     if let Some(after) = after {
         q.push(" AND f.id > ");
         q.push_bind(after);
@@ -874,6 +887,109 @@ pub async fn of_object(
         },
     };
     applied(conn, dates, &filter, after, limit).await
+}
+
+/// A pair of points and a service a connection test asks about (REQ-011-26): an address
+/// or a prefix on each side, as the query of compliance develops them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Tested {
+    /// The source point.
+    pub source: Uuid,
+    /// The destination point.
+    pub destination: Uuid,
+    /// The service.
+    pub service: Uuid,
+}
+
+/// The flows that open each of `tested` at `dates` (REQ-011-26, F21): `active` or
+/// `waived` then, for the service, whose source contains the source point and whose
+/// destination the destination point — the point itself, an address of an interface
+/// endpoint, or a prefix of the same domain that holds it. One list per entry of `tested`,
+/// in its order; nothing is written. The addresses and prefixes are read as valid at
+/// `valid_at` in the current state.
+///
+/// # Errors
+///
+/// A failure of the database.
+pub async fn open(
+    conn: &mut PgConnection,
+    dates: Dates,
+    tested: &[Tested],
+) -> Result<Vec<Vec<FlowView>>, StoreError> {
+    let mut out = vec![Vec::new(); tested.len()];
+    if tested.is_empty() {
+        return Ok(out);
+    }
+    let flow = asserted("flow", "t.id, t.service_id, t.valid_period");
+    let endpoint = asserted(
+        "flow_endpoint_address",
+        "t.flow_id, t.side, t.address_id, t.valid_period",
+    );
+    let mut q = dated_query(dates, ", q AS (SELECT * FROM unnest(");
+    q.push_bind(tested.iter().map(|t| t.source).collect::<Vec<_>>());
+    q.push("::uuid[], ");
+    q.push_bind(tested.iter().map(|t| t.destination).collect::<Vec<_>>());
+    q.push("::uuid[], ");
+    q.push_bind(tested.iter().map(|t| t.service).collect::<Vec<_>>());
+    // The points as nodes of their domain, and the flows whose endpoint holds them, by
+    // the index of the addresses of the endpoints.
+    q.push(format!(
+        "::uuid[]) WITH ORDINALITY AS q(s, d, svc, i)),
+         pt AS (SELECT a.id, a.domain_id, a.address AS net FROM public.address a
+                 WHERE a.id IN (SELECT s FROM q UNION SELECT d FROM q)
+                   AND a.valid_period @> $1::timestamptz
+                UNION ALL
+                SELECT p.id, p.domain_id, p.prefix FROM public.prefix p
+                 WHERE p.id IN (SELECT s FROM q UNION SELECT d FROM q)
+                   AND p.valid_period @> $1::timestamptz),
+         holders AS (SELECT pt.id AS point, pt.id AS node FROM pt
+                     UNION
+                     SELECT pt.id, c.id FROM pt JOIN public.prefix c
+                       ON c.domain_id = pt.domain_id AND pt.net <<= c.prefix
+                      AND c.valid_period @> $1::timestamptz),
+         e AS (SELECT t.flow_id, t.side, h.point FROM {endpoint} t
+                 JOIN holders h ON h.node = t.address_id
+                WHERE t.valid_period @> $1::timestamptz),
+         f AS (SELECT DISTINCT t.id, t.service_id FROM {flow} t
+                WHERE t.valid_period @> $1::timestamptz)
+         SELECT DISTINCT q.i, f.id FROM q
+           JOIN e src ON src.side = 'source' AND src.point = q.s
+           JOIN e dst ON dst.side = 'destination' AND dst.point = q.d
+                     AND dst.flow_id = src.flow_id
+           JOIN f ON f.id = src.flow_id AND f.service_id = q.svc"
+    ));
+    let rows: Vec<(i64, Uuid)> = q
+        .build_query_as()
+        .fetch_all(&mut *conn)
+        .await
+        .map_err(|e| store(&e))?;
+    if rows.is_empty() {
+        return Ok(out);
+    }
+    let mut ids: Vec<Uuid> = rows.iter().map(|(_, id)| *id).collect();
+    ids.sort_unstable();
+    ids.dedup();
+    let filter = FlowFilter {
+        states: vec![FlowState::Active, FlowState::Waived],
+        ids: Some(ids.clone()),
+        ..FlowFilter::default()
+    };
+    let limit = i64::try_from(ids.len()).unwrap_or(i64::MAX);
+    let found: HashMap<Uuid, FlowView> = applied(conn, dates, &filter, None, limit)
+        .await?
+        .into_iter()
+        .filter_map(|v| v.id.map(|id| (id, v)))
+        .collect();
+    for (i, id) in rows {
+        let slot = usize::try_from(i - 1).ok().and_then(|i| out.get_mut(i));
+        if let (Some(slot), Some(view)) = (slot, found.get(&id)) {
+            slot.push(view.clone());
+        }
+    }
+    for slot in &mut out {
+        slot.sort_by_key(|v| v.id);
+    }
+    Ok(out)
 }
 
 /// One evaluation of a flow by pair of addresses, as stored (REQ-011-16).

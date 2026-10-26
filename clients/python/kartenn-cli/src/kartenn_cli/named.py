@@ -54,8 +54,9 @@ def _asked(found: Runtime, output: str | None) -> bool:
 
 
 def _endpoint(found: Runtime, catalog: Catalog, text: str) -> object:
-    """`kind:ref` (`machine:bastion-1`, `prefix:interne/198.51.100.0/24`) as an endpoint of
-    a flow; a JSON object as it is."""
+    """`kind:ref` (`address:interne/192.0.2.10`, `prefix:interne/198.51.100.0/24`) as an
+    endpoint of a flow; a JSON object as it is. A machine is no endpoint (011/F21): the
+    server refuses it."""
     import json  # noqa: PLC0415
 
     from kartenn_cli.complete import reference_of  # noqa: PLC0415
@@ -112,6 +113,64 @@ def _verdict_lines(answer: Mapping[str, Any], zone: Any) -> list[str]:  # noqa: 
 
 
 def _check(catalog: Catalog) -> click.Command:
+    return _tester(catalog, "show_verdicts", "check.help", _verdict_lines, lambda data: data)
+
+
+# flow check -----------------------------------------------------------------------------
+
+_CASES = {
+    "open_conformant": "✓",
+    "open_nonconformant": "◐",
+    "not_open_conformant": "◐",
+    "not_open_nonconformant": "✗",
+}
+
+
+def _flow_check_lines(answer: Mapping[str, Any], zone: Any) -> list[str]:  # noqa: ANN401 - tzinfo
+    """The test of a connection (REQ-011-26): its case, the flows that open it, then the
+    verdict as `policy check` shows it."""
+    lines: list[str] = []
+    case = answer.get("case")
+    if case:
+        lines.append(
+            f"{t('flow_check.case')}  {_CASES.get(str(case), '?')} {t('flow_check.' + str(case))}"
+        )
+    pairs = cast("list[dict[str, Any]]", answer.get("pairs") or [])
+    flows = sorted(
+        {
+            f"{f['id']} ({t('flow_check.state.' + str(f['state']))})"
+            for pair in pairs
+            for f in cast("list[dict[str, Any]]", pair.get("flows") or [])
+        }
+    )
+    if flows:
+        lines.append(f"  {t('flow_check.flows')}  {', '.join(flows)}")
+    elif case:
+        lines.append("  " + t("flow_check.none"))
+    lines.extend(_verdict_lines(cast("dict[str, Any]", answer.get("verdict") or {}), zone))
+    return lines
+
+
+def _flow_check(catalog: Catalog) -> click.Command:
+    return _tester(
+        catalog,
+        "show_flow_check",
+        "flow_check.help",
+        _flow_check_lines,
+        lambda data: cast("dict[str, Any]", data.get("verdict") or {}),
+    )
+
+
+def _tester(
+    catalog: Catalog,
+    operation: str,
+    help_key: str,
+    render: Callable[[Mapping[str, Any], Any], list[str]],
+    verdict_of: Callable[[dict[str, Any]], dict[str, Any]],
+) -> click.Command:
+    """`check SOURCE DESTINATION` calling `operation` with the parameters of
+    `GET /v1/verdicts`; `verdict_of` finds the answer of the query of compliance in its
+    answer (for `--exit-status`)."""
     from kartenn_cli.reads import date_params  # noqa: PLC0415
 
     def run(ctx: click.Context, source: str, destination: str, **options: Any) -> None:  # noqa: ANN401
@@ -135,15 +194,16 @@ def _check(catalog: Catalog) -> click.Command:
             for end in cast("list[Any]", ends)
         )
         answer = found.client.at(valid_at, as_of).call(
-            "show_verdicts", source=source, destination=destination, **params
+            operation, source=source, destination=destination, **params
         )
         data = cast("dict[str, Any]", dict(answer))
         if _asked(found, options["output"]):
             found.output(output=options["output"]).value(data)
         else:
-            for line in _verdict_lines(data, found.zone):
+            for line in render(data, found.zone):
                 click.echo(line)
-        verdict = cast("dict[str, Any]", data.get("synthesis") or {}).get("verdict")
+        synthesis = cast("dict[str, Any]", verdict_of(data).get("synthesis") or {})
+        verdict = synthesis.get("verdict")
         if options["exit_status"] and verdict == "denied":
             raise click.exceptions.Exit(DENIED)
 
@@ -167,7 +227,7 @@ def _check(catalog: Catalog) -> click.Command:
             help="opt.output",
         ),
     ]
-    return TCommand("check", params=params, callback=click.pass_context(run), help="check.help")
+    return TCommand("check", params=params, callback=click.pass_context(run), help=help_key)
 
 
 # policy matrix ------------------------------------------------------------------------
@@ -475,6 +535,7 @@ NAMED: tuple[NamedCommand, ...] = (
     ),
     NamedCommand("policy", "reports", ("list_policy_reports",), _reports),
     NamedCommand("flow", "request", ("request_flow",), _request, replaces=("create",)),
+    NamedCommand("flow", "check", ("show_flow_check",), _flow_check, replaces=("checks",)),
     NamedCommand(
         "flow", "review", ("show_flow", "validate_changeset", "reject_changeset"), _review
     ),

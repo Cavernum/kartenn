@@ -1168,6 +1168,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/flow-checks": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Tests a connection, by parameters (REQ-011-26): the query of compliance, and whether a flow of the registry opens each of its evaluations; nothing is written. */
+    get: operations["show_flow_check"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/flow-nonconformities": {
     parameters: {
       query?: never;
@@ -4921,6 +4938,40 @@ export interface components {
       waived: boolean;
     };
     /**
+     * @description The test of a connection (REQ-011-26, F21): the query of compliance, and for each of
+     *     its evaluations whether a flow of the registry opens it; nothing is written.
+     */
+    FlowCheck: {
+      /**
+       * @description The test summed up: open when every evaluation is, conformant when every one is;
+       *     absent without evaluation (`verdict.empty`) or in a reduced answer.
+       */
+      case?: string | null;
+      /** @description One per evaluation, in its order. */
+      pairs: components["schemas"]["FlowCheckPair"][];
+      /** @description The answer of the query of compliance (`QUERY /v1/verdicts`). */
+      verdict: components["schemas"]["PolicyVerdict"];
+    };
+    /** @description One evaluation of the test: is it open, is it conformant (REQ-011-26). */
+    FlowCheckPair: {
+      /**
+       * @description `open_conformant`, `open_nonconformant`, `not_open_conformant` or
+       *     `not_open_nonconformant`; absent when `open` is.
+       */
+      case?: string | null;
+      /** @description Whether the policy allows it (verdict other than `denied`). */
+      conformant: boolean;
+      /** @description Index of the evaluation in `verdict.evaluations`. */
+      evaluation: number;
+      /** @description The flows that open it, `active` or `waived`, those the caller reads. */
+      flows: components["schemas"]["FlowOpening"][];
+      /**
+       * @description Whether a flow of the registry the caller reads opens it; absent in a reduced
+       *     answer, which names no address.
+       */
+      open?: boolean | null;
+    };
+    /**
      * @description An evaluation of a flow by pair of addresses (REQ-011-16, 23): stored, never
      *     recomputed. Reduced for a requester without the read of the flow (REQ-010-25): the
      *     addresses and the decisive element are not named.
@@ -5002,6 +5053,18 @@ export interface components {
       /** @description `rejected`, `noncompliant` or `waived`. */
       state: string;
     };
+    /** @description A flow that opens a pair (REQ-011-26). */
+    FlowOpening: {
+      /** @description The end of the flow, if dated. */
+      end?: string | null;
+      /**
+       * Format: uuid
+       * @description The flow.
+       */
+      id: string;
+      /** @description `active` or `waived` (a waiver covers the date: the policy denies it). */
+      state: string;
+    };
     /** @description The body of `PATCH /v1/flows/{id}`: the fields that may change (REQ-011-4). */
     FlowPatch: {
       /** @description The natures of the data carried. */
@@ -5056,8 +5119,8 @@ export interface components {
       /** @description The service: `{ "id": … }`. */
       service: Record<string, never>;
       /**
-       * @description The source: `{ "kind": "address" | "prefix" | "interface" | "machine" | "range",
-       *     "id": { "id": … } }`.
+       * @description The source: `{ "kind": "address" | "prefix" | "interface", "id": { "id": … } }`; a
+       *     range is refused (`flow.endpoint.invalid`), a machine too (`flow.endpoint.machine`).
        */
       source: Record<string, never>;
     };
@@ -7166,7 +7229,7 @@ export interface components {
        * @description The object.
        */
       id: string;
-      /** @description `address`, `prefix`, `interface` or `machine`. */
+      /** @description `address`, `prefix` or `interface`; a machine is refused (`policy.endpoint.machine`). */
       kind: string;
     };
     /** @description One evaluation: a pair of points and a service (REQ-010-11, 12, 37). */
@@ -12229,6 +12292,54 @@ export interface operations {
         };
         content: {
           "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  show_flow_check: {
+    parameters: {
+      query?: {
+        /** @description The source, `<kind>:<id>` (address, prefix or interface). */
+        source?: string;
+        /** @description The destination, `<kind>:<id>` (address, prefix or interface). */
+        destination?: string;
+        /** @description A service, by its key. */
+        service?: string;
+        /** @description A transport, with `port`. */
+        transport?: string;
+        /** @description A port, with `transport`. */
+        port?: string;
+        /** @description A flow type, by its key. */
+        flow_type?: string;
+        /** @description The entity of the request. */
+        entity?: string;
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The test. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FlowCheck"];
         };
       };
       /** @description A problem (RFC 9457). */
@@ -21855,6 +21966,10 @@ export interface queries {
   "/v1/environments": {
     body: components["schemas"]["Search"];
     response: components["schemas"]["Listing_PolicyObject"];
+  };
+  "/v1/flow-checks": {
+    body: components["schemas"]["PolicyVerdictQuery"];
+    response: components["schemas"]["FlowCheck"];
   };
   "/v1/flow-types": {
     body: components["schemas"]["Search"];

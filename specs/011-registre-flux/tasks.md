@@ -409,7 +409,7 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
 
 ## P6 — Amendements (relecture E11, 2026-10-26)
 
-- [ ] 14. Extrémités sans machine et test d'une connexion (F21) : refus d'une machine
+- [x] 14. Extrémités sans machine et test d'une connexion (F21) : refus d'une machine
   comme extrémité au registre (`flow.endpoint.machine`) et à la requête de conformité
   (`policy.endpoint.machine`) ; flux existants dont une extrémité est une machine :
   migration qui les clôt par changeset système en les nommant (pas d'alias, projet non
@@ -425,3 +425,37 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     tests `crates/kartenn-flow/tests/it/requests.rs`, `tests/it/rest.rs` ;
     `specs/006-api-rest/openapi-v1.json` ; `web/sdk`, `web/v2/sdk` (`scripts/gen.mjs`) ;
     `clients/python`
+  - fait : règles `flow.endpoint.machine` (`model::check`, à côté du refus d'une plage)
+    et `policy.endpoint.machine` (422 `invalid-member` avec `violations`, au décodage de
+    l'extrémité de `GET`/`QUERY /v1/verdicts`), libellés fr/en, `regles-modules.md`
+    régénéré ; la variante machine quitte `verdict::EndpointKind` et le développement
+    des flux (une machine ne donne plus aucun point) ; `migration::close_machine_flows`
+    appelé par `kartenn-server migrate` (`modules::migrate_data`) ; `read::open` et
+    `GET`/`QUERY /v1/flow-checks` ; `kartenn flow check` (fr/en) ; contrat, `web/sdk`
+    (v1) et instantané du catalogue Python régénérés ; bancs `policy` et `flow` passés
+    en interface × interface (mêmes 16 adresses, budgets renommés, à remesurer) ; tests
+    `tests/it/endpoints.rs` (refus au registre par `request` et `register`, interface
+    acceptée ; migration : flux de la machine clos par changeset système, flux entre
+    adresses gardé, second passage vide), `tests/it/rest.rs`
+    (`acceptance_of_req_011_26_open_and_conformant` : les quatre cas, flux `waived`
+    sous une règle `deny` citée, flux daté expiré et demande en attente non ouvrants,
+    lecteur sans `flow.read`, machine refusée, rien d'écrit), policy
+    `acceptance_of_req_010_13` (interface 2 × 3 adresses = 6 verdicts, interface sans
+    adresse `no_address`) et `acceptance_of_req_010_13_a_machine_is_refused`. Le SDK
+    `web/v2/sdk` reste à régénérer après fusion (hors périmètre de cette branche).
+  - choix : route voisine `GET`/`QUERY /v1/flow-checks` du module flux plutôt qu'une
+    section de `/v1/verdicts` (la 010 ne dépend pas de la 011) ; la réponse embarque
+    `PolicyVerdict` (`verdict`) et ajoute `pairs` et `case` ; `conformant` = verdict
+    autre que `denied` (comme la synthèse) ; le test est ouvert si chaque évaluation
+    l'est, conforme si chacune l'est ; seuls comptent les flux que l'appelant lit
+    (`flow.read` ou demandeur) — un flux invisible ne rend pas la paire ouverte, pour ne
+    rien révéler ; `open` et `case` absents d'une réponse réduite (pas d'adresse
+    nommée) ; couverture d'un point : lui-même, l'adresse d'une interface extrémité ou
+    un préfixe du même domaine qui le contient, adresses et préfixes lus dans l'état
+    courant à `valid_at`. Migration : un changeset système par lot (motif
+    `flow endpoints without machine 011`) qui clôt chaque flux vivant ou à venir dont
+    la dernière version nomme une machine, au job de migration (comme
+    `rename_permissions`) et non en SQL, pour garder historique et cascade du noyau ;
+    une demande en attente qui nomme une machine sera refusée à son application. La
+    machine reste lisible comme point d'entrée (`/v1/machines/{id}/flows`, filtre
+    `machine`).

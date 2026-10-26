@@ -2499,6 +2499,75 @@
         ],
         "type": "object"
       },
+      "FlowCheck": {
+        "description": "The test of a connection (REQ-011-26, F21): the query of compliance, and for each of\nits evaluations whether a flow of the registry opens it; nothing is written.",
+        "properties": {
+          "case": {
+            "description": "The test summed up: open when every evaluation is, conformant when every one is;\nabsent without evaluation (`verdict.empty`) or in a reduced answer.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pairs": {
+            "description": "One per evaluation, in its order.",
+            "items": {
+              "$ref": "#/components/schemas/FlowCheckPair"
+            },
+            "type": "array"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/PolicyVerdict",
+            "description": "The answer of the query of compliance (`QUERY /v1/verdicts`)."
+          }
+        },
+        "required": [
+          "verdict",
+          "pairs"
+        ],
+        "type": "object"
+      },
+      "FlowCheckPair": {
+        "description": "One evaluation of the test: is it open, is it conformant (REQ-011-26).",
+        "properties": {
+          "case": {
+            "description": "`open_conformant`, `open_nonconformant`, `not_open_conformant` or\n`not_open_nonconformant`; absent when `open` is.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "conformant": {
+            "description": "Whether the policy allows it (verdict other than `denied`).",
+            "type": "boolean"
+          },
+          "evaluation": {
+            "description": "Index of the evaluation in `verdict.evaluations`.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "flows": {
+            "description": "The flows that open it, `active` or `waived`, those the caller reads.",
+            "items": {
+              "$ref": "#/components/schemas/FlowOpening"
+            },
+            "type": "array"
+          },
+          "open": {
+            "description": "Whether a flow of the registry the caller reads opens it; absent in a reduced\nanswer, which names no address.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "evaluation",
+          "flows",
+          "conformant"
+        ],
+        "type": "object"
+      },
       "FlowEvaluation": {
         "description": "An evaluation of a flow by pair of addresses (REQ-011-16, 23): stored, never\nrecomputed. Reduced for a requester without the read of the flow (REQ-010-25): the\naddresses and the decisive element are not named.",
         "properties": {
@@ -2654,6 +2723,32 @@
         ],
         "type": "object"
       },
+      "FlowOpening": {
+        "description": "A flow that opens a pair (REQ-011-26).",
+        "properties": {
+          "end": {
+            "description": "The end of the flow, if dated.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "description": "The flow.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "description": "`active` or `waived` (a waiver covers the date: the policy denies it).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "state"
+        ],
+        "type": "object"
+      },
       "FlowPatch": {
         "description": "The body of `PATCH /v1/flows/{id}`: the fields that may change (REQ-011-4).",
         "properties": {
@@ -2801,7 +2896,7 @@
             "type": "object"
           },
           "source": {
-            "description": "The source: `{ \"kind\": \"address\" | \"prefix\" | \"interface\" | \"machine\" | \"range\",\n\"id\": { \"id\": … } }`.",
+            "description": "The source: `{ \"kind\": \"address\" | \"prefix\" | \"interface\", \"id\": { \"id\": … } }`; a\nrange is refused (`flow.endpoint.invalid`), a machine too (`flow.endpoint.machine`).",
             "type": "object"
           }
         },
@@ -8514,7 +8609,7 @@
             "type": "string"
           },
           "kind": {
-            "description": "`address`, `prefix`, `interface` or `machine`.",
+            "description": "`address`, `prefix` or `interface`; a machine is refused (`policy.endpoint.machine`).",
             "type": "string"
           }
         },
@@ -18391,6 +18486,149 @@
             "$ref": "#/components/schemas/EventStats"
           }
         }
+      }
+    },
+    "/v1/flow-checks": {
+      "get": {
+        "operationId": "show_flow_check",
+        "parameters": [
+          {
+            "description": "The source, `<kind>:<id>` (address, prefix or interface).",
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The destination, `<kind>:<id>` (address, prefix or interface).",
+            "in": "query",
+            "name": "destination",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A service, by its key.",
+            "in": "query",
+            "name": "service",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A transport, with `port`.",
+            "in": "query",
+            "name": "transport",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A port, with `transport`.",
+            "in": "query",
+            "name": "port",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "A flow type, by its key.",
+            "in": "query",
+            "name": "flow_type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The entity of the request.",
+            "in": "query",
+            "name": "entity",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Valid time, RFC 3339 with its offset; now by default.",
+            "in": "query",
+            "name": "valid_at",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "System time, RFC 3339 with its offset: what kartenn asserted then; now by default.",
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlowCheck"
+                }
+              }
+            },
+            "description": "The test."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Tests a connection, by parameters (REQ-011-26): the query of compliance, and whether a flow of the registry opens each of its evaluations; nothing is written.",
+        "tags": [
+          "flow"
+        ]
+      },
+      "x-query": {
+        "operationId": "query_flow_check",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyVerdictQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlowCheck"
+                }
+              }
+            },
+            "description": "The test."
+          }
+        },
+        "summary": "Tests a connection (REQ-011-26): the query of compliance, and whether a flow of the registry opens each of its evaluations; nothing is written.",
+        "tags": [
+          "flow"
+        ]
       }
     },
     "/v1/flow-nonconformities": {
