@@ -27,7 +27,6 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 
 import { t } from "../../i18n.ts";
 import Icon from "../Icon/Icon.vue";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
-import { joinPanel, leavePanel } from "../internal/panelInset.ts";
 import type { MatrixAxis, MatrixCell, MatrixCellState } from "./matrix.ts";
 
 const props = withDefaults(
@@ -109,8 +108,6 @@ function onFocusin(event: FocusEvent): void {
 // width of the column of row headers measured into the scroll padding.
 let observer: ResizeObserver | undefined;
 onMounted(() => {
-  // Under an open side panel, it fits within what stays visible (internal/panelInset.ts).
-  if (grid.value) joinPanel(grid.value);
   const corner = grid.value?.querySelector<HTMLElement>(".k-matrix__corner");
   if (!corner) return;
   const measure = () => grid.value?.style.setProperty("--k-matrix-key", `${corner.offsetWidth}px`);
@@ -119,10 +116,7 @@ onMounted(() => {
   observer = new ResizeObserver(measure);
   observer.observe(corner);
 });
-onBeforeUnmount(() => {
-  observer?.disconnect();
-  if (grid.value) leavePanel(grid.value);
-});
+onBeforeUnmount(() => observer?.disconnect());
 
 function onKeydown(event: KeyboardEvent): void {
   const cell = current.value;
@@ -153,7 +147,6 @@ function onKeydown(event: KeyboardEvent): void {
   <div
     ref="grid"
     class="k-matrix"
-    data-k-panel-fit="margin"
     role="grid"
     :aria-label="props.label"
     :aria-rowcount="props.rows.length + 1"
@@ -269,7 +262,6 @@ function onKeydown(event: KeyboardEvent): void {
    * one track per column of the matrix. */
   .k-matrix {
     --k-matrix-key: var(--k-space-0);
-    --k-grid-panel-inset: var(--k-space-0);
 
     display: grid;
     grid-template-columns:
@@ -279,12 +271,9 @@ function onKeydown(event: KeyboardEvent): void {
     min-inline-size: 0;
     max-block-size: 100%;
     overflow: auto;
-    /* The sticky headers never hide a focused cell (WCAG 2.4.11). Under the side panel,
-     * the part it covers is a margin: the matrix shrinks to what stays visible and scrolls
-     * in line (internal/panelInset.ts). */
+    /* The sticky headers never hide a focused cell (WCAG 2.4.11). */
     scroll-padding-block-start: var(--k-header-height);
     scroll-padding-inline-start: var(--k-matrix-key);
-    margin-inline-end: var(--k-grid-panel-inset);
     color: var(--k-text);
     background-color: var(--k-surface);
     border: var(--k-border-width) solid var(--k-border-strong);

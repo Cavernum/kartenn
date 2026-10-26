@@ -5,56 +5,42 @@
 <script setup lang="ts">
 // The right panel of the frame (design « Inventaire », line 30; spec 021, « Cadre »;
 // 024/M8): a non-modal `complementary` region with tabs (« Détail », « Brouillon n »),
-// laid over the end of the surface: the view keeps its width, the panel covers its end.
-// The host gives it a positioned container (`position: relative`) and makes the surface an
-// isolated stacking context, so that no sticky header of the surface passes over it.
+// beside the surface (design « Adaptation à la largeur », « tout s'adapte », 2026-10-26):
+// the host lays it in an `auto` track of its grid, at the end, and the whole surface
+// shrinks to the width it leaves; the panel covers nothing. The host is a positioned
+// inline-size container (`position: relative`, `container-type: inline-size`): the panel
+// never takes more than its container less `--k-size-panel-md` for the surface, and while
+// it closes it leaves the flow at once (the surface takes its width back without waiting).
 // 420 px by default, resized by a handle at its inline start (APG Window Splitter, written
 // here: Reka's Splitter injects a <style>, refused by the CSP): Left and Right arrows by a
 // step, Home and End to the bounds, the pointer by dragging — or in one click, without
 // dragging (WCAG 2.5.7), by the menu « Largeur du panneau » beside the close button:
 // « Étroit » (the lower bound), « Standard » (420 px), « Large » (the upper bound), the
-// current one checked (`menuitemradio`). Escape closes it and gives
-// the focus back to what opened it. Closed, it leaves nothing behind. On a narrow window
-// the host sets `cover`: the panel takes the whole width of its container, without handle
+// current one checked (`menuitemradio`). The line of the handle is the outline of the
+// panel (`.k-panel-handle`, components/shared.css). Escape closes it and gives the focus
+// back to what opened it. Closed, it leaves nothing behind. On a narrow window the host
+// sets `cover`: the panel takes the whole width of its container, over it, without handle
 // (spec 021, « Cadre » : at 768 px the panel covers the surface). With `rail`, the closed
-// panel leaves a strip in the flow at the end of its container (the host gives it an
-// `auto` track): a chevron button, « Ouvrir le panneau », reopens it on its last tab and
-// moves the focus there; closing it from inside gives the focus back to the strip. The
-// strip covers nothing, at any width (revue du 2026-10-25). The footer shows only when the
-// host fills it for the tab in front: no empty band under a tab without actions. With
-// `sheet` (compact frame, design « Adaptation à la largeur »), it covers the whole window,
-// a back button at its start instead of the cross, and takes the focus when it opens.
+// panel leaves a strip in the flow at the end of its container (the same `auto` track): a
+// chevron button, « Ouvrir le panneau », reopens it on its last tab and moves the focus
+// there; closing it from inside gives the focus back to the strip. The footer shows only
+// when the host fills it for the tab in front: no empty band under a tab without actions.
+// With `sheet` (compact frame, design « Adaptation à la largeur »), it covers the whole
+// window, a back button at its start instead of the cross, and takes the focus when it
+// opens.
 //
 // What it hides leaves the focus order (WCAG 2.4.3, 2.4.11; relecture du 2026-10-26): with
 // `cover`, the other children of its container are `inert` while it is open; a sheet is a
 // modal dialog (`role="dialog"`, `aria-modal`) and everything beside it, up to the nearest
 // `[data-k-modal-scope]` (or `body`), is `inert` — the target of floating layers stays live.
-// Over the end of the surface (neither), it publishes its width on its container as
-// `--k-side-panel-inset`, which the host gives as `scroll-padding-inline-end` to what scrolls
-// under it: a control that takes the focus scrolls out from under the panel. It also marks
-// the container `data-k-side-panel`, and every grid in it fits within the part the panel
-// leaves visible while it is open (`internal/panelInset.ts`): its columns of lower priority
-// fold, the rest scrolls in line; nothing else moves.
-import {
-  Comment,
-  Fragment,
-  Text,
-  computed,
-  isVNode,
-  nextTick,
-  onBeforeUnmount,
-  ref,
-  useId,
-  useSlots,
-  watch,
-  type VNodeArrayChildren,
-} from "vue";
+// Beside the surface, it hides nothing.
+import { computed, nextTick, onBeforeUnmount, ref, useId, useSlots, watch } from "vue";
 import { injectPortalTarget } from "../../context.ts";
 import { t } from "../../i18n.ts";
 import IconButton from "../IconButton/IconButton.vue";
 import { isRtl } from "../internal/gridKeys.ts";
 import { inertOthers } from "../internal/inertOthers.ts";
-import { attachPanel } from "../internal/panelInset.ts";
+import { filled, ownsEscape } from "../internal/panel.ts";
 import Menu from "../Menu/Menu.vue";
 import type { MenuItem } from "../Menu/menu.ts";
 import Tabs from "../Tabs/Tabs.vue";
@@ -98,19 +84,6 @@ const slots = useSlots();
 /** The tab in front, for the footer. */
 const current = computed(() => tab.value || props.tabs[0]?.value);
 
-/** Whether rendered nodes hold anything but comments and blank text (an empty slot). */
-function filled(nodes: VNodeArrayChildren): boolean {
-  return nodes.some((node) => {
-    if (node === null || node === undefined || typeof node === "boolean") return false;
-    if (typeof node === "string" || typeof node === "number") return String(node).trim() !== "";
-    if (Array.isArray(node)) return filled(node);
-    if (!isVNode(node) || node.type === Comment) return false;
-    if (node.type === Text) return String(node.children ?? "").trim() !== "";
-    if (node.type === Fragment) return Array.isArray(node.children) && filled(node.children);
-    return true;
-  });
-}
-
 /** The footer shows only when the host fills it for the tab in front: no empty band. */
 const footerShown = (): boolean => !!slots.footer && filled(slots.footer({ tab: current.value }));
 
@@ -120,7 +93,20 @@ const panel = ref<HTMLElement | null>(null);
 const strip = ref<HTMLElement | null>(null);
 const handle = ref<HTMLElement | null>(null);
 const size = computed(() => ({ "--k-side-panel-width": `${width.value}px` }));
-const clamp = (value: number) => Math.round(Math.max(props.min, Math.min(props.max, value)));
+/**
+ * The widest the panel shows beside the surface: its container less the room kept for the
+ * surface (the same bound as its style); the upper bound when it cannot be measured.
+ */
+function room(): number {
+  const el = panel.value;
+  const host = el?.parentElement;
+  if (!el || !host || props.cover || props.sheet) return props.max;
+  const kept = Number.parseFloat(getComputedStyle(el).getPropertyValue("--k-size-panel-md")) || 0;
+  const gap = Number.parseFloat(getComputedStyle(el).marginInlineStart) || 0;
+  return Math.max(props.min, host.clientWidth - kept - gap);
+}
+const clamp = (value: number) =>
+  Math.round(Math.max(props.min, Math.min(props.max, room(), value)));
 
 // The focus comes back to what opened the panel (WCAG 2.4.3): the element that had it
 // when the panel opened, if the focus was in the panel when it closed.
@@ -154,34 +140,20 @@ watch(open, async (now) => {
   focusTab();
 });
 
-// What the open panel covers entirely goes inert; over the end of the surface, its width
-// is published for the scroll padding of what it covers.
+// What the open panel covers entirely goes inert (`cover`, `sheet`); beside the surface,
+// it covers nothing.
 const portal = injectPortalTarget();
 let restore: (() => void) | null = null;
-let host: HTMLElement | null = null;
-let detach: (() => void) | null = null;
 function release(): void {
   restore?.();
   restore = null;
-  host?.style.removeProperty("--k-side-panel-inset");
-  host?.removeAttribute("data-k-side-panel");
-  detach?.();
-  detach = null;
-  host = null;
 }
 watch(
-  [open, panel, () => props.cover, () => props.sheet, width],
-  ([now, el, cover, sheet, w]) => {
+  [open, panel, () => props.cover, () => props.sheet],
+  ([now, el, cover, sheet]) => {
     // Released as soon as it closes, before its exit ends: the focus goes back at once.
     release();
-    if (!now || !el) return;
-    if (!cover && !sheet) {
-      host = el.parentElement;
-      host?.style.setProperty("--k-side-panel-inset", `${w}px`);
-      host?.setAttribute("data-k-side-panel", "");
-      if (host) detach = attachPanel(host);
-      return;
-    }
+    if (!now || !el || (!cover && !sheet)) return;
     const focused = document.activeElement;
     restore = inertOthers(el, sheet ? "scope" : "siblings", [document.querySelector(portal)]);
     // The focus was in what just went inert: it moves to the panel, not to `body`.
@@ -196,24 +168,6 @@ async function reopen(): Promise<void> {
   open.value = true;
   await nextTick();
   panel.value?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
-}
-
-/**
- * Whether Escape belongs to the focused control: a field being typed in (it may cancel its
- * own input), or a popup it opened (a combobox, a menu button).
- */
-function ownsEscape(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const popup = target.getAttribute("role") === "combobox" || target.hasAttribute("aria-haspopup");
-  if (target.isContentEditable || (popup && target.getAttribute("aria-expanded") === "true"))
-    return true;
-  if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
-  return (
-    target instanceof HTMLInputElement &&
-    !["button", "checkbox", "radio", "submit", "reset", "range", "color", "file"].includes(
-      target.type,
-    )
-  );
 }
 
 function onKeydown(event: KeyboardEvent): void {
@@ -304,7 +258,7 @@ function onPointerup(event: PointerEvent): void {
       <div
         v-if="!props.cover && !props.sheet"
         ref="handle"
-        class="k-side-panel__handle"
+        class="k-panel-handle"
         role="separator"
         tabindex="0"
         aria-orientation="vertical"
@@ -349,10 +303,10 @@ function onPointerup(event: PointerEvent): void {
       </footer>
     </component>
   </Transition>
-  <div v-if="props.rail" ref="strip" class="k-side-panel-rail">
-    <Transition name="k-side-panel-rail">
+  <!-- The strip of the closed panel takes the track of the panel; none while it is open. -->
+  <Transition name="k-side-panel-rail">
+    <div v-if="props.rail && !open" ref="strip" class="k-side-panel-rail">
       <IconButton
-        v-if="!open"
         class="k-side-panel-rail__open"
         icon="chevron-left"
         size="sm"
@@ -360,35 +314,46 @@ function onPointerup(event: PointerEvent): void {
         :label="t('panelOpen')"
         @click="reopen"
       />
-    </Transition>
-  </div>
+    </div>
+  </Transition>
 </template>
 
 <style>
 @layer components {
-  /* Over the end of the surface, at the height of its container. */
+  /* Beside the surface, in the track its host gives it, at the height of its container;
+   * never more than the container less the room of the surface. A gap before it, where the
+   * outer half of the handle lies: the handle covers neither the surface nor its scroll
+   * bar. Its outline is the line of the handle. */
   .k-side-panel {
     --k-side-panel-width: var(--k-size-panel-lg);
-    /* Its own width, published on its container, is no inset inside it. */
-    --k-side-panel-inset: var(--k-space-0);
 
+    position: relative;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
+    inline-size: min(var(--k-side-panel-width), var(--k-size-panel-room-inline));
+    min-block-size: 0;
+    margin-inline-start: var(--k-space-3);
+    color: var(--k-text);
+    background-color: var(--k-surface);
+  }
+
+  /* Closing, it leaves the flow at once: the surface takes its width back without waiting
+   * for the end of the exit, which runs over it. */
+  .k-side-panel-leave-active:not([data-cover], [data-sheet]) {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+  }
+
+  /* Over the whole container (narrow window), out of the flow. */
+  .k-side-panel[data-cover] {
     position: absolute;
     inset-block: 0;
     inset-inline-end: 0;
     z-index: var(--k-z-sticky);
-    display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
-    grid-template-columns: minmax(0, 1fr);
-    inline-size: min(var(--k-side-panel-width), 100%);
-    color: var(--k-text);
-    background-color: var(--k-surface);
-    border-inline-start: var(--k-border-width) solid var(--k-border-strong);
-    box-shadow: var(--k-shadow-overlay);
-  }
-
-  .k-side-panel[data-cover] {
     inline-size: 100%;
-    border-inline-start: 0;
+    margin-inline-start: 0;
   }
 
   /* A sheet: the whole window, over the frame; its back button at the start. */
@@ -397,8 +362,7 @@ function onPointerup(event: PointerEvent): void {
     inset: 0;
     z-index: var(--k-z-overlay);
     inline-size: 100%;
-    border-inline-start: 0;
-    box-shadow: none;
+    margin-inline-start: 0;
   }
 
   .k-side-panel[data-sheet] > .k-side-panel__tabs > .k-tabs__list {
@@ -416,8 +380,8 @@ function onPointerup(event: PointerEvent): void {
   }
 
   /* Motion (design « Mouvement »): opened or closed by the user (never at the first
-   * render), the panel slides from its edge and fades; the surface under it keeps its
-   * width. Interactive from its first frame, the focus placed at once. Vue's
+   * render), the panel slides from its edge and fades; the surface takes its new width at
+   * once, without animation. Interactive from its first frame, the focus placed at once. Vue's
    * `<Transition>` classes, the one place of a class of state. */
   .k-side-panel-enter-active {
     transition-property: opacity, translate;
@@ -459,30 +423,6 @@ function onPointerup(event: PointerEvent): void {
     translate: calc(var(--k-motion-shift-sm) * -1) 0;
   }
 
-  /* The handle: astride the inline-start edge, a target of 24 px for any pointer (WCAG
-   * 2.5.8), its colour a strip of 8 px in the middle. */
-  .k-side-panel__handle {
-    position: absolute;
-    inset-block: 0;
-    inset-inline-start: calc(var(--k-control-height-sm) / -2);
-    z-index: var(--k-z-sticky);
-    inline-size: var(--k-control-height-sm);
-    padding-inline: calc((var(--k-control-height-sm) - var(--k-space-2)) / 2);
-    cursor: col-resize;
-    touch-action: none;
-    background-clip: content-box;
-  }
-
-  .k-side-panel__handle:hover,
-  .k-side-panel__handle:focus-visible {
-    background-color: var(--k-accent);
-  }
-
-  /* The ring around the coloured strip, not the whole target: no ring over the panel. */
-  .k-side-panel__handle:focus-visible {
-    outline-offset: calc((var(--k-space-2) - var(--k-control-height-sm)) / 2);
-  }
-
   .k-side-panel__tabs {
     grid-template-rows: auto minmax(0, 1fr);
     gap: 0;
@@ -494,8 +434,10 @@ function onPointerup(event: PointerEvent): void {
     padding-inline: var(--k-space-2) var(--k-space-8);
   }
 
-  /* Resizable, the width menu comes before it. */
+  /* Resizable, the width menu comes before it; the first tab clear of the inner half of
+   * the handle. */
   .k-side-panel:not([data-cover], [data-sheet]) > .k-side-panel__tabs > .k-tabs__list {
+    padding-inline-start: var(--k-space-3);
     padding-inline-end: calc(
       var(--k-control-height-sm) * 2 + var(--k-space-1) + var(--k-space-2) * 2
     );

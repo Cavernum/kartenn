@@ -5,6 +5,8 @@
 import { createCommentVNode, createSSRApp, h, type Component } from "vue";
 import { renderToString } from "vue/server-renderer";
 import { describe, expect, it } from "vitest";
+import BottomPanel from "../src/components/BottomPanel/BottomPanel.vue";
+import { heightPresets } from "../src/components/BottomPanel/bottomPanel.ts";
 import Button from "../src/components/Button/Button.vue";
 import CommitForm from "../src/components/CommitForm/CommitForm.vue";
 import DataGrid from "../src/components/DataGrid/DataGrid.vue";
@@ -12,7 +14,6 @@ import { nextSort, type GridColumn } from "../src/components/DataGrid/grid.ts";
 import DraftCounter from "../src/components/DraftCounter/DraftCounter.vue";
 import IconButton from "../src/components/IconButton/IconButton.vue";
 import { moveInGrid } from "../src/components/internal/gridKeys.ts";
-import { coveredInset } from "../src/components/internal/panelInset.ts";
 import MatrixGrid from "../src/components/MatrixGrid/MatrixGrid.vue";
 import SidePanel from "../src/components/SidePanel/SidePanel.vue";
 import { widthPresets } from "../src/components/SidePanel/sidePanel.ts";
@@ -125,10 +126,19 @@ describe("SidePanel", () => {
     // Its name says the action: no `aria-expanded` beside it.
     expect(html).toContain('aria-label="Ouvrir le panneau"');
     expect(html).not.toContain("aria-expanded");
+    // Open, the panel takes the track of the strip: no strip beside it.
     const open = await render(SidePanel, { label: "Panneau", tabs: [], rail: true });
     expect(open).toContain("<aside");
-    expect(open).toContain('class="k-side-panel-rail"');
+    expect(open).not.toContain('class="k-side-panel-rail"');
     expect(open).not.toContain("Ouvrir le panneau");
+  });
+
+  it("beside the surface, its handle is the thin line of its outline", async () => {
+    const html = await render(SidePanel, { label: "Panneau", tabs: [] });
+    const handle = /<div[^>]*role="separator"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(handle).toContain('class="k-panel-handle"');
+    expect(handle).toContain('aria-orientation="vertical"');
+    expect(handle).toContain('tabindex="0"');
   });
 
   it("covering a narrow window, has no handle", async () => {
@@ -159,35 +169,50 @@ describe("SidePanel", () => {
   });
 });
 
-describe("a grid under the panel fits within what stays visible", () => {
-  const box = { left: 100, right: 900 };
+describe("BottomPanel (020, « Panneau du bas »)", () => {
+  const tabs = [
+    { value: "detail", label: "Détail" },
+    { value: "history", label: "Historique" },
+  ];
 
-  it("gives up the part of its box the panel covers at its end", () => {
-    expect(coveredInset(box, { left: 600, right: 1020 })).toBe(300);
-    // Right to left, the panel is at the left.
-    expect(coveredInset(box, { left: 0, right: 420 })).toBe(320);
+  it("is a named complementary region with tabs, a horizontal handle and a height menu", async () => {
+    const html = await render(BottomPanel, { label: "Détail de l'objet", tabs });
+    expect(html).toMatch(/^<aside[^>]*aria-label="Détail de l&#39;objet"/);
+    expect(html).toContain('role="tablist"');
+    const handle = /<div[^>]*role="separator"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(handle).toContain('class="k-panel-handle"');
+    expect(handle).toContain('aria-orientation="horizontal"');
+    expect(handle).toContain('aria-valuenow="320"');
+    expect(handle).toContain('aria-valuemin="160"');
+    expect(handle).toContain('aria-valuemax="640"');
+    const trigger = /<button[^>]*aria-label="Hauteur du panneau"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(trigger).toContain('aria-haspopup="menu"');
+    // After the tabs, before the close button.
+    expect(html.indexOf("Hauteur du panneau")).toBeGreaterThan(html.indexOf('role="tablist"'));
+    expect(html.indexOf("Hauteur du panneau")).toBeLessThan(html.indexOf("Fermer le panneau"));
   });
 
-  it("gives up nothing when it ends before the panel, or when the panel covers it all", () => {
-    expect(coveredInset(box, { left: 950, right: 1370 })).toBe(0);
-    expect(coveredInset(box, { left: -400, right: 20 })).toBe(0);
-    // No visible part to fit in: it keeps its layout.
-    expect(coveredInset(box, { left: 0, right: 1420 })).toBe(0);
+  it("closed, leaves nothing", async () => {
+    const html = await render(BottomPanel, { label: "Panneau", tabs, open: false });
+    expect(html.replace(/<!--[^>]*-->/g, "")).toBe("");
   });
 
-  it("marks the root of every grid, its frame or the matrix itself", async () => {
-    const columns: GridColumn[] = [{ id: "prefix", label: "Préfixe" }];
-    const axis = [{ id: "a", label: "A" }];
-    const grids = [
-      await render(DataGrid, { label: "Préfixes", columns, rows: [], rowKey: "prefix" }),
-      await render(TreeGrid, { label: "Arbre", treeLabel: "Préfixe", nodes: [] }),
-      await render(MatrixGrid, { label: "Matrice", corner: "→", rows: axis, columns: axis }),
-    ];
-    expect(grids.map((html) => /^<div[^>]*data-k-panel-fit="(\w+)"/.exec(html)?.[1])).toEqual([
-      "padding",
-      "padding",
-      "margin",
+  it("as a sheet, is a modal dialog with « Retour » first, without handle nor menu", async () => {
+    const html = await render(BottomPanel, { label: "Panneau", tabs, sheet: true });
+    expect(html).toMatch(/^<div[^>]*role="dialog"[^>]*aria-modal="true"/);
+    expect(html.indexOf("Retour")).toBeLessThan(html.indexOf('role="tablist"'));
+    expect(html).not.toContain('role="separator"');
+    expect(html).not.toContain("Hauteur du panneau");
+    expect(html).not.toContain("Fermer le panneau");
+  });
+
+  it("offers the bounds and the standard height, the standard one within the bounds", () => {
+    expect(heightPresets(160, 640)).toEqual([
+      { id: "low", height: 160 },
+      { id: "standard", height: 320 },
+      { id: "high", height: 640 },
     ]);
+    expect(heightPresets(400, 600).map((p) => p.height)).toEqual([400, 400, 600]);
   });
 });
 

@@ -19,6 +19,9 @@
     --k-bg: #f3f5f9;
     --k-surface: #ffffff;
     --k-surface-sunken: #f1f4f8;
+    /* A layer laid over the page (a picker, a popover): its own background, set apart from
+     * the surface in both modes (relecture du 2026-10-26, E6). */
+    --k-surface-raised: #f5f9fe;
     --k-sidebar-bg: #ffffff;
     --k-sidebar-fg: #4b5668;
     --k-sidebar-active-bg: #e3edf9;
@@ -178,6 +181,12 @@
     --k-size-tile-min: clamp(200px, 22vw, 280px);
     --k-size-target-coarse: 44px;
     --k-size-viewport: 100vh;
+    /* The most a panel beside the surface takes of its container (`SidePanel` in width,
+     * `BottomPanel` in height; « tout s'adapte », 2026-10-26): the container less room
+     * kept for the surface and the gap before the panel. Resolved where it is used (the
+     * nearest container of the axis). */
+    --k-size-panel-room-inline: calc(100cqi - var(--k-size-panel-md) - var(--k-space-3));
+    --k-size-panel-room-block: calc(100cqb - var(--k-size-panel-sm) - var(--k-space-3));
 
     /* Motion (REQ-020-11) */
     --k-duration-instant: 0ms;
@@ -208,6 +217,7 @@
       --k-bg: #0d1219;
       --k-surface: #131a24;
       --k-surface-sunken: #18202b;
+      --k-surface-raised: #1d2735;
       --k-sidebar-bg: #0a0e14;
       --k-sidebar-fg: #8f9cb0;
       --k-sidebar-active-bg: #18212e;
@@ -248,6 +258,7 @@
     --k-bg: #0d1219;
     --k-surface: #131a24;
     --k-surface-sunken: #18202b;
+    --k-surface-raised: #1d2735;
     --k-sidebar-bg: #0a0e14;
     --k-sidebar-fg: #8f9cb0;
     --k-sidebar-active-bg: #18212e;

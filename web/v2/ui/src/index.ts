@@ -63,6 +63,7 @@ export { default as Dialog } from "./components/Dialog/Dialog.vue";
 export { default as AlertDialog } from "./components/AlertDialog/AlertDialog.vue";
 export { default as Drawer } from "./components/Drawer/Drawer.vue";
 export { default as SidePanel } from "./components/SidePanel/SidePanel.vue";
+export { default as BottomPanel } from "./components/BottomPanel/BottomPanel.vue";
 export { default as CommitForm } from "./components/CommitForm/CommitForm.vue";
 export { default as SplitButton } from "./components/SplitButton/SplitButton.vue";
 export type { SplitAction } from "./components/SplitButton/split.ts";
