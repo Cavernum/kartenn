@@ -243,11 +243,13 @@ function onKeydown(event: KeyboardEvent): void {
 
 <style>
 @layer components {
-  /* One grid: the column of row headers, then one track per column of the matrix. */
+  /* One grid: the column of row headers, as wide as its longest label (it sticks: no wider,
+   * a narrow matrix keeps room for its cells; design « Adaptation à la largeur »), then
+   * one track per column of the matrix. */
   .k-matrix {
     display: grid;
     grid-template-columns:
-      minmax(var(--k-size-col-md), max-content)
+      max-content
       repeat(var(--k-matrix-count), minmax(max-content, 1fr));
     align-content: start;
     min-inline-size: 0;
