@@ -45,5 +45,14 @@ const modified = computed(() => hasModifier(props.keys));
     border: var(--k-border-width) solid var(--k-border-strong);
     border-radius: var(--k-radius-sm);
   }
+
+  /* The shortcut shown beside a control (hidden from its name) is for a keyboard: gone
+   * where the only pointer is a finger and nothing hovers. In a sentence of help (not
+   * hidden), it stays. */
+  @media (hover: none) and (pointer: coarse) {
+    .k-kbd[aria-hidden="true"] {
+      display: none;
+    }
+  }
 }
 </style>

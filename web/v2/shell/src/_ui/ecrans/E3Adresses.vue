@@ -248,7 +248,7 @@ const bulk: MenuItem[] = [
       <template #footer>
         <span class="k-num">8 affichées sur 1 284</span>
         <Cluster gap="3">
-          <span>
+          <span class="k-keyboard-hint">
             <Kbd :keys="['Enter']" /> vers le brouillon ·
             <Kbd :keys="['Control', 'Enter']" /> appliquer avec motif ·
             <Kbd :keys="['Escape']" /> annuler
