@@ -17,7 +17,12 @@
 // largeur »), as `DataGrid`: the root is a container, the tree column sticks, the columns
 // of priority 2 and 3 hide under a container `md` and `lg`, a column chooser shows them
 // again; with no hover (touch), the « + » shows on the selected row only.
-import { computed, ref, useAttrs } from "vue";
+// Keyboard (relecture du 2026-10-26, the part of APG Treegrid the tree column needs): one
+// tab stop on the node cell of a row; Up and Down, Home and End move between rows; Right
+// opens a closed node, or goes to the first child of an open one; Left closes an open node,
+// or goes to the parent. Enter or F2 moves into the « + » of the row, Escape or F2 back.
+// The open nodes are the model `expanded`. Columns, editing and moves remain to come.
+import { computed, nextTick, ref, useAttrs, watch } from "vue";
 import { t } from "../../i18n.ts";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import {
@@ -41,7 +46,6 @@ const props = withDefaults(
     treeLabel: string;
     nodes: TreeNode[];
     columns?: GridColumn[];
-    expanded?: string[];
     selected?: string | undefined;
     nodeState?: ((node: TreeNode) => TreeNodeState | undefined) | undefined;
     /** The name of the « + » of a node (« Ajouter dans 192.0.2.0/24 »); none, no button. */
@@ -49,16 +53,17 @@ const props = withDefaults(
   }>(),
   {
     columns: () => [],
-    expanded: () => [],
     selected: undefined,
     nodeState: undefined,
     addLabel: undefined,
   },
 );
 const emit = defineEmits<{ add: [id: string] }>();
+/** The ids of the open nodes. */
+const expanded = defineModel<string[]>("expanded", { default: () => [] });
 
 const rows = computed(() => {
-  const list = flatten(props.nodes, new Set(props.expanded));
+  const list = flatten(props.nodes, new Set(expanded.value));
   if (import.meta.env.MODE !== "production") {
     const wrong = misplaced(list);
     if (wrong.length) throw new Error(`TreeGrid: rows under a parent not theirs: ${wrong}`);
@@ -88,7 +93,71 @@ const priority = (column: GridColumn) => {
 const colIndex = (column: GridColumn) => all.value.indexOf(column) + 1;
 const depth = (row: TreeRow) => ({ "--k-tree-depth": String(row.level - 1) });
 const hasChildren = (node: TreeNode) => Boolean(node.children?.length || node.hasChildren);
-const isExpanded = (node: TreeNode) => props.expanded.includes(node.id);
+const isExpanded = (node: TreeNode) => expanded.value.includes(node.id);
+
+/** The row whose node cell holds the roving focus: the selected one, else the first. */
+const focusRow = ref<string | undefined>(undefined);
+const stop = computed(() => {
+  const ids = rows.value.map((row) => row.node.id);
+  if (focusRow.value && ids.includes(focusRow.value)) return focusRow.value;
+  return props.selected && ids.includes(props.selected) ? props.selected : ids[0];
+});
+// A node closed above the focus: the stop goes back to a row still shown.
+watch(rows, () => {
+  if (focusRow.value && !rows.value.some((row) => row.node.id === focusRow.value))
+    focusRow.value = undefined;
+});
+
+async function moveTo(id: string): Promise<void> {
+  focusRow.value = id;
+  await nextTick();
+  grid.value
+    ?.querySelector<HTMLElement>(`[role="row"][data-node="${CSS.escape(id)}"] > .k-tree-grid__node`)
+    ?.focus();
+}
+
+function onKeydown(event: KeyboardEvent): void {
+  const target = event.target as HTMLElement;
+  const cell = target.closest<HTMLElement>(".k-tree-grid__node");
+  if (!cell) return;
+  // The « + » keeps its keys; Escape or F2 gives the focus back to its cell.
+  if (cell !== target) {
+    if (event.key === "Escape" || event.key === "F2") {
+      event.preventDefault();
+      cell.focus();
+    }
+    return;
+  }
+  const list = rows.value;
+  const at = list.findIndex((row) => row.node.id === cell.parentElement?.dataset.node);
+  const row = list[at];
+  if (!row || event.altKey) return;
+  const rtl = getComputedStyle(cell).direction === "rtl";
+  const open = rtl ? "ArrowLeft" : "ArrowRight";
+  const close = rtl ? "ArrowRight" : "ArrowLeft";
+  let next: string | undefined;
+  if (event.key === "ArrowDown") next = list[Math.min(list.length - 1, at + 1)]?.node.id;
+  else if (event.key === "ArrowUp") next = list[Math.max(0, at - 1)]?.node.id;
+  else if (event.key === "Home") next = list[0]?.node.id;
+  else if (event.key === "End") next = list.at(-1)?.node.id;
+  else if (event.key === open && hasChildren(row.node)) {
+    if (!isExpanded(row.node)) expanded.value = [...expanded.value, row.node.id];
+    else if (list[at + 1]?.parent === row.node.id) next = list[at + 1]!.node.id;
+  } else if (event.key === close) {
+    if (hasChildren(row.node) && isExpanded(row.node))
+      expanded.value = expanded.value.filter((id) => id !== row.node.id);
+    else if (row.parent) next = row.parent;
+  } else if (event.key === "Enter" || event.key === "F2") {
+    cell.querySelector<HTMLElement>(".k-tree-grid__add")?.focus();
+  } else return;
+  event.preventDefault();
+  if (next) void moveTo(next);
+}
+
+function onFocusin(event: FocusEvent): void {
+  const id = (event.target as HTMLElement).closest<HTMLElement>("[data-node]")?.dataset.node;
+  if (id && id !== focusRow.value) focusRow.value = id;
+}
 
 function stateOf(node: TreeNode): string | undefined {
   const state = props.nodeState?.(node);
@@ -125,6 +194,8 @@ const word = (node: TreeNode) => {
       :aria-label="props.label"
       :aria-colcount="props.columns.length + 1"
       :style="template"
+      @keydown="onKeydown"
+      @focusin="onFocusin"
     >
       <div role="rowgroup" class="k-tree-grid__head">
         <div role="row" class="k-tree-grid__row">
@@ -146,10 +217,11 @@ const word = (node: TreeNode) => {
         </div>
       </div>
       <div role="rowgroup">
-        <template v-for="(row, r) in rows" :key="row.node.id">
+        <template v-for="row in rows" :key="row.node.id">
           <div
             role="row"
             class="k-tree-grid__row"
+            :data-node="row.node.id"
             :aria-level="row.level"
             :aria-setsize="row.setSize"
             :aria-posinset="row.posInSet"
@@ -175,7 +247,7 @@ const word = (node: TreeNode) => {
               role="gridcell"
               class="k-tree-grid__cell k-tree-grid__node"
               aria-colindex="1"
-              :tabindex="r === 0 ? 0 : -1"
+              :tabindex="row.node.id === stop ? 0 : -1"
               :style="depth(row)"
             >
               <Icon

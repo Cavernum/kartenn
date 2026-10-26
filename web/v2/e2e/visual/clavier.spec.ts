@@ -510,6 +510,42 @@ test.describe("DataGrid (Grid)", () => {
   });
 });
 
+test.describe("TreeGrid (Treegrid)", () => {
+  test("Up, Down; Right opens or goes in, Left closes or goes up; Enter to the « + »", async ({
+    page,
+  }) => {
+    await state(page, "TreeGrid", "add");
+    const tree = page.getByRole("treegrid");
+    const stop = tree.locator("[tabindex='0']");
+    await expect(stop).toHaveCount(1);
+    const row = (name: string) => tree.getByRole("row", { name: new RegExp(name) });
+    const node = (name: string) => row(name).locator(".k-tree-grid__node");
+    // The stop starts on the selected row.
+    await stop.focus();
+    await expect(node("Supervision")).toBeFocused();
+    await page.keyboard.press("ArrowUp");
+    await expect(node("Bases")).toBeFocused();
+    await page.keyboard.press("ArrowLeft");
+    await expect(node("Serveurs")).toBeFocused();
+    await page.keyboard.press("ArrowLeft");
+    await expect(row("Serveurs")).toHaveAttribute("aria-expanded", "false");
+    await expect(row("Bases")).toHaveCount(0);
+    await page.keyboard.press("ArrowRight");
+    await expect(row("Serveurs")).toHaveAttribute("aria-expanded", "true");
+    await page.keyboard.press("ArrowRight");
+    await expect(node("Bases")).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("button", { name: "Ajouter dans 192.0.2.0/26" })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(node("Bases")).toBeFocused();
+    await page.keyboard.press("End");
+    await expect(node("Invités")).toBeFocused();
+    await page.keyboard.press("Home");
+    await expect(node("Centre de données nord")).toBeFocused();
+    await expect(stop).toHaveCount(1);
+  });
+});
+
 test.describe("ExpandableGrid (Grid + Dialog (Modal))", () => {
   test("the button opens the whole table in a dialog; Escape gives the focus back", async ({
     page,
