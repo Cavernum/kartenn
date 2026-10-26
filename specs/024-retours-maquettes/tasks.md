@@ -560,6 +560,23 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
       icône de cadenas, option `icon` ajoutée) en tête, code de règle en `CodeBadge` ;
       chaque action garde son infobulle. `groupe-refus` : Modifier et Ajouter un rôle
       manquaient de refus, ajoutés.
+  - Quatrième relecture (2026-10-25, soir). Choix tranchés :
+    - Squelette : une seule règle partagée (`.k-skeleton-fill`, `shared.css`), reflet
+      `infinite` tant que la zone charge ; l'arrêt du SC 2.2.2 passe par le réglage
+      « Mouvement : réduit » et `prefers-reduced-motion` (note `mouvement-interface.md`).
+    - Brouillon de la matrice (E10) : flux regroupés par type de flux de chaque matrice
+      que le brouillon touche, pas seulement Applicatif.
+    - Fiche d'une identité (E7) : groupes de l'IdP de la dernière connexion, sans date
+      (025, Q-025-1 reprise ; 005/K3 amendée).
+    - Panneau par-dessus la page à toutes les largeurs (arbitrage) ; colonne
+      Environnement d'E1 en priorité 2 ; légende de `BarChart` réservée aux lecteurs
+      d'écran (table dans un bloc masqué visuellement).
+    - Adaptation à la largeur (020, « Réalisé (2026-10-26) ») : listes simples empilées
+      sous `sm` (`DataGrid` `stack`), attributs alignés par `subgrid`, feuille du
+      `SidePanel` au catalogue, cibles tactiles de 24 px, infobulle à l'appui, en-têtes de
+      panneau qui passent à la ligne.
+    - Relectures d'interface et d'accessibilité (2026-10-26) : écarts triés, corrigés dans
+      les composants partagés (020, « Réalisé (2026-10-26, relectures) »).
 - [ ] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
   020) — REQ-024-29
 
