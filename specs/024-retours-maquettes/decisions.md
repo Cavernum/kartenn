@@ -23,7 +23,7 @@ Règle permanente de l'utilisateur : rien n'est gardé pour compatibilité avant
 - M5 proposition volontaire : retirée (M7 la rend ordinaire).
 - M6 simulation de toute écriture : `?simulate=true` sur chaque route d'écriture.
 - M7 deux chemins de droits par ressource : `edit` (créer, soumettre), `apply` (valider
-  le changeset d'un autre), `apply_own` (valider le sien) ; amende C1 ; les politiques
+  le changeset d'un autre), `approval.self` (valider le sien) ; amende C1 ; les politiques
   priment.
 - M8 panneaux : un seul panneau à droite, onglets Détail et Brouillon ; compteur du
   brouillon toujours visible, bascule du panneau.
@@ -88,7 +88,7 @@ regroupé (au plus un toutes les 30 s).
 
 ### M5 — Proposition volontaire (retirée)
 Proposée puis retirée le 2026-10-24 : avec M7, un changeset soumis attend toujours une
-validation ; demander un second regard, c'est soumettre sans `apply=own`.
+validation ; demander un second regard, c'est soumettre sans `approval=self`.
 
 ### M6 — Simulation de toute écriture
 Arbitré le 2026-10-24 (`--dry-run` de la CLI). `?simulate=true` est accepté sur chaque
@@ -108,8 +108,9 @@ périmètre des liaisons s'applique comme aujourd'hui) :
   soumettre. Un changeset soumis est **en attente** ; il ne s'applique pas seul.
 - **Application** `<ressource>.apply` : valider (appliquer) ou rejeter le changeset
   **d'un autre** qui touche la ressource.
-- **Application de ses propres changesets** `<ressource>.apply_own` : valider son propre
-  changeset. C'est la permission de l'équipe qui maintient le référentiel ; les autres
+- **Application de ses propres changesets** `<ressource>.approval.self` (anciennement
+  `apply_own`, renommée par la tâche 024-11) : valider son propre changeset. C'est la
+  permission de l'équipe qui maintient le référentiel ; les autres
   équipes (sécurité…) n'ont que `edit` et proposent.
 
 Les trois remplacent `…write`, `…propose` et `core.changeset.approve`, sans
@@ -118,16 +119,16 @@ compatibilité. Un changeset qui touche plusieurs ressources demande le droit su
 et n'applique rien ; la simulation suit les droits de lecture.
 
 Soumettre et valider soi-même s'enchaînent en une requête atomique
-(`POST /v1/changesets?apply=own`, et `POST /v1/drafts/{id}/submission?apply=own`) : une
+(`POST /v1/changesets?approval=self`, et `POST /v1/drafts/{id}/submission?approval=self`) : une
 transaction, deux lignes d'audit (soumission, validation), le changeset marqué
 « appliqué par son auteur » dans l'historique. L'interface en fait l'action par défaut de
-qui détient `apply_own` (M9), avec un motif générique modifiable.
+qui détient `approval.self` (M9), avec un motif générique modifiable.
 
 Les politiques d'approbation priment (arbitré) : un changeset qu'une politique retient
-attend la validation d'un autre que l'auteur, même si l'auteur détient `apply_own` ; pour
+attend la validation d'un autre que l'auteur, même si l'auteur détient `approval.self` ; pour
 que l'équipe réseau n'y soit pas soumise, la politique se cible par auteur
 (REQ-004-40). La notice `changeset.approval.self` reste pour ce cas et pour qui n'a pas
-`apply_own`.
+`approval.self`.
 
 Conséquence : la « proposition volontaire » (M5) n'a plus d'objet, c'est la soumission
 ordinaire.
@@ -145,7 +146,7 @@ la surface en deux (E1, E7, E10) disparaît.
 Arbitré le 2026-10-24. Pied du panneau Brouillon : résultat de la simulation en une
 ligne ; motif en deux champs (résumé sur une ligne, description facultative), à la manière
 d'un formulaire de commit ; bouton scindé dont l'action par défaut suit les droits et la
-simulation (« Appliquer » = soumettre puis valider soi-même, pour qui détient `apply_own`
+simulation (« Appliquer » = soumettre puis valider soi-même, pour qui détient `approval.self`
 et si aucune politique ne retient le changeset ; « Soumettre en revue » sinon) et dont le
 chevron choisit « Appliquer », « Soumettre en revue », « Enregistrer le brouillon ». Une
 action impossible reste visible, grisée, avec son motif (permission manquante ou politique
@@ -222,7 +223,7 @@ Toutes tranchées le 2026-10-24 (Q-024-7 après le banc complet).
 - **Q-024-5** Compteurs « changements récents » → **tous les changesets lisibles**
   (choix peu coûteux, tranché sans question).
 - **Q-024-6** Permissions de propriété → **mêmes trois verbes** (`prop.<clé>.edit`,
-  `prop.<clé>.apply`, `prop.<clé>.apply_own`).
+  `prop.<clé>.apply`, `prop.<clé>.approval.self`).
 - **Q-024-7** `GET /v1/stats` dépasse son budget au banc complet (1,3 s et 7,9 s à froid)
   → **instantané recalculé en arrière-plan** (M18), plutôt que des compteurs matérialisés
   ou approchés.

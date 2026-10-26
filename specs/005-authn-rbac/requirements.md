@@ -219,7 +219,8 @@ Acceptation :
 
 #### REQ-005-16 — Catalogue des permissions
 *Amendée par la 024 (REQ-024-9, 2026-10-24) : actions `read`, `edit`, `apply`,
-`apply_own` (et celles propres aux modules) ; `prop.<clé>.edit|apply|apply_own`.*
+`approval.self` (et celles propres aux modules ; `approval.self`, anciennement `apply_own`,
+compte deux segments, tâche 024-11) ; `prop.<clé>.edit|apply|approval.self`.*
 kartenn doit tenir un catalogue des permissions déclarées par chaque module
 (`<module>.<objet>.<action>`, actions `read`, `write`, `propose`, `approve` ; `prop.<clé>.
 write`, `prop.<clé>.propose` ; `prop.<clé>.read` pour les propriétés sensibles), publié
@@ -273,7 +274,7 @@ Acceptation :
 #### REQ-005-22 — Droits des écritures
 *Amendée par la 024 (REQ-024-10, 11, 2026-10-24) : soumettre exige `….edit` sur tout ce
 que le changeset touche ; l'appliquer exige `….apply` (changeset d'un autre) ou
-`….apply_own` (le sien) sur les mêmes objets et effets.*
+`….approval.self` (le sien) sur les mêmes objets et effets.*
 kartenn doit exiger, pour chaque opération d'un changeset, la permission d'écriture (ou
 de proposition) du type d'objet sur l'objet visé, en plus des droits de propriété déjà
 vérifiés (003) ; l'approbation d'un changeset en attente exige `approve` sur le

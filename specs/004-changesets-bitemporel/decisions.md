@@ -17,8 +17,8 @@ besoins des specs 002 et 003 (différentiel, simulation, approbation, verrous pa
 - **Amendée par la 024 (M7, 2026-10-24)** : tout changeset soumis est en attente ; deux
   chemins de droits par ressource remplacent `write`, `propose` et
   `core.changeset.approve` : `….apply` (appliquer ou rejeter le changeset d'un autre) et
-  `….apply_own` (appliquer le sien, y compris dans la requête qui le soumet,
-  `?apply=own`). L'auto-application devient possible pour qui détient `apply_own` ; une
+  `….approval.self` (appliquer le sien, y compris dans la requête qui le soumet,
+  `?approval=self`). L'auto-application devient possible pour qui détient `approval.self` ; une
   politique d'approbation qui retient un changeset l'interdit toujours à son auteur
   (`changeset.approval.self`). Voir
   [`024/decisions.md`](../024-retours-maquettes/decisions.md) M7.

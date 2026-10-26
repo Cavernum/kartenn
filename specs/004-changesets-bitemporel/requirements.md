@@ -172,7 +172,7 @@ stateDiagram-v2
 
 #### REQ-004-20 — Approbation selon une politique
 *Amendée par la 024 (REQ-024-10, 12, 2026-10-24) : sans politique, un changeset reste aussi
-en attente sauf s'il est soumis avec `?apply=own` par un auteur qui détient `apply_own` ;
+en attente sauf s'il est soumis avec `?approval=self` par un auteur qui détient `approval.self` ;
 une politique qui le retient interdit cette auto-application. Dans l'exemple, le
 changeset de 3 adresses s'applique immédiatement quand son auteur le demande ainsi.*
 Là où un administrateur a configuré une politique d'approbation dont les déclencheurs
@@ -185,8 +185,8 @@ Acceptation :
 
 #### REQ-004-39 — Aucune approbation par défaut
 *Amendée par la 024 (REQ-024-10, 13, 2026-10-24) : tout changeset soumis est en attente ;
-il s'applique dans la même requête quand son auteur le demande (`?apply=own`) et détient
-`apply_own` — aucune politique n'est requise pour cela.*
+il s'applique dans la même requête quand son auteur le demande (`?approval=self`) et détient
+`approval.self` — aucune politique n'est requise pour cela.*
 kartenn doit appliquer immédiatement tout changeset autorisé tant qu'aucune politique
 d'approbation ne le vise ; aucune déclaration de module ne doit pouvoir imposer une
 approbation (C6).
@@ -221,7 +221,7 @@ Acceptation :
 #### REQ-004-42 — Validation d'une proposition
 *Amendée par la 016 (REQ-016-11, 2026-10-21) : opérations de revue jointes par le valideur.*
 *Amendée par la 024 (REQ-024-11, 12, 2026-10-24) : le valideur détient `….apply` sur tout
-ce que le changeset touche, ou en est l'auteur et détient `….apply_own`, sauf quand une
+ce que le changeset touche, ou en est l'auteur et détient `….approval.self`, sauf quand une
 politique le retient ou qu'un module exige sa revue (`changeset.approval.self`).*
 kartenn doit n'accepter la validation d'une proposition que d'une identité qui détient le
 droit d'écriture sur tout ce que la proposition modifie (objets et effets) et qui n'en est
@@ -242,7 +242,7 @@ Acceptation :
 #### REQ-004-21 — Approbateur
 *Amendée par la 024 (REQ-024-9, 11, 12, 2026-10-24 ; amende C1) : `core.changeset.approve`
 disparaît ; l'approbateur détient `….apply` sur tout ce que le changeset touche. L'auteur
-applique son propre changeset sous `….apply_own`, jamais quand une politique le retient
+applique son propre changeset sous `….approval.self`, jamais quand une politique le retient
 ([024/M7](../024-retours-maquettes/decisions.md#m7--deux-chemins-de-droits--édition-et-application)).*
 kartenn doit n'accepter l'approbation que d'une identité qui détient la permission
 d'approbation sur tout le périmètre du changeset et qui n'en est pas l'auteur (C1).

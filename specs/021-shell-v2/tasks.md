@@ -114,7 +114,7 @@ aucun en parallèle sur `@kartenn/ui` (020).
     (tâche 14). `draft.add` inchangé. Vitest : `test/write.test.ts`.
   - amendé par la 024 (2026-10-24) : les brouillons passent au serveur ; `sdk.drafts`,
     `sdk.stats` et la fin du stockage IndexedDB sont décrits au design § « Écritures » et
-    se font avec la tâche 14 ; `write.quick` envoie `?apply=own`.
+    se font avec la tâche 14 ; `write.quick` envoie `?approval=self`.
   - fait le 2026-10-24 (partie SDK de la 024) : `web/v2/sdk/src/data/drafts.ts`, singleton
     `drafts` de `src/instance.ts`, API `sdk.drafts` et `sdk.stats`. Lectures : liste et
     brouillon par chemin (`keys.list('/v1/drafts')`, `keys.list('/v1/drafts/{id}', …,
@@ -126,8 +126,8 @@ aucun en parallèle sur `@kartenn/ui` (020).
     l'onglet. `simulate(brouillon, période)` : requête `['simulate', 'draft', id, version,
     empreinte]` dont la fonction attend 400 ms sous le signal d'annulation — la version
     suivante (autre clé) abandonne l'attente de la précédente, d'où le débrayage sans
-    minuterie du shell. `submit(id, { applyOwn, period, idempotencyKey })` :
-    `?apply=own` si demandé, `If-Match` si l'`ETag` est connu, 409 retenté cinq fois ;
+    minuterie du shell. `submit(id, { approvalSelf, period, idempotencyKey })` :
+    `?approval=self` si demandé, `If-Match` si l'`ETag` est connu, 409 retenté cinq fois ;
     201 et 202 → brouillon oublié (le serveur l'a supprimé), 422 → il reste. Brouillon
     actif : identifiant sous `kartenn.draft.active` en `sessionStorage` (`active`,
     `setActive`, `onActive`), rien sans `sessionStorage`. `draft.add` (API des plugins)
@@ -137,8 +137,8 @@ aucun en parallèle sur `@kartenn/ui` (020).
     Événements : `draft` et `stats` ajoutés au flux (identité `draft:<id>:<version>`,
     `stats` sans identité) ; `draft` → brouillon relu si sa version diffère, liste relue ;
     `deleted` → brouillon oublié et signal `onGone({ id, active })` ; `stats` → `/v1/stats`
-    invalidé. `write.quick` envoie `?apply=own` ; l'issue `proposed` porte `reason`
-    (`changeset.apply_own.missing`, `changeset.approval.self`). Choix notés : une issue
+    invalidé. `write.quick` envoie `?approval=self` ; l'issue `proposed` porte `reason`
+    (`changeset.approval.self.missing`, `changeset.approval.self`). Choix notés : une issue
     `saved` (le brouillon et son `ETag`) et `removed` pour les écritures de brouillon ;
     titre d'un brouillon créé par `draft.add` = minute de création, remplaçable par le
     shell (`setDraftTitle` de `@kartenn/sdk/host`) ; un brouillon que l'onglet supprime
@@ -349,7 +349,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (génération de `dated.ts`, à étendre)
   - dépend de : 10 ; 020-19, 020-25, 020-26
 - [ ] 12. Édition en place et modification rapide : éditabilité (droits, présent,
-  contrat), cellule → brouillon, Ctrl+Entrée → `write.quick` (`?apply=own`) avec motif
+  contrat), cellule → brouillon, Ctrl+Entrée → `write.quick` (`?approval=self`) avec motif
   en ligne, rendu de 202, 412 (fusion), 422, 403 ; création (`c`) et modification (`e`)
   par le panneau d'édition de la sorte (`EditPanel`, 024) ; droits manquants au survol —
   REQ-021-15, 16, 36, 37 — verify : parcours `edit` réécrit : lecteur sans éditeur ; brouillon à 1 ; 202 →

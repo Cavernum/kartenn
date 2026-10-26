@@ -27,7 +27,7 @@ amendé) ; 006/H19 ; 007/REQ-007-26, 27 (amendées) ; 020, 021 (révisées) ; 02
 - **Soumission** : création d'un changeset à partir d'opérations ; le changeset soumis
   est en attente.
 - **Application** : validation d'un changeset en attente, qui l'applique (REQ-004-22).
-- **Auto-application** : application de son propre changeset, sous `apply_own`.
+- **Auto-application** : application de son propre changeset, sous `approval.self`.
 - Conventions EARS : comme dans
   [`002/requirements.md`](../002-noyau-adressage/requirements.md#conventions).
 
@@ -90,9 +90,10 @@ REQ-021-11]
 #### REQ-024-9 — Permissions d'édition et d'application
 kartenn doit offrir, pour chaque ressource qui avait `…write` et `…propose`, trois
 permissions : `….edit` (créer et soumettre un changeset qui la touche), `….apply`
-(appliquer ou rejeter le changeset d'un autre qui la touche), `….apply_own` (appliquer
-son propre changeset) ; `…write`, `…propose` et `core.changeset.approve` disparaissent,
-sans compatibilité ; les rôles existants sont migrés (`write` → `edit` + `apply_own`,
+(appliquer ou rejeter le changeset d'un autre qui la touche), `….approval.self` (appliquer
+son propre changeset, anciennement `apply_own`, tâche 024-11) ; `…write`, `…propose` et
+`core.changeset.approve` disparaissent,
+sans compatibilité ; les rôles existants sont migrés (`write` → `edit` + `approval.self`,
 `propose` → `edit`, `approve` → `apply`) par un changeset système ; une permission d'une
 autre action (`core.role.admin`, `policy.rule.admin`, `flow.request`, `flow.review`) vaut
 les trois verbes pour ses objets. [M7, amende 005/K12, 018/R2, Q-024-6]
@@ -105,16 +106,16 @@ s'applique sans application explicite. [M7, amende REQ-004-41]
 #### REQ-024-11 — Application
 kartenn doit appliquer un changeset en attente (`POST …/{id}/validation`) quand celui qui
 valide détient `….apply` sur tout ce qu'il touche et n'en est pas l'auteur, ou en est
-l'auteur et détient `….apply_own` sur tout ce qu'il touche ; la revalidation de
+l'auteur et détient `….approval.self` sur tout ce qu'il touche ; la revalidation de
 REQ-004-22 s'applique. [M7, amende C1, REQ-004-21, 42]
 
 #### REQ-024-12 — Les politiques priment
 Quand une politique d'approbation retient un changeset (REQ-004-20, 40), kartenn doit
 refuser son application par son auteur (`changeset.approval.self`), même sous
-`….apply_own`. [M7]
+`….approval.self`. [M7]
 
 #### REQ-024-13 — Soumettre et appliquer en une requête
-`?apply=own` sur toute route d'écriture qui crée un changeset (`POST /v1/changesets`,
+`?approval=self` sur toute route d'écriture qui crée un changeset (`POST /v1/changesets`,
 `POST /v1/drafts/{id}/submission`, écritures directes d'un objet) doit
 soumettre puis appliquer le changeset dans une seule transaction, avec deux événements
 d'audit (soumission, application) ; quand l'application est refusée (droit absent,

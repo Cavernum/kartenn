@@ -141,7 +141,7 @@ Brouillon, ou le ferme s'il y est déjà. L'onglet Brouillon montre les opérati
 simulation continue (différentiel, violations avec leurs codes, cascades) ; son pied
 porte le résultat de la simulation, le motif en deux champs (résumé, description
 facultative) et un bouton scindé : action par défaut selon les droits et la simulation
-(« Appliquer » pour qui détient `apply_own` quand aucune politique ne retient le
+(« Appliquer » pour qui détient `approval.self` quand aucune politique ne retient le
 changeset, « Soumettre en revue » sinon), chevron pour « Appliquer », « Soumettre en
 revue », « Enregistrer le brouillon » ; une action impossible reste visible, grisée, avec
 son motif ; Ctrl+Entrée lance l'action choisie ; « Appliquer » préremplit un motif
@@ -150,8 +150,8 @@ générique modifiable. [X6, 024/REQ-024-19, 20, M8, M9]
 Acceptation :
 - Ajouter une opération depuis une table met à jour le compteur sans recharger la vue ;
   le compteur ouvre puis referme le panneau ; Échap le ferme et rend le focus.
-- Avec `apply_own` et sans politique qui retient : l'action par défaut est « Appliquer »
-  et le changeset sort appliqué ; sans `apply_own` : « Appliquer » grisé, la permission
+- Avec `approval.self` et sans politique qui retient : l'action par défaut est « Appliquer »
+  et le changeset sort appliqué ; sans `approval.self` : « Appliquer » grisé, la permission
   manquante nommée, l'action par défaut est « Soumettre en revue ».
 
 ### B. Raccourcis
@@ -251,7 +251,7 @@ l'utilisateur détient `X.edit` du type et `prop.<clé>.edit` de la propriété 
 verbes de la 024) et que la
 vue est au présent ; par défaut, une édition ajoute une **opération au brouillon** et
 marque la cellule « en brouillon » ; « Appliquer maintenant » (Ctrl+Entrée) passe par la
-modification rapide (REQ-021-16, écriture avec `?apply=own`), motif demandé en ligne et
+modification rapide (REQ-021-16, écriture avec `?approval=self`), motif demandé en ligne et
 prérempli d'un motif générique. Le brouillon s'applique **en
 lot, avec un seul motif**. Une cellule non éditable ne doit pas offrir l'éditeur et dit
 pourquoi. [X15, retour du 2026-10-22, REQ-020-19, REQ-007-25 amendée]
@@ -260,7 +260,7 @@ Acceptation :
 - Lecteur : aucune cellule éditable ; auteur : édition d'un nom de préfixe au clavier
   seul → compteur du brouillon à 1, cellule marquée.
 - Ctrl+Entrée avec motif → 200 : valeur appliquée ; 202 : cellule « en revue », avec le
-  motif de la réponse (`changeset.apply_own.missing`, `changeset.approval.self`).
+  motif de la réponse (`changeset.approval.self.missing`, `changeset.approval.self`).
 
 #### REQ-021-16 — Modification rapide, optimisme et réponses
 Une modification rapide au présent doit mettre l'affichage à jour avant la réponse
@@ -293,8 +293,8 @@ au focus la permission manquante (nom servi, spec 018) ; aucun encart permanent 
 nécessaires. La notice `changeset.approval.self` reste. [024/REQ-024-25, M14]
 
 Acceptation :
-- Sans `core.prefix.apply_own`, « Appliquer » est grisé et son infobulle, atteinte au
-  clavier, dit « Il faut `core.prefix.apply_own` ».
+- Sans `core.prefix.approval.self`, « Appliquer » est grisé et son infobulle, atteinte au
+  clavier, dit « Il faut `core.prefix.approval.self` ».
 
 #### REQ-021-17 — Arbres à parent déduit
 Dans l'arbre des préfixes, et dans tout arbre dont le parent découle des données
