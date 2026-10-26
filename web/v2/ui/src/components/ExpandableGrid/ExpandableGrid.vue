@@ -61,12 +61,21 @@ const count = computed(() => {
   const word = new Intl.PluralRules(currentLocale()).select(n) === "one" ? "row" : "rows";
   return `${new Intl.NumberFormat(currentLocale()).format(n)} ${t(word)}`;
 });
+/**
+ * Above the compact grid: « 3 sur 10 lignes » when it holds more than it shows, so that
+ * it never looks finished (relecture du 2026-10-26); the dialog says the whole count.
+ */
+const shownCount = computed(() =>
+  props.rows.length > props.visibleRows
+    ? `${new Intl.NumberFormat(currentLocale()).format(props.visibleRows)} ${t("of")} ${count.value}`
+    : count.value,
+);
 </script>
 
 <template>
   <div class="k-expandable-grid" :style="height">
     <div class="k-expandable-grid__bar">
-      <span class="k-expandable-grid__count">{{ count }}</span>
+      <span class="k-expandable-grid__count">{{ shownCount }}</span>
       <Dialog v-model:open="expanded" :title="props.label" :description="count" size="lg" contained>
         <template #trigger>
           <DialogTrigger as-child>

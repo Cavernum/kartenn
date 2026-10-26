@@ -173,7 +173,8 @@ describe("ExpandableGrid (revue du 2026-10-25)", () => {
 
   it("shows the row count, a few rows high, and a named button that opens a dialog", async () => {
     const html = await render(ExpandableGrid, { ...base, visibleRows: 4 });
-    expect(text(html)).toContain("25 lignes");
+    // More rows than it shows: « 4 sur 25 lignes », never a table that looks finished.
+    expect(text(html)).toContain("4 sur 25 lignes");
     expect(html).toContain("--k-expandable-grid-rows:4");
     expect(html).toMatch(/<button[^>]*aria-haspopup="dialog"[^>]*aria-expanded="false"/);
     expect(html).toContain('aria-label="Agrandir : Flux non conformes"');
