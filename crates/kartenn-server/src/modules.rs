@@ -271,9 +271,6 @@ mod tests {
                     .iter()
                     .any(|e| relative == std::path::Path::new(e))
                     || relative.starts_with("crates/kartenn-store-pg/migrations")
-                    // Task 024-11: the shell v2 takes `approval.self` in its own change;
-                    // remove this exception with it.
-                    || relative.starts_with("web/v2")
                 {
                     return;
                 }
