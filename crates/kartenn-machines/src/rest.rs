@@ -33,7 +33,7 @@ use utoipa::openapi::{RefOr, Schema};
 use uuid::Uuid;
 
 use crate::mac::Mac;
-use crate::module::{CLUSTER, INTERFACE, MACHINE};
+use crate::module::{CLUSTER, INTERFACE, INTERFACE_MEDIA, MACHINE};
 
 /// The members a creation of a cluster may carry.
 const CLUSTER_CREATE: &[&str] = &["slug", "owner", "site"];
@@ -881,9 +881,36 @@ async fn cluster_machines(
     machines_page(&api, &principal, &context, &headers, &page, &path, &filter).await
 }
 
+/// The condition that the interface `x` has the medium `param` (a key of
+/// `machines.interface_media`) at (`$1`, `$2`): its own assignment, the property being not
+/// inherited (REQ-009-26), correlated on the interface to keep to the indexes.
+fn media_is(param: &str) -> String {
+    format!(
+        "EXISTS (SELECT 1 FROM {} pa
+                   CROSS JOIN LATERAL {} d
+                   CROSS JOIN LATERAL {} e)",
+        dated_where(
+            "public.property_assignment",
+            "property_id, v_uuid",
+            "object_id = x.id AND kind = 'value'"
+        ),
+        dated_where(
+            "public.property_declaration",
+            "id",
+            &format!("id = pa.property_id AND key = '{INTERFACE_MEDIA}'")
+        ),
+        dated_where(
+            "public.property_enum_value",
+            "id",
+            &format!("id = pa.v_uuid AND key = {param}")
+        ),
+    )
+}
+
 /// `GET`/`QUERY /v1/interfaces`: by machine then name, filtered by `machine`, `name`,
 /// `mac`, `address` (the interface that holds it at the date) and `vlan` (access, native
-/// or tagged), in conjunction (REQ-009-15).
+/// or tagged) and `media` (the key of its `machines.interface_media`, REQ-009-26), in
+/// conjunction (REQ-009-15).
 async fn list_interfaces(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -893,7 +920,10 @@ async fn list_interfaces(
 ) -> Result<Response, Problem> {
     const NAME: &str = "interfaces";
     let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, NAME)?)?;
-    let wanted = filters(&page, &["machine", "name", "mac", "address", "vlan", "q"])?;
+    let wanted = filters(
+        &page,
+        &["machine", "name", "mac", "address", "vlan", "media", "q"],
+    )?;
     let machine = optional_uuid(&wanted, "machine")?;
     let address = optional_uuid(&wanted, "address")?;
     let vlan = optional_uuid(&wanted, "vlan")?;
@@ -907,6 +937,7 @@ async fn list_interfaces(
         .transpose()?;
     let after = after::<(Uuid, String, Uuid)>(&page)?;
     let (moment, scope) = reading(&api, &principal, &page).await?;
+    let media = media_is("$14");
     let sql = format!(
         "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($3))
          SELECT {INTERFACE_SELECT}
@@ -920,6 +951,7 @@ async fn list_interfaces(
                  OR $8 = ANY(x.tagged_vlan_ids))
             AND ($9::uuid IS NULL OR (x.machine_id, x.name, x.id) > ($9, $10::text, $11::uuid))
             AND ($13::text IS NULL OR lower(x.name) LIKE $13)
+            AND ($14::text IS NULL OR {media})
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.machine_id, x.name, x.id
           LIMIT $12",
@@ -947,6 +979,7 @@ async fn list_interfaces(
         .bind(after.as_ref().map(|a| a.2))
         .bind(i64::from(page.size) + 1)
         .bind(prefix.as_deref())
+        .bind(wanted.get("media").copied())
         .fetch_all(&api.pool)
         .await
         .map_err(|e| kit::store(&e))?;
@@ -1550,6 +1583,10 @@ pub fn routes() -> ModuleRouter {
             ("mac", "This EUI-48, any usual notation."),
             ("address", "Holding this address at the date."),
             ("vlan", "Carrying this VLAN, access, native or tagged."),
+            (
+                "media",
+                "Of this medium, a key of `machines.interface_media`.",
+            ),
             ("q", "the name"),
         ],
         &INTERFACE_WRITES,
