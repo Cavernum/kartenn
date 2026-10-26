@@ -786,7 +786,7 @@ pub(crate) async fn create(
         operations: vec![operation],
         simulate: false,
         idempotency_key,
-        apply_own: context.apply_own,
+        approval_self: context.approval_self,
     };
     let pointers = [WHOLE.to_owned()];
     let answer = Answer {
@@ -856,7 +856,7 @@ pub(crate) async fn modify(
         operations: patch.operations,
         simulate: false,
         idempotency_key: None,
-        apply_own: context.apply_own,
+        approval_self: context.approval_self,
     };
     let answer = Answer {
         pointers: Pointers::Members(&patch.pointers),
@@ -905,7 +905,7 @@ pub(crate) async fn close(
         }],
         simulate: false,
         idempotency_key: None,
-        apply_own: context.apply_own,
+        approval_self: context.approval_self,
     };
     let pointers = [WHOLE.to_owned()];
     let answer = Answer {

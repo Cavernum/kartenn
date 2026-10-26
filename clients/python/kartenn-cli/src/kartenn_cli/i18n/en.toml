@@ -65,7 +65,7 @@ on_behalf_of = "Write on behalf of an identity (Kartenn-On-Behalf-Of)."
 dry_run = "Simulate the changeset: nothing is written (exit 8 if it would be refused)."
 into_changeset = "Add the write to the local changeset (kartenn changeset new)."
 require_applied = "Exit 10 when the write waits for an approval."
-submit_only = "Submit the changeset without applying it, even under apply_own: it waits for someone else."
+submit_only = "Submit the changeset without applying it, even under approval.self: it waits for someone else."
 
 [config]
 help = "Profiles of the configuration (never a secret)."

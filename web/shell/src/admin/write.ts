@@ -18,10 +18,10 @@ export function useAdminWrite() {
     headers: Record<string, string> = {},
   ): Promise<Outcome | null> {
     busy.value = true;
-    // Spec 024 (REQ-024-13): applied at once by who holds apply_own, pending otherwise.
-    const applied = /[?&]apply=/.test(url)
+    // Spec 024 (REQ-024-13): applied at once by who holds approval.self, pending otherwise.
+    const applied = /[?&]approval=/.test(url)
       ? url
-      : `${url}${url.includes("?") ? "&" : "?"}apply=own`;
+      : `${url}${url.includes("?") ? "&" : "?"}approval=self`;
     const answer = await send<Submitted>(method, applied, body, headers);
     busy.value = false;
     if (!answer.ok) {

@@ -219,8 +219,8 @@ rules! {
         "Seul l'auteur retire son changeset en attente.";
     APPROVAL_SELF = "changeset.approval.self", Error, ["REQ-024-11", "REQ-024-12"], "024/M7",
         "L'auteur n'applique pas son propre changeset quand une politique d'approbation le retient ou qu'un module exige sa revue ; il ne le rejette pas.";
-    APPLY_OWN_MISSING = "changeset.apply_own.missing", Error, ["REQ-024-11", "REQ-024-13"], "024/M7",
-        "L'auteur n'applique son propre changeset que s'il détient `apply_own` sur tout ce qu'il touche, objets et effets.";
+    APPROVAL_SELF_MISSING = "changeset.approval.self.missing", Error, ["REQ-024-11", "REQ-024-13"], "024/M7",
+        "L'auteur n'applique son propre changeset que s'il détient `approval.self` sur tout ce qu'il touche, objets et effets.";
     APPROVAL_FORBIDDEN = "changeset.approval.forbidden", Error, ["REQ-024-11"], "024/M7",
         "Qui applique ou rejette le changeset d'un autre détient la permission apply de tout ce qu'il touche.";
     REVIEW_OPERATION = "core.review.operation", Error, ["REQ-016-11"], "016/G12",
@@ -432,8 +432,11 @@ mod tests {
         assert_eq!(ids.len(), all_rules().count(), "duplicate rule identifier");
         for id in ids {
             let parts: Vec<_> = id.split('.').collect();
+            // Three segments, or four when the object is the action `approval.self` (task
+            // 024-11: `changeset.approval.self.missing`).
+            let compound = parts.len() == 4 && parts[1..3] == ["approval", "self"];
             assert!(
-                parts.len() == 3 && ["core", "prop", "changeset"].contains(&parts[0]),
+                (parts.len() == 3 || compound) && ["core", "prop", "changeset"].contains(&parts[0]),
                 "{id}"
             );
             assert!(

@@ -30,7 +30,7 @@ async fn set_role(pool: &PgPool, store: &PgStore, entries: &[&str]) -> Outcome {
         }],
         simulate: false,
         idempotency_key: None,
-        apply_own: true,
+        approval_self: true,
     };
     submit(store, &Unrestricted, &request, MAX_OPERATIONS)
         .await

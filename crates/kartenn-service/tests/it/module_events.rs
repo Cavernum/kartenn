@@ -32,7 +32,7 @@ fn request(author: Uuid, operations: Vec<Operation>, simulate: bool) -> Changese
         operations,
         simulate,
         idempotency_key: None,
-        apply_own: true,
+        approval_self: true,
     }
 }
 

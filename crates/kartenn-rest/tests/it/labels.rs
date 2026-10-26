@@ -175,7 +175,7 @@ async fn applied_over(pool: &PgPool, operations: Vec<Operation>, period: Option<
         operations,
         simulate: false,
         idempotency_key: None,
-        apply_own: true,
+        approval_self: true,
     };
     let outcome = submit(
         &PgStore::new(pool.clone()),

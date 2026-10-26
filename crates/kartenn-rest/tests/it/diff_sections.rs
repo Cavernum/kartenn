@@ -124,7 +124,7 @@ async fn a_section_is_served_by_pages(pool: PgPool) {
         &pool,
         &[
             "core.domain.edit",
-            "core.domain.apply_own",
+            "core.domain.approval.self",
             "core.changeset.read",
         ],
     )

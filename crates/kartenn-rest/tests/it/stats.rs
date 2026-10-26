@@ -171,7 +171,7 @@ async fn apply(pool: &PgPool, operations: Vec<Operation>) -> Uuid {
         operations,
         simulate: false,
         idempotency_key: None,
-        apply_own: true,
+        approval_self: true,
     };
     match submit(
         &PgStore::new(pool.clone()),

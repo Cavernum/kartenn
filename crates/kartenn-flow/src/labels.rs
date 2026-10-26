@@ -23,7 +23,7 @@ pub(crate) static ENGLISH: English = English {
             "Apply or reject the changeset of someone else that writes a flow directly.",
         ),
         (
-            "flow.apply_own",
+            "flow.approval.self",
             "Apply one's own changeset that writes a flow directly.",
         ),
     ],

@@ -771,7 +771,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
                         operations: vec![operation],
                         simulate: false,
                         idempotency_key: None,
-                        apply_own: true,
+                        approval_self: true,
                     };
                     match submit_in(
                         &store,

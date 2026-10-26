@@ -482,7 +482,7 @@ async fn patch(app: &Router, id: Uuid, body: &Value) -> (StatusCode, Value) {
     let etag = response.headers()[header::ETAG].clone();
     let request = Request::builder()
         .method(Method::PATCH)
-        .uri(format!("/v1/flows/{id}?apply=own"))
+        .uri(format!("/v1/flows/{id}?approval=self"))
         .header(header::AUTHORIZATION, "Bearer t")
         .header(header::CONTENT_TYPE, kartenn_rest::kit::MERGE_PATCH)
         .header(header::IF_MATCH, etag)

@@ -10,12 +10,12 @@ export const CONTRIBUTOR = {
 };
 
 /**
- * The path of a write of the journeys: applied by its author when allowed (`apply=own`,
+ * The path of a write of the journeys: applied by its author when allowed (`approval=self`,
  * spec 024, REQ-024-13), pending otherwise.
  */
 export function appliedByAuthor(method: string, path: string): string {
-  if (["GET", "HEAD"].includes(method.toUpperCase()) || /[?&]apply=/.test(path)) return path;
-  return `${path}${path.includes("?") ? "&" : "?"}apply=own`;
+  if (["GET", "HEAD"].includes(method.toUpperCase()) || /[?&]approval=/.test(path)) return path;
+  return `${path}${path.includes("?") ? "&" : "?"}approval=self`;
 }
 
 /** Roles bound to the groups of users.toml, on the whole organisation. */

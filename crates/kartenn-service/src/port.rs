@@ -219,7 +219,7 @@ pub struct DraftOrigin {
 }
 
 /// The violation that kept a changeset pending when its author asked to apply it (spec
-/// 024, REQ-024-13): `changeset.apply_own.missing` or `changeset.approval.self`.
+/// 024, REQ-024-13): `changeset.approval.self.missing` or `changeset.approval.self`.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct StoredReason {
     /// The code of its rule.

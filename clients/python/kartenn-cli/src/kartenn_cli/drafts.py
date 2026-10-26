@@ -66,7 +66,7 @@ def submit(
 
     found = _found(ctx)
     # Spec 024 (REQ-024-13): applied by its author who may, unless only submitted.
-    result = found.client.drafts.submit(draft, apply_own=not submit_only)
+    result = found.client.drafts.submit(draft, approval_self=not submit_only)
     render_outcome(found, result, output=output, require_applied=require_applied)
 
 

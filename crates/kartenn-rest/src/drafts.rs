@@ -7,7 +7,7 @@
 //! takes over the drafts of someone else, each action audited with the author. A service
 //! account has no draft (403). Every modification takes the version of the draft in
 //! `If-Match` (412 once changed, REQ-024-3). The submission creates a changeset by the
-//! ordinary pipeline (`apply=own` and `Idempotency-Key` as `POST /v1/changesets`): the
+//! ordinary pipeline (`approval=self` and `Idempotency-Key` as `POST /v1/changesets`): the
 //! draft is deleted with its creation, kept on a refusal (422).
 
 use axum::body::Bytes;
@@ -596,7 +596,7 @@ async fn request(
         } else {
             idempotency_key(headers)?
         },
-        apply_own: false,
+        approval_self: false,
     })
 }
 
@@ -628,7 +628,7 @@ async fn simulation(
     submit_answered(&api, &context, &request, &Answer::SUBMISSION).await
 }
 
-/// `POST /v1/drafts/{id}/submission[?apply=own]`: the changeset of the draft, by the
+/// `POST /v1/drafts/{id}/submission[?approval=self]`: the changeset of the draft, by the
 /// ordinary pipeline under the rights of its author now (REQ-024-5, 13). Created, pending
 /// (202) or applied by its author (201), it names the draft, which is deleted with it;
 /// refused (422), the draft stays. `Idempotency-Key` as `POST /v1/changesets`: retried
@@ -645,7 +645,7 @@ async fn simulation(
     ),
     request_body(content = Option<SubmissionBody>, description = "The period of the changeset; none by default."),
     responses(
-        (status = 201, description = "Applied by its author (`apply=own`); the draft is deleted.", body = ChangesetApplied),
+        (status = 201, description = "Applied by its author (`approval=self`); the draft is deleted.", body = ChangesetApplied),
         (status = 202, description = "Submitted, pending its application; the draft is deleted.", body = ChangesetPending),
         (status = 404, description = "Absent, or someone else's.", body = Problem, content_type = "application/problem+json"),
         (status = 412, description = "Modified since the ETag of `If-Match`.", body = Problem, content_type = "application/problem+json"),
@@ -680,7 +680,7 @@ async fn submission(
         return Err(refused(DraftError::Stale));
     }
     let mut request = request(&api, &principal, &draft, (&headers, &raw), simulated).await?;
-    request.apply_own = context.apply_own;
+    request.approval_self = context.approval_self;
     let mut context = context.clone();
     context.draft = (!simulated).then_some(DraftOrigin {
         id,

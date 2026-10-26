@@ -145,8 +145,8 @@ pub enum Outcome {
         policy: Option<Uuid>,
         /// Differential that applying it would produce.
         diff: Vec<DiffCount>,
-        /// Why its author could not apply it, when asked to (`apply_own`, REQ-024-13):
-        /// `changeset.apply_own.missing`, or `changeset.approval.self` (policy, review).
+        /// Why its author could not apply it, when asked to (`approval.self`, REQ-024-13):
+        /// `changeset.approval.self.missing`, or `changeset.approval.self` (policy, review).
         reason: Option<Violation>,
     },
     /// A pending changeset validated but refused on the current state (REQ-004-22).
@@ -1998,21 +1998,21 @@ async fn stages<S: Store, A: Authorizer>(
         .subject()
         .unwrap_or_else(|| crate::authz::Subject::from(req.author));
     // Spec 024, M7: the author edits (checked again when validated, REQ-004-22); whoever
-    // applies the changeset applies it, its author under `apply_own`.
+    // applies the changeset applies it, its author under `approval.self`.
     let edit = crate::rights::Check {
         subject: author,
         verb: Verb::Edit,
     };
     let application = match mode {
-        Mode::Submission if req.apply_own && !req.simulate => Some(crate::rights::Check {
+        Mode::Submission if req.approval_self && !req.simulate => Some(crate::rights::Check {
             subject: author,
-            verb: Verb::ApplyOwn,
+            verb: Verb::ApprovalSelf,
         }),
         Mode::Submission => None,
         Mode::Validation { validator: id, .. } => Some(crate::rights::Check {
             subject: &validator_subject,
             verb: if id == author.id {
-                Verb::ApplyOwn
+                Verb::ApprovalSelf
             } else {
                 Verb::Apply
             },
@@ -2182,7 +2182,7 @@ async fn stages<S: Store, A: Authorizer>(
     let kind = match mode {
         Mode::Submission => {
             // Spec 024, REQ-024-10, 12, 13: always pending, unless its author asks to apply
-            // it and may: under `apply_own`, held by no policy, reviewed by no module.
+            // it and may: under `approval.self`, held by no policy, reviewed by no module.
             let policy = crate::review::holding_policy(
                 &mut tx,
                 &policies,
@@ -2194,7 +2194,7 @@ async fn stages<S: Store, A: Authorizer>(
                 &module_findings.measures,
             )
             .await?;
-            let reason = if !req.apply_own {
+            let reason = if !req.approval_self {
                 None
             } else if policy.is_some() {
                 Some(self_refused("an approval policy holds it", Vec::new()))
@@ -2204,11 +2204,11 @@ async fn stages<S: Store, A: Authorizer>(
                     Vec::new(),
                 ))
             } else if !unapplied.is_empty() {
-                Some(apply_own_missing(&unapplied))
+                Some(approval_self_missing(&unapplied))
             } else {
                 None
             };
-            if !req.apply_own || reason.is_some() {
+            if !req.approval_self || reason.is_some() {
                 let mut perimeter: BTreeSet<Uuid> = objects.iter().copied().collect();
                 perimeter.extend(crate::rights::diff_objects(&mut tx, &diff).await?);
                 tx.rollback().await?;
@@ -2264,7 +2264,7 @@ async fn stages<S: Store, A: Authorizer>(
             if !denied.is_empty() {
                 tx.rollback().await?;
                 let violation = if validator == author.id {
-                    apply_own_missing(&unapplied)
+                    approval_self_missing(&unapplied)
                 } else {
                     forbidden(validator, denied)
                 };
@@ -2399,13 +2399,14 @@ fn forbidden(validator: Uuid, denied: Vec<Uuid>) -> Violation {
     .with_subjects(denied)
 }
 
-/// The author lacks `apply_own` (spec 024, REQ-024-11, 13): `changeset.apply_own.missing`,
-/// naming each permission lacking, with the objects concerned.
-fn apply_own_missing(unapplied: &[Violation]) -> Violation {
+/// The author lacks `approval.self` (spec 024, REQ-024-11, 13):
+/// `changeset.approval.self.missing`, naming each permission lacking, with the objects
+/// concerned.
+fn approval_self_missing(unapplied: &[Violation]) -> Violation {
     let lacking: Vec<&str> = unapplied.iter().map(|v| v.message.as_str()).collect();
     Violation::new(
-        &rules::APPLY_OWN_MISSING,
-        format!("its author lacks apply_own: {}", lacking.join("; ")),
+        &rules::APPROVAL_SELF_MISSING,
+        format!("its author lacks approval.self: {}", lacking.join("; ")),
     )
     .with_subjects(unapplied.iter().flat_map(|v| v.subjects.clone()))
 }
@@ -2698,7 +2699,7 @@ mod tests {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         }
     }
 

@@ -16,7 +16,7 @@ pub(crate) static ENGLISH: English = English {
             "Apply or reject the changeset of someone else that touches a VLAN group.",
         ),
         (
-            "vlan.group.apply_own",
+            "vlan.group.approval.self",
             "Apply one's own changeset that touches a VLAN group.",
         ),
         ("vlan.read", "Read the VLANs."),
@@ -29,7 +29,7 @@ pub(crate) static ENGLISH: English = English {
             "Apply or reject the changeset of someone else that touches a VLAN.",
         ),
         (
-            "vlan.apply_own",
+            "vlan.approval.self",
             "Apply one's own changeset that touches a VLAN.",
         ),
     ],

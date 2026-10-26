@@ -49,8 +49,8 @@ pub(crate) fn anyone() -> Arc<dyn Authenticator> {
     Arc::new(Anyone(Uuid::now_v7()))
 }
 
-/// `request` as a test writes: applied by its author when it may (`apply=own`, spec 024,
-/// REQ-024-13), unless it names `apply` itself.
+/// `request` as a test writes: applied by its author when it may (`approval=self`, spec
+/// 024, REQ-024-13), unless it names `approval` itself.
 pub(crate) fn applied<B>(mut request: Request<B>) -> Request<B> {
     let uri =
         kartenn_testing::applied_by_author(request.method().as_str(), &request.uri().to_string());

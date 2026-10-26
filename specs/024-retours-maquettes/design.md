@@ -16,9 +16,9 @@ flowchart LR
     A["Accueil : tuiles"]
   end
   F -->|"PATCH /v1/drafts/{id} (If-Match)"| D[(drafts)]
-  F -->|"POST …/submission?apply=own"| C[pipeline des changesets]
+  F -->|"POST …/submission?approval=self"| C[pipeline des changesets]
   A -->|"GET /v1/stats"| S[compteurs filtrés par les droits]
-  C -->|"validation : apply / apply_own"| C
+  C -->|"validation : apply / approval.self"| C
   D -. "SSE draft (auteur seul)" .-> Shell
   S -. "SSE stats (≤ 1 / 30 s)" .-> Shell
 ```
@@ -46,7 +46,7 @@ Routes (`crates/kartenn-rest/src/drafts.rs`, à l'image de `changesets.rs`) :
 | `POST /v1/drafts/{id}/operations` | ajoute des opérations, `If-Match` |
 | `DELETE /v1/drafts/{id}` | supprime, `If-Match` |
 | `POST /v1/drafts/{id}/simulation` | comme `POST /v1/changesets?simulate=true` |
-| `POST /v1/drafts/{id}/submission[?apply=own]` | crée le changeset (REQ-024-5, 13) |
+| `POST /v1/drafts/{id}/submission[?approval=self]` | crée le changeset (REQ-024-5, 13) |
 | `GET /v1/identities/{id}/drafts` | sous `core.draft.admin` global, audité (REQ-024-7a) |
 | `POST /v1/drafts/{id}/takeover` | sous `core.draft.admin` : l'appelant devient l'auteur, audité |
 
@@ -66,9 +66,9 @@ brouillon disparaît (pas de migration, rien à garder avant le gel).
 ## B. Permissions d'édition et d'application (REQ-024-9 à 13)
 
 Catalogue (`docs/spec/permissions.md`, catalogues des modules) : pour chaque
-`X.write`/`X.propose`, trois permissions `X.edit`, `X.apply`, `X.apply_own` ;
+`X.write`/`X.propose`, trois permissions `X.edit`, `X.apply`, `X.approval.self` ;
 `core.changeset.approve` disparaît. Le nommage de la 018 tient (`vlan.edit`,
-`core.prefix.apply_own`, `prop.<clé>.edit`, Q-024-6) ; nouvelle permission globale
+`core.prefix.approval.self`, `prop.<clé>.edit`, Q-024-6) ; nouvelle permission globale
 `core.draft.admin` (Q-024-4).
 
 Pipeline (`crates/kartenn-service/src/pipeline.rs`, `rights.rs`, `review.rs`) :
@@ -77,19 +77,19 @@ Pipeline (`crates/kartenn-service/src/pipeline.rs`, `rights.rs`, `review.rs`) :
   changeset est toujours enregistré **en attente** (l'état `pending` de la 004), la
   branche « appliqué tout de suite » disparaît du pipeline de soumission.
 - Validation (`validate_pending_with`) : pour chaque objet et effet, `apply` si
-  l'appelant n'est pas l'auteur, `apply_own` s'il l'est ; une politique qui retient le
+  l'appelant n'est pas l'auteur, `approval.self` s'il l'est ; une politique qui retient le
   changeset interdit l'auteur (`changeset.approval.self`, code inchangé).
-- `?apply=own` : soumission et validation dans la même transaction ; si la validation
+- `?approval=self` : soumission et validation dans la même transaction ; si la validation
   échoue pour un droit ou une politique, la transaction garde la soumission et répond
   202 avec `{state: "pending", reason: {code}}`.
 - Imports (`import.rs`) et annulation (`undo.rs`) : un import est un changeset soumis
-  avec `apply=own` implicite pour son auteur s'il détient `apply_own`, en attente sinon ;
+  avec `approval=self` implicite pour son auteur s'il détient `approval.self`, en attente sinon ;
   même règle pour l'annulation.
 - Comptes de service : même règle ; un compte de service qui doit écrire sans revue
-  reçoit `edit` et `apply_own`.
+  reçoit `edit` et `approval.self`.
 
 Migration (`0063_permission_verbs.sql` + changeset système, comme 018/0058) : dans les
-rôles, `X.write` → `X.edit` + `X.apply_own`, `X.propose` → `X.edit`,
+rôles, `X.write` → `X.edit` + `X.approval.self`, `X.propose` → `X.edit`,
 `core.changeset.approve` → `X.apply` pour chaque X du catalogue. L'audit et l'historique
 gardent les anciens noms (018/R6).
 
@@ -183,8 +183,8 @@ surface), vérification à quatre largeurs avant de rendre une maquette.
 | Brouillon modifié dans un autre onglet | 412 ; le shell relit et rejoue la modification |
 | 51ᵉ brouillon, 10 001ᵉ opération | 422 `draft-limit` |
 | Soumission refusée (violations) | 422, le brouillon reste |
-| `?apply=own` sans `apply_own` ou sous politique | 202 en attente, motif |
-| L'auteur valide son changeset sans `apply_own` | 403 `changeset.apply_own.missing` |
+| `?approval=self` sans `approval.self` ou sous politique | 202 en attente, motif |
+| L'auteur valide son changeset sans `approval.self` | 403 `changeset.approval.self.missing` |
 | `?simulate=true` sur une action sans changeset | 400 `simulate-unsupported` |
 | Statistiques d'une sorte illisible | sorte absente du corps |
 
@@ -194,15 +194,15 @@ surface), vérification à quatre largeurs avant de rendre une maquette.
   tests et la CLI : même méthode que la 018 (table de correspondance, `k-check` vert à
   chaque étape).
 - « Rien ne s'applique sans validation » change les tests qui supposaient un 201 direct :
-  les aides de test soumettent avec `apply=own`.
+  les aides de test soumettent avec `approval=self`.
 - Compteurs filtrés par les droits sur de grosses tables : budget mesuré avant de
   promettre plus.
 
 ## Stratégie de test
 
 - Serveur : tests d'intégration par route (droits, 404 d'un autre, 412, limites,
-  rétention), matrice des droits d'application (auteur/autre × apply/apply_own ×
-  politique), transaction de `apply=own` (échec de validation → 202), simulation sur
+  rétention), matrice des droits d'application (auteur/autre × apply/approval.self ×
+  politique), transaction de `approval=self` (échec de validation → 202), simulation sur
   chaque route d'écriture (rien d'écrit, aucun événement), SSE `draft` filtré par
   auteur, `stats` filtré par les droits ; banc `stats`.
 - CLI : le xfail `--dry-run` disparaît ; `kartenn drafts …`.

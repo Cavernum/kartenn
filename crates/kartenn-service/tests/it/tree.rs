@@ -70,7 +70,7 @@ async fn the_tree_is_deduced_and_measured(pool: PgPool) {
         operations: ops,
         simulate: false,
         idempotency_key: None,
-        apply_own: true,
+        approval_self: true,
     };
     let outcome = submit(&store, &Unrestricted, &req, MAX_OPERATIONS)
         .await

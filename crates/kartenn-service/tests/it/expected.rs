@@ -168,7 +168,7 @@ impl Fixture {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         };
         submit_with(
             &self.store,

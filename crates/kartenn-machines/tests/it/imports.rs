@@ -66,7 +66,7 @@ async fn setup(pool: &PgPool) -> (PgStore, Uuid, Uuid, Uuid) {
                 operations,
                 simulate: false,
                 idempotency_key: None,
-                apply_own: true,
+                approval_self: true,
             };
             let outcome = submit(store, &Unrestricted, &request, MAX_OPERATIONS)
                 .await

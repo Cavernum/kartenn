@@ -91,7 +91,7 @@ impl Kit {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         };
         submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
             .await
@@ -591,7 +591,7 @@ impl Kit {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         };
         submit(
             &self.store,
@@ -630,7 +630,7 @@ async fn an_operation_requires_the_permission_its_module_declares(pool: PgPool) 
     // Another permission of the module does not stand in for it.
     let writer = k
         .reader(
-            &["kit.group.edit", "kit.group.apply_own"],
+            &["kit.group.edit", "kit.group.approval.self"],
             "entity",
             "branch",
         )

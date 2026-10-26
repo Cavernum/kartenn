@@ -184,7 +184,7 @@ async fn submit(
         operations,
         simulate: false,
         idempotency_key,
-        apply_own: context.apply_own,
+        approval_self: context.approval_self,
     };
     submit_answered(api, context, &request, answer).await
 }
@@ -833,7 +833,7 @@ fn attachment_named(query: Option<&str>) -> Result<(String, Option<Uuid>), Probl
             }
             "issuer" | "entity" => return Err(bad(format!("{name} is given more than once"))),
             // Read by the authentication (spec 024, REQ-024-13, 17).
-            crate::changesets::APPLY | crate::changesets::SIMULATE => {}
+            crate::changesets::APPROVAL | crate::changesets::SIMULATE => {}
             other => return Err(bad(format!("unknown parameter {other}"))),
         }
     }

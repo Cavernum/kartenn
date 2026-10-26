@@ -5,7 +5,7 @@ Statut : **validée le 2026-10-25**. Écrit à partir de la revue des maquettes 
 
 Cadre : D13 (authentification), D36 (RBAC composable, liaisons portées) ; 005/K4 à K7,
 K13, K17 ; REQ-005-18, 26, 27 ; 004 (politiques d'approbation) ; 006 (routes des droits) ;
-021 (E7) ; 024/M7 (`edit`, `apply`, `apply_own`).
+021 (E7) ; 024/M7 (`edit`, `apply`, `approval.self`).
 
 Règle permanente de l'utilisateur : rien n'est gardé pour compatibilité avant le gel.
 

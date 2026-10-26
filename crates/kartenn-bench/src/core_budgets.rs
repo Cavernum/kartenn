@@ -121,7 +121,7 @@ pub(crate) async fn unitary(
         operations: vec![operation],
         simulate: false,
         idempotency_key: None,
-        apply_own: true,
+        approval_self: true,
     };
     let started = Instant::now();
     let outcome = submit(store, &Unrestricted, &request, MAX_OPERATIONS).await?;

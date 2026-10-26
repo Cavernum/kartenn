@@ -246,11 +246,7 @@ async fn sensitive(
     permission: &str,
     at: OffsetDateTime,
 ) -> Result<bool, StoreError> {
-    let Some(key) = permission
-        .strip_prefix("prop.")
-        .and_then(|rest| rest.rsplit_once('.'))
-        .map(|(key, _)| key)
-    else {
+    let Some((key, _)) = kartenn_core::authz::property_key(permission) else {
         return Ok(false);
     };
     let found: Option<bool> = sqlx::query_scalar(
@@ -317,13 +313,13 @@ type ScopeRow = (
 );
 
 /// Whether a binding row of `granted` grants `permission`: `*`, the permission itself, or
-/// `prop.*.<action>` for a property that is not sensitive (`pattern`).
+/// `prop.*.<action>` for a property that is not sensitive (`pattern`), of the same action
+/// (one or two segments: [`kartenn_core::authz::action_of`]).
 fn grants(granted: &str, permission: &str, pattern: bool) -> bool {
     granted == "*"
         || granted == permission
         || (pattern
-            && granted.strip_prefix("prop.*.")
-                == Some(permission.rsplit('.').next().unwrap_or_default()))
+            && granted.strip_prefix("prop.*.") == Some(kartenn_core::authz::action_of(permission)))
 }
 
 /// [`visibility_on`] for several permissions at once, in their order: the bindings, the

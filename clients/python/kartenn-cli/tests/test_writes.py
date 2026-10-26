@@ -402,9 +402,9 @@ def test_drafts_of_the_server(served: FakeServer) -> None:
     assert submitted.exit_code == 0, submitted.output
     sent = served.seen[-1]
     assert sent.headers["if-match"] == '"2"'
-    assert "apply" not in sent.url.params
+    assert "approval" not in sent.url.params
     assert kartenn("drafts", "submit", DRAFT, "--require-applied").exit_code == 10
-    assert served.seen[-1].url.params["apply"] == "own"
+    assert served.seen[-1].url.params["approval"] == "self"
     served.route("DELETE", "/v1/drafts/{id}", httpx2.Response(204))
     deleted = kartenn("drafts", "delete", DRAFT)
     assert deleted.exit_code == 0, deleted.output

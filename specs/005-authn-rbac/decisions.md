@@ -188,10 +188,10 @@ formats sont la 006, qui appelle ce que la 005 fournit.
 - Amendé le 2026-10-24 (024/M7, Q-024-6) : `write`, `propose` et `approve` disparaissent ;
   chaque ressource, et chaque propriété (`prop.<clé>.…`), a `edit` (créer et soumettre un
   changeset, toujours en attente), `apply` (appliquer ou rejeter le changeset d'un autre)
-  et `apply_own` (appliquer le sien). L'éditeur livré reçoit `edit` et `apply_own`,
+  et `approval.self` (appliquer le sien). L'éditeur livré reçoit `edit` et `approval.self`,
   l'approbateur `apply` (objets des modules compris) ; nouvelle permission globale
   `core.draft.admin`. Le job de migration remplace les anciens verbes des rôles
-  personnalisés (`write` → `edit` + `apply_own`, `propose` → `edit`, `approve` → chaque
+  personnalisés (`write` → `edit` + `approval.self`, `propose` → `edit`, `approve` → chaque
   `apply`).
 - Décidé par (amendement) : l'utilisateur (spec 024)
 

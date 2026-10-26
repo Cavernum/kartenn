@@ -69,7 +69,7 @@ de l'API ; il n'y a pas encore d'utilisateurs.
 - Décidé par : l'utilisateur (2026-10-22)
 - Amendé par la 024 (M7, Q-024-6, 2026-10-24) : la règle de nommage tient ; les actions
   `write` et `propose` (et `core.changeset.approve`) sont remplacées par `edit`, `apply`,
-  `apply_own` (`machines.write` → `machines.edit` + `machines.apply_own`).
+  `approval.self` (`machines.write` → `machines.edit` + `machines.approval.self`).
 
 ## R3 — Table de correspondance
 - Décision : la correspondance ancien → nouveau nom est une table statique du code

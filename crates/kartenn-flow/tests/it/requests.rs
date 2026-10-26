@@ -31,7 +31,7 @@ use sqlx::types::time::OffsetDateTime;
 pub(crate) const REQUEST: &[&str] = &[
     "flow.request",
     "prop.core.owner.edit",
-    "prop.core.owner.apply_own",
+    "prop.core.owner.approval.self",
 ];
 
 pub(crate) struct Env {
@@ -163,7 +163,7 @@ impl Env {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         }
     }
 
@@ -634,9 +634,9 @@ async fn acceptance_of_req_011_17_reads_of_the_endpoints(pool: PgPool) {
                 writer,
                 &[
                     "flow.edit",
-                    "flow.apply_own",
+                    "flow.approval.self",
                     "prop.core.owner.edit",
-                    "prop.core.owner.apply_own",
+                    "prop.core.owner.approval.self",
                 ],
             ),
             writer,

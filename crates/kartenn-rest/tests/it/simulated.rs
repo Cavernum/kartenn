@@ -147,7 +147,7 @@ async fn world(app: &Router) {
     ]});
     let (status, _, answer) = send(
         app,
-        Request::post("/v1/changesets?apply=own")
+        Request::post("/v1/changesets?approval=self")
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::from(body.to_string()))
             .unwrap(),
@@ -291,7 +291,7 @@ async fn a_write_simulated_answers_what_applying_would_do(pool: PgPool) {
         .unwrap();
     let (status, _, report) = send(
         &app,
-        Request::post("/v1/domains?simulate=true&apply=own")
+        Request::post("/v1/domains?simulate=true&approval=self")
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::from(
                 json!({"motive": "a second lab", "slug": "lab2"}).to_string(),

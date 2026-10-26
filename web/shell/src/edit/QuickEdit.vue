@@ -104,8 +104,8 @@ async function send(): Promise<void> {
   outcome.value = null;
   const target =
     props.mode === "create" ? `/v1/${props.collection}` : (props.href ?? `/v1/${props.collection}`);
-  // Spec 024 (REQ-024-13): applied at once by who holds apply_own, pending otherwise.
-  const url = `${target}${target.includes("?") ? "&" : "?"}apply=own`;
+  // Spec 024 (REQ-024-13): applied at once by who holds approval.self, pending otherwise.
+  const url = `${target}${target.includes("?") ? "&" : "?"}approval=self`;
   const result = await submit({
     method: props.mode === "create" ? "POST" : props.mode === "modify" ? "PATCH" : "DELETE",
     url,

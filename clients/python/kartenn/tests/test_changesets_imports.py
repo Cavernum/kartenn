@@ -81,7 +81,7 @@ def test_simulate_then_submit(tmp_path: Path) -> None:
     )
     assert first.headers["kartenn-on-behalf-of"] == "alice"
     # Spec 024 (REQ-024-13): a submission asks to apply the changeset.
-    assert first.url.params.get("apply") == "own"
+    assert first.url.params.get("approval") == "self"
     sent = body(first)
     assert sent["motive"] == "lot 3"
     assert sent["valid_from"] == "2026-11-01T00:00:00+01:00"
@@ -105,8 +105,8 @@ def test_pending_and_refused(tmp_path: Path) -> None:
         assert result.reason is None
         assert body(server.seen[-1])["valid_to"] == "2027-01-01T00:00:00Z"
         # Spec 024 (REQ-024-13): submitted only, or kept pending with its reason.
-        cs.submit(apply_own=False)
-        assert "apply" not in server.seen[-1].url.params
+        cs.submit(approval_self=False)
+        assert "approval" not in server.seen[-1].url.params
         held = {**PENDING, "reason": {"code": "changeset.approval.self", "message": "m"}}
         server.route("POST", "/v1/changesets", httpx2.Response(202, json=held))
         result = cs.submit()

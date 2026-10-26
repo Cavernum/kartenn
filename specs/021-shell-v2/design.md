@@ -120,14 +120,14 @@ Révisé par la 024 (M8, M15 ; disposition B arbitrée sur prototype, hors dép�
   qui va à la ligne quand le panneau est étroit, jamais coupée : revue du 2026-10-25) ;
   `CommitForm`
   (résumé sur une ligne, description facultative) ; `SplitButton`. Action par défaut :
-  « Appliquer » (`POST /v1/drafts/{id}/submission?apply=own`) si `/v1/me` donne
-  `apply_own` sur tous les objets du brouillon et que la simulation ne signale aucune
+  « Appliquer » (`POST /v1/drafts/{id}/submission?approval=self`) si `/v1/me` donne
+  `approval.self` sur tous les objets du brouillon et que la simulation ne signale aucune
   politique qui retient ; « Soumettre en revue » sinon. Le chevron offre aussi
   « Enregistrer le brouillon » (le motif est gardé dans le brouillon). Une entrée
   impossible reste dans le menu, désactivée, avec son motif en infobulle (permission
   manquante, politique). « Appliquer » préremplit le résumé (« Maintenance du
   référentiel », libellé du catalogue du shell) ; Ctrl+Entrée dans le formulaire lance
-  l'action choisie. Un 202 de `?apply=own` (droit retiré entre-temps, politique) laisse
+  l'action choisie. Un 202 de `?approval=self` (droit retiré entre-temps, politique) laisse
   le changeset en revue et montre le motif de la réponse.
 - **Emplacements fixes** (024/M15) : barre latérale, barre d'état, surface et panneau sont
   posés par la grille du cadre ; chaque emplacement défile en interne
@@ -287,7 +287,7 @@ applique) ; *form* = panneau d'édition de la sorte dans le panneau droit (`Edit
 | Propriétés déclarées | `/property-declarations` | catalogue des propriétés | form (administration) | `prop.declaration.invalid` |
 | Changesets et différentiel | `/changesets`, `/changesets/:id` | différentiel, opérations, violations, sections des modules, actions de revue ; actions de plugins sur le type `changeset` | menu | `changeset.approval.self`, `core.review.operation` |
 | À instruire | `/proposals` | propositions que l'utilisateur peut valider ; « Instruire dans Flux » sur les demandes de flux | menu | `motive-required`, `changeset-refused` |
-| Brouillons | panneau, `/drafts`, `/drafts/:id` | opérations, simulation, soumission en lot avec un motif, liste et reprise des brouillons | form | codes de la simulation, `draft-limit`, `changeset.apply_own.missing` |
+| Brouillons | panneau, `/drafts`, `/drafts/:id` | opérations, simulation, soumission en lot avec un motif, liste et reprise des brouillons | form | codes de la simulation, `draft-limit`, `changeset.approval.self.missing` |
 | Imports | `/imports`, `/imports/:id` | lot par morceaux, tri, lancement, rapport | form | `invalid-import` |
 | Administration | `/admin/groups`, `roles`, `identities`, `accounts`, `issuers`, `audit`, `observability`, `about` | droits par groupes (025), périmètres, journal d'audit ; permissions servies avec libellé | form | `core.group.escalation`, `core.binding.escalation`, `core.group.builtin`, `audit.chain.broken` |
 
@@ -350,7 +350,7 @@ sequenceDiagram
   else Ctrl+Entrée (appliquer maintenant), motif saisi ou générique
     H->>Q: setQueryData(clé, valeur) [présent seulement]
     H-->>G: état « en attente »
-    H->>S: PATCH ?apply=own, If-Match (motif)
+    H->>S: PATCH ?approval=self, If-Match (motif)
     alt 200
       S-->>H: objet, ETag
       H->>Q: setQueryData + invalidations (X24)
@@ -371,7 +371,7 @@ sequenceDiagram
 - Éditabilité d'une cellule : `rights.can(<X.edit du type ou prop.<clé>.edit>)`
   (`/v1/me`, REQ-007-20, verbes de la 024) **et** contexte au présent **et** attribut
   modifiable au contrat (schéma du `PATCH`) ; sinon pas d'éditeur, infobulle qui nomme
-  la permission manquante (REQ-021-37). Ctrl+Entrée n'est offert qu'avec `X.apply_own` ;
+  la permission manquante (REQ-021-37). Ctrl+Entrée n'est offert qu'avec `X.approval.self` ;
   sans lui, l'édition va au brouillon et l'infobulle de Ctrl+Entrée nomme la permission.
 - Opération du brouillon : format `Operation` du contrat (W10, inchangé) ; l'objet garde
   sa version lue comme `expected`.
@@ -523,12 +523,12 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
 ### Écritures (REQ-021-16, 24)
 
 - `sdk.write.quick({ key, patch, motive, ifMatch })` : annule les lectures de la clé,
-  applique l'optimisme si présent, envoie avec `?apply=own` (024), puis rend `applied`, `proposed` (202),
+  applique l'optimisme si présent, envoie avec `?approval=self` (024), puis rend `applied`, `proposed` (202),
   `conflict` (412, avec la relecture), `invalid` (422, violations), `forbidden`.
 - Après `applied` : invalidation des objets de la réponse, de leurs collections et
   dépendants ; le flux, s'il arrive ensuite, trouve des versions égales et ne relit rien.
 - `sdk.drafts` (024 § A) : `list`, `get`, `create`, `update`, `addOperations`, `remove`,
-  `simulate` (débrayée, 400 ms), `submit({ applyOwn })` ; écritures avec `If-Match`, et
+  `simulate` (débrayée, 400 ms), `submit({ approvalSelf })` ; écritures avec `If-Match`, et
   sur 412 relecture puis nouvel essai de l'ajout ; le brouillon actif d'un onglet est son
   identifiant en `sessionStorage` ; le stockage IndexedDB disparaît. `draft.add` (API des
   plugins) ajoute au brouillon actif, en crée un s'il n'y en a pas.
@@ -680,7 +680,7 @@ tri et filtre de 130 à 260 ms).
   `urn:kartenn:problem:<slug>`, table de la 006, design « Erreurs » : un 412 montre
   `urn:kartenn:problem:precondition-failed`, un 503 `urn:kartenn:problem:unavailable`) ;
   pour une violation (`violations[].rule` d'un 422) ou le motif d'une 202 (`reason.code`),
-  le code de la règle (`core.binding.escalation`, `changeset.apply_own.missing`). Jamais
+  le code de la règle (`core.binding.escalation`, `changeset.approval.self.missing`). Jamais
   de code pointé inventé pour un problème HTTP (revue du 2026-10-25).
 - **Brouillon supprimé, expiré ou repris** pendant que l'onglet l'a pour brouillon actif
   (événement `draft` `deleted`, ou 404) : l'onglet le quitte, avis avec le motif ;

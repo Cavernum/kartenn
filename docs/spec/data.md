@@ -136,7 +136,7 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   différentiel, droits manquants d'une proposition, valideur et motif de rejet. Le
   détail du différentiel est dans `changeset_diff` (clé de propriété, objet, avant,
   après), ses opérations dans `changeset_operation`. Depuis la 024 (0063), le valideur
-  peut être l'auteur (« appliqué par son auteur », `apply_own`) ; `required_rights`
+  peut être l'auteur (« appliqué par son auteur », `approval.self`) ; `required_rights`
   garde aussi le motif d'une 202 de repli (`reason`) ; `draft_id` (0064, sans
   référence) nomme le brouillon d'origine ; index partiel `changeset (applied_at)
   WHERE state = 'applied'` (0065) pour les statistiques.

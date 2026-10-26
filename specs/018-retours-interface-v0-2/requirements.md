@@ -45,7 +45,7 @@ Décisions : [`decisions.md`](decisions.md) (R1–R25, Q-018-1 à 8) ; D10, D11,
 
 #### REQ-018-1 — Règle de nommage
 *Note de la 024 (REQ-024-9, 2026-10-24) : `write` et `propose` sont devenus `edit`,
-`apply`, `apply_own` (`machines.write` → `machines.edit`) ; la règle de nommage tient.*
+`apply`, `approval.self` (`machines.write` → `machines.edit`) ; la règle de nommage tient.*
 kartenn doit nommer chaque permission `<module>.<ressource>.<action>`, sauf quand la
 ressource porte le nom du module, auquel cas elle doit s'écrire `<module>.<action>` ; les
 permissions de propriété restent `prop.<clé>.<action>`. [R2, R5, amende 005/K12]

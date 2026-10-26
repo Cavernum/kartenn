@@ -494,10 +494,10 @@ async fn an_author_who_may_only_edit_proposes(pool: PgPool) {
     );
     assert!(queue(outsider).await.unwrap().is_empty());
     assert!(queue(f.author).await.unwrap().is_empty());
-    // REQ-024-11: not the author without apply_own, not without the apply right.
+    // REQ-024-11: not the author without approval.self, not without the apply right.
     assert_eq!(
         rule(f.validate(&rights, proposal, f.author).await),
-        "changeset.apply_own.missing"
+        "changeset.approval.self.missing"
     );
     assert_eq!(
         rule(f.validate(&rights, proposal, outsider).await),
@@ -536,7 +536,7 @@ fn request(author: Uuid, operations: Vec<Operation>) -> ChangesetRequest {
         operations,
         simulate: false,
         idempotency_key: None,
-        apply_own: true,
+        approval_self: true,
     }
 }
 
@@ -599,7 +599,7 @@ async fn an_approval_checks_the_author_with_the_groups_it_had(pool: PgPool) {
 }
 
 /// Spec 024, REQ-024-10 to 13: the matrix of the application, author or someone else ×
-/// `apply` or `apply_own` × a policy holding the changeset or not.
+/// `apply` or `approval.self` × a policy holding the changeset or not.
 #[kartenn_testing::pg_test]
 async fn the_application_follows_the_author_and_the_policies(pool: PgPool) {
     let f = Fixture::new(&pool).await;
@@ -610,12 +610,12 @@ async fn the_application_follows_the_author_and_the_policies(pool: PgPool) {
         .unwrap();
     let edit = "prop.custom.environment.edit";
     let apply = "prop.custom.environment.apply";
-    let own = "prop.custom.environment.apply_own";
-    let submit_with = |rights: Grants, object: Uuid, apply_own: bool| {
+    let own = "prop.custom.environment.approval.self";
+    let submit_with = |rights: Grants, object: Uuid, approval_self: bool| {
         let f = &f;
         async move {
             let mut request = request(f.author, vec![f.assign(object, ObjectKind::Address, "dev")]);
-            request.apply_own = apply_own;
+            request.approval_self = approval_self;
             submit(&f.store, &rights, &request, MAX_OPERATIONS)
                 .await
                 .unwrap()
@@ -644,11 +644,11 @@ async fn the_application_follows_the_author_and_the_policies(pool: PgPool) {
     let editor = Grants::new().everywhere(f.author, edit);
     let (held, reason) = pending(submit_with(editor.clone(), ids[0], false).await);
     assert_eq!(reason, None);
-    // REQ-024-13: asked to apply without apply_own → pending, with its reason.
+    // REQ-024-13: asked to apply without approval.self → pending, with its reason.
     let (refused, reason) = pending(submit_with(editor.clone(), ids[1], true).await);
-    assert_eq!(reason, Some("changeset.apply_own.missing"));
+    assert_eq!(reason, Some("changeset.approval.self.missing"));
     assert_eq!(f.state(refused).await, "pending");
-    // REQ-024-13: under apply_own, applied in the same request, audited twice, its author
+    // REQ-024-13: under approval.self, applied in the same request, audited twice, its author
     // as its validator.
     let maintainer = editor.clone().everywhere(f.author, own);
     let Outcome::Applied {
@@ -669,17 +669,17 @@ async fn the_application_follows_the_author_and_the_policies(pool: PgPool) {
             .unwrap();
     assert_eq!((kind.as_str(), validator), ("direct", Some(f.author)));
 
-    // REQ-024-11: its author validates it later under apply_own, not under apply alone.
+    // REQ-024-11: its author validates it later under approval.self, not under apply alone.
     let applier = editor.clone().everywhere(f.author, apply);
     assert_eq!(
         rule(f.validate(&applier, held, f.author).await),
-        "changeset.apply_own.missing"
+        "changeset.approval.self.missing"
     );
     assert!(matches!(
         f.validate(&maintainer, held, f.author).await.unwrap(),
         Outcome::Applied { .. }
     ));
-    // Someone else under apply, not under apply_own.
+    // Someone else under apply, not under approval.self.
     let (theirs, _) = pending(submit_with(editor.clone(), ids[3], false).await);
     let other_own = editor.clone().everywhere(other, own);
     assert_eq!(
@@ -692,7 +692,7 @@ async fn the_application_follows_the_author_and_the_policies(pool: PgPool) {
         Outcome::Applied { .. }
     ));
 
-    // REQ-024-12: a policy that holds it wins over apply_own.
+    // REQ-024-12: a policy that holds it wins over approval.self.
     f.applied(vec![Operation::SetApprovalPolicy {
         name: "author".into(),
         min_operations: Some(1),

@@ -98,7 +98,7 @@ impl Env {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         };
         submit(&self.store, &Unrestricted, &request, MAX_OPERATIONS)
             .await

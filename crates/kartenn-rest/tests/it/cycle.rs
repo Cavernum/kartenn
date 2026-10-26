@@ -189,13 +189,13 @@ async fn hold_everything(app: &Router) {
 /// Spec 024, REQ-024-12, 13: a policy holds the changeset of an author who asks to apply
 /// it, even under `*`: 202, pending, `changeset.approval.self`, and nothing written.
 #[kartenn_testing::pg_test]
-async fn a_policy_keeps_apply_own_pending(pool: PgPool) {
+async fn a_policy_keeps_approval_self_pending(pool: PgPool) {
     let app = app_as(&pool, person(&pool, &["*"]).await);
     hold_everything(&app).await;
     let response = send(
         &app,
         post(
-            "/v1/changesets?apply=own",
+            "/v1/changesets?approval=self",
             &json!({"motive": "m", "operations": [{"op": "create_domain", "slug": "lab"}]}),
         ),
     )

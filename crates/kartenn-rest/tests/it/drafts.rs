@@ -71,7 +71,7 @@ async fn person(pool: &PgPool, permissions: &[&str]) -> Uuid {
 const EDITOR: &[&str] = &[
     "core.domain.read",
     "core.domain.edit",
-    "core.domain.apply_own",
+    "core.domain.approval.self",
 ];
 /// Who only edits.
 const EDIT_ONLY: &[&str] = &[
@@ -456,7 +456,7 @@ async fn a_submission_replaces_the_draft_or_leaves_it(pool: PgPool) {
     let (status, _) = call(
         &app,
         "POST",
-        &format!("{uri}/submission?apply=own"),
+        &format!("{uri}/submission?approval=self"),
         None,
         None,
     )
@@ -477,7 +477,7 @@ async fn a_submission_replaces_the_draft_or_leaves_it(pool: PgPool) {
     let (status, _) = call(
         &app,
         "POST",
-        &format!("{uri}/submission?apply=own"),
+        &format!("{uri}/submission?approval=self"),
         Some(1),
         None,
     )
@@ -488,7 +488,7 @@ async fn a_submission_replaces_the_draft_or_leaves_it(pool: PgPool) {
     let submit = |key: &'static str| {
         let mut r = request(
             "POST",
-            &format!("{uri}/submission?apply=own"),
+            &format!("{uri}/submission?approval=self"),
             Some(2),
             None,
         );
@@ -536,17 +536,17 @@ async fn a_draft_submitted_pending_is_deleted_too(pool: PgPool) {
         json!({"title": "Lab", "reason": {"summary": "A lab"}, "operations": [domain("lab")]}),
     )
     .await;
-    // `apply=own` without `apply_own`: pending, with its reason (REQ-024-13).
+    // `approval=self` without `approval.self`: pending, with its reason (REQ-024-13).
     let (status, pending) = call(
         &app,
         "POST",
-        &format!("/v1/drafts/{id}/submission?apply=own"),
+        &format!("/v1/drafts/{id}/submission?approval=self"),
         None,
         None,
     )
     .await;
     assert_eq!(status, StatusCode::ACCEPTED, "{pending}");
-    assert_eq!(pending["reason"]["code"], "changeset.apply_own.missing");
+    assert_eq!(pending["reason"]["code"], "changeset.approval.self.missing");
     let (status, _) = call(&app, "GET", &format!("/v1/drafts/{id}"), None, None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     let changeset = pending["changeset"]["id"].as_str().unwrap();

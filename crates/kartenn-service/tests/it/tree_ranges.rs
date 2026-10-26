@@ -68,7 +68,7 @@ async fn ranges_are_children_of_their_network_and_count_in_occupancy(pool: PgPoo
         operations,
         simulate: false,
         idempotency_key: None,
-        apply_own: true,
+        approval_self: true,
     };
     let outcome = submit(&store, &Unrestricted, &request, MAX_OPERATIONS)
         .await

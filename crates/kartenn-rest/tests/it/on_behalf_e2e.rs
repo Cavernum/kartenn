@@ -163,7 +163,7 @@ impl Fixture {
             operations,
             simulate: false,
             idempotency_key: None,
-            apply_own: true,
+            approval_self: true,
         }
     }
 
@@ -312,7 +312,7 @@ async fn a_service_account_writes_for_its_requester_through_the_real_authenticat
                 "core.identity.act_on_behalf",
                 "core.entity.read",
                 "core.entity.edit",
-                "core.entity.apply_own",
+                "core.entity.approval.self",
             ],
         )
         .await;
@@ -388,7 +388,7 @@ async fn a_service_account_without_the_permission_is_refused_and_audited(pool: P
             &[
                 "core.entity.read",
                 "core.entity.edit",
-                "core.entity.apply_own",
+                "core.entity.approval.self",
             ],
         )
         .await;
@@ -456,7 +456,7 @@ async fn a_malformed_or_repeated_header_is_a_bad_request(pool: PgPool) {
                 "core.identity.act_on_behalf",
                 "core.entity.read",
                 "core.entity.edit",
-                "core.entity.apply_own",
+                "core.entity.approval.self",
             ],
         )
         .await;
@@ -494,7 +494,7 @@ async fn the_real_person_logging_in_takes_back_the_requester_record(pool: PgPool
                 "core.identity.act_on_behalf",
                 "core.entity.read",
                 "core.entity.edit",
-                "core.entity.apply_own",
+                "core.entity.approval.self",
             ],
         )
         .await;

@@ -51,7 +51,7 @@ _TEMPLATE = re.compile(r"\{([^}]+)\}")
 _REL_CHANGESET = "urn:kartenn:rel:changeset"
 _JSON = "application/json"
 _MERGE_PATCH = "application/merge-patch+json"
-_APPLY = "apply"
+_APPROVAL = "approval"
 _SIMULATE = "simulate"
 
 
@@ -96,8 +96,8 @@ class Applied:
 @dataclass(frozen=True)
 class Pending:
     """A write held for a decision (202): the changeset to follow, `approval` or
-    `proposal`, and, when the write asked to apply it (`apply=own`, spec 024), why its
-    author did not: `changeset.apply_own.missing` (a permission lacking) or
+    `proposal`, and, when the write asked to apply it (`approval=self`, spec 024), why its
+    author did not: `changeset.approval.self.missing` (a permission lacking) or
     `changeset.approval.self` (a policy holds it, or a module requires its review)."""
 
     changeset: str | None
@@ -301,14 +301,14 @@ class Context:
     ) -> Request:
         """The request of an operation: path filled, query, `If-Match`, `Idempotency-Key`.
 
-        A write that submits a changeset asks to apply it (`apply=own`, spec 024): applied
-        when its author holds `apply_own`, pending otherwise; `apply=None` submits it only.
+        A write that submits a changeset asks to apply it (`approval=self`, spec 024): applied
+        when its author holds `approval.self`, pending otherwise; `approval=None` submits it only.
         """
         rest = dict(params or {})
-        if operation.method != "GET" and operation.param(_APPLY) is not None:
-            rest.setdefault(_APPLY, "own")
-        if _APPLY in rest and rest[_APPLY] is None:
-            del rest[_APPLY]
+        if operation.method != "GET" and operation.param(_APPROVAL) is not None:
+            rest.setdefault(_APPROVAL, "self")
+        if _APPROVAL in rest and rest[_APPROVAL] is None:
+            del rest[_APPROVAL]
         path = operation.path
         for index, name in enumerate(_TEMPLATE.findall(path)):
             value = _identifier(ref) if index == 0 and ref is not None else rest.pop(name, None)

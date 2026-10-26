@@ -62,7 +62,7 @@ async fn changeset_constraints(pool: PgPool) -> sqlx::Result<()> {
         .await;
     assert!(
         self_validated.is_ok(),
-        "REQ-024-11: the author applies their own changeset under apply_own"
+        "REQ-024-11: the author applies their own changeset under approval.self"
     );
     let rejected_without_reason =
         sqlx::query("UPDATE changeset SET state = 'rejected' WHERE id = $1")
@@ -126,6 +126,64 @@ async fn pending_requirements_take_the_edit_verb(pool: PgPool) -> sqlx::Result<(
         ])
     );
     assert_eq!(required(decided).await?, before["required"]);
+    Ok(())
+}
+
+/// Task 024-11, migration 0071: the journal of a changeset takes `approval.self` (formerly
+/// `apply_own`): the code and the message of its reason, its request; a changeset that
+/// never named it is untouched. Its `UPDATE`s are run again on rows written as before.
+#[kartenn_testing::pg_test]
+async fn the_journal_takes_approval_self(pool: PgPool) -> sqlx::Result<()> {
+    let migration = include_str!("../../migrations/0071_approval_self.sql");
+    let updates = &migration[migration.find("UPDATE changeset").expect("the rewrite")..];
+    let author = person(&pool).await?;
+    let object = sqlx::types::Uuid::now_v7();
+    let held = serde_json::json!({
+        "policy": null,
+        "perimeter": [object],
+        "required": [["core.address.edit", [object]]],
+        "reason": {
+            "code": "changeset.apply_own.missing",
+            "message": "its author lacks apply_own: core.address.apply_own on 1 object",
+            "objects": [object]
+        }
+    });
+    let request = serde_json::json!({"author": author, "motive": "m", "apply_own": true});
+    let pending = changeset(&pool, author, "pending").await?;
+    let untouched = changeset(&pool, author, "pending").await?;
+    sqlx::query("UPDATE changeset SET required_rights = $2, request = $3 WHERE id = $1")
+        .bind(pending)
+        .bind(&held)
+        .bind(&request)
+        .execute(&pool)
+        .await?;
+    sqlx::raw_sql(sqlx::AssertSqlSafe(updates))
+        .execute(&pool)
+        .await?;
+    let row = sqlx::query(
+        "SELECT required_rights -> 'reason' AS reason, request FROM changeset WHERE id = $1",
+    )
+    .bind(pending)
+    .fetch_one(&pool)
+    .await?;
+    assert_eq!(
+        row.get::<serde_json::Value, _>("reason"),
+        serde_json::json!({
+            "code": "changeset.approval.self.missing",
+            "message": "its author lacks approval.self: core.address.approval.self on 1 object",
+            "objects": [object]
+        })
+    );
+    assert_eq!(
+        row.get::<serde_json::Value, _>("request"),
+        serde_json::json!({"author": author, "motive": "m", "approval_self": true})
+    );
+    let request: serde_json::Value =
+        sqlx::query_scalar("SELECT request FROM changeset WHERE id = $1")
+            .bind(untouched)
+            .fetch_one(&pool)
+            .await?;
+    assert_eq!(request, serde_json::json!({}));
     Ok(())
 }
 

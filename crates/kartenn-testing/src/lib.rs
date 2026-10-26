@@ -418,8 +418,9 @@ async fn retry(conn: &mut PgConnection, sql: &str) -> Result<(), sqlx::Error> {
 }
 
 /// The URI of a request of a test: a write (`POST`, `PUT`, `PATCH`, `DELETE`) asks to
-/// apply its changeset (`apply=own`, spec 024, REQ-024-13) unless it names `apply`
-/// itself; the tests write as authors who apply their own changesets when they may.
+/// apply its changeset (`approval=self`, spec 024, REQ-024-13) unless it names
+/// `approval` itself; the tests write as authors who apply their own changesets when they
+/// may.
 #[must_use]
 pub fn applied_by_author(method: &str, uri: &str) -> String {
     let write = matches!(
@@ -430,12 +431,12 @@ pub fn applied_by_author(method: &str, uri: &str) -> String {
     if !write
         || query
             .split('&')
-            .any(|p| p == "apply" || p.starts_with("apply="))
+            .any(|p| p == "approval" || p.starts_with("approval="))
     {
         return uri.to_owned();
     }
     let separator = if uri.contains('?') { '&' } else { '?' };
-    format!("{uri}{separator}apply=own")
+    format!("{uri}{separator}approval=self")
 }
 
 /// A group of kartenn whose only member is the identity `$1`, from a day ago without

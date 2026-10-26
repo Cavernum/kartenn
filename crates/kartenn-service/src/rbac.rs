@@ -666,10 +666,7 @@ async fn undeclared<T: WriteTx + Send>(
             continue;
         };
         for entry in entries {
-            let Some((key, _)) = entry
-                .strip_prefix("prop.")
-                .and_then(|rest| rest.rsplit_once('.'))
-            else {
+            let Some((key, _)) = kartenn_core::authz::property_key(entry) else {
                 continue;
             };
             if key == "*" {
@@ -715,8 +712,9 @@ pub const RENAME_MOTIVE: &str = "permission rename 024";
 /// spec 024, REQ-024-9): one system changeset setting each role not delivered with
 /// kartenn that holds a retired name ([`kartenn_core::authz::retired_names`] of the
 /// catalogue of the build), with the names replacing it in its place (once, when the role
-/// holds several): `write` → `edit` + `apply_own`, `propose` → `edit`,
-/// the retired approval → every `apply`. The bindings, the history and the audit are
+/// holds several): `write` → `edit` + `approval.self`, `propose` → `edit`,
+/// the retired approval → every `apply`, the former name of `approval.self` (task
+/// 024-11) → `approval.self`. The bindings, the history and the audit are
 /// untouched; a second run finds nothing and submits nothing. Called by the migration job.
 ///
 /// # Errors
@@ -765,7 +763,7 @@ pub async fn rename_permissions<S: crate::port::Store>(
         operations,
         simulate: false,
         idempotency_key: None,
-        apply_own: true,
+        approval_self: true,
     };
     crate::submit(store, &crate::authz::Unrestricted, &request, max_operations)
         .await
@@ -856,7 +854,7 @@ pub async fn sync_roles<S: crate::port::Store>(
         operations,
         simulate: false,
         idempotency_key: None,
-        apply_own: true,
+        approval_self: true,
     };
     crate::submit(store, &crate::authz::Unrestricted, &request, max_operations)
         .await

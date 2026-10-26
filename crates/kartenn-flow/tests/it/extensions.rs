@@ -21,9 +21,9 @@ use crate::requests::{Env, REQUEST, flow, grants, later, policy, proposal, refus
 /// applied by itself (spec 024).
 pub(crate) const WRITE: &[&str] = &[
     "flow.edit",
-    "flow.apply_own",
+    "flow.approval.self",
     "prop.core.owner.edit",
-    "prop.core.owner.apply_own",
+    "prop.core.owner.approval.self",
 ];
 const DAY: i64 = 24 * 3600;
 

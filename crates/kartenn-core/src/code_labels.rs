@@ -17,7 +17,7 @@ pub static PERMISSIONS_EN: &[(&str, &str)] = &[
         "Apply or reject the changeset of someone else that touches an entity.",
     ),
     (
-        "core.entity.apply_own",
+        "core.entity.approval.self",
         "Apply one's own changeset that touches an entity.",
     ),
     ("core.site.read", "Read the sites."),
@@ -30,7 +30,7 @@ pub static PERMISSIONS_EN: &[(&str, &str)] = &[
         "Apply or reject the changeset of someone else that touches a site.",
     ),
     (
-        "core.site.apply_own",
+        "core.site.approval.self",
         "Apply one's own changeset that touches a site.",
     ),
     ("core.domain.read", "Read the addressing domains."),
@@ -43,7 +43,7 @@ pub static PERMISSIONS_EN: &[(&str, &str)] = &[
         "Apply or reject the changeset of someone else that touches an addressing domain.",
     ),
     (
-        "core.domain.apply_own",
+        "core.domain.approval.self",
         "Apply one's own changeset that touches an addressing domain.",
     ),
     ("core.prefix.read", "Read the prefixes."),
@@ -56,7 +56,7 @@ pub static PERMISSIONS_EN: &[(&str, &str)] = &[
         "Apply or reject the changeset of someone else that touches a prefix.",
     ),
     (
-        "core.prefix.apply_own",
+        "core.prefix.approval.self",
         "Apply one's own changeset that touches a prefix.",
     ),
     ("core.range.read", "Read the ranges."),
@@ -69,7 +69,7 @@ pub static PERMISSIONS_EN: &[(&str, &str)] = &[
         "Apply or reject the changeset of someone else that touches a range.",
     ),
     (
-        "core.range.apply_own",
+        "core.range.approval.self",
         "Apply one's own changeset that touches a range.",
     ),
     ("core.address.read", "Read the addresses."),
@@ -82,7 +82,7 @@ pub static PERMISSIONS_EN: &[(&str, &str)] = &[
         "Apply or reject the changeset of someone else that touches an address.",
     ),
     (
-        "core.address.apply_own",
+        "core.address.approval.self",
         "Apply one's own changeset that touches an address.",
     ),
     (
@@ -349,8 +349,8 @@ pub static RULES_EN: &[(&str, &str)] = &[
         "The author does not apply their own changeset when an approval policy holds it or a module requires its review; they never reject it.",
     ),
     (
-        "changeset.apply_own.missing",
-        "The author applies their own changeset only if they hold apply_own on everything it touches, objects and effects.",
+        "changeset.approval.self.missing",
+        "The author applies their own changeset only if they hold approval.self on everything it touches, objects and effects.",
     ),
     (
         "changeset.approval.forbidden",

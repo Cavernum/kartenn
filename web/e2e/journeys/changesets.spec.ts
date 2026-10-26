@@ -11,7 +11,7 @@ async function submit(
   body: object,
 ): Promise<{ status: number; body: { changeset: { id: string }; kind?: string } }> {
   return page.evaluate(async (payload) => {
-    const response = await fetch("/v1/changesets?apply=own", {
+    const response = await fetch("/v1/changesets?approval=self", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),

@@ -958,7 +958,7 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/PendingReason",
-                "description": "Why its author did not apply it, when the write asked to (`apply=own`, spec 024,\nREQ-024-13): `changeset.apply_own.missing` or `changeset.approval.self`."
+                "description": "Why its author did not apply it, when the write asked to (`approval=self`, spec 024,\nREQ-024-13): `changeset.approval.self.missing` or `changeset.approval.self`."
               },
               {
                 "type": "null"
@@ -8255,7 +8255,7 @@
         "description": "Why a changeset its author asked to apply stays pending (spec 024, REQ-024-13).",
         "properties": {
           "code": {
-            "description": "The code of the rule: `changeset.apply_own.missing` (its author lacks `apply_own`\non some object or effect) or `changeset.approval.self` (a policy holds it, or a\nmodule requires its review).",
+            "description": "The code of the rule: `changeset.approval.self.missing` (its author lacks\n`approval.self` on some object or effect) or `changeset.approval.self` (a policy holds it, or a\nmodule requires its review).",
             "type": "string"
           },
           "message": {
@@ -11666,9 +11666,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -11820,9 +11820,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -11977,9 +11977,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -12517,9 +12517,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -12668,9 +12668,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -12815,9 +12815,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -13773,9 +13773,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -13867,9 +13867,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -14143,9 +14143,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). Any write route takes it.",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). Any write route takes it.",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -14193,7 +14193,7 @@
                 }
               }
             },
-            "description": "Applied by its author (`apply=own`)."
+            "description": "Applied by its author (`approval=self`)."
           },
           "202": {
             "content": {
@@ -14216,7 +14216,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "`POST /v1/changesets[?simulate=true][&apply=own]` with `{motive, valid_from, valid_to,\noperations}`: pending (202), or applied by its author (201) when asked and allowed\n(spec 024, REQ-024-10, 13). The problems come in the order of HTTP (REQ-006-22): the authentication\n(layer 6) before the syntax, the syntax (400, 415) before the rules (422).",
+        "summary": "`POST /v1/changesets[?simulate=true][&approval=self]` with `{motive, valid_from, valid_to,\noperations}`: pending (202), or applied by its author (201) when asked and allowed\n(spec 024, REQ-024-10, 13). The problems come in the order of HTTP (REQ-006-22): the authentication\n(layer 6) before the syntax, the syntax (400, 415) before the rules (422).",
         "tags": [
           "changesets"
         ],
@@ -14447,9 +14447,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -14734,9 +14734,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -14886,9 +14886,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -15043,9 +15043,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -15583,9 +15583,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -15733,9 +15733,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -15890,9 +15890,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -16851,9 +16851,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -16905,7 +16905,7 @@
                 }
               }
             },
-            "description": "Applied by its author (`apply=own`); the draft is deleted."
+            "description": "Applied by its author (`approval=self`); the draft is deleted."
           },
           "202": {
             "content": {
@@ -16968,7 +16968,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "`POST /v1/drafts/{id}/submission[?apply=own]`: the changeset of the draft, by the\nordinary pipeline under the rights of its author now (REQ-024-5, 13). Created, pending\n(202) or applied by its author (201), it names the draft, which is deleted with it;\nrefused (422), the draft stays. `Idempotency-Key` as `POST /v1/changesets`: retried\nonce the draft is gone, the first answer comes again.",
+        "summary": "`POST /v1/drafts/{id}/submission[?approval=self]`: the changeset of the draft, by the\nordinary pipeline under the rights of its author now (REQ-024-5, 13). Created, pending\n(202) or applied by its author (201), it names the draft, which is deleted with it;\nrefused (422), the draft stays. `Idempotency-Key` as `POST /v1/changesets`: retried\nonce the draft is gone, the first answer comes again.",
         "tags": [
           "changesets"
         ],
@@ -17195,9 +17195,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -17346,9 +17346,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -17503,9 +17503,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -17953,9 +17953,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -18105,9 +18105,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -18630,9 +18630,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -18781,9 +18781,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -18928,9 +18928,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -19531,9 +19531,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -19684,9 +19684,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -19831,9 +19831,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -20274,9 +20274,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -20467,9 +20467,9 @@
         "operationId": "create_group",
         "parameters": [
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -20571,9 +20571,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -20708,9 +20708,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -20872,9 +20872,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -20976,9 +20976,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -21219,9 +21219,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -21679,9 +21679,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -21734,9 +21734,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -21893,9 +21893,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -22046,9 +22046,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -22193,9 +22193,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -22688,9 +22688,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -22843,9 +22843,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -23000,9 +23000,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -23100,9 +23100,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -23210,9 +23210,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -23673,9 +23673,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -23822,9 +23822,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -24202,9 +24202,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -24354,9 +24354,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -24511,9 +24511,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -25249,9 +25249,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -25401,9 +25401,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -25548,9 +25548,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -25998,9 +25998,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -26148,9 +26148,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -26657,9 +26657,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -26825,9 +26825,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -26976,9 +26976,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -27123,9 +27123,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -27573,9 +27573,9 @@
         "operationId": "request_policy_report",
         "parameters": [
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -27865,9 +27865,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -28017,9 +28017,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -28164,9 +28164,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -28614,9 +28614,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -29267,9 +29267,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -29421,9 +29421,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -29578,9 +29578,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -30770,9 +30770,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -30925,9 +30925,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -31082,9 +31082,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -31541,9 +31541,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -31693,9 +31693,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -31840,9 +31840,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -32265,9 +32265,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -32400,9 +32400,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -32596,9 +32596,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -32745,9 +32745,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -32855,9 +32855,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -33039,9 +33039,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -33191,9 +33191,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -33338,9 +33338,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -33809,9 +33809,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -33960,9 +33960,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -34117,9 +34117,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -34765,9 +34765,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -34918,9 +34918,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -35075,9 +35075,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -35701,9 +35701,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -35855,9 +35855,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"
@@ -36012,9 +36012,9 @@
             }
           },
           {
-            "description": "`own`: apply the changeset in the same transaction when its author holds `apply_own` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
+            "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
-            "name": "apply",
+            "name": "approval",
             "required": false,
             "schema": {
               "type": "string"

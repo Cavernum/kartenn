@@ -28,7 +28,7 @@ fn request(author: Uuid, operations: Vec<Operation>) -> ChangesetRequest {
         operations,
         simulate: false,
         idempotency_key: None,
-        apply_own: true,
+        approval_self: true,
     }
 }
 
@@ -227,7 +227,7 @@ async fn module_write_needs_its_permission(pool: PgPool) {
         .await
         .unwrap();
     assert!(matches!(outcome, Outcome::Pending { .. }), "{outcome:?}");
-    let writer = proposer.everywhere(author, "dummy.thing.apply_own");
+    let writer = proposer.everywhere(author, "dummy.thing.approval.self");
     let outcome = submit(&store, &writer, &thing("granted"), MAX_OPERATIONS)
         .await
         .unwrap();
@@ -657,7 +657,7 @@ async fn nullify_policy_unassigns(pool: PgPool) {
         .unwrap();
     let only_domains = Grants::new()
         .everywhere(author, "core.domain.edit")
-        .everywhere(author, "core.domain.apply_own");
+        .everywhere(author, "core.domain.approval.self");
     let outcome = submit(
         &store,
         &only_domains,

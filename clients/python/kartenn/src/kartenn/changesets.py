@@ -8,9 +8,9 @@ report = cs.simulate()        # valid, violations, diff, sample, cascaded, secti
 result = cs.submit()          # Applied | Pending, or raises Refused
 ```
 
-A submission asks to apply the changeset (`apply=own`, spec 024): applied when its author
-holds `apply_own` on everything it touches and no approval policy holds it, pending
-otherwise (`Pending.reason`); `cs.submit(apply_own=False)` submits it only. Every write of
+A submission asks to apply the changeset (`approval=self`, spec 024): applied when its author
+holds `approval.self` on everything it touches and no approval policy holds it, pending
+otherwise (`Pending.reason`); `cs.submit(approval_self=False)` submits it only. Every write of
 the client asks the same.
 
 An operation is validated locally by its discriminant `op` only, against the schema
@@ -165,7 +165,7 @@ class _Changeset:
             body["valid_to"] = self.valid_to
         return body
 
-    def _request(self, catalog: Catalog, *, simulate: bool, apply_own: bool = True) -> Request:
+    def _request(self, catalog: Catalog, *, simulate: bool, approval_self: bool = True) -> Request:
         operation = catalog.operation("submit_changeset")
         headers = Headers.of({"Content-Type": "application/json"})
         if self.on_behalf_of is not None:
@@ -173,8 +173,8 @@ class _Changeset:
         if not simulate:
             headers = headers.set("Idempotency-Key", self.idempotency_key)
         params: dict[str, object] = {"simulate": "true"} if simulate else {}
-        if not apply_own:
-            params["apply"] = None
+        if not approval_self:
+            params["approval"] = None
         request = self._context.request(operation, params=params)
         content = json.dumps(self._body(catalog), separators=(",", ":")).encode()
         return Request("POST", request.url, request.params, headers, content)
@@ -184,11 +184,13 @@ class _Changeset:
         answer = checked((yield self._request(catalog, simulate=True)))
         return simulation_of(cast("Record", outcome(answer)))
 
-    def submit(self, *, apply_own: bool = True) -> Plan[Applied | Pending]:
-        """Submit (spec 024): applied when `apply_own` and its author holds `apply_own` on
+    def submit(self, *, approval_self: bool = True) -> Plan[Applied | Pending]:
+        """Submit (spec 024): applied when `approval_self` and its author holds `approval.self` on
         everything it touches with no policy holding it; pending otherwise."""
         catalog = yield from self._context.catalog()
-        result = outcome((yield self._request(catalog, simulate=False, apply_own=apply_own)))
+        result = outcome(
+            (yield self._request(catalog, simulate=False, approval_self=approval_self))
+        )
         if not isinstance(result, Applied | Pending):
             msg = "the server answered a submission without its changeset"
             raise ClientError("client.unexpected-answer", msg)
@@ -219,8 +221,10 @@ class ChangesetBuilder:
     def simulate(self) -> Simulation:
         return cast("Simulation", self._run(self._changeset.simulate()))
 
-    def submit(self, *, apply_own: bool = True) -> Applied | Pending:
-        return cast("Applied | Pending", self._run(self._changeset.submit(apply_own=apply_own)))
+    def submit(self, *, approval_self: bool = True) -> Applied | Pending:
+        return cast(
+            "Applied | Pending", self._run(self._changeset.submit(approval_self=approval_self))
+        )
 
 
 class AsyncChangesetBuilder:
@@ -247,9 +251,10 @@ class AsyncChangesetBuilder:
     async def simulate(self) -> Simulation:
         return cast("Simulation", await self._run(self._changeset.simulate()))
 
-    async def submit(self, *, apply_own: bool = True) -> Applied | Pending:
+    async def submit(self, *, approval_self: bool = True) -> Applied | Pending:
         return cast(
-            "Applied | Pending", await self._run(self._changeset.submit(apply_own=apply_own))
+            "Applied | Pending",
+            await self._run(self._changeset.submit(approval_self=approval_self)),
         )
 
 
