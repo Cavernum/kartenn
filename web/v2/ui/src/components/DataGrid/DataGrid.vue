@@ -384,6 +384,7 @@ onBeforeUnmount(() => observer?.disconnect());
             :data-priority="priority(column)"
             :data-width="column.width ?? 'md'"
             :data-sortable="column.sortable ? 'true' : undefined"
+            :data-actions="column.actions ? 'true' : undefined"
             :aria-colindex="colIndex(column)"
             :aria-sort="ariaSort(column)"
             :aria-label="column.filterable ? headerName(column) : undefined"
@@ -829,6 +830,12 @@ onBeforeUnmount(() => observer?.disconnect());
     font-variant-numeric: tabular-nums;
   }
 
+  /* The actions of a row at the end of their column, under its header. */
+  .k-data-grid__header[data-actions],
+  .k-data-grid__cell[data-actions] {
+    justify-content: end;
+  }
+
   .k-data-grid__header:focus-visible,
   .k-data-grid__cell:focus-visible {
     outline-offset: calc(var(--k-focus-width) * -1);
@@ -850,7 +857,9 @@ onBeforeUnmount(() => observer?.disconnect());
   }
 
   /* The funnel: a button of its own inside a sortable header, out of the tab order (Alt+Down
-   * on the header asks for the filter), at the floor of 24 px for any pointer (WCAG 2.5.8). */
+   * on the header asks for the filter), at the floor of 24 px for any pointer (WCAG 2.5.8).
+   * Beside the title and the sort, never at the far end of a wide column (relecture du
+   * 2026-10-26). */
   .k-data-grid__filter {
     display: inline-flex;
     flex: none;
@@ -858,7 +867,6 @@ onBeforeUnmount(() => observer?.disconnect());
     align-items: center;
     min-inline-size: var(--k-control-height-sm);
     min-block-size: var(--k-control-height-sm);
-    margin-inline: auto calc(var(--k-space-1) * -1);
     padding: 0;
     font: inherit;
     color: var(--k-text-muted);
