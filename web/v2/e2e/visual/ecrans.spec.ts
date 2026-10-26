@@ -8,7 +8,7 @@ import {
   test,
 } from "../fixtures/index.ts";
 
-// Captures of the mock-ups E0 to E10 (spec 020, design « Régression visuelle »; REQ-020-25
+// Captures of the mock-ups E0 to E11 (spec 020, design « Régression visuelle »; REQ-020-25
 // to 28, REQ-024-27): each view at 1440, 1280, 1024 and 768 px wide (900 high), in light
 // and dark, compact density; no CSP violation at any of them. At 1280 px, the snapshot of
 // the accessibility tree and no axe-core violation, per mode. The mock-ups take the whole

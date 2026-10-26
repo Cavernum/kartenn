@@ -1,6 +1,6 @@
 /**
  * The mock-ups of the design system (spec 020, design « Maquettes », REQ-020-25; tasks 13
- * and 14; revised by the 024, task 11): eleven screens (E0 to E10) built with the
+ * and 14; revised by the 024, tasks 11 and 11b): twelve screens (E0 to E11) built with the
  * components of `@kartenn/ui`, on fictitious data, to be validated by the user on captures.
  * Each mock-up has one or more views (`?vue=`), each one URL and one capture per width
  * (1440, 1280, 1024, 768 px) and mode. Pure data: the captures (`e2e/visual/ecrans.spec.ts`)
@@ -316,6 +316,44 @@ export const MOCKUPS: Mockup[] = [
         label: "Brouillon de la matrice",
         description:
           "Onglet Brouillon : cellules changées dans les matrices de deux types de flux (type, source → destination, état avant et après, motif et libellé ajoutés), effet simulé groupé par type de flux, autres opérations, pied (simulation, CommitForm, SplitButton).",
+      },
+    ],
+  },
+  {
+    id: "E11",
+    title: "Flux",
+    shows:
+      "Registre des flux (filtres typés, état, synthèse contre la matrice de flux, issue), proposition de flux en tableau dans un changeset avec la ligne choisie dans le panneau du bas, tester un flux sans écriture, flux d'une machine dans son onglet d'information.",
+    views: [
+      {
+        id: "registre",
+        label: "Registre",
+        description:
+          "Flux déclarés et ouverts : source et destination en liens vers leur fiche, service (libellé et clé), type de flux, état, synthèse, issue, dérogation ou échéance ; filtres typés en pastilles ; « Proposer des flux ».",
+      },
+      {
+        id: "proposition",
+        label: "Proposition",
+        description:
+          "Formulaire en tableau, une ligne par flux (« Ajouter un flux »), verdict de chaque ligne (badge et code) : conforme automatique, sous réserve (justification manquante, en édition), non conforme (règle deny), non classé ; la ligne choisie dans le panneau du bas : extrémités développées en machines, interfaces, adresses et valeurs d'axes, puis synthèse, issue, élément décisif et son texte, extrait de la matrice, verdict par paire, conditions non remplies, suite.",
+      },
+      {
+        id: "envoi",
+        label: "Envoi de la proposition",
+        description:
+          "Onglet Brouillon de la proposition : flux proposés et leur verdict, effet simulé par issue, pied (simulation, CommitForm, SplitButton retenu par l'instruction des flux).",
+      },
+      {
+        id: "tester",
+        label: "Tester un flux",
+        description:
+          "Source, destination, objet (transport et port), dossier facultatif ; synthèse partielle, 6 verdicts (2 adresses × 3), explication (éléments décisifs et combinaisons, valeurs résolues avec origine, règles écartées, condition non évaluée sans dossier), suite ; « Déclarer ce flux » préremplit une ligne de la proposition. Aucune écriture.",
+      },
+      {
+        id: "machine",
+        label: "Flux d'une machine",
+        description:
+          "Fiche de srv-app-01, onglet Information : attributs, puis ses flux entrants et sortants en liste compacte, chacun nommant l'autre extrémité par un lien vers sa fiche, avec service, type de flux et conformité à la matrice.",
       },
     ],
   },

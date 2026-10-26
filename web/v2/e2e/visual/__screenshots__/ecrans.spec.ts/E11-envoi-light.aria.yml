@@ -1,0 +1,138 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Réseau"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 5":
+        - /url: /x/flow/review
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem:
+        - link "Registre":
+          - /url: /x/flow/flows
+      - listitem: Proposer des flux
+  - button "Présent"
+  - button "Brouillon 4 opérations" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Proposer des flux" [level=1]
+  - region "Proposer des flux":
+    - heading "Proposer des flux" [level=2]
+    - text: une ligne par flux
+    - button "Ajouter un flux"
+    - button "Colonnes"
+    - grid "Flux proposés dans le changeset":
+      - rowgroup:
+        - row "Source Destination Verdict":
+          - columnheader "Source"
+          - columnheader "Destination"
+          - columnheader "Verdict"
+      - rowgroup:
+        - row /\(en brouillon\) srv-web-\d+ srv-app-\d+ eth0 Conforme Copier app-meme-env/:
+          - gridcell /\(en brouillon\) srv-web-\d+/
+          - gridcell /srv-app-\d+ eth0/
+          - gridcell "Conforme Copier app-meme-env":
+            - text: ""
+            - button "Copier app-meme-env":
+              - text: ""
+              - code: app-meme-env
+            - status
+        - row /\(en brouillon\) srv-rec-\d+ srv-app-\d+ eth0 Sous réserve Copier rece-vers-prod/ [selected]:
+          - gridcell /\(en brouillon\) srv-rec-\d+/
+          - gridcell /srv-app-\d+ eth0/
+          - gridcell "Sous réserve Copier rece-vers-prod":
+            - text: ""
+            - button "Copier rece-vers-prod":
+              - text: ""
+              - code: rece-vers-prod
+            - status
+        - row /\(en brouillon\) dev-web-\d+ srv-db-\d+ Non conforme Copier deny-deve-prod/:
+          - gridcell /\(en brouillon\) dev-web-\d+/
+          - gridcell /srv-db-\d+/
+          - gridcell "Non conforme Copier deny-deve-prod":
+            - text: ""
+            - button "Copier deny-deve-prod":
+              - text: ""
+              - code: deny-deve-prod
+            - status
+        - row /\(en brouillon\) srv-new-\d+ srv-app-\d+ eth0 Non conforme Copier unclassified/:
+          - gridcell /\(en brouillon\) srv-new-\d+/
+          - gridcell /srv-app-\d+ eth0/
+          - gridcell "Non conforme Copier unclassified":
+            - text: ""
+            - button "Copier unclassified":
+              - text: ""
+              - code: unclassified
+            - status
+    - text: "4 flux · 1 automatique · 1 à instruire · 2 non conformes à la matrice Entrée : le flux choisi en bas"
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Détail"
+    - tab "Brouillon 4" [selected]
+  - tabpanel "Brouillon 4":
+    - region "Flux proposés":
+      - heading "Flux proposés" [level=2]
+      - text: 4 créations
+      - list:
+        - listitem:
+          - text: /srv-web-\d+ vers srv-app-\d+ eth0 api-interne · Applicatif Conforme/
+          - button "Copier app-meme-env":
+            - text: ""
+            - code: app-meme-env
+          - status
+        - listitem:
+          - text: /srv-rec-\d+ vers srv-app-\d+ eth0 https · Applicatif Sous réserve/
+          - button "Copier rece-vers-prod":
+            - text: ""
+            - code: rece-vers-prod
+          - status
+        - listitem:
+          - text: /dev-web-\d+ vers srv-db-\d+ postgres · Base de données Non conforme/
+          - button "Copier deny-deve-prod":
+            - text: ""
+            - code: deny-deve-prod
+          - status
+        - listitem:
+          - text: /srv-new-\d+ vers srv-app-\d+ eth0 tcp\/\d+ · Applicatif Non conforme/
+          - button "Copier unclassified":
+            - text: ""
+            - code: unclassified
+          - status
+    - region "Effet simulé":
+      - heading "Effet simulé" [level=2]
+      - term: Enregistrés sans instruction
+      - definition: "1"
+      - term: À instruire
+      - definition: "1"
+      - term: Non conformes à la matrice
+      - definition: "2"
+      - status:
+        - paragraph: 2 flux non conformes à la matrice de flux
+        - text: "Le changeset part en instruction : ces flux n'y sont approuvables qu'avec une dérogation. Les corriger, ou retirer leur ligne, avant l'envoi."
+  - button "Largeur du panneau"
+  - button "Fermer le panneau"
+  - status: Revue requise Simulation valide ; politique « Instruction des flux ».
+  - text: Résumé (obligatoire)
+  - textbox "Résumé (obligatoire)": Flux du portail et de la recette
+  - button "Ajouter une description"
+  - button "Soumettre en revue"
+  - button "Choisir l'action"

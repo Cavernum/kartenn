@@ -638,6 +638,28 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
     l'onglet d'information de la fiche (chaque flux y nomme l'autre extrémité, en
     lien), pas par un tableau ni un graphe ; tester un flux a sa page, avec
     « Déclarer ce flux ».
+  - Résultat (branche `feat/e11-flux`) : `E11Flux.vue`, cinq vues — `registre` (filtres
+    typés, état, synthèse, issue, dérogation ou échéance, extrémités en liens),
+    `proposition` (tableau éditable, « Ajouter un flux », verdict en badge et code ; ligne
+    choisie par Entrée, Espace ou clic dans le panneau du bas : extrémités développées,
+    synthèse, issue, élément décisif et son texte, cellule et extrait de la matrice,
+    verdict par paire, conditions, suite), `envoi` (onglet Brouillon, effet simulé, pied
+    commun), `tester` (6 verdicts, explication de REQ-010-12, « Déclarer ce flux » →
+    ligne préremplie), `machine` (flux entrants et sortants en liste compacte, autre
+    extrémité en lien vers sa fiche). Données dans `donnees.ts` (types de flux, services,
+    machines, règles, registre) ; cadre : `v-model:bottom-open`. Captures (5 vues ×
+    5 largeurs × 2 modes), test clavier (ajout d'une ligne, panneau du bas ouvert depuis
+    une ligne). Même branche : schéma du SDK v2 régénéré (`approval.self`), exception
+    `web/v2` retirée du test des anciens noms, mouvement de la couche d'erreur de cellule.
+    Choix notés : verdicts calculés dans la maquette à partir des règles, dans l'ordre de
+    REQ-010-11, pour que les vues concordent ; la matrice de chaque type se lit des
+    règles ; vue `envoi` séparée (deux feuilles modales ne cohabitent pas à 390 px) ;
+    colonne Verdict avant les champs du dossier, type de flux de la ligne lu dans sa
+    cellule (panneau du bas) et dans le brouillon ; synthèse « sous réserve » pour un
+    `allowed` à instruire, « partielle » d'issue non conforme (la plus défavorable,
+    REQ-010-15) ; environnement `admin` ajouté à `ENV` (teinte 6) pour les interfaces
+    d'administration ; liens des fiches vers la même vue avec `?machine=`, le préfixe
+    vers E2.
 - [ ] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
   020) — REQ-024-29
 
