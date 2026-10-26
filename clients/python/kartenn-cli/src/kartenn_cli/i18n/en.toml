@@ -280,7 +280,7 @@ status = "State of the import ID."
 list = "List the imports."
 
 [named]
-endpoint = "Endpoint “{given}”: KIND:REF (machine:bastion-1, prefix:interne/198.51.100.0/24) or a JSON object."
+endpoint = "Endpoint “{given}”: KIND:REF (address:interne/192.0.2.10, prefix:interne/198.51.100.0/24, interface:UUID) or a JSON object."
 
 [check]
 help = "Verdict of a communication source → destination for a service."
@@ -306,6 +306,20 @@ port = "Port."
 flow_type = "Flow type."
 entity = "Entity (the application)."
 exit_status = "Exit 9 when the verdict is “denied”."
+
+[flow_check]
+help = "Test a connection: open (a flow of the registry covers it) and conformant (the verdict)."
+case = "Test"
+open_conformant = "open and conformant"
+open_nonconformant = "open but not conformant"
+not_open_conformant = "not open but conformant (to declare)"
+not_open_nonconformant = "neither open nor conformant"
+flows = "Flows      "
+none = "No flow of the registry opens it."
+
+[flow_check.state]
+active = "active"
+waived = "waived"
 
 [matrix]
 help = "Matrix of environments × flow types."
@@ -333,7 +347,7 @@ id = "Read an existing report."
 help = "Request a flow: registered, or to review."
 
 [request.opt]
-source = "Source: KIND:REF (machine:app-recette-2)."
+source = "Source: KIND:REF (address:interne/192.0.2.10, interface:UUID)."
 destination = "Destination: KIND:REF (prefix:interne/203.0.113.0/28)."
 service = "Service."
 entity = "Entity (the application)."
