@@ -35,4 +35,40 @@ export interface MenuCheckbox {
   checked: boolean;
 }
 
-export type MenuItem = MenuEntry | MenuDivider | MenuCheckbox;
+/**
+ * One of a set where one only is on (APG Menu, `menuitemradio` in a `group`): consecutive
+ * radio entries form one group; choosing one emits `select` with its id and closes the menu.
+ */
+export interface MenuRadio {
+  kind: "radio";
+  id: string;
+  label: string;
+  checked: boolean;
+}
+
+export type MenuItem = MenuEntry | MenuDivider | MenuCheckbox | MenuRadio;
+
+/** The items of a menu with each run of consecutive radio entries gathered in a group. */
+export type MenuBlock =
+  | { kind: "single"; item: Exclude<MenuItem, MenuRadio>; key: string }
+  | { kind: "radios"; radios: MenuRadio[]; value: string; key: string };
+
+export function menuBlocks(items: MenuItem[]): MenuBlock[] {
+  const blocks: MenuBlock[] = [];
+  items.forEach((item, i) => {
+    const last = blocks.at(-1);
+    if (item.kind === "radio") {
+      if (last?.kind === "radios") {
+        last.radios.push(item);
+        if (item.checked) last.value = item.id;
+      } else
+        blocks.push({
+          kind: "radios",
+          radios: [item],
+          value: item.checked ? item.id : "",
+          key: `radios-${i}`,
+        });
+    } else blocks.push({ kind: "single", item, key: "id" in item ? item.id : `divider-${i}` });
+  });
+  return blocks;
+}

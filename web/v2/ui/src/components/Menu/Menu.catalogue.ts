@@ -40,5 +40,20 @@ export default {
       props: { label: "Actions", items, defaultOpen: true },
       isolated: true,
     },
+    {
+      name: "radio",
+      description:
+        "Entrées radio (menuitemradio dans un groupe) : l'une d'un ensemble est cochée, aria-checked",
+      props: {
+        label: "Brouillons",
+        items: [
+          { kind: "label", label: "Brouillons" },
+          { kind: "radio", id: "d1", label: "Salle B (3)", checked: true },
+          { kind: "radio", id: "d2", label: "Reprise des VIP (12)", checked: false },
+        ] satisfies MenuItem[],
+        defaultOpen: true,
+      },
+      isolated: true,
+    },
   ],
 } satisfies CatalogueEntry;

@@ -8,6 +8,7 @@
 // those of `Button` (its sheet); `ghost` by default, as in toolbars and rows. Refused
 // (`forbidden`, `reason`; 024/M14), as `Button`: focusable, `aria-disabled`, a tooltip.
 import { computed } from "vue";
+import { t } from "../../i18n.ts";
 import type { IconName } from "../../icons/index.ts";
 import Icon from "../Icon/Icon.vue";
 import BlockedReason from "../internal/BlockedReason.vue";
@@ -45,7 +46,7 @@ function onClick(event: MouseEvent): void {
     :data-variant="props.variant"
     :data-size="props.size"
     :disabled="props.disabled"
-    :aria-label="props.label"
+    :aria-label="props.loading ? `${props.label} (${t('loading')})` : props.label"
     :aria-disabled="props.loading || blocked ? 'true' : undefined"
     :aria-busy="props.loading ? 'true' : undefined"
     :aria-pressed="props.pressed"

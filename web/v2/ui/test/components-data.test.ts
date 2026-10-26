@@ -11,6 +11,7 @@ import BarChart from "../src/components/BarChart/BarChart.vue";
 import { layoutBars, niceCeil } from "../src/components/BarChart/chart.ts";
 import BarList from "../src/components/BarList/BarList.vue";
 import DiffList from "../src/components/DiffList/DiffList.vue";
+import DiffValue from "../src/components/DiffValue/DiffValue.vue";
 import ExpandableGrid from "../src/components/ExpandableGrid/ExpandableGrid.vue";
 import ErrorState from "../src/components/ErrorState/ErrorState.vue";
 import FilterChip from "../src/components/FilterChip/FilterChip.vue";
@@ -42,7 +43,9 @@ const rows = [
 
 describe("DataGrid", () => {
   it("shares one template of tokens between head and rows", () => {
-    expect(columnsTemplate(columns)).toBe("var(--k-size-col-md) minmax(var(--k-size-col-md), 1fr)");
+    expect(columnsTemplate(columns)).toBe(
+      "minmax(auto, var(--k-size-col-md)) minmax(var(--k-size-col-md), 1fr)",
+    );
   });
 
   it("is a named grid, rows and columns counted and indexed, sort said", async () => {
@@ -64,6 +67,19 @@ describe("DataGrid", () => {
     expect(html).toContain('aria-rowindex="3" aria-selected="true"');
     // One cell only in the tab order: the roving tabindex.
     expect(html.match(/tabindex="0"/g)).toHaveLength(1);
+  });
+
+  it("selects one row only when `single`: no aria-multiselectable", async () => {
+    const html = await render(DataGrid, {
+      label: "Préfixes",
+      columns,
+      rows,
+      rowKey: "prefix",
+      selectable: "single",
+      selected: ["198.51.100.0/24"],
+    });
+    expect(html).not.toContain("aria-multiselectable");
+    expect(html).toContain('aria-selected="true"');
   });
 
   it("renders the states the host decides, in words and with the code of an error", async () => {
@@ -157,7 +173,8 @@ describe("ExpandableGrid (revue du 2026-10-25)", () => {
 
   it("shows the row count, a few rows high, and a named button that opens a dialog", async () => {
     const html = await render(ExpandableGrid, { ...base, visibleRows: 4 });
-    expect(text(html)).toContain("25 lignes");
+    // More rows than it shows: « 4 sur 25 lignes », never a table that looks finished.
+    expect(text(html)).toContain("4 sur 25 lignes");
     expect(html).toContain("--k-expandable-grid-rows:4");
     expect(html).toMatch(/<button[^>]*aria-haspopup="dialog"[^>]*aria-expanded="false"/);
     expect(html).toContain('aria-label="Agrandir : Flux non conformes"');
@@ -313,10 +330,11 @@ describe("filters, differential, view states", () => {
     expect(locked).not.toEqual(warn);
   });
 
-  it("Skeleton: busy, said in words, the bars hidden", async () => {
+  it("Skeleton: an empty status region first (filled once mounted), the bars hidden", async () => {
     const html = await render(Skeleton, { rows: 2, columns: 3 });
-    expect(html).toContain('aria-busy="true"');
-    expect(text(html)).toContain("Chargement");
+    // Not busy: a busy region would hold back the announcement of its status.
+    expect(html).not.toContain("aria-busy");
+    expect(html).toContain('role="status"></span>');
     expect(html.match(/class="k-skeleton__row" aria-hidden="true"/g)).toHaveLength(2);
   });
 });
@@ -350,9 +368,11 @@ describe("charts (revue du 2026-10-25)", () => {
       pointLabel: "Jour",
       valueLabel: "Appliqués",
     });
+    // An image that takes the focus: the arrows show each bar's value.
     expect(html).toContain(
-      'role="img" aria-label="Changesets appliqués par jour : 3 valeurs, 13 janv. – 15 janv. ; maximum 11 (14 janv.) ; dernière 7"',
+      'role="img" tabindex="0" aria-label="Changesets appliqués par jour : 3 valeurs, 13 janv. – 15 janv. ; maximum 11 (14 janv.) ; dernière 7"',
     );
+    expect(html).toContain('aria-live="polite"');
     // Hidden by a box around it: its caption, outside the table box, is hidden too.
     expect(html).toMatch(/<div class="k-visually-hidden"><table><caption>/);
     expect(html.match(/<th scope="row">/g)).toHaveLength(3);
@@ -383,5 +403,23 @@ describe("charts (revue du 2026-10-25)", () => {
     expect(html).toContain("--k-bar-list-ratio:1");
     expect(html.match(/data-state="over"/g)).toHaveLength(1);
     expect(text(html)).toContain("87 %");
+  });
+});
+
+describe("DiffValue (relecture du 2026-10-26)", () => {
+  const value = (kind: "added" | "removed" | "changed", slots: Record<string, () => string>) =>
+    renderToString(createSSRApp({ render: () => h(DiffValue, { kind }, slots) }));
+
+  it("added: an ins, its sign hidden from the name, its word said, the value after", async () => {
+    const html = await value("added", { default: () => "Lecture des API" });
+    expect(html).toMatch(/<ins class="k-diff-value" data-kind="added">/);
+    expect(html).toContain('<span class="k-diff-value__sign" aria-hidden="true">+</span>');
+    expect(text(html)).toContain("+ajouté : Lecture des API");
+  });
+
+  it("removed: a del with « − »; changed: before, then after", async () => {
+    expect(await value("removed", { default: () => "x" })).toMatch(/<del[^>]*data-kind="removed"/);
+    const changed = await value("changed", { before: () => "Hôte", default: () => "VIP" });
+    expect(text(changed)).toMatch(/avant : Hôte.*après : VIP/);
   });
 });

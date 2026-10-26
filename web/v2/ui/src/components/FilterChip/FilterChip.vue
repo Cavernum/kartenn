@@ -5,7 +5,8 @@
 <script setup lang="ts">
 // A typed filter (design « Inventaire », line 6; REQ-020-20): « property operator value »
 // as one button that opens the picker (`FilterPicker`, complete version), and a button
-// that removes it. A filter being written is a draft (dashed); an invalid one says why.
+// that removes it. A filter being written is a draft (dashed); an invalid one says so in
+// its name and why in its description, an alert when it turns invalid.
 import { computed, useId } from "vue";
 import { t } from "../../i18n.ts";
 import Icon from "../Icon/Icon.vue";
@@ -49,6 +50,9 @@ const sentence = computed(() =>
           props.value
         }}</span>
         <span v-if="props.state === 'draft'" class="k-visually-hidden">({{ t("inDraft") }})</span>
+        <span v-else-if="props.state === 'invalid'" class="k-visually-hidden"
+          >({{ t("invalid") }})</span
+        >
       </button>
       <button
         type="button"
@@ -63,6 +67,7 @@ const sentence = computed(() =>
       v-if="props.state === 'invalid' && props.reason"
       :id="reasonId"
       class="k-filter-chip__reason"
+      role="alert"
       >{{ props.reason }}</span
     >
   </span>

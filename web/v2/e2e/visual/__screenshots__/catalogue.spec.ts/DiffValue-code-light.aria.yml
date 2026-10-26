@@ -1,0 +1,13 @@
+- main:
+  - region "DiffValue":
+    - heading "DiffValue" [level=1]
+    - paragraph: "Motif : — (ins / del, signe et mot caché)"
+    - figure "code — Valeur ajoutée en code copiable (CodeBadge)":
+      - insertion:
+        - text: "ajouté :"
+        - button "Copier api-lecture":
+          - text: ""
+          - code: api-lecture
+        - status
+      - code: code
+      - text: ""

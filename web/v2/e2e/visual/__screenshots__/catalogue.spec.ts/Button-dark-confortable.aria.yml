@@ -34,7 +34,7 @@
       - code: shortcut
       - text: ""
     - 'figure "loading — En cours : focalisable, aria-busy"':
-      - button "Appliquer" [disabled]
+      - button "Appliquer (Chargement)" [disabled]
       - code: loading
       - text: ""
     - figure "disabled — Désactivé":

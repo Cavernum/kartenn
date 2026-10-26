@@ -3,20 +3,17 @@
 // the home page (commands, navigation, objects), and the help « ? » of the shortcuts, read
 // from the registry, by scope.
 import {
-  CodeBadge,
   CommandPalette,
   DataGrid,
   Dialog,
-  Grid,
   Kbd,
   Stack,
-  StatusBadge,
   type GridColumn,
   type PaletteGroup,
 } from "@kartenn/ui";
 import AVenir from "./AVenir.vue";
+import Accueil from "./EcranAccueil.vue";
 import Cadre from "./EcranCadre.vue";
-import Panneau from "./EcranPanneau.vue";
 
 const props = defineProps<{ vue: string }>();
 
@@ -87,37 +84,9 @@ const shortcutColumns: GridColumn[] = [
 </script>
 
 <template>
-  <Cadre
-    title="Accueil"
-    active="home"
-    space="referential"
-    :crumbs="[{ label: 'Référentiel', to: '/' }, { label: 'Accueil' }]"
-  >
-    <Grid columns="auto" gap="3">
-      <Panneau title="Mes changesets en attente" detail="2">
-        <StatusBadge state="review" label="2 en revue" />
-        <a href="/changesets/01JD4K8B2C">Renumérotation salle B</a>
-      </Panneau>
-      <Panneau title="À instruire" detail="3">
-        <p>3 propositions attendent vos droits.</p>
-        <a href="/proposals">Ouvrir la file</a>
-      </Panneau>
-      <Panneau title="Anomalies ouvertes" detail="6">
-        <Stack gap="1">
-          <span><CodeBadge code="vlan.site.mismatch" /> 4</span>
-          <span><CodeBadge code="machines.mac.duplicate" /> 2</span>
-        </Stack>
-      </Panneau>
-      <Panneau title="Échéances de flux" detail="plugin Flux">
-        <StatusBadge state="warn" label="2 flux à J-7" />
-      </Panneau>
-      <Panneau title="Dernier rapport d'audit" detail="plugin Politique">
-        <StatusBadge state="ok" label="Conforme au 2026-01-01" />
-      </Panneau>
-      <Panneau title="Groupes de VLAN" detail="plugin VLAN">
-        <p class="k-num">campus-ouest : 87 % des VID utilisés</p>
-      </Panneau>
-    </Grid>
+  <Cadre title="Accueil" active="home" space="referential" :crumbs="[{ label: 'Accueil' }]">
+    <!-- The home page of E0 itself under the layer, never a stale copy. -->
+    <Accueil />
     <CommandPalette v-if="props.vue === 'palette'" :open="true" :groups="groups" />
     <Dialog
       v-else

@@ -1,3 +1,5 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
 - navigation "Navigation principale":
   - text: kartenn
   - button "Rechercher"
@@ -51,12 +53,13 @@
           - /url: /topology?node=p1
       - listitem: /\d+\.\d+\.\d+\.\d+\/\d+/
   - button "Présent"
-  - button "Brouillon ( 3 )" [expanded]
+  - button "Brouillon 3 opérations" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
   - 'heading /Topographie : \d+\.\d+\.\d+\.\d+\/\d+/ [level=1]'
-  - heading "Préfixes Centre de données nord" [level=2]
+  - heading "Préfixes" [level=2]
+  - text: Centre de données nord
   - treegrid "Arbre des préfixes du domaine Centre de données nord":
     - rowgroup:
       - row "Préfixe Occupation":
@@ -111,12 +114,12 @@
           - code: /\d+:db8:\d+::\/\d+/
           - button /Ajouter dans \d+:db8:\d+::\/\d+/
         - gridcell "3 %"
-  - region /\d+\.\d+\.\d+\.\d+\/\d+ réseau · Supervision/:
-    - heading /\d+\.\d+\.\d+\.\d+\/\d+ réseau · Supervision/ [level=2]
+  - region /\d+\.\d+\.\d+\.\d+\/\d+/:
+    - heading /\d+\.\d+\.\d+\.\d+\/\d+/ [level=2]
+    - text: réseau · Supervision
     - toolbar /Actions sur \d+\.\d+\.\d+\.\d+\/\d+/:
       - button "Créer"
       - button "Plus d'actions"
-    - button "Autres actions"
     - button /Inclus dans = \d+\.\d+\.\d+\.\d+\/\d+/
     - button /Retirer le filtre Inclus dans = \d+\.\d+\.\d+\.\d+\/\d+/
     - button "Environnement = Production"
@@ -156,7 +159,7 @@
     - text: /6 objets sur \d+ · 1 en brouillon · 1 en revue Au présent/
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
-  - tablist "Panneau droit":
+  - tablist "Onglets du panneau":
     - tab "Détail" [selected]
     - tab "Brouillon 3"
   - tabpanel "Détail":

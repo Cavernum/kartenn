@@ -1,0 +1,9 @@
+- main:
+  - region "DiffValue":
+    - heading "DiffValue" [level=1]
+    - paragraph: "Motif : — (ins / del, signe et mot caché)"
+    - figure "changed — Avant → après (mots cachés « avant », « après »)":
+      - deletion: "avant : Refus par défaut"
+      - insertion: "après : Sous motif"
+      - code: changed
+      - text: ""

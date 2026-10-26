@@ -95,19 +95,21 @@ const render = (component: Component, props: Record<string, unknown>) =>
 
 describe("column priorities", () => {
   it("one template per width: priority 3 leaves under lg, 2 under md", () => {
+    // A token, never narrower than the header (`auto`, the body cells holding the token).
+    const md = "minmax(auto, var(--k-size-col-md))";
+    const sm = "minmax(auto, var(--k-size-col-sm))";
+    const fill = "minmax(var(--k-size-col-md), 1fr)";
     expect(columnTemplates(columns, {})).toEqual({
-      "--k-grid-columns":
-        "var(--k-size-col-md) var(--k-size-col-sm) var(--k-size-col-md) minmax(var(--k-size-col-md), 1fr)",
-      "--k-grid-columns-below-lg":
-        "var(--k-size-col-md) var(--k-size-col-sm) minmax(var(--k-size-col-md), 1fr)",
-      "--k-grid-columns-below-md": "var(--k-size-col-md) minmax(var(--k-size-col-md), 1fr)",
+      "--k-grid-columns": `${md} ${sm} ${md} ${fill}`,
+      "--k-grid-columns-below-lg": `${md} ${sm} ${fill}`,
+      "--k-grid-columns-below-md": `${md} ${fill}`,
     });
   });
 
   it("a column the user shows stays at every width; one hidden leaves; never the key", () => {
     const shown = columnTemplates(columns, { site: true });
     expect(shown["--k-grid-columns-below-md"]).toBe(
-      "var(--k-size-col-md) var(--k-size-col-md) minmax(var(--k-size-col-md), 1fr)",
+      "minmax(auto, var(--k-size-col-md)) minmax(auto, var(--k-size-col-md)) minmax(var(--k-size-col-md), 1fr)",
     );
     expect(renderedColumns(columns, { usage: false, value: false }).map((c) => c.id)).toEqual([
       "value",

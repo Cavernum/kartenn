@@ -1,3 +1,5 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
 - navigation "Navigation principale":
   - text: kartenn
   - button "Rechercher"
@@ -27,17 +29,20 @@
           - /url: /x/vlan/groups
       - listitem: campus-ouest
   - button "Présent"
-  - button "Brouillon ( 3 )"
+  - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
   - heading "Groupe de VLAN campus-ouest" [level=1]
-  - heading "Groupes de VLAN 3" [level=2]
+  - heading "Groupes de VLAN" [level=2]
+  - text: "3"
   - grid "Groupes de VLAN":
     - rowgroup:
       - row "Groupe Ancre VID Occupation Libres":
         - columnheader "Groupe"
-        - columnheader "Ancre"
+        - columnheader "Ancre":
+          - text: ""
+          - 'button "Filtrer : Ancre"'
         - columnheader "VID"
         - columnheader "Occupation"
         - columnheader "Libres"
@@ -60,9 +65,9 @@
         - gridcell /\d+–\d+/
         - gridcell "6 %"
         - gridcell /\d+/
-  - region /campus-ouest VID \d+–\d+ · ancre site-ouest/:
-    - heading /campus-ouest VID \d+–\d+ · ancre site-ouest/ [level=2]
-    - text: /\d+ sur \d+ utilisés · \d+ libres/
+  - region "campus-ouest":
+    - heading "campus-ouest" [level=2]
+    - text: /VID \d+–\d+ · ancre site-ouest \d+ sur \d+ utilisés · \d+ libres/
     - toolbar "Actions du groupe":
       - 'button /Prochain libre : \d+/'
       - button "Créer"
@@ -73,8 +78,13 @@
         - row "VID Nom Statut (filtrée) Réseaux Interfaces":
           - columnheader "VID"
           - columnheader "Nom"
-          - columnheader "Statut (filtrée)"
-          - columnheader "Réseaux"
+          - columnheader "Statut (filtrée)":
+            - text: ""
+            - 'button "Filtrer : Statut"'
+            - text: ""
+          - columnheader "Réseaux":
+            - text: ""
+            - 'button "Filtrer : Réseaux"'
           - columnheader "Interfaces"
       - rowgroup:
         - row /\d+ admin Actif \d+\.\d+\.2\.0\/\d+ \d+/:
@@ -120,3 +130,4 @@
           - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
           - gridcell "6"
     - text: "/7 VLAN sur \\d+ · 1 en brouillon Colonne « Interfaces » : plugin Machines/"
+- button "Ouvrir le panneau"

@@ -17,6 +17,7 @@ import {
   CodeBadge,
   Cluster,
   DataGrid,
+  DiffValue,
   EnvChip,
   ExpandableGrid,
   Icon,
@@ -303,7 +304,7 @@ const EFFECT = [
         :columns="groupColumns"
         :rows="groups"
         row-key="key"
-        selectable
+        selectable="single"
         :selected="['campus-ouest']"
       />
     </Panneau>
@@ -376,6 +377,12 @@ const EFFECT = [
         </template>
       </MatrixGrid>
       <template #footer>
+        <!-- What the marks of a cell say, in words (relecture du 2026-10-26). -->
+        <ul class="k-ecran-legende" aria-label="Légende de la matrice">
+          <li><Icon name="draft" class="k-ecran-legende__draft" />dans le brouillon</li>
+          <li><Icon name="eye" class="k-ecran-legende__review" />en revue</li>
+          <li><span class="k-ecran-legende__active"></span>cellule choisie</li>
+        </ul>
         <span>Brouillon · 1 cellule de cette matrice sur {{ CHANGED.length }} · 1 en revue</span>
         <span class="k-num"
           >1 s'ouvre sous réserve · {{ shownFlows.length }} non conformes à cette matrice · 0
@@ -457,34 +464,24 @@ const EFFECT = [
                   ]"
                 >
                   <template #state>
-                    <span class="k-ecran-change">
-                      <del
-                        ><span class="k-visually-hidden">avant : </span
-                        ><StatusBadge
+                    <DiffValue kind="changed">
+                      <template #before>
+                        <StatusBadge
                           :state="VERDICT[cell.before].state"
                           :label="VERDICT[cell.before].label"
-                      /></del>
-                      <Icon name="arrow-right" class="k-ecran-cell__arrow" />
-                      <ins
-                        ><span class="k-visually-hidden">après : </span
-                        ><StatusBadge
-                          :state="VERDICT[cell.after].state"
-                          :label="VERDICT[cell.after].label"
-                      /></ins>
-                    </span>
+                        />
+                      </template>
+                      <StatusBadge
+                        :state="VERDICT[cell.after].state"
+                        :label="VERDICT[cell.after].label"
+                      />
+                    </DiffValue>
                   </template>
                   <template #pattern>
-                    <ins class="k-ecran-change"
-                      ><span class="k-ecran-change__sign" aria-hidden="true">+</span
-                      ><span class="k-visually-hidden">ajouté : </span
-                      ><CodeBadge :code="cell.pattern"
-                    /></ins>
+                    <DiffValue kind="added"><CodeBadge :code="cell.pattern" /></DiffValue>
                   </template>
                   <template #label>
-                    <ins class="k-ecran-change"
-                      ><span class="k-ecran-change__sign" aria-hidden="true">+</span
-                      ><span class="k-visually-hidden">ajouté : </span>{{ cell.label }}</ins
-                    >
+                    <DiffValue kind="added">{{ cell.label }}</DiffValue>
                   </template>
                 </Attributs>
               </Stack>
@@ -562,8 +559,7 @@ const EFFECT = [
     border-block-end: var(--k-border-width) solid var(--k-border);
   }
 
-  .k-ecran-cell__flow,
-  .k-ecran-change {
+  .k-ecran-cell__flow {
     display: inline-flex;
     flex-wrap: wrap;
     gap: var(--k-space-1);
@@ -576,17 +572,39 @@ const EFFECT = [
     color: var(--k-text-muted);
   }
 
-  /* Before and after are said by hidden words and a sign; the badges keep their look. */
-  .k-ecran-change del,
-  ins.k-ecran-change,
-  .k-ecran-change ins {
-    text-decoration: none;
+  /* The legend of the matrix: each mark of a cell and its word, on one wrapping line. */
+  .k-ecran-legende {
+    display: flex;
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    gap: var(--k-space-1) var(--k-space-3);
+    font-size: var(--k-text-sm);
+    line-height: var(--k-text-sm-line);
+    color: var(--k-text-muted);
+    list-style: none;
   }
 
-  .k-ecran-change__sign {
-    font-family: var(--k-font-mono);
-    font-weight: var(--k-weight-semibold);
-    color: var(--k-diff-added);
+  .k-ecran-legende > li {
+    display: inline-flex;
+    gap: var(--k-space-1);
+    align-items: center;
+  }
+
+  .k-ecran-legende__draft {
+    color: var(--k-accent);
+  }
+
+  .k-ecran-legende__review {
+    color: var(--k-state-review-fg);
+  }
+
+  /* A sample of the edge of the chosen cell. */
+  .k-ecran-legende__active {
+    inline-size: var(--k-space-4);
+    block-size: var(--k-space-3);
+    background-color: var(--k-surface);
+    border: var(--k-border-width) solid var(--k-border);
+    box-shadow: var(--k-shadow-inset-accent);
   }
 }
 </style>

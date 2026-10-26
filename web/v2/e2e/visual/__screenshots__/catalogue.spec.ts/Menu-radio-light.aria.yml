@@ -1,0 +1,13 @@
+- main:
+  - menu "Brouillons":
+    - text: ""
+    - group:
+      - menuitemradio "Salle B (3)" [checked]
+      - menuitemradio /Reprise des VIP \(\d+\)/
+  - region "Menu":
+    - heading "Menu" [level=1]
+    - paragraph: "Motif : Menu Button, Menu"
+    - 'figure "radio — Entrées radio (menuitemradio dans un groupe) : l''une d''un ensemble est cochée, aria-checked"':
+      - button "Brouillons" [expanded]
+      - code: radio
+      - text: ""

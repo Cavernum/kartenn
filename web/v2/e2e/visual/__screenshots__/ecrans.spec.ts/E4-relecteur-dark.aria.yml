@@ -1,3 +1,5 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
 - navigation "Navigation principale":
   - text: kartenn
   - button "Rechercher"
@@ -30,14 +32,14 @@
           - /url: /proposals
       - listitem: Renumérotation salle B
   - button "Présent"
-  - button "Brouillon ( 0 )"
+  - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
   - heading "Changeset Renumérotation salle B" [level=1]
-  - region "Renumérotation salle B 5 objets":
-    - heading "Renumérotation salle B 5 objets" [level=2]
-    - text: En revue
+  - region "Renumérotation salle B":
+    - heading "Renumérotation salle B" [level=2]
+    - text: 5 objets En revue
     - toolbar "Actions de revue":
       - button "Rejeter…"
       - button "Valider"
@@ -129,3 +131,4 @@
           - text: "anomalie : Site du VLAN (vlan.site.mismatch)"
           - deletion: "avant : site-ouest"
           - insertion: "après : site-est"
+- button "Ouvrir le panneau"

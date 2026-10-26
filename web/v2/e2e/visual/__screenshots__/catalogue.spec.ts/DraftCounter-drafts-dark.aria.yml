@@ -3,7 +3,7 @@
     - heading "DraftCounter" [level=1]
     - paragraph: "Motif : Button (bascule du panneau, aria-expanded) et Menu Button (liste des brouillons)"
     - figure "drafts — Avec la liste des brouillons de l'utilisateur (chevron)":
-      - button "Brouillon ( 3 )"
+      - button "Brouillon 3 opérations"
       - button "Liste des brouillons"
       - code: drafts
       - text: ""

@@ -27,14 +27,22 @@ const props = withDefaults(
 );
 const emit = defineEmits<{ toggle: []; select: [id: string] }>();
 
+// The active draft is the checked one of a set (`menuitemradio`), not an icon alone.
 const items = computed<MenuItem[]>(() => [
   { kind: "label", label: t("drafts") },
   ...(props.drafts ?? []).map((draft) => ({
+    kind: "radio" as const,
     id: draft.id,
     label: `${draft.label} (${draft.count})`,
-    icon: draft.current ? ("check" as const) : ("draft" as const),
+    checked: !!draft.current,
   })),
 ]);
+
+/**
+ * The name says what the figure counts, the visible words first and together (WCAG 2.5.3):
+ * « Brouillon 3 opérations ».
+ */
+const unit = computed(() => t(props.count > 1 ? "operations" : "operation"));
 </script>
 
 <template>
@@ -48,10 +56,8 @@ const items = computed<MenuItem[]>(() => [
     >
       <Icon :name="props.expanded ? 'x' : 'draft'" />
       <span class="k-draft-counter__word">{{ t("draft") }}</span>
-      <span class="k-draft-counter__count"
-        ><span class="k-visually-hidden">(</span>{{ props.count
-        }}<span class="k-visually-hidden">)</span></span
-      >
+      <span class="k-draft-counter__count">{{ props.count }}</span>
+      <span class="k-visually-hidden">{{ unit }}</span>
     </button>
     <Menu
       v-if="props.drafts"

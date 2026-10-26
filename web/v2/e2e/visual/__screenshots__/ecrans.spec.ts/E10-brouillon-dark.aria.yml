@@ -1,3 +1,5 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
 - navigation "Navigation principale":
   - text: kartenn
   - button "Rechercher"
@@ -33,13 +35,14 @@
           - /url: /x/policy/matrix
       - listitem: application
   - button "Présent"
-  - button "Brouillon ( 3 )" [expanded]
+  - button "Brouillon 3 opérations" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
   - heading "Matrice de politique applicatif" [level=1]
-  - region "Matrice Applicatif":
-    - heading "Matrice Applicatif" [level=2]
+  - region "Matrice":
+    - heading "Matrice" [level=2]
+    - text: Applicatif
     - 'button "Type de flux : Applicatif"'
     - paragraph:
       - text: "À venir :"
@@ -94,10 +97,14 @@
           - gridcell "Refus par défaut"
           - gridcell "Autoriser"
           - gridcell "Autoriser"
+    - list "Légende de la matrice":
+      - listitem: dans le brouillon
+      - listitem: en revue
+      - listitem: cellule choisie
     - text: /Brouillon · 1 cellule de cette matrice sur 2 · 1 en revue 1 s'ouvre sous réserve · \d+ non conformes à cette matrice · 0 conforme de nouveau/
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
-  - tablist "Panneau droit":
+  - tablist "Onglets du panneau":
     - tab "Détail"
     - tab "Brouillon 3" [selected]
   - tabpanel "Brouillon 3":
@@ -158,7 +165,7 @@
         - text: Ils étaient conformes avant ce brouillon. Seuls les types de flux dont il change la matrice sont touchés ; la règle qui refuse chaque flux est dans sa liste.
       - region "Applicatif":
         - heading "Applicatif" [level=3]
-        - text: /\d+ non conformes \d+ lignes/
+        - text: /\d+ non conformes 5 sur \d+ lignes/
         - 'button "Agrandir : Flux de type Applicatif non conformes à leur matrice après ce brouillon"'
         - grid "Flux de type Applicatif non conformes à leur matrice après ce brouillon":
           - rowgroup:
@@ -198,7 +205,7 @@
               - gridcell "prod-registry"
       - region "Administratif":
         - heading "Administratif" [level=3]
-        - text: 6 non conformes 6 lignes
+        - text: 6 non conformes 5 sur 6 lignes
         - 'button "Agrandir : Flux de type Administratif non conformes à leur matrice après ce brouillon"'
         - grid "Flux de type Administratif non conformes à leur matrice après ce brouillon":
           - rowgroup:
@@ -231,15 +238,13 @@
         - listitem:
           - code: /\d+\.\d+\.\d+\.\d+/
           - text: "Usage :"
-          - deletion: Hôte
-          - text: →
-          - insertion: VIP
+          - deletion: "avant : Hôte"
+          - insertion: "après : VIP"
           - button /Retirer l'opération « Usage » sur \d+\.\d+\.\d+\.\d+/
   - button "Fermer le panneau"
   - status: Revue requise Simulation valide ; politique « Changements de matrice ».
   - text: Résumé (obligatoire)
   - textbox "Résumé (obligatoire)": Accès sous motif, matrices applicatif et administratif
-  - text: Description (facultative)
-  - textbox "Description (facultative)"
+  - button "Ajouter une description"
   - button "Soumettre en revue"
   - button "Choisir l'action"

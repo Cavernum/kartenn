@@ -52,7 +52,13 @@ export { default as TimeBand } from "./components/TimeBand/TimeBand.vue";
 export { default as Tabs } from "./components/Tabs/Tabs.vue";
 export type { TabItem } from "./components/Tabs/tabs.ts";
 export { default as Menu } from "./components/Menu/Menu.vue";
-export type { MenuCheckbox, MenuDivider, MenuEntry, MenuItem } from "./components/Menu/menu.ts";
+export type {
+  MenuCheckbox,
+  MenuDivider,
+  MenuEntry,
+  MenuItem,
+  MenuRadio,
+} from "./components/Menu/menu.ts";
 export { default as Dialog } from "./components/Dialog/Dialog.vue";
 export { default as AlertDialog } from "./components/AlertDialog/AlertDialog.vue";
 export { default as Drawer } from "./components/Drawer/Drawer.vue";
@@ -97,6 +103,7 @@ export { default as BarList } from "./components/BarList/BarList.vue";
 export { layoutBars, niceCeil } from "./components/BarChart/chart.ts";
 export type { BarLayout, ChartPoint } from "./components/BarChart/chart.ts";
 export { default as DiffList } from "./components/DiffList/DiffList.vue";
+export { default as DiffValue } from "./components/DiffValue/DiffValue.vue";
 export { DIFF_SIGNS } from "./components/DiffList/diff.ts";
 export type { DiffChange, DiffGroup, DiffKind } from "./components/DiffList/diff.ts";
 export { default as Skeleton } from "./components/Skeleton/Skeleton.vue";

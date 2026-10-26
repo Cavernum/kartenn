@@ -1,3 +1,5 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
 - navigation "Navigation principale":
   - text: kartenn
   - button "Rechercher"
@@ -45,13 +47,14 @@
           - /url: /
       - listitem: Adresses
   - button "Présent"
-  - button "Brouillon ( 3 )" [expanded]
+  - button "Brouillon 3 opérations" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
   - heading "Adresses" [level=1]
-  - region /Adresses 1 \d+/:
-    - heading /Adresses 1 \d+/ [level=2]
+  - region "Adresses":
+    - heading "Adresses" [level=2]
+    - text: /1 \d+/
     - toolbar "Actions sur les adresses":
       - button "Créer"
       - button "Importer"
@@ -60,9 +63,16 @@
       - rowgroup:
         - row "Valeur Usage Propriétaire Site (filtrée)":
           - columnheader "Valeur"
-          - columnheader "Usage"
-          - columnheader "Propriétaire"
-          - columnheader "Site (filtrée)"
+          - columnheader "Usage":
+            - text: ""
+            - 'button "Filtrer : Usage"'
+          - columnheader "Propriétaire":
+            - text: ""
+            - 'button "Filtrer : Propriétaire"'
+          - columnheader "Site (filtrée)":
+            - text: ""
+            - 'button "Filtrer : Site"'
+            - text: ""
       - rowgroup:
         - row /\d+\.\d+\.\d+\.\d+ Hôte Atelier Nord site-ouest/:
           - gridcell /\d+\.\d+\.\d+\.\d+/
@@ -96,7 +106,7 @@
           - gridcell "site-ouest"
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
-  - tablist "Panneau droit":
+  - tablist "Onglets du panneau":
     - tab "Détail"
     - tab "Brouillon 3" [selected]
   - tabpanel "Brouillon 3":
@@ -104,26 +114,24 @@
       - listitem:
         - code: /\d+\.\d+\.\d+\.\d+/
         - text: "Usage :"
-        - deletion: Hôte
-        - text: →
-        - insertion: VIP
+        - deletion: "avant : Hôte"
+        - insertion: "après : VIP"
         - button /Retirer l'opération « Usage » sur \d+\.\d+\.\d+\.\d+/
       - listitem:
         - code: /\d+\.\d+\.\d+\.\d+/
         - text: "Propriétaire :"
-        - deletion: Atelier Nord
-        - text: →
-        - insertion: Atelier Sud
+        - deletion: "avant : Atelier Nord"
+        - insertion: "après : Atelier Sud"
         - button /Retirer l'opération « Propriétaire » sur \d+\.\d+\.\d+\.\d+/
       - listitem:
         - code: /\d+\.\d+\.\d+\.\d+/
-        - text: Créer l'adresse (Hôte, Service Pilote)
+        - text: "Créer l'adresse :"
+        - insertion: "ajouté : Hôte, Service Pilote"
         - button /Retirer l'opération « Créer l'adresse » sur \d+\.\d+\.\d+\.\d+/
   - button "Fermer le panneau"
   - status: Simulation en cours…
   - text: Résumé (obligatoire)
   - textbox "Résumé (obligatoire)": Maintenance du référentiel
-  - text: Description (facultative)
-  - textbox "Description (facultative)"
+  - button "Ajouter une description"
   - button "Appliquer" [disabled]
   - button "Choisir l'action"

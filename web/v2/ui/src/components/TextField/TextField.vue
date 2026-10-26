@@ -48,10 +48,13 @@ const model = defineModel<string>({ default: "" });
 const id = useId();
 const hintId = `${id}-hint`;
 const errorId = `${id}-error`;
+const pendingId = `${id}-pending`;
+// Pending is said in words too: under reduced motion the indicator no longer turns.
 const describedBy = computed(
   () =>
-    [props.error ? errorId : null, props.hint ? hintId : null].filter(Boolean).join(" ") ||
-    undefined,
+    [props.error ? errorId : null, props.pending ? pendingId : null, props.hint ? hintId : null]
+      .filter(Boolean)
+      .join(" ") || undefined,
 );
 </script>
 
@@ -87,6 +90,7 @@ const describedBy = computed(
         spellcheck="false"
       />
       <Icon v-if="props.pending" name="loader-circle" class="k-spinner k-text-field__icon" />
+      <span v-if="props.pending" :id="pendingId" class="k-visually-hidden">{{ t("loading") }}</span>
     </div>
     <p v-if="props.error" :id="errorId" class="k-text-field__error">
       <Icon name="circle-x" />{{ props.error }}
@@ -97,8 +101,11 @@ const describedBy = computed(
 
 <style>
 @layer components {
+  /* One elastic column: the field takes the width it is given, never the intrinsic width
+   * of its input (an editor in a grid cell stays in its cell). */
   .k-text-field {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--k-space-1);
     min-inline-size: 0;
   }

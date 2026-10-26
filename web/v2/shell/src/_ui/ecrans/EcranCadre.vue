@@ -129,8 +129,6 @@ watch(width, (now) => {
 });
 /** The drawer of the sidebar (compact class). */
 const navOpen = ref(false);
-/** The panel is a sheet over the window: what it hides leaves the focus order. */
-const sheetOpen = computed(() => width.value === "compact" && open.value);
 const initial = props.draftOpen ? "draft" : props.panel;
 const open = ref(initial !== undefined);
 const tab = ref<string>(initial ?? "detail");
@@ -149,7 +147,14 @@ function toggleDraft(): void {
 </script>
 
 <template>
-  <div class="k-ecran" :data-sidebar="collapsed ? 'collapsed' : 'expanded'" :data-width="width">
+  <div
+    class="k-ecran"
+    :data-sidebar="collapsed ? 'collapsed' : 'expanded'"
+    :data-width="width"
+    data-k-modal-scope
+  >
+    <!-- First stop of the page: past the sidebar and the bar to the surface (WCAG 2.4.1). -->
+    <a class="k-ecran__skip" href="#k-ecran-surface">Aller au contenu</a>
     <SidebarNav
       v-model:collapsed="collapsed"
       brand="kartenn"
@@ -172,7 +177,7 @@ function toggleDraft(): void {
       />
     </Drawer>
     <div class="k-ecran__column">
-      <header class="k-ecran__bar" :inert="sheetOpen || undefined">
+      <header class="k-ecran__bar">
         <IconButton
           class="k-ecran__nav"
           icon="menu"
@@ -209,9 +214,9 @@ function toggleDraft(): void {
           />
         </div>
       </header>
-      <TimeBand v-if="props.at" :at="props.at" :time-zone="ZONE" :inert="sheetOpen || undefined" />
+      <TimeBand v-if="props.at" :at="props.at" :time-zone="ZONE" />
       <div class="k-ecran__body">
-        <main class="k-ecran__surface" :inert="sheetOpen || undefined">
+        <main id="k-ecran-surface" class="k-ecran__surface" tabindex="-1">
           <h1 class="k-visually-hidden">{{ props.title }}</h1>
           <slot />
         </main>
@@ -225,7 +230,7 @@ function toggleDraft(): void {
           :tabs="tabs"
           :cover="width === 'narrow'"
           :sheet="width === 'compact'"
-          rail
+          :rail="width !== 'compact'"
         >
           <template #detail>
             <slot name="detail">
@@ -265,6 +270,28 @@ function toggleDraft(): void {
     overflow: hidden;
     color: var(--k-text);
     background-color: var(--k-bg);
+  }
+
+  /* The skip link: out of the grid, shown over the corner while it has the focus. */
+  .k-ecran__skip {
+    position: absolute;
+    inset-block-start: var(--k-space-1);
+    inset-inline-start: var(--k-space-1);
+    z-index: var(--k-z-overlay);
+    padding: var(--k-space-1) var(--k-space-2);
+    color: var(--k-text);
+    background-color: var(--k-surface);
+    border: var(--k-border-width) solid var(--k-border-strong);
+    border-radius: var(--k-radius-md);
+    translate: 0 calc(-100% - var(--k-space-2));
+  }
+
+  .k-ecran__skip:focus {
+    translate: 0 0;
+  }
+
+  .k-ecran__surface:focus {
+    outline: none;
   }
 
   /* The button of the drawer of the sidebar: the compact class only. */
@@ -346,6 +373,9 @@ function toggleDraft(): void {
     overflow: auto;
     isolation: isolate;
     container: k-surface / inline-size;
+    /* The panel over its end (wide and standard): a control that takes the focus scrolls
+     * out from under it (WCAG 2.4.11); the width the panel publishes, 0 otherwise. */
+    scroll-padding-inline-end: var(--k-side-panel-inset, 0);
   }
 
   /* The period picker, laid over the band and the surface under the date pill, out of the

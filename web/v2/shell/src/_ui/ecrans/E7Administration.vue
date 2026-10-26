@@ -22,12 +22,14 @@ import {
   KeyLabel,
   Stack,
   StatusBadge,
+  Toolbar,
   type GridColumn,
   type GridSort,
   type RowState,
   type ToolbarAction,
 } from "@kartenn/ui";
 import { ref } from "vue";
+import Attributs from "./EcranAttributs.vue";
 import Barre from "./EcranBarre.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
@@ -256,7 +258,7 @@ const lastLoginGroups = chosenIdentity.lastLoginIdpGroups.map((name) => ({
 }));
 const identitySort = ref<GridSort>({ column: "name", direction: "ascending" });
 const identityActions: ToolbarAction[] = [
-  { id: "disable", label: "Désactiver", icon: "lock", priority: 2 },
+  { id: "disable", label: "Désactiver", icon: "user-x", priority: 2 },
   { id: "revoke", label: "Révoquer les sessions", icon: "log-out", priority: 1 },
 ];
 
@@ -287,8 +289,10 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
   >
     <template v-if="group">
       <Panneau title="Groupes" :detail="String(GROUPS.length)" main flush>
-        <template #toolbar>
-          <Barre label="Actions des groupes" :actions="createActions" align="start" />
+        <!-- In the title row, as in every main panel; at its start: the right panel may
+             cover the end of the surface. -->
+        <template #actions>
+          <Toolbar label="Actions des groupes" :actions="createActions" align="start" />
         </template>
         <DataGrid
           v-model:sort="groupSort"
@@ -296,7 +300,7 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
           :columns="groupColumns"
           :rows="GROUPS"
           row-key="key"
-          selectable
+          selectable="single"
           :selected="[group.key]"
           :row-state="groupState"
         >
@@ -319,7 +323,7 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
           :columns="identityColumns"
           :rows="IDENTITIES"
           row-key="key"
-          selectable
+          selectable="single"
           :selected="['lou.bernard']"
           stack
         >
@@ -337,8 +341,8 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
 
     <template v-else-if="tab === 'roles'">
       <Panneau title="Rôles" :detail="String(ROLES.length)" main flush>
-        <template #toolbar>
-          <Barre label="Actions des rôles" :actions="createActions" align="start" />
+        <template #actions>
+          <Toolbar label="Actions des rôles" :actions="createActions" align="start" />
         </template>
         <DataGrid
           v-model:sort="roleSort"
@@ -346,7 +350,7 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
           :columns="roleColumns"
           :rows="ROLES"
           row-key="key"
-          selectable
+          selectable="single"
           :selected="['lecteur-reseau']"
         >
           <template #cell="{ row, column, value }">
@@ -381,17 +385,17 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
           </template>
         </DataGrid>
       </Panneau>
-      <Dialog
-        :open="true"
-        title="Nouveau secret pour sync-ipam"
-        description="Copiez-le maintenant : il ne sera plus jamais affiché."
-      >
+      <!-- The focus opens on the copy of the secret, never on the cross: closed by mistake,
+           a secret shown once is lost (relecture du 2026-10-26). -->
+      <Dialog :open="true" title="Nouveau secret pour sync-ipam">
         <Stack gap="3">
-          <InlineAlert tone="warn" title="Affiché une seule fois">
-            kartenn n'en garde qu'une empreinte. Perdu, il se remplace par un nouveau secret.
+          <InlineAlert tone="warn" title="Copiez-le maintenant : il ne sera plus jamais affiché">
+            kartenn n'en garde qu'une empreinte ; perdu, il se remplace par un nouveau secret.
           </InlineAlert>
-          <CodeBadge :code="SECRET" />
-          <p class="k-ecran-muted">Expire le <time datetime="2027-01-15">2027-01-15</time>.</p>
+          <CodeBadge :code="SECRET" data-autofocus />
+          <Attributs :items="[{ key: 'expires', label: 'Expire le', value: '2027-01-15' }]">
+            <template #expires><time datetime="2027-01-15">2027-01-15</time></template>
+          </Attributs>
         </Stack>
         <template #actions>
           <Button variant="primary" icon="check">J'ai copié le secret</Button>
@@ -497,7 +501,7 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
                   />
                   <span class="k-ecran-ligne__libelle"
                     >{{ binding.roleLabel }}
-                    <code class="k-ecran-muted">{{ binding.role }}</code></span
+                    <code class="k-ecran-muted k-ecran-ligne__cle">{{ binding.role }}</code></span
                   >
                 </span>
                 <span class="k-ecran-muted k-ecran-ligne__valeur"
@@ -586,11 +590,12 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
             <ul class="k-ecran-list k-ecran-lignes k-ecran-lignes--lecture">
               <li v-for="right in IDENTITY_RIGHTS" :key="`${right.role} ${right.scope}`">
                 <span
-                  >{{ right.roleLabel }} <code class="k-ecran-muted">{{ right.role }}</code></span
+                  >{{ right.roleLabel }}
+                  <code class="k-ecran-muted k-ecran-ligne__cle">{{ right.role }}</code></span
                 >
                 <span class="k-ecran-muted k-ecran-ligne__valeur"
                   ><span>{{ right.scope }}</span
-                  ><span>par {{ right.group }}</span></span
+                  ><span>via le groupe {{ right.group }}</span></span
                 >
               </li>
             </ul>
@@ -726,6 +731,12 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
   .k-ecran-lignes code,
   .k-ecran-insecable {
     white-space: nowrap;
+  }
+
+  /* The key of a role under its label, on every row: one height for all (relecture du
+   * 2026-10-26), never the key beside a short label and under a long one. */
+  .k-ecran-ligne__cle {
+    display: block;
   }
 
   /* A value and its detail (an end date, the granting group) on a second line. */

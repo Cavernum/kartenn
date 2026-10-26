@@ -1,3 +1,5 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
 - navigation "Navigation principale":
   - button "Rechercher"
   - list "Référentiel":
@@ -109,12 +111,13 @@
           - /url: /topology?node=p1
       - listitem: /\d+\.\d+\.\d+\.\d+\/\d+/
   - button "Présent"
-  - button "Brouillon ( 3 )"
+  - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
   - 'heading /Topographie : \d+\.\d+\.\d+\.\d+\/\d+/ [level=1]'
-  - heading "Préfixes Centre de données nord" [level=2]
+  - heading "Préfixes" [level=2]
+  - text: Centre de données nord
   - treegrid "Arbre des préfixes du domaine Centre de données nord":
     - rowgroup:
       - row "Préfixe Occupation":
@@ -169,13 +172,14 @@
           - code: /\d+:db8:\d+::\/\d+/
           - button /Ajouter dans \d+:db8:\d+::\/\d+/
         - gridcell "3 %"
-  - region /\d+\.\d+\.\d+\.\d+\/\d+ réseau · Supervision/:
-    - heading /\d+\.\d+\.\d+\.\d+\/\d+ réseau · Supervision/ [level=2]
+  - region /\d+\.\d+\.\d+\.\d+\/\d+/:
+    - heading /\d+\.\d+\.\d+\.\d+\/\d+/ [level=2]
+    - text: réseau · Supervision
     - toolbar /Actions sur \d+\.\d+\.\d+\.\d+\/\d+/:
       - button "Créer"
       - button "Prochain libre"
       - button "Copier les valeurs"
-    - button "Autres actions"
+      - button "Plus d'actions"
     - button /Inclus dans = \d+\.\d+\.\d+\.\d+\/\d+/
     - button /Retirer le filtre Inclus dans = \d+\.\d+\.\d+\.\d+\/\d+/
     - button "Environnement = Production"
@@ -184,9 +188,16 @@
       - rowgroup:
         - row "Objet Usage Environnement (filtrée) Propriétaire":
           - columnheader "Objet"
-          - columnheader "Usage"
-          - columnheader "Environnement (filtrée)"
-          - columnheader "Propriétaire"
+          - columnheader "Usage":
+            - text: ""
+            - 'button "Filtrer : Usage"'
+          - columnheader "Environnement (filtrée)":
+            - text: ""
+            - 'button "Filtrer : Environnement"'
+            - text: ""
+          - columnheader "Propriétaire":
+            - text: ""
+            - 'button "Filtrer : Propriétaire"'
       - rowgroup:
         - row /Adresse \d+\.\d+\.\d+\.\d+ Passerelle Production Atelier Nord/:
           - gridcell /Adresse \d+\.\d+\.\d+\.\d+/:

@@ -1,9 +1,9 @@
 - main:
   - region "SidePanel":
     - heading "SidePanel" [level=1]
-    - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter"
+    - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter ; en feuille, Dialog (Modal)"
     - 'figure /sheet — Fenêtre compacte : feuille plein écran \(ici, tout le cadre de \d+ px\), « Retour » au début de ses onglets/':
-      - button "Brouillon ( 3 )" [expanded]
+      - button "Brouillon 3 opérations" [expanded]
       - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
       - grid "Préfixes":
         - rowgroup:
@@ -36,8 +36,9 @@
             - gridcell /\d+:db8::\/\d+/
             - gridcell "Sauvegardes"
             - gridcell "7 %"
-      - complementary "Panneau droit":
-        - tablist "Panneau droit":
+      - dialog "Panneau droit":
+        - button "Retour"
+        - tablist "Onglets du panneau":
           - tab "Détail"
           - tab "Brouillon 3" [selected]
         - tabpanel "Brouillon 3":
@@ -45,7 +46,6 @@
             - listitem: /Brouillon \d+\.\d+\.\d+\.\d+\/\d+/
             - listitem: /Brouillon \d+\.\d+\.\d+\.\d+/
             - listitem: /Brouillon \d+\.\d+\.\d+\.\d+\/\d+/
-        - button "Retour"
         - paragraph: Simulation valide
         - text: Résumé (obligatoire)
         - textbox "Résumé (obligatoire)": Maintenance du référentiel

@@ -6,6 +6,7 @@ import { defineComponent, h, ref, type PropType } from "vue";
 import type { CatalogueEntry } from "../../catalogue.ts";
 import DemoColumn from "../../demo/DemoColumn.vue";
 import Toolbar from "./Toolbar.vue";
+import type { MenuItem } from "../Menu/menu.ts";
 import type { ToolbarAction } from "./toolbar.ts";
 
 const actions: ToolbarAction[] = [
@@ -28,6 +29,7 @@ const actions: ToolbarAction[] = [
 const demo = defineComponent({
   props: {
     actions: { type: Array as PropType<ToolbarAction[]>, required: true },
+    more: { type: Array as PropType<MenuItem[]>, default: () => [] },
     size: { type: String as PropType<"sm" | "md" | "lg" | "full">, default: "full" },
   },
   setup(props) {
@@ -36,6 +38,7 @@ const demo = defineComponent({
       h(Toolbar, {
         label: "Actions sur les préfixes",
         actions: props.actions,
+        more: props.more,
         onAction: (id: string) => (ran.value = `Action : ${id}`),
       }),
       h("p", { role: "status", class: "k-cat-note" }, ran.value),
@@ -67,6 +70,20 @@ export default {
       description: "240 px (sous 360 px) : seule l'action principale reste, à côté de « … »",
       props: { actions, size: "sm" },
       demo,
+    },
+    {
+      name: "more",
+      description:
+        "Entrées propres à « … » (more) : toujours présent, après les actions repliées ; jamais deux « … »",
+      props: {
+        actions: actions.slice(0, 3),
+        more: [
+          { id: "open", label: "Ouvrir la fiche", icon: "external-link" },
+          { id: "history", label: "Historique", icon: "clock" },
+        ],
+      },
+      demo,
+      wide: true,
     },
     {
       name: "forbidden",

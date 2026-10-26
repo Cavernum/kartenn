@@ -1,3 +1,5 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
 - navigation "Navigation principale":
   - text: kartenn
   - button "Rechercher"
@@ -39,23 +41,30 @@
           - /url: /admin/groups
       - listitem: secours
   - button "Présent"
-  - button "Brouillon ( 0 )" [expanded]
+  - button "Brouillon 0 opération" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
   - heading "Groupes" [level=1]
-  - region "Groupes 6":
-    - heading "Groupes 6" [level=2]
+  - region "Groupes":
+    - heading "Groupes" [level=2]
+    - text: "6"
     - toolbar "Actions des groupes":
       - button "Créer"
     - grid "Groupes":
       - rowgroup:
         - row "Groupe Livré Membres Rôles Description":
-          - columnheader "Groupe"
-          - columnheader "Livré"
+          - columnheader "Groupe":
+            - text: ""
+            - 'button "Filtrer : Groupe"'
+          - columnheader "Livré":
+            - text: ""
+            - 'button "Filtrer : Livré"'
           - columnheader "Membres"
           - columnheader "Rôles"
-          - columnheader "Description"
+          - columnheader "Description":
+            - text: ""
+            - 'button "Filtrer : Description"'
       - rowgroup:
         - row "Secours secours oui 1 1 Compte de secours, administrateur global" [selected]:
           - gridcell "Secours secours":
@@ -106,7 +115,7 @@
           - gridcell "Reporté par la migration, à regrouper"
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
-  - tablist "Panneau droit":
+  - tablist "Onglets du panneau":
     - tab "Détail" [selected]
     - tab "Brouillon 0"
   - tabpanel "Détail":

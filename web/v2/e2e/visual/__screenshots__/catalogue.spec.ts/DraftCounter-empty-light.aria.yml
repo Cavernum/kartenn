@@ -3,6 +3,6 @@
     - heading "DraftCounter" [level=1]
     - paragraph: "Motif : Button (bascule du panneau, aria-expanded) et Menu Button (liste des brouillons)"
     - figure "empty — Compteur à 0":
-      - button "Brouillon ( 0 )"
+      - button "Brouillon 0 opération"
       - code: empty
       - text: ""

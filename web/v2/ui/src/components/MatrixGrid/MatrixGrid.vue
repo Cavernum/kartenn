@@ -23,7 +23,7 @@
 // border of the destination column header, both pointing up (from the cell to the
 // destination). They are empty pseudo-elements (`data-flow`), outside the accessibility
 // tree: the name of the grid and the corner say the direction in words.
-import { computed, nextTick, ref, shallowRef } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 import { t } from "../../i18n.ts";
 import Icon from "../Icon/Icon.vue";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
@@ -103,6 +103,20 @@ function onFocusin(event: FocusEvent): void {
   if (cell && (cell.row !== current.value.row || cell.column !== current.value.column))
     active.value = cell;
 }
+
+// The headers stick: what takes the focus scrolls out from under them (WCAG 2.4.11), the
+// width of the column of row headers measured into the scroll padding.
+let observer: ResizeObserver | undefined;
+onMounted(() => {
+  const corner = grid.value?.querySelector<HTMLElement>(".k-matrix__corner");
+  if (!corner) return;
+  const measure = () => grid.value?.style.setProperty("--k-matrix-key", `${corner.offsetWidth}px`);
+  measure();
+  if (typeof ResizeObserver === "undefined") return;
+  observer = new ResizeObserver(measure);
+  observer.observe(corner);
+});
+onBeforeUnmount(() => observer?.disconnect());
 
 function onKeydown(event: KeyboardEvent): void {
   const cell = current.value;
@@ -247,6 +261,8 @@ function onKeydown(event: KeyboardEvent): void {
    * a narrow matrix keeps room for its cells; design « Adaptation à la largeur »), then
    * one track per column of the matrix. */
   .k-matrix {
+    --k-matrix-key: var(--k-space-0);
+
     display: grid;
     grid-template-columns:
       max-content
@@ -255,6 +271,9 @@ function onKeydown(event: KeyboardEvent): void {
     min-inline-size: 0;
     max-block-size: 100%;
     overflow: auto;
+    /* The sticky headers never hide a focused cell (WCAG 2.4.11). */
+    scroll-padding-block-start: var(--k-header-height);
+    scroll-padding-inline-start: var(--k-matrix-key);
     color: var(--k-text);
     background-color: var(--k-surface);
     border: var(--k-border-width) solid var(--k-border-strong);
@@ -360,8 +379,10 @@ function onKeydown(event: KeyboardEvent): void {
     background-color: var(--k-hover);
   }
 
+  /* Its headers also underlined: never the tint alone (WCAG 1.4.1), whatever `axes`. */
   .k-matrix__header[data-cross] {
     color: var(--k-text);
+    text-decoration-line: underline;
     background-color: var(--k-accent-soft);
   }
 

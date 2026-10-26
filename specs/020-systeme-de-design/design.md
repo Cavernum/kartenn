@@ -534,6 +534,68 @@ horizontalement hors des régions de grille, et que chaque classe montre le cadr
   (≈ 30 px sur 390) ; à 390 px, l'arbre d'E1 (`replie`) coupe ses libellés devant les
   préfixes (« Serv… ») — à reprendre avec la version complète de `TreeGrid`.
 
+**Réalisé (2026-10-26, relectures).** Relectures `a11y-auditor` (WCAG 2.2 AA, motifs APG)
+et `ui-reviewer` des maquettes E0 à E10.
+
+- Panneau (décision de l'utilisateur : par-dessus la surface à toute largeur). Ce qu'il
+  couvre sort de l'ordre du focus (2.4.3, 2.4.11) : en `cover` (classe étroite), les autres
+  enfants de son conteneur sont `inert` tant qu'il est ouvert ; en `sheet` (compacte), il
+  est un dialogue modal (`role="dialog"`, `aria-modal`) et tout ce qui est à côté de lui,
+  jusqu'au plus proche `[data-k-modal-scope]` (le cadre, un cadre de démonstration) ou
+  `body`, est `inert`, la cible des couches flottantes exceptée (`internal/inertOthers.ts`) ;
+  le cadre ne pose plus `inert` lui-même. Par-dessus la fin de la surface (large,
+  standard), il publie sa largeur en `--k-side-panel-inset` sur son conteneur : la surface
+  en fait son `scroll-padding-inline-end`, le pied d'un panneau principal sa marge de fin
+  (ses comptes restent lisibles). « Retour » d'une feuille vient en premier dans le DOM ;
+  Échap appartient à un champ de saisie ou à un déclencheur de popup ouvert ; poignée de
+  24 px pour tout pointeur ; liste d'onglets nommée « Onglets du panneau » ; chevron de la
+  languette sans `aria-expanded` ; plus de languette en classe compacte (le compteur ouvre
+  la feuille) ; un dégradé au bas de l'onglet dit qu'il reste à faire défiler.
+- `DataGrid` : entonnoir en vrai bouton « Filtrer : <colonne> » hors de l'ordre de
+  tabulation, à côté du titre ; Espace, Maj+Espace et Ctrl+A pour la sélection
+  (`selected` devient un modèle, `selectable="single"` pour une seule ligne) ; les widgets
+  d'une cellule sortent de l'ordre de tabulation, Entrée ou F2 y entre, Échap ou F2 en
+  sort ; l'arrêt du focus survit à une colonne masquée par le sélecteur ou à une ligne
+  filtrée ; `scroll-padding` de l'en-tête et de la clé collants ; éditeur gardé dans sa
+  cellule ; erreur d'une cellule sur une ligne à elle sous la valeur (la ligne grandit) ;
+  colonne jamais plus étroite que son en-tête (`minmax(auto, jeton)`, jeton tenu par les
+  cellules, `data-width`) ; actions de ligne au bout de leur colonne. `moveInGrid` ignore
+  Alt.
+- `MatrixGrid` : en-têtes de la croix soulignés (pas la teinte seule), `scroll-padding`.
+  `TreeGrid` : clavier de la colonne d'arbre (Haut, Bas, Début, Fin, Droite ouvre ou
+  entre, Gauche ferme ou remonte, Entrée ou F2 vers le « + »), `expanded` en modèle.
+  `BarChart` : l'image prend le focus, les flèches montrent la valeur de chaque barre
+  (infobulle, région `polite`). `BarList` : rôles de table explicites, « au-delà de
+  l'échelle » dit en mots. `Skeleton` : région `status` présente vide avant son mot, sans
+  `aria-busy`. `FilterChip` invalide : « (invalide) » dans le nom, motif en `alert`.
+  `Drawer` : le focus revient à ce qui l'a ouvert, même sans déclencheur Reka. `Menu` :
+  entrées `radio` (`menuitemradio` en groupe) ; `DraftCounter` s'en sert pour le brouillon
+  actif et se nomme « Brouillon 3 opérations ». `Toolbar` : entrées `more`, toujours dans
+  son « … » (jamais deux « … » côte à côte). `Button`, `IconButton`, `TextField` disent
+  « Chargement » en mots. `Dialog` : focus initial sur `[data-autofocus]`. `CommitForm` :
+  `collapsible`. `Breadcrumb` : la page courante cède en dernier. `SidebarNav` : l'entrée
+  courante reste visible (la liste défile). `Kbd` décoratif et utilitaire
+  `k-keyboard-hint` masqués sous `(hover: none) and (pointer: coarse)`. Icône `user-x`.
+  `ExpandableGrid` : « 3 sur 10 lignes ». Nouveau : `DiffValue` (signe attaché à sa
+  valeur, avant → après).
+- Maquettes : lien d'évitement « Aller au contenu » ; détail d'un panneau hors de son
+  titre ; E0 lien vers les anomalies, accueil partagé avec E8 (`EcranAccueil`) ; E1 un
+  seul « … » ; E2, E5 cadre « À venir » sans tirets ; E5 phrase des violations ; E6
+  « Lue » en badge ; E7 focus du secret sur sa copie, « Expire le » en libellé et valeur,
+  « Créer » dans la ligne du titre, clé de rôle sous son libellé, « via le groupe »,
+  icône `user-x` ; E9 sortie sûre en bouton secondaire ; E10 légende de la matrice.
+- Choix tranchés : modalité de la feuille dans `SidePanel` (parcours jusqu'à
+  `[data-k-modal-scope]`) plutôt que dans le cadre ; marge de défilement par une propriété
+  héritée publiée par le panneau ; une seule sélection par `selectable="single"` (E6, E7,
+  E10) ; nom du compteur « Brouillon 3 opérations » (les mots visibles d'abord, 2.5.3) ;
+  pas de libellé visible ajouté à la pastille et au compteur à 390 px (noms vérifiés, la
+  place reste au titre de la page) ; légende de la matrice dans E10 (pas de prop de
+  `MatrixGrid`) ; description repliée plutôt qu'une rangée d'action collante dans le pied
+  du brouillon.
+- Reste : alternative au glissement de la poignée (2.5.7) autre que le clavier ; tri,
+  colonnes et édition au clavier de `TreeGrid` (version complète) ; un `scroll-padding` des
+  grilles qui tienne compte du panneau (seule la surface le reçoit).
+
 ## Architecture CSS (REQ-020-12 à 14)
 
 ```

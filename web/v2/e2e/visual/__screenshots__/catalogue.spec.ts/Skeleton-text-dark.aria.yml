@@ -1,7 +1,7 @@
 - main:
   - region "Skeleton":
     - heading "Skeleton" [level=1]
-    - paragraph: "Motif : aria-busy"
+    - paragraph: "Motif : status (région présente avant son mot)"
     - figure "text — Lignes de texte (fiche)":
       - status: Chargement
       - code: text

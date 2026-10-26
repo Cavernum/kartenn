@@ -35,12 +35,20 @@ const props = withDefaults(
 const open = defineModel<boolean>("open", { default: false });
 const portal = injectPortalTarget();
 
-/** On open, the focus goes to the first field of the body, else where Reka puts it. */
+/**
+ * On open, the focus goes to the element the host marks `data-autofocus` (the safe action
+ * of a dialog whose close would lose something: a secret shown once), else to the first
+ * field of the body, else where Reka puts it.
+ */
 function focusFirstField(event: Event): void {
   const content = event.target as HTMLElement | null;
-  const field = content?.querySelector<HTMLElement>(
-    ".k-dialog__body input:not([disabled]), .k-dialog__body select, .k-dialog__body textarea",
-  );
+  const marked = content?.querySelector<HTMLElement>("[data-autofocus]");
+  const focusable = "button:not([disabled]), a[href], input:not([disabled]), select, textarea";
+  const field =
+    (marked?.matches(focusable) ? marked : marked?.querySelector<HTMLElement>(focusable)) ??
+    content?.querySelector<HTMLElement>(
+      ".k-dialog__body input:not([disabled]), .k-dialog__body select, .k-dialog__body textarea",
+    );
   if (field) {
     event.preventDefault();
     field.focus();

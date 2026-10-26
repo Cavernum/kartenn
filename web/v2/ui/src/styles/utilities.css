@@ -22,4 +22,14 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  /* A hint that only a keyboard can use (« Entrée vers le brouillon… »): gone where the
+   * only pointer is a finger and nothing hovers (design « Adaptation à la largeur »,
+   * « Tactile »; relecture du 2026-10-26). A keyboard attached to a tablet loses the hint,
+   * not the keys. */
+  @media (hover: none) and (pointer: coarse) {
+    .k-keyboard-hint {
+      display: none;
+    }
+  }
 }

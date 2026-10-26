@@ -1,9 +1,9 @@
 - main:
   - region "SidePanel":
     - heading "SidePanel" [level=1]
-    - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter"
+    - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter ; en feuille, Dialog (Modal)"
     - figure "detail — Ouvert sur l'onglet Détail, en surimpression de la fin de la surface":
-      - button "Brouillon ( 3 )"
+      - button "Brouillon 3 opérations" [expanded]
       - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
       - grid "Préfixes":
         - rowgroup:
@@ -38,7 +38,7 @@
             - gridcell "7 %"
       - complementary "Panneau droit":
         - separator "Redimensionner le panneau"
-        - tablist "Panneau droit":
+        - tablist "Onglets du panneau":
           - tab "Détail" [selected]
           - tab "Brouillon 3"
         - tabpanel "Détail":

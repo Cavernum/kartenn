@@ -13,7 +13,6 @@ import {
   FilterChip,
   Icon,
   KeyLabel,
-  Menu,
   Split,
   SplitButton,
   Stack,
@@ -256,8 +255,7 @@ const addAction = ref("draft");
       </template>
       <Panneau title="192.0.2.64/26" detail="réseau · Supervision" main flush>
         <template #actions>
-          <Toolbar label="Actions sur 192.0.2.64/26" align="end" :actions="actions" />
-          <Menu label="Autres actions" icon="ellipsis" icon-only align="end" :items="more" />
+          <Toolbar label="Actions sur 192.0.2.64/26" align="end" :actions="actions" :more="more" />
         </template>
         <template #toolbar>
           <Cluster gap="2">

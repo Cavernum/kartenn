@@ -10,6 +10,8 @@
 // is its description and a tooltip beside it while it has the focus (024/M14). The
 // trigger is a `Button`, or an `IconButton` when `iconOnly`. A checkbox entry
 // (`menuitemcheckbox`, `aria-checked`) keeps the menu open when chosen (a column chooser).
+// Radio entries (`menuitemradio` in a `group`, `aria-checked`) say which one of a set is on
+// (the active draft); choosing one closes the menu.
 import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -17,11 +19,13 @@ import {
   DropdownMenuItemIndicator,
   DropdownMenuLabel,
   DropdownMenuPortal,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuRoot,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "reka-ui";
-import { shallowRef, useId, type Directive } from "vue";
+import { computed, shallowRef, useId, type Directive } from "vue";
 import { injectPortalTarget } from "../../context.ts";
 import type { IconName } from "../../icons/index.ts";
 import Button from "../Button/Button.vue";
@@ -34,7 +38,7 @@ import Kbd from "../Kbd/Kbd.vue";
 import type { ControlSize } from "../layout.ts";
 import Tooltip from "../Tooltip/Tooltip.vue";
 import { useTooltip } from "../Tooltip/tooltip.ts";
-import type { MenuEntry, MenuItem } from "./menu.ts";
+import { menuBlocks, type MenuEntry, type MenuItem } from "./menu.ts";
 
 const props = withDefaults(
   defineProps<{
@@ -54,6 +58,8 @@ const portal = injectPortalTarget();
 const base = useId();
 
 const isEntry = (item: MenuItem): item is MenuEntry => !item.kind || item.kind === "item";
+/** The items, each run of radio entries in a group of its own. */
+const blocks = computed(() => menuBlocks(props.items));
 const isBlocked = (entry: MenuEntry) => !!(entry.disabled || entry.forbidden);
 const hasReason = (entry: MenuEntry) => isBlocked(entry) && !!(entry.forbidden || entry.reason);
 const reasonId = (entry: MenuEntry) => `${base}-${entry.id}-why`;
@@ -119,52 +125,75 @@ function onSelect(entry: MenuEntry, event: Event): void {
     </DropdownMenuTrigger>
     <DropdownMenuPortal :to="portal">
       <DropdownMenuContent class="k-menu" :align="props.align" :side-offset="4">
-        <template v-for="(item, i) in props.items" :key="isEntry(item) ? item.id : i">
-          <DropdownMenuSeparator v-if="item.kind === 'separator'" class="k-menu__separator" />
-          <DropdownMenuLabel v-else-if="item.kind === 'label'" class="k-menu__label">
-            {{ item.label }}
-          </DropdownMenuLabel>
-          <DropdownMenuCheckboxItem
-            v-else-if="item.kind === 'checkbox'"
-            class="k-menu__item"
-            :model-value="item.checked"
-            @select="
-              (event: Event) => {
-                event.preventDefault();
-                emit('select', item.id);
-              }
-            "
+        <template v-for="block in blocks" :key="block.key">
+          <DropdownMenuRadioGroup
+            v-if="block.kind === 'radios'"
+            class="k-menu__group"
+            :model-value="block.value"
           >
-            <span class="k-menu__check">
-              <DropdownMenuItemIndicator><Icon name="check" /></DropdownMenuItemIndicator>
-            </span>
-            <span class="k-menu__text">{{ item.label }}</span>
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuItem
-            v-else-if="isEntry(item)"
-            v-aria-disabled="isBlocked(item)"
-            class="k-menu__item"
-            :data-danger="item.danger ? 'true' : undefined"
-            :data-blocked="isBlocked(item) ? 'true' : undefined"
-            :aria-describedby="hasReason(item) ? reasonId(item) : undefined"
-            :aria-keyshortcuts="item.shortcut ? ariaKeyshortcuts(item.shortcut) : undefined"
-            @select="(event: Event) => onSelect(item, event)"
-            @focusin="(event: FocusEvent) => onFocus(item, event)"
-            @focusout="tip.hide()"
-          >
-            <Icon v-if="item.icon" :name="item.icon" class="k-menu__icon" />
-            <span class="k-menu__text">{{ item.label }}</span>
-            <!-- The description only: hidden from the name, read through aria-describedby. -->
-            <span
-              v-if="hasReason(item)"
-              :id="reasonId(item)"
-              class="k-visually-hidden"
-              aria-hidden="true"
-              ><BlockedReason :forbidden="item.forbidden" :reason="item.reason"
-            /></span>
-            <Icon v-if="item.forbidden" name="lock" class="k-menu__icon" />
-            <Kbd v-if="item.shortcut" :keys="item.shortcut" aria-hidden="true" />
-          </DropdownMenuItem>
+            <DropdownMenuRadioItem
+              v-for="radio in block.radios"
+              :key="radio.id"
+              class="k-menu__item"
+              :value="radio.id"
+              @select="emit('select', radio.id)"
+            >
+              <span class="k-menu__check">
+                <DropdownMenuItemIndicator><Icon name="check" /></DropdownMenuItemIndicator>
+              </span>
+              <span class="k-menu__text">{{ radio.label }}</span>
+            </DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+          <!-- Any other item, under its own name. -->
+          <template v-else>
+            <template v-for="item in [block.item]" :key="item.kind ?? 'item'">
+              <DropdownMenuSeparator v-if="item.kind === 'separator'" class="k-menu__separator" />
+              <DropdownMenuLabel v-else-if="item.kind === 'label'" class="k-menu__label">
+                {{ item.label }}
+              </DropdownMenuLabel>
+              <DropdownMenuCheckboxItem
+                v-else-if="item.kind === 'checkbox'"
+                class="k-menu__item"
+                :model-value="item.checked"
+                @select="
+                  (event: Event) => {
+                    event.preventDefault();
+                    emit('select', item.id);
+                  }
+                "
+              >
+                <span class="k-menu__check">
+                  <DropdownMenuItemIndicator><Icon name="check" /></DropdownMenuItemIndicator>
+                </span>
+                <span class="k-menu__text">{{ item.label }}</span>
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuItem
+                v-else-if="isEntry(item)"
+                v-aria-disabled="isBlocked(item)"
+                class="k-menu__item"
+                :data-danger="item.danger ? 'true' : undefined"
+                :data-blocked="isBlocked(item) ? 'true' : undefined"
+                :aria-describedby="hasReason(item) ? reasonId(item) : undefined"
+                :aria-keyshortcuts="item.shortcut ? ariaKeyshortcuts(item.shortcut) : undefined"
+                @select="(event: Event) => onSelect(item, event)"
+                @focusin="(event: FocusEvent) => onFocus(item, event)"
+                @focusout="tip.hide()"
+              >
+                <Icon v-if="item.icon" :name="item.icon" class="k-menu__icon" />
+                <span class="k-menu__text">{{ item.label }}</span>
+                <!-- The description only: hidden from the name, read through aria-describedby. -->
+                <span
+                  v-if="hasReason(item)"
+                  :id="reasonId(item)"
+                  class="k-visually-hidden"
+                  aria-hidden="true"
+                  ><BlockedReason :forbidden="item.forbidden" :reason="item.reason"
+                /></span>
+                <Icon v-if="item.forbidden" name="lock" class="k-menu__icon" />
+                <Kbd v-if="item.shortcut" :keys="item.shortcut" aria-hidden="true" />
+              </DropdownMenuItem>
+            </template>
+          </template>
         </template>
         <Tooltip :control="tip" side="inline-end" decorative>
           <BlockedReason v-if="shown" :forbidden="shown.forbidden" :reason="shown.reason" />
@@ -266,7 +295,11 @@ function onSelect(entry: MenuEntry, event: Event): void {
     color: currentcolor;
   }
 
-  /* The tick of a checkbox entry, in a box of an icon's width: labels align. */
+  .k-menu__group {
+    display: grid;
+  }
+
+  /* The tick of a checkbox or radio entry, in a box of an icon's width: labels align. */
   .k-menu__check {
     display: inline-flex;
     flex: none;

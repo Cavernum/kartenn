@@ -25,16 +25,21 @@ const props = withDefaults(
     size?: ControlSize;
     /** Where the actions sit in the bar. */
     align?: "start" | "end";
+    /**
+     * Entries that always live in « … », after the folded actions: one menu of more
+     * actions per bar, never two buttons « … » side by side (relecture du 2026-10-26).
+     */
+    more?: MenuItem[];
   }>(),
-  { size: "md", align: "start" },
+  { size: "md", align: "start", more: () => [] },
 );
 const emit = defineEmits<{ action: [id: string] }>();
 
 const bar = ref<HTMLElement | null>(null);
 const folded = ref<string[]>([]);
 const shown = computed(() => props.actions.filter((a) => !folded.value.includes(a.id)));
-const foldedItems = computed<MenuItem[]>(() =>
-  props.actions
+const foldedItems = computed<MenuItem[]>(() => {
+  const items: MenuItem[] = props.actions
     .filter((a) => folded.value.includes(a.id))
     .map((a) => ({
       id: a.id,
@@ -44,8 +49,10 @@ const foldedItems = computed<MenuItem[]>(() =>
       ...(a.disabled ? { disabled: true } : {}),
       ...(a.reason ? { reason: a.reason } : {}),
       ...(a.forbidden ? { forbidden: a.forbidden } : {}),
-    })),
-);
+    }));
+  if (items.length && props.more.length) items.push({ kind: "separator" });
+  return [...items, ...props.more];
+});
 const blocked = (a: ToolbarAction) => ({
   ...(a.forbidden ? { forbidden: a.forbidden } : {}),
   ...(a.reason ? { reason: a.reason } : {}),
@@ -73,10 +80,17 @@ function fold(): void {
   const style = getComputedStyle(el);
   const gap = parseFloat(style.columnGap) || 0;
   const more = parseFloat(style.getPropertyValue("--k-toolbar-more")) || 0;
-  const next = foldActions(props.actions, widths, el.clientWidth, gap, more);
+  // With entries of its own, « … » is always there: its room is taken first.
+  const always = props.more.length > 0;
+  const room = always ? el.clientWidth - more - gap : el.clientWidth;
+  const next = foldActions(props.actions, widths, room, gap, always ? 0 : more);
   if (next.join() !== folded.value.join()) folded.value = next;
   // The narrowest it folds to, for a host that lays it beside a title (CSSOM, REQ-020-14).
-  const floor = Math.ceil(floorWidth(props.actions, widths, gap, more));
+  const floor = Math.ceil(
+    always
+      ? floorWidth(props.actions, widths, gap, 0) + gap + more
+      : floorWidth(props.actions, widths, gap, more),
+  );
   el.style.setProperty("--k-toolbar-floor", `${floor}px`);
 }
 
@@ -177,7 +191,7 @@ function onKeydown(event: KeyboardEvent): void {
       >
     </template>
     <Menu
-      v-if="folded.length"
+      v-if="folded.length || props.more.length"
       :label="t('moreActions')"
       icon="ellipsis"
       icon-only

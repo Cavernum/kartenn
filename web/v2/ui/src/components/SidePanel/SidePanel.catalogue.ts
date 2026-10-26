@@ -143,7 +143,8 @@ const demo = defineComponent({
 
 export default {
   component: SidePanel,
-  pattern: "région complementary (non modale) + Tabs ; poignée Window Splitter",
+  pattern:
+    "région complementary (non modale) + Tabs ; poignée Window Splitter ; en feuille, Dialog (Modal)",
   states: [
     {
       name: "detail",

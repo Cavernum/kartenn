@@ -8,12 +8,14 @@
 // right panel laid over it, and an `auto` track at the end for the strip of the closed
 // panel. Shows the sticky headers, the scroll in place, the overlay. `phone`: the width of
 // a compact window, and a containing block for what is fixed to the window (layout
-// containment): a sheet covers the frame, not the page of the catalogue.
+// containment): a sheet covers the frame, not the page of the catalogue, and only the frame
+// goes inert under it.
 const props = withDefaults(defineProps<{ size?: "sm" | "md" | "phone" }>(), { size: "sm" });
 </script>
 
 <template>
-  <div class="k-demo-frame" :data-size="props.size">
+  <!-- A sheet inside goes modal over the frame only (`data-k-modal-scope`). -->
+  <div class="k-demo-frame" :data-size="props.size" data-k-modal-scope>
     <div class="k-demo-frame__surface"><slot /></div>
     <slot name="panel" />
   </div>

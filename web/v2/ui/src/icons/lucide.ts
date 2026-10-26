@@ -79,6 +79,7 @@ import {
   TriangleAlert,
   Undo2,
   User,
+  UserX,
   Users,
   X,
 } from "lucide";
@@ -155,6 +156,7 @@ export const lucideIcons = {
   "triangle-alert": TriangleAlert,
   "undo-2": Undo2,
   user: User,
+  "user-x": UserX,
   users: Users,
   x: X,
 } as const satisfies Record<string, IconNode>;

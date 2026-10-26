@@ -27,7 +27,7 @@
       - code: forbidden
       - text: ""
     - figure "loading — Action en cours":
-      - button "Appliquer" [disabled]
+      - button "Appliquer (Chargement)" [disabled]
       - button "Choisir l'action"
       - status
       - code: loading

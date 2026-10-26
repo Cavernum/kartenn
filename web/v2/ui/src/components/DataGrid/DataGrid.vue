@@ -23,7 +23,16 @@
 // the value (generated content, its alternative text empty: the column header names the
 // cell already), labels and values aligned by a subgrid of the row; every column shows,
 // the header is a strip of controls. Still a grid of rows and cells, same keys.
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, useAttrs, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  onUpdated,
+  ref,
+  useAttrs,
+  watch,
+} from "vue";
 import { t } from "../../i18n.ts";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import Icon from "../Icon/Icon.vue";
@@ -53,8 +62,12 @@ const props = withDefaults(
     rows: R[];
     /** The field of a row that identifies it. */
     rowKey: keyof R & string;
-    selectable?: boolean;
-    selected?: string[];
+    /**
+     * Rows can be selected (`aria-selected`): `true` several (`aria-multiselectable`; Space
+     * or Shift+Space toggles the row of the focus, Ctrl+A selects all or none), `"single"`
+     * one (Space selects it).
+     */
+    selectable?: boolean | "single";
     editing?: CellRef | undefined;
     cellState?: ((row: R, column: GridColumn) => CellState | undefined) | undefined;
     rowState?: ((row: R) => RowState | undefined) | undefined;
@@ -71,7 +84,7 @@ const props = withDefaults(
     stack?: boolean;
   }>(),
   {
-    selected: () => [],
+    selectable: false,
     editing: undefined,
     cellState: undefined,
     rowState: undefined,
@@ -83,6 +96,8 @@ const props = withDefaults(
 const sort = defineModel<GridSort | undefined>("sort", { default: undefined });
 /** The cell that holds the roving focus (the first header when unset). */
 const active = defineModel<CellRef | undefined>("active", { default: undefined });
+/** The keys of the selected rows (`selectable`). */
+const selected = defineModel<string[]>("selected", { default: () => [] });
 const emit = defineEmits<{
   /** Alt+Down or a click on the funnel of a filterable header. */
   filter: [column: string];
@@ -121,10 +136,13 @@ function onScreen(): GridColumn[] {
   return visible.length > 0 ? visible : shown.value;
 }
 const keyOf = (row: R) => String(row[props.rowKey]);
-const isSelected = (row: R) => props.selected.includes(keyOf(row));
+const isSelected = (row: R) => selected.value.includes(keyOf(row));
 const ariaSort = (column: GridColumn) =>
   !column.sortable ? undefined : sort.value?.column === column.id ? sort.value.direction : "none";
 const isFiltered = (column: GridColumn) => props.filtered.includes(column.id);
+/** A header with a filter button is named by its label and state, not by the button. */
+const headerName = (column: GridColumn) =>
+  isFiltered(column) ? `${column.label} (${t("filtered")})` : column.label;
 
 /** The keys of the rows the focus moves over: the header (""), then the body. */
 const rowKeys = computed(() => ["", ...(props.loading ? [] : props.rows.map(keyOf))]);
@@ -213,9 +231,41 @@ function onFocusin(event: FocusEvent): void {
     active.value = cell;
 }
 
+/** The widgets inside a cell (a link, a copy button): out of the tab order, reached by keys. */
+const WIDGETS = "a[href], button, select, textarea, [tabindex]";
+function widgetsOf(cell: HTMLElement): HTMLElement[] {
+  return [...cell.querySelectorAll<HTMLElement>(WIDGETS)].filter(
+    (el) => !el.closest(".k-data-grid__editor"),
+  );
+}
+/** The grid keeps one tab stop: the widgets of its cells leave the tab order (APG Grid). */
+function tameWidgets(): void {
+  for (const cell of grid.value?.querySelectorAll<HTMLElement>("[data-column]") ?? [])
+    for (const el of widgetsOf(cell)) if (el.tabIndex !== -1) el.tabIndex = -1;
+}
+onMounted(tameWidgets);
+onUpdated(tameWidgets);
+
+function toggleRow(key: string): void {
+  const on = selected.value.includes(key);
+  if (props.selectable === "single") selected.value = [key];
+  else selected.value = on ? selected.value.filter((k) => k !== key) : [...selected.value, key];
+}
+
 function onKeydown(event: KeyboardEvent): void {
+  const target = event.target as HTMLElement;
   // The editor of a cell keeps its keys.
-  if ((event.target as HTMLElement).closest("input, textarea")) return;
+  if (target.closest("input, textarea")) return;
+  // A widget inside a cell keeps its keys (Enter on a copy button copies); Escape or F2
+  // gives the focus back to its cell, and the arrows to the grid (APG Grid).
+  const owner = target.closest<HTMLElement>("[data-column]");
+  if (owner && owner !== target) {
+    if (event.key === "Escape" || event.key === "F2") {
+      event.preventDefault();
+      owner.focus();
+    }
+    return;
+  }
   const cell = current.value;
   const column = props.columns.find((c) => c.id === cell.column);
   if (cell.row === "" && column) {
@@ -229,8 +279,25 @@ function onKeydown(event: KeyboardEvent): void {
       event.preventDefault();
       return;
     }
-  } else if (event.key === "Enter") {
-    emit("activate", cell);
+  } else if (event.key === "Enter" || event.key === "F2") {
+    // Into the first widget of the cell, if any; Enter on a plain cell activates it.
+    const first = owner ? widgetsOf(owner)[0] : undefined;
+    if (first) first.focus();
+    else if (event.key === "Enter") emit("activate", cell);
+    event.preventDefault();
+    return;
+  } else if (props.selectable && event.key === " ") {
+    toggleRow(cell.row);
+    event.preventDefault();
+    return;
+  }
+  if (
+    props.selectable === true &&
+    (event.ctrlKey || event.metaKey) &&
+    event.key.toLowerCase() === "a"
+  ) {
+    const all = props.rows.map(keyOf);
+    selected.value = all.every((k) => selected.value.includes(k)) ? [] : all;
     event.preventDefault();
     return;
   }
@@ -250,15 +317,32 @@ function onKeydown(event: KeyboardEvent): void {
   void focusActive();
 }
 
-// A container query may hide the column of the cell that holds the roving focus: the stop
-// goes back to the key column of its row, so that Tab still reaches the grid.
+// A container query or the column chooser may hide the column of the cell that holds the
+// roving focus, a filter may drop its row: the stop goes back to the key column of its row
+// (or to the first header), so that Tab still reaches the grid.
+function keepStop(): void {
+  const cell = active.value;
+  if (!cell) return;
+  const key = props.columns[0]?.id ?? "";
+  if (!rowKeys.value.includes(cell.row)) active.value = { row: "", column: key };
+  else if (!onScreen().some((c) => c.id === cell.column))
+    active.value = { row: cell.row, column: key };
+}
+watch([shown, rowKeys], () => void nextTick(keepStop));
+
+// The key column sticks, and so does the header: what takes the focus scrolls out from
+// under them (WCAG 2.4.11), the width of the key column measured into the scroll padding.
+function measureKey(): void {
+  const key = grid.value?.querySelector<HTMLElement>('[role="columnheader"]');
+  if (key) grid.value!.style.setProperty("--k-data-grid-key", `${key.offsetWidth}px`);
+}
 let observer: ResizeObserver | undefined;
 onMounted(() => {
+  measureKey();
   if (typeof ResizeObserver === "undefined" || !root.value) return;
   observer = new ResizeObserver(() => {
-    const cell = active.value;
-    if (cell && !onScreen().some((c) => c.id === cell.column))
-      active.value = { row: cell.row, column: props.columns[0]?.id ?? "" };
+    keepStop();
+    measureKey();
   });
   observer.observe(root.value);
 });
@@ -281,7 +365,7 @@ onBeforeUnmount(() => observer?.disconnect());
       :aria-label="props.label"
       :aria-rowcount="(props.loading ? props.loadingRows : props.rows.length) + 1"
       :aria-colcount="props.columns.length"
-      :aria-multiselectable="props.selectable ? 'true' : undefined"
+      :aria-multiselectable="props.selectable === true ? 'true' : undefined"
       :aria-busy="props.loading ? 'true' : undefined"
       :style="template"
       @keydown="onKeydown"
@@ -298,9 +382,12 @@ onBeforeUnmount(() => observer?.disconnect());
             data-row=""
             :data-align="column.align"
             :data-priority="priority(column)"
+            :data-width="column.width ?? 'md'"
             :data-sortable="column.sortable ? 'true' : undefined"
+            :data-actions="column.actions ? 'true' : undefined"
             :aria-colindex="colIndex(column)"
             :aria-sort="ariaSort(column)"
+            :aria-label="column.filterable ? headerName(column) : undefined"
             :tabindex="tabindex('', column.id)"
             @click="sortBy(column)"
           >
@@ -317,15 +404,18 @@ onBeforeUnmount(() => observer?.disconnect());
               class="k-data-grid__sort"
               :data-active="sort?.column === column.id ? 'true' : undefined"
             />
-            <span
+            <button
               v-if="column.filterable"
+              type="button"
+              tabindex="-1"
               class="k-data-grid__filter"
+              :aria-label="`${t('filterColumn')} ${column.label}`"
               :data-active="isFiltered(column) ? 'true' : undefined"
               @click.stop="emit('filter', column.id)"
             >
               <Icon name="funnel" />
-              <span v-if="isFiltered(column)" class="k-visually-hidden">({{ t("filtered") }})</span>
-            </span>
+            </button>
+            <span v-if="isFiltered(column)" class="k-visually-hidden">({{ t("filtered") }})</span>
           </div>
         </div>
       </div>
@@ -344,6 +434,7 @@ onBeforeUnmount(() => observer?.disconnect());
             class="k-data-grid__cell"
             :data-align="column.align"
             :data-priority="priority(column)"
+            :data-width="column.width ?? 'md'"
             :data-actions="column.actions ? 'true' : undefined"
             :aria-colindex="colIndex(column)"
           >
@@ -374,6 +465,7 @@ onBeforeUnmount(() => observer?.disconnect());
             :data-column="column.id"
             :data-align="column.align"
             :data-priority="priority(column)"
+            :data-width="column.width ?? 'md'"
             :data-wrap="column.wrap ? 'true' : undefined"
             :data-label="props.stack && c > 0 && !column.actions ? column.label : undefined"
             :data-actions="column.actions ? 'true' : undefined"
@@ -425,12 +517,13 @@ onBeforeUnmount(() => observer?.disconnect());
             </template>
             <div
               v-if="errorOf(row, column)"
-              class="k-data-grid__error"
+              class="k-data-grid__error-line"
               :data-side="c >= shown.length / 2 ? 'end' : 'start'"
-              role="alert"
             >
-              <span>{{ errorOf(row, column)!.error }}</span>
-              <CodeBadge v-if="errorOf(row, column)!.code" :code="errorOf(row, column)!.code!" />
+              <div class="k-data-grid__error" role="alert">
+                <span>{{ errorOf(row, column)!.error }}</span>
+                <CodeBadge v-if="errorOf(row, column)!.code" :code="errorOf(row, column)!.code!" />
+              </div>
             </div>
           </div>
         </div>
@@ -466,6 +559,7 @@ onBeforeUnmount(() => observer?.disconnect());
     --k-grid-columns: var(--k-size-col-md);
     --k-grid-columns-below-lg: var(--k-grid-columns);
     --k-grid-columns-below-md: var(--k-grid-columns);
+    --k-data-grid-key: var(--k-space-0);
 
     position: relative;
     display: grid;
@@ -474,6 +568,9 @@ onBeforeUnmount(() => observer?.disconnect());
     min-inline-size: 0;
     overflow: auto;
     scrollbar-gutter: stable;
+    /* The sticky header and key column never hide a focused cell (WCAG 2.4.11). */
+    scroll-padding-block-start: var(--k-header-height);
+    scroll-padding-inline-start: var(--k-data-grid-key);
     color: var(--k-text);
     background-color: var(--k-surface);
     border: var(--k-border-width) solid var(--k-border-strong);
@@ -565,6 +662,7 @@ onBeforeUnmount(() => observer?.disconnect());
 
     .k-data-grid-frame[data-stack] .k-data-grid {
       grid-template-columns: minmax(0, 1fr);
+      scroll-padding: 0;
     }
 
     .k-data-grid-frame[data-stack] .k-data-grid__head {
@@ -591,6 +689,7 @@ onBeforeUnmount(() => observer?.disconnect());
     .k-data-grid-frame[data-stack] .k-data-grid__cell {
       position: relative;
       display: grid;
+      min-inline-size: 0;
       grid-column: 1 / -1;
       grid-template-columns: subgrid;
       min-block-size: var(--k-control-height-sm);
@@ -690,11 +789,31 @@ onBeforeUnmount(() => observer?.disconnect());
     white-space: nowrap;
   }
 
+  /* A column is as wide as its token, and never narrower than its header: title, sort and
+   * filter whole (the body cells hold the token, the header its min-content; the template
+   * is `minmax(auto, token)`, grid.ts). */
   .k-data-grid__header {
+    min-inline-size: min-content;
     font-size: var(--k-text-sm);
     line-height: var(--k-text-sm-line);
     font-weight: var(--k-weight-medium);
     color: var(--k-text-muted);
+  }
+
+  .k-data-grid__cell[data-width="xs"] {
+    min-inline-size: var(--k-size-col-xs);
+  }
+
+  .k-data-grid__cell[data-width="sm"] {
+    min-inline-size: var(--k-size-col-sm);
+  }
+
+  .k-data-grid__cell[data-width="md"] {
+    min-inline-size: var(--k-size-col-md);
+  }
+
+  .k-data-grid__cell[data-width="lg"] {
+    min-inline-size: var(--k-size-col-lg);
   }
 
   .k-data-grid__header[data-sortable] {
@@ -709,6 +828,12 @@ onBeforeUnmount(() => observer?.disconnect());
   .k-data-grid__cell[data-align="end"] {
     justify-content: end;
     font-variant-numeric: tabular-nums;
+  }
+
+  /* The actions of a row at the end of their column, under its header. */
+  .k-data-grid__header[data-actions],
+  .k-data-grid__cell[data-actions] {
+    justify-content: end;
   }
 
   .k-data-grid__header:focus-visible,
@@ -731,27 +856,33 @@ onBeforeUnmount(() => observer?.disconnect());
     color: var(--k-accent);
   }
 
+  /* The funnel: a button of its own inside a sortable header, out of the tab order (Alt+Down
+   * on the header asks for the filter), at the floor of 24 px for any pointer (WCAG 2.5.8).
+   * Beside the title and the sort, never at the far end of a wide column (relecture du
+   * 2026-10-26). */
   .k-data-grid__filter {
     display: inline-flex;
     flex: none;
-    margin-inline-start: auto;
+    justify-content: center;
+    align-items: center;
+    min-inline-size: var(--k-control-height-sm);
+    min-block-size: var(--k-control-height-sm);
+    padding: 0;
+    font: inherit;
     color: var(--k-text-muted);
     cursor: pointer;
+    background-color: transparent;
+    border: 0;
+    border-radius: var(--k-radius-sm);
+  }
+
+  .k-data-grid__filter:hover {
+    color: var(--k-text);
+    background-color: var(--k-hover);
   }
 
   .k-data-grid__filter[data-active] {
     color: var(--k-accent);
-  }
-
-  /* A finger (design « Adaptation à la largeur », « Tactile »): the funnel, a target of its
-   * own inside a sortable header, at the floor of 24 px (WCAG 2.5.8). */
-  @media (any-pointer: coarse) {
-    .k-data-grid__filter {
-      justify-content: center;
-      align-items: center;
-      min-inline-size: var(--k-control-height-sm);
-      min-block-size: var(--k-control-height-sm);
-    }
   }
 
   .k-data-grid__value {
@@ -803,25 +934,47 @@ onBeforeUnmount(() => observer?.disconnect());
   }
 
   /* The editor takes the whole cell, at the height of the row. */
-  .k-data-grid__error[data-side="end"] {
-    inset-inline: auto 0;
-  }
-
   .k-data-grid__cell[data-editing] {
     padding-inline: 0;
   }
 
   .k-data-grid__editor {
     flex: 1;
+    min-inline-size: 0;
   }
 
-  /* The error of a cell, under it, over the next row. */
+  /* The error of a cell, on a line of its own under the value: the row grows to hold it,
+   * the next row moves down, nothing is hidden (relecture du 2026-10-26). Wider than its
+   * column, the message overflows on the empty second line of its neighbours, towards the
+   * end (or, in the second half of the columns, towards the start: an end-aligned line
+   * overflows at its start). The other cells of the row keep their content on the first
+   * line. */
+  .k-data-grid__cell[data-state="error"] {
+    flex-wrap: wrap;
+    row-gap: var(--k-space-1);
+  }
+
+  .k-data-grid__row:has(> [data-state="error"]) > .k-data-grid__cell {
+    align-items: start;
+    padding-block: var(--k-space-1);
+  }
+
+  .k-data-grid__error-line {
+    display: flex;
+    flex: 0 0 100%;
+    justify-content: start;
+    min-inline-size: 0;
+  }
+
+  .k-data-grid__error-line[data-side="end"] {
+    justify-content: end;
+  }
+
   .k-data-grid__error {
-    position: absolute;
-    inset-block-start: 100%;
-    inset-inline-start: 0;
+    position: relative;
     z-index: var(--k-z-overlay);
     display: flex;
+    flex: none;
     flex-wrap: nowrap;
     gap: var(--k-space-2);
     align-items: center;

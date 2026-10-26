@@ -15,6 +15,7 @@ import {
   DialogRoot,
   DialogTitle,
 } from "reka-ui";
+import { watch } from "vue";
 import { injectPortalTarget } from "../../context.ts";
 import { t } from "../../i18n.ts";
 import IconButton from "../IconButton/IconButton.vue";
@@ -30,6 +31,20 @@ const props = withDefaults(
 );
 const open = defineModel<boolean>("open", { default: false });
 const portal = injectPortalTarget();
+
+// The focus goes back to what had it when the drawer opened (WCAG 2.4.3), also when the
+// host opens it by its model, without a Reka trigger (the button of the compact frame).
+let opener: HTMLElement | null = null;
+watch(open, (now) => {
+  if (now && typeof document !== "undefined")
+    opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+});
+function onCloseAutoFocus(event: Event): void {
+  if (!opener?.isConnected || opener === document.body) return;
+  event.preventDefault();
+  opener.focus();
+  opener = null;
+}
 </script>
 
 <template>
@@ -41,6 +56,7 @@ const portal = injectPortalTarget();
         v-bind="props.description ? {} : { 'aria-describedby': undefined }"
         :data-side="props.side"
         :data-size="props.size"
+        @close-auto-focus="onCloseAutoFocus"
       >
         <header class="k-drawer__header">
           <DialogTitle class="k-drawer__title">{{ props.title }}</DialogTitle>

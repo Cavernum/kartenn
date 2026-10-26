@@ -1,3 +1,5 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
 - navigation "Navigation principale":
   - text: kartenn
   - button "Rechercher"
@@ -45,13 +47,14 @@
           - /url: /
       - listitem: Adresses
   - button "Présent"
-  - button "Brouillon ( 2 )"
+  - button "Brouillon 2 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
   - heading "Adresses" [level=1]
-  - region /Adresses 1 \d+/:
-    - heading /Adresses 1 \d+/ [level=2]
+  - region "Adresses":
+    - heading "Adresses" [level=2]
+    - text: /1 \d+/
     - toolbar "Actions sur les adresses":
       - button "Créer"
       - button "Importer"
@@ -63,9 +66,9 @@
     - button "Retirer le filtre Usage ∈ Hôte, VIP"
     - button "Propriétaire = Atelier Nord (en brouillon)"
     - button "Retirer le filtre Propriétaire"
-    - button /Créée après = \d+-\d+-\d+/
+    - button /Créée après = \d+-\d+-\d+ \(invalide\)/
     - button "Retirer le filtre Créée après"
-    - text: "/Date invalide : le mois va de \\d+ à \\d+\\./"
+    - alert: "/Date invalide : le mois va de \\d+ à \\d+\\./"
     - button "Ajouter un filtre"
     - paragraph:
       - text: "À venir :"
@@ -82,12 +85,27 @@
     - grid "Adresses, filtrées":
       - rowgroup:
         - row "Valeur (filtrée) Usage (filtrée) Environnement Propriétaire (filtrée) Site Machine VLAN":
-          - columnheader "Valeur (filtrée)"
-          - columnheader "Usage (filtrée)"
-          - columnheader "Environnement"
-          - columnheader "Propriétaire (filtrée)"
-          - columnheader "Site"
-          - columnheader "Machine"
+          - columnheader "Valeur (filtrée)":
+            - text: ""
+            - 'button "Filtrer : Valeur"'
+            - text: ""
+          - columnheader "Usage (filtrée)":
+            - text: ""
+            - 'button "Filtrer : Usage"'
+            - text: ""
+          - columnheader "Environnement":
+            - text: ""
+            - 'button "Filtrer : Environnement"'
+          - columnheader "Propriétaire (filtrée)":
+            - text: ""
+            - 'button "Filtrer : Propriétaire"'
+            - text: ""
+          - columnheader "Site":
+            - text: ""
+            - 'button "Filtrer : Site"'
+          - columnheader "Machine":
+            - text: ""
+            - 'button "Filtrer : Machine"'
           - columnheader "VLAN"
       - rowgroup:
         - row /\d+\.\d+\.\d+\.\d+ Hôte Production Atelier Nord site-ouest srv-app-\d+ \d+/ [selected]:

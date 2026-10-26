@@ -7,7 +7,7 @@ import Skeleton from "./Skeleton.vue";
 
 export default {
   component: Skeleton,
-  pattern: "aria-busy",
+  pattern: "status (région présente avant son mot)",
   states: [
     { name: "rows", description: "Lignes de table (hauteur de ligne)", props: {}, wide: true },
     {

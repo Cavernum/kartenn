@@ -3,6 +3,6 @@
     - heading "IconButton" [level=1]
     - paragraph: "Motif : Button (nom accessible obligatoire)"
     - figure "loading — En cours":
-      - button "Recharger" [disabled]
+      - button "Recharger (Chargement)" [disabled]
       - code: loading
       - text: ""

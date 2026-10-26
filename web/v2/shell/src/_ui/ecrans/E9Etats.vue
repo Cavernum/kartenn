@@ -159,7 +159,8 @@ const cellState = (row: Row, column: GridColumn): CellState | undefined => {
         <TextField v-model="kept" label="Votre saisie, gardée" hint="Propriétaire de 192.0.2.12" />
       </Stack>
       <template #actions>
-        <Button variant="ghost">Garder la valeur actuelle</Button>
+        <!-- The safe way out: a visible secondary button, not a bare text beside the primary. -->
+        <Button variant="secondary">Garder la valeur actuelle</Button>
         <Button variant="primary" icon="redo-2">Réappliquer ma saisie</Button>
       </template>
     </Dialog>

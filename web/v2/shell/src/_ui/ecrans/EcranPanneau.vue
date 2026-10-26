@@ -30,12 +30,14 @@ const id = useId();
     :data-main="props.main ? 'true' : undefined"
   >
     <header class="k-ecran-panel__header">
-      <h2 :id="id" class="k-ecran-panel__title">
-        {{ props.title }}
+      <!-- The detail beside the heading, not in it: the heading (and the region it names)
+           says the title alone, never « VLAN plugin VLAN ». -->
+      <div class="k-ecran-panel__title">
+        <h2 :id="id" class="k-ecran-panel__heading">{{ props.title }}</h2>
         <span v-if="props.detail" class="k-ecran-panel__detail" :class="{ 'k-mono': props.mono }">{{
           props.detail
         }}</span>
-      </h2>
+      </div>
       <div v-if="$slots.actions" class="k-ecran-panel__actions"><slot name="actions" /></div>
     </header>
     <div v-if="$slots.toolbar" class="k-ecran-panel__toolbar"><slot name="toolbar" /></div>
@@ -93,6 +95,10 @@ const id = useId();
   .k-ecran-panel[data-main] .k-ecran-panel__title {
     font-size: var(--k-text-lg);
     line-height: var(--k-text-lg-line);
+  }
+
+  .k-ecran-panel__heading {
+    font: inherit;
   }
 
   .k-ecran-panel__detail {
@@ -159,6 +165,17 @@ const id = useId();
     justify-content: space-between;
     padding: var(--k-space-2) var(--k-space-3);
     border-block-start: var(--k-border-width) solid var(--k-border);
+  }
+
+  /* The right panel over the end of the surface (wide, standard; its width published as
+   * `--k-side-panel-inset`): the footer of a main panel keeps its counts out from under
+   * it, wrapping in the part left in view (relecture du 2026-10-26). */
+  .k-ecran-panel[data-main] > .k-ecran-panel__footer {
+    /* At most half the footer (a percentage: no weight on the width of the panel). */
+    padding-inline-end: max(
+      var(--k-space-3),
+      min(50%, calc(var(--k-side-panel-inset, var(--k-space-3)) - var(--k-space-3)))
+    );
   }
 }
 </style>

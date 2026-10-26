@@ -1,9 +1,9 @@
 - main:
   - region "SidePanel":
     - heading "SidePanel" [level=1]
-    - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter"
+    - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter ; en feuille, Dialog (Modal)"
     - 'figure "closed — Replié : une languette au bord de fin, dans le flux, dont le chevron le rouvre (le compteur aussi)"':
-      - button "Brouillon ( 3 )"
+      - button "Brouillon 3 opérations"
       - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
       - grid "Préfixes":
         - rowgroup:

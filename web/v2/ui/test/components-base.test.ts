@@ -48,6 +48,8 @@ describe("Button", () => {
     expect(html).toContain('aria-busy="true"');
     expect(html).not.toMatch(/ disabled[ >]/);
     expect(html).toContain("k-spinner");
+    // Said in words too: under reduced motion the indicator stands still.
+    expect(html.replace(/<[^>]+>/g, "")).toMatch(/Appliquer\s*\(Chargement\)/);
   });
 
   it("disabled leaves the tab order", async () => {
@@ -131,6 +133,8 @@ describe("TextField", () => {
       readonly: true,
     });
     expect(html).toContain('aria-busy="true"');
+    const pending = /aria-describedby="([^"]+)"/.exec(html)![1]!;
+    expect(html).toMatch(new RegExp(`id="${pending}"[^>]*>Chargement<`));
     expect(html).toMatch(/ readonly[ >]/);
     expect(html).toMatch(/<label[^>]*class="[^"]*k-visually-hidden/);
   });
