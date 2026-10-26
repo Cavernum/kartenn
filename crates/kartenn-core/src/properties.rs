@@ -690,7 +690,7 @@ mod tests {
             )),
             Ok(())
         );
-        for owner in ["policy.declared_environment", "vlan.role"] {
+        for owner in ["policy.declared_environment", "machines.role"] {
             assert_eq!(
                 id(decl(
                     "policy.declared_environment",

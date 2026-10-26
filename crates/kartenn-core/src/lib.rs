@@ -15,3 +15,4 @@ pub mod registry;
 pub mod rules;
 pub mod secret;
 pub mod values;
+pub mod vlan;

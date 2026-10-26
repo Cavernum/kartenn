@@ -85,6 +85,32 @@ pub static PERMISSIONS_EN: &[(&str, &str)] = &[
         "core.address.approval.self",
         "Apply one's own changeset that touches an address.",
     ),
+    ("core.vlan_group.read", "Read the VLAN groups."),
+    (
+        "core.vlan_group.edit",
+        "Create, change or close a VLAN group in a changeset and submit it.",
+    ),
+    (
+        "core.vlan_group.apply",
+        "Apply or reject the changeset of someone else that touches a VLAN group.",
+    ),
+    (
+        "core.vlan_group.approval.self",
+        "Apply one's own changeset that touches a VLAN group.",
+    ),
+    ("core.vlan.read", "Read the VLANs."),
+    (
+        "core.vlan.edit",
+        "Create, change or close a VLAN in a changeset and submit it.",
+    ),
+    (
+        "core.vlan.apply",
+        "Apply or reject the changeset of someone else that touches a VLAN.",
+    ),
+    (
+        "core.vlan.approval.self",
+        "Apply one's own changeset that touches a VLAN.",
+    ),
     (
         "core.changeset.read",
         "Read the changesets, their operations and their differential.",
@@ -281,6 +307,42 @@ pub static RULES_EN: &[(&str, &str)] = &[
         "A public anycast address or network appears in several domains.",
     ),
     (
+        "core.vlan.vid_invalid",
+        "A VID is an integer from 1 to 4094.",
+    ),
+    (
+        "core.vlan.vid_out_of_range",
+        "A VID lies in the range of its group, and the range of a group keeps its VLANs.",
+    ),
+    (
+        "core.vlan.vid_duplicate",
+        "A VID is alive at most once per group at any time.",
+    ),
+    (
+        "core.vlan.name_invalid",
+        "A VLAN name has 1 to 64 characters, without control characters.",
+    ),
+    (
+        "core.vlan.name_duplicate",
+        "A VLAN name is alive at most once per group at any time.",
+    ),
+    (
+        "core.vlan.group_anchor",
+        "A VLAN group is anchored on an entity, a site or a domain alive over its whole period.",
+    ),
+    (
+        "core.vlan.prefix_not_network",
+        "The property core.vlan is set on a network only.",
+    ),
+    (
+        "core.vlan.site_mismatch",
+        "The site of a network and that of the group of its VLAN agree.",
+    ),
+    (
+        "core.vlan.domain_mismatch",
+        "The domain of a network and that of the group of its VLAN agree.",
+    ),
+    (
         "prop.declaration.invalid",
         "A property declaration has a valid key, type and parameters.",
     ),
@@ -443,6 +505,8 @@ pub static KINDS: &[(&str, &str, &str)] = &[
     ("core.address", "Adresse", "Address"),
     ("core.entity", "Entité", "Entity"),
     ("core.site", "Site", "Site"),
+    ("core.vlan_group", "Groupe de VLAN", "VLAN group"),
+    ("core.vlan", "VLAN", "VLAN"),
     ("core.property", "Propriété", "Property"),
     (
         "core.enum_value",
