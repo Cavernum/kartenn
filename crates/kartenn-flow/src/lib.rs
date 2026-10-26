@@ -11,6 +11,7 @@ pub mod evaluation;
 pub mod expiry;
 pub mod handler;
 mod labels;
+pub mod migration;
 pub mod model;
 pub mod module;
 mod pg;
