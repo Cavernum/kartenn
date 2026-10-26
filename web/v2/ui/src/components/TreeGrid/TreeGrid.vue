@@ -22,7 +22,7 @@
 // opens a closed node, or goes to the first child of an open one; Left closes an open node,
 // or goes to the parent. Enter or F2 moves into the « + » of the row, Escape or F2 back.
 // The open nodes are the model `expanded`. Columns, editing and moves remain to come.
-import { computed, nextTick, ref, useAttrs, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useAttrs, watch } from "vue";
 import { t } from "../../i18n.ts";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import {
@@ -35,7 +35,7 @@ import {
 import Icon from "../Icon/Icon.vue";
 import IconButton from "../IconButton/IconButton.vue";
 import ColumnChooser from "../internal/ColumnChooser.vue";
-import { fitPanelInset } from "../internal/panelInset.ts";
+import { joinPanel, leavePanel } from "../internal/panelInset.ts";
 
 defineOptions({ inheritAttrs: false });
 import { flatten, misplaced, type TreeNode, type TreeNodeState, type TreeRow } from "./tree.ts";
@@ -158,8 +158,16 @@ function onKeydown(event: KeyboardEvent): void {
 function onFocusin(event: FocusEvent): void {
   const id = (event.target as HTMLElement).closest<HTMLElement>("[data-node]")?.dataset.node;
   if (id && id !== focusRow.value) focusRow.value = id;
-  fitPanelInset(event.currentTarget as HTMLElement, event.target);
 }
+
+// Under an open side panel, the tree fits within what stays visible (internal/panelInset.ts).
+const root = ref<HTMLElement | null>(null);
+onMounted(() => {
+  if (root.value) joinPanel(root.value);
+});
+onBeforeUnmount(() => {
+  if (root.value) leavePanel(root.value);
+});
 
 function stateOf(node: TreeNode): string | undefined {
   const state = props.nodeState?.(node);
@@ -186,7 +194,7 @@ const word = (node: TreeNode) => {
 </script>
 
 <template>
-  <div class="k-tree-grid-frame" v-bind="rootAttrs">
+  <div ref="root" class="k-tree-grid-frame" v-bind="rootAttrs" data-k-panel-fit="padding">
     <ColumnChooser v-model="visibility" :columns="all" :grid="grid" />
     <div
       ref="grid"
@@ -333,11 +341,15 @@ const word = (node: TreeNode) => {
 @layer components {
   /* The root: a container, the chooser above the tree, the tree in the room left. */
   .k-tree-grid-frame {
+    /* Under the side panel, the part it covers (internal/panelInset.ts). */
+    --k-grid-panel-inset: var(--k-space-0);
+
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     grid-template-columns: minmax(0, 1fr);
     min-inline-size: 0;
     min-block-size: 0;
+    padding-inline-end: var(--k-grid-panel-inset);
     container-type: inline-size;
   }
 
@@ -353,14 +365,9 @@ const word = (node: TreeNode) => {
     --k-grid-columns: var(--k-size-col-md);
     --k-grid-columns-below-lg: var(--k-grid-columns);
     --k-grid-columns-below-md: var(--k-grid-columns);
-    --k-grid-panel-inset: var(--k-space-0);
 
     overflow: auto;
     scrollbar-gutter: stable;
-    /* The side panel over its end never hides a focused cell (WCAG 2.4.11;
-     * internal/panelInset.ts). */
-    scroll-padding-inline-end: var(--k-grid-panel-inset);
-    padding-inline-end: var(--k-grid-panel-inset);
     color: var(--k-text);
     background-color: var(--k-surface);
     border: var(--k-border-width) solid var(--k-border-strong);
