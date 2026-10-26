@@ -105,7 +105,9 @@ export const MOCKUPS: Mockup[] = [
       {
         id: "edition",
         label: "Édition en place",
-        description: "Filtres typés, cellule en édition, cellule refusée avec son code.",
+        description:
+          "Filtres typés, cellule en édition, cellule refusée au focus : son message et son code dans une couche jointe sous la cellule, qui garde sa taille.",
+        focus: "[role='gridcell'][aria-invalid='true']",
       },
       {
         id: "selection",

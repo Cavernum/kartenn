@@ -11,7 +11,8 @@
 // Home, End, Ctrl+Home, Ctrl+End, Page Up, Page Down) over a roving focus; on a header,
 // Enter or Space sorts (`aria-sort`) and Alt+Down asks for the filter of the column (the
 // host opens it). The states of rows and cells are decided by the host (draft, review,
-// pending, error with its code); loading, the rows are skeletons in the cells.
+// pending, error with its code, its message in a floating layer: `CellError`); loading,
+// the rows are skeletons in the cells.
 // Virtualisation and the editing keys come with the complete version (020, task 25).
 // Adaptation to the width (design « Adaptation à la largeur »): the root is a container;
 // the grid scrolls in its own region (`scrollbar-gutter: stable`), its key column sticks
@@ -31,12 +32,13 @@ import {
   onUpdated,
   ref,
   useAttrs,
+  useId,
   watch,
 } from "vue";
 import { t } from "../../i18n.ts";
-import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import Icon from "../Icon/Icon.vue";
 import ColumnChooser from "../internal/ColumnChooser.vue";
+import CellError from "./CellError.vue";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
 import Skeleton from "../Skeleton/Skeleton.vue";
 import TextField from "../TextField/TextField.vue";
@@ -169,6 +171,65 @@ function errorOf(row: R, column: GridColumn): { error: string; code?: string } |
   return typeof state === "object" ? state : undefined;
 }
 
+// The error of a cell opens in a floating layer (`CellError`) while the cell is hovered or
+// holds the focus, the pointer first; Escape closes it until the cell has neither
+// (WCAG 1.4.13). The cell keeps its size; its message is named by `aria-describedby`.
+const uid = useId();
+const errorId = (r: number, c: number) => `k-data-grid-${uid}-error-${r}-${c}`;
+const cellKey = (row: string, column: string) => `${row}\n${column}`;
+const hovered = ref<string | null>(null);
+const focused = ref<string | null>(null);
+const dismissed = ref<string | null>(null);
+const shownError = computed(
+  () => [hovered.value, focused.value].find((k) => k !== null && k !== dismissed.value) ?? null,
+);
+const hasError = (row: R, column: GridColumn) => !!errorOf(row, column) && !isEditing(row, column);
+const errorShown = (row: R, column: GridColumn) =>
+  hasError(row, column) && shownError.value === cellKey(keyOf(row), column.id);
+/** The cell under an open error, for its layer to stand against. */
+function errorAnchor(row: R, column: GridColumn): HTMLElement | null {
+  if (!errorShown(row, column)) return null;
+  return (
+    grid.value?.querySelector<HTMLElement>(
+      `[data-row="${CSS.escape(keyOf(row))}"][data-column="${CSS.escape(column.id)}"]`,
+    ) ?? null
+  );
+}
+watch([hovered, focused], ([h, f]) => {
+  if (dismissed.value !== null && h !== dismissed.value && f !== dismissed.value)
+    dismissed.value = null;
+});
+/** A touch pointer leaves its target when the finger lifts: the focus speaks for it. */
+function onCellEnter(row: R, column: GridColumn, event: PointerEvent): void {
+  if (event.pointerType !== "touch" && hasError(row, column))
+    hovered.value = cellKey(keyOf(row), column.id);
+}
+function onCellLeave(r: number, c: number, event: PointerEvent): void {
+  if (event.pointerType === "touch") return;
+  // Onto its message (adjacent): still hovered.
+  const to = event.relatedTarget as Node | null;
+  if (to && document.getElementById(errorId(r, c))?.contains(to)) return;
+  hovered.value = null;
+}
+function onFocusout(event: FocusEvent): void {
+  const to = event.relatedTarget as HTMLElement | null;
+  // Into the message of the cell (its copy button, by Enter or F2): still focused.
+  if (to?.closest(".k-cell-error")) return;
+  if (!grid.value?.contains(to)) focused.value = null;
+}
+/** The widgets of the open message of a cell (the copy button of its code). */
+function errorWidgetsOf(cell: HTMLElement): HTMLElement[] {
+  const id = cell.dataset.errorOpen ? cell.getAttribute("aria-describedby") : null;
+  const message = id ? document.getElementById(id) : null;
+  return message ? [...message.querySelectorAll<HTMLElement>("button")] : [];
+}
+/** Back from the message to its cell. */
+function focusCell(r: number, c: number): void {
+  grid.value
+    ?.querySelector<HTMLElement>(`[aria-describedby="${CSS.escape(errorId(r, c))}"]`)
+    ?.focus();
+}
+
 const ROW_MARKS = {
   draft: { icon: "draft", word: "inDraft" },
   review: { icon: "eye", word: "inReview" },
@@ -229,6 +290,9 @@ function onFocusin(event: FocusEvent): void {
   const cell = cellOf(event.target);
   if (cell && (cell.row !== current.value.row || cell.column !== current.value.column))
     active.value = cell;
+  const row = cell ? props.rows.find((r) => keyOf(r) === cell.row) : undefined;
+  const column = cell ? props.columns.find((c) => c.id === cell.column) : undefined;
+  focused.value = row && column && hasError(row, column) ? cellKey(cell!.row, cell!.column) : null;
 }
 
 /** The widgets inside a cell (a link, a copy button): out of the tab order, reached by keys. */
@@ -266,6 +330,12 @@ function onKeydown(event: KeyboardEvent): void {
     }
     return;
   }
+  // Escape closes the error of the cell only, not the layer around the grid (1.4.13).
+  if (event.key === "Escape" && shownError.value !== null) {
+    event.preventDefault();
+    dismissed.value = shownError.value;
+    return;
+  }
   const cell = current.value;
   const column = props.columns.find((c) => c.id === cell.column);
   if (cell.row === "" && column) {
@@ -281,7 +351,7 @@ function onKeydown(event: KeyboardEvent): void {
     }
   } else if (event.key === "Enter" || event.key === "F2") {
     // Into the first widget of the cell, if any; Enter on a plain cell activates it.
-    const first = owner ? widgetsOf(owner)[0] : undefined;
+    const first = owner ? [...widgetsOf(owner), ...errorWidgetsOf(owner)][0] : undefined;
     if (first) first.focus();
     else if (event.key === "Enter") emit("activate", cell);
     event.preventDefault();
@@ -370,6 +440,7 @@ onBeforeUnmount(() => observer?.disconnect());
       :style="template"
       @keydown="onKeydown"
       @focusin="onFocusin"
+      @focusout="onFocusout"
     >
       <div role="rowgroup" class="k-data-grid__head">
         <div role="row" aria-rowindex="1" class="k-data-grid__row">
@@ -474,7 +545,11 @@ onBeforeUnmount(() => observer?.disconnect());
             :aria-colindex="colIndex(column)"
             :aria-busy="stateOf(row, column) === 'pending' ? 'true' : undefined"
             :aria-invalid="errorOf(row, column) ? 'true' : undefined"
+            :aria-describedby="hasError(row, column) ? errorId(r, c) : undefined"
+            :data-error-open="errorShown(row, column) ? 'true' : undefined"
             :tabindex="isEditing(row, column) ? undefined : tabindex(keyOf(row), column.id)"
+            @pointerenter="onCellEnter(row, column, $event)"
+            @pointerleave="onCellLeave(r, c, $event)"
           >
             <TextField
               v-if="isEditing(row, column)"
@@ -515,16 +590,17 @@ onBeforeUnmount(() => observer?.disconnect());
                 >({{ stateWord(row, column) }})</span
               >
             </template>
-            <div
-              v-if="errorOf(row, column)"
-              class="k-data-grid__error-line"
-              :data-side="c >= shown.length / 2 ? 'end' : 'start'"
-            >
-              <div class="k-data-grid__error" role="alert">
-                <span>{{ errorOf(row, column)!.error }}</span>
-                <CodeBadge v-if="errorOf(row, column)!.code" :code="errorOf(row, column)!.code!" />
-              </div>
-            </div>
+            <CellError
+              v-if="hasError(row, column)"
+              :id="errorId(r, c)"
+              :error="errorOf(row, column)!.error"
+              :code="errorOf(row, column)!.code"
+              :anchor="errorAnchor(row, column)"
+              @leave="hovered = null"
+              @dismiss="dismissed = shownError ?? dismissed"
+              @back="focusCell(r, c)"
+              @blur="focused = null"
+            />
           </div>
         </div>
       </div>
@@ -618,10 +694,6 @@ onBeforeUnmount(() => observer?.disconnect());
 
   .k-data-grid__row[aria-selected="true"] > :first-child {
     box-shadow: var(--k-shadow-inset-accent);
-  }
-
-  .k-data-grid__row > [data-state="error"]:first-child {
-    z-index: var(--k-z-overlay);
   }
 
   /* Columns of priority 3 (2) leave a container under `lg` (`md`): the template drops
@@ -918,10 +990,29 @@ onBeforeUnmount(() => observer?.disconnect());
     color: var(--k-text-muted);
   }
 
+  /* An invalid cell, at rest: its tint, a danger edge and its icon (never colour alone),
+   * at the size of its neighbours. Its message is a floating layer (`CellError`), open
+   * while it is hovered or focused; open, the layer's outline takes the place of the edge.
+   * The edge is drawn inside (a pseudo-element), leaving the outline to the focus ring,
+   * itself drawn inside the edge. */
   .k-data-grid__cell[data-state="error"] {
     background-color: var(--k-state-ko-bg);
-    outline: var(--k-border-width) solid var(--k-state-ko-fg);
-    outline-offset: calc(var(--k-border-width) * -1);
+  }
+
+  .k-data-grid__cell[data-state="error"]::after {
+    position: absolute;
+    inset: var(--k-space-0);
+    pointer-events: none;
+    content: "";
+    border: var(--k-border-width) solid var(--k-state-ko-fg);
+  }
+
+  .k-data-grid__cell[data-error-open]::after {
+    border-color: transparent;
+  }
+
+  .k-data-grid__cell[data-state="error"]:focus-visible {
+    outline-offset: calc((var(--k-focus-width) + var(--k-border-width)) * -1);
   }
 
   .k-data-grid__cell[data-state="error"] .k-data-grid__mark {
@@ -941,63 +1032,6 @@ onBeforeUnmount(() => observer?.disconnect());
   .k-data-grid__editor {
     flex: 1;
     min-inline-size: 0;
-  }
-
-  /* The error of a cell, on a line of its own under the value: the row grows to hold it,
-   * the next row moves down, nothing is hidden (relecture du 2026-10-26). Wider than its
-   * column, the message overflows on the empty second line of its neighbours, towards the
-   * end (or, in the second half of the columns, towards the start: an end-aligned line
-   * overflows at its start). The other cells of the row keep their content on the first
-   * line. */
-  .k-data-grid__cell[data-state="error"] {
-    flex-wrap: wrap;
-    row-gap: var(--k-space-1);
-  }
-
-  .k-data-grid__row:has(> [data-state="error"]) > .k-data-grid__cell {
-    align-items: start;
-    padding-block: var(--k-space-1);
-  }
-
-  .k-data-grid__error-line {
-    display: flex;
-    flex: 0 0 100%;
-    justify-content: start;
-    min-inline-size: 0;
-  }
-
-  .k-data-grid__error-line[data-side="end"] {
-    justify-content: end;
-  }
-
-  .k-data-grid__error {
-    position: relative;
-    z-index: var(--k-z-overlay);
-    display: flex;
-    flex: none;
-    flex-wrap: nowrap;
-    gap: var(--k-space-2);
-    align-items: center;
-    inline-size: max-content;
-    max-inline-size: var(--k-size-panel-lg);
-    padding: var(--k-space-1) var(--k-space-2);
-    font-family: var(--k-font-sans);
-    font-size: var(--k-text-sm);
-    line-height: var(--k-text-sm-line);
-    color: var(--k-state-ko-fg);
-    white-space: normal;
-    background-color: var(--k-surface);
-    border: var(--k-border-width) solid var(--k-state-ko-fg);
-    border-radius: var(--k-radius-md);
-  }
-
-  /* The sentence wraps; the code beside it stays whole (024/M16). */
-  .k-data-grid__error > span:first-child {
-    min-inline-size: 0;
-  }
-
-  .k-data-grid__error > .k-code-badge {
-    flex: none;
   }
 }
 </style>

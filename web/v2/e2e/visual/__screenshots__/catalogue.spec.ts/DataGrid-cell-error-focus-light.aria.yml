@@ -1,0 +1,55 @@
+- main:
+  - text: Responsable inconnu.
+  - button "Copier core.owner.unknown":
+    - text: ""
+    - code: core.owner.unknown
+  - status
+  - region "DataGrid":
+    - heading "DataGrid" [level=1]
+    - paragraph: "Motif : Grid (maison) ; une seule grille, lignes en subgrid ; tri et filtre de colonne"
+    - 'figure "cell-error-focus — Cellule invalide au focus du clavier : le même message, fermé par Échap jusqu''au départ du focus"':
+      - grid "Préfixes du domaine":
+        - rowgroup:
+          - row "Préfixe Libellé Environnement Occupation Responsable":
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
+            - columnheader "Libellé"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
+            - columnheader "Occupation"
+            - columnheader "Responsable"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs de bases \(en attente\) Production \d+ % Équipe réseau/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs de bases (en attente)"
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.2\.0\/\d+ Postes du siège Recette \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Postes du siège"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes" [invalid]
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Développement \d+ % Exploitation/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Supervision"
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes Production 3 % Équipe réseau \(en brouillon\)/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "Production"
+            - gridcell "3 %"
+            - gridcell "Équipe réseau (en brouillon)"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités Recette \(en revue\) \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell "Recette (en revue)"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+      - code: cell-error-focus
+      - text: ""

@@ -6,9 +6,13 @@
       - grid "Préfixes du domaine":
         - rowgroup:
           - row "Préfixe Libellé Environnement Occupation Responsable":
-            - columnheader "Préfixe"
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
             - columnheader "Libellé"
-            - columnheader "Environnement"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
             - columnheader "Occupation"
             - columnheader "Responsable"
         - rowgroup:
@@ -23,14 +27,7 @@
             - gridcell "Postes du siège"
             - gridcell "Recette"
             - gridcell /\d+ %/
-            - gridcell "Équipe postes" [invalid]:
-              - text: ""
-              - alert:
-                - text: Responsable inconnu.
-                - button "Copier core.owner.unknown":
-                  - text: ""
-                  - code: core.owner.unknown
-                - status
+            - gridcell "Équipe postes" [invalid]
           - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Développement \d+ % Exploitation/:
             - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
             - gridcell "Supervision"

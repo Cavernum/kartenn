@@ -136,14 +136,7 @@
           - gridcell /\d+/
         - row /\d+\.\d+\.\d+\.\d+ Hôte Développement Atelier Nord site-est dev-web-\d+ \d+/:
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "Hôte" [invalid]:
-            - text: ""
-            - alert:
-              - text: Une adresse d'une plage DHCP ne peut pas être un hôte fixe.
-              - button "Copier core.address.range_usage":
-                - text: ""
-                - code: core.address.range_usage
-              - status
+          - gridcell "Hôte" [invalid]
           - gridcell "Développement"
           - gridcell "Atelier Nord"
           - gridcell "site-est"

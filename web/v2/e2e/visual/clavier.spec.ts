@@ -633,6 +633,43 @@ test.describe("DataGrid (Grid)", () => {
     await expect(grid.locator("[tabindex='0']")).toHaveCount(1);
   });
 
+  test("the error of a cell opens with the focus, Escape closes it, the cell keeps its size", async ({
+    page,
+  }) => {
+    await state(page, "DataGrid", "cell-states");
+    const grid = page.getByRole("grid");
+    const invalid = grid.locator("[aria-invalid='true']");
+    const neighbour = grid
+      .locator(`[data-row="${await invalid.getAttribute("data-row")}"]`)
+      .first();
+    const before = (await invalid.boundingBox())!;
+    const message = page.locator(`[id="${await invalid.getAttribute("aria-describedby")}"]`);
+    await expect(message).toBeHidden();
+    await grid.getByRole("columnheader", { name: "Responsable" }).focus();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await expect(invalid).toBeFocused();
+    await expect(message).toBeVisible();
+    await expect(message).toContainText("Responsable inconnu.");
+    await expect(message).toContainText("core.owner.unknown");
+    await expect(invalid).toHaveAccessibleDescription(/Responsable inconnu\./);
+    // Never part of the cell: same box as at rest, as tall as its neighbour.
+    const open = (await invalid.boundingBox())!;
+    expect(open).toEqual(before);
+    expect(open.height).toBe((await neighbour.boundingBox())!.height);
+    // Joined under the cell, without covering it.
+    const layer = (await message.boundingBox())!;
+    expect(Math.abs(layer.y - (open.y + open.height))).toBeLessThanOrEqual(1);
+    await page.keyboard.press("Escape");
+    await expect(message).toBeHidden();
+    await expect(invalid).toBeFocused();
+    // The focus leaves and comes back: open again.
+    await page.keyboard.press("ArrowLeft");
+    await expect(message).toBeHidden();
+    await page.keyboard.press("ArrowRight");
+    await expect(message).toBeVisible();
+  });
+
   test("Alt+Down on a filterable header asks for its filter", async ({ page }) => {
     await state(page, "DataGrid", "filtered");
     const env = page.getByRole("columnheader", { name: /Environnement/ });
@@ -672,11 +709,12 @@ test.describe("DataGrid (Grid)", () => {
   test("a widget in a cell: Enter goes in, Escape comes back; one tab stop", async ({ page }) => {
     await state(page, "DataGrid", "cell-states");
     const grid = page.getByRole("grid");
+    // The copy button of the code of an error, in its message (a layer joined to the cell).
     const error = grid.locator('[role="gridcell"][data-state="error"]');
-    const copy = error.getByRole("button");
-    await expect(copy).toHaveAttribute("tabindex", "-1");
+    const copy = page.locator(".k-cell-error").getByRole("button");
     await grid.getByRole("columnheader", { name: "Préfixe" }).focus();
     await error.focus();
+    await expect(copy).toHaveAttribute("tabindex", "-1");
     await page.keyboard.press("Enter");
     await expect(copy).toBeFocused();
     await page.keyboard.press("Escape");

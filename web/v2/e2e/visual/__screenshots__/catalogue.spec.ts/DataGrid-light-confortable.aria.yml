@@ -6,9 +6,13 @@
       - grid "Préfixes du domaine":
         - rowgroup:
           - row "Préfixe Libellé Environnement Occupation Responsable":
-            - columnheader "Préfixe"
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
             - columnheader "Libellé"
-            - columnheader "Environnement"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
             - columnheader "Occupation"
             - columnheader "Responsable"
         - rowgroup:
@@ -48,9 +52,13 @@
       - grid "Préfixes du domaine":
         - rowgroup:
           - row "Préfixe Libellé Environnement Occupation Responsable":
-            - columnheader "Préfixe"
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
             - columnheader "Libellé"
-            - columnheader "Environnement"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
             - columnheader "Occupation"
             - columnheader "Responsable"
         - rowgroup:
@@ -90,9 +98,13 @@
       - grid "Préfixes du domaine":
         - rowgroup:
           - row "Préfixe Libellé Environnement Occupation Responsable":
-            - columnheader "Préfixe"
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
             - columnheader "Libellé"
-            - columnheader "Environnement"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
             - columnheader "Occupation"
             - columnheader "Responsable"
         - rowgroup:
@@ -107,14 +119,7 @@
             - gridcell "Postes du siège"
             - gridcell "Recette"
             - gridcell /\d+ %/
-            - gridcell "Équipe postes" [invalid]:
-              - text: ""
-              - alert:
-                - text: Responsable inconnu.
-                - button "Copier core.owner.unknown":
-                  - text: ""
-                  - code: core.owner.unknown
-                - status
+            - gridcell "Équipe postes" [invalid]
           - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Développement \d+ % Exploitation/:
             - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
             - gridcell "Supervision"
@@ -135,13 +140,109 @@
             - gridcell "Équipe postes"
       - code: cell-states
       - text: ""
+    - 'figure "cell-error-hover — Cellule invalide survolée : son message (code et texte) dans une couche jointe sous la cellule, qui garde sa taille"':
+      - grid "Préfixes du domaine":
+        - rowgroup:
+          - row "Préfixe Libellé Environnement Occupation Responsable":
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
+            - columnheader "Libellé"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
+            - columnheader "Occupation"
+            - columnheader "Responsable"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs de bases \(en attente\) Production \d+ % Équipe réseau/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs de bases (en attente)"
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.2\.0\/\d+ Postes du siège Recette \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Postes du siège"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes" [invalid]
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Développement \d+ % Exploitation/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Supervision"
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes Production 3 % Équipe réseau \(en brouillon\)/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "Production"
+            - gridcell "3 %"
+            - gridcell "Équipe réseau (en brouillon)"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités Recette \(en revue\) \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell "Recette (en revue)"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+      - code: cell-error-hover
+      - text: ""
+    - 'figure "cell-error-focus — Cellule invalide au focus du clavier : le même message, fermé par Échap jusqu''au départ du focus"':
+      - grid "Préfixes du domaine":
+        - rowgroup:
+          - row "Préfixe Libellé Environnement Occupation Responsable":
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
+            - columnheader "Libellé"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
+            - columnheader "Occupation"
+            - columnheader "Responsable"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs de bases \(en attente\) Production \d+ % Équipe réseau/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs de bases (en attente)"
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.2\.0\/\d+ Postes du siège Recette \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Postes du siège"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes" [invalid]
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Développement \d+ % Exploitation/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Supervision"
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes Production 3 % Équipe réseau \(en brouillon\)/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "Production"
+            - gridcell "3 %"
+            - gridcell "Équipe réseau (en brouillon)"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités Recette \(en revue\) \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell "Recette (en revue)"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+      - code: cell-error-focus
+      - text: ""
     - figure "row-states — Lignes en brouillon, en revue, retirée dans le brouillon (barrée) ; une ligne qui entre dans un brouillon s'éclaire puis s'estompe":
       - grid "Préfixes du domaine":
         - rowgroup:
           - row "Préfixe Libellé Environnement Occupation Responsable":
-            - columnheader "Préfixe"
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
             - columnheader "Libellé"
-            - columnheader "Environnement"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
             - columnheader "Occupation"
             - columnheader "Responsable"
         - rowgroup:
@@ -181,9 +282,13 @@
       - grid "Préfixes du domaine":
         - rowgroup:
           - row "Préfixe Libellé Environnement Occupation Responsable":
-            - columnheader "Préfixe"
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
             - columnheader "Libellé"
-            - columnheader "Environnement"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
             - columnheader "Occupation"
             - columnheader "Responsable"
         - rowgroup:
@@ -223,9 +328,13 @@
       - grid "Préfixes du domaine":
         - rowgroup:
           - row "Préfixe Libellé Environnement Occupation Responsable":
-            - columnheader "Préfixe"
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
             - columnheader "Libellé"
-            - columnheader "Environnement"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
             - columnheader "Occupation"
             - columnheader "Responsable"
         - rowgroup:
@@ -265,9 +374,14 @@
       - grid "Préfixes du domaine":
         - rowgroup:
           - row "Préfixe (filtrée) Libellé Environnement Occupation Responsable":
-            - columnheader "Préfixe (filtrée)"
+            - columnheader "Préfixe (filtrée)":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
+              - text: ""
             - columnheader "Libellé"
-            - columnheader "Environnement"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
             - columnheader "Occupation"
             - columnheader "Responsable"
         - rowgroup:
@@ -307,9 +421,13 @@
       - grid "Préfixes du domaine":
         - rowgroup:
           - row "Préfixe Libellé Environnement Occupation Responsable":
-            - columnheader "Préfixe"
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
             - columnheader "Libellé"
-            - columnheader "Environnement"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
             - columnheader "Occupation"
             - columnheader "Responsable"
         - rowgroup:
@@ -495,13 +613,83 @@
             - gridcell "Exploitation"
       - code: sticky
       - text: ""
+    - 'figure /priorities — Grille de \d+ px : colonnes de priorité 2 et 3 masquées, colonne de clé collante, « Colonnes » les rend/':
+      - button "Colonnes"
+      - grid "Préfixes du domaine":
+        - rowgroup:
+          - row "Préfixe Libellé":
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
+            - columnheader "Libellé"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs de bases/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs de bases"
+          - row /\d+\.\d+\.2\.0\/\d+ Postes du siège/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Postes du siège"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Supervision"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Sauvegardes"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+      - code: priorities
+      - text: ""
+    - 'figure /stacked — Liste simple \(stack\) dans \d+ px : lignes empilées, la clé puis chaque attribut sous son libellé, toutes les colonnes montrées/':
+      - grid "Préfixes du domaine":
+        - rowgroup:
+          - row "Préfixe (filtrée) Libellé Occupation Responsable":
+            - columnheader "Préfixe (filtrée)":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
+              - text: ""
+            - columnheader "Libellé"
+            - columnheader "Occupation"
+            - columnheader "Responsable"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs de bases \d+ % Équipe réseau/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs de bases"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.2\.0\/\d+ Postes du siège \d+ % Équipe postes/ [selected]:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Postes du siège"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /\(en brouillon\) \d+\.\d+\.\d+\.\d+\/\d+ Supervision \d+ % Exploitation/:
+            - gridcell /\(en brouillon\) \d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Supervision"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes 3 % Équipe réseau/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "3 %"
+            - gridcell "Équipe réseau"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ % Équipe postes/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+      - code: stacked
+      - text: ""
     - figure "editing — Cellule en édition (éditeur en place)":
       - grid "Préfixes du domaine":
         - rowgroup:
           - row "Préfixe Libellé Environnement Occupation Responsable":
-            - columnheader "Préfixe"
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
             - columnheader "Libellé"
-            - columnheader "Environnement"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
             - columnheader "Occupation"
             - columnheader "Responsable"
         - rowgroup:

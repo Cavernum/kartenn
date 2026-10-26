@@ -128,6 +128,24 @@ export default {
       wide: true,
     },
     {
+      name: "cell-error-hover",
+      description:
+        "Cellule invalide survolée : son message (code et texte) dans une couche jointe sous la cellule, qui garde sa taille",
+      props: { ...base, cellState },
+      wide: true,
+      interaction: "hover",
+      target: "[aria-invalid='true']",
+    },
+    {
+      name: "cell-error-focus",
+      description:
+        "Cellule invalide au focus du clavier : le même message, fermé par Échap jusqu'au départ du focus",
+      props: { ...base, cellState, active: { row: prefixes[1], column: "owner" } },
+      wide: true,
+      interaction: "focus",
+      target: "[aria-invalid='true']",
+    },
+    {
       name: "row-states",
       description:
         "Lignes en brouillon, en revue, retirée dans le brouillon (barrée) ; une ligne qui entre dans un brouillon s'éclaire puis s'estompe",

@@ -6,6 +6,7 @@ import { createSSRApp, h, type Component } from "vue";
 import { renderToString } from "vue/server-renderer";
 import { describe, expect, it } from "vitest";
 import DataGrid from "../src/components/DataGrid/DataGrid.vue";
+import { placeCellError } from "../src/components/DataGrid/cellError.ts";
 import { columnsTemplate, type GridColumn } from "../src/components/DataGrid/grid.ts";
 import BarChart from "../src/components/BarChart/BarChart.vue";
 import { layoutBars, niceCeil } from "../src/components/BarChart/chart.ts";
@@ -83,23 +84,84 @@ describe("DataGrid", () => {
   });
 
   it("renders the states the host decides, in words and with the code of an error", async () => {
+    const context: { teleports?: Record<string, string> } = {};
+    const grid = await renderToString(
+      createSSRApp({
+        render: () =>
+          h(DataGrid as Component, {
+            label: "Préfixes",
+            columns,
+            rows,
+            rowKey: "prefix",
+            cellState: (row: (typeof rows)[number], column: GridColumn) =>
+              column.id !== "label"
+                ? undefined
+                : row.prefix === "192.0.2.0/24"
+                  ? "draft"
+                  : { error: "Libellé trop long.", code: "core.label.too-long" },
+          }),
+      }),
+      context,
+    );
+    const layers = Object.values(context.teleports ?? {}).join("");
+    expect(grid).toContain('data-state="draft"');
+    expect(text(grid)).toContain("(en brouillon)");
+    expect(grid).toContain('aria-invalid="true"');
+    // The message is not in the cell: a hidden layer, named by the cell.
+    expect(text(grid)).not.toContain("Libellé trop long.");
+    const id = /aria-describedby="([^"]+)"/.exec(grid)?.[1];
+    expect(id).toBeTruthy();
+    expect(layers).toMatch(/class="k-cell-error"[^>]*hidden/);
+    expect(layers).toMatch(new RegExp(`id="${id}"[^>]*>.*Libellé trop long\\.`, "s"));
+    expect(text(layers)).toContain("core.label.too-long");
+  });
+
+  it("places the error of a cell under it, joined by one outline, flipped near the edges", () => {
+    const base = {
+      cell: { x: 100, y: 100, width: 120, height: 32 },
+      message: { width: 200, height: 40 },
+      viewport: { width: 1000, height: 800 },
+      radius: 5,
+      stroke: 1,
+      margin: 8,
+      rtl: false,
+    };
+    const below = placeCellError(base);
+    expect(below).toMatchObject({ x: 100, y: 100, width: 200, height: 72 });
+    expect(below).toMatchObject({ side: "block-end", align: "start", messageTop: 32 });
+    // Flush at the start, a concave fillet at the end of the junction (sweep 0).
+    expect(below.outline).toMatch(
+      /^M0\.5 32 L0\.5 0\.5 L119\.5 0\.5 L119\.5 27 A5 5 0 0 0 124\.5 32/,
+    );
+    // The fill never enters the cell: it starts on the junction.
+    expect(below.fill).toMatch(/^M0\.5 32 L119\.5 32 /);
+    // At least as wide as the cell.
+    expect(placeCellError({ ...base, message: { width: 40, height: 40 } }).width).toBe(120);
+    // Near the bottom: above the cell; near the inline end: aligned on the cell's end.
+    const edge = placeCellError({ ...base, cell: { x: 860, y: 740, width: 120, height: 32 } });
+    expect(edge).toMatchObject({ side: "block-start", align: "end", x: 780, y: 700 });
+    expect(edge.messageTop).toBe(0);
+    // Turned over: the fillet's sweep turns too, and the cell is at the bottom of the layer.
+    expect(edge.outline).toContain("L75.5 40 A5 5 0 0 1 80.5 45");
+    // Right to left: aligned on the cell's inline start, its right edge.
+    expect(placeCellError({ ...base, rtl: true })).toMatchObject({ x: 20, align: "start" });
+  });
+
+  it("leaves the error of a cell being edited to its editor, without a layer", async () => {
     const html = await render(DataGrid, {
       label: "Préfixes",
       columns,
       rows,
       rowKey: "prefix",
+      editing: { row: "198.51.100.0/24", column: "label" },
       cellState: (row: (typeof rows)[number], column: GridColumn) =>
-        column.id !== "label"
-          ? undefined
-          : row.prefix === "192.0.2.0/24"
-            ? "draft"
-            : { error: "Libellé trop long.", code: "core.label.too-long" },
+        column.id === "label" && row.prefix === "198.51.100.0/24"
+          ? { error: "Libellé trop long.", code: "core.label.too-long" }
+          : undefined,
     });
-    expect(html).toContain('data-state="draft"');
-    expect(text(html)).toContain("(en brouillon)");
-    expect(html).toContain('aria-invalid="true"');
-    expect(html).toMatch(/role="alert"[^>]*>.*Libellé trop long\./s);
-    expect(text(html)).toContain("core.label.too-long");
+    expect(html).not.toContain("k-cell-error");
+    expect(html).not.toMatch(/role="gridcell"[^>]*aria-describedby/);
+    expect(text(html)).toContain("Libellé trop long.");
   });
 
   it("puts an editor in the cell being edited, named after its column and row", async () => {
