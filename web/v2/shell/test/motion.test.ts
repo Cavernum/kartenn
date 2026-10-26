@@ -1,5 +1,12 @@
 // @vitest-environment happy-dom
-import { DataGrid, SidePanel, applyMotion, currentMotion, type RowState } from "@kartenn/ui";
+import {
+  DataGrid,
+  MatrixGrid,
+  SidePanel,
+  applyMotion,
+  currentMotion,
+  type RowState,
+} from "@kartenn/ui";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, h, nextTick, ref, type App } from "vue";
 
@@ -200,5 +207,33 @@ describe("DataGrid, the error of a cell (WCAG 1.4.13)", () => {
     message.dispatchEvent(pointer("pointerleave", document.body));
     await nextTick();
     expect(layer.hidden).toBe(true);
+  });
+});
+
+describe("MatrixGrid, hovering a header", () => {
+  const axes = [
+    { id: "x", label: "X" },
+    { id: "y", label: "Y" },
+  ];
+
+  it("lights its row alone, without arrows of direction", async () => {
+    const root = mount(() =>
+      h(MatrixGrid, {
+        label: "Matrice",
+        corner: "Source → destination",
+        rows: axes,
+        columns: axes,
+        axes: { rows: "Source", columns: "Destination" },
+      }),
+    );
+    await nextTick();
+    const header = root.querySelector<HTMLElement>('[role="rowheader"][data-row="y"]')!;
+    header.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+    await nextTick();
+    const crossed = [...root.querySelectorAll<HTMLElement>("[data-cross]")].map(
+      (el) => `${el.dataset.row}|${el.dataset.column}`,
+    );
+    expect(crossed).toEqual(["y|", "y|x", "y|y"]);
+    expect(root.querySelectorAll("[data-flow]")).toHaveLength(0);
   });
 });

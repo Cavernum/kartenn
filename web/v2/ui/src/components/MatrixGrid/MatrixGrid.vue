@@ -82,9 +82,10 @@ function flowOf(row: string, column: string): "source" | "destination" | "cell" 
   return undefined;
 }
 
+/** A cell lights its crosshair; a header, its row or its column alone; the corner, nothing. */
 function onPointerover(event: PointerEvent): void {
   const cell = cellOf(event.target);
-  const next = cell && cell.row !== "" && cell.column !== "" ? cell : null;
+  const next = cell && (cell.row !== "" || cell.column !== "") ? cell : null;
   if (next?.row !== hover.value?.row || next?.column !== hover.value?.column) hover.value = next;
 }
 
@@ -367,10 +368,13 @@ function onKeydown(event: KeyboardEvent): void {
   }
 
   /* The crosshair: its cells lightly, its headers more, in the text colour; it follows the
-   * pointer by a colour fade, nothing moves (design « Mouvement »). */
+   * pointer by a colour fade, nothing moves (design « Mouvement »; cinquième relecture du
+   * 2026-10-26: the matrix no longer static). A header under the pointer lights its row
+   * or its column alone. The cell under the pointer takes an edge, the state of a cell
+   * (draft, review) its tint, by the same fades; no transform, no change of layout. */
   .k-matrix__header,
   .k-matrix__cell {
-    transition-property: background-color, color;
+    transition-property: background-color, color, outline-color, text-decoration-color;
     transition-duration: var(--k-duration-fade);
     transition-timing-function: var(--k-ease-standard);
   }
@@ -379,10 +383,35 @@ function onKeydown(event: KeyboardEvent): void {
     background-color: var(--k-hover);
   }
 
-  /* Its headers also underlined: never the tint alone (WCAG 1.4.1), whatever `axes`. */
+  /* The edge of the cell under the pointer, faded in and out (its colour only). */
+  .k-matrix__cell {
+    outline: var(--k-border-width) solid transparent;
+    outline-offset: calc(var(--k-border-width) * -1);
+  }
+
+  .k-matrix__cell:hover {
+    outline-color: var(--k-border-strong);
+  }
+
+  /* The ring of the keyboard focus, over the edge of the pointer (WCAG 2.4.7). */
+  .k-matrix__cell:focus-visible {
+    outline: var(--k-focus-width) solid var(--k-focus-ring);
+  }
+
+  .k-matrix__header:hover {
+    color: var(--k-text);
+  }
+
+  /* Its headers also underlined: never the tint alone (WCAG 1.4.1), whatever `axes`. The
+   * line is always there, transparent off the crosshair, so that it fades with the tint. */
+  .k-matrix__header {
+    text-decoration-line: underline;
+    text-decoration-color: transparent;
+  }
+
   .k-matrix__header[data-cross] {
     color: var(--k-text);
-    text-decoration-line: underline;
+    text-decoration-color: currentcolor;
     background-color: var(--k-accent-soft);
   }
 
@@ -392,22 +421,37 @@ function onKeydown(event: KeyboardEvent): void {
    * the inline end) on the end border of the source row header and on the start border
    * of the shown cell; one pointing up on the top border of the shown cell and on the
    * bottom border of the destination column header. Half of each lies over the
-   * neighbour, painted after it (positioned). */
-  .k-matrix__head .k-matrix__header[data-flow],
-  .k-matrix__cell[data-flow] {
+   * neighbour, painted after it (positioned). They are always drawn, transparent off the
+   * path: they fade in where the crosshair goes and out where it leaves (opacity only,
+   * kept under reduced motion), never sliding. */
+  .k-matrix__head .k-matrix__header,
+  .k-matrix__cell {
     position: relative;
+  }
+
+  .k-matrix__row-header::after,
+  .k-matrix__head .k-matrix__header::after,
+  .k-matrix__cell::before,
+  .k-matrix__cell::after {
+    position: absolute;
+    pointer-events: none;
+    background-color: var(--k-accent);
+    opacity: 0;
+    transition-property: opacity;
+    transition-duration: var(--k-duration-fade);
+    transition-timing-function: var(--k-ease-exit);
   }
 
   .k-matrix [data-flow]::before,
   .k-matrix [data-flow]::after {
-    position: absolute;
-    pointer-events: none;
-    background-color: var(--k-accent);
+    opacity: 1;
+    transition-duration: max(var(--k-duration-short), var(--k-duration-fade));
+    transition-timing-function: var(--k-ease-standard);
   }
 
   /* Along the row: on the end border of the source, on the start border of the cell. */
-  .k-matrix__row-header[data-flow]::after,
-  .k-matrix__cell[data-flow]::before {
+  .k-matrix__row-header::after,
+  .k-matrix__cell::before {
     content: "";
     inset-block-start: calc(50% - var(--k-space-1));
     inline-size: calc(var(--k-space-1) + var(--k-space-0-5));
@@ -415,22 +459,22 @@ function onKeydown(event: KeyboardEvent): void {
     clip-path: polygon(0 0, 100% 50%, 0 100%);
   }
 
-  .k-matrix__row-header[data-flow]::after {
+  .k-matrix__row-header::after {
     inset-inline-end: calc((var(--k-space-1) + var(--k-space-0-5)) / -2);
   }
 
-  .k-matrix__cell[data-flow]::before {
+  .k-matrix__cell::before {
     inset-inline-start: calc((var(--k-space-1) + var(--k-space-0-5)) / -2);
   }
 
-  .k-matrix__row-header[data-flow]:dir(rtl)::after,
-  .k-matrix__cell[data-flow]:dir(rtl)::before {
+  .k-matrix__row-header:dir(rtl)::after,
+  .k-matrix__cell:dir(rtl)::before {
     clip-path: polygon(100% 0, 0 50%, 100% 100%);
   }
 
   /* Up the column: on the top border of the cell, on the bottom border of the destination. */
-  .k-matrix__head .k-matrix__header[data-flow]::after,
-  .k-matrix__cell[data-flow]::after {
+  .k-matrix__head .k-matrix__header::after,
+  .k-matrix__cell::after {
     content: "";
     inset-inline-start: calc(50% - var(--k-space-1));
     inline-size: var(--k-space-2);
@@ -438,11 +482,11 @@ function onKeydown(event: KeyboardEvent): void {
     clip-path: polygon(50% 0, 100% 100%, 0 100%);
   }
 
-  .k-matrix__head .k-matrix__header[data-flow]::after {
+  .k-matrix__head .k-matrix__header::after {
     inset-block-end: calc((var(--k-space-1) + var(--k-space-0-5)) / -2);
   }
 
-  .k-matrix__cell[data-flow]::after {
+  .k-matrix__cell::after {
     inset-block-start: calc((var(--k-space-1) + var(--k-space-0-5)) / -2);
   }
 
@@ -491,9 +535,19 @@ function onKeydown(event: KeyboardEvent): void {
     background-color: var(--k-state-review-bg);
   }
 
+  /* The mark of a state fades in when the cell takes it (its tint fades with it, above). */
   .k-matrix__mark {
     flex: none;
     color: var(--k-accent);
+    transition-property: opacity;
+    transition-duration: max(var(--k-duration-short), var(--k-duration-fade));
+    transition-timing-function: var(--k-ease-standard);
+  }
+
+  @starting-style {
+    .k-matrix__mark {
+      opacity: 0;
+    }
   }
 
   .k-matrix__cell[data-state="review"] .k-matrix__mark {
