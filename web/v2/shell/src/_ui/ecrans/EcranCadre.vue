@@ -153,6 +153,8 @@ function toggleDraft(): void {
     :data-width="width"
     data-k-modal-scope
   >
+    <!-- First stop of the page: past the sidebar and the bar to the surface (WCAG 2.4.1). -->
+    <a class="k-ecran__skip" href="#k-ecran-surface">Aller au contenu</a>
     <SidebarNav
       v-model:collapsed="collapsed"
       brand="kartenn"
@@ -214,7 +216,7 @@ function toggleDraft(): void {
       </header>
       <TimeBand v-if="props.at" :at="props.at" :time-zone="ZONE" />
       <div class="k-ecran__body">
-        <main class="k-ecran__surface">
+        <main id="k-ecran-surface" class="k-ecran__surface" tabindex="-1">
           <h1 class="k-visually-hidden">{{ props.title }}</h1>
           <slot />
         </main>
@@ -268,6 +270,28 @@ function toggleDraft(): void {
     overflow: hidden;
     color: var(--k-text);
     background-color: var(--k-bg);
+  }
+
+  /* The skip link: out of the grid, shown over the corner while it has the focus. */
+  .k-ecran__skip {
+    position: absolute;
+    inset-block-start: var(--k-space-1);
+    inset-inline-start: var(--k-space-1);
+    z-index: var(--k-z-overlay);
+    padding: var(--k-space-1) var(--k-space-2);
+    color: var(--k-text);
+    background-color: var(--k-surface);
+    border: var(--k-border-width) solid var(--k-border-strong);
+    border-radius: var(--k-radius-md);
+    translate: 0 calc(-100% - var(--k-space-2));
+  }
+
+  .k-ecran__skip:focus {
+    translate: 0 0;
+  }
+
+  .k-ecran__surface:focus {
+    outline: none;
   }
 
   /* The button of the drawer of the sidebar: the compact class only. */
