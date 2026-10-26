@@ -377,6 +377,12 @@ const EFFECT = [
         </template>
       </MatrixGrid>
       <template #footer>
+        <!-- What the marks of a cell say, in words (relecture du 2026-10-26). -->
+        <ul class="k-ecran-legende" aria-label="Légende de la matrice">
+          <li><Icon name="draft" class="k-ecran-legende__draft" />dans le brouillon</li>
+          <li><Icon name="eye" class="k-ecran-legende__review" />en revue</li>
+          <li><span class="k-ecran-legende__active"></span>cellule choisie</li>
+        </ul>
         <span>Brouillon · 1 cellule de cette matrice sur {{ CHANGED.length }} · 1 en revue</span>
         <span class="k-num"
           >1 s'ouvre sous réserve · {{ shownFlows.length }} non conformes à cette matrice · 0
@@ -564,6 +570,41 @@ const EFFECT = [
   .k-ecran-cell__arrow {
     flex: none;
     color: var(--k-text-muted);
+  }
+
+  /* The legend of the matrix: each mark of a cell and its word, on one wrapping line. */
+  .k-ecran-legende {
+    display: flex;
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    gap: var(--k-space-1) var(--k-space-3);
+    font-size: var(--k-text-sm);
+    line-height: var(--k-text-sm-line);
+    color: var(--k-text-muted);
+    list-style: none;
+  }
+
+  .k-ecran-legende > li {
+    display: inline-flex;
+    gap: var(--k-space-1);
+    align-items: center;
+  }
+
+  .k-ecran-legende__draft {
+    color: var(--k-accent);
+  }
+
+  .k-ecran-legende__review {
+    color: var(--k-state-review-fg);
+  }
+
+  /* A sample of the edge of the chosen cell. */
+  .k-ecran-legende__active {
+    inline-size: var(--k-space-4);
+    block-size: var(--k-space-3);
+    background-color: var(--k-surface);
+    border: var(--k-border-width) solid var(--k-border);
+    box-shadow: var(--k-shadow-inset-accent);
   }
 }
 </style>
