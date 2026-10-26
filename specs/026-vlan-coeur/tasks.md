@@ -1,6 +1,6 @@
 # 026 — Le VLAN dans le cœur : tâches
 
-Statut : spec **en brouillon**, à valider.
+Statut : spec **validée le 2026-10-27**.
 
 - [ ] 1. Modèle, règles et noms du cœur : `core.vlan_group`, `core.vlan`, codes
   `core.vlan.*`, permissions et propriété `core.vlan` dans `kartenn-core` — REQ-026-1,

@@ -1,11 +1,11 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-27
 ---
 
 # 026 — Le VLAN dans le cœur : exigences
 
-Statut : **brouillon, à valider par l'utilisateur.**
+Statut : **validée le 2026-10-27** (C1 à C7).
 
 ## Résumé
 
