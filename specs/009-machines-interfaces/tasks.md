@@ -300,10 +300,24 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
 
 ## P4 — Amendements (relecture E11, 2026-10-26)
 
-- [ ] 15. Média d'interface (M17) : propriété `machines.interface_media` déclarée par le
+- [x] 15. Média d'interface (M17) : propriété `machines.interface_media` déclarée par le
   module comme `machines.interface_role`, valeurs livrées, extensible ; filtre des
   interfaces par média ; lecture de l'interface qui la restitue ; contrat OpenAPI et SDK
   (`web/sdk`) régénérés si la forme change ; `docs/spec/data.md` (propriétés du module)
   — REQ-009-26 — verify : tests d'acceptation de REQ-009-26 ; `k-check`
   - où : `crates/kartenn-machines/src/module.rs` (déclaration de `interface_role` à
     imiter), `src/read.rs`, tests `crates/kartenn-machines/tests/it/machines.rs`
+  - fait : `module.rs` déclare `machines.interface_media` (`INTERFACE_MEDIA`, valeurs
+    `INTERFACE_MEDIAS`, libellés fr/en) ; `GET`/`QUERY /v1/interfaces` prend le filtre
+    `media` (clé de la valeur, affectation propre à la date, `rest.rs::media_is`) ; tests
+    `interface_media_values` (valeurs livrées, `sfp` sur `eth2` et son explication,
+    valeur hors liste et porteur machine refusés, interface sans média valide, valeur
+    ajoutée par l'administrateur gardée à la synchronisation) et
+    `interfaces_filtered_by_media` (filtre, `GET /v1/interfaces/{id}/properties` et
+    l'explication) ; contrat `openapi-v1.json` et `web/sdk` (v1) régénérés (paramètre
+    `media`), instantané du catalogue Python inchangé ; `docs/spec/data.md`,
+    `docs/spec/interfaces.md`, design (propriétés déclarées, filtres).
+  - choix : la fiche lit le média par la route générique des propriétés de l'interface,
+    comme le rôle ; ni champ `media` dans `Interface` ni ajout au port `read.rs` (aucun
+    module dépendant n'en a besoin) ; un média inconnu au filtre rend une page vide, pas
+    une erreur (liste extensible) ; pas de filtre `role` (hors tâche).
