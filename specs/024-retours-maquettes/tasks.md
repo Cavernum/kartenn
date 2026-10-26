@@ -697,6 +697,15 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
     issue d'une déclaration affichée « dossier non évalué ». Reste : la ligne E11 du
     design 020 parle encore d'« extrémités développées en machines » et de « tester un
     flux ».
+  - Deuxième relecture d'E11 (2026-10-27). Choix tranchés :
+    - Vue `envoi` : les libellés coupés de « Proposer des flux » passent à la ligne ou
+      prennent leur largeur ; aucun libellé tronqué.
+    - Ombre de défilement du panneau latéral : elle passe au-dessus du contenu (encarts
+      compris), pas seulement sur le fond ; même règle pour le panneau du bas.
+    - Fiche d'une interface (vue `interface` d'E11) : nom, machine, MAC, état, média
+      (`machines.interface_media`, 009/M17 : Ethernet, SFP, Wi-Fi, agrégat, virtuelle,
+      bouclage), rôle, VLAN, adresses rattachées, flux de l'interface ; les liens
+      « interface » des autres vues d'E11 y mènent.
 - [ ] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
   020) — REQ-024-29
 

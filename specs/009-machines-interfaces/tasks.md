@@ -297,3 +297,13 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   sauf REQ-009-21 dont le banc complet reste à relancer (12).
   choix : catalogue des règles de modules généré par le serveur, seul à connaître les
   modules du build, comme `permissions.md`.
+
+## P4 — Amendements (relecture E11, 2026-10-26)
+
+- [ ] 15. Média d'interface (M17) : propriété `machines.interface_media` déclarée par le
+  module comme `machines.interface_role`, valeurs livrées, extensible ; filtre des
+  interfaces par média ; lecture de l'interface qui la restitue ; contrat OpenAPI et SDK
+  (`web/sdk`) régénérés si la forme change ; `docs/spec/data.md` (propriétés du module)
+  — REQ-009-26 — verify : tests d'acceptation de REQ-009-26 ; `k-check`
+  - où : `crates/kartenn-machines/src/module.rs` (déclaration de `interface_role` à
+    imiter), `src/read.rs`, tests `crates/kartenn-machines/tests/it/machines.rs`

@@ -121,6 +121,19 @@ Acceptation :
 - Poser `administration` sur `eth1` ; l'explication de la propriété la montre ; une
   valeur hors liste : refus.
 
+#### REQ-009-26 — Média d'interface
+kartenn doit fournir la propriété `machines.interface_media`, liste fermée simple,
+portée par les interfaces, non héritée, facultative, avec les valeurs `ethernet`
+(cuivre), `sfp` (module enfichable, fibre ou cuivre), `wifi`, `aggregate` (agrégat de
+liens), `virtual` (interface d'une machine virtuelle ou d'un pont) et `loopback`,
+extensible par un administrateur (demande de l'utilisateur, relecture de la maquette
+E11 du 2026-10-26, M17).
+
+Acceptation :
+- Poser `sfp` sur `eth2` ; la fiche de l'interface et l'explication de la propriété la
+  montrent ; une valeur hors liste : refus ; une interface sans média reste valide.
+- Filtrer les interfaces par média.
+
 ### D. Adresses et VLAN
 
 #### REQ-009-9 — Rattacher une adresse

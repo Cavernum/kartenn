@@ -189,3 +189,21 @@ Référence : [`docs/reference/vlan-mac-ieee-802.md`](../../docs/reference/vlan-
   l'adresse (rattacher une adresse qu'on ne voit pas).
 - À relire : choix de sécurité, signalé dans le rapport.
 - Décidé par : Claude (délégation de l'utilisateur, 2026-10-20)
+
+## M17 — Média d'une interface (REQ-009-26)
+- Constat (2026-10-26, relecture de la maquette E11) : l'utilisateur veut lire sur la
+  fiche d'une interface si elle est en ethernet, SFP, Wi-Fi, etc. ; le modèle n'en dit
+  rien (REQ-009-6).
+- Décision : une propriété `machines.interface_media`, liste fermée simple, non
+  héritée, facultative, extensible par un administrateur, sur le modèle du rôle
+  (REQ-009-8) ; valeurs livrées `ethernet`, `sfp`, `wifi`, `aggregate`, `virtual`,
+  `loopback`.
+- Pourquoi : une propriété hérite gratuitement de l'historique, de l'explication, des
+  filtres, du différentiel et de l'extension par l'administrateur ; une colonne typée
+  aurait demandé tout cela à nouveau. Le débit et le connecteur précis (SFP+, QSFP)
+  restent hors champ : une valeur ajoutée par l'administrateur suffit si le besoin
+  vient.
+- Rejeté : colonne `media` sur `interface` (schéma et contrat figés pour une liste qui
+  évolue).
+- Décidé par : l'utilisateur pour le besoin (2026-10-26) ; la forme : Claude, choix peu
+  coûteux et réversible.
