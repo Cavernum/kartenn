@@ -204,7 +204,8 @@ Un port qu'aucun service ne couvre → `Denied { UnknownService }`, issue `Revie
 
 Le service `Query` du module :
 - développe les extrémités en adresses (adresse : elle-même ; préfixe : lui-même ;
-  interface, machine : port de lecture de la 009, M4) ;
+  interface : port de lecture de la 009, M4 ; une machine est refusée avant, 422
+  `policy.endpoint.machine`, 011/F21) ;
 - lit en **une** requête les valeurs résolues des axes cités par l'instantané pour
   toutes les adresses (lecture groupée, N9) et, pour les axes portés par la machine, les
   valeurs des machines rattachées (port de lecture 009, M10) ; compose selon S27 ;
@@ -510,6 +511,7 @@ M7 (section des rattachements changés) est un besoin de la 011.
 |---|---|
 | Extrémité invisible ou absente, sans `policy.flow.request` | 404 commun (REQ-010-25) |
 | Extrémité = plage | 422 `policy.query.unsupported_endpoint` (une plage ne porte pas de classification) |
+| Extrémité = machine | 422 `invalid-member`, `violations` : `policy.endpoint.machine`, `pointer` `/source` ou `/destination` (011/F21) |
 | Préfixe en extrémité | évalué sur ses propres classifications, sans développer ses adresses |
 | Adresse rattachée à plusieurs machines | axes de la machine : union (S27) ; environnement : par adresse (D22) |
 | Service clos à la date | absent de l'instantané ; requête nommant ce service → 404 |
