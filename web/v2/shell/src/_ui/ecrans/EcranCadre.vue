@@ -2,9 +2,10 @@
 // The frame of the shell for the mock-ups (spec 021, « Cadre », revised by the 024: M8,
 // M15): fixed slots laid by its grid — sidebar of spaces (collapsible), status bar
 // (breadcrumb, date pill, draft counter, user menu), band out of the present, work
-// surface, right panel (SidePanel) over the end of the surface. Each slot scrolls inside
-// itself; the page never does. The surface is an isolated stacking context: its sticky
-// headers never pass over the panel nor over a floating layer. The draft counter opens
+// surface, right panel (SidePanel) beside the surface, and an optional bottom panel
+// (BottomPanel, slot `bottom-<tab>`) under it. Each slot scrolls inside itself; the page
+// never does. The surface is an isolated stacking context: its sticky headers never pass
+// over a panel nor over a floating layer. The draft counter opens
 // the panel on its draft tab, or closes it when open (its icon is then a cross); closed,
 // the panel leaves its strip at the end of the body, whose chevron reopens it. The real
 // frame is a task of the 021; here it only places components of @kartenn/ui (layout, no
@@ -12,15 +13,17 @@
 //
 // Adaptation to the width (spec 020, « Adaptation à la largeur »): the frame alone reads
 // the window, in four classes (`WIDTH_CLASSES`, copied in the media queries below, equal
-// by test). Wide (≥ 1280) and standard (≥ 1024): sidebar expanded, the panel over the
-// end of the surface, which keeps its width and its columns (user's decision of
-// 2026-10-25, « par-dessus partout »). Narrow (≥ 600): sidebar as a rail, the panel
-// covers the surface.
+// by test). Wide (≥ 1280) and standard (≥ 1024): sidebar expanded, the panel beside the
+// surface, which shrinks to the width it leaves — header, filters, grids and footers
+// alike, nothing under the panel (user's decision of 2026-10-26, « tout s'adapte »).
+// Narrow (≥ 600): sidebar as a rail, the panel covers the surface. The bottom panel
+// pushes at every class but the compact one: the surface loses height, never width.
 // Compact: one column, the sidebar in a drawer opened from the status bar, a reduced bar
-// (date pill and draft counter as icons), the panel a sheet over the window with a back
+// (date pill and draft counter as icons), each panel a sheet over the window with a back
 // button. CSS lays all this out; the script keeps what CSS cannot: `data-width` on the
 // root, the state of the sidebar, the kind of panel, the drawer and the focus.
 import {
+  BottomPanel,
   Breadcrumb,
   DatePill,
   DraftCounter,
@@ -69,8 +72,15 @@ const props = withDefaults(
     /** The menu of the drafts open (chevron of the counter). */
     draftsOpen?: boolean;
     collapsed?: boolean;
+    /**
+     * The tabs of the bottom panel, each filled by the slot `bottom-<value>`; no bottom
+     * panel when unset.
+     */
+    bottom?: TabItem[] | undefined;
+    /** The name of the bottom panel. */
+    bottomLabel?: string;
   }>(),
-  { at: undefined, draft: 3, panel: undefined },
+  { at: undefined, draft: 3, panel: undefined, bottom: undefined, bottomLabel: "Panneau du bas" },
 );
 const slots = useSlots();
 
@@ -136,6 +146,9 @@ const tabs = computed<TabItem[]>(() => [
   { value: "detail", label: "Détail" },
   { value: "draft", label: "Brouillon", count: props.draft },
 ]);
+/** The bottom panel, open at first on its first tab when the screen gives one. */
+const bottomOpen = ref(props.bottom !== undefined);
+const bottomTab = ref<string>(props.bottom?.[0]?.value ?? "");
 /** The counter opens the panel on the draft, or closes it, whatever its tab. */
 function toggleDraft(): void {
   if (open.value) open.value = false;
@@ -216,10 +229,28 @@ function toggleDraft(): void {
       </header>
       <TimeBand v-if="props.at" :at="props.at" :time-zone="ZONE" />
       <div class="k-ecran__body">
-        <main id="k-ecran-surface" class="k-ecran__surface" tabindex="-1">
-          <h1 class="k-visually-hidden">{{ props.title }}</h1>
-          <slot />
-        </main>
+        <!-- The surface and, under it, the bottom panel: it takes height, never width. -->
+        <div class="k-ecran__work">
+          <main id="k-ecran-surface" class="k-ecran__surface" tabindex="-1">
+            <h1 class="k-visually-hidden">{{ props.title }}</h1>
+            <slot />
+          </main>
+          <BottomPanel
+            v-if="props.bottom"
+            v-model:open="bottomOpen"
+            v-model:tab="bottomTab"
+            :label="props.bottomLabel"
+            :tabs="props.bottom"
+            :sheet="width === 'compact'"
+          >
+            <template v-for="item in props.bottom" :key="item.value" #[item.value]>
+              <slot :name="`bottom-${item.value}`" />
+            </template>
+            <template #footer="{ tab: current }">
+              <slot :name="`bottom-${current}-footer`" />
+            </template>
+          </BottomPanel>
+        </div>
         <slot v-if="slots.drawer" name="drawer" />
         <SidePanel
           v-else
@@ -354,13 +385,27 @@ function toggleDraft(): void {
     align-items: center;
   }
 
-  /* The surface, the strip of the closed panel, and the panel over their end; the panel is
-   * positioned in here. */
+  /* The work (surface and bottom panel), then the right panel beside it or the strip of
+   * the closed panel, in the `auto` track; the panel bounds its width by this container
+   * and covers it from here at the narrow class. */
   .k-ecran__body {
     position: relative;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     min-block-size: 0;
+    container-type: inline-size;
+  }
+
+  /* The surface, then the bottom panel in the `auto` row; the panel bounds its height by
+   * this container. */
+  .k-ecran__work {
+    position: relative;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
+    min-inline-size: 0;
+    min-block-size: 0;
+    container-type: size;
   }
 
   .k-ecran__surface {
@@ -373,13 +418,12 @@ function toggleDraft(): void {
     overflow: auto;
     isolation: isolate;
     container: k-surface / inline-size;
-    /* The panel over its end (wide and standard): a control that takes the focus scrolls
-     * out from under it (WCAG 2.4.11); the width the panel publishes, 0 otherwise. */
-    scroll-padding-inline-end: var(--k-side-panel-inset, 0);
   }
 
   /* The period picker, laid over the band and the surface under the date pill, out of the
-   * flow: the page does not move (024/M15). */
+   * flow: the page does not move (024/M15). It reads as laid on top (relecture du
+   * 2026-10-26, E6): the shadow of the upper level, a contrasted border, a background of
+   * its own, in both modes. */
   .k-ecran__picker {
     position: absolute;
     inset-block-start: calc(var(--k-size-status-bar) + var(--k-space-1));
@@ -388,8 +432,11 @@ function toggleDraft(): void {
     max-inline-size: calc(100% - var(--k-space-4));
     max-block-size: calc(100% - var(--k-size-status-bar) - var(--k-space-2));
     overflow: auto;
-    background-color: var(--k-bg);
+    background-color: var(--k-surface-raised);
+    border: var(--k-border-width) solid var(--k-border-control);
     border-radius: var(--k-radius-md);
+    /* stylelint-disable-next-line kartenn/floating-shadow -- the stand-in of PeriodPicker, a floating layer */
+    box-shadow: var(--k-shadow-modal);
   }
 
   .k-ecran__layers {

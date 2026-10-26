@@ -175,12 +175,16 @@ const sort = ref<GridSort>({ column: "version", direction: "descending" });
 
 <style>
 @layer components {
-  /* A non-modal layer: the frame lays it under the date pill, over the band and the page. */
+  /* A non-modal layer: the frame lays it under the date pill, over the band and the page,
+   * and gives it the look of a layer on top (`.k-ecran__picker`). */
   .k-ecran-surimpression {
     inline-size: var(--k-size-panel-lg);
     max-inline-size: 100%;
-    background-color: var(--k-surface);
-    border-radius: var(--k-radius-md);
+  }
+
+  /* The frame of the stand-in takes the background of the layer, not a sunken one. */
+  .k-ecran-surimpression > .k-ecran-later {
+    background-color: transparent;
   }
 
   .k-ecran-periode {
