@@ -27,7 +27,7 @@
       - code: pressed
       - text: ""
     - figure "loading — En cours":
-      - button "Recharger" [disabled]
+      - button "Recharger (Chargement)" [disabled]
       - code: loading
       - text: ""
     - figure "disabled — Désactivé":

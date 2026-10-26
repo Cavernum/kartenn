@@ -1,3 +1,5 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
 - navigation "Navigation principale":
   - text: kartenn
   - button "Rechercher"
@@ -45,20 +47,27 @@
           - /url: /
       - listitem: Bureaux
   - button "Présent"
-  - button "Brouillon ( 3 )"
+  - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
   - heading "Domaine Bureaux" [level=1]
-  - region "Adresses chargement":
-    - heading "Adresses chargement" [level=2]
+  - region "Adresses":
+    - heading "Adresses" [level=2]
+    - text: chargement
     - grid "Adresses":
       - rowgroup:
         - row "Valeur Usage Propriétaire Site":
           - columnheader "Valeur"
-          - columnheader "Usage"
-          - columnheader "Propriétaire"
-          - columnheader "Site"
+          - columnheader "Usage":
+            - text: ""
+            - 'button "Filtrer : Usage"'
+          - columnheader "Propriétaire":
+            - text: ""
+            - 'button "Filtrer : Propriétaire"'
+          - columnheader "Site":
+            - text: ""
+            - 'button "Filtrer : Site"'
       - rowgroup:
         - row "Chargement":
           - gridcell "Chargement"
@@ -85,7 +94,8 @@
           - gridcell
           - gridcell
           - gridcell
-  - heading "Préfixes Bureaux" [level=2]
+  - heading "Préfixes" [level=2]
+  - text: Bureaux
   - paragraph: Aucun préfixe racine
   - paragraph: Le domaine « bureaux » n'a aucun préfixe au présent. Créez-en un ou lancez un import.
   - button "Créer un préfixe"
@@ -101,3 +111,4 @@
     - code: req_7f3a9c2e5b1d4068
   - status
   - button "Réessayer"
+- button "Ouvrir le panneau"

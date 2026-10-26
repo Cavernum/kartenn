@@ -18,9 +18,9 @@
       - code: draft
       - text: ""
     - 'figure "invalid — Invalide : motif dit aux technologies d''assistance"':
-      - button /Préfixe dans \d+\.\d+\.2\.0\/\d+/
+      - button /Préfixe dans \d+\.\d+\.2\.0\/\d+ \(invalide\)/
       - button /Retirer le filtre Préfixe dans \d+\.\d+\.2\.0\/\d+/
-      - text: /Longueur de préfixe hors de 0 à \d+\./
+      - alert: /Longueur de préfixe hors de 0 à \d+\./
       - code: invalid
       - text: ""
     - figure "hover — Survol":

@@ -1,9 +1,9 @@
 - main:
   - region "SidePanel":
     - heading "SidePanel" [level=1]
-    - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter"
+    - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter ; en feuille, Dialog (Modal)"
     - 'figure "draft — Onglet Brouillon : simulation, motif (CommitForm), action (SplitButton)"':
-      - button "Brouillon ( 3 )" [expanded]
+      - button "Brouillon 3 opérations" [expanded]
       - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
       - grid "Préfixes":
         - rowgroup:
@@ -38,7 +38,7 @@
             - gridcell "7 %"
       - complementary "Panneau droit":
         - separator "Redimensionner le panneau"
-        - tablist "Panneau droit":
+        - tablist "Onglets du panneau":
           - tab "Détail"
           - tab "Brouillon 3" [selected]
         - tabpanel "Brouillon 3":

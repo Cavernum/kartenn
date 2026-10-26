@@ -1,9 +1,9 @@
 - main:
   - region "SidePanel":
     - heading "SidePanel" [level=1]
-    - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter"
+    - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter ; en feuille, Dialog (Modal)"
     - figure "detail — Ouvert sur l'onglet Détail, en surimpression de la fin de la surface":
-      - button "Brouillon ( 3 )" [expanded]
+      - button "Brouillon 3 opérations" [expanded]
       - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
       - grid "Préfixes":
         - rowgroup:
@@ -38,7 +38,7 @@
             - gridcell "7 %"
       - complementary "Panneau droit":
         - separator "Redimensionner le panneau"
-        - tablist "Panneau droit":
+        - tablist "Onglets du panneau":
           - tab "Détail" [selected]
           - tab "Brouillon 3"
         - tabpanel "Détail":
@@ -49,7 +49,7 @@
       - code: detail
       - text: ""
     - 'figure "draft — Onglet Brouillon : simulation, motif (CommitForm), action (SplitButton)"':
-      - button "Brouillon ( 3 )" [expanded]
+      - button "Brouillon 3 opérations" [expanded]
       - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
       - grid "Préfixes":
         - rowgroup:
@@ -84,7 +84,7 @@
             - gridcell "7 %"
       - complementary "Panneau droit":
         - separator "Redimensionner le panneau"
-        - tablist "Panneau droit":
+        - tablist "Onglets du panneau":
           - tab "Détail"
           - tab "Brouillon 3" [selected]
         - tabpanel "Brouillon 3":
@@ -103,7 +103,7 @@
       - code: draft
       - text: ""
     - figure /resized — Redimensionné à \d+ px \(poignée\)/:
-      - button "Brouillon ( 3 )" [expanded]
+      - button "Brouillon 3 opérations" [expanded]
       - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
       - grid "Préfixes":
         - rowgroup:
@@ -138,7 +138,7 @@
             - gridcell "7 %"
       - complementary "Panneau droit":
         - separator "Redimensionner le panneau"
-        - tablist "Panneau droit":
+        - tablist "Onglets du panneau":
           - tab "Détail" [selected]
           - tab "Brouillon 3"
         - tabpanel "Détail":
@@ -149,7 +149,7 @@
       - code: resized
       - text: ""
     - 'figure "cover — Fenêtre étroite : le panneau couvre toute la surface, sans poignée"':
-      - button "Brouillon ( 3 )" [expanded]
+      - button "Brouillon 3 opérations" [expanded]
       - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
       - grid "Préfixes":
         - rowgroup:
@@ -183,7 +183,7 @@
             - gridcell "Sauvegardes"
             - gridcell "7 %"
       - complementary "Panneau droit":
-        - tablist "Panneau droit":
+        - tablist "Onglets du panneau":
           - tab "Détail"
           - tab "Brouillon 3" [selected]
         - tabpanel "Brouillon 3":
@@ -201,8 +201,61 @@
         - button "Choisir l'action"
       - code: cover
       - text: ""
+    - 'figure /sheet — Fenêtre compacte : feuille plein écran \(ici, tout le cadre de \d+ px\), « Retour » au début de ses onglets/':
+      - button "Brouillon 3 opérations" [expanded]
+      - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
+      - grid "Préfixes":
+        - rowgroup:
+          - row "Préfixe Libellé Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.2\.0\/\d+ Supervision \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Supervision"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Réserve \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Réserve"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Salle B \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Salle B"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell /\d+ %/
+          - row /\d+:db8::\/\d+ Sauvegardes 7 %/:
+            - gridcell /\d+:db8::\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "7 %"
+      - dialog "Panneau droit":
+        - button "Retour"
+        - tablist "Onglets du panneau":
+          - tab "Détail"
+          - tab "Brouillon 3" [selected]
+        - tabpanel "Brouillon 3":
+          - list:
+            - listitem: /Brouillon \d+\.\d+\.\d+\.\d+\/\d+/
+            - listitem: /Brouillon \d+\.\d+\.\d+\.\d+/
+            - listitem: /Brouillon \d+\.\d+\.\d+\.\d+\/\d+/
+        - paragraph: Simulation valide
+        - text: Résumé (obligatoire)
+        - textbox "Résumé (obligatoire)": Maintenance du référentiel
+        - text: Description (facultative)
+        - textbox "Description (facultative)"
+        - button "Appliquer"
+        - button "Choisir l'action"
+      - code: sheet
+      - text: ""
     - 'figure "closed — Replié : une languette au bord de fin, dans le flux, dont le chevron le rouvre (le compteur aussi)"':
-      - button "Brouillon ( 3 )"
+      - button "Brouillon 3 opérations"
       - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
       - grid "Préfixes":
         - rowgroup:
@@ -239,7 +292,7 @@
       - code: closed
       - text: ""
     - figure "rail-focus — Focus sur le chevron de la languette « Ouvrir le panneau »":
-      - button "Brouillon ( 3 )"
+      - button "Brouillon 3 opérations"
       - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
       - grid "Préfixes":
         - rowgroup:
@@ -276,7 +329,7 @@
       - code: rail-focus
       - text: ""
     - figure "handle-focus — Focus sur la poignée (flèches, Début, Fin)":
-      - button "Brouillon ( 3 )" [expanded]
+      - button "Brouillon 3 opérations" [expanded]
       - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
       - grid "Préfixes":
         - rowgroup:
@@ -311,7 +364,7 @@
             - gridcell "7 %"
       - complementary "Panneau droit":
         - separator "Redimensionner le panneau"
-        - tablist "Panneau droit":
+        - tablist "Onglets du panneau":
           - tab "Détail" [selected]
           - tab "Brouillon 3"
         - tabpanel "Détail":

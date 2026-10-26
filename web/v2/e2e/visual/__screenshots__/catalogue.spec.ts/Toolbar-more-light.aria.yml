@@ -1,0 +1,13 @@
+- main:
+  - region "Toolbar":
+    - heading "Toolbar" [level=1]
+    - paragraph: "Motif : Toolbar ; actions repliées dans « … » par priorité"
+    - 'figure "more — Entrées propres à « … » (more) : toujours présent, après les actions repliées ; jamais deux « … »"':
+      - toolbar "Actions sur les préfixes":
+        - button "Créer"
+        - button "Modifier"
+        - button "Importer"
+        - button "Plus d'actions"
+      - status
+      - code: more
+      - text: ""

@@ -1,3 +1,5 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
 - navigation "Navigation principale":
   - text: kartenn
   - button "Rechercher"
@@ -42,12 +44,13 @@
     - list:
       - listitem: Accueil
   - button "Présent"
-  - button "Brouillon ( 3 )"
+  - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
   - heading "Accueil" [level=1]
-  - heading "Objets lisibles par vous" [level=2]
+  - heading "Objets" [level=2]
+  - text: lisibles par vous
   - term: Domaines
   - definition: "4"
   - term: Préfixes
@@ -60,7 +63,8 @@
   - definition: /\d+/
   - term: Sites
   - definition: "9"
-  - heading "Changesets appliqués tous auteurs" [level=2]
+  - heading "Changesets appliqués" [level=2]
+  - text: tous auteurs
   - term: 7 derniers jours
   - definition: /\d+/
   - term: /\d+ derniers jours/
@@ -164,11 +168,13 @@
         - row /\d+ janv\. 7/:
           - rowheader /\d+ janv\./
           - cell "7"
-  - heading "À instruire changesets d'autres auteurs" [level=2]
+  - heading "À instruire" [level=2]
+  - text: changesets d'autres auteurs
   - term: En attente de votre validation
   - definition: "3"
   - button "Instruire"
-  - heading "Mes changesets en attente" [level=2]
+  - heading "Mes changesets" [level=2]
+  - text: en attente
   - term: Soumis, en revue
   - definition: "2"
   - button "Voir mes changesets"
@@ -176,7 +182,8 @@
   - term: Sur les objets que vous lisez
   - definition: /\d+/
   - text: 3 nouvelles depuis hier
-  - heading "VLAN plugin VLAN" [level=2]
+  - heading "VLAN" [level=2]
+  - text: plugin VLAN
   - term: Réservés
   - definition: /\d+/
   - term: Obsolètes
@@ -198,13 +205,14 @@
       - row "labo 6 %":
         - rowheader "labo"
         - cell "6 %"
-  - heading "Flux plugin Flux" [level=2]
+  - heading "Flux" [level=2]
+  - text: plugin Flux
   - term: Non conformes
   - definition: "4"
   - term: /Dérogations finissant sous \d+ jours/
   - definition: "2"
-  - heading "Politique plugin Politique" [level=2]
-  - text: Chargement de la tuile Politique
+  - heading "Politique" [level=2]
+  - text: plugin Politique Chargement de la tuile Politique
   - status: Chargement
   - paragraph:
     - text: Compteurs calculés

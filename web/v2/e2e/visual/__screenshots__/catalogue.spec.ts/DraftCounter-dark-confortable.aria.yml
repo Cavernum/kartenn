@@ -3,23 +3,23 @@
     - heading "DraftCounter" [level=1]
     - paragraph: "Motif : Button (bascule du panneau, aria-expanded) et Menu Button (liste des brouillons)"
     - figure "pending — Opérations en brouillon":
-      - button /Brouillon \( \d+ \)/
+      - button /Brouillon \d+ opérations/
       - code: pending
       - text: ""
     - figure "empty — Compteur à 0":
-      - button "Brouillon ( 0 )"
+      - button "Brouillon 0 opération"
       - code: empty
       - text: ""
     - 'figure "expanded — Panneau ouvert : l''icône devient une croix (le prochain appui le ferme)"':
-      - button "Brouillon ( 3 )" [expanded]
+      - button "Brouillon 3 opérations" [expanded]
       - code: expanded
       - text: ""
     - figure "focus — Focus visible":
-      - button "Brouillon ( 3 )"
+      - button "Brouillon 3 opérations"
       - code: focus
       - text: ""
     - figure "drafts — Avec la liste des brouillons de l'utilisateur (chevron)":
-      - button "Brouillon ( 3 )"
+      - button "Brouillon 3 opérations"
       - button "Liste des brouillons"
       - code: drafts
       - text: ""

@@ -1,9 +1,9 @@
 - main:
   - region "SidePanel":
     - heading "SidePanel" [level=1]
-    - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter"
+    - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter ; en feuille, Dialog (Modal)"
     - 'figure "cover — Fenêtre étroite : le panneau couvre toute la surface, sans poignée"':
-      - button "Brouillon ( 3 )" [expanded]
+      - button "Brouillon 3 opérations" [expanded]
       - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
       - grid "Préfixes":
         - rowgroup:
@@ -37,7 +37,7 @@
             - gridcell "Sauvegardes"
             - gridcell "7 %"
       - complementary "Panneau droit":
-        - tablist "Panneau droit":
+        - tablist "Onglets du panneau":
           - tab "Détail"
           - tab "Brouillon 3" [selected]
         - tabpanel "Brouillon 3":

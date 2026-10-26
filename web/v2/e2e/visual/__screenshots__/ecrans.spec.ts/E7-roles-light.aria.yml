@@ -1,3 +1,5 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
 - navigation "Navigation principale":
   - text: kartenn
   - button "Rechercher"
@@ -39,23 +41,30 @@
           - /url: /admin/roles
       - listitem: lecteur-reseau
   - button "Présent"
-  - button "Brouillon ( 0 )" [expanded]
+  - button "Brouillon 0 opération" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
   - heading "Rôles" [level=1]
-  - region "Rôles 6":
-    - heading "Rôles 6" [level=2]
+  - region "Rôles":
+    - heading "Rôles" [level=2]
+    - text: "6"
     - toolbar "Actions des rôles":
       - button "Créer"
     - grid "Rôles":
       - rowgroup:
         - row "Rôle Intégré Permissions Groupes Description":
-          - columnheader "Rôle"
-          - columnheader "Intégré"
+          - columnheader "Rôle":
+            - text: ""
+            - 'button "Filtrer : Rôle"'
+          - columnheader "Intégré":
+            - text: ""
+            - 'button "Filtrer : Intégré"'
           - columnheader "Permissions"
           - columnheader "Groupes"
-          - columnheader "Description"
+          - columnheader "Description":
+            - text: ""
+            - 'button "Filtrer : Description"'
       - rowgroup:
         - row /Lecteur reader oui \d+ 6 Lecture de tout le référentiel/:
           - gridcell "Lecteur reader":
@@ -106,7 +115,7 @@
           - gridcell "Compte d'import"
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
-  - tablist "Panneau droit":
+  - tablist "Onglets du panneau":
     - tab "Détail" [selected]
     - tab "Brouillon 0"
   - tabpanel "Détail":

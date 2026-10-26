@@ -1,3 +1,5 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
 - navigation "Navigation principale":
   - text: kartenn
   - button "Rechercher"
@@ -33,13 +35,14 @@
           - /url: /x/policy/matrix
       - listitem: application
   - button "Présent"
-  - button "Brouillon ( 3 )" [expanded]
+  - button "Brouillon 3 opérations" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
   - heading "Matrice de politique applicatif" [level=1]
-  - region "Matrice Applicatif":
-    - heading "Matrice Applicatif" [level=2]
+  - region "Matrice":
+    - heading "Matrice" [level=2]
+    - text: Applicatif
     - 'button "Type de flux : Applicatif"'
     - paragraph:
       - text: "À venir :"
@@ -97,7 +100,7 @@
     - text: /Brouillon · 1 cellule de cette matrice sur 2 · 1 en revue 1 s'ouvre sous réserve · \d+ non conformes à cette matrice · 0 conforme de nouveau/
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
-  - tablist "Panneau droit":
+  - tablist "Onglets du panneau":
     - tab "Détail" [selected]
     - tab "Brouillon 3"
   - tabpanel "Détail":

@@ -1,3 +1,5 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
 - navigation "Navigation principale":
   - text: kartenn
   - button "Rechercher"
@@ -27,18 +29,21 @@
           - /url: /changesets
       - listitem: Mes brouillons
   - button "Présent"
-  - button "Brouillon ( 3 )"
+  - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
   - heading "Mes brouillons" [level=1]
-  - region /Mes brouillons 3 sur \d+/:
-    - heading /Mes brouillons 3 sur \d+/ [level=2]
+  - region "Mes brouillons":
+    - heading "Mes brouillons" [level=2]
+    - text: /3 sur \d+/
     - button "Nouveau brouillon"
     - grid "Mes brouillons":
       - rowgroup:
         - row "Titre Opérations Modifié le Suppression Actions":
-          - columnheader "Titre"
+          - columnheader "Titre":
+            - text: ""
+            - 'button "Filtrer : Titre"'
           - columnheader "Opérations"
           - columnheader "Modifié le"
           - columnheader "Suppression"
@@ -66,3 +71,4 @@
           - gridcell "Actions sur « Plan d'adressage de la salle C »":
             - button "Actions sur « Plan d'adressage de la salle C »"
     - text: /Un brouillon sans modification depuis \d+ jours est supprimé ; la date s'annonce une semaine avant\./
+- button "Ouvrir le panneau"

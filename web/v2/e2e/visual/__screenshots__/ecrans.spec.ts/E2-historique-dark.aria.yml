@@ -1,3 +1,5 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
 - navigation "Navigation principale":
   - text: kartenn
   - button "Rechercher"
@@ -51,13 +53,14 @@
           - /url: /prefixes
       - listitem: /\d+\.\d+\.\d+\.\d+\/\d+/
   - button "Présent"
-  - button "Brouillon ( 3 )"
+  - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - main:
   - heading /Préfixe \d+\.\d+\.\d+\.\d+\/\d+/ [level=1]
-  - region /\d+\.\d+\.\d+\.\d+\/\d+ préfixe · réseau · Supervision/:
-    - heading /\d+\.\d+\.\d+\.\d+\/\d+ préfixe · réseau · Supervision/ [level=2]
+  - region /\d+\.\d+\.\d+\.\d+\/\d+/:
+    - heading /\d+\.\d+\.\d+\.\d+\/\d+/ [level=2]
+    - text: préfixe · réseau · Supervision
     - button "Modifier"
     - button "Actions"
     - tablist "Sections de la fiche":
@@ -75,7 +78,9 @@
             - columnheader "Version, changeset"
             - columnheader "Valide"
             - columnheader "Connue du"
-            - columnheader "Motif"
+            - columnheader "Motif":
+              - text: ""
+              - 'button "Filtrer : Motif"'
         - rowgroup:
           - row /v4 01JD4K8B2C \d+-\d+-\d+ → \d+-\d+-\d+ Bascule des VIP salle B/:
             - gridcell "v4 01JD4K8B2C":
@@ -124,7 +129,8 @@
         - text: ""
         - code: 01JD4K7Q9V2M8X3N5P6R7S8T9W
       - status
-    - heading /Occupation \d+ %/ [level=2]
+    - heading "Occupation" [level=2]
+    - text: /\d+ %/
     - term: Utilisées
     - definition: /\d+ sur \d+/
     - term: Plages
@@ -132,10 +138,12 @@
     - term: Prochain libre
     - definition: /\d+\.\d+\.\d+\.\d+/
     - button /Réserver \d+\.\d+\.\d+\.\d+/ [disabled]
-    - heading "VLAN porté plugin VLAN" [level=2]
+    - heading "VLAN porté" [level=2]
+    - text: plugin VLAN
     - term: VID
     - definition: /\d+/
     - term: Nom
     - definition: supervision
     - term: Groupe
     - definition: campus-ouest
+- button "Ouvrir le panneau"

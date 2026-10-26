@@ -3,6 +3,6 @@
     - heading "Button" [level=1]
     - paragraph: "Motif : Button"
     - 'figure "loading — En cours : focalisable, aria-busy"':
-      - button "Appliquer" [disabled]
+      - button "Appliquer (Chargement)" [disabled]
       - code: loading
       - text: ""
