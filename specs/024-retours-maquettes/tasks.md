@@ -577,6 +577,44 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
       panneau qui passent à la ligne.
     - Relectures d'interface et d'accessibilité (2026-10-26) : écarts triés, corrigés dans
       les composants partagés (020, « Réalisé (2026-10-26, relectures) »).
+  - Cinquième relecture (2026-10-26). Arbitrages de l'utilisateur et choix tranchés :
+    - Panneau de droite : **tout s'adapte** (arbitrage, remplace « par-dessus partout »
+      et l'exception de la grille dans la zone visible). En classes large et standard,
+      la surface entière (en-tête, filtres, grilles, pieds) se réduit à la largeur que
+      le panneau laisse ; le panneau ne couvre plus rien. Les grilles replient leurs
+      colonnes par `@container` comme à toute autre largeur. Motifs : sur E1, le bouton
+      « Colonnes » sortait du tableau ; sur E5, des éléments suivaient le panneau et
+      d'autres non. Classes étroite et compacte inchangées (`cover`, feuille).
+    - Panneau du bas (arbitrage) : nouveau composant `BottomPanel`, frère du
+      `SidePanel`, pour un contenu large (détail en plusieurs colonnes, tableau lié). Il
+      **pousse** : la surface perd de la hauteur, jamais de largeur ; hauteur réglable
+      par une poignée, onglets comme le panneau de droite. Le choix entre droite et bas
+      suit le contenu, pas l'écran. E1 (nœud) : le détail de l'objet choisi passe en bas,
+      l'arbre et la grille gardent toute leur largeur.
+    - Poignée de redimensionnement et contour du panneau : trait fin (1 px au repos,
+      2 px au survol et au focus), transition de couleur et d'épaisseur visuelle en
+      jetons de la 020 ; la cible de 24 px reste invisible.
+    - Erreur d'une cellule (E3) : la cellule ne change jamais de taille et le texte
+      d'erreur n'en fait pas partie. Le message s'ouvre au survol et au focus dans une
+      couche flottante sous la cellule ; une bordure continue fait le tour de la cellule
+      (trois côtés et le bas hors de la jonction) et du message, raccordée par des
+      arrondis, sans recouvrir la cellule d'origine.
+    - Permission d'appliquer son propre changeset (arbitrage) : `<ressource>.apply_own`
+      devient `<ressource>.approval.self` partout (catalogue, rôles, API, clients, CLI,
+      docs, maquettes). L'action compte désormais un ou deux segments
+      (`module.ressource.approval.self`) ; le paramètre `?apply=own` devient
+      `?approval=self`, l'argument des clients `approval_self`, le code
+      `changeset.apply_own.missing` devient `changeset.approval.self.missing` ;
+      `changeset.approval.self` garde son sens (une politique ou une revue retient le
+      changeset). Pas de compatibilité avant le gel.
+    - E6 (passe) : la couche se lit comme posée par-dessus : ombre de niveau supérieur,
+      bordure contrastée, fond distinct de la surface, dans les deux thèmes.
+    - E10 (matrice) : transitions mesurées (surlignage en croix, état d'une cellule,
+      ouverture d'un groupe) en couleur de fond et opacité seulement, selon la note
+      `mouvement-interface.md`.
+    - Validé : petite largeur (rail masqué, compteur du brouillon qui ouvre le
+      panneau), compteur sans libellé visible, widgets d'E0, `DataGrid` (hors erreur de
+      cellule), `DiffValue`, `CommitForm`.
 - [ ] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
   020) — REQ-024-29
 

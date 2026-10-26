@@ -339,21 +339,29 @@ Classes de largeur du cadre (seuils choisis par kartenn ; aucune source n'en fix
 
 | Classe | Fenêtre | Cadre |
 |---|---|---|
-| large | ≥ 1280 px | barre latérale dépliée ; panneau de 420 px en surimpression de la fin de la surface |
-| standard | 1024 – 1279 px | barre latérale dépliée, repliable ; panneau en surimpression de la fin de la surface |
+| large | ≥ 1280 px | barre latérale dépliée ; panneau de 420 px à côté, la surface se réduit |
+| standard | 1024 – 1279 px | barre latérale dépliée, repliable ; panneau à côté, la surface se réduit |
 | étroite | 600 – 1023 px | barre latérale en rail (icônes) ; panneau en surimpression (`cover`) |
 | compacte | < 600 px | une colonne ; barre latérale en tiroir ouvert par un bouton de la barre d'état ; barre d'état réduite (pastille de date et compteur du brouillon en icône) ; panneau en feuille plein écran avec retour |
 
-Le panneau passe **par-dessus la surface à toute largeur** (décision de l'utilisateur du
-2026-10-25, « par-dessus partout », comme 024/M8) : la surface garde sa largeur et toutes
-ses colonnes, le panneau en couvre la fin (classes large et standard), toute la surface
-(étroite) ou toute la fenêtre (compacte). Un panneau à côté, dans sa propre piste, a été
-essayé puis retiré : il retirait de la largeur à la surface, et les grilles masquaient
-des colonnes dès qu'il s'ouvrait. Seule exception (décision de l'utilisateur du
-2026-10-26) : une grille que le panneau couvre tient, tant qu'il est ouvert, dans la part
-de la surface qu'il laisse visible — ses colonnes de moindre priorité se replient, le reste
-défile en ligne ; le reste de la page ne bouge pas (§ « Réalisé (2026-10-26,
-relectures) », « Suite 2 »).
+Panneau de droite, **tout s'adapte** (décision de l'utilisateur du 2026-10-26, cinquième
+relecture ; remplace « par-dessus partout » du 2026-10-25 et l'exception de la grille dans
+la zone visible) : en classes large et standard, la surface entière se réduit à la
+largeur que le panneau laisse, en-tête, filtres, grilles et pieds compris ; rien ne passe
+sous le panneau et aucun élément ne suit le panneau seul. Les grilles replient leurs
+colonnes par `@container`, comme à toute autre largeur. Classes étroite (`cover`) et
+compacte (feuille) inchangées. Le contenu large ne va pas à droite : il va dans le
+panneau du bas.
+
+Panneau du bas (`BottomPanel`, même décision) : frère du `SidePanel` pour un contenu
+large (détail en plusieurs colonnes, tableau lié). Il pousse : la surface perd de la
+hauteur, jamais de largeur ; hauteur réglable par une poignée (clavier et pointeur,
+menu de hauteur comme le menu de largeur du panneau de droite, WCAG 2.5.7), onglets,
+fermeture, retour du focus. Le choix entre droite et bas suit le contenu, pas l'écran ;
+en classe compacte, il devient la même feuille plein écran que le panneau de droite.
+
+Poignées et contours des panneaux : trait de 1 px au repos, 2 px au survol et au focus,
+transition de couleur en jetons (§ Mouvement) ; la cible de 24 px reste invisible.
 
 Les seuils ne sont pas des jetons CSS (une media query ne lit pas de propriété, et
 `@custom-media` n'existe pas encore) : une seule liste dans `components/layout.ts`
