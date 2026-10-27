@@ -33,7 +33,7 @@ use sqlx::types::Uuid;
 
 use crate::core_budgets::{Prepared, prepare, unitary};
 use crate::props::{Budget, p95, progress, verdict};
-use crate::vlan_budgets::{app, get, import, reader, sync};
+use crate::vlan_budgets::{app, get, import, reader, reader_on, sync};
 use crate::{Dataset, Nature, Prefix};
 
 /// Flows of the reference dataset (REQ-011-19), and those that leave the hot container.
@@ -169,6 +169,42 @@ async fn timed(
     let started = Instant::now();
     let outcome = submit(store, &Unrestricted, &request, MAX_OPERATIONS).await?;
     Ok((started.elapsed(), outcome))
+}
+
+/// Grants `entries` to `identity` on the subtree of the prefix `prefix`.
+async fn granted_on_prefix(
+    pool: &sqlx::PgPool,
+    identity: Uuid,
+    entries: &[&str],
+    prefix: Uuid,
+) -> anyhow::Result<()> {
+    let role = Uuid::now_v7();
+    sqlx::query(
+        "INSERT INTO role (id, key, labels, valid_period, changeset_id)
+         VALUES ($1, $2, jsonb_build_object('fr', 'bench'), tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+    )
+    .bind(role)
+    .bind(format!("bench_{}", role.simple()))
+    .execute(pool)
+    .await?;
+    for entry in entries {
+        sqlx::query(
+            "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
+             VALUES ($1, $2, tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+        )
+        .bind(role)
+        .bind(entry)
+        .execute(pool)
+        .await?;
+    }
+    sqlx::query(crate::rbac::BIND_IDENTITY)
+        .bind(identity)
+        .bind(role)
+        .bind("prefix")
+        .bind(prefix)
+        .execute(pool)
+        .await?;
+    Ok(())
 }
 
 fn median(mut samples: Vec<Duration>) -> Duration {
@@ -685,7 +721,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     .await?;
     let app = app(
         &pool,
-        registry,
+        registry.clone(),
         vec![kartenn_flow::rest::routes()],
         identity,
     )?;
@@ -737,6 +773,83 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         ),
     });
     progress(&format!("pages: {:?}", started.elapsed()));
+
+    // The same pages for a reader through the endpoints (spec 027, REQ-027-4): `flow.read`
+    // on an entity no flow is of, the addresses and prefixes of the hot container read.
+    unitary(
+        &store,
+        author,
+        Operation::CreateEntity {
+            local: None,
+            slug: "bench-flow-reader".into(),
+            parent: None,
+        },
+    )
+    .await?;
+    let unrelated: Uuid = sqlx::query_scalar(
+        "SELECT id FROM entity WHERE slug = 'bench-flow-reader' AND valid_period @> now()",
+    )
+    .fetch_one(&pool)
+    .await?;
+    let identity = reader_on(&pool, &["flow.read"], Some(unrelated)).await?;
+    granted_on_prefix(
+        &pool,
+        identity,
+        &["core.address.read", "core.prefix.read"],
+        zones[hot].id,
+    )
+    .await?;
+    let app = self::app(
+        &pool,
+        registry,
+        vec![kartenn_flow::rest::routes()],
+        identity,
+    )?;
+    let hot_zone = zones[hot].id;
+    for _ in 0..10 {
+        get(&app, &format!("/v1/flows?prefix={hot_zone}&page_size=100")).await?;
+    }
+    let mut samples = Vec::new();
+    let mut rows = 0;
+    for _ in 0..100 {
+        let service = services[rng.random_range(0..services.len())];
+        let uri = format!("/v1/flows?prefix={hot_zone}&service={service}&page_size=100");
+        let (elapsed, page) = get(&app, &uri).await?;
+        rows += page["items"].as_array().map_or(0, Vec::len);
+        samples.push(elapsed);
+    }
+    if rows == 0 {
+        bail!("the pages of flows read through the endpoints are empty");
+    }
+    budgets.push(Budget {
+        name: "filtered page of flows, reader by endpoints, p95",
+        limit: Duration::from_millis(150),
+        measured: p95(samples),
+        note: format!(
+            "100 draws of the flows of the hot container for a service, `flow.read` \
+             elsewhere, {} rows a page on average",
+            rows / 100
+        ),
+    });
+    let mut samples = Vec::new();
+    let mut rows = 0;
+    for _ in 0..100 {
+        let entity = entities[rng.random_range(0..ENTITIES)];
+        let uri = format!("/v1/flow-nonconformities?entity={entity}&page_size=100");
+        let (elapsed, page) = get(&app, &uri).await?;
+        rows += page["items"].as_array().map_or(0, Vec::len);
+        samples.push(elapsed);
+    }
+    budgets.push(Budget {
+        name: "page of non-conformities, reader by endpoints, p95",
+        limit: Duration::from_millis(150),
+        measured: p95(samples),
+        note: format!(
+            "100 draws of an entity, {} rows a page on average",
+            rows / 100
+        ),
+    });
+    progress(&format!("pages by endpoints: {:?}", started.elapsed()));
 
     let (lines, ok) = verdict(&budgets)?;
     report.push_str(&lines);
