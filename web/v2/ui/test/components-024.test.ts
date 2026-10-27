@@ -14,6 +14,7 @@ import { nextSort, type GridColumn } from "../src/components/DataGrid/grid.ts";
 import DraftCounter from "../src/components/DraftCounter/DraftCounter.vue";
 import IconButton from "../src/components/IconButton/IconButton.vue";
 import { moveInGrid } from "../src/components/internal/gridKeys.ts";
+import { scrollCue } from "../src/components/internal/panel.ts";
 import MatrixGrid from "../src/components/MatrixGrid/MatrixGrid.vue";
 import SidePanel from "../src/components/SidePanel/SidePanel.vue";
 import { widthPresets } from "../src/components/SidePanel/sidePanel.ts";
@@ -213,6 +214,78 @@ describe("BottomPanel (020, « Panneau du bas »)", () => {
       { id: "high", height: 640 },
     ]);
     expect(heightPresets(400, 600).map((p) => p.height)).toEqual([400, 400, 600]);
+  });
+});
+
+describe("scrollCue (SidePanel, BottomPanel: the shade at the bottom edge)", () => {
+  /** A scroll region as `scrollCue` reads it: its heights, its offset, its attributes. */
+  class Region {
+    readonly children: Region[] = [];
+    private readonly attributes = new Set<string>();
+    constructor(
+      public scrollHeight: number,
+      public clientHeight: number,
+      public scrollTop = 0,
+    ) {}
+    hasAttribute(name: string): boolean {
+      return this.attributes.has(name);
+    }
+    toggleAttribute(name: string, force: boolean): boolean {
+      if (force) this.attributes.add(name);
+      else this.attributes.delete(name);
+      return force;
+    }
+    removeAttribute(name: string): void {
+      this.attributes.delete(name);
+    }
+  }
+  /** A panel holding one region; `scroll` moves it as the user would, then tells the panel. */
+  function panel(region: Region) {
+    let listener: (() => void) | null = null;
+    const root = {
+      querySelectorAll: () => [region],
+      addEventListener: (_type: string, fn: () => void) => (listener = fn),
+      removeEventListener: () => (listener = null),
+    };
+    const stop = scrollCue(root as unknown as HTMLElement, ".region");
+    const scroll = (top: number) => {
+      region.scrollTop = top;
+      listener?.();
+    };
+    return {
+      stop,
+      scroll,
+      more: () => region.hasAttribute("data-more"),
+      listening: () => !!listener,
+    };
+  }
+
+  it("casts no shade when the content fits", () => {
+    expect(panel(new Region(300, 300)).more()).toBe(false);
+  });
+
+  it("shades the bottom while content lies below: at the top and mid-scroll", () => {
+    const { scroll, more } = panel(new Region(900, 300));
+    expect(more()).toBe(true);
+    scroll(300);
+    expect(more()).toBe(true);
+  });
+
+  it("drops the shade at the end, within a pixel of rounding, and casts it back above it", () => {
+    const { scroll, more } = panel(new Region(900, 300));
+    scroll(600);
+    expect(more()).toBe(false);
+    scroll(599);
+    expect(more()).toBe(false);
+    scroll(500);
+    expect(more()).toBe(true);
+  });
+
+  it("once stopped, removes the shade and no longer listens", () => {
+    const { stop, more, listening } = panel(new Region(900, 300));
+    stop();
+    expect(more()).toBe(false);
+    expect(listening()).toBe(false);
   });
 });
 
