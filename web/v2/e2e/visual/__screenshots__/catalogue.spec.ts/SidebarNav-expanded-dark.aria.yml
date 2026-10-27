@@ -12,6 +12,12 @@
             - link "Accueil":
               - /url: /
           - listitem:
+            - link "Topographie":
+              - /url: /topology
+          - listitem:
+            - link "VLAN":
+              - /url: /vlans
+          - listitem:
             - link "Domaines":
               - /url: /domains
           - listitem:
@@ -34,11 +40,6 @@
           - listitem:
             - link "Brouillon":
               - /url: /draft
-        - button "Réseau" [expanded]
-        - list:
-          - listitem:
-            - link "VLAN":
-              - /url: /x/vlan
         - button "Administration" [expanded]
         - list:
           - listitem:
