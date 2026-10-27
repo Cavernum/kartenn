@@ -25,6 +25,9 @@
         - link "BarList":
           - /url: /_ui/c/BarList?mode=light
       - listitem:
+        - link "BottomPanel":
+          - /url: /_ui/c/BottomPanel?mode=light
+      - listitem:
         - link "Breadcrumb":
           - /url: /_ui/c/Breadcrumb?mode=light
       - listitem:
@@ -55,6 +58,9 @@
         - link "DiffList":
           - /url: /_ui/c/DiffList?mode=light
       - listitem:
+        - link "DiffValue":
+          - /url: /_ui/c/DiffValue?mode=light
+      - listitem:
         - link "DraftCounter":
           - /url: /_ui/c/DraftCounter?mode=light
       - listitem:
@@ -69,6 +75,9 @@
       - listitem:
         - link "ErrorState":
           - /url: /_ui/c/ErrorState?mode=light
+      - listitem:
+        - link "ExpandableGrid":
+          - /url: /_ui/c/ExpandableGrid?mode=light
       - listitem:
         - link "FilterChip":
           - /url: /_ui/c/FilterChip?mode=light
@@ -245,3 +254,30 @@
       - listitem:
         - link "E10 Hôte de plugin — Brouillon de la matrice":
           - /url: /_ui/ecrans/E10?mode=light&vue=brouillon
+      - listitem:
+        - link "E11 Flux — Registre":
+          - /url: /_ui/ecrans/E11?mode=light&vue=registre
+      - listitem:
+        - link "E11 Flux — Proposition":
+          - /url: /_ui/ecrans/E11?mode=light&vue=proposition
+      - listitem:
+        - link "E11 Flux — Envoi de la proposition":
+          - /url: /_ui/ecrans/E11?mode=light&vue=envoi
+      - listitem:
+        - 'link "E11 Flux — Tester une connexion : ouvert et conforme"':
+          - /url: /_ui/ecrans/E11?mode=light&vue=tester
+      - listitem:
+        - 'link "E11 Flux — Tester une connexion : ouvert mais non conforme"':
+          - /url: /_ui/ecrans/E11?mode=light&vue=tester-derogation
+      - listitem:
+        - 'link "E11 Flux — Tester une connexion : non ouvert mais conforme"':
+          - /url: /_ui/ecrans/E11?mode=light&vue=tester-a-declarer
+      - listitem:
+        - 'link "E11 Flux — Tester une connexion : non ouvert et non conforme"':
+          - /url: /_ui/ecrans/E11?mode=light&vue=tester-ferme
+      - listitem:
+        - link "E11 Flux — Flux d'une machine":
+          - /url: /_ui/ecrans/E11?mode=light&vue=machine
+      - listitem:
+        - link "E11 Flux — Fiche d'une interface":
+          - /url: /_ui/ecrans/E11?mode=light&vue=interface

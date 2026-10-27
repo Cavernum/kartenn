@@ -1,0 +1,135 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Réseau"
+  - button "Machines" [expanded]
+  - list:
+    - listitem:
+      - link "Machines":
+        - /url: /x/machines/machines
+    - listitem:
+      - link "Hébergement":
+        - /url: /x/machines/clusters
+    - listitem:
+      - link "Interfaces":
+        - /url: /x/machines/interfaces
+  - button "Politique"
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Machines":
+          - /url: /x/machines
+      - listitem:
+        - link "Machines":
+          - /url: /x/machines/machines
+      - listitem:
+        - link /srv-app-\d+/:
+          - /url: /x/machines/srv-app-01
+      - listitem: eth0
+  - button "Présent"
+  - button "Brouillon 3 opérations"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading /Interface srv-app-\d+ · eth0/ [level=1]
+  - region /srv-app-\d+ · eth0/:
+    - heading /srv-app-\d+ · eth0/ [level=2]
+    - text: interface · service · SFP
+    - tablist "Sections de la fiche":
+      - tab "Information" [selected]
+      - tab "Historique 3"
+    - tabpanel "Information":
+      - term: Nom
+      - definition: eth0
+      - term: Machine
+      - definition:
+        - link /srv-app-\d+/:
+          - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=light
+      - term: MAC
+      - definition: /\d+-\d+-5E-\d+-\d+-\d+/
+      - term: État
+      - definition: Activée
+      - term: Média
+      - definition:
+        - text: SFP
+        - code: sfp
+        - button "Modifier le média"
+      - term: Rôle
+      - definition:
+        - text: Service
+        - code: service
+        - button "Modifier le rôle"
+      - term: VLAN
+      - definition: /Accès · VLAN \d+/
+      - region "Adresses rattachées":
+        - heading "Adresses rattachées" [level=3]
+        - text: "2"
+        - list:
+          - listitem:
+            - code: /\d+\.\d+\.\d+\.\d+/
+            - text: /Principale Production Environnement héritée de \d+\.\d+\.2\.0\/\d+ · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
+          - listitem:
+            - code: /\d+\.\d+\.\d+\.\d+/
+            - text: /Production Environnement héritée de \d+\.\d+\.2\.0\/\d+ · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
+      - region "Flux de l'interface":
+        - heading "Flux de l'interface" [level=3]
+        - text: conformité à la matrice de flux du jour
+        - heading "Entrants 4" [level=4]
+        - list "Entrants 4":
+          - listitem:
+            - text: par l'interface depuis
+            - link /srv-web-\d+ · eth0/:
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-web-02&iface=eth0&mode=light
+            - text: API interne
+            - code: api
+            - text: Applicatif Conforme
+          - listitem:
+            - text: par l'interface depuis
+            - link /\d+\.\d+\.\d+\.\d+\/\d+/:
+              - /url: /_ui/ecrans/E2?mode=light
+            - text: préfixe Web chiffré
+            - code: https
+            - text: Applicatif Conforme
+          - listitem:
+            - text: par l'interface depuis
+            - link /srv-rec-\d+ · eth0/:
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-rec-03&iface=eth0&mode=light
+            - text: Web chiffré
+            - code: https
+            - text: Applicatif Sous réserve Demandé
+          - listitem:
+            - text: par l'interface depuis
+            - link /srv-rec-\d+ · eth0/:
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-rec-04&iface=eth0&mode=light
+            - text: Web chiffré
+            - code: https
+            - text: Applicatif Sous réserve Échu
+        - heading "Sortants 2" [level=4]
+        - list "Sortants 2":
+          - listitem:
+            - text: par l'interface vers
+            - link /\d+\.\d+\.\d+\.\d+/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-db-02&mode=light
+            - link /srv-db-\d+ · eth0/:
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-db-02&iface=eth0&mode=light
+            - text: PostgreSQL
+            - code: postgres
+            - text: Base de données Conforme
+          - listitem:
+            - text: par l'interface vers
+            - link /\d+\.\d+\.\d+\.\d+/:
+              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-sauv-01&mode=light
+            - link /srv-sauv-\d+ · eth0/:
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-sauv-01&iface=eth0&mode=light
+            - text: Partage NFS
+            - code: nfs
+            - text: Fichier Conforme
+- button "Ouvrir le panneau"
