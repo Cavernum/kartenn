@@ -1371,11 +1371,20 @@ const IFACE_HISTORY = [
           />
           <fieldset v-if="test.pick" class="k-e11-object">
             <legend>{{ test.pick }} est une machine : choisir son interface ou une adresse</legend>
-            <label v-for="i in MACHINES[test.pick]!.interfaces" :key="i.name" class="k-e11-choice">
-              <input type="radio" name="k-e11-pick" checked />
-              <code>{{ test.pick }} · {{ i.name }}</code>
-              <span class="k-ecran-muted">{{ i.addresses.map((a) => a.value).join(", ") }}</span>
-            </label>
+            <!-- The card of the interface beside its label, not in it: the radio keeps its
+                 name, the link its own. -->
+            <span v-for="i in MACHINES[test.pick]!.interfaces" :key="i.name" class="k-e11-choice">
+              <label class="k-e11-choice">
+                <input type="radio" name="k-e11-pick" checked />
+                <code>{{ test.pick }} · {{ i.name }}</code>
+                <span class="k-ecran-muted">{{ i.addresses.map((a) => a.value).join(", ") }}</span>
+              </label>
+              <RouterLink :to="ifaceCard(test.pick, i.name)"
+                >fiche<span class="k-visually-hidden">
+                  de l'interface {{ test.pick }} · {{ i.name }}</span
+                ></RouterLink
+              >
+            </span>
             <template v-for="i in MACHINES[test.pick]!.interfaces" :key="`${i.name}-a`">
               <label v-for="a in i.addresses" :key="a.value" class="k-e11-choice">
                 <input type="radio" name="k-e11-pick" />
