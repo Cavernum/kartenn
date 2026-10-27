@@ -631,7 +631,8 @@ async fn applied(
     );
     // The flows of which a version has the entity, the service or the requester filtered,
     // through their indexes; the filters below then hold on their last version (task
-    // 011-10).
+    // 011-10). An array, not `IN`: the arms of `{flow}` carry a condition, so a semi-join
+    // could not reach them by identifier and would read every flow (bench 027-4).
     for (column, value) in [
         ("entity_id", filter.entity),
         ("service_id", filter.service),
@@ -639,12 +640,15 @@ async fn applied(
     ] {
         if let Some(value) = value {
             q.push(format!(
-                " AND t.id IN (SELECT n.id FROM {flow} n WHERE n.{column} = "
+                " AND t.id = ANY(ARRAY(SELECT n.id FROM {flow} n WHERE n.{column} = "
             ));
             q.push_bind(value);
-            q.push(")");
+            q.push("))");
         }
     }
+    // The summary is read flow by flow (`LATERAL`, one at a date): a join on `{summary}`
+    // could not reach it by flow either, and the planner, which counts the filters on the
+    // last version twice, would read the whole table once per flow (bench 027-4).
     q.push(format!(
         " ORDER BY t.id, upper(t.valid_period) DESC NULLS FIRST)
              SELECT to_jsonb(f) - 'valid_period' AS flow, f.id,
@@ -658,7 +662,9 @@ async fn applied(
                                 OR upper(h.valid_period) > upper(f.valid_period))))
                         AS closed_early
                FROM f
-               LEFT JOIN {summary} s ON s.flow_id = f.id AND s.valid_period @> $1::timestamptz
+               LEFT JOIN LATERAL (SELECT s.summary, s.outcome FROM {summary} s
+                                  WHERE s.flow_id = f.id AND s.valid_period @> $1::timestamptz
+                                  LIMIT 1) s ON TRUE
               WHERE TRUE"
     ));
     if let Some((kind, id)) = filter.endpoint {
@@ -674,6 +680,17 @@ async fn applied(
         q.push("))");
     }
     if let Some(prefix) = filter.within_prefix {
+        // A prefix endpoint is read by its identifier then tested: a condition on its
+        // domain and value would let the planner walk the subtree for each flow.
+        let child = |side: &str| {
+            format!(
+                "(f.{side}_kind = 'prefix' AND coalesce((
+                     SELECT c.domain_id = p.domain_id AND c.prefix <<= p.prefix
+                       FROM public.prefix c
+                      WHERE c.id = f.{side}_id AND c.valid_period @> $1::timestamptz
+                      LIMIT 1), false))"
+            )
+        };
         q.push(" AND EXISTS (SELECT 1 FROM public.prefix p WHERE p.id = ");
         q.push_bind(prefix);
         q.push(format!(
@@ -683,11 +700,9 @@ async fn applied(
                                 AND a.valid_period @> $1::timestamptz
                               WHERE e.flow_id = f.id AND e.valid_period @> $1::timestamptz
                                 AND a.address <<= p.prefix)
-                  OR EXISTS (SELECT 1 FROM public.prefix c
-                              WHERE c.prefix <<= p.prefix AND c.domain_id = p.domain_id
-                                AND c.valid_period @> $1::timestamptz
-                                AND ((f.source_kind = 'prefix' AND f.source_id = c.id)
-                                  OR (f.destination_kind = 'prefix' AND f.destination_id = c.id)))))"
+                  OR {} OR {}))",
+            child("source"),
+            child("destination"),
         ));
     }
     if let Some(value) = &filter.within_value {
