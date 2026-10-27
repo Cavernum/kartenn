@@ -16,7 +16,6 @@ use kartenn_service::operations::RawInput;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::write::PgStore;
-use kartenn_vlan::Vlan;
 use sqlx::PgPool;
 use sqlx::types::Uuid;
 
@@ -30,13 +29,8 @@ impl Env {
     /// The modules migrated and declared, the entity `acme` and the domain `lab` it owns.
     async fn new(pool: &PgPool) -> Self {
         let registry = Arc::new(
-            ModuleRegistry::new(vec![
-                Arc::new(Vlan),
-                Arc::new(Machines),
-                Arc::new(Policy),
-                Arc::new(Flows),
-            ])
-            .unwrap(),
+            ModuleRegistry::new(vec![Arc::new(Machines), Arc::new(Policy), Arc::new(Flows)])
+                .unwrap(),
         );
         kartenn_store_pg::modules::migrate(pool, &registry)
             .await

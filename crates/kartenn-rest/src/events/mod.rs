@@ -121,7 +121,7 @@ fn filter_problem(e: &FilterError) -> Problem {
 #[into_params(parameter_in = Query)]
 #[allow(dead_code)]
 struct StreamParams {
-    /// Qualified types of object (`core.prefix`, `vlan.vlan`), comma separated, 32 at
+    /// Qualified types of object (`core.prefix`, `core.vlan`, `machines.machine`), comma separated, 32 at
     /// most.
     types: Option<String>,
     /// Addressing domains, comma separated, 32 at most.

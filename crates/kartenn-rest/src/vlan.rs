@@ -1,8 +1,8 @@
-//! The routes of the module under `/v1` (feature `rest`; spec 008, REQ-008-19 to 22;
-//! design « Lectures et routes »), mounted by kartenn-server: groups and VLANs as
-//! collections, dated, paged, filtered and readable as the routes of the core; writes by
-//! changeset, Merge Patch under `If-Match`; the occupancy of a group, its next free VID
-//! and the networks of a VLAN.
+//! The routes of the VLANs of the core under `/v1` (spec 026, REQ-026-1; spec 008,
+//! REQ-008-19 to 22; design 008 « Lectures et routes »), in every build: groups and VLANs
+//! as collections, dated, paged, filtered and readable as the other routes of the core;
+//! writes by changeset, Merge Patch under `If-Match`; the occupancy of a group, its next
+//! free VID and the networks of a VLAN.
 //!
 //! An object the caller may not read answers as an absent one (ADR 0021); a list keeps
 //! the objects of the read scope of the caller, by the predicate of the core.
@@ -13,15 +13,11 @@ use axum::http::HeaderMap;
 use axum::response::Response;
 use axum::routing::get;
 use axum::{Extension, Json};
-use kartenn_rest::ModuleRouter;
-use kartenn_rest::kit::{
-    self, Api, Dates, DatesParams, ETag, ListQuery, MERGE_PATCH, Moment, Page, PageParams, Problem,
-    ProblemKind, documented, listing_of, next_href, op, queryable, respond, respond_page,
-    schemas_of,
-};
+use kartenn_core::vlan::{SliceState, Vid, VidRange, VlanStatus, next_free, occupancy};
 use kartenn_service::audit::RequestContext;
 use kartenn_service::authn::Principal;
 use kartenn_service::module::ObjectType;
+use kartenn_service::vlan::{GROUP, PROPERTY, VLAN, group_type, vlan_type};
 use kartenn_store_pg::list::{self, Criteria, Key, Kind};
 use kartenn_store_pg::rbac::{ReadScope, readable};
 use kartenn_store_pg::temporal::snapshot;
@@ -33,10 +29,15 @@ use utoipa::openapi::path::HttpMethod;
 use utoipa::openapi::{RefOr, Schema};
 use uuid::Uuid;
 
-use crate::group::{SliceState, VidRange, next_free, occupancy};
-use crate::module::{group_type, vlan_type};
-use crate::vlan::{Vid, VlanStatus};
+use crate::ModuleRouter;
+use crate::kit::{
+    self, Api, Dates, DatesParams, ETag, ListQuery, MERGE_PATCH, Moment, Page, PageParams, Problem,
+    ProblemKind, documented, listing_of, next_href, op, queryable, respond, respond_page,
+    schemas_of,
+};
 
+/// The tag of the routes in the contract: those of the core.
+const TAG: &str = "core";
 /// The members a write of a group may carry.
 const GROUP_MEMBERS: &[&str] = &["slug", "anchor", "vid_min", "vid_max", "owner"];
 /// The members a write of a VLAN may carry.
@@ -249,7 +250,7 @@ struct VlanPatch {
     status: Option<String>,
 }
 
-/// The optional body of the closure of an object of the module (REQ-008-10).
+/// The optional body of the closure of a group or a VLAN (REQ-008-10).
 #[derive(Debug, Deserialize, ToSchema)]
 #[schema(as = VlanClosure)]
 #[allow(dead_code)] // the contract of the body; the route reads it as members
@@ -264,9 +265,8 @@ struct Closure {
 
 // ---------------------------------------------------------------- reading
 
-/// The rows of `table` (a table of the module) valid at `$1`, as asserted at `$2` (now
-/// when null): the relation of a dated read, as `temporal::snapshot` builds it for the
-/// tables of the core.
+/// The rows of `table` valid at `$1`, as asserted at `$2` (now when null): the relation
+/// of a dated read, as `temporal::snapshot` builds it for the other tables of the core.
 fn dated(table: &str, columns: &str) -> String {
     format!(
         "(SELECT {columns} FROM {table}
@@ -295,16 +295,16 @@ fn listed(table: &str, columns: &str, current: bool) -> String {
 }
 
 /// The condition that the row `x` of `kind` is readable at `$1` under the scope `s`: its
-/// domain is that of its record in the core.
+/// domain is that of the anchor of its group, when anchored on one (V3).
 fn visible(kind: &str) -> String {
-    readable(
-        "x.id",
-        &format!("'{kind}'"),
-        "(SELECT m.domain_id FROM module_object m
-           WHERE m.id = x.id AND m.valid_period @> $1::timestamptz LIMIT 1)",
-        "NULL::inet",
-        "$1",
-    )
+    let domain = if kind == GROUP {
+        "CASE WHEN x.anchor_kind = 'domain' THEN x.anchor_id END"
+    } else {
+        "(SELECT CASE WHEN g.anchor_kind = 'domain' THEN g.anchor_id END
+            FROM vlan_group g
+           WHERE g.id = x.group_id AND g.valid_period @> $1::timestamptz LIMIT 1)"
+    };
+    readable("x.id", &format!("'{kind}'"), domain, "NULL::inet", "$1")
 }
 
 type GroupRow = (Uuid, String, String, Uuid, i16, i16);
@@ -437,8 +437,8 @@ async fn list_groups(
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.slug, x.id
           LIMIT $8",
-        listed("vlan.vlan_group", GROUP_COLUMNS, moment.as_of.is_none()),
-        visible(crate::module::GROUP),
+        listed("vlan_group", GROUP_COLUMNS, moment.as_of.is_none()),
+        visible(GROUP),
     );
     let mut rows: Vec<GroupRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
         // A prefix `q` is planned with its value (an unnamed statement).
@@ -463,14 +463,7 @@ async fn list_groups(
         next_href(&format!("/v1/{NAME}"), &cursor)
     });
     let ids: Vec<Uuid> = rows.iter().map(|r| r.0).collect();
-    kit::record_read(
-        &api,
-        &context,
-        crate::module::GROUP,
-        &ids,
-        criteria(NAME, &page, &moment),
-    )
-    .await?;
+    kit::record_read(&api, &context, GROUP, &ids, criteria(NAME, &page, &moment)).await?;
     let items: Vec<GroupDto> = rows.into_iter().map(group_dto).collect();
     let items = kit::versioned(&api, &moment, &items).await?;
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
@@ -526,8 +519,8 @@ async fn list_vlans(
           WHERE ($3::jsonb IS NULL OR {})
           ORDER BY x.group_id, x.vid, x.id
           LIMIT $13",
-        listed("vlan.vlan", VLAN_COLUMNS, moment.as_of.is_none()),
-        visible(crate::module::VLAN),
+        listed("vlan", VLAN_COLUMNS, moment.as_of.is_none()),
+        visible(VLAN),
     );
     let mut rows: Vec<VlanRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
         // A prefix `q` is planned with its value (an unnamed statement).
@@ -557,14 +550,7 @@ async fn list_vlans(
         next_href(&format!("/v1/{NAME}"), &cursor)
     });
     let ids: Vec<Uuid> = rows.iter().map(|r| r.0).collect();
-    kit::record_read(
-        &api,
-        &context,
-        crate::module::VLAN,
-        &ids,
-        criteria(NAME, &page, &moment),
-    )
-    .await?;
+    kit::record_read(&api, &context, VLAN, &ids, criteria(NAME, &page, &moment)).await?;
     let items: Vec<VlanDto> = rows.into_iter().map(vlan_dto).collect();
     let items = kit::versioned(&api, &moment, &items).await?;
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
@@ -586,7 +572,7 @@ async fn dated_read(
 async fn group_at(api: &Api, id: Uuid, moment: &Moment) -> Result<GroupRow, Problem> {
     let sql = format!(
         "SELECT {GROUP_COLUMNS} FROM {} x WHERE x.id = $3",
-        dated("vlan.vlan_group", GROUP_COLUMNS)
+        dated("vlan_group", GROUP_COLUMNS)
     );
     sqlx::query_as(sqlx::AssertSqlSafe(sql))
         .bind(moment.valid_at)
@@ -626,16 +612,7 @@ async fn show_group(
 ) -> Result<Response, Problem> {
     let moment = dated_read(&api, &context, group_type(), id, dates).await?;
     let row = group_at(&api, id, &moment).await?;
-    answer(
-        &api,
-        &context,
-        &headers,
-        crate::module::GROUP,
-        id,
-        &moment,
-        group_dto(row),
-    )
-    .await
+    answer(&api, &context, &headers, GROUP, id, &moment, group_dto(row)).await
 }
 
 /// `GET /v1/vlans/{id}`.
@@ -649,7 +626,7 @@ async fn show_vlan(
     let moment = dated_read(&api, &context, vlan_type(), id, dates).await?;
     let sql = format!(
         "SELECT {VLAN_COLUMNS} FROM {} x WHERE x.id = $3",
-        dated("vlan.vlan", VLAN_COLUMNS)
+        dated("vlan", VLAN_COLUMNS)
     );
     let row: VlanRow = sqlx::query_as(sqlx::AssertSqlSafe(sql))
         .bind(moment.valid_at)
@@ -659,16 +636,7 @@ async fn show_vlan(
         .await
         .map_err(|e| kit::store(&e))?
         .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
-    answer(
-        &api,
-        &context,
-        &headers,
-        crate::module::VLAN,
-        id,
-        &moment,
-        vlan_dto(row),
-    )
-    .await
+    answer(&api, &context, &headers, VLAN, id, &moment, vlan_dto(row)).await
 }
 
 /// The range of the group `row` and its VLANs at `moment`, `(vid, status)`.
@@ -681,7 +649,7 @@ async fn living(
         .map_err(|v| Problem::new(ProblemKind::Internal).detail(v.message))?;
     let sql = format!(
         "SELECT x.vid, x.status FROM {} x WHERE x.group_id = $3",
-        dated("vlan.vlan", VLAN_COLUMNS)
+        dated("vlan", VLAN_COLUMNS)
     );
     let vlans: Vec<(i16, String)> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
         .bind(moment.valid_at)
@@ -730,14 +698,7 @@ async fn group_occupancy(
         reserved: found.reserved,
         free: found.free,
     };
-    kit::record_read(
-        &api,
-        &context,
-        crate::module::GROUP,
-        &[id],
-        json!({"occupancy": id}),
-    )
-    .await?;
+    kit::record_read(&api, &context, GROUP, &[id], json!({"occupancy": id})).await?;
     Ok(respond(
         &headers,
         &moment,
@@ -773,14 +734,7 @@ async fn group_next_free(
     let row = group_at(&api, id, &moment).await?;
     let (range, live) = living(&api, &row, &moment).await?;
     let taken: Vec<Vid> = live.iter().map(|(v, _)| *v).collect();
-    kit::record_read(
-        &api,
-        &context,
-        crate::module::GROUP,
-        &[id],
-        json!({"next_free": id}),
-    )
-    .await?;
+    kit::record_read(&api, &context, GROUP, &[id], json!({"next_free": id})).await?;
     let vid = next_free(range, &taken, from).ok_or_else(|| {
         Problem::new(ProblemKind::Exhausted).detail("no VID is free in the group from there")
     })?;
@@ -829,7 +783,7 @@ async fn vlan_prefixes(
     .map_err(|e| Problem::new(ProblemKind::Internal).detail(e.to_string()))?;
     let carriers: Vec<Uuid> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
         "SELECT DISTINCT a.object_id FROM {relation} a
-           JOIN property_declaration d ON d.id = a.property_id AND d.key = 'vlan.vlan'
+           JOIN property_declaration d ON d.id = a.property_id AND d.key = '{PROPERTY}'
           WHERE a.kind = 'value' AND a.v_uuid = $3"
     )))
     .bind(moment.valid_at)
@@ -935,7 +889,7 @@ fn collection_routes(
     let operation_name = name.replace('-', "_");
     let mut list_op = op(
         &format!("list_{operation_name}"),
-        "vlan",
+        TAG,
         &format!("The {name} the caller may read."),
     );
     for (filter, description) in filters {
@@ -954,21 +908,17 @@ fn collection_routes(
             &format!("Listing_{dto}"),
         )
         .build();
-    let create_op = op(
-        &format!("create_{one}"),
-        "vlan",
-        &format!("Creates a {one}."),
-    )
-    .header(
-        "Idempotency-Key",
-        false,
-        "Makes the write idempotent for 24 h.",
-    )
-    .body("application/json", bodies.0, true)
-    .answers("201", "Created.", "ChangesetApplied")
-    .answers("202", "Held for a decision.", "ChangesetPending")
-    .build();
-    let list = if ty.kind == crate::module::GROUP {
+    let create_op = op(&format!("create_{one}"), TAG, &format!("Creates a {one}."))
+        .header(
+            "Idempotency-Key",
+            false,
+            "Makes the write idempotent for 24 h.",
+        )
+        .body("application/json", bodies.0, true)
+        .answers("201", "Created.", "ChangesetApplied")
+        .answers("202", "Held for a decision.", "ChangesetPending")
+        .build();
+    let list = if ty.kind == GROUP {
         kit::collection(list_groups)
     } else {
         kit::collection(list_vlans)
@@ -997,14 +947,14 @@ fn collection_routes(
         &format!("query_{operation_name}"),
     );
     let the = format!("The {one}.");
-    let show_op = op(&format!("show_{one}"), "vlan", &the)
+    let show_op = op(&format!("show_{one}"), TAG, &the)
         .path("id", &the, true)
         .params::<DatesParams>()
         .answers("200", kit::OBJECT_READ, dto)
         .build();
     let modify_op = op(
         &format!("modify_{one}"),
-        "vlan",
+        TAG,
         &format!("Modifies the {one} (JSON Merge Patch)."),
     )
     .path("id", &the, true)
@@ -1013,18 +963,14 @@ fn collection_routes(
     .answers("200", "Modified.", "ChangesetApplied")
     .answers("202", "Held for a decision.", "ChangesetPending")
     .build();
-    let close_op = op(
-        &format!("close_{one}"),
-        "vlan",
-        &format!("Closes the {one}."),
-    )
-    .path("id", &the, true)
-    .header("If-Match", true, kit::IF_MATCH_OBJECT)
-    .body("application/json", "VlanClosure", false)
-    .answers("200", "Closed.", "ChangesetApplied")
-    .answers("202", "Held for a decision.", "ChangesetPending")
-    .build();
-    let show = if ty.kind == crate::module::GROUP {
+    let close_op = op(&format!("close_{one}"), TAG, &format!("Closes the {one}."))
+        .path("id", &the, true)
+        .header("If-Match", true, kit::IF_MATCH_OBJECT)
+        .body("application/json", "VlanClosure", false)
+        .answers("200", "Closed.", "ChangesetApplied")
+        .answers("202", "Held for a decision.", "ChangesetPending")
+        .build();
+    let show = if ty.kind == GROUP {
         get(show_group)
     } else {
         get(show_vlan)
@@ -1063,7 +1009,7 @@ fn collection_routes(
     ))
 }
 
-/// The routes of the module, mounted under `/v1` (ADR 0026, clause 9).
+/// The routes of the VLANs of the core, under `/v1` in every build.
 #[must_use]
 pub fn routes() -> ModuleRouter {
     let mut router = ModuleRouter::new();
@@ -1082,7 +1028,7 @@ pub fn routes() -> ModuleRouter {
             ("q", "the slug"),
         ],
         GROUP_MEMBERS,
-        ("vlan.create_group", "vlan.update_group"),
+        ("create_vlan_group", "update_vlan_group"),
     );
     router = collection_routes(
         router,
@@ -1099,7 +1045,7 @@ pub fn routes() -> ModuleRouter {
             ("q", "the name or of the VID"),
         ],
         VLAN_MEMBERS,
-        ("vlan.create_vlan", "vlan.update_vlan"),
+        ("create_vlan", "update_vlan"),
     );
     router = kit::presented(
         router,
@@ -1116,7 +1062,7 @@ pub fn routes() -> ModuleRouter {
     let group = "The group.";
     let occupancy_op = op(
         "vlan_group_occupancy",
-        "vlan",
+        TAG,
         "The used, reserved and free VIDs of the group, in runs (REQ-008-20).",
     )
     .path("id", group, true)
@@ -1125,7 +1071,7 @@ pub fn routes() -> ModuleRouter {
     .build();
     let next_op = op(
         "vlan_group_next_free",
-        "vlan",
+        TAG,
         "The smallest free VID of the group, at or after `from`; 404 `exhausted` when none.",
     )
     .path("id", group, true)
@@ -1138,7 +1084,7 @@ pub fn routes() -> ModuleRouter {
     .build();
     let prefixes_op = op(
         "vlan_prefixes",
-        "vlan",
+        TAG,
         "The networks that carry the VLAN, those the caller may read (REQ-008-21).",
     )
     .path("id", "The VLAN.", true)

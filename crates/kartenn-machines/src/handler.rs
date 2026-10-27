@@ -135,7 +135,7 @@ const MACHINE_FIELDS: &[&str] = &["id", "name", "kind", "host", "member_of", "co
 const INTERFACE_FIELDS: &[&str] = &["id", "name", "mac", "enabled", "vlan", "completed"];
 
 /// The permission a VLAN cited by an interface needs (REQ-009-18).
-const VLAN_READ: &str = "vlan.read";
+const VLAN_READ: &str = "core.vlan.read";
 /// The permission an address attached or detached needs, rather than its writing (M16).
 const ADDRESS_READ: &str = "core.address.read";
 
@@ -996,7 +996,7 @@ impl ModuleHandler for Handler {
                 .filter(|(kind, _)| matches!(kind, ObjectKind::Address))
                 .map(|(_, id)| *id)
                 .collect();
-            // Networks whose `vlan.vlan` may have changed (REQ-009-13): written, or whose
+            // Networks whose `core.vlan` may have changed (REQ-009-13): written, or whose
             // resolved value the differential of the properties changes.
             let mut prefixes: Vec<Uuid> = context
                 .objects
@@ -1004,7 +1004,7 @@ impl ModuleHandler for Handler {
                 .filter(|(kind, _)| matches!(kind, ObjectKind::Prefix))
                 .map(|(_, id)| *id)
                 .collect();
-            prefixes.extend(pg::diff_objects(conn, &["vlan.vlan"]).await?);
+            prefixes.extend(pg::diff_objects(conn, &[kartenn_service::vlan::PROPERTY]).await?);
             // Machines whose properties the core assigned, and objects whose resolved
             // `core.site` changes: the site of a guest or of a host may have moved.
             let mut assigned: Vec<Uuid> = context

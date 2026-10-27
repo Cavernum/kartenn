@@ -1,9 +1,7 @@
-//! The routes of the module through the router (spec 008, REQ-008-19 to 22; task 008-14):
-//! the VLANs filtered in conjunction, the occupancy and the next free VID of a group, the
-//! networks of a VLAN under the rights of the caller, the writes under the rights of the
-//! writer and `If-Match`.
-
-use crate::support::env;
+//! The routes of the VLANs of the core through the router (spec 026; spec 008, REQ-008-19
+//! to 22): the VLANs filtered in conjunction, the occupancy and the next free VID of a
+//! group, the networks of a VLAN under the rights of the caller, the writes under the
+//! rights of the writer and `If-Match`; served by a build without any module.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -11,7 +9,6 @@ use std::time::Duration;
 use axum::Router;
 use axum::body::Body;
 use axum::http::{HeaderValue, Request, StatusCode, header};
-use env::{Env, op};
 use http_body_util::BodyExt;
 use kartenn_auth::keys::KeyRing;
 use kartenn_core::audit::Source;
@@ -31,6 +28,8 @@ use sqlx::PgPool;
 use tower::ServiceExt;
 use uuid::Uuid;
 
+use super::env::{Env, op};
+
 /// Any `Bearer` token is this principal.
 struct As(Principal);
 
@@ -45,7 +44,7 @@ impl Authenticator for As {
 }
 
 impl Env {
-    /// The router of an instance with the module, as the person `identity`.
+    /// The router of an instance without any module, as the person `identity`.
     fn app(&self, identity: Uuid) -> Router {
         let api = Api {
             pool: self.pool.clone(),
@@ -58,7 +57,7 @@ impl Env {
             modules: self.registry.clone(),
         };
         kartenn_rest::router(
-            kartenn_rest::v1_with(api, vec![kartenn_vlan::rest::routes()]),
+            kartenn_rest::v1(api),
             Arc::new(PgReadiness::new(self.pool.clone(), AuditStatus::default())),
             Settings::default(),
             Arc::new(Quotas::new(Rates::default())),
@@ -113,16 +112,16 @@ impl Env {
         identity
     }
 
-    /// Everything on the module and the prefixes, everywhere.
+    /// Everything on the VLANs and the prefixes, everywhere.
     async fn admin(&self) -> Uuid {
         self.person(
             &[
-                "vlan.group.read",
-                "vlan.group.edit",
-                "vlan.group.approval.self",
-                "vlan.read",
-                "vlan.edit",
-                "vlan.approval.self",
+                "core.vlan_group.read",
+                "core.vlan_group.edit",
+                "core.vlan_group.approval.self",
+                "core.vlan.read",
+                "core.vlan.edit",
+                "core.vlan.approval.self",
                 "core.prefix.read",
             ],
             None,
@@ -140,7 +139,7 @@ impl Env {
         vlans: &[(i64, &str)],
     ) -> Uuid {
         let mut operations = vec![op(
-            "create_group",
+            "create_vlan_group",
             json!({"local": 1, "slug": slug, "anchor": anchor,
                    "vid_min": range.0, "vid_max": range.1}),
         )];
@@ -152,18 +151,16 @@ impl Env {
             ));
         }
         self.applied(operations).await;
-        sqlx::query_scalar(
-            "SELECT id FROM vlan.vlan_group WHERE slug = $1 AND valid_period @> now()",
-        )
-        .bind(slug)
-        .fetch_one(&self.pool)
-        .await
-        .unwrap()
+        sqlx::query_scalar("SELECT id FROM vlan_group WHERE slug = $1 AND valid_period @> now()")
+            .bind(slug)
+            .fetch_one(&self.pool)
+            .await
+            .unwrap()
     }
 
     async fn vlan_of(&self, group: Uuid, vid: i16) -> Uuid {
         sqlx::query_scalar(
-            "SELECT id FROM vlan.vlan WHERE group_id = $1 AND vid = $2 AND valid_period @> now()",
+            "SELECT id FROM vlan WHERE group_id = $1 AND vid = $2 AND valid_period @> now()",
         )
         .bind(group)
         .bind(vid)
@@ -349,6 +346,18 @@ async fn occupancy_over_http(pool: PgPool) {
     )
     .await;
     assert_eq!(body["vid"], 6);
+    // The history of the group, by the transversal route of the core.
+    let (status, _, body) = call(
+        &app,
+        "GET",
+        &format!("/v1/vlan-groups/{group}/history"),
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["items"][0]["object"]["kind"], "vlan_group", "{body}");
+    assert_eq!(body["items"][0]["object"]["domain"], lab.to_string());
 }
 
 #[kartenn_testing::pg_test]
@@ -409,7 +418,7 @@ async fn prefixes_of_a_vlan_hide_unreadable(pool: PgPool) {
         )
         .await;
     let vlan = env.vlan_of(group, 10).await;
-    let vlan_property = env.property("vlan.vlan").await;
+    let vlan_property = env.property("core.vlan").await;
     let mut networks = Vec::new();
     for (domain, cidr) in [(lab, "10.0.0.0/24"), (far, "10.9.0.0/24")] {
         let create: Operation = serde_json::from_value(json!({
@@ -451,7 +460,10 @@ async fn prefixes_of_a_vlan_hide_unreadable(pool: PgPool) {
     assert_eq!(body["items"].as_array().unwrap().len(), 2, "{body}");
     // A reader of `acme`: the network of `far` is absent, and nothing counts it.
     let reader = env
-        .person(&["vlan.read", "core.prefix.read"], Some(("entity", acme)))
+        .person(
+            &["core.vlan.read", "core.prefix.read"],
+            Some(("entity", acme)),
+        )
         .await;
     let app = env.app(reader);
     let (status, _, body) = call(
@@ -493,10 +505,10 @@ async fn writer_on_other_entity_gets_403(pool: PgPool) {
     let writer = env
         .person(
             &[
-                "vlan.group.read",
-                "vlan.read",
-                "vlan.edit",
-                "vlan.approval.self",
+                "core.vlan_group.read",
+                "core.vlan.read",
+                "core.vlan.edit",
+                "core.vlan.approval.self",
             ],
             Some(("entity", acme)),
         )
@@ -606,9 +618,9 @@ async fn patch_needs_if_match(pool: PgPool) {
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
-/// Spec 024, REQ-024-14, 15: `GET /v1/stats` counts the VLANs and the counters of the
-/// module under the predicate of the list of the VLANs; without `vlan.read`, neither the
-/// type nor the module.
+/// Spec 024, REQ-024-14, 15; spec 026: `GET /v1/stats` counts the VLANs and their counters
+/// under the predicate of the list of the VLANs; without `core.vlan.read`, neither the
+/// kind nor the counters.
 #[kartenn_testing::pg_test]
 async fn stats_count_the_vlans_the_caller_reads(pool: PgPool) {
     let env = Env::new(&pool).await;
@@ -652,20 +664,32 @@ async fn stats_count_the_vlans_the_caller_reads(pool: PgPool) {
         body
     };
     let all = stats(env.admin().await).await;
-    assert_eq!(all["objects"]["vlan.vlan"], 5, "{all}");
-    assert_eq!(all["objects"]["vlan.group"], 2);
-    assert_eq!(
-        all["modules"]["vlan"],
-        json!({"reserved": 3, "deprecated": 1})
-    );
-    let acme_only = stats(env.person(&["vlan.read"], Some(("entity", acme))).await).await;
-    assert_eq!(acme_only["objects"]["vlan.vlan"], 3, "{acme_only}");
-    assert!(acme_only["objects"].get("vlan.group").is_none());
-    assert_eq!(
-        acme_only["modules"]["vlan"],
-        json!({"reserved": 1, "deprecated": 1})
-    );
+    assert_eq!(all["objects"]["core.vlan"], 5, "{all}");
+    assert_eq!(all["objects"]["core.vlan_group"], 2);
+    assert_eq!(all["vlans"], json!({"reserved": 3, "deprecated": 1}));
+    assert!(all["modules"].get("vlan").is_none(), "{all}");
+    let acme_only = stats(
+        env.person(&["core.vlan.read"], Some(("entity", acme)))
+            .await,
+    )
+    .await;
+    assert_eq!(acme_only["objects"]["core.vlan"], 3, "{acme_only}");
+    assert!(acme_only["objects"].get("core.vlan_group").is_none());
+    assert_eq!(acme_only["vlans"], json!({"reserved": 1, "deprecated": 1}));
     let blind = stats(env.person(&["core.prefix.read"], None).await).await;
-    assert!(blind["objects"].get("vlan.vlan").is_none(), "{blind}");
-    assert!(blind["modules"].get("vlan").is_none(), "{blind}");
+    assert!(blind["objects"].get("core.vlan").is_none(), "{blind}");
+    assert!(blind.get("vlans").is_none(), "{blind}");
+}
+
+/// REQ-026-1: the capabilities of a build name no module `vlan`.
+#[kartenn_testing::pg_test]
+async fn capabilities_list_no_vlan_module(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let app = env.app(env.admin().await);
+    let (status, _, body) = call(&app, "GET", "/v1/capabilities", None, &[]).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        !body.to_string().contains("\"vlan\""),
+        "the capabilities name no module vlan: {body}"
+    );
 }

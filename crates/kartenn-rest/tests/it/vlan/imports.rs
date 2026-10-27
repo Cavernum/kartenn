@@ -1,10 +1,7 @@
-//! The operations of the module in the imports in batches (spec 008, REQ-008-23; task
-//! 008-15): an import of 10⁴ VLANs in 100 groups ends, and a replay after a stop
-//! duplicates nothing.
+//! The operations of the VLANs in the imports in batches (spec 026; spec 008, REQ-008-23):
+//! an import of 10⁴ VLANs in 100 groups ends, and a replay after a stop duplicates nothing.
 
-use crate::support::env;
-
-use env::{Env, op};
+use super::env::{Env, op};
 use kartenn_service::authz::Unrestricted;
 use kartenn_service::import::{create_import, run_import};
 use kartenn_service::port::ImportItem;
@@ -31,7 +28,7 @@ fn items(acme: sqlx::types::Uuid) -> Vec<ImportItem> {
     let groups = (0..GROUPS).map(|g| ImportItem {
         external_id: Some(format!("group-{g}")),
         operation: op(
-            "create_group",
+            "create_vlan_group",
             json!({"local": g + 1, "slug": format!("g{g}"), "anchor": {"entity": {"id": acme}},
                    "vid_min": 1, "vid_max": 4094}),
         ),
@@ -58,20 +55,20 @@ async fn import_ten_thousand_vlans_resumes_without_duplicates(pool: PgPool) {
         .unwrap()
         .unwrap();
     assert_eq!(done.state, "done", "{}", done.report);
-    let groups = "SELECT count(*) FROM vlan.vlan_group";
-    let vlans = "SELECT count(*) FROM vlan.vlan";
+    let groups = "SELECT count(*) FROM vlan_group";
+    let vlans = "SELECT count(*) FROM vlan";
     let bound = "SELECT count(*) FROM external_id WHERE source = 'legacy-vlans'";
     let expected = i64::from(GROUPS * VLANS);
     assert_eq!(count(&pool, groups).await, i64::from(GROUPS));
     assert_eq!(count(&pool, vlans).await, expected);
     assert_eq!(count(&pool, bound).await, expected + i64::from(GROUPS));
-    // Bound under the types the module declares for its creations.
+    // Bound under the kinds of the core of their creations.
     let typed = "SELECT count(*) FROM external_id WHERE source = 'legacy-vlans'
-                    AND object_type = CASE WHEN external_id LIKE 'vlan-%' THEN 'vlan.vlan'
-                                           ELSE 'vlan.group' END";
+                    AND object_type = CASE WHEN external_id LIKE 'vlan-%' THEN 'vlan'
+                                           ELSE 'vlan_group' END";
     assert_eq!(count(&pool, typed).await, expected + i64::from(GROUPS));
     // Every VLAN is in the group its body named.
-    let misplaced = "SELECT count(*) FROM vlan.vlan v
+    let misplaced = "SELECT count(*) FROM vlan v
                       JOIN external_id e ON e.object_id = v.id
                       JOIN external_id g ON g.object_id = v.group_id AND g.source = e.source
                      WHERE split_part(e.external_id, '-', 2) <> split_part(g.external_id, '-', 2)";

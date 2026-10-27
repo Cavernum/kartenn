@@ -45,7 +45,7 @@ impl Named {
     }
 }
 
-/// The qualified type of an object of a module, `<module>.<type>` (`vlan.vlan`; ADR 0026,
+/// The qualified type of an object of a module, `<module>.<type>` (`machines.machine`; ADR 0026,
 /// clause 4), held inline so that an [`ObjectKind`] stays `Copy`.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ModuleKind {
@@ -123,6 +123,10 @@ pub enum ObjectKind {
     Entity,
     /// Site, in a tree (REQ-002-9).
     Site,
+    /// Group of VLAN (spec 026, REQ-026-1).
+    VlanGroup,
+    /// VLAN, in a group (spec 026, REQ-026-1).
+    Vlan,
     /// An object of a module (ADR 0026), by its qualified type.
     Module(ModuleKind),
 }
@@ -249,6 +253,8 @@ impl ObjectKind {
             Self::EnumValue => "enum_value",
             Self::Entity => "entity",
             Self::Site => "site",
+            Self::VlanGroup => "vlan_group",
+            Self::Vlan => "vlan",
             Self::Module(kind) => kind.as_str(),
         }
     }
@@ -265,8 +271,44 @@ impl ObjectKind {
             "enum_value" => Self::EnumValue,
             "entity" => Self::Entity,
             "site" => Self::Site,
+            "vlan_group" => Self::VlanGroup,
+            "vlan" => Self::Vlan,
+            qualified if qualified.starts_with("core.") => return None,
             qualified => Self::Module(ModuleKind::parse(qualified)?),
         })
+    }
+
+    /// The kind planned under the qualified type `kind` by a handler (ADR 0026, clause 6):
+    /// a kind of the core handled that way, `core.<kind>` (the VLANs, spec 026), or the
+    /// type of a module.
+    #[must_use]
+    pub fn from_qualified(kind: ModuleKind) -> Self {
+        if kind.module() == crate::module::CORE {
+            kind.as_str()
+                .split_once('.')
+                .and_then(|(_, name)| Self::from_name(name))
+                .unwrap_or(Self::Module(kind))
+        } else {
+            Self::Module(kind)
+        }
+    }
+
+    /// The qualified type of an object planned by a handler: `core.<kind>` for a kind of
+    /// the core handled that way (the VLANs, spec 026), the type of a module.
+    #[must_use]
+    pub fn qualified(self) -> Option<ModuleKind> {
+        match self {
+            Self::VlanGroup => Some(crate::vlan::group_kind()),
+            Self::Vlan => Some(crate::vlan::vlan_kind()),
+            Self::Module(kind) => Some(kind),
+            _ => None,
+        }
+    }
+
+    /// Whether objects of this kind are VLANs or groups of VLAN (spec 026).
+    #[must_use]
+    pub const fn is_vlan(self) -> bool {
+        matches!(self, Self::VlanGroup | Self::Vlan)
     }
 
     /// Whether objects of this kind belong to the addressing tree.
@@ -355,10 +397,25 @@ pub struct ModuleOperation {
 }
 
 impl ModuleOperation {
-    /// The qualified tag, `<module>.<name>`.
+    /// The qualified tag, `<module>.<name>`; the name alone for an operation of the core
+    /// planned by a handler (the VLANs, spec 026).
     #[must_use]
     pub fn tag(&self) -> String {
-        format!("{}.{}", self.module, self.name)
+        if self.module == crate::module::CORE {
+            self.name.clone()
+        } else {
+            format!("{}.{}", self.module, self.name)
+        }
+    }
+
+    /// An operation of the VLANs of the core (spec 026), from its fields without `op`.
+    #[must_use]
+    pub fn core(name: &str, body: serde_json::Map<String, serde_json::Value>) -> Self {
+        Self {
+            module: crate::module::CORE.to_owned(),
+            name: name.to_owned(),
+            body,
+        }
     }
 
     /// The local name it defines, by the convention of the core: a `local` field.
@@ -858,8 +915,15 @@ impl<'de> Deserialize<'de> for Operation {
         let qualified = value
             .get("op")
             .and_then(serde_json::Value::as_str)
-            .and_then(|tag| tag.split_once('.'))
-            .map(|(module, name)| (module.to_owned(), name.to_owned()));
+            .and_then(|tag| {
+                tag.split_once('.')
+                    .map(|(module, name)| (module.to_owned(), name.to_owned()))
+                    // The operations of the VLANs, planned by the handler of the core.
+                    .or_else(|| {
+                        crate::vlan::is_operation(tag)
+                            .then(|| (crate::module::CORE.to_owned(), tag.to_owned()))
+                    })
+            });
         match (qualified, value) {
             (Some((module, name)), serde_json::Value::Object(mut body)) => {
                 body.remove("op");

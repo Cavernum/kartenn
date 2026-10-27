@@ -2,26 +2,67 @@
 
 Statut : spec **validée le 2026-10-27**.
 
-- [ ] 1. Modèle, règles et noms du cœur : `core.vlan_group`, `core.vlan`, codes
+- [x] 1. Modèle, règles et noms du cœur : `core.vlan_group`, `core.vlan`, codes
   `core.vlan.*`, permissions et propriété `core.vlan` dans `kartenn-core` — REQ-026-1,
   2 — verify : tests d'acceptation de REQ-008-12 à 18 sous les nouveaux noms ; `k-check`
   - où : `crates/kartenn-vlan/src/{vlan,group,rules,labels}.rs` (à déplacer) ;
     `crates/kartenn-core/src/authz.rs`, `rules.rs`, `code_labels.rs` (objets du cœur à
     imiter : préfixe, adresse)
-- [ ] 2. Stockage et migration : tables dans le schéma du cœur, retrait de
+  - fait : `kartenn_core::vlan` (VID, nom, statut, plage, occupation, prochain VID
+    libre) ; groupe de règles `VLAN_RULES` du catalogue du noyau ; permissions
+    `core.vlan_group.*` et `core.vlan.*` dans les rôles livrés ; libellés FR/EN et
+    sortes `core.vlan_group`, `core.vlan` ; anciens noms dans `RENAMED_PERMISSIONS`
+    (`prop.vlan.vlan.*` compris) ; `docs/spec/regles-noyau.md` régénéré.
+  - choix : codes selon la grammaire `core.<objet>.<règle>` sous `core.vlan.*` :
+    `vid_invalid`, `vid_out_of_range`, `vid_duplicate`, `name_invalid`,
+    `name_duplicate`, `group_anchor`, `prefix_not_network`, `site_mismatch`,
+    `domain_mismatch`.
+- [x] 2. Stockage et migration : tables dans le schéma du cœur, retrait de
   `module_object` et du registre, renommage de la propriété, des rôles et du journal —
   REQ-026-3 — verify : test de migration sur une base peuplée par la 008, seconde
   exécution sans effet
   - où : `crates/kartenn-vlan/migrations/` ; `crates/kartenn-store-pg/migrations/`
     (0071 `approval_self` à imiter) ; `kartenn-service` (`rbac::rename_permissions`)
-- [ ] 3. Opérations, lectures et routes du cœur ; crate `kartenn-vlan` retirée ;
+  - fait : migration `0072_vlan_core.sql` (tables, historiques et partitions déplacés
+    par `SET SCHEMA`, ou créés sur une base neuve ; schéma `vlan` supprimé ; lignes de
+    `module_object`, de son historique et de `module_migration` retirées ; propriété,
+    porteurs, obligations, affectations, identifiants externes renommés déclencheur de
+    version suspendu ; journal des changesets, anomalies, brouillons, morceaux d'import
+    réécrits ; vues `vlan_tree`, `carrier_object` et `kartenn_site` étendues) ;
+    `kartenn_store_pg::vlan` (stockage et gestionnaire) ; test
+    `kartenn-rest/tests/it/vlan/migration.rs` (base remise dans l'état de la 008,
+    lectures à `valid_at`/`as_of`, rôle `vlan.write` → `core.vlan.edit` +
+    `core.vlan.approval.self`, seconde exécution sans effet).
+  - choix : réécriture du journal par un parcours JSON (fonctions `pg_temp`, contexte
+    du membre pour distinguer la sorte `vlan` de la propriété `core.vlan`) ; l'audit et
+    l'outbox restent historiques.
+- [x] 3. Opérations, lectures et routes du cœur ; crate `kartenn-vlan` retirée ;
   imports ; statistiques — REQ-026-1, 7 — verify : `k-check`, contrat OpenAPI régénéré
   - où : `crates/kartenn-vlan/src/{handler,pg,rest,stats}.rs` ; `kartenn-service`,
     `kartenn-rest`, `kartenn-server/src/modules.rs`
-- [ ] 4. Machines, Politique, Flux sur le port du cœur — REQ-026-4, 5 — verify : build
+  - fait : sortes `ObjectKind::VlanGroup`/`Vlan` ; opérations du cœur
+    `create_vlan_group`, `update_vlan_group`, `create_vlan`, `update_vlan` (planifiées
+    par `kartenn_service::vlan`, documentées dans `Operation`) ; références, cascade,
+    droits, héritage le long de l'arbre des VLAN, lectures par identifiant, historique,
+    propriétés, verrous ; routes `/v1/vlan-groups`, `/v1/vlans` dans `kartenn-rest`
+    (étiquette `core`) ; statistiques : sortes `core.vlan_group`, `core.vlan` et champ
+    `vlans` (`reserved`, `deprecated`) ; feature `vlan` du serveur retirée ; crate
+    `kartenn-vlan` supprimée, ses tests repris dans `kartenn-rest/tests/it/vlan/` ;
+    contrat régénéré ; `docs/spec/permissions.md` et `regles-modules.md` régénérés.
+  - choix : les opérations du VLAN passent par le même contrat de gestionnaire que
+    celles d'un module (`ModuleHandler`), fourni par le stockage du cœur
+    (`WriteTx::core_handler`) et non par le registre, sous le type qualifié interne
+    `core.<sorte>` ; aucun `module_object`, les tables du VLAN servent d'enregistrement.
+    Les compteurs `reserved`/`deprecated` quittent `modules.vlan` pour `vlans`. Les
+    tâches 2, 3 et 4 forment un seul commit : la migration, le pipeline et le retrait
+    du module ne compilent pas séparément.
+- [x] 4. Machines, Politique, Flux sur le port du cœur — REQ-026-4, 5 — verify : build
   avec Machines seul ; `k-check`
   - où : `crates/kartenn-machines/src/handler.rs` (`VLAN_READ`, `vlan_columns`) ;
     tests de Politique et Flux qui montent le module VLAN
+  - fait : Machines sans dépendance de module (`machines_stands_alone`), lecture
+    `core.vlan.read`, tables `public.vlan`, propriété `core.vlan` ; tests de
+    Machines, Politique et Flux sans le module VLAN ; bancs à jour.
 - [ ] 5. Clients, SDK, CLI, shell v1 (plugin toujours servi), bancs (`vlan_budgets`
   dans `bench-core`), `docs/spec/` — REQ-026-2, 6, 7 — verify : `k-py-check`,
   `k-web-check` ; bancs lancés par l'agent principal

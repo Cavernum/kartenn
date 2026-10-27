@@ -17,7 +17,6 @@ use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::port::ImportItem;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::write::PgStore;
-use kartenn_vlan::Vlan;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use sqlx::types::Uuid;
@@ -35,7 +34,7 @@ fn op(name: &str, fields: Value) -> Operation {
 /// The store with both modules, its author, the entity `acme` and the domain `lab` with
 /// the network 10.0.0.0/16.
 async fn setup(pool: &PgPool) -> (PgStore, Uuid, Uuid, Uuid) {
-    let modules: Vec<Arc<dyn Module>> = vec![Arc::new(Vlan), Arc::new(Machines)];
+    let modules: Vec<Arc<dyn Module>> = vec![Arc::new(Machines)];
     let registry = Arc::new(ModuleRegistry::new(modules).unwrap());
     kartenn_store_pg::modules::migrate(pool, &registry)
         .await

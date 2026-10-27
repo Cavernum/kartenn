@@ -58,12 +58,15 @@ pub const CORE_COLLECTIONS: &[&str] = &[
     "sites",
     // The counters of the home page (spec 024, REQ-024-14).
     "stats",
+    // The VLANs of the core (spec 026).
+    "vlan-groups",
+    "vlans",
 ];
 
 /// A type of object of a module (ADR 0026, clause 4).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectType {
-    /// Qualified name, `<module>.<type>` (`vlan.vlan`).
+    /// Qualified name, `<module>.<type>` (`machines.machine`).
     pub kind: &'static str,
     /// Its REST collection under `/v1` (`vlans`).
     pub collection: &'static str,
@@ -102,7 +105,7 @@ pub struct Reference {
 /// A type of edge the module contributes to the topology graph (ADR 0026, clause 11).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EdgeType {
-    /// Qualified name (`vlan.carries`).
+    /// Qualified name (`machines.attached`).
     pub name: &'static str,
     /// The type of its origin.
     pub from: &'static str,
@@ -114,7 +117,7 @@ pub struct EdgeType {
 /// one of the module's [`EdgeType`]s, its ends and the period of validity it has.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Edge {
-    /// The type of edge (`vlan.carries`).
+    /// The type of edge (`machines.attached`).
     pub name: &'static str,
     /// Its origin, of the type the [`EdgeType`] names.
     pub from: Uuid,
@@ -161,7 +164,7 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 /// An operation a module accepts in a changeset (REQ-008-4).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OperationType {
-    /// Its name within the module (`create_vlan`, tagged `vlan.create_vlan`).
+    /// Its name within the module (`create_machine`, tagged `machines.create_machine`).
     pub name: &'static str,
     /// The qualified type of the object it creates under its `local`, if it creates one.
     pub defines: Option<&'static str>,
@@ -207,7 +210,7 @@ pub struct ModuleObjectRow {
 pub struct DiffRow {
     /// The object.
     pub object: Uuid,
-    /// Its qualified type (`prefix`, `vlan.vlan`…).
+    /// Its qualified type (`prefix`, `machines.machine`…).
     pub kind: String,
     /// What the module shows of it before the changeset; `None`: absent.
     pub before: Option<serde_json::Value>,
@@ -257,7 +260,7 @@ pub struct CheckContext<'a> {
     /// The objects of the module the changeset wrote.
     pub touched: &'a [(ModuleKind, Uuid)],
     /// The objects the changeset writes, of every type (core and modules): the rules of a
-    /// module on the objects of the core (`vlan.prefix.not_network`…).
+    /// module on the objects of the core (`machines.address.vlan_mismatch`…).
     pub objects: &'a [(ObjectKind, Uuid)],
     /// Every section of the differential.
     pub sections: &'a [DiffSection],
@@ -1107,6 +1110,20 @@ impl ModuleRegistry {
             .map(|(_, p)| *p)
     }
 
+    /// The operation `name` of `module`, if the build has it: an operation of a module of
+    /// the build, or, for [`CORE`], an operation of the VLANs (spec 026), whose handler the
+    /// storage provides (`WriteTx::core_handler`).
+    #[must_use]
+    pub fn operation_type(&self, module: &str, name: &str) -> Option<&'static OperationType> {
+        if module == CORE {
+            return crate::vlan::operation(name);
+        }
+        self.get(module)?
+            .operations()
+            .iter()
+            .find(|o| o.name == name)
+    }
+
     /// The operation `name` of `module`, with its handler, if the build has both.
     #[must_use]
     pub fn operation(
@@ -1403,9 +1420,10 @@ mod tests {
 
     #[test]
     fn registry_refuses_duplicate_collection() {
-        static VLANS: &[ObjectType] = &[ty("vlan.vlan", "vlans")];
-        static ALSO_VLANS: &[ObjectType] = &[ty("other.vlan", "vlans")];
+        static RACKS: &[ObjectType] = &[ty("shelf.rack", "racks")];
+        static ALSO_RACKS: &[ObjectType] = &[ty("other.rack", "racks")];
         static PREFIXES: &[ObjectType] = &[ty("other.prefix", "prefixes")];
+        static VLANS: &[ObjectType] = &[ty("other.vlan", "vlans")];
         let module = |name, types| -> Arc<dyn Module> {
             Arc::new(Fake {
                 name,
@@ -1414,27 +1432,30 @@ mod tests {
             })
         };
         assert_eq!(
-            ModuleRegistry::new(vec![module("vlan", VLANS), module("other", ALSO_VLANS)])
+            ModuleRegistry::new(vec![module("shelf", RACKS), module("other", ALSO_RACKS)])
                 .unwrap_err(),
             RegistryError::DuplicateCollection {
-                collection: "vlans".into(),
+                collection: "racks".into(),
                 module: "other".into(),
-                owner: "vlan".into()
+                owner: "shelf".into()
             }
         );
+        // The collections of the core, the VLANs among them (spec 026).
+        for (types, collection) in [(PREFIXES, "prefixes"), (VLANS, "vlans")] {
+            assert_eq!(
+                ModuleRegistry::new(vec![module("other", types)]).unwrap_err(),
+                RegistryError::DuplicateCollection {
+                    collection: collection.into(),
+                    module: "other".into(),
+                    owner: "core".into()
+                }
+            );
+        }
         assert_eq!(
-            ModuleRegistry::new(vec![module("other", PREFIXES)]).unwrap_err(),
-            RegistryError::DuplicateCollection {
-                collection: "prefixes".into(),
-                module: "other".into(),
-                owner: "core".into()
-            }
-        );
-        assert_eq!(
-            ModuleRegistry::new(vec![module("other", VLANS)]).unwrap_err(),
+            ModuleRegistry::new(vec![module("other", RACKS)]).unwrap_err(),
             RegistryError::ForeignKind {
                 module: "other".into(),
-                kind: "vlan.vlan".into()
+                kind: "shelf.rack".into()
             }
         );
     }

@@ -338,11 +338,8 @@ async fn measure(
 ) -> anyhow::Result<Vec<Budget>> {
     let started = Instant::now();
     let load = |what: &str| format!("{what}: {:?}, {}", started.elapsed(), load_now());
-    let modules: Vec<Arc<dyn Module>> = vec![
-        Arc::new(kartenn_vlan::Vlan),
-        Arc::new(kartenn_machines::Machines),
-        Arc::new(Policy),
-    ];
+    let modules: Vec<Arc<dyn Module>> =
+        vec![Arc::new(kartenn_machines::Machines), Arc::new(Policy)];
     let registry = Arc::new(ModuleRegistry::new(modules)?);
     kartenn_store_pg::modules::migrate(pool, &registry).await?;
     let store = PgStore::new(pool.clone()).with_modules(registry.clone());
@@ -604,7 +601,6 @@ async fn measure(
         pool,
         registry,
         vec![
-            kartenn_vlan::rest::routes(),
             kartenn_machines::rest::routes(),
             kartenn_policy::rest::routes(),
         ],

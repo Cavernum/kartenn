@@ -40,6 +40,14 @@ et application.
 | `core.address.edit` | — | Créer, modifier ou clore une adresse dans un changeset et le soumettre. |
 | `core.address.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche une adresse. |
 | `core.address.approval.self` | — | Appliquer son propre changeset qui touche une adresse. |
+| `core.vlan_group.read` | — | Lire les groupes de VLAN. |
+| `core.vlan_group.edit` | — | Créer, modifier ou clore un groupe de VLAN dans un changeset et le soumettre. |
+| `core.vlan_group.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche un groupe de VLAN. |
+| `core.vlan_group.approval.self` | — | Appliquer son propre changeset qui touche un groupe de VLAN. |
+| `core.vlan.read` | — | Lire les VLAN. |
+| `core.vlan.edit` | — | Créer, modifier ou clore un VLAN dans un changeset et le soumettre. |
+| `core.vlan.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche un VLAN. |
+| `core.vlan.approval.self` | — | Appliquer son propre changeset qui touche un VLAN. |
 | `core.changeset.read` | oui | Lire les changesets, leurs opérations et leur différentiel. |
 | `core.anomaly.acknowledge` | — | Acquitter, avec un motif, une anomalie d'un objet du périmètre. |
 | `core.property.admin` | oui | Déclarer une propriété, changer sa sensibilité. |
@@ -54,14 +62,6 @@ et application.
 | `core.identity.act_on_behalf` | oui | Pour un compte de service : écrire pour le compte d'un demandeur nommé par l'en-tête Kartenn-On-Behalf-Of, sous ses propres droits. |
 | `core.observability.admin` | oui | Changer à chaud le filtre d'une sortie technique. |
 | `core.draft.admin` | oui | Lire, supprimer ou attribuer à un autre le brouillon d'une personne. |
-| `vlan.group.read` | — | Lire les groupes de VLAN. |
-| `vlan.group.edit` | — | Créer, modifier ou clore un groupe de VLAN dans un changeset et le soumettre. |
-| `vlan.group.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche un groupe de VLAN. |
-| `vlan.group.approval.self` | — | Appliquer son propre changeset qui touche un groupe de VLAN. |
-| `vlan.read` | — | Lire les VLAN. |
-| `vlan.edit` | — | Créer, modifier ou clore un VLAN dans un changeset et le soumettre. |
-| `vlan.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche un VLAN. |
-| `vlan.approval.self` | — | Appliquer son propre changeset qui touche un VLAN. |
 | `machines.cluster.read` | — | Lire les clusters. |
 | `machines.cluster.edit` | — | Créer, modifier ou clore un cluster dans un changeset et le soumettre. |
 | `machines.cluster.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche un cluster. |
@@ -95,9 +95,9 @@ et application.
 
 | Rôle | Clé | Contenu |
 |---|---|---|
-| Lecteur | `reader` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `vlan.group.read`, `vlan.read`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read` |
-| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.entity.edit`, `core.site.edit`, `core.domain.edit`, `core.prefix.edit`, `core.range.edit`, `core.address.edit`, `prop.*.edit`, `core.entity.approval.self`, `core.site.approval.self`, `core.domain.approval.self`, `core.prefix.approval.self`, `core.range.approval.self`, `core.address.approval.self`, `prop.*.approval.self`, `vlan.group.read`, `vlan.read`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read` |
-| Approbateur | `approver` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.entity.apply`, `core.site.apply`, `core.domain.apply`, `core.prefix.apply`, `core.range.apply`, `core.address.apply`, `prop.*.apply`, `vlan.group.read`, `vlan.read`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read`, `vlan.group.apply`, `vlan.apply`, `machines.cluster.apply`, `machines.apply`, `machines.interface.apply`, `flow.apply` |
+| Lecteur | `reader` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.vlan_group.read`, `core.vlan.read`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read` |
+| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.vlan_group.read`, `core.vlan.read`, `core.entity.edit`, `core.site.edit`, `core.domain.edit`, `core.prefix.edit`, `core.range.edit`, `core.address.edit`, `core.vlan_group.edit`, `core.vlan.edit`, `prop.*.edit`, `core.entity.approval.self`, `core.site.approval.self`, `core.domain.approval.self`, `core.prefix.approval.self`, `core.range.approval.self`, `core.address.approval.self`, `core.vlan_group.approval.self`, `core.vlan.approval.self`, `prop.*.approval.self`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read` |
+| Approbateur | `approver` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.vlan_group.read`, `core.vlan.read`, `core.entity.apply`, `core.site.apply`, `core.domain.apply`, `core.prefix.apply`, `core.range.apply`, `core.address.apply`, `core.vlan_group.apply`, `core.vlan.apply`, `prop.*.apply`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read`, `machines.cluster.apply`, `machines.apply`, `machines.interface.apply`, `flow.apply` |
 | Administrateur | `administrator` | `*` |
 
 ## Anciens noms
@@ -126,12 +126,12 @@ l'historique et le journal d'audit.
 | `core.address.write` | `core.address.edit`, `core.address.approval.self` |
 | `core.address.propose` | `core.address.edit` |
 | `core.address.apply_own` | `core.address.approval.self` |
-| `vlan.group.write` | `vlan.group.edit`, `vlan.group.approval.self` |
-| `vlan.group.propose` | `vlan.group.edit` |
-| `vlan.group.apply_own` | `vlan.group.approval.self` |
-| `vlan.write` | `vlan.edit`, `vlan.approval.self` |
-| `vlan.propose` | `vlan.edit` |
-| `vlan.apply_own` | `vlan.approval.self` |
+| `core.vlan_group.write` | `core.vlan_group.edit`, `core.vlan_group.approval.self` |
+| `core.vlan_group.propose` | `core.vlan_group.edit` |
+| `core.vlan_group.apply_own` | `core.vlan_group.approval.self` |
+| `core.vlan.write` | `core.vlan.edit`, `core.vlan.approval.self` |
+| `core.vlan.propose` | `core.vlan.edit` |
+| `core.vlan.apply_own` | `core.vlan.approval.self` |
 | `machines.cluster.write` | `machines.cluster.edit`, `machines.cluster.approval.self` |
 | `machines.cluster.propose` | `machines.cluster.edit` |
 | `machines.cluster.apply_own` | `machines.cluster.approval.self` |
@@ -147,9 +147,30 @@ l'historique et le journal d'audit.
 | `prop.*.write` | `prop.*.edit`, `prop.*.approval.self` |
 | `prop.*.propose` | `prop.*.edit` |
 | `prop.*.apply_own` | `prop.*.approval.self` |
-| `vlan.vlan.read` | `vlan.read` |
-| `vlan.vlan.write` | `vlan.edit`, `vlan.approval.self` |
-| `vlan.vlan.propose` | `vlan.edit` |
+| `vlan.vlan.read` | `core.vlan.read` |
+| `vlan.vlan.write` | `core.vlan.edit`, `core.vlan.approval.self` |
+| `vlan.vlan.propose` | `core.vlan.edit` |
+| `vlan.read` | `core.vlan.read` |
+| `vlan.write` | `core.vlan.edit`, `core.vlan.approval.self` |
+| `vlan.propose` | `core.vlan.edit` |
+| `vlan.edit` | `core.vlan.edit` |
+| `vlan.apply` | `core.vlan.apply` |
+| `vlan.apply_own` | `core.vlan.approval.self` |
+| `vlan.approval.self` | `core.vlan.approval.self` |
+| `vlan.group.read` | `core.vlan_group.read` |
+| `vlan.group.write` | `core.vlan_group.edit`, `core.vlan_group.approval.self` |
+| `vlan.group.propose` | `core.vlan_group.edit` |
+| `vlan.group.edit` | `core.vlan_group.edit` |
+| `vlan.group.apply` | `core.vlan_group.apply` |
+| `vlan.group.apply_own` | `core.vlan_group.approval.self` |
+| `vlan.group.approval.self` | `core.vlan_group.approval.self` |
+| `prop.vlan.vlan.read` | `prop.core.vlan.read` |
+| `prop.vlan.vlan.write` | `prop.core.vlan.edit`, `prop.core.vlan.approval.self` |
+| `prop.vlan.vlan.propose` | `prop.core.vlan.edit` |
+| `prop.vlan.vlan.edit` | `prop.core.vlan.edit` |
+| `prop.vlan.vlan.apply` | `prop.core.vlan.apply` |
+| `prop.vlan.vlan.apply_own` | `prop.core.vlan.approval.self` |
+| `prop.vlan.vlan.approval.self` | `prop.core.vlan.approval.self` |
 | `machines.machine.read` | `machines.read` |
 | `machines.machine.write` | `machines.edit`, `machines.approval.self` |
 | `machines.machine.propose` | `machines.edit` |
@@ -158,4 +179,4 @@ l'historique et le journal d'audit.
 | `flow.flow.review` | `flow.review` |
 | `flow.flow.write` | `flow.edit`, `flow.approval.self` |
 | `flow.flow.waive` | `flow.waiver.grant` |
-| `core.changeset.approve` | `core.entity.apply`, `core.site.apply`, `core.domain.apply`, `core.prefix.apply`, `core.range.apply`, `core.address.apply`, `vlan.group.apply`, `vlan.apply`, `machines.cluster.apply`, `machines.apply`, `machines.interface.apply`, `flow.apply`, `prop.*.apply` |
+| `core.changeset.approve` | `core.entity.apply`, `core.site.apply`, `core.domain.apply`, `core.prefix.apply`, `core.range.apply`, `core.address.apply`, `core.vlan_group.apply`, `core.vlan.apply`, `machines.cluster.apply`, `machines.apply`, `machines.interface.apply`, `flow.apply`, `prop.*.apply` |

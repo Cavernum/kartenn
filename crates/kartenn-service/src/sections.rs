@@ -20,7 +20,9 @@ pub(crate) fn touched(planned: &[Planned]) -> Vec<(ObjectKind, Uuid)> {
     let mut out = Vec::new();
     for p in planned {
         let target = match p {
-            Planned::Module { plan, .. } => Some((ObjectKind::Module(plan.kind), plan.object)),
+            Planned::Module { plan, .. } => {
+                Some((ObjectKind::from_qualified(plan.kind), plan.object))
+            }
             Planned::Close { kind, id, .. }
             | Planned::Modify { kind, id, .. }
             | Planned::Restore { kind, id, .. }

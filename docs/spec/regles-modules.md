@@ -6,20 +6,6 @@ Règles déclarées par les modules livrés (ADR 0026, clause 7), au même forma
 [catalogue du noyau](regles-noyau.md) : identifiants stables, sévérités fixées par la
 spécification du module.
 
-## `vlan`
-
-| Identifiant | Sévérité | Règle | Exigences | Source |
-|---|---|---|---|---|
-| `vlan.vid.invalid` | erreur | Un VID est un entier de 1 à 4094. | REQ-008-12, REQ-008-14 | IEEE 802.1Q-2022 §9.6 |
-| `vlan.vid.out_of_range` | erreur | Un VID est dans la plage de son groupe, et la plage d'un groupe garde ses VLAN. | REQ-008-13, REQ-008-14 | 008/V6 |
-| `vlan.vid.duplicate` | erreur | Un VID est vivant au plus une fois par groupe à tout instant. | REQ-008-15 | 008/V2 |
-| `vlan.name.invalid` | erreur | Un nom de VLAN a de 1 à 64 caractères, sans caractère de contrôle. | REQ-008-14 | 008/V7 |
-| `vlan.name.duplicate` | erreur | Un nom de VLAN est vivant au plus une fois par groupe à tout instant. | REQ-008-15 | 008/V7 |
-| `vlan.group.anchor` | erreur | Un groupe est ancré sur une entité, un site ou un domaine vivant sur toute sa période. | REQ-008-12 | 008/V3 |
-| `vlan.prefix.not_network` | erreur | La propriété vlan.vlan ne se pose que sur un réseau. | REQ-008-17 | 008/V4 |
-| `vlan.site.mismatch` | avertissement | Le site d'un réseau et celui du groupe de son VLAN concordent. | REQ-008-18 | 008/V9 |
-| `vlan.domain.mismatch` | avertissement | Le domaine d'un réseau et celui du groupe de son VLAN concordent. | REQ-008-18 | 008/V9 |
-
 ## `machines`
 
 | Identifiant | Sévérité | Règle | Exigences | Source |

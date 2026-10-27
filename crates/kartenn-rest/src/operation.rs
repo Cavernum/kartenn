@@ -81,10 +81,13 @@ pub(crate) enum TargetKindSchema {
     EnumValue,
     Entity,
     Site,
+    VlanGroup,
+    Vlan,
 }
 
 /// The kind of the object of an operation: a kind of the core, or the qualified type of an
-/// object of a module (`vlan.vlan`, REQ-008-5), which the registry checks when it plans.
+/// object of a module (`machines.machine`, REQ-008-5), which the registry checks when it
+/// plans.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct TargetKindDto(ObjectKind);
 
@@ -94,8 +97,8 @@ impl<'de> Deserialize<'de> for TargetKindDto {
         ObjectKind::from_name(&name).map(Self).ok_or_else(|| {
             serde::de::Error::custom(format!(
                 "unknown variant `{name}`, expected one of `domain`, `prefix`, `range`, \
-                 `address`, `property`, `enum_value`, `entity`, `site` or the type of an \
-                 object of a module"
+                 `address`, `property`, `enum_value`, `entity`, `site`, `vlan_group`, \
+                 `vlan` or the type of an object of a module"
             ))
         })
     }
@@ -475,6 +478,62 @@ const fn enabled() -> bool {
     true
 }
 
+/// The anchor of a group of VLAN (spec 026; V3): an entity, a site or a domain.
+#[derive(Debug, Clone, Copy, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+#[schema(as = VlanAnchor)]
+pub(crate) enum VlanAnchorDto {
+    /// An entity.
+    Entity(RefDto),
+    /// A site.
+    Site(RefDto),
+    /// An addressing domain.
+    Domain(RefDto),
+}
+
+impl VlanAnchorDto {
+    fn json(self) -> serde_json::Value {
+        match self {
+            Self::Entity(r) => serde_json::json!({ "entity": Ref::from(r) }),
+            Self::Site(r) => serde_json::json!({ "site": Ref::from(r) }),
+            Self::Domain(r) => serde_json::json!({ "domain": Ref::from(r) }),
+        }
+    }
+}
+
+/// The status of a VLAN (spec 026; V5).
+#[derive(Debug, Clone, Copy, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+#[schema(as = VlanStatus)]
+pub(crate) enum VlanStatusDto {
+    /// In use.
+    Active,
+    /// VID held, not in use.
+    Reserved,
+    /// To be closed.
+    Deprecated,
+}
+
+impl VlanStatusDto {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Active => "active",
+            Self::Reserved => "reserved",
+            Self::Deprecated => "deprecated",
+        }
+    }
+}
+
+/// An operation of the VLANs of the core, its members without the null ones (the handler
+/// of the core reads an absent member as not given).
+fn vlan_operation(name: &str, fields: serde_json::Value) -> Operation {
+    let serde_json::Value::Object(mut body) = fields else {
+        unreachable!("the members of an operation are an object")
+    };
+    body.retain(|_, v| !v.is_null());
+    Operation::Module(ModuleOperation::core(name, body))
+}
+
 /// An operation of a changeset (004, REQ-004-1 to 5), named by `op`: one of the core, or
 /// one of a module in its envelope, `<module>.<operation>` (REQ-008-4), whose other
 /// members the module reads when it plans it.
@@ -621,6 +680,62 @@ pub(crate) enum CoreOperationDto {
         /// Usage.
         #[schema(value_type = AddressUsageSchema)]
         usage: AddressUsage,
+    },
+    /// Creates a group of VLAN (spec 026; REQ-008-12).
+    CreateVlanGroup {
+        /// Local name for later operations.
+        local: Option<u32>,
+        /// Slug, unique among the living groups.
+        slug: String,
+        /// Its anchor: an entity, a site or a domain.
+        anchor: VlanAnchorDto,
+        /// First VID, 1 by default.
+        vid_min: Option<i64>,
+        /// Last VID, 4094 by default.
+        vid_max: Option<i64>,
+        /// The owner, the entity of the anchor (or the owner of the domain) by default.
+        owner: Option<RefDto>,
+    },
+    /// Modifies a group of VLAN (spec 026; REQ-008-13), the members given.
+    UpdateVlanGroup {
+        /// The group.
+        id: RefDto,
+        /// Slug.
+        slug: Option<String>,
+        /// Anchor.
+        anchor: Option<VlanAnchorDto>,
+        /// First VID.
+        vid_min: Option<i64>,
+        /// Last VID.
+        vid_max: Option<i64>,
+        /// The owner.
+        owner: Option<RefDto>,
+    },
+    /// Creates a VLAN in a group (spec 026; REQ-008-14).
+    CreateVlan {
+        /// Local name for later operations.
+        local: Option<u32>,
+        /// The group.
+        group: RefDto,
+        /// VID, 1 to 4094, in the range of the group.
+        vid: i64,
+        /// Name, unique in the group.
+        name: String,
+        /// `active` by default.
+        status: Option<VlanStatusDto>,
+    },
+    /// Modifies a VLAN (spec 026; REQ-008-16), the members given.
+    UpdateVlan {
+        /// The VLAN.
+        id: RefDto,
+        /// Its group.
+        group: Option<RefDto>,
+        /// VID.
+        vid: Option<i64>,
+        /// Name.
+        name: Option<String>,
+        /// Status.
+        status: Option<VlanStatusDto>,
     },
     /// Defines a role, or replaces its labels and entries (005, REQ-005-17, 25).
     SetRole {
@@ -1058,6 +1173,60 @@ impl From<CoreOperationDto> for Operation {
                 address,
                 usage,
             },
+            CoreOperationDto::CreateVlanGroup {
+                local,
+                slug,
+                anchor,
+                vid_min,
+                vid_max,
+                owner,
+            } => vlan_operation(
+                "create_vlan_group",
+                serde_json::json!({
+                    "local": local, "slug": slug, "anchor": anchor.json(), "vid_min": vid_min,
+                    "vid_max": vid_max, "owner": opt(owner),
+                }),
+            ),
+            CoreOperationDto::UpdateVlanGroup {
+                id,
+                slug,
+                anchor,
+                vid_min,
+                vid_max,
+                owner,
+            } => vlan_operation(
+                "update_vlan_group",
+                serde_json::json!({
+                    "id": Ref::from(id), "slug": slug, "anchor": anchor.map(VlanAnchorDto::json),
+                    "vid_min": vid_min, "vid_max": vid_max, "owner": opt(owner),
+                }),
+            ),
+            CoreOperationDto::CreateVlan {
+                local,
+                group,
+                vid,
+                name,
+                status,
+            } => vlan_operation(
+                "create_vlan",
+                serde_json::json!({
+                    "local": local, "group": Ref::from(group), "vid": vid, "name": name,
+                    "status": status.map(VlanStatusDto::as_str),
+                }),
+            ),
+            CoreOperationDto::UpdateVlan {
+                id,
+                group,
+                vid,
+                name,
+                status,
+            } => vlan_operation(
+                "update_vlan",
+                serde_json::json!({
+                    "id": Ref::from(id), "group": opt(group), "vid": vid, "name": name,
+                    "status": status.map(VlanStatusDto::as_str),
+                }),
+            ),
             CoreOperationDto::SetRole {
                 key,
                 labels,
@@ -1513,6 +1682,19 @@ mod tests {
                 "anycast": true, "expected": other}),
             json!({"op": "update_address", "id": {"id": id}, "usage": "vip", "expected": other}),
             json!({"op": "update_range", "id": {"id": id}, "domain": {"id": other}, "usage": "static"}),
+            // The operations of the VLANs of the core (spec 026), in the envelope of the
+            // operations a handler plans.
+            json!({"op": "create_vlan_group", "local": 1, "slug": "g",
+                "anchor": {"domain": {"id": id}}, "vid_min": 1, "vid_max": 10,
+                "owner": {"id": other}}),
+            json!({"op": "update_vlan_group", "id": {"id": id}, "slug": "h",
+                "anchor": {"entity": {"local": 2}}, "vid_min": 2, "vid_max": 9,
+                "owner": {"id": other}}),
+            json!({"op": "create_vlan", "local": 3, "group": {"local": 1}, "vid": 10,
+                "name": "web", "status": "reserved"}),
+            json!({"op": "update_vlan", "id": {"id": id}, "group": {"id": other}, "vid": 11,
+                "name": "db", "status": "deprecated"}),
+            json!({"op": "close", "kind": "vlan", "id": {"id": id}}),
             json!({"op": "kit.make_thing", "local": 1, "name": "x"}),
             json!({"op": "close", "kind": "kit.thing", "id": {"id": id}}),
         ]

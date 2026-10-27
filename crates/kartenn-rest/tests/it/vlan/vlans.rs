@@ -1,15 +1,12 @@
-//! The VLANs through the write pipeline (spec 008, REQ-008-14 to 16; task 008-11): a VID
-//! and a name unique in their group at every instant, under the key of the group, the
+//! The VLANs through the write pipeline (spec 026; spec 008, REQ-008-14 to 16): a VID and
+//! a name unique in their group at every instant, under the key of the group, the
 //! exclusion constraints as the last defence; a VID free again once its VLAN is closed; a
 //! VLAN that moves to another group under the same rules.
 
-use crate::support::env;
-
 use std::time::Duration;
 
-use env::{Env, op, rules};
+use super::env::{Env, op, rules};
 use kartenn_service::authz::Unrestricted;
-use kartenn_service::operations::ModuleKind;
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ObjectKind, Operation, Outcome, Ref, submit};
 use serde_json::json;
@@ -28,22 +25,33 @@ impl Env {
     async fn group(&self, slug: &str, (min, max): (i64, i64)) -> Uuid {
         let acme = self.id("entity", "acme").await;
         self.applied(vec![op(
-            "create_group",
+            "create_vlan_group",
             json!({"slug": slug, "anchor": {"entity": {"id": acme}},
                    "vid_min": min, "vid_max": max}),
         )])
         .await;
-        self.id("vlan.vlan_group", slug).await
+        self.id("vlan_group", slug).await
     }
 
     /// The VLAN `vid` living now in `group`.
     async fn vlan(&self, group: Uuid, vid: i16) -> Uuid {
         sqlx::query_scalar(
-            "SELECT id FROM vlan.vlan
+            "SELECT id FROM vlan
               WHERE group_id = $1 AND vid = $2 AND valid_period @> now()",
         )
         .bind(group)
         .bind(vid)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// The group of the VLAN `vlan` now, as the tree of the VLANs reads it.
+    async fn parent(&self, vlan: Uuid) -> Option<Uuid> {
+        sqlx::query_scalar(
+            "SELECT parent_id FROM vlan_tree WHERE id = $1 AND valid_period @> now()",
+        )
+        .bind(vlan)
         .fetch_one(&self.pool)
         .await
         .unwrap()
@@ -66,7 +74,7 @@ async fn concurrent_same_vid_one_wins(pool: PgPool) {
     let mut holder = pool.begin().await.unwrap();
     sqlx::query("SELECT pg_advisory_xact_lock($1, hashtext($2) & 1023)")
         .bind(NAMED_LOCK_CLASS)
-        .bind(format!("vlan.group:{group}"))
+        .bind(kartenn_service::vlan::group_key(group))
         .execute(&mut *holder)
         .await
         .unwrap();
@@ -94,7 +102,7 @@ async fn concurrent_same_vid_one_wins(pool: PgPool) {
         .find(|o| !matches!(o, Outcome::Applied { .. }))
         .unwrap();
     assert!(
-        rules(refused).contains(&"vlan.vid.duplicate"),
+        rules(refused).contains(&"core.vlan.vid_duplicate"),
         "{refused:?}"
     );
 }
@@ -113,23 +121,26 @@ async fn same_vid_two_groups(pool: PgPool) {
         .submit(vec![create(a, 20, "x"), create(a, 20, "y")])
         .await;
     assert!(
-        rules(&refused).contains(&"vlan.vid.duplicate"),
+        rules(&refused).contains(&"core.vlan.vid_duplicate"),
         "{refused:?}"
     );
     // Outside the range of the group, or outside 1 to 4094.
     let narrow = env.group("narrow", (100, 199)).await;
     let refused = env.submit(vec![create(narrow, 10, "low")]).await;
     assert!(
-        rules(&refused).contains(&"vlan.vid.out_of_range"),
+        rules(&refused).contains(&"core.vlan.vid_out_of_range"),
         "{refused:?}"
     );
     let refused = env.submit(vec![create(narrow, 4095, "bad")]).await;
-    assert!(rules(&refused).contains(&"vlan.vid.invalid"), "{refused:?}");
+    assert!(
+        rules(&refused).contains(&"core.vlan.vid_invalid"),
+        "{refused:?}"
+    );
     // In a group created in the same changeset.
     let acme = env.id("entity", "acme").await;
     env.applied(vec![
         op(
-            "create_group",
+            "create_vlan_group",
             json!({"local": 1, "slug": "fresh", "anchor": {"entity": {"id": acme}}}),
         ),
         op(
@@ -138,17 +149,10 @@ async fn same_vid_two_groups(pool: PgPool) {
         ),
     ])
     .await;
-    // Registered in the tree of the module, under its group.
-    let fresh = env.id("vlan.vlan_group", "fresh").await;
+    // In the tree of the VLANs, under its group.
+    let fresh = env.id("vlan_group", "fresh").await;
     let vlan = env.vlan(fresh, 10).await;
-    let parent: Option<Uuid> = sqlx::query_scalar(
-        "SELECT parent_id FROM module_object WHERE id = $1 AND valid_period @> now()",
-    )
-    .bind(vlan)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(parent, Some(fresh));
+    assert_eq!(env.parent(vlan).await, Some(fresh));
 }
 
 #[kartenn_testing::pg_test]
@@ -158,11 +162,10 @@ async fn vid_reused_after_closure(pool: PgPool) {
     env.applied(vec![create(group, 10, "users")]).await;
     let old = env.vlan(group, 10).await;
     // The VLAN 10 ends on 2027-01-01.
-    let kind = ObjectKind::Module(ModuleKind::parse("vlan.vlan").unwrap());
     let closed = env
         .submit_from(
             vec![Operation::Close {
-                kind,
+                kind: ObjectKind::Vlan,
                 id: Ref::Id(old),
                 expected: None,
                 cascade: false,
@@ -174,7 +177,7 @@ async fn vid_reused_after_closure(pool: PgPool) {
     // Before that date, the VID is taken; from it on, free again, name included.
     let refused = env.submit(vec![create(group, 10, "again")]).await;
     assert!(
-        rules(&refused).contains(&"vlan.vid.duplicate"),
+        rules(&refused).contains(&"core.vlan.vid_duplicate"),
         "{refused:?}"
     );
     let reused = env
@@ -204,7 +207,7 @@ async fn move_to_group_with_taken_vid_refused(pool: PgPool) {
         )])
         .await;
     assert!(
-        rules(&refused).contains(&"vlan.vid.duplicate"),
+        rules(&refused).contains(&"core.vlan.vid_duplicate"),
         "{refused:?}"
     );
     // Outside the range of the group it joins: refused as well.
@@ -216,24 +219,17 @@ async fn move_to_group_with_taken_vid_refused(pool: PgPool) {
         )])
         .await;
     assert!(
-        rules(&refused).contains(&"vlan.vid.out_of_range"),
+        rules(&refused).contains(&"core.vlan.vid_out_of_range"),
         "{refused:?}"
     );
-    // With a free VID in range, the move is accepted; the tree of the module follows.
+    // With a free VID in range, the move is accepted; the tree of the VLANs follows.
     env.applied(vec![op(
         "update_vlan",
         json!({"id": {"id": users}, "group": {"id": b}, "vid": 11}),
     )])
     .await;
     assert_eq!(env.vlan(b, 11).await, users);
-    let parent: Option<Uuid> = sqlx::query_scalar(
-        "SELECT parent_id FROM module_object WHERE id = $1 AND valid_period @> now()",
-    )
-    .bind(users)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(parent, Some(b));
+    assert_eq!(env.parent(users).await, Some(b));
 }
 
 #[kartenn_testing::pg_test]
@@ -247,7 +243,7 @@ async fn name_duplicate_refused(pool: PgPool) {
     .await;
     let refused = env.submit(vec![create(group, 12, "users")]).await;
     assert!(
-        rules(&refused).contains(&"vlan.name.duplicate"),
+        rules(&refused).contains(&"core.vlan.name_duplicate"),
         "{refused:?}"
     );
     // Renaming onto a name taken: refused; onto a free one, NFC-normalised: accepted.
@@ -259,7 +255,7 @@ async fn name_duplicate_refused(pool: PgPool) {
         )])
         .await;
     assert!(
-        rules(&refused).contains(&"vlan.name.duplicate"),
+        rules(&refused).contains(&"core.vlan.name_duplicate"),
         "{refused:?}"
     );
     env.applied(vec![op(
@@ -267,17 +263,16 @@ async fn name_duplicate_refused(pool: PgPool) {
         json!({"id": {"id": guests}, "name": "Invite\u{301}s", "status": "deprecated"}),
     )])
     .await;
-    let (name, status): (String, String) = sqlx::query_as(
-        "SELECT name, status FROM vlan.vlan WHERE id = $1 AND valid_period @> now()",
-    )
-    .bind(guests)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let (name, status): (String, String) =
+        sqlx::query_as("SELECT name, status FROM vlan WHERE id = $1 AND valid_period @> now()")
+            .bind(guests)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!((name.as_str(), status.as_str()), ("Invités", "deprecated"));
     let refused = env.submit(vec![create(group, 13, "")]).await;
     assert!(
-        rules(&refused).contains(&"vlan.name.invalid"),
+        rules(&refused).contains(&"core.vlan.name_invalid"),
         "{refused:?}"
     );
 }

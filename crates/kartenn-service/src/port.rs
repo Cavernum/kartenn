@@ -801,6 +801,13 @@ pub trait WriteTx {
     /// The transaction as a module writes in it (ADR 0026, clause 6).
     fn module_tx(&mut self) -> &mut dyn crate::module::ModuleTx;
 
+    /// The handler of the operations of the core that the storage completes and writes as a
+    /// module does its own: those of the VLANs (spec 026, decision C2), in every build.
+    /// `None` for a storage without them, whose VLAN operations are refused as unknown.
+    fn core_handler(&self) -> Option<std::sync::Arc<dyn crate::module::ModuleHandler>> {
+        None
+    }
+
     /// Sets who stands behind the changeset of this transaction, as its modules read it
     /// (ADR 0026, amendment 3); only the pipeline sets it.
     fn set_module_actors(&mut self, actors: crate::module::ModuleActors);

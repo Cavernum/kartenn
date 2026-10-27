@@ -15,13 +15,15 @@ fn store_err(e: impl std::fmt::Display) -> StoreError {
 }
 
 /// Versioned objects a changeset may write, by kind.
-const OBJECTS: [(ObjectKind, &str); 6] = [
+const OBJECTS: [(ObjectKind, &str); 8] = [
     (ObjectKind::Domain, "addressing_domain"),
     (ObjectKind::Prefix, "prefix"),
     (ObjectKind::Range, "ip_range"),
     (ObjectKind::Address, "address"),
     (ObjectKind::Entity, "entity"),
     (ObjectKind::Site, "site"),
+    (ObjectKind::VlanGroup, "vlan_group"),
+    (ObjectKind::Vlan, "vlan"),
 ];
 
 /// Per key of `table` written by `$1` (applied at `$2`): created (nothing asserted

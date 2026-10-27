@@ -239,6 +239,17 @@ pub static RENAMED_PERMISSIONS: &[(&str, &str)] = &[
     ("vlan.group.apply", "core.vlan_group.apply"),
     ("vlan.group.apply_own", "core.vlan_group.apply_own"),
     ("vlan.group.approval.self", "core.vlan_group.approval.self"),
+    // The property of the VLAN of a network, `core.vlan` (formerly `vlan.vlan`).
+    ("prop.vlan.vlan.read", "prop.core.vlan.read"),
+    ("prop.vlan.vlan.write", "prop.core.vlan.write"),
+    ("prop.vlan.vlan.propose", "prop.core.vlan.propose"),
+    ("prop.vlan.vlan.edit", "prop.core.vlan.edit"),
+    ("prop.vlan.vlan.apply", "prop.core.vlan.apply"),
+    ("prop.vlan.vlan.apply_own", "prop.core.vlan.apply_own"),
+    (
+        "prop.vlan.vlan.approval.self",
+        "prop.core.vlan.approval.self",
+    ),
     ("machines.machine.read", "machines.read"),
     ("machines.machine.write", "machines.write"),
     ("machines.machine.propose", "machines.propose"),

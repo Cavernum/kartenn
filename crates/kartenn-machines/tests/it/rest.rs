@@ -30,7 +30,6 @@ use kartenn_service::reads::ReadAudit;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
 use kartenn_store_pg::write::PgStore;
-use kartenn_vlan::Vlan;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use tower::ServiceExt;
@@ -60,7 +59,7 @@ impl Env {
     /// Both modules migrated and declared, the entities `acme` and `other`, the domain
     /// `lab` owned by `acme` with the network 10.0.0.0/24.
     async fn new(pool: &PgPool) -> Self {
-        let modules: Vec<Arc<dyn Module>> = vec![Arc::new(Vlan), Arc::new(Machines)];
+        let modules: Vec<Arc<dyn Module>> = vec![Arc::new(Machines)];
         let registry = Arc::new(ModuleRegistry::new(modules).unwrap());
         kartenn_store_pg::modules::migrate(pool, &registry)
             .await
@@ -284,7 +283,7 @@ impl Env {
                 "machines.interface.approval.self",
                 "core.address.read",
                 "core.prefix.read",
-                "vlan.read",
+                "core.vlan.read",
             ],
             None,
         )
@@ -304,13 +303,7 @@ impl Env {
             modules: self.registry.clone(),
         };
         kartenn_rest::router(
-            kartenn_rest::v1_with(
-                api,
-                vec![
-                    kartenn_vlan::rest::routes(),
-                    kartenn_machines::rest::routes(),
-                ],
-            ),
+            kartenn_rest::v1_with(api, vec![kartenn_machines::rest::routes()]),
             Arc::new(PgReadiness::new(self.pool.clone(), AuditStatus::default())),
             Settings::default(),
             Arc::new(Quotas::new(Rates::default())),

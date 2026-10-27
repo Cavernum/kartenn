@@ -204,6 +204,8 @@ fn edit_permission(kind: ObjectKind) -> String {
         ObjectKind::Entity => "core.entity.edit".into(),
         ObjectKind::Site => "core.site.edit".into(),
         ObjectKind::Property | ObjectKind::EnumValue => "core.property.admin".into(),
+        ObjectKind::VlanGroup => "core.vlan_group.edit".into(),
+        ObjectKind::Vlan => "core.vlan.edit".into(),
         ObjectKind::Module(kind) => kartenn_core::authz::type_edit_permission(kind.as_str()),
     }
 }
@@ -223,7 +225,7 @@ fn written(planned: &[Planned], phase: Phase) -> BTreeMap<String, BTreeSet<Uuid>
     for p in planned {
         let target = match (phase, p) {
             (_, Planned::Module { plan, .. }) if plan.creates == (phase == Phase::After) => {
-                Some((ObjectKind::Module(plan.kind), plan.object))
+                Some((ObjectKind::from_qualified(plan.kind), plan.object))
             }
             (
                 Phase::Before,

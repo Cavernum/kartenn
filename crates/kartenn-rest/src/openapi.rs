@@ -172,6 +172,7 @@ fn object_versions(document: &mut OpenApi, modules: &ModuleRegistry) {
     let collections = kartenn_store_pg::list::Kind::ALL
         .into_iter()
         .map(crate::objects::collection)
+        .chain(kartenn_service::vlan::TYPES.iter().map(|ty| ty.collection))
         .chain(modules.object_types().map(|ty| ty.collection));
     let schema_of = |document: &OpenApi, path: &str| -> Option<String> {
         let get = document.paths.paths.get(path)?.get.as_ref()?;

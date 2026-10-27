@@ -25,7 +25,6 @@ use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::write::PgStore;
-use kartenn_vlan::Vlan;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use sqlx::types::Uuid;
@@ -46,7 +45,7 @@ impl Env {
 
     /// [`Env::new`] with the modules `extra` too, their declarations synced.
     async fn with(pool: &PgPool, extra: Vec<Arc<dyn Module>>) -> Self {
-        let mut modules: Vec<Arc<dyn Module>> = vec![Arc::new(Vlan), Arc::new(Machines)];
+        let mut modules: Vec<Arc<dyn Module>> = vec![Arc::new(Machines)];
         modules.extend(extra);
         let registry = Arc::new(ModuleRegistry::new(modules).unwrap());
         kartenn_store_pg::modules::migrate(pool, &registry)
@@ -247,12 +246,12 @@ impl Env {
     async fn vlans(&self, vids: &[i16]) -> Vec<Uuid> {
         let acme = self.entity("acme").await;
         self.applied(vec![vop(
-            "create_group",
+            "create_vlan_group",
             json!({"slug": "edge", "anchor": {"entity": {"id": acme}},
                    "vid_min": 1, "vid_max": 4094}),
         )])
         .await;
-        let group = self.id("vlan.vlan_group", "slug", "edge").await;
+        let group = self.id("vlan_group", "slug", "edge").await;
         self.applied(
             vids.iter()
                 .map(|vid| {
@@ -268,7 +267,7 @@ impl Env {
         for vid in vids {
             ids.push(
                 sqlx::query_scalar(
-                    "SELECT id FROM vlan.vlan
+                    "SELECT id FROM vlan
                       WHERE group_id = $1 AND vid = $2 AND valid_period @> now()",
                 )
                 .bind(group)
@@ -446,10 +445,10 @@ fn usage(address: Uuid, usage: AddressUsage) -> Operation {
 /// the bucket `hashtext(key) & 1023` (ADR 0015, amendment of 2026-10-22).
 const NAMED_LOCK_CLASS: i32 = 0x6b61_726b;
 
-/// `vlan.<name>` from its JSON fields.
+/// The operation of the VLANs of the core `name` from its JSON fields.
 fn vop(name: &str, fields: Value) -> Operation {
     let mut object = fields;
-    object["op"] = format!("vlan.{name}").into();
+    object["op"] = name.into();
     serde_json::from_value(object).unwrap()
 }
 
@@ -460,11 +459,11 @@ fn rules(outcome: &Outcome) -> Vec<&'static str> {
     }
 }
 
+/// REQ-026-4: the VLANs are in the core, the module stands alone.
 #[test]
-fn machines_needs_vlan() {
-    let error = ModuleRegistry::new(vec![Arc::new(Machines)]).expect_err("vlan is missing");
-    assert!(error.to_string().contains("vlan"), "{error}");
-    ModuleRegistry::new(vec![Arc::new(Vlan), Arc::new(Machines)]).expect("both modules");
+fn machines_stands_alone() {
+    let registry = ModuleRegistry::new(vec![Arc::new(Machines)]).expect("machines alone");
+    assert!(registry.get("vlan").is_none());
 }
 
 #[kartenn_testing::pg_test]
@@ -967,7 +966,7 @@ async fn closed_vlan_refused(pool: PgPool) {
     };
     let m = env.create("m", "physical", json!({})).await;
     env.applied(vec![Operation::Close {
-        kind: ObjectKind::Module(ModuleKind::parse("vlan.vlan").unwrap()),
+        kind: ObjectKind::Vlan,
         id: Ref::Id(a),
         expected: None,
         cascade: false,
@@ -1046,7 +1045,7 @@ async fn vlan_read_required(pool: PgPool) {
                 "machines.interface.read",
                 "machines.interface.edit",
                 "machines.interface.approval.self",
-                "vlan.read",
+                "core.vlan.read",
             ],
         )
         .await;
@@ -1461,12 +1460,12 @@ impl Env {
         }
     }
 
-    /// `vlan.vlan` of the network `network` set to `vlan`.
+    /// `core.vlan` of the network `network` set to `vlan`.
     async fn network_vlan(&self, network: Uuid, vlan: Uuid) -> Operation {
         Operation::AssignProperty {
             object: Ref::Id(network),
             kind: ObjectKind::Prefix,
-            property: Ref::Id(self.property("vlan.vlan").await),
+            property: Ref::Id(self.property("core.vlan").await),
             values: vec![RawInput::Text(vlan.to_string())],
         }
     }
@@ -1687,10 +1686,10 @@ async fn an_unrelated_changeset_raises_no_warning(pool: PgPool) {
     assert!(env.anomaly(vm, "machines.host.site_mismatch").await);
 }
 
-/// `Close` of the object `id` of the module type `kind`.
+/// `Close` of the object `id` of the kind `kind` (`vlan`) or the module type `kind`.
 fn close(kind: &str, id: Uuid, cascade: bool) -> Operation {
     Operation::Close {
-        kind: ObjectKind::Module(ModuleKind::parse(kind).unwrap()),
+        kind: ObjectKind::from_name(kind).unwrap(),
         id: Ref::Id(id),
         expected: None,
         cascade,
@@ -1932,7 +1931,7 @@ async fn closing_a_used_vlan_cascades_to_interfaces(pool: PgPool) {
 
 /// `Close` of the VLAN `vlan`.
 fn vop_close(vlan: Uuid, cascade: bool) -> Operation {
-    close("vlan.vlan", vlan, cascade)
+    close("vlan", vlan, cascade)
 }
 
 #[kartenn_testing::pg_test]

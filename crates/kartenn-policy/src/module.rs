@@ -598,14 +598,13 @@ mod tests {
 
     use super::*;
 
-    /// The module needs the machines (and the VLAN they need): registered alone, it is
-    /// refused; with them, its permissions stay in its namespace.
+    /// The module needs the machines (the VLANs are in the core, spec 026): registered
+    /// alone, it is refused; with them, its permissions stay in its namespace.
     #[test]
     fn the_module_registers_after_the_machines() {
         assert!(ModuleRegistry::new(vec![Arc::new(Policy)]).is_err());
         let registry = ModuleRegistry::new(vec![
-            Arc::new(kartenn_service_fakes::Named("vlan", &[])),
-            Arc::new(kartenn_service_fakes::Named("machines", &["vlan"])),
+            Arc::new(kartenn_service_fakes::Named("machines", &[])),
             Arc::new(Policy),
         ])
         .expect("a valid module");

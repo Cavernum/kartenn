@@ -6218,7 +6218,7 @@
             "type": "string"
           },
           "kind": {
-            "description": "Its qualified type (`vlan.vlan`).",
+            "description": "Its qualified type (`machines.machine`), or its kind of the core (`vlan`).",
             "type": "string"
           },
           "parent": {
@@ -7005,6 +7005,240 @@
               "domain",
               "address",
               "usage",
+              "op"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Creates a group of VLAN (spec 026; REQ-008-12).",
+            "properties": {
+              "anchor": {
+                "$ref": "#/components/schemas/VlanAnchor",
+                "description": "Its anchor: an entity, a site or a domain."
+              },
+              "local": {
+                "description": "Local name for later operations.",
+                "format": "int32",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "op": {
+                "enum": [
+                  "create_vlan_group"
+                ],
+                "type": "string"
+              },
+              "owner": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/Ref",
+                    "description": "The owner, the entity of the anchor (or the owner of the domain) by default."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "slug": {
+                "description": "Slug, unique among the living groups.",
+                "type": "string"
+              },
+              "vid_max": {
+                "description": "Last VID, 4094 by default.",
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "vid_min": {
+                "description": "First VID, 1 by default.",
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "slug",
+              "anchor",
+              "op"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Modifies a group of VLAN (spec 026; REQ-008-13), the members given.",
+            "properties": {
+              "anchor": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/VlanAnchor",
+                    "description": "Anchor."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "id": {
+                "$ref": "#/components/schemas/Ref",
+                "description": "The group."
+              },
+              "op": {
+                "enum": [
+                  "update_vlan_group"
+                ],
+                "type": "string"
+              },
+              "owner": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/Ref",
+                    "description": "The owner."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "slug": {
+                "description": "Slug.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "vid_max": {
+                "description": "Last VID.",
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "vid_min": {
+                "description": "First VID.",
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "op"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Creates a VLAN in a group (spec 026; REQ-008-14).",
+            "properties": {
+              "group": {
+                "$ref": "#/components/schemas/Ref",
+                "description": "The group."
+              },
+              "local": {
+                "description": "Local name for later operations.",
+                "format": "int32",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "name": {
+                "description": "Name, unique in the group.",
+                "type": "string"
+              },
+              "op": {
+                "enum": [
+                  "create_vlan"
+                ],
+                "type": "string"
+              },
+              "status": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/VlanStatus",
+                    "description": "`active` by default."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "vid": {
+                "description": "VID, 1 to 4094, in the range of the group.",
+                "format": "int64",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "group",
+              "vid",
+              "name",
+              "op"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Modifies a VLAN (spec 026; REQ-008-16), the members given.",
+            "properties": {
+              "group": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/Ref",
+                    "description": "Its group."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "id": {
+                "$ref": "#/components/schemas/Ref",
+                "description": "The VLAN."
+              },
+              "name": {
+                "description": "Name.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "op": {
+                "enum": [
+                  "update_vlan"
+                ],
+                "type": "string"
+              },
+              "status": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/VlanStatus",
+                    "description": "Status."
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "vid": {
+                "description": "VID.",
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
               "op"
             ],
             "type": "object"
@@ -10324,7 +10558,7 @@
               "format": "int64",
               "type": "integer"
             },
-            "description": "The objects the caller reads, by qualified kind (`core.prefix`, `vlan.vlan`); a\nkind it reads nowhere is absent.",
+            "description": "The objects the caller reads, by qualified kind (`core.prefix`, `core.vlan`,\n`machines.machine`); a kind it reads nowhere is absent.",
             "propertyNames": {
               "type": "string"
             },
@@ -10333,6 +10567,17 @@
           "pending": {
             "$ref": "#/components/schemas/PendingStats",
             "description": "The pending changesets of the caller."
+          },
+          "vlans": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/VlanStats",
+                "description": "The VLANs held and on their way out; absent when the caller reads no VLAN."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -10453,8 +10698,8 @@
           "enum_value",
           "entity",
           "site",
-          "vlan.group",
-          "vlan.vlan",
+          "vlan_group",
+          "vlan",
           "machines.cluster",
           "machines.machine",
           "machines.interface",
@@ -10988,8 +11233,52 @@
         ],
         "type": "object"
       },
+      "VlanAnchor": {
+        "description": "The anchor of a group of VLAN (spec 026; V3): an entity, a site or a domain.",
+        "oneOf": [
+          {
+            "description": "An entity.",
+            "properties": {
+              "entity": {
+                "$ref": "#/components/schemas/Ref",
+                "description": "An entity."
+              }
+            },
+            "required": [
+              "entity"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A site.",
+            "properties": {
+              "site": {
+                "$ref": "#/components/schemas/Ref",
+                "description": "A site."
+              }
+            },
+            "required": [
+              "site"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "An addressing domain.",
+            "properties": {
+              "domain": {
+                "$ref": "#/components/schemas/Ref",
+                "description": "An addressing domain."
+              }
+            },
+            "required": [
+              "domain"
+            ],
+            "type": "object"
+          }
+        ]
+      },
       "VlanClosure": {
-        "description": "The optional body of the closure of an object of the module (REQ-008-10).",
+        "description": "The optional body of the closure of a group or a VLAN (REQ-008-10).",
         "properties": {
           "cascade": {
             "description": "Also close the VLANs of a group, and remove the VLAN of its networks.",
@@ -11478,6 +11767,35 @@
           "state"
         ],
         "type": "object"
+      },
+      "VlanStats": {
+        "description": "The VLANs held and on their way out (spec 026; REQ-024-14).",
+        "properties": {
+          "deprecated": {
+            "description": "`deprecated` VLANs the caller reads.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "reserved": {
+            "description": "`reserved` VLANs the caller reads.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reserved",
+          "deprecated"
+        ],
+        "type": "object"
+      },
+      "VlanStatus": {
+        "description": "The status of a VLAN (spec 026; V5).",
+        "enum": [
+          "active",
+          "reserved",
+          "deprecated"
+        ],
+        "type": "string"
       },
       "Wanted": {
         "additionalProperties": false,
@@ -18330,7 +18648,7 @@
         "operationId": "events",
         "parameters": [
           {
-            "description": "Qualified types of object (`core.prefix`, `vlan.vlan`), comma separated, 32 at\nmost.",
+            "description": "Qualified types of object (`core.prefix`, `core.vlan`, `machines.machine`), comma separated, 32 at\nmost.",
             "in": "query",
             "name": "types",
             "required": false,
@@ -34987,7 +35305,7 @@
         },
         "summary": "The vlan-groups the caller may read.",
         "tags": [
-          "vlan"
+          "core"
         ]
       },
       "post": {
@@ -35075,7 +35393,7 @@
         },
         "summary": "Creates a vlan_group.",
         "tags": [
-          "vlan"
+          "core"
         ],
         "x-kartenn": {
           "simulate": true
@@ -35128,7 +35446,7 @@
         },
         "summary": "The vlan-groups the caller may read.",
         "tags": [
-          "vlan"
+          "core"
         ]
       }
     },
@@ -35225,7 +35543,7 @@
         },
         "summary": "Closes the vlan_group.",
         "tags": [
-          "vlan"
+          "core"
         ],
         "x-kartenn": {
           "simulate": true
@@ -35287,7 +35605,7 @@
         },
         "summary": "The vlan_group.",
         "tags": [
-          "vlan"
+          "core"
         ]
       },
       "patch": {
@@ -35382,7 +35700,7 @@
         },
         "summary": "Modifies the vlan_group (JSON Merge Patch).",
         "tags": [
-          "vlan"
+          "core"
         ],
         "x-kartenn": {
           "simulate": true
@@ -35394,7 +35712,7 @@
         "operationId": "vlan_group_history",
         "parameters": [
           {
-            "description": "The vlan.group.",
+            "description": "The vlan_group.",
             "in": "path",
             "name": "id",
             "required": true,
@@ -35464,9 +35782,9 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The versions of the record of the vlan.group, on both axes (REQ-004-18).",
+        "summary": "The versions of the record of the vlan_group, on both axes (REQ-004-18).",
         "tags": [
-          "vlan"
+          "core"
         ]
       }
     },
@@ -35536,7 +35854,7 @@
         },
         "summary": "The smallest free VID of the group, at or after `from`; 404 `exhausted` when none.",
         "tags": [
-          "vlan"
+          "core"
         ]
       }
     },
@@ -35597,7 +35915,7 @@
         },
         "summary": "The used, reserved and free VIDs of the group, in runs (REQ-008-20).",
         "tags": [
-          "vlan"
+          "core"
         ]
       }
     },
@@ -35606,7 +35924,7 @@
         "operationId": "vlan_group_properties",
         "parameters": [
           {
-            "description": "The vlan.group.",
+            "description": "The vlan_group.",
             "in": "path",
             "name": "id",
             "required": true,
@@ -35667,7 +35985,7 @@
         "operationId": "vlan_group_property_explanation",
         "parameters": [
           {
-            "description": "The vlan.group.",
+            "description": "The vlan_group.",
             "in": "path",
             "name": "id",
             "required": true,
@@ -35737,7 +36055,7 @@
         "operationId": "vlan_group_property_suggestion",
         "parameters": [
           {
-            "description": "The vlan.group.",
+            "description": "The vlan_group.",
             "in": "path",
             "name": "id",
             "required": true,
@@ -35923,7 +36241,7 @@
         },
         "summary": "The vlans the caller may read.",
         "tags": [
-          "vlan"
+          "core"
         ]
       },
       "post": {
@@ -36011,7 +36329,7 @@
         },
         "summary": "Creates a vlan.",
         "tags": [
-          "vlan"
+          "core"
         ],
         "x-kartenn": {
           "simulate": true
@@ -36065,7 +36383,7 @@
         },
         "summary": "The vlans the caller may read.",
         "tags": [
-          "vlan"
+          "core"
         ]
       }
     },
@@ -36162,7 +36480,7 @@
         },
         "summary": "Closes the vlan.",
         "tags": [
-          "vlan"
+          "core"
         ],
         "x-kartenn": {
           "simulate": true
@@ -36224,7 +36542,7 @@
         },
         "summary": "The vlan.",
         "tags": [
-          "vlan"
+          "core"
         ]
       },
       "patch": {
@@ -36319,7 +36637,7 @@
         },
         "summary": "Modifies the vlan (JSON Merge Patch).",
         "tags": [
-          "vlan"
+          "core"
         ],
         "x-kartenn": {
           "simulate": true
@@ -36328,10 +36646,10 @@
     },
     "/v1/vlans/{id}/history": {
       "get": {
-        "operationId": "vlan_vlan_history",
+        "operationId": "vlan_history",
         "parameters": [
           {
-            "description": "The vlan.vlan.",
+            "description": "The vlan.",
             "in": "path",
             "name": "id",
             "required": true,
@@ -36401,9 +36719,9 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The versions of the record of the vlan.vlan, on both axes (REQ-004-18).",
+        "summary": "The versions of the record of the vlan, on both axes (REQ-004-18).",
         "tags": [
-          "vlan"
+          "core"
         ]
       }
     },
@@ -36484,16 +36802,16 @@
         },
         "summary": "The networks that carry the VLAN, those the caller may read (REQ-008-21).",
         "tags": [
-          "vlan"
+          "core"
         ]
       }
     },
     "/v1/vlans/{id}/properties": {
       "get": {
-        "operationId": "vlan_vlan_properties",
+        "operationId": "vlan_properties",
         "parameters": [
           {
-            "description": "The vlan.vlan.",
+            "description": "The vlan.",
             "in": "path",
             "name": "id",
             "required": true,
@@ -36551,10 +36869,10 @@
     },
     "/v1/vlans/{id}/properties/{key}/explanation": {
       "get": {
-        "operationId": "vlan_vlan_property_explanation",
+        "operationId": "vlan_property_explanation",
         "parameters": [
           {
-            "description": "The vlan.vlan.",
+            "description": "The vlan.",
             "in": "path",
             "name": "id",
             "required": true,
@@ -36621,10 +36939,10 @@
     },
     "/v1/vlans/{id}/properties/{key}/suggestion": {
       "get": {
-        "operationId": "vlan_vlan_property_suggestion",
+        "operationId": "vlan_property_suggestion",
         "parameters": [
           {
-            "description": "The vlan.vlan.",
+            "description": "The vlan.",
             "in": "path",
             "name": "id",
             "required": true,

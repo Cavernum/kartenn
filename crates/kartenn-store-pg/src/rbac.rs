@@ -168,13 +168,15 @@ pub fn readable(id: &str, kind: &str, domain: &str, value: &str, at: &str) -> St
 }
 
 /// The kinds of objects of the core, with their read permission.
-pub const READ_PERMISSIONS: [(&str, &str); 6] = [
+pub const READ_PERMISSIONS: [(&str, &str); 8] = [
     ("entity", "core.entity.read"),
     ("site", "core.site.read"),
     ("domain", "core.domain.read"),
     ("prefix", "core.prefix.read"),
     ("range", "core.range.read"),
     ("address", "core.address.read"),
+    ("vlan_group", "core.vlan_group.read"),
+    ("vlan", "core.vlan.read"),
 ];
 
 /// What a subject may read, kind by kind (REQ-005-24): the visibility of the read

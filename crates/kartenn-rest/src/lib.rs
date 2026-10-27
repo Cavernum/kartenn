@@ -39,6 +39,7 @@ pub mod stats;
 pub mod transport;
 pub mod tree;
 pub mod versions;
+pub mod vlan;
 pub mod web;
 
 use std::any::Any;
@@ -91,6 +92,7 @@ pub fn api_with(
         .merge(rules::routes())
         .merge(stats::routes())
         .merge(openapi::routes())
+        .merge(vlan::routes())
         .merge(modules::graph())
         .merge(modules::routes(modules));
     for router in routers {

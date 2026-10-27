@@ -251,7 +251,7 @@ pub async fn sensitive_ids(pool: &PgPool) -> sqlx::Result<BTreeMap<Uuid, String>
 }
 
 /// The kind of each of `ids` at the dates, by name: those of the core as in [`kinds`],
-/// those of the modules by their qualified type (`vlan.vlan`, ADR 0026); absent ones are
+/// those of the modules by their qualified type (`machines.machine`, ADR 0026); absent ones are
 /// left out.
 ///
 /// # Errors
@@ -268,9 +268,14 @@ pub async fn kind_names(
         .into_iter()
         .map(|(id, kind)| (id, kind.as_str().to_owned()))
         .collect();
-    let relation = snapshot("module_object", &["id", "kind"]).map_err(|e| sql_err(&e))?;
+    // The objects of the modules by their record, the VLANs of the core by their tables.
+    let modules = snapshot("module_object", &["id", "kind"]).map_err(|e| sql_err(&e))?;
+    let groups = snapshot("vlan_group", &["id"]).map_err(|e| sql_err(&e))?;
+    let vlans = snapshot("vlan", &["id"]).map_err(|e| sql_err(&e))?;
     let rows: Vec<(Uuid, String)> = sqlx::query_as(AssertSqlSafe(format!(
-        "SELECT x.id, x.kind FROM {relation} x WHERE x.id = ANY($3)"
+        "SELECT x.id, x.kind FROM {modules} x WHERE x.id = ANY($3)
+         UNION ALL SELECT x.id, 'vlan_group' FROM {groups} x WHERE x.id = ANY($3)
+         UNION ALL SELECT x.id, 'vlan' FROM {vlans} x WHERE x.id = ANY($3)"
     )))
     .bind(valid_at)
     .bind(as_of)

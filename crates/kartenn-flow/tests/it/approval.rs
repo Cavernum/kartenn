@@ -11,7 +11,6 @@ use kartenn_policy::Policy;
 use kartenn_service::module::ModuleRegistry;
 use kartenn_service::pipeline::PendingKind;
 use kartenn_service::{ObjectKind, Operation, Outcome, Ref};
-use kartenn_vlan::Vlan;
 use serde_json::json;
 use sqlx::PgPool;
 use sqlx::types::Uuid;
@@ -67,13 +66,8 @@ async fn compliant_flow(env: &Env) -> Uuid {
 #[kartenn_testing::pg_test]
 async fn acceptance_of_req_011_6_a_nonconforming_flow_waits_for_an_approval(pool: PgPool) {
     let env = Env::new(&pool).await;
-    let registry = ModuleRegistry::new(vec![
-        Arc::new(Vlan),
-        Arc::new(Machines),
-        Arc::new(Policy),
-        Arc::new(Flows),
-    ])
-    .unwrap();
+    let registry =
+        ModuleRegistry::new(vec![Arc::new(Machines), Arc::new(Policy), Arc::new(Flows)]).unwrap();
     let installed = kartenn_store_pg::pending::install_default_policies(&pool, &registry)
         .await
         .unwrap();

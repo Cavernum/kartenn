@@ -66,7 +66,6 @@ kartenn-auth = { path = "../kartenn-auth" }
 tower = { version = "0.5", features = ["util"] }
 kartenn-machines = { path = "../kartenn-machines", features = ["pg"] }
 kartenn-store-pg = { path = "../kartenn-store-pg" }
-kartenn-vlan = { path = "../kartenn-vlan", features = ["pg"] }
 proptest = "1.12.0"
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "macros", "migrate", "uuid", "time", "json"] }
 tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread"] }

@@ -45,6 +45,5 @@ http-body-util = "0.1"
 kartenn-auth = { path = "../kartenn-auth" }
 tower = { version = "0.5", features = ["util"] }
 kartenn-store-pg = { path = "../kartenn-store-pg" }
-kartenn-vlan = { path = "../kartenn-vlan", features = ["rest"] }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "macros", "migrate", "uuid", "time", "json"] }
 tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "time"] }

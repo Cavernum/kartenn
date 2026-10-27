@@ -37,4 +37,5 @@ mod socle;
 mod stats;
 mod suggestions;
 mod transport;
+mod vlan;
 mod web;

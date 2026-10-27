@@ -170,6 +170,7 @@ hit AS (
 const SEGMENTS_ENTITY: &str = segments_anchor!("entity");
 const SEGMENTS_SITE: &str = segments_anchor!("site");
 const SEGMENTS_MODULE: &str = segments_anchor!("module_object");
+const SEGMENTS_VLAN: &str = segments_anchor!("vlan_tree");
 
 /// From this many targets on, [`SEGMENTS_DOWN`] is used: on the reference dataset going
 /// up costs about 30 µs per target, going down about 7 µs per object below a carrier of
@@ -272,13 +273,20 @@ impl PgTx {
                 .fetch_all(&mut *self.tx)
                 .await
                 .map_err(store_err)?;
-        let others: Vec<Uuid> = if modular.is_empty() {
+        // The VLANs climb the tree of their groups (spec 026), as the objects of a module.
+        let vlans: Vec<Uuid> =
+            sqlx::query_scalar("SELECT DISTINCT id FROM vlan_tree WHERE id = ANY($1)")
+                .bind(targets)
+                .fetch_all(&mut *self.tx)
+                .await
+                .map_err(store_err)?;
+        let others: Vec<Uuid> = if modular.is_empty() && vlans.is_empty() {
             targets.to_vec()
         } else {
-            let modular: BTreeSet<Uuid> = modular.iter().copied().collect();
+            let apart: BTreeSet<Uuid> = modular.iter().chain(&vlans).copied().collect();
             targets
                 .iter()
-                .filter(|t| !modular.contains(t))
+                .filter(|t| !apart.contains(t))
                 .copied()
                 .collect()
         };
@@ -296,6 +304,7 @@ impl PgTx {
                 &others,
             ),
             (SEGMENTS_MODULE, &modular),
+            (SEGMENTS_VLAN, &vlans),
         ] {
             if objects.is_empty() {
                 continue;

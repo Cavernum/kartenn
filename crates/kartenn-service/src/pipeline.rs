@@ -20,7 +20,9 @@ use crate::audit::RequestContext;
 use crate::authz::Authorizer;
 use crate::expected::Sources;
 use crate::module::{ModuleHandler, ModulePlan, ModuleRegistry};
-use crate::operations::{ChangesetRequest, ModuleKind, ObjectKind, Operation, PeriodSpec, Ref};
+use crate::operations::{
+    ChangesetRequest, ModuleKind, ModuleOperation, ObjectKind, Operation, PeriodSpec, Ref,
+};
 use crate::port::{
     ApprovalPolicy, Change, DiffCount, DiffItem, Journal, Pending, Replay, Store, StoreError,
     WriteError, WriteTx,
@@ -483,21 +485,19 @@ fn check_request(
         }
         let defined_module = match op {
             Operation::Module(m) => {
-                let Some((operation, _)) = modules.operation(&m.module, &m.name) else {
+                let Some(operation) = modules.operation_type(&m.module, &m.name) else {
                     return Err(RequestError::UnknownOperation {
                         operation: i,
                         op: m.tag(),
                     });
                 };
-                operation.defines.and_then(ModuleKind::parse)
+                operation.defines.and_then(ObjectKind::from_name)
             }
             _ => None,
         };
         if let Some(local) = op.defines() {
             let kind = match op {
-                Operation::Module(_) => {
-                    defined_module.map_or(ObjectKind::Address, ObjectKind::Module)
-                }
+                Operation::Module(_) => defined_module.unwrap_or(ObjectKind::Address),
                 Operation::CreateDomain { .. } => ObjectKind::Domain,
                 Operation::CreatePrefix { .. } => ObjectKind::Prefix,
                 Operation::CreateRange { .. } => ObjectKind::Range,
@@ -856,8 +856,25 @@ fn plan_policy(
     Ok(Planned::Policy(policy))
 }
 
-/// Lets each operation of a module complete itself on the state of the transaction
-/// ([`ModuleHandler::prepare`]); the request itself when it has none.
+/// The handler of `operation`: the module's that declares it, or, for an operation of the
+/// VLANs of the core, `core`, the handler the storage gives (spec 026, decision C2).
+fn handler_of(
+    modules: &ModuleRegistry,
+    core: Option<&Arc<dyn ModuleHandler>>,
+    operation: &ModuleOperation,
+) -> Option<Arc<dyn ModuleHandler>> {
+    if operation.module == crate::module::CORE {
+        crate::vlan::operation(&operation.name)?;
+        return core.cloned();
+    }
+    modules
+        .operation(&operation.module, &operation.name)
+        .map(|(_, handler)| handler)
+}
+
+/// Lets each operation of a module, or of the VLANs of the core, complete itself on the
+/// state of the transaction ([`ModuleHandler::prepare`]); the request itself when it has
+/// none.
 async fn prepare<'r, T: WriteTx>(
     tx: &mut T,
     req: &'r ChangesetRequest,
@@ -871,11 +888,12 @@ async fn prepare<'r, T: WriteTx>(
     {
         return Ok(std::borrow::Cow::Borrowed(req));
     }
+    let core = tx.core_handler();
     let mut prepared = req.clone();
     for op in &mut prepared.operations {
         let own = to_period(op.own_period()).ok().flatten().or(period);
         if let Operation::Module(operation) = op.inner_mut()
-            && let Some((_, handler)) = modules.operation(&operation.module, &operation.name)
+            && let Some(handler) = handler_of(modules, core.as_ref(), operation)
         {
             handler.prepare(tx.module_tx(), operation, own).await?;
         }
@@ -892,6 +910,7 @@ async fn prepare<'r, T: WriteTx>(
 fn plan(
     req: &ChangesetRequest,
     modules: &ModuleRegistry,
+    core: Option<&Arc<dyn ModuleHandler>>,
 ) -> (
     Vec<Planned>,
     Vec<usize>,
@@ -945,8 +964,7 @@ fn plan(
             }
             match op {
                 Operation::Module(operation) => {
-                    let Some((_, handler)) = modules.operation(&operation.module, &operation.name)
-                    else {
+                    let Some(handler) = handler_of(modules, core, operation) else {
                         // Refused by `check_request` already.
                         continue;
                     };
@@ -1140,6 +1158,8 @@ async fn lock_targets<T: WriteTx>(
                     kind @ (ObjectKind::Prefix
                     | ObjectKind::Range
                     | ObjectKind::Address
+                    | ObjectKind::VlanGroup
+                    | ObjectKind::Vlan
                     | ObjectKind::Module(_)),
                 id,
                 ..
@@ -1315,6 +1335,35 @@ async fn check_modules<T: WriteTx>(
     // still have rules on the sections.
     let mut reevaluated = Vec::new();
     let mut measures = std::collections::BTreeMap::new();
+    // The rules of the VLANs of the core (spec 026), in every build, on the VLANs and the
+    // groups the changeset writes and on the networks whose VLAN may have changed.
+    if let Some(handler) = tx.core_handler() {
+        let objects: Vec<(ModuleKind, Uuid)> = planned
+            .iter()
+            .filter_map(|p| match p {
+                Planned::Module { plan, .. } if plan.kind.module() == crate::module::CORE => {
+                    Some((plan.kind, plan.object))
+                }
+                Planned::Close { kind, id, .. }
+                | Planned::Restore {
+                    kind,
+                    id,
+                    property: None,
+                    ..
+                } if kind.is_vlan() => kind.qualified().map(|k| (k, *id)),
+                _ => None,
+            })
+            .collect();
+        let context = crate::module::CheckContext {
+            changeset,
+            touched: &objects,
+            objects: touched,
+            sections,
+        };
+        let findings = handler.check(tx.module_tx(), &context).await?;
+        violations.extend(findings.violations);
+        reevaluated.extend(findings.reevaluated);
+    }
     for module in modules.modules() {
         let Some(handler) = module.handler() else {
             continue;
@@ -1464,7 +1513,8 @@ async fn close<T: WriteTx>(
     tx.close(kind, id, period, changeset).await?;
     if kind == ObjectKind::Property {
         tx.close_enum_values_of(id, period, changeset).await?;
-    } else if kind.is_addressing() {
+    } else if kind.is_addressing() || kind.is_vlan() {
+        // A VLAN or a group of VLAN is written in its own table: closed above.
         tx.unassign(id, None, period, changeset).await?;
     } else if let ObjectKind::Module(kind) = kind {
         // Its record ended, the module's own rows and its assignments end with it
@@ -1959,7 +2009,8 @@ async fn stages<S: Store, A: Authorizer>(
         }
     };
     let req: &ChangesetRequest = &prepared;
-    let (planned, origins, derived, mut violations) = plan(req, modules);
+    let core = tx.core_handler();
+    let (planned, origins, derived, mut violations) = plan(req, modules, core.as_ref());
     crate::expected::check_declared_sources(&planned, &origins, sources, &mut violations);
     if has_errors(&violations) {
         tx.rollback().await?;
@@ -2728,20 +2779,20 @@ mod tests {
 
     /// The planning of a build without modules.
     fn plan(req: &ChangesetRequest) -> (Vec<Planned>, Vec<usize>, Vec<Violation>) {
-        let (planned, origins, _, violations) = super::plan(req, ModuleRegistry::empty());
+        let (planned, origins, _, violations) = super::plan(req, ModuleRegistry::empty(), None);
         (planned, origins, violations)
     }
 
     #[test]
     fn module_operations_round_trip_through_json() {
-        let json = serde_json::json!({"op": "vlan.create_vlan", "local": 3, "vid": 10});
+        let json = serde_json::json!({"op": "machines.create_machine", "local": 3, "name": "a"});
         let op: Operation = serde_json::from_value(json.clone()).unwrap();
         let Operation::Module(m) = &op else {
             panic!("{op:?}")
         };
         assert_eq!(
             (m.module.as_str(), m.name.as_str()),
-            ("vlan", "create_vlan")
+            ("machines", "create_machine")
         );
         assert_eq!(op.defines(), Some(3));
         assert_eq!(serde_json::to_value(&op).unwrap(), json);
@@ -2749,9 +2800,28 @@ mod tests {
         let op: Operation = serde_json::from_value(core.clone()).unwrap();
         assert!(matches!(op, Operation::CreateDomain { .. }));
         assert_eq!(serde_json::to_value(&op).unwrap()["op"], "create_domain");
-        let kind: ObjectKind = serde_json::from_value(serde_json::json!("vlan.vlan")).unwrap();
-        assert_eq!(kind.name(), "vlan.vlan");
-        assert!(serde_json::from_value::<ObjectKind>(serde_json::json!("vlan")).is_err());
+        // An operation of the VLANs of the core keeps its tag of the core (spec 026).
+        let vlan = serde_json::json!({"op": "create_vlan", "local": 2, "vid": 10});
+        let op: Operation = serde_json::from_value(vlan.clone()).unwrap();
+        let Operation::Module(m) = &op else {
+            panic!("{op:?}")
+        };
+        assert_eq!(
+            (m.module.as_str(), m.tag().as_str()),
+            ("core", "create_vlan")
+        );
+        assert_eq!(serde_json::to_value(&op).unwrap(), vlan);
+        let kind: ObjectKind =
+            serde_json::from_value(serde_json::json!("machines.machine")).unwrap();
+        assert_eq!(kind.name(), "machines.machine");
+        let kind: ObjectKind = serde_json::from_value(serde_json::json!("vlan")).unwrap();
+        assert_eq!(kind, ObjectKind::Vlan);
+        assert_eq!(
+            ObjectKind::from_qualified(crate::vlan::group_kind()),
+            ObjectKind::VlanGroup
+        );
+        assert!(serde_json::from_value::<ObjectKind>(serde_json::json!("core.vlan")).is_err());
+        assert!(serde_json::from_value::<ObjectKind>(serde_json::json!("shelf.rack")).is_ok());
         assert_eq!(
             serde_json::to_value(ObjectKind::Prefix).unwrap(),
             serde_json::json!("prefix")

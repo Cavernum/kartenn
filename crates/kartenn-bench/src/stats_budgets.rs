@@ -1,5 +1,5 @@
 //! Budgets of `GET /v1/stats` (spec 024, REQ-024-16, M18; tasks 024-7 and 7b) on the
-//! dataset of `bench-core`, the VLAN and machines modules deployed, for a reader of
+//! dataset of `bench-core`, its VLANs loaded and the machines module deployed, for a reader of
 //! everything and for a person of 50 groups and 1 000 bindings (the subject of
 //! `bench-rbac`), whose counts go through the predicate of the read scope: the route
 //! served from its snapshot, through the router, and the computation of a snapshot
@@ -151,14 +151,8 @@ fn app(api: Api, principal: Principal, snapshots: &Arc<Snapshots>) -> anyhow::Re
     let pool = api.pool.clone();
     let unlimited = Rate::new(1_000_000, 1_000_000).context("non-zero literals")?;
     Ok(kartenn_rest::router(
-        kartenn_rest::v1_with(
-            api,
-            vec![
-                kartenn_vlan::rest::routes(),
-                kartenn_machines::rest::routes(),
-            ],
-        )
-        .layer(Extension(snapshots.clone())),
+        kartenn_rest::v1_with(api, vec![kartenn_machines::rest::routes()])
+            .layer(Extension(snapshots.clone())),
         Arc::new(PgReadiness::new(pool, AuditStatus::default())),
         Settings::default(),
         Arc::new(Quotas::new(Rates {
@@ -212,8 +206,8 @@ async fn reads(api: &Api, principal: &Principal) -> anyhow::Result<Spread> {
     Ok(Spread::of(samples))
 }
 
-/// Measures the budgets of the statistics; the modules VLAN and machines are deployed
-/// on `pool` by the budgets before it.
+/// Measures the budgets of the statistics; the VLANs are loaded and the module machines
+/// deployed on `pool` by the budgets before it.
 ///
 /// # Errors
 ///
@@ -226,8 +220,7 @@ pub(crate) async fn run(
 ) -> anyhow::Result<Vec<Budget>> {
     let started = Instant::now();
     let registry = Arc::new(ModuleRegistry::new(vec![
-        Arc::new(kartenn_vlan::Vlan) as Arc<dyn Module>,
-        Arc::new(kartenn_machines::Machines),
+        Arc::new(kartenn_machines::Machines) as Arc<dyn Module>,
     ])?);
     let api = Api {
         pool: pool.clone(),
