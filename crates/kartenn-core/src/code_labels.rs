@@ -120,8 +120,16 @@ pub static PERMISSIONS_EN: &[(&str, &str)] = &[
         "Acknowledge, with a motive, an anomaly of an object of the scope.",
     ),
     (
-        "core.property.admin",
-        "Declare a property, change its sensitivity.",
+        "core.settings.edit",
+        "Change in a changeset and submit the settings of the core: `custom.*` fields, `core.*` declarations, `core.*` and `custom.*` closed lists, sensitivity of any property.",
+    ),
+    (
+        "core.settings.apply",
+        "Apply or reject the changeset of someone else that touches the settings of the core.",
+    ),
+    (
+        "core.settings.approval.self",
+        "Apply one's own changeset that touches the settings of the core.",
     ),
     (
         "core.approval_policy.admin",

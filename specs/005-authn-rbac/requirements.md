@@ -221,6 +221,10 @@ Acceptation :
 *Amendée par la 024 (REQ-024-9, 2026-10-24) : actions `read`, `edit`, `apply`,
 `approval.self` (et celles propres aux modules ; `approval.self`, anciennement `apply_own`,
 compte deux segments, tâche 024-11) ; `prop.<clé>.edit|apply|approval.self`.*
+*Amendée par la 027 (P4, REQ-027-5 à 7, 2026-10-28) : `core.property.admin` et
+`policy.{axis,environment,flow_type,service}.admin` cèdent la place aux permissions
+globales `<déclarant>.settings.{edit,apply,approval.self}` du cœur et de chaque module qui
+a des paramètres ([027](../027-parametres/requirements.md)).*
 kartenn doit tenir un catalogue des permissions déclarées par chaque module
 (`<module>.<objet>.<action>`, actions `read`, `write`, `propose`, `approve` ; `prop.<clé>.
 write`, `prop.<clé>.propose` ; `prop.<clé>.read` pour les propriétés sensibles), publié

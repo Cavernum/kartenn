@@ -45,6 +45,18 @@ pub(crate) static ENGLISH: English = English {
             "machines.interface.approval.self",
             "Apply one's own changeset that touches an interface.",
         ),
+        (
+            "machines.settings.edit",
+            "Change in a changeset and submit the settings of the machines: values and labels of their closed lists, labels of their declarations.",
+        ),
+        (
+            "machines.settings.apply",
+            "Apply or reject the changeset of someone else that touches the settings of the machines.",
+        ),
+        (
+            "machines.settings.approval.self",
+            "Apply one's own changeset that touches the settings of the machines.",
+        ),
     ],
     rules: &[
         (

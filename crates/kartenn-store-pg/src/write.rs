@@ -2139,6 +2139,21 @@ impl WriteTx for PgTx {
         Ok(self.declaration(id, period).await?.map(|d| (id, d)))
     }
 
+    async fn settings_key(&mut self, id: Uuid) -> Result<Option<String>, StoreError> {
+        sqlx::query_scalar(
+            "(SELECT key FROM property_declaration WHERE id = $1 LIMIT 1)
+             UNION ALL
+             (SELECT d.key FROM property_enum_value v
+                JOIN property_declaration d ON d.id = v.property_id
+               WHERE v.id = $1 LIMIT 1)
+             LIMIT 1",
+        )
+        .bind(id)
+        .fetch_optional(&mut *self.tx)
+        .await
+        .map_err(store_err)
+    }
+
     async fn borrowers_of(
         &mut self,
         key: &str,

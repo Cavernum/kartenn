@@ -70,6 +70,8 @@ Registre de flux : spec 011.
 ### A. Axes et classification
 
 #### REQ-010-1 — Propriété d'environnement
+*Amendée par la 027 (P4) : ses valeurs et libellés s'écrivent sous
+`policy.settings.*` (REQ-027-6).*
 Le module doit déclarer la propriété `policy.environment` : liste fermée, ensemble,
 héritable sur l'arbre d'adressage, portée par les domaines, conteneurs, réseaux et
 adresses (S2, S3).
@@ -81,6 +83,8 @@ Acceptation :
 - Affecter un environnement à une plage est refusé (REQ-003-4).
 
 #### REQ-010-2 — Attributs d'un environnement
+*Amendée par la 027 (P4) : sous `policy.settings.*`, qui remplace
+`policy.environment.admin` (REQ-027-6).*
 Le module doit permettre de créer, modifier et clore un environnement avec une clé
 (syntaxe des valeurs de liste fermée), un libellé et une description, en une seule
 opération qui crée aussi la valeur de liste (S2).
@@ -98,6 +102,9 @@ Où le module Machines (009) est présent, le module doit déclarer
 dans aucun verdict (S3, D22).
 
 #### REQ-010-29 — Axes de classification
+*Amendée par la 027 (P4) : désigner un axe et décrire ses valeurs relèvent de
+`policy.settings.*`, qui remplace `policy.axis.admin` ; les valeurs de la liste fermée
+d'un axe, du déclarant de sa propriété (REQ-027-6).*
 Le module doit permettre à un administrateur de désigner comme **axe** de la politique
 toute propriété de liste fermée (déclarée par un module ou par un administrateur, P1) ou
 de référence externe (N26), avec son porteur (arbre d'adressage ou machine) ; seul
@@ -135,12 +142,16 @@ Acceptation :
 - Une VIP rattachée à deux machines `{interne}` et `{confidentiel}` résout l'union.
 
 #### REQ-010-4 — Types de flux
+*Amendée par la 027 (P4) : sous `policy.settings.*`, qui remplace
+`policy.flow_type.admin` (REQ-027-6).*
 Le module doit permettre de créer, modifier et clore un type de flux (clé, libellé,
 description) ; la clôture est refusée tant qu'un service ou une règle le cite (S4).
 
 ### B. Catalogue de services
 
 #### REQ-010-5 — Service nommé
+*Amendée par la 027 (P4) : sous `policy.settings.*`, qui remplace
+`policy.service.admin` (REQ-027-6).*
 Le module doit permettre de déclarer un service avec un identifiant unique (1 à 63
 caractères, `[a-z0-9]` et traits d'union non doublés ni en bord), un libellé, **un seul**
 type de flux et une liste non vide de couples (S5, D29) :
@@ -568,6 +579,11 @@ Acceptation :
 ### I. Droits, temps, API
 
 #### REQ-010-24 — Permissions
+*Amendée par la 027 (P4, P7, REQ-027-5 à 7, 2026-10-28) : `policy.axis.admin`,
+`policy.environment.admin`, `policy.flow_type.admin` et `policy.service.admin` cèdent la
+place à `policy.settings.{edit,apply,approval.self}`, globales, toute écriture en
+changeset ; `policy.rule.admin` reste
+([027](../027-parametres/requirements.md)).*
 Le module doit déclarer les permissions globales `policy.axis.admin`,
 `policy.environment.admin`, `policy.flow_type.admin`, `policy.service.admin`,
 `policy.rule.admin` (règles, motifs, conditions, signaux) ; `policy.inference.admin`

@@ -75,7 +75,9 @@ permissions! {
     VLAN_APPROVAL_SELF = "core.vlan.approval.self", false, "Appliquer son propre changeset qui touche un VLAN.";
     CHANGESET_READ = "core.changeset.read", true, "Lire les changesets, leurs opérations et leur différentiel.";
     ANOMALY_ACKNOWLEDGE ="core.anomaly.acknowledge", false, "Acquitter, avec un motif, une anomalie d'un objet du périmètre.";
-    PROPERTY_ADMIN = "core.property.admin", true, "Déclarer une propriété, changer sa sensibilité.";
+    SETTINGS_EDIT = "core.settings.edit", true, "Modifier dans un changeset et soumettre les paramètres du cœur : champs `custom.*`, déclarations `core.*`, listes fermées `core.*` et `custom.*`, sensibilité de toute propriété.";
+    SETTINGS_APPLY = "core.settings.apply", true, "Appliquer ou rejeter le changeset d'un autre qui touche les paramètres du cœur.";
+    SETTINGS_APPROVAL_SELF = "core.settings.approval.self", true, "Appliquer son propre changeset qui touche les paramètres du cœur.";
     APPROVAL_POLICY_ADMIN = "core.approval_policy.admin", false, "Créer, modifier ou désactiver une politique d'approbation.";
     RBAC_READ = "core.rbac.read", true, "Lire les rôles, groupes, membres, liaisons, rattachements, comptes de service et l'état des identités.";
     RBAC_ADMIN = "core.rbac.admin", false, "Créer des groupes, poser ou clore leurs liaisons et leurs membres dans le périmètre, pour des rôles dont on détient les permissions.";
@@ -87,6 +89,18 @@ permissions! {
     IDENTITY_ACT_ON_BEHALF = "core.identity.act_on_behalf", true, "Pour un compte de service : écrire pour le compte d'un demandeur nommé par l'en-tête Kartenn-On-Behalf-Of, sous ses propres droits.";
     OBSERVABILITY_ADMIN = "core.observability.admin", true, "Changer à chaud le filtre d'une sortie technique.";
     DRAFT_ADMIN = "core.draft.admin", true, "Lire, supprimer ou attribuer à un autre le brouillon d'une personne.";
+}
+
+/// The declarant of the settings of the core and of the administrator's `custom.*` fields
+/// (spec 027, REQ-027-6).
+pub const CORE_DECLARANT: &str = "core";
+
+/// The edit permission of the settings of `declarant`, the core or a module (spec 027,
+/// REQ-027-5): `<declarant>.settings.edit`; its applications are `.settings.apply` and
+/// `.settings.approval.self` ([`verb_permission`]). Global only (P5).
+#[must_use]
+pub fn settings_permission(declarant: &str) -> String {
+    format!("{declarant}.settings.edit")
 }
 
 /// The action that applies one's own changeset (spec 024, M7; task 024-11, fifth review):
@@ -161,20 +175,34 @@ pub const RETIRED_APPROVE: &str = "core.changeset.approve";
 /// The permissions that replace the retired entry `entry` (spec 024, REQ-024-9), or `None`
 /// for an entry that is not retired: `<r>.write` → `<r>.edit`, `<r>.approval.self`;
 /// `<r>.propose` → `<r>.edit`; the former name of `<r>.approval.self` → `<r>.approval.self`
-/// (task 024-11); [`RETIRED_APPROVE`] → every `<r>.apply` of `catalogue` and
-/// `prop.*.apply`. A name renamed by spec 018 is renamed first. `<r>` is a resource of
+/// (task 024-11); [`RETIRED_APPROVE`] → every `<r>.apply` of `catalogue` but the global
+/// ones and `prop.*.apply`. A name renamed by spec 018 is renamed first. `<r>` is a resource of
 /// `catalogue` (one with an edit permission) or a property, `prop.<key>` or `prop.*`.
+/// A name renamed into several (spec 027, REQ-027-7) gives those of `catalogue` only: a
+/// module out of the build has no settings.
 #[must_use]
 pub fn retired(entry: &str, catalogue: &[&Permission]) -> Option<Vec<String>> {
-    let renamed = RENAMED_PERMISSIONS
+    let Some((_, renamed)) = RENAMED_PERMISSIONS.iter().find(|(old, _)| *old == entry) else {
+        return retired_action(entry, catalogue);
+    };
+    let news = renamed
         .iter()
-        .find(|(old, _)| *old == entry)
-        .map(|(_, new)| *new);
-    let name = renamed.unwrap_or(entry);
+        .flat_map(|new| retired_action(new, catalogue).unwrap_or_else(|| vec![(*new).to_owned()]));
+    Some(if renamed.len() > 1 {
+        news.filter(|new| catalogue.iter().any(|p| p.name == new))
+            .collect()
+    } else {
+        news.collect()
+    })
+}
+
+/// The permissions that replace `name` when its action is retired (spec 024, REQ-024-9).
+fn retired_action(name: &str, catalogue: &[&Permission]) -> Option<Vec<String>> {
     if name == RETIRED_APPROVE {
         let mut applies: Vec<String> = catalogue
             .iter()
-            .filter(|p| action_of(p.name) == "apply")
+            // The settings (spec 027), global, were never the approval's to apply.
+            .filter(|p| action_of(p.name) == "apply" && !p.global_only)
             .map(|p| p.name.to_owned())
             .collect();
         applies.push("prop.*.apply".into());
@@ -192,7 +220,7 @@ pub fn retired(entry: &str, catalogue: &[&Permission]) -> Option<Vec<String>> {
         ]),
         "propose" if known => Some(vec![format!("{resource}.edit")]),
         RETIRED_APPROVAL_SELF if known => Some(vec![format!("{resource}.{APPROVAL_SELF}")]),
-        _ => renamed.map(|new| vec![new.to_owned()]),
+        _ => None,
     }
 }
 
@@ -212,52 +240,86 @@ pub fn retired_names(catalogue: &[&Permission]) -> Vec<(String, Vec<String>)> {
     olds.push(RETIRED_APPROVE.to_owned());
     olds.into_iter()
         .filter_map(|old| retired(&old, catalogue).map(|new| (old, new)))
+        .filter(|(_, new)| !new.is_empty())
         .collect()
 }
 
-/// The permissions renamed by spec 018 (R2, R3) and by spec 026 (REQ-026-2: the VLAN in
-/// the core), `(old, new)`: the only source for the migration of the custom roles
-/// (Q-018-3) and for the labels of the old names that the audit journal and the history
-/// keep (R6). It opens **no alias** (Q-018-2): an old name is refused in a role and never
-/// granted. The names in `write`, `propose` and the former name of `approval.self` it
-/// gives were retired since by spec 024 ([`retired`] composes both).
-pub static RENAMED_PERMISSIONS: &[(&str, &str)] = &[
-    ("vlan.vlan.read", "core.vlan.read"),
-    ("vlan.vlan.write", "core.vlan.write"),
-    ("vlan.vlan.propose", "core.vlan.propose"),
-    ("vlan.read", "core.vlan.read"),
-    ("vlan.write", "core.vlan.write"),
-    ("vlan.propose", "core.vlan.propose"),
-    ("vlan.edit", "core.vlan.edit"),
-    ("vlan.apply", "core.vlan.apply"),
-    ("vlan.apply_own", "core.vlan.apply_own"),
-    ("vlan.approval.self", "core.vlan.approval.self"),
-    ("vlan.group.read", "core.vlan_group.read"),
-    ("vlan.group.write", "core.vlan_group.write"),
-    ("vlan.group.propose", "core.vlan_group.propose"),
-    ("vlan.group.edit", "core.vlan_group.edit"),
-    ("vlan.group.apply", "core.vlan_group.apply"),
-    ("vlan.group.apply_own", "core.vlan_group.apply_own"),
-    ("vlan.group.approval.self", "core.vlan_group.approval.self"),
+/// The permissions renamed by spec 018 (R2, R3), by spec 026 (REQ-026-2: the VLAN in the
+/// core) and by spec 027 (REQ-027-7: the settings by declarant), `(old, new)`: the only
+/// source for the migration of the custom roles (Q-018-3) and for the labels of the old
+/// names that the audit journal and the history keep (R6). It opens **no alias**
+/// (Q-018-2): an old name is refused in a role and never granted. The names in `write`,
+/// `propose` and the former name of `approval.self` it gives were retired since by spec
+/// 024 ([`retired`] composes both). An old name of spec 027 gives several.
+pub static RENAMED_PERMISSIONS: &[(&str, &[&str])] = &[
+    ("vlan.vlan.read", &["core.vlan.read"]),
+    ("vlan.vlan.write", &["core.vlan.write"]),
+    ("vlan.vlan.propose", &["core.vlan.propose"]),
+    ("vlan.read", &["core.vlan.read"]),
+    ("vlan.write", &["core.vlan.write"]),
+    ("vlan.propose", &["core.vlan.propose"]),
+    ("vlan.edit", &["core.vlan.edit"]),
+    ("vlan.apply", &["core.vlan.apply"]),
+    ("vlan.apply_own", &["core.vlan.apply_own"]),
+    ("vlan.approval.self", &["core.vlan.approval.self"]),
+    ("vlan.group.read", &["core.vlan_group.read"]),
+    ("vlan.group.write", &["core.vlan_group.write"]),
+    ("vlan.group.propose", &["core.vlan_group.propose"]),
+    ("vlan.group.edit", &["core.vlan_group.edit"]),
+    ("vlan.group.apply", &["core.vlan_group.apply"]),
+    ("vlan.group.apply_own", &["core.vlan_group.apply_own"]),
+    (
+        "vlan.group.approval.self",
+        &["core.vlan_group.approval.self"],
+    ),
     // The property of the VLAN of a network, `core.vlan` (formerly `vlan.vlan`).
-    ("prop.vlan.vlan.read", "prop.core.vlan.read"),
-    ("prop.vlan.vlan.write", "prop.core.vlan.write"),
-    ("prop.vlan.vlan.propose", "prop.core.vlan.propose"),
-    ("prop.vlan.vlan.edit", "prop.core.vlan.edit"),
-    ("prop.vlan.vlan.apply", "prop.core.vlan.apply"),
-    ("prop.vlan.vlan.apply_own", "prop.core.vlan.apply_own"),
+    ("prop.vlan.vlan.read", &["prop.core.vlan.read"]),
+    ("prop.vlan.vlan.write", &["prop.core.vlan.write"]),
+    ("prop.vlan.vlan.propose", &["prop.core.vlan.propose"]),
+    ("prop.vlan.vlan.edit", &["prop.core.vlan.edit"]),
+    ("prop.vlan.vlan.apply", &["prop.core.vlan.apply"]),
+    ("prop.vlan.vlan.apply_own", &["prop.core.vlan.apply_own"]),
     (
         "prop.vlan.vlan.approval.self",
-        "prop.core.vlan.approval.self",
+        &["prop.core.vlan.approval.self"],
     ),
-    ("machines.machine.read", "machines.read"),
-    ("machines.machine.write", "machines.write"),
-    ("machines.machine.propose", "machines.propose"),
-    ("flow.flow.read", "flow.read"),
-    ("flow.flow.request", "flow.request"),
-    ("flow.flow.review", "flow.review"),
-    ("flow.flow.write", "flow.write"),
-    ("flow.flow.waive", "flow.waiver.grant"),
+    ("machines.machine.read", &["machines.read"]),
+    ("machines.machine.write", &["machines.write"]),
+    ("machines.machine.propose", &["machines.propose"]),
+    ("flow.flow.read", &["flow.read"]),
+    ("flow.flow.request", &["flow.request"]),
+    ("flow.flow.review", &["flow.review"]),
+    ("flow.flow.write", &["flow.write"]),
+    ("flow.flow.waive", &["flow.waiver.grant"]),
+    // Spec 027 (REQ-027-7): the administration of the properties gives the settings of
+    // the core and of each module of the build that has some; that of a family of the
+    // catalogue of the policy, the settings of the policy.
+    ("core.property.admin", &SETTINGS_OF_EVERY_DECLARANT),
+    ("policy.axis.admin", &POLICY_SETTINGS),
+    ("policy.environment.admin", &POLICY_SETTINGS),
+    ("policy.flow_type.admin", &POLICY_SETTINGS),
+    ("policy.service.admin", &POLICY_SETTINGS),
+];
+
+/// The settings of the policy (spec 027, REQ-027-7).
+const POLICY_SETTINGS: [&str; 3] = [
+    "policy.settings.edit",
+    "policy.settings.apply",
+    "policy.settings.approval.self",
+];
+
+/// The settings of the core and of the delivered modules that have some (spec 027,
+/// REQ-027-7: the flow module has none); [`retired`] keeps those of the build.
+const SETTINGS_OF_EVERY_DECLARANT: [&str; 9] = [
+    "core.settings.edit",
+    "core.settings.apply",
+    "core.settings.approval.self",
+    "machines.settings.edit",
+    "machines.settings.apply",
+    "machines.settings.approval.self",
+    "policy.settings.edit",
+    "policy.settings.apply",
+    "policy.settings.approval.self",
 ];
 
 /// The problems of a catalogue against the naming rule of spec 018 (REQ-018-1, R2, R5):
@@ -622,7 +684,10 @@ pub fn catalogue_markdown_with(modules: &[&'static Permission]) -> String {
          `approval.self` applique le sien, sauf quand une politique d'approbation le\n\
          retient. Une action compte un segment, ou deux pour `approval.self`. Une\n\
          permission d'une autre action (`core.role.admin`, `flow.request`) vaut édition\n\
-         et application.\n\n\
+         et application. Les paramètres (déclarations, listes fermées, catalogue d'un\n\
+         module) relèvent de `<déclarant>.settings.*`, le déclarant lu dans la clé\n\
+         (`custom.*` : le cœur) ; la sensibilité de toute propriété, de `core.settings.*`\n\
+         (spec 027).\n\n\
          | Permission | Global | Description |\n\
          |---|---|---|\n",
     );
@@ -647,7 +712,8 @@ pub fn catalogue_markdown_with(modules: &[&'static Permission]) -> String {
     }
     out.push_str(
         "\n## Anciens noms\n\n\
-         Renommées par la spec 018 (R2, R3) ou remplacées par la spec 024 (REQ-024-9). Un\n\
+         Renommées par la spec 018 (R2, R3), remplacées par la spec 024 (REQ-024-9) ou\n\
+         réparties par déclarant par la spec 027 (REQ-027-7). Un\n\
          ancien nom est refusé dans un rôle (`core.role.invalid`) ; il ne reste que dans\n\
          l'historique et le journal d'audit.\n\n\
          | Ancien nom | Nouveaux noms |\n|---|---|\n",
@@ -849,10 +915,37 @@ mod tests {
     fn the_renaming_table_is_well_formed() {
         let olds: BTreeSet<_> = RENAMED_PERMISSIONS.iter().map(|(old, _)| *old).collect();
         assert_eq!(olds.len(), RENAMED_PERMISSIONS.len());
-        for (old, new) in RENAMED_PERMISSIONS {
-            assert_ne!(old, new);
-            assert!(!olds.contains(new), "{new} is renamed again");
+        for (old, news) in RENAMED_PERMISSIONS {
+            assert!(!news.is_empty(), "{old}");
+            for new in *news {
+                assert_ne!(old, new);
+                assert!(!olds.contains(new), "{new} is renamed again");
+            }
         }
+    }
+
+    /// Spec 027, REQ-027-7: an old name renamed into several gives those of the catalogue
+    /// only, the settings of a module out of the build left out.
+    #[test]
+    fn the_administration_of_the_properties_gives_the_settings() {
+        let catalogue: Vec<&Permission> = PERMISSIONS.to_vec();
+        assert_eq!(
+            retired("core.property.admin", &catalogue),
+            Some(vec![
+                "core.settings.edit".into(),
+                "core.settings.apply".into(),
+                "core.settings.approval.self".into(),
+            ])
+        );
+        assert_eq!(retired("policy.service.admin", &catalogue), Some(vec![]));
+        assert!(
+            retired_names(&catalogue)
+                .iter()
+                .all(|(old, _)| old != "policy.service.admin")
+        );
+        assert!(!valid_role_entry("core.property.admin"));
+        assert!(!valid_role_entry("policy.axis.admin"));
+        assert_eq!(settings_permission(CORE_DECLARANT), SETTINGS_EDIT.name);
     }
 
     #[test]

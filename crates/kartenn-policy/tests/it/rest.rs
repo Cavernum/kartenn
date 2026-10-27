@@ -301,8 +301,12 @@ async fn the_collections_are_read_under_the_catalogue(pool: PgPool) {
 async fn a_family_is_written_under_its_administration(pool: PgPool) {
     let env = Env::new(&pool).await;
     let admin = env.app(
-        env.person(&["policy.catalogue.read", "policy.flow_type.admin"])
-            .await,
+        env.person(&[
+            "policy.catalogue.read",
+            "policy.settings.edit",
+            "policy.settings.approval.self",
+        ])
+        .await,
     );
     let (status, headers, body) = call(
         &admin,

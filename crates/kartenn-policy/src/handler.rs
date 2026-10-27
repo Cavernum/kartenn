@@ -604,16 +604,6 @@ impl ModuleHandler for Handler {
         }
     }
 
-    /// An environment, a value of `policy.environment`, is written under
-    /// `policy.environment.admin` besides the write of the values (S15).
-    fn reads(&self, plan: &ModulePlan) -> Vec<(String, Uuid)> {
-        if plan.data.get("environment") == Some(&serde_json::Value::Bool(true)) {
-            vec![(crate::module::ENVIRONMENT_ADMIN.to_owned(), plan.object)]
-        } else {
-            Vec::new()
-        }
-    }
-
     fn apply<'a>(
         &'a self,
         tx: &'a mut dyn ModuleTx,

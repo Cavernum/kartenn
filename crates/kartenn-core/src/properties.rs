@@ -59,6 +59,19 @@ impl PropertyKey {
     pub fn edit_permission(&self) -> String {
         format!("prop.{self}.edit")
     }
+
+    /// Permission required to write the settings of the property in a changeset (spec
+    /// 027, REQ-027-5, 6): `<declarant>.settings.edit`, the declarant read from the
+    /// namespace, `core` for the core's and the administrator's ([`CUSTOM_NAMESPACE`]).
+    #[must_use]
+    pub fn settings_permission(&self) -> String {
+        let declarant = if self.namespace == CUSTOM_NAMESPACE {
+            crate::authz::CORE_DECLARANT
+        } else {
+            &self.namespace
+        };
+        crate::authz::settings_permission(declarant)
+    }
 }
 
 impl fmt::Display for PropertyKey {
@@ -694,6 +707,15 @@ mod tests {
             key("policy.environment").edit_permission(),
             "prop.policy.environment.edit"
         );
+        // Spec 027, REQ-027-6: the settings of a property are its declarant's.
+        for (k, settings) in [
+            ("policy.environment", "policy.settings.edit"),
+            ("machines.interface_media", "machines.settings.edit"),
+            ("core.owner", "core.settings.edit"),
+            ("custom.contract", "core.settings.edit"),
+        ] {
+            assert_eq!(key(k).settings_permission(), settings, "{k}");
+        }
     }
 
     #[test]

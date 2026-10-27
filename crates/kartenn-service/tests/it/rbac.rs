@@ -522,6 +522,31 @@ async fn patterns_and_global_permissions(pool: PgPool) {
     assert_eq!(t.allowed(&root, "core.role.admin", &objects).await, objects);
 }
 
+/// REQ-027-5 (P5): `core.settings.edit` granted on the scope of an entity grants nothing,
+/// as any global permission; granted on the global scope, it acts.
+#[kartenn_testing::pg_test]
+async fn acceptance_of_req_027_5_settings_are_global(pool: PgPool) {
+    let t = Tree::new(&pool).await;
+    let settings = t.role("settings", &["core.settings.edit"]).await;
+    assert!(kartenn_core::authz::permission("core.settings.edit").is_some_and(|p| p.global_only));
+    let objects = ["10.5.0.7"];
+    let delegate = person(None, &[]);
+    t.bind(Binding::Identity(delegate.id), settings, "group", None)
+        .await;
+    assert!(
+        t.allowed(&delegate, "core.settings.edit", &objects)
+            .await
+            .is_empty()
+    );
+    let root = person(None, &[]);
+    t.bind(Binding::Identity(root.id), settings, "global", None)
+        .await;
+    assert_eq!(
+        t.allowed(&root, "core.settings.edit", &objects).await,
+        objects
+    );
+}
+
 /// The children of `prefix`, as names, kept if `keep`.
 async fn children_named(t: &Tree, prefix: &str, scope: &ReadScope) -> Vec<Uuid> {
     let mut ids: Vec<Uuid> = children_in(&t.pool, t.ids[prefix], now(), scope)
@@ -996,9 +1021,10 @@ fn flow_read() -> (&'static str, &'static str) {
         global_only: false,
     };
     kartenn_core::authz::register(&[&FLOW_READ]);
-    *kartenn_core::authz::RENAMED_PERMISSIONS
+    kartenn_core::authz::RENAMED_PERMISSIONS
         .iter()
-        .find(|(_, new)| *new == FLOW_READ.name)
+        .find(|(_, new)| *new == [FLOW_READ.name])
+        .map(|(old, _)| (*old, FLOW_READ.name))
         .expect("a renamed read")
 }
 

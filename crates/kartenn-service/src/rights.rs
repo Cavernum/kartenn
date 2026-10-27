@@ -6,7 +6,9 @@
 //! the structure, needs the same permission. Whoever applies the changeset needs, on the
 //! same objects, the matching `apply` (someone else's changeset) or `approval.self` (one's
 //! own): [`kartenn_core::authz::verb_permission`]. Rights are asked in groups, one call
-//! per permission.
+//! per permission. A declaration or a closed-list value is a setting of the declarant of
+//! its property, written under `<declarant>.settings.*`; its sensitivity is the core's
+//! (spec 027, REQ-027-5, 6).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -19,7 +21,7 @@ use uuid::Uuid;
 use crate::authz::{Authorizer, POLICY_ADMIN, Subject};
 use crate::operations::ObjectKind;
 use crate::pipeline::Planned;
-use crate::port::{DiffCount, StoreError, WriteTx};
+use crate::port::{Change, DiffCount, StoreError, WriteTx};
 
 /// The edit permissions a changeset requires, with the objects concerned: what whoever
 /// applies it needs the application of (spec 024, REQ-024-11).
@@ -203,7 +205,11 @@ fn edit_permission(kind: ObjectKind) -> String {
         ObjectKind::Address => "core.address.edit".into(),
         ObjectKind::Entity => "core.entity.edit".into(),
         ObjectKind::Site => "core.site.edit".into(),
-        ObjectKind::Property | ObjectKind::EnumValue => "core.property.admin".into(),
+        // The settings of an unknown declarant: the core's (spec 027); [`settings`] reads
+        // the declarant of a property.
+        ObjectKind::Property | ObjectKind::EnumValue => {
+            kartenn_core::authz::settings_permission(kartenn_core::authz::CORE_DECLARANT)
+        }
         ObjectKind::VlanGroup => "core.vlan_group.edit".into(),
         ObjectKind::Vlan => "core.vlan.edit".into(),
         ObjectKind::Module(kind) => kartenn_core::authz::type_edit_permission(kind.as_str()),
@@ -219,8 +225,40 @@ pub(crate) enum Phase {
     After,
 }
 
+/// The settings permission a write of a declaration or of a closed-list value needs (spec
+/// 027, REQ-027-5, 6): that of the declarant of its property, read from its key
+/// ([`PropertyKey::settings_permission`]); the core's for a change of sensitivity, whatever
+/// the declarant (P6).
+async fn settings<T: WriteTx>(tx: &mut T, planned: &Planned) -> Result<String, StoreError> {
+    let key = match planned {
+        Planned::Modify {
+            change: Change::Sensitive(_),
+            ..
+        } => None,
+        Planned::Declare { declaration, .. } | Planned::UpdateDeclaration { declaration, .. } => {
+            Some(declaration.key.clone())
+        }
+        Planned::EnumValue { property, .. } | Planned::EnumLabels { property, .. } => tx
+            .settings_key(*property)
+            .await?
+            .and_then(|k| PropertyKey::parse(&k).ok()),
+        other => tx
+            .settings_key(other.object())
+            .await?
+            .and_then(|k| PropertyKey::parse(&k).ok()),
+    };
+    Ok(key.map_or_else(
+        || edit_permission(ObjectKind::Property),
+        |key| key.settings_permission(),
+    ))
+}
+
 /// The objects `planned` writes in `phase`, by edit permission.
-fn written(planned: &[Planned], phase: Phase) -> BTreeMap<String, BTreeSet<Uuid>> {
+async fn written<T: WriteTx>(
+    tx: &mut T,
+    planned: &[Planned],
+    phase: Phase,
+) -> Result<BTreeMap<String, BTreeSet<Uuid>>, StoreError> {
     let mut out: BTreeMap<String, BTreeSet<Uuid>> = BTreeMap::new();
     for p in planned {
         let target = match (phase, p) {
@@ -265,12 +303,15 @@ fn written(planned: &[Planned], phase: Phase) -> BTreeMap<String, BTreeSet<Uuid>
                     permission: Some(permission),
                     ..
                 } => (*permission).to_owned(),
+                _ if matches!(kind, ObjectKind::Property | ObjectKind::EnumValue) => {
+                    settings(tx, p).await?
+                }
                 _ => edit_permission(kind),
             };
             out.entry(permission).or_default().insert(id);
         }
     }
-    out
+    Ok(out)
 }
 
 /// Checks the right of `check` on the objects of the changeset in `phase` (REQ-005-22;
@@ -287,7 +328,7 @@ pub(crate) async fn check_objects<T: WriteTx + Send, A: Authorizer>(
     mut required: Option<&mut Required>,
     violations: &mut Vec<Violation>,
 ) -> Result<(), StoreError> {
-    for (edit, objects) in written(planned, phase) {
+    for (edit, objects) in written(tx, planned, phase).await? {
         let objects: Vec<Uuid> = objects.into_iter().collect();
         let permission = verb_permission(&edit, check.verb);
         let denied = authorizer
