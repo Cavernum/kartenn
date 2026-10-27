@@ -262,6 +262,8 @@ changeset (F11, F19).
 #### REQ-011-15 — Flux d'un objet
 Le module doit lister, pour un objet (adresse, préfixe, interface, machine), les flux
 dont il est extrémité ou dont une extrémité le contient.
+Amendée par la 027 (REQ-027-1, 3) : y figurent les flux lus par une extrémité ; un
+objet que l'appelant ne lit pas n'y rend pas ces flux.
 
 #### REQ-011-16 — Évaluations datées
 Le module doit restituer les évaluations d'un flux à tout (`valid_at`, `as_of`), sans
@@ -274,6 +276,8 @@ période, état, sorte) les non-conformités — demandes rejetées à l'instruc
 pédagogique ; un demandeur doit voir celles de ses propres demandes ; un flux
 `noncompliant` doit être acquittable comme une anomalie (REQ-002-36) (F17, UC-10,
 EB-27, N37).
+Amendée par la 027 (REQ-027-1) : s'y ajoutent celles des flux que l'appelant lit par une
+de leurs extrémités.
 
 #### REQ-011-26 — Test d'une connexion : ouvert et conforme
 Quand on teste une connexion (source et destination : adresse, interface ou préfixe ;
@@ -284,6 +288,8 @@ couvrent, ou aucun) et **conforme** (verdict et explication de REQ-010-11, 12) ;
 résumer le test en l'un des quatre cas : ouvert et conforme ; ouvert mais non conforme
 (dérogation, ou politique changée depuis l'ouverture) ; non ouvert mais conforme (à
 déclarer, issue de REQ-010-36) ; non ouvert et non conforme (F21).
+Amendée par la 027 (REQ-027-1) : « ouvert » compte aussi les flux que l'appelant lit par
+une de leurs extrémités.
 
 Acceptation :
 - `192.0.2.10` → `198.51.100.20`, `https`, couvert par un flux `active` dont la
@@ -297,7 +303,9 @@ Acceptation :
 ### F. Droits et API
 
 #### REQ-011-17 — Permissions
-Le module doit déclarer, portées sur l'entité du flux : `flow.read` ;
+Le module doit déclarer, portées sur l'entité du flux : `flow.read` (lecture ; détenue
+sur n'importe quel périmètre, elle lit aussi un flux dont on lit une extrémité,
+027/P1) ;
 `flow.request` (demander un flux sans lecture des extrémités, explication réduite
 comme REQ-010-25, lecture de ses propres demandes) ; `flow.review` (instruire) ;
 `flow.waiver.grant` (accorder une dérogation) ; `flow.write` (maintenance directe,

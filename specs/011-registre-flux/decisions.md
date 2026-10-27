@@ -33,7 +33,7 @@ l'amendement de D30 (validité dérivée).
 - F10 échéances des seuls flux datés et dérogations ; événements d'issue (amendée).
 - F11 requêtes : extrémité, service, état, issue, règle, demandeur, axes (amendée).
 - F12 droits : demander, instruire, déroger, maintenir ; séparation des tâches
-  (amendée).
+  (amendée ; lecture par une extrémité, amendée par la 027).
 - F13 concurrence : verrou `flow` pour les écritures de flux, verrous de ligne pour la
   réévaluation.
 - F14 budgets chiffrés, réévaluation de 10⁵ flux comprise (amendée).
@@ -212,6 +212,10 @@ l'amendement de D30 (validité dérivée).
   `flow.request`, `flow.review`, `flow.write` et `flow.waiver.grant` (dérogation) ;
   portées et exigences inchangées. Les anciens noms sont refusés, sans alias.
 - Décidé par (amendement) : l'utilisateur (spec 018)
+- Amendée le 2026-10-28 par la 027 (P1 à P3) : un flux se lit aussi par qui détient
+  `flow.read` sur n'importe quel périmètre et lit une de ses extrémités ; l'extrémité
+  qu'il ne lit pas est montrée par sa seule valeur. Écritures inchangées.
+- Décidé par (amendement) : l'utilisateur (spec 027)
 
 ## F13 — Concurrence
 - Décision : les opérations sur les flux prennent le verrou de module `flow` (après
