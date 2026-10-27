@@ -2,12 +2,12 @@
 //! 015-3): the subcommands start without it on their command line, and it stays out of
 //! their logs and errors.
 
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::time::Duration;
 
 use sqlx::PgPool;
 
-const SERVER: &str = env!("CARGO_BIN_EXE_kartenn-server");
+use crate::server;
 
 /// The URL of the throwaway database of `pool`.
 fn database_url(pool: &PgPool) -> String {
@@ -29,7 +29,7 @@ fn dir(test: &str) -> std::path::PathBuf {
 
 #[test]
 fn the_server_tells_its_version() {
-    let out = Command::new(SERVER).arg("--version").output().unwrap();
+    let out = server().arg("--version").output().unwrap();
     assert!(out.status.success());
     assert_eq!(
         String::from_utf8(out.stdout).unwrap().trim(),
@@ -57,7 +57,7 @@ async fn an_instance_starts_on_the_url_of_its_file(pool: PgPool) {
     .unwrap();
 
     // The migration job reads the same file through --config.
-    let migrated = Command::new(SERVER)
+    let migrated = server()
         .args(["migrate", "--config"])
         .arg(&config)
         .output()
@@ -69,19 +69,14 @@ async fn an_instance_starts_on_the_url_of_its_file(pool: PgPool) {
     );
 
     // Given twice, refused, without the URL in the error.
-    let twice = Command::new(SERVER)
-        .arg("run")
-        .arg(&url)
-        .arg(&config)
-        .output()
-        .unwrap();
+    let twice = server().arg("run").arg(&url).arg(&config).output().unwrap();
     assert!(!twice.status.success());
     let error = String::from_utf8_lossy(&twice.stderr);
     assert!(error.contains("twice"), "{error}");
     assert!(!error.contains(&url), "{error}");
 
     // An instance with no URL on its command line.
-    let mut instance = Command::new(SERVER)
+    let mut instance = server()
         .arg("run")
         .arg(&config)
         .stdout(Stdio::null())
