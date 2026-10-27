@@ -19,18 +19,17 @@ pub(crate) static ENGLISH: English = English {
             "Request a flow for an entity: verdict of any pair, explanation reduced to values, rules, patterns and conditions.",
         ),
         (
-            "policy.axis.admin",
-            "Designate, change or remove an axis, describe its values.",
+            "policy.settings.edit",
+            "Change in a changeset and submit the settings of the policy: axes and their values, environments, flow types, services, closed lists and labels of the declarations of the policy.",
         ),
         (
-            "policy.environment.admin",
-            "Create, describe or close an environment.",
+            "policy.settings.apply",
+            "Apply or reject the changeset of someone else that touches the settings of the policy.",
         ),
         (
-            "policy.flow_type.admin",
-            "Create, change or close a flow type.",
+            "policy.settings.approval.self",
+            "Apply one's own changeset that touches the settings of the policy.",
         ),
-        ("policy.service.admin", "Create, change or close a service."),
         (
             "policy.rule.admin",
             "Create, change or close a rule, a pattern, an admissibility condition, a risk signal or an exempt role.",

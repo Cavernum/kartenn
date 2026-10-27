@@ -19,4 +19,5 @@ mod preview;
 mod report;
 mod rest;
 mod rights;
+mod settings_migration;
 mod verdict;

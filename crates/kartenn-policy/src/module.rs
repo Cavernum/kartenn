@@ -383,7 +383,8 @@ macro_rules! permissions {
 
 // The rights of the policy (S15, amended by Q17; REQ-010-24). Its objects have no anchor:
 // administering them is granted at the global scope only, reading them is a right of the
-// delivered reader roles. `policy.inference.admin` is scoped by domain (REQ-010-46),
+// delivered reader roles. Its settings (spec 027, P4) are written as a changeset under
+// `policy.settings.*`. `policy.inference.admin` is scoped by domain (REQ-010-46),
 // `policy.flow.request` by entity; the write of each axis is the property permission of
 // its key, on the scope of the node or the machine (REQ-003-17).
 permissions! {
@@ -391,25 +392,22 @@ permissions! {
     READ = "policy.catalogue.read", false, "Lire la politique : axes, valeurs, types de flux, services, règles, motifs, conditions et signaux.";
     VERDICT_READ = "policy.verdict.read", false, "Demander un verdict de conformité entre deux extrémités dont on détient la lecture.";
     FLOW_REQUEST = "policy.flow.request", false, "Demander un flux pour une entité : verdict de toute paire, explication réduite aux valeurs, règles, motifs et conditions.";
-    AXIS_ADMIN = "policy.axis.admin", true, "Désigner, modifier ou retirer un axe, décrire ses valeurs.";
-    ENVIRONMENT_ADMIN_PERMISSION = "policy.environment.admin", true, "Créer, décrire ou clore un environnement.";
-    FLOW_TYPE_ADMIN = "policy.flow_type.admin", true, "Créer, modifier ou clore un type de flux.";
-    SERVICE_ADMIN = "policy.service.admin", true, "Créer, modifier ou clore un service.";
+    SETTINGS_EDIT = "policy.settings.edit", true, "Modifier dans un changeset et soumettre les paramètres de la politique : axes et leurs valeurs, environnements, types de flux, services, listes fermées et libellés des déclarations de la politique.";
+    SETTINGS_APPLY = "policy.settings.apply", true, "Appliquer ou rejeter le changeset d'un autre qui touche les paramètres de la politique.";
+    SETTINGS_APPROVAL_SELF = "policy.settings.approval.self", true, "Appliquer son propre changeset qui touche les paramètres de la politique.";
     RULE_ADMIN = "policy.rule.admin", true, "Créer, modifier ou clore une règle, un motif, une condition d'admissibilité, un signal de risque ou un rôle exempté.";
     INFERENCE_ADMIN = "policy.inference.admin", false, "Écrire les règles d'inférence qui citent un domaine du périmètre.";
 }
 
-/// The permission an environment is written under, besides the write of the values (S15).
-pub(crate) const ENVIRONMENT_ADMIN: &str = "policy.environment.admin";
-
-/// The types of the module under the permissions of S15: one read for all, one
-/// administration by family (rules, patterns, conditions, signals and exempt roles under
-/// `policy.rule.admin`).
+/// The types of the module under the permissions of S15 amended by spec 027 (P4, P7): one
+/// read for all; the objects that define possible values (axes and their values,
+/// environments, flow types, services) under the settings of the policy; rules, patterns,
+/// conditions, signals and exempt roles under `policy.rule.admin`.
 static TYPE_PERMISSIONS: &[TypePermissions] = &[
-    typed(AXIS, "policy.axis.admin"),
-    typed(VALUE, "policy.axis.admin"),
-    typed(FLOW_TYPE, "policy.flow_type.admin"),
-    typed(SERVICE, "policy.service.admin"),
+    typed(AXIS, "policy.settings.edit"),
+    typed(VALUE, "policy.settings.edit"),
+    typed(FLOW_TYPE, "policy.settings.edit"),
+    typed(SERVICE, "policy.settings.edit"),
     typed(PATTERN, "policy.rule.admin"),
     typed(RULE, "policy.rule.admin"),
     typed(CONDITION, "policy.rule.admin"),

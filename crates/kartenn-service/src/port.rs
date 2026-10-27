@@ -1122,6 +1122,13 @@ pub trait WriteTx {
         period: Option<Period>,
     ) -> impl Future<Output = Result<Option<(Uuid, Declaration)>, StoreError>> + Send;
 
+    /// The key of the property `id`, or of the property of the closed-list value `id`, in
+    /// any of its versions: whose settings it is (spec 027, REQ-027-6).
+    fn settings_key(
+        &mut self,
+        id: Uuid,
+    ) -> impl Future<Output = Result<Option<String>, StoreError>> + Send;
+
     /// Keys of the closed lists that borrow the values of `key` at the start of `period`
     /// (REQ-016-2), sorted.
     fn borrowers_of(

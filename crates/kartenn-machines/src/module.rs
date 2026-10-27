@@ -197,32 +197,37 @@ static MIGRATIONS: &[ModuleMigration] = &[
 ];
 
 macro_rules! permissions {
-    ($list:ident; $($name:ident = $id:literal, $summary:literal;)*) => {
+    ($list:ident; $($name:ident = $id:literal, $global:literal, $summary:literal;)*) => {
         $(
             static $name: Permission = Permission {
                 name: $id,
                 summary: $summary,
-                global_only: false,
+                global_only: $global,
             };
         )*
         static $list: &[&Permission] = &[$(&$name),*];
     };
 }
 
+// The settings of the module (spec 027, REQ-027-5, 6): the values and labels of its
+// closed lists and the labels of its declarations, global only (P5).
 permissions! {
     PERMISSIONS;
-    CLUSTER_READ = "machines.cluster.read", "Lire les clusters.";
-    CLUSTER_EDIT = "machines.cluster.edit", "Créer, modifier ou clore un cluster dans un changeset et le soumettre.";
-    CLUSTER_APPLY = "machines.cluster.apply", "Appliquer ou rejeter le changeset d'un autre qui touche un cluster.";
-    CLUSTER_APPROVAL_SELF = "machines.cluster.approval.self", "Appliquer son propre changeset qui touche un cluster.";
-    MACHINE_READ = "machines.read", "Lire les machines.";
-    MACHINE_EDIT = "machines.edit", "Créer, modifier ou clore une machine dans un changeset et le soumettre.";
-    MACHINE_APPLY = "machines.apply", "Appliquer ou rejeter le changeset d'un autre qui touche une machine.";
-    MACHINE_APPROVAL_SELF = "machines.approval.self", "Appliquer son propre changeset qui touche une machine.";
-    INTERFACE_READ = "machines.interface.read", "Lire les interfaces.";
-    INTERFACE_EDIT = "machines.interface.edit", "Créer, modifier ou clore une interface dans un changeset et le soumettre.";
-    INTERFACE_APPLY = "machines.interface.apply", "Appliquer ou rejeter le changeset d'un autre qui touche une interface.";
-    INTERFACE_APPROVAL_SELF = "machines.interface.approval.self", "Appliquer son propre changeset qui touche une interface.";
+    CLUSTER_READ = "machines.cluster.read", false, "Lire les clusters.";
+    CLUSTER_EDIT = "machines.cluster.edit", false, "Créer, modifier ou clore un cluster dans un changeset et le soumettre.";
+    CLUSTER_APPLY = "machines.cluster.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche un cluster.";
+    CLUSTER_APPROVAL_SELF = "machines.cluster.approval.self", false, "Appliquer son propre changeset qui touche un cluster.";
+    MACHINE_READ = "machines.read", false, "Lire les machines.";
+    MACHINE_EDIT = "machines.edit", false, "Créer, modifier ou clore une machine dans un changeset et le soumettre.";
+    MACHINE_APPLY = "machines.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche une machine.";
+    MACHINE_APPROVAL_SELF = "machines.approval.self", false, "Appliquer son propre changeset qui touche une machine.";
+    INTERFACE_READ = "machines.interface.read", false, "Lire les interfaces.";
+    INTERFACE_EDIT = "machines.interface.edit", false, "Créer, modifier ou clore une interface dans un changeset et le soumettre.";
+    INTERFACE_APPLY = "machines.interface.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche une interface.";
+    INTERFACE_APPROVAL_SELF = "machines.interface.approval.self", false, "Appliquer son propre changeset qui touche une interface.";
+    SETTINGS_EDIT = "machines.settings.edit", true, "Modifier dans un changeset et soumettre les paramètres des machines : valeurs et libellés de leurs listes fermées, libellés de leurs déclarations.";
+    SETTINGS_APPLY = "machines.settings.apply", true, "Appliquer ou rejeter le changeset d'un autre qui touche les paramètres des machines.";
+    SETTINGS_APPROVAL_SELF = "machines.settings.approval.self", true, "Appliquer son propre changeset qui touche les paramètres des machines.";
 }
 
 /// An address of the core, as a reference names it.

@@ -269,6 +269,12 @@ mod tests {
             "machines.propose",
             "flow.write",
             "core.changeset.approve",
+            // Spec 027, REQ-027-7.
+            "core.property.admin",
+            "policy.axis.admin",
+            "policy.environment.admin",
+            "policy.flow_type.admin",
+            "policy.service.admin",
         ] {
             assert!(olds.iter().any(|o| o == old), "{old}");
         }
@@ -306,6 +312,8 @@ mod tests {
             "crates/kartenn-store-pg/tests/it/changesets.rs",
             // The test of migration 0072 (spec 026), which starts from the names of 008.
             "crates/kartenn-rest/tests/it/vlan/migration.rs",
+            // The test of the migration of the roles of spec 027 (REQ-027-7).
+            "crates/kartenn-policy/tests/it/settings_migration.rs",
         ];
         let olds = retired_names();
         let mut found = Vec::new();

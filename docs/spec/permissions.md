@@ -12,7 +12,10 @@ soumet, en attente ; `apply` applique ou rejette le changeset d'un autre ;
 `approval.self` applique le sien, sauf quand une politique d'approbation le
 retient. Une action compte un segment, ou deux pour `approval.self`. Une
 permission d'une autre action (`core.role.admin`, `flow.request`) vaut édition
-et application.
+et application. Les paramètres (déclarations, listes fermées, catalogue d'un
+module) relèvent de `<déclarant>.settings.*`, le déclarant lu dans la clé
+(`custom.*` : le cœur) ; la sensibilité de toute propriété, de `core.settings.*`
+(spec 027).
 
 | Permission | Global | Description |
 |---|---|---|
@@ -50,7 +53,9 @@ et application.
 | `core.vlan.approval.self` | — | Appliquer son propre changeset qui touche un VLAN. |
 | `core.changeset.read` | oui | Lire les changesets, leurs opérations et leur différentiel. |
 | `core.anomaly.acknowledge` | — | Acquitter, avec un motif, une anomalie d'un objet du périmètre. |
-| `core.property.admin` | oui | Déclarer une propriété, changer sa sensibilité. |
+| `core.settings.edit` | oui | Modifier dans un changeset et soumettre les paramètres du cœur : champs `custom.*`, déclarations `core.*`, listes fermées `core.*` et `custom.*`, sensibilité de toute propriété. |
+| `core.settings.apply` | oui | Appliquer ou rejeter le changeset d'un autre qui touche les paramètres du cœur. |
+| `core.settings.approval.self` | oui | Appliquer son propre changeset qui touche les paramètres du cœur. |
 | `core.approval_policy.admin` | — | Créer, modifier ou désactiver une politique d'approbation. |
 | `core.rbac.read` | oui | Lire les rôles, groupes, membres, liaisons, rattachements, comptes de service et l'état des identités. |
 | `core.rbac.admin` | — | Créer des groupes, poser ou clore leurs liaisons et leurs membres dans le périmètre, pour des rôles dont on détient les permissions. |
@@ -74,13 +79,15 @@ et application.
 | `machines.interface.edit` | — | Créer, modifier ou clore une interface dans un changeset et le soumettre. |
 | `machines.interface.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche une interface. |
 | `machines.interface.approval.self` | — | Appliquer son propre changeset qui touche une interface. |
+| `machines.settings.edit` | oui | Modifier dans un changeset et soumettre les paramètres des machines : valeurs et libellés de leurs listes fermées, libellés de leurs déclarations. |
+| `machines.settings.apply` | oui | Appliquer ou rejeter le changeset d'un autre qui touche les paramètres des machines. |
+| `machines.settings.approval.self` | oui | Appliquer son propre changeset qui touche les paramètres des machines. |
 | `policy.catalogue.read` | — | Lire la politique : axes, valeurs, types de flux, services, règles, motifs, conditions et signaux. |
 | `policy.verdict.read` | — | Demander un verdict de conformité entre deux extrémités dont on détient la lecture. |
 | `policy.flow.request` | — | Demander un flux pour une entité : verdict de toute paire, explication réduite aux valeurs, règles, motifs et conditions. |
-| `policy.axis.admin` | oui | Désigner, modifier ou retirer un axe, décrire ses valeurs. |
-| `policy.environment.admin` | oui | Créer, décrire ou clore un environnement. |
-| `policy.flow_type.admin` | oui | Créer, modifier ou clore un type de flux. |
-| `policy.service.admin` | oui | Créer, modifier ou clore un service. |
+| `policy.settings.edit` | oui | Modifier dans un changeset et soumettre les paramètres de la politique : axes et leurs valeurs, environnements, types de flux, services, listes fermées et libellés des déclarations de la politique. |
+| `policy.settings.apply` | oui | Appliquer ou rejeter le changeset d'un autre qui touche les paramètres de la politique. |
+| `policy.settings.approval.self` | oui | Appliquer son propre changeset qui touche les paramètres de la politique. |
 | `policy.rule.admin` | oui | Créer, modifier ou clore une règle, un motif, une condition d'admissibilité, un signal de risque ou un rôle exempté. |
 | `policy.inference.admin` | — | Écrire les règles d'inférence qui citent un domaine du périmètre. |
 | `flow.read` | — | Lire les flux. |
@@ -102,7 +109,8 @@ et application.
 
 ## Anciens noms
 
-Renommées par la spec 018 (R2, R3) ou remplacées par la spec 024 (REQ-024-9). Un
+Renommées par la spec 018 (R2, R3), remplacées par la spec 024 (REQ-024-9) ou
+réparties par déclarant par la spec 027 (REQ-027-7). Un
 ancien nom est refusé dans un rôle (`core.role.invalid`) ; il ne reste que dans
 l'historique et le journal d'audit.
 
@@ -132,6 +140,9 @@ l'historique et le journal d'audit.
 | `core.vlan.write` | `core.vlan.edit`, `core.vlan.approval.self` |
 | `core.vlan.propose` | `core.vlan.edit` |
 | `core.vlan.apply_own` | `core.vlan.approval.self` |
+| `core.settings.write` | `core.settings.edit`, `core.settings.approval.self` |
+| `core.settings.propose` | `core.settings.edit` |
+| `core.settings.apply_own` | `core.settings.approval.self` |
 | `machines.cluster.write` | `machines.cluster.edit`, `machines.cluster.approval.self` |
 | `machines.cluster.propose` | `machines.cluster.edit` |
 | `machines.cluster.apply_own` | `machines.cluster.approval.self` |
@@ -141,6 +152,12 @@ l'historique et le journal d'audit.
 | `machines.interface.write` | `machines.interface.edit`, `machines.interface.approval.self` |
 | `machines.interface.propose` | `machines.interface.edit` |
 | `machines.interface.apply_own` | `machines.interface.approval.self` |
+| `machines.settings.write` | `machines.settings.edit`, `machines.settings.approval.self` |
+| `machines.settings.propose` | `machines.settings.edit` |
+| `machines.settings.apply_own` | `machines.settings.approval.self` |
+| `policy.settings.write` | `policy.settings.edit`, `policy.settings.approval.self` |
+| `policy.settings.propose` | `policy.settings.edit` |
+| `policy.settings.apply_own` | `policy.settings.approval.self` |
 | `flow.write` | `flow.edit`, `flow.approval.self` |
 | `flow.propose` | `flow.edit` |
 | `flow.apply_own` | `flow.approval.self` |
@@ -179,4 +196,9 @@ l'historique et le journal d'audit.
 | `flow.flow.review` | `flow.review` |
 | `flow.flow.write` | `flow.edit`, `flow.approval.self` |
 | `flow.flow.waive` | `flow.waiver.grant` |
+| `core.property.admin` | `core.settings.edit`, `core.settings.apply`, `core.settings.approval.self`, `machines.settings.edit`, `machines.settings.apply`, `machines.settings.approval.self`, `policy.settings.edit`, `policy.settings.apply`, `policy.settings.approval.self` |
+| `policy.axis.admin` | `policy.settings.edit`, `policy.settings.apply`, `policy.settings.approval.self` |
+| `policy.environment.admin` | `policy.settings.edit`, `policy.settings.apply`, `policy.settings.approval.self` |
+| `policy.flow_type.admin` | `policy.settings.edit`, `policy.settings.apply`, `policy.settings.approval.self` |
+| `policy.service.admin` | `policy.settings.edit`, `policy.settings.apply`, `policy.settings.approval.self` |
 | `core.changeset.approve` | `core.entity.apply`, `core.site.apply`, `core.domain.apply`, `core.prefix.apply`, `core.range.apply`, `core.address.apply`, `core.vlan_group.apply`, `core.vlan.apply`, `machines.cluster.apply`, `machines.apply`, `machines.interface.apply`, `flow.apply`, `prop.*.apply` |
