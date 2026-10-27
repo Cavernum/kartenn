@@ -657,6 +657,9 @@ const proposals = ref<Proposal[]>(
       ]
     : [...BASE],
 );
+/** The input refused by a cell (`row|column`), kept with its error until written again. */
+const refused = ref<Record<string, { text: string; error: string }>>({});
+const cellKey = (row: string, column: string) => `${row}|${column}`;
 /** The evaluation of a row, once its source, destination and object are given. */
 const evaluationOf = (p: Proposal): Evaluation | null =>
   p.source && p.destination && p.object
@@ -681,9 +684,12 @@ const proposalRows = computed<ProposalRow[]>(() =>
       key: p.key,
       proposal: p,
       evaluation,
-      source: p.source ? endName(p.source) : "",
-      destination: p.destination ? endName(p.destination) : "",
-      object: p.object?.value ?? "",
+      // A refused input stays in its cell, with its error, until it is written again.
+      source: p.source ? endName(p.source) : (refused.value[cellKey(p.key, "source")]?.text ?? ""),
+      destination: p.destination
+        ? endName(p.destination)
+        : (refused.value[cellKey(p.key, "destination")]?.text ?? ""),
+      object: p.object?.value ?? refused.value[cellKey(p.key, "object")]?.text ?? "",
       flowType: p.object ? FLOW_TYPE[SERVICES[p.object.service]!.flowType] : "",
       reference: p.reference,
       justification: p.justification,
@@ -746,11 +752,128 @@ async function addRow(): Promise<void> {
     .querySelector<HTMLElement>(`[role="gridcell"][data-row="${key}"][data-column="source"]`)
     ?.focus();
 }
+/*
+ * Editing a cell, in the mockup's own state (no server): F2 or a double click opens the
+ * editor of an editable cell, Enter or leaving it writes the row, Escape drops the input.
+ * The row's evaluation, its verdict and the bottom panel follow the written values.
+ */
+type EditableColumn = "source" | "destination" | "object" | "reference" | "justification";
+const EDITABLE: readonly string[] = [
+  "source",
+  "destination",
+  "object",
+  "reference",
+  "justification",
+] satisfies EditableColumn[];
+const IPV4 = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/;
+type PrefixEnd = Extract<FlowEnd, { kind: "prefix" }>;
+const KNOWN_PREFIXES = FLOWS.flatMap((f) => [f.source, f.destination]).filter(
+  (e): e is PrefixEnd => e.kind === "prefix",
+);
+/** An end typed in a cell: `machine · interface`, an address, a prefix; an error otherwise. */
+function parseEnd(text: string): FlowEnd | { error: string } {
+  const named = /^(\S+)\s*·\s*(\S+)$/.exec(text);
+  if (named) {
+    const [, machine, iface] = named;
+    return interfaceOf(machine!, iface!)
+      ? ifaceEnd(machine!, iface!)
+      : { error: `Interface inconnue : ${text}.` };
+  }
+  if (IPV4.test(text)) return addressEnd(text);
+  const [network, length] = text.split("/");
+  if (network && IPV4.test(network) && length && /^\d+$/.test(length) && Number(length) <= 32)
+    return (
+      KNOWN_PREFIXES.find((p) => p.value === text) ?? {
+        kind: "prefix",
+        value: text,
+        address: addressOf(text),
+      }
+    );
+  return { error: "Une adresse, une interface (machine · interface) ou un préfixe." };
+}
+/** The object typed in a cell: a service key, or a transport/port pair of a service. */
+function parseObject(text: string): NonNullable<Proposal["object"]> | { error: string } {
+  if (SERVICES[text]) return { kind: "service", value: text, service: text };
+  const service = Object.values(SERVICES).find((s) => s.ports.includes(text));
+  if (service) return { kind: "port", value: text, service: service.key };
+  return { error: `Ni un service ni un port connu : ${text}.` };
+}
+/** Writes the text of the editor to the row; an empty end or object empties the cell. */
+function write(cell: CellRef, raw: string): void {
+  const text = raw.trim();
+  const column = cell.column as EditableColumn;
+  const others = { ...refused.value };
+  delete others[cellKey(cell.row, column)];
+  let patch: Partial<Proposal> = {};
+  if (column === "reference" || column === "justification") patch = { [column]: text };
+  else if (text === "") patch = { [column]: null };
+  else {
+    const parsed = column === "object" ? parseObject(text) : parseEnd(text);
+    if ("error" in parsed) {
+      others[cellKey(cell.row, column)] = { text, error: parsed.error };
+      patch = { [column]: null };
+    } else patch = { [column]: parsed };
+  }
+  refused.value = others;
+  proposals.value = proposals.value.map((p) => (p.key === cell.row ? { ...p, ...patch } : p));
+}
+const cellOf = (cell: CellRef) =>
+  document.querySelector<HTMLElement>(
+    `[role="gridcell"][data-row="${cell.row}"][data-column="${cell.column}"]`,
+  );
+async function startEditing(cell: CellRef): Promise<void> {
+  if (!EDITABLE.includes(cell.column)) return;
+  editing.value = cell;
+  proposalActive.value = cell;
+  await nextTick();
+  const input = cellOf(cell)?.querySelector("input");
+  input?.focus();
+  input?.select();
+}
+/** Leaves the editor, writing its text or not; the focus goes back to the cell. */
+async function stopEditing(input: HTMLInputElement, keep: boolean): Promise<void> {
+  const cell = editing.value;
+  if (!cell) return;
+  editing.value = undefined;
+  if (keep) write(cell, input.value);
+  await nextTick();
+  cellOf(cell)?.focus();
+}
+function onGridKeydown(event: KeyboardEvent): void {
+  const target = event.target as HTMLElement;
+  if (target instanceof HTMLInputElement && target.closest(".k-data-grid__editor")) {
+    if (event.key === "Enter" || event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      void stopEditing(target, event.key === "Enter");
+    }
+    return;
+  }
+  const { row, column } = target.dataset;
+  if (event.key === "F2" && row && column && target.getAttribute("role") === "gridcell")
+    void startEditing({ row, column });
+}
+function onGridDblclick(event: MouseEvent): void {
+  const target = event.target as HTMLElement;
+  if (target.closest(".k-data-grid__editor")) return;
+  const cell = target.closest<HTMLElement>('[role="gridcell"]');
+  const { row, column } = cell?.dataset ?? {};
+  if (row && column) void startEditing({ row, column });
+}
+/** Leaving the editor (a click elsewhere, Tab) writes it, as Enter does. */
+function onGridFocusout(event: FocusEvent): void {
+  const target = event.target as HTMLElement;
+  if (target instanceof HTMLInputElement && target.closest(".k-data-grid__editor"))
+    void stopEditing(target, true);
+}
 const proposalRowState = (): RowState => "draft";
-const proposalCellState = (row: ProposalRow, column: GridColumn): CellState | undefined =>
-  row.key === "ligne-2" && column.id === "justification" && !row.justification
+const proposalCellState = (row: ProposalRow, column: GridColumn): CellState | undefined => {
+  const refusal = refused.value[cellKey(row.key, column.id)];
+  if (refusal) return { error: refusal.error };
+  return row.key === "ligne-2" && column.id === "justification" && !row.justification
     ? "draft"
     : undefined;
+};
 /** One subject per tab of the bottom panel, each slot named `bottom-<value>`. */
 const BOTTOM = computed<TabItem[]>(() => {
   const pairs = chosenRow.value?.evaluation?.pairs.length;
@@ -1055,6 +1178,9 @@ const IFACE_HISTORY = [
         :cell-state="proposalCellState"
         @activate="choose"
         @click="onGridClick"
+        @dblclick="onGridDblclick"
+        @keydown="onGridKeydown"
+        @focusout="onGridFocusout"
       >
         <template #cell="{ row, column, value }">
           <span v-if="!value && column.id !== 'verdict'" class="k-ecran-muted">—</span>
@@ -1091,7 +1217,7 @@ const IFACE_HISTORY = [
           {{ byOutcome.review }} à instruire · {{ byOutcome.noncompliant }} non conformes à la
           matrice<template v-if="incomplete"> · {{ incomplete }} à compléter</template></span
         >
-        <span class="k-ecran-muted">Entrée : le flux choisi en bas</span>
+        <span class="k-ecran-muted">Entrée : le flux choisi en bas · F2 : modifier</span>
       </template>
     </Panneau>
 
@@ -1699,58 +1825,60 @@ const IFACE_HISTORY = [
                 <h3 id="k-e11-flows" class="k-ecran-subtitle">Flux de l'interface</h3>
                 <span class="k-ecran-muted">conformité à la matrice de flux du jour</span>
               </Cluster>
-              <div v-for="group in FLOW_GROUPS" :key="group.id" class="k-e11-flows">
-                <h4 :id="`k-e11-flows-${group.id}`" class="k-e11-h4">
-                  {{ group.label }}
-                  <span class="k-ecran-muted k-num">{{ group.flows.length }}</span>
-                </h4>
-                <ul
-                  v-if="group.flows.length"
-                  class="k-e11-flow-list"
-                  :aria-labelledby="`k-e11-flows-${group.id}`"
-                >
-                  <li v-for="f in group.flows" :key="f.key" class="k-e11-flow">
-                    <span class="k-e11-flow__end">
-                      <span class="k-ecran-muted">par</span>
-                      <code v-if="f.by.through">{{ f.by.through }}</code>
-                      <span v-else>l'interface</span>
-                    </span>
-                    <span class="k-e11-flow__end">
-                      <span class="k-ecran-muted">{{ group.word }}</span>
-                      <RouterLink v-if="cardOf(f.other)" :to="cardOf(f.other)!" class="k-mono">{{
-                        endName(f.other)
-                      }}</RouterLink>
-                      <code v-else>{{ endName(f.other) }}</code>
-                      <RouterLink
-                        v-if="contextOf(f.other)"
-                        :to="contextCard(f.other)"
-                        class="k-mono"
-                        >{{ contextOf(f.other) }}</RouterLink
-                      >
-                      <span v-else-if="f.other.kind === 'prefix'" class="k-ecran-muted"
-                        >préfixe</span
-                      >
-                    </span>
-                    <KeyLabel
-                      :value="f.flow.service"
-                      :label="SERVICES[f.flow.service]!.label"
-                      show-key
-                    />
-                    <span>{{ FLOW_TYPE[SERVICES[f.flow.service]!.flowType] }}</span>
-                    <span class="k-e11-flow__state">
-                      <StatusBadge
-                        :state="SYNTHESIS[f.synthesis].state"
-                        :label="SYNTHESIS[f.synthesis].label"
+              <div class="k-e11-flow-groups">
+                <div v-for="group in FLOW_GROUPS" :key="group.id" class="k-e11-flows">
+                  <h4 :id="`k-e11-flows-${group.id}`" class="k-e11-h4">
+                    {{ group.label }}
+                    <span class="k-ecran-muted k-num">{{ group.flows.length }}</span>
+                  </h4>
+                  <ul
+                    v-if="group.flows.length"
+                    class="k-e11-flow-list"
+                    :aria-labelledby="`k-e11-flows-${group.id}`"
+                  >
+                    <li v-for="f in group.flows" :key="f.key" class="k-e11-flow">
+                      <span class="k-e11-flow__end">
+                        <span class="k-ecran-muted">par</span>
+                        <code v-if="f.by.through">{{ f.by.through }}</code>
+                        <span v-else>l'interface</span>
+                      </span>
+                      <span class="k-e11-flow__end">
+                        <span class="k-ecran-muted">{{ group.word }}</span>
+                        <RouterLink v-if="cardOf(f.other)" :to="cardOf(f.other)!" class="k-mono">{{
+                          endName(f.other)
+                        }}</RouterLink>
+                        <code v-else>{{ endName(f.other) }}</code>
+                        <RouterLink
+                          v-if="contextOf(f.other)"
+                          :to="contextCard(f.other)"
+                          class="k-mono"
+                          >{{ contextOf(f.other) }}</RouterLink
+                        >
+                        <span v-else-if="f.other.kind === 'prefix'" class="k-ecran-muted"
+                          >préfixe</span
+                        >
+                      </span>
+                      <KeyLabel
+                        :value="f.flow.service"
+                        :label="SERVICES[f.flow.service]!.label"
+                        show-key
                       />
-                      <StatusBadge
-                        v-if="f.flow.state !== 'active'"
-                        :state="STATE[f.flow.state].state"
-                        :label="STATE[f.flow.state].label"
-                      />
-                    </span>
-                  </li>
-                </ul>
-                <p v-else class="k-ecran-muted">Aucun flux {{ group.label.toLowerCase() }}.</p>
+                      <span>{{ FLOW_TYPE[SERVICES[f.flow.service]!.flowType] }}</span>
+                      <span class="k-e11-flow__state">
+                        <StatusBadge
+                          :state="SYNTHESIS[f.synthesis].state"
+                          :label="SYNTHESIS[f.synthesis].label"
+                        />
+                        <StatusBadge
+                          v-if="f.flow.state !== 'active'"
+                          :state="STATE[f.flow.state].state"
+                          :label="STATE[f.flow.state].label"
+                        />
+                      </span>
+                    </li>
+                  </ul>
+                  <p v-else class="k-ecran-muted">Aucun flux {{ group.label.toLowerCase() }}.</p>
+                </div>
               </div>
             </Stack>
           </Stack>
@@ -1811,61 +1939,63 @@ const IFACE_HISTORY = [
                 <h3 id="k-e11-flows" class="k-ecran-subtitle">Flux de ses interfaces</h3>
                 <span class="k-ecran-muted">conformité à la matrice de flux du jour</span>
               </Cluster>
-              <div v-for="group in FLOW_GROUPS" :key="group.id" class="k-e11-flows">
-                <h4 :id="`k-e11-flows-${group.id}`" class="k-e11-h4">
-                  {{ group.label }}
-                  <span class="k-ecran-muted k-num">{{ group.flows.length }}</span>
-                </h4>
-                <ul
-                  v-if="group.flows.length"
-                  class="k-e11-flow-list"
-                  :aria-labelledby="`k-e11-flows-${group.id}`"
-                >
-                  <li v-for="f in group.flows" :key="f.key" class="k-e11-flow">
-                    <span class="k-e11-flow__end">
-                      <RouterLink :to="ifaceCard(shownMachine.key, f.by.by)" class="k-mono">{{
-                        f.by.by
-                      }}</RouterLink>
-                      <span v-if="f.by.through" class="k-ecran-muted k-mono">{{
-                        f.by.through
-                      }}</span>
-                    </span>
-                    <span class="k-e11-flow__end">
-                      <span class="k-ecran-muted">{{ group.word }}</span>
-                      <RouterLink v-if="cardOf(f.other)" :to="cardOf(f.other)!" class="k-mono">{{
-                        endName(f.other)
-                      }}</RouterLink>
-                      <code v-else>{{ endName(f.other) }}</code>
-                      <RouterLink
-                        v-if="contextOf(f.other)"
-                        :to="contextCard(f.other)"
-                        class="k-mono"
-                        >{{ contextOf(f.other) }}</RouterLink
-                      >
-                      <span v-else-if="f.other.kind === 'prefix'" class="k-ecran-muted"
-                        >préfixe</span
-                      >
-                    </span>
-                    <KeyLabel
-                      :value="f.flow.service"
-                      :label="SERVICES[f.flow.service]!.label"
-                      show-key
-                    />
-                    <span>{{ FLOW_TYPE[SERVICES[f.flow.service]!.flowType] }}</span>
-                    <span class="k-e11-flow__state">
-                      <StatusBadge
-                        :state="SYNTHESIS[f.synthesis].state"
-                        :label="SYNTHESIS[f.synthesis].label"
+              <div class="k-e11-flow-groups">
+                <div v-for="group in FLOW_GROUPS" :key="group.id" class="k-e11-flows">
+                  <h4 :id="`k-e11-flows-${group.id}`" class="k-e11-h4">
+                    {{ group.label }}
+                    <span class="k-ecran-muted k-num">{{ group.flows.length }}</span>
+                  </h4>
+                  <ul
+                    v-if="group.flows.length"
+                    class="k-e11-flow-list"
+                    :aria-labelledby="`k-e11-flows-${group.id}`"
+                  >
+                    <li v-for="f in group.flows" :key="f.key" class="k-e11-flow">
+                      <span class="k-e11-flow__end">
+                        <RouterLink :to="ifaceCard(shownMachine.key, f.by.by)" class="k-mono">{{
+                          f.by.by
+                        }}</RouterLink>
+                        <span v-if="f.by.through" class="k-ecran-muted k-mono">{{
+                          f.by.through
+                        }}</span>
+                      </span>
+                      <span class="k-e11-flow__end">
+                        <span class="k-ecran-muted">{{ group.word }}</span>
+                        <RouterLink v-if="cardOf(f.other)" :to="cardOf(f.other)!" class="k-mono">{{
+                          endName(f.other)
+                        }}</RouterLink>
+                        <code v-else>{{ endName(f.other) }}</code>
+                        <RouterLink
+                          v-if="contextOf(f.other)"
+                          :to="contextCard(f.other)"
+                          class="k-mono"
+                          >{{ contextOf(f.other) }}</RouterLink
+                        >
+                        <span v-else-if="f.other.kind === 'prefix'" class="k-ecran-muted"
+                          >préfixe</span
+                        >
+                      </span>
+                      <KeyLabel
+                        :value="f.flow.service"
+                        :label="SERVICES[f.flow.service]!.label"
+                        show-key
                       />
-                      <StatusBadge
-                        v-if="f.flow.state !== 'active'"
-                        :state="STATE[f.flow.state].state"
-                        :label="STATE[f.flow.state].label"
-                      />
-                    </span>
-                  </li>
-                </ul>
-                <p v-else class="k-ecran-muted">Aucun flux {{ group.label.toLowerCase() }}.</p>
+                      <span>{{ FLOW_TYPE[SERVICES[f.flow.service]!.flowType] }}</span>
+                      <span class="k-e11-flow__state">
+                        <StatusBadge
+                          :state="SYNTHESIS[f.synthesis].state"
+                          :label="SYNTHESIS[f.synthesis].label"
+                        />
+                        <StatusBadge
+                          v-if="f.flow.state !== 'active'"
+                          :state="STATE[f.flow.state].state"
+                          :label="STATE[f.flow.state].label"
+                        />
+                      </span>
+                    </li>
+                  </ul>
+                  <p v-else class="k-ecran-muted">Aucun flux {{ group.label.toLowerCase() }}.</p>
+                </div>
               </div>
             </Stack>
           </Stack>
@@ -2166,17 +2296,31 @@ const IFACE_HISTORY = [
     font-weight: var(--k-weight-semibold);
   }
 
-  /* The flows of a machine: a compact list, its columns aligned by a subgrid. */
-  .k-e11-flows {
+  /*
+   * The flows of a machine: two compact lists (Entrants, Sortants) on one grid, so that their
+   * columns share widths and their rows a baseline; each group, list and row is a subgrid.
+   * The badges keep their widest one (`min-content`): the other columns wrap before them.
+   */
+  .k-e11-flow-groups {
     display: grid;
-    gap: var(--k-space-1);
+    grid-template-columns: repeat(4, minmax(0, max-content)) minmax(min-content, 1fr);
+    gap: var(--k-space-3) var(--k-space-5);
     container-type: inline-size;
   }
 
+  .k-e11-flows,
   .k-e11-flow-list {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, max-content)) minmax(0, 1fr);
-    gap: var(--k-space-1) var(--k-space-5);
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    row-gap: var(--k-space-1);
+  }
+
+  .k-e11-flows > * {
+    grid-column: 1 / -1;
+  }
+
+  .k-e11-flow-list {
     list-style: none;
   }
 
@@ -2184,7 +2328,8 @@ const IFACE_HISTORY = [
     display: grid;
     grid-column: 1 / -1;
     grid-template-columns: subgrid;
-    align-items: center;
+    align-content: center;
+    align-items: baseline;
     min-block-size: var(--k-row-height);
     border-block-end: var(--k-border-width) solid var(--k-border);
   }
@@ -2198,7 +2343,9 @@ const IFACE_HISTORY = [
     min-inline-size: 0;
   }
 
+  /* Narrow: the groups leave the shared columns, each row wraps its parts. */
   @container (width < 720px) {
+    .k-e11-flows,
     .k-e11-flow-list {
       grid-template-columns: minmax(0, 1fr);
     }

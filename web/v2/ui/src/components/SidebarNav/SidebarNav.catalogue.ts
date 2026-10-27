@@ -13,6 +13,8 @@ const groups: SidebarGroup[] = [
     label: "Référentiel",
     entries: [
       { id: "home", label: "Accueil", icon: "house", to: "/" },
+      { id: "topology", label: "Topographie", icon: "folder-tree", to: "/topology" },
+      { id: "vlans", label: "VLAN", icon: "vlan", to: "/vlans" },
       { id: "domains", label: "Domaines", icon: "domain", to: "/domains" },
       { id: "prefixes", label: "Préfixes", icon: "prefix", to: "/prefixes" },
       { id: "addresses", label: "Adresses", icon: "address", to: "/addresses" },
@@ -33,11 +35,6 @@ const groups: SidebarGroup[] = [
       },
       { id: "draft", label: "Brouillon", icon: "draft", to: "/draft" },
     ],
-  },
-  {
-    id: "network",
-    label: "Réseau",
-    entries: [{ id: "vlans", label: "VLAN", icon: "vlan", to: "/x/vlan" }],
   },
   {
     id: "admin",

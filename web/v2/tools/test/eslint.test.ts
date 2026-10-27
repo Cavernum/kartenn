@@ -24,7 +24,7 @@ describe("eslint", () => {
         "vue/no-restricted-html-elements",
       ]);
     }
-    expect(await rules(sfc("<button></button>"), "plugins/vlan/src/VlanList.vue")).toEqual([
+    expect(await rules(sfc("<button></button>"), "plugins/racks/src/RackList.vue")).toEqual([
       "vue/no-restricted-html-elements",
     ]);
   });
