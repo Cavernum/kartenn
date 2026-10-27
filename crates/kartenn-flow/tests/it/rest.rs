@@ -43,7 +43,7 @@ impl Authenticator for As {
 
 impl Env {
     /// The router of an instance with the modules, as the person `identity`.
-    fn app(&self, identity: Uuid) -> Router {
+    pub(crate) fn app(&self, identity: Uuid) -> Router {
         let api = Api {
             pool: self.pool.clone(),
             ring: KeyRing::parse(&KeyRing::generate_line("k1")).unwrap(),
@@ -116,7 +116,12 @@ impl Env {
     }
 }
 
-async fn call(app: &Router, method: Method, uri: &str, body: Option<Value>) -> (StatusCode, Value) {
+pub(crate) async fn call(
+    app: &Router,
+    method: Method,
+    uri: &str,
+    body: Option<Value>,
+) -> (StatusCode, Value) {
     let uri = kartenn_testing::applied_by_author(method.as_str(), uri);
     let request = Request::builder()
         .method(method)
@@ -146,7 +151,7 @@ async fn body(env: &Env, prod: Uuid, dev: Uuid) -> Value {
     fields
 }
 
-fn ids(page: &Value) -> Vec<String> {
+pub(crate) fn ids(page: &Value) -> Vec<String> {
     page["items"]
         .as_array()
         .unwrap()
@@ -470,7 +475,7 @@ async fn pending_requests_are_paged_after_the_applied_flows(pool: PgPool) {
 }
 
 /// `PATCH /v1/flows/{id}` under the version read, as a JSON Merge Patch.
-async fn patch(app: &Router, id: Uuid, body: &Value) -> (StatusCode, Value) {
+pub(crate) async fn patch(app: &Router, id: Uuid, body: &Value) -> (StatusCode, Value) {
     let request = Request::builder()
         .method(Method::GET)
         .uri(format!("/v1/flows/{id}"))
@@ -629,7 +634,7 @@ async fn host(env: &Env, address: &str) -> Uuid {
 
 /// `GET /v1/flow-checks` of `source` to `destination` (`<kind>:<id>`) for `ssh`, with
 /// `extra` parameters.
-async fn checked(app: &Router, source: &str, destination: &str, extra: &str) -> Value {
+pub(crate) async fn checked(app: &Router, source: &str, destination: &str, extra: &str) -> Value {
     let (status, answer) = call(
         app,
         Method::GET,
@@ -642,7 +647,7 @@ async fn checked(app: &Router, source: &str, destination: &str, extra: &str) -> 
 }
 
 /// The flows cited by the first pair of a test.
-fn opening(answer: &Value) -> Vec<(String, String)> {
+pub(crate) fn opening(answer: &Value) -> Vec<(String, String)> {
     answer["pairs"][0]["flows"]
         .as_array()
         .unwrap()

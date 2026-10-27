@@ -8,7 +8,9 @@
 //!
 //! Rights (REQ-011-17): a flow is read under `flow.read` on its entity, by the
 //! predicate of the core (ADR 0021); its requester reads it too, with the explanation
-//! reduced (REQ-010-25). A flow the caller may not read answers as an absent one.
+//! reduced (REQ-010-25); so does a holder of `flow.read` on any perimeter who reads one of
+//! its endpoints, the endpoint it does not read shown by value and the explanation reduced
+//! (spec 027, REQ-027-1, 2). A flow the caller may not read answers as an absent one.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -80,15 +82,21 @@ const WAIVER_MEMBERS: &[&str] = &["reason", "accepted_risk", "end"];
 const FILTERS: &[(&str, &str)] = &[
     (
         "endpoint",
-        "An endpoint, exact: `<kind>:<id>` (address, prefix, interface, machine, range).",
+        "An endpoint, exact: `<kind>:<id>` (address, prefix, interface, machine, range); \
+         when the caller does not read the object, the flows it reads through one of their \
+         endpoints only are left out (REQ-027-3). Or a value, \
+         an address or `<address>/<length>`: the flows with an endpoint address or prefix \
+         within it, an endpoint shown by value included.",
     ),
     (
         "prefix",
-        "A prefix: the flows with an endpoint address in its subtree.",
+        "A prefix: the flows with an endpoint address in its subtree; as `endpoint` for a \
+         prefix the caller does not read.",
     ),
     (
         "machine",
-        "A machine: the flows with an endpoint address of the machine.",
+        "A machine: the flows with an endpoint address of the machine; as `endpoint` for a \
+         machine the caller does not read.",
     ),
     ("service", "The service."),
     ("flow_type", "The flow type of the service."),
@@ -154,6 +162,31 @@ pub struct FlowDto {
     /// The review the row awaits, for a request or an extension pending one (F19).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub review: Option<ReviewDto>,
+    /// The source, by value, when the caller reads the flow through its destination only
+    /// and does not read the source (REQ-027-2); `fields` then carries no `source_id`.
+    /// Absent otherwise: the source is `fields.source_kind`, `fields.source_id`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<EndpointValueDto>,
+    /// The destination, by value, as `source`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination: Option<EndpointValueDto>,
+}
+
+/// An endpoint of a flow the caller does not read, shown by its value only (spec 027,
+/// REQ-027-2): no identifier, name, machine, property nor value of an axis.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[schema(as = FlowEndpointValue)]
+pub struct EndpointValueDto {
+    /// `address`, `prefix`, `interface`, `machine` or `range`.
+    pub kind: String,
+    /// The address, the prefix or the range, at the date.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    /// For an interface or a machine: the addresses it holds at the date.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub values: Option<Vec<String>>,
+    /// Always `false`: the caller does not read the object.
+    pub readable: bool,
 }
 
 /// The review a row awaits (F19): the proposal to review, the kind of the change, and the
@@ -376,7 +409,42 @@ fn flow_dto(view: FlowView, reduced: bool) -> FlowDto {
         outcome: view.outcome,
         waived: view.waived,
         review,
+        source: None,
+        destination: None,
     }
+}
+
+/// The two sides of a flow, in the order of [`SIDES`].
+type Sides<T> = [Option<T>; 2];
+
+const SIDES: [&str; 2] = ["source", "destination"];
+
+/// A flow read through its endpoints (REQ-027-2): each side the caller does not read
+/// shown by value, its identifier taken out of `fields`.
+fn masked(mut dto: FlowDto, sides: Sides<EndpointValueDto>) -> FlowDto {
+    let [source, destination] = sides;
+    if let Some(fields) = dto.fields.as_object_mut() {
+        for (side, shown) in SIDES.iter().zip([&source, &destination]) {
+            if shown.is_some() {
+                fields.remove(&format!("{side}_id"));
+            }
+        }
+    }
+    dto.source = source;
+    dto.destination = destination;
+    dto
+}
+
+/// An endpoint as a flow stores it: the name of its kind and its identifier.
+type Endpoint = (String, Uuid);
+
+/// The endpoints of a flow as listed (`fields`), source then destination.
+fn endpoints_of(flow: &Value) -> Sides<Endpoint> {
+    SIDES.map(|side| {
+        let kind = flow.get(format!("{side}_kind"))?.as_str()?;
+        let id = flow.get(format!("{side}_id"))?.as_str()?.parse().ok()?;
+        Some((kind.to_owned(), id))
+    })
 }
 
 fn evaluation_dto(view: EvaluationView, reduced: bool) -> EvaluationDto {
@@ -438,6 +506,21 @@ fn endpoint_kind(name: &str) -> Option<EndpointKind> {
     })
 }
 
+/// An address or `<address>/<length>` as `<address>/<length>`; `None` when it is not one.
+fn network(text: &str) -> Option<String> {
+    let (address, length) = match text.split_once('/') {
+        Some((address, length)) => (address, Some(length)),
+        None => (text, None),
+    };
+    let address: std::net::IpAddr = address.parse().ok()?;
+    let width = if address.is_ipv4() { 32 } else { 128 };
+    let length = match length {
+        Some(length) => length.parse::<u8>().ok().filter(|l| *l <= width)?,
+        None => width,
+    };
+    Some(format!("{address}/{length}"))
+}
+
 fn state(name: &str) -> Option<FlowState> {
     Some(match name {
         "requested" => FlowState::Requested,
@@ -472,12 +555,20 @@ fn filter_of(wanted: &BTreeMap<&str, &str>) -> Result<FlowFilter, Problem> {
     for (&name, &value) in wanted {
         match name {
             "endpoint" => {
-                let (kind, id) = value
+                // `<kind>:<id>`, else a value (an IPv6 address holds `:` too).
+                match value
                     .split_once(':')
-                    .ok_or_else(|| kit::bad("endpoint is `<kind>:<id>`"))?;
-                let kind = endpoint_kind(kind)
-                    .ok_or_else(|| kit::bad(format!("{kind} is not an endpoint kind")))?;
-                filter.endpoint = Some((kind, uuid(name, id)?));
+                    .and_then(|(kind, id)| Some((endpoint_kind(kind)?, id)))
+                {
+                    Some((kind, id)) => filter.endpoint = Some((kind, uuid(name, id)?)),
+                    None => {
+                        filter.within_value = Some(network(value).ok_or_else(|| {
+                            kit::bad(
+                                "endpoint is `<kind>:<id>`, an address or `<address>/<length>`",
+                            )
+                        })?);
+                    }
+                }
             }
             "prefix" => filter.within_prefix = Some(uuid(name, value)?),
             "machine" => filter.machine = Some(uuid(name, value)?),
@@ -581,6 +672,197 @@ async fn visible(
     Ok(rows.into_iter().map(|(id,)| id).collect())
 }
 
+/// The condition that the endpoint `x` (`x.kind`, `x.id`) is readable at `$1` under the
+/// scope `s`, by the read permission of its kind (REQ-027-1): the predicate of the core
+/// for an address, a prefix or a range, the type of the module Machines for an interface
+/// or a machine.
+fn endpoint_readable() -> String {
+    let core = |table: &str, kind: &str, value: &str| {
+        format!(
+            "coalesce((SELECT {} FROM {table} o
+                        WHERE o.id = x.id AND o.valid_period @> $1::timestamptz LIMIT 1), false)",
+            readable("o.id", &format!("'{kind}'"), "o.domain_id", value, "$1")
+        )
+    };
+    let module = |kind: &str| {
+        readable(
+            "x.id",
+            &format!("'{kind}'"),
+            "NULL::uuid",
+            "NULL::inet",
+            "$1",
+        )
+    };
+    format!(
+        "CASE x.kind WHEN 'address' THEN {} WHEN 'prefix' THEN {} WHEN 'range' THEN {}
+                     WHEN 'interface' THEN {} WHEN 'machine' THEN {} ELSE false END",
+        core("public.address", "address", "o.address"),
+        core("public.prefix", "prefix", "o.prefix"),
+        core("public.ip_range", "range", "lower(o.range)"),
+        module(kartenn_machines::module::INTERFACE),
+        module(kartenn_machines::module::MACHINE),
+    )
+}
+
+/// The value of the endpoint `x` at `$1` (REQ-027-2): its address, prefix or range; the
+/// addresses an interface or a machine holds.
+const ENDPOINT_VALUES: &str = "CASE x.kind
+    WHEN 'address' THEN ARRAY(SELECT host(o.address) FROM public.address o
+                               WHERE o.id = x.id AND o.valid_period @> $1::timestamptz LIMIT 1)
+    WHEN 'prefix' THEN ARRAY(SELECT o.prefix::text FROM public.prefix o
+                              WHERE o.id = x.id AND o.valid_period @> $1::timestamptz LIMIT 1)
+    WHEN 'range' THEN ARRAY(SELECT o.range::text FROM public.ip_range o
+                             WHERE o.id = x.id AND o.valid_period @> $1::timestamptz LIMIT 1)
+    WHEN 'interface' THEN ARRAY(
+        SELECT host(a.address) FROM machines.attachment t
+          JOIN public.address a ON a.id = t.address_id AND a.valid_period @> $1::timestamptz
+         WHERE t.interface_id = x.id AND t.valid_period @> $1::timestamptz
+         ORDER BY a.address)
+    WHEN 'machine' THEN ARRAY(
+        SELECT host(d.address) FROM (
+            SELECT DISTINCT a.address FROM machines.interface i
+              JOIN machines.attachment t ON t.interface_id = i.id
+               AND t.valid_period @> $1::timestamptz
+              JOIN public.address a ON a.id = t.address_id AND a.valid_period @> $1::timestamptz
+             WHERE i.machine_id = x.id AND i.valid_period @> $1::timestamptz) d
+         ORDER BY d.address)
+    END";
+
+/// Whether the caller reads each of `endpoints` at `at` by the read permission of its
+/// kind (REQ-027-1): `None` when it does, its value otherwise (REQ-027-2). One query for
+/// the whole set, never one per row.
+async fn endpoint_reads(
+    api: &Api,
+    scope: &ReadScope,
+    at: OffsetDateTime,
+    endpoints: &[Endpoint],
+) -> Result<HashMap<Endpoint, Option<EndpointValueDto>>, Problem> {
+    let mut unique: Vec<&Endpoint> = endpoints.iter().collect();
+    unique.sort_unstable();
+    unique.dedup();
+    let Some(json) = scope.to_json() else {
+        return Ok(unique.into_iter().map(|e| (e.clone(), None)).collect());
+    };
+    if unique.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let kinds: Vec<&str> = unique.iter().map(|e| e.0.as_str()).collect();
+    let ids: Vec<Uuid> = unique.iter().map(|e| e.1).collect();
+    // `OFFSET 0` keeps the condition computed once per endpoint, not inlined twice.
+    let sql = format!(
+        "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($2))
+         SELECT x.kind, x.id, r.ok, CASE WHEN r.ok THEN NULL ELSE {ENDPOINT_VALUES} END
+           FROM unnest($3::text[], $4::uuid[]) AS x(kind, id)
+          CROSS JOIN LATERAL (SELECT {} AS ok OFFSET 0) r",
+        endpoint_readable()
+    );
+    let rows: Vec<(String, Uuid, bool, Option<Vec<String>>)> =
+        sqlx::query_as(sqlx::AssertSqlSafe(sql))
+            .bind(at)
+            .bind(json)
+            .bind(&kinds)
+            .bind(&ids)
+            .fetch_all(&api.pool)
+            .await
+            .map_err(|e| kit::store(&e))?;
+    Ok(rows
+        .into_iter()
+        .map(|(kind, id, ok, values)| {
+            let shown = (!ok).then(|| {
+                let values = values.unwrap_or_default();
+                let several = matches!(kind.as_str(), "interface" | "machine");
+                EndpointValueDto {
+                    kind: kind.clone(),
+                    value: if several {
+                        None
+                    } else {
+                        values.first().cloned()
+                    },
+                    values: several.then_some(values),
+                    readable: false,
+                }
+            });
+            ((kind, id), shown)
+        })
+        .collect())
+}
+
+/// The flows among `flows` (identifier, endpoints) the caller reads at `at`, each with
+/// the sides it shows by value: `None` for a flow read under `flow.read` on its entity or
+/// as its requester (REQ-011-17); for a flow read through one of its endpoints by a
+/// holder of `flow.read` elsewhere, the endpoints the caller does not read (REQ-027-1,
+/// 2). When the caller does not read every object of `objects`, those a filter names, a
+/// flow read through its endpoints only is left out (REQ-027-3).
+async fn flows_seen(
+    api: &Api,
+    scope: &ReadScope,
+    principal: &Principal,
+    at: OffsetDateTime,
+    flows: &[(Uuid, Sides<Endpoint>)],
+    objects: &[Endpoint],
+) -> Result<HashMap<Uuid, Option<Sides<EndpointValueDto>>>, Problem> {
+    let ids: Vec<Uuid> = flows.iter().map(|f| f.0).collect();
+    let full = visible(api, scope, principal, at, &ids).await?;
+    let mut out: HashMap<Uuid, Option<Sides<EndpointValueDto>>> =
+        full.iter().map(|id| (*id, None)).collect();
+    let rest: Vec<&(Uuid, Sides<Endpoint>)> =
+        flows.iter().filter(|f| !full.contains(&f.0)).collect();
+    if rest.is_empty() || !scope.reads(FLOW) {
+        return Ok(out);
+    }
+    let asked: Vec<Endpoint> = rest
+        .iter()
+        .flat_map(|f| f.1.iter().flatten().cloned())
+        .chain(objects.iter().cloned())
+        .collect();
+    let reads = endpoint_reads(api, scope, at, &asked).await?;
+    let is_read = |e: &Endpoint| matches!(reads.get(e), Some(None));
+    if !objects.iter().all(is_read) {
+        return Ok(out);
+    }
+    for (id, sides) in rest {
+        if sides.iter().flatten().any(is_read) {
+            let shown = sides
+                .clone()
+                .map(|side| side.and_then(|e| reads.get(&e).cloned().flatten()));
+            out.insert(*id, Some(shown));
+        }
+    }
+    Ok(out)
+}
+
+/// The flows among `ids` the caller reads at `at` through one of their endpoints, holding
+/// `flow.read` elsewhere (REQ-027-1): one query for the set.
+async fn through_endpoints(
+    api: &Api,
+    scope: &ReadScope,
+    at: OffsetDateTime,
+    ids: &[Uuid],
+) -> Result<HashSet<Uuid>, Problem> {
+    if ids.is_empty() || !scope.reads(FLOW) {
+        return Ok(HashSet::new());
+    }
+    let Some(json) = scope.to_json() else {
+        return Ok(ids.iter().copied().collect());
+    };
+    let sql = format!(
+        "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($2))
+         SELECT DISTINCT f.id FROM flow.flow f
+          CROSS JOIN LATERAL (VALUES (f.source_kind, f.source_id),
+                                     (f.destination_kind, f.destination_id)) AS x(kind, id)
+          WHERE f.id = ANY($3) AND {}",
+        endpoint_readable()
+    );
+    let rows: Vec<(Uuid,)> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        .bind(at)
+        .bind(json)
+        .bind(ids)
+        .fetch_all(&api.pool)
+        .await
+        .map_err(|e| kit::store(&e))?;
+    Ok(rows.into_iter().map(|(id,)| id).collect())
+}
+
 /// The moment and the read scope of a request of `principal` (the scope of
 /// `flow.read`).
 async fn reading(
@@ -608,13 +890,14 @@ async fn page_of<F, Fut>(
 ) -> Result<Response, Problem>
 where
     F: FnOnce(Dates, Option<Cursor>, i64, Page) -> Fut,
-    Fut: std::future::Future<Output = Result<(Vec<FlowView>, Page), Problem>>,
+    Fut: std::future::Future<Output = Result<(Vec<FlowView>, Page, Vec<Endpoint>), Problem>>,
 {
     let page = Page::from_query(query, &api.ring, collection)?;
     let after = page.after().map(cursor_of).transpose()?;
     let (moment, scope) = reading(api, principal, &page).await?;
     let size = usize::from(page.size);
-    let (mut rows, page) = fetch(dates(&moment), after, i64::from(page.size) + 1, page).await?;
+    let (mut rows, page, objects) =
+        fetch(dates(&moment), after, i64::from(page.size) + 1, page).await?;
     let next = (rows.len() > size).then(|| {
         rows.truncate(size);
         let cursor = page.next(
@@ -625,8 +908,12 @@ where
         );
         next_href(path, &cursor)
     });
-    let ids: Vec<Uuid> = rows.iter().filter_map(|r| r.id).collect();
-    let seen = visible(api, &scope, principal, moment.valid_at, &ids).await?;
+    let flows: Vec<(Uuid, Sides<Endpoint>)> = rows
+        .iter()
+        .filter(|r| r.review.is_none())
+        .filter_map(|r| Some((r.id?, endpoints_of(&r.flow))))
+        .collect();
+    let mut seen = flows_seen(api, &scope, principal, moment.valid_at, &flows, &objects).await?;
     let reviews = reviews_seen(api, &scope, principal, moment.valid_at, &rows).await?;
     // A flow under review shows the state proposed, not its own version: only the flows
     // in force carry `version` (006/H19).
@@ -641,9 +928,16 @@ where
                     items.push((flow_dto(row, reduced), false));
                 }
             }
-            (Some(id), None) if seen.contains(&id) => {
-                ids.push(id);
-                items.push((flow_dto(row, false), true));
+            (Some(id), None) => {
+                if let Some(shown) = seen.remove(&id) {
+                    ids.push(id);
+                    let dto = flow_dto(row, false);
+                    let dto = match shown {
+                        Some(sides) => masked(dto, sides),
+                        None => dto,
+                    };
+                    items.push((dto, true));
+                }
             }
             _ => {}
         }
@@ -758,9 +1052,16 @@ async fn list(
         "/v1/flows",
         |dates, after, limit, page| async move {
             let filter = filter_of(&wanted(&page, &names)?)?;
+            let objects: Vec<Endpoint> = filter
+                .endpoint
+                .map(|(kind, id)| (crate::pg::kind_name(kind).to_owned(), id))
+                .into_iter()
+                .chain(filter.within_prefix.map(|id| ("prefix".to_owned(), id)))
+                .chain(filter.machine.map(|id| ("machine".to_owned(), id)))
+                .collect();
             let mut conn = pool.acquire().await.map_err(|e| kit::store(&e))?;
             let rows = read::flows(&mut conn, dates, &filter, after, limit).await?;
-            Ok((rows, page))
+            Ok((rows, page, objects))
         },
     )
     .await
@@ -800,35 +1101,81 @@ async fn of_object(
             };
             let mut conn = pool.acquire().await.map_err(|e| kit::store(&e))?;
             let rows = read::of_object(&mut conn, dates, kind, id, after, limit).await?;
-            Ok((rows, page))
+            Ok((
+                rows,
+                page,
+                vec![(crate::pg::kind_name(kind).to_owned(), id)],
+            ))
         },
     )
     .await
 }
 
-/// Whether the caller reads the flow `id`: `Some(false)` under `flow.read`,
-/// `Some(true)` as its requester only (explanation reduced), `None` otherwise.
+/// How the caller reads a flow (REQ-011-17, REQ-027-1).
+#[derive(Debug)]
+enum ReadBy {
+    /// Under `flow.read` on its entity.
+    Entity,
+    /// As its requester only.
+    Requester,
+    /// Through one of its endpoints only, holding `flow.read` elsewhere: the sides it does
+    /// not read, by value (REQ-027-2).
+    Endpoints(Sides<EndpointValueDto>),
+}
+
+impl ReadBy {
+    /// Whether the explanation of its evaluations is reduced (REQ-010-25): for the
+    /// requester, and for a reader through an endpoint that does not read the other.
+    fn reduced(&self) -> bool {
+        match self {
+            Self::Entity => false,
+            Self::Requester => true,
+            Self::Endpoints(sides) => sides.iter().any(Option::is_some),
+        }
+    }
+}
+
+/// How the caller reads the flow `id` at `at`; `None` when it does not.
 async fn access(
     api: &Api,
     principal: &Principal,
     context: &RequestContext,
     id: Uuid,
-) -> Result<Option<bool>, Problem> {
+    at: OffsetDateTime,
+) -> Result<Option<ReadBy>, Problem> {
+    type Row = (bool, String, Uuid, String, Uuid);
     match kit::gate(api, context, flow_type(), id).await {
-        Ok(()) => Ok(Some(false)),
-        Err(problem) if problem.kind() == ProblemKind::NotFound => {
-            let own: Option<bool> = sqlx::query_scalar(
-                "SELECT true FROM flow.flow WHERE id = $1 AND requester_id = $2 LIMIT 1",
-            )
-            .bind(id)
-            .bind(principal.identity)
-            .fetch_optional(&api.pool)
-            .await
-            .map_err(|e| kit::store(&e))?;
-            Ok(own.map(|_| true))
-        }
-        Err(problem) => Err(problem),
+        Ok(()) => return Ok(Some(ReadBy::Entity)),
+        Err(problem) if problem.kind() == ProblemKind::NotFound => {}
+        Err(problem) => return Err(problem),
     }
+    let row: Option<Row> = sqlx::query_as(
+        "SELECT requester_id = $2, source_kind, source_id, destination_kind, destination_id
+           FROM flow.flow WHERE id = $1 ORDER BY requester_id = $2 DESC LIMIT 1",
+    )
+    .bind(id)
+    .bind(principal.identity)
+    .fetch_optional(&api.pool)
+    .await
+    .map_err(|e| kit::store(&e))?;
+    let Some((own, source_kind, source, destination_kind, destination)) = row else {
+        return Ok(None);
+    };
+    if own {
+        return Ok(Some(ReadBy::Requester));
+    }
+    let scope = kit::scope(api, principal, kit::now(api).await?).await?;
+    if !scope.reads(FLOW) {
+        return Ok(None);
+    }
+    let sides = [(source_kind, source), (destination_kind, destination)];
+    let reads = endpoint_reads(api, &scope, at, &sides).await?;
+    if !sides.iter().any(|e| matches!(reads.get(e), Some(None))) {
+        return Ok(None);
+    }
+    Ok(Some(ReadBy::Endpoints(
+        sides.map(|e| reads.get(&e).cloned().flatten()),
+    )))
 }
 
 /// The flow `id` at `moment`, as listed.
@@ -865,11 +1212,11 @@ async fn show(
     dates_given: DateParams,
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
-    access(&api, &principal, &context, id)
-        .await?
-        .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
     let now = kit::now(&api).await?;
     let moment = dates_given.at(now, api.bound)?;
+    let read_by = access(&api, &principal, &context, id, moment.valid_at)
+        .await?
+        .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
     let view = flow_at(&api, id, &moment).await?;
     let version = kit::version(&api, id, &moment)
         .await?
@@ -879,7 +1226,10 @@ async fn show(
         &headers,
         &moment,
         version,
-        &flow_dto(view, false),
+        &match read_by {
+            ReadBy::Endpoints(sides) => masked(flow_dto(view, false), sides),
+            ReadBy::Entity | ReadBy::Requester => flow_dto(view, false),
+        },
     ))
 }
 
@@ -893,11 +1243,12 @@ async fn evaluations(
     dates_given: DateParams,
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
-    let reduced = access(&api, &principal, &context, id)
-        .await?
-        .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
     let now = kit::now(&api).await?;
     let moment = dates_given.at(now, api.bound)?;
+    let reduced = access(&api, &principal, &context, id, moment.valid_at)
+        .await?
+        .ok_or_else(|| Problem::new(ProblemKind::NotFound))?
+        .reduced();
     let mut conn = api.pool.acquire().await.map_err(|e| kit::store(&e))?;
     let rows = read::evaluations(&mut conn, dates(&moment), id).await?;
     kit::record_read(
@@ -916,7 +1267,8 @@ async fn evaluations(
 }
 
 /// `GET /v1/flow-nonconformities` (REQ-011-25): newest first, filtered; a caller reads the
-/// rows of the entities where it holds `flow.read`, and those of its own requests.
+/// rows of the entities where it holds `flow.read`, those of its own requests, and those of
+/// the flows it reads through one of their endpoints (REQ-027-1).
 async fn nonconformities(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -981,9 +1333,17 @@ async fn nonconformities(
     });
     let entities: Vec<Uuid> = rows.iter().map(|r| r.entity).collect();
     let readable = readable_entities(&api, &scope, moment.valid_at, &entities).await?;
+    let mine =
+        |r: &Nonconformity| r.requester == principal.identity || readable.contains(&r.entity);
+    let others: Vec<Uuid> = rows
+        .iter()
+        .filter(|r| !mine(r))
+        .filter_map(|r| r.flow)
+        .collect();
+    let through = through_endpoints(&api, &scope, moment.valid_at, &others).await?;
     let items: Vec<NonconformityDto> = rows
         .into_iter()
-        .filter(|r| r.requester == principal.identity || readable.contains(&r.entity))
+        .filter(|r| mine(r) || r.flow.is_some_and(|f| through.contains(&f)))
         .map(nonconformity_dto)
         .collect();
     let flows: Vec<Uuid> = items.iter().filter_map(|n| n.flow).collect();
@@ -1206,16 +1566,22 @@ async fn check(
     let mut conn = api.pool.acquire().await.map_err(|e| kit::store(&e))?;
     let opened = read::open(&mut conn, dates(&moment), &tested).await?;
     drop(conn);
-    let ids: Vec<Uuid> = opened.iter().flatten().filter_map(|v| v.id).collect();
+    let mut flows: Vec<(Uuid, Sides<Endpoint>)> = opened
+        .iter()
+        .flatten()
+        .filter_map(|v| Some((v.id?, endpoints_of(&v.flow))))
+        .collect();
+    flows.sort_unstable_by_key(|f| f.0);
+    flows.dedup_by_key(|f| f.0);
     let scope = kit::scope(api, principal, kit::now(api).await?).await?;
-    let seen = visible(api, &scope, principal, moment.valid_at, &ids).await?;
+    let seen = flows_seen(api, &scope, principal, moment.valid_at, &flows, &[]).await?;
     let mut flows_of: HashMap<usize, Vec<OpeningDto>> = HashMap::new();
     for (i, views) in asked.into_iter().zip(opened) {
         flows_of.insert(
             i,
             views
                 .into_iter()
-                .filter(|v| v.id.is_some_and(|id| seen.contains(&id)))
+                .filter(|v| v.id.is_some_and(|id| seen.contains_key(&id)))
                 .map(|v| OpeningDto {
                     id: v.id.unwrap_or_default(),
                     state: v.state.into(),
@@ -1369,6 +1735,7 @@ fn schemas() -> Vec<(String, RefOr<Schema>)> {
     schemas_of::<CheckPairDto>(&mut schemas);
     schemas_of::<CheckDto>(&mut schemas);
     schemas_of::<FlowDto>(&mut schemas);
+    schemas_of::<EndpointValueDto>(&mut schemas);
     schemas_of::<ReviewDto>(&mut schemas);
     schemas_of::<TriageDto>(&mut schemas);
     schemas_of::<EvaluationDto>(&mut schemas);

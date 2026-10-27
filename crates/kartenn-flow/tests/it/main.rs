@@ -2,6 +2,7 @@
 //! per subject.
 
 mod approval;
+mod by_endpoint;
 mod endpoints;
 mod expiry;
 mod extensions;

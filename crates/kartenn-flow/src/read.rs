@@ -47,6 +47,10 @@ pub struct FlowFilter {
     pub endpoint: Option<(EndpointKind, Uuid)>,
     /// A prefix: flows with an endpoint address or prefix in its subtree.
     pub within_prefix: Option<Uuid>,
+    /// A value, `<address>/<length>`: flows with an endpoint address or prefix within it,
+    /// in any domain; it matches an endpoint the caller does not read, shown by value
+    /// (spec 027, REQ-027-3).
+    pub within_value: Option<String>,
     /// A machine: flows whose endpoint is it, one of its interfaces or an address attached
     /// to one of them.
     pub machine: Option<Uuid>,
@@ -113,6 +117,7 @@ impl FlowFilter {
             return false;
         };
         if self.within_prefix.is_some()
+            || self.within_value.is_some()
             || self.machine.is_some()
             || self.axis.is_some()
             || self.ids.is_some()
@@ -683,6 +688,24 @@ async fn applied(
                                 AND c.valid_period @> $1::timestamptz
                                 AND ((f.source_kind = 'prefix' AND f.source_id = c.id)
                                   OR (f.destination_kind = 'prefix' AND f.destination_id = c.id)))))"
+        ));
+    }
+    if let Some(value) = &filter.within_value {
+        q.push(" AND EXISTS (SELECT 1 FROM (SELECT ");
+        q.push_bind(value.clone());
+        q.push(format!(
+            "::inet AS net) x WHERE
+                EXISTS (SELECT 1 FROM {endpoint} e
+                          JOIN public.address a ON a.id = e.address_id
+                           AND a.valid_period @> $1::timestamptz
+                         WHERE e.flow_id = f.id AND e.valid_period @> $1::timestamptz
+                           AND a.address <<= x.net)
+             OR (f.source_kind = 'prefix' AND f.source_id IN (
+                    SELECT c.id FROM public.prefix c
+                     WHERE c.prefix <<= x.net AND c.valid_period @> $1::timestamptz))
+             OR (f.destination_kind = 'prefix' AND f.destination_id IN (
+                    SELECT c.id FROM public.prefix c
+                     WHERE c.prefix <<= x.net AND c.valid_period @> $1::timestamptz)))"
         ));
     }
     if let Some(machine) = filter.machine {
