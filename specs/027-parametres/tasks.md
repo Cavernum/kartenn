@@ -48,7 +48,7 @@ Statut : spec **validée le 2026-10-28**.
     non-conformités, `/v1/flow-checks`) ; `kartenn_store_pg::rbac::readable` ;
     `crates/kartenn-flow/tests/it/rest.rs` (tests de droits à imiter) ;
     `crates/kartenn-bench` (lecteur par extrémités)
-- [ ] 3b. P2 amendée : un flux servi tel quel pour tout lecteur, sans masquage — REQ-027-2,
+- [x] 3b. P2 amendée : un flux servi tel quel pour tout lecteur, sans masquage — REQ-027-2,
   3 — verify : tests d'acceptation revus ; `k-check` ; banc `bench-flow` complet (agent
   principal)
   - où : `crates/kartenn-flow/src/rest.rs` (`flows_seen`, `through_endpoints`,
@@ -60,6 +60,30 @@ Statut : spec **validée le 2026-10-28**.
     d'explication réduite selon la voie de lecture ; aucune donnée d'objet du référentiel
     (nom d'interface ou de machine, propriétés) dans la réponse d'un flux, pour personne ;
     la lisibilité d'une extrémité ne sert plus qu'à décider si le flux est lisible (P1).
+  - fait : `crates/kartenn-flow/src/rest.rs` : `FlowEndpoint` `{kind, id, value |
+    values}` (remplace `FlowEndpointValue`, plus de `readable`) dans `source` et
+    `destination` de toute ligne (flux, demande en attente, réponse 201), valeurs lues
+    en une requête par page (`endpoint_values`, `served`) ; `endpoints_read` ne décide
+    plus que la lisibilité (`flows_seen`, `access` rendent un ensemble ou un booléen) ;
+    `fields` inchangé pour tous ; évaluations et triage entiers pour tout lecteur,
+    demandeur compris (`source`, `destination` de `FlowEvaluation` requis) ; tests
+    `acceptance_of_req_027_2_a_flow_served_as_is` (même corps pour un lecteur de
+    l'entité et un lecteur par `eth0`, 404 de `eth1`, de sa machine et du réseau, aucun
+    nom dans le corps), `rest.rs` (triage et évaluations du demandeur entiers) ; routes
+    Machines montées dans l'application de test (fonction `rest` en dépendance de
+    développement) ; contrat, SDK v1 et v2 régénérés ; `docs/spec/interfaces.md`,
+    REQ-011-5 (acceptation) et design 011 alignés.
+  - choix : aucune donnée d'objet n'était embarquée (pas de nom ni de propriété dans
+    `fields`, le triage ni les évaluations : identifiants, clés de règles, valeurs
+    d'axes) ; rien à retirer à ce titre.
+  - choix : `/v1/flow-checks` garde `open` et `case` absents quand le verdict est
+    réduit (REQ-010-25, `policy.flow.request` sans lecture des extrémités) : ce n'est
+    pas un masquage du flux, la réponse réduite ne nomme aucune adresse et aucun flux
+    n'y est rapproché ; seuls les flux lisibles comptent pour `open`.
+  - choix : `fields` garde `source_kind`/`source_id` (redondants avec `source`), pour
+    ne pas toucher les lecteurs de `fields` (web v1, CLI).
+  - choix : banc `bench-flow` non lancé (agent principal) ; la page sert désormais les
+    valeurs des extrémités pour tout lecteur (une requête de plus par page).
 - [x] 4. Permissions `<déclarant>.settings.*`, contrôle par déclarant, migration des
   rôles — REQ-027-5 à 7 — verify : tests d'acceptation ; test des anciens noms ;
   `k-check`
