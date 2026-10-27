@@ -68,8 +68,8 @@
       - region "Flux de ses interfaces":
         - heading "Flux de ses interfaces" [level=3]
         - text: conformité à la matrice de flux du jour
-        - heading "Entrants 5" [level=4]
-        - list "Entrants 5":
+        - heading "Entrants 6" [level=4]
+        - list "Entrants 6":
           - listitem:
             - link "eth0":
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
@@ -115,8 +115,18 @@
             - text: Web chiffré
             - code: https
             - text: Applicatif Sous réserve Échu
-        - heading "Sortants 2" [level=4]
-        - list "Sortants 2":
+          - listitem:
+            - link "eth0":
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
+            - text: depuis interface
+            - code: /\d+\.\d+\.\d+\.\d+, \d+:db8::\d+/
+            - text: fiche non accessible ·
+            - code: machines.read
+            - text: API interne
+            - code: api
+            - text: Applicatif Conforme
+        - heading "Sortants 3" [level=4]
+        - list "Sortants 3":
           - listitem:
             - link "eth0":
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
@@ -139,4 +149,14 @@
             - text: Partage NFS
             - code: nfs
             - text: Fichier Conforme
+          - listitem:
+            - link "eth0":
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
+            - text: vers préfixe
+            - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+            - text: fiche non accessible ·
+            - code: core.prefix.read
+            - text: Web chiffré
+            - code: https
+            - text: Applicatif Conforme
 - button "Ouvrir le panneau"

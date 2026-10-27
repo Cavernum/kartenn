@@ -10,7 +10,9 @@
 // « Tester une connexion », which answers apart « ouvert » (a flow of the register,
 // `active` or `waived`, covers the pair) and « conforme » (the matrix allows it), summed
 // up in one of four cases, one view each, without writing; the flows of a machine in its
-// information tab, by interface, each naming its other end. Flows are « conformes » or
+// information tab, by interface, each naming its other end — or, when the reader does
+// not read that end's object, showing its kind and values without link nor panel, the
+// card said not accessible with the permission it needs (027). Flows are « conformes » or
 // « non conformes à la matrice de flux ». The verdicts are worked out here, from the rules
 // of `donnees.ts`, in the order of REQ-010-11, so that every view tells the same story.
 import {
@@ -169,6 +171,27 @@ const roleOf = (end: FlowEnd): string => {
   const i = end.kind === "interface" ? interfaceOf(end.machine, end.iface) : undefined;
   return i ? INTERFACE_ROLE[i.role] : "";
 };
+/**
+ * The values of an end whose object the reader does not read (027): the address or the
+ * prefix, the addresses an interface carries at the date; never the names of the
+ * interface and of its machine, which come from the objects.
+ */
+const valuesOf = (end: FlowEnd): string[] =>
+  end.kind === "interface"
+    ? (interfaceOf(end.machine, end.iface)?.addresses.map((a) => a.value) ?? [])
+    : [end.value];
+/** The permission that opens the card of an end (027): its object's read. */
+const READ: Record<FlowEnd["kind"], string> = {
+  address: "core.address.read",
+  interface: "machines.read",
+  prefix: "core.prefix.read",
+};
+/** The source or the destination of a flow, by the id of its column. */
+const endOf = (flow: RegisteredFlow, side: string): FlowEnd =>
+  side === "source" ? flow.source : flow.destination;
+/** An end whose card is not accessible: its kind and values, in one line. */
+const unreadableName = (end: FlowEnd): string =>
+  `${KIND[end.kind].toLowerCase()} ${valuesOf(end).join(", ")}`;
 /** An address of an end, with the interface that carries it. */
 interface EndAddress {
   address: FlowAddress;
@@ -401,8 +424,11 @@ const registerRows: RegisterRow[] = FLOWS.map((flow) => {
   return {
     key: flow.key,
     flow,
-    source: endName(flow.source),
-    destination: endName(flow.destination),
+    source: flow.unreadable === "source" ? unreadableName(flow.source) : endName(flow.source),
+    destination:
+      flow.unreadable === "destination"
+        ? unreadableName(flow.destination)
+        : endName(flow.destination),
     service: flow.service,
     flowType: FLOW_TYPE[e.type],
     state: STATE[flow.state].label,
@@ -416,12 +442,23 @@ const registerRows: RegisterRow[] = FLOWS.map((flow) => {
 // non-conforming, said once), the term is a date whose kind the state tells (« Dérogé »:
 // the end of the waiver). Under a container `lg`, the type and the term leave first.
 const registerColumns: GridColumn[] = [
-  { id: "source", label: "Source", width: "md", mono: true, sortable: true, filterable: true },
+  // An end whose card the reader cannot open (027) says so under its values: the ends
+  // wrap, the row grows.
+  {
+    id: "source",
+    label: "Source",
+    width: "md",
+    mono: true,
+    wrap: true,
+    sortable: true,
+    filterable: true,
+  },
   {
     id: "destination",
     label: "Destination",
     width: "md",
     mono: true,
+    wrap: true,
     sortable: true,
     filterable: true,
   },
@@ -961,6 +998,8 @@ interface MachineFlow {
   flow: RegisteredFlow;
   by: { by: string; through?: string };
   other: FlowEnd;
+  /** The reader does not read the other end's object: no link nor panel (027). */
+  unreadable: boolean;
   synthesis: Synthesis;
 }
 function machineFlows(direction: "in" | "out"): MachineFlow[] {
@@ -974,6 +1013,7 @@ function machineFlows(direction: "in" | "out"): MachineFlow[] {
         flow,
         by,
         other: direction === "in" ? flow.source : flow.destination,
+        unreadable: flow.unreadable === (direction === "in" ? "source" : "destination"),
         synthesis: evaluate(flow.source, flow.destination, flow.service, true).synthesis,
       },
     ];
@@ -1097,8 +1137,19 @@ const IFACE_HISTORY = [
       >
         <template #cell="{ row, column }">
           <template v-if="column.id === 'source' || column.id === 'destination'">
+            <span v-if="row.flow.unreadable === column.id" class="k-e11-unreadable"
+              ><span
+                ><span class="k-e11-unreadable__note">{{
+                  KIND[endOf(row.flow, column.id).kind]
+                }}</span>
+                {{ valuesOf(endOf(row.flow, column.id)).join(", ") }}</span
+              ><span class="k-e11-unreadable__note"
+                >fiche non accessible ·
+                <code>{{ READ[endOf(row.flow, column.id).kind] }}</code></span
+              ></span
+            >
             <RouterLink
-              v-if="cardOf(column.id === 'source' ? row.flow.source : row.flow.destination)"
+              v-else-if="cardOf(column.id === 'source' ? row.flow.source : row.flow.destination)"
               :to="cardOf(column.id === 'source' ? row.flow.source : row.flow.destination)!"
               >{{ row[column.id] }}</RouterLink
             >
@@ -1844,17 +1895,29 @@ const IFACE_HISTORY = [
                       </span>
                       <span class="k-e11-flow__end">
                         <span class="k-ecran-muted">{{ group.word }}</span>
-                        <RouterLink v-if="cardOf(f.other)" :to="cardOf(f.other)!" class="k-mono">{{
-                          endName(f.other)
-                        }}</RouterLink>
+                        <template v-if="f.unreadable">
+                          <span class="k-ecran-muted">{{ KIND[f.other.kind].toLowerCase() }}</span>
+                          <code>{{ valuesOf(f.other).join(", ") }}</code>
+                          <span class="k-ecran-muted"
+                            >fiche non accessible · <code>{{ READ[f.other.kind] }}</code></span
+                          >
+                        </template>
+                        <RouterLink
+                          v-else-if="cardOf(f.other)"
+                          :to="cardOf(f.other)!"
+                          class="k-mono"
+                          >{{ endName(f.other) }}</RouterLink
+                        >
                         <code v-else>{{ endName(f.other) }}</code>
                         <RouterLink
-                          v-if="contextOf(f.other)"
+                          v-if="!f.unreadable && contextOf(f.other)"
                           :to="contextCard(f.other)"
                           class="k-mono"
                           >{{ contextOf(f.other) }}</RouterLink
                         >
-                        <span v-else-if="f.other.kind === 'prefix'" class="k-ecran-muted"
+                        <span
+                          v-else-if="!f.unreadable && f.other.kind === 'prefix'"
+                          class="k-ecran-muted"
                           >préfixe</span
                         >
                       </span>
@@ -1961,17 +2024,29 @@ const IFACE_HISTORY = [
                       </span>
                       <span class="k-e11-flow__end">
                         <span class="k-ecran-muted">{{ group.word }}</span>
-                        <RouterLink v-if="cardOf(f.other)" :to="cardOf(f.other)!" class="k-mono">{{
-                          endName(f.other)
-                        }}</RouterLink>
+                        <template v-if="f.unreadable">
+                          <span class="k-ecran-muted">{{ KIND[f.other.kind].toLowerCase() }}</span>
+                          <code>{{ valuesOf(f.other).join(", ") }}</code>
+                          <span class="k-ecran-muted"
+                            >fiche non accessible · <code>{{ READ[f.other.kind] }}</code></span
+                          >
+                        </template>
+                        <RouterLink
+                          v-else-if="cardOf(f.other)"
+                          :to="cardOf(f.other)!"
+                          class="k-mono"
+                          >{{ endName(f.other) }}</RouterLink
+                        >
                         <code v-else>{{ endName(f.other) }}</code>
                         <RouterLink
-                          v-if="contextOf(f.other)"
+                          v-if="!f.unreadable && contextOf(f.other)"
                           :to="contextCard(f.other)"
                           class="k-mono"
                           >{{ contextOf(f.other) }}</RouterLink
                         >
-                        <span v-else-if="f.other.kind === 'prefix'" class="k-ecran-muted"
+                        <span
+                          v-else-if="!f.unreadable && f.other.kind === 'prefix'"
+                          class="k-ecran-muted"
                           >préfixe</span
                         >
                       </span>
@@ -2332,6 +2407,19 @@ const IFACE_HISTORY = [
     align-items: baseline;
     min-block-size: var(--k-row-height);
     border-block-end: var(--k-border-width) solid var(--k-border);
+  }
+
+  /* An end whose object the reader does not read, in the register (027): its kind and
+   * values, then « fiche non accessible » and the permission, without link. */
+  .k-e11-unreadable {
+    display: grid;
+  }
+
+  .k-e11-unreadable__note {
+    font-family: var(--k-font-sans);
+    font-size: var(--k-text-sm);
+    line-height: var(--k-text-sm-line);
+    color: var(--k-text-muted);
   }
 
   .k-e11-flow__end,

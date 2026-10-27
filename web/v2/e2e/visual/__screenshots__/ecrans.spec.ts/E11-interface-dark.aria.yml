@@ -81,8 +81,8 @@
       - region "Flux de l'interface":
         - heading "Flux de l'interface" [level=3]
         - text: conformité à la matrice de flux du jour
-        - heading "Entrants 4" [level=4]
-        - list "Entrants 4":
+        - heading "Entrants 5" [level=4]
+        - list "Entrants 5":
           - listitem:
             - text: par l'interface depuis
             - link /srv-web-\d+ · eth0/:
@@ -111,8 +111,16 @@
             - text: Web chiffré
             - code: https
             - text: Applicatif Sous réserve Échu
-        - heading "Sortants 2" [level=4]
-        - list "Sortants 2":
+          - listitem:
+            - text: par l'interface depuis interface
+            - code: /\d+\.\d+\.\d+\.\d+, \d+:db8::\d+/
+            - text: fiche non accessible ·
+            - code: machines.read
+            - text: API interne
+            - code: api
+            - text: Applicatif Conforme
+        - heading "Sortants 3" [level=4]
+        - list "Sortants 3":
           - listitem:
             - text: par l'interface vers
             - link /\d+\.\d+\.\d+\.\d+/:
@@ -131,4 +139,12 @@
             - text: Partage NFS
             - code: nfs
             - text: Fichier Conforme
+          - listitem:
+            - text: par l'interface vers préfixe
+            - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+            - text: fiche non accessible ·
+            - code: core.prefix.read
+            - text: Web chiffré
+            - code: https
+            - text: Applicatif Conforme
 - button "Ouvrir le panneau"

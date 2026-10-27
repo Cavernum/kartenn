@@ -32,7 +32,7 @@
   - heading "Flux" [level=1]
   - region "Flux":
     - heading "Flux" [level=2]
-    - text: "9"
+    - text: /\d+/
     - toolbar "Actions sur les flux":
       - button "Proposer des flux"
       - button "Tester une connexion"
@@ -202,5 +202,33 @@
           - gridcell "Échu"
           - gridcell "Sous réserve Instruction"
           - gridcell /\d+-\d+-\d+/
-    - text: "9 flux · 1 demandé · 1 non conforme à la matrice · 1 dérogé Échéance : fin de la dérogation d'un flux dérogé, sinon fin du flux"
+        - row /srv-app-\d+ · eth0 Préfixe \d+\.\d+\.\d+\.\d+\/\d+ fiche non accessible · core\.prefix\.read Web chiffré https Applicatif Actif Conforme Automatique —/:
+          - gridcell /srv-app-\d+ · eth0/:
+            - link /srv-app-\d+ · eth0/:
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
+          - gridcell /Préfixe \d+\.\d+\.\d+\.\d+\/\d+ fiche non accessible · core\.prefix\.read/:
+            - text: ""
+            - code: core.prefix.read
+          - gridcell "Web chiffré https":
+            - text: ""
+            - code: https
+          - gridcell "Applicatif"
+          - gridcell "Actif"
+          - gridcell "Conforme Automatique"
+          - gridcell "—"
+        - row /Interface \d+\.\d+\.\d+\.\d+, \d+:db8::\d+ fiche non accessible · machines\.read srv-app-\d+ · eth0 API interne api Applicatif Actif Conforme Automatique —/:
+          - gridcell /Interface \d+\.\d+\.\d+\.\d+, \d+:db8::\d+ fiche non accessible · machines\.read/:
+            - text: ""
+            - code: machines.read
+          - gridcell /srv-app-\d+ · eth0/:
+            - link /srv-app-\d+ · eth0/:
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
+          - gridcell "API interne api":
+            - text: ""
+            - code: api
+          - gridcell "Applicatif"
+          - gridcell "Actif"
+          - gridcell "Conforme Automatique"
+          - gridcell "—"
+    - text: "/\\d+ flux · 1 demandé · 1 non conforme à la matrice · 1 dérogé Échéance : fin de la dérogation d'un flux dérogé, sinon fin du flux/"
 - button "Ouvrir le panneau"
