@@ -201,8 +201,8 @@ const vlans: Vlan[] = [
 const vlanColumns: GridColumn[] = [
   { id: "vid", label: "VID", width: "sm", mono: true, sortable: true },
   { id: "name", label: "Nom", width: "fill", mono: true, sortable: true },
-  { id: "status", label: "Statut", width: "md", sortable: true, filterable: true, priority: 2 },
-  { id: "networks", label: "Réseaux", width: "lg", mono: true, priority: 2 },
+  { id: "status", label: "Statut", width: "md", sortable: true, filterable: true },
+  { id: "networks", label: "Réseaux", width: "lg", mono: true },
 ];
 const vlanSort = ref<GridSort | undefined>({ column: "vid", direction: "ascending" });
 const vlanRow = (row: Vlan): RowState | undefined => (row.vid === "104" ? "draft" : undefined);
@@ -469,6 +469,7 @@ const createAction = ref("draft");
               :columns="sliceColumns"
               :rows="slices"
               row-key="key"
+              stack
             >
               <template #cell="{ row, column, value }">
                 <StatusBadge
