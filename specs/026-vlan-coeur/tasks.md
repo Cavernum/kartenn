@@ -40,8 +40,7 @@ Statut : spec **validée le 2026-10-27**.
     section `vlan` de `GET /v1/stats` et les sortes `core.vlan_group`, `core.vlan` dans
     `objects` (forme à confirmer par la tâche 3) ; le VLAN reste une seule entrée de la
     barre latérale (les groupes en sont la page d'accueil).
-  - reste : `k-web2-check` échoue sur le test du SDK (`sdk/test/client.test.ts`, contrat
-    plus récent que les types versionnés, antérieur à cette tâche ; SDK régénéré après
-    la fusion serveur).
+  - SDK v2 régénéré à la fusion (filtre `media` de la 009-15) : `k-web2-check` vert sur
+    main (312 tests, 1196 captures).
 - [ ] 7. Amendements : D18 dans `001-cadrage/decisions.md`, 008 (parties B à F
   « reprises par la 026 »), 009 (REQ-009-12), 021, `specs/README.md`
