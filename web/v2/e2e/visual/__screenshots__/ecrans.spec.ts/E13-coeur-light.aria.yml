@@ -1,0 +1,200 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration" [expanded]
+  - list:
+    - listitem:
+      - link "Groupes":
+        - /url: /admin/groups
+    - listitem:
+      - link "Rôles":
+        - /url: /admin/roles
+    - listitem:
+      - link "Identités":
+        - /url: /admin/identities
+    - listitem:
+      - link "Comptes de service":
+        - /url: /admin/accounts
+    - listitem:
+      - link "Émetteurs":
+        - /url: /admin/issuers
+    - listitem:
+      - link "Paramètres":
+        - /url: /admin/settings
+    - listitem:
+      - link "Audit":
+        - /url: /admin/audit
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Administration":
+          - /url: /admin
+      - listitem:
+        - link "Paramètres":
+          - /url: /admin/settings
+      - listitem: Cœur
+  - button "Présent"
+  - button "Brouillon 3 opérations"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Paramètres" [level=1]
+  - region "Paramètres":
+    - heading "Paramètres" [level=2]
+    - text: un onglet par déclarant
+    - tablist "Déclarants des paramètres":
+      - tab "Cœur" [selected]
+      - tab "Machines"
+      - tab "Politique"
+    - tabpanel "Cœur":
+      - paragraph:
+        - text: Écriture par changeset, sous
+        - code: core.settings.edit
+        - text: .
+      - region "Champs 6":
+        - heading "Champs 6" [level=3]
+        - button "Déclarer un champ custom.*"
+        - grid "Champs de Cœur":
+          - rowgroup:
+            - row "Clé Libellé Libellé (en) Type Porteurs Héritable Sensible":
+              - columnheader "Clé":
+                - text: ""
+                - 'button "Filtrer : Clé"'
+              - columnheader "Libellé":
+                - text: ""
+                - 'button "Filtrer : Libellé"'
+              - columnheader "Libellé (en)":
+                - text: ""
+                - 'button "Filtrer : Libellé (en)"'
+              - columnheader "Type":
+                - text: ""
+                - 'button "Filtrer : Type"'
+              - columnheader "Porteurs":
+                - text: ""
+                - 'button "Filtrer : Porteurs"'
+              - columnheader "Héritable":
+                - text: ""
+                - 'button "Filtrer : Héritable"'
+              - columnheader "Sensible":
+                - text: ""
+                - 'button "Filtrer : Sensible"'
+          - rowgroup:
+            - 'row "core.owner Propriétaire Owner Référence : entité Préfixe, plage, adresse oui non"':
+              - gridcell "core.owner"
+              - gridcell "Propriétaire"
+              - gridcell "Owner"
+              - 'gridcell "Référence : entité"'
+              - gridcell "Préfixe, plage, adresse"
+              - gridcell "oui"
+              - gridcell "non"
+            - 'row "core.site Site Site Référence : site Préfixe, plage, adresse oui non"':
+              - gridcell "core.site"
+              - gridcell "Site"
+              - gridcell "Site"
+              - 'gridcell "Référence : site"'
+              - gridcell "Préfixe, plage, adresse"
+              - gridcell "oui"
+              - gridcell "non"
+            - 'row "core.vlan VLAN VLAN Référence : VLAN Réseau non non"':
+              - gridcell "core.vlan"
+              - gridcell "VLAN"
+              - gridcell "VLAN"
+              - 'gridcell "Référence : VLAN"'
+              - gridcell "Réseau"
+              - gridcell "non"
+              - gridcell "non"
+            - row "core.external_system Système externe External system Liste fermée Tout objet non non":
+              - gridcell "core.external_system"
+              - gridcell "Système externe"
+              - gridcell "External system"
+              - gridcell "Liste fermée"
+              - gridcell "Tout objet"
+              - gridcell "non"
+              - gridcell "non"
+            - row "custom.contrat Contrat de maintenance Maintenance contract Texte Préfixe, adresse oui oui":
+              - gridcell "custom.contrat"
+              - gridcell "Contrat de maintenance"
+              - gridcell "Maintenance contract"
+              - gridcell "Texte"
+              - gridcell "Préfixe, adresse"
+              - gridcell "oui"
+              - gridcell "oui"
+            - row "(en brouillon) custom.astreinte Astreinte On-call Texte Préfixe oui non":
+              - gridcell "(en brouillon) custom.astreinte"
+              - gridcell "Astreinte"
+              - gridcell "On-call"
+              - gridcell "Texte"
+              - gridcell "Préfixe"
+              - gridcell "oui"
+              - gridcell "non"
+      - region "Système externe core.external_system · 5":
+        - heading "Système externe core.external_system · 5" [level=3]:
+          - text: ""
+          - code: core.external_system
+          - text: ""
+        - button "Ajouter une valeur à core.external_system"
+        - grid "Valeurs de core.external_system":
+          - rowgroup:
+            - row "Clé Libellé Libellé (en) Valide depuis Jusqu'au Citations":
+              - columnheader "Clé":
+                - text: ""
+                - 'button "Filtrer : Clé"'
+              - columnheader "Libellé":
+                - text: ""
+                - 'button "Filtrer : Libellé"'
+              - columnheader "Libellé (en)":
+                - text: ""
+                - 'button "Filtrer : Libellé (en)"'
+              - columnheader "Valide depuis"
+              - columnheader "Jusqu'au"
+              - columnheader "Citations"
+          - rowgroup:
+            - row /ticketing Gestion des demandes Ticketing \d+-\d+-\d+ — \d+/:
+              - gridcell "ticketing"
+              - gridcell "Gestion des demandes"
+              - gridcell "Ticketing"
+              - gridcell /\d+-\d+-\d+/
+              - gridcell "—"
+              - gridcell /\d+/
+            - row /inventaire Inventaire matériel Inventory \(en brouillon\) \d+-\d+-\d+ — \d+/:
+              - gridcell "inventaire"
+              - gridcell "Inventaire matériel"
+              - gridcell "Inventory (en brouillon)"
+              - gridcell /\d+-\d+-\d+/
+              - gridcell "—"
+              - gridcell /\d+/
+            - row /supervision Supervision Libellé \(en\) — supervision Monitoring \d+-\d+-\d+ — \d+/:
+              - gridcell "supervision"
+              - gridcell "Supervision"
+              - gridcell "Libellé (en) — supervision Monitoring":
+                - text: ""
+                - textbox "Libellé (en) — supervision": Monitoring
+              - gridcell /\d+-\d+-\d+/
+              - gridcell "—"
+              - gridcell /\d+/
+            - row /annuaire Annuaire Directory \d+-\d+-\d+ \d+-\d+-\d+ \d+/:
+              - gridcell "annuaire"
+              - gridcell "Annuaire"
+              - gridcell "Directory"
+              - gridcell /\d+-\d+-\d+/
+              - gridcell /\d+-\d+-\d+/
+              - gridcell /\d+/
+            - row /\(en brouillon\) sauvegarde Sauvegarde Backup \d+-\d+-\d+ — 0/:
+              - gridcell "(en brouillon) sauvegarde"
+              - gridcell "Sauvegarde"
+              - gridcell "Backup"
+              - gridcell /\d+-\d+-\d+/
+              - gridcell "—"
+              - gridcell "0"
+        - paragraph: Clé figée après création · Entrée vers le brouillon · Échap annuler
+    - text: Au présent Toute modification va au brouillon, puis à un changeset
+- button "Ouvrir le panneau"

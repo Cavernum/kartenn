@@ -77,6 +77,7 @@ export const SPACES: SidebarGroup[] = [
       { id: "identities", label: "Identités", icon: "user", to: "/admin/identities" },
       { id: "accounts", label: "Comptes de service", icon: "server", to: "/admin/accounts" },
       { id: "issuers", label: "Émetteurs", icon: "globe", to: "/admin/issuers" },
+      { id: "settings", label: "Paramètres", icon: "settings", to: "/admin/settings" },
       { id: "audit", label: "Audit", icon: "rotate-ccw-clock", to: "/admin/audit" },
     ],
   },

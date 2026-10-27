@@ -1,0 +1,203 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration" [expanded]
+  - list:
+    - listitem:
+      - link "Groupes":
+        - /url: /admin/groups
+    - listitem:
+      - link "Rôles":
+        - /url: /admin/roles
+    - listitem:
+      - link "Identités":
+        - /url: /admin/identities
+    - listitem:
+      - link "Comptes de service":
+        - /url: /admin/accounts
+    - listitem:
+      - link "Émetteurs":
+        - /url: /admin/issuers
+    - listitem:
+      - link "Paramètres":
+        - /url: /admin/settings
+    - listitem:
+      - link "Audit":
+        - /url: /admin/audit
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Administration":
+          - /url: /admin
+      - listitem:
+        - link "Paramètres":
+          - /url: /admin/settings
+      - listitem: Machines
+  - button "Présent"
+  - button "Brouillon 2 opérations" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Paramètres" [level=1]
+  - region "Paramètres":
+    - heading "Paramètres" [level=2]
+    - text: un onglet par déclarant
+    - tablist "Déclarants des paramètres":
+      - tab "Cœur"
+      - tab "Machines" [selected]
+      - tab "Politique"
+    - tabpanel "Machines":
+      - paragraph:
+        - text: Écriture par changeset, sous
+        - code: machines.settings.edit
+        - text: ; la sensibilité d'un champ, sous
+        - code: core.settings.edit
+        - text: .
+      - region "Champs 3":
+        - heading "Champs 3" [level=3]
+        - button "Colonnes"
+        - grid "Champs de Machines":
+          - rowgroup:
+            - row "Clé Libellé Sensible":
+              - columnheader "Clé":
+                - text: ""
+                - 'button "Filtrer : Clé"'
+              - columnheader "Libellé":
+                - text: ""
+                - 'button "Filtrer : Libellé"'
+              - columnheader "Sensible":
+                - text: ""
+                - 'button "Filtrer : Sensible"'
+          - rowgroup:
+            - row "machines.fqdn Nom complet non" [selected]:
+              - gridcell "machines.fqdn"
+              - gridcell "Nom complet"
+              - gridcell "non"
+            - row "machines.interface_media Média d'interface non":
+              - gridcell "machines.interface_media"
+              - gridcell "Média d'interface"
+              - gridcell "non"
+            - row "machines.interface_role Rôle d'interface non":
+              - gridcell "machines.interface_role"
+              - gridcell "Rôle d'interface"
+              - gridcell "non"
+        - paragraph: "Déclarés par le code du module et synchronisés : seuls leurs libellés se modifient ici."
+      - region "Média d'interface machines.interface_media · 8":
+        - heading "Média d'interface machines.interface_media · 8" [level=3]:
+          - text: ""
+          - code: machines.interface_media
+          - text: ""
+        - button "Ajouter une valeur à machines.interface_media"
+        - button "Colonnes"
+        - grid "Valeurs de machines.interface_media":
+          - rowgroup:
+            - row "Clé Libellé":
+              - columnheader "Clé":
+                - text: ""
+                - 'button "Filtrer : Clé"'
+              - columnheader "Libellé":
+                - text: ""
+                - 'button "Filtrer : Libellé"'
+          - rowgroup:
+            - row "ethernet Ethernet":
+              - gridcell "ethernet"
+              - gridcell "Ethernet"
+            - row "sfp SFP":
+              - gridcell "sfp"
+              - gridcell "SFP"
+            - row "(en brouillon) sfp28 SFP28":
+              - gridcell "(en brouillon) sfp28"
+              - gridcell "SFP28"
+            - row "qsfp QSFP":
+              - gridcell "qsfp"
+              - gridcell "QSFP"
+            - row /wifi Wi-Fi \(\d+\.\d+\) \(en brouillon\)/:
+              - gridcell "wifi"
+              - gridcell /Wi-Fi \(\d+\.\d+\) \(en brouillon\)/
+            - row "aggregate Agrégat":
+              - gridcell "aggregate"
+              - gridcell "Agrégat"
+            - row "virtual Virtuelle":
+              - gridcell "virtual"
+              - gridcell "Virtuelle"
+            - row "loopback Bouclage":
+              - gridcell "loopback"
+              - gridcell "Bouclage"
+        - paragraph: Clé figée après création · Entrée vers le brouillon · Échap annuler
+      - region "Rôle d'interface machines.interface_role · 6":
+        - heading "Rôle d'interface machines.interface_role · 6" [level=3]:
+          - text: ""
+          - code: machines.interface_role
+          - text: ""
+        - button "Ajouter une valeur à machines.interface_role"
+        - button "Colonnes"
+        - grid "Valeurs de machines.interface_role":
+          - rowgroup:
+            - row "Clé Libellé":
+              - columnheader "Clé":
+                - text: ""
+                - 'button "Filtrer : Clé"'
+              - columnheader "Libellé":
+                - text: ""
+                - 'button "Filtrer : Libellé"'
+          - rowgroup:
+            - row "administration Administration":
+              - gridcell "administration"
+              - gridcell "Administration"
+            - row "backup Sauvegarde":
+              - gridcell "backup"
+              - gridcell "Sauvegarde"
+            - row "monitoring Supervision":
+              - gridcell "monitoring"
+              - gridcell "Supervision"
+            - row "storage Stockage":
+              - gridcell "storage"
+              - gridcell "Stockage"
+            - row "cluster Grappe":
+              - gridcell "cluster"
+              - gridcell "Grappe"
+            - row "service Service":
+              - gridcell "service"
+              - gridcell "Service"
+        - paragraph: Clé figée après création · Entrée vers le brouillon · Échap annuler
+    - text: Au présent Toute modification va au brouillon, puis à un changeset
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Détail" [selected]
+    - tab "Brouillon 2"
+  - tabpanel "Détail":
+    - heading "Nom complet machines.fqdn" [level=2]
+    - toolbar "Actions du champ":
+      - button "Modifier les libellés"
+      - button "Rendre sensible" [disabled]
+    - term: Déclarant
+    - definition: Machines
+    - term: Libellé (en)
+    - definition: Fully qualified name
+    - term: Type
+    - definition: Texte
+    - term: Porteurs
+    - definition: Machine
+    - term: Héritable
+    - definition: non
+    - term: Sensible
+    - definition: non
+    - status:
+      - paragraph: La sensibilité relève du cœur
+      - text: Rendre un champ sensible décide qui en lit la valeur (
+      - code: prop.machines.fqdn.read
+      - text: "), quel que soit son déclarant : il faut"
+      - code: core.settings.edit
+      - text: .
+  - button "Largeur du panneau"
+  - button "Fermer le panneau"

@@ -969,3 +969,91 @@ test.describe("Refusals of a read-only object (E7, 024/M14)", () => {
     });
   }
 });
+
+test.describe("E11: an end whose object is not read (027)", () => {
+  for (const view of ["machine", "registre"]) {
+    test(`${view}: its values in full, no link, the card's permission named`, async ({ page }) => {
+      await page.goto(`/_ui/ecrans/E11?vue=${view}`);
+      const surface = page.locator("#k-ecran-surface");
+      await expect(surface.getByText("198.51.100.20, 2001:db8::20")).toBeVisible();
+      await expect(surface.getByText("203.0.113.128/25")).toBeVisible();
+      await expect(
+        surface.getByRole("link", { name: /198\.51\.100\.20|203\.0\.113\./ }),
+      ).toHaveCount(0);
+      await expect(surface.getByText("machines.read")).toBeVisible();
+      await expect(surface.getByText("core.prefix.read")).toBeVisible();
+    });
+  }
+});
+
+test.describe("E13: settings by declarant (Tabs, refusals by permission, 027)", () => {
+  test("arrows move between the declarants, Enter shows one", async ({ page }) => {
+    await page.goto("/_ui/ecrans/E13?vue=coeur");
+    const tabs = page.getByRole("tablist", { name: "Déclarants des paramètres" });
+    const core = tabs.getByRole("tab", { name: "Cœur" });
+    const machines = tabs.getByRole("tab", { name: "Machines" });
+    await expect(core).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("grid", { name: "Valeurs de core.external_system" })).toBeVisible();
+    await core.focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(machines).toBeFocused();
+    // Manual activation: the focus alone does not change the panel.
+    await expect(machines).toHaveAttribute("aria-selected", "false");
+    await page.keyboard.press("Enter");
+    await expect(machines).toHaveAttribute("aria-selected", "true");
+    await expect(
+      page.getByRole("grid", { name: "Valeurs de machines.interface_media" }),
+    ).toBeVisible();
+  });
+
+  test("politique-lecture: read only said at the top, each write refused by its code", async ({
+    page,
+  }) => {
+    await page.goto("/_ui/ecrans/E13?vue=politique-lecture");
+    const notice = page.getByRole("status").filter({ hasText: "Lecture seule" });
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText("policy.settings.edit");
+    const needs = "Il faut policy.settings.edit";
+    for (const name of [
+      "Ajouter un environnement",
+      "Ajouter un service",
+      "Ajouter un type de flux",
+      "Ajouter une valeur d'axe",
+    ]) {
+      const add = page.getByRole("button", { name });
+      await expect(add).toHaveAttribute("aria-disabled", "true");
+      await expect(add).toHaveAccessibleDescription(needs);
+    }
+    const add = page.getByRole("button", { name: "Ajouter un environnement" });
+    await add.focus();
+    await expect(page.getByRole("tooltip")).toHaveText(needs);
+  });
+
+  test("machines: the sensitivity of a module's field needs core.settings.edit", async ({
+    page,
+  }) => {
+    await page.goto("/_ui/ecrans/E13?vue=machines");
+    const panel = page.getByRole("complementary", { name: "Panneau droit" });
+    const bar = panel.getByRole("toolbar", { name: "Actions du champ" });
+    const labels = bar.getByRole("button", { name: "Modifier les libellés" });
+    const sensitive = bar.getByRole("button", { name: "Rendre sensible" });
+    await expect(labels).not.toHaveAttribute("aria-disabled", "true");
+    await labels.focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(sensitive).toBeFocused();
+    await expect(sensitive).toHaveAttribute("aria-disabled", "true");
+    await expect(page.getByRole("tooltip")).toHaveText("Il faut core.settings.edit");
+  });
+
+  test("cloture: the refusal names its code and lists what cites the value", async ({ page }) => {
+    await page.goto("/_ui/ecrans/E13?vue=cloture");
+    const panel = page.getByRole("complementary", { name: "Panneau droit" });
+    await expect(panel.getByText("Clôture refusée : 4 objets citent encore sandbox")).toBeVisible();
+    await expect(panel.getByText("policy.reference.closed")).toBeVisible();
+    const citing = panel
+      .getByRole("list")
+      .filter({ hasText: "sandbox-isole" })
+      .getByRole("listitem");
+    await expect(citing).toHaveCount(4);
+  });
+});
