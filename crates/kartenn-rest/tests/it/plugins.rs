@@ -433,10 +433,11 @@ fn a_file_rewritten_in_place_gets_its_new_digest() {
     assert_ne!(plugins.published()[0].integrity["index.js"], before);
 }
 
-/// The plugin of the VLAN module as written in web/plugins/vlan (spec 008, REQ-008-24): its
-/// manifest and catalogues hold, and it is published only by a build with the module.
+/// The VLAN plugin as written in web/plugins/vlan (spec 008, REQ-008-24): its manifest
+/// and catalogues hold, and, the VLANs being in the core (spec 026, C6), it is published
+/// by every build, whatever its modules.
 #[test]
-fn the_vlan_plugin_is_published_only_with_its_module() {
+fn the_vlan_plugin_is_published_by_every_build() {
     use tracing_subscriber::layer::SubscriberExt;
     // The reason of a rejection, in the message of a failure.
     let (output, mut logs) = kartenn_telemetry::capture::Output::new("test", "debug", 64).unwrap();
@@ -473,16 +474,16 @@ fn the_vlan_plugin_is_published_only_with_its_module() {
         let modules = modules.iter().map(|&m| m.to_owned()).collect();
         published(&Plugins::open(&root, modules).unwrap())
     };
-    assert_eq!(
-        with(&["objects", "vlan"]),
-        [("vlan".to_owned(), "1.0.0".to_owned())],
-        "{:?}",
-        rejections()
-    );
-    assert!(with(&["objects"]).is_empty());
-    assert!(
-        rejections()
-            .iter()
-            .any(|r| r.contains("module vlan absent from the build"))
-    );
+    for modules in [&["objects"][..], &[]] {
+        assert_eq!(
+            with(modules),
+            [(
+                "vlan".to_owned(),
+                manifest["version"].as_str().unwrap().to_owned()
+            )],
+            "{:?}",
+            rejections()
+        );
+    }
+    assert!(manifest.get("module").is_none());
 }
