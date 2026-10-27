@@ -48,6 +48,18 @@ Statut : spec **validée le 2026-10-28**.
     non-conformités, `/v1/flow-checks`) ; `kartenn_store_pg::rbac::readable` ;
     `crates/kartenn-flow/tests/it/rest.rs` (tests de droits à imiter) ;
     `crates/kartenn-bench` (lecteur par extrémités)
+- [ ] 3b. P2 amendée : un flux servi tel quel pour tout lecteur, sans masquage — REQ-027-2,
+  3 — verify : tests d'acceptation revus ; `k-check` ; banc `bench-flow` complet (agent
+  principal)
+  - où : `crates/kartenn-flow/src/rest.rs` (`flows_seen`, `through_endpoints`,
+    `access`, `FlowEndpointValue`, `fields`) ; `tests/it/by_endpoint.rs` ;
+    `specs/006-api-rest/openapi-v1.json` ; `docs/spec/interfaces.md`
+  - à faire : une seule forme de réponse pour tout lecteur (entité, demandeur, extrémité) :
+    extrémités avec sorte, identifiant et valeurs (adresses d'une interface à la date),
+    service, état, synthèse, évaluations enregistrées entières ; plus de `readable`, plus
+    d'explication réduite selon la voie de lecture ; aucune donnée d'objet du référentiel
+    (nom d'interface ou de machine, propriétés) dans la réponse d'un flux, pour personne ;
+    la lisibilité d'une extrémité ne sert plus qu'à décider si le flux est lisible (P1).
 - [x] 4. Permissions `<déclarant>.settings.*`, contrôle par déclarant, migration des
   rôles — REQ-027-5 à 7 — verify : tests d'acceptation ; test des anciens noms ;
   `k-check`

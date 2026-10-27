@@ -64,28 +64,32 @@ Acceptation :
   qu'un flux absent.
 - Une personne sans `flow.read` : aucun flux, même si elle lit les deux extrémités.
 
-#### REQ-027-2 — Extrémité hors périmètre
-Quand un flux est lu par REQ-027-1 sans la lecture d'une de ses extrémités, kartenn doit
-montrer cette extrémité par sa seule **valeur** — l'adresse ou le préfixe, et pour une
-interface les adresses qu'elle porte à la date — avec sa sorte et la marque
-`readable: false`, sans identifiant, nom, machine, propriété ni valeur d'axe, et réduire
-l'explication de l'évaluation comme REQ-010-25 (valeurs d'axes, règles, motifs,
-conditions ; ni nœud d'origine, ni chaîne, ni objet du référentiel) (P2).
+#### REQ-027-2 — Données du flux et accès aux objets
+kartenn doit servir un flux lisible **tel quel**, quelle que soit la voie de lecture :
+ses extrémités (sorte, identifiant, adresse ou préfixe, et pour une interface les
+adresses qu'elle porte à la date), son service, son état, sa synthèse et ses évaluations
+enregistrées sont des données du flux, sans masquage ni réponse réduite selon le
+lecteur. Les données d'un objet du référentiel (nom d'une interface ou d'une machine,
+attributs, propriétés, fiche) ne viennent que de ses propres routes, sous sa permission
+de lecture : la réponse d'un flux n'en embarque aucune (P2, amendée le 2026-10-28).
 
 Acceptation :
-- Le flux d'Alice ci-dessus : destination `{kind: "prefix", value: "198.51.100.0/24",
-  readable: false}`, pas d'`id` ; le service, l'état, la synthèse, l'échéance restent
-  visibles.
-- Destination `eth1` d'une machine qu'Alice ne lit pas, adresses `198.51.100.20` et
-  `2001:db8::20` : `{kind: "interface", values: ["198.51.100.20", "2001:db8::20"],
-  readable: false}`, ni le nom `eth1` ni la machine.
-- L'interface web montre « 198.51.100.0/24 · hors de votre périmètre », sans lien.
+- Le flux d'Alice ci-dessus : destination `{kind: "prefix", id: …, value:
+  "198.51.100.0/24"}`, identique à ce que voit un lecteur de l'entité du flux ; le
+  service, l'état, la synthèse, l'échéance, les évaluations sont visibles.
+- Destination `eth1` d'une machine qu'Alice ne lit pas : `{kind: "interface", id: …,
+  values: ["198.51.100.20", "2001:db8::20"]}` ; `GET` de l'interface ou de sa machine
+  par Alice : même 404 qu'un objet absent.
+- La réponse d'un flux ne contient ni nom d'interface ni nom de machine, pour aucun
+  lecteur ; l'interface web les obtient par la lecture de l'objet et, quand elle est
+  refusée, montre la valeur sans lien, avec « fiche non accessible » et la permission
+  manquante.
 
 #### REQ-027-3 — Écritures et filtres
 kartenn doit garder les écritures d'un flux sous REQ-011-17 (la maintenance directe exige
 la lecture des deux extrémités) ; un filtre par objet d'extrémité ne s'applique qu'à un
 objet lisible, un filtre par valeur (préfixe et son sous-arbre, REQ-011-14) s'applique
-aussi aux extrémités hors périmètre, dont la valeur est déjà montrée.
+à toutes les extrémités, dont la valeur est une donnée du flux.
 
 Acceptation :
 - Alice tente de prolonger le flux ci-dessus avec `flow.edit` sur son entité : même 404
@@ -175,5 +179,6 @@ Acceptation :
 
 #### REQ-027-9 — Maquette E11, extrémité hors périmètre
 La maquette E11 doit montrer, dans les Entrants et Sortants d'une machine et dans le
-registre, un flux dont l'autre extrémité est hors périmètre (REQ-027-2) : valeur seule,
-mention « hors de votre périmètre », sans lien ni panneau de l'objet.
+registre, un flux dont l'autre extrémité est hors périmètre (REQ-027-2) : ses valeurs et
+son service comme pour tout flux, sans nom d'objet, sans lien ni panneau de l'objet, avec
+« fiche non accessible » et la permission manquante.

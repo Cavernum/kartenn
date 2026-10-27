@@ -5,7 +5,7 @@
 | Id | Décision | Par |
 |---|---|---|
 | P1 | Un flux se lit dès qu'on lit une de ses extrémités (entrants et sortants) | utilisateur |
-| P2 | L'extrémité hors périmètre se montre par sa valeur seule | utilisateur |
+| P2 | Un flux se sert tel quel, sans masquage ; les objets ne se lisent que par leurs routes (amendée) | utilisateur |
 | P3 | La lecture par une extrémité exige encore `flow.read`, sur n'importe quel périmètre | Claude, confirmé par l'utilisateur |
 | P4 | Droits des paramètres par déclarant, en changeset | utilisateur |
 | P5 | Ces permissions sont globales | Claude |
@@ -22,14 +22,22 @@
   (pare-feu local, supervision) ; la fiche machine d'E11 montre Entrants et Sortants.
 - Décidé par : l'utilisateur (2026-10-28, « Une extrémité lue suffit »).
 
-## P2 — Extrémité hors périmètre
-- Options : (A) valeur seule (adresse ou préfixe ; adresses d'une interface) ;
-  (B) entièrement masquée.
-- Décision : **A**, avec `readable: false`, sans identifiant, nom, machine, propriété ni
-  valeur d'axe ; explication réduite comme REQ-010-25.
-- Pourquoi : la valeur est ce qu'il faut pour configurer un filtrage ; elle ne donne pas
-  accès à l'objet. Le demandeur d'un flux voit déjà ces valeurs (`flow.request`).
-- Décidé par : l'utilisateur (2026-10-28, « Valeur seule »).
+## P2 — Données du flux, accès aux objets (amendée le 2026-10-28)
+- Première décision (2026-10-28, « Valeur seule ») : l'extrémité non lue se montrait
+  par sa valeur, sans identifiant, avec `readable: false` et une explication réduite ;
+  implémentée par la tâche 3.
+- Amendement (2026-10-28, l'utilisateur, après relecture) : un flux contient les
+  adresses, interfaces, sous-réseaux source et destination et le service ; ce sont ses
+  données, affichables dès que le flux est lisible. Ce qui exige la lecture d'un objet
+  est l'accès à cet objet (la machine, sa fiche, son nom, ses propriétés).
+- Décision : la réponse d'un flux est la même pour tout lecteur (extrémités avec
+  identifiant et valeurs, service, état, synthèse, évaluations enregistrées) et
+  n'embarque aucune donnée d'objet du référentiel ; les noms et fiches viennent des
+  routes des objets, sous leurs permissions.
+- Pourquoi : séparation nette des permissions ; pas de masquage par lecteur, donc pas de
+  fuite possible par un masquage qui raterait un champ ou une voie de lecture.
+- Rejeté : masquer selon le lecteur (première décision) ; masquer entièrement.
+- Décidé par : l'utilisateur (2026-10-28).
 
 ## P3 — `flow.read` toujours exigée
 - Décision : la lecture par une extrémité s'ajoute aux lecteurs de REQ-011-17 pour qui
