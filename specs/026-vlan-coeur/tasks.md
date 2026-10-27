@@ -25,7 +25,23 @@ Statut : spec **validée le 2026-10-27**.
 - [ ] 5. Clients, SDK, CLI, shell v1 (plugin toujours servi), bancs (`vlan_budgets`
   dans `bench-core`), `docs/spec/` — REQ-026-2, 6, 7 — verify : `k-py-check`,
   `k-web-check` ; bancs lancés par l'agent principal
-- [ ] 6. Maquettes v2 : écran VLAN du cœur, E10 sans le VLAN, ligne ajoutée au tableau
+- [x] 6. Maquettes v2 : écran VLAN du cœur, E10 sans le VLAN, ligne ajoutée au tableau
   des maquettes de la 020 — REQ-026-6 — verify : `k-web2-check`, `k-web2-e2e`
+  - fait : maquette E12 « VLAN » (`web/v2/shell/src/_ui/ecrans/E12Vlan.vue`, quatre
+    vues : groupes, un groupe, fiche d'un VLAN, création pour un réseau), entrée « VLAN »
+    de l'espace Référentiel après Topographie (espace « Réseau » retiré) ; E10 garde la
+    matrice seule ; tuile VLAN d'E0, onglet et encart VLAN d'E2, menus d'E1 et E8 sans
+    marque de plugin ; noms `core.vlan.*`, `core.vlan_group.*`,
+    `core.vlan.site_mismatch` (E4, E7) ; lien vers la fiche d'interface depuis le choix
+    d'interface d'E11 ; lignes E0, E2, E10, E12 du tableau de la 020 ; captures.
+    `k-web2-e2e ecrans clavier touch layout` : 1015 réussis, axe sans violation.
+  - choix : la création d'un VLAN part de la liste des préfixes, dont la colonne VLAN
+    (`core.vlan`) est montrée là ; le dashboard lit les compteurs du VLAN dans une
+    section `vlan` de `GET /v1/stats` et les sortes `core.vlan_group`, `core.vlan` dans
+    `objects` (forme à confirmer par la tâche 3) ; le VLAN reste une seule entrée de la
+    barre latérale (les groupes en sont la page d'accueil).
+  - reste : `k-web2-check` échoue sur le test du SDK (`sdk/test/client.test.ts`, contrat
+    plus récent que les types versionnés, antérieur à cette tâche ; SDK régénéré après
+    la fusion serveur).
 - [ ] 7. Amendements : D18 dans `001-cadrage/decisions.md`, 008 (parties B à F
   « reprises par la 026 »), 009 (REQ-009-12), 021, `specs/README.md`
