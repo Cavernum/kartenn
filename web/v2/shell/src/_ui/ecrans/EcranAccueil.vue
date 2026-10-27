@@ -3,9 +3,10 @@
 // stale copy; relecture du 2026-10-26) (design « Maquettes », 024/M10; 021, « Écrans » :
 // Accueil): a dashboard of tiles on `Grid`. Tiles of the core first (objects by kind,
 // changesets applied over 7 and 30 days with their histogram by day, `BarChart`, to apply,
-// mine pending, open anomalies), fed by the fixture of `GET /v1/stats`; then the `widget`
-// tiles of two plugins (VLAN with the occupation of its groups in a `BarList`, Flux), and
-// the one of a third still loading (Politique). The instant of the snapshot at the foot.
+// mine pending, open anomalies, the VLAN with the occupation of their groups in a
+// `BarList`: a core tile since the 026), fed by the fixture of `GET /v1/stats`; then the
+// `widget` tile of a plugin (Flux), and the one of another still loading (Politique). The
+// instant of the snapshot at the foot.
 import {
   BarChart,
   BarList,
@@ -34,8 +35,8 @@ const days: ChartPoint[] = STATS.changesets.by_day.map((value, i, all) => {
   return { key: date.toISOString().slice(0, 10), label: DAY.format(date), value };
 });
 
-/** The occupation of the VLAN groups, as the widget of the plugin counts it. */
-const groups: ChartPoint[] = STATS.modules.vlan.groups.map((g) => ({
+/** The occupation of the VLAN groups, as the core counts it. */
+const groups: ChartPoint[] = STATS.vlan.groups.map((g) => ({
   key: g.key,
   label: g.key,
   value: g.used,
@@ -100,14 +101,14 @@ const percent = (value: number) => `${value} %`;
         <Button size="sm" variant="ghost" icon="triangle-alert">Voir les anomalies</Button>
       </template>
     </Panneau>
-    <Panneau title="VLAN" detail="plugin VLAN">
+    <Panneau title="VLAN" detail="lisibles par vous">
       <Attributs
         :items="[
-          { key: 'reserved', label: 'Réservés', value: String(STATS.modules.vlan.reserved) },
+          { key: 'reserved', label: 'Réservés', value: String(STATS.vlan.reserved) },
           {
             key: 'deprecated',
-            label: 'Obsolètes',
-            value: String(STATS.modules.vlan.deprecated),
+            label: 'Dépréciés',
+            value: String(STATS.vlan.deprecated),
           },
         ]"
       />

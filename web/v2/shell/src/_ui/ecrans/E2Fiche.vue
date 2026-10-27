@@ -22,6 +22,7 @@ import {
   type TabItem,
 } from "@kartenn/ui";
 import { ref } from "vue";
+import { RouterLink, useRoute } from "vue-router";
 import AVenir from "./AVenir.vue";
 import Attributs from "./EcranAttributs.vue";
 import Cadre from "./EcranCadre.vue";
@@ -29,6 +30,7 @@ import Panneau from "./EcranPanneau.vue";
 import { DOMAIN, ENV, ID } from "./donnees.ts";
 
 const props = defineProps<{ vue: string }>();
+const route = useRoute();
 const tab = ref(props.vue === "historique" ? "history" : "properties");
 const propertySort = ref<GridSort | undefined>({ column: "key", direction: "ascending" });
 const versionSort = ref<GridSort | undefined>({ column: "version", direction: "descending" });
@@ -37,7 +39,7 @@ const tabs: TabItem[] = [
   { value: "content", label: "Contenu", count: 12 },
   { value: "history", label: "Historique", count: 4 },
   { value: "anomalies", label: "Anomalies", count: 1 },
-  { value: "vlan", label: "VLAN", icon: "vlan" },
+  { value: "vlan", label: "VLAN" },
   { value: "machines", label: "Machines", icon: "server", count: 6 },
   { value: "flows", label: "Flux", icon: "flow", state: "loading" },
 ];
@@ -271,14 +273,21 @@ const actions: MenuItem[] = [
                 >
               </div>
             </Panneau>
-            <Panneau title="VLAN porté" detail="plugin VLAN">
+            <Panneau title="VLAN porté" detail="core.vlan" mono>
               <Attributs
                 :items="[
                   { key: 'vid', label: 'VID', value: '121', mono: true },
-                  { key: 'name', label: 'Nom', value: 'supervision' },
+                  { key: 'name', label: 'Nom' },
                   { key: 'group', label: 'Groupe', value: 'campus-ouest', mono: true },
                 ]"
-              />
+              >
+                <template #name>
+                  <RouterLink
+                    :to="{ path: '/_ui/ecrans/E12', query: { ...route.query, vue: 'vlan' } }"
+                    >supervision</RouterLink
+                  >
+                </template>
+              </Attributs>
             </Panneau>
           </Stack>
         </template>

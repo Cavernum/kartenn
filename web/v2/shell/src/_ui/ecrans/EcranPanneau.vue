@@ -31,7 +31,7 @@ const id = useId();
   >
     <header class="k-ecran-panel__header">
       <!-- The detail beside the heading, not in it: the heading (and the region it names)
-           says the title alone, never « VLAN plugin VLAN ». -->
+           says the title alone, never « Flux plugin Flux ». -->
       <div class="k-ecran-panel__title">
         <h2 :id="id" class="k-ecran-panel__heading">{{ props.title }}</h2>
         <span v-if="props.detail" class="k-ecran-panel__detail" :class="{ 'k-mono': props.mono }">{{

@@ -5,7 +5,6 @@
   - button "Rechercher"
   - button "Référentiel"
   - button "Changesets"
-  - button "Réseau"
   - button "Machines"
   - button "Politique"
   - button "Flux" [expanded]

@@ -1,0 +1,183 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel" [expanded]
+  - list:
+    - listitem:
+      - link "Accueil":
+        - /url: /
+    - listitem:
+      - link "Topographie":
+        - /url: /topology
+    - listitem:
+      - link "VLAN":
+        - /url: /vlans
+    - listitem:
+      - link "Domaines":
+        - /url: /domains
+    - listitem:
+      - link "Préfixes":
+        - /url: /prefixes
+    - listitem:
+      - link "Plages":
+        - /url: /ranges
+    - listitem:
+      - link "Adresses":
+        - /url: /addresses
+    - listitem:
+      - link "Entités":
+        - /url: /entities
+    - listitem:
+      - link "Sites":
+        - /url: /sites
+    - listitem:
+      - link /Anomalies \d+/:
+        - /url: /anomalies
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Référentiel":
+          - /url: /
+      - listitem:
+        - link "VLAN":
+          - /url: /vlans
+      - listitem: campus-ouest
+  - button "Présent"
+  - button "Brouillon 3 opérations"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Groupe de VLAN campus-ouest" [level=1]
+  - region "campus-ouest":
+    - heading "campus-ouest" [level=2]
+    - text: /groupe de VLAN · VID \d+–\d+ \d+ VLAN · prochain VID libre \d+/
+    - toolbar "Actions du groupe":
+      - button "Créer un VLAN"
+      - button "Modifier le groupe" [disabled]
+      - button "Exporter"
+    - grid "VLAN du groupe campus-ouest":
+      - rowgroup:
+        - row "VID Nom Statut Réseaux":
+          - columnheader "VID"
+          - columnheader "Nom"
+          - columnheader "Statut":
+            - text: ""
+            - 'button "Filtrer : Statut"'
+          - columnheader "Réseaux"
+      - rowgroup:
+        - row /\d+ admin Actif \d+\.\d+\.2\.0\/\d+/:
+          - gridcell /\d+/
+          - gridcell "admin"
+          - gridcell "Actif"
+          - gridcell /\d+\.\d+\.2\.0\/\d+/
+        - row /\d+ serveurs Actif 2 réseaux/:
+          - gridcell /\d+/
+          - gridcell "serveurs"
+          - gridcell "Actif"
+          - gridcell "2 réseaux"
+        - row /\d+ voix Déprécié —/:
+          - gridcell /\d+/
+          - gridcell "voix"
+          - gridcell "Déprécié"
+          - gridcell "—"
+        - row /\d+ sauvegarde Actif \d+\.\d+\.\d+\.\d+\/\d+/:
+          - gridcell /\d+/
+          - gridcell "sauvegarde"
+          - gridcell "Actif"
+          - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+        - row /\(en brouillon\) \d+ impression-a Actif —/:
+          - gridcell /\(en brouillon\) \d+/
+          - gridcell "impression-a"
+          - gridcell "Actif"
+          - gridcell "—"
+        - row /\d+ wifi-invites Actif \d+\.\d+\.\d+\.\d+\/\d+/:
+          - gridcell /\d+/
+          - gridcell "wifi-invites"
+          - gridcell "Actif"
+          - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+        - row /\d+ serveurs-b Actif \d+\.\d+\.2\.0\/\d+/:
+          - gridcell /\d+/
+          - gridcell "serveurs-b"
+          - gridcell "Actif"
+          - gridcell /\d+\.\d+\.2\.0\/\d+/
+        - row /\d+ supervision Actif 3 réseaux/:
+          - gridcell /\d+/
+          - gridcell "supervision":
+            - link "supervision":
+              - /url: /_ui/ecrans/E12?vue=vlan&mode=dark
+          - gridcell "Actif"
+          - gridcell "3 réseaux"
+        - row /\d+ reserve-wifi Réservé —/:
+          - gridcell /\d+/
+          - gridcell "reserve-wifi"
+          - gridcell "Réservé"
+          - gridcell "—"
+    - text: /9 VLAN sur \d+ · 1 en brouillon Au présent/
+  - heading "Attributs" [level=2]
+  - term: Ancre
+  - definition:
+    - img "Site"
+    - code: site-ouest
+  - term: Plage de VID
+  - definition: /\d+–\d+/
+  - term: Propriétaire
+  - definition: Atelier Nord
+  - heading "Occupation" [level=2]
+  - text: /\d+ %/
+  - table "Occupation du groupe campus-ouest":
+    - caption: Occupation du groupe campus-ouest
+    - rowgroup:
+      - row "État VID":
+        - columnheader "État"
+        - columnheader "VID"
+    - rowgroup:
+      - row /Utilisés \d+/:
+        - rowheader "Utilisés"
+        - cell /\d+/
+      - row /Réservés \d+/:
+        - rowheader "Réservés"
+        - cell /\d+/
+      - row /Libres \d+/:
+        - rowheader "Libres"
+        - cell /\d+/
+  - term: Prochain VID libre
+  - definition: /\d+/
+  - term: /À partir de \d+/
+  - definition: /\d+/
+  - text: Prochain libre à partir du VID
+  - textbox "Prochain libre à partir du VID": /\d+/
+  - paragraph: /Dans la plage \d+–\d+\./
+  - grid "Tranches de VID du groupe campus-ouest":
+    - rowgroup:
+      - row "VID État":
+        - columnheader "VID"
+        - columnheader "État"
+    - rowgroup:
+      - row /\d+–\d+ 5 utilisés/:
+        - gridcell /\d+–\d+/
+        - gridcell "5 utilisés"
+      - row /\d+–\d+ 5 libres/:
+        - gridcell /\d+–\d+/
+        - gridcell "5 libres"
+      - row /\d+–\d+ \d+ utilisés/:
+        - gridcell /\d+–\d+/
+        - gridcell /\d+ utilisés/
+      - row /\d+–\d+ 8 libres/:
+        - gridcell /\d+–\d+/
+        - gridcell "8 libres"
+      - row /\d+–\d+ \d+ réservés/:
+        - gridcell /\d+–\d+/
+        - gridcell /\d+ réservés/
+      - row /\d+–\d+ \d+ utilisés/:
+        - gridcell /\d+–\d+/
+        - gridcell /\d+ utilisés/
+- button "Ouvrir le panneau"

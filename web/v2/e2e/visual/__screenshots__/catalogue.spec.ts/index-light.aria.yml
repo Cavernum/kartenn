@@ -246,9 +246,6 @@
         - link /E9 États — \d+, proposé en revue/:
           - /url: /_ui/ecrans/E9?mode=light&vue=revue
       - listitem:
-        - link "E10 Hôte de plugin — Plugin VLAN":
-          - /url: /_ui/ecrans/E10?mode=light&vue=vlan
-      - listitem:
         - link "E10 Hôte de plugin — Matrice de politique":
           - /url: /_ui/ecrans/E10?mode=light&vue=matrice
       - listitem:
@@ -281,3 +278,15 @@
       - listitem:
         - link "E11 Flux — Fiche d'une interface":
           - /url: /_ui/ecrans/E11?mode=light&vue=interface
+      - listitem:
+        - link "E12 VLAN — Groupes de VLAN":
+          - /url: /_ui/ecrans/E12?mode=light&vue=groupes
+      - listitem:
+        - link "E12 VLAN — Un groupe":
+          - /url: /_ui/ecrans/E12?mode=light&vue=groupe
+      - listitem:
+        - link "E12 VLAN — Fiche d'un VLAN":
+          - /url: /_ui/ecrans/E12?mode=light&vue=vlan
+      - listitem:
+        - link "E12 VLAN — Créer un VLAN pour un réseau":
+          - /url: /_ui/ecrans/E12?mode=light&vue=creation

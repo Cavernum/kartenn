@@ -5,7 +5,6 @@
   - button "Rechercher"
   - button "Référentiel"
   - button "Changesets"
-  - button "Réseau"
   - button "Machines"
   - button "Politique"
   - button "Flux"
@@ -126,18 +125,18 @@
           - button "Retirer la permission core.site.read"
         - listitem:
           - text: Lire les VLAN
-          - button "Copier vlan.read":
+          - button "Copier core.vlan.read":
             - text: ""
-            - code: vlan.read
+            - code: core.vlan.read
           - status
-          - button "Retirer la permission vlan.read"
+          - button "Retirer la permission core.vlan.read"
         - listitem:
           - text: Lire les groupes de VLAN
-          - button "Copier vlan.group.read":
+          - button "Copier core.vlan_group.read":
             - text: ""
-            - code: vlan.group.read
+            - code: core.vlan_group.read
           - status
-          - button "Retirer la permission vlan.group.read"
+          - button "Retirer la permission core.vlan_group.read"
         - listitem:
           - text: Lire les machines
           - button "Copier machines.read":

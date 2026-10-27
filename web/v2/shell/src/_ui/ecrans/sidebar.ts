@@ -11,6 +11,7 @@ export const SPACES: SidebarGroup[] = [
     entries: [
       { id: "home", label: "Accueil", icon: "house", to: "/" },
       { id: "topology", label: "Topographie", icon: "folder-tree", to: "/topology" },
+      { id: "vlans", label: "VLAN", icon: "vlan", to: "/vlans" },
       { id: "domains", label: "Domaines", icon: "domain", to: "/domains" },
       { id: "prefixes", label: "Préfixes", icon: "prefix", to: "/prefixes" },
       { id: "ranges", label: "Plages", icon: "range", to: "/ranges" },
@@ -33,14 +34,6 @@ export const SPACES: SidebarGroup[] = [
         badge: 3,
       },
       { id: "draft", label: "Mes brouillons", icon: "draft", to: "/drafts", badge: 3 },
-    ],
-  },
-  {
-    id: "network",
-    label: "Réseau",
-    entries: [
-      { id: "vlans", label: "VLAN", icon: "vlan", to: "/x/vlan/vlans" },
-      { id: "vlan-groups", label: "Groupes de VLAN", icon: "layers", to: "/x/vlan/groups" },
     ],
   },
   {

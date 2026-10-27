@@ -1,0 +1,136 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel" [expanded]
+  - list:
+    - listitem:
+      - link "Accueil":
+        - /url: /
+    - listitem:
+      - link "Topographie":
+        - /url: /topology
+    - listitem:
+      - link "VLAN":
+        - /url: /vlans
+    - listitem:
+      - link "Domaines":
+        - /url: /domains
+    - listitem:
+      - link "Préfixes":
+        - /url: /prefixes
+    - listitem:
+      - link "Plages":
+        - /url: /ranges
+    - listitem:
+      - link "Adresses":
+        - /url: /addresses
+    - listitem:
+      - link "Entités":
+        - /url: /entities
+    - listitem:
+      - link "Sites":
+        - /url: /sites
+    - listitem:
+      - link /Anomalies \d+/:
+        - /url: /anomalies
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Référentiel":
+          - /url: /
+      - listitem:
+        - link "Centre de données nord":
+          - /url: /domains/dc-nord
+      - listitem: Préfixes
+  - button "Présent"
+  - button "Brouillon 3 opérations" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Préfixes" [level=1]
+  - region "Préfixes":
+    - heading "Préfixes" [level=2]
+    - text: Centre de données nord
+    - toolbar "Actions des préfixes":
+      - button "Créer"
+      - button "Exporter"
+    - button "Colonnes"
+    - grid "Préfixes du domaine, avec leur VLAN":
+      - rowgroup:
+        - row "Préfixe VLAN":
+          - columnheader "Préfixe"
+          - columnheader "VLAN":
+            - text: ""
+            - 'button "Filtrer : VLAN"'
+      - rowgroup:
+        - row /\d+\.\d+\.2\.0\/\d+/:
+          - gridcell /\d+\.\d+\.2\.0\/\d+/
+          - gridcell
+        - row /\d+\.\d+\.2\.0\/\d+ \d+ serveurs-b/:
+          - gridcell /\d+\.\d+\.2\.0\/\d+/
+          - gridcell /\d+ serveurs-b/
+        - row /\d+\.\d+\.\d+\.\d+\/\d+ \d+ supervision/:
+          - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+          - gridcell /\d+ supervision/
+        - row /\d+\.\d+\.\d+\.\d+\/\d+/:
+          - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+          - gridcell
+        - row /\d+\.\d+\.\d+\.\d+\/\d+ —/ [selected]:
+          - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+          - gridcell "—"
+        - row /\d+\.\d+\.\d+\.\d+\/\d+/:
+          - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+          - gridcell
+        - row /\d+\.\d+\.\d+\.\d+\/\d+ \d+ supervision/:
+          - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+          - gridcell /\d+ supervision/
+    - text: "/7 préfixes sur 1 \\d+ Colonne VLAN : propriété core\\.vlan des réseaux/"
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Détail" [selected]
+    - tab "Brouillon 3"
+  - tabpanel "Détail":
+    - heading /Créer un VLAN pour \d+\.\d+\.\d+\.\d+\/\d+/ [level=2]:
+      - text: ""
+      - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+    - paragraph:
+      - text: "À venir :"
+      - code: Select
+      - text: /\(tâche \d+\)/
+    - text: Groupe
+    - textbox "Groupe": campus-ouest
+    - paragraph: Groupes ancrés sur le site du réseau (site-ouest), son entité ou son domaine.
+    - text: VID (obligatoire)
+    - textbox "VID (obligatoire)": /\d+/
+    - paragraph: /Prochain VID libre du groupe campus-ouest \(\d+–\d+\)\./
+    - text: Nom (obligatoire)
+    - textbox "Nom (obligatoire)": impression
+    - group "Statut":
+      - text: ""
+      - button "Actif" [pressed]
+      - button "Réservé"
+    - term: Réseau
+    - definition: /\d+\.\d+\.\d+\.\d+\/\d+/
+    - term: Propriété posée
+    - definition:
+      - text: VLAN
+      - code: core.vlan
+    - status:
+      - paragraph: Deux opérations au brouillon
+      - text: /Créer le VLAN \d+ impression dans campus-ouest, puis le poser sur/
+      - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+      - text: .
+  - button "Largeur du panneau"
+  - button "Fermer le panneau"
+  - button "Ajouter au brouillon"
+  - button "Choisir l'action"

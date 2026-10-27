@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// E10 — Hôte de plugin (design « Maquettes »; 021, « Plugin VLAN », « Plugin Politique »;
-// 024/M8, M12): a full-page view of a plugin in the frame of the shell (VLAN groups, the VLAN
-// of the chosen group, the next free VID), and the policy matrix of the 017 between
+// E10 — Hôte de plugin (design « Maquettes »; 021, « Plugin Politique »; 024/M8, M12): a
+// full-page view of a plugin in the frame of the shell (the VLAN screens are core screens
+// since the 026: E12), the policy matrix of the 017 between
 // environments for one flow type (the matrix is per flow type, 017) in its two-way grid
 // (MatrixGrid: row and column headers of the same make, both sticky; a crosshair on the
 // hovered or active cell, the direction source → destination in the corner and in
@@ -16,7 +16,6 @@ import {
   Button,
   CodeBadge,
   Cluster,
-  DataGrid,
   DiffValue,
   EnvChip,
   ExpandableGrid,
@@ -32,7 +31,6 @@ import {
   type MatrixAxis,
   type MatrixCell,
   type MatrixCellState,
-  type RowState,
   type State,
   type ToolbarAction,
 } from "@kartenn/ui";
@@ -46,64 +44,6 @@ import Panneau from "./EcranPanneau.vue";
 import Soumission from "./EcranSoumission.vue";
 
 const props = defineProps<{ vue: string }>();
-
-interface Group extends Record<string, unknown> {
-  key: string;
-  anchor: string;
-  range: string;
-  used: string;
-  free: string;
-}
-const groups: Group[] = [
-  { key: "campus-ouest", anchor: "site-ouest", range: "100–199", used: "87 %", free: "12" },
-  { key: "campus-est", anchor: "site-est", range: "200–299", used: "41 %", free: "59" },
-  { key: "labo", anchor: "dmz-labo", range: "900–999", used: "6 %", free: "94" },
-];
-const groupColumns: GridColumn[] = [
-  { id: "key", label: "Groupe", width: "fill", mono: true, sortable: true },
-  { id: "anchor", label: "Ancre", width: "md", mono: true, filterable: true, priority: 3 },
-  { id: "range", label: "VID", width: "sm", mono: true, priority: 2 },
-  { id: "used", label: "Occupation", width: "sm", align: "end", sortable: true },
-  { id: "free", label: "Libres", width: "sm", align: "end", sortable: true, priority: 2 },
-];
-const groupSort = ref<GridSort>({ column: "key", direction: "ascending" });
-
-interface Vlan extends Record<string, unknown> {
-  vid: string;
-  name: string;
-  state: "active" | "deprecated" | "reserved";
-  networks: string;
-  interfaces: string;
-}
-const vlans: Vlan[] = [
-  { vid: "100", name: "admin", state: "active", networks: "192.0.2.0/26", interfaces: "14" },
-  { vid: "101", name: "serveurs", state: "active", networks: "2 réseaux", interfaces: "38" },
-  { vid: "102", name: "voix", state: "deprecated", networks: "—", interfaces: "0" },
-  { vid: "104", name: "sauvegarde", state: "active", networks: "—", interfaces: "0" },
-  { vid: "110", name: "reserve-wifi", state: "reserved", networks: "—", interfaces: "0" },
-  { vid: "120", name: "serveurs-b", state: "active", networks: "192.0.2.0/26", interfaces: "21" },
-  { vid: "121", name: "supervision", state: "active", networks: "192.0.2.64/26", interfaces: "6" },
-];
-const vlanColumns: GridColumn[] = [
-  { id: "vid", label: "VID", width: "sm", mono: true, sortable: true },
-  { id: "name", label: "Nom", width: "fill", mono: true, sortable: true },
-  { id: "state", label: "Statut", width: "md", filterable: true, priority: 2 },
-  { id: "networks", label: "Réseaux", width: "md", mono: true, filterable: true, priority: 3 },
-  { id: "interfaces", label: "Interfaces", width: "sm", align: "end", sortable: true, priority: 3 },
-];
-const vlanSort = ref<GridSort>({ column: "vid", direction: "ascending" });
-const VLAN_STATE: Record<Vlan["state"], { state: State; label: string }> = {
-  active: { state: "ok", label: "Actif" },
-  deprecated: { state: "warn", label: "Déprécié" },
-  reserved: { state: "neutral", label: "Réservé" },
-};
-const vlanRow = (row: Vlan): RowState | undefined => (row.vid === "104" ? "draft" : undefined);
-const vlanActions: ToolbarAction[] = [
-  { id: "free", label: "Prochain libre : 105", icon: "search", priority: 2 },
-  { id: "create", label: "Créer", icon: "plus", variant: "primary", shortcut: ["c"], priority: 3 },
-  { id: "export", label: "Exporter", priority: 1 },
-  { id: "renumber", label: "Renuméroter…", icon: "pencil", forbidden: "vlan.edit" },
-];
 
 type Verdict = "allow" | "deny" | "conditional" | "default";
 /** The environments, both axes of the matrix (source in rows, destination in columns). */
@@ -287,60 +227,6 @@ const EFFECT = [
 
 <template>
   <Cadre
-    v-if="props.vue === 'vlan'"
-    title="Groupe de VLAN campus-ouest"
-    active="vlan-groups"
-    space="network"
-    :crumbs="[
-      { label: 'Réseau', to: '/x/vlan' },
-      { label: 'Groupes de VLAN', to: '/x/vlan/groups' },
-      { label: 'campus-ouest', mono: true },
-    ]"
-  >
-    <Panneau title="Groupes de VLAN" detail="3" flush>
-      <DataGrid
-        v-model:sort="groupSort"
-        label="Groupes de VLAN"
-        :columns="groupColumns"
-        :rows="groups"
-        row-key="key"
-        selectable="single"
-        :selected="['campus-ouest']"
-      />
-    </Panneau>
-    <Panneau title="campus-ouest" detail="VID 100–199 · ancre site-ouest" main flush>
-      <template #toolbar>
-        <Barre label="Actions du groupe" :actions="vlanActions">
-          <span class="k-num">87 sur 100 utilisés · 12 libres</span>
-        </Barre>
-      </template>
-      <DataGrid
-        v-model:sort="vlanSort"
-        label="VLAN du groupe campus-ouest"
-        :columns="vlanColumns"
-        :rows="vlans"
-        row-key="vid"
-        :row-state="vlanRow"
-        :filtered="['state']"
-      >
-        <template #cell="{ row, column, value }">
-          <StatusBadge
-            v-if="column.id === 'state'"
-            :state="VLAN_STATE[row.state].state"
-            :label="VLAN_STATE[row.state].label"
-          />
-          <template v-else>{{ value }}</template>
-        </template>
-      </DataGrid>
-      <template #footer>
-        <span class="k-num">7 VLAN sur 87 · 1 en brouillon</span>
-        <span class="k-ecran-muted">Colonne « Interfaces » : plugin Machines</span>
-      </template>
-    </Panneau>
-  </Cadre>
-
-  <Cadre
-    v-else
     title="Matrice de politique applicatif"
     active="matrix"
     space="policy"

@@ -10,6 +10,9 @@
       - link "Topographie":
         - /url: /topology
     - listitem:
+      - link "VLAN":
+        - /url: /vlans
+    - listitem:
       - link "Domaines":
         - /url: /domains
     - listitem:
@@ -40,13 +43,6 @@
     - listitem:
       - link "Mes brouillons 3":
         - /url: /drafts
-  - list "Réseau":
-    - listitem:
-      - link "VLAN":
-        - /url: /x/vlan/vlans
-    - listitem:
-      - link "Groupes de VLAN":
-        - /url: /x/vlan/groups
   - list "Machines":
     - listitem:
       - link "Machines":

@@ -15,7 +15,6 @@
     - listitem:
       - link "Mes brouillons 3":
         - /url: /drafts
-  - button "Réseau"
   - button "Machines"
   - button "Politique"
   - button "Flux"
