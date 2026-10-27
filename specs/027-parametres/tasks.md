@@ -24,12 +24,14 @@ Statut : spec **validée le 2026-10-28**.
     refus de clôture codé `policy.reference.closed` ; couples `icmp type 8 code 0`,
     `ip proto 50` ; layout.spec ignore une barre non rendue (sélecteur de colonnes en
     `display: none`).
-- [ ] 2. Amendements : REQ-011-17 (lecteurs), REQ-011-15, 25, 26 (renvoi à la 027),
+- [x] 2. Amendements : REQ-011-17 (lecteurs), REQ-011-15, 25, 26 (renvoi à la 027),
   F12 ; REQ-003-1 et 005 (catalogue des permissions) ; REQ-010-1, 2, 4, 5, 29
   (permissions) ; `specs/README.md`
   - fait (partie 011, avec la tâche 3) : REQ-011-17 (lecteurs), REQ-011-15, 25, 26
-    (renvoi à la 027), F12 et sa ligne de synthèse ; reste la 003, la 005, la 010 et
-    `specs/README.md`.
+    (renvoi à la 027), F12 et sa ligne de synthèse ; REQ-011-5 et la conception de la
+    011 avec la tâche 3b (évaluations servies entières).
+  - fait (avec la tâche 4) : 003 (REQ-003-1, 2), 005 (REQ-005-16, conception), 010
+    (REQ-010-1, 2, 4, 5, 24, 29) ; `specs/README.md` à la clôture.
 - [x] 3. Lecture d'un flux par une extrémité et extrémité hors périmètre — REQ-027-1 à
   4 — verify : tests d'acceptation ; `k-check` ; banc `bench-flow` complet (agent
   principal)
@@ -124,5 +126,11 @@ Statut : spec **validée le 2026-10-28**.
     déclaration de module : `<module>.settings.*` (seule la sensibilité va au cœur) ;
     `<module>.settings.{write,propose,apply_own}` listés parmi les anciens noms par la
     règle générique de la 024 ; `specs/README.md` non touché (compteur des tâches).
-- [ ] 5. Clients, SDK v1 et v2, CLI, `docs/spec/` (permissions, interfaces) — verify :
+- [x] 5. Clients, SDK v1 et v2, CLI, `docs/spec/` (permissions, interfaces) — verify :
   `k-py-check`, `k-web-check`, `k-web2-check`
+  - fait (avec les tâches 3, 3b et 4) : contrat et SDK v1 et v2 régénérés
+    (`FlowEndpoint`), `docs/spec/permissions.md` régénéré, `docs/spec/interfaces.md` ;
+    client Python et CLI sans changement nécessaire ; aucun ancien nom de permission
+    hors de la table des renommages et de ses tests. Sur main après fusion : `k-check`
+    1163 réussis, `k-web2-check` 316 tests et 1303 captures, `k-web-check`, `k-py-check`
+    verts.
