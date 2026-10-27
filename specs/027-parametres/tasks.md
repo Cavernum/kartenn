@@ -100,6 +100,10 @@ Statut : spec **validée le 2026-10-28**.
     ne pas toucher les lecteurs de `fields` (web v1, CLI).
   - choix : banc `bench-flow` non lancé (agent principal) ; la page sert désormais les
     valeurs des extrémités pour tout lecteur (une requête de plus par page).
+  - banc complet (agent principal, 2026-10-28) : premier passage à 3,92 s pour la page
+    filtrée du lecteur par extrémités, plan générique de la lecture des flux (synthèses
+    relues par flux) ; corrigé (dc8d52f4), puis 27,9 ms et 59,8 ms (non-conformités) pour
+    150 ms. Chiffres dans `docs/spec/invariants.md`.
 - [x] 4. Permissions `<déclarant>.settings.*`, contrôle par déclarant, migration des
   rôles — REQ-027-5 à 7 — verify : tests d'acceptation ; test des anciens noms ;
   `k-check`

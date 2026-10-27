@@ -1,11 +1,11 @@
 ---
-status: approved
+status: implemented
 updated: 2026-10-28
 ---
 
 # 027 — Paramètres par déclarant et flux vus depuis une extrémité : exigences
 
-Statut : **validée le 2026-10-28** (P1 à P8 ; P1, P2, P4 arbitrées, P3, P6, P7
+Statut : **implémentée le 2026-10-28**, validée le même jour (P1 à P8 ; P1, P2, P4 arbitrées, P3, P6, P7
 confirmées par l'utilisateur).
 
 ## Résumé
