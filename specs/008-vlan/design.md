@@ -1,9 +1,14 @@
 ---
 status: implemented
-updated: 2026-10-21
+updated: 2026-10-27
 ---
 
 # 008 — VLAN : conception
+
+> **Amendement (spec 026).** Les parties B à F (le VLAN lui-même) sont **reprises par la
+> 026** : tables dans le schéma du noyau (migration 0072), crate `kartenn-vlan` retirée,
+> noms `core.vlan_group`, `core.vlan`, `core.vlan.*`. Ce qui suit décrit l'état de la
+> v0.1 et reste la référence de la partie A (contrat de module).
 
 ## Vue d'ensemble
 

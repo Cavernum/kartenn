@@ -1,6 +1,6 @@
 ---
 status: implemented
-updated: 2026-10-21
+updated: 2026-10-27
 ---
 
 # 008 — VLAN : exigences
@@ -12,6 +12,14 @@ Premier module métier de kartenn (D18, D31). Il décrit les VLAN IEEE 802.1Q, r
 d'adressage, et les relie aux réseaux par une propriété. C'est aussi la spec qui
 **implémente le contrat de module** (ADR 0026) : la partie A vaut pour tout module, la
 009 (Machines et interfaces) puis la 010 et la 011 s'en servent.
+
+> **Amendement (spec 026, D18 amendée).** Le VLAN est un objet du noyau : les parties
+> B à F sont **reprises par la 026** ([`../026-vlan-coeur/`](../026-vlan-coeur/)), sans
+> être réécrites ici. Les noms qu'elles citent sont ceux d'avant la 026 : `vlan.vlan`
+> (type et propriété) devient `core.vlan`, `vlan.group` devient `core.vlan_group`, les
+> opérations `vlan.create_vlan`… deviennent `create_vlan`…, les codes `vlan.*` deviennent
+> `core.vlan.*`, les permissions `vlan.*` et `vlan.group.*` deviennent `core.vlan.*` et
+> `core.vlan_group.*`. La partie A (contrat de module) reste la référence de ce contrat.
 
 Décisions : [`decisions.md`](decisions.md) (V1–V15) ; D4, D6, D11, D12, D18, D31, D33,
 D36 ([`../001-cadrage/decisions.md`](../001-cadrage/decisions.md)) ; ADR 0026.
@@ -190,6 +198,8 @@ Acceptation :
 
 ### B. Groupes de VLAN
 
+Reprise par la 026.
+
 #### REQ-008-12 — Groupe
 kartenn doit gérer des groupes de VLAN identifiés par un slug unique à tout instant
 (REQ-002-47), ancrés sur exactement une entité, un site ou un domaine d'adressage, munis
@@ -212,6 +222,8 @@ Acceptation :
 - Changer l'ancre d'un groupe : le différentiel liste ses VLAN dont le périmètre change.
 
 ### C. VLAN
+
+Reprise par la 026.
 
 #### REQ-008-14 — VLAN
 kartenn doit gérer des VLAN, chacun dans un groupe, avec un VID entier de 1 à 4094 dans
@@ -243,6 +255,8 @@ Acceptation :
 
 ### D. Lien aux réseaux
 
+Reprise par la 026 (propriété `core.vlan`).
+
 #### REQ-008-17 — Propriété `vlan.vlan`
 kartenn doit fournir la propriété `vlan.vlan`, référence simple vers un VLAN, portée par
 les préfixes, non héritée, et refuser de la poser sur un préfixe qui n'est pas de nature
@@ -263,6 +277,8 @@ Acceptation :
   simulation, anomalie après application, acquittable.
 
 ### E. Lectures
+
+Reprise par la 026.
 
 #### REQ-008-19 — Listes et lectures datées
 kartenn doit lister les groupes et les VLAN avec les conventions de la 006 (datation,
@@ -292,6 +308,9 @@ Acceptation :
   révèle pas.
 
 ### F. Droits, imports, interface, budgets
+
+Reprise par la 026 (permissions `core.vlan_group.*`, `core.vlan.*` ; plugin v1 toujours
+servi ; budgets mesurés par `bench-core`).
 
 #### REQ-008-22 — Permissions
 kartenn doit contrôler les écritures et lectures du module par `vlan.group.read|write|

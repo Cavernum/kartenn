@@ -78,5 +78,12 @@ Statut : spec **validée le 2026-10-27**.
     leurs exemples d'époque.
 - [ ] 6. Maquettes v2 : écran VLAN du cœur, E10 sans le VLAN, ligne ajoutée au tableau
   des maquettes de la 020 — REQ-026-6 — verify : `k-web2-check`, `k-web2-e2e`
-- [ ] 7. Amendements : D18 dans `001-cadrage/decisions.md`, 008 (parties B à F
+- [x] 7. Amendements : D18 dans `001-cadrage/decisions.md`, 008 (parties B à F
   « reprises par la 026 »), 009 (REQ-009-12), 021, `specs/README.md`
+  - fait : D18 amendée (journal et synthèse) ; 008 : note en tête des exigences et de
+    la conception, « Reprise par la 026 » sous B à F ; REQ-009-12 amendée ; 021 :
+    écrans VLAN du cœur au lieu du plugin (conception, REQ-021-3, tâche 17, phase 5) ;
+    ligne 026 et ligne 008 de `specs/README.md`.
+  - choix : les routes v2 des écrans VLAN (`/vlans`, `/vlan-groups`) sont provisoires,
+    fixées par la maquette de la tâche 6 ; les specs closes (005, 018, 022, 023, 024)
+    et l'ADR 0026 gardent leurs exemples d'époque.

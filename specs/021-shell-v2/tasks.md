@@ -416,9 +416,9 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
 
 ## P3 — Plugins (phase 5)
 
-- [ ] 17. Plugin VLAN réécrit avec le framework partagé et `@kartenn/ui`, DOM léger,
-  espace `network`, filtres typés, édition en place — REQ-021-27 — verify : parcours
-  `vlan` vert ; poids ≤ 50 Ko gzip hors partagés
+- [ ] 17. Écrans VLAN du cœur (amendée par la 026 : plus un plugin, des écrans du shell)
+  avec `@kartenn/ui`, espace `network`, filtres typés, édition en place — REQ-021-27,
+  REQ-026-6 — verify : parcours `vlan` vert
   - où : `web/plugins/vlan/src/index.ts` (comportement actuel), `public/manifest.json`,
     `test/`
   - dépend de : 11, 12, 16
