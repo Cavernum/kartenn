@@ -196,8 +196,11 @@ for (const width of [1280, 1440] as const) {
                 return v.width > 0 && v.right > v.left && v.right > edge + 0.5;
               })
               .map((el) => `${el.tagName.toLowerCase()}.${el.className}`.slice(0, 80));
+            // A bar not rendered (a column chooser with nothing to hide at this width,
+            // `display: none`) has no box: nothing of it can stand out.
             const inside = (inner: Element, outer: Element) => {
               const i = inner.getBoundingClientRect();
+              if (i.width === 0 && i.height === 0) return true;
               const o = outer.getBoundingClientRect();
               return i.left >= o.left - 0.5 && i.right <= o.right + 0.5;
             };
