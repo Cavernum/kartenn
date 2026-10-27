@@ -98,6 +98,10 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     (une simulation lève une révision qu'elle annule) ; `update` ne fait que raccourcir la
     période (`end`), la prolongation reste à faire ; les conditions non remplies sont
     reliées aux conditions par leur clé.
+  - test : `acceptance_of_req_011_10_a_partial_flow_goes_to_review`
+    (`tests/it/requests.rs`, ajouté le 2026-10-27) — source interface `prod` + `dev` :
+    écriture directe refusée, demande en proposition, instruite appliquée ; les trois
+    avec `flow.verdict.partial`.
 - [x] 4. Références des extrémités : clôture refusée ou cascade — REQ-011-3 — verify :
   clôture d'une adresse citée refusée ; cascade clôt le flux
   - où : références de module (ADR 0026 clause 12, tâche 008-7)

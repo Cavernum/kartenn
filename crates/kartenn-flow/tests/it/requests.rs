@@ -461,6 +461,92 @@ async fn acceptance_of_req_011_22_a_reviewed_and_waived_request_applies(pool: Pg
     assert_eq!(granted_by, reviewer);
 }
 
+/// REQ-011-10: a flow whose source is an interface holding a `prod` and a `dev` address
+/// towards `dev` is `partial` (only `prod → dev` is allowed): its request waits for
+/// review, its direct write without review is refused, and both warn
+/// `flow.verdict.partial`; reviewed, it applies with the warning, its summary `partial`.
+#[kartenn_testing::pg_test]
+async fn acceptance_of_req_011_10_a_partial_flow_goes_to_review(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
+    let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
+    let (_, eth0) = crate::endpoints::machine(&env, "web", prod).await;
+    env.applied(vec![Operation::CreateAddress {
+        local: None,
+        domain: Ref::Id(env.domain),
+        address: "10.2.0.2".into(),
+        usage: AddressUsage::Host,
+    }])
+    .await;
+    let other: Uuid = sqlx::query_scalar("SELECT id FROM address WHERE address = '10.2.0.2'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    env.applied(vec![
+        serde_json::from_value(json!({ "op": "machines.attach_address",
+            "interface": { "id": eth0 }, "address": { "id": other } }))
+        .unwrap(),
+    ])
+    .await;
+    let mut fields = env.fields(prod, dev).await;
+    fields["source"] = json!({ "kind": "interface", "id": { "id": eth0 } });
+
+    // The direct write, without review, is refused and warns of the partial verdict.
+    let outcome = env
+        .submit_as(
+            &Unrestricted,
+            env.author,
+            vec![flow("register", fields.clone())],
+        )
+        .await;
+    let found = rules(&outcome);
+    assert!(found.contains(&"flow.review.required"), "{found:?}");
+    assert!(found.contains(&"flow.verdict.partial"), "{found:?}");
+    assert!(!found.contains(&"flow.waiver.required"), "{found:?}");
+    assert_eq!(env.flows().await, 0);
+
+    // The request is submitted to review (a proposal), nothing written.
+    let (requester, reviewer) = (env.person().await, env.person().await);
+    let authorizer = grants(requester, REQUEST)
+        .everywhere(reviewer, "flow.request")
+        .everywhere(reviewer, "prop.core.owner.apply")
+        .everywhere(reviewer, "flow.review");
+    let id = proposal(
+        &env.submit_as(&authorizer, requester, vec![flow("request", fields)])
+            .await,
+    );
+    assert_eq!(env.flows().await, 0);
+
+    // Reviewed, it applies with the warning, its summary `partial`.
+    let result = validate_pending_with(
+        &env.store,
+        &authorizer,
+        &Sources::none(),
+        id,
+        &reviewer.into(),
+        &RequestContext::person(reviewer),
+        vec![flow(
+            "approve_review",
+            json!({ "flow": { "local": 1 }, "end": later(90) }),
+        )],
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    let Outcome::Applied { warnings, .. } = &result else {
+        panic!("not applied: {result:?}");
+    };
+    assert!(
+        warnings.iter().any(|w| w.rule.id == "flow.verdict.partial"),
+        "{warnings:?}"
+    );
+    let summary: String = sqlx::query_scalar("SELECT summary FROM flow.flow_registration")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(summary, "partial");
+}
+
 /// REQ-011-22: the requester does not review their own request (separation of duties,
 /// C1), even through a service account that requested on their behalf.
 #[kartenn_testing::pg_test]
