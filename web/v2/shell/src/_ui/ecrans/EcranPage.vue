@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// A mock-up of the catalogue (design « Maquettes »): `/_ui/ecrans/<E0…E12>?vue=<id>`, with
+// A mock-up of the catalogue (design « Maquettes »): `/_ui/ecrans/<E0…E13>?vue=<id>`, with
 // the switches of mode, density and language in the query like every page of the
 // catalogue, but without its frame: the mock-up takes the whole page, as the shell will.
 import { providePortalTarget } from "@kartenn/ui";
@@ -29,6 +29,7 @@ const SCREENS: Record<string, Component> = {
   E10: defineAsyncComponent(() => import("./E10Plugin.vue")),
   E11: defineAsyncComponent(() => import("./E11Flux.vue")),
   E12: defineAsyncComponent(() => import("./E12Vlan.vue")),
+  E13: defineAsyncComponent(() => import("./E13Parametres.vue")),
 };
 
 const mockup = computed(() => MOCKUPS.find((m) => m.id === props.ecran));

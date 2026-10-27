@@ -2,7 +2,7 @@
 
 Statut : spec **validée le 2026-10-28**.
 
-- [ ] 1. Maquettes : E13 « Paramètres » (vues `coeur`, `machines`, `politique`,
+- [x] 1. Maquettes : E13 « Paramètres » (vues `coeur`, `machines`, `politique`,
   `politique-lecture`, `cloture`) et extrémité hors périmètre dans E11 ; ligne E13 du
   tableau des maquettes de la 020 — REQ-027-8, 9 — verify : `k-web2-check`,
   `k-web2-e2e ecrans clavier touch layout`, captures
@@ -10,6 +10,20 @@ Statut : spec **validée le 2026-10-28**.
     permissions nommées), `E3Adresses.vue` (tableau-formulaire), `E11Flux.vue` (vue
     `machine`), `registry.ts`, `sidebar.ts` ; `specs/020-systeme-de-design/design.md`
     (tableau des maquettes)
+  - fait : `E13Parametres.vue` (entrée « Paramètres » de l'espace Administration, un
+    onglet `Tabs` par déclarant, cinq vues) ; E11 : deux flux dont l'autre extrémité
+    n'est pas lue (préfixe `203.0.113.128/25`, interface aux adresses `198.51.100.20`,
+    `2001:db8::20`), dans le registre et les Entrants/Sortants ; lignes E11 et E13 de la
+    020 ; tests clavier E13 et E11 ; captures aux largeurs du banc.
+  - choix : sans masquage (consigne du 2026-10-28, remplace REQ-027-2 tel qu'écrit) :
+    sorte et valeurs de l'extrémité montrées, ni nom tiré de l'objet, ni lien ni
+    panneau, « fiche non accessible » et la permission (`machines.read`,
+    `core.prefix.read`) ; préfixe `203.0.113.128/25` plutôt que `198.51.100.0/24`, qui
+    contient une adresse de `srv-app-01` dans les fixtures ; une personne par vue
+    (droits `*.settings.edit` détenus), les onglets sans le droit en lecture seule ;
+    refus de clôture codé `policy.reference.closed` ; couples `icmp type 8 code 0`,
+    `ip proto 50` ; layout.spec ignore une barre non rendue (sélecteur de colonnes en
+    `display: none`).
 - [ ] 2. Amendements : REQ-011-17 (lecteurs), REQ-011-15, 25, 26 (renvoi à la 027),
   F12 ; REQ-003-1 et 005 (catalogue des permissions) ; REQ-010-1, 2, 4, 5, 29
   (permissions) ; `specs/README.md`

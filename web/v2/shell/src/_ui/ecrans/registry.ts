@@ -1,7 +1,8 @@
 /**
  * The mock-ups of the design system (spec 020, design « Maquettes », REQ-020-25; tasks 13
- * and 14; revised by the 024, tasks 11 and 11b; E12 added by the 026): thirteen screens (E0
- * to E12) built with the components of `@kartenn/ui`, on fictitious data, to be validated by the user on captures.
+ * and 14; revised by the 024, tasks 11 and 11b; E12 added by the 026, E13 by the 027):
+ * fourteen screens (E0 to E13) built with the components of `@kartenn/ui`, on fictitious
+ * data, to be validated by the user on captures.
  * Each mock-up has one or more views (`?vue=`), each one URL and one capture per width
  * (1440, 1280, 1024, 768 px) and mode. Pure data: the captures (`e2e/visual/ecrans.spec.ts`)
  * read this list.
@@ -324,7 +325,7 @@ export const MOCKUPS: Mockup[] = [
         id: "registre",
         label: "Registre",
         description:
-          "Flux déclarés et ouverts : source et destination (interface, adresse ou préfixe) en liens vers la fiche de leur machine, service (libellé et clé), type de flux, état, conformité et issue, échéance ; filtres typés en pastilles ; « Proposer des flux », « Tester une connexion ».",
+          "Flux déclarés et ouverts : source et destination (interface, adresse ou préfixe) en liens vers la fiche de leur machine, une extrémité dont l'objet n'est pas lu par sa sorte et ses valeurs (préfixe, ou adresses d'une interface), sans lien, « fiche non accessible » et la permission qui l'ouvre (027) ; service (libellé et clé), type de flux, état, conformité et issue, échéance ; filtres typés en pastilles ; « Proposer des flux », « Tester une connexion ».",
       },
       {
         id: "proposition",
@@ -366,7 +367,7 @@ export const MOCKUPS: Mockup[] = [
         id: "machine",
         label: "Flux d'une machine",
         description:
-          "Fiche de srv-app-01, onglet Information : attributs (interfaces en liens, avec leur média et leur rôle), puis les flux de ses interfaces, entrants et sortants, en liste compacte : l'interface (et l'adresse ou le préfixe qui l'atteint), l'autre extrémité (une interface en lien vers sa fiche, une adresse vers la fiche de sa machine), service, type de flux, conformité à la matrice.",
+          "Fiche de srv-app-01, onglet Information : attributs (interfaces en liens, avec leur média et leur rôle), puis les flux de ses interfaces, entrants et sortants, en liste compacte : l'interface (et l'adresse ou le préfixe qui l'atteint), l'autre extrémité (une interface en lien vers sa fiche, une adresse vers la fiche de sa machine ; un objet non lu : sa sorte et ses valeurs, sans lien ni panneau, « fiche non accessible » et la permission, 027), service, type de flux, conformité à la matrice.",
       },
       {
         id: "interface",
@@ -405,6 +406,45 @@ export const MOCKUPS: Mockup[] = [
         label: "Créer un VLAN pour un réseau",
         description:
           "Liste des préfixes avec sa colonne VLAN (propriété core.vlan des réseaux) ; un réseau sans VLAN choisi, panneau droit : groupe, VID prérempli du prochain libre, nom, statut ; deux opérations au brouillon.",
+      },
+    ],
+  },
+  {
+    id: "E13",
+    title: "Paramètres",
+    shows:
+      "Paramètres par déclarant (027), entrée de l'espace Administration : un onglet par déclarant (Cœur, Machines, Politique) ; champs, listes fermées en tableau-formulaire, environnements, services et leurs couples transport/port, types de flux, axes ; lecture seule sans la permission du déclarant, nommée par son code ; modifications au brouillon ; clôture d'une valeur citée refusée avec la liste des objets.",
+    views: [
+      {
+        id: "coeur",
+        label: "Cœur",
+        description:
+          "Champs du cœur et custom.* (clé, libellés, type, porteurs, héritage, sensibilité ; custom.astreinte au brouillon) ; liste fermée core.external_system en tableau-formulaire : clé figée, libellés FR/EN, période de validité, citations ; un libellé en édition, un autre et une valeur au brouillon.",
+      },
+      {
+        id: "machines",
+        label: "Machines",
+        description:
+          "Vu avec machines.settings.edit seule : champs synchronisés du module, médias d'interface (ethernet, sfp, sfp28 ajoutée au brouillon, qsfp, wifi relibellée…) et rôles ; machines.fqdn choisi dans le panneau droit, « Rendre sensible » refusé : il faut core.settings.edit.",
+      },
+      {
+        id: "politique",
+        label: "Politique",
+        description:
+          "Environnements, services (un type de flux, couples tcp, udp, sctp, plage, icmp, icmpv6, ip), types de flux, axes et valeurs ; preprod, ldaps et la valeur d'axe pci au brouillon, panneau droit sur l'onglet Brouillon groupé par élément.",
+      },
+      {
+        id: "politique-lecture",
+        label: "Politique en lecture",
+        description:
+          "Même onglet sans policy.settings.edit : « Lecture seule » annoncé en tête avec le code, chaque ajout refusé par « Il faut policy.settings.edit ».",
+        focus: ".k-button[aria-disabled='true']",
+      },
+      {
+        id: "cloture",
+        label: "Clôture refusée",
+        description:
+          "L'environnement sandbox choisi : sa clôture refusée (policy.reference.closed), les objets qui le citent listés — deux réseaux, une adresse, une règle.",
       },
     ],
   },

@@ -1,0 +1,297 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration" [expanded]
+  - list:
+    - listitem:
+      - link "Groupes":
+        - /url: /admin/groups
+    - listitem:
+      - link "Rôles":
+        - /url: /admin/roles
+    - listitem:
+      - link "Identités":
+        - /url: /admin/identities
+    - listitem:
+      - link "Comptes de service":
+        - /url: /admin/accounts
+    - listitem:
+      - link "Émetteurs":
+        - /url: /admin/issuers
+    - listitem:
+      - link "Paramètres":
+        - /url: /admin/settings
+    - listitem:
+      - link "Audit":
+        - /url: /admin/audit
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Administration":
+          - /url: /admin
+      - listitem:
+        - link "Paramètres":
+          - /url: /admin/settings
+      - listitem: Politique
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Paramètres" [level=1]
+  - region "Paramètres":
+    - heading "Paramètres" [level=2]
+    - text: un onglet par déclarant
+    - tablist "Déclarants des paramètres":
+      - tab "Cœur"
+      - tab "Machines"
+      - tab "Politique" [selected]
+    - tabpanel "Politique":
+      - paragraph:
+        - text: Écriture par changeset, sous
+        - code: policy.settings.edit
+        - text: .
+      - status:
+        - paragraph: "Lecture seule : il vous faut policy.settings.edit pour modifier les paramètres de la Politique."
+        - button "Copier policy.settings.edit":
+          - text: ""
+          - code: policy.settings.edit
+        - status
+      - region "Environnements 5":
+        - heading "Environnements 5" [level=3]
+        - button "Ajouter un environnement" [disabled]
+        - grid "Environnements":
+          - rowgroup:
+            - row "Clé Libellé Description Valide depuis Citations":
+              - columnheader "Clé":
+                - text: ""
+                - 'button "Filtrer : Clé"'
+              - columnheader "Libellé":
+                - text: ""
+                - 'button "Filtrer : Libellé"'
+              - columnheader "Description"
+              - columnheader "Valide depuis"
+              - columnheader "Citations"
+          - rowgroup:
+            - row /prod Production Ce qui sert les utilisateurs\. \d+-\d+-\d+ \d+/:
+              - gridcell "prod"
+              - gridcell "Production"
+              - gridcell "Ce qui sert les utilisateurs."
+              - gridcell /\d+-\d+-\d+/
+              - gridcell /\d+/
+            - row /rece Recette Validation avant la production, sur des jeux de contrôle\. \d+-\d+-\d+ \d+/:
+              - gridcell "rece"
+              - gridcell "Recette"
+              - gridcell "Validation avant la production, sur des jeux de contrôle."
+              - gridcell /\d+-\d+-\d+/
+              - gridcell /\d+/
+            - row /deve Développement Postes et services des équipes de développement\. \d+-\d+-\d+ \d+/:
+              - gridcell "deve"
+              - gridcell "Développement"
+              - gridcell "Postes et services des équipes de développement."
+              - gridcell /\d+-\d+-\d+/
+              - gridcell /\d+/
+            - row /admin Administration Bastions et interfaces d'administration\. \d+-\d+-\d+ \d+/:
+              - gridcell "admin"
+              - gridcell "Administration"
+              - gridcell "Bastions et interfaces d'administration."
+              - gridcell /\d+-\d+-\d+/
+              - gridcell /\d+/
+            - row /sandbox Bac à sable Essais isolés, sans donnée réelle\. \d+-\d+-\d+ 4/:
+              - gridcell "sandbox"
+              - gridcell "Bac à sable"
+              - gridcell "Essais isolés, sans donnée réelle."
+              - gridcell /\d+-\d+-\d+/
+              - gridcell "4"
+      - region "Services 9":
+        - heading "Services 9" [level=3]
+        - button "Ajouter un service" [disabled]
+        - grid "Services":
+          - rowgroup:
+            - row "Service Type de flux Couples transport et port":
+              - columnheader "Service":
+                - text: ""
+                - 'button "Filtrer : Service"'
+              - columnheader "Type de flux":
+                - text: ""
+                - 'button "Filtrer : Type de flux"'
+              - columnheader "Couples transport et port":
+                - text: ""
+                - 'button "Filtrer : Couples transport et port"'
+          - rowgroup:
+            - row /Web chiffré https Applicatif tcp\/\d+/:
+              - gridcell "Web chiffré https":
+                - text: ""
+                - code: https
+              - gridcell "Applicatif"
+              - gridcell /tcp\/\d+/:
+                - code: /tcp\/\d+/
+            - row /API interne api Applicatif tcp\/\d+/:
+              - gridcell "API interne api":
+                - text: ""
+                - code: api
+              - gridcell "Applicatif"
+              - gridcell /tcp\/\d+/:
+                - code: /tcp\/\d+/
+            - row /Web des essais web-essais Applicatif tcp\/\d+-\d+/:
+              - gridcell "Web des essais web-essais":
+                - text: ""
+                - code: web-essais
+              - gridcell "Applicatif"
+              - gridcell /tcp\/\d+-\d+/:
+                - code: /tcp\/\d+-\d+/
+            - row /Shell sécurisé ssh Administratif tcp\/\d+/:
+              - gridcell "Shell sécurisé ssh":
+                - text: ""
+                - code: ssh
+              - gridcell "Administratif"
+              - gridcell /tcp\/\d+/:
+                - code: /tcp\/\d+/
+            - row /Écho ICMP ping Administratif icmp type 8 code 0, icmpv6 type \d+/:
+              - gridcell "Écho ICMP ping":
+                - text: ""
+                - code: ping
+              - gridcell "Administratif"
+              - gridcell /icmp type 8 code 0, icmpv6 type \d+/:
+                - code: icmp type 8 code 0
+                - text: ""
+                - code: /icmpv6 type \d+/
+            - row /Tunnel IPsec ipsec Administratif ip proto \d+, udp\/\d+, udp\/\d+/:
+              - gridcell "Tunnel IPsec ipsec":
+                - text: ""
+                - code: ipsec
+              - gridcell "Administratif"
+              - gridcell /ip proto \d+, udp\/\d+, udp\/\d+/:
+                - code: /ip proto \d+/
+                - text: ""
+                - code: /udp\/\d+/
+                - text: ""
+                - code: /udp\/\d+/
+            - row /PostgreSQL postgres Base de données tcp\/\d+/:
+              - gridcell "PostgreSQL postgres":
+                - text: ""
+                - code: postgres
+              - gridcell "Base de données"
+              - gridcell /tcp\/\d+/:
+                - code: /tcp\/\d+/
+            - row /Partage NFS nfs Fichier tcp\/\d+, udp\/\d+/:
+              - gridcell "Partage NFS nfs":
+                - text: ""
+                - code: nfs
+              - gridcell "Fichier"
+              - gridcell /tcp\/\d+, udp\/\d+/:
+                - code: /tcp\/\d+/
+                - text: ""
+                - code: /udp\/\d+/
+            - row /Signalisation signalisation Applicatif sctp\/\d+/:
+              - gridcell "Signalisation signalisation":
+                - text: ""
+                - code: signalisation
+              - gridcell "Applicatif"
+              - gridcell /sctp\/\d+/:
+                - code: /sctp\/\d+/
+        - paragraph: Un seul type de flux par service ; ports ou plages fermées pour tcp, udp, sctp et dccp, type et code pour icmp et icmpv6, numéro de protocole pour ip.
+      - region "Types de flux 4":
+        - heading "Types de flux 4" [level=3]
+        - button "Ajouter un type de flux" [disabled]
+        - grid "Types de flux":
+          - rowgroup:
+            - row "Clé Libellé Libellé (en) Services":
+              - columnheader "Clé":
+                - text: ""
+                - 'button "Filtrer : Clé"'
+              - columnheader "Libellé":
+                - text: ""
+                - 'button "Filtrer : Libellé"'
+              - columnheader "Libellé (en)":
+                - text: ""
+                - 'button "Filtrer : Libellé (en)"'
+              - columnheader "Services"
+          - rowgroup:
+            - row "application Applicatif Application 3":
+              - gridcell "application"
+              - gridcell "Applicatif"
+              - gridcell "Application"
+              - gridcell "3"
+            - row "admin Administratif Administration 3":
+              - gridcell "admin"
+              - gridcell "Administratif"
+              - gridcell "Administration"
+              - gridcell "3"
+            - row "database Base de données Database 1":
+              - gridcell "database"
+              - gridcell "Base de données"
+              - gridcell "Database"
+              - gridcell "1"
+            - row "file Fichier File 1":
+              - gridcell "file"
+              - gridcell "Fichier"
+              - gridcell "File"
+              - gridcell "1"
+      - region "Axes 4":
+        - heading "Axes 4" [level=3]
+        - button "Ajouter une valeur d'axe" [disabled]
+        - grid "Axes et leurs valeurs":
+          - rowgroup:
+            - row "Axe Porteur Valeurs":
+              - columnheader "Axe":
+                - text: ""
+                - 'button "Filtrer : Axe"'
+              - columnheader "Porteur":
+                - text: ""
+                - 'button "Filtrer : Porteur"'
+              - columnheader "Valeurs":
+                - text: ""
+                - 'button "Filtrer : Valeurs"'
+          - rowgroup:
+            - 'row "Environnement policy.environment Arbre d''adressage imposé : les environnements"':
+              - gridcell "Environnement policy.environment":
+                - text: ""
+                - code: policy.environment
+              - gridcell "Arbre d'adressage"
+              - 'gridcell "imposé : les environnements"'
+            - row "Sensibilité policy.sensitivity Arbre d'adressage public, internal, confidential":
+              - gridcell "Sensibilité policy.sensitivity":
+                - text: ""
+                - code: policy.sensitivity
+              - gridcell "Arbre d'adressage"
+              - gridcell "public, internal, confidential":
+                - code: public
+                - text: ""
+                - code: internal
+                - text: ""
+                - code: confidential
+            - row "Cadre réglementaire policy.regulatory Arbre d'adressage none, health":
+              - gridcell "Cadre réglementaire policy.regulatory":
+                - text: ""
+                - code: policy.regulatory
+              - gridcell "Arbre d'adressage"
+              - gridcell "none, health":
+                - code: none
+                - text: ""
+                - code: health
+            - row "Criticité policy.criticality Machine low, medium, high":
+              - gridcell "Criticité policy.criticality":
+                - text: ""
+                - code: policy.criticality
+              - gridcell "Machine"
+              - gridcell "low, medium, high":
+                - code: low
+                - text: ""
+                - code: medium
+                - text: ""
+                - code: high
+    - text: Au présent Toute modification va au brouillon, puis à un changeset
+- button "Ouvrir le panneau"
+- tooltip "Il faut policy.settings.edit":
+  - text: ""
+  - code: policy.settings.edit

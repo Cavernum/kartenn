@@ -607,6 +607,22 @@ export const MACHINES: Record<string, FlowMachine> = Object.fromEntries(
         addr("203.0.113.50", null, "aucune valeur, ni posée ni héritée", "—", "aucune valeur"),
       ),
     ),
+    // A machine of another entity, which the reader of E11 does not read (027): its flows
+    // with srv-app-01 show the interface's addresses, never the names of the machine and
+    // of the interface, which come from the objects.
+    machine(
+      "gw-part-01",
+      "prod",
+      "site-est",
+      "Linux",
+      iface(
+        "eth1",
+        "service",
+        { media: "sfp", mac: mac(0x80), vlan: access(150) },
+        addr("198.51.100.20", "prod", "posée sur l'adresse"),
+        addr("2001:db8::20", "prod", "posée sur l'adresse"),
+      ),
+    ),
   ].map((m) => [m.key, m]),
 );
 
@@ -630,6 +646,13 @@ export const FRONT_PREFIX: FlowEnd = {
   kind: "prefix",
   value: "192.0.2.16/28",
   address: addr("192.0.2.16/28", "prod", "posée sur le préfixe"),
+};
+
+/** A prefix of another entity, whose card the reader of E11 does not read (027). */
+export const PARTNER_PREFIX: FlowEnd = {
+  kind: "prefix",
+  value: "203.0.113.128/25",
+  address: addr("203.0.113.128/25", "prod", "posée sur le préfixe"),
 };
 
 /**
@@ -745,6 +768,12 @@ export interface RegisteredFlow {
   waiver?: string;
   /** The end of the flow, if dated. */
   end?: string;
+  /**
+   * The end whose object the reader does not read (027): the flow is read by its other
+   * end; this one still shows its kind and values (the prefix, the interface's addresses),
+   * but neither link nor panel, nor the names and properties that come from the object.
+   */
+  unreadable?: "source" | "destination";
 }
 /** An interface of a machine as an end. */
 export const ifaceEnd = (machine: string, iface: string): FlowEnd => ({
@@ -831,5 +860,23 @@ export const FLOWS: RegisteredFlow[] = [
     state: "expired",
     reference: "ticketing:CHG-0988",
     end: "2025-12-31",
+  },
+  {
+    key: "flux-1061",
+    source: i("srv-app-01", "eth0"),
+    destination: PARTNER_PREFIX,
+    service: "https",
+    state: "active",
+    reference: "ticketing:CHG-1061",
+    unreadable: "destination",
+  },
+  {
+    key: "flux-1062",
+    source: i("gw-part-01", "eth1"),
+    destination: i("srv-app-01", "eth0"),
+    service: "api",
+    state: "active",
+    reference: "ticketing:CHG-1062",
+    unreadable: "source",
   },
 ];
