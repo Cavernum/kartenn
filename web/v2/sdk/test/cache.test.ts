@@ -60,7 +60,8 @@ describe("keys (REQ-021-21)", () => {
   it("know the collections of the core and of the modules, and take those of plugins", () => {
     expect(qualify("prefix")).toBe("core.prefix");
     expect(collectionOf("prefix")).toBe("/v1/prefixes");
-    expect(typeOfCollection("/v1/vlans")).toBe("vlan.vlan");
+    expect(typeOfCollection("/v1/vlans")).toBe("core.vlan");
+    expect(collectionOf("vlan_group")).toBe("/v1/vlan-groups");
     registerType("acme.rack", "/v1/racks");
     expect(keys.object("acme.rack", P1, null)[1]).toBe("acme.rack");
     expect(() => registerType("acme.rack", "/v1/other")).toThrow(/already/);

@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 // The types of object and their collections (design « Couche de données »): the keys of
-// the cache name an object by its qualified type (`core.prefix`, `vlan.vlan`), as the
+// the cache name an object by its qualified type (`core.prefix`, `policy.rule`), as the
 // event stream does (022), and a list by the path of its collection. The core and the
 // first-party modules are known here; a third-party plugin registers its own types.
 
@@ -15,8 +15,8 @@ const KNOWN: Record<string, string> = {
   "core.prefix": "/v1/prefixes",
   "core.range": "/v1/ranges",
   "core.address": "/v1/addresses",
-  "vlan.group": "/v1/vlan-groups",
-  "vlan.vlan": "/v1/vlans",
+  "core.vlan_group": "/v1/vlan-groups",
+  "core.vlan": "/v1/vlans",
   "machines.cluster": "/v1/clusters",
   "machines.machine": "/v1/machines",
   "machines.interface": "/v1/interfaces",
