@@ -42,6 +42,12 @@ Acceptation :
 - Un administrateur crée `custom.centre_cout` (texte) sans redéploiement ; il ne peut pas
   choisir un type qu'aucun module ne fournit.
 
+*Amendée par la 027 (P4, REQ-027-5, 6, 2026-10-28) : déclarer, faire évoluer ou clore un
+champ `custom.*` exige `core.settings.edit` (et son application) ; les valeurs et
+libellés d'une liste fermée, ceux du déclarant de la propriété
+(`<module>.settings.*`) ; la sensibilité de toute propriété, `core.settings.*`. Les
+déclarations d'un module restent synchronisées par l'auteur système (P12).*
+
 #### REQ-003-2 — Clé de propriété
 kartenn doit identifier chaque propriété par une clé unique de la forme
 `<espace>.<nom>` (`[a-z][a-z0-9_]*` pour chaque partie), où l'espace est le nom du
@@ -51,6 +57,10 @@ Acceptation :
 - `policy.environment`, `dns.fqdn`, `custom.centre_cout` acceptées ; un administrateur ne
   peut pas créer de clé dans un espace de module ; deux déclarations de même clé
   valides sur une période commune sont refusées.
+
+*Amendée par la 027 (P4, REQ-027-6, 2026-10-28) : l'espace de la clé désigne aussi le
+déclarant dont les permissions `<déclarant>.settings.*` gardent les paramètres (`custom`
+et `core` : le cœur).*
 
 #### REQ-003-3 — Contenu d'une déclaration
 kartenn doit exiger qu'une déclaration précise : type et paramètres du type,

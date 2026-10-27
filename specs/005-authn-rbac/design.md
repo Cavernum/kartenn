@@ -133,7 +133,8 @@ résolu par `kartenn_member_of` ; plus de liaison d'identité ni d'émetteur ent
    `unnest(objets)` et renvoie les refusés ; les listes filtre et arbre le reçoivent en
    paramètre (`ReadScope`, point 6) ; les propositions passent par `Authorizer`.
 5. **Écritures** (REQ-005-22) : chaque objet écrit demande `core.<sorte>.write`
-   (déclarations : `core.property.admin`), décidé **dans la transaction du changeset**
+   (déclarations : `core.property.admin`, amendée par la 027 (P4) : `<déclarant>.settings.*`
+   selon l'espace de la clé, la sensibilité au cœur), décidé **dans la transaction du changeset**
    (`Authorizer::authorize_in` → `WriteTx::rbac_outside`), qui voit ses propres
    écritures : un objet créé est contrôlé après les écritures, avec son propriétaire
    hérité (un domaine et son propriétaire créés ensemble, un réseau et ses adresses) ; un
