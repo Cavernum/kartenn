@@ -1,11 +1,12 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-28
 ---
 
 # 027 — Paramètres par déclarant et flux vus depuis une extrémité : exigences
 
-Statut : **brouillon** (arbitrages de l'utilisateur du 2026-10-28 : P1, P2, P4).
+Statut : **validée le 2026-10-28** (P1 à P8 ; P1, P2, P4 arbitrées, P3, P6, P7
+confirmées par l'utilisateur).
 
 ## Résumé
 

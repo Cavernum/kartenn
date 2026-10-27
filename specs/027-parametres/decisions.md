@@ -6,11 +6,11 @@
 |---|---|---|
 | P1 | Un flux se lit dès qu'on lit une de ses extrémités (entrants et sortants) | utilisateur |
 | P2 | L'extrémité hors périmètre se montre par sa valeur seule | utilisateur |
-| P3 | La lecture par une extrémité exige encore `flow.read`, sur n'importe quel périmètre | Claude, à confirmer |
+| P3 | La lecture par une extrémité exige encore `flow.read`, sur n'importe quel périmètre | Claude, confirmé par l'utilisateur |
 | P4 | Droits des paramètres par déclarant, en changeset | utilisateur |
 | P5 | Ces permissions sont globales | Claude |
-| P6 | La sensibilité de toute propriété reste au cœur | Claude, à confirmer |
-| P7 | Les règles de la politique ne sont pas des paramètres | Claude, à confirmer |
+| P6 | La sensibilité de toute propriété reste au cœur | Claude, confirmé par l'utilisateur |
+| P7 | Les règles de la politique ne sont pas des paramètres | Claude, confirmé par l'utilisateur |
 | P8 | Un écran Paramètres, un onglet par déclarant | Claude |
 
 ## P1 — Lecture d'un flux par une extrémité (amende REQ-011-17)
@@ -39,7 +39,7 @@
   contient déjà.
 - Rejeté : lecture d'une extrémité seule, sans `flow.read` (le module deviendrait visible
   à tout lecteur du référentiel).
-- Décidé par : Claude ; à confirmer par l'utilisateur.
+- Décidé par : Claude ; confirmé par l'utilisateur (2026-10-28).
 
 ## P4 — Droits des paramètres par déclarant, en changeset
 - Constat : `core.property.admin` (global) couvre toute déclaration et toute valeur de
@@ -62,14 +62,14 @@
   `core.settings.*`.
 - Pourquoi : la sensibilité décide qui lit une valeur (`prop.<clé>.read`) ; c'est une
   décision de contrôle d'accès, pas un paramètre métier du module.
-- Décidé par : Claude ; à confirmer par l'utilisateur.
+- Décidé par : Claude ; confirmé par l'utilisateur (2026-10-28).
 
 ## P7 — Les règles de la politique ne sont pas des paramètres
 - Décision : `policy.rule.admin` (règles, motifs, conditions, signaux, rôles exemptés)
   reste à part ; la 027 ne la renomme pas.
 - Pourquoi : les règles sont le contenu de la matrice, pas des valeurs possibles ; leur
   passage à `edit`/`apply`/`approval.self` relève d'une révision de la 010.
-- Décidé par : Claude ; à confirmer par l'utilisateur.
+- Décidé par : Claude ; confirmé par l'utilisateur (2026-10-28).
 
 ## P8 — Un écran, un onglet par déclarant
 - Décision : écran « Paramètres » dans l'espace Administration, un onglet par déclarant,

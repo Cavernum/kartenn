@@ -1,6 +1,6 @@
 # 027 — Paramètres par déclarant et flux vus depuis une extrémité : tâches
 
-Statut : spec **brouillon** (2026-10-28).
+Statut : spec **validée le 2026-10-28**.
 
 - [ ] 1. Maquettes : E13 « Paramètres » (vues `coeur`, `machines`, `politique`,
   `politique-lecture`, `cloture`) et extrémité hors périmètre dans E11 ; ligne E13 du
