@@ -4907,6 +4907,7 @@ export interface components {
      *     no identifier yet, and carries its `review`.
      */
     Flow: {
+      destination?: components["schemas"]["FlowEndpointValue"] | null;
       /**
        * @description Its fields as stored: kind, endpoints, service, external references, justification,
        *     requester, entity…
@@ -4921,6 +4922,7 @@ export interface components {
       /** @description Its outcome at the date, if evaluated there. */
       outcome?: string | null;
       review?: components["schemas"]["FlowReview"] | null;
+      source?: components["schemas"]["FlowEndpointValue"] | null;
       /** @description Its derived state at the date. */
       state: string;
       /** @description Its summary at the date, if evaluated there. */
@@ -4970,6 +4972,20 @@ export interface components {
        *     answer, which names no address.
        */
       open?: boolean | null;
+    };
+    /**
+     * @description An endpoint of a flow the caller does not read, shown by its value only (spec 027,
+     *     REQ-027-2): no identifier, name, machine, property nor value of an axis.
+     */
+    FlowEndpointValue: {
+      /** @description `address`, `prefix`, `interface`, `machine` or `range`. */
+      kind: string;
+      /** @description Always `false`: the caller does not read the object. */
+      readable: boolean;
+      /** @description The address, the prefix or the range, at the date. */
+      value?: string | null;
+      /** @description For an interface or a machine: the addresses it holds at the date. */
+      values?: string[] | null;
     };
     /**
      * @description An evaluation of a flow by pair of addresses (REQ-011-16, 23): stored, never
@@ -12915,11 +12931,11 @@ export interface operations {
   list_flows: {
     parameters: {
       query?: {
-        /** @description An endpoint, exact: `<kind>:<id>` (address, prefix, interface, machine, range). */
+        /** @description An endpoint, exact: `<kind>:<id>` (address, prefix, interface, machine, range); when the caller does not read the object, the flows it reads through one of their endpoints only are left out (REQ-027-3). Or a value, an address or `<address>/<length>`: the flows with an endpoint address or prefix within it, an endpoint shown by value included. */
         endpoint?: string;
-        /** @description A prefix: the flows with an endpoint address in its subtree. */
+        /** @description A prefix: the flows with an endpoint address in its subtree; as `endpoint` for a prefix the caller does not read. */
         prefix?: string;
-        /** @description A machine: the flows with an endpoint address of the machine. */
+        /** @description A machine: the flows with an endpoint address of the machine; as `endpoint` for a machine the caller does not read. */
         machine?: string;
         /** @description The service. */
         service?: string;

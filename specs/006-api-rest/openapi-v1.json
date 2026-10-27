@@ -2427,6 +2427,17 @@
       "Flow": {
         "description": "A flow as listed or read (REQ-011-14, 24): its fields as stored, its period, and its\nderived state, summary and outcome at the date. A request pending a review (F19) has\nno identifier yet, and carries its `review`.",
         "properties": {
+          "destination": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FlowEndpointValue",
+                "description": "The destination, by value, as `source`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "fields": {
             "description": "Its fields as stored: kind, endpoints, service, external references, justification,\nrequester, entity…",
             "type": "object"
@@ -2451,6 +2462,17 @@
               {
                 "$ref": "#/components/schemas/FlowReview",
                 "description": "The review the row awaits, for a request or an extension pending one (F19)."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FlowEndpointValue",
+                "description": "The source, by value, when the caller reads the flow through its destination only\nand does not read the source (REQ-027-2); `fields` then carries no `source_id`.\nAbsent otherwise: the source is `fields.source_kind`, `fields.source_id`."
               },
               {
                 "type": "null"
@@ -2565,6 +2587,41 @@
           "evaluation",
           "flows",
           "conformant"
+        ],
+        "type": "object"
+      },
+      "FlowEndpointValue": {
+        "description": "An endpoint of a flow the caller does not read, shown by its value only (spec 027,\nREQ-027-2): no identifier, name, machine, property nor value of an axis.",
+        "properties": {
+          "kind": {
+            "description": "`address`, `prefix`, `interface`, `machine` or `range`.",
+            "type": "string"
+          },
+          "readable": {
+            "description": "Always `false`: the caller does not read the object.",
+            "type": "boolean"
+          },
+          "value": {
+            "description": "The address, the prefix or the range, at the date.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "values": {
+            "description": "For an interface or a machine: the addresses it holds at the date.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "readable"
         ],
         "type": "object"
       },
@@ -19847,7 +19904,7 @@
         "operationId": "list_flows",
         "parameters": [
           {
-            "description": "An endpoint, exact: `<kind>:<id>` (address, prefix, interface, machine, range).",
+            "description": "An endpoint, exact: `<kind>:<id>` (address, prefix, interface, machine, range); when the caller does not read the object, the flows it reads through one of their endpoints only are left out (REQ-027-3). Or a value, an address or `<address>/<length>`: the flows with an endpoint address or prefix within it, an endpoint shown by value included.",
             "in": "query",
             "name": "endpoint",
             "required": false,
@@ -19856,7 +19913,7 @@
             }
           },
           {
-            "description": "A prefix: the flows with an endpoint address in its subtree.",
+            "description": "A prefix: the flows with an endpoint address in its subtree; as `endpoint` for a prefix the caller does not read.",
             "in": "query",
             "name": "prefix",
             "required": false,
@@ -19865,7 +19922,7 @@
             }
           },
           {
-            "description": "A machine: the flows with an endpoint address of the machine.",
+            "description": "A machine: the flows with an endpoint address of the machine; as `endpoint` for a machine the caller does not read.",
             "in": "query",
             "name": "machine",
             "required": false,
