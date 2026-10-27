@@ -1,6 +1,6 @@
 //! The flows read through one of their endpoints (spec 027, REQ-027-1 to 4): a holder of
-//! `flow.read` on any perimeter reads the flows of an endpoint it reads, the other shown by
-//! value; writes and filters by object keep to the objects it reads.
+//! `flow.read` on any perimeter reads the flows of an endpoint it reads, served as to any
+//! other reader; writes and filters by object keep to the objects it reads.
 
 use axum::http::{Method, StatusCode};
 use kartenn_service::{ObjectKind, Operation, Ref, operations::RawInput};
@@ -342,87 +342,122 @@ async fn acceptance_of_req_027_1_a_flow_read_through_an_endpoint(pool: PgPool) {
     assert!(cited.contains(&w.outgoing.to_string()), "{answer}");
 }
 
-/// REQ-027-2 (P2): the endpoint Alice does not read is shown by its value, `readable:
-/// false`, without identifier, name nor machine; the rest of the flow stays; the
-/// explanation is reduced (REQ-010-25). A reader of the entity sees the flow as before.
+/// The names of the objects of the world, none of which a flow carries (REQ-027-2).
+const NAMES: [&str; 4] = ["srv-app-01", "srv-db-01", "eth0", "eth1"];
+
+/// Asserts that `body` names no object of the registry.
+fn no_name(body: &Value) {
+    let text = body.to_string();
+    for name in NAMES {
+        assert!(!text.contains(name), "{name} in {text}");
+    }
+}
+
+/// REQ-027-2 (P2, amended): a flow is served as is, the same body to Alice, who reads it
+/// through `eth0`, and to a reader of its entity: its endpoints by kind, identifier and
+/// value, its service, state, summary and evaluations; no name of an interface nor of a
+/// machine. Alice reads neither `eth1` nor its machine through their routes: the 404 of an
+/// absent object.
 #[kartenn_testing::pg_test]
-async fn acceptance_of_req_027_2_the_endpoint_out_of_scope(pool: PgPool) {
+async fn acceptance_of_req_027_2_a_flow_served_as_is(pool: PgPool) {
     let w = world(&pool).await;
     let alice = w.env.app(w.alice);
-    let (status, flow) = call(
+    let reader = w.env.person().await;
+    grant(&w.env, reader, &["flow.read"], "entity", Some(w.env.acme)).await;
+    let reader = w.env.app(reader);
+
+    for path in [
+        format!("/v1/flows/{}", w.outgoing),
+        format!("/v1/flows/{}", w.to_eth1),
+        format!("/v1/flows/{}/evaluations", w.outgoing),
+        format!("/v1/flows/{}/evaluations", w.to_eth1),
+    ] {
+        let (status, seen) = call(&alice, Method::GET, &path, None).await;
+        assert_eq!(status, StatusCode::OK, "{path}: {seen}");
+        let (status, read) = call(&reader, Method::GET, &path, None).await;
+        assert_eq!(status, StatusCode::OK, "{path}: {read}");
+        assert_eq!(seen, read, "{path}");
+        no_name(&seen);
+    }
+
+    let (_, flow) = call(
         &alice,
         Method::GET,
         &format!("/v1/flows/{}", w.outgoing),
         None,
     )
     .await;
-    assert_eq!(status, StatusCode::OK, "{flow}");
     assert_eq!(
         flow["destination"],
-        json!({ "kind": "prefix", "value": "198.51.100.0/24", "readable": false }),
+        json!({ "kind": "prefix", "id": w.network, "value": "198.51.100.0/24" }),
         "{flow}"
     );
-    assert!(flow.get("source").is_none(), "{flow}");
-    assert!(flow["fields"].get("destination_id").is_none(), "{flow}");
-    assert_eq!(flow["fields"]["source_id"], w.eth0.to_string());
-    assert!(!flow.to_string().contains(&w.network.to_string()), "{flow}");
+    assert_eq!(
+        flow["source"],
+        json!({ "kind": "interface", "id": w.eth0, "values": ["192.0.2.10"] }),
+        "{flow}"
+    );
+    assert_eq!(flow["fields"]["destination_id"], w.network.to_string());
     assert_eq!(flow["state"], "active");
     assert_eq!(flow["summary"], "allowed");
     assert!(flow["fields"]["service_id"].is_string());
-
-    let (status, page) = call(&alice, Method::GET, "/v1/flows", None).await;
-    assert_eq!(status, StatusCode::OK);
-    let listed = page["items"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|i| i["id"] == w.to_eth1.to_string())
-        .unwrap()
-        .clone();
-    assert_eq!(
-        listed["destination"],
-        json!({ "kind": "interface", "values": ["198.51.100.20", "2001:db8::20"],
-                "readable": false }),
-        "{listed}"
-    );
-    let text = listed.to_string();
-    assert!(
-        !text.contains("eth1") && !text.contains("srv-db-01"),
-        "{text}"
-    );
-    assert!(!text.contains(&w.eth1.to_string()), "{text}");
-
-    let (status, page) = call(
+    let (_, page) = call(
         &alice,
         Method::GET,
         &format!("/v1/flows/{}/evaluations", w.outgoing),
         None,
     )
     .await;
-    assert_eq!(status, StatusCode::OK, "{page}");
-    assert!(page["items"][0]["source"].is_null(), "{page}");
-    assert!(page["items"][0]["destination"].is_null(), "{page}");
-    assert!(page["items"][0]["decisive"].is_null(), "{page}");
-    assert_eq!(page["items"][0]["verdict"], "allowed");
+    let evaluation = &page["items"][0];
+    assert!(evaluation["source"].is_string(), "{page}");
+    assert!(evaluation["destination"].is_string(), "{page}");
+    assert_eq!(evaluation["verdict"], "allowed");
 
-    // A reader of the entity of the flow: the endpoints in `fields`, no value.
-    let reader = w.env.person().await;
-    grant(&w.env, reader, &["flow.read"], "entity", Some(w.env.acme)).await;
-    let reader = w.env.app(reader);
-    let (_, flow) = call(
-        &reader,
+    // The flows listed: the same items to both, `eth1` by its addresses.
+    let (_, seen) = call(&alice, Method::GET, "/v1/flows", None).await;
+    let (_, read) = call(&reader, Method::GET, "/v1/flows", None).await;
+    assert_eq!(seen["items"], read["items"]);
+    no_name(&seen);
+    let listed = seen["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["id"] == w.to_eth1.to_string())
+        .unwrap();
+    assert_eq!(
+        listed["destination"],
+        json!({ "kind": "interface", "id": w.eth1,
+                "values": ["198.51.100.20", "2001:db8::20"] }),
+        "{listed}"
+    );
+
+    // The objects stay behind their own routes.
+    let machine = id_of(
+        &pool,
+        "SELECT id FROM machines.machine WHERE name = $1 AND valid_period @> now()",
+        "srv-db-01",
+    )
+    .await;
+    for path in [
+        format!("/v1/interfaces/{}", w.eth1),
+        format!("/v1/machines/{machine}"),
+        format!("/v1/prefixes/{}", w.network),
+    ] {
+        let (status, body) = call(&alice, Method::GET, &path, None).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{path}: {body}");
+    }
+    let (status, _) = call(
+        &alice,
         Method::GET,
-        &format!("/v1/flows/{}", w.outgoing),
+        &format!("/v1/interfaces/{}", w.eth0),
         None,
     )
     .await;
-    assert!(flow.get("destination").is_none(), "{flow}");
-    assert_eq!(flow["fields"]["destination_id"], w.network.to_string());
+    assert_eq!(status, StatusCode::OK);
 }
 
 /// REQ-027-3: the writes keep to REQ-011-17 (the 404 of an absent flow); a filter by
-/// object keeps to the objects Alice reads, a filter by value meets the endpoints shown
-/// by value.
+/// object keeps to the objects Alice reads, a filter by value meets every endpoint.
 #[kartenn_testing::pg_test]
 async fn acceptance_of_req_027_3_writes_and_filters(pool: PgPool) {
     let w = world(&pool).await;

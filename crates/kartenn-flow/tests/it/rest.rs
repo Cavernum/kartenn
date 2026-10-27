@@ -55,7 +55,13 @@ impl Env {
             modules: self.registry.clone(),
         };
         kartenn_rest::router(
-            kartenn_rest::v1_with(api, vec![kartenn_flow::rest::routes()]),
+            kartenn_rest::v1_with(
+                api,
+                vec![
+                    kartenn_flow::rest::routes(),
+                    kartenn_machines::rest::routes(),
+                ],
+            ),
             Arc::new(PgReadiness::new(self.pool.clone(), AuditStatus::default())),
             Settings::default(),
             Arc::new(Quotas::new(Rates::default())),
@@ -184,7 +190,7 @@ async fn a_request_answers_with_the_flow_and_its_evaluations(pool: PgPool) {
     assert_eq!(evaluations[0]["verdict"], "allowed");
     let id = answer["flow"]["id"].as_str().unwrap().to_owned();
 
-    // The requester reads its own request; its evaluations are reduced (REQ-010-25).
+    // The requester reads its own request, its evaluations in full (REQ-027-2).
     let (status, flow) = call(&app, Method::GET, &format!("/v1/flows/{id}"), None).await;
     assert_eq!(status, StatusCode::OK, "{flow}");
     let (status, page) = call(
@@ -195,7 +201,7 @@ async fn a_request_answers_with_the_flow_and_its_evaluations(pool: PgPool) {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert!(page["items"][0]["source"].is_null(), "{page}");
+    assert!(page["items"][0]["source"].is_string(), "{page}");
     assert_eq!(page["items"][0]["verdict"], "allowed");
 
     // A stranger: the 404 of an absent flow, an empty list.
@@ -317,7 +323,7 @@ async fn a_pending_request_is_read_with_its_triage(pool: PgPool) {
     .unwrap();
     assert_eq!(stored["summary"], "denied", "{stored}");
 
-    // The requester: the row, its triage reduced (REQ-010-25).
+    // The requester: the row, its triage in full, as to any reader (REQ-027-2).
     let (status, page) = call(&app, Method::GET, "/v1/flows?state=requested", None).await;
     assert_eq!(status, StatusCode::OK, "{page}");
     let [row] = items(&page).as_slice() else {
@@ -335,10 +341,12 @@ async fn a_pending_request_is_read_with_its_triage(pool: PgPool) {
     assert_eq!(row["outcome"], stored["outcome"]);
     assert_eq!(triage["rule"], stored["rule"]);
     assert_eq!(triage["policy_revision"], stored["revision"]);
-    assert!(triage["decisive"].is_null(), "{triage}");
+    assert_eq!(triage["decisive"], stored["decisive"]);
     let pairs = triage["evaluations"].as_array().unwrap();
     assert_eq!(pairs.len(), 1, "{triage}");
-    assert!(pairs[0]["source"].is_null(), "{triage}");
+    assert_eq!(pairs[0]["source"], dev.to_string(), "{triage}");
+    assert_eq!(row["source"]["kind"], "address", "{row}");
+    assert_eq!(row["source"]["value"], "10.2.0.1", "{row}");
     // Without `requested`, the applied flows only.
     let (_, page) = call(&app, Method::GET, "/v1/flows", None).await;
     assert!(items(&page).is_empty(), "{page}");
