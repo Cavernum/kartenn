@@ -145,8 +145,8 @@ Acceptation :
 - `GET /v1/flows?state=requested` rend la demande en attente avec `id` nul, son
   changeset et l'évaluation du triage (issue `review`, motif attendu) égale à celle de
   la réponse 202 ; sans `requested` dans `state`, elle n'apparaît pas.
-- Le demandeur la lit avec une évaluation réduite ; un instructeur (`flow.review`
-  sur l'entité) la lit ; un utilisateur sans droit sur l'entité ne la voit pas.
+- Le demandeur la lit avec l'évaluation entière, comme tout lecteur (027/REQ-027-2) ; un
+  instructeur (`flow.review` sur l'entité) la lit ; un utilisateur sans droit sur l'entité ne la voit pas.
 - À un `as_of` antérieur à sa soumission, elle n'apparaît pas ; après son rejet, elle
   n'apparaît plus.
 - Flux conforme sans date de fin, appliqué : `active` aussi longtemps que son verdict

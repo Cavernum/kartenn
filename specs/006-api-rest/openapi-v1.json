@@ -2430,8 +2430,8 @@
           "destination": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/FlowEndpointValue",
-                "description": "The destination, by value, as `source`."
+                "$ref": "#/components/schemas/FlowEndpoint",
+                "description": "The destination, as `source`."
               },
               {
                 "type": "null"
@@ -2471,8 +2471,8 @@
           "source": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/FlowEndpointValue",
-                "description": "The source, by value, when the caller reads the flow through its destination only\nand does not read the source (REQ-027-2); `fields` then carries no `source_id`.\nAbsent otherwise: the source is `fields.source_kind`, `fields.source_id`."
+                "$ref": "#/components/schemas/FlowEndpoint",
+                "description": "The source with its value at the date (REQ-027-2), the same for every reader.\nAbsent only for a request pending a review that names an endpoint not yet created."
               },
               {
                 "type": "null"
@@ -2525,7 +2525,7 @@
         "description": "The test of a connection (REQ-011-26, F21): the query of compliance, and for each of\nits evaluations whether a flow of the registry opens it; nothing is written.",
         "properties": {
           "case": {
-            "description": "The test summed up: open when every evaluation is, conformant when every one is;\nabsent without evaluation (`verdict.empty`) or in a reduced answer.",
+            "description": "The test summed up: open when every evaluation is, conformant when every one is;\nabsent without evaluation (`verdict.empty`) or when the verdict is reduced.",
             "type": [
               "string",
               "null"
@@ -2576,7 +2576,7 @@
             "type": "array"
           },
           "open": {
-            "description": "Whether a flow of the registry the caller reads opens it; absent in a reduced\nanswer, which names no address.",
+            "description": "Whether a flow of the registry the caller reads opens it (a flow it does not read\nnever counts, REQ-027-1); absent when the verdict is reduced (REQ-010-25): it names\nno address, so no flow is matched against the pair.",
             "type": [
               "boolean",
               "null"
@@ -2590,26 +2590,27 @@
         ],
         "type": "object"
       },
-      "FlowEndpointValue": {
-        "description": "An endpoint of a flow the caller does not read, shown by its value only (spec 027,\nREQ-027-2): no identifier, name, machine, property nor value of an axis.",
+      "FlowEndpoint": {
+        "description": "An endpoint of a flow, a datum of the flow served to every reader (spec 027,\nREQ-027-2): its kind, its identifier and its value at the date; never a name, a\nproperty nor a value of an axis of the object, which its own route serves under its\nown read permission.",
         "properties": {
+          "id": {
+            "description": "The object.",
+            "format": "uuid",
+            "type": "string"
+          },
           "kind": {
             "description": "`address`, `prefix`, `interface`, `machine` or `range`.",
             "type": "string"
           },
-          "readable": {
-            "description": "Always `false`: the caller does not read the object.",
-            "type": "boolean"
-          },
           "value": {
-            "description": "The address, the prefix or the range, at the date.",
+            "description": "For an address, a prefix or a range: its value at the date; absent when the object\ndoes not live at the date.",
             "type": [
               "string",
               "null"
             ]
           },
           "values": {
-            "description": "For an interface or a machine: the addresses it holds at the date.",
+            "description": "For an interface or a machine: the addresses it holds at the date, sorted.",
             "items": {
               "type": "string"
             },
@@ -2621,19 +2622,19 @@
         },
         "required": [
           "kind",
-          "readable"
+          "id"
         ],
         "type": "object"
       },
       "FlowEvaluation": {
-        "description": "An evaluation of a flow by pair of addresses (REQ-011-16, 23): stored, never\nrecomputed. Reduced for a requester without the read of the flow (REQ-010-25): the\naddresses and the decisive element are not named.",
+        "description": "An evaluation of a flow by pair of addresses (REQ-011-16, 23): stored, never\nrecomputed, the same for every reader of the flow (REQ-027-2).",
         "properties": {
           "combination": {
             "description": "The values of the axes of the pair.",
             "type": "object"
           },
           "decisive": {
-            "description": "The decisive rule or pattern; `null` when reduced.",
+            "description": "The decisive rule or pattern, if any.",
             "format": "uuid",
             "type": [
               "string",
@@ -2641,12 +2642,9 @@
             ]
           },
           "destination": {
-            "description": "The destination address; `null` when reduced.",
+            "description": "The destination address.",
             "format": "uuid",
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           },
           "outcome": {
             "description": "`automatic`, `review` or `noncompliant`.",
@@ -2670,12 +2668,9 @@
             ]
           },
           "source": {
-            "description": "The source address; `null` when reduced.",
+            "description": "The source address.",
             "format": "uuid",
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           },
           "unmet_conditions": {
             "description": "The conditions not met.",
@@ -2691,6 +2686,8 @@
           }
         },
         "required": [
+          "source",
+          "destination",
           "verdict",
           "outcome",
           "reason",
@@ -2999,10 +2996,10 @@
         "type": "object"
       },
       "FlowTriage": {
-        "description": "The triage of a request (REQ-011-21), as its operation keeps it. Reduced for a reader\nwithout the read of the flow (REQ-010-25): the decisive element and the addresses are\nnot named.",
+        "description": "The triage of a request (REQ-011-21), as its operation keeps it, the same for every\nreader (REQ-027-2).",
         "properties": {
           "decisive": {
-            "description": "The decisive element of the worst pair; `null` when reduced.",
+            "description": "The decisive element of the worst pair, if any.",
             "type": [
               "string",
               "null"
@@ -19904,7 +19901,7 @@
         "operationId": "list_flows",
         "parameters": [
           {
-            "description": "An endpoint, exact: `<kind>:<id>` (address, prefix, interface, machine, range); when the caller does not read the object, the flows it reads through one of their endpoints only are left out (REQ-027-3). Or a value, an address or `<address>/<length>`: the flows with an endpoint address or prefix within it, an endpoint shown by value included.",
+            "description": "An endpoint, exact: `<kind>:<id>` (address, prefix, interface, machine, range); when the caller does not read the object, the flows it reads through one of their endpoints only are left out (REQ-027-3). Or a value, an address or `<address>/<length>`: the flows with an endpoint address or prefix within it, whatever the caller reads of the objects (a value is a datum of the flow).",
             "in": "query",
             "name": "endpoint",
             "required": false,
@@ -20575,7 +20572,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "The evaluations of the flow by pair of addresses at the date, as stored (REQ-011-16); reduced for its requester (REQ-010-25).",
+        "summary": "The evaluations of the flow by pair of addresses at the date, as stored (REQ-011-16), the same for every reader of the flow (REQ-027-2).",
         "tags": [
           "flow"
         ]

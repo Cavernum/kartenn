@@ -1351,7 +1351,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The evaluations of the flow by pair of addresses at the date, as stored (REQ-011-16); reduced for its requester (REQ-010-25). */
+    /** The evaluations of the flow by pair of addresses at the date, as stored (REQ-011-16), the same for every reader of the flow (REQ-027-2). */
     get: operations["flow_evaluations"];
     put?: never;
     post?: never;
@@ -4907,7 +4907,7 @@ export interface components {
      *     no identifier yet, and carries its `review`.
      */
     Flow: {
-      destination?: components["schemas"]["FlowEndpointValue"] | null;
+      destination?: components["schemas"]["FlowEndpoint"] | null;
       /**
        * @description Its fields as stored: kind, endpoints, service, external references, justification,
        *     requester, entity…
@@ -4922,7 +4922,7 @@ export interface components {
       /** @description Its outcome at the date, if evaluated there. */
       outcome?: string | null;
       review?: components["schemas"]["FlowReview"] | null;
-      source?: components["schemas"]["FlowEndpointValue"] | null;
+      source?: components["schemas"]["FlowEndpoint"] | null;
       /** @description Its derived state at the date. */
       state: string;
       /** @description Its summary at the date, if evaluated there. */
@@ -4946,7 +4946,7 @@ export interface components {
     FlowCheck: {
       /**
        * @description The test summed up: open when every evaluation is, conformant when every one is;
-       *     absent without evaluation (`verdict.empty`) or in a reduced answer.
+       *     absent without evaluation (`verdict.empty`) or when the verdict is reduced.
        */
       case?: string | null;
       /** @description One per evaluation, in its order. */
@@ -4968,43 +4968,51 @@ export interface components {
       /** @description The flows that open it, `active` or `waived`, those the caller reads. */
       flows: components["schemas"]["FlowOpening"][];
       /**
-       * @description Whether a flow of the registry the caller reads opens it; absent in a reduced
-       *     answer, which names no address.
+       * @description Whether a flow of the registry the caller reads opens it (a flow it does not read
+       *     never counts, REQ-027-1); absent when the verdict is reduced (REQ-010-25): it names
+       *     no address, so no flow is matched against the pair.
        */
       open?: boolean | null;
     };
     /**
-     * @description An endpoint of a flow the caller does not read, shown by its value only (spec 027,
-     *     REQ-027-2): no identifier, name, machine, property nor value of an axis.
+     * @description An endpoint of a flow, a datum of the flow served to every reader (spec 027,
+     *     REQ-027-2): its kind, its identifier and its value at the date; never a name, a
+     *     property nor a value of an axis of the object, which its own route serves under its
+     *     own read permission.
      */
-    FlowEndpointValue: {
+    FlowEndpoint: {
+      /**
+       * Format: uuid
+       * @description The object.
+       */
+      id: string;
       /** @description `address`, `prefix`, `interface`, `machine` or `range`. */
       kind: string;
-      /** @description Always `false`: the caller does not read the object. */
-      readable: boolean;
-      /** @description The address, the prefix or the range, at the date. */
+      /**
+       * @description For an address, a prefix or a range: its value at the date; absent when the object
+       *     does not live at the date.
+       */
       value?: string | null;
-      /** @description For an interface or a machine: the addresses it holds at the date. */
+      /** @description For an interface or a machine: the addresses it holds at the date, sorted. */
       values?: string[] | null;
     };
     /**
      * @description An evaluation of a flow by pair of addresses (REQ-011-16, 23): stored, never
-     *     recomputed. Reduced for a requester without the read of the flow (REQ-010-25): the
-     *     addresses and the decisive element are not named.
+     *     recomputed, the same for every reader of the flow (REQ-027-2).
      */
     FlowEvaluation: {
       /** @description The values of the axes of the pair. */
       combination: Record<string, never>;
       /**
        * Format: uuid
-       * @description The decisive rule or pattern; `null` when reduced.
+       * @description The decisive rule or pattern, if any.
        */
       decisive?: string | null;
       /**
        * Format: uuid
-       * @description The destination address; `null` when reduced.
+       * @description The destination address.
        */
-      destination?: string | null;
+      destination: string;
       /** @description `automatic`, `review` or `noncompliant`. */
       outcome: string;
       /**
@@ -5021,9 +5029,9 @@ export interface components {
       score?: number | null;
       /**
        * Format: uuid
-       * @description The source address; `null` when reduced.
+       * @description The source address.
        */
-      source?: string | null;
+      source: string;
       /** @description The conditions not met. */
       unmet_conditions: string[];
       /** @description `allowed`, `conditional` or `denied`. */
@@ -5155,12 +5163,11 @@ export interface components {
       triage?: components["schemas"]["FlowTriage"] | null;
     };
     /**
-     * @description The triage of a request (REQ-011-21), as its operation keeps it. Reduced for a reader
-     *     without the read of the flow (REQ-010-25): the decisive element and the addresses are
-     *     not named.
+     * @description The triage of a request (REQ-011-21), as its operation keeps it, the same for every
+     *     reader (REQ-027-2).
      */
     FlowTriage: {
-      /** @description The decisive element of the worst pair; `null` when reduced. */
+      /** @description The decisive element of the worst pair, if any. */
       decisive?: string | null;
       /** @description The evaluations by pair of addresses. */
       evaluations?: components["schemas"]["FlowEvaluation"][];
@@ -12931,7 +12938,7 @@ export interface operations {
   list_flows: {
     parameters: {
       query?: {
-        /** @description An endpoint, exact: `<kind>:<id>` (address, prefix, interface, machine, range); when the caller does not read the object, the flows it reads through one of their endpoints only are left out (REQ-027-3). Or a value, an address or `<address>/<length>`: the flows with an endpoint address or prefix within it, an endpoint shown by value included. */
+        /** @description An endpoint, exact: `<kind>:<id>` (address, prefix, interface, machine, range); when the caller does not read the object, the flows it reads through one of their endpoints only are left out (REQ-027-3). Or a value, an address or `<address>/<length>`: the flows with an endpoint address or prefix within it, whatever the caller reads of the objects (a value is a datum of the flow). */
         endpoint?: string;
         /** @description A prefix: the flows with an endpoint address in its subtree; as `endpoint` for a prefix the caller does not read. */
         prefix?: string;

@@ -54,8 +54,9 @@ kartenn-auth = { path = "../kartenn-auth" }
 kartenn-rest = { path = "../kartenn-rest" }
 tower = { version = "0.5", features = ["util"] }
 kartenn-store-pg = { path = "../kartenn-store-pg" }
-# The modules the flow registry depends on, for the tests through the write pipeline.
-kartenn-machines = { path = "../kartenn-machines", features = ["pg"] }
+# The modules the flow registry depends on, for the tests through the write pipeline;
+# the routes of Machines, to read its objects beside the flows (spec 027, REQ-027-2).
+kartenn-machines = { path = "../kartenn-machines", features = ["pg", "rest"] }
 kartenn-policy = { path = "../kartenn-policy", features = ["pg"] }
 serde_json = "1.0.154"
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-none", "postgres", "macros", "migrate", "uuid", "time", "json"] }
