@@ -657,6 +657,9 @@ const proposals = ref<Proposal[]>(
       ]
     : [...BASE],
 );
+/** The input refused by a cell (`row|column`), kept with its error until written again. */
+const refused = ref<Record<string, { text: string; error: string }>>({});
+const cellKey = (row: string, column: string) => `${row}|${column}`;
 /** The evaluation of a row, once its source, destination and object are given. */
 const evaluationOf = (p: Proposal): Evaluation | null =>
   p.source && p.destination && p.object
@@ -681,9 +684,12 @@ const proposalRows = computed<ProposalRow[]>(() =>
       key: p.key,
       proposal: p,
       evaluation,
-      source: p.source ? endName(p.source) : "",
-      destination: p.destination ? endName(p.destination) : "",
-      object: p.object?.value ?? "",
+      // A refused input stays in its cell, with its error, until it is written again.
+      source: p.source ? endName(p.source) : (refused.value[cellKey(p.key, "source")]?.text ?? ""),
+      destination: p.destination
+        ? endName(p.destination)
+        : (refused.value[cellKey(p.key, "destination")]?.text ?? ""),
+      object: p.object?.value ?? refused.value[cellKey(p.key, "object")]?.text ?? "",
       flowType: p.object ? FLOW_TYPE[SERVICES[p.object.service]!.flowType] : "",
       reference: p.reference,
       justification: p.justification,
@@ -746,11 +752,128 @@ async function addRow(): Promise<void> {
     .querySelector<HTMLElement>(`[role="gridcell"][data-row="${key}"][data-column="source"]`)
     ?.focus();
 }
+/*
+ * Editing a cell, in the mockup's own state (no server): F2 or a double click opens the
+ * editor of an editable cell, Enter or leaving it writes the row, Escape drops the input.
+ * The row's evaluation, its verdict and the bottom panel follow the written values.
+ */
+type EditableColumn = "source" | "destination" | "object" | "reference" | "justification";
+const EDITABLE: readonly string[] = [
+  "source",
+  "destination",
+  "object",
+  "reference",
+  "justification",
+] satisfies EditableColumn[];
+const IPV4 = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)$/;
+type PrefixEnd = Extract<FlowEnd, { kind: "prefix" }>;
+const KNOWN_PREFIXES = FLOWS.flatMap((f) => [f.source, f.destination]).filter(
+  (e): e is PrefixEnd => e.kind === "prefix",
+);
+/** An end typed in a cell: `machine · interface`, an address, a prefix; an error otherwise. */
+function parseEnd(text: string): FlowEnd | { error: string } {
+  const named = /^(\S+)\s*·\s*(\S+)$/.exec(text);
+  if (named) {
+    const [, machine, iface] = named;
+    return interfaceOf(machine!, iface!)
+      ? ifaceEnd(machine!, iface!)
+      : { error: `Interface inconnue : ${text}.` };
+  }
+  if (IPV4.test(text)) return addressEnd(text);
+  const [network, length] = text.split("/");
+  if (network && IPV4.test(network) && length && /^\d+$/.test(length) && Number(length) <= 32)
+    return (
+      KNOWN_PREFIXES.find((p) => p.value === text) ?? {
+        kind: "prefix",
+        value: text,
+        address: addressOf(text),
+      }
+    );
+  return { error: "Une adresse, une interface (machine · interface) ou un préfixe." };
+}
+/** The object typed in a cell: a service key, or a transport/port pair of a service. */
+function parseObject(text: string): NonNullable<Proposal["object"]> | { error: string } {
+  if (SERVICES[text]) return { kind: "service", value: text, service: text };
+  const service = Object.values(SERVICES).find((s) => s.ports.includes(text));
+  if (service) return { kind: "port", value: text, service: service.key };
+  return { error: `Ni un service ni un port connu : ${text}.` };
+}
+/** Writes the text of the editor to the row; an empty end or object empties the cell. */
+function write(cell: CellRef, raw: string): void {
+  const text = raw.trim();
+  const column = cell.column as EditableColumn;
+  const others = { ...refused.value };
+  delete others[cellKey(cell.row, column)];
+  let patch: Partial<Proposal> = {};
+  if (column === "reference" || column === "justification") patch = { [column]: text };
+  else if (text === "") patch = { [column]: null };
+  else {
+    const parsed = column === "object" ? parseObject(text) : parseEnd(text);
+    if ("error" in parsed) {
+      others[cellKey(cell.row, column)] = { text, error: parsed.error };
+      patch = { [column]: null };
+    } else patch = { [column]: parsed };
+  }
+  refused.value = others;
+  proposals.value = proposals.value.map((p) => (p.key === cell.row ? { ...p, ...patch } : p));
+}
+const cellOf = (cell: CellRef) =>
+  document.querySelector<HTMLElement>(
+    `[role="gridcell"][data-row="${cell.row}"][data-column="${cell.column}"]`,
+  );
+async function startEditing(cell: CellRef): Promise<void> {
+  if (!EDITABLE.includes(cell.column)) return;
+  editing.value = cell;
+  proposalActive.value = cell;
+  await nextTick();
+  const input = cellOf(cell)?.querySelector("input");
+  input?.focus();
+  input?.select();
+}
+/** Leaves the editor, writing its text or not; the focus goes back to the cell. */
+async function stopEditing(input: HTMLInputElement, keep: boolean): Promise<void> {
+  const cell = editing.value;
+  if (!cell) return;
+  editing.value = undefined;
+  if (keep) write(cell, input.value);
+  await nextTick();
+  cellOf(cell)?.focus();
+}
+function onGridKeydown(event: KeyboardEvent): void {
+  const target = event.target as HTMLElement;
+  if (target instanceof HTMLInputElement && target.closest(".k-data-grid__editor")) {
+    if (event.key === "Enter" || event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      void stopEditing(target, event.key === "Enter");
+    }
+    return;
+  }
+  const { row, column } = target.dataset;
+  if (event.key === "F2" && row && column && target.getAttribute("role") === "gridcell")
+    void startEditing({ row, column });
+}
+function onGridDblclick(event: MouseEvent): void {
+  const target = event.target as HTMLElement;
+  if (target.closest(".k-data-grid__editor")) return;
+  const cell = target.closest<HTMLElement>('[role="gridcell"]');
+  const { row, column } = cell?.dataset ?? {};
+  if (row && column) void startEditing({ row, column });
+}
+/** Leaving the editor (a click elsewhere, Tab) writes it, as Enter does. */
+function onGridFocusout(event: FocusEvent): void {
+  const target = event.target as HTMLElement;
+  if (target instanceof HTMLInputElement && target.closest(".k-data-grid__editor"))
+    void stopEditing(target, true);
+}
 const proposalRowState = (): RowState => "draft";
-const proposalCellState = (row: ProposalRow, column: GridColumn): CellState | undefined =>
-  row.key === "ligne-2" && column.id === "justification" && !row.justification
+const proposalCellState = (row: ProposalRow, column: GridColumn): CellState | undefined => {
+  const refusal = refused.value[cellKey(row.key, column.id)];
+  if (refusal) return { error: refusal.error };
+  return row.key === "ligne-2" && column.id === "justification" && !row.justification
     ? "draft"
     : undefined;
+};
 /** One subject per tab of the bottom panel, each slot named `bottom-<value>`. */
 const BOTTOM = computed<TabItem[]>(() => {
   const pairs = chosenRow.value?.evaluation?.pairs.length;
@@ -1055,6 +1178,9 @@ const IFACE_HISTORY = [
         :cell-state="proposalCellState"
         @activate="choose"
         @click="onGridClick"
+        @dblclick="onGridDblclick"
+        @keydown="onGridKeydown"
+        @focusout="onGridFocusout"
       >
         <template #cell="{ row, column, value }">
           <span v-if="!value && column.id !== 'verdict'" class="k-ecran-muted">—</span>
@@ -1091,7 +1217,7 @@ const IFACE_HISTORY = [
           {{ byOutcome.review }} à instruire · {{ byOutcome.noncompliant }} non conformes à la
           matrice<template v-if="incomplete"> · {{ incomplete }} à compléter</template></span
         >
-        <span class="k-ecran-muted">Entrée : le flux choisi en bas</span>
+        <span class="k-ecran-muted">Entrée : le flux choisi en bas · F2 : modifier</span>
       </template>
     </Panneau>
 

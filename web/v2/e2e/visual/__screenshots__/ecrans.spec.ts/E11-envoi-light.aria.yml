@@ -81,7 +81,7 @@
               - text: ""
               - code: unclassified
             - status
-    - text: "4 flux · 1 automatique · 1 à instruire · 2 non conformes à la matrice Entrée : le flux choisi en bas"
+    - text: "4 flux · 1 automatique · 1 à instruire · 2 non conformes à la matrice Entrée : le flux choisi en bas · F2 : modifier"
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
   - tablist "Onglets du panneau":

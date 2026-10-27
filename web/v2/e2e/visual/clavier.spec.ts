@@ -435,6 +435,37 @@ test.describe("E11: proposal of flows (Grid + BottomPanel)", () => {
     await expect(rows.nth(5)).toHaveAttribute("aria-selected", "true");
     await expect(panel).toContainText("Ligne à compléter");
   });
+
+  test("F2 edits a cell: Enter writes the row, its verdict and the bottom panel follow", async ({
+    page,
+  }) => {
+    await page.goto("/_ui/ecrans/E11?vue=proposition");
+    const grid = page.getByRole("grid", { name: "Flux proposés dans le changeset" });
+    const panel = page.getByRole("complementary", { name: "Flux choisi" });
+    const row = grid.getByRole("row").nth(3);
+    // The flow refused by a deny rule, chosen: its source is a development interface.
+    await grid.locator('[data-row="ligne-3"][data-column="source"]').click();
+    await expect(panel).toContainText("deny-deve-prod");
+    await page.keyboard.press("F2");
+    const editor = row.getByRole("textbox");
+    await expect(editor).toBeFocused();
+    await editor.fill("192.0.2.12");
+    await page.keyboard.press("Enter");
+    expect(await focusedCell(page)).toBe("ligne-3|source");
+    await expect(row).toContainText("192.0.2.12");
+    await expect(panel.getByRole("heading", { level: 2 })).toContainText("192.0.2.12");
+    await expect(panel).not.toContainText("deny-deve-prod");
+    // A value that is no end stays in its cell, refused; Escape drops an input.
+    await page.keyboard.press("F2");
+    await editor.fill("pas-une-adresse");
+    await page.keyboard.press("Enter");
+    await expect(row.locator('[data-column="source"]')).toHaveAttribute("aria-invalid", "true");
+    await expect(row).toContainText("À évaluer");
+    await page.keyboard.press("F2");
+    await editor.fill("198.51.100.99");
+    await page.keyboard.press("Escape");
+    await expect(row).toContainText("pas-une-adresse");
+  });
 });
 
 test.describe("CommitForm", () => {
