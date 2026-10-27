@@ -39,9 +39,7 @@ CAPABILITIES = json.dumps(
     {
         "version": "0.2.0",
         "api_versions": ["v1"],
-        "modules": [
-            {"name": name, "version": "0.2.0"} for name in ("policy", "flow", "vlan", "machines")
-        ],
+        "modules": [{"name": name, "version": "0.2.0"} for name in ("policy", "flow", "machines")],
         "properties": [],
         "ui_plugins": [],
         "limits": {

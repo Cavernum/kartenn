@@ -63,9 +63,19 @@ Statut : spec **validée le 2026-10-27**.
   - fait : Machines sans dépendance de module (`machines_stands_alone`), lecture
     `core.vlan.read`, tables `public.vlan`, propriété `core.vlan` ; tests de
     Machines, Politique et Flux sans le module VLAN ; bancs à jour.
-- [ ] 5. Clients, SDK, CLI, shell v1 (plugin toujours servi), bancs (`vlan_budgets`
+- [x] 5. Clients, SDK, CLI, shell v1 (plugin toujours servi), bancs (`vlan_budgets`
   dans `bench-core`), `docs/spec/` — REQ-026-2, 6, 7 — verify : `k-py-check`,
   `k-web-check` ; bancs lancés par l'agent principal
+  - fait : manifeste du plugin v1 sans `module` (toujours actif), permissions
+    `core.vlan.*`, propriété `core.vlan`, clés i18n `field.*` ; SDK v1 régénéré ;
+    client Python et CLI (ressources `vlans`, `vlan-groups` du noyau, opérations
+    `create_vlan`…, instantanés régénérés), e2e Python ; `docs/spec/` (architecture,
+    données, interfaces, invariants, catalogues régénérés). `vlan_budgets` dans
+    `bench-core` compile ; bancs non lancés.
+  - choix : la CLI range `vlans` et `vlan-groups` dans la section « Noyau » ;
+    la résolution d'une référence d'un objet du noyau (`--group`) passe par la
+    collection au pluriel (`vlan-groups`) ; l'ADR 0026 et les specs closes gardent
+    leurs exemples d'époque.
 - [ ] 6. Maquettes v2 : écran VLAN du cœur, E10 sans le VLAN, ligne ajoutée au tableau
   des maquettes de la 020 — REQ-026-6 — verify : `k-web2-check`, `k-web2-e2e`
 - [ ] 7. Amendements : D18 dans `001-cadrage/decisions.md`, 008 (parties B à F

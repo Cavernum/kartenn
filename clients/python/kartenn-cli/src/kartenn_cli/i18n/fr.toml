@@ -431,7 +431,7 @@ reset = "débordement du tampon : relisez ce que vous suivez"
 wide = "invalidation large : {what}"
 
 [watch.opt]
-types = "Types d'objets (core.prefix,vlan.vlan)."
+types = "Types d'objets (core.prefix,core.vlan)."
 domains = "Domaines."
 objects = "Objets (UUID)."
 kinds = "Sortes d'événements (changes, changeset, reset)."
@@ -476,5 +476,4 @@ about_generic = "Module {name}."
 [module.about]
 policy = "Politique de flux : règles, matrice, catalogue, vérification."
 flow = "Registre de flux : demandes, instruction, dérogations."
-vlan = "VLAN et groupes de VLAN."
 machines = "Machines, interfaces, grappes."

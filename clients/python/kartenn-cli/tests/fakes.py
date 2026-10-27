@@ -22,7 +22,6 @@ CONTRACT: dict[str, Any] = json.loads((ROOT / "specs/006-api-rest/openapi-v1.jso
 URL = "https://kartenn.example.org"
 Handler = Callable[[httpx2.Request], httpx2.Response]
 MODULES = [
-    {"name": "vlan", "version": "0.2.0"},
     {"name": "machines", "version": "0.2.0"},
     {"name": "policy", "version": "0.2.0"},
     {"name": "flow", "version": "0.2.0"},

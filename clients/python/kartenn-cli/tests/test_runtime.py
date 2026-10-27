@@ -25,8 +25,7 @@ def test_discovery_is_said_once_then_read_from_the_cache() -> None:
         assert first.catalog.version == "0.2.0"
         said = err.getvalue().decode()
     assert said == (
-        "Découverte du serveur… 0.2.0, modules : vlan, machines, policy, flow "
-        "(catalogue en cache).\n"
+        "Découverte du serveur… 0.2.0, modules : machines, policy, flow (catalogue en cache).\n"
     )
     cached = Runtime(Settings()).cached_catalog()
     assert cached is not None

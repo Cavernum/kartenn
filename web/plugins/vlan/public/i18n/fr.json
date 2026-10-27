@@ -4,7 +4,7 @@
   "failed": "Échec : {detail}",
   "motive": "Motif",
   "status": { "active": "actif", "reserved": "réservé", "deprecated": "obsolète" },
-  "vlan": {
+  "field": {
     "vid": "VID",
     "name": "Nom",
     "status": "Statut",

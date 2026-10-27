@@ -79,8 +79,8 @@ async function shadowText(element: HTMLElement, predicate: (text: string) => boo
 }
 
 describe("the VLAN plugin", () => {
-  it("defines every element its manifest declares, for the module vlan only", () => {
-    expect(manifest.module).toBe("vlan");
+  it("defines every element its manifest declares, in every build (spec 026)", () => {
+    expect("module" in manifest).toBe(false);
     for (const extension of manifest.extensions) {
       expect(customElements.get(extension.element), extension.element).toBeDefined();
     }
@@ -117,7 +117,7 @@ describe("the VLAN plugin", () => {
       context: { locale: "fr" },
       object,
       fetch: fakeFetch({
-        "GET /v1/prefixes/{id}/properties": () => properties({ "vlan.vlan": VLAN }),
+        "GET /v1/prefixes/{id}/properties": () => properties({ "core.vlan": VLAN }),
         "GET /v1/vlans/{id}": () => json(vlan),
       }),
     });
@@ -138,7 +138,7 @@ describe("the VLAN plugin", () => {
               ? [{ ...vlan, vid: 121, name: "backup" }]
               : [],
           ),
-        "GET /v1/property-declarations": () => page([{ id: DECLARATION, key: "vlan.vlan" }]),
+        "GET /v1/property-declarations": () => page([{ id: DECLARATION, key: "core.vlan" }]),
         "POST /v1/vlans": ({ body }) => {
           posted.push({ path: "/v1/vlans", body });
           return json({ state: "applied" }, 201);

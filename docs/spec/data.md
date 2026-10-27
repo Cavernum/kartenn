@@ -32,6 +32,8 @@ Attributs du noyau (002/REQ-002-48, A10) :
 | Préfixe | UUID, domaine, valeur CIDR, nature (conteneur, réseau), point à point, anycast (réseau seulement) |
 | Plage | UUID, domaine, début, fin, usage (DHCP, réservée, statique) |
 | Adresse | UUID, domaine, valeur, usage (hôte, passerelle, VIP, anycast, réservée) |
+| Groupe de VLAN (026) | UUID, slug (unique dans le temps), ancre (entité, site ou domaine), plage de VID |
+| VLAN (026) | UUID, groupe, VID 1–4094, nom, statut (`active`, `reserved`, `deprecated`) ; VID et nom uniques par groupe dans le temps (exclusions GiST) |
 
 Plus, pour chaque objet : période de validité applicative et période système ; pour les
 préfixes, plages et adresses, deux colonnes **dérivées** : `public` (classement dans
@@ -48,6 +50,16 @@ déduites de l'inclusion CIDR dans le domaine, à la date considérée (D34). Un
 matérialisation est permise comme cache, jamais comme vérité.
 
 Tout attribut descriptif (nom affiché, FQDN, description…) est une **propriété** (003).
+
+Les groupes de VLAN et les VLAN sont des objets du noyau depuis la spec 026 (D18
+amendée) : tables `vlan_group` et `vlan` du schéma `public` (versionnées, ADR 0017),
+types `core.vlan_group` et `core.vlan`, sans ligne dans `module_object`. Le lien d'un
+réseau à son VLAN est la propriété du noyau `core.vlan` (référence vers un VLAN, portée
+par les réseaux). Un VLAN hérite le propriétaire et le site de l'ancre de son groupe
+(vue `vlan_tree`, comprise par `kartenn_site` et `carrier_object`). La migration 0072
+déplace les tables de l'ancien module `vlan` (spec 008) et renomme les noms qui les
+citaient (types, opérations, règles, permissions, propriété) dans les données vivantes ;
+l'audit garde les anciens noms.
 
 ## Propriétés (003)
 
@@ -252,7 +264,7 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
 ## Objets des modules (ADR 0026 ; specs 008, 009)
 
 - **`module_object`** (migration 0041), versionnée (ADR 0017) : chaque version d'un objet
-  de module y est inscrite (identifiant, module, type qualifié `vlan.vlan`, parent du
+  de module y est inscrite (identifiant, module, type qualifié `machines.machine`, parent du
   même module, domaine d'ancrage, période, changeset), dans la transaction qui l'écrit.
   Le noyau y trouve versions, ETag, historique, identifiants externes, anomalies,
   propriétés et annulation sans connaître les tables du module.
@@ -277,10 +289,6 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
 - **Schéma par module** : le migrateur crée le schéma du module, en donne l'usage à
   `kartenn_app` et le place en tête du `search_path` de ses migrations ; les tables d'un
   module sont versionnées comme celles du noyau.
-  - `vlan` : `vlan_group` (slug unique dans le temps, ancre entité, site ou domaine,
-    plage de VID) et `vlan` (groupe, VID 1–4094, nom, statut `active`/`reserved`/
-    `deprecated` ; VID et nom uniques par groupe dans le temps, par exclusions GiST). Le
-    lien d'un réseau à son VLAN est la propriété `vlan.vlan`.
   - `machines` (migrations du module 0001 à 0003) : `cluster` (slug unique dans le temps),
     `machine` (nom d'hôte RFC 1123 en minuscules, unique par propriétaire résolu, contrôlé
     par l'application ; sorte ; hébergement par une machine ou un cluster ; appartenance à
@@ -348,7 +356,7 @@ Tout attribut descriptif (nom affiché, FQDN, description…) est une **proprié
   et d'une adresse en collation `C` (`prefix_text_suggested`,
   `address_host_suggested`, migration 0062), qui servent `LIKE 'q%'` et l'ordre d'une
   page de suggestions ; machines : `interface_keyset`, `interface_name_pattern`
-  (`machines` 0004) ; VLAN : `vlan_group_keyset` (`vlan` 0002). Une requête avec `q`
+  (`machines` 0004) ; VLAN : `vlan_group_keyset` (ancien module `vlan` 0002, dans le noyau depuis 0072). Une requête avec `q`
   se planifie avec sa valeur (instruction non nommée).
 - Registres IANA à usage spécial : embarqués dans le code, chargés par le job de
   migration dans `special_registry`, une copie par version (REQ-002-34) ; un rapport

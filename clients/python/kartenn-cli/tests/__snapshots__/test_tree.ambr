@@ -48,19 +48,23 @@
 # ---
 # name: test_help_of_each_group[path2]
   '''
-  Usage: kartenn vlan [OPTIONS] COMMANDE [ARGS]...
+  Usage: kartenn vlans [OPTIONS] COMMANDE [ARGS]...
   
-    VLAN et groupes de VLAN. (module vlan 0.2.0, servi par kartenn.example.org).
-    Commandes dérivées du contrat du serveur ; « kartenn api » pour le reste.
+    Ressource vlans (module core) : verbes dérivés du contrat du serveur.
   
   Options:
     -h, --help  Cette aide.
   
-  Ressources:
-    groups
-  
-  Verbes:
-    close, create, edit, get, history, list, prefixes, properties, update
+  Commandes:
+    close       Closes the vlan.
+    create      Creates a vlan.
+    edit        Modifier dans l'éditeur (YAML).
+    get         The vlan.
+    history     The versions of the record of the vlan, on both axes (REQ-004-18).
+    list        The vlans the caller may read.
+    prefixes    The networks that carry the VLAN, those the caller may read (REQ-008-21).
+    properties  Verbes « properties ».
+    update      Modifies the vlan (JSON Merge Patch).
   
   '''
 # ---
@@ -226,7 +230,7 @@
   
   Noyau:
     addresses, anomalies, domains, entities, graph, prefixes, property-declarations, property-gaps,
-    ranges, sites
+    ranges, sites, vlan-groups, vlans
   
   Écritures:
     changeset  Composer, simuler, appliquer, instruire des changesets.
@@ -234,7 +238,6 @@
     import     Importer un fichier par morceaux, avec reprise.
   
   Modules servis:
-    vlan      VLAN et groupes de VLAN.   [module vlan 0.2.0]
     machines  Machines, interfaces, grappes.   [module machines 0.2.0]
     policy    Politique de flux : règles, matrice, catalogue, vérification.   [module policy 0.2.0]
     flow      Registre de flux : demandes, instruction, dérogations.   [module flow 0.2.0]

@@ -252,7 +252,9 @@ def gather_body(command: VerbCommand, ctx: click.Context, found: Runtime) -> dic
             continue
         if kind == "reference":
             own = command.resource
-            module = own.module if command.catalog.is_module(own) else None
+            # The collections of its module first, or for a collection of the core those
+            # named after it: `group` of `vlans` is a `vlan-groups` (spec 026).
+            module = own.module if command.catalog.is_module(own) else own.name.removesuffix("s")
             collection = reference_of(name, command.catalog, module)
             if collection is None:
                 body[name] = {"id": value}
