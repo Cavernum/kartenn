@@ -194,7 +194,9 @@ async fn login(browser: &Browser, kartenn: SocketAddr, idp: SocketAddr, user: &s
 #[test]
 fn the_development_configuration_is_valid() {
     let file = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../dev/kartenn.toml");
-    let config = kartenn_server::config::load(Some(&file)).unwrap();
+    // The file alone: `config::load` would add the `KARTENN_*` variables of the caller.
+    let config =
+        kartenn_server::config::from_toml(&std::fs::read_to_string(file).unwrap()).unwrap();
     assert_eq!(
         config.auth.unwrap().issuers[0].issuer,
         "https://127.0.0.1:8444"
@@ -275,7 +277,7 @@ async fn an_instance_logs_in_through_the_development_issuer(pool: PgPool) {
     )
     .unwrap();
     let mut instance = Instance(
-        std::process::Command::new(env!("CARGO_BIN_EXE_kartenn-server"))
+        crate::server()
             .arg("run")
             .arg(database_url(&pool))
             .arg(&file)
