@@ -735,6 +735,23 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
     trunk, les machines virtuelles en `virtual`. Reste : le choix d'interface de
     `tester-a-declarer` (boutons radio) et les cellules éditables de la proposition ne
     sont pas des liens.
+  - Résultat (2026-10-28) : restes de la relecture. Fiches de machine et d'interface :
+    « Entrants » et « Sortants » sur une même grille (`subgrid` par groupe, liste et
+    ligne), mêmes largeurs de colonnes et même ligne de base ; la colonne des badges
+    garde le plus large (`minmax(min-content, 1fr)`), les autres passent à la ligne avant
+    elle. `proposition` : cellules éditables branchées sur l'état local de la maquette —
+    F2 ou double clic ouvre l'éditeur (Source, Destination, Service ou port, Référence,
+    Justification ; pas Verdict), Entrée ou la sortie du champ écrit la ligne, Échap
+    abandonne ; verdict et panneau du bas suivent (extrémités, environnement, matrice).
+    Pied « F2 : modifier » ; test clavier ajouté. Démo du catalogue `SidebarNav` : VLAN
+    dans « Référentiel » après « Topographie », espace « Réseau » retiré ; test eslint sur
+    `plugins/racks/src/RackList.vue` ; test unitaire de `scrollCue`. Choix notés :
+    extrémité saisie en `machine · interface`, adresse ou préfixe (un préfixe inconnu
+    est évalué sans valeur) ; objet en clé de service ou `transport/port` d'un service ;
+    une saisie refusée reste dans sa cellule avec son erreur, la ligne repasse « À
+    évaluer » ; `scrollCue` ne pose qu'une ombre en bas (pas d'ombre en haut, conforme à
+    la relecture du 2026-10-27), le test couvre : contenu qui tient, en haut, au milieu,
+    à la fin (à un pixel près), arrêt.
 - [ ] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
   020) — REQ-024-29
 
