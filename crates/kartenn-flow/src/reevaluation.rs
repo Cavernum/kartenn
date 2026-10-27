@@ -307,6 +307,9 @@ async fn touched(
         .await
         .map_err(|e| store(&e));
     }
+    // Planned for its arrays (`persistent(false)`): the generic plan, chosen after five
+    // executions on a connection, scanned the endpoints of every flow through their GiST
+    // key for each address, 50 s for a container of 7 000 addresses instead of 0.1 s.
     sqlx::query_scalar(
         "SELECT DISTINCT f.id FROM flow.flow f
           WHERE (upper(f.valid_period) IS NULL OR upper(f.valid_period) > now())
@@ -321,6 +324,7 @@ async fn touched(
                              WHERE e.flow_id = f.id AND i.machine_id = ANY($2)))
           ORDER BY f.id",
     )
+    .persistent(false)
     .bind(&written)
     .bind(&objects)
     .bind(policy.everything)
