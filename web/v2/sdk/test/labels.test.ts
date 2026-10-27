@@ -50,12 +50,12 @@ describe("labels (REQ-021-19, spec 018)", () => {
   it("show the key until the dictionary is read, then the label; the catalog in between", async () => {
     const s = setup();
     setContext({ locale: "fr" });
-    // A catalog nests its keys: `labels.kind.vlan.vlan`.
-    addCatalog("fr", "labels", { kind: { vlan: { vlan: "VLAN" } } });
+    // A catalog nests its keys: `labels.kind.policy.rule`.
+    addCatalog("fr", "labels", { kind: { policy: { rule: "Règle" } } });
     expect(s.labels.label("kind", "core.prefix")).toBe("core.prefix");
     await s.queryClient.fetchQuery(s.labels.query("fr"));
     expect(s.labels.label("kind", "core.prefix")).toBe("Préfixe");
-    expect(s.labels.label("kind", "vlan.vlan")).toBe("VLAN");
+    expect(s.labels.label("kind", "policy.rule")).toBe("Règle");
     expect(s.labels.label("kind", "machines.machine")).toBe("machines.machine");
     expect(s.seen.filter((r) => r.url === "/v1/labels?lang=fr")).toHaveLength(1);
   });

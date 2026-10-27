@@ -66,26 +66,26 @@ export const STATS = {
   },
   pending: { to_apply: 3, mine: 2 },
   anomalies: { open: 12 },
-  /**
-   * The VLAN, counters of the core since the 026 (no longer a module): reserved and
-   * deprecated VLAN, the occupation of each group in percent of its range (as E12 shows them).
-   */
-  vlan: {
-    reserved: 37,
-    deprecated: 5,
-    groups: [
-      { key: "campus-ouest", used: 87 },
-      { key: "campus-est", used: 41 },
-      { key: "labo", used: 6 },
-      { key: "atelier-nord", used: 19 },
-    ],
-  },
+  /** The VLAN, counters of the core since the 026 (no longer a module): reserved, deprecated. */
+  vlans: { reserved: 37, deprecated: 5 },
   modules: {
     flow: { noncompliant: 4, waivers_expiring: 2 },
   },
   /** Two minutes before the frozen clock of the captures. */
   computed_at: "2026-01-15T08:58:00Z",
 } as const;
+
+/**
+ * The VLAN groups as `GET /v1/vlan-groups` lists them (slug, VID range) with the counters
+ * of their `GET /v1/vlan-groups/{id}/occupancy` (REQ-008-20), as E12 shows them:
+ * `GET /v1/stats` counts no group, so the dashboard takes their occupation from these reads.
+ */
+export const VLAN_GROUPS = [
+  { slug: "campus-ouest", vid_min: 100, vid_max: 199, used: 75, reserved: 12, free: 13 },
+  { slug: "campus-est", vid_min: 200, vid_max: 299, used: 36, reserved: 5, free: 59 },
+  { slug: "labo", vid_min: 900, vid_max: 999, used: 6, reserved: 0, free: 94 },
+  { slug: "atelier-nord", vid_min: 2, vid_max: 99, used: 17, reserved: 2, free: 79 },
+] as const;
 
 /** The labels of the qualified kinds counted on the dashboard. */
 export const KIND_LABELS: Record<keyof typeof STATS.objects, string> = {
@@ -418,10 +418,10 @@ export const INTERFACE_MEDIA = {
   loopback: "Bouclage",
 } as const;
 export type InterfaceMedia = keyof typeof INTERFACE_MEDIA;
-/** The 802.1Q mode of an interface (009, REQ-009-12). */
+/** The 802.1Q mode of an interface (009, REQ-009-12), its VLAN by VID (`access` as served). */
 export type InterfaceVlan =
   | { mode: "none" }
-  | { mode: "access"; vlan: number }
+  | { mode: "access"; access: number }
   | { mode: "trunk"; tagged: number[]; native?: number };
 /**
  * An interface of a machine (module Machines, REQ-009-6): its MAC (RFC 9542 §1.1, the
@@ -470,7 +470,7 @@ const machine = (
 ): FlowMachine => ({ key, env, site, owner: "Atelier Nord", system, interfaces });
 const FROM_SERVERS = "héritée de 192.0.2.0/26";
 const FROM_ADMIN = "posée sur 198.51.100.0/28";
-const access = (vlan: number): InterfaceVlan => ({ mode: "access", vlan });
+const access = (vid: number): InterfaceVlan => ({ mode: "access", access: vid });
 export const MACHINES: Record<string, FlowMachine> = Object.fromEntries(
   [
     machine(

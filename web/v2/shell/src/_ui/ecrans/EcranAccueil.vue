@@ -4,7 +4,8 @@
 // Accueil): a dashboard of tiles on `Grid`. Tiles of the core first (objects by kind,
 // changesets applied over 7 and 30 days with their histogram by day, `BarChart`, to apply,
 // mine pending, open anomalies, the VLAN with the occupation of their groups in a
-// `BarList`: a core tile since the 026), fed by the fixture of `GET /v1/stats`; then the
+// `BarList`: a core tile since the 026), fed by the fixture of `GET /v1/stats` (the
+// occupation by the reads of the groups, which the stats do not count); then the
 // `widget` tile of a plugin (Flux), and the one of another still loading (Politique). The
 // instant of the snapshot at the foot.
 import {
@@ -19,7 +20,7 @@ import {
 } from "@kartenn/ui";
 import Attributs from "./EcranAttributs.vue";
 import Panneau from "./EcranPanneau.vue";
-import { KIND_LABELS, STATS } from "./donnees.ts";
+import { KIND_LABELS, STATS, VLAN_GROUPS } from "./donnees.ts";
 
 const number = new Intl.NumberFormat("fr-FR");
 const kinds = (Object.keys(STATS.objects) as (keyof typeof STATS.objects)[]).map((kind) => ({
@@ -35,11 +36,11 @@ const days: ChartPoint[] = STATS.changesets.by_day.map((value, i, all) => {
   return { key: date.toISOString().slice(0, 10), label: DAY.format(date), value };
 });
 
-/** The occupation of the VLAN groups, as the core counts it. */
-const groups: ChartPoint[] = STATS.vlan.groups.map((g) => ({
-  key: g.key,
-  label: g.key,
-  value: g.used,
+/** The occupation of each VLAN group, used and reserved VIDs in percent of its range. */
+const groups: ChartPoint[] = VLAN_GROUPS.map((g) => ({
+  key: g.slug,
+  label: g.slug,
+  value: Math.round((100 * (g.used + g.reserved)) / (g.vid_max - g.vid_min + 1)),
 }));
 const percent = (value: number) => `${value} %`;
 </script>
@@ -104,11 +105,11 @@ const percent = (value: number) => `${value} %`;
     <Panneau title="VLAN" detail="lisibles par vous">
       <Attributs
         :items="[
-          { key: 'reserved', label: 'Réservés', value: String(STATS.vlan.reserved) },
+          { key: 'reserved', label: 'Réservés', value: String(STATS.vlans.reserved) },
           {
             key: 'deprecated',
             label: 'Dépréciés',
-            value: String(STATS.vlan.deprecated),
+            value: String(STATS.vlans.deprecated),
           },
         ]"
       />

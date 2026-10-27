@@ -95,6 +95,13 @@ Statut : spec **validée le 2026-10-27**.
     barre latérale (les groupes en sont la page d'accueil).
   - SDK v2 régénéré à la fusion (filtre `media` de la 009-15) : `k-web2-check` vert sur
     main (312 tests, 1196 captures).
+  - suite (après la fusion de la 026) : SDK v2 régénéré (sortes `core.vlan_group`,
+    `core.vlan`, section `vlans` de `GET /v1/stats`) ; types et tests du SDK sur les noms
+    du cœur ; la fixture de E0 lit `vlans` et prend l'occupation des groupes dans leurs
+    lectures (`/v1/vlan-groups`, `/occupancy`, REQ-008-20), les stats ne comptant aucun
+    groupe ; le VLAN d'accès d'une interface s'écrit `access` comme servi ; exception
+    `web/v2` retirée de `no_old_permission_name_is_left`. `k-web2-check` vert (312 tests,
+    1196 captures inchangées), `k-web2-e2e ecrans clavier touch layout` : 1015 réussis.
 - [x] 7. Amendements : D18 dans `001-cadrage/decisions.md`, 008 (parties B à F
   « reprises par la 026 »), 009 (REQ-009-12), 021, `specs/README.md`
   - fait : D18 amendée (journal et synthèse) ; 008 : note en tête des exigences et de

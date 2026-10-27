@@ -307,9 +307,6 @@ mod tests {
             // The test of migration 0072 (spec 026), which starts from the names of 008.
             "crates/kartenn-rest/tests/it/vlan/migration.rs",
         ];
-        // The screens of the shell v2 take the names of the core with task 026-6, on its
-        // own branch: until it is merged, they are not held here.
-        let pending = ["web/v2"];
         let olds = retired_names();
         let mut found = Vec::new();
         for dir in OLD_NAME_FREE {
@@ -319,7 +316,6 @@ mod tests {
                     .iter()
                     .any(|e| relative == std::path::Path::new(e))
                     || relative.starts_with("crates/kartenn-store-pg/migrations")
-                    || pending.iter().any(|p| relative.starts_with(p))
                 {
                     return;
                 }

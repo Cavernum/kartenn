@@ -881,7 +881,7 @@ const ifaceTabs: TabItem[] = [
 /** The 802.1Q mode in words (REQ-009-12). */
 function vlanOf(vlan: InterfaceVlan): string {
   if (vlan.mode === "none") return "Aucun (trames sans étiquette)";
-  if (vlan.mode === "access") return `Accès · VLAN ${vlan.vlan}`;
+  if (vlan.mode === "access") return `Accès · VLAN ${vlan.access}`;
   const native = vlan.native === undefined ? "sans natif" : `natif ${vlan.native}`;
   return `Trunk · étiquetés ${vlan.tagged.join(", ")} · ${native}`;
 }
