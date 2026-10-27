@@ -5,7 +5,6 @@
   - button "Rechercher"
   - button "Référentiel"
   - button "Changesets"
-  - button "Réseau"
   - button "Machines"
   - button "Politique"
   - button "Flux" [expanded]
@@ -125,7 +124,8 @@
     - region "Source interface":
       - heading "Source interface" [level=3]
       - paragraph:
-        - code: /srv-rec-\d+ · eth0/
+        - link /srv-rec-\d+ · eth0/:
+          - /url: /_ui/ecrans/E11?vue=interface&machine=srv-rec-03&iface=eth0&mode=dark
         - text: Service ·
         - link /fiche de srv-rec-\d+/:
           - /url: /_ui/ecrans/E11?vue=machine&machine=srv-rec-03&mode=dark
@@ -136,7 +136,8 @@
     - region "Destination interface":
       - heading "Destination interface" [level=3]
       - paragraph:
-        - code: /srv-app-\d+ · eth0/
+        - link /srv-app-\d+ · eth0/:
+          - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=dark
         - text: Service ·
         - link /fiche de srv-app-\d+/:
           - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=dark

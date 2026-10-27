@@ -154,6 +154,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "mac", type: "string" },
     { name: "address", type: "string" },
     { name: "vlan", type: "string" },
+    { name: "media", type: "string" },
     { name: "q", type: "string" },
   ],
   "/v1/interfaces/{id}/flows": [],

@@ -5,7 +5,6 @@
   - button "Rechercher"
   - button "Référentiel"
   - button "Changesets"
-  - button "Réseau"
   - button "Machines"
   - button "Politique"
   - button "Flux" [expanded]
@@ -54,6 +53,8 @@
     - radio /srv-web-\d+ · eth0 \d+\.\d+\.\d+\.\d+, \d+\.\d+\.\d+\.\d+/ [checked]
     - code: /srv-web-\d+ · eth0/
     - text: /\d+\.\d+\.\d+\.\d+, \d+\.\d+\.\d+\.\d+/
+    - link /fiche de l'interface srv-web-\d+ · eth0/:
+      - /url: /_ui/ecrans/E11?vue=interface&machine=srv-web-02&iface=eth0&mode=light
     - radio /\d+\.\d+\.\d+\.\d+ eth0/
     - code: /\d+\.\d+\.\d+\.\d+/
     - text: eth0

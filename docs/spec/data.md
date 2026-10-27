@@ -297,7 +297,9 @@ l'audit garde les anciens noms.
     `attachment` (interface ↔ adresse, daté ; une adresse au plus une fois sauf usage
     partagé, copie `shared` de l'usage de l'adresse ; une adresse principale par famille et
     par interface ; exclusions GiST). Propriétés du module : `machines.interface_role`
-    (liste livrée, extensible) et `machines.fqdn`. Règles :
+    et `machines.interface_media` (`ethernet`, `sfp`, `wifi`, `aggregate`, `virtual`,
+    `loopback`), listes livrées, extensibles, portées par les interfaces, non héritées
+    (REQ-009-8, 26) ; `machines.fqdn`. Règles :
     [catalogue des modules](regles-modules.md).
   - `policy` (spec 010, migrations du module 0001 à 0003) : `policy_axis` (propriété
     désignée comme axe, porteur arbre ou machine), `policy_value` (attributs d'une valeur

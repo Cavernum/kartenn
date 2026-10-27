@@ -75,15 +75,32 @@ Statut : spec **validée le 2026-10-27**.
   - choix : la CLI range `vlans` et `vlan-groups` dans la section « Noyau » ;
     la résolution d'une référence d'un objet du noyau (`--group`) passe par la
     collection au pluriel (`vlan-groups`) ; l'ADR 0026 et les specs closes gardent
-    leurs exemples d'époque.
-- [ ] 6. Maquettes v2 : écran VLAN du cœur, E10 sans le VLAN, ligne ajoutée au tableau
+    leurs exemples d'époque. Les compteurs du VLAN de `GET /v1/stats` sont servis
+    dans une section `vlans` (`reserved`, `deprecated` ; anciennement
+    `modules.vlan`), à reprendre par la maquette E0 qui lit `vlan`.
+- [x] 6. Maquettes v2 : écran VLAN du cœur, E10 sans le VLAN, ligne ajoutée au tableau
   des maquettes de la 020 — REQ-026-6 — verify : `k-web2-check`, `k-web2-e2e`
+  - fait : maquette E12 « VLAN » (`web/v2/shell/src/_ui/ecrans/E12Vlan.vue`, quatre
+    vues : groupes, un groupe, fiche d'un VLAN, création pour un réseau), entrée « VLAN »
+    de l'espace Référentiel après Topographie (espace « Réseau » retiré) ; E10 garde la
+    matrice seule ; tuile VLAN d'E0, onglet et encart VLAN d'E2, menus d'E1 et E8 sans
+    marque de plugin ; noms `core.vlan.*`, `core.vlan_group.*`,
+    `core.vlan.site_mismatch` (E4, E7) ; lien vers la fiche d'interface depuis le choix
+    d'interface d'E11 ; lignes E0, E2, E10, E12 du tableau de la 020 ; captures.
+    `k-web2-e2e ecrans clavier touch layout` : 1015 réussis, axe sans violation.
+  - choix : la création d'un VLAN part de la liste des préfixes, dont la colonne VLAN
+    (`core.vlan`) est montrée là ; le dashboard lit les compteurs du VLAN dans une
+    section `vlan` de `GET /v1/stats` et les sortes `core.vlan_group`, `core.vlan` dans
+    `objects` (forme à confirmer par la tâche 3) ; le VLAN reste une seule entrée de la
+    barre latérale (les groupes en sont la page d'accueil).
+  - SDK v2 régénéré à la fusion (filtre `media` de la 009-15) : `k-web2-check` vert sur
+    main (312 tests, 1196 captures).
 - [x] 7. Amendements : D18 dans `001-cadrage/decisions.md`, 008 (parties B à F
   « reprises par la 026 »), 009 (REQ-009-12), 021, `specs/README.md`
   - fait : D18 amendée (journal et synthèse) ; 008 : note en tête des exigences et de
     la conception, « Reprise par la 026 » sous B à F ; REQ-009-12 amendée ; 021 :
     écrans VLAN du cœur au lieu du plugin (conception, REQ-021-3, tâche 17, phase 5) ;
     ligne 026 et ligne 008 de `specs/README.md`.
-  - choix : les routes v2 des écrans VLAN (`/vlans`, `/vlan-groups`) sont provisoires,
-    fixées par la maquette de la tâche 6 ; les specs closes (005, 018, 022, 023, 024)
+  - choix : les routes v2 des écrans VLAN notées dans la 021 (`/vlans`, `/vlan-groups`)
+    suivent les collections de l'API, à aligner sur la maquette E12 au portage ; les specs closes (005, 018, 022, 023, 024)
     et l'ADR 0026 gardent leurs exemples d'époque.

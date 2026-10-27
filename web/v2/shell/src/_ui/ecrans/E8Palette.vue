@@ -57,7 +57,7 @@ const shortcuts: Shortcut[] = [
   { id: "ga", keys: [["g"], ["a"]], action: "Aller aux adresses", scope: "Hors champ" },
   { id: "gc", keys: [["g"], ["c"]], action: "Aller aux changesets", scope: "Hors champ" },
   { id: "gb", keys: [["g"], ["b"]], action: "Ouvrir le brouillon", scope: "Hors champ" },
-  { id: "gv", keys: [["g"], ["v"]], action: "Aller aux VLAN (plugin)", scope: "Hors champ" },
+  { id: "gv", keys: [["g"], ["v"]], action: "Aller aux VLAN", scope: "Hors champ" },
   { id: "c", keys: [["c"]], action: "Créer dans la collection", scope: "Présent, droit" },
   { id: "e", keys: [["e"]], action: "Modifier l'objet ou la cellule", scope: "Présent, droit" },
   {

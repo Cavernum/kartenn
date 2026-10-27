@@ -5,7 +5,6 @@
   - button "Rechercher"
   - button "Référentiel"
   - button "Changesets"
-  - button "Réseau"
   - button "Machines"
   - button "Politique"
   - button "Flux" [expanded]
@@ -80,9 +79,11 @@
           - link /flux-\d+/:
             - /url: /_ui/ecrans/E11?vue=registre&mode=light
           - text: Dérogé
-          - code: /dev-web-\d+ · eth0/
+          - link /dev-web-\d+ · eth0/:
+            - /url: /_ui/ecrans/E11?vue=interface&machine=dev-web-01&iface=eth0&mode=light
           - text: →
-          - code: /srv-db-\d+ · eth0/
+          - link /srv-db-\d+ · eth0/:
+            - /url: /_ui/ecrans/E11?vue=interface&machine=srv-db-02&iface=eth0&mode=light
           - text: /· dérogation jusqu'au \d+-\d+-\d+/
     - region "Conforme ? Non conforme":
       - heading "Conforme ? Non conforme" [level=3]

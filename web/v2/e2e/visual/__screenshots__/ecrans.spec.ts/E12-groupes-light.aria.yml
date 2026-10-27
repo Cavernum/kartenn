@@ -1,0 +1,132 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel" [expanded]
+  - list:
+    - listitem:
+      - link "Accueil":
+        - /url: /
+    - listitem:
+      - link "Topographie":
+        - /url: /topology
+    - listitem:
+      - link "VLAN":
+        - /url: /vlans
+    - listitem:
+      - link "Domaines":
+        - /url: /domains
+    - listitem:
+      - link "Préfixes":
+        - /url: /prefixes
+    - listitem:
+      - link "Plages":
+        - /url: /ranges
+    - listitem:
+      - link "Adresses":
+        - /url: /addresses
+    - listitem:
+      - link "Entités":
+        - /url: /entities
+    - listitem:
+      - link "Sites":
+        - /url: /sites
+    - listitem:
+      - link /Anomalies \d+/:
+        - /url: /anomalies
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Référentiel":
+          - /url: /
+      - listitem: VLAN
+  - button "Présent"
+  - button "Brouillon 3 opérations"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Groupes de VLAN" [level=1]
+  - region "Groupes de VLAN":
+    - heading "Groupes de VLAN" [level=2]
+    - text: "4"
+    - toolbar "Actions des groupes":
+      - button "Créer un groupe" [disabled]
+      - button "Exporter"
+    - button "Colonnes"
+    - grid "Groupes de VLAN":
+      - rowgroup:
+        - row "Groupe Ancre Plage de VID Occupation":
+          - columnheader "Groupe"
+          - columnheader "Ancre":
+            - text: ""
+            - 'button "Filtrer : Ancre"'
+          - columnheader "Plage de VID"
+          - columnheader "Occupation"
+      - rowgroup:
+        - row /campus-ouest Site site-ouest \d+–\d+ \d+ %/:
+          - gridcell "campus-ouest":
+            - link "campus-ouest":
+              - /url: /_ui/ecrans/E12?vue=groupe&mode=light
+          - gridcell "Site site-ouest":
+            - img "Site"
+            - code: site-ouest
+          - gridcell /\d+–\d+/
+          - gridcell /\d+ %/
+        - row /campus-est Site site-est \d+–\d+ \d+ %/:
+          - gridcell "campus-est":
+            - link "campus-est":
+              - /url: /_ui/ecrans/E12?vue=groupe&mode=light
+          - gridcell "Site site-est":
+            - img "Site"
+            - code: site-est
+          - gridcell /\d+–\d+/
+          - gridcell /\d+ %/
+        - row /labo Domaine dmz-labo \d+–\d+ 6 %/:
+          - gridcell "labo":
+            - link "labo":
+              - /url: /_ui/ecrans/E12?vue=groupe&mode=light
+          - gridcell "Domaine dmz-labo":
+            - img "Domaine"
+            - code: dmz-labo
+          - gridcell /\d+–\d+/
+          - gridcell "6 %"
+        - row /atelier-nord Entité atelier-nord 2–\d+ \d+ %/:
+          - gridcell "atelier-nord":
+            - link "atelier-nord":
+              - /url: /_ui/ecrans/E12?vue=groupe&mode=light
+          - gridcell "Entité atelier-nord":
+            - img "Entité"
+            - code: atelier-nord
+          - gridcell /2–\d+/
+          - gridcell /\d+ %/
+    - text: /4 groupes · \d+ VLAN Au présent/
+  - heading "Occupation" [level=2]
+  - text: VID utilisés ou réservés
+  - table "Occupation des groupes de VLAN":
+    - caption: Occupation des groupes de VLAN
+    - rowgroup:
+      - row "Groupe Occupation":
+        - columnheader "Groupe"
+        - columnheader "Occupation"
+    - rowgroup:
+      - row /campus-ouest \d+ %/:
+        - rowheader "campus-ouest"
+        - cell /\d+ %/
+      - row /campus-est \d+ %/:
+        - rowheader "campus-est"
+        - cell /\d+ %/
+      - row "labo 6 %":
+        - rowheader "labo"
+        - cell "6 %"
+      - row /atelier-nord \d+ %/:
+        - rowheader "atelier-nord"
+        - cell /\d+ %/
+- button "Ouvrir le panneau"

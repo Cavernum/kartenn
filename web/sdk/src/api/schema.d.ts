@@ -14747,6 +14747,8 @@ export interface operations {
         address?: string;
         /** @description Carrying this VLAN, access, native or tagged. */
         vlan?: string;
+        /** @description Of this medium, a key of `machines.interface_media`. */
+        media?: string;
         /** @description Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
         q?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */

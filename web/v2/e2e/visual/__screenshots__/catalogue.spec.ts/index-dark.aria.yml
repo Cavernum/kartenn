@@ -25,6 +25,9 @@
         - link "BarList":
           - /url: /_ui/c/BarList?mode=dark
       - listitem:
+        - link "BottomPanel":
+          - /url: /_ui/c/BottomPanel?mode=dark
+      - listitem:
         - link "Breadcrumb":
           - /url: /_ui/c/Breadcrumb?mode=dark
       - listitem:
@@ -55,6 +58,9 @@
         - link "DiffList":
           - /url: /_ui/c/DiffList?mode=dark
       - listitem:
+        - link "DiffValue":
+          - /url: /_ui/c/DiffValue?mode=dark
+      - listitem:
         - link "DraftCounter":
           - /url: /_ui/c/DraftCounter?mode=dark
       - listitem:
@@ -69,6 +75,9 @@
       - listitem:
         - link "ErrorState":
           - /url: /_ui/c/ErrorState?mode=dark
+      - listitem:
+        - link "ExpandableGrid":
+          - /url: /_ui/c/ExpandableGrid?mode=dark
       - listitem:
         - link "FilterChip":
           - /url: /_ui/c/FilterChip?mode=dark
@@ -237,11 +246,47 @@
         - link /E9 États — \d+, proposé en revue/:
           - /url: /_ui/ecrans/E9?mode=dark&vue=revue
       - listitem:
-        - link "E10 Hôte de plugin — Plugin VLAN":
-          - /url: /_ui/ecrans/E10?mode=dark&vue=vlan
-      - listitem:
         - link "E10 Hôte de plugin — Matrice de politique":
           - /url: /_ui/ecrans/E10?mode=dark&vue=matrice
       - listitem:
         - link "E10 Hôte de plugin — Brouillon de la matrice":
           - /url: /_ui/ecrans/E10?mode=dark&vue=brouillon
+      - listitem:
+        - link "E11 Flux — Registre":
+          - /url: /_ui/ecrans/E11?mode=dark&vue=registre
+      - listitem:
+        - link "E11 Flux — Proposition":
+          - /url: /_ui/ecrans/E11?mode=dark&vue=proposition
+      - listitem:
+        - link "E11 Flux — Envoi de la proposition":
+          - /url: /_ui/ecrans/E11?mode=dark&vue=envoi
+      - listitem:
+        - 'link "E11 Flux — Tester une connexion : ouvert et conforme"':
+          - /url: /_ui/ecrans/E11?mode=dark&vue=tester
+      - listitem:
+        - 'link "E11 Flux — Tester une connexion : ouvert mais non conforme"':
+          - /url: /_ui/ecrans/E11?mode=dark&vue=tester-derogation
+      - listitem:
+        - 'link "E11 Flux — Tester une connexion : non ouvert mais conforme"':
+          - /url: /_ui/ecrans/E11?mode=dark&vue=tester-a-declarer
+      - listitem:
+        - 'link "E11 Flux — Tester une connexion : non ouvert et non conforme"':
+          - /url: /_ui/ecrans/E11?mode=dark&vue=tester-ferme
+      - listitem:
+        - link "E11 Flux — Flux d'une machine":
+          - /url: /_ui/ecrans/E11?mode=dark&vue=machine
+      - listitem:
+        - link "E11 Flux — Fiche d'une interface":
+          - /url: /_ui/ecrans/E11?mode=dark&vue=interface
+      - listitem:
+        - link "E12 VLAN — Groupes de VLAN":
+          - /url: /_ui/ecrans/E12?mode=dark&vue=groupes
+      - listitem:
+        - link "E12 VLAN — Un groupe":
+          - /url: /_ui/ecrans/E12?mode=dark&vue=groupe
+      - listitem:
+        - link "E12 VLAN — Fiche d'un VLAN":
+          - /url: /_ui/ecrans/E12?mode=dark&vue=vlan
+      - listitem:
+        - link "E12 VLAN — Créer un VLAN pour un réseau":
+          - /url: /_ui/ecrans/E12?mode=dark&vue=creation

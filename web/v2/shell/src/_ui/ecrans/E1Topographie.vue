@@ -208,15 +208,13 @@ const actions: ToolbarAction[] = [
 const more: MenuItem[] = [
   { id: "open", label: "Ouvrir la fiche", icon: "external-link", shortcut: ["Enter"] },
   { id: "history", label: "Historique", icon: "clock" },
+  { id: "vlan", label: "VLAN porté…", icon: "vlan" },
   {
     id: "move",
     label: "Changer de domaine…",
     icon: "move",
     reason: "Le domaine d'un objet ne change pas après sa création (core.domain.immutable).",
   },
-  { kind: "separator" },
-  { kind: "label", label: "Plugins" },
-  { id: "vlan", label: "VLAN porté…", icon: "vlan" },
 ];
 
 // The edit panel of the kind (« + » on 192.0.2.64/26): an address by default in a network.

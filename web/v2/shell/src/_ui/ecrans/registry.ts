@@ -1,7 +1,7 @@
 /**
  * The mock-ups of the design system (spec 020, design « Maquettes », REQ-020-25; tasks 13
- * and 14; revised by the 024, tasks 11 and 11b): twelve screens (E0 to E11) built with the
- * components of `@kartenn/ui`, on fictitious data, to be validated by the user on captures.
+ * and 14; revised by the 024, tasks 11 and 11b; E12 added by the 026): thirteen screens (E0
+ * to E12) built with the components of `@kartenn/ui`, on fictitious data, to be validated by the user on captures.
  * Each mock-up has one or more views (`?vue=`), each one URL and one capture per width
  * (1440, 1280, 1024, 768 px) and mode. Pure data: the captures (`e2e/visual/ecrans.spec.ts`)
  * read this list.
@@ -31,13 +31,13 @@ export const MOCKUPS: Mockup[] = [
     id: "E0",
     title: "Accueil",
     shows:
-      "Tableau de bord : tuiles du cœur (GET /v1/stats) et widget de deux plugins, une tuile en chargement.",
+      "Tableau de bord : tuiles du cœur (GET /v1/stats, dont l'occupation des groupes de VLAN) et widget d'un plugin, une tuile de plugin en chargement.",
     views: [
       {
         id: "tuiles",
         label: "Tableau de bord",
         description:
-          "Objets par sorte, changesets appliqués et histogramme, à instruire, les miens, anomalies ; tuiles VLAN et Flux ; Politique en chargement.",
+          "Objets par sorte, changesets appliqués et histogramme, à instruire, les miens, anomalies, VLAN et occupation des groupes ; widget du plugin Flux ; Politique en chargement.",
       },
     ],
   },
@@ -131,7 +131,7 @@ export const MOCKUPS: Mockup[] = [
         id: "droits",
         label: "Droit manquant",
         description:
-          "Vu par un relecteur sans vlan.apply : Valider et Rejeter grisés, la permission en infobulle.",
+          "Vu par un relecteur sans core.vlan.apply : Valider et Rejeter grisés, la permission en infobulle.",
       },
       {
         id: "auteur",
@@ -298,13 +298,8 @@ export const MOCKUPS: Mockup[] = [
     id: "E10",
     title: "Hôte de plugin",
     shows:
-      "Vue pleine page d'un plugin (VLAN) et matrice de politique (spec 017, MatrixGrid) dans le cadre du shell.",
+      "Vue pleine page d'un plugin dans le cadre du shell : la matrice de politique (spec 017, MatrixGrid).",
     views: [
-      {
-        id: "vlan",
-        label: "Plugin VLAN",
-        description: "Groupes de VLAN, VLAN du groupe choisi, prochain VID libre.",
-      },
       {
         id: "matrice",
         label: "Matrice de politique",
@@ -323,7 +318,7 @@ export const MOCKUPS: Mockup[] = [
     id: "E11",
     title: "Flux",
     shows:
-      "Registre des flux (filtres typés, état, conformité à la matrice de flux, issue), proposition de flux en tableau dans un changeset avec la ligne choisie dans le panneau du bas, tester une connexion (ouvert, conforme) sans écriture, flux des interfaces d'une machine dans son onglet d'information. Une extrémité est une adresse, une interface ou un préfixe, jamais une machine.",
+      "Registre des flux (filtres typés, état, conformité à la matrice de flux, issue), proposition de flux en tableau dans un changeset avec la ligne choisie dans le panneau du bas, tester une connexion (ouvert, conforme) sans écriture, flux des interfaces d'une machine dans son onglet d'information, fiche d'une interface (média, rôle, VLAN, adresses, flux). Une extrémité est une adresse, une interface ou un préfixe, jamais une machine.",
     views: [
       {
         id: "registre",
@@ -371,7 +366,45 @@ export const MOCKUPS: Mockup[] = [
         id: "machine",
         label: "Flux d'une machine",
         description:
-          "Fiche de srv-app-01, onglet Information : attributs, puis les flux de ses interfaces, entrants et sortants, en liste compacte : l'interface (et l'adresse ou le préfixe qui l'atteint), l'autre extrémité (interface, adresse ou préfixe, en lien vers la fiche de sa machine), service, type de flux, conformité à la matrice.",
+          "Fiche de srv-app-01, onglet Information : attributs (interfaces en liens, avec leur média et leur rôle), puis les flux de ses interfaces, entrants et sortants, en liste compacte : l'interface (et l'adresse ou le préfixe qui l'atteint), l'autre extrémité (une interface en lien vers sa fiche, une adresse vers la fiche de sa machine), service, type de flux, conformité à la matrice.",
+      },
+      {
+        id: "interface",
+        label: "Fiche d'une interface",
+        description:
+          "srv-app-01 · eth0 : nom, machine en lien, MAC, état, média (Ethernet, SFP, Wi-Fi, agrégat, virtuelle, bouclage ; clé et libellé, modifiable par la liste fermée), rôle, VLAN ; adresses rattachées, la principale marquée ; flux de l'interface, entrants et sortants, l'autre extrémité en lien, conformité à la matrice ; historique.",
+      },
+    ],
+  },
+  {
+    id: "E12",
+    title: "VLAN",
+    shows:
+      "Écrans du VLAN dans le cœur (026) : groupes (ancre, plage de VID, occupation), un groupe (tranches utilisées, réservées et libres, prochain VID libre, ses VLAN), fiche d'un VLAN (réseaux qui le portent, lus selon les droits), création d'un VLAN pour un réseau depuis la liste des préfixes et sa colonne VLAN.",
+    views: [
+      {
+        id: "groupes",
+        label: "Groupes de VLAN",
+        description:
+          "Groupes : ancre (entité, site ou domaine), plage de VID, nombre de VLAN, occupation et VID libres ; occupation des groupes en barres ; « Créer un groupe » refusé sans core.vlan_group.edit.",
+      },
+      {
+        id: "groupe",
+        label: "Un groupe",
+        description:
+          "campus-ouest : ses VLAN (VID, nom, statut, réseaux ; un en brouillon) ; attributs ; occupation en barres et en tranches de VID utilisées, réservées et libres ; prochain VID libre, le plus petit et à partir d'un VID.",
+      },
+      {
+        id: "vlan",
+        label: "Fiche d'un VLAN",
+        description:
+          "VLAN 121 supervision : VID, nom, statut, groupe en lien ; réseaux qui le portent, lus selon les droits (ni listés ni comptés hors droits), un réseau hors du site du groupe (core.vlan.site_mismatch) ; onglet Interfaces du plugin Machines.",
+      },
+      {
+        id: "creation",
+        label: "Créer un VLAN pour un réseau",
+        description:
+          "Liste des préfixes avec sa colonne VLAN (propriété core.vlan des réseaux) ; un réseau sans VLAN choisi, panneau droit : groupe, VID prérempli du prochain libre, nom, statut ; deux opérations au brouillon.",
       },
     ],
   },

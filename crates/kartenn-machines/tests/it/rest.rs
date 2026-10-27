@@ -24,7 +24,7 @@ use kartenn_service::authn::{IdentityKind, Method, Principal};
 use kartenn_service::authz::Unrestricted;
 use kartenn_service::declarations::{ModuleDeclarations, core_declarations_for, sync_modules};
 use kartenn_service::module::{Module, ModuleRegistry};
-use kartenn_service::operations::RawInput;
+use kartenn_service::operations::{ModuleKind, RawInput};
 use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::reads::ReadAudit;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
@@ -858,6 +858,83 @@ async fn mac_canonical_over_http(pool: PgPool) {
 }
 
 /// The `ETag` of `GET uri`.
+/// REQ-009-26: the medium of an interface, read with its properties and its explanation,
+/// filters the interfaces.
+#[kartenn_testing::pg_test]
+async fn interfaces_filtered_by_media(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    let (machine, eth0) = env.machine("sw1", acme).await;
+    env.applied(vec![op(
+        "create_interface",
+        json!({"machine": {"id": machine}, "name": "eth2"}),
+    )])
+    .await;
+    let eth2: Uuid = sqlx::query_scalar(
+        "SELECT id FROM machines.interface
+          WHERE machine_id = $1 AND name = 'eth2' AND valid_period @> now()",
+    )
+    .bind(machine)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let media: Uuid = sqlx::query_scalar(
+        "SELECT id FROM property_declaration WHERE key = 'machines.interface_media'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let assign = |object: Uuid, value: &str| Operation::AssignProperty {
+        object: Ref::Id(object),
+        kind: ObjectKind::Module(ModuleKind::parse("machines.interface").unwrap()),
+        property: Ref::Id(media),
+        values: vec![RawInput::Text(value.into())],
+    };
+    env.applied(vec![assign(eth0, "ethernet"), assign(eth2, "sfp")])
+        .await;
+    let app = env.app(env.admin().await);
+    let (status, _, body) = call(&app, "GET", "/v1/interfaces?media=sfp", None, &[]).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(ids(&body, "name"), ["eth2"]);
+    let (_, _, body) = call(
+        &app,
+        "GET",
+        &format!("/v1/interfaces?media=ethernet&machine={machine}"),
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(ids(&body, "name"), ["eth0"]);
+    let (_, _, body) = call(&app, "GET", "/v1/interfaces?media=wifi", None, &[]).await;
+    assert!(ids(&body, "name").is_empty(), "{body}");
+    // The card of the interface shows it, and its explanation.
+    let (status, _, body) = call(
+        &app,
+        "GET",
+        &format!("/v1/interfaces/{eth2}/properties"),
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(
+        body["properties"]["machines.interface_media"]
+            .to_string()
+            .contains("sfp"),
+        "{body}"
+    );
+    let (status, _, body) = call(
+        &app,
+        "GET",
+        &format!("/v1/interfaces/{eth2}/properties/machines.interface_media/explanation"),
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.to_string().contains("sfp"), "{body}");
+}
+
 async fn etag_of(app: &Router, uri: &str) -> String {
     let (status, headers, body) = call(app, "GET", uri, None, &[]).await;
     assert_eq!(status, StatusCode::OK, "{body}");

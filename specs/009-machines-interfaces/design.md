@@ -162,6 +162,7 @@ module `vlan`, dont `machines` dépend) ou le rattachement.
 | Clé | Type | Porteurs | Héritage |
 |---|---|---|---|
 | `machines.interface_role` | liste fermée, simple ; valeurs `administration`, `backup`, `monitoring`, `storage`, `cluster`, `service` | `machines.interface` | aucun |
+| `machines.interface_media` (REQ-009-26, M17) | liste fermée, simple ; valeurs `ethernet`, `sfp`, `wifi`, `aggregate`, `virtual`, `loopback` | `machines.interface` | aucun |
 | `machines.fqdn` | FQDN (003) | `machines.machine` | aucun |
 
 Les types `machines.machine` et `machines.interface` sont porteurs admissibles pour toute
@@ -213,7 +214,7 @@ noyau (clé `machines.interface_role`).
 | `GET, POST /v1/clusters` ; `GET, PATCH, DELETE /v1/clusters/{id}` ; `GET /v1/clusters/{id}/machines` | clusters, membres et hébergés |
 | `GET, POST /v1/machines` ; `GET, PATCH, DELETE /v1/machines/{id}` | filtres `name`, `name_prefix`, `kind`, `host`, `cluster`, `owner`, `site` ; la fiche inclut interfaces et adresses (résumé) |
 | `GET /v1/machines/{id}/addresses`, `/hosted` | lectures croisées |
-| `GET, POST /v1/interfaces` ; `GET, PATCH, DELETE /v1/interfaces/{id}` | filtres `machine`, `name`, `mac`, `address`, `vlan` |
+| `GET, POST /v1/interfaces` ; `GET, PATCH, DELETE /v1/interfaces/{id}` | filtres `machine`, `name`, `mac`, `address`, `vlan`, `media` |
 | `POST /v1/interfaces/{id}/attachments`, `DELETE /v1/interfaces/{id}/attachments/{address}` | `attach_address`, `detach_address` (changeset d'une opération, `If-Match` de l'interface) |
 | `GET /v1/machines?network=<prefix>` | machines d'un réseau |
 

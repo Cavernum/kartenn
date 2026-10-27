@@ -25,6 +25,8 @@ pub const MACHINE: &str = "machines.machine";
 pub const INTERFACE: &str = "machines.interface";
 /// The role of an interface (REQ-009-8).
 pub const INTERFACE_ROLE: &str = "machines.interface_role";
+/// The medium of an interface (REQ-009-26, M17).
+pub const INTERFACE_MEDIA: &str = "machines.interface_media";
 /// The FQDN of a machine.
 pub const FQDN: &str = "machines.fqdn";
 /// The roles of an interface the module ships; an administrator adds others.
@@ -35,6 +37,15 @@ pub const INTERFACE_ROLES: &[&str] = &[
     "storage",
     "cluster",
     "service",
+];
+/// The media of an interface the module ships (M17); an administrator adds others.
+pub const INTERFACE_MEDIAS: &[&str] = &[
+    "ethernet",
+    "sfp",
+    "wifi",
+    "aggregate",
+    "virtual",
+    "loopback",
 ];
 
 /// The French and English labels of the declarations and values of the module (spec
@@ -56,6 +67,13 @@ const LABELS: &[(&str, &str, &str)] = &[
     ("machines.interface_role/storage", "Stockage", "Storage"),
     ("machines.interface_role/cluster", "Grappe", "Cluster"),
     ("machines.interface_role/service", "Service", "Service"),
+    (INTERFACE_MEDIA, "Média de l'interface", "Interface medium"),
+    ("machines.interface_media/ethernet", "Ethernet", "Ethernet"),
+    ("machines.interface_media/sfp", "SFP", "SFP"),
+    ("machines.interface_media/wifi", "Wi-Fi", "Wi-Fi"),
+    ("machines.interface_media/aggregate", "Agrégat", "Aggregate"),
+    ("machines.interface_media/virtual", "Virtuelle", "Virtual"),
+    ("machines.interface_media/loopback", "Bouclage", "Loopback"),
 ];
 
 /// A property of the module carried by `carrier`, single-valued and not inherited.
@@ -309,8 +327,8 @@ impl Module for Machines {
     fn object_types(&self) -> &'static [ObjectType] {
         TYPES
     }
-    /// `machines.interface_role` (M10), a closed list an administrator extends, and
-    /// `machines.fqdn`. Machines and interfaces carry any other property too (REQ-009-24).
+    /// `machines.interface_role` (M10) and `machines.interface_media` (M17), closed lists
+    /// an administrator extends, and `machines.fqdn`. Machines and interfaces carry any other property too (REQ-009-24).
     fn declarations(&self) -> Option<ModuleDeclarations> {
         Some(ModuleDeclarations {
             module: "machines".into(),
@@ -319,6 +337,10 @@ impl Module for Machines {
                 (
                     declaration(INTERFACE_ROLE, TypeSpec::ENUM, INTERFACE),
                     INTERFACE_ROLES.iter().map(|&v| v.to_owned()).collect(),
+                ),
+                (
+                    declaration(INTERFACE_MEDIA, TypeSpec::ENUM, INTERFACE),
+                    INTERFACE_MEDIAS.iter().map(|&v| v.to_owned()).collect(),
                 ),
                 (declaration(FQDN, TypeSpec::Fqdn, MACHINE), Vec::new()),
             ],

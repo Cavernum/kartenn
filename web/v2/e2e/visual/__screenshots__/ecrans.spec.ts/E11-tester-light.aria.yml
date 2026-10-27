@@ -5,7 +5,6 @@
   - button "Rechercher"
   - button "Référentiel"
   - button "Changesets"
-  - button "Réseau"
   - button "Machines"
   - button "Politique"
   - button "Flux" [expanded]
@@ -82,7 +81,8 @@
           - text: Actif
           - code: /\d+\.\d+\.\d+\.\d+\/\d+/
           - text: →
-          - code: /srv-app-\d+ · eth0/
+          - link /srv-app-\d+ · eth0/:
+            - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
     - region "Conforme ? Conforme":
       - heading "Conforme ? Conforme" [level=3]
       - paragraph: La matrice de flux autorise-t-elle chaque paire ?
