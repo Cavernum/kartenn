@@ -107,7 +107,7 @@ lancée une fois, par l'orchestrateur, en fin de série.
 | INV-34 | Changeset unitaire validé et appliqué < 200 ms | Bancs `bench-core`, `bench-rbac`, `bench-http` |
 | INV-35 | Changeset touchant jusqu'à 10⁴ objets < 2,5 s (changeset entier) ; différentiel < 10 s jusqu'à 10⁶ | Banc `bench-core` |
 | INV-36 | Import de 10⁶ objets < 15 min ; 50 écritures/s soutenues ; 200 utilisateurs concurrents | Bancs `bench-core` (import), `bench-http` (charge) |
-| INV-83 | `GET /v1/stats` servie de son instantané < 200 ms ; calcul d'un instantané, en arrière-plan, < 10 s (lecteur de tout et sujet à 1 000 liaisons, 50 groupes ; 024/REQ-024-16, M18) | Banc `bench-core` (`stats_budgets` : 200 lectures par le routeur, 20 calculs) ; banc complet tenu le 2026-10-24 : route p95 1,0 ms et 18,2 ms, calcul p95 1,32 s et 7,59 s |
+| INV-83 | `GET /v1/stats` servie de son instantané < 200 ms ; calcul d'un instantané, en arrière-plan, < 10 s (lecteur de tout et sujet à 1 000 liaisons, 50 groupes ; 024/REQ-024-16, M18) | Banc `bench-core` (`stats_budgets` : 200 lectures par le routeur, 20 calculs) ; banc complet tenu le 2026-10-24 : route p95 1,0 ms et 18,2 ms, calcul p95 1,32 s et 7,59 s ; repassé le 2026-10-27 (VLAN dans le noyau) : route 27,5 ms et 15,9 ms, calcul 0,52 s et 7,50 s |
 
 Les VLAN (dans le noyau depuis la spec 026) et les modules livrés tiennent INV-30, 31 et
 34 sur le jeu de référence augmenté, mesurés par `bench-core` après les budgets du
@@ -118,7 +118,14 @@ machines ; banc complet tenu le 2026-10-22, p95 par le routeur : fiche d'une mac
 5,7 ms, page filtrée de 100 machines 36,8 ms, machines d'un /24 64 ms, création 29 ms ;
 import de 10⁴ machines en 61 s ; repassé le 2026-10-23 avec la page de 100 machines
 d'un site, 32 ms pour 150 ms, le filtre `site` lisant désormais les affectations en
-ensemble).
+ensemble). **Repassé au banc complet le 2026-10-27**, le VLAN dans le noyau (026) : VLAN,
+p95 par le routeur, lecture 31,2 ms pour 50, page filtrée de 100 VLAN 33,7 ms pour 150,
+occupation d'un groupe 29,8 ms pour 200, création 25,3 ms pour 200 ; machines, fiche
+25,9 ms, page filtrée de 100 machines 27,3 ms, page d'un site 14,3 ms, machines d'un /24
+64,2 ms, création 23,3 ms, import de 996 717 adresses en 613 s pour 900 s. Un premier
+passage le même jour dépassait (page de 100 machines 14 s) : la migration 0072 lisait
+tout l'arbre des modules à chaque appel de `kartenn_site`, que le prédicat de lecture
+appelle ligne à ligne ; la migration 0073 lit le VLAN à part (100 appels : 14,5 s → 4,6 ms).
 
 Politique de flux (010, REQ-010-28 et 54) : banc `bench-policy` (010-19), qui tient lieu
 du prototype 010-1. **Tenu au banc complet** le 2026-10-23, avec la politique à la taille
@@ -170,7 +177,9 @@ après les modules) : p95 < 50 ms par route (entités, sites, domaines, préfixe
 adresses, machines, interfaces, clusters, groupes de VLAN, VLAN, valeurs d'une liste
 fermée, règles, et machines lues par le lecteur d'un seul propriétaire) ; au banc réduit
 (2026-10-24) de 0,02 ms (règles) à 8,5 ms (machines), 22,6 ms pour le lecteur d'un
-propriétaire. Pleine échelle à passer pour les deux.
+propriétaire. Suggestions tenues au banc complet le 2026-10-27 : de 0,02 ms (règles) à
+28,6 ms (VLAN), machines 3,8 ms, clusters 8,1 ms, lecteur d'un propriétaire 13,2 ms ; le
+dictionnaire reste à passer à pleine échelle.
 
 La lecture groupée N9 (016-4) est
 mesurée à 16,3 ms pour 30 ms au banc `bench-properties` réduit (2026-10-21).

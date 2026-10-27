@@ -72,6 +72,10 @@ Statut : spec **validée le 2026-10-27**.
     `create_vlan`…, instantanés régénérés), e2e Python ; `docs/spec/` (architecture,
     données, interfaces, invariants, catalogues régénérés). `vlan_budgets` dans
     `bench-core` compile ; bancs non lancés.
+  - bancs : `bench-core` complet le 2026-10-27, tous les budgets tenus après la
+    migration 0073 (`kartenn_site` lit le VLAN à part de l'arbre des modules ; le
+    premier passage mettait la page de 100 machines à 14 s) ; chiffres dans
+    `docs/spec/invariants.md`.
   - choix : la CLI range `vlans` et `vlan-groups` dans la section « Noyau » ;
     la résolution d'une référence d'un objet du noyau (`--group`) passe par la
     collection au pluriel (`vlan-groups`) ; l'ADR 0026 et les specs closes gardent
