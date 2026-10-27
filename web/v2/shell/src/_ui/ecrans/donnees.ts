@@ -54,6 +54,8 @@ export const STATS = {
     "core.address": 18455,
     "core.entity": 64,
     "core.site": 9,
+    "core.vlan_group": 4,
+    "core.vlan": 153,
   },
   changesets: {
     applied_7d: 38,
@@ -64,17 +66,21 @@ export const STATS = {
   },
   pending: { to_apply: 3, mine: 2 },
   anomalies: { open: 12 },
+  /**
+   * The VLAN, counters of the core since the 026 (no longer a module): reserved and
+   * deprecated VLAN, the occupation of each group in percent of its range (as E12 shows them).
+   */
+  vlan: {
+    reserved: 37,
+    deprecated: 5,
+    groups: [
+      { key: "campus-ouest", used: 87 },
+      { key: "campus-est", used: 41 },
+      { key: "labo", used: 6 },
+      { key: "atelier-nord", used: 19 },
+    ],
+  },
   modules: {
-    /** The occupation of each group, in percent of its range (as E10 shows them). */
-    vlan: {
-      reserved: 37,
-      deprecated: 5,
-      groups: [
-        { key: "campus-ouest", used: 87 },
-        { key: "campus-est", used: 41 },
-        { key: "labo", used: 6 },
-      ],
-    },
     flow: { noncompliant: 4, waivers_expiring: 2 },
   },
   /** Two minutes before the frozen clock of the captures. */
@@ -89,6 +95,8 @@ export const KIND_LABELS: Record<keyof typeof STATS.objects, string> = {
   "core.address": "Adresses",
   "core.entity": "Entités",
   "core.site": "Sites",
+  "core.vlan_group": "Groupes de VLAN",
+  "core.vlan": "VLAN",
 };
 
 /** An operation of the active draft, as its tab lists it. */
@@ -171,8 +179,8 @@ export const ROLE_PERMISSIONS = [
   { code: "core.address.read", label: "Lire les adresses" },
   { code: "core.range.read", label: "Lire les plages" },
   { code: "core.site.read", label: "Lire les sites" },
-  { code: "vlan.read", label: "Lire les VLAN" },
-  { code: "vlan.group.read", label: "Lire les groupes de VLAN" },
+  { code: "core.vlan.read", label: "Lire les VLAN" },
+  { code: "core.vlan_group.read", label: "Lire les groupes de VLAN" },
   { code: "machines.read", label: "Lire les machines" },
   { code: "machines.interface.read", label: "Lire les interfaces" },
 ];

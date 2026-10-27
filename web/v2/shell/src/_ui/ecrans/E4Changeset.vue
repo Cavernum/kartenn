@@ -91,7 +91,7 @@ const groups: DiffGroup[] = [
     kind: "anomaly",
     changes: [
       {
-        attribute: "Site du VLAN (vlan.site.mismatch)",
+        attribute: "Site du VLAN (core.vlan.site_mismatch)",
         kind: "anomaly",
         before: "site-ouest",
         after: "site-est",
@@ -102,7 +102,7 @@ const groups: DiffGroup[] = [
 
 /** The review actions, by the rights of the reader (024/M7, M14): refused ones stay. */
 const HELD = "Une politique retient ce changeset : un autre relecteur doit le valider.";
-const lacks = lacking ? { forbidden: "vlan.apply" } : {};
+const lacks = lacking ? { forbidden: "core.vlan.apply" } : {};
 const actions: ToolbarAction[] = author
   ? [
       { id: "withdraw", label: "Retirer", icon: "undo-2", priority: 2 },
@@ -193,7 +193,7 @@ const actions: ToolbarAction[] = author
               :items="[
                 {
                   message: 'Le VLAN 120 reste sur le site ouest, ses réseaux passent à l\'est.',
-                  code: 'vlan.site.mismatch',
+                  code: 'core.vlan.site_mismatch',
                 },
               ]"
             />
