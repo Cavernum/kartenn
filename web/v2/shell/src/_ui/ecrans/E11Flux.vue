@@ -1699,58 +1699,60 @@ const IFACE_HISTORY = [
                 <h3 id="k-e11-flows" class="k-ecran-subtitle">Flux de l'interface</h3>
                 <span class="k-ecran-muted">conformité à la matrice de flux du jour</span>
               </Cluster>
-              <div v-for="group in FLOW_GROUPS" :key="group.id" class="k-e11-flows">
-                <h4 :id="`k-e11-flows-${group.id}`" class="k-e11-h4">
-                  {{ group.label }}
-                  <span class="k-ecran-muted k-num">{{ group.flows.length }}</span>
-                </h4>
-                <ul
-                  v-if="group.flows.length"
-                  class="k-e11-flow-list"
-                  :aria-labelledby="`k-e11-flows-${group.id}`"
-                >
-                  <li v-for="f in group.flows" :key="f.key" class="k-e11-flow">
-                    <span class="k-e11-flow__end">
-                      <span class="k-ecran-muted">par</span>
-                      <code v-if="f.by.through">{{ f.by.through }}</code>
-                      <span v-else>l'interface</span>
-                    </span>
-                    <span class="k-e11-flow__end">
-                      <span class="k-ecran-muted">{{ group.word }}</span>
-                      <RouterLink v-if="cardOf(f.other)" :to="cardOf(f.other)!" class="k-mono">{{
-                        endName(f.other)
-                      }}</RouterLink>
-                      <code v-else>{{ endName(f.other) }}</code>
-                      <RouterLink
-                        v-if="contextOf(f.other)"
-                        :to="contextCard(f.other)"
-                        class="k-mono"
-                        >{{ contextOf(f.other) }}</RouterLink
-                      >
-                      <span v-else-if="f.other.kind === 'prefix'" class="k-ecran-muted"
-                        >préfixe</span
-                      >
-                    </span>
-                    <KeyLabel
-                      :value="f.flow.service"
-                      :label="SERVICES[f.flow.service]!.label"
-                      show-key
-                    />
-                    <span>{{ FLOW_TYPE[SERVICES[f.flow.service]!.flowType] }}</span>
-                    <span class="k-e11-flow__state">
-                      <StatusBadge
-                        :state="SYNTHESIS[f.synthesis].state"
-                        :label="SYNTHESIS[f.synthesis].label"
+              <div class="k-e11-flow-groups">
+                <div v-for="group in FLOW_GROUPS" :key="group.id" class="k-e11-flows">
+                  <h4 :id="`k-e11-flows-${group.id}`" class="k-e11-h4">
+                    {{ group.label }}
+                    <span class="k-ecran-muted k-num">{{ group.flows.length }}</span>
+                  </h4>
+                  <ul
+                    v-if="group.flows.length"
+                    class="k-e11-flow-list"
+                    :aria-labelledby="`k-e11-flows-${group.id}`"
+                  >
+                    <li v-for="f in group.flows" :key="f.key" class="k-e11-flow">
+                      <span class="k-e11-flow__end">
+                        <span class="k-ecran-muted">par</span>
+                        <code v-if="f.by.through">{{ f.by.through }}</code>
+                        <span v-else>l'interface</span>
+                      </span>
+                      <span class="k-e11-flow__end">
+                        <span class="k-ecran-muted">{{ group.word }}</span>
+                        <RouterLink v-if="cardOf(f.other)" :to="cardOf(f.other)!" class="k-mono">{{
+                          endName(f.other)
+                        }}</RouterLink>
+                        <code v-else>{{ endName(f.other) }}</code>
+                        <RouterLink
+                          v-if="contextOf(f.other)"
+                          :to="contextCard(f.other)"
+                          class="k-mono"
+                          >{{ contextOf(f.other) }}</RouterLink
+                        >
+                        <span v-else-if="f.other.kind === 'prefix'" class="k-ecran-muted"
+                          >préfixe</span
+                        >
+                      </span>
+                      <KeyLabel
+                        :value="f.flow.service"
+                        :label="SERVICES[f.flow.service]!.label"
+                        show-key
                       />
-                      <StatusBadge
-                        v-if="f.flow.state !== 'active'"
-                        :state="STATE[f.flow.state].state"
-                        :label="STATE[f.flow.state].label"
-                      />
-                    </span>
-                  </li>
-                </ul>
-                <p v-else class="k-ecran-muted">Aucun flux {{ group.label.toLowerCase() }}.</p>
+                      <span>{{ FLOW_TYPE[SERVICES[f.flow.service]!.flowType] }}</span>
+                      <span class="k-e11-flow__state">
+                        <StatusBadge
+                          :state="SYNTHESIS[f.synthesis].state"
+                          :label="SYNTHESIS[f.synthesis].label"
+                        />
+                        <StatusBadge
+                          v-if="f.flow.state !== 'active'"
+                          :state="STATE[f.flow.state].state"
+                          :label="STATE[f.flow.state].label"
+                        />
+                      </span>
+                    </li>
+                  </ul>
+                  <p v-else class="k-ecran-muted">Aucun flux {{ group.label.toLowerCase() }}.</p>
+                </div>
               </div>
             </Stack>
           </Stack>
@@ -1811,61 +1813,63 @@ const IFACE_HISTORY = [
                 <h3 id="k-e11-flows" class="k-ecran-subtitle">Flux de ses interfaces</h3>
                 <span class="k-ecran-muted">conformité à la matrice de flux du jour</span>
               </Cluster>
-              <div v-for="group in FLOW_GROUPS" :key="group.id" class="k-e11-flows">
-                <h4 :id="`k-e11-flows-${group.id}`" class="k-e11-h4">
-                  {{ group.label }}
-                  <span class="k-ecran-muted k-num">{{ group.flows.length }}</span>
-                </h4>
-                <ul
-                  v-if="group.flows.length"
-                  class="k-e11-flow-list"
-                  :aria-labelledby="`k-e11-flows-${group.id}`"
-                >
-                  <li v-for="f in group.flows" :key="f.key" class="k-e11-flow">
-                    <span class="k-e11-flow__end">
-                      <RouterLink :to="ifaceCard(shownMachine.key, f.by.by)" class="k-mono">{{
-                        f.by.by
-                      }}</RouterLink>
-                      <span v-if="f.by.through" class="k-ecran-muted k-mono">{{
-                        f.by.through
-                      }}</span>
-                    </span>
-                    <span class="k-e11-flow__end">
-                      <span class="k-ecran-muted">{{ group.word }}</span>
-                      <RouterLink v-if="cardOf(f.other)" :to="cardOf(f.other)!" class="k-mono">{{
-                        endName(f.other)
-                      }}</RouterLink>
-                      <code v-else>{{ endName(f.other) }}</code>
-                      <RouterLink
-                        v-if="contextOf(f.other)"
-                        :to="contextCard(f.other)"
-                        class="k-mono"
-                        >{{ contextOf(f.other) }}</RouterLink
-                      >
-                      <span v-else-if="f.other.kind === 'prefix'" class="k-ecran-muted"
-                        >préfixe</span
-                      >
-                    </span>
-                    <KeyLabel
-                      :value="f.flow.service"
-                      :label="SERVICES[f.flow.service]!.label"
-                      show-key
-                    />
-                    <span>{{ FLOW_TYPE[SERVICES[f.flow.service]!.flowType] }}</span>
-                    <span class="k-e11-flow__state">
-                      <StatusBadge
-                        :state="SYNTHESIS[f.synthesis].state"
-                        :label="SYNTHESIS[f.synthesis].label"
+              <div class="k-e11-flow-groups">
+                <div v-for="group in FLOW_GROUPS" :key="group.id" class="k-e11-flows">
+                  <h4 :id="`k-e11-flows-${group.id}`" class="k-e11-h4">
+                    {{ group.label }}
+                    <span class="k-ecran-muted k-num">{{ group.flows.length }}</span>
+                  </h4>
+                  <ul
+                    v-if="group.flows.length"
+                    class="k-e11-flow-list"
+                    :aria-labelledby="`k-e11-flows-${group.id}`"
+                  >
+                    <li v-for="f in group.flows" :key="f.key" class="k-e11-flow">
+                      <span class="k-e11-flow__end">
+                        <RouterLink :to="ifaceCard(shownMachine.key, f.by.by)" class="k-mono">{{
+                          f.by.by
+                        }}</RouterLink>
+                        <span v-if="f.by.through" class="k-ecran-muted k-mono">{{
+                          f.by.through
+                        }}</span>
+                      </span>
+                      <span class="k-e11-flow__end">
+                        <span class="k-ecran-muted">{{ group.word }}</span>
+                        <RouterLink v-if="cardOf(f.other)" :to="cardOf(f.other)!" class="k-mono">{{
+                          endName(f.other)
+                        }}</RouterLink>
+                        <code v-else>{{ endName(f.other) }}</code>
+                        <RouterLink
+                          v-if="contextOf(f.other)"
+                          :to="contextCard(f.other)"
+                          class="k-mono"
+                          >{{ contextOf(f.other) }}</RouterLink
+                        >
+                        <span v-else-if="f.other.kind === 'prefix'" class="k-ecran-muted"
+                          >préfixe</span
+                        >
+                      </span>
+                      <KeyLabel
+                        :value="f.flow.service"
+                        :label="SERVICES[f.flow.service]!.label"
+                        show-key
                       />
-                      <StatusBadge
-                        v-if="f.flow.state !== 'active'"
-                        :state="STATE[f.flow.state].state"
-                        :label="STATE[f.flow.state].label"
-                      />
-                    </span>
-                  </li>
-                </ul>
-                <p v-else class="k-ecran-muted">Aucun flux {{ group.label.toLowerCase() }}.</p>
+                      <span>{{ FLOW_TYPE[SERVICES[f.flow.service]!.flowType] }}</span>
+                      <span class="k-e11-flow__state">
+                        <StatusBadge
+                          :state="SYNTHESIS[f.synthesis].state"
+                          :label="SYNTHESIS[f.synthesis].label"
+                        />
+                        <StatusBadge
+                          v-if="f.flow.state !== 'active'"
+                          :state="STATE[f.flow.state].state"
+                          :label="STATE[f.flow.state].label"
+                        />
+                      </span>
+                    </li>
+                  </ul>
+                  <p v-else class="k-ecran-muted">Aucun flux {{ group.label.toLowerCase() }}.</p>
+                </div>
               </div>
             </Stack>
           </Stack>
@@ -2166,17 +2170,31 @@ const IFACE_HISTORY = [
     font-weight: var(--k-weight-semibold);
   }
 
-  /* The flows of a machine: a compact list, its columns aligned by a subgrid. */
-  .k-e11-flows {
+  /*
+   * The flows of a machine: two compact lists (Entrants, Sortants) on one grid, so that their
+   * columns share widths and their rows a baseline; each group, list and row is a subgrid.
+   * The badges keep their widest one (`min-content`): the other columns wrap before them.
+   */
+  .k-e11-flow-groups {
     display: grid;
-    gap: var(--k-space-1);
+    grid-template-columns: repeat(4, minmax(0, max-content)) minmax(min-content, 1fr);
+    gap: var(--k-space-3) var(--k-space-5);
     container-type: inline-size;
   }
 
+  .k-e11-flows,
   .k-e11-flow-list {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, max-content)) minmax(0, 1fr);
-    gap: var(--k-space-1) var(--k-space-5);
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    row-gap: var(--k-space-1);
+  }
+
+  .k-e11-flows > * {
+    grid-column: 1 / -1;
+  }
+
+  .k-e11-flow-list {
     list-style: none;
   }
 
@@ -2184,7 +2202,8 @@ const IFACE_HISTORY = [
     display: grid;
     grid-column: 1 / -1;
     grid-template-columns: subgrid;
-    align-items: center;
+    align-content: center;
+    align-items: baseline;
     min-block-size: var(--k-row-height);
     border-block-end: var(--k-border-width) solid var(--k-border);
   }
@@ -2198,7 +2217,9 @@ const IFACE_HISTORY = [
     min-inline-size: 0;
   }
 
+  /* Narrow: the groups leave the shared columns, each row wraps its parts. */
   @container (width < 720px) {
+    .k-e11-flows,
     .k-e11-flow-list {
       grid-template-columns: minmax(0, 1fr);
     }
