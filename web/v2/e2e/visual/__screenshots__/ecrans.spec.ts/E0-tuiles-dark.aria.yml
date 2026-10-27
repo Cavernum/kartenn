@@ -12,6 +12,9 @@
       - link "Topographie":
         - /url: /topology
     - listitem:
+      - link "VLAN":
+        - /url: /vlans
+    - listitem:
       - link "Domaines":
         - /url: /domains
     - listitem:
@@ -33,7 +36,6 @@
       - link /Anomalies \d+/:
         - /url: /anomalies
   - button "Changesets"
-  - button "Réseau"
   - button "Machines"
   - button "Politique"
   - button "Flux"
@@ -63,6 +65,10 @@
   - definition: /\d+/
   - term: Sites
   - definition: "9"
+  - term: Groupes de VLAN
+  - definition: "4"
+  - term: VLAN
+  - definition: /\d+/
   - heading "Changesets appliqués" [level=2]
   - text: tous auteurs
   - term: 7 derniers jours
@@ -184,10 +190,10 @@
   - text: 3 nouvelles depuis hier
   - button "Voir les anomalies"
   - heading "VLAN" [level=2]
-  - text: plugin VLAN
+  - text: lisibles par vous
   - term: Réservés
   - definition: /\d+/
-  - term: Obsolètes
+  - term: Dépréciés
   - definition: "5"
   - paragraph: Occupation des groupes
   - table "Occupation des groupes de VLAN":
@@ -206,6 +212,9 @@
       - row "labo 6 %":
         - rowheader "labo"
         - cell "6 %"
+      - row /atelier-nord \d+ %/:
+        - rowheader "atelier-nord"
+        - cell /\d+ %/
   - heading "Flux" [level=2]
   - text: plugin Flux
   - term: Non conformes

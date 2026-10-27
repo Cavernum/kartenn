@@ -15,7 +15,6 @@
     - listitem:
       - link "Mes brouillons 3":
         - /url: /drafts
-  - button "Réseau"
   - button "Machines"
   - button "Politique"
   - button "Flux"
@@ -78,9 +77,9 @@
         - list:
           - listitem:
             - text: /Le VLAN \d+ reste sur le site ouest, ses réseaux passent à l'est\./
-            - button "Copier vlan.site.mismatch":
+            - button "Copier core.vlan.site_mismatch":
               - text: ""
-              - code: vlan.site.mismatch
+              - code: core.vlan.site_mismatch
             - status
       - 'heading /modifié : Serveurs \d+\.\d+\.2\.0\/\d+ 1/ [level=3]':
         - 'button /modifié : Serveurs \d+\.\d+\.2\.0\/\d+ 1/ [expanded]':
@@ -133,7 +132,7 @@
           - text: ""
       - list:
         - listitem:
-          - text: "anomalie : Site du VLAN (vlan.site.mismatch)"
+          - text: "anomalie : Site du VLAN (core.vlan.site_mismatch)"
           - deletion: "avant : site-ouest"
           - insertion: "après : site-est"
 - button "Ouvrir le panneau"

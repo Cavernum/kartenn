@@ -1,0 +1,138 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel" [expanded]
+  - list:
+    - listitem:
+      - link "Accueil":
+        - /url: /
+    - listitem:
+      - link "Topographie":
+        - /url: /topology
+    - listitem:
+      - link "VLAN":
+        - /url: /vlans
+    - listitem:
+      - link "Domaines":
+        - /url: /domains
+    - listitem:
+      - link "Préfixes":
+        - /url: /prefixes
+    - listitem:
+      - link "Plages":
+        - /url: /ranges
+    - listitem:
+      - link "Adresses":
+        - /url: /addresses
+    - listitem:
+      - link "Entités":
+        - /url: /entities
+    - listitem:
+      - link "Sites":
+        - /url: /sites
+    - listitem:
+      - link /Anomalies \d+/:
+        - /url: /anomalies
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Référentiel":
+          - /url: /
+      - listitem:
+        - link "VLAN":
+          - /url: /vlans
+      - listitem:
+        - link "campus-ouest":
+          - /url: /vlan-groups/campus-ouest
+      - listitem: /\d+ supervision/
+  - button "Présent"
+  - button "Brouillon 3 opérations"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading /VLAN \d+ supervision/ [level=1]
+  - region /VLAN \d+ supervision/:
+    - heading /VLAN \d+ supervision/ [level=2]
+    - text: VLAN · actif · groupe campus-ouest
+    - button "Modifier"
+    - button "Actions"
+    - tablist "Sections de la fiche":
+      - tab "Réseaux 3" [selected]
+      - tab "Historique 3"
+      - tab "Anomalies 1"
+      - tab "Interfaces 6"
+    - tabpanel "Réseaux 3":
+      - button "Colonnes"
+      - grid /Réseaux qui portent le VLAN \d+/:
+        - rowgroup:
+          - row "Réseau Nom Cohérence":
+            - columnheader "Réseau"
+            - columnheader "Nom"
+            - columnheader "Cohérence"
+        - rowgroup:
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Cohérent/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/:
+              - link /\d+\.\d+\.\d+\.\d+\/\d+/:
+                - /url: /prefixes/192.0.2.64/26
+            - gridcell "Supervision"
+            - gridcell "Cohérent"
+          - row /\d+:db8:\d+:\d+::\/\d+ Supervision Cohérent/:
+            - gridcell /\d+:db8:\d+:\d+::\/\d+/:
+              - link /\d+:db8:\d+:\d+::\/\d+/:
+                - /url: /prefixes/2001:db8:10:121::/64
+            - gridcell "Supervision"
+            - gridcell "Cohérent"
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision B Site hors de l'ancre Copier core\.vlan\.site_mismatch/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/:
+              - link /\d+\.\d+\.\d+\.\d+\/\d+/:
+                - /url: /prefixes/198.51.100.64/26
+            - gridcell "Supervision B"
+            - gridcell "Site hors de l'ancre Copier core.vlan.site_mismatch":
+              - text: ""
+              - button "Copier core.vlan.site_mismatch":
+                - text: ""
+                - code: core.vlan.site_mismatch
+              - status
+      - paragraph: Seuls les réseaux que vous pouvez lire sont listés et comptés.
+      - status:
+        - paragraph: Un réseau hors du site du groupe
+        - text: Le groupe campus-ouest est ancré sur le site
+        - code: site-ouest
+        - text: ;
+        - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+        - text: est sur
+        - code: site-est
+        - text: .
+        - button "Copier core.vlan.site_mismatch":
+          - text: ""
+          - code: core.vlan.site_mismatch
+        - status
+    - heading "Attributs" [level=2]
+    - term: VID
+    - definition: /\d+/
+    - term: Nom
+    - definition: supervision
+    - term: Statut
+    - definition: Actif
+    - term: Groupe
+    - definition:
+      - link "campus-ouest":
+        - /url: /_ui/ecrans/E12?vue=groupe&mode=dark
+    - term: Domaine
+    - definition: Centre de données nord
+    - term: Identifiant
+    - definition:
+      - button "Copier 01JD4M2V6N8Q0R2T4W6Y8A0C2E":
+        - text: ""
+        - code: 01JD4M2V6N8Q0R2T4W6Y8A0C2E
+      - status
+- button "Ouvrir le panneau"

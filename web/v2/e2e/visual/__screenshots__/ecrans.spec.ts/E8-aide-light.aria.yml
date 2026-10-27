@@ -45,9 +45,9 @@
         - 'gridcell "Touches : g puis b"'
         - gridcell "Ouvrir le brouillon"
         - gridcell "Hors champ"
-      - 'row "Touches : g puis v Aller aux VLAN (plugin) Hors champ"':
+      - 'row "Touches : g puis v Aller aux VLAN Hors champ"':
         - 'gridcell "Touches : g puis v"'
-        - gridcell "Aller aux VLAN (plugin)"
+        - gridcell "Aller aux VLAN"
         - gridcell "Hors champ"
       - 'row "Touches : c Créer dans la collection Présent, droit"':
         - 'gridcell "Touches : c"'
