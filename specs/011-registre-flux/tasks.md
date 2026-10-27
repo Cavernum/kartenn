@@ -442,7 +442,7 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     lecteur sans `flow.read`, machine refusée, rien d'écrit), policy
     `acceptance_of_req_010_13` (interface 2 × 3 adresses = 6 verdicts, interface sans
     adresse `no_address`) et `acceptance_of_req_010_13_a_machine_is_refused`. Le SDK
-    `web/v2/sdk` reste à régénérer après fusion (hors périmètre de cette branche).
+    `web/v2/sdk` a été régénéré après fusion (235e590d).
   - choix : route voisine `GET`/`QUERY /v1/flow-checks` du module flux plutôt qu'une
     section de `/v1/verdicts` (la 010 ne dépend pas de la 011) ; la réponse embarque
     `PolicyVerdict` (`verdict`) et ajoute `pairs` et `case` ; `conformant` = verdict

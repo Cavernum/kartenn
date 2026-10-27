@@ -132,7 +132,7 @@ Effet : compiler n'exige ni PostgreSQL ni réseau. Source :
 ### 2.4 Unification des features : cargo-hakari
 
 Avec des modules sélectionnés par features (D6, D16), compiler une crate seule
-(`cargo build -p kartenn-vlan`) puis le workspace peut activer des jeux de features
+(`cargo build -p kartenn-machines`) puis le workspace peut activer des jeux de features
 différents sur une même dépendance, donc la recompiler. `cargo-hakari` maintient une
 crate *workspace-hack* qui fige l'union des features.
 
