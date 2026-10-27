@@ -40,7 +40,7 @@ import { t } from "../../i18n.ts";
 import IconButton from "../IconButton/IconButton.vue";
 import { isRtl } from "../internal/gridKeys.ts";
 import { inertOthers } from "../internal/inertOthers.ts";
-import { filled, ownsEscape } from "../internal/panel.ts";
+import { filled, ownsEscape, scrollCue } from "../internal/panel.ts";
 import Menu from "../Menu/Menu.vue";
 import type { MenuItem } from "../Menu/menu.ts";
 import Tabs from "../Tabs/Tabs.vue";
@@ -162,6 +162,18 @@ watch(
   { flush: "post" },
 );
 onBeforeUnmount(release);
+
+// The shade at the bottom edge of the tab panel while more lies below (`data-more`).
+let stopCue: (() => void) | null = null;
+watch(
+  panel,
+  (el) => {
+    stopCue?.();
+    stopCue = el ? scrollCue(el, ":scope > .k-side-panel__tabs > .k-tabs__panel") : null;
+  },
+  { flush: "post" },
+);
+onBeforeUnmount(() => stopCue?.());
 
 /** The strip reopens the panel and moves the focus to its active tab. */
 async function reopen(): Promise<void> {
@@ -443,23 +455,28 @@ function onPointerup(event: PointerEvent): void {
     );
   }
 
-  /* A scroll cue (relecture du 2026-10-26): a shade at the bottom edge of the tab panel
-   * while more lies below — the shade stays with the box (`scroll`), a cover of the
-   * surface colour at the end of the content (`local`) hides it once the end shows. */
   .k-side-panel__tabs > .k-tabs__panel {
     min-block-size: 0;
     padding: var(--k-space-3);
     overflow: auto;
     background-color: var(--k-surface);
-    background-image:
-      linear-gradient(var(--k-surface), var(--k-surface)),
-      linear-gradient(to top, var(--k-border-strong), transparent);
-    background-repeat: no-repeat;
-    background-attachment: local, scroll;
-    background-position: bottom;
-    background-size:
-      100% var(--k-space-4),
-      100% var(--k-space-2);
+  }
+
+  /* A scroll cue (relecture du 2026-10-26, reprise le 2026-10-27): a shade at the bottom
+   * edge of the tab panel while more lies below (`data-more`, `scrollCue`). It sticks to
+   * the edge above the content, encarts and their backgrounds included; its negative
+   * margin keeps it out of the layout, and the pointer goes through it. */
+  .k-side-panel__tabs > .k-tabs__panel[data-more]::after {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: calc(var(--k-z-sticky) + 2);
+    display: block;
+    block-size: var(--k-space-2);
+    margin-block-start: calc(var(--k-space-2) * -1);
+    margin-inline: calc(var(--k-space-3) * -1);
+    pointer-events: none;
+    content: "";
+    background-image: linear-gradient(to top, var(--k-border-strong), transparent);
   }
 
   /* The width menu and the close button, at the end of the tab list. */

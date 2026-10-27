@@ -27,7 +27,7 @@ import { injectPortalTarget } from "../../context.ts";
 import { t } from "../../i18n.ts";
 import IconButton from "../IconButton/IconButton.vue";
 import { inertOthers } from "../internal/inertOthers.ts";
-import { filled, ownsEscape } from "../internal/panel.ts";
+import { filled, ownsEscape, scrollCue } from "../internal/panel.ts";
 import Menu from "../Menu/Menu.vue";
 import type { MenuItem } from "../Menu/menu.ts";
 import Tabs from "../Tabs/Tabs.vue";
@@ -138,6 +138,18 @@ watch(
   { flush: "post" },
 );
 onBeforeUnmount(release);
+
+// The shade at the bottom edge of the tab panel while more lies below (`data-more`).
+let stopCue: (() => void) | null = null;
+watch(
+  panel,
+  (el) => {
+    stopCue?.();
+    stopCue = el ? scrollCue(el, ":scope > .k-bottom-panel__tabs > .k-tabs__panel") : null;
+  },
+  { flush: "post" },
+);
+onBeforeUnmount(() => stopCue?.());
 
 function onKeydown(event: KeyboardEvent): void {
   if (event.key === "Escape" && !event.defaultPrevented && !ownsEscape(event.target)) {
@@ -352,21 +364,26 @@ function onPointerup(event: PointerEvent): void {
       calc(var(--k-control-height-sm) * 2 + var(--k-space-1) + var(--k-space-2) * 2);
   }
 
-  /* A scroll cue, as in the side panel: a shade at the bottom edge while more lies below. */
   .k-bottom-panel__tabs > .k-tabs__panel {
     min-block-size: 0;
     padding: var(--k-space-3);
     overflow: auto;
     background-color: var(--k-surface);
-    background-image:
-      linear-gradient(var(--k-surface), var(--k-surface)),
-      linear-gradient(to top, var(--k-border-strong), transparent);
-    background-repeat: no-repeat;
-    background-attachment: local, scroll;
-    background-position: bottom;
-    background-size:
-      100% var(--k-space-4),
-      100% var(--k-space-2);
+  }
+
+  /* A scroll cue, as in the side panel: a shade at the bottom edge while more lies below,
+   * above the content, out of the layout and of the pointer's way. */
+  .k-bottom-panel__tabs > .k-tabs__panel[data-more]::after {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: calc(var(--k-z-sticky) + 2);
+    display: block;
+    block-size: var(--k-space-2);
+    margin-block-start: calc(var(--k-space-2) * -1);
+    margin-inline: calc(var(--k-space-3) * -1);
+    pointer-events: none;
+    content: "";
+    background-image: linear-gradient(to top, var(--k-border-strong), transparent);
   }
 
   /* The height menu and the close button, at the end of the tab list. */
