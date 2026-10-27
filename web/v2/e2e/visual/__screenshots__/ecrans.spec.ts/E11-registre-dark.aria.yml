@@ -80,10 +80,10 @@
         - row /srv-web-\d+ · eth0 srv-app-\d+ · eth0 API interne api Applicatif Actif Conforme Automatique —/:
           - gridcell /srv-web-\d+ · eth0/:
             - link /srv-web-\d+ · eth0/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-web-02&mode=dark
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-web-02&iface=eth0&mode=dark
           - gridcell /srv-app-\d+ · eth0/:
             - link /srv-app-\d+ · eth0/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=dark
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=dark
           - gridcell "API interne api":
             - text: ""
             - code: api
@@ -97,7 +97,7 @@
               - /url: /_ui/ecrans/E2?mode=dark
           - gridcell /srv-app-\d+ · eth0/:
             - link /srv-app-\d+ · eth0/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=dark
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=dark
           - gridcell "Web chiffré https":
             - text: ""
             - code: https
@@ -108,7 +108,7 @@
         - row /srv-app-\d+ · eth0 \d+\.\d+\.\d+\.\d+ PostgreSQL postgres Base de données Actif Conforme Automatique —/:
           - gridcell /srv-app-\d+ · eth0/:
             - link /srv-app-\d+ · eth0/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=dark
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=dark
           - gridcell /\d+\.\d+\.\d+\.\d+/:
             - link /\d+\.\d+\.\d+\.\d+/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-db-02&mode=dark
@@ -122,10 +122,10 @@
         - row /bastion-\d+ · eth0 srv-app-\d+ · eth1 Shell sécurisé ssh Administratif Actif Conforme Automatique \d+-\d+-\d+/:
           - gridcell /bastion-\d+ · eth0/:
             - link /bastion-\d+ · eth0/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=bastion-01&mode=dark
+              - /url: /_ui/ecrans/E11?vue=interface&machine=bastion-01&iface=eth0&mode=dark
           - gridcell /srv-app-\d+ · eth1/:
             - link /srv-app-\d+ · eth1/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=dark
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth1&mode=dark
           - gridcell "Shell sécurisé ssh":
             - text: ""
             - code: ssh
@@ -136,10 +136,10 @@
         - row /srv-rec-\d+ · eth0 srv-app-\d+ · eth0 Web chiffré https Applicatif Demandé Sous réserve Instruction —/:
           - gridcell /srv-rec-\d+ · eth0/:
             - link /srv-rec-\d+ · eth0/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-rec-03&mode=dark
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-rec-03&iface=eth0&mode=dark
           - gridcell /srv-app-\d+ · eth0/:
             - link /srv-app-\d+ · eth0/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=dark
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=dark
           - gridcell "Web chiffré https":
             - text: ""
             - code: https
@@ -150,10 +150,10 @@
         - row /dev-web-\d+ · eth0 srv-db-\d+ · eth0 PostgreSQL postgres Base de données Dérogé Non conforme \d+-\d+-\d+/:
           - gridcell /dev-web-\d+ · eth0/:
             - link /dev-web-\d+ · eth0/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=dev-web-01&mode=dark
+              - /url: /_ui/ecrans/E11?vue=interface&machine=dev-web-01&iface=eth0&mode=dark
           - gridcell /srv-db-\d+ · eth0/:
             - link /srv-db-\d+ · eth0/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-db-02&mode=dark
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-db-02&iface=eth0&mode=dark
           - gridcell "PostgreSQL postgres":
             - text: ""
             - code: postgres
@@ -164,7 +164,7 @@
         - row /srv-app-\d+ · eth0 \d+\.\d+\.\d+\.\d+ Partage NFS nfs Fichier Actif Conforme Automatique —/:
           - gridcell /srv-app-\d+ · eth0/:
             - link /srv-app-\d+ · eth0/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=dark
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=dark
           - gridcell /\d+\.\d+\.\d+\.\d+/:
             - link /\d+\.\d+\.\d+\.\d+/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-sauv-01&mode=dark
@@ -178,7 +178,7 @@
         - row /srv-app-\d+ · eth0 \d+\.\d+\.\d+\.\d+\/\d+ Shell sécurisé ssh Administratif Non conforme Non conforme —/:
           - gridcell /srv-app-\d+ · eth0/:
             - link /srv-app-\d+ · eth0/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-07&mode=dark
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-07&iface=eth0&mode=dark
           - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/:
             - link /\d+\.\d+\.\d+\.\d+\/\d+/:
               - /url: /_ui/ecrans/E2?mode=dark
@@ -192,10 +192,10 @@
         - row /srv-rec-\d+ · eth0 srv-app-\d+ · eth0 Web chiffré https Applicatif Échu Sous réserve Instruction \d+-\d+-\d+/:
           - gridcell /srv-rec-\d+ · eth0/:
             - link /srv-rec-\d+ · eth0/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-rec-04&mode=dark
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-rec-04&iface=eth0&mode=dark
           - gridcell /srv-app-\d+ · eth0/:
             - link /srv-app-\d+ · eth0/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-app-01&mode=dark
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=dark
           - gridcell "Web chiffré https":
             - text: ""
             - code: https

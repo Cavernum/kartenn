@@ -42,7 +42,7 @@
     - text: machine · Production · site-ouest
     - tablist "Sections de la fiche":
       - tab "Information" [selected]
-      - tab "Interfaces 2"
+      - tab "Interfaces 3"
       - tab "Historique 3"
     - tabpanel "Information":
       - term: Environnement déclaré
@@ -54,7 +54,16 @@
       - term: Système
       - definition: Linux
       - term: Interfaces
-      - definition: eth0 (Service), eth1 (Administration)
+      - definition:
+        - link "eth0":
+          - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
+        - text: SFP · service
+        - link "eth1":
+          - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth1&mode=light
+        - text: Ethernet · administration
+        - link "eth2":
+          - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth2&mode=light
+        - text: SFP · stockage
       - term: Adresses
       - definition: "3"
       - region "Flux de ses interfaces":
@@ -63,15 +72,17 @@
         - heading "Entrants 5" [level=4]
         - list "Entrants 5":
           - listitem:
-            - code: eth0
+            - link "eth0":
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
             - text: depuis
             - link /srv-web-\d+ · eth0/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-web-02&mode=light
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-web-02&iface=eth0&mode=light
             - text: API interne
             - code: api
             - text: Applicatif Conforme
           - listitem:
-            - code: eth0
+            - link "eth0":
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
             - text: depuis
             - link /\d+\.\d+\.\d+\.\d+\/\d+/:
               - /url: /_ui/ecrans/E2?mode=light
@@ -79,45 +90,54 @@
             - code: https
             - text: Applicatif Conforme
           - listitem:
-            - code: eth1
+            - link "eth1":
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth1&mode=light
             - text: depuis
             - link /bastion-\d+ · eth0/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=bastion-01&mode=light
+              - /url: /_ui/ecrans/E11?vue=interface&machine=bastion-01&iface=eth0&mode=light
             - text: Shell sécurisé
             - code: ssh
             - text: Administratif Conforme
           - listitem:
-            - code: eth0
+            - link "eth0":
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
             - text: depuis
             - link /srv-rec-\d+ · eth0/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-rec-03&mode=light
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-rec-03&iface=eth0&mode=light
             - text: Web chiffré
             - code: https
             - text: Applicatif Sous réserve Demandé
           - listitem:
-            - code: eth0
+            - link "eth0":
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
             - text: depuis
             - link /srv-rec-\d+ · eth0/:
-              - /url: /_ui/ecrans/E11?vue=machine&machine=srv-rec-04&mode=light
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-rec-04&iface=eth0&mode=light
             - text: Web chiffré
             - code: https
             - text: Applicatif Sous réserve Échu
         - heading "Sortants 2" [level=4]
         - list "Sortants 2":
           - listitem:
-            - code: eth0
+            - link "eth0":
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
             - text: vers
             - link /\d+\.\d+\.\d+\.\d+/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-db-02&mode=light
-            - text: /srv-db-\d+ · eth0 PostgreSQL/
+            - link /srv-db-\d+ · eth0/:
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-db-02&iface=eth0&mode=light
+            - text: PostgreSQL
             - code: postgres
             - text: Base de données Conforme
           - listitem:
-            - code: eth0
+            - link "eth0":
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
             - text: vers
             - link /\d+\.\d+\.\d+\.\d+/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-sauv-01&mode=light
-            - text: /srv-sauv-\d+ · eth0 Partage NFS/
+            - link /srv-sauv-\d+ · eth0/:
+              - /url: /_ui/ecrans/E11?vue=interface&machine=srv-sauv-01&iface=eth0&mode=light
+            - text: Partage NFS
             - code: nfs
             - text: Fichier Conforme
 - button "Ouvrir le panneau"

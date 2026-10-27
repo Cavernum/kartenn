@@ -323,7 +323,7 @@ export const MOCKUPS: Mockup[] = [
     id: "E11",
     title: "Flux",
     shows:
-      "Registre des flux (filtres typés, état, conformité à la matrice de flux, issue), proposition de flux en tableau dans un changeset avec la ligne choisie dans le panneau du bas, tester une connexion (ouvert, conforme) sans écriture, flux des interfaces d'une machine dans son onglet d'information. Une extrémité est une adresse, une interface ou un préfixe, jamais une machine.",
+      "Registre des flux (filtres typés, état, conformité à la matrice de flux, issue), proposition de flux en tableau dans un changeset avec la ligne choisie dans le panneau du bas, tester une connexion (ouvert, conforme) sans écriture, flux des interfaces d'une machine dans son onglet d'information, fiche d'une interface (média, rôle, VLAN, adresses, flux). Une extrémité est une adresse, une interface ou un préfixe, jamais une machine.",
     views: [
       {
         id: "registre",
@@ -371,7 +371,13 @@ export const MOCKUPS: Mockup[] = [
         id: "machine",
         label: "Flux d'une machine",
         description:
-          "Fiche de srv-app-01, onglet Information : attributs, puis les flux de ses interfaces, entrants et sortants, en liste compacte : l'interface (et l'adresse ou le préfixe qui l'atteint), l'autre extrémité (interface, adresse ou préfixe, en lien vers la fiche de sa machine), service, type de flux, conformité à la matrice.",
+          "Fiche de srv-app-01, onglet Information : attributs (interfaces en liens, avec leur média et leur rôle), puis les flux de ses interfaces, entrants et sortants, en liste compacte : l'interface (et l'adresse ou le préfixe qui l'atteint), l'autre extrémité (une interface en lien vers sa fiche, une adresse vers la fiche de sa machine), service, type de flux, conformité à la matrice.",
+      },
+      {
+        id: "interface",
+        label: "Fiche d'une interface",
+        description:
+          "srv-app-01 · eth0 : nom, machine en lien, MAC, état, média (Ethernet, SFP, Wi-Fi, agrégat, virtuelle, bouclage ; clé et libellé, modifiable par la liste fermée), rôle, VLAN ; adresses rattachées, la principale marquée ; flux de l'interface, entrants et sortants, l'autre extrémité en lien, conformité à la matrice ; historique.",
       },
     ],
   },

@@ -1,0 +1,69 @@
+- main:
+  - region "SidePanel":
+    - heading "SidePanel" [level=1]
+    - paragraph: "Motif : région complementary (non modale) + Tabs ; poignée Window Splitter ; en feuille, Dialog (Modal)"
+    - 'figure "scroll-shade — Contenu plus long que l''onglet : l''ombre du bord bas passe au-dessus du contenu, encart compris, et disparaît en fin de défilement"':
+      - button "Brouillon 3 opérations" [expanded]
+      - heading /Contenu de \d+\.\d+\.2\.0\/\d+/ [level=2]
+      - grid "Préfixes":
+        - rowgroup:
+          - row "Préfixe Libellé Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Libellé"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.2\.0\/\d+ Supervision \d+ %/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Supervision"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Réserve \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Réserve"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Salle B \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Salle B"
+            - gridcell /\d+ %/
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ %/:
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell "Invités"
+            - gridcell /\d+ %/
+          - row /\d+:db8::\/\d+ Sauvegardes 7 %/:
+            - gridcell /\d+:db8::\/\d+/
+            - gridcell "Sauvegardes"
+            - gridcell "7 %"
+      - complementary "Panneau droit":
+        - separator "Redimensionner le panneau"
+        - tablist "Onglets du panneau":
+          - tab "Détail" [selected]
+          - tab "Brouillon 3"
+        - tabpanel "Détail":
+          - paragraph: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - paragraph: Supervision · Production
+          - paragraph: "/Occupation : \\d+ %/"
+          - paragraph: "/Serveurs : \\d+\\.\\d+\\.2\\.0\\/\\d+/"
+          - paragraph: "/Supervision : \\d+\\.\\d+\\.2\\.0\\/\\d+/"
+          - paragraph: "/Réserve : \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+/"
+          - paragraph: "/Salle B : \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+/"
+          - paragraph: "/Invités : \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+/"
+          - paragraph: "/Sauvegardes : \\d+:db8::\\/\\d+/"
+          - paragraph: "/Occupation de \\d+\\.\\d+\\.2\\.0\\/\\d+ : \\d+ %/"
+          - paragraph: "/Occupation de \\d+\\.\\d+\\.2\\.0\\/\\d+ : \\d+ %/"
+          - paragraph: "/Occupation de \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+ : \\d+ %/"
+          - paragraph: "/Occupation de \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+ : \\d+ %/"
+          - paragraph: "/Occupation de \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+ : \\d+ %/"
+          - paragraph: "/Occupation de \\d+:db8::\\/\\d+ : 7 %/"
+          - status:
+            - paragraph: /Occupation au-delà de \d+ %/
+            - text: "/Le préfixe \\d+\\.\\d+\\.2\\.0\\/\\d+ n'a plus que quelques adresses libres : en réserver avant d'en rattacher d'autres\\./"
+          - status:
+            - paragraph: Préfixe hérité
+            - text: /La sensibilité vient de \d+\.\d+\.2\.0\/\d+\./
+        - button "Largeur du panneau"
+        - button "Fermer le panneau"
+      - code: scroll-shade
+      - text: ""

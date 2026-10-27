@@ -24,6 +24,7 @@ import {
   InlineAlert,
   KeyLabel,
   MatrixGrid,
+  Menu,
   Stack,
   StatusBadge,
   Tabs,
@@ -53,6 +54,8 @@ import {
   ENV,
   FLOWS,
   FLOW_TYPE,
+  INTERFACE_MEDIA,
+  INTERFACE_ROLE,
   MACHINES,
   RULES,
   SERVICES,
@@ -61,6 +64,10 @@ import {
   type EnvKey,
   type FlowAddress,
   type FlowEnd,
+  type FlowInterface,
+  type InterfaceMedia,
+  type InterfaceRole,
+  type InterfaceVlan,
   type FlowRule,
   type FlowState,
   type FlowTypeKey,
@@ -126,14 +133,23 @@ function machineOf(end: FlowEnd): string | null {
   if (end.kind === "address") return ownerOf(end.value)?.machine ?? null;
   return null;
 }
-/** The card of the machine of an end, or of the prefix (E2); none for a lone address. */
+/** The card of a machine (the view `machine`). */
+const machineCard = (machine: string): RouteLocationRaw => view("machine", { machine });
+/** The card of an interface (the view `interface`): every mention of an interface leads there. */
+const ifaceCard = (machine: string, iface: string): RouteLocationRaw =>
+  view("interface", { machine, iface });
+/**
+ * The card of an end: an interface's own, the machine of an address, the prefix (E2); none
+ * for a lone address.
+ */
 function cardOf(end: FlowEnd): RouteLocationRaw | null {
   if (end.kind === "prefix") {
     const mode = route.query.mode;
     return { path: "/_ui/ecrans/E2", query: typeof mode === "string" ? { mode } : {} };
   }
+  if (end.kind === "interface") return ifaceCard(end.machine, end.iface);
   const machine = machineOf(end);
-  return machine ? view("machine", { machine }) : null;
+  return machine ? machineCard(machine) : null;
 }
 /** The interface that carries an address end, as context: « srv-db-02 · eth0 ». */
 function contextOf(end: FlowEnd): string | null {
@@ -141,11 +157,18 @@ function contextOf(end: FlowEnd): string | null {
   const owner = ownerOf(end.value);
   return owner ? `${owner.machine} · ${owner.iface}` : null;
 }
+/** The card of the interface that carries an address end. */
+function contextCard(end: FlowEnd): RouteLocationRaw {
+  const owner = end.kind === "address" ? ownerOf(end.value) : null;
+  return owner ? ifaceCard(owner.machine, owner.iface) : "";
+}
+const interfaceOf = (machine: string, name: string): FlowInterface | undefined =>
+  MACHINES[machine]?.interfaces.find((i) => i.name === name);
 /** The role of an interface end (Service, Administration…). */
-const roleOf = (end: FlowEnd): string =>
-  end.kind === "interface"
-    ? (MACHINES[end.machine]!.interfaces.find((i) => i.name === end.iface)?.role ?? "")
-    : "";
+const roleOf = (end: FlowEnd): string => {
+  const i = end.kind === "interface" ? interfaceOf(end.machine, end.iface) : undefined;
+  return i ? INTERFACE_ROLE[i.role] : "";
+};
 /** An address of an end, with the interface that carries it. */
 interface EndAddress {
   address: FlowAddress;
@@ -676,9 +699,11 @@ const proposalColumns: GridColumn[] = [
   { id: "object", label: "Service ou port", width: "md", priority: 3 },
   // The verdict before the fields of the dossier, in view without scrolling the grid; the
   // flow type of the row is in the tab « Matrice » of the bottom panel and in the draft.
-  { id: "verdict", label: "Verdict", width: "fill" },
+  // The verdict and the justification wrap rather than clip once the rows stack (`stack`,
+  // under a container `sm`: the draft beside the grid, a phone): no label cut.
+  { id: "verdict", label: "Verdict", width: "fill", wrap: true },
   { id: "reference", label: "Référence", width: "md", mono: true, priority: 3 },
-  { id: "justification", label: "Justification", width: "md", priority: 3 },
+  { id: "justification", label: "Justification", width: "md", priority: 3, wrap: true },
 ];
 /** The chosen row, shown in the bottom panel. */
 const chosen = ref<string[]>([prefilled ? "ligne-5" : "ligne-2"]);
@@ -752,6 +777,11 @@ const byOutcome = computed(() => {
   return counts;
 });
 const incomplete = computed(() => proposalRows.value.filter((r) => !r.evaluation).length);
+const EFFECT: { key: Outcome; label: string }[] = [
+  { key: "automatic", label: "Enregistrés sans instruction" },
+  { key: "review", label: "À instruire" },
+  { key: "noncompliant", label: "Non conformes à la matrice" },
+];
 
 /**
  * The excerpt of the matrix: the environments of the decisive cell, and a neighbour when
@@ -784,12 +814,17 @@ const machineTabs = computed<TabItem[]>(() => [
   { value: "history", label: "Historique", count: 3 },
 ]);
 /**
- * How an end reaches the machine: by one of its interfaces, by an address of one, or by a
- * prefix that contains one of its addresses; null when it does not.
+ * How an end reaches the machine (or only the shown interface, on its card): by one of its
+ * interfaces, by an address of one, or by a prefix that contains one of its addresses; null
+ * when it does not.
  */
 function reach(end: FlowEnd): { by: string; through?: string } | null {
-  if (end.kind === "interface") return end.machine === machineKey.value ? { by: end.iface } : null;
-  for (const i of shownMachine.value.interfaces)
+  const own = props.vue === "interface" ? [shownIface.value] : shownMachine.value.interfaces;
+  if (end.kind === "interface")
+    return end.machine === machineKey.value && own.some((i) => i.name === end.iface)
+      ? { by: end.iface }
+      : null;
+  for (const i of own)
     for (const a of i.addresses)
       if (end.kind === "address" ? end.value === a.value : contains(end, a.value))
         return end.kind === "address"
@@ -826,6 +861,71 @@ const outgoing = computed(() => machineFlows("out"));
 const addressCount = computed(() =>
   shownMachine.value.interfaces.reduce((n, i) => n + i.addresses.length, 0),
 );
+const FLOW_GROUPS = computed(() => [
+  { id: "in", label: "Entrants", word: "depuis", flows: incoming.value },
+  { id: "out", label: "Sortants", word: "vers", flows: outgoing.value },
+]);
+
+// ——— An interface's card (009, REQ-009-6, 8, 11, 12, 26; 011, REQ-011-15) ———
+
+const shownIface = computed<FlowInterface>(() => {
+  const asked = route.query.iface;
+  const all = shownMachine.value.interfaces;
+  return all.find((i) => i.name === asked) ?? all[0]!;
+});
+const ifaceTab = ref("info");
+const ifaceTabs: TabItem[] = [
+  { value: "info", label: "Information" },
+  { value: "history", label: "Historique", count: 3 },
+];
+/** The 802.1Q mode in words (REQ-009-12). */
+function vlanOf(vlan: InterfaceVlan): string {
+  if (vlan.mode === "none") return "Aucun (trames sans étiquette)";
+  if (vlan.mode === "access") return `Accès · VLAN ${vlan.vlan}`;
+  const native = vlan.native === undefined ? "sans natif" : `natif ${vlan.native}`;
+  return `Trunk · étiquetés ${vlan.tagged.join(", ")} · ${native}`;
+}
+/**
+ * The medium and the role, closed lists edited in place (a menu of their values, key and
+ * label): a change goes to the draft, the value it replaces stays said.
+ */
+const media = ref<InterfaceMedia | null>(null);
+const role = ref<InterfaceRole>("service");
+watch(
+  shownIface,
+  (i) => {
+    media.value = i.media;
+    role.value = i.role;
+  },
+  { immediate: true },
+);
+const mediaChanged = computed(() => media.value !== shownIface.value.media);
+const roleChanged = computed(() => role.value !== shownIface.value.role);
+const choices = <K extends string>(labels: Record<K, string>, current: K | null) =>
+  (Object.keys(labels) as K[]).map((key) => ({
+    kind: "radio" as const,
+    id: key,
+    label: `${labels[key]} (${key})`,
+    checked: key === current,
+  }));
+const mediaChoices = computed(() => choices(INTERFACE_MEDIA, media.value));
+const roleChoices = computed(() => choices(INTERFACE_ROLE, role.value));
+/** The operations of the draft: the frame's three, and each property changed here. */
+const ifaceDraft = computed(() => 3 + Number(mediaChanged.value) + Number(roleChanged.value));
+/** The versions of the interface (cheap: the last three). */
+const IFACE_HISTORY = [
+  {
+    at: "2026-10-20",
+    change: "Média posé : sfp (était ethernet)",
+    changeset: "CHG-2031",
+  },
+  { at: "2026-09-02", change: "Adresse 192.0.2.14 rattachée", changeset: "CHG-1980" },
+  {
+    at: "2026-06-15",
+    change: "Interface créée, rôle service, VLAN 120 en accès",
+    changeset: "CHG-1702",
+  },
+];
 </script>
 
 <template>
@@ -949,6 +1049,7 @@ const addressCount = computed(() =>
         :rows="proposalRows"
         row-key="key"
         selectable="single"
+        stack
         :editing="editing"
         :row-state="proposalRowState"
         :cell-state="proposalCellState"
@@ -1042,19 +1143,27 @@ const addressCount = computed(() =>
               }}</span>
             </h3>
             <p class="k-e11-node">
-              <code v-if="chosenRow.proposal[side.id]!.kind === 'interface'">{{
-                endName(chosenRow.proposal[side.id]!)
-              }}</code>
+              <RouterLink
+                v-if="chosenRow.proposal[side.id]!.kind === 'interface'"
+                :to="cardOf(chosenRow.proposal[side.id]!)!"
+                class="k-mono"
+                >{{ endName(chosenRow.proposal[side.id]!) }}</RouterLink
+              >
               <template v-if="chosenRow.proposal[side.id]!.kind === 'prefix'">
                 <span class="k-ecran-muted">évalué sur ses propres valeurs</span>
               </template>
               <template v-else-if="machineOf(chosenRow.proposal[side.id]!)">
-                <span class="k-ecran-muted">{{
-                  chosenRow.proposal[side.id]!.kind === "address"
-                    ? `sur ${contextOf(chosenRow.proposal[side.id]!)} ·`
-                    : `${roleOf(chosenRow.proposal[side.id]!)} ·`
-                }}</span>
-                <RouterLink :to="cardOf(chosenRow.proposal[side.id]!)!"
+                <span v-if="chosenRow.proposal[side.id]!.kind === 'address'" class="k-ecran-muted"
+                  >sur
+                  <RouterLink :to="contextCard(chosenRow.proposal[side.id]!)" class="k-mono">{{
+                    contextOf(chosenRow.proposal[side.id]!)
+                  }}</RouterLink>
+                  ·</span
+                >
+                <span v-else class="k-ecran-muted"
+                  >{{ roleOf(chosenRow.proposal[side.id]!) }} ·</span
+                >
+                <RouterLink :to="machineCard(machineOf(chosenRow.proposal[side.id]!)!)"
                   >fiche de {{ machineOf(chosenRow.proposal[side.id]!) }}</RouterLink
                 >
               </template>
@@ -1206,28 +1315,13 @@ const addressCount = computed(() =>
         </Stack>
         <Stack as="section" gap="2" aria-labelledby="k-e11-effect">
           <h2 id="k-e11-effect" class="k-ecran-subtitle">Effet simulé</h2>
-          <Attributs
-            :items="[
-              {
-                key: 'automatic',
-                label: 'Enregistrés sans instruction',
-                value: String(byOutcome.automatic),
-                mono: true,
-              },
-              {
-                key: 'review',
-                label: 'À instruire',
-                value: String(byOutcome.review),
-                mono: true,
-              },
-              {
-                key: 'noncompliant',
-                label: 'Non conformes à la matrice',
-                value: String(byOutcome.noncompliant),
-                mono: true,
-              },
-            ]"
-          />
+          <!-- Counts: each label takes its width, the number at the end of its line. -->
+          <dl class="k-e11-counts">
+            <div v-for="item in EFFECT" :key="item.key" class="k-e11-counts__item">
+              <dt>{{ item.label }}</dt>
+              <dd class="k-num">{{ byOutcome[item.key] }}</dd>
+            </div>
+          </dl>
           <InlineAlert
             tone="warn"
             :title="`${byOutcome.noncompliant} flux non conformes à la matrice de flux`"
@@ -1372,7 +1466,12 @@ const addressCount = computed(() =>
                 <RouterLink :to="view('registre')" class="k-mono">{{ f.key }}</RouterLink>
                 <StatusBadge :state="STATE[f.state].state" :label="STATE[f.state].label" />
                 <span class="k-ecran-muted"
-                  ><code>{{ endName(f.source) }}</code> → <code>{{ endName(f.destination) }}</code
+                  ><template v-for="(e, n) in [f.source, f.destination]" :key="n"
+                    ><template v-if="n"> → </template
+                    ><RouterLink v-if="e.kind === 'interface'" :to="cardOf(e)!" class="k-mono">{{
+                      endName(e)
+                    }}</RouterLink
+                    ><code v-else>{{ endName(e) }}</code></template
                   ><template v-if="f.waiver"> · dérogation jusqu'au {{ f.waiver }}</template></span
                 >
               </li>
@@ -1463,19 +1562,205 @@ const addressCount = computed(() =>
     </Panneau>
   </Cadre>
 
-  <!-- A machine's card: the flows of its interfaces in the information tab. -->
+  <!-- A machine's card, or one of its interfaces': the flows in the information tab. -->
   <Cadre
     v-else
-    :title="`Machine ${shownMachine.key}`"
+    :title="
+      props.vue === 'interface'
+        ? `Interface ${shownMachine.key} · ${shownIface.name}`
+        : `Machine ${shownMachine.key}`
+    "
     active="machines"
     space="hosts"
-    :crumbs="[
-      { label: 'Machines', to: '/x/machines' },
-      { label: 'Machines', to: '/x/machines/machines' },
-      { label: shownMachine.key, mono: true },
-    ]"
+    :draft="ifaceDraft"
+    :crumbs="
+      props.vue === 'interface'
+        ? [
+            { label: 'Machines', to: '/x/machines' },
+            { label: 'Machines', to: '/x/machines/machines' },
+            { label: shownMachine.key, to: `/x/machines/${shownMachine.key}`, mono: true },
+            { label: shownIface.name, mono: true },
+          ]
+        : [
+            { label: 'Machines', to: '/x/machines' },
+            { label: 'Machines', to: '/x/machines/machines' },
+            { label: shownMachine.key, mono: true },
+          ]
+    "
   >
+    <!-- The card of an interface (009, REQ-009-6, 8, 11, 12, 26). -->
     <Panneau
+      v-if="props.vue === 'interface'"
+      :title="`${shownMachine.key} · ${shownIface.name}`"
+      :detail="`interface · ${INTERFACE_ROLE[role].toLowerCase()} · ${media ? INTERFACE_MEDIA[media] : 'média non renseigné'}`"
+      main
+    >
+      <Tabs v-model="ifaceTab" :tabs="ifaceTabs" label="Sections de la fiche">
+        <template #info>
+          <Stack gap="4">
+            <Attributs
+              columns
+              :items="[
+                { key: 'name', label: 'Nom', value: shownIface.name, mono: true },
+                { key: 'machine', label: 'Machine' },
+                { key: 'mac', label: 'MAC', value: shownIface.mac ?? '—', mono: true },
+                { key: 'enabled', label: 'État' },
+                { key: 'media', label: 'Média' },
+                { key: 'role', label: 'Rôle' },
+                { key: 'vlan', label: 'VLAN', value: vlanOf(shownIface.vlan) },
+              ]"
+            >
+              <template #machine>
+                <RouterLink :to="machineCard(shownMachine.key)" class="k-mono">{{
+                  shownMachine.key
+                }}</RouterLink>
+              </template>
+              <template #enabled>
+                <StatusBadge
+                  :state="shownIface.enabled ? 'ok' : 'neutral'"
+                  :label="shownIface.enabled ? 'Activée' : 'Désactivée'"
+                />
+              </template>
+              <template #media>
+                <span class="k-e11-property">
+                  <KeyLabel v-if="media" :value="media" :label="INTERFACE_MEDIA[media]" show-key />
+                  <span v-else class="k-ecran-muted">non renseigné</span>
+                  <Menu
+                    label="Modifier le média"
+                    :items="mediaChoices"
+                    icon="pencil"
+                    icon-only
+                    variant="ghost"
+                    size="sm"
+                    @select="(id) => (media = id as InterfaceMedia)"
+                  />
+                  <template v-if="mediaChanged">
+                    <StatusBadge state="neutral" label="En brouillon" />
+                    <span class="k-ecran-muted"
+                      >était
+                      {{
+                        shownIface.media ? INTERFACE_MEDIA[shownIface.media] : "non renseigné"
+                      }}</span
+                    >
+                  </template>
+                </span>
+              </template>
+              <template #role>
+                <span class="k-e11-property">
+                  <KeyLabel :value="role" :label="INTERFACE_ROLE[role]" show-key />
+                  <Menu
+                    label="Modifier le rôle"
+                    :items="roleChoices"
+                    icon="pencil"
+                    icon-only
+                    variant="ghost"
+                    size="sm"
+                    @select="(id) => (role = id as InterfaceRole)"
+                  />
+                  <template v-if="roleChanged">
+                    <StatusBadge state="neutral" label="En brouillon" />
+                    <span class="k-ecran-muted">était {{ INTERFACE_ROLE[shownIface.role] }}</span>
+                  </template>
+                </span>
+              </template>
+            </Attributs>
+            <Stack as="section" gap="2" aria-labelledby="k-e11-addresses">
+              <Cluster gap="2" align="baseline">
+                <h3 id="k-e11-addresses" class="k-ecran-subtitle">Adresses rattachées</h3>
+                <span class="k-ecran-muted k-num">{{ shownIface.addresses.length }}</span>
+              </Cluster>
+              <ul v-if="shownIface.addresses.length" class="k-e11-addresses">
+                <li v-for="(a, n) in shownIface.addresses" :key="a.value" class="k-e11-address">
+                  <span class="k-e11-node">
+                    <code>{{ a.value }}</code>
+                    <StatusBadge v-if="n === 0" state="info" label="Principale" />
+                    <EnvChip v-if="a.env" v-bind="ENV[a.env]" />
+                    <StatusBadge v-else state="warn" label="Sans environnement" />
+                  </span>
+                  <span class="k-ecran-muted k-e11-axes"
+                    >Environnement {{ a.envFrom }} · Sensibilité {{ a.sensitivity }}
+                    {{ a.sensitivityFrom }}</span
+                  >
+                </li>
+              </ul>
+              <p v-else class="k-ecran-muted">Aucune adresse rattachée.</p>
+            </Stack>
+            <Stack as="section" gap="2" aria-labelledby="k-e11-flows">
+              <Cluster gap="2" align="baseline">
+                <h3 id="k-e11-flows" class="k-ecran-subtitle">Flux de l'interface</h3>
+                <span class="k-ecran-muted">conformité à la matrice de flux du jour</span>
+              </Cluster>
+              <div v-for="group in FLOW_GROUPS" :key="group.id" class="k-e11-flows">
+                <h4 :id="`k-e11-flows-${group.id}`" class="k-e11-h4">
+                  {{ group.label }}
+                  <span class="k-ecran-muted k-num">{{ group.flows.length }}</span>
+                </h4>
+                <ul
+                  v-if="group.flows.length"
+                  class="k-e11-flow-list"
+                  :aria-labelledby="`k-e11-flows-${group.id}`"
+                >
+                  <li v-for="f in group.flows" :key="f.key" class="k-e11-flow">
+                    <span class="k-e11-flow__end">
+                      <span class="k-ecran-muted">par</span>
+                      <code v-if="f.by.through">{{ f.by.through }}</code>
+                      <span v-else>l'interface</span>
+                    </span>
+                    <span class="k-e11-flow__end">
+                      <span class="k-ecran-muted">{{ group.word }}</span>
+                      <RouterLink v-if="cardOf(f.other)" :to="cardOf(f.other)!" class="k-mono">{{
+                        endName(f.other)
+                      }}</RouterLink>
+                      <code v-else>{{ endName(f.other) }}</code>
+                      <RouterLink
+                        v-if="contextOf(f.other)"
+                        :to="contextCard(f.other)"
+                        class="k-mono"
+                        >{{ contextOf(f.other) }}</RouterLink
+                      >
+                      <span v-else-if="f.other.kind === 'prefix'" class="k-ecran-muted"
+                        >préfixe</span
+                      >
+                    </span>
+                    <KeyLabel
+                      :value="f.flow.service"
+                      :label="SERVICES[f.flow.service]!.label"
+                      show-key
+                    />
+                    <span>{{ FLOW_TYPE[SERVICES[f.flow.service]!.flowType] }}</span>
+                    <span class="k-e11-flow__state">
+                      <StatusBadge
+                        :state="SYNTHESIS[f.synthesis].state"
+                        :label="SYNTHESIS[f.synthesis].label"
+                      />
+                      <StatusBadge
+                        v-if="f.flow.state !== 'active'"
+                        :state="STATE[f.flow.state].state"
+                        :label="STATE[f.flow.state].label"
+                      />
+                    </span>
+                  </li>
+                </ul>
+                <p v-else class="k-ecran-muted">Aucun flux {{ group.label.toLowerCase() }}.</p>
+              </div>
+            </Stack>
+          </Stack>
+        </template>
+        <template #history>
+          <ol class="k-e11-list">
+            <li v-for="h in IFACE_HISTORY" :key="h.at" class="k-e11-node">
+              <span class="k-num">{{ h.at }}</span>
+              <span>{{ h.change }}</span>
+              <code>{{ h.changeset }}</code>
+            </li>
+          </ol>
+        </template>
+      </Tabs>
+    </Panneau>
+
+    <!-- A machine's card: the flows of its interfaces in the information tab. -->
+    <Panneau
+      v-else
       :title="shownMachine.key"
       :detail="`machine · ${shownMachine.env ? ENV[shownMachine.env].label : 'sans environnement'} · ${shownMachine.site}`"
       main
@@ -1490,11 +1775,7 @@ const addressCount = computed(() =>
                 { key: 'site', label: 'Site', value: shownMachine.site, mono: true },
                 { key: 'owner', label: 'Propriétaire', value: shownMachine.owner },
                 { key: 'system', label: 'Système', value: shownMachine.system },
-                {
-                  key: 'interfaces',
-                  label: 'Interfaces',
-                  value: shownMachine.interfaces.map((i) => `${i.name} (${i.role})`).join(', '),
-                },
+                { key: 'interfaces', label: 'Interfaces' },
                 { key: 'addresses', label: 'Adresses', value: String(addressCount), mono: true },
               ]"
             >
@@ -1502,20 +1783,26 @@ const addressCount = computed(() =>
                 <EnvChip v-if="shownMachine.env" v-bind="ENV[shownMachine.env]" />
                 <StatusBadge v-else state="warn" label="Sans environnement" />
               </template>
+              <template #interfaces>
+                <span class="k-e11-ifaces">
+                  <span v-for="i in shownMachine.interfaces" :key="i.name">
+                    <RouterLink :to="ifaceCard(shownMachine.key, i.name)" class="k-mono">{{
+                      i.name
+                    }}</RouterLink>
+                    <span class="k-ecran-muted">
+                      {{ i.media ? INTERFACE_MEDIA[i.media] : "—" }} ·
+                      {{ INTERFACE_ROLE[i.role].toLowerCase() }}</span
+                    >
+                  </span>
+                </span>
+              </template>
             </Attributs>
             <Stack as="section" gap="2" aria-labelledby="k-e11-flows">
               <Cluster gap="2" align="baseline">
                 <h3 id="k-e11-flows" class="k-ecran-subtitle">Flux de ses interfaces</h3>
                 <span class="k-ecran-muted">conformité à la matrice de flux du jour</span>
               </Cluster>
-              <div
-                v-for="group in [
-                  { id: 'in', label: 'Entrants', word: 'depuis', flows: incoming },
-                  { id: 'out', label: 'Sortants', word: 'vers', flows: outgoing },
-                ]"
-                :key="group.id"
-                class="k-e11-flows"
-              >
+              <div v-for="group in FLOW_GROUPS" :key="group.id" class="k-e11-flows">
                 <h4 :id="`k-e11-flows-${group.id}`" class="k-e11-h4">
                   {{ group.label }}
                   <span class="k-ecran-muted k-num">{{ group.flows.length }}</span>
@@ -1527,7 +1814,9 @@ const addressCount = computed(() =>
                 >
                   <li v-for="f in group.flows" :key="f.key" class="k-e11-flow">
                     <span class="k-e11-flow__end">
-                      <code>{{ f.by.by }}</code>
+                      <RouterLink :to="ifaceCard(shownMachine.key, f.by.by)" class="k-mono">{{
+                        f.by.by
+                      }}</RouterLink>
                       <span v-if="f.by.through" class="k-ecran-muted k-mono">{{
                         f.by.through
                       }}</span>
@@ -1538,9 +1827,12 @@ const addressCount = computed(() =>
                         endName(f.other)
                       }}</RouterLink>
                       <code v-else>{{ endName(f.other) }}</code>
-                      <span v-if="contextOf(f.other)" class="k-ecran-muted">{{
-                        contextOf(f.other)
-                      }}</span>
+                      <RouterLink
+                        v-if="contextOf(f.other)"
+                        :to="contextCard(f.other)"
+                        class="k-mono"
+                        >{{ contextOf(f.other) }}</RouterLink
+                      >
                       <span v-else-if="f.other.kind === 'prefix'" class="k-ecran-muted"
                         >préfixe</span
                       >
@@ -1571,9 +1863,16 @@ const addressCount = computed(() =>
         </template>
         <template #interfaces>
           <ul class="k-e11-list">
-            <li v-for="i in shownMachine.interfaces" :key="i.name">
-              <code>{{ i.name }}</code> {{ i.role }} ·
-              <code>{{ i.addresses.map((a) => a.value).join(", ") }}</code>
+            <li v-for="i in shownMachine.interfaces" :key="i.name" class="k-e11-node">
+              <RouterLink :to="ifaceCard(shownMachine.key, i.name)" class="k-mono">{{
+                i.name
+              }}</RouterLink>
+              <KeyLabel v-if="i.media" :value="i.media" :label="INTERFACE_MEDIA[i.media]" />
+              <span>{{ INTERFACE_ROLE[i.role] }}</span>
+              <StatusBadge v-if="!i.enabled" state="neutral" label="Désactivée" />
+              <code v-if="i.addresses.length">{{
+                i.addresses.map((a) => a.value).join(", ")
+              }}</code>
             </li>
           </ul>
         </template>
@@ -1603,10 +1902,55 @@ const addressCount = computed(() =>
     min-inline-size: 0;
   }
 
-  /* In a cell of a grid, on one line (the cell clips, the row keeps its height). */
-  .k-data-grid__cell .k-e11-verdict,
+  /* In a cell of a grid, on one line (the row keeps its height), unless the column wraps. */
+  .k-data-grid__cell:not([data-wrap]) .k-e11-verdict,
   .k-data-grid__cell .k-e11-port {
     flex-wrap: nowrap;
+  }
+
+  /* A property of the interface card: its value, the menu of its closed list, the draft. */
+  .k-e11-property {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--k-space-1) var(--k-space-2);
+    align-items: center;
+    min-inline-size: 0;
+  }
+
+  /* The interfaces of a machine, each with its medium and role, one per line. */
+  .k-e11-ifaces {
+    display: grid;
+    gap: var(--k-space-1);
+  }
+
+  .k-e11-ifaces > span {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: var(--k-space-2);
+  }
+
+  /* The simulated effect: each label on its line at its own width, the count at the end. */
+  .k-e11-counts {
+    display: grid;
+    grid-template-columns: minmax(0, max-content) auto;
+    gap: var(--k-space-1) var(--k-space-4);
+    margin: 0;
+  }
+
+  .k-e11-counts__item {
+    display: grid;
+    grid-template-columns: subgrid;
+    grid-column: 1 / -1;
+    align-items: baseline;
+  }
+
+  .k-e11-counts__item > dt {
+    color: var(--k-text-muted);
+  }
+
+  .k-e11-counts__item > dd {
+    margin: 0;
+    text-align: end;
   }
 
   /* A flow of the draft tab: source → destination, then its verdict. */

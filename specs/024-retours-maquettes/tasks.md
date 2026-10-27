@@ -706,6 +706,35 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
       (`machines.interface_media`, 009/M17 : Ethernet, SFP, Wi-Fi, agrégat, virtuelle,
       bouclage), rôle, VLAN, adresses rattachées, flux de l'interface ; les liens
       « interface » des autres vues d'E11 y mènent.
+  - Résultat (deuxième relecture, branche `feat/e11-review-2`) : `envoi` — la grille de la
+    proposition s'empile sous un conteneur `sm` (`stack` : le brouillon à côté à 1024, le
+    téléphone), Verdict et Justification vont à la ligne (`wrap`) au lieu d'être coupés ;
+    l'effet simulé devient une liste de comptes, chaque libellé à sa largeur, le nombre en
+    bout de ligne. Ombre de défilement : `scrollCue` (`internal/panel.ts`) pose `data-more`
+    sur l'onglet de `SidePanel` et de `BottomPanel` tant qu'il reste du contenu en bas
+    (défilement, `ResizeObserver`, `MutationObserver`) ; l'ombre est un `::after` collant
+    au bord bas, au-dessus du contenu (`z-index` au-dessus des en-têtes collants), hors du
+    flux (marge négative) et du pointeur ; nouvel état du catalogue `SidePanel/scroll-shade`
+    (encart sous le bord). Vue `interface` (`srv-app-01 · eth0`) : nom, machine en lien,
+    MAC, état, média et rôle en clé et libellé modifiables par un menu de leur liste fermée
+    (badge « En brouillon », valeur remplacée dite, compteur du brouillon incrémenté), VLAN
+    en mots, adresses rattachées (principale marquée), flux entrants et sortants de
+    l'interface, historique (trois versions) ; liens vers elle depuis le registre, le
+    panneau du bas de la proposition (extrémité interface, interface d'une adresse), les
+    flux qui ouvrent d'un test, la fiche de la machine (attribut Interfaces avec média et
+    rôle, onglet Interfaces, interface de chaque flux, contexte de l'autre extrémité).
+    Données : `FlowInterface` porte `role` en clé (`INTERFACE_ROLE`), `media`
+    (`INTERFACE_MEDIA`), `mac` (valeurs de documentation, RFC 9542 §2.1.4), `enabled`,
+    `vlan` ; `srv-app-01` gagne `eth2` (SFP, désactivée, sans adresse). Choix notés : un
+    script plutôt qu'un pur CSS pour l'ombre (les animations liées au défilement manquent
+    encore à un moteur courant, l'astuce `background-attachment` peint sous le contenu) ;
+    grille empilée plutôt que masquer des colonnes ; la machine d'une adresse reste sa
+    cible de lien, son interface s'y ajoute en contexte ; liste fermée en menu de boutons
+    radio (`Menu`), libellé « Ethernet (ethernet) » ; première adresse de la famille
+    tenue pour principale ; `dev-web-01 · eth0` en Wi-Fi, `srv-db-02 · eth0` en agrégat
+    trunk, les machines virtuelles en `virtual`. Reste : le choix d'interface de
+    `tester-a-declarer` (boutons radio) et les cellules éditables de la proposition ne
+    sont pas des liens.
 - [ ] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
   020) — REQ-024-29
 

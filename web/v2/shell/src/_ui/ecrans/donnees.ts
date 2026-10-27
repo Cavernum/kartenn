@@ -390,10 +390,43 @@ export interface FlowAddress {
   sensitivity: string;
   sensitivityFrom: string;
 }
-/** An interface of a machine (module Machines) and its role. */
+/** The role of an interface (`machines.interface_role`, 009, REQ-009-8): key, label. */
+export const INTERFACE_ROLE = {
+  administration: "Administration",
+  backup: "Sauvegarde",
+  monitoring: "Supervision",
+  storage: "Stockage",
+  cluster: "Grappe",
+  service: "Service",
+} as const;
+export type InterfaceRole = keyof typeof INTERFACE_ROLE;
+/** The medium of an interface (`machines.interface_media`, 009, REQ-009-26, M17). */
+export const INTERFACE_MEDIA = {
+  ethernet: "Ethernet",
+  sfp: "SFP",
+  wifi: "Wi-Fi",
+  aggregate: "Agrégat",
+  virtual: "Virtuelle",
+  loopback: "Bouclage",
+} as const;
+export type InterfaceMedia = keyof typeof INTERFACE_MEDIA;
+/** The 802.1Q mode of an interface (009, REQ-009-12). */
+export type InterfaceVlan =
+  | { mode: "none" }
+  | { mode: "access"; vlan: number }
+  | { mode: "trunk"; tagged: number[]; native?: number };
+/**
+ * An interface of a machine (module Machines, REQ-009-6): its MAC (RFC 9542 §1.1, the
+ * documentation values of RFC 9542 §2.1.4), its state, its medium, its role, its VLAN, its
+ * addresses (the first one of the family is the principal, REQ-009-11).
+ */
 export interface FlowInterface {
   name: string;
-  role: string;
+  role: InterfaceRole;
+  media: InterfaceMedia | null;
+  mac: string | null;
+  enabled: boolean;
+  vlan: InterfaceVlan;
   addresses: FlowAddress[];
 }
 /** A machine: declared environment, site, owner, interfaces. */
@@ -412,11 +445,14 @@ const addr = (
   sensitivity = "Interne",
   sensitivityFrom = "héritée de 192.0.2.0/24",
 ): FlowAddress => ({ value, env, envFrom, sensitivity, sensitivityFrom });
-const iface = (name: string, role: string, ...addresses: FlowAddress[]): FlowInterface => ({
-  name,
-  role,
-  addresses,
-});
+/** The MAC n of the documentation values (RFC 9542 §2.1.4), `00-00-5E-00-53-nn`. */
+const mac = (n: number) => `00-00-5E-00-53-${n.toString(16).toUpperCase().padStart(2, "0")}`;
+const iface = (
+  name: string,
+  role: InterfaceRole,
+  link: Pick<FlowInterface, "media" | "mac" | "vlan"> & { enabled?: boolean },
+  ...addresses: FlowAddress[]
+): FlowInterface => ({ name, role, enabled: true, ...link, addresses });
 const machine = (
   key: string,
   env: EnvKey | null,
@@ -426,6 +462,7 @@ const machine = (
 ): FlowMachine => ({ key, env, site, owner: "Atelier Nord", system, interfaces });
 const FROM_SERVERS = "héritée de 192.0.2.0/26";
 const FROM_ADMIN = "posée sur 198.51.100.0/28";
+const access = (vlan: number): InterfaceVlan => ({ mode: "access", vlan });
 export const MACHINES: Record<string, FlowMachine> = Object.fromEntries(
   [
     machine(
@@ -435,11 +472,23 @@ export const MACHINES: Record<string, FlowMachine> = Object.fromEntries(
       "Linux",
       iface(
         "eth0",
-        "Service",
+        "service",
+        { media: "sfp", mac: mac(0x01), vlan: access(120) },
         addr("192.0.2.10", "prod", FROM_SERVERS),
         addr("192.0.2.14", "prod", FROM_SERVERS),
       ),
-      iface("eth1", "Administration", addr("198.51.100.5", "admin", FROM_ADMIN)),
+      iface(
+        "eth1",
+        "administration",
+        { media: "ethernet", mac: mac(0x02), vlan: access(10) },
+        addr("198.51.100.5", "admin", FROM_ADMIN),
+      ),
+      iface("eth2", "storage", {
+        media: "sfp",
+        mac: mac(0x03),
+        vlan: { mode: "none" },
+        enabled: false,
+      }),
     ),
     machine(
       "srv-web-02",
@@ -448,7 +497,8 @@ export const MACHINES: Record<string, FlowMachine> = Object.fromEntries(
       "Linux",
       iface(
         "eth0",
-        "Service",
+        "service",
+        { media: "virtual", mac: mac(0x10), vlan: access(120) },
         addr("192.0.2.20", "prod", FROM_SERVERS),
         addr("192.0.2.21", "prod", FROM_SERVERS),
       ),
@@ -460,7 +510,8 @@ export const MACHINES: Record<string, FlowMachine> = Object.fromEntries(
       "Linux",
       iface(
         "eth0",
-        "Service",
+        "service",
+        { media: "aggregate", mac: mac(0x20), vlan: { mode: "trunk", tagged: [120, 130] } },
         addr("192.0.2.30", "prod", FROM_SERVERS, "Confidentiel", "posée sur l'adresse"),
       ),
     ),
@@ -469,42 +520,72 @@ export const MACHINES: Record<string, FlowMachine> = Object.fromEntries(
       "admin",
       "site-ouest",
       "Linux",
-      iface("eth0", "Administration", addr("198.51.100.2", "admin", FROM_ADMIN)),
+      iface(
+        "eth0",
+        "administration",
+        { media: "ethernet", mac: mac(0x30), vlan: access(10) },
+        addr("198.51.100.2", "admin", FROM_ADMIN),
+      ),
     ),
     machine(
       "srv-sauv-01",
       "prod",
       "site-est",
       "Linux",
-      iface("eth0", "Sauvegarde", addr("198.51.100.40", "prod", "posée sur 198.51.100.32/28")),
+      iface(
+        "eth0",
+        "backup",
+        { media: "sfp", mac: mac(0x40), vlan: access(40) },
+        addr("198.51.100.40", "prod", "posée sur 198.51.100.32/28"),
+      ),
     ),
     machine(
       "srv-app-07",
       "prod",
       "site-est",
       "Linux",
-      iface("eth0", "Service", addr("192.0.2.72", "prod", "héritée de 192.0.2.64/26")),
+      iface(
+        "eth0",
+        "service",
+        { media: "virtual", mac: mac(0x50), vlan: access(140) },
+        addr("192.0.2.72", "prod", "héritée de 192.0.2.64/26"),
+      ),
     ),
     machine(
       "srv-rec-03",
       "rece",
       "site-ouest",
       "Linux",
-      iface("eth0", "Service", addr("192.0.2.12", "rece", "posée sur l'adresse")),
+      iface(
+        "eth0",
+        "service",
+        { media: "virtual", mac: mac(0x60), vlan: access(220) },
+        addr("192.0.2.12", "rece", "posée sur l'adresse"),
+      ),
     ),
     machine(
       "srv-rec-04",
       "rece",
       "site-ouest",
       "Linux",
-      iface("eth0", "Service", addr("192.0.2.13", "rece", "posée sur l'adresse")),
+      iface(
+        "eth0",
+        "service",
+        { media: "virtual", mac: mac(0x61), vlan: access(220) },
+        addr("192.0.2.13", "rece", "posée sur l'adresse"),
+      ),
     ),
     machine(
       "dev-web-01",
       "deve",
       "site-est",
       "Linux",
-      iface("eth0", "Service", addr("192.0.2.70", "deve", "posée sur l'adresse")),
+      iface(
+        "eth0",
+        "service",
+        { media: "wifi", mac: mac(0x70), vlan: { mode: "none" } },
+        addr("192.0.2.70", "deve", "posée sur l'adresse"),
+      ),
     ),
     machine(
       "srv-new-05",
@@ -513,7 +594,8 @@ export const MACHINES: Record<string, FlowMachine> = Object.fromEntries(
       "Linux",
       iface(
         "eth0",
-        "Service",
+        "service",
+        { media: null, mac: null, vlan: { mode: "none" } },
         addr("203.0.113.50", null, "aucune valeur, ni posée ni héritée", "—", "aucune valeur"),
       ),
     ),
