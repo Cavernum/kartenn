@@ -106,7 +106,7 @@ impl ResetReason {
     }
 }
 
-/// An object named by an event: its qualified type (`core.prefix`, `vlan.vlan`) and
+/// An object named by an event: its qualified type (`core.prefix`, `machines.machine`) and
 /// identifier.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Object {
@@ -813,7 +813,7 @@ mod tests {
         match id.as_u128() {
             1..=99 => Some("prefix".into()),
             100..=199 => Some("address".into()),
-            200..=299 => Some("vlan.vlan".into()),
+            200..=299 => Some("machines.machine".into()),
             300..=399 => Some("domain".into()),
             _ => None,
         }
@@ -959,8 +959,8 @@ mod tests {
 
     #[test]
     fn a_module_event_is_pushed_only_with_a_typed_subject() {
-        let keys = ["vlan:sync".to_owned()];
-        let typed = json!({"type": "org.kartenn.vlan.imported", "id": "ev-1",
+        let keys = ["machines:sync".to_owned()];
+        let typed = json!({"type": "org.kartenn.machines.imported", "id": "ev-1",
                            "subject": id(200).to_string(), "data": {}});
         let notices = translate(
             OutboxRow {
@@ -975,10 +975,10 @@ mod tests {
         let rendered = render(&notices[0], &Filters::default(), &All, 10).unwrap();
         assert_eq!(
             serde_json::from_str::<Value>(&rendered.data).unwrap(),
-            json!({"task": "vlan:sync", "event": "ev-1",
-                   "objects": [{"type": "vlan.vlan", "id": id(200)}], "domains": []})
+            json!({"task": "machines:sync", "event": "ev-1",
+                   "objects": [{"type": "machines.machine", "id": id(200)}], "domains": []})
         );
-        let untyped = json!({"type": "org.kartenn.vlan.imported", "id": "ev-2", "data": {}});
+        let untyped = json!({"type": "org.kartenn.machines.imported", "id": "ev-2", "data": {}});
         assert!(
             translate(
                 OutboxRow {
@@ -1053,8 +1053,8 @@ mod tests {
 
     #[test]
     fn filters_combine_and_never_widen() {
-        let known = |t: &str| ["core.prefix", "vlan.vlan"].contains(&t);
-        let f = Filters::parse([("types", "vlan.vlan")], &known).unwrap();
+        let known = |t: &str| ["core.prefix", "machines.machine"].contains(&t);
+        let f = Filters::parse([("types", "machines.machine")], &known).unwrap();
         let payload = applied_payload(&[id(1)], json!([]));
         let notices = translate(row(&payload, &[id(300)], &[]), &kinds);
         assert!(render(&notices[0], &f, &All, 10).is_none());

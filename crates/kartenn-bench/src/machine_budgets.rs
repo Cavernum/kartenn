@@ -202,10 +202,7 @@ pub(crate) async fn run(
     let started = Instant::now();
     // The deployment of a build with both modules: the schema of the new one, then the
     // core completed by the types of both and their declarations.
-    let modules: Vec<Arc<dyn Module>> = vec![
-        Arc::new(kartenn_vlan::Vlan),
-        Arc::new(kartenn_machines::Machines),
-    ];
+    let modules: Vec<Arc<dyn Module>> = vec![Arc::new(kartenn_machines::Machines)];
     let registry = Arc::new(ModuleRegistry::new(modules)?);
     kartenn_store_pg::modules::migrate(pool, &registry).await?;
     let store = PgStore::new(pool.clone()).with_modules(registry.clone());
@@ -314,17 +311,14 @@ pub(crate) async fn run(
             "machines.interface.read",
             "core.address.read",
             "core.prefix.read",
-            "vlan.read",
+            "core.vlan.read",
         ],
     )
     .await?;
     let app = app(
         pool,
         registry,
-        vec![
-            kartenn_vlan::rest::routes(),
-            kartenn_machines::rest::routes(),
-        ],
+        vec![kartenn_machines::rest::routes()],
         identity,
     )?;
     let mut budgets = Vec::new();
@@ -450,21 +444,15 @@ pub(crate) async fn run(
             "machines.cluster.read",
             "machines.read",
             "machines.interface.read",
-            "vlan.group.read",
-            "vlan.read",
+            "core.vlan_group.read",
+            "core.vlan.read",
         ],
     )
     .await?;
     let registry = Arc::new(ModuleRegistry::new(vec![
-        Arc::new(kartenn_vlan::Vlan) as Arc<dyn Module>,
-        Arc::new(kartenn_machines::Machines),
+        Arc::new(kartenn_machines::Machines) as Arc<dyn Module>,
     ])?);
-    let routes = || {
-        vec![
-            kartenn_vlan::rest::routes(),
-            kartenn_machines::rest::routes(),
-        ]
-    };
+    let routes = || vec![kartenn_machines::rest::routes()];
     let everyone = crate::vlan_budgets::app(pool, registry.clone(), routes(), all)?;
     let owner = reader_on(pool, &["machines.read"], Some(entities[0])).await?;
     let one_owner = crate::vlan_budgets::app(pool, registry, routes(), owner)?;
@@ -621,12 +609,12 @@ fn suggested(enumerated: &str) -> Vec<Suggested> {
         of(
             "suggest VLAN groups, p95",
             "vlan-groups",
-            format!("SELECT slug FROM vlan.vlan_group WHERE {now}"),
+            format!("SELECT slug FROM vlan_group WHERE {now}"),
         ),
         of(
             "suggest VLANs, p95",
             "vlans",
-            format!("SELECT name FROM vlan.vlan WHERE {now}"),
+            format!("SELECT name FROM vlan WHERE {now}"),
         ),
         of(
             "suggest values of a closed list, p95",

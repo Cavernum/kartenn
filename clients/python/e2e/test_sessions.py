@@ -220,7 +220,7 @@ def test_help_of_the_root(cli: Cli) -> None:
     modules = re.search(r"^Modules servis:\n((?:  .*\n)+)", text, re.MULTILINE)
     assert modules, text
     served = [line.split()[0] for line in modules[1].splitlines() if not line.startswith("    ")]
-    assert served == ["flow", "machines", "policy", "vlan"]
+    assert served == ["flow", "machines", "policy"]
     rights = re.search(r"^Droits et audit:\n  (.*)$", text, re.MULTILINE)
     assert rights, text
     assert "bindings" in rights[1]
@@ -417,8 +417,8 @@ def test_completion(cli: Cli) -> None:
         return [line.split(",", 1)[1] for line in done.stdout.splitlines() if "," in line]
 
     assert "interne" in complete("kartenn prefixes list --domain ")
-    verbs = complete("kartenn vlan ")
-    for verb in ("create", "get", "list", "update", "groups"):
+    verbs = complete("kartenn vlans ")
+    for verb in ("create", "get", "list", "update"):
         assert verb in verbs
 
 
@@ -430,8 +430,7 @@ def test_a_write_simulated_then_composed(cli: Cli) -> None:
     (`<module>.<operationId>`), then the same writes in a local changeset."""
     entity = ids_by(cli, "entities", "list", key="slug")["exemple"]
     cli(
-        "vlan",
-        "groups",
+        "vlan-groups",
         "create",
         "--slug",
         "site-nord",
@@ -447,7 +446,7 @@ def test_a_write_simulated_then_composed(cli: Cli) -> None:
     ]
     assert "lot3" not in ids_by(cli, "entities", "list", key="slug")
     run = cli(
-        "vlan", "create", "--group", "site-nord", "--vid", "140", "--name", "lot3", "--dry-run"
+        "vlans", "create", "--group", "site-nord", "--vid", "140", "--name", "lot3", "--dry-run"
     )
     assert "Opérations  1   Violations  0" in run.out
 
@@ -455,7 +454,7 @@ def test_a_write_simulated_then_composed(cli: Cli) -> None:
     run = cli("entities", "create", "--slug", "lot3", "--into-changeset")
     assert run.out.startswith("Ajouté (opération 0) : create_entity"), run.both
     run = cli(
-        "vlan",
+        "vlans",
         "create",
         "--group",
         "site-nord",
@@ -465,7 +464,7 @@ def test_a_write_simulated_then_composed(cli: Cli) -> None:
         "lot3",
         "--into-changeset",
     )
-    assert run.out.startswith("Ajouté (opération 1) : vlan.create_vlan"), run.both
+    assert run.out.startswith("Ajouté (opération 1) : create_vlan"), run.both
     run = cli("changeset", "simulate")
     assert lines(run)[:2] == [
         "Simulation — rien n'est écrit (valide à partir du <date>)",
@@ -473,7 +472,7 @@ def test_a_write_simulated_then_composed(cli: Cli) -> None:
     ]
     run = cli("changeset", "apply")
     assert re.match(r"Changeset <uuid> appliqué", normalized(run.out)), run.both
-    assert ids_by(cli, "vlan", "list", "--at", "2027-01-02", key="vid") != {}
+    assert ids_by(cli, "vlans", "list", "--at", "2027-01-02", key="vid") != {}
     assert "lot3" not in ids_by(cli, "entities", "list", key="slug")
     assert "lot3" in ids_by(cli, "entities", "list", "--at", "2027-01-02", key="slug")
 
@@ -481,7 +480,7 @@ def test_a_write_simulated_then_composed(cli: Cli) -> None:
     run = cli(
         "--at",
         "2027-01-02",
-        "vlan",
+        "vlans",
         "create",
         "--group",
         "site-nord",
@@ -494,7 +493,7 @@ def test_a_write_simulated_then_composed(cli: Cli) -> None:
         "--dry-run",
         code=8,
     )
-    assert "✗ [vlan." in run.both, run.both
+    assert "✗ [core.vlan." in run.both, run.both
 
 
 def test_a_prefix_simulated_by_dry_run(cli: Cli) -> None:
@@ -594,7 +593,8 @@ def test_import_by_alice(cli: Cli) -> None:
 def test_the_generic_command(cli: Cli) -> None:
     run = cli("api", "GET", "/v1/capabilities")
     names = {m["name"] for m in json.loads(run.out)["modules"]}
-    assert {"core", "policy", "flow", "vlan", "machines"} <= names
+    assert {"core", "policy", "flow", "machines"} <= names
+    assert "vlan" not in names
     prefix = ids_by(cli, "prefixes", "list", "--domain", "interne", key="value")["203.0.113.0/24"]
     run = cli(
         "api", "GET", f"/v1/prefixes/{prefix}/next-free", "-f", "kind=prefix", "-f", "length=28"
@@ -696,7 +696,7 @@ def test_a_server_without_policy(cli: Cli) -> None:
     run = cli("-p", "labo", "--help")
     modules = re.search(r"^Modules servis:\n((?:  .*\n)+)", run.out, re.MULTILINE)
     assert modules, run.out
-    assert [line.split()[0] for line in modules[1].splitlines()] == ["machines", "vlan"]
+    assert [line.split()[0] for line in modules[1].splitlines()] == ["machines"]
     run = cli(
         "-p",
         "labo",

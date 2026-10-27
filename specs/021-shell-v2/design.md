@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-24
+updated: 2026-10-27
 ---
 
 # 021 — Shell v2 : conception
@@ -291,13 +291,17 @@ applique) ; *form* = panneau d'édition de la sorte dans le panneau droit (`Edit
 | Imports | `/imports`, `/imports/:id` | lot par morceaux, tri, lancement, rapport | form | `invalid-import` |
 | Administration | `/admin/groups`, `roles`, `identities`, `accounts`, `issuers`, `audit`, `observability`, `about` | droits par groupes (025), périmètres, journal d'audit ; permissions servies avec libellé | form | `core.group.escalation`, `core.binding.escalation`, `core.group.builtin`, `audit.chain.broken` |
 
-### Plugin VLAN (espace `network`)
+### VLAN, écrans du cœur (espace `network` ; amendé par la 026)
+
+Le VLAN est un objet du noyau depuis la 026 (D18 amendée) : ces écrans sont des écrans
+du shell, plus un plugin ; leurs routes quittent `/x/vlan/` pour celles du cœur, fixées
+par la maquette de la 026 (tâche 6). Les codes sont ceux du cœur.
 
 | Écran | Route | But | Édition | Codes notables |
 |---|---|---|---|---|
-| VLAN | `/x/vlan/vlans`, `/x/vlan/vlans/<id>` | trouver un VLAN, VID libres, créer sans collision ; onglet « Interfaces » (plugin Machines) | place, form | `vlan.vid.duplicate`, `vlan.vid.out_of_range` |
-| Groupes de VLAN | `/x/vlan/groups`, `…/<id>` | groupes par ancre, plage de VID | form ; ancre par glisser | `vlan.group.anchor` |
-| Onglet VLAN d'un préfixe | `/prefixes/:id?tab=vlan` | VLAN porté par un réseau ; panneau de résumé | place | `vlan.prefix.not_network`, `vlan.site.mismatch` |
+| VLAN | `/vlans`, `/vlans/<id>` | trouver un VLAN, VID libres, créer sans collision ; onglet « Interfaces » (plugin Machines) | place, form | `core.vlan.vid_duplicate`, `core.vlan.vid_out_of_range` |
+| Groupes de VLAN | `/vlan-groups`, `…/<id>` | groupes par ancre, plage de VID | form ; ancre par glisser | `core.vlan.group_anchor` |
+| Onglet VLAN d'un préfixe | `/prefixes/:id?tab=vlan` | VLAN porté par un réseau ; panneau de résumé | place | `core.vlan.prefix_not_network`, `core.vlan.site_mismatch` |
 | Tuile | Accueil | groupes les plus remplis | lecture | — |
 
 ### Plugin Machines (espace `hosts`)
@@ -612,7 +616,7 @@ web/v2/              espace pnpm distinct (pnpm-workspace.yaml, lockfile propres
   sdk/               @kartenn/sdk 1.0 (repris de web/sdk)
   ui/                @kartenn/ui (020)
   shell/             nouveau shell (catalogue /_ui compris)
-  plugins/           vlan, machines, example, puis policy et flow (017)
+  plugins/           machines, example, puis policy et flow (017) ; le VLAN est au cœur (026)
   e2e/               parcours portés, captures, budgets
   stylelint.config.js
 ```
@@ -643,7 +647,7 @@ web/v2/              espace pnpm distinct (pnpm-workspace.yaml, lockfile propres
 | 2 | `@kartenn/ui` complet | 020 (P4, P5) | catalogue, captures, scripts APG, budgets de la bibliothèque |
 | 3 | SDK 1.0 : cache, clés, préchargement, écritures, flux (après 022-9, 10), import map étendue, manifeste | 021 (P1) | tests Vitest du cache ; parcours de fraîcheur à deux navigateurs |
 | 4 | Écrans du nouveau shell : cadre, référentiel, changesets et brouillon, administration, hôte des plugins | 021 (P2) | parcours portés verts dans `web/v2/e2e` ; captures ; budgets |
-| 5 | Plugins VLAN, Machines, exemple dans `web/v2/plugins` | 021 (P3) | parcours `vlan`, `machines`, `example` portés et verts |
+| 5 | Écrans VLAN du cœur (026) ; plugins Machines, exemple dans `web/v2/plugins` | 021 (P3) | parcours `vlan`, `machines`, `example` portés et verts |
 | 6 | Plugins Politique et Flux dans `web/v2/plugins` (avant ou après la bascule) | 017 (amendée) | selon la 017 |
 | 7 | Liste de parité cochée, puis commit de bascule | 021 (tâches 26, 27) | ancien shell supprimé ; tout vert |
 

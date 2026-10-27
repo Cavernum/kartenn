@@ -1,13 +1,156 @@
-//! VID range of a VLAN group, occupancy in slices and next free VID (REQ-008-12, 13, 20).
+//! VLANs and groups of VLANs, objects of the core (spec 026, REQ-026-1; spec 008, REQ-008-12
+//! to 20, decisions V5 to V7): the VLAN identifier, the name and the status of a VLAN, the
+//! VID range of a group, its occupancy in slices and its next free VID.
 //!
-//! The storage adapter feeds these functions with the live VLANs of a group at a date;
-//! they are the reference for the SQL implementation, as `kartenn_core::occupancy` is for
-//! prefixes.
+//! The storage adapter feeds [`occupancy`] and [`next_free`] with the live VLANs of a
+//! group at a date; they are the reference for the SQL implementation, as
+//! [`crate::occupancy`] is for prefixes.
 
-use kartenn_core::rules::Violation;
+use std::fmt;
 
-use crate::rules::VID_OUT_OF_RANGE;
-use crate::vlan::{Vid, VlanStatus};
+use unicode_normalization::UnicodeNormalization;
+
+use crate::rules::{VLAN_NAME_INVALID, VLAN_VID_INVALID, VLAN_VID_OUT_OF_RANGE, Violation};
+
+/// A VLAN identifier usable in a tag: 1 to 4094 (IEEE 802.1Q-2022 §9.6, table 9-2;
+/// 0 is the null VID, 4095 is reserved).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Vid(u16);
+
+impl Vid {
+    /// Lowest usable VID.
+    pub const MIN: Vid = Vid(1);
+    /// Highest usable VID.
+    pub const MAX: Vid = Vid(4094);
+
+    /// Checks a VID read from a request or a row (`core.vlan.vid_invalid`).
+    ///
+    /// # Errors
+    /// A violation of `core.vlan.vid_invalid` outside 1–4094.
+    pub fn new(value: i64) -> Result<Self, Violation> {
+        u16::try_from(value)
+            .ok()
+            .filter(|v| (Self::MIN.0..=Self::MAX.0).contains(v))
+            .map(Vid)
+            .ok_or_else(|| {
+                Violation::new(
+                    &VLAN_VID_INVALID,
+                    format!("VID {value} hors de 1–4094 (IEEE 802.1Q §9.6)"),
+                )
+            })
+    }
+
+    /// The numeric value.
+    #[must_use]
+    pub fn get(self) -> u16 {
+        self.0
+    }
+
+    /// The next VID, if any.
+    #[must_use]
+    pub fn succ(self) -> Option<Vid> {
+        (self < Self::MAX).then(|| Vid(self.0 + 1))
+    }
+
+    /// The previous VID, if any.
+    #[must_use]
+    pub fn pred(self) -> Option<Vid> {
+        (self > Self::MIN).then(|| Vid(self.0 - 1))
+    }
+}
+
+impl fmt::Display for Vid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+/// Longest VLAN name, in characters (V7).
+pub const NAME_MAX_CHARS: usize = 64;
+
+/// A VLAN name: NFC-normalised text of 1 to 64 characters without control characters
+/// (V7). Uniqueness within a group is checked against storage, not here.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct VlanName(String);
+
+impl VlanName {
+    /// Normalises (NFC) and checks a name (`core.vlan.name_invalid`).
+    ///
+    /// # Errors
+    /// A violation of `core.vlan.name_invalid` when the name is empty, longer than 64
+    /// characters once normalised, or holds a control character.
+    pub fn new(raw: &str) -> Result<Self, Violation> {
+        let name: String = raw.nfc().collect();
+        let len = name.chars().count();
+        if len == 0 {
+            return Err(Violation::new(&VLAN_NAME_INVALID, "nom de VLAN vide"));
+        }
+        if len > NAME_MAX_CHARS {
+            return Err(Violation::new(
+                &VLAN_NAME_INVALID,
+                format!("nom de VLAN de {len} caractères, au plus {NAME_MAX_CHARS}"),
+            ));
+        }
+        if let Some(c) = name.chars().find(|c| c.is_control()) {
+            return Err(Violation::new(
+                &VLAN_NAME_INVALID,
+                format!(
+                    "nom de VLAN avec le caractère de contrôle U+{:04X}",
+                    u32::from(c)
+                ),
+            ));
+        }
+        Ok(VlanName(name))
+    }
+
+    /// The normalised text.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for VlanName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+/// Status of a VLAN (V5): `reserved` holds the VID without use, `deprecated` keeps it
+/// visible before closing.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum VlanStatus {
+    /// In use (default).
+    #[default]
+    Active,
+    /// VID held, not in use.
+    Reserved,
+    /// Still present, to be closed.
+    Deprecated,
+}
+
+impl VlanStatus {
+    /// Wire and storage spelling.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            VlanStatus::Active => "active",
+            VlanStatus::Reserved => "reserved",
+            VlanStatus::Deprecated => "deprecated",
+        }
+    }
+
+    /// Parses the wire and storage spelling.
+    #[must_use]
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "active" => Some(VlanStatus::Active),
+            "reserved" => Some(VlanStatus::Reserved),
+            "deprecated" => Some(VlanStatus::Deprecated),
+            _ => None,
+        }
+    }
+}
 
 /// The VIDs a group admits, `min` ≤ `max` (V6; 1–4094 by default).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -29,13 +172,13 @@ impl VidRange {
     /// Checks a group range: both bounds are VIDs and `min` ≤ `max`.
     ///
     /// # Errors
-    /// `vlan.vid.invalid` for a bound outside 1–4094, `vlan.vid.out_of_range` when
-    /// `min` > `max`.
+    /// `core.vlan.vid_invalid` for a bound outside 1–4094, `core.vlan.vid_out_of_range`
+    /// when `min` > `max`.
     pub fn new(min: i64, max: i64) -> Result<Self, Violation> {
         let (min, max) = (Vid::new(min)?, Vid::new(max)?);
         if min > max {
             return Err(Violation::new(
-                &VID_OUT_OF_RANGE,
+                &VLAN_VID_OUT_OF_RANGE,
                 format!("plage de VID {min}–{max} vide"),
             ));
         }
@@ -72,16 +215,16 @@ impl VidRange {
         false
     }
 
-    /// Checks that `vid` is admitted (`vlan.vid.out_of_range`, REQ-008-14).
+    /// Checks that `vid` is admitted (`core.vlan.vid_out_of_range`, REQ-008-14).
     ///
     /// # Errors
-    /// `vlan.vid.out_of_range` when the VID is outside the range.
+    /// `core.vlan.vid_out_of_range` when the VID is outside the range.
     pub fn check(self, vid: Vid) -> Result<(), Violation> {
         if self.contains(vid) {
             Ok(())
         } else {
             Err(Violation::new(
-                &VID_OUT_OF_RANGE,
+                &VLAN_VID_OUT_OF_RANGE,
                 format!(
                     "VID {vid} hors de la plage du groupe {}–{}",
                     self.min, self.max
@@ -228,26 +371,73 @@ mod tests {
     }
 
     #[test]
+    fn vid_bounds() {
+        for bad in [0, 4095, -1, 65_536 + 10] {
+            assert_eq!(Vid::new(bad).unwrap_err().rule.id, "core.vlan.vid_invalid");
+        }
+        assert_eq!(Vid::new(1).unwrap(), Vid::MIN);
+        assert_eq!(Vid::new(4094).unwrap(), Vid::MAX);
+        assert_eq!(Vid::MAX.succ(), None);
+        assert_eq!(Vid::MIN.succ().map(Vid::get), Some(2));
+    }
+
+    #[test]
+    fn name_rules() {
+        let invalid = |raw: &str| VlanName::new(raw).unwrap_err().rule.id;
+        assert_eq!(invalid(""), "core.vlan.name_invalid");
+        assert_eq!(invalid(&"a".repeat(65)), "core.vlan.name_invalid");
+        assert_eq!(invalid("prod\tweb"), "core.vlan.name_invalid");
+        assert_eq!(
+            VlanName::new(&"é".repeat(64))
+                .unwrap()
+                .as_str()
+                .chars()
+                .count(),
+            64
+        );
+        // A decomposed « é » is normalised to its composed form (NFC) before counting.
+        let decomposed = "e\u{301}".repeat(64);
+        assert_eq!(VlanName::new(&decomposed).unwrap().as_str(), "é".repeat(64));
+        assert_eq!(
+            VlanName::new("Invités 2e étage").unwrap().as_str(),
+            "Invités 2e étage"
+        );
+    }
+
+    #[test]
+    fn status_round_trip() {
+        for s in [
+            VlanStatus::Active,
+            VlanStatus::Reserved,
+            VlanStatus::Deprecated,
+        ] {
+            assert_eq!(VlanStatus::parse(s.as_str()), Some(s));
+        }
+        assert_eq!(VlanStatus::parse("retired"), None);
+        assert_eq!(VlanStatus::default(), VlanStatus::Active);
+    }
+
+    #[test]
     fn range_rules() {
         assert_eq!(VidRange::default(), range(1, 4094));
         assert_eq!(
             VidRange::new(0, 10).unwrap_err().rule.id,
-            "vlan.vid.invalid"
+            "core.vlan.vid_invalid"
         );
         assert_eq!(
             VidRange::new(1, 4095).unwrap_err().rule.id,
-            "vlan.vid.invalid"
+            "core.vlan.vid_invalid"
         );
         assert_eq!(
             VidRange::new(10, 9).unwrap_err().rule.id,
-            "vlan.vid.out_of_range"
+            "core.vlan.vid_out_of_range"
         );
         assert_eq!(range(5, 5).len(), 1);
         let r = range(100, 199);
         assert!(r.check(vid(100)).is_ok());
         assert_eq!(
             r.check(vid(99)).unwrap_err().rule.id,
-            "vlan.vid.out_of_range"
+            "core.vlan.vid_out_of_range"
         );
         // REQ-008-13: reducing to 1–99 a group holding VLAN 100 lists it.
         assert_eq!(

@@ -187,7 +187,7 @@ pub async fn recent(
     Ok((rows.into_iter().map(event).collect(), Floor::at(start)))
 }
 
-/// The kind of each object among `ids` in `carrier_object` (`prefix`, `vlan.vlan`…),
+/// The kind of each object among `ids` in `carrier_object` (`prefix`, `machines.machine`…),
 /// whatever its validity: one query for a pass (design « Format »).
 ///
 /// # Errors

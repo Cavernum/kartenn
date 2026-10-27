@@ -39,6 +39,15 @@ Sévérités fixées par la spécification (002/A4).
 | `core.prefix.ipv6_long_subnet` | avertissement | Les réseaux d'hôtes IPv6 sont des /64, sauf point à point /127 et /128. | REQ-002-35 | RFC 7136 §5 |
 | `core.prefix.ula_global_id` | avertissement | Un préfixe unique local utilise un Global ID pseudo-aléatoire. | REQ-002-35 | RFC 4193 §3.2 |
 | `core.public.anycast_shared` | avertissement | Une adresse ou un réseau public anycast figure dans plusieurs domaines. | REQ-002-46 | 002/A11, 002/A13 |
+| `core.vlan.vid_invalid` | erreur | Un VID est un entier de 1 à 4094. | REQ-008-12, REQ-008-14, REQ-026-1 | IEEE 802.1Q-2022 §9.6 |
+| `core.vlan.vid_out_of_range` | erreur | Un VID est dans la plage de son groupe, et la plage d'un groupe garde ses VLAN. | REQ-008-13, REQ-008-14, REQ-026-1 | 008/V6 |
+| `core.vlan.vid_duplicate` | erreur | Un VID est vivant au plus une fois par groupe à tout instant. | REQ-008-15, REQ-026-1 | 008/V2 |
+| `core.vlan.name_invalid` | erreur | Un nom de VLAN a de 1 à 64 caractères, sans caractère de contrôle. | REQ-008-14, REQ-026-1 | 008/V7 |
+| `core.vlan.name_duplicate` | erreur | Un nom de VLAN est vivant au plus une fois par groupe à tout instant. | REQ-008-15, REQ-026-1 | 008/V7 |
+| `core.vlan.group_anchor` | erreur | Un groupe de VLAN est ancré sur une entité, un site ou un domaine vivant sur toute sa période. | REQ-008-12, REQ-026-1 | 008/V3 |
+| `core.vlan.prefix_not_network` | erreur | La propriété core.vlan ne se pose que sur un réseau. | REQ-008-17, REQ-026-1 | 008/V4 |
+| `core.vlan.site_mismatch` | avertissement | Le site d'un réseau et celui du groupe de son VLAN concordent. | REQ-008-18, REQ-026-1 | 008/V9 |
+| `core.vlan.domain_mismatch` | avertissement | Le domaine d'un réseau et celui du groupe de son VLAN concordent. | REQ-008-18, REQ-026-1 | 008/V9 |
 | `prop.declaration.invalid` | erreur | Une déclaration de propriété a une clé, un type et des paramètres valides. | REQ-003-2, REQ-003-3 | 003/P1, P2 |
 | `prop.declaration.namespace` | erreur | Un module déclare dans son espace, un administrateur dans l'espace custom avec les seuls types intégrés. | REQ-003-1, REQ-003-2 | 003/P1 |
 | `prop.declaration.duplicate` | erreur | Une clé de propriété désigne une seule déclaration sur toute période. | REQ-003-2 | 003/P8 |

@@ -51,7 +51,7 @@ def events(server: FakeServer, *, interrupt: bool = True) -> list[httpx2.Request
 def test_watch_in_a_table(server: FakeServer) -> None:
     server.capabilities = STREAMING
     opened = events(server)
-    result = kartenn("watch", "--types", "core.prefix,vlan.vlan", "--domains", "interne")
+    result = kartenn("watch", "--types", "core.prefix,core.vlan", "--domains", "interne")
     assert result.exit_code == 0, result.output
     lines = [line[10:] for line in result.stdout.splitlines()]
     assert lines == [
@@ -63,10 +63,10 @@ def test_watch_in_a_table(server: FakeServer) -> None:
     said = result.stderr.splitlines()
     assert "Flux d'événements ouvert (profil prod) — Ctrl-C pour arrêter." in said
     assert said[-1] == (
-        "Flux fermé ; reprendre : kartenn watch --since k1.D --types core.prefix,vlan.vlan "
+        "Flux fermé ; reprendre : kartenn watch --since k1.D --types core.prefix,core.vlan "
         "--domains interne"
     )
-    assert opened[0].url.params["types"] == "core.prefix,vlan.vlan"
+    assert opened[0].url.params["types"] == "core.prefix,core.vlan"
     assert opened[1].headers["Last-Event-ID"] == "k1.D"
 
 

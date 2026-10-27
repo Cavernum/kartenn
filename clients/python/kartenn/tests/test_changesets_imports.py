@@ -168,9 +168,11 @@ def test_an_operation_of_a_module_served_is_sent(tmp_path: Path) -> None:
     server.route("POST", "/v1/changesets", httpx2.Response(200, json=SIMULATED))
     with server.client(tmp_path) as kn:
         cs = kn.changeset(motive="m")
-        cs.add({"op": "vlan.create_vlan", "vid": 140})
+        cs.add({"op": "machines.create_machine", "name": "srv01"})
         assert not cs.simulate().valid
-    assert body(server.seen[-1])["operations"] == [{"op": "vlan.create_vlan", "vid": 140}]
+    assert body(server.seen[-1])["operations"] == [
+        {"op": "machines.create_machine", "name": "srv01"}
+    ]
 
 
 def test_actions_on_an_existing_changeset(tmp_path: Path) -> None:

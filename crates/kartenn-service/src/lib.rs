@@ -26,6 +26,7 @@ pub mod review;
 mod rights;
 mod sections;
 pub mod undo;
+pub mod vlan;
 
 pub use operations::{ChangesetRequest, ObjectKind, Operation, Ref};
 pub use pipeline::{Outcome, RequestError, submit, submit_in, submit_with};

@@ -78,11 +78,20 @@ pub struct AnomalyStats {
     pub open: i64,
 }
 
+/// The VLANs held and on their way out (spec 026; REQ-024-14).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct VlanStats {
+    /// `reserved` VLANs the caller reads.
+    pub reserved: i64,
+    /// `deprecated` VLANs the caller reads.
+    pub deprecated: i64,
+}
+
 /// The body of `GET /v1/stats`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 pub struct Stats {
-    /// The objects the caller reads, by qualified kind (`core.prefix`, `vlan.vlan`); a
-    /// kind it reads nowhere is absent.
+    /// The objects the caller reads, by qualified kind (`core.prefix`, `core.vlan`,
+    /// `machines.machine`); a kind it reads nowhere is absent.
     pub objects: BTreeMap<String, i64>,
     /// The changesets applied; absent without `core.changeset.read`.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -91,6 +100,9 @@ pub struct Stats {
     pub pending: PendingStats,
     /// The open anomalies.
     pub anomalies: AnomalyStats,
+    /// The VLANs held and on their way out; absent when the caller reads no VLAN.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vlans: Option<VlanStats>,
     /// The counters of each module, under its name; a module that counts nothing the
     /// caller reads is absent.
     pub modules: BTreeMap<String, BTreeMap<String, u64>>,
@@ -105,6 +117,7 @@ struct Shared {
     objects: BTreeMap<String, i64>,
     changesets: Option<ChangesetStats>,
     anomalies: AnomalyStats,
+    vlans: Option<VlanStats>,
 }
 
 /// What depends on the caller itself: its changesets, and the counters of the modules
@@ -607,6 +620,9 @@ async fn shared(
     );
     let types: Vec<&str> = api.modules.object_types().map(|t| t.kind).collect();
     let of_modules = list::module_counts(&api.pool, &types, now, scope);
+    // The VLANs of the core (spec 026), in their own tables.
+    let of_vlans = list::vlan_counts(&api.pool, now, scope);
+    let vlan_counters = list::vlan_counters(&api.pool, now, scope);
     let open = anomalies::open_count(&api.pool, scope);
     let applied = async {
         if changesets_read {
@@ -615,13 +631,16 @@ async fn shared(
             Ok(None)
         }
     };
-    let (core, of_modules, open, applied) = futures_util::try_join!(
+    let (core, of_modules, of_vlans, vlan_counters, open, applied) = futures_util::try_join!(
         async { core.await.map_err(|e| store(&e)) },
         async { of_modules.await.map_err(|e| store(&e)) },
+        async { of_vlans.await.map_err(|e| store(&e)) },
+        async { vlan_counters.await.map_err(|e| store(&e)) },
         async { open.await.map_err(|e| store(&e)) },
         async { applied.await.map_err(Problem::from) },
     )?;
-    let objects: BTreeMap<String, i64> = core.into_iter().chain(of_modules).collect();
+    let objects: BTreeMap<String, i64> =
+        core.into_iter().chain(of_vlans).chain(of_modules).collect();
     let changesets = applied.map(|by_day| ChangesetStats {
         applied_7d: by_day.iter().rev().take(WEEK).sum(),
         applied_30d: by_day.iter().sum(),
@@ -631,6 +650,10 @@ async fn shared(
         objects,
         changesets,
         anomalies: AnomalyStats { open },
+        vlans: vlan_counters.map(|(reserved, deprecated)| VlanStats {
+            reserved,
+            deprecated,
+        }),
     })
 }
 
@@ -752,6 +775,7 @@ fn assemble(shared: &Shared, own: &Own, at: OffsetDateTime) -> Stats {
         changesets: shared.changesets.clone(),
         pending: own.pending.clone(),
         anomalies: shared.anomalies.clone(),
+        vlans: shared.vlans.clone(),
         modules: own.modules.clone(),
         computed_at: rfc3339(instant(at)),
     }

@@ -728,9 +728,10 @@ async fn location(
             .await
             .map_err(|e| store(&e))?
             .map(|id| objects::href(kind, id)),
-        Some(Location::Module(ty)) => sqlx::query_scalar::<_, Uuid>(
-            "SELECT id FROM module_object WHERE changeset_id = $1 AND kind = $2 LIMIT 1",
-        )
+        Some(Location::Module(ty)) => sqlx::query_scalar::<_, Uuid>(sqlx::AssertSqlSafe(format!(
+            "SELECT id FROM {} o WHERE changeset_id = $1 AND kind = $2 LIMIT 1",
+            crate::kit::TYPED_OBJECTS
+        )))
         .bind(changeset)
         .bind(ty.kind)
         .fetch_optional(&api.pool)

@@ -21,7 +21,6 @@ SERVER = "https://kartenn.test"
 MODULES = [
     {"name": "policy", "version": "0.1.0"},
     {"name": "flow", "version": "0.1.0"},
-    {"name": "vlan", "version": "0.1.0"},
     {"name": "machines", "version": "0.1.0"},
 ]
 
@@ -108,7 +107,10 @@ def test_conventions_of_the_reference_contract() -> None:
     assert catalog.operation("query_prefixes").method == "QUERY"
     assert catalog.operation("list_changesets").path_params == ()
     assert catalog.missing_socle == ()
-    assert catalog.has("vlan")
+    assert catalog.has("machines")
+    # The VLANs are in the core (spec 026): their collections are at the root.
+    assert not catalog.has("vlan")
+    assert not catalog.is_module(catalog.resource("vlans"))
     assert catalog.limits["chunk_elements"] == 10000
     assert catalog.events is None
     assert not catalog.has_resource("auth")
@@ -147,10 +149,11 @@ def test_the_tags_of_the_base_listed_as_modules_stay_the_core() -> None:
     base = [{"name": n, "version": "0.1.0"} for n in ("core", "rights", "audit", "operations")]
     catalog = derive(SERVER, capabilities(modules=[*base, *MODULES]), CONTRACT)
     assert catalog.has("core")
-    assert catalog.served_modules == ("policy", "flow", "vlan", "machines")
+    assert catalog.served_modules == ("policy", "flow", "machines")
     assert not catalog.is_module(catalog.resource("prefixes"))
     assert not catalog.is_module(catalog.resource("bindings"))
-    assert catalog.is_module(catalog.resource("vlans"))
+    assert not catalog.is_module(catalog.resource("vlans"))
+    assert catalog.is_module(catalog.resource("machines"))
 
 
 def test_contract_without_policy_has_no_policy_resource() -> None:
@@ -162,7 +165,7 @@ def test_contract_without_policy_has_no_policy_resource() -> None:
         catalog.resource("policy-rules")
     assert caught.value.code == "client.unknown-resource"
     assert "module 'policy' is not served" in str(caught.value)
-    assert "flow, vlan, machines" in str(caught.value)
+    assert "flow, machines" in str(caught.value)
     with pytest.raises(ClientError) as missing:
         catalog.operation("show_verdicts")
     assert missing.value.code == "client.operation-unavailable"

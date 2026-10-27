@@ -229,15 +229,19 @@ fn tree_of(kind: ObjectKind) -> Option<InheritTree> {
         ObjectKind::Entity => Some(InheritTree::Entity),
         ObjectKind::Site => Some(InheritTree::Site),
         ObjectKind::Module(kind) => Some(InheritTree::Module(kind.module().to_owned())),
+        // The VLANs inherit along their groups, as the objects of a module (spec 026).
+        ObjectKind::VlanGroup | ObjectKind::Vlan => {
+            Some(InheritTree::Module(crate::vlan::VLAN.to_owned()))
+        }
         _ => None,
     }
 }
 
 /// Whether the objects of `kind` inherit a property heritable along `declared`: the
-/// objects of its tree, and the objects of a module along the tree of their module,
-/// whatever the tree declared (spec 008, REQ-008-6).
+/// objects of its tree, and the objects of a module (or the VLANs) along the tree of their
+/// module, whatever the tree declared (spec 008, REQ-008-6).
 fn inherits_along(kind: ObjectKind, declared: &InheritTree) -> bool {
-    matches!(kind, ObjectKind::Module(_)) || tree_of(kind).as_ref() == Some(declared)
+    kind.qualified().is_some() || tree_of(kind).as_ref() == Some(declared)
 }
 
 /// What the maintenance of the origins did, per heritable property.
@@ -297,7 +301,7 @@ pub(crate) async fn maintain<T: WriteTx>(
             // the objects below it look for their origins again (REQ-008-6).
             Planned::Module { plan, .. } => {
                 moved
-                    .entry(ObjectKind::Module(plan.kind))
+                    .entry(ObjectKind::from_qualified(plan.kind))
                     .or_default()
                     .push(plan.object);
                 origins.push(plan.object);
@@ -393,7 +397,7 @@ fn new_object(p: &Planned) -> Option<(ObjectKind, Uuid)> {
         Planned::Address { object, .. } => Some((ObjectKind::Address, object.id)),
         Planned::Anchor { kind, id, .. } => Some((*kind, *id)),
         Planned::Module { plan, .. } if plan.creates => {
-            Some((ObjectKind::Module(plan.kind), plan.object))
+            Some((ObjectKind::from_qualified(plan.kind), plan.object))
         }
         _ => None,
     }
@@ -443,7 +447,7 @@ async fn refresh<T: WriteTx>(
                 declaration
                     .carriers
                     .into_iter()
-                    .filter(|c| kartenn_core::properties::is_module_kind(c)),
+                    .filter(|c| kartenn_core::properties::inherits_own_tree(c)),
             );
         }
         let all = tx.objects_of_kinds(&kinds, period).await?;
@@ -487,7 +491,11 @@ async fn restored<T: WriteTx>(
             let mut objects = vec![id];
             if matches!(
                 kind,
-                ObjectKind::Prefix | ObjectKind::Entity | ObjectKind::Site | ObjectKind::Module(_)
+                ObjectKind::Prefix
+                    | ObjectKind::Entity
+                    | ObjectKind::Site
+                    | ObjectKind::VlanGroup
+                    | ObjectKind::Module(_)
             ) {
                 objects.extend(tx.subtree(&[id], period).await?);
             }

@@ -19,7 +19,6 @@ use kartenn_service::{
     ChangesetRequest, ObjectKind, Operation, Outcome, Ref, RequestError, submit, submit_in,
 };
 use kartenn_store_pg::write::PgStore;
-use kartenn_vlan::Vlan;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use sqlx::types::Uuid;
@@ -61,13 +60,8 @@ impl Env {
     /// rule « prod to dev for admin ».
     pub(crate) async fn new(pool: &PgPool) -> Self {
         let registry = Arc::new(
-            ModuleRegistry::new(vec![
-                Arc::new(Vlan),
-                Arc::new(Machines),
-                Arc::new(Policy),
-                Arc::new(Flows),
-            ])
-            .unwrap(),
+            ModuleRegistry::new(vec![Arc::new(Machines), Arc::new(Policy), Arc::new(Flows)])
+                .unwrap(),
         );
         kartenn_store_pg::modules::migrate(pool, &registry)
             .await

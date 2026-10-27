@@ -272,6 +272,8 @@ fn kind_sql() -> Result<String, TemporalError> {
         kind("addressing_domain", "domain")?,
         kind("entity", "entity")?,
         kind("site", "site")?,
+        kind("vlan_group", "vlan_group")?,
+        kind("vlan", "vlan")?,
         format!("SELECT x.kind FROM {modules} x WHERE x.id = o.object"),
     ]
     .join(" UNION ALL ");

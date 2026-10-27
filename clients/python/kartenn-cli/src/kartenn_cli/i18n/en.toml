@@ -431,7 +431,7 @@ reset = "buffer overflow: read again what you follow"
 wide = "wide invalidation: {what}"
 
 [watch.opt]
-types = "Types of objects (core.prefix,vlan.vlan)."
+types = "Types of objects (core.prefix,core.vlan)."
 domains = "Domains."
 objects = "Objects (UUID)."
 kinds = "Kinds of events (changes, changeset, reset)."
@@ -476,5 +476,4 @@ about_generic = "Module {name}."
 [module.about]
 policy = "Flow policy: rules, matrix, catalog, checks."
 flow = "Flow register: requests, review, waivers."
-vlan = "VLANs and groups of VLANs."
 machines = "Machines, interfaces, clusters."

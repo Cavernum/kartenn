@@ -41,8 +41,8 @@ flowchart LR
 
 | Composant | Responsabilité | Données possédées |
 |---|---|---|
-| Domaine — noyau | Familles d'adresses ; entités, sites, domaines, préfixes, plages, adresses ; règles de validité ; types de valeurs et arbres d'héritage (résolveur de référence) | Aucune persistance directe (types et règles purs) |
-| Domaine — modules | Objets, propriétés, règles, permissions d'un domaine fonctionnel (VLAN, machines, Politique…) | Leurs tables, via leurs migrations |
+| Domaine — noyau | Familles d'adresses ; entités, sites, domaines, préfixes, plages, adresses, groupes de VLAN et VLAN (026) ; règles de validité ; types de valeurs et arbres d'héritage (résolveur de référence) | Aucune persistance directe (types et règles purs) |
+| Domaine — modules | Objets, propriétés, règles, permissions d'un domaine fonctionnel (machines, Politique, Flux…) | Leurs tables, via leurs migrations |
 | Couche service | Cas d'usage ; pipeline d'écriture ; transactions ; maintenance des origines et différentiel des propriétés (calcul ensembliste délégué à l'adaptateur) ; audit ; outbox | Changesets, journal d'audit, outbox |
 | Journal d'audit (012) | Événements typés remis au port `AuditJournal`, écrits dans la transaction de l'action (échec fermé) ; scellement par lots chaînés, relais vers les sorties d'audit, purge par criticité, vérification | Schéma `audit` |
 | Télémétrie (`kartenn-telemetry`) | Capture unique des événements `tracing`, files bornées par sortie (stdout, fichier, journald, syslog, OTLP), masquage ; OpenTelemetry (traces, métriques, logs) ; sorties d'audit (`AuditSink`) | — |
@@ -157,16 +157,19 @@ Forme dans le code (`kartenn-service::module`) :
   objets réévalués refermés).
 - `ModuleRegistry` ordonne les modules selon le DAG, refuse noms, collections,
   permissions et règles en collision, et complète les catalogues du processus.
-- Le serveur compose le registre selon ses features (`vlan`, `machines`, `policy` qui
+- Le serveur compose le registre selon ses features (`machines`, `policy` qui
   active `machines`, `flow` qui active `policy` ; défaut : toutes). Le module politique
   (`kartenn-policy`, spec 010) évalue ses verdicts en mémoire sur un instantané versionné
   ([ADR 0030](../adr/0030-evaluation-sur-instantane.md)) et livre un convertisseur hors
   ligne (feature `import`, binaire `kartenn-policy-import`) ; `kartenn-server openapi` écrit le contrat de référence du build. Un module
   sert ses routes avec `kartenn_rest::kit`.
 
-Modules livrés : `vlan` (008 ; groupes et VLAN 802.1Q, propriété `vlan.vlan` des
-réseaux) et `machines` (009, dépend de `vlan` ; clusters, machines, interfaces,
-rattachements d'adresses).
+Modules livrés : `machines` (009 ; clusters, machines, interfaces, rattachements
+d'adresses), `policy` (010) et `flow` (011). Les groupes de VLAN et les VLAN 802.1Q
+(spec 008) sont des objets du noyau depuis la spec 026 (D18 amendée), présents dans
+tout build : modèle et règles dans `kartenn-core`, planification dans `kartenn-service`,
+stockage dans `kartenn-store-pg`, routes dans `kartenn-rest` ; le VLAN d'un réseau est
+la propriété du noyau `core.vlan`.
 
 Organisation du workspace (voir
 [`../practices/rust-build.md`](../practices/rust-build.md)) :
@@ -183,7 +186,7 @@ crates/
   kartenn-server/      binaire : composition, configuration, observabilité
   kartenn-bench/       jeu synthétique et bancs des budgets (REQ-002-45, REQ-003-26,
                        REQ-005-29)
-  kartenn-<module>/    un module métier (vlan, machines, policy…)
+  kartenn-<module>/    un module métier (machines, policy, flow…)
   kartenn-dev-idp/     émetteur OIDC de développement et de test, jamais livré (007/W16)
   kartenn-workspace-hack/
 web/                   espace pnpm (ADR 0024)

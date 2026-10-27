@@ -1,11 +1,9 @@
-//! The references of the module (spec 008, REQ-008-10; task 008-13): a VLAN carried by a
+//! The references of the VLANs (spec 026; spec 008, REQ-008-10): a VLAN carried by a
 //! network is not closed while the network keeps it, and the cascade removes the
 //! assignment; a group is closed with its VLANs under the cascade only; the anchor of a
 //! group is not closed while the group lives on it, cascade or not.
 
-use crate::support::env;
-
-use env::{Env, op, rules};
+use super::env::{Env, op, rules};
 use kartenn_service::operations::RawInput;
 use kartenn_service::{ObjectKind, Operation, Outcome, Ref};
 use serde_json::{Value, json};
@@ -34,7 +32,7 @@ impl Env {
     /// VLANs in the order of `vids`.
     async fn group_with(&self, slug: &str, anchor: Value, vids: &[i64]) -> (Uuid, Vec<Uuid>) {
         let mut operations = vec![op(
-            "create_group",
+            "create_vlan_group",
             json!({"local": 1, "slug": slug, "anchor": anchor}),
         )];
         for vid in vids {
@@ -45,7 +43,7 @@ impl Env {
         }
         self.applied(operations).await;
         let group: Uuid = sqlx::query_scalar(
-            "SELECT id FROM vlan.vlan_group WHERE slug = $1 AND valid_period @> now()",
+            "SELECT id FROM vlan_group WHERE slug = $1 AND valid_period @> now()",
         )
         .bind(slug)
         .fetch_one(&self.pool)
@@ -55,7 +53,7 @@ impl Env {
         for vid in vids {
             vlans.push(
                 sqlx::query_scalar(
-                    "SELECT id FROM vlan.vlan
+                    "SELECT id FROM vlan
                       WHERE group_id = $1 AND vid = $2 AND valid_period @> now()",
                 )
                 .bind(group)
@@ -73,18 +71,18 @@ impl Env {
         self.applied(vec![Operation::AssignProperty {
             object: Ref::Id(network),
             kind: ObjectKind::Prefix,
-            property: Ref::Id(self.property("vlan.vlan").await),
+            property: Ref::Id(self.property("core.vlan").await),
             values: vec![RawInput::Text(vlan.to_string())],
         }])
         .await;
     }
 
-    /// Whether `vlan.vlan` is assigned to `network` now.
+    /// Whether `core.vlan` is assigned to `network` now.
     async fn carries(&self, network: Uuid) -> bool {
         sqlx::query_scalar(
             "SELECT EXISTS (SELECT 1 FROM property_assignment a
                               JOIN property_declaration d ON d.id = a.property_id
-                             WHERE a.object_id = $1 AND d.key = 'vlan.vlan'
+                             WHERE a.object_id = $1 AND d.key = 'core.vlan'
                                AND a.valid_period @> now())",
         )
         .bind(network)
@@ -135,12 +133,12 @@ async fn closing_a_vlan_on_a_network_lists_it(pool: PgPool) {
         .await;
     let network = env.network("10.0.0.0/24").await;
     env.carry(network, vlans[0]).await;
-    let refused = env.submit(vec![close("vlan.vlan", vlans[0], false)]).await;
+    let refused = env.submit(vec![close("vlan", vlans[0], false)]).await;
     assert!(
         subjects(&refused, "prop.assignment.dangling_reference").contains(&network),
         "{refused:?}"
     );
-    assert!(env.lives("vlan.vlan", vlans[0]).await);
+    assert!(env.lives("vlan", vlans[0]).await);
     assert!(env.carries(network).await);
 }
 
@@ -153,8 +151,8 @@ async fn cascade_unassigns_vlan_property(pool: PgPool) {
         .await;
     let network = env.network("10.0.0.0/24").await;
     env.carry(network, vlans[0]).await;
-    let outcome = env.applied(vec![close("vlan.vlan", vlans[0], true)]).await;
-    assert!(!env.lives("vlan.vlan", vlans[0]).await);
+    let outcome = env.applied(vec![close("vlan", vlans[0], true)]).await;
+    assert!(!env.lives("vlan", vlans[0]).await);
     assert!(!env.carries(network).await);
     // The differential shows the network losing its VLAN.
     let Outcome::Applied { diff, .. } = outcome else {
@@ -162,7 +160,7 @@ async fn cascade_unassigns_vlan_property(pool: PgPool) {
     };
     assert!(
         diff.iter()
-            .any(|d| d.property == "vlan.vlan" && d.after.is_none() && d.count == 1),
+            .any(|d| d.property == "core.vlan" && d.after.is_none() && d.count == 1),
         "{diff:?}"
     );
 }
@@ -177,18 +175,18 @@ async fn closing_a_group_cascades_its_vlans(pool: PgPool) {
     let network = env.network("10.0.0.0/24").await;
     env.carry(network, vlans[1]).await;
     // Without the cascade: refused, the VLANs listed.
-    let refused = env.submit(vec![close("vlan.group", group, false)]).await;
+    let refused = env.submit(vec![close("vlan_group", group, false)]).await;
     let listed = subjects(&refused, "core.object.dependents");
     assert!(
         vlans.iter().all(|v| listed.contains(v)),
         "{listed:?} {refused:?}"
     );
-    assert!(env.lives("vlan.vlan_group", group).await);
+    assert!(env.lives("vlan_group", group).await);
     // With it: the group, its VLANs and the VLAN of the network go.
-    let applied = env.applied(vec![close("vlan.group", group, true)]).await;
-    assert!(!env.lives("vlan.vlan_group", group).await);
+    let applied = env.applied(vec![close("vlan_group", group, true)]).await;
+    assert!(!env.lives("vlan_group", group).await);
     for vlan in &vlans {
-        assert!(!env.lives("vlan.vlan", *vlan).await);
+        assert!(!env.lives("vlan", *vlan).await);
     }
     assert!(!env.carries(network).await);
     let Outcome::Applied { cascaded, .. } = applied else {
@@ -210,8 +208,8 @@ async fn closing_an_anchor_entity_refused(pool: PgPool) {
     let (group, _) = env
         .group_with("desk", json!({"entity": {"id": solo}}), &[])
         .await;
-    // Cascade or not: change the anchor first. The group is listed, by the reference of
-    // the module or by the anchor of the core it owns (`core.anchor.in_use`).
+    // Cascade or not: change the anchor first. The group is listed, by its reference or
+    // by the anchor of the core it owns (`core.anchor.in_use`).
     for cascade in [false, true] {
         let refused = env.submit(vec![close("entity", solo, cascade)]).await;
         let listed: Vec<Uuid> = ["core.object.dependents", "core.anchor.in_use"]
@@ -221,9 +219,9 @@ async fn closing_an_anchor_entity_refused(pool: PgPool) {
         assert!(listed.contains(&group), "{:?} {refused:?}", rules(&refused));
     }
     assert!(env.lives("entity", solo).await);
-    assert!(env.lives("vlan.vlan_group", group).await);
-    // A domain carries nothing of the group but its anchor: the reference of the module
-    // alone refuses its closure.
+    assert!(env.lives("vlan_group", group).await);
+    // A domain carries nothing of the group but its anchor: its reference alone refuses
+    // its closure.
     let lab = env.id("addressing_domain", "lab").await;
     let (anchored, _) = env
         .group_with("core", json!({"domain": {"id": lab}}), &[])

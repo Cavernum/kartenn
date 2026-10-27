@@ -12,13 +12,15 @@ use crate::rbac::{ReadScope, readable};
 
 /// Versioned tables whose current rows tell which changeset last wrote an object: every
 /// object an anomaly can be about.
-const VERSIONED: [&str; 6] = [
+const VERSIONED: [&str; 8] = [
     "addressing_domain",
     "prefix",
     "ip_range",
     "address",
     "entity",
     "site",
+    "vlan_group",
+    "vlan",
 ];
 
 /// Records the warnings of an applied changeset: anomalies that fire are opened or

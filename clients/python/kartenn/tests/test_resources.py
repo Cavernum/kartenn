@@ -280,11 +280,13 @@ def test_verbs_sub_resources_and_call(tmp_path: Path) -> None:
 def test_modules_and_unknown_resources(tmp_path: Path) -> None:
     server = FakeServer()
     with server.client(tmp_path) as kn:
-        assert kn.modules == ("policy", "flow", "vlan", "machines")
-        assert kn.has("vlan")
+        assert kn.modules == ("policy", "flow", "machines")
+        assert kn.has("machines")
+        assert not kn.has("vlan")
         assert not kn.has("demo")
         assert kn.policy_rules.name == "policy-rules"
-        assert kn.resource("vlan-groups").model.module == "vlan"
+        assert kn.resource("vlan-groups").model.module == "core"
+        assert kn.resource("interfaces").model.module == "machines"
         with pytest.raises(UnknownResource):
             kn.resource("widgets")
         assert not hasattr(kn, "widgets")
@@ -436,7 +438,7 @@ async def test_async_client(tmp_path: Path) -> None:
     )
     server.route("GET", "/v1/me", problem(401, "unauthenticated"))
     async with server.async_client(tmp_path) as kn:
-        assert await kn.modules() == ("policy", "flow", "vlan", "machines")
+        assert await kn.modules() == ("policy", "flow", "machines")
         assert await kn.has("flow")
         ids = [record["id"] async for record in kn.prefixes.list(page_size=100)]
         assert len(ids) == 250

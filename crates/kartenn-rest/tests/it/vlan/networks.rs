@@ -1,11 +1,9 @@
-//! The VLAN of a network (spec 008, REQ-008-17, 18; task 008-12): `vlan.vlan`, a reference
+//! The VLAN of a network (spec 026; spec 008, REQ-008-17, 18): `core.vlan`, a reference
 //! carried by the networks only, IPv4 and IPv6 alike; a warning, then an anomaly, when the
 //! group of the VLAN is anchored on a site outside that of the network or on another
 //! domain.
 
-use crate::support::env;
-
-use env::{Env, op, rules};
+use super::env::{Env, op, rules};
 use kartenn_service::authz::Unrestricted;
 use kartenn_service::operations::RawInput;
 use kartenn_service::pipeline::MAX_OPERATIONS;
@@ -42,7 +40,7 @@ impl Env {
         let acme = self.id("entity", "acme").await;
         self.applied(vec![
             op(
-                "create_group",
+                "create_vlan_group",
                 json!({"local": 1, "slug": slug, "anchor": anchor, "owner": {"id": acme}}),
             ),
             op(
@@ -52,7 +50,7 @@ impl Env {
         ])
         .await;
         sqlx::query_scalar(
-            "SELECT v.id FROM vlan.vlan v JOIN vlan.vlan_group g ON g.id = v.group_id
+            "SELECT v.id FROM vlan v JOIN vlan_group g ON g.id = v.group_id
               WHERE g.slug = $1 AND v.vid = $2 AND v.valid_period @> now()",
         )
         .bind(slug)
@@ -103,10 +101,10 @@ async fn vlan_on_container_refused(pool: PgPool) {
         .await;
     let container = env.prefix("10.0.0.0/16", "container").await;
     let refused = env
-        .submit(vec![env.assign(container, "vlan.vlan", vlan).await])
+        .submit(vec![env.assign(container, "core.vlan", vlan).await])
         .await;
     assert!(
-        rules(&refused).contains(&"vlan.prefix.not_network"),
+        rules(&refused).contains(&"core.vlan.prefix_not_network"),
         "{refused:?}"
     );
 }
@@ -119,7 +117,7 @@ async fn network_to_container_with_vlan_refused(pool: PgPool) {
         .vlan_in("edge", json!({"domain": {"id": lab}}), 10)
         .await;
     let network = env.prefix("10.1.0.0/24", "network").await;
-    env.applied(vec![env.assign(network, "vlan.vlan", vlan).await])
+    env.applied(vec![env.assign(network, "core.vlan", vlan).await])
         .await;
     let refused = env
         .submit(vec![core(json!({
@@ -127,7 +125,7 @@ async fn network_to_container_with_vlan_refused(pool: PgPool) {
         }))])
         .await;
     assert!(
-        rules(&refused).contains(&"vlan.prefix.not_network"),
+        rules(&refused).contains(&"core.vlan.prefix_not_network"),
         "{refused:?}"
     );
 }
@@ -146,7 +144,7 @@ async fn site_mismatch_is_an_anomaly(pool: PgPool) {
     let network = env.prefix("10.2.0.0/24", "network").await;
     let operations = vec![
         env.assign(network, "core.site", lyon).await,
-        env.assign(network, "vlan.vlan", vlan).await,
+        env.assign(network, "core.vlan", vlan).await,
     ];
     let mut request = env.request(operations.clone(), None);
     request.simulate = true;
@@ -154,22 +152,22 @@ async fn site_mismatch_is_an_anomaly(pool: PgPool) {
         .await
         .unwrap();
     assert!(
-        warnings(&simulated).contains(&"vlan.site.mismatch"),
+        warnings(&simulated).contains(&"core.vlan.site_mismatch"),
         "{simulated:?}"
     );
     // … an anomaly once applied.
     let applied = env.applied(operations).await;
     assert!(
-        warnings(&applied).contains(&"vlan.site.mismatch"),
+        warnings(&applied).contains(&"core.vlan.site_mismatch"),
         "{applied:?}"
     );
-    assert!(env.anomaly(network, "vlan.site.mismatch").await);
+    assert!(env.anomaly(network, "core.vlan.site_mismatch").await);
     // A network of Paris on the same VLAN: nothing.
     let same = env.prefix("10.4.0.0/24", "network").await;
     let applied = env
         .applied(vec![
             env.assign(same, "core.site", paris).await,
-            env.assign(same, "vlan.vlan", vlan).await,
+            env.assign(same, "core.vlan", vlan).await,
         ])
         .await;
     assert!(warnings(&applied).is_empty(), "{applied:?}");
@@ -192,13 +190,13 @@ async fn site_mismatch_is_an_anomaly(pool: PgPool) {
         .await;
     let network = env.prefix("10.5.0.0/24", "network").await;
     let applied = env
-        .applied(vec![env.assign(network, "vlan.vlan", foreign).await])
+        .applied(vec![env.assign(network, "core.vlan", foreign).await])
         .await;
     assert!(
-        warnings(&applied).contains(&"vlan.domain.mismatch"),
+        warnings(&applied).contains(&"core.vlan.domain_mismatch"),
         "{applied:?}"
     );
-    assert!(env.anomaly(network, "vlan.domain.mismatch").await);
+    assert!(env.anomaly(network, "core.vlan.domain_mismatch").await);
 }
 
 #[kartenn_testing::pg_test]
@@ -214,16 +212,16 @@ async fn site_mismatch_anomaly_closes_once_corrected(pool: PgPool) {
     let network = env.prefix("10.2.0.0/24", "network").await;
     env.applied(vec![
         env.assign(network, "core.site", lyon).await,
-        env.assign(network, "vlan.vlan", vlan).await,
+        env.assign(network, "core.vlan", vlan).await,
     ])
     .await;
-    assert!(env.anomaly(network, "vlan.site.mismatch").await);
+    assert!(env.anomaly(network, "core.vlan.site_mismatch").await);
     // The network moves to Paris, a change of the core alone: the anomaly closes.
     let applied = env
         .applied(vec![env.assign(network, "core.site", paris).await])
         .await;
     assert!(warnings(&applied).is_empty(), "{applied:?}");
-    assert!(!env.anomaly(network, "vlan.site.mismatch").await);
+    assert!(!env.anomaly(network, "core.vlan.site_mismatch").await);
 }
 
 #[kartenn_testing::pg_test]
@@ -237,14 +235,14 @@ async fn v4_and_v6_networks_on_one_vlan(pool: PgPool) {
     let v6 = env.prefix("2001:db8:3::/64", "network").await;
     let applied = env
         .applied(vec![
-            env.assign(v4, "vlan.vlan", vlan).await,
-            env.assign(v6, "vlan.vlan", vlan).await,
+            env.assign(v4, "core.vlan", vlan).await,
+            env.assign(v6, "core.vlan", vlan).await,
         ])
         .await;
     assert!(warnings(&applied).is_empty(), "{applied:?}");
     let carried: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM property_assignment a
-           JOIN property_declaration d ON d.id = a.property_id AND d.key = 'vlan.vlan'
+           JOIN property_declaration d ON d.id = a.property_id AND d.key = 'core.vlan'
           WHERE a.v_uuid = $1 AND a.valid_period @> now()",
     )
     .bind(vlan)

@@ -11,7 +11,7 @@ use crate::audit::RequestContext;
 use crate::authz::Authorizer;
 use crate::expected::Sources;
 use crate::module::ModuleRegistry;
-use crate::operations::{ChangesetRequest, ModuleKind, ObjectKind, Operation, Ref};
+use crate::operations::{ChangesetRequest, ObjectKind, Operation, Ref};
 use crate::pipeline::{Outcome, RequestError, references, submit_in};
 use crate::port::{ImportBatch, ImportItem, ImportRecord, Store, StoreError};
 
@@ -91,16 +91,16 @@ fn created_kind(op: &Operation) -> Option<ObjectKind> {
     })
 }
 
-/// The kind of the object a module operation creates, as its module declares it.
+/// The kind of the object a module operation creates, as its module declares it; or an
+/// operation of the VLANs of the core (spec 026).
 fn created_module_kind(modules: &ModuleRegistry, op: &Operation) -> Option<ObjectKind> {
     let Operation::Module(m) = op.inner() else {
         return None;
     };
-    let (operation, _) = modules.operation(&m.module, &m.name)?;
-    operation
+    modules
+        .operation_type(&m.module, &m.name)?
         .defines
-        .and_then(ModuleKind::parse)
-        .map(ObjectKind::Module)
+        .and_then(ObjectKind::from_name)
 }
 
 /// The local names an operation uses: those of its references, and, in the body of a

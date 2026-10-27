@@ -3770,7 +3770,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The versions of the record of the vlan.group, on both axes (REQ-004-18). */
+    /** The versions of the record of the vlan_group, on both axes (REQ-004-18). */
     get: operations["vlan_group_history"];
     put?: never;
     post?: never;
@@ -3909,8 +3909,8 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** The versions of the record of the vlan.vlan, on both axes (REQ-004-18). */
-    get: operations["vlan_vlan_history"];
+    /** The versions of the record of the vlan, on both axes (REQ-004-18). */
+    get: operations["vlan_history"];
     put?: never;
     post?: never;
     delete?: never;
@@ -3944,7 +3944,7 @@ export interface paths {
       cookie?: never;
     };
     /** The resolved values of the properties of the object. */
-    get: operations["vlan_vlan_properties"];
+    get: operations["vlan_properties"];
     put?: never;
     post?: never;
     delete?: never;
@@ -3961,7 +3961,7 @@ export interface paths {
       cookie?: never;
     };
     /** How the value of a property resolves on the object (REQ-003-14). */
-    get: operations["vlan_vlan_property_explanation"];
+    get: operations["vlan_property_explanation"];
     put?: never;
     post?: never;
     delete?: never;
@@ -3978,7 +3978,7 @@ export interface paths {
       cookie?: never;
     };
     /** The value the source of a property expects for the object (REQ-003-23). */
-    get: operations["vlan_vlan_property_suggestion"];
+    get: operations["vlan_property_suggestion"];
     put?: never;
     post?: never;
     delete?: never;
@@ -6367,7 +6367,7 @@ export interface components {
        * @description Identifier.
        */
       id: string;
-      /** @description Its qualified type (`vlan.vlan`). */
+      /** @description Its qualified type (`machines.machine`), or its kind of the core (`vlan`). */
       kind: string;
       /**
        * Format: uuid
@@ -6671,6 +6671,84 @@ export interface components {
           op: "create_address";
           /** @description Usage. */
           usage: components["schemas"]["AddressUsage"];
+        }
+      | {
+          /** @description Its anchor: an entity, a site or a domain. */
+          anchor: components["schemas"]["VlanAnchor"];
+          /**
+           * Format: int32
+           * @description Local name for later operations.
+           */
+          local?: number | null;
+          /** @enum {string} */
+          op: "create_vlan_group";
+          owner?: components["schemas"]["Ref"] | null;
+          /** @description Slug, unique among the living groups. */
+          slug: string;
+          /**
+           * Format: int64
+           * @description Last VID, 4094 by default.
+           */
+          vid_max?: number | null;
+          /**
+           * Format: int64
+           * @description First VID, 1 by default.
+           */
+          vid_min?: number | null;
+        }
+      | {
+          anchor?: components["schemas"]["VlanAnchor"] | null;
+          /** @description The group. */
+          id: components["schemas"]["Ref"];
+          /** @enum {string} */
+          op: "update_vlan_group";
+          owner?: components["schemas"]["Ref"] | null;
+          /** @description Slug. */
+          slug?: string | null;
+          /**
+           * Format: int64
+           * @description Last VID.
+           */
+          vid_max?: number | null;
+          /**
+           * Format: int64
+           * @description First VID.
+           */
+          vid_min?: number | null;
+        }
+      | {
+          /** @description The group. */
+          group: components["schemas"]["Ref"];
+          /**
+           * Format: int32
+           * @description Local name for later operations.
+           */
+          local?: number | null;
+          /** @description Name, unique in the group. */
+          name: string;
+          /** @enum {string} */
+          op: "create_vlan";
+          status?: components["schemas"]["VlanStatus"] | null;
+          /**
+           * Format: int64
+           * @description VID, 1 to 4094, in the range of the group.
+           */
+          vid: number;
+        }
+      | {
+          group?: components["schemas"]["Ref"] | null;
+          /** @description The VLAN. */
+          id: components["schemas"]["Ref"];
+          /** @description Name. */
+          name?: string | null;
+          /** @enum {string} */
+          op: "update_vlan";
+          status?: components["schemas"]["VlanStatus"] | null;
+          /**
+           * Format: int64
+           * @description VID.
+           */
+          vid?: number | null;
         }
       | {
           /** @description Entries. */
@@ -7906,14 +7984,15 @@ export interface components {
         };
       };
       /**
-       * @description The objects the caller reads, by qualified kind (`core.prefix`, `vlan.vlan`); a
-       *     kind it reads nowhere is absent.
+       * @description The objects the caller reads, by qualified kind (`core.prefix`, `core.vlan`,
+       *     `machines.machine`); a kind it reads nowhere is absent.
        */
       objects: {
         [key: string]: number;
       };
       /** @description The pending changesets of the caller. */
       pending: components["schemas"]["PendingStats"];
+      vlans?: components["schemas"]["VlanStats"] | null;
     };
     /** @description The body of a submission (design « Écritures », arbitrage of 2026-10-19). */
     Submission: {
@@ -7962,8 +8041,8 @@ export interface components {
       | "enum_value"
       | "entity"
       | "site"
-      | "vlan.group"
-      | "vlan.vlan"
+      | "vlan_group"
+      | "vlan"
       | "machines.cluster"
       | "machines.machine"
       | "machines.interface"
@@ -8194,7 +8273,21 @@ export interface components {
        */
       vid: number;
     };
-    /** @description The optional body of the closure of an object of the module (REQ-008-10). */
+    /** @description The anchor of a group of VLAN (spec 026; V3): an entity, a site or a domain. */
+    VlanAnchor:
+      | {
+          /** @description An entity. */
+          entity: components["schemas"]["Ref"];
+        }
+      | {
+          /** @description A site. */
+          site: components["schemas"]["Ref"];
+        }
+      | {
+          /** @description An addressing domain. */
+          domain: components["schemas"]["Ref"];
+        };
+    /** @description The optional body of the closure of a group or a VLAN (REQ-008-10). */
     VlanClosure: {
       /** @description Also close the VLANs of a group, and remove the VLAN of its networks. */
       cascade?: boolean | null;
@@ -8399,6 +8492,24 @@ export interface components {
       /** @description `used`, `reserved` or `free`. */
       state: string;
     };
+    /** @description The VLANs held and on their way out (spec 026; REQ-024-14). */
+    VlanStats: {
+      /**
+       * Format: int64
+       * @description `deprecated` VLANs the caller reads.
+       */
+      deprecated: number;
+      /**
+       * Format: int64
+       * @description `reserved` VLANs the caller reads.
+       */
+      reserved: number;
+    };
+    /**
+     * @description The status of a VLAN (spec 026; V5).
+     * @enum {string}
+     */
+    VlanStatus: "active" | "reserved" | "deprecated";
     /** @description A condition on a field of the core or a property `prop.<key>`. */
     Wanted: {
       /** @description The field. */
@@ -12212,7 +12323,7 @@ export interface operations {
     parameters: {
       query?: {
         /**
-         * @description Qualified types of object (`core.prefix`, `vlan.vlan`), comma separated, 32 at
+         * @description Qualified types of object (`core.prefix`, `core.vlan`, `machines.machine`), comma separated, 32 at
          *     most.
          */
         types?: string;
@@ -21268,7 +21379,7 @@ export interface operations {
       };
       header?: never;
       path: {
-        /** @description The vlan.group. */
+        /** @description The vlan_group. */
         id: string;
       };
       cookie?: never;
@@ -21381,7 +21492,7 @@ export interface operations {
       };
       header?: never;
       path: {
-        /** @description The vlan.group. */
+        /** @description The vlan_group. */
         id: string;
       };
       cookie?: never;
@@ -21418,7 +21529,7 @@ export interface operations {
       };
       header?: never;
       path: {
-        /** @description The vlan.group. */
+        /** @description The vlan_group. */
         id: string;
         /** @description The property. */
         key: string;
@@ -21457,7 +21568,7 @@ export interface operations {
       };
       header?: never;
       path: {
-        /** @description The vlan.group. */
+        /** @description The vlan_group. */
         id: string;
         /** @description The property. */
         key: string;
@@ -21740,7 +21851,7 @@ export interface operations {
       };
     };
   };
-  vlan_vlan_history: {
+  vlan_history: {
     parameters: {
       query?: {
         /** @description Valid time, RFC 3339 with its offset; now by default. */
@@ -21754,7 +21865,7 @@ export interface operations {
       };
       header?: never;
       path: {
-        /** @description The vlan.vlan. */
+        /** @description The vlan. */
         id: string;
       };
       cookie?: never;
@@ -21822,7 +21933,7 @@ export interface operations {
       };
     };
   };
-  vlan_vlan_properties: {
+  vlan_properties: {
     parameters: {
       query?: {
         /** @description Valid time, RFC 3339 with its offset; now by default. */
@@ -21832,7 +21943,7 @@ export interface operations {
       };
       header?: never;
       path: {
-        /** @description The vlan.vlan. */
+        /** @description The vlan. */
         id: string;
       };
       cookie?: never;
@@ -21859,7 +21970,7 @@ export interface operations {
       };
     };
   };
-  vlan_vlan_property_explanation: {
+  vlan_property_explanation: {
     parameters: {
       query?: {
         /** @description Valid time, RFC 3339 with its offset; now by default. */
@@ -21869,7 +21980,7 @@ export interface operations {
       };
       header?: never;
       path: {
-        /** @description The vlan.vlan. */
+        /** @description The vlan. */
         id: string;
         /** @description The property. */
         key: string;
@@ -21898,7 +22009,7 @@ export interface operations {
       };
     };
   };
-  vlan_vlan_property_suggestion: {
+  vlan_property_suggestion: {
     parameters: {
       query?: {
         /** @description Valid time, RFC 3339 with its offset; now by default. */
@@ -21908,7 +22019,7 @@ export interface operations {
       };
       header?: never;
       path: {
-        /** @description The vlan.vlan. */
+        /** @description The vlan. */
         id: string;
         /** @description The property. */
         key: string;

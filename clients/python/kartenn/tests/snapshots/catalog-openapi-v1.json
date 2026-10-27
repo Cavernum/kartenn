@@ -509,7 +509,7 @@
   ]
  },
  "vlan-groups": {
-  "module": "vlan",
+  "module": "core",
   "verbs": [
    "collection:create:create_vlan_group",
    "collection:list:list_vlan_groups",
@@ -526,18 +526,18 @@
   ]
  },
  "vlans": {
-  "module": "vlan",
+  "module": "core",
   "verbs": [
    "collection:create:create_vlan",
    "collection:list:list_vlans",
    "collection:query:query_vlans",
    "object:close:close_vlan",
    "object:get:show_vlan",
-   "object:history:vlan_vlan_history",
+   "object:history:vlan_history",
    "object:prefixes:vlan_prefixes",
-   "object:properties.explain:vlan_vlan_property_explanation",
-   "object:properties.suggest:vlan_vlan_property_suggestion",
-   "object:properties:vlan_vlan_properties",
+   "object:properties.explain:vlan_property_explanation",
+   "object:properties.suggest:vlan_property_suggestion",
+   "object:properties:vlan_properties",
    "object:update:modify_vlan"
   ]
  }

@@ -65,6 +65,14 @@ permissions! {
     ADDRESS_EDIT = "core.address.edit", false, "Créer, modifier ou clore une adresse dans un changeset et le soumettre.";
     ADDRESS_APPLY = "core.address.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche une adresse.";
     ADDRESS_APPROVAL_SELF = "core.address.approval.self", false, "Appliquer son propre changeset qui touche une adresse.";
+    VLAN_GROUP_READ = "core.vlan_group.read", false, "Lire les groupes de VLAN.";
+    VLAN_GROUP_EDIT = "core.vlan_group.edit", false, "Créer, modifier ou clore un groupe de VLAN dans un changeset et le soumettre.";
+    VLAN_GROUP_APPLY = "core.vlan_group.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche un groupe de VLAN.";
+    VLAN_GROUP_APPROVAL_SELF = "core.vlan_group.approval.self", false, "Appliquer son propre changeset qui touche un groupe de VLAN.";
+    VLAN_READ = "core.vlan.read", false, "Lire les VLAN.";
+    VLAN_EDIT = "core.vlan.edit", false, "Créer, modifier ou clore un VLAN dans un changeset et le soumettre.";
+    VLAN_APPLY = "core.vlan.apply", false, "Appliquer ou rejeter le changeset d'un autre qui touche un VLAN.";
+    VLAN_APPROVAL_SELF = "core.vlan.approval.self", false, "Appliquer son propre changeset qui touche un VLAN.";
     CHANGESET_READ = "core.changeset.read", true, "Lire les changesets, leurs opérations et leur différentiel.";
     ANOMALY_ACKNOWLEDGE ="core.anomaly.acknowledge", false, "Acquitter, avec un motif, une anomalie d'un objet du périmètre.";
     PROPERTY_ADMIN = "core.property.admin", true, "Déclarer une propriété, changer sa sensibilité.";
@@ -207,15 +215,41 @@ pub fn retired_names(catalogue: &[&Permission]) -> Vec<(String, Vec<String>)> {
         .collect()
 }
 
-/// The permissions renamed by spec 018 (R2, R3), `(old, new)`: the only source for the
-/// migration of the custom roles (Q-018-3) and for the labels of the old names that the
-/// audit journal and the history keep (R6). It opens **no alias** (Q-018-2): an old name
-/// is refused in a role and never granted. The names in `write` and `propose` it gives
-/// were retired since by spec 024 ([`retired`] composes both).
+/// The permissions renamed by spec 018 (R2, R3) and by spec 026 (REQ-026-2: the VLAN in
+/// the core), `(old, new)`: the only source for the migration of the custom roles
+/// (Q-018-3) and for the labels of the old names that the audit journal and the history
+/// keep (R6). It opens **no alias** (Q-018-2): an old name is refused in a role and never
+/// granted. The names in `write`, `propose` and the former name of `approval.self` it
+/// gives were retired since by spec 024 ([`retired`] composes both).
 pub static RENAMED_PERMISSIONS: &[(&str, &str)] = &[
-    ("vlan.vlan.read", "vlan.read"),
-    ("vlan.vlan.write", "vlan.write"),
-    ("vlan.vlan.propose", "vlan.propose"),
+    ("vlan.vlan.read", "core.vlan.read"),
+    ("vlan.vlan.write", "core.vlan.write"),
+    ("vlan.vlan.propose", "core.vlan.propose"),
+    ("vlan.read", "core.vlan.read"),
+    ("vlan.write", "core.vlan.write"),
+    ("vlan.propose", "core.vlan.propose"),
+    ("vlan.edit", "core.vlan.edit"),
+    ("vlan.apply", "core.vlan.apply"),
+    ("vlan.apply_own", "core.vlan.apply_own"),
+    ("vlan.approval.self", "core.vlan.approval.self"),
+    ("vlan.group.read", "core.vlan_group.read"),
+    ("vlan.group.write", "core.vlan_group.write"),
+    ("vlan.group.propose", "core.vlan_group.propose"),
+    ("vlan.group.edit", "core.vlan_group.edit"),
+    ("vlan.group.apply", "core.vlan_group.apply"),
+    ("vlan.group.apply_own", "core.vlan_group.apply_own"),
+    ("vlan.group.approval.self", "core.vlan_group.approval.self"),
+    // The property of the VLAN of a network, `core.vlan` (formerly `vlan.vlan`).
+    ("prop.vlan.vlan.read", "prop.core.vlan.read"),
+    ("prop.vlan.vlan.write", "prop.core.vlan.write"),
+    ("prop.vlan.vlan.propose", "prop.core.vlan.propose"),
+    ("prop.vlan.vlan.edit", "prop.core.vlan.edit"),
+    ("prop.vlan.vlan.apply", "prop.core.vlan.apply"),
+    ("prop.vlan.vlan.apply_own", "prop.core.vlan.apply_own"),
+    (
+        "prop.vlan.vlan.approval.self",
+        "prop.core.vlan.approval.self",
+    ),
     ("machines.machine.read", "machines.read"),
     ("machines.machine.write", "machines.write"),
     ("machines.machine.propose", "machines.propose"),
@@ -432,13 +466,15 @@ pub struct BuiltinRole {
     pub entries: &'static [&'static str],
 }
 
-const READS: [&str; 6] = [
+const READS: [&str; 8] = [
     "core.entity.read",
     "core.site.read",
     "core.domain.read",
     "core.prefix.read",
     "core.range.read",
     "core.address.read",
+    "core.vlan_group.read",
+    "core.vlan.read",
 ];
 
 /// Reader: every read but sensitive values.
@@ -461,12 +497,16 @@ pub static EDITOR: BuiltinRole = BuiltinRole {
         "core.prefix.read",
         "core.range.read",
         "core.address.read",
+        "core.vlan_group.read",
+        "core.vlan.read",
         "core.entity.edit",
         "core.site.edit",
         "core.domain.edit",
         "core.prefix.edit",
         "core.range.edit",
         "core.address.edit",
+        "core.vlan_group.edit",
+        "core.vlan.edit",
         "prop.*.edit",
         "core.entity.approval.self",
         "core.site.approval.self",
@@ -474,6 +514,8 @@ pub static EDITOR: BuiltinRole = BuiltinRole {
         "core.prefix.approval.self",
         "core.range.approval.self",
         "core.address.approval.self",
+        "core.vlan_group.approval.self",
+        "core.vlan.approval.self",
         "prop.*.approval.self",
     ],
 };
@@ -490,12 +532,16 @@ pub static APPROVER: BuiltinRole = BuiltinRole {
         "core.prefix.read",
         "core.range.read",
         "core.address.read",
+        "core.vlan_group.read",
+        "core.vlan.read",
         "core.entity.apply",
         "core.site.apply",
         "core.domain.apply",
         "core.prefix.apply",
         "core.range.apply",
         "core.address.apply",
+        "core.vlan_group.apply",
+        "core.vlan.apply",
         "prop.*.apply",
     ],
 };
@@ -685,9 +731,18 @@ mod tests {
     /// (`machines.machine`, see `kartenn-server`).
     #[test]
     fn a_module_kind_reads_under_the_short_permission() {
-        assert_eq!(type_read_permission("vlan.vlan"), "vlan.read");
+        assert_eq!(type_read_permission("flow.flow"), "flow.read");
         assert_eq!(type_edit_permission("flow.flow"), "flow.edit");
-        assert_eq!(type_read_permission("vlan.group"), "vlan.group.read");
+        assert_eq!(
+            type_read_permission("machines.interface"),
+            "machines.interface.read"
+        );
+        // A type of the core qualified by `core` keeps the name of its kind (spec 026).
+        assert_eq!(type_read_permission("core.vlan"), "core.vlan.read");
+        assert_eq!(
+            type_edit_permission("core.vlan_group"),
+            "core.vlan_group.edit"
+        );
     }
 
     /// REQ-024-9: each edit permission has its two applications; another action is its
@@ -699,8 +754,8 @@ mod tests {
             "core.prefix.apply"
         );
         assert_eq!(
-            verb_permission("vlan.edit", Verb::ApprovalSelf),
-            "vlan.approval.self"
+            verb_permission("flow.edit", Verb::ApprovalSelf),
+            "flow.approval.self"
         );
         assert_eq!(
             verb_permission("prop.custom.x.edit", Verb::ApprovalSelf),
@@ -727,11 +782,6 @@ mod tests {
     /// a role.
     #[test]
     fn retired_verbs_are_replaced_and_refused() {
-        static VLAN_EDIT: Permission = Permission {
-            name: "vlan.edit",
-            summary: "",
-            global_only: false,
-        };
         static WRITE: Permission = Permission {
             name: "flow.write",
             summary: "",
@@ -770,10 +820,22 @@ mod tests {
         assert!(approve.contains(&"prop.*.apply".to_owned()));
         assert_eq!(retired("core.prefix.edit", &catalogue), None);
         assert_eq!(retired("core.rbac.read", &catalogue), None);
-        let with_vlan = [&VLAN_EDIT];
+        // Spec 026: the names of the VLAN module become those of the core, renamed before
+        // their retired action is replaced.
         assert_eq!(
-            retired("vlan.vlan.write", &with_vlan),
-            Some(vec!["vlan.edit".into(), "vlan.approval.self".into()])
+            retired("vlan.vlan.write", &catalogue),
+            Some(vec![
+                "core.vlan.edit".into(),
+                "core.vlan.approval.self".into()
+            ])
+        );
+        assert_eq!(
+            retired("vlan.group.read", &catalogue),
+            Some(vec!["core.vlan_group.read".into()])
+        );
+        assert_eq!(
+            retired("vlan.apply_own", &catalogue),
+            Some(vec!["core.vlan.approval.self".into()])
         );
         for (old, new) in retired_names(&catalogue) {
             assert!(!valid_role_entry(&old), "{old}");
@@ -822,8 +884,8 @@ mod tests {
             Some(("prop.custom.x", "approval.self"))
         );
         assert_eq!(
-            split_action("vlan.approval.self"),
-            Some(("vlan", "approval.self"))
+            split_action("flow.approval.self"),
+            Some(("flow", "approval.self"))
         );
         assert_eq!(
             split_action("prop.custom.approval.edit"),

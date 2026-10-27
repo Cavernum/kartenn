@@ -81,8 +81,8 @@ def test_scripts_of_the_three_shells() -> None:
 @pytest.mark.usefixtures("served")
 def test_commands_and_verbs_from_the_cache_only(served: FakeServer) -> None:
     assert bash_values(complete_in("bash", "kartenn pre")) == ["prefixes"]
-    verbs = bash_values(complete_in("bash", "kartenn vlan "))
-    assert {"groups", "list", "get", "history", "properties", "prefixes"} <= set(verbs)
+    verbs = bash_values(complete_in("bash", "kartenn vlans "))
+    assert {"list", "get", "history", "properties", "prefixes"} <= set(verbs)
     assert served.seen == []
 
 

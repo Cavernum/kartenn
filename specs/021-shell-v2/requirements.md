@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-24
+updated: 2026-10-27
 ---
 
 # 021 — Shell v2 : exigences
@@ -105,7 +105,8 @@ absente. [X3, REQ-007-20]
 
 Acceptation :
 - Ctrl+K, « 10.1. », Entrée → la fiche du préfixe ou de l'adresse correspondante.
-- Une commande « Créer un groupe de VLAN » est absente sans `vlan.group.edit`.
+- Une commande « Créer un groupe de VLAN » est absente sans `core.vlan_group.edit`
+  (anciennement `vlan.group.edit`, amendé par la 026).
 
 #### REQ-021-4 — Fil d'Ariane
 Chaque écran doit montrer son fil d'Ariane (espace, collection, objet et ses ancêtres

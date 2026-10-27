@@ -723,6 +723,8 @@ fn table(kind: ObjectKind) -> &'static str {
         ObjectKind::EnumValue => "property_enum_value",
         ObjectKind::Entity => "entity",
         ObjectKind::Site => "site",
+        ObjectKind::VlanGroup => "vlan_group",
+        ObjectKind::Vlan => "vlan",
         // The core's record of an object of a module (ADR 0026, clause 4).
         ObjectKind::Module(_) => "module_object",
     }
@@ -1160,6 +1162,10 @@ impl WriteTx for PgTx {
         self
     }
 
+    fn core_handler(&self) -> Option<std::sync::Arc<dyn kartenn_service::module::ModuleHandler>> {
+        Some(std::sync::Arc::new(crate::vlan::Handler))
+    }
+
     fn set_module_actors(&mut self, actors: kartenn_service::module::ModuleActors) {
         self.actors = actors;
     }
@@ -1232,6 +1238,15 @@ impl WriteTx for PgTx {
             ObjectKind::Address => "SELECT domain_id FROM address WHERE id = $1 LIMIT 1",
             ObjectKind::Module(_) => {
                 "SELECT domain_id FROM module_object WHERE id = $1 AND domain_id IS NOT NULL LIMIT 1"
+            }
+            // A group anchored on a domain, a VLAN of such a group (V3).
+            ObjectKind::VlanGroup => {
+                "SELECT anchor_id FROM vlan_group WHERE id = $1 AND anchor_kind = 'domain' LIMIT 1"
+            }
+            ObjectKind::Vlan => {
+                "SELECT g.anchor_id FROM vlan v
+                   JOIN vlan_group g ON g.id = v.group_id AND g.anchor_kind = 'domain'
+                  WHERE v.id = $1 LIMIT 1"
             }
             ObjectKind::Property
             | ObjectKind::EnumValue
@@ -1476,10 +1491,13 @@ impl WriteTx for PgTx {
                 kind.name(),
                 table(kind)
             ),
+            // The VLANs of a group depend on it by a reference (`kartenn_service::vlan`).
             ObjectKind::Range
             | ObjectKind::Address
             | ObjectKind::Property
             | ObjectKind::EnumValue
+            | ObjectKind::VlanGroup
+            | ObjectKind::Vlan
             | ObjectKind::Module(_) => return Ok(Vec::new()),
         };
         let rows: Vec<(String, Uuid)> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
@@ -2209,6 +2227,7 @@ impl WriteTx for PgTx {
                      SELECT valid_period FROM addressing_object WHERE id = $1
                      UNION ALL SELECT valid_period FROM entity WHERE id = $1
                      UNION ALL SELECT valid_period FROM site WHERE id = $1
+                     UNION ALL SELECT valid_period FROM vlan_tree WHERE id = $1
                      UNION ALL SELECT valid_period FROM module_object WHERE id = $1) x)
              SELECT DISTINCT a.object_id FROM property_assignment a
              JOIN property_declaration d ON d.id = a.property_id AND d.value_type = 'ref'
@@ -2418,6 +2437,8 @@ impl WriteTx for PgTx {
                  UNION ALL SELECT id, 'domain' FROM addressing_domain
                  UNION ALL SELECT id, 'prefix' FROM prefix UNION ALL SELECT id, 'range' FROM ip_range
                  UNION ALL SELECT id, 'address' FROM address
+                 UNION ALL SELECT id, 'vlan_group' FROM vlan_group
+                 UNION ALL SELECT id, 'vlan' FROM vlan
                  UNION ALL SELECT id, kind FROM module_object) o
              WHERE id = ANY($1)",
         )
@@ -2488,6 +2509,8 @@ impl WriteTx for PgTx {
                  SELECT id, kind, valid_period FROM addressing_object
                  UNION ALL SELECT id, 'entity', valid_period FROM entity
                  UNION ALL SELECT id, 'site', valid_period FROM site
+                 UNION ALL SELECT id, 'vlan_group', valid_period FROM vlan_group
+                 UNION ALL SELECT id, 'vlan', valid_period FROM vlan
                  UNION ALL SELECT id, kind, valid_period FROM module_object) o
              WHERE id = $1 GROUP BY kind
              HAVING range_agg(valid_period) @> tstzrange(coalesce($2::timestamptz, now()), $3::timestamptz)",
@@ -2742,6 +2765,7 @@ impl WriteTx for PgTx {
                   anchor AS NOT MATERIALIZED (
                       SELECT id, parent_id, valid_period FROM entity
                       UNION ALL SELECT id, parent_id, valid_period FROM site
+                      UNION ALL SELECT id, parent_id, valid_period FROM vlan_tree
                       UNION ALL SELECT id, parent_id, valid_period FROM module_object)
              -- three branches rather than an OR, so that each uses its index
              SELECT x.id FROM roots JOIN addressing_object x ON x.id = roots.id, w

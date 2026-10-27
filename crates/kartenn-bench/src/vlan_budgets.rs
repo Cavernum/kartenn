@@ -1,7 +1,9 @@
-//! Budgets of the VLAN module (spec 008, REQ-008-25; task 008-16) on the reference dataset
-//! augmented with 2·10⁴ groups and 10⁵ VLANs, half of them on one or two networks: reading
-//! a VLAN, a filtered page and the occupancy of a group through the router of the module,
-//! and the unitary changeset that creates a VLAN through the write pipeline.
+//! Budgets of the VLANs of the core (spec 026, REQ-026-7; spec 008, REQ-008-25), measured
+//! by `bench-core` on its reference dataset augmented with 2·10⁴ groups and 10⁵ VLANs,
+//! half of them on one or two networks: reading a VLAN, a filtered page and the occupancy
+//! of a group through the router of the core, and the unitary changeset that creates a
+//! VLAN through the write pipeline. The helpers of the routers of the benches of the
+//! modules (`app`, `get`, `import`, `sync`, `reader`) live here too.
 
 use std::fmt::Write as _;
 use std::sync::Arc;
@@ -63,10 +65,10 @@ impl Authenticator for As {
     }
 }
 
-/// `vlan.<name>` from its JSON fields.
+/// The operation of the VLANs of the core `name` from its JSON fields.
 fn op(name: &str, fields: Value) -> anyhow::Result<Operation> {
     let mut object = fields;
-    object["op"] = format!("vlan.{name}").into();
+    object["op"] = name.into();
     Ok(serde_json::from_value(object)?)
 }
 
@@ -237,8 +239,7 @@ pub(crate) async fn run(
     let started = Instant::now();
     // The deployment of a build with the module: its schema, the core completed by its
     // types, then its declarations.
-    let registry = Arc::new(ModuleRegistry::new(vec![Arc::new(kartenn_vlan::Vlan)])?);
-    kartenn_store_pg::modules::migrate(pool, &registry).await?;
+    let registry = Arc::new(ModuleRegistry::new(Vec::new())?);
     let store = PgStore::new(pool.clone()).with_modules(registry.clone());
     let declarations: Vec<_> = std::iter::once(core_declarations_for(&registry))
         .chain(registry.modules().filter_map(|m| m.declarations()))
@@ -318,7 +319,7 @@ pub(crate) async fn run(
         items.push(ImportItem {
             external_id: Some(format!("group-{g}")),
             operation: op(
-                "create_group",
+                "create_vlan_group",
                 json!({"local": g + 1, "slug": format!("bench-{g}"),
                        "anchor": {"entity": {"id": entities[g % ENTITIES]}},
                        "vid_min": 1, "vid_max": 4094}),
@@ -341,7 +342,7 @@ pub(crate) async fn run(
 
     // Half of the VLANs on one or two networks, in turn.
     let vlan_ids: Vec<Uuid> = sqlx::query_scalar(
-        "SELECT v.id FROM vlan.vlan v JOIN external_id e ON e.object_id = v.id
+        "SELECT v.id FROM vlan v JOIN external_id e ON e.object_id = v.id
           WHERE e.source = 'bench-vlan' AND upper_inf(v.valid_period)
           ORDER BY split_part(e.external_id, '-', 2)::int",
     )
@@ -351,7 +352,7 @@ pub(crate) async fn run(
         bail!("{} VLANs loaded, {vlans} expected", vlan_ids.len());
     }
     let property: Uuid =
-        sqlx::query_scalar("SELECT id FROM property_declaration WHERE key = 'vlan.vlan'")
+        sqlx::query_scalar("SELECT id FROM property_declaration WHERE key = 'core.vlan'")
             .fetch_one(pool)
             .await?;
     let mut items = Vec::new();
@@ -374,7 +375,7 @@ pub(crate) async fn run(
     }
     let assigned = items.len();
     import(&store, author, "bench-vlan-networks", items).await?;
-    sqlx::raw_sql("VACUUM ANALYZE vlan.vlan_group, vlan.vlan, module_object, property_assignment")
+    sqlx::raw_sql("VACUUM ANALYZE vlan_group, vlan, property_assignment")
         .execute(pool)
         .await?;
     writeln!(
@@ -385,12 +386,16 @@ pub(crate) async fn run(
     progress(&format!("vlan networks: {:?}", started.elapsed()));
 
     let group_ids: Vec<Uuid> = sqlx::query_scalar(
-        "SELECT id FROM vlan.vlan_group WHERE upper_inf(valid_period) AND slug LIKE 'bench-%'",
+        "SELECT id FROM vlan_group WHERE upper_inf(valid_period) AND slug LIKE 'bench-%'",
     )
     .fetch_all(pool)
     .await?;
-    let identity = reader(pool, &["vlan.group.read", "vlan.read", "core.prefix.read"]).await?;
-    let app = app(pool, registry, vec![kartenn_vlan::rest::routes()], identity)?;
+    let identity = reader(
+        pool,
+        &["core.vlan_group.read", "core.vlan.read", "core.prefix.read"],
+    )
+    .await?;
+    let app = app(pool, registry, Vec::new(), identity)?;
     let mut budgets = Vec::new();
 
     // Warm-up of the connections and statements.

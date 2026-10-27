@@ -1763,7 +1763,6 @@ dependencies = [
  "kartenn-server",
  "kartenn-service",
  "kartenn-store-pg",
- "kartenn-vlan",
  "kartenn-workspace-hack",
  "opentelemetry-proto",
  "p256",
@@ -1837,7 +1836,6 @@ dependencies = [
  "kartenn-service",
  "kartenn-store-pg",
  "kartenn-testing",
- "kartenn-vlan",
  "kartenn-workspace-hack",
  "serde",
  "serde_json",
@@ -1863,7 +1861,6 @@ dependencies = [
  "kartenn-service",
  "kartenn-store-pg",
  "kartenn-testing",
- "kartenn-vlan",
  "kartenn-workspace-hack",
  "serde",
  "serde_json",
@@ -1888,7 +1885,6 @@ dependencies = [
  "kartenn-service",
  "kartenn-store-pg",
  "kartenn-testing",
- "kartenn-vlan",
  "kartenn-workspace-hack",
  "proptest",
  "regex",
@@ -1975,7 +1971,6 @@ dependencies = [
  "kartenn-store-pg",
  "kartenn-telemetry",
  "kartenn-testing",
- "kartenn-vlan",
  "kartenn-workspace-hack",
  "opentelemetry-proto",
  "opentelemetry_sdk",
@@ -2079,31 +2074,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "kartenn-vlan"
-version = "0.1.0"
-dependencies = [
- "axum",
- "http-body-util",
- "kartenn-auth",
- "kartenn-core",
- "kartenn-rest",
- "kartenn-service",
- "kartenn-store-pg",
- "kartenn-testing",
- "kartenn-workspace-hack",
- "serde",
- "serde_json",
- "sqlx",
- "time",
- "tokio",
- "tower",
- "unicode-normalization",
- "utoipa",
- "utoipa-axum",
- "uuid",
 ]
 
 [[package]]

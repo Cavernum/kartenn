@@ -184,7 +184,7 @@ def _label(item: dict[str, Any]) -> str:
 
 def reference_of(name: str, catalog: Catalog, module: str | None = None) -> str | None:
     """The collection a filter names (`domain` → `domains`, `flow_type` → `flow-types`);
-    in a module, its own collection first (`group` of `vlan` → `vlan-groups`)."""
+    under a prefix, its own collection first (`group` of `vlan` → `vlan-groups`)."""
     base = name.replace("_", "-")
     candidates = [f"{base}s", f"{base}es", base]
     if base.endswith("y"):

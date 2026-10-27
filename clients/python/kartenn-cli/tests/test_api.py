@@ -102,7 +102,8 @@ def test_stats(server: FakeServer) -> None:
         "objects": {"core.prefix": 3},
         "pending": {"to_apply": 1, "mine": 0},
         "anomalies": {"open": 2},
-        "modules": {"vlan": {"reserved": 4}},
+        "vlans": {"reserved": 4, "deprecated": 0},
+        "modules": {"machines": {"physical": 4}},
     }
     server.route("GET", "/v1/stats", counters)
     result = kartenn("stats", "-o", "json")

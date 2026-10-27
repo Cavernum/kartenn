@@ -1,4 +1,4 @@
-# kartenn-server, with the business modules of its default features (vlan, machines),
+# kartenn-server, with the business modules of its default features (machines, policy, flow),
 # built offline from Cargo.lock (spec 015, REQ-015-1). The sqlx macros read the
 # versioned .sqlx/ metadata: the build never needs a database.
 {

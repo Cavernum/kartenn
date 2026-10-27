@@ -266,6 +266,28 @@ rules! {
 }
 
 rules! {
+    VLAN_RULES;
+    VLAN_VID_INVALID = "core.vlan.vid_invalid", Error, ["REQ-008-12", "REQ-008-14", "REQ-026-1"], "IEEE 802.1Q-2022 §9.6",
+        "Un VID est un entier de 1 à 4094.";
+    VLAN_VID_OUT_OF_RANGE = "core.vlan.vid_out_of_range", Error, ["REQ-008-13", "REQ-008-14", "REQ-026-1"], "008/V6",
+        "Un VID est dans la plage de son groupe, et la plage d'un groupe garde ses VLAN.";
+    VLAN_VID_DUPLICATE = "core.vlan.vid_duplicate", Error, ["REQ-008-15", "REQ-026-1"], "008/V2",
+        "Un VID est vivant au plus une fois par groupe à tout instant.";
+    VLAN_NAME_INVALID = "core.vlan.name_invalid", Error, ["REQ-008-14", "REQ-026-1"], "008/V7",
+        "Un nom de VLAN a de 1 à 64 caractères, sans caractère de contrôle.";
+    VLAN_NAME_DUPLICATE = "core.vlan.name_duplicate", Error, ["REQ-008-15", "REQ-026-1"], "008/V7",
+        "Un nom de VLAN est vivant au plus une fois par groupe à tout instant.";
+    VLAN_GROUP_ANCHOR = "core.vlan.group_anchor", Error, ["REQ-008-12", "REQ-026-1"], "008/V3",
+        "Un groupe de VLAN est ancré sur une entité, un site ou un domaine vivant sur toute sa période.";
+    VLAN_PREFIX_NOT_NETWORK = "core.vlan.prefix_not_network", Error, ["REQ-008-17", "REQ-026-1"], "008/V4",
+        "La propriété core.vlan ne se pose que sur un réseau.";
+    VLAN_SITE_MISMATCH = "core.vlan.site_mismatch", Warning, ["REQ-008-18", "REQ-026-1"], "008/V9",
+        "Le site d'un réseau et celui du groupe de son VLAN concordent.";
+    VLAN_DOMAIN_MISMATCH = "core.vlan.domain_mismatch", Warning, ["REQ-008-18", "REQ-026-1"], "008/V9",
+        "Le domaine d'un réseau et celui du groupe de son VLAN concordent.";
+}
+
+rules! {
     IMPORT_RULES;
     IMPORT_MISSING_EXTERNAL_ID = "import.missing-external-id", Error, ["REQ-006-17"], "006/H18",
         "Un élément d'import qui crée un objet porte l'identifiant externe de sa source.";
@@ -304,6 +326,7 @@ pub fn register(rules: &[&'static Rule]) {
 pub fn all_rules() -> impl Iterator<Item = &'static Rule> {
     CORE_RULES
         .iter()
+        .chain(VLAN_RULES.iter())
         .chain(PROPERTY_RULES.iter())
         .chain(CHANGESET_RULES.iter())
         .copied()

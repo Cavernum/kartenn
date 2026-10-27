@@ -28,12 +28,8 @@ pub(crate) struct Env {
 impl Env {
     pub(crate) async fn new(pool: &PgPool) -> Self {
         let registry = Arc::new(
-            ModuleRegistry::new(vec![
-                Arc::new(kartenn_vlan::Vlan),
-                Arc::new(kartenn_machines::Machines),
-                Arc::new(Policy),
-            ])
-            .unwrap(),
+            ModuleRegistry::new(vec![Arc::new(kartenn_machines::Machines), Arc::new(Policy)])
+                .unwrap(),
         );
         kartenn_store_pg::modules::migrate(pool, &registry)
             .await

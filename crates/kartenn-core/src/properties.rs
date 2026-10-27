@@ -167,12 +167,34 @@ impl TypeSpec {
     }
 }
 
-/// Kinds of objects a reference may target (REQ-003-10): a stored `ref` type names one.
-pub const REF_TARGETS: [&str; 6] = ["entity", "site", "domain", "prefix", "range", "address"];
+/// Kinds of objects a reference may target (REQ-003-10): a stored `ref` type names one;
+/// the groups of VLAN and the VLANs among them (spec 026).
+pub const REF_TARGETS: [&str; 8] = [
+    "entity",
+    "site",
+    "domain",
+    "prefix",
+    "range",
+    "address",
+    "vlan_group",
+    "vlan",
+];
 
 /// Kinds of core objects that may carry a property declared by an administrator, until
 /// modules register theirs (003/design, § Déclarations).
-pub const CORE_CARRIERS: [&str; 6] = REF_TARGETS;
+pub const CORE_CARRIERS: [&str; 8] = REF_TARGETS;
+
+/// The kinds of the core that inherit along a tree of their own, whatever the tree a
+/// property declares, as the types of the modules do (REQ-008-6): a VLAN along its group
+/// (spec 026).
+pub const OWN_TREE_KINDS: [&str; 2] = ["vlan_group", "vlan"];
+
+/// Whether the objects of `name` inherit along a tree of their own, whatever the tree
+/// declared: the types of the modules and [`OWN_TREE_KINDS`].
+#[must_use]
+pub fn inherits_own_tree(name: &str) -> bool {
+    OWN_TREE_KINDS.contains(&name) || is_module_kind(name)
+}
 
 /// Whether `name` is a qualified type of a module, `<module>.<type>` (ADR 0026, clause 4).
 #[must_use]
@@ -690,7 +712,7 @@ mod tests {
             )),
             Ok(())
         );
-        for owner in ["policy.declared_environment", "vlan.role"] {
+        for owner in ["policy.declared_environment", "machines.role"] {
             assert_eq!(
                 id(decl(
                     "policy.declared_environment",

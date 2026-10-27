@@ -95,7 +95,7 @@ pub enum Target {
 }
 
 impl Target {
-    /// Its name: the kind of the core, or the qualified type (`vlan.vlan`).
+    /// Its name: the kind of the core, or the qualified type (`machines.machine`).
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -131,13 +131,20 @@ impl Target {
         self.as_str().replace('.', "_")
     }
 
-    /// The kind or the type named `name`, among the core and the modules of the build.
+    /// The kind or the type named `name`, among the core (the VLANs included, spec 026)
+    /// and the modules of the build.
     #[must_use]
     pub fn named(name: &str, modules: &ModuleRegistry) -> Option<Self> {
         Kind::ALL
             .into_iter()
             .find(|kind| kind.as_str() == name)
             .map(Self::Core)
+            .or_else(|| {
+                kartenn_service::vlan::TYPES
+                    .iter()
+                    .find(|ty| ty.kind == name)
+                    .map(Self::Module)
+            })
             .or_else(|| modules.object_type(name).map(Self::Module))
     }
 }

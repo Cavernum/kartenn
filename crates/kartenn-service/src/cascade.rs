@@ -17,7 +17,7 @@ use kartenn_core::rules::{self, Violation};
 use uuid::Uuid;
 
 use crate::module::{ModuleHandler, ModuleRegistry, OnClose, Reference};
-use crate::operations::{ModuleKind, ObjectKind};
+use crate::operations::ObjectKind;
 use crate::pipeline::Planned;
 use crate::port::{StoreError, WriteTx};
 
@@ -44,6 +44,20 @@ pub(crate) async fn referrers<T: WriteTx>(
     period: Option<Period>,
 ) -> Result<Vec<Referrer>, StoreError> {
     let mut found = Vec::new();
+    // The references of the VLANs of the core (spec 026), by the handler of the storage.
+    if let Some(handler) = tx.core_handler() {
+        for reference in crate::vlan::REFERENCES
+            .iter()
+            .filter(|r| r.to == kind.name())
+        {
+            for source in handler
+                .referrers(tx.module_tx(), reference, id, period)
+                .await?
+            {
+                found.push((Arc::clone(&handler), reference, source));
+            }
+        }
+    }
     for module in modules.modules() {
         let references = module.references();
         if !references.iter().any(|r| r.to == kind.name()) {
@@ -179,9 +193,9 @@ async fn dependents<T: WriteTx>(
         let mut children = tx.dependents(k, i, period).await?;
         for (_, reference, source) in referrers(tx, modules, k, i, period).await? {
             if reference.on_close == OnClose::Cascade
-                && let Some(from) = ModuleKind::parse(reference.from)
+                && let Some(from) = ObjectKind::from_name(reference.from)
             {
-                children.push((ObjectKind::Module(from), source));
+                children.push((from, source));
             }
         }
         for (child_kind, child) in children {
@@ -203,9 +217,6 @@ pub(crate) async fn check_referrers<T: WriteTx>(
     periods: &[Option<Period>],
     violations: &mut Vec<Violation>,
 ) -> Result<(), StoreError> {
-    if modules.is_empty() {
-        return Ok(());
-    }
     for (p, &period) in planned.iter().zip(periods) {
         let Planned::Close { kind, id, .. } = p else {
             continue;

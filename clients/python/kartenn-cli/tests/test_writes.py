@@ -154,7 +154,7 @@ def test_close_and_update_send_if_match(served: FakeServer) -> None:
     assert served.seen[-1].headers["If-Match"] == '"v1"'
     assert body(served.seen[-1]) == {"motive": "fin"}
     served.route("PATCH", "/v1/vlans/{id}", httpx2.Response(202, json=PENDING))
-    pending = kartenn("vlan", "update", "site-nord/140", "--set", "name=lot3-bis", "--motive", "t")
+    pending = kartenn("vlans", "update", "site-nord/140", "--set", "name=lot3-bis", "--motive", "t")
     assert pending.exit_code == 0, pending.output
     assert pending.stdout == (
         f"Écriture en attente (approval) : changeset {CHANGESET}.\n"
@@ -165,7 +165,7 @@ def test_close_and_update_send_if_match(served: FakeServer) -> None:
     assert patch.headers["If-Match"] == '"9d27"'
     assert body(patch) == {"name": "lot3-bis", "motive": "t"}
     required = kartenn(
-        "vlan", "update", "site-nord/140", "--name", "x", "--motive", "t", "--require-applied"
+        "vlans", "update", "site-nord/140", "--name", "x", "--motive", "t", "--require-applied"
     )
     assert required.exit_code == 10
 
@@ -184,7 +184,7 @@ def test_a_stale_version_is_a_conflict(served: FakeServer, snapshot: SnapshotAss
     )
     result = kartenn(
         "--no-input",
-        "vlan",
+        "vlans",
         "update",
         "site-nord/140",
         "--set",
@@ -295,15 +295,15 @@ def test_local_changeset(
         "--nature", "network", "--into-changeset",
     )  # fmt: skip
     assert added.stdout == f"Ajouté (opération 0) : create_prefix {DOMAIN}/203.0.113.0/26\n"
-    # `--group` names a collection of the module (`vlan-groups`), resolved by its key.
+    # `--group` names a collection of the core (`vlan-groups`), resolved by its key.
     served.route(
         "GET", "/v1/vlan-groups", {"items": [{"id": GROUP, "slug": "site-nord"}], "links": {}}
     )
     vlan = kartenn(
-        "vlan", "create", "--group", "site-nord", "--set", "vid=140", "--set", "name=lot3",
+        "vlans", "create", "--group", "site-nord", "--set", "vid=140", "--set", "name=lot3",
         "--into-changeset",
     )  # fmt: skip
-    assert vlan.stdout == f"Ajouté (opération 1) : vlan.create_vlan {GROUP}/140\n"
+    assert vlan.stdout == f"Ajouté (opération 1) : create_vlan {GROUP}/140\n"
     raw = kartenn("changeset", "add", '{"op": "create_domain", "slug": "lot3"}')
     assert raw.stdout == "Ajouté (opération 2) : create_domain\n"
     assert kartenn("changeset", "add").exit_code == 2
@@ -320,7 +320,7 @@ def test_local_changeset(
     assert sent["valid_from"] == "2026-11-01T00:00:00+01:00"
     assert [o["op"] for o in sent["operations"]] == [
         "create_prefix",
-        "vlan.create_vlan",
+        "create_vlan",
         "create_domain",
     ]
     assert sent["operations"][1]["group"] == {"id": GROUP}
@@ -448,7 +448,7 @@ def test_edit_sends_the_difference(
     monkeypatch.setenv("EDITOR", editor(tmp_path, ("name: lot3", "name: lot3-prod")))
     monkeypatch.delenv("VISUAL", raising=False)
     served.route("PATCH", "/v1/vlans/{id}", httpx2.Response(200, json=APPLIED))
-    result = kartenn("vlan", "edit", "site-nord/140", input="Renommage après mise en service\n")
+    result = kartenn("vlans", "edit", "site-nord/140", input="Renommage après mise en service\n")
     assert result.exit_code == 0, result.output
     assert "Modifications : name: lot3 → lot3-prod" in result.stdout
     assert f"Changeset {CHANGESET} appliqué." in result.stdout
@@ -471,7 +471,7 @@ def test_edit_reopens_on_a_stale_version(
     monkeypatch.setenv("EDITOR", editor(tmp_path, ("name: lot3", "name: lot3-prod")))
     answers = iter([problem(412, "precondition-failed"), httpx2.Response(200, json=APPLIED)])
     served.route("PATCH", "/v1/vlans/{id}", lambda _request: next(answers))
-    result = kartenn("vlan", "edit", "site-nord/140", "--motive", "m", input="y\n")
+    result = kartenn("vlans", "edit", "site-nord/140", "--motive", "m", input="y\n")
     assert result.exit_code == 0, result.output
     second = calls(tmp_path)[1][2]
     assert "# name: lot3-prod" in second
@@ -483,7 +483,7 @@ def test_edit_removes_its_file_on_an_error(
 ) -> None:
     monkeypatch.setenv("EDITOR", editor(tmp_path, ("name: lot3", "name: lot3-prod")))
     served.route("PATCH", "/v1/vlans/{id}", problem(412, "precondition-failed"))
-    result = kartenn("vlan", "edit", "site-nord/140", "--motive", "m", input="n\n")
+    result = kartenn("vlans", "edit", "site-nord/140", "--motive", "m", input="n\n")
     assert result.exit_code == 5
     path = calls(tmp_path)[0][0]
     assert not Path(path).exists()
@@ -495,16 +495,16 @@ def test_edit_without_change_or_with_a_broken_document(
 ) -> None:
     del served
     monkeypatch.setenv("EDITOR", editor(tmp_path, ("nothing", "nothing")))
-    assert kartenn("vlan", "edit", "site-nord/140").stdout == "Aucune modification.\n"
+    assert kartenn("vlans", "edit", "site-nord/140").stdout == "Aucune modification.\n"
     monkeypatch.setenv("EDITOR", editor(tmp_path, ("name: lot3", "name: [")))
-    broken = kartenn("vlan", "edit", "site-nord/140", "--motive", "m")
+    broken = kartenn("vlans", "edit", "site-nord/140", "--motive", "m")
     assert broken.exit_code == 2
     assert "client.invalid-document" in broken.stderr
 
 
 def test_edit_needs_a_terminal(served: FakeServer) -> None:
     del served
-    result = kartenn("vlan", "edit", "site-nord/140")
+    result = kartenn("vlans", "edit", "site-nord/140")
     assert result.exit_code == 2
     assert "client.input-required" in result.stderr
     assert os.environ.get("NO_COLOR") == "1"

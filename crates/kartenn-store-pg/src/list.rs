@@ -636,7 +636,7 @@ pub async fn history_page(
     .await
 }
 
-/// The versions of the object `id` of the module type `kind` (`vlan.vlan`), by its record
+/// The versions of the object `id` of the module type `kind` (`machines.machine`), by its record
 /// in `module_object` (ADR 0026, clause 4), as [`history_page`] reads those of the core:
 /// each changeset that writes the object leaves a version there (REQ-008-3). None for an
 /// object of another type.
@@ -673,6 +673,129 @@ pub async fn module_history_page(
         limit,
     )
     .await
+}
+
+/// The versions of the group of VLAN or of the VLAN `id`, of kind `kind` (`vlan_group`,
+/// `vlan`), in their own table (spec 026), as [`module_history_page`] reads those of the
+/// objects of a module.
+///
+/// # Errors
+///
+/// Database errors.
+#[allow(clippy::too_many_arguments)] // the history of the core, with the kind
+pub async fn vlan_history_page(
+    pool: &PgPool,
+    kind: &str,
+    id: Uuid,
+    valid_at: Option<OffsetDateTime>,
+    as_of: Option<OffsetDateTime>,
+    after: Option<(OffsetDateTime, OffsetDateTime)>,
+    limit: Option<i64>,
+) -> sqlx::Result<Vec<Version>> {
+    let (table, columns): (&str, &[&str]) = if kind == "vlan_group" {
+        (
+            "vlan_group",
+            &[
+                "id",
+                "slug",
+                "anchor_kind",
+                "anchor_id",
+                "vid_min",
+                "vid_max",
+            ],
+        )
+    } else {
+        ("vlan", &["id", "group_id", "vid", "name", "status"])
+    };
+    versions_page(
+        pool, table, columns, None, None, id, valid_at, as_of, after, limit,
+    )
+    .await
+}
+
+/// The number of groups of VLAN and of VLANs valid at `valid_at`, as asserted now, that
+/// `scope` lets read (spec 026; spec 024, REQ-024-14, 15), qualified as the kinds of the
+/// core (`core.vlan_group`, `core.vlan`); a kind `scope` reads nowhere is left out.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn vlan_counts(
+    pool: &PgPool,
+    valid_at: OffsetDateTime,
+    scope: &ReadScope,
+) -> sqlx::Result<Vec<(String, i64)>> {
+    let mut out = Vec::new();
+    for (kind, table, domain) in [
+        (
+            "vlan_group",
+            "vlan_group",
+            "CASE WHEN x.anchor_kind = 'domain' THEN x.anchor_id END",
+        ),
+        (
+            "vlan",
+            "vlan",
+            "(SELECT CASE WHEN g.anchor_kind = 'domain' THEN g.anchor_id END
+                FROM vlan_group g WHERE g.id = x.group_id AND g.valid_period @> $1 LIMIT 1)",
+        ),
+    ] {
+        if !scope.reads(kind) {
+            continue;
+        }
+        let everywhere = scope.reads_all(kind);
+        let sql = format!(
+            "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($2))
+             SELECT count(*) FROM {table} x
+              WHERE x.valid_period @> $1 AND ($3 OR {})",
+            readable("x.id", &format!("'{kind}'"), domain, "NULL::inet", "$1")
+        );
+        let n: i64 = sqlx::query_scalar(AssertSqlSafe(sql))
+            .bind(valid_at)
+            .bind(scope.to_json())
+            .bind(everywhere)
+            .fetch_one(pool)
+            .await?;
+        out.push((format!("core.{kind}"), n));
+    }
+    Ok(out)
+}
+
+/// The VLANs `reserved` and `deprecated` valid at `valid_at` that `scope` lets read (spec
+/// 026; spec 024, REQ-024-14, 15), `None` when it reads none.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn vlan_counters(
+    pool: &PgPool,
+    valid_at: OffsetDateTime,
+    scope: &ReadScope,
+) -> sqlx::Result<Option<(i64, i64)>> {
+    if !scope.reads("vlan") {
+        return Ok(None);
+    }
+    let sql = format!(
+        "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($2))
+         SELECT count(*) FILTER (WHERE x.status = 'reserved'),
+                count(*) FILTER (WHERE x.status = 'deprecated')
+           FROM vlan x
+          WHERE x.valid_period @> $1 AND x.status <> 'active' AND ($3 OR {})",
+        readable(
+            "x.id",
+            "'vlan'",
+            "(SELECT CASE WHEN g.anchor_kind = 'domain' THEN g.anchor_id END
+                FROM vlan_group g WHERE g.id = x.group_id AND g.valid_period @> $1 LIMIT 1)",
+            "NULL::inet",
+            "$1",
+        )
+    );
+    sqlx::query_as(AssertSqlSafe(sql))
+        .bind(valid_at)
+        .bind(scope.to_json())
+        .bind(scope.reads_all("vlan"))
+        .fetch_one(pool)
+        .await
+        .map(Some)
 }
 
 /// The versions of `id` in `table` (its `columns`), with the slug of the object `link`

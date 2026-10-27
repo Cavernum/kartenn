@@ -51,7 +51,7 @@ def labo(server: FakeServer) -> None:
     server.contract = without(CONTRACT, "policy", "flow")
     server.capabilities = capabilities(
         version="0.1.4",
-        modules=[{"name": "vlan", "version": "0.1.4"}, {"name": "machines", "version": "0.1.4"}],
+        modules=[{"name": "machines", "version": "0.1.4"}],
     )
 
 
@@ -87,7 +87,6 @@ def test_root_help_of_a_server_without_policy(server: FakeServer) -> None:
     result = kartenn("--help")
     modules = result.stdout.split("Modules servis:\n", 1)[1].split("\n\n", 1)[0]
     assert modules.splitlines() == [
-        "  vlan      VLAN et groupes de VLAN.   [module vlan 0.1.4]",
         "  machines  Machines, interfaces, grappes.   [module machines 0.1.4]",
     ]
 
@@ -97,7 +96,7 @@ def test_root_help_of_a_server_without_policy(server: FakeServer) -> None:
     [
         ("policy",),
         ("flow",),
-        ("vlan",),
+        ("vlans",),
         ("machines",),
         ("prefixes",),
         ("audit",),
@@ -121,8 +120,8 @@ def test_help_of_a_derived_verb_names_its_operation(server: FakeServer) -> None:
     result = kartenn("prefixes", "history", "--help")
     assert "GET /v1/prefixes/{id}/history  (prefix_history) — module core" in result.stdout
     assert "Usage: kartenn prefixes history [OPTIONS] REF" in result.stdout
-    result = kartenn("--lang", "en", "vlan", "list", "--help")
-    assert "GET|QUERY /v1/vlans  (list_vlans) — module vlan" in result.stdout
+    result = kartenn("--lang", "en", "vlans", "list", "--help")
+    assert "GET|QUERY /v1/vlans  (list_vlans) — module core" in result.stdout
 
 
 def test_a_module_not_served_answers_its_error(server: FakeServer) -> None:
@@ -134,7 +133,7 @@ def test_a_module_not_served_answers_its_error(server: FakeServer) -> None:
         "erreur [client.module-unavailable] Le module « policy » n'est pas servi par ce "
         "serveur.\n"
         "  Profil prod — https://kartenn.example.org, version 0.1.4\n"
-        "  Modules servis : vlan, machines\n"
+        "  Modules servis : machines\n"
         "  La commande existe quand le serveur sert le module ; aucune mise à jour du client "
         "n'est nécessaire.\n"
     )
@@ -164,13 +163,13 @@ def test_a_module_added_to_the_server_is_discovered(
     server.contract = CONTRACT
     server.capabilities = capabilities(
         version="0.2.0",
-        modules=[*capabilities()["modules"][:2], {"name": "policy", "version": "0.2.0"}],
+        modules=[*capabilities()["modules"][:1], {"name": "policy", "version": "0.2.0"}],
     )
     monkeypatch.setattr(Runtime, "cache", property(lambda _self: CatalogCache(max_age=0)))
     result = kartenn("policy", "--help")
     assert result.exit_code == 0, result.output
     assert result.stderr == (
-        "Découverte du serveur… 0.2.0 (avant 0.1.4), modules : vlan, machines, policy "
+        "Découverte du serveur… 0.2.0 (avant 0.1.4), modules : machines, policy "
         "(catalogue mis à jour).\n"
     )
     assert result.stdout.splitlines()[2].startswith("  Politique de flux")
@@ -191,7 +190,10 @@ def test_a_module_of_tomorrow_is_derived(server: FakeServer) -> None:
 def test_layout_of_the_reference_contract(server: FakeServer) -> None:
     del server
     found = layout(Runtime(Settings()).catalog)
-    assert found.mains == {"flow": "flows", "machines": "machines", "vlan": "vlans"}
+    assert found.mains == {"flow": "flows", "machines": "machines"}
+    # The VLANs are collections of the core (spec 026).
+    assert found.resources["vlans"] == "vlans"
+    assert found.resources["vlan-groups"] == "vlan-groups"
     assert found.modules["policy"]["rules"] == "policy-rules"
     assert found.modules["flow"] == {
         "nonconformities": "flow-nonconformities",
@@ -211,7 +213,7 @@ def test_a_derived_verb_calls_its_operation(server: FakeServer) -> None:
     assert result.stdout == '{"used": "3", "total": "256"}\n'
     assert server.seen[-1].url.path == f"/v1/prefixes/{PREFIX}/occupancy"
     server.route("GET", "/v1/vlans", {"items": [], "links": {}})
-    listed = kartenn("vlan", "list", "--group", "a", "--group", "b", "--fields", "vid")
+    listed = kartenn("vlans", "list", "--group", "a", "--group", "b", "--fields", "vid")
     assert listed.exit_code == 0, listed.output
     assert server.seen[-1].url.params.get_list("group") == ["a", "b"]
 

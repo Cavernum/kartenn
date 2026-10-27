@@ -11,7 +11,7 @@ use kartenn_core::rules::{CHANGESET_CONFLICT, Rule};
 use kartenn_service::audit::{AuditJournal, RequestContext};
 use kartenn_service::authn::Principal;
 use kartenn_service::module::ObjectType;
-use kartenn_service::operations::{ModuleKind, Ref};
+use kartenn_service::operations::Ref;
 use kartenn_service::reads::objects_read;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, RequestError};
 use kartenn_store_pg::rbac::ReadScope;
@@ -181,8 +181,15 @@ pub async fn versioned<T: serde::Serialize>(
 
 /// The kind of the pipeline of `ty`.
 fn kind_of(ty: &'static ObjectType) -> ObjectKind {
-    ObjectKind::Module(ModuleKind::parse(ty.kind).expect("a type of the registry"))
+    ObjectKind::from_name(ty.kind).expect("a type of the registry or of the core")
 }
+
+/// The records of the objects served by an [`ObjectType`]: those of the modules
+/// (`module_object`), and the VLANs of the core in their own tables (spec 026).
+pub(crate) const TYPED_OBJECTS: &str = "(SELECT id, kind, valid_period, changeset_id
+      FROM module_object
+     UNION ALL SELECT id, 'vlan_group', valid_period, changeset_id FROM vlan_group
+     UNION ALL SELECT id, 'vlan', valid_period, changeset_id FROM vlan)";
 
 /// The members of a write of `ty` but its reserved ones, each one of `allowed` (400
 /// otherwise), and its reserved members.
@@ -215,10 +222,10 @@ async fn existing(
     id: Uuid,
 ) -> Result<(), Problem> {
     gate(api, context, ty, id).await?;
-    let found: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM module_object
-                         WHERE id = $1 AND kind = $2 AND valid_period @> now())",
-    )
+    let found: bool = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+        "SELECT EXISTS (SELECT 1 FROM {TYPED_OBJECTS} o
+                         WHERE id = $1 AND kind = $2 AND valid_period @> now())"
+    )))
     .bind(id)
     .bind(ty.kind)
     .fetch_one(&api.pool)
@@ -254,7 +261,7 @@ pub fn if_match_tag(headers: &HeaderMap, required: &str) -> Result<String, Probl
 }
 
 /// `POST /v1/<collection>` of a module: the members of the body, each one of `allowed`,
-/// make the operation `name` (`vlan.create_vlan`); 201 and `Location` to the object of
+/// make the operation `name` (`machines.create_machine`); 201 and `Location` to the object of
 /// `ty` it creates.
 ///
 /// # Errors

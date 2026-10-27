@@ -455,7 +455,7 @@ async fn check_references<T: WriteTx>(
 ) -> Result<(), StoreError> {
     for p in planned {
         if let Planned::Close { kind, id, .. } = p
-            && (kind.is_addressing() || matches!(kind, ObjectKind::Module(_)))
+            && (kind.is_addressing() || kind.qualified().is_some())
         {
             let referring = tx.dangling_references(*id).await?;
             if !referring.is_empty() {
@@ -626,10 +626,13 @@ async fn check_restored<T: WriteTx>(
         ObjectKind::Entity | ObjectKind::Site => {
             check_anchor(tx, kind, id, period, violations).await
         }
-        // An object of a module is checked by its module (`ModuleHandler::check`).
+        // An object of a module is checked by its module, a VLAN by the rules of the VLANs
+        // (`ModuleHandler::check`).
         ObjectKind::Domain
         | ObjectKind::Property
         | ObjectKind::EnumValue
+        | ObjectKind::VlanGroup
+        | ObjectKind::Vlan
         | ObjectKind::Module(_) => Ok(()),
     }
 }

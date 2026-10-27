@@ -8,7 +8,7 @@ use kartenn_core::objects::Slug;
 use kartenn_core::period::Period;
 use kartenn_core::properties::{
     CORE_CARRIERS, CurrentAssignment, Declarant, Declaration, InheritTree, ObligationScope,
-    PropertyKey, PropertyUsage, REF_TARGETS, TypeSpec, check_evolution, is_module_kind,
+    PropertyKey, PropertyUsage, REF_TARGETS, TypeSpec, check_evolution, inherits_own_tree,
 };
 use kartenn_core::rules::{self, Violation};
 use kartenn_core::values::{Cardinality, Scalar, Value, ValueContext, ValueType};
@@ -109,7 +109,7 @@ pub(crate) fn declaration(
         &inherit
         && let Some(outside) = carriers
             .iter()
-            .find(|c| !tree.kinds().contains(&c.as_str()) && !is_module_kind(c))
+            .find(|c| !tree.kinds().contains(&c.as_str()) && !inherits_own_tree(c))
     {
         return Err(invalid(format!(
             "{key}: {outside} is not an object of the {} tree",
@@ -784,6 +784,9 @@ pub fn core_declarations() -> ModuleDeclarations {
 pub fn core_declarations_for(modules: &ModuleRegistry) -> ModuleDeclarations {
     let core = || Declarant::Module("core".into());
     let key = |k| PropertyKey::parse(k).expect("core keys are valid literals");
+    // The types handled as those of a module: the VLANs of the core (spec 026), then the
+    // types of the modules of the build.
+    let types = || crate::vlan::TYPES.iter().chain(modules.object_types());
     ModuleDeclarations {
         module: "core".into(),
         version: env!("CARGO_PKG_VERSION").into(),
@@ -796,17 +799,12 @@ pub fn core_declarations_for(modules: &ModuleRegistry) -> ModuleDeclarations {
                     cardinality: Cardinality::Single,
                     carriers: ["domain", "prefix"]
                         .into_iter()
-                        .chain(modules.object_types().map(|t| t.kind))
+                        .chain(types().map(|t| t.kind))
                         .map(String::from)
                         .collect(),
                     inherit: Some(InheritTree::Addressing),
                     obligations: std::iter::once("domain")
-                        .chain(
-                            modules
-                                .object_types()
-                                .filter(|t| t.owner_required)
-                                .map(|t| t.kind),
-                        )
+                        .chain(types().filter(|t| t.owner_required).map(|t| t.kind))
                         .map(|k| ObligationScope::ObjectType(k.into()))
                         .collect(),
                     expected: None,
@@ -835,14 +833,27 @@ pub fn core_declarations_for(modules: &ModuleRegistry) -> ModuleDeclarations {
                     spec: TypeSpec::Ref { target: "site" },
                     cardinality: Cardinality::Single,
                     carriers: std::iter::once("prefix")
-                        .chain(
-                            modules
-                                .object_types()
-                                .filter(|t| t.carries_site)
-                                .map(|t| t.kind),
-                        )
+                        .chain(types().filter(|t| t.carries_site).map(|t| t.kind))
                         .map(String::from)
                         .collect(),
+                    inherit: None,
+                    obligations: BTreeSet::new(),
+                    expected: None,
+                },
+                Vec::new(),
+            ),
+            (
+                // The VLAN of a network (spec 026; V4): a single reference carried by the
+                // prefixes, not inherited; `core.vlan.prefix_not_network` keeps it off the
+                // containers.
+                Declaration {
+                    key: key(crate::vlan::PROPERTY),
+                    declarant: core(),
+                    spec: TypeSpec::Ref {
+                        target: crate::vlan::VLAN,
+                    },
+                    cardinality: Cardinality::Single,
+                    carriers: BTreeSet::from(["prefix".to_owned()]),
                     inherit: None,
                     obligations: BTreeSet::new(),
                     expected: None,
@@ -860,6 +871,10 @@ pub fn core_declarations_for(modules: &ModuleRegistry) -> ModuleDeclarations {
                 Compiled::new("Système externe", "External system"),
             ),
             ("core.site".to_owned(), Compiled::new("Site", "Site")),
+            (
+                crate::vlan::PROPERTY.to_owned(),
+                Compiled::new("VLAN", "VLAN"),
+            ),
         ]),
     }
 }

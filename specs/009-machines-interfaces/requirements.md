@@ -1,6 +1,6 @@
 ---
 status: implemented
-updated: 2026-10-21
+updated: 2026-10-27
 ---
 
 # 009 — Machines et interfaces : exigences
@@ -171,6 +171,10 @@ Acceptation :
 - `access` sans VLAN, `trunk` dont le natif est aussi étiqueté, `none` avec des VLAN :
   refus.
 - Un VLAN clos à la date de la période : refus.
+
+Amendée par la 026 : les VLAN cités sont des objets du noyau (`core.vlan`), lus par le
+port du noyau sous `core.vlan.read` ; Machines ne dépend plus du module `vlan`, qui
+disparaît, et se construit seul.
 
 ### E. Cohérence et suppression
 

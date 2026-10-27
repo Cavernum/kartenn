@@ -26,8 +26,8 @@ type Vlan = components["schemas"]["Vlan"];
 /** What `definePlugin` gives back, once the elements are defined (at the end). */
 const defined: { handle?: PluginHandle } = {};
 
-/** The property of the core module that carries the VLAN of a network. */
-const PROPERTY = "vlan.vlan";
+/** The property of the core that carries the VLAN of a network (spec 026). */
+const PROPERTY = "core.vlan";
 
 /** A text of the plugin, under its namespace; the key itself before the definition. */
 function t(key: string, params?: Record<string, unknown>): string {
@@ -169,7 +169,7 @@ async function vlanOfNetwork(prefix: string): Promise<Vlan | null> {
 
 let declaration: Promise<string> | null = null;
 
-/** The identifier of the declaration of `vlan.vlan`, read once. */
+/** The identifier of the declaration of `core.vlan`, read once. */
 function propertyId(): Promise<string> {
   declaration ??= (async () => {
     for (const item of await all(api.pages("/v1/property-declarations"))) {
@@ -183,7 +183,7 @@ function propertyId(): Promise<string> {
 
 /** `VLAN 100 · servers`. */
 function named(vlan: Vlan): string {
-  return t("vlan.named", { vid: vlan.vid, name: vlan.name });
+  return t("field.named", { vid: vlan.vid, name: vlan.name });
 }
 
 // ------------------------------------------------------------------------ writes
@@ -278,8 +278,8 @@ function cells(row: HTMLTableRowElement, ...values: (string | Node)[]): void {
 
 /** The VLANs of a group as a table. */
 function vlanTable(caption: string, vlans: Vlan[], groupSlug?: (id: string) => string) {
-  const headers = [t("vlan.vid"), t("vlan.name"), t("vlan.status")];
-  if (groupSlug) headers.push(t("vlan.group"));
+  const headers = [t("field.vid"), t("field.name"), t("field.status")];
+  if (groupSlug) headers.push(t("field.group"));
   const { table: element, body } = table(caption, headers);
   for (const item of [...vlans].sort((a, b) => a.vid - b.vid)) {
     const row = el("tr");
@@ -446,11 +446,11 @@ async function groupFields(proposeVid: boolean): Promise<{
   vid: HTMLInputElement | null;
 }> {
   const found = await groups();
-  const group = field(t("vlan.group"), select("group"));
+  const group = field(t("field.group"), select("group"));
   for (const item of found) group.control.append(option(item.id, item.slug));
   const nodes: HTMLElement[] = [group.label];
   if (proposeVid) {
-    const vid = field(t("vlan.vid"), input("vid", "number"));
+    const vid = field(t("field.vid"), input("vid", "number"));
     vid.control.min = "1";
     vid.control.max = "4094";
     vid.control.required = true;
@@ -470,7 +470,7 @@ async function groupFields(proposeVid: boolean): Promise<{
     nodes.push(vid.label);
     return { nodes, group: group.control, vlan: null, vid: vid.control };
   }
-  const vlanField = field(t("vlan.vlan"), select("vlan"));
+  const vlanField = field(t("field.vlan"), select("vlan"));
   const fill = async () => {
     const vlans = group.control.value ? await vlansOf(group.control.value) : [];
     vlanField.control.replaceChildren(
@@ -582,7 +582,7 @@ class CreateVlan extends VlanElement {
         if (generation !== this.generation) return;
         say(status, "");
         const form = el("form");
-        const name = field(t("vlan.name"), input("name"));
+        const name = field(t("field.name"), input("name"));
         name.control.required = true;
         const motive = field(t("motive"), input("motive"));
         motive.control.required = true;
@@ -608,7 +608,7 @@ class CreateVlan extends VlanElement {
                 query: { group: chosen.group.value, vid: String(vid) },
               });
               const created = data.items[0];
-              if (!created) throw new Error(t("vlan.named", { vid, name: "?" }));
+              if (!created) throw new Error(t("field.named", { vid, name: "?" }));
               await setNetworkVlan(prefix, created.id, why);
               say(status, t("action.done", { vlan: named(created) }));
             } catch (error) {

@@ -44,7 +44,7 @@ NAMED_RESOURCES = frozenset({"changesets", "drafts", "imports", "proposals"})
 TOP_ALIASES = {"audit-events": "audit"}
 # Modules a server may lack: their commands answer `client.module-unavailable`, not
 # "no such command". Sub-resources served by a module on a resource of another.
-KNOWN_MODULES = frozenset({"policy", "flow", "vlan", "machines"})
+KNOWN_MODULES = frozenset({"policy", "flow", "machines"})
 SUBRESOURCE_MODULES = {"flows": "flow", "evaluations": "flow"}
 # The section of the root help by tag of the contract.
 SECTION_OF_TAG = {

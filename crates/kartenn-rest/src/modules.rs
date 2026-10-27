@@ -38,10 +38,14 @@ use crate::objects::{Api, Target, audited, gate_target, instant, store, version_
 use crate::openapi::{documented, listing_of, op, schemas_of};
 use crate::problem::{Problem, ProblemKind};
 
-/// The transversal routes of every type of object of the modules of `modules`.
+/// The transversal routes of every type of object of the modules of `modules`, and of the
+/// VLANs of the core, served the same way (spec 026).
 pub fn routes(modules: &ModuleRegistry) -> OpenApiRouter<Api> {
     let mut router = OpenApiRouter::new();
-    for ty in modules.object_types() {
+    for ty in kartenn_service::vlan::TYPES
+        .iter()
+        .chain(modules.object_types())
+    {
         let target = Target::Module(ty);
         router = history_route(router, target);
         router = crate::properties::object_routes(router, target);
@@ -63,7 +67,7 @@ pub(crate) fn graph() -> OpenApiRouter<Api> {
 struct ModuleObjectDto {
     /// Identifier.
     id: Uuid,
-    /// Its qualified type (`vlan.vlan`).
+    /// Its qualified type (`machines.machine`), or its kind of the core (`vlan`).
     kind: String,
     /// Its parent in the tree of its module.
     parent: Option<Uuid>,
@@ -110,8 +114,14 @@ fn module_version_of(target: Target, version: &Version) -> ModuleVersionDto {
         object: ModuleObjectDto {
             id,
             kind: target.as_str().to_owned(),
-            parent: uuid("parent_id"),
-            domain: uuid("domain_id"),
+            // A VLAN has its group as parent, a group anchored on a domain that domain
+            // (spec 026).
+            parent: uuid("parent_id").or_else(|| uuid("group_id")),
+            domain: uuid("domain_id").or_else(|| {
+                (version.fields.get("anchor_kind").and_then(Value::as_str) == Some("domain"))
+                    .then(|| uuid("anchor_id"))
+                    .flatten()
+            }),
             href: target.href(id),
         },
     }
@@ -122,7 +132,11 @@ fn history_route(router: OpenApiRouter<Api>, target: Target) -> OpenApiRouter<Ap
     let mut schemas = Vec::new();
     schemas_of::<ModuleVersionDto>(&mut schemas);
     schemas.push(listing_of::<ModuleVersionDto>());
-    let module = target.as_str().split('.').next().unwrap_or_default();
+    // The tag of the module of the type, or of the core for the VLANs (spec 026).
+    let module = target
+        .as_str()
+        .split_once('.')
+        .map_or(kartenn_service::module::CORE, |(module, _)| module);
     let history_op = op(
         &format!("{}_history", target.operation_name()),
         module,
@@ -173,17 +187,19 @@ async fn history(
     let moment = page.dates.at(now, api.bound)?;
     gate_target(&api, &context, target, id).await?;
     let size = usize::from(page.size);
-    let mut versions = list::module_history_page(
-        &api.pool,
-        target.as_str(),
-        id,
-        valid_at,
-        moment.as_of,
-        after,
-        Some(i64::from(page.size) + 1),
-    )
-    .await
-    .map_err(|e| store(&e))?;
+    // A VLAN or a group of the core in its own table (spec 026), an object of a module by
+    // its record.
+    let limit = Some(i64::from(page.size) + 1);
+    let kind = target.as_str();
+    let versions = if kartenn_service::vlan::TYPES
+        .iter()
+        .any(|ty| ty.kind == kind)
+    {
+        list::vlan_history_page(&api.pool, kind, id, valid_at, moment.as_of, after, limit).await
+    } else {
+        list::module_history_page(&api.pool, kind, id, valid_at, moment.as_of, after, limit).await
+    };
+    let mut versions = versions.map_err(|e| store(&e))?;
     if versions.is_empty() && after.is_none() {
         return Err(Problem::new(ProblemKind::NotFound));
     }

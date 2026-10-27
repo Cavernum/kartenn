@@ -1,6 +1,6 @@
-//! The environment of the tests of the module through the write pipeline: the module
-//! migrated, the properties of the core declared for its types, the entities `acme` and
-//! `other`, the site `paris` and the domain `lab` owned by `acme`.
+//! The environment of the tests of the VLANs of the core through the write pipeline (spec
+//! 026): a build without any module, the properties of the core declared, the entities
+//! `acme` and `other`, the site `paris` and the domain `lab` owned by `acme`.
 
 use std::sync::Arc;
 
@@ -12,7 +12,6 @@ use kartenn_service::pipeline::MAX_OPERATIONS;
 use kartenn_service::{ChangesetRequest, ObjectKind, Operation, Outcome, Ref, submit};
 use kartenn_store_pg::rbac::PgAuthorizer;
 use kartenn_store_pg::write::PgStore;
-use kartenn_vlan::Vlan;
 use serde_json::Value;
 use sqlx::PgPool;
 use sqlx::types::Uuid;
@@ -26,19 +25,18 @@ pub(crate) struct Env {
 
 impl Env {
     pub(crate) async fn new(pool: &PgPool) -> Self {
-        let registry = Arc::new(ModuleRegistry::new(vec![Arc::new(Vlan)]).unwrap());
-        kartenn_store_pg::modules::migrate(pool, &registry)
-            .await
-            .unwrap();
+        // REQ-026-1: no module, the VLANs are in the core.
+        let registry = Arc::new(ModuleRegistry::new(Vec::new()).unwrap());
         let store = PgStore::new(pool.clone()).with_modules(registry.clone());
-        // As the deployment: the core completed by the types of the module, then the
-        // declarations of the module.
-        let declarations: Vec<_> = std::iter::once(core_declarations_for(&registry))
-            .chain(registry.modules().filter_map(|m| m.declarations()))
-            .collect();
-        for outcome in sync_modules(&store, &Unrestricted, &declarations, MAX_OPERATIONS)
-            .await
-            .unwrap()
+        // As the deployment: the declarations of the core.
+        for outcome in sync_modules(
+            &store,
+            &Unrestricted,
+            &[core_declarations_for(&registry)],
+            MAX_OPERATIONS,
+        )
+        .await
+        .unwrap()
         {
             assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
         }
@@ -154,7 +152,6 @@ impl Env {
     }
 
     /// The resolved owner of `object` now.
-    #[allow(dead_code)] // not every test binary reads owners
     pub(crate) async fn owner(&self, object: Uuid) -> Option<Uuid> {
         sqlx::query_scalar("SELECT kartenn_owner($1, now())")
             .bind(object)
@@ -163,8 +160,7 @@ impl Env {
             .unwrap()
     }
 
-    /// A person granted `vlan.group.read` on the entity `entity`.
-    #[allow(dead_code)] // not every test binary reads under rights
+    /// A person granted `core.vlan_group.read` on the entity `entity`.
     pub(crate) async fn reader_on(&self, entity: Uuid) -> Uuid {
         let identity: Uuid = sqlx::query_scalar(
             "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'r') RETURNING id",
@@ -184,7 +180,7 @@ impl Env {
         .unwrap();
         sqlx::query(
             "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
-             VALUES ($1, 'vlan.group.read', tstzrange(now() - interval '1 day', NULL),
+             VALUES ($1, 'core.vlan_group.read', tstzrange(now() - interval '1 day', NULL),
                      gen_random_uuid())",
         )
         .bind(role)
@@ -203,25 +199,23 @@ impl Env {
     }
 
     /// Whether `reader` may read the group `group`.
-    #[allow(dead_code)] // not every test binary reads under rights
     pub(crate) async fn reads(&self, reader: Uuid, group: Uuid) -> bool {
         PgAuthorizer::new(self.pool.clone())
             .with_modules(self.registry.clone())
-            .authorize_many(&Subject::from(reader), "vlan.group.read", &[group])
+            .authorize_many(&Subject::from(reader), "core.vlan_group.read", &[group])
             .await
             .unwrap()
             .is_empty()
     }
 }
 
-/// `vlan.<name>` from its JSON fields.
+/// The operation of the VLANs of the core `name` from its JSON fields.
 pub(crate) fn op(name: &str, fields: Value) -> Operation {
     let mut object = fields;
-    object["op"] = format!("vlan.{name}").into();
+    object["op"] = name.into();
     serde_json::from_value(object).unwrap()
 }
 
-#[allow(dead_code)] // not every test binary reads the rules
 pub(crate) fn rules(outcome: &Outcome) -> Vec<&'static str> {
     match outcome {
         Outcome::Refused { violations, .. } => violations.iter().map(|v| v.rule.id).collect(),
@@ -229,7 +223,6 @@ pub(crate) fn rules(outcome: &Outcome) -> Vec<&'static str> {
     }
 }
 
-#[allow(dead_code)] // not every test binary reads the messages
 pub(crate) fn messages(outcome: &Outcome) -> String {
     match outcome {
         Outcome::Refused { violations, .. } => violations

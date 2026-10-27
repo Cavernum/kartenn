@@ -2,8 +2,8 @@ import type { Page } from "@playwright/test";
 import { DATA } from "../fixtures/data.ts";
 import { expect, expectAccessible, test } from "../fixtures/index.ts";
 
-// The plugin of the VLAN module (spec 008, REQ-008-24), built and installed as an operator
-// would (serve.sh): a group created in its view, a VLAN created for a network by the action
+// The VLAN plugin (spec 008, REQ-008-24; the VLANs are in the core since spec 026),
+// built and installed as an operator would (serve.sh): a group created in its view, a VLAN created for a network by the action
 // of its record and set on it, then seen in the VLAN tab and in the column of the prefix
 // list; axe-core without violation at each step.
 

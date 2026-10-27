@@ -9,9 +9,8 @@ use sqlx::types::Uuid;
 use sqlx::{PgPool, Postgres, Transaction};
 
 async fn migrated(pool: &PgPool) {
-    // With the modules it depends on (policy, machines and vlan).
+    // With the modules it depends on (policy and machines).
     let registry = ModuleRegistry::new(vec![
-        Arc::new(kartenn_vlan::Vlan),
         Arc::new(kartenn_machines::Machines),
         Arc::new(kartenn_policy::Policy),
         Arc::new(Flows),

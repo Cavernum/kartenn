@@ -806,7 +806,7 @@ pub(crate) async fn dead_vlans(
                                     || i.tagged_vlan_ids) AS v(vlan_id)
           WHERE i.id = ANY($1)
             AND NOT EXISTS (
-                SELECT 1 FROM vlan.vlan x
+                SELECT 1 FROM public.vlan x
                  WHERE x.id = v.vlan_id
                  GROUP BY x.id
                 HAVING range_agg(x.valid_period) @> i.valid_period)",
@@ -966,7 +966,7 @@ pub(crate) async fn interfaces_in_networks(
 }
 
 /// The attachments of the interfaces among `ids`, in mode `access` or `trunk`, whose
-/// address lies in a network carrying a VLAN (`vlan.vlan`) the interface does not carry:
+/// address lies in a network carrying a VLAN (`core.vlan`) the interface does not carry:
 /// `(interface, address, vlan)`. Each attachment is read at its start, or now when it
 /// started before.
 pub(crate) async fn vlan_mismatches(
@@ -992,7 +992,7 @@ pub(crate) async fn vlan_mismatches(
             AND p.valid_period @> att.t
            JOIN public.property_assignment pa
              ON pa.object_id = p.id AND pa.kind = 'value' AND pa.valid_period @> att.t
-           JOIN public.property_declaration d ON d.id = pa.property_id AND d.key = 'vlan.vlan'
+           JOIN public.property_declaration d ON d.id = pa.property_id AND d.key = 'core.vlan'
           WHERE pa.v_uuid IS DISTINCT FROM i.access_vlan_id
             AND pa.v_uuid IS DISTINCT FROM i.native_vlan_id
             AND NOT (pa.v_uuid = ANY(i.tagged_vlan_ids))

@@ -166,10 +166,11 @@ async fn an_administrator_declares_custom_properties(pool: PgPool) {
         .await,
         vec!["prop.declaration.namespace"]
     );
-    let mut on_vlan = input("custom.label", text(10));
-    on_vlan.carriers = vec!["vlan".into()];
+    // A kind no build knows; the VLANs are kinds of the core (spec 026).
+    let mut on_rack = input("custom.label", text(10));
+    on_rack.carriers = vec!["rack".into()];
     assert_eq!(
-        f.refused(vec![declare(1, on_vlan)]).await,
+        f.refused(vec![declare(1, on_rack)]).await,
         vec!["prop.declaration.invalid"]
     );
     assert_eq!(

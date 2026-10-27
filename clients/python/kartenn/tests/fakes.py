@@ -22,7 +22,6 @@ Handler = Callable[[httpx2.Request], httpx2.Response]
 MODULES = [
     {"name": "policy", "version": "0.1.0"},
     {"name": "flow", "version": "0.1.0"},
-    {"name": "vlan", "version": "0.1.0"},
     {"name": "machines", "version": "0.1.0"},
 ]
 

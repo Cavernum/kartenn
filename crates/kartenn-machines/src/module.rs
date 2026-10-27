@@ -227,8 +227,8 @@ permissions! {
 
 /// An address of the core, as a reference names it.
 pub const ADDRESS: &str = "address";
-/// A VLAN of the module `vlan`.
-pub const VLAN: &str = "vlan.vlan";
+/// A VLAN of the core (spec 026).
+pub const VLAN: &str = kartenn_service::vlan::VLAN;
 
 /// What closing an object does to the objects of the module that cite it (REQ-009-14;
 /// design « Références »).
@@ -323,9 +323,6 @@ impl Module for Machines {
     }
     fn version(&self) -> &'static str {
         env!("CARGO_PKG_VERSION")
-    }
-    fn depends_on(&self) -> &'static [&'static str] {
-        &["vlan"]
     }
     fn object_types(&self) -> &'static [ObjectType] {
         TYPES

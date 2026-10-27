@@ -21,7 +21,7 @@ fn sql_err(e: &TemporalError) -> sqlx::Error {
 /// Objects of every kind, those of the modules by their record, with their attributes,
 /// as a relation `(kind, fields)`.
 fn objects_sql() -> Result<String, TemporalError> {
-    let tables: [(&str, &str, &[&str]); 6] = [
+    let tables: [(&str, &str, &[&str]); 8] = [
         ("domain", "addressing_domain", &["id", "slug"]),
         (
             "prefix",
@@ -48,6 +48,20 @@ fn objects_sql() -> Result<String, TemporalError> {
         ),
         ("entity", "entity", &["id", "slug", "parent_id"]),
         ("site", "site", &["id", "slug", "parent_id"]),
+        // The VLANs of the core (spec 026).
+        (
+            "vlan_group",
+            "vlan_group",
+            &[
+                "id",
+                "slug",
+                "anchor_kind",
+                "anchor_id",
+                "vid_min",
+                "vid_max",
+            ],
+        ),
+        ("vlan", "vlan", &["id", "group_id", "vid", "name", "status"]),
     ];
     let mut parts = Vec::with_capacity(tables.len() + 1);
     for (kind, table, columns) in tables {
@@ -161,14 +175,17 @@ pub async fn object(
     }))
 }
 
-/// The tables of the six kinds of object a read by UUID looks in.
-const OBJECT_TABLES: [&str; 7] = [
+/// The tables of the kinds of object a read by UUID looks in: those of the core, the
+/// VLANs among them (spec 026), and the record of the objects of the modules.
+const OBJECT_TABLES: [&str; 9] = [
     "addressing_domain",
     "prefix",
     "ip_range",
     "address",
     "entity",
     "site",
+    "vlan_group",
+    "vlan",
     "module_object",
 ];
 

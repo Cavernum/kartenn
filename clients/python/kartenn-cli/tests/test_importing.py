@@ -104,9 +104,7 @@ def test_csv_of_a_resource(server: FakeServer, tmp_path: Path) -> None:
     as_json.write_text(json.dumps([{"vid": "140", "name": "lot3"}, 3]))
     vlans = kartenn("import", str(as_json), "--resource", "vlans", "--no-follow")
     assert vlans.exit_code == 0, vlans.output
-    assert imports.chunks[-1] == [
-        {"operation": {"op": "vlan.create_vlan", "vid": 140, "name": "lot3"}}
-    ]
+    assert imports.chunks[-1] == [{"operation": {"op": "create_vlan", "vid": 140, "name": "lot3"}}]
 
 
 def test_a_refused_sort_names_the_line_of_the_source(server: FakeServer, tmp_path: Path) -> None:

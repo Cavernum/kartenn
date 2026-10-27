@@ -205,7 +205,6 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     // The deployment of a build with the four modules, as `vlan_budgets` does: the
     // declarations without their obligations, an owner on each loaded domain, then all.
     let modules: Vec<Arc<dyn Module>> = vec![
-        Arc::new(kartenn_vlan::Vlan),
         Arc::new(kartenn_machines::Machines),
         Arc::new(kartenn_policy::Policy),
         Arc::new(kartenn_flow::Flows),
