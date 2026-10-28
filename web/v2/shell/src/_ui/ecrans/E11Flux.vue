@@ -1468,7 +1468,7 @@ const IFACE_HISTORY = [
             <span class="k-ecran-muted k-num">{{ proposals.length }} créations</span>
           </Cluster>
           <Stack as="ol" gap="3" class="k-ecran-list">
-            <li v-for="row in proposalRows" :key="row.key" class="k-e11-item">
+            <li v-for="row in proposalRows" :key="row.key" class="k-e11-item k-ecran-draft-item">
               <Stack gap="1">
                 <span class="k-e11-node k-mono">
                   {{ row.source || "—" }}

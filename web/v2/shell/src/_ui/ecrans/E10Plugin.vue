@@ -325,7 +325,7 @@ const EFFECT = [
             <span class="k-ecran-muted k-num">{{ CHANGED.length }} cellules</span>
           </Cluster>
           <Stack as="ol" gap="3" class="k-ecran-list">
-            <li v-for="cell in CHANGED" :key="cell.key" class="k-ecran-cell">
+            <li v-for="cell in CHANGED" :key="cell.key" class="k-ecran-cell k-ecran-draft-item">
               <Stack gap="2">
                 <Cluster justify="between" :wrap="false" gap="2">
                   <span class="k-ecran-cell__flow">

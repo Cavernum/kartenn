@@ -504,6 +504,18 @@ function toggleDraft(): void {
     list-style: none;
   }
 
+  /* An entry of the draft panel (an operation, a flow, a cell), in every mock-up: lit
+   * under the pointer as a row of a table (`--k-hover`, as `DataGrid`), a little room
+   * around its content so that the tint does not touch it (retour du 2026-10-28). */
+  .k-ecran-draft-item {
+    padding-inline: var(--k-space-1);
+    border-radius: var(--k-radius-sm);
+  }
+
+  .k-ecran-draft-item:hover {
+    background-color: var(--k-hover);
+  }
+
   /* A heading inside a panel or a drawer. */
   .k-ecran-subtitle {
     font-size: var(--k-text-md);

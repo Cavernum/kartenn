@@ -319,6 +319,34 @@ for (const frame of FRAMES) {
   });
 }
 
+// An entry of the draft panel is lit under the pointer as a row of a table (retour du
+// 2026-10-28): the same `--k-hover`, in every mock-up (frame's default draft, E13's own).
+test.describe("draft panel: the entry under the pointer", () => {
+  for (const url of ["/_ui/ecrans/E13?vue=politique", "/_ui/ecrans/E5"]) {
+    test(`${url}: lit as a hovered row of a table`, async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await open(page, url);
+      const panel = page.getByRole("complementary", { name: "Panneau droit" });
+      const entry = panel.locator(".k-ecran-draft-item").first();
+      const background = () => entry.evaluate((el) => getComputedStyle(el).backgroundColor);
+      const hover = await entry.evaluate((el) => {
+        const probe = document.createElement("span");
+        probe.style.setProperty("background-color", "var(--k-hover)");
+        el.append(probe);
+        const color = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return color;
+      });
+      const idle = await background();
+      expect(idle).not.toBe(hover);
+      await entry.hover();
+      await expect.poll(background).toBe(hover);
+      await page.mouse.move(0, 0);
+      await expect.poll(background).toBe(idle);
+    });
+  }
+});
+
 test.describe("sticky headers", () => {
   test("DataGrid: the header stays at the top of its scroll container", async ({ page }) => {
     await open(page, "/_ui/c/DataGrid?etat=sticky");

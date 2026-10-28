@@ -673,7 +673,7 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
     </template>
     <template v-if="editing" #draft>
       <Stack as="ol" gap="2" class="k-ecran-list" aria-label="Opérations du brouillon">
-        <li v-for="op in groupOperations" :key="op.what">
+        <li v-for="op in groupOperations" :key="op.what" class="k-ecran-draft-item">
           <Cluster justify="between" :wrap="false" gap="2">
             <Cluster gap="2" :wrap="false" class="k-ecran-op">
               <Icon name="draft" />
