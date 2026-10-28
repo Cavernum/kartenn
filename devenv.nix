@@ -215,8 +215,14 @@
       else if builtins.isString v
       then "'${lib.replaceStrings ["'"] ["''"] v}'"
       else toString v;
+    # Its own buffers: the full dataset (~3.6 GB) no longer depends on the page cache of
+    # a shared machine, which memory pressure empties (bench 011-19, 2026-10-28).
     settings =
-      builtins.removeAttrs pg.settings ["listen_addresses" "port" "unix_socket_directories"];
+      builtins.removeAttrs pg.settings ["listen_addresses" "port" "unix_socket_directories"]
+      // {
+        shared_buffers = "1GB";
+        effective_cache_size = "4GB";
+      };
     conf = lib.concatStrings (lib.mapAttrsToList (k: v: "${k} = ${value v}\n") settings);
     initial =
       lib.concatMapStrings (db:
