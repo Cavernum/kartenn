@@ -971,8 +971,15 @@ test.describe("Refusals of a read-only object (E7, 024/M14)", () => {
 });
 
 test.describe("E11: an end whose object is not read (027)", () => {
-  for (const view of ["machine", "registre"]) {
-    test(`${view}: its values in full, no link, the card's permission named`, async ({ page }) => {
+  // Inline, the values without link and a lock; « Fiche non accessible » and the
+  // permission in the lock's tooltip (retour du 2026-10-28).
+  for (const [view, item] of [
+    ["machine", "listitem"],
+    ["registre", "row"],
+  ] as const) {
+    test(`${view}: its values in full, no link, a lock that names the card's permission`, async ({
+      page,
+    }) => {
       await page.goto(`/_ui/ecrans/E11?vue=${view}`);
       const surface = page.locator("#k-ecran-surface");
       await expect(surface.getByText("198.51.100.20, 2001:db8::20")).toBeVisible();
@@ -980,8 +987,41 @@ test.describe("E11: an end whose object is not read (027)", () => {
       await expect(
         surface.getByRole("link", { name: /198\.51\.100\.20|203\.0\.113\./ }),
       ).toHaveCount(0);
-      await expect(surface.getByText("machines.read")).toBeVisible();
-      await expect(surface.getByText("core.prefix.read")).toBeVisible();
+      await expect(surface.getByText("machines.read")).toBeHidden();
+      await expect(surface.getByText("fiche non accessible")).toHaveCount(0);
+      const lock = (value: string) =>
+        surface
+          .getByRole(item)
+          .filter({ hasText: value })
+          .getByRole("button", { name: "Fiche non accessible" })
+          .first();
+      const iface = lock("198.51.100.20");
+      const prefix = lock("203.0.113.128/25");
+      await expect(iface).toHaveAccessibleDescription("Fiche non accessible · machines.read");
+      await expect(prefix).toHaveAccessibleDescription("Fiche non accessible · core.prefix.read");
+      const tip = page.getByRole("tooltip");
+      if (view === "registre") {
+        // A widget of its cell (APG Grid): Enter on the cell reaches it, Escape closes the
+        // tooltip, then gives the focus back to the cell.
+        const cell = surface
+          .getByRole("row")
+          .filter({ hasText: "198.51.100.20" })
+          .first()
+          .getByRole("gridcell")
+          .filter({ has: page.getByRole("button", { name: "Fiche non accessible" }) });
+        await cell.focus();
+        await page.keyboard.press("Enter");
+        await expect(iface).toBeFocused();
+      } else {
+        await iface.focus();
+      }
+      await expect(tip).toHaveText("Fiche non accessible · machines.read");
+      await page.keyboard.press("Escape");
+      await expect(tip).toBeHidden();
+      await prefix.hover();
+      await expect(tip).toHaveText("Fiche non accessible · core.prefix.read");
+      await page.mouse.move(0, 0);
+      await expect(tip).toBeHidden();
     });
   }
 });

@@ -875,7 +875,11 @@ const CITING = [
           <Stack gap="1">
             <code>{{ element.key }}</code>
             <ul class="k-ecran-list k-e13-ops">
-              <li v-for="op in element.operations" :key="op.what" class="k-e13-op">
+              <li
+                v-for="op in element.operations"
+                :key="op.what"
+                class="k-e13-op k-ecran-draft-item"
+              >
                 <Icon name="draft" />
                 <span class="k-e13-op__change"
                   >{{ op.what }} <span class="k-ecran-muted">({{ op.detail }})</span></span

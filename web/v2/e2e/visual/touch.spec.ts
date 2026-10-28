@@ -133,6 +133,19 @@ test.describe("touch: a tap instead of hovering", () => {
     await expect(bubble(page)).toHaveCount(0);
   });
 
+  test("the lock of an end not read names the card's permission (E11)", async ({ page }) => {
+    await open(page, "/_ui/ecrans/E11?vue=machine");
+    await page
+      .locator("#k-ecran-surface")
+      .getByRole("button", { name: "Fiche non accessible" })
+      .first()
+      .tap();
+    await expect(bubble(page)).toContainText("Fiche non accessible");
+    await expect(bubble(page)).toContainText(/machines\.read|core\.prefix\.read/);
+    await page.locator("#k-ecran-surface").getByText("203.0.113.128/25").first().tap();
+    await expect(bubble(page)).toHaveCount(0);
+  });
+
   test("a refused menu entry says why", async ({ page }) => {
     await open(page, "/_ui/c/Menu?etat=open");
     await page.getByRole("menuitem", { name: "Purger l'historique" }).tap({ force: true });

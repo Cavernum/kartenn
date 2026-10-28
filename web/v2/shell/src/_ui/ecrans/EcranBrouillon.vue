@@ -26,7 +26,7 @@ const operations = computed(() => DRAFT_OPERATIONS.slice(0, props.count));
       Le brouillon est vide : une modification en place ou un ajout l'y range.
     </p>
     <Stack v-else as="ol" gap="2" class="k-ecran-list" aria-label="Opérations du brouillon">
-      <li v-for="op in operations" :key="op.key">
+      <li v-for="op in operations" :key="op.key" class="k-ecran-draft-item">
         <Stack gap="1">
           <Cluster justify="between" :wrap="false" gap="2" align="start">
             <Cluster gap="2" :wrap="false" align="start" class="k-ecran-op">

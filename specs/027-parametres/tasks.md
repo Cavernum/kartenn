@@ -14,7 +14,14 @@ Statut : spec **validée le 2026-10-28**.
     onglet `Tabs` par déclarant, cinq vues) ; E11 : deux flux dont l'autre extrémité
     n'est pas lue (préfixe `203.0.113.128/25`, interface aux adresses `198.51.100.20`,
     `2001:db8::20`), dans le registre et les Entrants/Sortants ; lignes E11 et E13 de la
-    020 ; tests clavier E13 et E11 ; captures aux largeurs du banc.
+    020 ; tests clavier E13 et E11 ; captures aux largeurs du banc. Retours du
+    2026-10-28 : le volet de brouillon éclaire l'entrée survolée comme une ligne de
+    table (`--k-hover`, classe partagée `k-ecran-draft-item` d'`EcranCadre.vue`, posée
+    sur le brouillon par défaut `EcranBrouillon.vue` et sur les listes propres d'E7, E10,
+    E11 et E13 ; test `layout.spec`) ; E11 : en ligne, la sorte et les valeurs sans lien
+    puis un cadenas (`IconButton`) dont l'infobulle (`Tooltip`/`useTooltip`) dit
+    « Fiche non accessible · `<permission>` » au survol, au focus et au toucher, Échap la
+    ferme (tests clavier et `touch.spec`).
   - choix : sans masquage (consigne du 2026-10-28, remplace REQ-027-2 tel qu'écrit) :
     sorte et valeurs de l'extrémité montrées, ni nom tiré de l'objet, ni lien ni
     panneau, « fiche non accessible » et la permission (`machines.read`,
@@ -23,7 +30,13 @@ Statut : spec **validée le 2026-10-28**.
     (droits `*.settings.edit` détenus), les onglets sans le droit en lecture seule ;
     refus de clôture codé `policy.reference.closed` ; couples `icmp type 8 code 0`,
     `ip proto 50` ; layout.spec ignore une barre non rendue (sélecteur de colonnes en
-    `display: none`).
+    `display: none`). Infobulle plutôt que la bulle d'erreur de cellule (`CellError`) :
+    celle-ci est interne à `DataGrid`, marque la cellule `aria-invalid` aux couleurs
+    d'échec et n'existe pas hors d'une grille (Entrants/Sortants) ; `Tooltip` est le
+    motif APG Tooltip de la bibliothèque, déjà celui des refus par permission. Une
+    infobulle par sorte d'extrémité, au texte fixe, partagée par ses cadenas (chacun la
+    nomme par `aria-describedby`) ; dans le registre, le cadenas est un widget de la
+    cellule (Entrée ou F2 l'atteint).
 - [x] 2. Amendements : REQ-011-17 (lecteurs), REQ-011-15, 25, 26 (renvoi à la 027),
   F12 ; REQ-003-1 et 005 (catalogue des permissions) ; REQ-010-1, 2, 4, 5, 29
   (permissions) ; `specs/README.md`

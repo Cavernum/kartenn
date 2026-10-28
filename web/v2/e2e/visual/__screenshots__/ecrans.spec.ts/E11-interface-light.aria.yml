@@ -114,8 +114,7 @@
           - listitem:
             - text: par l'interface depuis interface
             - code: /\d+\.\d+\.\d+\.\d+, \d+:db8::\d+/
-            - text: fiche non accessible ·
-            - code: machines.read
+            - button "Fiche non accessible"
             - text: API interne
             - code: api
             - text: Applicatif Conforme
@@ -142,8 +141,7 @@
           - listitem:
             - text: par l'interface vers préfixe
             - code: /\d+\.\d+\.\d+\.\d+\/\d+/
-            - text: fiche non accessible ·
-            - code: core.prefix.read
+            - button "Fiche non accessible"
             - text: Web chiffré
             - code: https
             - text: Applicatif Conforme
