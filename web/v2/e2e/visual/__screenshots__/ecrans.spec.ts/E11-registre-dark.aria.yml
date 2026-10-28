@@ -202,13 +202,13 @@
           - gridcell "Échu"
           - gridcell "Sous réserve Instruction"
           - gridcell /\d+-\d+-\d+/
-        - row /srv-app-\d+ · eth0 Préfixe \d+\.\d+\.\d+\.\d+\/\d+ fiche non accessible · core\.prefix\.read Web chiffré https Applicatif Actif Conforme Automatique —/:
+        - row /srv-app-\d+ · eth0 Préfixe \d+\.\d+\.\d+\.\d+\/\d+ Fiche non accessible Web chiffré https Applicatif Actif Conforme Automatique —/:
           - gridcell /srv-app-\d+ · eth0/:
             - link /srv-app-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=dark
-          - gridcell /Préfixe \d+\.\d+\.\d+\.\d+\/\d+ fiche non accessible · core\.prefix\.read/:
+          - gridcell /Préfixe \d+\.\d+\.\d+\.\d+\/\d+ Fiche non accessible/:
             - text: ""
-            - code: core.prefix.read
+            - button "Fiche non accessible"
           - gridcell "Web chiffré https":
             - text: ""
             - code: https
@@ -216,10 +216,10 @@
           - gridcell "Actif"
           - gridcell "Conforme Automatique"
           - gridcell "—"
-        - row /Interface \d+\.\d+\.\d+\.\d+, \d+:db8::\d+ fiche non accessible · machines\.read srv-app-\d+ · eth0 API interne api Applicatif Actif Conforme Automatique —/:
-          - gridcell /Interface \d+\.\d+\.\d+\.\d+, \d+:db8::\d+ fiche non accessible · machines\.read/:
+        - row /Interface \d+\.\d+\.\d+\.\d+, \d+:db8::\d+ Fiche non accessible srv-app-\d+ · eth0 API interne api Applicatif Actif Conforme Automatique —/:
+          - gridcell /Interface \d+\.\d+\.\d+\.\d+, \d+:db8::\d+ Fiche non accessible/:
             - text: ""
-            - code: machines.read
+            - button "Fiche non accessible"
           - gridcell /srv-app-\d+ · eth0/:
             - link /srv-app-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=dark

@@ -325,7 +325,7 @@ export const MOCKUPS: Mockup[] = [
         id: "registre",
         label: "Registre",
         description:
-          "Flux déclarés et ouverts : source et destination (interface, adresse ou préfixe) en liens vers la fiche de leur machine, une extrémité dont l'objet n'est pas lu par sa sorte et ses valeurs (préfixe, ou adresses d'une interface), sans lien, « fiche non accessible » et la permission qui l'ouvre (027) ; service (libellé et clé), type de flux, état, conformité et issue, échéance ; filtres typés en pastilles ; « Proposer des flux », « Tester une connexion ».",
+          "Flux déclarés et ouverts : source et destination (interface, adresse ou préfixe) en liens vers la fiche de leur machine, une extrémité dont l'objet n'est pas lu par sa sorte et ses valeurs (préfixe, ou adresses d'une interface), sans lien, et un cadenas dont l'infobulle dit « Fiche non accessible » et la permission qui l'ouvre (027) ; service (libellé et clé), type de flux, état, conformité et issue, échéance ; filtres typés en pastilles ; « Proposer des flux », « Tester une connexion ».",
       },
       {
         id: "proposition",
@@ -367,7 +367,7 @@ export const MOCKUPS: Mockup[] = [
         id: "machine",
         label: "Flux d'une machine",
         description:
-          "Fiche de srv-app-01, onglet Information : attributs (interfaces en liens, avec leur média et leur rôle), puis les flux de ses interfaces, entrants et sortants, en liste compacte : l'interface (et l'adresse ou le préfixe qui l'atteint), l'autre extrémité (une interface en lien vers sa fiche, une adresse vers la fiche de sa machine ; un objet non lu : sa sorte et ses valeurs, sans lien ni panneau, « fiche non accessible » et la permission, 027), service, type de flux, conformité à la matrice.",
+          "Fiche de srv-app-01, onglet Information : attributs (interfaces en liens, avec leur média et leur rôle), puis les flux de ses interfaces, entrants et sortants, en liste compacte : l'interface (et l'adresse ou le préfixe qui l'atteint), l'autre extrémité (une interface en lien vers sa fiche, une adresse vers la fiche de sa machine ; un objet non lu : sa sorte et ses valeurs, sans lien ni panneau, un cadenas dont l'infobulle dit « Fiche non accessible » et la permission, 027), service, type de flux, conformité à la matrice.",
       },
       {
         id: "interface",

@@ -23,6 +23,7 @@ import {
   EnvChip,
   FilterChip,
   Icon,
+  IconButton,
   InlineAlert,
   KeyLabel,
   MatrixGrid,
@@ -32,6 +33,8 @@ import {
   Tabs,
   TextField,
   Toolbar,
+  Tooltip,
+  useTooltip,
   type CellRef,
   type CellState,
   type GridColumn,
@@ -42,6 +45,7 @@ import {
   type State,
   type TabItem,
   type ToolbarAction,
+  type TooltipControl,
 } from "@kartenn/ui";
 import { computed, nextTick, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter, type RouteLocationRaw } from "vue-router";
@@ -186,6 +190,21 @@ const READ: Record<FlowEnd["kind"], string> = {
   interface: "machines.read",
   prefix: "core.prefix.read",
 };
+/**
+ * Why an end has no link (retour du 2026-10-28): inline, its values and a lock alone; the
+ * lock opens a tooltip (APG Tooltip, `useTooltip`: hover, focus, a tap; Escape closes)
+ * that says « Fiche non accessible » and the permission. One tooltip per kind of end,
+ * its text fixed, shared by every lock of that kind (each names it by `aria-describedby`).
+ */
+const KINDS: FlowEnd["kind"][] = ["address", "interface", "prefix"];
+const UNREADABLE_TIP: Record<FlowEnd["kind"], TooltipControl> = {
+  address: useTooltip(),
+  interface: useTooltip(),
+  prefix: useTooltip(),
+};
+const UNREADABLE_ON = Object.fromEntries(
+  KINDS.map((kind) => [kind, UNREADABLE_TIP[kind].listeners(() => true)]),
+) as Record<FlowEnd["kind"], Record<string, (event: Event) => void>>;
 /** The source or the destination of a flow, by the id of its column. */
 const endOf = (flow: RegisteredFlow, side: string): FlowEnd =>
   side === "source" ? flow.source : flow.destination;
@@ -1138,16 +1157,18 @@ const IFACE_HISTORY = [
         <template #cell="{ row, column }">
           <template v-if="column.id === 'source' || column.id === 'destination'">
             <span v-if="row.flow.unreadable === column.id" class="k-e11-unreadable"
-              ><span
-                ><span class="k-e11-unreadable__note">{{
-                  KIND[endOf(row.flow, column.id).kind]
-                }}</span>
-                {{ valuesOf(endOf(row.flow, column.id)).join(", ") }}</span
-              ><span class="k-e11-unreadable__note"
-                >fiche non accessible ·
-                <code>{{ READ[endOf(row.flow, column.id).kind] }}</code></span
-              ></span
-            >
+              ><span class="k-e11-unreadable__kind">{{
+                KIND[endOf(row.flow, column.id).kind]
+              }}</span>
+              <span
+                >{{ valuesOf(endOf(row.flow, column.id)).join(", ") }}
+                <IconButton
+                  icon="lock"
+                  size="sm"
+                  label="Fiche non accessible"
+                  :aria-describedby="UNREADABLE_TIP[endOf(row.flow, column.id).kind].id"
+                  v-on="UNREADABLE_ON[endOf(row.flow, column.id).kind]" /></span
+            ></span>
             <RouterLink
               v-else-if="cardOf(column.id === 'source' ? row.flow.source : row.flow.destination)"
               :to="cardOf(column.id === 'source' ? row.flow.source : row.flow.destination)!"
@@ -1181,6 +1202,9 @@ const IFACE_HISTORY = [
           <template v-else>{{ row[column.id] }}</template>
         </template>
       </DataGrid>
+      <Tooltip v-for="kind in KINDS" :key="kind" :control="UNREADABLE_TIP[kind]"
+        >Fiche non accessible · <code>{{ READ[kind] }}</code></Tooltip
+      >
       <template #footer>
         <span class="k-num"
           >{{ FLOWS.length }} flux · {{ count("requested") }} demandé ·
@@ -1898,9 +1922,13 @@ const IFACE_HISTORY = [
                         <template v-if="f.unreadable">
                           <span class="k-ecran-muted">{{ KIND[f.other.kind].toLowerCase() }}</span>
                           <code>{{ valuesOf(f.other).join(", ") }}</code>
-                          <span class="k-ecran-muted"
-                            >fiche non accessible · <code>{{ READ[f.other.kind] }}</code></span
-                          >
+                          <IconButton
+                            icon="lock"
+                            size="sm"
+                            label="Fiche non accessible"
+                            :aria-describedby="UNREADABLE_TIP[f.other.kind].id"
+                            v-on="UNREADABLE_ON[f.other.kind]"
+                          />
                         </template>
                         <RouterLink
                           v-else-if="cardOf(f.other)"
@@ -2027,9 +2055,13 @@ const IFACE_HISTORY = [
                         <template v-if="f.unreadable">
                           <span class="k-ecran-muted">{{ KIND[f.other.kind].toLowerCase() }}</span>
                           <code>{{ valuesOf(f.other).join(", ") }}</code>
-                          <span class="k-ecran-muted"
-                            >fiche non accessible · <code>{{ READ[f.other.kind] }}</code></span
-                          >
+                          <IconButton
+                            icon="lock"
+                            size="sm"
+                            label="Fiche non accessible"
+                            :aria-describedby="UNREADABLE_TIP[f.other.kind].id"
+                            v-on="UNREADABLE_ON[f.other.kind]"
+                          />
                         </template>
                         <RouterLink
                           v-else-if="cardOf(f.other)"
@@ -2095,6 +2127,9 @@ const IFACE_HISTORY = [
         </template>
       </Tabs>
     </Panneau>
+    <Tooltip v-for="kind in KINDS" :key="kind" :control="UNREADABLE_TIP[kind]"
+      >Fiche non accessible · <code>{{ READ[kind] }}</code></Tooltip
+    >
   </Cadre>
 </template>
 
@@ -2409,17 +2444,22 @@ const IFACE_HISTORY = [
     border-block-end: var(--k-border-width) solid var(--k-border);
   }
 
-  /* An end whose object the reader does not read, in the register (027): its kind and
-   * values, then « fiche non accessible » and the permission, without link. */
+  /* An end whose object the reader does not read, in the register (027): its kind over
+   * its values without link, the lock at the end of the values, whose tooltip says
+   * « Fiche non accessible » and the permission (retour du 2026-10-28). */
   .k-e11-unreadable {
     display: grid;
   }
 
-  .k-e11-unreadable__note {
+  .k-e11-unreadable__kind {
     font-family: var(--k-font-sans);
     font-size: var(--k-text-sm);
     line-height: var(--k-text-sm-line);
     color: var(--k-text-muted);
+  }
+
+  .k-e11-unreadable .k-icon-button {
+    vertical-align: middle;
   }
 
   .k-e11-flow__end,
