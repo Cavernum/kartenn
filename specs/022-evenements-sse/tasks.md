@@ -214,10 +214,30 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     `nixos.md` (connexion `LISTEN` en plus). Aucun nom de produit : le réglage du tampon
     est décrit par l'en-tête `X-Accel-Buffering` que « des mandataires courants »
     respectent.
-- [ ] 14. (Facultative, Q-022-4) Rattrapage JSON : `GET /v1/events` avec `Accept:
-  application/json`, page après un curseur — verify : mêmes droits que le flux
-  - où : `crates/kartenn-rest/src/events.rs`, pagination de `cursor.rs`
+- [x] 14. (Q-022-4, retenue le 2026-10-29) Rattrapage JSON : `GET /v1/events` avec
+  `Accept: application/json`, page après un curseur — REQ-022-28 — verify : mêmes droits
+  que le flux
+  - où : `crates/kartenn-rest/src/events/mod.rs`, `events/hub.rs`, pagination de
+    `cursor.rs`
   - dépend de : 10
+  - fait : REQ-022-28 écrite d'abord (amende l'acceptation de REQ-022-1), design
+    « Rattrapage JSON ». `Hub::page` (avis de l'anneau `> f` et `≤` plancher publié,
+    triés par numéro, visibilité par tranches de 256, portée relue hors cache),
+    `events::page` (`EventPage`, `EventItem`, `links.next` + `Link` si pleine,
+    `data.objects.read`, `NotActivity`, `Vary: Accept`) ; le quota compte les pages
+    (`events::wants_page`) ; contrat de référence et `web/sdk/src/api/schema.d.ts`
+    régénérés. Tests `a_page_after_a_cursor_gives_the_events_by_bounded_pages`,
+    `a_page_holds_only_what_the_caller_may_read` (deux instances),
+    `a_page_starts_over_on_a_cursor_it_cannot_follow`,
+    `pages_wait_for_a_long_transaction_and_lose_nothing`,
+    `accept_asks_the_stream_a_page_or_neither`.
+  - choix : `application/json` nommé sans `text/event-stream` → page (`*/*` ou absent :
+    le flux) ; réponse alignée sur les listes (`items`, `links.next`) plus `cursor`, et
+    `next` seulement quand la page est pleine, pour qu'un paginateur générique s'arrête à
+    jour ; `id` de chaque élément = curseur `(seq, seq)`, compatible avec le flux ;
+    sans curseur → page vide au point de départ ; `reset` seul, sans
+    `links.next` ; pas de métriques `kartenn.events.*` pour les pages (lecture
+    ordinaire) ; critères d'audit = filtres, `page_size`, `resumed`.
 
 ## P5 — Contrat, audit, télémétrie
 
@@ -283,6 +303,36 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     bloqué, tâches 7, 8, 11) ; restent sans test de bout en bout `truncated`,
     `Incremental` et l'échéance (`QuietEnd`, `exp`) ; budgets INV-71 mesurés à
     l'échelle réduite seulement.
+
+## P6 — Écart relevé (2026-10-29)
+
+- [x] 19. Ouverture d'un flux comptée dans le quota de lecture — REQ-022-22 (« leur
+  ouverture compte une fois dans le compartiment de lecture du quota (REQ-006-29) ») —
+  verify : test d'acceptation (un flux ouvert débite une fois le compartiment de lecture
+  de l'identité ; compartiment vide → 429 `Retry-After` avant toute ouverture, sans
+  compter dans les plafonds de flux ni dans le délestage ; la connexion ouverte ne
+  débite plus rien ensuite) ; les plafonds par instance et par identité inchangés ;
+  `k-check`
+  - constat : la couche de quota laisse passer `/v1/events` sans débit dès que la requête
+    n'est pas une page de rattrapage (`quota.rs`, `layer`, test `wants_page`), donc
+    l'ouverture d'un flux ne compte pas, contrairement à REQ-022-22 ; relevé à la tâche
+    14.
+  - où : `crates/kartenn-rest/src/quota.rs` (`layer`, `Charge`, compartiments) ;
+    `crates/kartenn-rest/src/events/mod.rs` (`wants_page`, ouverture du flux, plafonds) ;
+    ordre des couches (quota avant délestage, REQ-006-29, 30) dans
+    `crates/kartenn-rest/src/lib.rs` ou le routeur du serveur ; tests à imiter :
+    `crates/kartenn-rest/tests/it/quota.rs` (`behind`), `tests/it/events.rs` (plafonds par
+    identité) ; `docs/spec/interfaces.md` (quotas du flux) si la description change
+  - dépend de : 14
+  - fait : `quota.rs` (`layer` ne laisse plus passer `/v1/events` : un jeton de lecture
+    par ouverture, avant le gestionnaire donc avant les plafonds du `Hub`) ;
+    `events::wants_page` retiré (sans autre usage) ; test
+    `the_opening_of_a_stream_takes_one_read_token` (`tests/it/events.rs`, compartiment
+    `r` 1/s rafale 1, un seul `max_in_flight`) ; `docs/spec/interfaces.md` (flux
+    d'événements).
+  - choix : test d'acceptation au rythme réel (attentes de 1,1 s, pas d'horloge
+    simulée) ; 429 du quota distingué de celui du plafond par `RateLimit-Policy` ;
+    aide de test `app_limited` (réglages et quotas en paramètres) sous `app_audited`.
 
 ### Invariants proposés (numéros à attribuer à la synchronisation)
 

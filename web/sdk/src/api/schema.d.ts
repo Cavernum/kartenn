@@ -4793,6 +4793,15 @@ export interface components {
       /** @description Most qualified types in `types`. */
       types: number;
     };
+    /** @description An event of a page of the catch-up (REQ-022-28). */
+    EventItem: {
+      /** @description Its data, as the extension `x-kartenn-events` names it by kind. */
+      data: Record<string, never>;
+      /** @description Its kind: `changes`, `changeset`, `labels`, `draft`, `reset`. */
+      event: string;
+      /** @description The cursor to resume just after it. */
+      id: string;
+    };
     /** @description The data of `labels`: the labels changed (spec 018). */
     EventLabels: {
       /** @description The new revision of the labels. */
@@ -4807,6 +4816,18 @@ export interface components {
       id: string;
       /** @description Its qualified type. */
       type: string;
+    };
+    /** @description A page of the catch-up after a cursor (REQ-022-28). */
+    EventPage: {
+      /** @description The cursor to come back with later (`last_event_id` or `Last-Event-ID`). */
+      cursor: string;
+      /**
+       * @description The events after the cursor, by number; a `reset` alone when the cursor is too old
+       *     or invalid.
+       */
+      items: components["schemas"]["EventItem"][];
+      /** @description `next`: the rest at once, when the page is full; `null` when up to date. */
+      links: components["schemas"]["ListingLinks"];
     };
     /** @description The data of `ready`. */
     EventReady: {
@@ -12364,6 +12385,11 @@ export interface operations {
          *     `EventSource`).
          */
         last_event_id?: string;
+        /**
+         * @description Under `Accept: application/json`, the events of a page, 1 to 1 000; 100 by
+         *     default (REQ-022-28).
+         */
+        page_size?: number;
       };
       header?: {
         /** @description The cursor to resume after. */
@@ -12374,16 +12400,17 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The stream of events (`text/event-stream`, WHATWG HTML § 9.2): `ready`, then `changes`, `changeset`, `labels`, `draft`, `stats`, `reset` and resumption points; each `id:` an opaque cursor. The data of each kind is named by the extension `x-kartenn-events`. */
+      /** @description The stream of events (`text/event-stream`, WHATWG HTML § 9.2): `ready`, then `changes`, `changeset`, `labels`, `draft`, `stats`, `reset` and resumption points; each `id:` an opaque cursor. The data of each kind is named by the extension `x-kartenn-events`. Under `Accept: application/json`, a page of the events after the cursor (REQ-022-28): `links.next` when it is full, `cursor` to come back with. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
+          "application/json": components["schemas"]["EventPage"];
           "text/event-stream": string;
         };
       };
-      /** @description A filter unknown or out of bounds (`events.filter.invalid`). */
+      /** @description A filter unknown or out of bounds (`events.filter.invalid`), or a `page_size` out of 1 to 1 000. */
       400: {
         headers: {
           [name: string]: unknown;
@@ -12401,7 +12428,7 @@ export interface operations {
           "application/problem+json": components["schemas"]["Problem"];
         };
       };
-      /** @description `Accept` does not admit `text/event-stream`. */
+      /** @description `Accept` admits neither `text/event-stream` nor `application/json`. */
       406: {
         headers: {
           [name: string]: unknown;

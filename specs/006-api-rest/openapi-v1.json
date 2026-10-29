@@ -2170,6 +2170,29 @@
         ],
         "type": "object"
       },
+      "EventItem": {
+        "description": "An event of a page of the catch-up (REQ-022-28).",
+        "properties": {
+          "data": {
+            "description": "Its data, as the extension `x-kartenn-events` names it by kind.",
+            "type": "object"
+          },
+          "event": {
+            "description": "Its kind: `changes`, `changeset`, `labels`, `draft`, `reset`.",
+            "type": "string"
+          },
+          "id": {
+            "description": "The cursor to resume just after it.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event",
+          "id",
+          "data"
+        ],
+        "type": "object"
+      },
       "EventLabels": {
         "description": "The data of `labels`: the labels changed (spec 018).",
         "properties": {
@@ -2199,6 +2222,32 @@
         "required": [
           "type",
           "id"
+        ],
+        "type": "object"
+      },
+      "EventPage": {
+        "description": "A page of the catch-up after a cursor (REQ-022-28).",
+        "properties": {
+          "cursor": {
+            "description": "The cursor to come back with later (`last_event_id` or `Last-Event-ID`).",
+            "type": "string"
+          },
+          "items": {
+            "description": "The events after the cursor, by number; a `reset` alone when the cursor is too old\nor invalid.",
+            "items": {
+              "$ref": "#/components/schemas/EventItem"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "`next`: the rest at once, when the page is full; `null` when up to date."
+          }
+        },
+        "required": [
+          "items",
+          "cursor",
+          "links"
         ],
         "type": "object"
       },
@@ -18747,6 +18796,17 @@
             }
           },
           {
+            "description": "Under `Accept: application/json`, the events of a page, 1 to 1 000; 100 by\ndefault (REQ-022-28).",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
             "description": "The cursor to resume after.",
             "in": "header",
             "name": "Last-Event-ID",
@@ -18762,13 +18822,18 @@
         "responses": {
           "200": {
             "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventPage"
+                }
+              },
               "text/event-stream": {
                 "schema": {
                   "type": "string"
                 }
               }
             },
-            "description": "The stream of events (`text/event-stream`, WHATWG HTML § 9.2): `ready`, then `changes`, `changeset`, `labels`, `draft`, `stats`, `reset` and resumption points; each `id:` an opaque cursor. The data of each kind is named by the extension `x-kartenn-events`."
+            "description": "The stream of events (`text/event-stream`, WHATWG HTML § 9.2): `ready`, then `changes`, `changeset`, `labels`, `draft`, `stats`, `reset` and resumption points; each `id:` an opaque cursor. The data of each kind is named by the extension `x-kartenn-events`. Under `Accept: application/json`, a page of the events after the cursor (REQ-022-28): `links.next` when it is full, `cursor` to come back with."
           },
           "400": {
             "content": {
@@ -18778,7 +18843,7 @@
                 }
               }
             },
-            "description": "A filter unknown or out of bounds (`events.filter.invalid`)."
+            "description": "A filter unknown or out of bounds (`events.filter.invalid`), or a `page_size` out of 1 to 1 000."
           },
           "403": {
             "content": {
@@ -18798,7 +18863,7 @@
                 }
               }
             },
-            "description": "`Accept` does not admit `text/event-stream`."
+            "description": "`Accept` admits neither `text/event-stream` nor `application/json`."
           },
           "429": {
             "content": {

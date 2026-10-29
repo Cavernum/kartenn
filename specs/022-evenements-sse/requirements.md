@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-23
+updated: 2026-10-29
 ---
 
 # 022 — Événements poussés (SSE) : exigences
@@ -28,8 +28,9 @@ délestage), 012 (audit, télémétrie), 016 (clés d'ordre, REQ-016-14, 15) ; A
 
 **Validée le 2026-10-23** : l'utilisateur a arbitré A1 à A8 et retenu les réponses
 recommandées aux questions Q-022-1 à 12 ([`decisions.md`](decisions.md)). Implémentée le
-2026-10-23 (tâches 2 à 13, 15 à 18 ; la 14, facultative, reste ouverte), budgets mesurés à
-l'échelle réduite seulement.
+2026-10-23 (tâches 2 à 13, 15 à 18), budgets mesurés à l'échelle réduite seulement.
+Rattrapage JSON (Q-022-4, tâche 14) retenu par l'utilisateur le 2026-10-29 : REQ-022-28,
+qui amende REQ-022-1, implémentée le même jour.
 
 **Lecteurs du flux.** Un seul flux, deux façons de le lire : le shell web par
 `EventSource` (cookie de session BFF, `Origin` vérifié) ; la CLI, la bibliothèque Python
@@ -60,14 +61,17 @@ Un futur serveur MCP est un adaptateur distinct (R23), jamais ce point d'accès.
 ### A. Flux et format
 
 #### REQ-022-1 — Point d'accès
+*Amendée le 2026-10-29 (REQ-022-28, Q-022-4) : `Accept: application/json` demande une
+page de rattrapage.*
 kartenn doit servir `GET /v1/events`, qui répond `200` avec `Content-Type:
 text/event-stream` et tient la réponse ouverte ; la requête porte `Accept:
-text/event-stream` (ou `*/*`), sinon 406. [R1, WHATWG HTML § 9.2.2, D7]
+text/event-stream` (ou `*/*`), ou `application/json` pour une page de rattrapage
+(REQ-022-28), sinon 406. [R1, WHATWG HTML § 9.2.2, D7]
 
 Acceptation :
 - `GET /v1/events` authentifié → 200, `text/event-stream`, premier événement `ready`
   reçu en moins de 1 s.
-- `Accept: application/json` → 406 (Problem Details, REQ-006-20).
+- `Accept: text/html` → 406 (Problem Details, REQ-006-20).
 
 #### REQ-022-2 — Filtres
 kartenn doit accepter des filtres facultatifs, combinés par ET : `types` (types d'objet
@@ -368,6 +372,59 @@ Acceptation :
   propriété).
 - Un client qui ignore les `changeset` déjà vus et compare les révisions n'émet aucune
   relecture pour un doublon exact.
+
+### I. Rattrapage JSON
+
+#### REQ-022-28 — Page d'événements après un curseur
+*Ajoutée le 2026-10-29 (Q-022-4, tâche 14).*
+Quand une requête `GET /v1/events` admet `application/json` sans nommer
+`text/event-stream`, kartenn doit répondre `200`, `application/json`, par une **page
+d'événements** après le curseur présenté (`Last-Event-ID` ou `last_event_id`), lue dans
+le même anneau que le flux, puis rendre la réponse : `{"items": [{"event", "id",
+"data"}, …], "cursor": "k1.…", "links": {"next": …}}`. `event` est la sorte, `data` la
+donnée du flux (même schéma, en objet), `id` le curseur de reprise juste après cet
+élément. La page doit tenir les règles du flux :
+
+- mêmes filtres (REQ-022-2, `page_size` en plus), même authentification et même
+  contrôle d'origine du cookie (REQ-022-15, 19), mêmes sortes et mêmes données
+  (REQ-022-3 à 5), sans `ready`, `stats` ni point de reprise ;
+- droits décidés **au moment de la réponse**, portée de lecture relue pour chaque page
+  (REQ-022-16, 17) : aucun objet que l'appelant ne peut lire, et un événement sans objet
+  visible ne laisse aucune trace (ni élément, ni curseur propre, la taille de la page
+  ne compte que les éléments remis) (INV-67) ;
+- même curseur que le flux (REQ-022-6, 7, 27) : un `id:` du flux reprend une page, un
+  `cursor` ou un `id` de page reprend le flux ; une reprise ne perd aucun événement
+  validé et visible, sur toute instance (INV-68) ; doublons seulement ceux de
+  REQ-022-27 ;
+- curseur plus ancien que l'anneau, altéré ou d'une autre identité : la page ne porte
+  qu'un élément `reset` (`too_old`, `invalid_cursor`) au curseur courant, jamais 400
+  (REQ-022-8) ; sans curseur, une page vide et le curseur courant (le point de départ) ;
+- taille bornée : `page_size` de 1 à 1 000, 100 par défaut (REQ-006-7) ; une page
+  pleine porte `links.next` (et `Link`, `rel="next"`), la suite immédiate ; sinon
+  `links.next` est `null` : l'appelant est à jour et repasse plus tard avec `cursor` ;
+- la page ne sert que les événements **sous le plancher** du lecteur de l'instance :
+  un événement validé au-dessus d'une transaction longue attend qu'elle se termine, pour
+  qu'une page bornée avance toujours sans rien sauter.
+
+Une page est une lecture ordinaire, pas un flux : quota de lecture et délestage
+(REQ-006-29, 30), audit `data.objects.read` par page (REQ-012-18 : critères = filtres,
+taille, reprise ; cibles = objets remis, bornés par `audit.read_ids_max`), ni plafond de
+flux ni `events.stream.*` ; `Cache-Control: no-store`, `Vary: Accept` ; elle n'est pas
+une activité de session (A6, Q-022-11). [Q-022-4, R6, R7, R8, R15, REQ-006-7, 8]
+
+Acceptation :
+- Trois changesets visibles après le curseur C, `page_size=2` : la page donne les deux
+  premiers et `links.next` ; la suivante, le troisième et `links.next` `null` ; une
+  autre depuis son `cursor`, rien.
+- Un abonné confiné au domaine D : aucun élément d'un changeset de l'autre domaine ; son
+  `cursor` le passe sans le révéler ; la reprise sur une autre instance ne perd rien.
+- Curseur altéré ou d'une autre identité → un seul élément `reset` `invalid_cursor` ;
+  plus ancien que l'anneau → `reset` `too_old` ; puis la page suivante continue.
+- Une transaction longue détient le plus petit numéro : les changesets validés après
+  elle n'apparaissent qu'à sa validation, avec elle ; les pages de taille 1 avancent
+  jusqu'au bout ; aucun perdu.
+- Cookie d'une autre origine → 403 ; `page_size=0` → 400 ; chaque page enregistre un
+  `data.objects.read` qui nomme les objets remis, aucun `events.stream.opened`.
 
 ## Non-objectifs
 

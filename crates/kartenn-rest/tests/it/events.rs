@@ -151,6 +151,26 @@ fn app_audited(
     who: Principal,
     audit: ReadAudit,
 ) -> Router {
+    let settings = Settings {
+        public_origin: Some(PUBLIC.into()),
+        ..Settings::default()
+    };
+    let rates = Rates {
+        read: Rate::new(1000, 1000).unwrap(),
+        ..Rates::default()
+    };
+    app_limited(pool, ring, hub, who, audit, settings, rates)
+}
+
+fn app_limited(
+    pool: &PgPool,
+    ring: &KeyRing,
+    hub: &Arc<Hub>,
+    who: Principal,
+    audit: ReadAudit,
+    settings: Settings,
+    rates: Rates,
+) -> Router {
     let api = Api {
         pool: pool.clone(),
         ring: ring.clone(),
@@ -164,14 +184,8 @@ fn app_audited(
     kartenn_rest::router(
         kartenn_rest::v1(api).layer(axum::Extension(hub.clone())),
         Arc::new(PgReadiness::new(pool.clone(), AuditStatus::default())),
-        Settings {
-            public_origin: Some(PUBLIC.into()),
-            ..Settings::default()
-        },
-        Arc::new(Quotas::new(Rates {
-            read: Rate::new(1000, 1000).unwrap(),
-            ..Rates::default()
-        })),
+        settings,
+        Arc::new(Quotas::new(rates)),
         Arc::new(Who(who)),
     )
 }
@@ -395,11 +409,11 @@ async fn the_opening_refuses_what_it_cannot_serve(pool: PgPool) {
         &i.hub,
         person(&pool, &READ_ALL, ("global", None)).await,
     );
-    let mut json = stream_request("/v1/events", None);
-    json.headers_mut()
-        .insert(header::ACCEPT, HeaderValue::from_static("application/json"));
+    let mut html = stream_request("/v1/events", None);
+    html.headers_mut()
+        .insert(header::ACCEPT, HeaderValue::from_static("text/html"));
     assert_eq!(
-        app.clone().oneshot(json).await.unwrap().status(),
+        app.clone().oneshot(html).await.unwrap().status(),
         StatusCode::NOT_ACCEPTABLE
     );
     for uri in [
@@ -855,6 +869,81 @@ async fn the_ceilings_refuse_before_the_base(pool: PgPool) {
     tokio::time::sleep(Duration::from_millis(50)).await;
     let (r6, _c6) = open(&bob, "/v1/events", None).await;
     assert_eq!(r6.status(), StatusCode::OK);
+}
+
+/// REQ-022-22: the opening of a stream takes one token of the read quota of its
+/// identity; the quota spent, 429 with `Retry-After` before any opening, counted neither
+/// by the ceilings of the streams nor by the shedding; the connection open takes nothing
+/// more.
+#[kartenn_testing::pg_test]
+async fn the_opening_of_a_stream_takes_one_read_token(pool: PgPool) {
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let i = instance(
+        &pool,
+        &ring,
+        EventSettings {
+            per_identity: 2,
+            ..quick()
+        },
+    )
+    .await;
+    // One read at once, one per second; one request in flight.
+    let alice = app_limited(
+        &pool,
+        &ring,
+        &i.hub,
+        person(&pool, &READ_ALL, ("global", None)).await,
+        ReadAudit::default(),
+        Settings {
+            public_origin: Some(PUBLIC.into()),
+            max_in_flight: 1,
+            ..Settings::default()
+        },
+        Rates {
+            read: Rate::new(1, 1).unwrap(),
+            ..Rates::default()
+        },
+    );
+    let back = Duration::from_millis(1100);
+    let (r1, mut c1) = open(&alice, "/v1/events", None).await;
+    assert_eq!(r1.status(), StatusCode::OK);
+    let (r2, _) = open(&alice, "/v1/events", None).await;
+    assert_eq!(r2.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert!(r2.headers().contains_key(header::RETRY_AFTER));
+    assert_eq!(
+        r2.headers()["ratelimit-policy"],
+        "\"r\";q=1;w=1",
+        "the read quota, not the ceiling of the identity"
+    );
+    assert_eq!(i.hub.open_streams(), 1, "refused before any opening");
+    // The stream delivers while the token comes back; it takes nothing more, nor holds
+    // the only request in flight: a read passes.
+    assert_eq!(c1.next(WAIT).await.unwrap().event, "ready");
+    c1.drain(back).await;
+    let read = alice
+        .clone()
+        .oneshot(
+            Request::get("/v1/capabilities")
+                .header(header::AUTHORIZATION, "Bearer t")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(read.status(), StatusCode::OK);
+    // The refused opening took no place: the second stream of the identity opens, the
+    // third meets the ceiling, unchanged.
+    tokio::time::sleep(back).await;
+    let (r3, _c3) = open(&alice, "/v1/events", None).await;
+    assert_eq!(r3.status(), StatusCode::OK);
+    tokio::time::sleep(back).await;
+    let (r4, _) = open(&alice, "/v1/events", None).await;
+    assert_eq!(r4.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert!(
+        !r4.headers().contains_key("ratelimit-policy"),
+        "the ceiling of the identity"
+    );
+    assert_eq!(i.hub.open_streams(), 2);
 }
 
 /// REQ-022-12: at the stop, a `retry:` drawn between 0.5 and 5 s, then the end; new
@@ -1672,4 +1761,328 @@ async fn a_recomputation_that_changed_the_statistics_sends_stats(pool: PgPool) {
     let event = client.next_of("stats", WAIT).await.expect("a stats event");
     assert_eq!(event.data, "{}");
     assert_eq!(read().await["objects"]["core.domain"], 1);
+}
+
+/// A page of the catch-up (REQ-022-28) at `uri` after `last`: its status, its body and
+/// its `Link`; a 200 checked for its headers.
+async fn page(app: &Router, uri: &str, last: Option<&str>) -> (StatusCode, Value, Option<String>) {
+    let mut r = stream_request(uri, last);
+    r.headers_mut()
+        .insert(header::ACCEPT, HeaderValue::from_static("application/json"));
+    let response = app.clone().oneshot(r).await.unwrap();
+    let status = response.status();
+    let h = response.headers();
+    if status == StatusCode::OK {
+        assert_eq!(h[header::CONTENT_TYPE], "application/json");
+        assert_eq!(h[header::CACHE_CONTROL], "no-store");
+        assert_eq!(h[header::VARY], "accept");
+    }
+    let link = h.get(header::LINK).map(|v| v.to_str().unwrap().to_owned());
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    (status, serde_json::from_slice(&body).unwrap(), link)
+}
+
+/// The changesets of the `changes` items of a page, in order.
+fn paged(body: &Value) -> Vec<Uuid> {
+    body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|i| i["event"] == "changes")
+        .filter_map(|i| serde_json::from_value(i["data"]["changeset"].clone()).ok())
+        .collect()
+}
+
+/// The cursor of a page, to come back with.
+fn cursor_of(body: &Value) -> String {
+    body["cursor"].as_str().unwrap().to_owned()
+}
+
+/// Waits until the reader of `hub` has passed every number committed.
+async fn settled(pool: &PgPool, hub: &Hub) {
+    let top: i64 = sqlx::query_scalar("SELECT coalesce(max(seq), 0) FROM outbox")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    tokio::time::timeout(WAIT, async {
+        while hub.floor() < top {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .expect("the reader passes the outbox");
+}
+
+/// REQ-022-28: without a cursor, an empty page and the point of departure; three
+/// changesets after it, by pages of two: the next page in `links.next` and `Link` while
+/// a page is full, then up to date; each page a `data.objects.read`, no stream; the `id`
+/// of an item resumes the stream itself.
+#[kartenn_testing::pg_test]
+async fn a_page_after_a_cursor_gives_the_events_by_bounded_pages(pool: PgPool) {
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let i = instance(&pool, &ring, quick()).await;
+    let writer = author(&pool).await;
+    let d = domain(&pool, writer, "prod").await;
+    let reader = person(&pool, &READ_ALL, ("global", None)).await;
+    let app = app(&pool, &ring, &i.hub, reader.clone());
+    settled(&pool, &i.hub).await;
+    let (status, start, link) = page(&app, "/v1/events", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(start["items"], json!([]));
+    assert_eq!(start["links"]["next"], Value::Null);
+    assert!(link.is_none());
+    let mut written = Vec::new();
+    for n in 0..3 {
+        written.push(apply(&pool, writer, vec![prefix_in(d, &format!("10.{n}.0.0/16"))]).await);
+    }
+    settled(&pool, &i.hub).await;
+    let uri = "/v1/events?types=core.prefix&page_size=2";
+    let (_, first, link) = page(&app, uri, Some(&cursor_of(&start))).await;
+    assert_eq!(paged(&first), written[..2]);
+    let next = first["links"]["next"]
+        .as_str()
+        .expect("a full page has a next");
+    assert_eq!(link.unwrap(), format!("<{next}>; rel=\"next\""));
+    assert!(next.contains("types=core.prefix") && next.contains("page_size=2"));
+    let (_, second, link) = page(&app, next, None).await;
+    assert_eq!(paged(&second), written[2..]);
+    assert_eq!(second["links"]["next"], Value::Null);
+    assert!(link.is_none());
+    let (_, third, _) = page(&app, uri, Some(&cursor_of(&second))).await;
+    assert_eq!(third["items"], json!([]));
+    // REQ-012-18: one read per page, naming the objects notified; no stream.
+    let reads: Vec<(Vec<Uuid>, Value)> = sqlx::query_as(
+        "SELECT target_ids, details FROM audit.event
+         WHERE name = 'data.objects.read' AND actor_id = $1 ORDER BY seq",
+    )
+    .bind(reader.identity)
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(reads.len(), 4);
+    assert_eq!(reads[1].0.len(), 2, "the two prefixes of the first page");
+    assert_eq!(reads[1].1["criteria"]["page_size"], 2);
+    assert_eq!(reads[1].1["criteria"]["types"], json!(["core.prefix"]));
+    let streams: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM audit.event WHERE name LIKE 'events.stream.%' AND actor_id = $1",
+    )
+    .bind(reader.identity)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(streams, 0);
+    // The cursor of an item resumes the stream just after it.
+    let after_first = first["items"][0]["id"].as_str().unwrap();
+    let (_, mut client) = open(&app, "/v1/events?types=core.prefix", Some(after_first)).await;
+    assert_eq!(client.next(WAIT).await.unwrap().event, "ready");
+    let replayed: Vec<Uuid> = client
+        .drain(Duration::from_millis(500))
+        .await
+        .iter()
+        .filter(|e| e.event == "changes")
+        .map(|e| serde_json::from_value(data(e)["changeset"].clone()).unwrap())
+        .collect();
+    assert_eq!(replayed, written[1..]);
+}
+
+/// REQ-022-28, INV-67: a page names only what the caller may read now, like the stream;
+/// a changeset of another domain leaves no item; a page on another instance after the
+/// same cursor loses nothing; the cookie keeps its rule of origin.
+#[kartenn_testing::pg_test]
+async fn a_page_holds_only_what_the_caller_may_read(pool: PgPool) {
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let a = instance(&pool, &ring, quick()).await;
+    let b = instance(&pool, &ring, quick()).await;
+    let writer = author(&pool).await;
+    let mine = domain(&pool, writer, "mine").await;
+    let other = domain(&pool, writer, "other").await;
+    let reader = person(&pool, &READ_ALL, ("domain", Some(mine))).await;
+    let apps = [
+        app(&pool, &ring, &a.hub, reader.clone()),
+        app(&pool, &ring, &b.hub, reader.clone()),
+    ];
+    settled(&pool, &a.hub).await;
+    let (_, start, _) = page(&apps[0], "/v1/events", None).await;
+    apply(&pool, writer, vec![prefix_in(other, "10.0.0.0/8")]).await;
+    let alone = apply(&pool, writer, vec![prefix_in(mine, "10.1.0.0/16")]).await;
+    let mixed = apply(
+        &pool,
+        writer,
+        vec![
+            prefix_in(other, "10.2.0.0/16"),
+            prefix_in(mine, "10.3.0.0/16"),
+        ],
+    )
+    .await;
+    let visible: Uuid = sqlx::query_scalar("SELECT id FROM prefix WHERE prefix = '10.3.0.0/16'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    for (n, app) in apps.iter().enumerate() {
+        settled(&pool, if n == 0 { &a.hub } else { &b.hub }).await;
+        let (status, body, _) = page(app, "/v1/events", Some(&cursor_of(&start))).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(paged(&body), [alone, mixed], "instance {n}");
+        let last = &body["items"][1]["data"];
+        assert_eq!(
+            last["objects"],
+            json!([{"type": "core.prefix", "id": visible}])
+        );
+        assert_eq!(last["domains"], json!([mine]));
+    }
+    // A cookie from another origin: 403, as for the stream.
+    let mut r = Request::get("/v1/events")
+        .header(header::ACCEPT, "application/json")
+        .header(header::COOKIE, "__Host-kartenn=x")
+        .header(header::ORIGIN, "https://other.example.invalid")
+        .body(Body::empty())
+        .unwrap();
+    r.extensions_mut().insert(ConnectionTls(true));
+    assert_eq!(
+        apps[0].clone().oneshot(r).await.unwrap().status(),
+        StatusCode::FORBIDDEN
+    );
+}
+
+/// REQ-022-28, REQ-022-8: a cursor altered, of another identity or older than the ring
+/// gives a page of one `reset` at the current cursor, never 400; the page after it
+/// goes on; `page_size` out of bounds → 400, a filter unknown → 400.
+#[kartenn_testing::pg_test]
+async fn a_page_starts_over_on_a_cursor_it_cannot_follow(pool: PgPool) {
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let i = instance(
+        &pool,
+        &ring,
+        EventSettings {
+            ring_max: 2,
+            ..quick()
+        },
+    )
+    .await;
+    let writer = author(&pool).await;
+    let d = domain(&pool, writer, "prod").await;
+    let stranger = app(
+        &pool,
+        &ring,
+        &i.hub,
+        person(&pool, &READ_ALL, ("global", None)).await,
+    );
+    let app = app(
+        &pool,
+        &ring,
+        &i.hub,
+        person(&pool, &READ_ALL, ("global", None)).await,
+    );
+    settled(&pool, &i.hub).await;
+    let (_, start, _) = page(&app, "/v1/events", None).await;
+    let theirs = cursor_of(&page(&stranger, "/v1/events", None).await.1);
+    let mut altered = cursor_of(&start);
+    let flipped = if altered.ends_with('A') { 'B' } else { 'A' };
+    altered.pop();
+    altered.push(flipped);
+    for (cursor, reason) in [
+        (altered.as_str(), "invalid_cursor"),
+        (&theirs, "invalid_cursor"),
+    ] {
+        let (status, body, _) = page(&app, "/v1/events", Some(cursor)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["items"].as_array().unwrap().len(), 1);
+        assert_eq!(body["items"][0]["event"], "reset");
+        assert_eq!(body["items"][0]["data"]["reason"], reason);
+        assert_eq!(body["links"]["next"], Value::Null);
+    }
+    for n in 0..5 {
+        apply(&pool, writer, vec![prefix_in(d, &format!("10.{n}.0.0/16"))]).await;
+    }
+    settled(&pool, &i.hub).await;
+    let (_, old, _) = page(&app, "/v1/events", Some(&cursor_of(&start))).await;
+    assert_eq!(old["items"].as_array().unwrap().len(), 1);
+    assert_eq!(old["items"][0]["data"]["reason"], "too_old");
+    let later = apply(&pool, writer, vec![prefix_in(d, "10.9.0.0/16")]).await;
+    settled(&pool, &i.hub).await;
+    let (_, after, _) = page(&app, "/v1/events", Some(&cursor_of(&old))).await;
+    assert_eq!(paged(&after), [later], "the page after the reset goes on");
+    for uri in [
+        "/v1/events?page_size=0",
+        "/v1/events?page_size=1001",
+        "/v1/events?page_size=2&page_size=3",
+        "/v1/events?types=inconnu.truc",
+    ] {
+        assert_eq!(
+            page(&app, uri, None).await.0,
+            StatusCode::BAD_REQUEST,
+            "{uri}"
+        );
+    }
+}
+
+/// REQ-022-28, INV-68: while a long transaction holds the lowest number, the changesets
+/// committed after it wait; once it commits, pages of one give them all, the late one
+/// first, and come to an end.
+#[kartenn_testing::pg_test]
+async fn pages_wait_for_a_long_transaction_and_lose_nothing(pool: PgPool) {
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let i = instance(&pool, &ring, quick()).await;
+    let writer = author(&pool).await;
+    let d = domain(&pool, writer, "prod").await;
+    let e = domain(&pool, writer, "else").await;
+    apply(&pool, writer, vec![prefix_in(e, "192.168.0.0/16")]).await;
+    let held: Uuid = sqlx::query_scalar("SELECT id FROM prefix WHERE prefix = '192.168.0.0/16'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let app = app(
+        &pool,
+        &ring,
+        &i.hub,
+        person(&pool, &READ_ALL, ("global", None)).await,
+    );
+    settled(&pool, &i.hub).await;
+    let (_, start, _) = page(&app, "/v1/events", None).await;
+    let late = Uuid::now_v7();
+    let mut tx = pool.begin().await.unwrap();
+    sqlx::query(
+        "INSERT INTO changeset (id, author_id, motive, state, kind, default_period)
+         VALUES ($1, $2, 'late', 'applied', 'direct', tstzrange(now(), NULL))",
+    )
+    .bind(late)
+    .bind(writer)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO outbox (changeset_id, domain_ids, payload) VALUES ($1, ARRAY[$2::uuid],
+             jsonb_build_object('type', 'org.kartenn.changeset.applied', 'id', $1::text,
+                                'time', now(),
+                                'data', jsonb_build_object('changeset', $1, 'objects',
+                                                           jsonb_build_array($3::uuid))))",
+    )
+    .bind(late)
+    .bind(e)
+    .bind(held)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    let mut written = Vec::new();
+    for n in 0..3 {
+        written.push(apply(&pool, writer, vec![prefix_in(d, &format!("10.{n}.0.0/16"))]).await);
+    }
+    tokio::time::sleep(Duration::from_millis(800)).await;
+    let (_, held_back, _) = page(&app, "/v1/events?page_size=1", Some(&cursor_of(&start))).await;
+    assert_eq!(held_back["items"], json!([]), "nothing above the floor");
+    tx.commit().await.unwrap();
+    settled(&pool, &i.hub).await;
+    let mut got = Vec::new();
+    let mut cursor = cursor_of(&start);
+    for _ in 0..10 {
+        let (_, body, _) = page(&app, "/v1/events?page_size=1", Some(&cursor)).await;
+        got.extend(paged(&body));
+        cursor = cursor_of(&body);
+        if body["links"]["next"].is_null() {
+            break;
+        }
+    }
+    let mut wanted = vec![late];
+    wanted.extend(written);
+    assert_eq!(got, wanted, "by number, none lost, none twice");
 }

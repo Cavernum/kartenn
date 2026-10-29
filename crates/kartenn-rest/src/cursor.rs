@@ -54,7 +54,7 @@ fn invalid() -> Problem {
     Problem::new(ProblemKind::InvalidCursor)
 }
 
-fn size(text: &str) -> Result<u16, Problem> {
+pub(crate) fn size(text: &str) -> Result<u16, Problem> {
     text.parse::<u16>()
         .ok()
         .filter(|n| (1..=MAX_SIZE).contains(n))

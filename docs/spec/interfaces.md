@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-24
+updated: 2026-10-29
 ---
 
 # Interfaces
@@ -295,12 +295,23 @@ les a exclus (événements sortants).
 - Droits évalués à la remise, par lot (une requête sujets × objets) ; révocation en
   10 s au plus ; le flux n'est pas une activité de session.
 - Hors délestage et hors compression ; plafonds 5 000 flux par instance (503) et 16 par
-  identité (429) ; arrêt : `retry:` étalé puis fermeture. `Cache-Control: no-store`,
+  identité (429) ; l'ouverture compte une fois dans le compartiment de lecture du quota
+  (429 avant les plafonds, la connexion ouverte ne débite plus rien) ; arrêt : `retry:`
+  étalé puis fermeture. `Cache-Control: no-store`,
   `X-Accel-Buffering: no`, `Incremental: ?1` en option.
 - Capacités : `events` (bornes des filtres, taille d'un événement, plafond par
   identité, durée de l'anneau, maintien) ou `null`.
 - Audit par connexion (`events.stream.opened`, `events.stream.closed`) ; au-delà de
   `audit.read_ids_max`, log technique DEBUG `events.delivery`.
+- Rattrapage JSON (REQ-022-28) : même route en `Accept: application/json` (sans nommer
+  `text/event-stream`) → page `{items: [{event, id, data}], cursor, links: {next}}` des
+  événements de l'anneau après le curseur (`Last-Event-ID` ou `last_event_id`), mêmes
+  filtres, mêmes droits décidés à la réponse, même curseur que le flux (un `id:` du flux
+  reprend une page et réciproquement) ; `page_size` 1 à 1 000 (100) ; `links.next` et
+  `Link` quand la page est pleine, `null` à jour ; curseur invalide ou trop ancien → un
+  seul élément `reset`. Seuls les événements sous le plancher du lecteur sont servis
+  (une transaction longue retarde, ne fait rien perdre). Lecture ordinaire : quota,
+  délestage, audit `data.objects.read`, pas une activité de session ; `Vary: Accept`.
 ## Connecteurs (D1, D7)
 
 - Processus externes, clients REST, authentifiés par compte de service.
