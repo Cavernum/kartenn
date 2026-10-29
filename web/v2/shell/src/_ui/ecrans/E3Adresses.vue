@@ -7,6 +7,7 @@
 // into « … » when the header narrows.
 import {
   Button,
+  Checkbox,
   Cluster,
   DataGrid,
   EnvChip,
@@ -21,7 +22,7 @@ import {
   type MenuItem,
   type ToolbarAction,
 } from "@kartenn/ui";
-import { ref } from "vue";
+import { computed, ref, watch } from "vue";
 import AVenir from "./AVenir.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
@@ -141,6 +142,21 @@ const columns: GridColumn[] = [
 const sort = ref<GridSort | undefined>({ column: "value", direction: "ascending" });
 /** The selected rows: Space toggles one, Ctrl+A all (the grid's keys). */
 const selection = ref<string[]>(selecting ? ["192.0.2.10", "192.0.2.12", "192.0.2.72"] : []);
+/**
+ * The box of the whole list (1 284 addresses, more than the page shows): mixed while some
+ * are chosen, checked once all are asked for, until a row is left out again.
+ */
+const everything = ref(false);
+const allState = computed<boolean | "mixed">(() =>
+  everything.value ? true : selection.value.length ? "mixed" : false,
+);
+function selectAll(on: boolean | "mixed"): void {
+  everything.value = on === true;
+  selection.value = on === true ? rows.map((row) => row.value) : [];
+}
+watch(selection, (chosen) => {
+  if (chosen.length < rows.length) everything.value = false;
+});
 const actions: ToolbarAction[] = [
   { id: "create", label: "Créer", icon: "plus", variant: "primary", shortcut: ["c"], priority: 3 },
   { id: "import", label: "Importer", icon: "clipboard-paste", variant: "ghost" },
@@ -213,9 +229,12 @@ const bulk: MenuItem[] = [
             : `${selection.length} adresses sélectionnées`
         }}</span>
         <Menu label="Action groupée" icon="layers" :items="bulk" default-open />
-        <AVenir component="Checkbox" task="17" inline>
-          <Button variant="ghost" size="sm">Tout sélectionner (1 284)</Button>
-        </AVenir>
+        <Checkbox
+          label="Tout sélectionner (1 284)"
+          size="sm"
+          :model-value="allState"
+          @update:model-value="selectAll"
+        />
         <Button variant="ghost" size="sm" icon="x">Annuler la sélection</Button>
       </Cluster>
       <DataGrid

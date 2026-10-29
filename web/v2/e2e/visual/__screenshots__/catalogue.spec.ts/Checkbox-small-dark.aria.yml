@@ -1,0 +1,9 @@
+- main:
+  - region "Checkbox":
+    - heading "Checkbox" [level=1]
+    - paragraph: "Motif : Checkbox (deux et trois états)"
+    - figure /small — Petite \(\d+ px en compacte\), mixte/:
+      - checkbox "Tout sélectionner (3)" [checked=mixed]
+      - text: Tout sélectionner (3)
+      - code: small
+      - text: ""

@@ -1,0 +1,8 @@
+- main:
+  - region "InlineAlert":
+    - heading "InlineAlert" [level=1]
+    - paragraph: "Motif : role=status (alert pour une erreur)"
+    - figure "announce — Annoncée quand elle paraît (contenu rendu une image après sa région)":
+      - button "Appliquer le changeset"
+      - code: announce
+      - text: ""

@@ -1,0 +1,10 @@
+- main:
+  - region "InlineAlert":
+    - heading "InlineAlert" [level=1]
+    - paragraph: "Motif : role=status (alert pour une erreur)"
+    - figure "icon — Icône qui en dit plus (cadenas), ton et rôle gardés":
+      - status:
+        - paragraph: "Groupe livré : lecture seule."
+        - text: Ses rôles suivent la synchronisation.
+      - code: icon
+      - text: ""

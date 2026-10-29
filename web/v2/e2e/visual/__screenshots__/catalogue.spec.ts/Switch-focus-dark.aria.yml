@@ -1,0 +1,9 @@
+- main:
+  - region "Switch":
+    - heading "Switch" [level=1]
+    - paragraph: "Motif : Switch (réglage binaire pris aussitôt)"
+    - figure "focus — Focus visible":
+      - switch "Montrer les adresses réservées" [checked]
+      - text: Montrer les adresses réservées
+      - code: focus
+      - text: ""

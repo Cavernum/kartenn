@@ -2,9 +2,52 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import { defineComponent, h, ref } from "vue";
 import type { CatalogueEntry } from "../../catalogue.ts";
 import { prefixes } from "../../fixtures/index.ts";
+import Stack from "../Stack/Stack.vue";
 import TextField from "./TextField.vue";
+
+/** The error of a prefix in CIDR notation, IPv4 (the check of the keyboard state). */
+function prefixError(value: string): string | undefined {
+  if (value === "") return undefined;
+  const parts = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d{1,2})$/.exec(value);
+  if (!parts) return "Notation CIDR attendue (192.0.2.0/24).";
+  const [, a, b, c, d, length] = parts.map(Number) as number[];
+  if ([a, b, c, d].some((octet) => octet! > 255) || length! > 32)
+    return "Adresse hors de l'espace IPv4.";
+  return undefined;
+}
+
+/**
+ * The fields of the keyboard script (e2e/components/text-field.spec.ts): a prefix checked
+ * when it is left (`change`), its error said and linked, then gone once it is right; a
+ * name after it, to leave the first by Tab.
+ */
+const Keyboard = defineComponent({
+  setup() {
+    const prefix = ref("");
+    const error = ref<string | undefined>();
+    const name = ref("");
+    return () =>
+      h(Stack, { gap: "3" }, () => [
+        h(TextField, {
+          label: "Préfixe",
+          mono: true,
+          hint: "Notation CIDR.",
+          modelValue: prefix.value,
+          "onUpdate:modelValue": (value: string) => (prefix.value = value),
+          error: error.value,
+          onChange: () => (error.value = prefixError(prefix.value)),
+        }),
+        h(TextField, {
+          label: "Nom",
+          modelValue: name.value,
+          "onUpdate:modelValue": (value: string) => (name.value = value),
+        }),
+      ]);
+  },
+});
 
 export default {
   component: TextField,
@@ -90,6 +133,22 @@ export default {
       name: "large",
       description: "Grand (32 px en compacte)",
       props: { label: "Nom", size: "lg", modelValue: "Serveurs de bases" },
+    },
+    {
+      name: "missing",
+      description: "Obligatoire et vide : l'erreur avant l'aide",
+      props: {
+        label: "Nom",
+        required: true,
+        error: "Le nom est obligatoire.",
+        hint: "Visible dans les listes.",
+      },
+    },
+    {
+      name: "keyboard",
+      description: "Au clavier : erreur dite en quittant le champ, liée, puis retirée",
+      props: {},
+      demo: Keyboard,
     },
   ],
 } satisfies CatalogueEntry;

@@ -1,0 +1,68 @@
+- main:
+  - region "Checkbox":
+    - heading "Checkbox" [level=1]
+    - paragraph: "Motif : Checkbox (deux et trois états)"
+    - figure "unchecked — Non cochée":
+      - checkbox "Point à point"
+      - text: Point à point
+      - code: unchecked
+      - text: ""
+    - figure "checked — Cochée":
+      - checkbox "Anycast" [checked]
+      - text: Anycast
+      - code: checked
+      - text: ""
+    - 'figure "mixed — Mixte (une partie des lignes) : aria-checked mixed"':
+      - checkbox /Tout sélectionner \(1 \d+\)/ [checked=mixed]
+      - text: /Tout sélectionner \(1 \d+\)/
+      - code: mixed
+      - text: ""
+    - figure "hint — Avec aide, liée par aria-describedby":
+      - checkbox "Anycast"
+      - text: Anycast
+      - paragraph: La même adresse annoncée en plusieurs lieux.
+      - code: hint
+      - text: ""
+    - figure "hover — Survol":
+      - checkbox "Point à point"
+      - text: Point à point
+      - code: hover
+      - text: ""
+    - figure "focus — Focus visible":
+      - checkbox "Point à point" [checked]
+      - text: Point à point
+      - code: focus
+      - text: ""
+    - figure "disabled — Désactivée (hors de l'ordre de tabulation)":
+      - checkbox "Point à point" [disabled]
+      - text: Point à point
+      - code: disabled
+      - text: ""
+    - figure "disabled-checked — Désactivée et cochée":
+      - checkbox "Anycast" [checked] [disabled]
+      - text: Anycast
+      - code: disabled-checked
+      - text: ""
+    - 'figure /row — Case d''une ligne : étiquette cachée, cible de \d+ px/':
+      - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+/
+      - text: /Sélectionner \d+\.\d+\.\d+\.\d+/
+      - code: row
+      - text: ""
+    - figure /small — Petite \(\d+ px en compacte\), mixte/:
+      - checkbox "Tout sélectionner (3)" [checked=mixed]
+      - text: Tout sélectionner (3)
+      - code: small
+      - text: ""
+    - 'figure "keyboard — Au clavier : Espace, case mixte des lignes, case désactivée"':
+      - checkbox "Tout sélectionner (3)" [checked=mixed]
+      - text: Tout sélectionner (3)
+      - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+/ [checked]
+      - text: /Sélectionner \d+\.\d+\.\d+\.\d+/
+      - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+/
+      - text: /Sélectionner \d+\.\d+\.\d+\.\d+/
+      - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+/
+      - text: /Sélectionner \d+\.\d+\.\d+\.\d+/
+      - checkbox "Anycast" [disabled]
+      - text: Anycast
+      - code: keyboard
+      - text: ""

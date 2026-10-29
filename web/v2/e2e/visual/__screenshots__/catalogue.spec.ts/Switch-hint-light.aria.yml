@@ -1,0 +1,10 @@
+- main:
+  - region "Switch":
+    - heading "Switch" [level=1]
+    - paragraph: "Motif : Switch (réglage binaire pris aussitôt)"
+    - figure "hint — Avec aide, liée par aria-describedby":
+      - switch "Montrer les préfixes vides"
+      - text: Montrer les préfixes vides
+      - paragraph: Un préfixe sans adresse ni plage.
+      - code: hint
+      - text: ""

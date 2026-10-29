@@ -17,10 +17,8 @@ const LATER = [
   { component: "FilterPicker", task: "19", where: "E3 (ajout d'un filtre)" },
   { component: "PeriodPicker", task: "20", where: "E6 (sélecteur de la pastille de date)" },
   { component: "Select", task: "18", where: "E7 (rôle d'une liaison), E10 (type de flux)" },
-  { component: "Checkbox", task: "17", where: "E3 (case de sélection des lignes)" },
   { component: "Popover", task: "21", where: "E2 (explication d'une propriété)" },
   { component: "Toast", task: "22", where: "E9 (accusé « proposé, en revue »)" },
-  { component: "FormField", task: "17", where: "E7 (formulaire de liaison)" },
 ];
 
 /** Choices of the mock-ups to settle with the user (task 15). */

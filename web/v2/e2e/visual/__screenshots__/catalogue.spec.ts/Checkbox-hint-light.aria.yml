@@ -1,0 +1,10 @@
+- main:
+  - region "Checkbox":
+    - heading "Checkbox" [level=1]
+    - paragraph: "Motif : Checkbox (deux et trois états)"
+    - figure "hint — Avec aide, liée par aria-describedby":
+      - checkbox "Anycast"
+      - text: Anycast
+      - paragraph: La même adresse annoncée en plusieurs lieux.
+      - code: hint
+      - text: ""

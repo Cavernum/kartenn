@@ -1,0 +1,17 @@
+- main:
+  - region "FormField":
+    - heading "FormField" [level=1]
+    - paragraph: "Motif : étiquette, erreur puis aide par aria-describedby ; group nommé (cases, bascules)"
+    - 'figure "invalid — Groupe obligatoire sans choix : l''erreur dite et liée"':
+      - group "Colonnes de l'export (obligatoire)":
+        - text: ""
+        - checkbox "Préfixe"
+        - text: Préfixe
+        - checkbox "Usage"
+        - text: Usage
+        - checkbox "Propriétaire"
+        - text: Propriétaire
+        - paragraph: Choisissez au moins une colonne.
+        - paragraph: Dans l'ordre de la liste.
+      - code: invalid
+      - text: ""

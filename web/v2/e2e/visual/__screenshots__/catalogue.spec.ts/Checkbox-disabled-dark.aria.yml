@@ -1,0 +1,9 @@
+- main:
+  - region "Checkbox":
+    - heading "Checkbox" [level=1]
+    - paragraph: "Motif : Checkbox (deux et trois états)"
+    - figure "disabled — Désactivée (hors de l'ordre de tabulation)":
+      - checkbox "Point à point" [disabled]
+      - text: Point à point
+      - code: disabled
+      - text: ""

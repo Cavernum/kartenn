@@ -114,11 +114,11 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `Icon` | `aria-hidden` par défaut ; nom obligatoire si seule porteuse de sens (`meaningful` + `label`, vérifié au typage) | ◐ |
 | `Stack`, `Cluster`, `Grid`, `Split` | mise en page ; écart par `gap` (échelle), `Split` dans l'ordre de lecture | ◐ |
 | `Button`, `IconButton` | Button ; occupé = `aria-disabled` + `aria-busy` (reste focalisable), bascule `aria-pressed`, raccourci `aria-keyshortcuts` ; `disabled` natif sort de l'ordre de tabulation : une action refusée avec motif prend `forbidden` ou `reason`, jamais `disabled` ; occupé ou refusé, un `submit` n'envoie rien ; `IconButton` : infobulle automatique de son nom et de son raccourci (`shortcut`), décorative, montée ouverte seulement ; refusé, son nom puis le motif, la description = le motif seul ; cibles ≥ 24 px (`sm` en compacte) | ● |
-| `TextField`, `FormField` | champ natif étiqueté ; erreur puis aide par `aria-describedby` | ◐ (`TextField`) |
+| `TextField`, `FormField` | champ natif étiqueté ; `FormField` : étiquette, erreur puis aide par `aria-describedby`, l'erreur dite dans une région `polite` présente vide avant elle ; l'emplacement reçoit `id`, `labelId`, `describedBy`, `invalid` ; `group` : groupe nommé et décrit (cases, bascules) ; `TextField` (sur `FormField`) : `aria-invalid`, en attente dit en mots (`aria-busy`), lecture seule, chasse fixe | ● |
 | `Select`, `Combobox` | Listbox ; Combobox | ☐ |
 | `FilterChip`, `FilterPicker` | Button + Combobox en séquence | ◐ (`FilterChip`) |
 | `DateTimeField`, `PeriodPicker` | Date Picker Dialog ; spin button | ☐ |
-| `Checkbox`, `Switch` | Checkbox ; Switch | ☐ |
+| `Checkbox`, `Switch` | Checkbox (deux et trois états : modèle `true`, `false` ou `"mixed"` posé sur `indeterminate`, jamais `aria-checked` sur la case native ; mixte, elle se coche au basculement) ; Switch (`button` `role="switch"`, `aria-checked`, Espace et Entrée ; réglage pris aussitôt seulement, sinon `Checkbox`) ; étiquette englobante : la rangée est la cible (≥ 24 px, étiquette cachée comprise), l'aide hors du nom (`aria-describedby`) | ● |
 | `Tabs` | Tabs (activation manuelle) | ◐ |
 | `Menu` (bouton et menu) | Menu Button, Menu ; entrée désactivée focalisable (`aria-disabled`), motif en description et infobulle ; entrée à cocher (`menuitemcheckbox`, menu gardé ouvert) ; entrées `radio` (`menuitemradio` en groupe, l'une cochée) | ◐ |
 | `Dialog`, `AlertDialog`, `Drawer` | Dialog (Modal), Alert Dialog ; `Drawer` modal seulement | ◐ |
@@ -134,7 +134,7 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `ExpandableGrid` | `DataGrid` compacte (compte de lignes, `visibleRows`, `compactColumns`) + `IconButton` « Agrandir » qui ouvre la même table dans un `Dialog` `lg` `contained` (focus piégé, Échap, focus rendu au bouton) ; tri et filtres de l'hôte, partagés | ● |
 | `TreeGrid`, `Tree` | Treegrid ; Tree View ; garde d'affichage `misplaced` ; « + » d'un nœud (`addLabel`, événement `add`, 024/M10) ; clavier de la colonne d'arbre (Haut, Bas, Droite, Gauche, Entrée ou F2 vers le « + »), `expanded` en modèle | ◐ (`TreeGrid`) |
 | `CodeBadge`, `KeyLabel`, `EnvChip`, `StatusBadge` | Button (copier, nom = contenu, « Copier » caché) ; — | ◐ |
-| `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `status` présent vide puis rempli, sans `aria-busy` (reflet en boucle `k-skeleton-fill`, fond fixe sous mouvement réduit) ; `alert` ; `status` | ◐ |
+| `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `status` présent vide puis rempli, sans `aria-busy` (reflet en boucle `k-skeleton-fill`, fond fixe sous mouvement réduit) ; `alert` ; `InlineAlert` : `alert` pour une erreur, `status` sinon, contenu caché (`data-state="waiting"`, `visibility`) puis montré une image après sa région, donc annoncé, sans décalage ; `icon` remplace l'icône du ton | ◐ (`InlineAlert` ●) |
 | `DatePill`, `DraftCounter`, `TimeBand` | Button ; bascule du panneau (`aria-expanded`, `aria-controls` ; ouvert, icône en croix) et Menu Button des brouillons ; `status` | ◐ (`DraftCounter` ●) |
 | `Kbd`, `ShortcutHint` | — ; `Kbd` : une combinaison, `kbd` imbriqués, noms de touches dans la langue (Maj, Origine, Suppr) ; `ShortcutHint` : une combinaison ou une séquence (`[["g"], ["p"]]`, « g puis p »), jamais une séquence dans un seul `Kbd` ; `aria-keyshortcuts` pour une combinaison seulement (`shortcutAria`) | ● |
 | `DiffList` | liste groupée, Disclosure ; signe, mot caché, `del`/`ins` | ◐ |

@@ -1,0 +1,9 @@
+- main:
+  - region "Switch":
+    - heading "Switch" [level=1]
+    - paragraph: "Motif : Switch (réglage binaire pris aussitôt)"
+    - figure "disabled — Désactivée (hors de l'ordre de tabulation)":
+      - switch "Montrer les adresses réservées" [disabled]
+      - text: Montrer les adresses réservées
+      - code: disabled
+      - text: ""

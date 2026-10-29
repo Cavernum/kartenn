@@ -405,10 +405,45 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     (`["g", "p"]`) dans un seul `Kbd` (tâches 21 et 23 : `ShortcutHint`) ; `Mod` vaut
     Ctrl partout, ⌘ sous macOS reste à faire (021, « Raccourcis ») ; à 390 px, la colonne
     « Portée » de l'aide E8 défile dans sa grille.
-- [ ] 17. `TextField`, `FormField`, `Checkbox`, `Switch`, `InlineAlert` — verify :
+- [x] 17. `TextField`, `FormField`, `Checkbox`, `Switch`, `InlineAlert` — verify :
   erreur liée par `aria-describedby` et annoncée ; case à trois états
   - où : idem ; `web/shell/src/edit/fields.ts` (champs typés actuels, comportement)
   - dépend de : 16
+  - fait : `FormField` (nouveau) : étiquette, erreur puis aide liées par
+    `aria-describedby`, l'erreur dans une région `aria-live="polite"` présente vide avant
+    elle (annoncée, dite de nouveau au focus) ; l'emplacement reçoit `id`, `labelId`,
+    `describedBy`, `invalid`, `required` ; `group` : racine `group` nommée par
+    l'étiquette et décrite (cases, bascules). `TextField` repose sur `FormField` (mêmes
+    identifiants `<id>-error`, `<id>-hint`, en attente entre les deux) ; `CommitForm` y
+    met sa description. `Checkbox` (nouveau) : case native, modèle `true`, `false` ou
+    `"mixed"` posé sur `indeterminate` (exposé `mixed`, jamais `aria-checked`), mixte
+    cochée au basculement ; étiquette englobante, rangée ≥ 24 px même étiquette cachée,
+    aide hors du nom. `Switch` (nouveau) : `button` `role="switch"`, `aria-checked`,
+    Espace et Entrée, nommé par `aria-labelledby`, pastille au bout et piste pleine
+    (retournée en RTL). `InlineAlert` : contenu caché (`data-state="waiting"`,
+    `visibility`) une image après sa région puis montré, donc annoncé, sans décalage.
+    E3 (sélection) : « Tout sélectionner (1 284) » devient une `Checkbox` mixte (repère
+    « À venir » retiré, `Checkbox` et `FormField` retirés de la liste de la revue).
+    Catalogue : `TextField` `missing`, `keyboard` ; `FormField` `group`, `invalid`,
+    `settings` ; `Checkbox` (onze états), `Switch` (neuf états) ; `InlineAlert` `icon`,
+    `announce`. Scripts : `e2e/components/text-field.spec.ts` (erreur en quittant le champ,
+    liée avant l'aide, dite dans la même région, remplacée, retirée ; lecture seule,
+    désactivé, en attente, obligatoire ; groupe de `FormField`), `checkbox.spec.ts`
+    (Espace, trois états, clic d'étiquette, Tab, cibles ≥ 24 px dans les deux densités),
+    `switch.spec.ts` (Espace, Entrée, nom fixe, effet dit, cibles), `inline-alert.spec.ts`
+    (région insérée en attente puis remplie, rôles) ; instantanés ARIA ; Vitest dans
+    `components-base.test.ts`. Captures réécrites (voulues) : index (cinq composants de
+    plus), pages entières `TextField`, `InlineAlert` (états ajoutés), E3-selection aux
+    cinq largeurs (la case remplace le repère) ; nouvelles : `FormField`, `Checkbox`,
+    `Switch`, les états ajoutés. Les autres captures, champs des maquettes et
+    `CommitForm` compris, sont inchangées.
+  - choix : erreur de champ en région `polite` (une erreur au départ du champ ne coupe
+    pas la lecture du suivant) ; `InlineAlert` montré par `visibility` une image après sa
+    région plutôt qu'inséré (pas de saut de hauteur) ; `Switch` en `button` (Entrée
+    comprise) ; `FormField` sans espacement de grille (marges), pour qu'une région vide ne
+    prenne pas de place. Restent hors de la tâche : la case de sélection des lignes dans
+    `DataGrid` (colonne de cases, tâche de la grille) ; E7 n'a pas de formulaire de
+    liaison à reprendre en `FormField` (l'entrée de la revue était sans repère).
 - [ ] 18. `Select`, `Combobox` (suggestions par une fonction asynchrone, débrayage) —
   verify : script Combobox (Alt+Flèche bas, Échap, Entrée, `aria-activedescendant`)
   - où : idem ; `web/shell/src/app/SearchBox.vue` (recherche actuelle)

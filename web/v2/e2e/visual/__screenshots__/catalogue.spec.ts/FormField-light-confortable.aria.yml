@@ -1,0 +1,39 @@
+- main:
+  - region "FormField":
+    - heading "FormField" [level=1]
+    - paragraph: "Motif : étiquette, erreur puis aide par aria-describedby ; group nommé (cases, bascules)"
+    - 'figure "group — Groupe de cases : nommé par l''étiquette, décrit par l''aide"':
+      - group "Colonnes de l'export (obligatoire)":
+        - text: ""
+        - checkbox "Préfixe" [checked]
+        - text: Préfixe
+        - checkbox "Usage" [checked]
+        - text: Usage
+        - checkbox "Propriétaire"
+        - text: Propriétaire
+        - paragraph: Dans l'ordre de la liste.
+      - code: group
+      - text: ""
+    - 'figure "invalid — Groupe obligatoire sans choix : l''erreur dite et liée"':
+      - group "Colonnes de l'export (obligatoire)":
+        - text: ""
+        - checkbox "Préfixe"
+        - text: Préfixe
+        - checkbox "Usage"
+        - text: Usage
+        - checkbox "Propriétaire"
+        - text: Propriétaire
+        - paragraph: Choisissez au moins une colonne.
+        - paragraph: Dans l'ordre de la liste.
+      - code: invalid
+      - text: ""
+    - figure "settings — Groupe de bascules (réglages pris aussitôt)":
+      - group "Affichage":
+        - text: ""
+        - switch "Montrer les adresses réservées" [checked]
+        - text: Montrer les adresses réservées
+        - switch "Montrer les préfixes vides"
+        - text: Montrer les préfixes vides
+        - paragraph: Pris en compte aussitôt.
+      - code: settings
+      - text: ""

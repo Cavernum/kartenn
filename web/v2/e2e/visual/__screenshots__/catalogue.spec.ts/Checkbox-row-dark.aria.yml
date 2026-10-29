@@ -1,0 +1,9 @@
+- main:
+  - region "Checkbox":
+    - heading "Checkbox" [level=1]
+    - paragraph: "Motif : Checkbox (deux et trois états)"
+    - 'figure /row — Case d''une ligne : étiquette cachée, cible de \d+ px/':
+      - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+/
+      - text: /Sélectionner \d+\.\d+\.\d+\.\d+/
+      - code: row
+      - text: ""

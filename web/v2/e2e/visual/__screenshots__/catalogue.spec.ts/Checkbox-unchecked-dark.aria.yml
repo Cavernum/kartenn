@@ -1,0 +1,9 @@
+- main:
+  - region "Checkbox":
+    - heading "Checkbox" [level=1]
+    - paragraph: "Motif : Checkbox (deux et trois états)"
+    - figure "unchecked — Non cochée":
+      - checkbox "Point à point"
+      - text: Point à point
+      - code: unchecked
+      - text: ""

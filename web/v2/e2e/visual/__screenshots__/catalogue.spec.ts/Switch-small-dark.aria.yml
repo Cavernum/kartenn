@@ -1,0 +1,9 @@
+- main:
+  - region "Switch":
+    - heading "Switch" [level=1]
+    - paragraph: "Motif : Switch (réglage binaire pris aussitôt)"
+    - figure /small — Petite \(\d+ px en compacte\)/:
+      - switch "Montrer les adresses réservées" [checked]
+      - text: Montrer les adresses réservées
+      - code: small
+      - text: ""

@@ -12,6 +12,7 @@
 import { computed, nextTick, ref, useId } from "vue";
 import { t } from "../../i18n.ts";
 import Button from "../Button/Button.vue";
+import FormField from "../FormField/FormField.vue";
 import TextField from "../TextField/TextField.vue";
 
 const props = withDefaults(
@@ -101,19 +102,21 @@ defineExpose({ submit, focus: focusSummary });
         >{{ t("descriptionAdd") }}</Button
       >
     </span>
-    <div v-else class="k-commit-form__field">
-      <label :for="`${id}-description`" class="k-commit-form__label">{{
-        props.descriptionLabel ?? t("descriptionOptional")
-      }}</label>
+    <FormField
+      v-else
+      :id="`${id}-description`"
+      v-slot="{ id: descriptionId }"
+      :label="props.descriptionLabel ?? t('descriptionOptional')"
+    >
       <textarea
-        :id="`${id}-description`"
+        :id="descriptionId"
         v-model="description"
         class="k-commit-form__description"
         rows="3"
         :disabled="props.disabled"
         spellcheck="true"
       ></textarea>
-    </div>
+    </FormField>
   </div>
 </template>
 
@@ -123,19 +126,6 @@ defineExpose({ submit, focus: focusSummary });
     display: grid;
     gap: var(--k-space-2);
     min-inline-size: 0;
-  }
-
-  .k-commit-form__field {
-    display: grid;
-    gap: var(--k-space-1);
-    min-inline-size: 0;
-  }
-
-  .k-commit-form__label {
-    font-size: var(--k-text-sm);
-    line-height: var(--k-text-sm-line);
-    font-weight: var(--k-weight-medium);
-    color: var(--k-text);
   }
 
   .k-commit-form__description {

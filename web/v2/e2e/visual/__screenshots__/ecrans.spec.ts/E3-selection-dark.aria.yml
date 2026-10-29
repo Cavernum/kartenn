@@ -78,11 +78,8 @@
       - text: /\(tâche \d+\)/
     - status: 3 adresses sélectionnées
     - button "Action groupée" [expanded]
-    - button /Tout sélectionner \(1 \d+\)/
-    - paragraph:
-      - text: "À venir :"
-      - code: Checkbox
-      - text: /\(tâche \d+\)/
+    - checkbox /Tout sélectionner \(1 \d+\)/ [checked=mixed]
+    - text: /Tout sélectionner \(1 \d+\)/
     - button "Annuler la sélection"
     - grid "Adresses, filtrées":
       - rowgroup:

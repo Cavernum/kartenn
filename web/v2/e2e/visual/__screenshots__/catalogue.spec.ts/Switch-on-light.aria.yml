@@ -1,0 +1,9 @@
+- main:
+  - region "Switch":
+    - heading "Switch" [level=1]
+    - paragraph: "Motif : Switch (réglage binaire pris aussitôt)"
+    - 'figure "on — Marche : pastille au bout, piste pleine"':
+      - switch "Montrer les adresses réservées" [checked]
+      - text: Montrer les adresses réservées
+      - code: "on"
+      - text: ""

@@ -1,0 +1,12 @@
+- main:
+  - region "TextField":
+    - heading "TextField" [level=1]
+    - paragraph: "Motif : champ natif étiqueté (aide et erreur par aria-describedby)"
+    - 'figure "keyboard — Au clavier : erreur dite en quittant le champ, liée, puis retirée"':
+      - text: Préfixe
+      - textbox "Préfixe"
+      - paragraph: Notation CIDR.
+      - text: Nom
+      - textbox "Nom"
+      - code: keyboard
+      - text: ""
