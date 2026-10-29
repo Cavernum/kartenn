@@ -306,7 +306,7 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
 
 ## P6 — Écart relevé (2026-10-29)
 
-- [ ] 19. Ouverture d'un flux comptée dans le quota de lecture — REQ-022-22 (« leur
+- [x] 19. Ouverture d'un flux comptée dans le quota de lecture — REQ-022-22 (« leur
   ouverture compte une fois dans le compartiment de lecture du quota (REQ-006-29) ») —
   verify : test d'acceptation (un flux ouvert débite une fois le compartiment de lecture
   de l'identité ; compartiment vide → 429 `Retry-After` avant toute ouverture, sans
@@ -324,6 +324,15 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     `crates/kartenn-rest/tests/it/quota.rs` (`behind`), `tests/it/events.rs` (plafonds par
     identité) ; `docs/spec/interfaces.md` (quotas du flux) si la description change
   - dépend de : 14
+  - fait : `quota.rs` (`layer` ne laisse plus passer `/v1/events` : un jeton de lecture
+    par ouverture, avant le gestionnaire donc avant les plafonds du `Hub`) ;
+    `events::wants_page` retiré (sans autre usage) ; test
+    `the_opening_of_a_stream_takes_one_read_token` (`tests/it/events.rs`, compartiment
+    `r` 1/s rafale 1, un seul `max_in_flight`) ; `docs/spec/interfaces.md` (flux
+    d'événements).
+  - choix : test d'acceptation au rythme réel (attentes de 1,1 s, pas d'horloge
+    simulée) ; 429 du quota distingué de celui du plafond par `RateLimit-Policy` ;
+    aide de test `app_limited` (réglages et quotas en paramètres) sous `app_audited`.
 
 ### Invariants proposés (numéros à attribuer à la synchronisation)
 
