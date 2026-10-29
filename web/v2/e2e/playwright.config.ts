@@ -48,11 +48,15 @@ export const PORT = previewPort();
 export const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
-  testDir: "visual",
+  // The captures and transverse checks (visual/), and the keyboard scripts of the APG
+  // patterns, one file per component of the P4 (components/, design « Accessibilité »).
+  testDir: ".",
+  testMatch: ["visual/**/*.spec.ts", "components/**/*.spec.ts"],
   forbidOnly: !!process.env.CI,
   retries: 0,
   workers: 2,
-  snapshotPathTemplate: "{testDir}/__screenshots__/{testFilePath}/{arg}{ext}",
+  // References beside their spec: visual/__screenshots__/<spec>/<name>.
+  snapshotPathTemplate: "{testDir}/{testFileDir}/__screenshots__/{testFileName}/{arg}{ext}",
   expect: {
     // threshold: the colour distance (YIQ) under which a pixel counts as equal; the default
     // (0.2) let a token change from #0b5cad to #0b6cad pass unseen.

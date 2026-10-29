@@ -25,6 +25,17 @@ export async function open(page: Page, path: string): Promise<void> {
 }
 
 /**
+ * A state of the catalogue for a keyboard script, with the real clock: Vue drops an event
+ * that reaches a handler attached at the same instant (`Date.now()`, its guard against
+ * handlers added while an event propagates), and the frozen clock of the captures makes
+ * every instant the same one (kartenn-ui, « Pièges de Reka UI »).
+ */
+export async function openState(page: Page, component: string, name: string): Promise<void> {
+  await page.goto(`/_ui/c/${component}?etat=${name}`);
+  await page.locator("[data-state-name]").first().waitFor();
+}
+
+/**
  * One state, one capture (REQ-020-26) and one snapshot of the accessibility tree
  * (REQ-020-27), named after the state.
  */
