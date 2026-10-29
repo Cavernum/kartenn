@@ -152,6 +152,13 @@ const tabs = computed<TabItem[]>(() => [
  */
 const bottomOpen = defineModel<boolean>("bottomOpen", { default: true });
 const bottomTab = ref<string>(props.bottom?.[0]?.value ?? "");
+/**
+ * The right panel open beside the work (standard and wide classes, not a screen's own
+ * drawer): the bottom panel runs on to its line, no strip of the page between the two.
+ */
+const besidePanel = computed(
+  () => !slots.drawer && open.value && (width.value === "standard" || width.value === "wide"),
+);
 /** The counter opens the panel on the draft, or closes it, whatever its tab. */
 function toggleDraft(): void {
   if (open.value) open.value = false;
@@ -245,6 +252,7 @@ function toggleDraft(): void {
             :label="props.bottomLabel"
             :tabs="props.bottom"
             :sheet="width === 'compact'"
+            :beside-panel="besidePanel"
           >
             <template v-for="item in props.bottom" :key="item.value" #[item.value]>
               <slot :name="`bottom-${item.value}`" />

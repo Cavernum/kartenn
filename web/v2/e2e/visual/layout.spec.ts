@@ -319,6 +319,53 @@ for (const frame of FRAMES) {
   });
 }
 
+// Both panels open (E11, the proposal, the right panel opened by the draft counter): the
+// bottom panel runs on to the line of the right panel, no strip of the page between them
+// (retour du 2026-10-29); its tab panel and close button stay clear of the handle. The
+// right panel closed, it ends with the work again, against the strip.
+for (const width of [1440, 1100] as const) {
+  test.describe(`both panels at ${width} px`, () => {
+    test.use({ viewport: { width, height: 900 } });
+
+    test("the bottom panel meets the right panel without a gap", async ({ page }) => {
+      await open(page, "/_ui/ecrans/E11?vue=proposition");
+      const bottom = page.locator(".k-bottom-panel");
+      const side = page.locator(".k-side-panel");
+      await expect(bottom).toBeVisible();
+      await page.getByRole("button", { name: /^Brouillon\s*\d+\s*opération/ }).click();
+      await expect(side).toBeVisible();
+      await expect(side).not.toHaveAttribute("data-cover");
+      /** The end of the bottom panel and its foot, against the start and foot of the other. */
+      const meeting = () =>
+        page.evaluate(() => {
+          const b = document.querySelector(".k-bottom-panel")!.getBoundingClientRect();
+          const s = document.querySelector(".k-side-panel")!.getBoundingClientRect();
+          return [b.right - s.left, b.bottom - s.bottom].map(Math.round);
+        });
+      // Past the motion of the opening, the layout is settled.
+      await expect
+        .poll(meeting, { message: "the bottom panel ends on the right panel" })
+        .toEqual([0, 0]);
+      const handle = (await side.locator(":scope > .k-panel-handle").boundingBox())!;
+      for (const part of [
+        bottom.locator(".k-tabs__panel:visible"),
+        bottom.getByRole("button", { name: "Fermer le panneau" }),
+      ]) {
+        const p = (await part.boundingBox())!;
+        expect(p.x + p.width, "clear of the handle").toBeLessThanOrEqual(handle.x + 0.5);
+      }
+
+      await side.getByRole("button", { name: "Fermer le panneau" }).click();
+      const rail = page.locator(".k-side-panel-rail");
+      await expect(rail).toBeVisible();
+      await expect(side).toHaveCount(0);
+      const after = (await bottom.boundingBox())!;
+      const r = (await rail.boundingBox())!;
+      expect(Math.round(after.x + after.width)).toBe(Math.round(r.x));
+    });
+  });
+}
+
 // An entry of the draft panel is lit under the pointer as a row of a table (retour du
 // 2026-10-28): the same `--k-hover`, in every mock-up (frame's default draft, E13's own).
 test.describe("draft panel: the entry under the pointer", () => {
