@@ -114,13 +114,6 @@ fn wanted(headers: &HeaderMap) -> Wanted {
     }
 }
 
-/// Whether a request asks a page of the catch-up rather than the stream (REQ-022-28):
-/// a page is an ordinary read, counted by the quota.
-#[must_use]
-pub fn wants_page(headers: &HeaderMap) -> bool {
-    wanted(headers) == Wanted::Page
-}
-
 /// REQ-022-15: a cookie session opens the stream only from the public origin: `Origin`,
 /// when present, equal to it; `Sec-Fetch-Site`, when present, `same-origin`.
 #[must_use]

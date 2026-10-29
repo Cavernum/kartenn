@@ -151,6 +151,26 @@ fn app_audited(
     who: Principal,
     audit: ReadAudit,
 ) -> Router {
+    let settings = Settings {
+        public_origin: Some(PUBLIC.into()),
+        ..Settings::default()
+    };
+    let rates = Rates {
+        read: Rate::new(1000, 1000).unwrap(),
+        ..Rates::default()
+    };
+    app_limited(pool, ring, hub, who, audit, settings, rates)
+}
+
+fn app_limited(
+    pool: &PgPool,
+    ring: &KeyRing,
+    hub: &Arc<Hub>,
+    who: Principal,
+    audit: ReadAudit,
+    settings: Settings,
+    rates: Rates,
+) -> Router {
     let api = Api {
         pool: pool.clone(),
         ring: ring.clone(),
@@ -164,14 +184,8 @@ fn app_audited(
     kartenn_rest::router(
         kartenn_rest::v1(api).layer(axum::Extension(hub.clone())),
         Arc::new(PgReadiness::new(pool.clone(), AuditStatus::default())),
-        Settings {
-            public_origin: Some(PUBLIC.into()),
-            ..Settings::default()
-        },
-        Arc::new(Quotas::new(Rates {
-            read: Rate::new(1000, 1000).unwrap(),
-            ..Rates::default()
-        })),
+        settings,
+        Arc::new(Quotas::new(rates)),
         Arc::new(Who(who)),
     )
 }
@@ -855,6 +869,81 @@ async fn the_ceilings_refuse_before_the_base(pool: PgPool) {
     tokio::time::sleep(Duration::from_millis(50)).await;
     let (r6, _c6) = open(&bob, "/v1/events", None).await;
     assert_eq!(r6.status(), StatusCode::OK);
+}
+
+/// REQ-022-22: the opening of a stream takes one token of the read quota of its
+/// identity; the quota spent, 429 with `Retry-After` before any opening, counted neither
+/// by the ceilings of the streams nor by the shedding; the connection open takes nothing
+/// more.
+#[kartenn_testing::pg_test]
+async fn the_opening_of_a_stream_takes_one_read_token(pool: PgPool) {
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let i = instance(
+        &pool,
+        &ring,
+        EventSettings {
+            per_identity: 2,
+            ..quick()
+        },
+    )
+    .await;
+    // One read at once, one per second; one request in flight.
+    let alice = app_limited(
+        &pool,
+        &ring,
+        &i.hub,
+        person(&pool, &READ_ALL, ("global", None)).await,
+        ReadAudit::default(),
+        Settings {
+            public_origin: Some(PUBLIC.into()),
+            max_in_flight: 1,
+            ..Settings::default()
+        },
+        Rates {
+            read: Rate::new(1, 1).unwrap(),
+            ..Rates::default()
+        },
+    );
+    let back = Duration::from_millis(1100);
+    let (r1, mut c1) = open(&alice, "/v1/events", None).await;
+    assert_eq!(r1.status(), StatusCode::OK);
+    let (r2, _) = open(&alice, "/v1/events", None).await;
+    assert_eq!(r2.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert!(r2.headers().contains_key(header::RETRY_AFTER));
+    assert_eq!(
+        r2.headers()["ratelimit-policy"],
+        "\"r\";q=1;w=1",
+        "the read quota, not the ceiling of the identity"
+    );
+    assert_eq!(i.hub.open_streams(), 1, "refused before any opening");
+    // The stream delivers while the token comes back; it takes nothing more, nor holds
+    // the only request in flight: a read passes.
+    assert_eq!(c1.next(WAIT).await.unwrap().event, "ready");
+    c1.drain(back).await;
+    let read = alice
+        .clone()
+        .oneshot(
+            Request::get("/v1/capabilities")
+                .header(header::AUTHORIZATION, "Bearer t")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(read.status(), StatusCode::OK);
+    // The refused opening took no place: the second stream of the identity opens, the
+    // third meets the ceiling, unchanged.
+    tokio::time::sleep(back).await;
+    let (r3, _c3) = open(&alice, "/v1/events", None).await;
+    assert_eq!(r3.status(), StatusCode::OK);
+    tokio::time::sleep(back).await;
+    let (r4, _) = open(&alice, "/v1/events", None).await;
+    assert_eq!(r4.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert!(
+        !r4.headers().contains_key("ratelimit-policy"),
+        "the ceiling of the identity"
+    );
+    assert_eq!(i.hub.open_streams(), 2);
 }
 
 /// REQ-022-12: at the stop, a `retry:` drawn between 0.5 and 5 s, then the end; new
