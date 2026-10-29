@@ -304,6 +304,27 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     `Incremental` et l'échéance (`QuietEnd`, `exp`) ; budgets INV-71 mesurés à
     l'échelle réduite seulement.
 
+## P6 — Écart relevé (2026-10-29)
+
+- [ ] 19. Ouverture d'un flux comptée dans le quota de lecture — REQ-022-22 (« leur
+  ouverture compte une fois dans le compartiment de lecture du quota (REQ-006-29) ») —
+  verify : test d'acceptation (un flux ouvert débite une fois le compartiment de lecture
+  de l'identité ; compartiment vide → 429 `Retry-After` avant toute ouverture, sans
+  compter dans les plafonds de flux ni dans le délestage ; la connexion ouverte ne
+  débite plus rien ensuite) ; les plafonds par instance et par identité inchangés ;
+  `k-check`
+  - constat : la couche de quota laisse passer `/v1/events` sans débit dès que la requête
+    n'est pas une page de rattrapage (`quota.rs`, `layer`, test `wants_page`), donc
+    l'ouverture d'un flux ne compte pas, contrairement à REQ-022-22 ; relevé à la tâche
+    14.
+  - où : `crates/kartenn-rest/src/quota.rs` (`layer`, `Charge`, compartiments) ;
+    `crates/kartenn-rest/src/events/mod.rs` (`wants_page`, ouverture du flux, plafonds) ;
+    ordre des couches (quota avant délestage, REQ-006-29, 30) dans
+    `crates/kartenn-rest/src/lib.rs` ou le routeur du serveur ; tests à imiter :
+    `crates/kartenn-rest/tests/it/quota.rs` (`behind`), `tests/it/events.rs` (plafonds par
+    identité) ; `docs/spec/interfaces.md` (quotas du flux) si la description change
+  - dépend de : 14
+
 ### Invariants proposés (numéros à attribuer à la synchronisation)
 
 | ID | Invariant | Garantie | Test |
