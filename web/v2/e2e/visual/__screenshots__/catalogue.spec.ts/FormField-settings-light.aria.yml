@@ -1,0 +1,14 @@
+- main:
+  - region "FormField":
+    - heading "FormField" [level=1]
+    - paragraph: "Motif : étiquette, erreur puis aide par aria-describedby ; group nommé (cases, bascules)"
+    - figure "settings — Groupe de bascules (réglages pris aussitôt)":
+      - group "Affichage":
+        - text: ""
+        - switch "Montrer les adresses réservées" [checked]
+        - text: Montrer les adresses réservées
+        - switch "Montrer les préfixes vides"
+        - text: Montrer les préfixes vides
+        - paragraph: Pris en compte aussitôt.
+      - code: settings
+      - text: ""

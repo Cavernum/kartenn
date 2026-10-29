@@ -8,8 +8,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { copyText } from "../src/clipboard.ts";
 import Button from "../src/components/Button/Button.vue";
 import { ariaKeyshortcuts } from "../src/components/Button/shortcut.ts";
+import Checkbox from "../src/components/Checkbox/Checkbox.vue";
 import CodeBadge from "../src/components/CodeBadge/CodeBadge.vue";
 import EnvChip from "../src/components/EnvChip/EnvChip.vue";
+import FormField from "../src/components/FormField/FormField.vue";
 import IconButton from "../src/components/IconButton/IconButton.vue";
 import Kbd from "../src/components/Kbd/Kbd.vue";
 import { keyLabel } from "../src/components/Kbd/kbd.ts";
@@ -19,6 +21,7 @@ import { shortcutAria, shortcutSteps } from "../src/components/ShortcutHint/shor
 import Split from "../src/components/Split/Split.vue";
 import Stack from "../src/components/Stack/Stack.vue";
 import StatusBadge from "../src/components/StatusBadge/StatusBadge.vue";
+import Switch from "../src/components/Switch/Switch.vue";
 import TextField from "../src/components/TextField/TextField.vue";
 import { setLocale } from "../src/i18n.ts";
 import { STATES } from "../src/tokens/index.ts";
@@ -169,7 +172,7 @@ describe("TextField", () => {
       mono: true,
     });
     const id = /<input id="([^"]+)"/.exec(html)![1]!;
-    expect(html).toContain(`<label for="${id}"`);
+    expect(html).toContain(`<label id="${id}-label" for="${id}"`);
     expect(html).toContain('aria-invalid="true"');
     expect(html).toContain(`aria-describedby="${id}-error ${id}-hint"`);
     expect(html).toContain(`<p id="${id}-error"`);
@@ -195,6 +198,99 @@ describe("TextField", () => {
     expect(html).toMatch(new RegExp(`id="${pending}"[^>]*>Chargement<`));
     expect(html).toMatch(/ readonly[ >]/);
     expect(html).toMatch(/<label[^>]*class="[^"]*k-visually-hidden/);
+  });
+
+  it("holds an empty live region before any error, the error inside it once given", async () => {
+    // A region inserted with its text is not announced: it is there, empty, beforehand.
+    expect(await render(TextField, { label: "Nom" })).toMatch(
+      /<div class="k-form-field__live" aria-live="polite"><!--[^>]*--><\/div>/,
+    );
+    const html = await render(TextField, { label: "Nom", error: "Le nom est obligatoire." });
+    const id = /<input id="([^"]+)"/.exec(html)![1]!;
+    expect(html).toMatch(new RegExp(`aria-live="polite"><p id="${id}-error"`));
+  });
+});
+
+describe("FormField", () => {
+  it("labels the control the slot receives, with its description", async () => {
+    const html = await renderToString(
+      createSSRApp({
+        render: () =>
+          h(
+            FormField,
+            { label: "Description", hint: "Facultative.", error: "Trop longue.", id: "d" },
+            {
+              default: (slot: { id: string; describedBy?: string; invalid: boolean }) =>
+                h("textarea", {
+                  id: slot.id,
+                  "aria-describedby": slot.describedBy,
+                  "aria-invalid": slot.invalid ? "true" : undefined,
+                }),
+            },
+          ),
+      }),
+    );
+    expect(html).toContain('<label id="d-label" for="d"');
+    expect(html).toContain(
+      '<textarea id="d" aria-describedby="d-error d-hint" aria-invalid="true"',
+    );
+    expect(html).toContain('<p id="d-hint"');
+    expect(html).not.toContain("role=");
+  });
+
+  it("group: a named and described group, its label no label element", async () => {
+    const html = await render(FormField, {
+      label: "Colonnes",
+      group: true,
+      error: "Choisissez au moins une colonne.",
+      id: "g",
+    });
+    expect(html).toMatch(
+      /^<div class="k-form-field" role="group" aria-labelledby="g-label" aria-describedby="g-error">/,
+    );
+    expect(html).toContain('<span id="g-label" class="k-form-field__label"');
+    expect(html).not.toContain("<label");
+  });
+});
+
+describe("Checkbox", () => {
+  it("a native checkbox in its label, the help outside the name", async () => {
+    const html = await render(Checkbox, {
+      label: "Anycast",
+      hint: "Une adresse, plusieurs lieux.",
+    });
+    expect(html).toMatch(/^<div class="k-checkbox" data-size="md"><label class="k-checkbox__hit">/);
+    const id = /<input id="([^"]+)"/.exec(html)![1]!;
+    expect(html).toContain('type="checkbox"');
+    expect(html).toContain(`aria-describedby="${id}-hint"`);
+    expect(html).toMatch(new RegExp(`</label><p id="${id}-hint"`));
+    expect(html).not.toMatch(/ checked[ >]/);
+    expect(html).not.toContain("k-checkbox__mark");
+  });
+
+  it("checked shows the tick; mixed the dash, never aria-checked on the native box", async () => {
+    const checked = await render(Checkbox, { label: "Anycast", modelValue: true });
+    expect(checked).toMatch(/ checked[ >]/);
+    expect(checked).toContain("k-checkbox__mark");
+    const mixed = await render(Checkbox, { label: "Tout sélectionner", modelValue: "mixed" });
+    expect(mixed).not.toMatch(/ checked[ >]/);
+    expect(mixed).not.toContain("aria-checked");
+    expect(mixed).toContain("k-checkbox__mark");
+    expect(mixed).not.toEqual(checked.replace("Anycast", "Tout sélectionner"));
+  });
+});
+
+describe("Switch", () => {
+  it("a button of role switch, named by its label, its state in aria-checked", async () => {
+    const off = await render(Switch, { label: "Montrer les réservées", hint: "Aussitôt." });
+    const id = /<button id="([^"]+)"/.exec(off)![1]!;
+    expect(off).toContain('type="button" role="switch" aria-checked="false"');
+    expect(off).toContain(`aria-labelledby="${id}-label"`);
+    expect(off).toContain(`aria-describedby="${id}-hint"`);
+    expect(off).toContain(`<span id="${id}-label"`);
+    expect(await render(Switch, { label: "Montrer", modelValue: true })).toContain(
+      'aria-checked="true"',
+    );
   });
 });
 

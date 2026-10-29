@@ -3,13 +3,15 @@
      file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
 
 <script setup lang="ts">
-// A labelled native text field (design « Inventaire », line 4): label, help and error
-// linked by `aria-describedby`, `aria-invalid` with the error; read-only, disabled,
-// pending (`aria-busy`, indicator); fixed-pitch variant for addresses, prefixes and
-// identifiers. Heights of the controls (REQ-020-17).
+// A labelled native text field (design « Inventaire », line 4), in a `FormField`: label,
+// then error and help linked by `aria-describedby` (error first), the error said in a
+// live region when it comes, `aria-invalid` with it; read-only, disabled, pending
+// (`aria-busy`, indicator, the word in the description); fixed-pitch variant for
+// addresses, prefixes and identifiers. Heights of the controls (REQ-020-17).
 import { computed, useId } from "vue";
 import type { IconName } from "../../icons/index.ts";
 import { t } from "../../i18n.ts";
+import FormField from "../FormField/FormField.vue";
 import Icon from "../Icon/Icon.vue";
 import type { ControlSize } from "../layout.ts";
 
@@ -45,11 +47,13 @@ const props = withDefaults(
 );
 const model = defineModel<string>({ default: "" });
 
+// The ids of the error and the help are those of the `FormField` (`<id>-error`,
+// `<id>-hint`); pending goes between them, said in words too: under reduced motion the
+// indicator no longer turns.
 const id = useId();
 const hintId = `${id}-hint`;
 const errorId = `${id}-error`;
 const pendingId = `${id}-pending`;
-// Pending is said in words too: under reduced motion the indicator no longer turns.
 const describedBy = computed(
   () =>
     [props.error ? errorId : null, props.pending ? pendingId : null, props.hint ? hintId : null]
@@ -59,19 +63,20 @@ const describedBy = computed(
 </script>
 
 <template>
-  <div
+  <FormField
+    :id="id"
     class="k-text-field"
-    :data-size="props.size"
-    :data-invalid="props.error ? 'true' : undefined"
+    :label="props.label"
+    :hide-label="props.hideLabel"
+    :hint="props.hint"
+    :error="props.error"
+    :required="props.required"
   >
-    <label :for="id" class="k-text-field__label" :class="{ 'k-visually-hidden': props.hideLabel }">
-      {{ props.label
-      }}<span v-if="props.required" class="k-text-field__required">
-        <span aria-hidden="true">*</span
-        ><span class="k-visually-hidden">({{ t("required") }})</span></span
-      >
-    </label>
-    <div class="k-text-field__control">
+    <div
+      class="k-text-field__control"
+      :data-size="props.size"
+      :data-invalid="props.error ? 'true' : undefined"
+    >
       <Icon v-if="props.icon" :name="props.icon" class="k-text-field__icon" />
       <input
         :id="id"
@@ -92,36 +97,11 @@ const describedBy = computed(
       <Icon v-if="props.pending" name="loader-circle" class="k-spinner k-text-field__icon" />
       <span v-if="props.pending" :id="pendingId" class="k-visually-hidden">{{ t("loading") }}</span>
     </div>
-    <p v-if="props.error" :id="errorId" class="k-text-field__error">
-      <Icon name="circle-x" />{{ props.error }}
-    </p>
-    <p v-if="props.hint" :id="hintId" class="k-text-field__hint">{{ props.hint }}</p>
-  </div>
+  </FormField>
 </template>
 
 <style>
 @layer components {
-  /* One elastic column: the field takes the width it is given, never the intrinsic width
-   * of its input (an editor in a grid cell stays in its cell). */
-  .k-text-field {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--k-space-1);
-    min-inline-size: 0;
-  }
-
-  .k-text-field__label {
-    font-size: var(--k-text-sm);
-    line-height: var(--k-text-sm-line);
-    font-weight: var(--k-weight-medium);
-    color: var(--k-text);
-  }
-
-  .k-text-field__required {
-    margin-inline-start: var(--k-space-0-5);
-    color: var(--k-state-ko-fg);
-  }
-
   .k-text-field__control {
     display: flex;
     gap: var(--k-space-1);
@@ -137,12 +117,12 @@ const describedBy = computed(
     transition-timing-function: var(--k-ease-standard);
   }
 
-  .k-text-field[data-size="sm"] .k-text-field__control {
+  .k-text-field__control[data-size="sm"] {
     min-block-size: var(--k-control-height-sm);
     padding-inline: var(--k-control-padding-inline-sm);
   }
 
-  .k-text-field[data-size="lg"] .k-text-field__control {
+  .k-text-field__control[data-size="lg"] {
     min-block-size: var(--k-control-height-lg);
     padding-inline: var(--k-control-padding-inline-lg);
   }
@@ -157,7 +137,7 @@ const describedBy = computed(
     outline-offset: var(--k-focus-offset);
   }
 
-  .k-text-field[data-invalid] .k-text-field__control {
+  .k-text-field__control[data-invalid] {
     border-color: var(--k-state-ko-fg);
   }
 
@@ -196,20 +176,6 @@ const describedBy = computed(
 
   .k-text-field__icon {
     color: var(--k-text-muted);
-  }
-
-  .k-text-field__hint,
-  .k-text-field__error {
-    display: flex;
-    gap: var(--k-space-1);
-    align-items: center;
-    font-size: var(--k-text-sm);
-    line-height: var(--k-text-sm-line);
-    color: var(--k-text-muted);
-  }
-
-  .k-text-field__error {
-    color: var(--k-state-ko-fg);
   }
 }
 </style>

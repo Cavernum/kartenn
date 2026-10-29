@@ -1,0 +1,9 @@
+- main:
+  - region "Checkbox":
+    - heading "Checkbox" [level=1]
+    - paragraph: "Motif : Checkbox (deux et trois états)"
+    - figure "disabled-checked — Désactivée et cochée":
+      - checkbox "Anycast" [checked] [disabled]
+      - text: Anycast
+      - code: disabled-checked
+      - text: ""

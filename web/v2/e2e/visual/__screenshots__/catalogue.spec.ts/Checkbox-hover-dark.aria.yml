@@ -1,0 +1,9 @@
+- main:
+  - region "Checkbox":
+    - heading "Checkbox" [level=1]
+    - paragraph: "Motif : Checkbox (deux et trois états)"
+    - figure "hover — Survol":
+      - checkbox "Point à point"
+      - text: Point à point
+      - code: hover
+      - text: ""

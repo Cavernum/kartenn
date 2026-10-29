@@ -8,6 +8,11 @@
 // Colour, icon and title together (REQ-020-7); each violation shows its code, copyable
 // (REQ-020-22). `icon` replaces the icon of the tone when it says more (a lock for an
 // object read only); the colour and the role stay those of the tone.
+// It is said when it shows: the region is there, its content hidden (`data-state=
+// "waiting"`, `visibility: hidden`, out of the accessibility tree), and its content
+// shows a frame later, which the region announces (a region inserted with its text is
+// not announced, relecture du 2026-10-26). The box keeps its size meanwhile: no shift.
+import { onBeforeUnmount, onMounted, ref } from "vue";
 import type { IconName } from "../../icons/index.ts";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import Icon from "../Icon/Icon.vue";
@@ -31,12 +36,20 @@ const ICONS: Record<AlertTone, IconName> = {
   warn: "triangle-alert",
   ko: "circle-x",
 };
+
+const said = ref(false);
+let frame = 0;
+onMounted(() => {
+  frame = requestAnimationFrame(() => (said.value = true));
+});
+onBeforeUnmount(() => cancelAnimationFrame(frame));
 </script>
 
 <template>
   <div
     class="k-inline-alert"
     :data-tone="props.tone"
+    :data-state="said ? undefined : 'waiting'"
     :role="props.tone === 'ko' ? 'alert' : 'status'"
   >
     <Icon :name="props.icon ?? ICONS[props.tone]" class="k-inline-alert__icon" />
@@ -86,6 +99,10 @@ const ICONS: Record<AlertTone, IconName> = {
     --k-inline-alert-fg: var(--k-state-ko-fg);
     --k-inline-alert-bg: var(--k-state-ko-bg);
     --k-inline-alert-border: var(--k-state-ko-border);
+  }
+
+  .k-inline-alert[data-state="waiting"] > * {
+    visibility: hidden;
   }
 
   .k-inline-alert__icon {

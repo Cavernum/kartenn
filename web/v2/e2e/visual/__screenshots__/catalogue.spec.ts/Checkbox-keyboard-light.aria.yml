@@ -1,0 +1,17 @@
+- main:
+  - region "Checkbox":
+    - heading "Checkbox" [level=1]
+    - paragraph: "Motif : Checkbox (deux et trois états)"
+    - 'figure "keyboard — Au clavier : Espace, case mixte des lignes, case désactivée"':
+      - checkbox "Tout sélectionner (3)" [checked=mixed]
+      - text: Tout sélectionner (3)
+      - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+/ [checked]
+      - text: /Sélectionner \d+\.\d+\.\d+\.\d+/
+      - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+/
+      - text: /Sélectionner \d+\.\d+\.\d+\.\d+/
+      - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+/
+      - text: /Sélectionner \d+\.\d+\.\d+\.\d+/
+      - checkbox "Anycast" [disabled]
+      - text: Anycast
+      - code: keyboard
+      - text: ""

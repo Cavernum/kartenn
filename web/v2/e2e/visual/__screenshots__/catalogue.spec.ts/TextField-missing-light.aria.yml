@@ -1,0 +1,11 @@
+- main:
+  - region "TextField":
+    - heading "TextField" [level=1]
+    - paragraph: "Motif : champ natif étiqueté (aide et erreur par aria-describedby)"
+    - 'figure "missing — Obligatoire et vide : l''erreur avant l''aide"':
+      - text: Nom (obligatoire)
+      - textbox "Nom (obligatoire)" [invalid]
+      - paragraph: Le nom est obligatoire.
+      - paragraph: Visible dans les listes.
+      - code: missing
+      - text: ""

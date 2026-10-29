@@ -1,0 +1,53 @@
+- main:
+  - region "Switch":
+    - heading "Switch" [level=1]
+    - paragraph: "Motif : Switch (réglage binaire pris aussitôt)"
+    - figure "off — Arrêt":
+      - switch "Montrer les adresses réservées"
+      - text: Montrer les adresses réservées
+      - code: "off"
+      - text: ""
+    - 'figure "on — Marche : pastille au bout, piste pleine"':
+      - switch "Montrer les adresses réservées" [checked]
+      - text: Montrer les adresses réservées
+      - code: "on"
+      - text: ""
+    - figure "hint — Avec aide, liée par aria-describedby":
+      - switch "Montrer les préfixes vides"
+      - text: Montrer les préfixes vides
+      - paragraph: Un préfixe sans adresse ni plage.
+      - code: hint
+      - text: ""
+    - figure "hover — Survol":
+      - switch "Montrer les adresses réservées"
+      - text: Montrer les adresses réservées
+      - code: hover
+      - text: ""
+    - figure "focus — Focus visible":
+      - switch "Montrer les adresses réservées" [checked]
+      - text: Montrer les adresses réservées
+      - code: focus
+      - text: ""
+    - figure "disabled — Désactivée (hors de l'ordre de tabulation)":
+      - switch "Montrer les adresses réservées" [disabled]
+      - text: Montrer les adresses réservées
+      - code: disabled
+      - text: ""
+    - figure "disabled-on — Désactivée, en marche":
+      - switch "Montrer les adresses réservées" [checked] [disabled]
+      - text: Montrer les adresses réservées
+      - code: disabled-on
+      - text: ""
+    - figure /small — Petite \(\d+ px en compacte\)/:
+      - switch "Montrer les adresses réservées" [checked]
+      - text: Montrer les adresses réservées
+      - code: small
+      - text: ""
+    - 'figure "keyboard — Au clavier : Espace et Entrée, effet dit aussitôt, bascule désactivée"':
+      - switch "Montrer les adresses réservées"
+      - text: Montrer les adresses réservées
+      - switch "Montrer les préfixes vides" [disabled]
+      - text: Montrer les préfixes vides
+      - status: Adresses réservées cachées
+      - code: keyboard
+      - text: ""

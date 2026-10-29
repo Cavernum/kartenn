@@ -1,0 +1,12 @@
+- main:
+  - region "Switch":
+    - heading "Switch" [level=1]
+    - paragraph: "Motif : Switch (réglage binaire pris aussitôt)"
+    - 'figure "keyboard — Au clavier : Espace et Entrée, effet dit aussitôt, bascule désactivée"':
+      - switch "Montrer les adresses réservées"
+      - text: Montrer les adresses réservées
+      - switch "Montrer les préfixes vides" [disabled]
+      - text: Montrer les préfixes vides
+      - status: Adresses réservées cachées
+      - code: keyboard
+      - text: ""
