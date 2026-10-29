@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-23
+updated: 2026-10-29
 ---
 
 # 022 — Événements poussés (SSE) : conception
@@ -247,7 +247,8 @@ kartenn sert OpenAPI 3.1 (REQ-006-34) : la réponse 200 de `GET /v1/events` est 
 avec le type de média `text/event-stream` (schéma `string`) et une extension
 `x-kartenn-events` qui associe chaque sorte à un schéma de `components/schemas`
 (`EventReady`, `EventChanges`, `EventChangeset`, `EventReset`). Ces schémas entrent dans
-le contrat de référence comparé par le test de REQ-006-34. OpenAPI 3.2 décrit les flux
+le contrat de référence comparé par le test de REQ-006-34. La même réponse 200 décrit
+aussi `application/json` (schéma `EventPage`, REQ-022-28) et le paramètre `page_size`. OpenAPI 3.2 décrit les flux
 d'éléments (`itemSchema`, types de média séquentiels dont `text/event-stream`) : passer
 à 3.2 quand le générateur le permettra (Q-022-9).
 
@@ -271,6 +272,41 @@ et retenu par la configuration de la sortie (rétention courte, 7 jours recomman
 scellement. Métriques de
 REQ-022-25 ; span `events.reader.pass` (lot, durée, plancher), span
 `events.visibility` (sujets, objets).
+
+### Rattrapage JSON (REQ-022-28, Q-022-4)
+
+*Ajouté le 2026-10-29 (tâche 14).*
+
+Même route, autre représentation : `Accept` qui admet `application/json` sans nommer
+`text/event-stream` (`*/*` ou absent : le flux). Une page n'ouvre pas de connexion :
+elle ne prend pas de place dans les plafonds de flux et passe par le quota et le
+délestage comme toute lecture.
+
+- **Lecture de l'anneau.** Sous le verrou du hub : plancher publié `F`, bas de
+  l'anneau, et les avis de numéro `> f` (plancher du curseur) **et `≤ F`**, triés par
+  numéro. Tout numéro `≤ F` est validé et déjà dans l'anneau (le lecteur l'y range avant
+  de monter `F`), ou n'existera jamais : la page n'a pas de trou sous `F`. Les avis
+  au-dessus de `F` (validés pendant qu'une transaction longue retient le plancher)
+  attendent : les servir obligerait le curseur suivant à rester à `F` et une page pleine
+  reviendrait à l'identique, sans fin. Écart assumé avec le flux, qui les remet tout de
+  suite : latence d'une transaction longue, jamais une perte.
+- **Droits.** Portée de lecture relue en base pour chaque page (sans passer par le cache
+  de 10 s des connexions, que la revérification compare pour `rights_changed`), puis la
+  même visibilité par lot que le flux (`sights`, `render`), par tranches de 256 avis,
+  jusqu'à `page_size` éléments remis.
+- **Curseurs.** Chaque élément porte `Position { floor: seq, last: seq }` : tous les
+  numéros `≤ seq` sont passés (remis, invisibles ou inexistants). Page pleine : `cursor`
+  = celui du dernier élément, `links.next` = la même requête (filtres, `page_size`) avec
+  `last_event_id`. Page non pleine : `cursor` au plus haut de `F` et du plancher reçu
+  (un curseur d'une instance en avance ne recule pas), `links.next` `null`. Un curseur
+  rendu à la fin d'une page sans élément visible ne dit rien : chiffré, de taille fixe,
+  il change à chaque réponse.
+- **`reset`.** Curseur invalide ou sous le bas de l'anneau : un seul élément `reset` au
+  curseur `F`, `links.next` `null` (rien à suivre tout de suite) ; l'appelant invalide
+  tout puis repasse avec `cursor`.
+- **Audit.** `data.objects.read` (cible `object`, identifiants des objets remis,
+  `criteria` = filtres, `page_size`, `resumed`) : une page est une lecture (REQ-012-18),
+  pas un flux.
 
 ## Contrat consommé par les clients
 
@@ -303,6 +339,9 @@ cliente et commandes `watch`), qui le reprendront.
 - **Navigateur** : un seul flux par navigateur partagé entre onglets.
 - **Doublons** : ignorer les identités d'événement déjà vues, comparer les révisions à
   l'égalité (§ Doublons).
+- **Client qui ne tient pas un flux** (REQ-022-28) : `GET /v1/events` en
+  `Accept: application/json`, suivre `links.next` tant qu'il est présent, garder
+  `cursor`, repasser plus tard ; mêmes règles de `reset` et de doublons.
 - Un connecteur qui doit recevoir le contenu de chaque événement sans perte utilise un
   relais d'outbox dédié (ADR 0018), pas ce flux.
 

@@ -346,6 +346,7 @@ Cadre : D3, D7, D9, D11, D13, D14, D17, D35, D36 de
 - **Q-022-4** — Variante JSON de rattrapage (`Accept: application/json`, page
   d'événements après un curseur) pour les clients qui ne tiennent pas un flux ?
   Retenu : oui, plus tard, tâche facultative (P4) ; même anneau, mêmes droits.
+  Réalisée à la demande de l'utilisateur le 2026-10-29 : REQ-022-28 (tâche 14).
 - **Q-022-5** — Identifiants remis dans `events.stream.closed` ? Retenu : oui,
   bornés par `audit.read_ids_max` (L25), le reste compté.
 - **Q-022-6** — Droits évalués à la remise ou à la validation du changeset ?
