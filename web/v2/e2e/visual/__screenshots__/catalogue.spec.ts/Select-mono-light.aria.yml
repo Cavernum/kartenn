@@ -1,0 +1,9 @@
+- main:
+  - region "Select":
+    - heading "Select" [level=1]
+    - paragraph: "Motif : Select-Only Combobox (bouton combobox, liste listbox)"
+    - figure "mono — Clés en chasse fixe, plage en détail":
+      - text: Groupe
+      - combobox "Groupe": campus-ouest
+      - code: mono
+      - text: ""

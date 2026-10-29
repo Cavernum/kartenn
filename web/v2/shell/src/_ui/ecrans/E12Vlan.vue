@@ -18,6 +18,7 @@ import {
   InlineAlert,
   KeyLabel,
   Menu,
+  Select,
   Split,
   SplitButton,
   Stack,
@@ -28,6 +29,7 @@ import {
   type GridColumn,
   type GridSort,
   type IconName,
+  type ListOption,
   type MenuItem,
   type RowState,
   type SplitAction,
@@ -37,7 +39,6 @@ import {
 } from "@kartenn/ui";
 import { ref } from "vue";
 import { RouterLink, useRoute, type RouteLocationRaw } from "vue-router";
-import AVenir from "./AVenir.vue";
 import Attributs from "./EcranAttributs.vue";
 import Barre from "./EcranBarre.vue";
 import Cadre from "./EcranCadre.vue";
@@ -312,6 +313,11 @@ const prefixActions: ToolbarAction[] = [
   { id: "export", label: "Exporter", priority: 1 },
 ];
 const NETWORK = "192.0.2.192/26";
+/** The groups a VLAN of the network may join: anchored on its site or its entity. */
+const candidates: ListOption[] = groups
+  .filter((g) => g.anchorKind !== "domain")
+  .map((g) => ({ value: g.key, label: g.key, mono: true, detail: g.range }));
+const group = ref<string | undefined>("campus-ouest");
 const vid = ref("105");
 const name = ref("impression");
 const status = ref<VlanStatus>("active");
@@ -604,15 +610,13 @@ const createAction = ref("draft");
     <template #detail>
       <Stack gap="3">
         <h2 class="k-ecran-subtitle">Créer un VLAN pour <code>192.0.2.192/26</code></h2>
-        <AVenir component="Select" task="18">
-          <TextField
-            label="Groupe"
-            model-value="campus-ouest"
-            mono
-            readonly
-            hint="Groupes ancrés sur le site du réseau (site-ouest), son entité ou son domaine."
-          />
-        </AVenir>
+        <Select
+          v-model="group"
+          label="Groupe"
+          :options="candidates"
+          mono
+          hint="Groupes ancrés sur le site du réseau (site-ouest), son entité ou son domaine."
+        />
         <TextField
           v-model="vid"
           label="VID"

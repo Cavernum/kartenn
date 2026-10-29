@@ -1,0 +1,10 @@
+- main:
+  - region "Combobox":
+    - heading "Combobox" [level=1]
+    - paragraph: "Motif : Combobox (aria-autocomplete=list, sélection manuelle, aria-activedescendant)"
+    - figure "disabled — Désactivé":
+      - text: Groupe
+      - combobox "Groupe" [disabled]: campus-ouest
+      - status
+      - code: disabled
+      - text: ""

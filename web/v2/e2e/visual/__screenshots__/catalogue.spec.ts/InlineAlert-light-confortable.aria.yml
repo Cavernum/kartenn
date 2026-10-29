@@ -4,7 +4,7 @@
     - paragraph: "Motif : role=status (alert pour une erreur)"
     - figure "ko — Violations sous un formulaire, avec leurs codes":
       - alert:
-        - paragraph: Le changeset est refusé.
+        - paragraph: "Erreur : Le changeset est refusé."
         - list:
           - listitem:
             - text: Le préfixe chevauche un voisin.
@@ -22,17 +22,27 @@
       - text: ""
     - figure "warn — Avertissement":
       - status:
-        - paragraph: Trois adresses sont hors du préfixe.
+        - paragraph: "Avertissement : Trois adresses sont hors du préfixe."
         - text: Elles restent visibles dans la liste des anomalies.
       - code: warn
       - text: ""
     - figure "ok — Succès":
       - status:
-        - paragraph: Le changeset est appliqué.
+        - paragraph: "Succès : Le changeset est appliqué."
       - code: ok
       - text: ""
     - figure "info — Information":
       - status:
-        - paragraph: "Lecture au passé : la modification est désactivée."
+        - paragraph: "Information : Lecture au passé : la modification est désactivée."
       - code: info
+      - text: ""
+    - figure "icon — Icône qui en dit plus (cadenas), ton et rôle gardés":
+      - status:
+        - paragraph: "Avertissement : Groupe livré : lecture seule."
+        - text: Ses rôles suivent la synchronisation.
+      - code: icon
+      - text: ""
+    - figure "announce — Annoncée quand elle paraît (contenu rendu une image après sa région)":
+      - button "Appliquer le changeset"
+      - code: announce
       - text: ""

@@ -104,7 +104,7 @@
               - status
       - paragraph: Seuls les réseaux que vous pouvez lire sont listés et comptés.
       - status:
-        - paragraph: Un réseau hors du site du groupe
+        - paragraph: "Avertissement : Un réseau hors du site du groupe"
         - text: Le groupe campus-ouest est ancré sur le site
         - code: site-ouest
         - text: ;

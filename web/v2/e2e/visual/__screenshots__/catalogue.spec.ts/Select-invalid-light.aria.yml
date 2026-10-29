@@ -1,0 +1,11 @@
+- main:
+  - region "Select":
+    - heading "Select" [level=1]
+    - paragraph: "Motif : Select-Only Combobox (bouton combobox, liste listbox)"
+    - 'figure "invalid — Invalide : erreur liée et aria-invalid"':
+      - text: Usage (obligatoire)
+      - combobox "Usage (obligatoire)" [invalid]: Choisir un usage
+      - paragraph: L'usage est obligatoire.
+      - paragraph: Liste fermée du contrat.
+      - code: invalid
+      - text: ""

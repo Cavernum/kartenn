@@ -73,15 +73,15 @@ const describedBy = computed(
     :required="props.required"
   >
     <div
-      class="k-text-field__control"
+      class="k-field-frame"
       :data-size="props.size"
       :data-invalid="props.error ? 'true' : undefined"
     >
-      <Icon v-if="props.icon" :name="props.icon" class="k-text-field__icon" />
+      <Icon v-if="props.icon" :name="props.icon" class="k-field-frame__icon" />
       <input
         :id="id"
         v-model="model"
-        class="k-text-field__input"
+        class="k-field-frame__input"
         :class="{ 'k-mono': props.mono }"
         :type="props.type"
         :placeholder="props.placeholder"
@@ -94,88 +94,8 @@ const describedBy = computed(
         :aria-busy="props.pending ? 'true' : undefined"
         spellcheck="false"
       />
-      <Icon v-if="props.pending" name="loader-circle" class="k-spinner k-text-field__icon" />
+      <Icon v-if="props.pending" name="loader-circle" class="k-spinner k-field-frame__icon" />
       <span v-if="props.pending" :id="pendingId" class="k-visually-hidden">{{ t("loading") }}</span>
     </div>
   </FormField>
 </template>
-
-<style>
-@layer components {
-  .k-text-field__control {
-    display: flex;
-    gap: var(--k-space-1);
-    align-items: center;
-    min-block-size: var(--k-control-height-md);
-    padding-inline: var(--k-control-padding-inline-md);
-    color: var(--k-text);
-    background-color: var(--k-surface);
-    border: var(--k-border-width) solid var(--k-border-control);
-    border-radius: var(--k-radius-md);
-    transition-property: border-color;
-    transition-duration: var(--k-duration-fade);
-    transition-timing-function: var(--k-ease-standard);
-  }
-
-  .k-text-field__control[data-size="sm"] {
-    min-block-size: var(--k-control-height-sm);
-    padding-inline: var(--k-control-padding-inline-sm);
-  }
-
-  .k-text-field__control[data-size="lg"] {
-    min-block-size: var(--k-control-height-lg);
-    padding-inline: var(--k-control-padding-inline-lg);
-  }
-
-  .k-text-field__control:hover {
-    border-color: var(--k-text-muted);
-  }
-
-  /* The ring is on the frame, not on the bare input. */
-  .k-text-field__control:focus-within {
-    outline: var(--k-focus-width) solid var(--k-focus-ring);
-    outline-offset: var(--k-focus-offset);
-  }
-
-  .k-text-field__control[data-invalid] {
-    border-color: var(--k-state-ko-fg);
-  }
-
-  .k-text-field__control:has(:disabled) {
-    color: var(--k-text-muted);
-    background-color: var(--k-surface-sunken);
-    border-color: var(--k-border-strong);
-  }
-
-  .k-text-field__control:has(:read-only:not(:disabled)) {
-    background-color: var(--k-surface-sunken);
-    border-style: dashed;
-  }
-
-  .k-text-field__input {
-    flex: 1;
-    align-self: stretch;
-    min-inline-size: 0;
-    padding: 0;
-    font: inherit;
-    color: inherit;
-    background: none;
-    border: 0;
-    outline: 0;
-  }
-
-  .k-text-field__input.k-mono {
-    font-family: var(--k-font-mono);
-    font-size: var(--k-text-mono);
-  }
-
-  .k-text-field__input::placeholder {
-    color: var(--k-text-muted);
-    opacity: 1;
-  }
-
-  .k-text-field__icon {
-    color: var(--k-text-muted);
-  }
-}
-</style>

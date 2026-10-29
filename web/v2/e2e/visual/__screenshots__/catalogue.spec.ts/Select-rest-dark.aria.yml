@@ -1,0 +1,10 @@
+- main:
+  - region "Select":
+    - heading "Select" [level=1]
+    - paragraph: "Motif : Select-Only Combobox (bouton combobox, liste listbox)"
+    - figure "rest — Au repos, une valeur choisie, avec aide":
+      - text: Usage
+      - combobox "Usage": Hôte
+      - paragraph: Liste fermée du contrat.
+      - code: rest
+      - text: ""

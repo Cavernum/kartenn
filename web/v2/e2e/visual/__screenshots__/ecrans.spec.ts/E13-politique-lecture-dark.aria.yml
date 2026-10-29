@@ -61,7 +61,7 @@
         - code: policy.settings.edit
         - text: .
       - status:
-        - paragraph: "Lecture seule : il vous faut policy.settings.edit pour modifier les paramètres de la Politique."
+        - paragraph: "Avertissement : Lecture seule : il vous faut policy.settings.edit pour modifier les paramètres de la Politique."
         - button "Copier policy.settings.edit":
           - text: ""
           - code: policy.settings.edit

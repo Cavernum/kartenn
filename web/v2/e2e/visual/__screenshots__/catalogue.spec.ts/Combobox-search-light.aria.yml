@@ -1,0 +1,10 @@
+- main:
+  - region "Combobox":
+    - heading "Combobox" [level=1]
+    - paragraph: "Motif : Combobox (aria-autocomplete=list, sélection manuelle, aria-activedescendant)"
+    - 'figure "search — Recherche globale : petit, icône, étiquette cachée, texte libre (Entrée)"':
+      - text: ""
+      - combobox "Rechercher"
+      - status
+      - code: search
+      - text: ""

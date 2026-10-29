@@ -1,0 +1,12 @@
+- main:
+  - region "Select":
+    - heading "Select" [level=1]
+    - paragraph: "Motif : Select-Only Combobox (bouton combobox, liste listbox)"
+    - 'figure "keyboard — Au clavier : ouvrir, parcourir, choisir, fermer sans choisir"':
+      - text: Usage
+      - combobox "Usage": Hôte
+      - status: "Usage choisi : Hôte"
+      - text: Propriétaire
+      - textbox "Propriétaire"
+      - code: keyboard
+      - text: ""

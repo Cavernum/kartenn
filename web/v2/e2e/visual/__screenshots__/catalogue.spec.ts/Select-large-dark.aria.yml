@@ -1,0 +1,9 @@
+- main:
+  - region "Select":
+    - heading "Select" [level=1]
+    - paragraph: "Motif : Select-Only Combobox (bouton combobox, liste listbox)"
+    - figure /large — Grand \(\d+ px en compacte\)/:
+      - text: Usage
+      - combobox "Usage": Hôte
+      - code: large
+      - text: ""

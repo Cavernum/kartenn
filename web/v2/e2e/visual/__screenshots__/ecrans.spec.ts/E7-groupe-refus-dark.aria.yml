@@ -26,6 +26,9 @@
       - link "Émetteurs":
         - /url: /admin/issuers
     - listitem:
+      - link "Paramètres":
+        - /url: /admin/settings
+    - listitem:
       - link "Audit":
         - /url: /admin/audit
   - button "Barre latérale" [expanded]
@@ -89,7 +92,7 @@
   - tabpanel "Détail":
     - heading "Astreinte astreinte" [level=2]
     - status:
-      - paragraph: "Lecture seule : ce groupe est lié sur un périmètre plus large que le vôtre."
+      - paragraph: "Avertissement : Lecture seule : ce groupe est lié sur un périmètre plus large que le vôtre."
       - button "Copier core.group.escalation":
         - text: ""
         - code: core.group.escalation

@@ -1,0 +1,10 @@
+- main:
+  - region "Combobox":
+    - heading "Combobox" [level=1]
+    - paragraph: "Motif : Combobox (aria-autocomplete=list, sélection manuelle, aria-activedescendant)"
+    - figure "chosen — Une suggestion prise":
+      - text: Groupe
+      - combobox "Groupe": campus-ouest
+      - status
+      - code: chosen
+      - text: ""

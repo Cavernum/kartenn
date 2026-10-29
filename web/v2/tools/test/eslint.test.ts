@@ -72,8 +72,9 @@ describe("eslint", () => {
 
   it("refuses the Reka UI parts that inject a <style>, and Reka UI in screens", async () => {
     const forbidden =
-      "import { ComboboxViewport, SplitterGroup } from 'reka-ui';\nexport { ComboboxViewport, SplitterGroup };\n";
+      "import { ComboboxViewport, SelectViewport, SplitterGroup } from 'reka-ui';\nexport { ComboboxViewport, SelectViewport, SplitterGroup };\n";
     expect(await rules(forbidden, "ui/src/x.ts")).toEqual([
+      "no-restricted-imports",
       "no-restricted-imports",
       "no-restricted-imports",
     ]);

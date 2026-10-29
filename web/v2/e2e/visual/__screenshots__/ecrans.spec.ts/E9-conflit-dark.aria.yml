@@ -4,7 +4,7 @@
     - button "Fermer"
   - paragraph: "/Quelqu'un a modifié \\d+\\.\\d+\\.\\d+\\.\\d+ après que vous l'avez lue : rien n'a été écrit, votre saisie est gardée\\./"
   - alert:
-    - paragraph: Vous avez lu la version v4, la version actuelle est la v5.
+    - paragraph: "Erreur : Vous avez lu la version v4, la version actuelle est la v5."
     - list:
       - listitem:
         - text: Relisez la valeur actuelle, puis réappliquez ou abandonnez votre saisie.

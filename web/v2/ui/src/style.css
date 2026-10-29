@@ -10,4 +10,5 @@
 @import "./tokens/fonts.css";
 @import "./styles/base.css";
 @import "./components/shared.css";
+@import "./components/Select/options.css";
 @import "./styles/utilities.css";

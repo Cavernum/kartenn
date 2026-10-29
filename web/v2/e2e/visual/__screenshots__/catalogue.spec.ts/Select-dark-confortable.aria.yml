@@ -1,0 +1,75 @@
+- main:
+  - region "Select":
+    - heading "Select" [level=1]
+    - paragraph: "Motif : Select-Only Combobox (bouton combobox, liste listbox)"
+    - figure "rest — Au repos, une valeur choisie, avec aide":
+      - text: Usage
+      - combobox "Usage": Hôte
+      - paragraph: Liste fermée du contrat.
+      - code: rest
+      - text: ""
+    - figure "placeholder — Aucune valeur, obligatoire":
+      - text: Usage (obligatoire)
+      - combobox "Usage (obligatoire)": Choisir un usage
+      - code: placeholder
+      - text: ""
+    - figure "mono — Clés en chasse fixe, plage en détail":
+      - text: Groupe
+      - combobox "Groupe": campus-ouest
+      - code: mono
+      - text: ""
+    - figure "hover — Survol":
+      - text: Usage
+      - combobox "Usage": Hôte
+      - code: hover
+      - text: ""
+    - figure "focus — Focus visible":
+      - text: Usage
+      - combobox "Usage": Hôte
+      - code: focus
+      - text: ""
+    - 'figure "open — Ouvert : l''option choisie cochée, détail en chasse fixe, option désactivée"':
+      - link "Voir l'état open seul":
+        - /url: /_ui/c/Select?mode=dark&densite=confortable&etat=open
+      - code: open
+      - text: ""
+    - 'figure "invalid — Invalide : erreur liée et aria-invalid"':
+      - text: Usage (obligatoire)
+      - combobox "Usage (obligatoire)" [invalid]: Choisir un usage
+      - paragraph: L'usage est obligatoire.
+      - paragraph: Liste fermée du contrat.
+      - code: invalid
+      - text: ""
+    - 'figure "readonly — Lecture seule : focalisable, ne s''ouvre pas"':
+      - text: Usage
+      - combobox "Usage": Passerelle
+      - code: readonly
+      - text: ""
+    - figure "disabled — Désactivé":
+      - text: Usage
+      - combobox "Usage" [disabled]: Hôte
+      - code: disabled
+      - text: ""
+    - figure /small — Petit \(\d+ px en compacte\), étiquette cachée/:
+      - text: Usage
+      - combobox "Usage": Hôte
+      - code: small
+      - text: ""
+    - figure /large — Grand \(\d+ px en compacte\)/:
+      - text: Usage
+      - combobox "Usage": Hôte
+      - code: large
+      - text: ""
+    - 'figure "toolbar — Dans une barre : l''étiquette écrite avant la valeur, icône"':
+      - text: Type de flux
+      - combobox "Type de flux": Interne
+      - code: toolbar
+      - text: ""
+    - 'figure "keyboard — Au clavier : ouvrir, parcourir, choisir, fermer sans choisir"':
+      - text: Usage
+      - combobox "Usage": Hôte
+      - status: "Usage choisi : Hôte"
+      - text: Propriétaire
+      - textbox "Propriétaire"
+      - code: keyboard
+      - text: ""

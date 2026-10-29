@@ -7,6 +7,7 @@ import prettier from "eslint-config-prettier";
 /** Reka UI parts that inject a `<style>` element, refused by the CSP (REQ-020-33). */
 export const FORBIDDEN_REKA = [
   "ComboboxViewport",
+  "SelectViewport",
   "SplitterGroup",
   "SplitterPanel",
   "SplitterResizeHandle",

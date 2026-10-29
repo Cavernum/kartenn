@@ -175,12 +175,8 @@
     - text: Valeur (obligatoire)
     - textbox "Valeur (obligatoire)": /\d+\.\d+\.\d+\.\d+/
     - paragraph: /Prochain libre de \d+\.\d+\.\d+\.\d+\/\d+\./
-    - paragraph:
-      - text: "À venir :"
-      - code: Select
-      - text: /\(tâche \d+\)/
     - text: Usage
-    - textbox "Usage": Hôte
+    - combobox "Usage": Hôte
     - text: Propriétaire
     - textbox "Propriétaire": Service Pilote
     - term: Parent

@@ -262,7 +262,7 @@
       - button "Modifier"
       - button "Clore…"
     - alert:
-      - paragraph: "Clôture refusée : 4 objets citent encore sandbox"
+      - paragraph: "Erreur : Clôture refusée : 4 objets citent encore sandbox"
       - list:
         - listitem:
           - text: Un objet ne cite que des valeurs vivantes sur sa période.

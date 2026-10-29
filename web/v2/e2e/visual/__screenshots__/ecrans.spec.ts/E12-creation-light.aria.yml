@@ -103,12 +103,8 @@
     - heading /Créer un VLAN pour \d+\.\d+\.\d+\.\d+\/\d+/ [level=2]:
       - text: ""
       - code: /\d+\.\d+\.\d+\.\d+\/\d+/
-    - paragraph:
-      - text: "À venir :"
-      - code: Select
-      - text: /\(tâche \d+\)/
     - text: Groupe
-    - textbox "Groupe": campus-ouest
+    - combobox "Groupe": campus-ouest
     - paragraph: Groupes ancrés sur le site du réseau (site-ouest), son entité ou son domaine.
     - text: VID (obligatoire)
     - textbox "VID (obligatoire)": /\d+/
@@ -126,7 +122,7 @@
       - text: VLAN
       - code: core.vlan
     - status:
-      - paragraph: Deux opérations au brouillon
+      - paragraph: "Information : Deux opérations au brouillon"
       - text: /Créer le VLAN \d+ impression dans campus-ouest, puis le poser sur/
       - code: /\d+\.\d+\.\d+\.\d+\/\d+/
       - text: .

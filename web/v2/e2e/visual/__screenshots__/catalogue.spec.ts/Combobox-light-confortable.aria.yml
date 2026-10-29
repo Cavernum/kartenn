@@ -1,0 +1,73 @@
+- main:
+  - region "Combobox":
+    - heading "Combobox" [level=1]
+    - paragraph: "Motif : Combobox (aria-autocomplete=list, sélection manuelle, aria-activedescendant)"
+    - figure "rest — Au repos, avec aide":
+      - text: Groupe
+      - combobox "Groupe"
+      - status
+      - paragraph: Groupes ancrés sur le site du réseau.
+      - code: rest
+      - text: ""
+    - figure "chosen — Une suggestion prise":
+      - text: Groupe
+      - combobox "Groupe": campus-ouest
+      - status
+      - code: chosen
+      - text: ""
+    - figure "focus — Focus visible":
+      - text: Groupe
+      - combobox "Groupe"
+      - status
+      - code: focus
+      - text: ""
+    - 'figure "open — Ouvert : les suggestions du texte, aucune mise en avant"':
+      - link "Voir l'état open seul":
+        - /url: /_ui/c/Combobox?mode=light&densite=confortable&etat=open
+      - code: open
+      - text: ""
+    - 'figure "loading — Chargement des suggestions : indicateur, dit par la région polite"':
+      - link "Voir l'état loading seul":
+        - /url: /_ui/c/Combobox?mode=light&densite=confortable&etat=loading
+      - code: loading
+      - text: ""
+    - figure "empty — Aucune suggestion pour le texte":
+      - link "Voir l'état empty seul":
+        - /url: /_ui/c/Combobox?mode=light&densite=confortable&etat=empty
+      - code: empty
+      - text: ""
+    - figure "failed — Suggestions indisponibles (l'appel a échoué), le texte reste":
+      - link "Voir l'état failed seul":
+        - /url: /_ui/c/Combobox?mode=light&densite=confortable&etat=failed
+      - code: failed
+      - text: ""
+    - 'figure "invalid — Invalide : erreur liée et aria-invalid"':
+      - text: Groupe (obligatoire)
+      - combobox "Groupe (obligatoire)" [invalid]: dmz
+      - status
+      - paragraph: Aucun groupe dmz sur ce site.
+      - paragraph: Groupes ancrés sur le site du réseau.
+      - code: invalid
+      - text: ""
+    - figure "disabled — Désactivé":
+      - text: Groupe
+      - combobox "Groupe" [disabled]: campus-ouest
+      - status
+      - code: disabled
+      - text: ""
+    - 'figure "search — Recherche globale : petit, icône, étiquette cachée, texte libre (Entrée)"':
+      - text: ""
+      - combobox "Rechercher"
+      - status
+      - code: search
+      - text: ""
+    - 'figure "keyboard — Au clavier : saisie débrayée, Alt+Bas, Bas, Entrée, Échap"':
+      - text: Groupe
+      - combobox "Groupe"
+      - status
+      - paragraph: "Appels : 0"
+      - status: Aucun groupe choisi
+      - text: Propriétaire
+      - textbox "Propriétaire"
+      - code: keyboard
+      - text: ""

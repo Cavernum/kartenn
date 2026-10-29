@@ -1,0 +1,14 @@
+- main:
+  - region "Combobox":
+    - heading "Combobox" [level=1]
+    - paragraph: "Motif : Combobox (aria-autocomplete=list, sélection manuelle, aria-activedescendant)"
+    - 'figure "keyboard — Au clavier : saisie débrayée, Alt+Bas, Bas, Entrée, Échap"':
+      - text: Groupe
+      - combobox "Groupe"
+      - status
+      - paragraph: "Appels : 0"
+      - status: Aucun groupe choisi
+      - text: Propriétaire
+      - textbox "Propriétaire"
+      - code: keyboard
+      - text: ""

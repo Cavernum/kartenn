@@ -1,0 +1,12 @@
+- main:
+  - region "Combobox":
+    - heading "Combobox" [level=1]
+    - paragraph: "Motif : Combobox (aria-autocomplete=list, sélection manuelle, aria-activedescendant)"
+    - 'figure "invalid — Invalide : erreur liée et aria-invalid"':
+      - text: Groupe (obligatoire)
+      - combobox "Groupe (obligatoire)" [invalid]: dmz
+      - status
+      - paragraph: Aucun groupe dmz sur ce site.
+      - paragraph: Groupes ancrés sur le site du réseau.
+      - code: invalid
+      - text: ""

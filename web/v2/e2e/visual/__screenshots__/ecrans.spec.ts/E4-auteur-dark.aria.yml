@@ -42,7 +42,7 @@
       - button "Effet sur la politique"
       - button "Copier l'identifiant"
     - status:
-      - paragraph: "Vous êtes l'auteur de ce changeset : un autre relecteur doit le valider."
+      - paragraph: "Information : Vous êtes l'auteur de ce changeset : un autre relecteur doit le valider."
       - list:
         - listitem:
           - text: Une politique d'approbation retient les changements de VLAN.
@@ -73,7 +73,7 @@
       - tab "Sections de modules 2"
     - tabpanel "Différentiel 5":
       - status:
-        - paragraph: Une anomalie rattachée
+        - paragraph: "Avertissement : Une anomalie rattachée"
         - list:
           - listitem:
             - text: /Le VLAN \d+ reste sur le site ouest, ses réseaux passent à l'est\./
