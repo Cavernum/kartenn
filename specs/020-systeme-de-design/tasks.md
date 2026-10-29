@@ -351,7 +351,7 @@ clavier (complété en P4) ; ce qu'il faut pour construire les maquettes.
     politique en `DataGrid` (une ligne par environnement source, verdict en
     `StatusBadge`), chronologie des versions en `DataGrid`, sélecteur de période en
     repère « À venir » sous la barre d'état ; points listés sur `/_ui/revue` pour la 15.
-- [ ] 15. Validation des maquettes par l'utilisateur, sur captures en clair et en sombre ;
+- [x] 15. Validation des maquettes par l'utilisateur, sur captures en clair et en sombre ;
   validation et écarts acceptés consignés dans `decisions.md` (§ « Validations des
   maquettes ») ; écarts reportés dans ce design et dans celui de la 021 ; captures figées
   comme références — REQ-020-25 — verify : une ligne datée par maquette ; aucune tâche

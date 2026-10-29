@@ -383,7 +383,7 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
       un événement daté de l'instant où le gestionnaire d'un ancêtre a été posé).
     - E5 : le `Drawer` non modal devient le `SidePanel` (onglets Détail et Brouillon, pied
       provisoire) ; la maquette complète du pied revient à la tâche 11.
-- [ ] 11. Maquettes E1 à E10 reprises, maquette de l'accueil ajoutée, captures 1440,
+- [x] 11. Maquettes E1 à E10 reprises, maquette de l'accueil ajoutée, captures 1440,
   1280, 1024, 768 px — REQ-024-21, 22, 24, 27, 28, 29 — verify : `k-web2-check`,
   revues `ui-reviewer` et `a11y-auditor`
   - où : `web/v2/shell/src/_ui/ecrans/` ; `registry.ts` ; `e2e/visual/ecrans.spec.ts`
@@ -626,7 +626,7 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
     - Validé : petite largeur (rail masqué, compteur du brouillon qui ouvre le
       panneau), compteur sans libellé visible, widgets d'E0, `DataGrid` (hors erreur de
       cellule), `DiffValue`, `CommitForm`.
-- [ ] 11b. Maquette E11 Flux (020, tableau des maquettes) : registre, proposition en
+- [x] 11b. Maquette E11 Flux (020, tableau des maquettes) : registre, proposition en
   tableau dans un changeset, tester un flux, flux d'une machine dans son onglet
   d'information (demande de l'utilisateur, cinquième relecture du 2026-10-26).
   - où : `web/v2/shell/src/_ui/ecrans/` (nouvel `E11Flux.vue`, `registry.ts`,
@@ -752,8 +752,10 @@ Brouillon du 2026-10-24, à valider avec les exigences et la conception. Phases 
     évaluer » ; `scrollCue` ne pose qu'une ombre en bas (pas d'ombre en haut, conforme à
     la relecture du 2026-10-27), le test couvre : contenu qui tient, en haut, au milieu,
     à la fin (à un pixel près), arrêt.
-- [ ] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
+- [x] 12. Validation des maquettes révisées par l'utilisateur (reprend la tâche 15 de la
   020) — REQ-024-29
+  - fait : validées le 2026-10-29 (E0 à E13), consignées dans
+    `specs/020-systeme-de-design/decisions.md` (§ « Validations des maquettes »).
 
 ## P4 — Clôture
 

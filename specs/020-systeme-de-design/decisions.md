@@ -238,4 +238,27 @@ libellés par langue).
 
 ## Validations des maquettes
 
-(À remplir : maquette, date, captures, écarts acceptés.)
+Validation par l'utilisateur le 2026-10-29, après les relectures des 2026-10-22, 24, 25,
+26 et 28 (retours consignés par la 024, la 026 et la 027) ; captures de référence : celles
+de `web/v2/e2e/visual/ecrans.spec.ts` (clair et sombre, 1440, 1280, 1024, 768 et 390 px) à
+main 7ef0ded1.
+
+| Maquette | Date | Écarts acceptés |
+|---|---|---|
+| E0 Accueil | 2026-10-29 | — |
+| E1 Topographie | 2026-10-29 | — |
+| E2 Fiche d'un préfixe | 2026-10-29 | — |
+| E3 Liste d'adresses | 2026-10-29 | — |
+| E4 Changeset et revue | 2026-10-29 | — |
+| E5 Brouillon | 2026-10-29 | — |
+| E6 Lecture au passé | 2026-10-29 | — |
+| E7 Administration | 2026-10-29 | — |
+| E8 Palette et aide | 2026-10-29 | — |
+| E9 États | 2026-10-29 | — |
+| E10 Hôte de plugin | 2026-10-29 | — |
+| E11 Flux | 2026-10-29 | extrémité hors périmètre : cadenas et bulle `Tooltip` (celle des refus « Il faut `<permission>` »), pas la bulle d'erreur de cellule du `DataGrid` |
+| E12 VLAN | 2026-10-29 | — |
+| E13 Paramètres | 2026-10-29 | — |
+
+Les retours de chaque relecture ont été reportés dans ce design et dans celui de la 021 par
+les tâches de la 024, de la 026 et de la 027, au fil des relectures.
