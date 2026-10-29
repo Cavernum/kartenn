@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-25
+status: implemented
+updated: 2026-10-29
 ---
 
 # 025 — Droits par groupes : exigences

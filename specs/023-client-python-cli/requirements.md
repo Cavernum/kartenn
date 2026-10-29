@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-23
+status: implemented
+updated: 2026-10-29
 ---
 
 # 023 — Bibliothèque cliente Python et CLI : exigences

@@ -1,6 +1,6 @@
 ---
-status: approved
-updated: 2026-10-24
+status: implemented
+updated: 2026-10-29
 ---
 
 # 024 — Retours sur les maquettes : exigences

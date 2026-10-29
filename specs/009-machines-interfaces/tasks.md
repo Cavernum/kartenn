@@ -294,7 +294,7 @@ parallèle après 3 ; 9 et 10 en parallèle après 8.
   `requirements.md` et `design.md` passent à `implemented` ; `tasks.md` reste
   `in-progress` tant que 12 n'est pas cochée. Relecture de la spec contre le code faite à
   la main (un fork ne peut pas lancer spec-keeper) : chaque REQ-009 a son code et son test,
-  sauf REQ-009-21 dont le banc complet reste à relancer (12).
+  REQ-009-21 comprise (banc complet tenu le 2026-10-22, tâche 12).
   choix : catalogue des règles de modules généré par le serveur, seul à connaître les
   modules du build, comme `permissions.md`.
 
