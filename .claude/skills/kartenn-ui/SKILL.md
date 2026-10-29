@@ -102,7 +102,8 @@ largeur est fausse, même belle à 1280 px.
 - Valeur dynamique (position d'une couche, largeur de colonne, décalage d'une ligne
   virtualisée) : `el.style.setProperty('--k-…', v)` ou `:style` **en objet** dont les clés
   sont des jetons `--k-…` (CSSOM, permis par `style-src 'self'`).
-- Reka UI : `ComboboxViewport` et `Splitter*` injectent un `<style>` : interdits (lint).
+- Reka UI : `ComboboxViewport`, `SelectViewport` et `Splitter*` injectent un `<style>` :
+  interdits (lint).
   Tout autre composant pris en défaut par le parcours CSP rejoint la liste.
 
 ## 4. Inventaire (motif APG — à compléter au fil de P4)
@@ -115,7 +116,7 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `Stack`, `Cluster`, `Grid`, `Split` | mise en page ; écart par `gap` (échelle), `Split` dans l'ordre de lecture | ◐ |
 | `Button`, `IconButton` | Button ; occupé = `aria-disabled` + `aria-busy` (reste focalisable), bascule `aria-pressed`, raccourci `aria-keyshortcuts` ; `disabled` natif sort de l'ordre de tabulation : une action refusée avec motif prend `forbidden` ou `reason`, jamais `disabled` ; occupé ou refusé, un `submit` n'envoie rien ; `IconButton` : infobulle automatique de son nom et de son raccourci (`shortcut`), décorative, montée ouverte seulement ; refusé, son nom puis le motif, la description = le motif seul ; cibles ≥ 24 px (`sm` en compacte) | ● |
 | `TextField`, `FormField` | champ natif étiqueté ; `FormField` : étiquette, erreur puis aide par `aria-describedby`, l'erreur dite dans une région `polite` présente vide avant elle ; l'emplacement reçoit `id`, `labelId`, `describedBy`, `invalid` ; `group` : groupe nommé et décrit (cases, bascules) ; `TextField` (sur `FormField`) : `aria-invalid`, en attente dit en mots (`aria-busy`), lecture seule, chasse fixe | ● |
-| `Select`, `Combobox` | Listbox ; Combobox | ☐ |
+| `Select`, `Combobox` | Select-Only Combobox (Reka : options focalisées ; Entrée, Espace, Bas, Haut ouvrent sur la choisie ; Échap sans choisir ; Tab choisit, ferme et passe au contrôle suivant ; `readonly` ne s'ouvre pas ; `inlineLabel` dans une barre) ; Combobox (`aria-autocomplete="list"`, sélection manuelle, `aria-activedescendant`, `aria-selected` sur la mise en avant, coche sur la valeur prise ; `suggest(texte, signal)` après 150 ms, annulée par un texte plus récent ; Alt+Bas ouvre sans bouger, Bas va à la première, Entrée prend la mise en avant sinon `submit`, Échap ferme et laisse le suivant à la couche, Origine/Fin dans le texte ; nombre, chargement, rien, échec dits par une région `polite` présente avant) ; liste commune `Select/options.css`, au moins aussi large que le champ | ● |
 | `FilterChip`, `FilterPicker` | Button + Combobox en séquence | ◐ (`FilterChip`) |
 | `DateTimeField`, `PeriodPicker` | Date Picker Dialog ; spin button | ☐ |
 | `Checkbox`, `Switch` | Checkbox (deux et trois états : modèle `true`, `false` ou `"mixed"` posé sur `indeterminate`, jamais `aria-checked` sur la case native ; mixte, elle se coche au basculement) ; Switch (`button` `role="switch"`, `aria-checked`, Espace et Entrée ; réglage pris aussitôt seulement, sinon `Checkbox`) ; étiquette englobante : la rangée est la cible (≥ 24 px, étiquette cachée comprise), l'aide hors du nom (`aria-describedby`) | ● |
@@ -134,7 +135,7 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `ExpandableGrid` | `DataGrid` compacte (compte de lignes, `visibleRows`, `compactColumns`) + `IconButton` « Agrandir » qui ouvre la même table dans un `Dialog` `lg` `contained` (focus piégé, Échap, focus rendu au bouton) ; tri et filtres de l'hôte, partagés | ● |
 | `TreeGrid`, `Tree` | Treegrid ; Tree View ; garde d'affichage `misplaced` ; « + » d'un nœud (`addLabel`, événement `add`, 024/M10) ; clavier de la colonne d'arbre (Haut, Bas, Droite, Gauche, Entrée ou F2 vers le « + »), `expanded` en modèle | ◐ (`TreeGrid`) |
 | `CodeBadge`, `KeyLabel`, `EnvChip`, `StatusBadge` | Button (copier, nom = contenu, « Copier » caché) ; — | ◐ |
-| `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `status` présent vide puis rempli, sans `aria-busy` (reflet en boucle `k-skeleton-fill`, fond fixe sous mouvement réduit) ; `alert` ; `InlineAlert` : `alert` pour une erreur, `status` sinon, contenu caché (`data-state="waiting"`, `visibility`) puis montré une image après sa région, donc annoncé, sans décalage ; `icon` remplace l'icône du ton | ◐ (`InlineAlert` ●) |
+| `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `status` présent vide puis rempli, sans `aria-busy` (reflet en boucle `k-skeleton-fill`, fond fixe sous mouvement réduit) ; `alert` ; `InlineAlert` : `alert` pour une erreur, `status` sinon, contenu caché (`data-state="waiting"`, `visibility`) puis montré une image après sa région, donc annoncé, sans décalage ; `icon` remplace l'icône du ton ; le ton dit en mots, caché, avant le titre (« Avertissement : », 1.3.1) | ◐ (`InlineAlert` ●) |
 | `DatePill`, `DraftCounter`, `TimeBand` | Button ; bascule du panneau (`aria-expanded`, `aria-controls` ; ouvert, icône en croix) et Menu Button des brouillons ; `status` | ◐ (`DraftCounter` ●) |
 | `Kbd`, `ShortcutHint` | — ; `Kbd` : une combinaison, `kbd` imbriqués, noms de touches dans la langue (Maj, Origine, Suppr) ; `ShortcutHint` : une combinaison ou une séquence (`[["g"], ["p"]]`, « g puis p »), jamais une séquence dans un seul `Kbd` ; `aria-keyshortcuts` pour une combinaison seulement (`shortcutAria`) | ● |
 | `DiffList` | liste groupée, Disclosure ; signe, mot caché, `del`/`ins` | ◐ |
@@ -167,8 +168,21 @@ Version exacte épinglée ; toute montée repasse les scripts clavier et le parc
   gérés par `@kartenn/ui` sur l'index aplati.
 - Pas de `*`, Entrée sélectionne, tampon de recherche pollué par les touches non
   imprimables : gestionnaire placé avant ceux de Reka (`stopImmediatePropagation`).
-- `ComboboxViewport`, `Splitter` : `<style>` injecté (CSP) ; interdits.
+- `ComboboxViewport`, `SelectViewport`, `Splitter` : `<style>` injecté (CSP) ; interdits.
 - Combobox ouverte : `aria-hidden` sur le reste de la page ; filtres en popover, deux Échap.
+  Select ouvert : de même (modal, focus dans la liste) ; un test lit alors le bouton par
+  sa classe, pas par son rôle.
+- Combobox : Reka met en avant une suggestion de lui-même (la première à la saisie, la
+  choisie à l'ouverture) ; la sélection manuelle l'efface après ses microtâches
+  (`pointerleave` sur la racine, `setTimeout` 0) ; Bas et Alt+Bas, Origine et Fin passent
+  par un gestionnaire en capture avant les siens ; `highlightFirstItem` (exposé, non
+  documenté) met la première en avant ; Reka lie `aria-selected` à la valeur prise, par-dessus
+  toute prop : il est réécrit sur les options d'après `data-highlighted`. Select : Reka garde
+  Tab dans la liste (`preventDefault`) ; un gestionnaire en capture choisit, ferme et pose
+  le focus sur le contrôle suivant. Le `--reka-*-trigger-width` est illisible
+  (jetons seulement) : la largeur du champ est posée par CSSOM (`--k-list-anchor-width`).
+- Une feuille `.css` importée depuis un composant crée un fragment vide que le build du
+  shell (`kartenn-shared-modules`) ne trouve pas : une feuille partagée va dans `style.css`.
 - Slots de `TreeVirtualizer` typés `Record<string, any>` : enveloppes typées dans
   `@kartenn/ui`, aucun transtypage dans les écrans.
 - Ligne focalisée démontée par la molette : la garder montée.
