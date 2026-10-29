@@ -365,10 +365,46 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
 (`web/v2/e2e/components/<nom>.spec.ts`), instantané ARIA, captures, axe, revue
 `a11y-auditor` puis `ui-reviewer`, ligne du skill `kartenn-ui` complétée.
 
-- [ ] 16. `Button`, `IconButton`, `Kbd`, `ShortcutHint`, `Tooltip` — REQ-020-16 à 18,
+- [x] 16. `Button`, `IconButton`, `Kbd`, `ShortcutHint`, `Tooltip` — REQ-020-16 à 18,
   28 — verify : scripts Button et Tooltip (Échap ferme, 1.4.13) ; cibles ≥ 24 px
   - où : design § « Inventaire », § « Accessibilité » ; tâche 10
   - dépend de : 15
+  - fait : `IconButton` : infobulle automatique de son nom et de son raccourci
+    (`shortcut`, `aria-keyshortcuts`), décorative et montée ouverte seulement ; refusé, son
+    nom puis le motif, la description (`aria-describedby`) = le motif seul. `Button`,
+    `IconButton` : un refus (`forbidden`, `reason`) l'emporte sur `disabled` (le motif
+    reste atteignable : reste de la tâche 13) ; occupé ou refusé, un `submit` n'envoie
+    rien. `useTooltip` : focus clavier seulement (`:focus-visible`, un clic n'ouvre rien),
+    jamais sur un bouton dont le menu est ouvert (`aria-expanded`), un clic l'épingle
+    (`pin`) ou la ferme ; Échap où que soit le focus (écouteur `window` en capture) :
+    sous le pointeur seul, la ferme sans autre effet ; sous le focus, la couche autour
+    reste, sauf `passEscape` ; le pointeur qui part laisse ouverte celle du focus ; un
+    défilement ne la ferme que s'il déplace l'ancre. `ShortcutHint` (nouveau) : une
+    combinaison ou une séquence (`[["g"], ["p"]]`, « g puis p »), `shortcutSteps`,
+    `shortcutAria` (rien pour une séquence) ; `Kbd` : Maj, Origine, Fin, Pg préc./suiv.,
+    Suppr, Retour arr. dans la langue ; l'état `sequence` de `Kbd` passe à `ShortcutHint`.
+    E8 (aide) emploie `ShortcutHint` (repère « À venir » retiré, captures E8-aide
+    réécrites). Catalogue : `Button` `forbidden`, `keyboard` ; `IconButton` `shortcut`,
+    `forbidden` ; `Kbd` `shift` ; `ShortcutHint` (quatre états) ; un survol attend le délai
+    de l'infobulle avant la capture. Scripts : `e2e/components/button.spec.ts` (Tab,
+    Entrée, Espace, bascule, occupé, refusé, raccourci, instantané ARIA, cibles ≥ 24 px
+    dans les deux densités) et `e2e/components/tooltip.spec.ts` (focus, survol,
+    survolable, Échap sous le pointeur et sous le focus, persistant, menu ouvert, dans un
+    dialogue), dans le projet `visual` (`testDir` `.`, références à côté de leur spec) ;
+    `openState` dans `fixtures` ; test de l'infobulle de `clavier.spec.ts` déplacé ici.
+    Captures réécrites (voulues) : `Button`, `IconButton` (survol, focus), `Kbd`, index,
+    `SidePanel` `rail-focus`, `Toolbar` `forbidden`, `Tooltip` `icon` (l'infobulle d'un
+    bouton-icône montre désormais son nom), E8-aide. Revues `a11y-auditor` (sur le code)
+    et `ui-reviewer` (sur les captures) : corrigés, la persistance sous le focus, le
+    défilement d'ailleurs, `disabled` avec un refus, Espace sur un refusé.
+  - choix : l'infobulle qui ne fait que redire le nom d'un `IconButton` focalisé laisse
+    Échap au contrôle (un tiroir, une grille ou un dialogue se ferme en un appui, comme
+    avant), Échap ne fermant l'infobulle seule que sous le pointeur ; les scripts de P4
+    vont sous `e2e/components/` dans le projet `visual` (lancés par `k-web2-check`).
+    Restent hors de la tâche : `Menu` et `CommandPalette` montrent encore une séquence
+    (`["g", "p"]`) dans un seul `Kbd` (tâches 21 et 23 : `ShortcutHint`) ; `Mod` vaut
+    Ctrl partout, ⌘ sous macOS reste à faire (021, « Raccourcis ») ; à 390 px, la colonne
+    « Portée » de l'aide E8 défile dans sa grille.
 - [ ] 17. `TextField`, `FormField`, `Checkbox`, `Switch`, `InlineAlert` — verify :
   erreur liée par `aria-describedby` et annoncée ; case à trois états
   - où : idem ; `web/shell/src/edit/fields.ts` (champs typés actuels, comportement)
