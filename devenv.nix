@@ -608,8 +608,9 @@ in {
     exec = ''WEB_DIR=web/v2 exec k-web-check "$@"'';
   };
   scripts.k-web2-e2e = {
-    description = "k-web-e2e on the workspace of the new shell (web/v2)";
-    exec = ''WEB_DIR=web/v2 exec k-web-e2e "$@"'';
+    description = "k-web-e2e on the workspace of the new shell (web/v2): its journeys against kartenn-server";
+    # The journeys (web/v2/e2e/journeys.config.ts); the captures are k-web2-check's.
+    exec = ''WEB_DIR=web/v2 exec k-web-e2e --config journeys.config.ts "$@"'';
   };
   # Reference captures of the design system (spec 020, REQ-020-26): `k-web-shots [--update]
   # [playwright args…]`, in ${WEB_DIR:-web/v2}. Only in devenv: the references depend on

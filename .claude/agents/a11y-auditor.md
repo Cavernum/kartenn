@@ -15,8 +15,10 @@ composant ; § « Accessibilité ») ; le skill `.claude/skills/kartenn-ui/SKILL
 (raccourcis réservés, pièges de Reka UI).
 
 Méthode :
-- Scripts existants : `devenv shell -- k-web2-e2e <motif>` (ou `k-web-e2e` pour l'ancien
-  shell) rejoue les scripts clavier et axe ; rapporte le verdict sans relancer en boucle.
+- Scripts existants : `devenv shell -- k-web-shots <motif>` rejoue les scripts clavier et
+  axe du catalogue (projet `visual`), `k-web2-e2e <motif>` les parcours du nouveau shell
+  contre kartenn-server (ou `k-web-e2e` pour l'ancien shell) ; rapporte le verdict sans
+  relancer en boucle.
 - Parcours manuel avec le MCP `playwright` sur le catalogue (`127.0.0.1:5173/_ui/…` ou
   `127.0.0.1:4173`) : s'il ne répond pas, dis-le et arrête-toi. Joue les touches du motif
   APG (`browser_press_key`) et lis l'arbre (`browser_snapshot`) après chaque touche :
