@@ -452,20 +452,20 @@ module suit la table de couverture de l'ADR 0026.
 | N2 | Opérations de changeset de module, planifiées, validées, simulables, idempotentes, annulables, sous droits | fourni (clause 6, tâches 008-3, 4) |
 | N3 | Règles de module sur l'état final, y compris sur les objets du noyau et des dépendances | fourni (clause 7) |
 | N4 | Contribution nommée au différentiel, stockée, paginée, servie | fourni (clause 13, tâche 008-19) |
-| N5 | Déclencheurs d'approbation de module, activés par l'administrateur seul | différé v0.2 (tâche 010-9) |
-| N6 | Clés de verrou hors domaine ; clés d'ordre de l'outbox | verrous fournis (clause 14) ; ordre différé v0.2 |
-| N7 | Opérations du noyau planifiées par une opération de module ; référentiel de valeurs partagé | premier volet fourni ; second différé v0.2 (tâche 010-7) |
+| N5 | Déclencheurs d'approbation de module, activés par l'administrateur seul | tenu (REQ-016-7 : mesures de module, `ApprovalPolicy::module_triggers` ; mesures `policy.{write,opens,closes,reclassify}` ; la 010 ne livre aucune politique par défaut, REQ-016-8) |
+| N6 | Clés de verrou hors domaine ; clés d'ordre de l'outbox | verrous fournis (clause 14) ; ordre tenu (REQ-016-14 : clés d'ordre, domaines et clés de verrou du changeset) |
+| N7 | Opérations du noyau planifiées par une opération de module ; référentiel de valeurs partagé | premier volet fourni ; second tenu (REQ-016-2 : liste partagée `values_of`) |
 | N8 | Obligations d'une propriété de module modifiables par l'administrateur | fourni (tâche 008-20) |
 | N10 | Références vers le noyau, valeurs de liste fermée comprises | fourni (clause 12, tâche 008-7) |
 | N11 | Anomalies de module, fermées par le module | fourni (clause 7) |
 | N12 | Permissions de module globales, rôles livrés étendus | fourni (clause 8, tâche 008-6) |
 | N13 | Collections du module, `QUERY`, contrat de référence, capacités | fourni (clause 9 : `/v1/<collection>`, S34) |
-| N14 | Tâches de fond de module | différé v0.2 (tâche 010-14) |
-| N15 | Événements de module | différé v0.2 (tâche 010-8) |
+| N14 | Tâches de fond de module | tenu (REQ-016-16 : `Module::jobs`, sous le bail de l'ADR 0023 ; `policy.inference_check`, `policy.report`) |
+| N15 | Événements de module | tenu (REQ-016-15 : `Module::events`, `ModuleTx::emit` ; `org.kartenn.policy.revised`) |
 | N16 | État avant des tables du module dans la transaction | fourni (ADR 0017) |
 | N21 à N23 | Voir le design de la 011 | fournis (clauses 12, 13, 15) |
 | N34 | **Évaluation sans écriture** exposée par un module, même résultat que l'enregistrement | tenu par une route de lecture du module (`QUERY /v1/verdicts`) qui appelle la même fonction pure que la contribution de la 011 ; aucun ajout au contrat |
-| N35 | **Événements de changement d'état dérivé** (issue changée, flux fermé, dérogation à échéance), calculés à la réévaluation ou par une tâche de fond | s'appuie sur N14 et N15 (différés v0.2) ; aucun ajout au contrat au-delà |
+| N35 | **Événements de changement d'état dérivé** (issue changée, flux fermé, dérogation à échéance), calculés à la réévaluation ou par une tâche de fond | s'appuie sur N14 et N15 (tenus, REQ-016-15, 16) ; aucun ajout au contrat au-delà |
 | N36 | **Vue de saisie** alternative d'un même ensemble d'objets (matrice des règles) | tenu par les routes du module (clause 9) et une opération de vue (`policy.matrix.set`) traduite en opérations de règles ; plugin 007 |
 | N37 | Objet **non-conformité** consultable, filtrable, acquittable, distinct des anomalies | objets de module (011) ; l'acquittement des flux devenus non conformes réutilise celui des anomalies (clause 7) ; aucun ajout au contrat |
 
