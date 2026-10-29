@@ -1,0 +1,11 @@
+- main:
+  - region "Combobox":
+    - heading "Combobox" [level=1]
+    - paragraph: "Motif : Combobox (aria-autocomplete=list, sélection manuelle, aria-activedescendant)"
+    - figure "rest — Au repos, avec aide":
+      - text: Groupe
+      - combobox "Groupe"
+      - status
+      - paragraph: Groupes ancrés sur le site du réseau.
+      - code: rest
+      - text: ""

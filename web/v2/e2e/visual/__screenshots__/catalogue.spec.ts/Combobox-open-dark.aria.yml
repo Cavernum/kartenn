@@ -1,0 +1,20 @@
+- main:
+  - listbox "Groupe":
+    - option /campus-ouest \d+–\d+/:
+      - text: ""
+      - code: /\d+–\d+/
+    - option /campus-est \d+–\d+/:
+      - text: ""
+      - code: /\d+–\d+/
+    - option /campus-nord \d+–\d+/:
+      - text: ""
+      - code: /\d+–\d+/
+  - region "Combobox":
+    - heading "Combobox" [level=1]
+    - paragraph: "Motif : Combobox (aria-autocomplete=list, sélection manuelle, aria-activedescendant)"
+    - 'figure "open — Ouvert : les suggestions du texte, aucune mise en avant"':
+      - text: Groupe
+      - combobox "Groupe" [expanded]: campus
+      - status: 3 suggestions
+      - code: open
+      - text: ""

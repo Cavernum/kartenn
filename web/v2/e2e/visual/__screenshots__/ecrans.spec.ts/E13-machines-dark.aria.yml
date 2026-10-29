@@ -193,7 +193,7 @@
     - term: Sensible
     - definition: non
     - status:
-      - paragraph: La sensibilité relève du cœur
+      - paragraph: "Information : La sensibilité relève du cœur"
       - text: Rendre un champ sensible décide qui en lit la valeur (
       - code: prop.machines.fqdn.read
       - text: "), quel que soit son déclarant : il faut"

@@ -50,7 +50,7 @@ export default {
     { name: "checked", description: "Cochée", props: { label: "Anycast", modelValue: true } },
     {
       name: "mixed",
-      description: "Mixte (une partie des lignes) : aria-checked mixed",
+      description: "Mixte (une partie des lignes) : indeterminate, exposé « mixed »",
       props: { label: "Tout sélectionner (1 284)", modelValue: "mixed" },
     },
     {

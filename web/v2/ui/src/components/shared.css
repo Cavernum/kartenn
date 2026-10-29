@@ -225,6 +225,89 @@
     rotate: calc(var(--k-turn-quarter) * -1);
   }
 
+  /* The frame of a field (TextField, Select, Combobox; REQ-020-17): a control's height and
+   * padding by size, the edge of a control, its hover and its error. Each component adds
+   * its focus ring (around an input, or on the frame when it is the control) and its
+   * disabled and read-only looks, which win (hover and error in `:where`, one class). */
+  .k-field-frame {
+    display: flex;
+    gap: var(--k-space-1);
+    align-items: center;
+    min-block-size: var(--k-control-height-md);
+    padding-inline: var(--k-control-padding-inline-md);
+    color: var(--k-text);
+    background-color: var(--k-surface);
+    border: var(--k-border-width) solid var(--k-border-control);
+    border-radius: var(--k-radius-md);
+    transition-property: border-color;
+    transition-duration: var(--k-duration-fade);
+    transition-timing-function: var(--k-ease-standard);
+  }
+
+  .k-field-frame[data-size="sm"] {
+    min-block-size: var(--k-control-height-sm);
+    padding-inline: var(--k-control-padding-inline-sm);
+  }
+
+  .k-field-frame[data-size="lg"] {
+    min-block-size: var(--k-control-height-lg);
+    padding-inline: var(--k-control-padding-inline-lg);
+  }
+
+  .k-field-frame:where(:hover) {
+    border-color: var(--k-text-muted);
+  }
+
+  .k-field-frame:where([data-invalid]) {
+    border-color: var(--k-state-ko-fg);
+  }
+
+  /* A frame around an input carries its ring (not the bare input). */
+  .k-field-frame:has(> input):focus-within {
+    outline: var(--k-focus-width) solid var(--k-focus-ring);
+    outline-offset: var(--k-focus-offset);
+  }
+
+  .k-field-frame:disabled,
+  .k-field-frame:has(:disabled) {
+    color: var(--k-text-muted);
+    background-color: var(--k-surface-sunken);
+    border-color: var(--k-border-strong);
+  }
+
+  .k-field-frame[data-readonly],
+  .k-field-frame:has(> input:read-only:not(:disabled)) {
+    background-color: var(--k-surface-sunken);
+    border-style: dashed;
+  }
+
+  .k-field-frame__input {
+    flex: 1;
+    align-self: stretch;
+    min-inline-size: 0;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    outline: 0;
+  }
+
+  .k-field-frame__input.k-mono {
+    font-family: var(--k-font-mono);
+    font-size: var(--k-text-mono);
+  }
+
+  .k-field-frame__input::placeholder {
+    color: var(--k-text-muted);
+    opacity: 1;
+  }
+
+  .k-field-frame__icon {
+    flex: none;
+    color: var(--k-text-muted);
+  }
+
   /* The exit of a layer of Reka (dialog, menu; design « Mouvement »): a fade, an animation
    * rather than a transition because Reka's Presence keeps the layer mounted until its
    * `animationend`. Movement and scale belong to the entry only. */

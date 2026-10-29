@@ -1,0 +1,11 @@
+- main:
+  - listbox "Groupe"
+  - region "Combobox":
+    - heading "Combobox" [level=1]
+    - paragraph: "Motif : Combobox (aria-autocomplete=list, sélection manuelle, aria-activedescendant)"
+    - figure "failed — Suggestions indisponibles (l'appel a échoué), le texte reste":
+      - text: Groupe
+      - combobox "Groupe" [expanded]: campus
+      - status: Suggestions indisponibles
+      - code: failed
+      - text: ""

@@ -10,12 +10,15 @@ import Button from "../src/components/Button/Button.vue";
 import { ariaKeyshortcuts } from "../src/components/Button/shortcut.ts";
 import Checkbox from "../src/components/Checkbox/Checkbox.vue";
 import CodeBadge from "../src/components/CodeBadge/CodeBadge.vue";
+import Combobox from "../src/components/Combobox/Combobox.vue";
+import { filterOptions } from "../src/components/Combobox/combobox.ts";
 import EnvChip from "../src/components/EnvChip/EnvChip.vue";
 import FormField from "../src/components/FormField/FormField.vue";
 import IconButton from "../src/components/IconButton/IconButton.vue";
 import Kbd from "../src/components/Kbd/Kbd.vue";
 import { keyLabel } from "../src/components/Kbd/kbd.ts";
 import KeyLabel from "../src/components/KeyLabel/KeyLabel.vue";
+import Select from "../src/components/Select/Select.vue";
 import ShortcutHint from "../src/components/ShortcutHint/ShortcutHint.vue";
 import { shortcutAria, shortcutSteps } from "../src/components/ShortcutHint/shortcutHint.ts";
 import Split from "../src/components/Split/Split.vue";
@@ -291,6 +294,74 @@ describe("Switch", () => {
     expect(await render(Switch, { label: "Montrer", modelValue: true })).toContain(
       'aria-checked="true"',
     );
+  });
+});
+
+describe("Select", () => {
+  const usages = [
+    { value: "host", label: "Hôte" },
+    { value: "gateway", label: "Passerelle" },
+  ];
+
+  it("a combobox button named by its label, error then help", async () => {
+    const html = await render(Select, {
+      label: "Usage",
+      options: usages,
+      modelValue: "gateway",
+      error: "Usage refusé.",
+      hint: "Liste fermée.",
+    });
+    const id = /<button[^>]* id="([^"]+)"/.exec(html)![1]!;
+    expect(html).toContain('role="combobox"');
+    expect(html).toContain(`aria-labelledby="${id}-label"`);
+    expect(html).toContain(`aria-describedby="${id}-error ${id}-hint"`);
+    expect(html).toContain('aria-invalid="true"');
+    expect(html).toContain('aria-expanded="false"');
+  });
+
+  it("read-only says so; inline, the label is written in the button, hidden above", async () => {
+    const html = await render(Select, {
+      label: "Type de flux",
+      options: usages,
+      modelValue: "host",
+      readonly: true,
+      inlineLabel: true,
+    });
+    expect(html).toContain('aria-readonly="true"');
+    expect(html).toMatch(/<label[^>]*class="[^"]*k-visually-hidden/);
+    expect(html).toMatch(/class="k-select__prefix" aria-hidden="true">Type de flux\u202f:/);
+  });
+});
+
+describe("Combobox", () => {
+  it("an input of role combobox, a list autocomplete, closed, error then help", async () => {
+    const html = await render(Combobox, {
+      label: "Groupe",
+      suggest: async () => [],
+      error: "Aucun groupe.",
+      hint: "Groupes du site.",
+    });
+    const id = /<input[^>]* id="([^"]+)"/.exec(html)![1]!;
+    expect(html).toContain('role="combobox"');
+    expect(html).toContain('aria-autocomplete="list"');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain(`aria-describedby="${id}-error ${id}-hint"`);
+    expect(html).toContain(`<label id="${id}-label" for="${id}"`);
+    // The region that says what the list holds is there, empty, before the list opens.
+    expect(html).toMatch(
+      /<span class="k-visually-hidden" role="status" aria-live="polite"><\/span>/,
+    );
+  });
+
+  it("filterOptions finds a label or a detail, whatever the case and the accents", () => {
+    const options = [
+      { value: "a", label: "Préfixe" },
+      { value: "b", label: "campus-ouest", detail: "100–199" },
+    ];
+    expect(filterOptions(options, "prefixe").map((o) => o.value)).toEqual(["a"]);
+    expect(filterOptions(options, " 100 ").map((o) => o.value)).toEqual(["b"]);
+    expect(filterOptions(options, "")).toHaveLength(2);
+    expect(filterOptions(options, "dmz")).toEqual([]);
   });
 });
 

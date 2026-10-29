@@ -1,0 +1,110 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+/* The popup list of options of a `Select` and of a `Combobox` (design « Inventaire »,
+ * line 5): the surface of a menu, at least as wide as its field (`--k-list-anchor-width`,
+ * set by CSSOM when it opens), its options a control's height, the highlighted one in the
+ * accent's soft fill and inner edge (shape, not colour alone), the chosen one ticked. */
+@layer components {
+  .k-list {
+    z-index: var(--k-z-overlay);
+    display: grid;
+    align-content: start;
+    min-inline-size: max(var(--k-size-menu-min), var(--k-list-anchor-width));
+    max-inline-size: var(--k-size-panel-md);
+    max-block-size: var(--k-size-dialog-sm);
+    padding: var(--k-space-1);
+    overflow: auto;
+    background-color: var(--k-surface);
+    border: var(--k-border-width) solid var(--k-border-strong);
+    border-radius: var(--k-radius-lg);
+    box-shadow: var(--k-shadow-overlay);
+    transition-property: opacity, translate;
+    transition-duration: max(var(--k-duration-short), var(--k-duration-fade));
+    transition-timing-function: var(--k-ease-standard);
+  }
+
+  /* Motion (design « Mouvement »): the one of a menu, 4 px out of its field, then a fade. */
+  @starting-style {
+    .k-list {
+      opacity: 0;
+      translate: 0 calc(var(--k-motion-shift-sm) * -1);
+    }
+
+    .k-list[data-side="top"] {
+      translate: 0 var(--k-motion-shift-sm);
+    }
+  }
+
+  .k-list[data-state="closed"] {
+    pointer-events: none;
+    animation-name: k-fade-out;
+    animation-duration: var(--k-duration-fade);
+    animation-timing-function: var(--k-ease-exit);
+    animation-fill-mode: forwards;
+  }
+
+  .k-list__option {
+    display: flex;
+    gap: var(--k-space-2);
+    align-items: center;
+    min-block-size: var(--k-control-height-md);
+    padding-inline: var(--k-space-2);
+    color: var(--k-text);
+    cursor: default;
+    border-radius: var(--k-radius-md);
+    outline: none;
+  }
+
+  /* The transparent outline shows in forced colours only, where fill and shadow go. */
+  .k-list__option[data-highlighted] {
+    background-color: var(--k-accent-soft);
+    outline: var(--k-focus-width) solid transparent;
+    outline-offset: calc(var(--k-focus-width) * -1);
+    box-shadow: var(--k-shadow-inset-accent);
+  }
+
+  .k-list__option[data-disabled] {
+    color: var(--k-text-muted);
+  }
+
+  /* The tick of the chosen option, in a box of an icon's width: labels align. */
+  .k-list__check {
+    display: inline-flex;
+    flex: none;
+    inline-size: var(--k-icon-size);
+    color: var(--k-accent);
+  }
+
+  .k-list__icon {
+    flex: none;
+    color: var(--k-text-muted);
+  }
+
+  /* A label goes to the next line rather than being cut (« Structure avant style »). */
+  .k-list__text {
+    flex: 1;
+    min-inline-size: 0;
+    padding-block: var(--k-space-1);
+    overflow-wrap: anywhere;
+  }
+
+  .k-list__detail {
+    flex: none;
+    font-family: var(--k-font-mono);
+    font-size: var(--k-text-mono);
+    color: var(--k-text-muted);
+  }
+
+  /* What the list says when it has no option (loading, empty, failed): said by the live
+   * region of its field, shown here only. */
+  .k-list__note {
+    display: flex;
+    gap: var(--k-space-2);
+    align-items: center;
+    min-block-size: var(--k-control-height-md);
+    padding-inline: var(--k-space-2);
+    color: var(--k-text-muted);
+  }
+}

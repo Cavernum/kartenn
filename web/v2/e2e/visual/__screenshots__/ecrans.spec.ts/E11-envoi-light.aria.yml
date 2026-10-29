@@ -125,7 +125,7 @@
       - term: Non conformes à la matrice
       - definition: "2"
       - status:
-        - paragraph: 2 flux non conformes à la matrice de flux
+        - paragraph: "Avertissement : 2 flux non conformes à la matrice de flux"
         - text: "Le changeset part en instruction : ces flux n'y sont approuvables qu'avec une dérogation. Les corriger, ou retirer leur ligne, avant l'envoi."
   - button "Largeur du panneau"
   - button "Fermer le panneau"

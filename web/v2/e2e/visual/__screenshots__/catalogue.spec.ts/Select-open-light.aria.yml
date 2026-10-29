@@ -1,0 +1,13 @@
+- main:
+  - listbox "Groupe":
+    - option /campus-ouest \d+–\d+/ [selected]:
+      - text: ""
+      - code: /\d+–\d+/
+    - option /campus-est \d+–\d+/:
+      - text: ""
+      - code: /\d+–\d+/
+    - option /labo \d+–\d+/ [disabled]:
+      - text: ""
+      - code: /\d+–\d+/
+  - region "Select":
+    - 'figure "open — Ouvert : l''option choisie cochée, détail en chasse fixe, option désactivée"'

@@ -14,6 +14,7 @@
 // not announced, relecture du 2026-10-26). The box keeps its size meanwhile: no shift.
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import type { IconName } from "../../icons/index.ts";
+import { t, type MessageKey } from "../../i18n.ts";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import Icon from "../Icon/Icon.vue";
 import type { AlertTone } from "./alert.ts";
@@ -37,6 +38,15 @@ const ICONS: Record<AlertTone, IconName> = {
   ko: "circle-x",
 };
 
+// The tone in words too (WCAG 1.3.1): the icon is decorative, the colour is not read; a
+// warning and an information would otherwise sound the same.
+const WORDS: Record<AlertTone, MessageKey> = {
+  info: "toneInfo",
+  ok: "toneOk",
+  warn: "toneWarn",
+  ko: "toneKo",
+};
+
 const said = ref(false);
 let frame = 0;
 onMounted(() => {
@@ -54,7 +64,10 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
   >
     <Icon :name="props.icon ?? ICONS[props.tone]" class="k-inline-alert__icon" />
     <div class="k-inline-alert__body">
-      <p class="k-inline-alert__title">{{ props.title }}</p>
+      <p class="k-inline-alert__title">
+        <span class="k-visually-hidden">{{ t(WORDS[props.tone]) }}{{ t("colon") }} </span
+        >{{ props.title }}
+      </p>
       <div v-if="$slots.default" class="k-inline-alert__text"><slot /></div>
       <ul v-if="props.items.length" class="k-inline-alert__items">
         <li v-for="(item, i) in props.items" :key="i" class="k-inline-alert__item">

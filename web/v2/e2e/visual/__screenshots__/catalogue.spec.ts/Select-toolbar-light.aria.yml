@@ -1,0 +1,9 @@
+- main:
+  - region "Select":
+    - heading "Select" [level=1]
+    - paragraph: "Motif : Select-Only Combobox (bouton combobox, liste listbox)"
+    - 'figure "toolbar — Dans une barre : l''étiquette écrite avant la valeur, icône"':
+      - text: Type de flux
+      - combobox "Type de flux": Interne
+      - code: toolbar
+      - text: ""

@@ -15,6 +15,7 @@ import {
   FilterChip,
   Icon,
   KeyLabel,
+  Select,
   Split,
   SplitButton,
   Stack,
@@ -25,6 +26,7 @@ import {
   type GridColumn,
   type GridSort,
   type IconName,
+  type ListOption,
   type MenuItem,
   type RowState,
   type SplitAction,
@@ -33,11 +35,10 @@ import {
   type TreeNode,
 } from "@kartenn/ui";
 import { ref } from "vue";
-import AVenir from "./AVenir.vue";
 import Attributs from "./EcranAttributs.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
-import { DOMAIN, ENV, usageLabel, type EnvKey } from "./donnees.ts";
+import { DOMAIN, ENV, USAGE, usageLabel, type EnvKey } from "./donnees.ts";
 
 const props = defineProps<{ vue: string }>();
 const adding = props.vue === "ajout";
@@ -219,6 +220,8 @@ const more: MenuItem[] = [
 
 // The edit panel of the kind (« + » on 192.0.2.64/26): an address by default in a network.
 const value = ref("192.0.2.103");
+const usage = ref<string | undefined>("host");
+const usages: ListOption[] = Object.entries(USAGE).map(([key, label]) => ({ value: key, label }));
 const owner = ref("Service Pilote");
 const addActions: SplitAction[] = [
   { id: "draft", label: "Ajouter au brouillon", icon: "draft" },
@@ -325,9 +328,7 @@ const addAction = ref("draft");
           required
           hint="Prochain libre de 192.0.2.64/26."
         />
-        <AVenir component="Select" task="18">
-          <TextField label="Usage" model-value="Hôte" readonly />
-        </AVenir>
+        <Select v-model="usage" label="Usage" :options="usages" />
         <TextField v-model="owner" label="Propriétaire" />
         <Attributs
           :items="[

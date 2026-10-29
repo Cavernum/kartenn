@@ -41,6 +41,10 @@
       - button "Appliquer" [disabled]
       - code: disabled
       - text: ""
+    - 'figure "forbidden — Interdit par les droits : focalisable, aria-disabled, « Il faut … » au focus"':
+      - button "Modifier" [disabled]
+      - code: forbidden
+      - text: ""
     - figure "danger — Destructif":
       - button "Supprimer"
       - code: danger
@@ -53,12 +57,14 @@
       - button "Modifier"
       - code: large
       - text: ""
-    - figure "alignment — Bouton, champ, bouton-icône et pastilles côte à côte, par taille":
+    - figure "alignment — Bouton, champ, liste de choix, bouton-icône et pastilles côte à côte, par taille":
       - button "Appliquer"
       - button "Ajouter"
       - text: Recherche sm
       - textbox "Recherche sm":
         - /placeholder: Préfixe
+      - text: Usage sm
+      - combobox "Usage sm": Hôte
       - button "Actions sm"
       - text: Production Conforme
       - button "Appliquer"
@@ -66,6 +72,8 @@
       - text: Recherche md
       - textbox "Recherche md":
         - /placeholder: Préfixe
+      - text: Usage md
+      - combobox "Usage md": Hôte
       - button "Actions md"
       - text: Production Conforme
       - button "Appliquer"
@@ -73,7 +81,19 @@
       - text: Recherche lg
       - textbox "Recherche lg":
         - /placeholder: Préfixe
+      - text: Usage lg
+      - combobox "Usage lg": Hôte
       - button "Actions lg"
       - text: Production Conforme
       - code: alignment
+      - text: ""
+    - 'figure "keyboard — Au clavier : action, bascule, occupé, désactivé, interdit, bouton-icône"':
+      - button "Enregistrer"
+      - button "Filtres"
+      - button "Recharger (Chargement)" [disabled]
+      - button "Supprimer" [disabled]
+      - button "Modifier" [disabled]
+      - button "Copier"
+      - status
+      - code: keyboard
       - text: ""

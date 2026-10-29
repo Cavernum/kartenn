@@ -12,7 +12,7 @@
       - text: Anycast
       - code: checked
       - text: ""
-    - 'figure "mixed — Mixte (une partie des lignes) : aria-checked mixed"':
+    - 'figure "mixed — Mixte (une partie des lignes) : indeterminate, exposé « mixed »"':
       - checkbox /Tout sélectionner \(1 \d+\)/ [checked=mixed]
       - text: /Tout sélectionner \(1 \d+\)/
       - code: mixed

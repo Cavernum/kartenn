@@ -1,0 +1,11 @@
+- main:
+  - listbox "Groupe"
+  - region "Combobox":
+    - heading "Combobox" [level=1]
+    - paragraph: "Motif : Combobox (aria-autocomplete=list, sélection manuelle, aria-activedescendant)"
+    - figure "empty — Aucune suggestion pour le texte":
+      - text: Groupe
+      - combobox "Groupe" [expanded]: dmz
+      - status: Aucun résultat
+      - code: empty
+      - text: ""

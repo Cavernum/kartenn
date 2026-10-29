@@ -8,6 +8,7 @@ import Cluster from "../Cluster/Cluster.vue";
 import Stack from "../Stack/Stack.vue";
 import EnvChip from "../EnvChip/EnvChip.vue";
 import IconButton from "../IconButton/IconButton.vue";
+import Select from "../Select/Select.vue";
 import StatusBadge from "../StatusBadge/StatusBadge.vue";
 import TextField from "../TextField/TextField.vue";
 import Button from "./Button.vue";
@@ -20,6 +21,13 @@ const Alignment = () =>
         h(Button, { size, variant: "primary" }, () => "Appliquer"),
         h(Button, { size, icon: "plus" }, () => "Ajouter"),
         h(TextField, { size, label: `Recherche ${size}`, hideLabel: true, placeholder: "Préfixe" }),
+        h(Select, {
+          size,
+          label: `Usage ${size}`,
+          hideLabel: true,
+          options: [{ value: "host", label: "Hôte" }],
+          modelValue: "host",
+        }),
         h(IconButton, { size, icon: "ellipsis", label: `Actions ${size}`, variant: "secondary" }),
         h(EnvChip, { value: "prod", label: "Production", hue: 1 }),
         h(StatusBadge, { state: "ok", label: "Conforme" }),
@@ -149,7 +157,8 @@ export default {
     { name: "large", description: "Grand (32 px)", props: { size: "lg" }, slot: "Modifier" },
     {
       name: "alignment",
-      description: "Bouton, champ, bouton-icône et pastilles côte à côte, par taille",
+      description:
+        "Bouton, champ, liste de choix, bouton-icône et pastilles côte à côte, par taille",
       props: {},
       demo: Alignment,
       wide: true,

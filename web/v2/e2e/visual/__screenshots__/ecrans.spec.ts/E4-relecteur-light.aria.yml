@@ -68,7 +68,7 @@
       - tab "Sections de modules 2"
     - tabpanel "Différentiel 5":
       - status:
-        - paragraph: Une anomalie rattachée
+        - paragraph: "Avertissement : Une anomalie rattachée"
         - list:
           - listitem:
             - text: /Le VLAN \d+ reste sur le site ouest, ses réseaux passent à l'est\./

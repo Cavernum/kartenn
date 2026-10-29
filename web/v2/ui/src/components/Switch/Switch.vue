@@ -114,6 +114,9 @@ const hintId = `${id}-hint`;
     block-size: calc(var(--k-switch-block) - var(--k-switch-inset) * 2 - var(--k-border-width) * 2);
     background-color: var(--k-border-control);
     border-radius: var(--k-radius-full);
+    /* Invisible, except in forced colours, where backgrounds go: the thumb keeps a shape. */
+    outline: var(--k-border-width) solid transparent;
+    outline-offset: calc(var(--k-border-width) * -1);
     transition-property: translate, background-color;
     transition-duration: var(--k-duration-short);
     transition-timing-function: var(--k-ease-standard);

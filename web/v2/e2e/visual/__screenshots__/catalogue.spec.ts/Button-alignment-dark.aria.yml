@@ -2,12 +2,14 @@
   - region "Button":
     - heading "Button" [level=1]
     - paragraph: "Motif : Button"
-    - figure "alignment — Bouton, champ, bouton-icône et pastilles côte à côte, par taille":
+    - figure "alignment — Bouton, champ, liste de choix, bouton-icône et pastilles côte à côte, par taille":
       - button "Appliquer"
       - button "Ajouter"
       - text: Recherche sm
       - textbox "Recherche sm":
         - /placeholder: Préfixe
+      - text: Usage sm
+      - combobox "Usage sm": Hôte
       - button "Actions sm"
       - text: Production Conforme
       - button "Appliquer"
@@ -15,6 +17,8 @@
       - text: Recherche md
       - textbox "Recherche md":
         - /placeholder: Préfixe
+      - text: Usage md
+      - combobox "Usage md": Hôte
       - button "Actions md"
       - text: Production Conforme
       - button "Appliquer"
@@ -22,6 +26,8 @@
       - text: Recherche lg
       - textbox "Recherche lg":
         - /placeholder: Préfixe
+      - text: Usage lg
+      - combobox "Usage lg": Hôte
       - button "Actions lg"
       - text: Production Conforme
       - code: alignment

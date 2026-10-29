@@ -26,6 +26,9 @@
       - link "Émetteurs":
         - /url: /admin/issuers
     - listitem:
+      - link "Paramètres":
+        - /url: /admin/settings
+    - listitem:
       - link "Audit":
         - /url: /admin/audit
   - button "Barre latérale" [expanded]
@@ -90,7 +93,7 @@
     - heading "Secours secours" [level=2]
     - text: Groupe livré
     - status:
-      - paragraph: "Groupe livré : seuls ses membres se gèrent, par un administrateur global."
+      - paragraph: "Avertissement : Groupe livré : seuls ses membres se gèrent, par un administrateur global."
       - button "Copier core.group.builtin":
         - text: ""
         - code: core.group.builtin

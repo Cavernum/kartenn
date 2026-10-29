@@ -444,10 +444,71 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     prenne pas de place. Restent hors de la tâche : la case de sélection des lignes dans
     `DataGrid` (colonne de cases, tâche de la grille) ; E7 n'a pas de formulaire de
     liaison à reprendre en `FormField` (l'entrée de la revue était sans repère).
-- [ ] 18. `Select`, `Combobox` (suggestions par une fonction asynchrone, débrayage) —
+- [x] 18. `Select`, `Combobox` (suggestions par une fonction asynchrone, débrayage) —
   verify : script Combobox (Alt+Flèche bas, Échap, Entrée, `aria-activedescendant`)
   - où : idem ; `web/shell/src/app/SearchBox.vue` (recherche actuelle)
   - dépend de : 17
+  - fait : `Select` (nouveau) sur le `Select` de Reka (Select-Only Combobox : bouton
+    `combobox` nommé par l'étiquette de `FormField`, erreur puis aide par
+    `aria-describedby`, liste `listbox` nommée dont les options prennent le focus) ;
+    Entrée, Espace, Bas, Haut ouvrent sur l'option choisie, flèches, Origine, Fin et
+    saisie s'y déplacent, Échap ferme sans choisir, Tab choisit, ferme et passe au contrôle
+    suivant ; `readonly` (`aria-readonly`, ne
+    s'ouvre ni ne change à la saisie), `inlineLabel` (l'étiquette écrite avant la valeur,
+    dans une barre), détail en chasse fixe compris dans le nom de l'option (2.5.3), aucune
+    valeur = `undefined`. `Combobox` (nouveau) sur celui de Reka : texte en `v-model`,
+    valeur prise en `v-model:value`, `suggest(texte, signal)` de l'hôte appelée après
+    150 ms (`debounce`) et annulée par un texte plus récent ; sélection manuelle (la mise
+    en avant automatique de Reka effacée), Bas va à la première, Alt+Bas ouvre sans
+    bouger, Entrée prend la mise en avant (`select`) sinon `submit`, Échap ferme et laisse
+    le suivant à la couche autour, Origine et Fin dans le texte, `aria-activedescendant`
+    retiré à la fermeture, `aria-selected` sur la mise en avant, coche sur la valeur prise ;
+    nombre, chargement, rien, échec dits par une région `polite` présente avant la liste et
+    montrés dans une liste sans option ; indicateur de chargement à place gardée ; `filterOptions` pour
+    une liste locale (casse et accents). Liste commune `Select/options.css` (dans
+    `style.css`), au moins aussi large que le champ (CSSOM) ; cadre de champ partagé
+    `k-field-frame` (`shared.css` : taille, survol, erreur, anneau, désactivé, lecture
+    seule, champ et icônes) repris par `TextField`, `Select`, `Combobox`.
+    Revues `a11y-auditor` et `ui-reviewer` (code et captures, tâches 17 et 18) ; corrigés :
+    Tab dans la liste du `Select`, `aria-selected` de la suggestion mise en avant,
+    `aria-live` écrit sur la région du `Combobox`, le ton d'`InlineAlert` dit en mots
+    (caché, 1.3.1), pouce du `Switch` et option mise en avant visibles en couleurs forcées
+    (contour transparent), `Select` de la barre E10 à la hauteur des boutons, champ du
+    `Combobox` qui ne s'élargit plus au chargement, double indicateur, échec sans icône,
+    doublons de règles de champ, descriptions de catalogue (`Select` `open`, `Checkbox`
+    `mixed`).
+    `SelectViewport` interdit (lint, `<style>` injecté). Maquettes : E1 (usage), E10 (type
+    de flux, dans la barre), E12 (groupe) prennent un `Select` (repères « À venir » retirés,
+    `Select` retiré de la revue) ; l'alignement de `Button` (REQ-020-17) a sa liste de
+    choix. Catalogue : `Select` (treize états), `Combobox` (onze états, dont `open`,
+    `loading`, `empty`, `failed` isolés). Scripts : `e2e/components/combobox.spec.ts`
+    (nom, débrayage à un appel, aucune mise en avant à la saisie, Alt+Bas, Bas, Haut,
+    Entrée, Entrée sans mise en avant, deux Échap, Origine et Fin, Tab, instantané ARIA,
+    états sans suggestion, erreur liée), `select.spec.ts` (Bas, Entrée, Échap, Espace,
+    Origine, Fin, saisie, Tab, lecture seule, erreur, barre, champs ≥ 24 px dans les deux
+    densités) ; Vitest dans `components-base.test.ts` et `tools/test/eslint.test.ts`.
+    Captures réécrites (voulues) : index (deux composants), `Button` `alignment` et page
+    entière confortable (la liste de choix dans la rangée), E1-ajout, E10-matrice et
+    E10-brouillon (1024 à 1440 px), E12-creation (le `Select` remplace le repère) ;
+    `TextField` `pending` et page confortable (correctif : l'ancienne règle
+    `:has(:read-only)` prenait le texte caché « Chargement » pour un champ en lecture seule
+    et dessinait le cadre en pointillés) ; `Checkbox` `mixed` et page confortable
+    (description) ; instantanés ARIA seuls (le ton d'`InlineAlert` dit) : `InlineAlert`,
+    `SidePanel` `scroll-shade`, E2, E4, E7, E9, E11, E12-vlan, E13 ; nouvelles : `Select`,
+    `Combobox`.
+  - choix : `Combobox` en sélection manuelle (une recherche garde son texte à Entrée) ;
+    `Select` laisse Reka cacher le reste de la page à l'ouverture (modal, focus dans la
+    liste) ; fermé, la liste de Reka reste dans le champ (`SelectPortal` désactivé, une
+    `div` vide ajoutait sinon un élément à la grille de la couche de l'hôte) ; feuille de
+    liste partagée dans `style.css` (une feuille importée par un composant casse le build
+    du shell). Restent des revues (à vérifier ou à arbitrer) : « obligatoire » dit deux
+    fois (texte caché de l'étiquette et état `required`), `aria-busy` sur un champ en
+    attente, la lecture du `Select` modal au lecteur d'écran ; hauteur maximale de la
+    liste en `--k-size-dialog-sm` (comme `CommandPalette`, pas de jeton de liste) ; case
+    de 16 px contre 14 px au design (§ « Densité ») ; mise en avant d'une ligne écrite trois
+    fois (`Menu`, liste, `CommandPalette`) ; aucune capture d'option mise en avant (le
+    catalogue ne joue pas de touche) ; `Combobox` sans chevron ni action « Réessayer » ;
+    largeur propre du `Select` hors colonne de formulaire.
 - [ ] 19. `FilterChip`, `FilterPicker` : propriété → opérateur → valeur, listes fermées,
   champs typés, sérialisation et lecture dans l'URL — REQ-020-20 — verify : ajout,
   modification, retrait au clavier seul ; valeur hors type refusée ; aller-retour URL

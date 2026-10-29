@@ -23,11 +23,13 @@ import {
   IconButton,
   InlineAlert,
   MatrixGrid,
+  Select,
   Stack,
   StatusBadge,
   TextField,
   type GridColumn,
   type GridSort,
+  type ListOption,
   type MatrixAxis,
   type MatrixCell,
   type MatrixCellState,
@@ -35,7 +37,6 @@ import {
   type ToolbarAction,
 } from "@kartenn/ui";
 import { computed, ref } from "vue";
-import AVenir from "./AVenir.vue";
 import Attributs from "./EcranAttributs.vue";
 import Barre from "./EcranBarre.vue";
 import Brouillon from "./EcranBrouillon.vue";
@@ -102,6 +103,12 @@ const FLOW_TYPES: Record<FlowType, string> = {
   file: "Fichier",
 };
 const SHOWN: FlowType = "application";
+/** The choice of the matrix shown (the page stays on the one of `application`). */
+const flowType = ref<string | undefined>(SHOWN);
+const flowTypes: ListOption[] = Object.entries(FLOW_TYPES).map(([key, label]) => ({
+  value: key,
+  label,
+}));
 
 /**
  * The cells changed by the draft, in the matrices of two flow types: flow type, source,
@@ -241,9 +248,13 @@ const EFFECT = [
     <Panneau title="Matrice" :detail="FLOW_TYPES[SHOWN]" main flush>
       <template #toolbar>
         <Barre label="Actions de la matrice" :actions="matrixActions" align="start">
-          <AVenir component="Select" task="18" inline>
-            <Button size="sm" icon="flow">Type de flux : {{ FLOW_TYPES[SHOWN] }}</Button>
-          </AVenir>
+          <Select
+            v-model="flowType"
+            label="Type de flux"
+            :options="flowTypes"
+            inline-label
+            icon="flow"
+          />
         </Barre>
       </template>
       <MatrixGrid

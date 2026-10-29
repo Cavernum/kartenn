@@ -57,11 +57,13 @@
           - paragraph: "/Occupation de \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+ : \\d+ %/"
           - paragraph: "/Occupation de \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+ : \\d+ %/"
           - paragraph: "/Occupation de \\d+:db8::\\/\\d+ : 7 %/"
+          - paragraph: "/Adresses libres : \\d+/"
+          - paragraph: "/Adresses réservées : \\d+/"
           - status:
-            - paragraph: /Occupation au-delà de \d+ %/
+            - paragraph: "/Avertissement : Occupation au-delà de \\d+ %/"
             - text: "/Le préfixe \\d+\\.\\d+\\.2\\.0\\/\\d+ n'a plus que quelques adresses libres : en réserver avant d'en rattacher d'autres\\./"
           - status:
-            - paragraph: Préfixe hérité
+            - paragraph: "Information : Préfixe hérité"
             - text: /La sensibilité vient de \d+\.\d+\.2\.0\/\d+\./
         - button "Largeur du panneau"
         - button "Fermer le panneau"

@@ -4,7 +4,7 @@
     - paragraph: "Motif : role=status (alert pour une erreur)"
     - figure "ko — Violations sous un formulaire, avec leurs codes":
       - alert:
-        - paragraph: Le changeset est refusé.
+        - paragraph: "Erreur : Le changeset est refusé."
         - list:
           - listitem:
             - text: Le préfixe chevauche un voisin.

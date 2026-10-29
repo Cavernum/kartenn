@@ -1,0 +1,10 @@
+- main:
+  - region "Combobox":
+    - heading "Combobox" [level=1]
+    - paragraph: "Motif : Combobox (aria-autocomplete=list, sélection manuelle, aria-activedescendant)"
+    - figure "focus — Focus visible":
+      - text: Groupe
+      - combobox "Groupe"
+      - status
+      - code: focus
+      - text: ""

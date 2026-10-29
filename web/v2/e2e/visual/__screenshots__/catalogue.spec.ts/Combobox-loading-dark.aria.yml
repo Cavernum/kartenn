@@ -1,0 +1,11 @@
+- main:
+  - listbox "Groupe"
+  - region "Combobox":
+    - heading "Combobox" [level=1]
+    - paragraph: "Motif : Combobox (aria-autocomplete=list, sélection manuelle, aria-activedescendant)"
+    - 'figure "loading — Chargement des suggestions : indicateur, dit par la région polite"':
+      - text: Groupe
+      - combobox "Groupe" [expanded]: campus
+      - status: Recherche des suggestions
+      - code: loading
+      - text: ""

@@ -1,0 +1,9 @@
+- main:
+  - region "Select":
+    - heading "Select" [level=1]
+    - paragraph: "Motif : Select-Only Combobox (bouton combobox, liste listbox)"
+    - figure "disabled — Désactivé":
+      - text: Usage
+      - combobox "Usage" [disabled]: Hôte
+      - code: disabled
+      - text: ""
