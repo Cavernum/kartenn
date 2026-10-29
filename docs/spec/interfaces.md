@@ -295,7 +295,9 @@ les a exclus (événements sortants).
 - Droits évalués à la remise, par lot (une requête sujets × objets) ; révocation en
   10 s au plus ; le flux n'est pas une activité de session.
 - Hors délestage et hors compression ; plafonds 5 000 flux par instance (503) et 16 par
-  identité (429) ; arrêt : `retry:` étalé puis fermeture. `Cache-Control: no-store`,
+  identité (429) ; l'ouverture compte une fois dans le compartiment de lecture du quota
+  (429 avant les plafonds, la connexion ouverte ne débite plus rien) ; arrêt : `retry:`
+  étalé puis fermeture. `Cache-Control: no-store`,
   `X-Accel-Buffering: no`, `Incremental: ?1` en option.
 - Capacités : `events` (bornes des filtres, taille d'un événement, plafond par
   identité, durée de l'anneau, maintien) ou `null`.
