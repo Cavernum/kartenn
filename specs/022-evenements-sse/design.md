@@ -222,8 +222,10 @@ visibilité, puis pousse dans le `mpsc` borné de chaque connexion par `try_send
   reprend, fermer après 30 s de blocage (`kartenn.events.dropped`).
 - Plafonds : compteur atomique par instance (5 000) et table en mémoire par identité
   (16), libérés par `Drop` du corps ; refus 503 / 429 avec `Retry-After` avant toute
-  requête à la base. Le `InFlight` du délestage (`lib.rs`, `quota::shed`) n'englobe pas
-  la route.
+  requête à la base. Le `InFlight` du délestage (`lib.rs`, `quota::shed`) ne compte que
+  l'ouverture, jusqu'à l'envoi des en-têtes : un flux ouvert n'occupe aucune place, mais
+  une ouverture peut recevoir le 503 du délestage quand il est plein. L'ouverture débite
+  aussi une fois le compartiment de lecture (tâche 19).
 - Arrêt : le signal d'arrêt (`kartenn-server/src/http.rs`, `GracefulShutdown`) ferme
   d'abord le plafond (503), puis diffuse « fin » aux connexions, qui écrivent `retry:`
   et terminent leur corps ; sans cela, l'arrêt propre attendrait des flux sans fin.
