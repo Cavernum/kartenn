@@ -173,6 +173,8 @@ Acceptation :
 ### C. Écritures
 
 #### REQ-006-11 — Changesets
+*Amendée par la 016 (REQ-016-12, 2026-10-21) : en-tête `Kartenn-On-Behalf-Of` sur une
+écriture d'un compte de service ; mal formé ou sur une lecture : 400.*
 kartenn doit accepter `POST /v1/changesets` : lot atomique d'opérations (004), avec
 motif, mode simulation et références internes ; la réponse doit désigner le changeset
 journalisé par un lien (`Location` ou `Link`, et corps), 201 s'il est appliqué, 202 s'il

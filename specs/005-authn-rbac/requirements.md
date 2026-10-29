@@ -171,6 +171,9 @@ Acceptation :
   l'ancien ; un secret expiré est refusé.
 
 #### REQ-005-12 — Authentification Basic
+*Amendée par la 016 (REQ-016-12, 2026-10-21) : un compte de service qui détient
+`core.identity.act_on_behalf` écrit pour le compte d'un demandeur (identité `requester`,
+sans droit de connexion), sous ses seuls droits.*
 kartenn doit authentifier un compte de service par Basic (RFC 7617) sur TLS seulement,
 en comparant l'empreinte en temps constant, et lire l'état du compte (actif, secrets,
 expiration) à chaque requête ; un compte désactivé est refusé à la requête suivante.

@@ -184,6 +184,8 @@ Acceptation :
   adresses passe en attente ; un changeset de 3 adresses s'applique immédiatement.
 
 #### REQ-004-39 — Aucune approbation par défaut
+*Amendée par la 016 (REQ-016-8, 2026-10-21) : un module installe ses politiques par défaut
+à son premier déploiement, jamais ensuite.*
 *Amendée par la 024 (REQ-024-10, 13, 2026-10-24) : tout changeset soumis est en attente ;
 il s'applique dans la même requête quand son auteur le demande (`?approval=self`) et détient
 `approval.self` — aucune politique n'est requise pour cela.*
@@ -255,11 +257,15 @@ Quand un changeset en attente est approuvé, kartenn doit le revalider sur l'ét
 et, en cas d'échec, le passer en `échoué à la revalidation` avec les violations.
 
 #### REQ-004-23 — Rejet, retrait, expiration
+*Amendée par la 016 (REQ-016-9, 2026-10-21) : le module dont la proposition porte des
+opérations est appelé dans la transaction qui la clôt.*
 kartenn doit permettre à l'approbateur de rejeter un changeset en attente avec un motif,
 à l'auteur de le retirer, et doit expirer un changeset resté en attente au-delà du délai
 configuré (30 jours par défaut).
 
 #### REQ-004-24 — Pas de modification en attente
+*Amendée par la 016 (REQ-016-11, 2026-10-21) : le valideur d'une proposition forcée peut y
+joindre des opérations « de revue ».*
 Si une soumission tente de modifier un changeset en attente, alors kartenn doit la
 refuser.
 
@@ -314,6 +320,8 @@ kartenn doit permettre de rechercher les changesets par objet, auteur, état, p�
 caractère rétroactif.
 
 #### REQ-004-33 — Identités pseudonymisables
+*Amendée par la 016 (REQ-016-12, 13, 2026-10-21) : le changeset porte `on_behalf_of` ;
+l'identité `requester` se pseudonymise comme une personne.*
 kartenn doit référencer les personnes dans l'audit par un identifiant interne stable, et
 permettre de pseudonymiser leurs données d'identité (nom, courriel, sujet OIDC) sans
 altérer l'historique.
