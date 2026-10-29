@@ -280,11 +280,10 @@ elle s'appuie sur N21, N22 (ADR 0026, fournis) et M7 (REQ-009-23), et ajoute N38
     complet ; amendements N38 et N39 de l'ADR 0026 et de la 004 déjà faits par la 016 ;
     écarts au design reportés (design, § « Écarts au design », ceux résorbés par F19 et
     F20 signalés comme tels) ; budgets de `bench-flow` dans `docs/spec/invariants.md`
-    § Performance ; audit spec-keeper. Statuts laissés `in-progress` : la réévaluation
-    complète de fond de REQ-011-19 (< 5 min) n'est portée par aucune tâche de fond, donc
-    non mesurée (à arbitrer : tâche à créer ou exigence à amender) ; REQ-011-4 (« changer
-    une extrémité crée un nouveau flux ») diverge du code qui refuse (`flow.update.identity`,
-    écart du design), à arbitrer.
+    § Performance ; audit spec-keeper. Arbitrés le 2026-10-29 par l'utilisateur : la
+    réévaluation complète de fond est retirée de REQ-011-19 (aucune tâche de fond ne la
+    porte) ; REQ-011-4 amendée vers le refus du code (`flow.update.identity`, test
+    `requests.rs`).
 
 ## P5 — Amendements (spec 017)
 

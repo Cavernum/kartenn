@@ -1,6 +1,6 @@
 ---
-status: in-progress
-updated: 2026-10-22
+status: implemented
+updated: 2026-10-29
 ---
 
 # 011 — Registre de flux : exigences
@@ -81,8 +81,10 @@ aussi ces flux (D33, REQ-004-25, 26).
 #### REQ-011-4 — Modification
 Le module doit permettre de modifier les références externes, la justification, les
 responsables, la nature des données et la période d'un flux ; changer une extrémité ou
-le service crée un nouveau flux (le précédent est clos), pour que l'historique d'un flux
-garde un sens constant. Avancer la fin s'applique sans instruction ; une **prolongation**
+le service doit être refusé (`flow.update.identity`) : on clôt le flux et on en demande
+un nouveau, trié comme toute demande, pour que l'historique d'un flux garde un sens
+constant et qu'aucun flux n'en remplace un autre implicitement (amendé le 2026-10-29,
+aligné sur le code). Avancer la fin s'applique sans instruction ; une **prolongation**
 (fin plus tardive, ou fin retirée d'un flux daté) doit être triée comme une demande
 (REQ-011-21) sur la portion ajoutée, contre la politique du jour, et instruite si elle
 n'est pas automatique (REQ-011-22) ; un flux terminé ne se prolonge pas (F20).
@@ -97,6 +99,7 @@ Acceptation :
   seulement avec une dérogation (`flow.waiver.required` sinon).
 - L'auteur de la prolongation l'approuve lui-même : refusé (`flow.separation`).
 - Prolonger un flux `expired` : refusé (`flow.update.ended`).
+- Changer la destination ou le service d'un flux : refusé (`flow.update.identity`).
 
 #### REQ-011-20 — Sorte de flux
 Le module doit porter la sorte de chaque flux et refuser, en v0.2, la sorte `observed`
@@ -334,7 +337,10 @@ demande interface × interface 16 × 16 (machine × machine avant F21), triage c
 < 300 ms ; réévaluation de 10⁴ flux
 dans un changeset < 3 s ajoutées ; réévaluation de 10⁵ flux par un changement de
 politique dans le budget exceptionnel de la 003 (< 60 s) ; page filtrée de flux ou de
-non-conformités < 150 ms ; réévaluation complète en tâche de fond < 5 min (F14).
+non-conformités < 150 ms. La réévaluation complète en tâche de fond (< 5 min, F14) est
+retirée le 2026-10-29 : aucune tâche de fond ne la porte, la réévaluation se fait dans le
+changeset, et celle de 10⁵ flux tient dans le budget exceptionnel ; elle reviendra avec
+une tâche de fond si un besoin apparaît.
 
 ## Non-objectifs
 

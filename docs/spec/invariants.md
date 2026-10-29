@@ -213,8 +213,9 @@ pour le lecteur par extrémités au premier passage). Au passage, la liste des f
 par un changeset est planifiée pour ses tableaux (9b3e83ca : 50 s en plan générique
 contre 0,1 s) ; la vérification des obligations du cœur (`without_value`) garde un plan
 générique d'environ 0,15 s par exécution, non corrigé. Au 2026-10-27, `bench-policy` complet tient : interface × interface 16 × 16
-pour un type de flux de 10 services, 22,6 ms pour 300 ms. La réévaluation complète en tâche de fond (< 5 min)
-n'est **pas mesurée** : aucune tâche de fond ne la porte encore.
+pour un type de flux de 10 services, 22,6 ms pour 300 ms. La réévaluation complète en
+tâche de fond (< 5 min) est retirée de REQ-011-19 le 2026-10-29 : aucune tâche de fond ne
+la porte.
 
 ## Flux d'événements (spec 022, ADR 0034)
 
