@@ -185,28 +185,28 @@ La lecture groupée N9 (016-4) est
 mesurée à 16,3 ms pour 30 ms au banc `bench-properties` réduit (2026-10-21).
 
 Registre de flux (011, REQ-011-19) : banc `bench-flow` (011-10), 10⁵ flux sur le jeu de
-référence, politique au gabarit du banc 010 sans motifs, conditions ni signaux. Banc
-complet du 2026-10-28 (13db61bb, p95 serveur ; extrémités interface × interface depuis
-011/F21 ; lecteur par extrémités de la 027, REQ-027-4), à côté de celui du 2026-10-27 :
+référence, politique au gabarit du banc 010 sans motifs, conditions ni signaux. **Tenu**
+au banc complet du 2026-10-29 (9cd5ac44, machine calme, `shared_buffers` de l'instance des
+bancs à 1 Go ; p95 serveur ; extrémités interface × interface depuis 011/F21 ; lecteur par
+extrémités de la 027, REQ-027-4), à côté des bancs précédents :
 
-| Budget | 2026-10-27 | 2026-10-28 | Limite |
-|---|---|---|---|
-| Demande interface × interface 16 × 16, triage compris | 59,5 ms | 116 ms | 300 ms |
-| Réévaluation de 10⁴ flux dans un changeset (ajoutée) | 2,37 s | **4,70 s** | 3 s |
-| Réévaluation de 10⁵ flux par un changement de politique | 11,95 s | 23,7 s | 60 s |
-| Règle d'un type de flux (5·10³ flux) | 1,23 s | 2,23 s | 60 s |
-| Page filtrée de flux | 142 ms | 21,3 ms | 150 ms |
-| Page de non-conformités | 25,2 ms | 42,5 ms | 150 ms |
-| Page filtrée, lecteur par extrémités | — | 27,9 ms | 150 ms |
-| Page de non-conformités, lecteur par extrémités | — | 59,8 ms | 150 ms |
+| Budget | 2026-10-27 | 2026-10-28 | 2026-10-29 | Limite |
+|---|---|---|---|---|
+| Demande interface × interface 16 × 16, triage compris | 59,5 ms | 116 ms | 56,5 ms | 300 ms |
+| Réévaluation de 10⁴ flux dans un changeset (ajoutée) | 2,37 s | **4,70 s** | 2,03 s | 3 s |
+| Réévaluation de 10⁵ flux par un changement de politique | 11,95 s | 23,7 s | 10,5 s | 60 s |
+| Règle d'un type de flux (5·10³ flux) | 1,23 s | 2,23 s | 0,87 s | 60 s |
+| Page filtrée de flux | 142 ms | 21,3 ms | 7,2 ms | 150 ms |
+| Page de non-conformités | 25,2 ms | 42,5 ms | 28,2 ms | 150 ms |
+| Page filtrée, lecteur par extrémités | — | 27,9 ms | 10,9 ms | 150 ms |
+| Page de non-conformités, lecteur par extrémités | — | 59,8 ms | 25,4 ms | 150 ms |
 
-Le 2026-10-28, tout le banc tourne environ 1,9 fois plus lentement que la veille, étapes
+Le 2026-10-28, tout le banc tournait environ 1,9 fois plus lentement que la veille, étapes
 sans flux comprises (chargement du jeu ×1,85, import de classification ×1,87), machine
-sous pression mémoire et disque (swap plein, PSI disque élevée) ; le code de la
-réévaluation n'a pas changé depuis la mesure de 2,37 s, et les cinq bancs complets du
-2026-10-22 donnaient déjà de 2,13 s à 7,39 s pour ce budget. Le dépassement de la
-réévaluation de 10⁴ flux reste à trancher (nouvelle mesure sur machine calme, coût du
-déclencheur de versionnement, réécriture des seules évaluations changées, ou budget). La
+sous pression mémoire (swap plein) ; le code de la réévaluation n'avait pas changé depuis
+la mesure de 2,37 s. Sur machine calme, avec ses propres tampons, la réévaluation de 10⁴
+flux revient à 68 % de son budget (2,51 s contre 0,48 s pour un conteneur sans flux,
+médianes de 3) : ce budget dépend de la mémoire libre de la machine du banc. La
 page filtrée de flux gagne par la lecture des flux par identifiant (dc8d52f4) : le plan
 générique d'une requête préparée relisait toute la table des synthèses par flux (3,9 s
 pour le lecteur par extrémités au premier passage). Au passage, la liste des flux touchés
