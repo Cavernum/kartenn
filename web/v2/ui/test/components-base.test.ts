@@ -14,6 +14,8 @@ import IconButton from "../src/components/IconButton/IconButton.vue";
 import Kbd from "../src/components/Kbd/Kbd.vue";
 import { keyLabel } from "../src/components/Kbd/kbd.ts";
 import KeyLabel from "../src/components/KeyLabel/KeyLabel.vue";
+import ShortcutHint from "../src/components/ShortcutHint/ShortcutHint.vue";
+import { shortcutAria, shortcutSteps } from "../src/components/ShortcutHint/shortcutHint.ts";
 import Split from "../src/components/Split/Split.vue";
 import Stack from "../src/components/Stack/Stack.vue";
 import StatusBadge from "../src/components/StatusBadge/StatusBadge.vue";
@@ -86,6 +88,49 @@ describe("IconButton", () => {
     const props: InstanceType<typeof IconButton>["$props"] = { icon: "pencil" };
     expect(props).toBeDefined();
   });
+
+  it("gives its shortcut by aria-keyshortcuts; its name tooltip is not a description", async () => {
+    const html = await render(IconButton, {
+      icon: "panel-left",
+      label: "Replier la barre latérale",
+      shortcut: ["["],
+    });
+    expect(html).toContain('aria-keyshortcuts="["');
+    expect(html).not.toContain("aria-describedby");
+  });
+
+  it("refused, is described by its reason alone", async () => {
+    const html = await render(IconButton, {
+      icon: "trash",
+      label: "Supprimer",
+      forbidden: "prefix.delete",
+    });
+    const described = /aria-describedby="([^"]+)"/.exec(html)![1]!;
+    expect(described).toMatch(/-reason$/);
+    expect(html).toContain('aria-disabled="true"');
+  });
+});
+
+describe("ShortcutHint", () => {
+  it("joins the steps of a sequence by a word, a combination in one Kbd", async () => {
+    const sequence = await render(ShortcutHint, { keys: [["g"], ["p"]] });
+    expect(sequence.match(/<kbd class="k-kbd">/g)).toHaveLength(2);
+    expect(sequence).toContain('<span class="k-shortcut-hint__then">puis</span>');
+    const combination = await render(ShortcutHint, { keys: ["Mod", "k"] });
+    expect(combination.match(/<kbd class="k-kbd">/g)).toHaveLength(1);
+    expect(combination).not.toContain("k-shortcut-hint__then");
+    setLocale("en");
+    expect(await render(ShortcutHint, { keys: [["g"], ["p"]] })).toContain(">then</span>");
+  });
+
+  it("gives aria-keyshortcuts for a combination only", () => {
+    expect(shortcutSteps(["Mod", "k"])).toEqual([["Mod", "k"]]);
+    expect(shortcutSteps([["g"], ["p"]])).toEqual([["g"], ["p"]]);
+    expect(shortcutAria(["Mod", "k"])).toBe("Control+k");
+    expect(shortcutAria([["Control", "Enter"]])).toBe("Control+Enter");
+    expect(shortcutAria([["g"], ["p"]])).toBeUndefined();
+    expect(shortcutAria([])).toBeUndefined();
+  });
 });
 
 describe("Kbd", () => {
@@ -98,6 +143,19 @@ describe("Kbd", () => {
     expect(keyLabel("ArrowDown")).toBe("↓");
     expect(keyLabel("k")).toBe("k");
     expect(keyLabel("k", true)).toBe("K");
+  });
+
+  it("names the other named keys in the language", () => {
+    expect(["Shift", "Home", "End", "PageDown", "Delete"].map((k) => keyLabel(k))).toEqual([
+      "Maj",
+      "Origine",
+      "Fin",
+      "Pg suiv.",
+      "Suppr",
+    ]);
+    setLocale("en");
+    expect(keyLabel("Shift")).toBe("Shift");
+    expect(keyLabel("F2")).toBe("F2");
   });
 });
 

@@ -13,6 +13,10 @@ export interface ButtonBaseProps {
   variant?: ButtonVariant;
   size?: ControlSize;
   type?: "button" | "submit" | "reset";
+  /**
+   * Out of the tab order (native `disabled`). A refusal with a reason (`forbidden`,
+   * `reason`) wins over it: the button stays focusable, so that its reason is reached.
+   */
   disabled?: boolean;
   /** Busy: the button stays focusable, announces `aria-busy` and ignores activation. */
   loading?: boolean;

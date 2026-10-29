@@ -39,7 +39,8 @@ const tip = useTooltip();
 const listeners = tip.listeners(() => blocked.value);
 
 function onClick(event: MouseEvent): void {
-  if (props.loading || props.disabled || blocked.value) return;
+  // Busy or refused, a submit button submits nothing either.
+  if (props.loading || props.disabled || blocked.value) return event.preventDefault();
   emit("click", event);
 }
 </script>
@@ -50,7 +51,7 @@ function onClick(event: MouseEvent): void {
     :type="props.type"
     :data-variant="props.variant"
     :data-size="props.size"
-    :disabled="props.disabled"
+    :disabled="props.disabled && !blocked"
     :aria-disabled="props.loading || blocked ? 'true' : undefined"
     :aria-busy="props.loading ? 'true' : undefined"
     :aria-pressed="props.pressed"

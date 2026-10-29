@@ -6,12 +6,11 @@ import {
   CommandPalette,
   DataGrid,
   Dialog,
-  Kbd,
+  ShortcutHint,
   Stack,
   type GridColumn,
   type PaletteGroup,
 } from "@kartenn/ui";
-import AVenir from "./AVenir.vue";
 import Accueil from "./EcranAccueil.vue";
 import Cadre from "./EcranCadre.vue";
 
@@ -96,16 +95,11 @@ const shortcutColumns: GridColumn[] = [
       description="Lus au registre des raccourcis : ceux du shell, puis ceux des plugins chargés."
     >
       <Stack gap="3">
-        <AVenir component="ShortcutHint" task="16" inline>
-          <span><Kbd :keys="['g']" /> puis <Kbd :keys="['p']" /></span>
-        </AVenir>
         <DataGrid label="Raccourcis" :columns="shortcutColumns" :rows="shortcuts" row-key="id">
           <template #cell="{ row, column, value }">
             <span v-if="column.id === 'keys'">
               <span class="k-visually-hidden">Touches : </span>
-              <template v-for="(step, i) in row.keys" :key="i"
-                ><template v-if="i > 0"> puis </template><Kbd :keys="step"
-              /></template>
+              <ShortcutHint :keys="row.keys" />
             </span>
             <template v-else>{{ value }}</template>
           </template>

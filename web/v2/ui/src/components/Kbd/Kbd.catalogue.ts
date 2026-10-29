@@ -7,12 +7,17 @@ import Kbd from "./Kbd.vue";
 
 export default {
   component: Kbd,
+  // A sequence (g then d) is not one combination: `ShortcutHint` writes it.
   pattern: "— (kbd imbriqués d'une combinaison)",
   states: [
     { name: "palette", description: "Palette de commandes", props: { keys: ["Mod", "k"] } },
     { name: "single", description: "Une touche (filtre de la vue)", props: { keys: ["/"] } },
-    { name: "sequence", description: "Navigation g puis d", props: { keys: ["g", "d"] } },
     { name: "named", description: "Touches nommées", props: { keys: ["Mod", "Enter"] } },
+    {
+      name: "shift",
+      description: "Maj+Espace (étendre la sélection de lignes)",
+      props: { keys: ["Shift", " "] },
+    },
     { name: "arrows", description: "Flèches", props: { keys: ["Alt", "ArrowDown"] } },
     { name: "escape", description: "Échap", props: { keys: ["Escape"] } },
   ],

@@ -1,0 +1,8 @@
+- main:
+  - region "Button":
+    - heading "Button" [level=1]
+    - paragraph: "Motif : Button"
+    - 'figure "forbidden — Interdit par les droits : focalisable, aria-disabled, « Il faut … » au focus"':
+      - button "Modifier" [disabled]
+      - code: forbidden
+      - text: ""

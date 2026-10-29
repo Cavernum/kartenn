@@ -1,0 +1,8 @@
+- main:
+  - region "ShortcutHint":
+    - heading "ShortcutHint" [level=1]
+    - paragraph: "Motif : — (une combinaison, ou une séquence de combinaisons jointes par « puis »)"
+    - figure "sentence — Dans une phrase d'aide":
+      - paragraph: Pour aller aux préfixes, taper g puis p hors d'un champ.
+      - code: sentence
+      - text: ""

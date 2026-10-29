@@ -2,7 +2,7 @@
   - region "Kbd":
     - heading "Kbd" [level=1]
     - paragraph: "Motif : — (kbd imbriqués d'une combinaison)"
-    - figure "sequence — Navigation g puis d":
-      - text: g d
-      - code: sequence
+    - figure "shift — Maj+Espace (étendre la sélection de lignes)":
+      - text: Maj Espace
+      - code: shift
       - text: ""

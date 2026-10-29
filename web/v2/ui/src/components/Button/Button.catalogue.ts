@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { h } from "vue";
+import { defineComponent, h, ref } from "vue";
 import type { CatalogueEntry } from "../../catalogue.ts";
 import Cluster from "../Cluster/Cluster.vue";
 import Stack from "../Stack/Stack.vue";
@@ -26,6 +26,54 @@ const Alignment = () =>
       ]),
     ),
   );
+
+/**
+ * The buttons of the keyboard script (APG Button; e2e/components/button.spec.ts): an
+ * action, a toggle, a busy one, a disabled one, a refused one and an icon button, in the
+ * order of the tabs; what each activation ran is said under them.
+ */
+const Keyboard = defineComponent({
+  setup() {
+    const said = ref("");
+    const filters = ref(false);
+    let saves = 0;
+    const ran = (what: string) => () => (said.value = `Activé : ${what}`);
+    return () =>
+      h(Stack, { gap: "2", align: "start" }, () => [
+        h(Cluster, { gap: "2" }, () => [
+          h(
+            Button,
+            {
+              variant: "primary",
+              onClick: () => (said.value = `Activé : Enregistrer (${++saves})`),
+            },
+            () => "Enregistrer",
+          ),
+          h(
+            Button,
+            {
+              icon: "funnel",
+              pressed: filters.value,
+              onClick: () => {
+                filters.value = !filters.value;
+                ran(filters.value ? "Filtres montrés" : "Filtres cachés")();
+              },
+            },
+            () => "Filtres",
+          ),
+          h(Button, { loading: true, onClick: ran("Recharger") }, () => "Recharger"),
+          h(Button, { disabled: true, onClick: ran("Supprimer") }, () => "Supprimer"),
+          h(
+            Button,
+            { icon: "pencil", forbidden: "prefix.edit", onClick: ran("Modifier") },
+            () => "Modifier",
+          ),
+          h(IconButton, { icon: "copy", label: "Copier", onClick: ran("Copier") }),
+        ]),
+        h("p", { role: "status", class: "k-cat-note" }, said.value),
+      ]);
+  },
+});
 
 /** The four variants at rest, side by side. */
 const Variants = () =>
@@ -86,6 +134,12 @@ export default {
       slot: "Appliquer",
     },
     {
+      name: "forbidden",
+      description: "Interdit par les droits : focalisable, aria-disabled, « Il faut … » au focus",
+      props: { icon: "pencil", forbidden: "prefix.edit" },
+      slot: "Modifier",
+    },
+    {
       name: "danger",
       description: "Destructif",
       props: { variant: "danger", icon: "trash" },
@@ -98,6 +152,13 @@ export default {
       description: "Bouton, champ, bouton-icône et pastilles côte à côte, par taille",
       props: {},
       demo: Alignment,
+      wide: true,
+    },
+    {
+      name: "keyboard",
+      description: "Au clavier : action, bascule, occupé, désactivé, interdit, bouton-icône",
+      props: {},
+      demo: Keyboard,
       wide: true,
     },
   ],

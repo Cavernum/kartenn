@@ -14,13 +14,21 @@
       - button "Créer"
       - code: primary
       - text: ""
-    - figure "hover — Survol":
+    - 'figure "hover — Survol : son nom en infobulle, après un délai"':
       - button "Modifier"
       - code: hover
       - text: ""
-    - figure "focus — Focus visible":
+    - 'figure "focus — Focus visible : son nom en infobulle, aussitôt"':
       - button "Modifier"
       - code: focus
+      - text: ""
+    - figure "shortcut — Raccourci dans l'infobulle (aria-keyshortcuts)":
+      - button "Replier la barre latérale"
+      - code: shortcut
+      - text: ""
+    - 'figure "forbidden — Interdit : son nom puis « Il faut … » en infobulle, la raison en description"':
+      - button "Supprimer" [disabled]
+      - code: forbidden
       - text: ""
     - figure "pressed — Bascule enfoncée":
       - button "Barre latérale" [pressed]

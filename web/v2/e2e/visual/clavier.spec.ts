@@ -554,7 +554,9 @@ test.describe("Toolbar", () => {
     const remove = bar.getByRole("button", { name: "Supprimer" });
     await expect(remove).toBeFocused();
     await expect(remove).toHaveAttribute("aria-disabled", "true");
-    await expect(page.getByRole("tooltip")).toHaveText("Il faut prefix.delete");
+    // An icon button: its name, then the reason, which alone describes it.
+    await expect(page.getByRole("tooltip")).toHaveText(/^Supprimer\s*Il faut prefix\.delete$/);
+    await expect(remove).toHaveAccessibleDescription("Il faut prefix.delete");
     await page.keyboard.press("Enter");
     await expect(page.getByRole("status")).toHaveText("");
     await page.keyboard.press("Home");
@@ -583,20 +585,6 @@ test.describe("Toolbar", () => {
     ]);
     await page.getByRole("menuitem", { name: "Exporter" }).click();
     await expect(page.getByRole("status")).toHaveText("Action : export");
-  });
-});
-
-test.describe("Tooltip", () => {
-  test("opens on hover after a delay, stays over itself, closes on leaving", async ({ page }) => {
-    await state(page, "Tooltip", "forbidden");
-    const edit = page.getByRole("button", { name: "Modifier" });
-    await edit.hover();
-    const tip = page.getByRole("tooltip");
-    await expect(tip).toHaveText("Il faut prefix.edit");
-    await tip.hover();
-    await expect(tip).toBeVisible();
-    await page.mouse.move(0, 0);
-    await expect(tip).toBeHidden();
   });
 });
 
@@ -954,7 +942,9 @@ test.describe("Refusals of a read-only object (E7, 024/M14)", () => {
       const remove = panel.getByRole("button", { name: /^Retirer .* du groupe$/ }).first();
       await expect(remove).toHaveAttribute("aria-disabled", "true");
       await remove.hover();
-      await expect(page.getByRole("tooltip")).toHaveText(member);
+      // An icon button: its name, then the reason.
+      await expect(page.getByRole("tooltip")).toContainText(member);
+      await expect(remove).toHaveAccessibleDescription(member);
       await page.mouse.move(0, 0);
       for (const name of ["Ajouter un rôle", /^Modifier le rôle/, /^Retirer le rôle/]) {
         await expect(panel.getByRole("button", { name }).first()).toHaveAttribute(
