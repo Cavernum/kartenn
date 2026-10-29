@@ -359,6 +359,11 @@ hauteur, jamais de largeur ; hauteur réglable par une poignée (clavier et poin
 menu de hauteur comme le menu de largeur du panneau de droite, WCAG 2.5.7), onglets,
 fermeture, retour du focus. Le choix entre droite et bas suit le contenu, pas l'écran ;
 en classe compacte, il devient la même feuille plein écran que le panneau de droite.
+Les deux ouverts (classes large et standard), le panneau du bas court jusqu'au trait du
+panneau de droite, sous la marge que celui-ci garde pour la moitié extérieure de sa
+poignée (prop `besidePanel`) : aucune bande du fond de page entre les deux, comme contre la
+languette du panneau fermé ; son contenu, sa croix et son pied restent hors de la poignée
+(retour du 2026-10-29).
 
 Poignées et contours des panneaux : trait de 1 px au repos, 2 px au survol et au focus,
 transition de couleur en jetons (§ Mouvement) ; la cible de 24 px reste invisible.
