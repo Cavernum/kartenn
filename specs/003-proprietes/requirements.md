@@ -35,6 +35,9 @@ Décisions : [`decisions.md`](decisions.md) (P1–P14) ; D19, D21–D27, D30, D3
 ### A. Déclaration
 
 #### REQ-003-1 — Déclarants
+*Amendée par la 016 (REQ-016-6, 2026-10-21) : une liste fermée déclarée par un
+administrateur se lit par la lecture groupée et porte une obligation de module (vérifié
+par un test, sans changement).*
 kartenn doit permettre à un module de déclarer des propriétés dans son code, et à un
 administrateur d'en déclarer à l'exécution avec les seuls types intégrés (P1).
 
@@ -63,6 +66,8 @@ déclarant dont les permissions `<déclarant>.settings.*` gardent les paramètre
 et `core` : le cœur).*
 
 #### REQ-003-3 — Contenu d'une déclaration
+*Amendée par la 016 (REQ-016-2, 2026-10-21) : une liste fermée peut emprunter les valeurs
+d'une autre déclaration du même déclarant (`values_of`).*
 kartenn doit exiger qu'une déclaration précise : type et paramètres du type,
 cardinalité (valeur unique ou ensemble), types d'objets porteurs, héritabilité et arbre
 suivi (REQ-003-11) et permission d'écriture (REQ-003-17). Une déclaration ne porte
@@ -109,6 +114,8 @@ kartenn doit fournir les types : liste fermée, texte, entier, booléen, date, F
 référence (P2), chacun en valeur unique ou en ensemble.
 
 #### REQ-003-8 — Validation par type
+*Amendée par la 016 (REQ-016-3, 2026-10-21) : `external_ref` (système clos refusé,
+identifiant non vérifié).*
 Si une valeur ne respecte pas son type et ses paramètres, alors kartenn doit refuser
 l'écriture en citant la contrainte violée. Règles :
 - liste fermée : valeur valide à la date de l'affectation ;
@@ -136,6 +143,8 @@ Acceptation :
   Ajouté le 2026-10-14 (P11).
 
 #### REQ-003-10 — Références et clôture
+*Amendée par la 016 (REQ-016-2, 2026-10-21) : clôture refusée d'une valeur de liste
+partagée citée par l'une ou l'autre propriété.*
 Si la clôture d'un objet laisserait une affectation de type référence sans cible valide
 sur une période, alors kartenn doit refuser l'écriture en listant ces affectations (D33).
 
@@ -165,12 +174,15 @@ kartenn doit permettre d'affecter explicitement « aucune valeur » à une propr
 l'objet et ses descendants sans affectation propre résolvent alors une valeur absente (P4).
 
 #### REQ-003-14 — Explication
+*Amendée par la 016 (REQ-016-1, 2026-10-21) : explication rendue aussi par la lecture
+groupée (K propriétés, N objets).*
 kartenn doit restituer pour toute valeur résolue : la valeur, l'objet d'origine (lui-même
 ou un ancêtre), la chaîne d'objets parcourue, la provenance de l'affectation (saisie, ou
 valeur par défaut d'une source d'inférence avec sa version, REQ-003-22) et, s'il y a lieu,
 la valeur héritée qu'elle remplace.
 
 #### REQ-003-15 — Résolution datée
+*Amendée par la 016 (REQ-016-1, 2026-10-21) : résolution datée en lecture groupée.*
 kartenn doit résoudre une propriété à tout couple (`valid_at`, `as_of`) (D10), en
 tenant compte de l'arbre tel qu'il était à `valid_at` (D34).
 
@@ -271,6 +283,8 @@ kartenn doit permettre de filtrer les objets par valeur résolue d'une propriét
 date, présence ou absence), à une date donnée.
 
 #### REQ-003-26 — Budgets
+*Amendée par la 016 (REQ-016-1, 2026-10-21) : lecture groupée de 6 propriétés pour 512
+objets, p95 < 30 ms.*
 kartenn doit respecter, sur le jeu de 10⁶ objets de REQ-002-45 avec 10 propriétés dont 3
 héritables : résolution expliquée d'une propriété pour un objet < 50 ms ; page filtrée
 par valeur résolue < 150 ms ; changeset touchant jusqu'à 10⁴ objets < 2,5 s, historique
