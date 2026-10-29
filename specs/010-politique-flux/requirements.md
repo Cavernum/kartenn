@@ -653,8 +653,9 @@ politique d'un changeset de règles < 1 s ; rapport d'audit < 10 min (S20, D14).
 
 - [x] S36 et REQ-010-55 (aperçu de l'inférence dans le différentiel, pour REQ-017-34) :
   acceptés par l'utilisateur le 2026-10-23.
-- [ ] Budgets de REQ-010-28 et REQ-010-54 : tenus en variante réduite par le banc
-  `bench-policy` (2026-10-22, tâche 010-19) ; à confirmer sur le jeu de 10⁶ objets.
-  Le rapport d'audit y dépassait le budget (≈ 990 s). (Claude, tâches 010-1 et 010-19)
+- [x] Budgets de REQ-010-28 et REQ-010-54 : tenus en variante réduite par le banc
+  `bench-policy` (2026-10-22, tâche 010-19), puis au banc complet sur le jeu de 10⁶
+  objets les 2026-10-23, 24 et 29 (rapport d'audit 38,8 s pour 10 min le 2026-10-29 ;
+  `docs/spec/invariants.md` § Performance). (Claude, tâches 010-1 et 010-19)
 - [ ] Exigences envers le noyau N25 à N33 (design, § Exigences) : à porter dans les specs
   003 à 005 avant la v0.2. (Claude)

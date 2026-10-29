@@ -153,6 +153,11 @@ ensemble) ; la réévaluation complète passe de 218 s à 121 s, le rapport d'au
 Le contrôle de l'inférence, mesuré par différence de deux médianes de 5 s, reste dans le
 bruit (0 à 0,7 s selon la charge) : la mesure, pas le code, est à revoir.
 
+Repassé au banc complet le 2026-10-29 (5627c86b) : tous les budgets tiennent (paire
+26,6 ms, interface × interface 21,7 ms, port brut 22,6 ms, différentiel 588 ms, rapport
+38,8 s, suggestion 12,8 ms, contrôle +330 ms, aperçu 2,11 s, réévaluation complète de
+l'inférence 204 s).
+
 Le contrôle de l'inférence se mesure par différence des médianes de trois changesets de
 10⁴ adresses avec et sans la source (5,5 s et 5,9 s au passage retenu) : l'écart est
 dans le bruit, et la part de la source, chronométrée à part, est la lecture des vues

@@ -518,7 +518,8 @@ porte `dépend de :` ; les tâches sans dépendance commune avancent en parallè
     seaux (amendement de l'ADR 0015) et instance des bancs (ADR 0032) reportés dans
     l'architecture et § Performance. Les budgets ne sont reportés qu'en **variante
     réduite**, comme telle (ADR 0030, `docs/spec/invariants.md` § Performance) : leur
-    report sur le jeu complet appartient à 010-1 et 010-19, qui restent ouvertes.
+    report sur le jeu complet appartient à 010-1 et 010-19 (fait depuis : banc complet
+    tenu les 2026-10-23, 24 et 29).
 
 ## P5 — Amendements
 
