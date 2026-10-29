@@ -53,6 +53,13 @@ const props = withDefaults(
      * the cross, no handle, the focus moved to its active tab when it opens.
      */
     sheet?: boolean;
+    /**
+     * A `SidePanel` open in the flow at its end (beside the host, not `cover` nor `sheet`):
+     * the panel runs on under the gap kept before that panel, so that the two meet on the
+     * line of its handle; its content stays clear of the outer half of that handle.
+     * Ignored with `sheet`.
+     */
+    besidePanel?: boolean;
   }>(),
   { id: undefined, min: 160, max: 640, step: 16 },
 );
@@ -222,6 +229,7 @@ function onPointerup(event: PointerEvent): void {
       :aria-label="props.label"
       :style="size"
       :data-sheet="props.sheet ? 'true' : undefined"
+      :data-beside-panel="props.besidePanel && !props.sheet ? 'true' : undefined"
       @keydown="onKeydown"
     >
       <!-- The back button of a sheet comes first, where it shows. -->
@@ -403,6 +411,34 @@ function onPointerup(event: PointerEvent): void {
     justify-content: end;
     padding: var(--k-space-2) var(--k-space-3);
     border-block-start: var(--k-border-width) solid var(--k-border);
+  }
+
+  /* Beside a side panel open at its end (`besidePanel`): it runs on under the gap kept
+   * before that panel (its `margin-inline-start`, where the outer half of its handle lies),
+   * so that no strip of the page shows between the two panels: they meet on the line of the
+   * handle, as either meets the strip of the closed side panel (retour du 2026-10-29). Its
+   * handle, tab list and footer run on to that line; its tab panel, actions and footer
+   * content stay clear of the handle. */
+  .k-bottom-panel[data-beside-panel] {
+    margin-inline-end: calc(var(--k-space-3) * -1);
+  }
+
+  .k-bottom-panel[data-beside-panel] > .k-bottom-panel__tabs > .k-tabs__list {
+    padding-inline-end: calc(
+      var(--k-control-height-sm) * 2 + var(--k-space-1) + var(--k-space-2) * 2 + var(--k-space-3)
+    );
+  }
+
+  .k-bottom-panel[data-beside-panel] > .k-bottom-panel__tabs > .k-tabs__panel {
+    margin-inline-end: var(--k-space-3);
+  }
+
+  .k-bottom-panel[data-beside-panel] > .k-bottom-panel__actions {
+    inset-inline-end: calc(var(--k-space-2) + var(--k-space-3));
+  }
+
+  .k-bottom-panel[data-beside-panel] > .k-bottom-panel__footer {
+    padding-inline-end: calc(var(--k-space-3) * 2);
   }
 }
 </style>
