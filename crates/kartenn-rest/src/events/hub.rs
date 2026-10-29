@@ -361,6 +361,22 @@ pub struct Opened {
     pub reset: Option<ResetReason>,
 }
 
+/// The notices of a page are decided by slices of this many (REQ-022-28).
+const PAGE_SLICE: usize = 256;
+
+/// A page of the JSON catch-up (REQ-022-28).
+#[derive(Debug)]
+pub struct Paged {
+    /// The events, by number, each one's `floor` its own number.
+    pub events: Vec<Message>,
+    /// Why it starts over, if it does: then no event.
+    pub reset: Option<ResetReason>,
+    /// The floor of the cursor after the page.
+    pub floor: i64,
+    /// Whether the page holds `size` events: more may follow at once.
+    pub full: bool,
+}
+
 /// The hub of an instance.
 #[derive(Debug)]
 pub struct Hub {
@@ -621,6 +637,15 @@ impl Hub {
         {
             return Ok((s.clone(), false));
         }
+        let scope = self.read_scope(key).await?;
+        lock(&self.scopes).insert(key.clone(), scope.clone());
+        let changed =
+            before.is_some_and(|b| b.everywhere != scope.everywhere || b.json != scope.json);
+        Ok((scope, changed))
+    }
+
+    /// The read scope of `key` read from the base now, outside the cache.
+    async fn read_scope(&self, key: &SubjectKey) -> Result<Scope, StoreError> {
         let authorizer = PgAuthorizer::new(self.pool.clone()).with_modules(self.modules.clone());
         let read = authorizer
             .read_scope(&key.subject(), time::OffsetDateTime::now_utc())
@@ -639,15 +664,11 @@ impl Hub {
                 }
             }
         }
-        let scope = Scope {
+        Ok(Scope {
             everywhere,
             json: serde_json::Value::Object(rest),
             at: Instant::now(),
-        };
-        lock(&self.scopes).insert(key.clone(), scope.clone());
-        let changed =
-            before.is_some_and(|b| b.everywhere != scope.everywhere || b.json != scope.json);
-        Ok((scope, changed))
+        })
     }
 
     /// Reads the scope of `key` at the opening of a stream, so that a later change of its
@@ -780,18 +801,24 @@ impl Hub {
         }
     }
 
-    /// What each of `subjects` may see of `notices` now: one query for all of them
-    /// (design « Visibilité par lot »).
-    async fn sights(
-        &self,
-        subjects: &[SubjectKey],
-        notices: &[Arc<Notice>],
-        kinds: &HashMap<Uuid, String>,
-    ) -> Result<Vec<(Scope, HashSet<Uuid>, HashSet<Uuid>)>, StoreError> {
+    /// The read scopes of `subjects`, kept [`Settings::recheck`].
+    async fn scopes(&self, subjects: &[SubjectKey]) -> Result<Vec<Scope>, StoreError> {
         let mut scopes = Vec::with_capacity(subjects.len());
         for s in subjects {
             scopes.push(self.scope(s).await?);
         }
+        Ok(scopes)
+    }
+
+    /// What each of `subjects`, under its scope in `scopes`, may see of `notices` now:
+    /// one query for all of them (design « Visibilité par lot »).
+    async fn sights(
+        &self,
+        subjects: &[SubjectKey],
+        scopes: Vec<Scope>,
+        notices: &[Arc<Notice>],
+        kinds: &HashMap<Uuid, String>,
+    ) -> Result<Vec<(Scope, HashSet<Uuid>, HashSet<Uuid>)>, StoreError> {
         let objects: Vec<Uuid> = kinds.keys().copied().collect();
         let asked: Vec<(i32, serde_json::Value)> = scopes
             .iter()
@@ -859,7 +886,7 @@ impl Hub {
     /// an event it has not delivered: below the next one delivered, at most `floor`.
     fn events_for(
         &self,
-        conn: &Conn,
+        filters: &Filters,
         notices: &[Arc<Notice>],
         sight: &dyn Sight,
         floor: i64,
@@ -867,7 +894,7 @@ impl Hub {
         let mut out: Vec<Message> = notices
             .iter()
             .filter_map(|n| {
-                render(n, &conn.filters, sight, self.settings.bound).map(|r| Message::Event {
+                render(n, filters, sight, self.settings.bound).map(|r| Message::Event {
                     kind: r.kind,
                     data: r.data,
                     objects: r.objects,
@@ -909,9 +936,9 @@ impl Hub {
         for n in notices {
             named(n, &mut kinds);
         }
-        let mut sights = self
-            .sights(std::slice::from_ref(&conn.subject), notices, &kinds)
-            .await?;
+        let subjects = std::slice::from_ref(&conn.subject);
+        let scopes = self.scopes(subjects).await?;
+        let mut sights = self.sights(subjects, scopes, notices, &kinds).await?;
         let (scope, visible, follows) = sights.pop().unwrap_or_else(|| {
             (
                 Scope {
@@ -930,7 +957,104 @@ impl Hub {
             visible,
             follows,
         };
-        Ok(self.events_for(conn, notices, &sight, floor))
+        Ok(self.events_for(&conn.filters, notices, &sight, floor))
+    }
+
+    /// A page of `subject` after `resume` (REQ-022-28): at most `size` events of the
+    /// ring above the floor of the cursor and up to the floor published, by number, under
+    /// the rights read now; or why it starts over. Nothing above the floor published: a
+    /// long transaction would hold the cursor there and a full page would come again.
+    ///
+    /// # Errors
+    ///
+    /// Database errors.
+    pub async fn page(
+        &self,
+        subject: &SubjectKey,
+        filters: &Filters,
+        resume: Option<Result<i64, ()>>,
+        size: usize,
+    ) -> Result<Paged, StoreError> {
+        let (mut notices, from, reset) = {
+            let inner = lock(&self.inner);
+            // Every number up to it is in the ring, below its bottom, or never will be.
+            let top = self.floor();
+            match resume {
+                None => (Vec::new(), top, None),
+                Some(Err(())) => (Vec::new(), top, Some(ResetReason::InvalidCursor)),
+                Some(Ok(from)) if from < inner.ring_floor => {
+                    (Vec::new(), top, Some(ResetReason::TooOld))
+                }
+                Some(Ok(from)) => (
+                    inner
+                        .ring
+                        .iter()
+                        .filter(|(_, n)| n.seq > from && n.seq <= top)
+                        .map(|(_, n)| n.clone())
+                        .collect::<Vec<_>>(),
+                    from.max(top),
+                    None,
+                ),
+            }
+        };
+        notices.sort_by_key(|n| n.seq);
+        let mut events = Vec::new();
+        if notices.is_empty() || size == 0 {
+            return Ok(Paged {
+                events,
+                reset,
+                floor: from,
+                full: false,
+            });
+        }
+        let subjects = std::slice::from_ref(subject);
+        // Read now, outside the cache that the recheck compares (`rights_changed`).
+        let scope = self.read_scope(subject).await?;
+        for slice in notices.chunks(PAGE_SLICE) {
+            let mut kinds = HashMap::new();
+            for n in slice {
+                named(n, &mut kinds);
+            }
+            let (scope, visible, follows) = self
+                .sights(subjects, vec![scope.clone()], slice, &kinds)
+                .await?
+                .pop()
+                .ok_or_else(|| StoreError("no sight for the subject of a page".into()))?;
+            let sight = SubjectSight {
+                identity: subject.identity,
+                everywhere: &scope.everywhere,
+                kinds: &kinds,
+                visible,
+                follows,
+            };
+            for n in slice {
+                let Some(r) = render(n, filters, &sight, self.settings.bound) else {
+                    continue;
+                };
+                events.push(Message::Event {
+                    kind: r.kind,
+                    data: r.data,
+                    objects: r.objects,
+                    seq: n.seq,
+                    floor: n.seq,
+                    time: n.time,
+                });
+                if events.len() == size {
+                    return Ok(Paged {
+                        events,
+                        reset: None,
+                        floor: n.seq,
+                        full: true,
+                    });
+                }
+            }
+        }
+        Ok(Paged {
+            events,
+            reset: None,
+            floor: from,
+            full: false,
+        })
     }
 
     /// Publishes a batch read by the reader, `floor` its floor (REQ-022-16, 20, 21):
@@ -954,7 +1078,11 @@ impl Hub {
             let mut subjects: Vec<SubjectKey> = conns.iter().map(|c| c.subject.clone()).collect();
             subjects.sort();
             subjects.dedup();
-            match self.sights(&subjects, &notices, &kinds).await {
+            let sights = match self.scopes(&subjects).await {
+                Ok(scopes) => self.sights(&subjects, scopes, &notices, &kinds).await,
+                Err(e) => Err(e),
+            };
+            match sights {
                 Ok(sights) => {
                     let by_subject: HashMap<&SubjectKey, SubjectSight<'_>> = subjects
                         .iter()
@@ -976,7 +1104,7 @@ impl Hub {
                         let Some(sight) = by_subject.get(&conn.subject) else {
                             continue;
                         };
-                        for message in self.events_for(conn, &notices, sight, floor) {
+                        for message in self.events_for(&conn.filters, &notices, sight, floor) {
                             self.send(conn, message);
                         }
                     }

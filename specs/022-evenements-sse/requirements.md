@@ -30,7 +30,7 @@ délestage), 012 (audit, télémétrie), 016 (clés d'ordre, REQ-016-14, 15) ; A
 recommandées aux questions Q-022-1 à 12 ([`decisions.md`](decisions.md)). Implémentée le
 2026-10-23 (tâches 2 à 13, 15 à 18), budgets mesurés à l'échelle réduite seulement.
 Rattrapage JSON (Q-022-4, tâche 14) retenu par l'utilisateur le 2026-10-29 : REQ-022-28,
-qui amende REQ-022-1.
+qui amende REQ-022-1, implémentée le même jour.
 
 **Lecteurs du flux.** Un seul flux, deux façons de le lire : le shell web par
 `EventSource` (cookie de session BFF, `Origin` vérifié) ; la CLI, la bibliothèque Python

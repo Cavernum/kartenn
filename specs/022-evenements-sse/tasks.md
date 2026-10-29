@@ -214,10 +214,30 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     `nixos.md` (connexion `LISTEN` en plus). Aucun nom de produit : le réglage du tampon
     est décrit par l'en-tête `X-Accel-Buffering` que « des mandataires courants »
     respectent.
-- [ ] 14. (Facultative, Q-022-4) Rattrapage JSON : `GET /v1/events` avec `Accept:
-  application/json`, page après un curseur — verify : mêmes droits que le flux
-  - où : `crates/kartenn-rest/src/events.rs`, pagination de `cursor.rs`
+- [x] 14. (Q-022-4, retenue le 2026-10-29) Rattrapage JSON : `GET /v1/events` avec
+  `Accept: application/json`, page après un curseur — REQ-022-28 — verify : mêmes droits
+  que le flux
+  - où : `crates/kartenn-rest/src/events/mod.rs`, `events/hub.rs`, pagination de
+    `cursor.rs`
   - dépend de : 10
+  - fait : REQ-022-28 écrite d'abord (amende l'acceptation de REQ-022-1), design
+    « Rattrapage JSON ». `Hub::page` (avis de l'anneau `> f` et `≤` plancher publié,
+    triés par numéro, visibilité par tranches de 256, portée relue hors cache),
+    `events::page` (`EventPage`, `EventItem`, `links.next` + `Link` si pleine,
+    `data.objects.read`, `NotActivity`, `Vary: Accept`) ; le quota compte les pages
+    (`events::wants_page`) ; contrat de référence et `web/sdk/src/api/schema.d.ts`
+    régénérés. Tests `a_page_after_a_cursor_gives_the_events_by_bounded_pages`,
+    `a_page_holds_only_what_the_caller_may_read` (deux instances),
+    `a_page_starts_over_on_a_cursor_it_cannot_follow`,
+    `pages_wait_for_a_long_transaction_and_lose_nothing`,
+    `accept_asks_the_stream_a_page_or_neither`.
+  - choix : `application/json` nommé sans `text/event-stream` → page (`*/*` ou absent :
+    le flux) ; réponse alignée sur les listes (`items`, `links.next`) plus `cursor`, et
+    `next` seulement quand la page est pleine, pour qu'un paginateur générique s'arrête à
+    jour ; `id` de chaque élément = curseur `(seq, seq)`, compatible avec le flux ;
+    sans curseur → page vide au point de départ ; `reset` seul, sans
+    `links.next` ; pas de métriques `kartenn.events.*` pour les pages (lecture
+    ordinaire) ; critères d'audit = filtres, `page_size`, `resumed`.
 
 ## P5 — Contrat, audit, télémétrie
 

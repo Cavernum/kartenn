@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-24
+updated: 2026-10-29
 ---
 
 # Invariants
@@ -221,8 +221,8 @@ la porte.
 
 | ID | Invariant | Garantie | Test |
 |---|---|---|---|
-| INV-67 | Un abonné ne reçoit jamais un objet qu'il ne peut lire au moment de la remise, ni la trace d'un événement caché (ni événement, ni curseur hors des points de reprise) | App (visibilité par lot, `kartenn_visible`) | `rest/tests/it/events.rs` (`the_objects_delivered_are_those_each_subscriber_may_read`, `a_subscriber_receives_only_what_it_may_read_and_asked_for`) |
-| INV-68 | Une reprise depuis un curseur ne saute aucun événement validé après lui et visible, même après une transaction longue ; sinon `reset`. Doublons seulement à la reprise, reconnaissables (identité, révision) | Plancher porté par le curseur chiffré | `rest/tests/it/events.rs` (`resumptions_lose_nothing_and_duplicate_only_on_resumption`, `a_resumption_on_another_instance_loses_nothing`) ; `service/tests/it/events_floor.rs` |
+| INV-67 | Un abonné ne reçoit jamais un objet qu'il ne peut lire au moment de la remise, ni la trace d'un événement caché (ni événement, ni curseur hors des points de reprise) | App (visibilité par lot, `kartenn_visible`) | `rest/tests/it/events.rs` (`the_objects_delivered_are_those_each_subscriber_may_read`, `a_subscriber_receives_only_what_it_may_read_and_asked_for`, page JSON `a_page_holds_only_what_the_caller_may_read`) |
+| INV-68 | Une reprise depuis un curseur ne saute aucun événement validé après lui et visible, même après une transaction longue ; sinon `reset`. Doublons seulement à la reprise, reconnaissables (identité, révision) | Plancher porté par le curseur chiffré | `rest/tests/it/events.rs` (`resumptions_lose_nothing_and_duplicate_only_on_resumption`, `a_resumption_on_another_instance_loses_nothing`, page JSON `pages_wait_for_a_long_transaction_and_lose_nothing`, `a_page_starts_over_on_a_cursor_it_cannot_follow`) ; `service/tests/it/events_floor.rs` |
 | INV-69 | Le coût du flux en base ne dépend pas du nombre de connexions | Lecteur partagé par instance, une requête de visibilité par lot | Banc `bench-events` (requêtes du lecteur comptées) |
 | INV-70 | Un abonné lent ne retarde ni le lecteur ni les autres abonnés | Tampon borné, `try_send`, `reset` `overflow` | `rest/tests/it/events.rs` (`a_slow_subscriber_delays_no_one_and_starts_over`) |
 | INV-71 | Latence validation → écriture p95 < 500 ms, p99 < 1 s à 50 écritures/s et 2 000 flux ; 5 000 flux par instance, < 64 Kio par flux ; 5 000 reprises en 10 s ; surcoût du lecteur < 5 % du changeset unitaire | Banc `bench-events` | Banc `bench-events` |

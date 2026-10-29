@@ -416,8 +416,11 @@ pub async fn layer(
     next: Next,
 ) -> Response {
     let path = request.uri().path();
-    // The event stream has ceilings of its own (spec 022, REQ-022-22).
-    if !(path == "/v1" || path.starts_with("/v1/")) || path == "/v1/events" {
+    // The event stream has ceilings of its own (spec 022, REQ-022-22); a page of its
+    // catch-up is an ordinary read (REQ-022-28).
+    if !(path == "/v1" || path.starts_with("/v1/"))
+        || (path == "/v1/events" && !crate::events::wants_page(request.headers()))
+    {
         return next.run(request).await;
     }
     let context = request
