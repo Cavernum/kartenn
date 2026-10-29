@@ -1,6 +1,6 @@
 ---
-status: in-progress
-updated: 2026-10-23
+status: implemented
+updated: 2026-10-29
 ---
 <!-- Implémentées sauf REQ-010-28 et 54 (budgets : banc 010-19 écrit, tenu en variante réduite, jeu complet à mesurer) et REQ-010-55 (S36, acceptée le 2026-10-23, tâche 010-22). -->
 
@@ -657,5 +657,5 @@ politique d'un changeset de règles < 1 s ; rapport d'audit < 10 min (S20, D14).
   `bench-policy` (2026-10-22, tâche 010-19), puis au banc complet sur le jeu de 10⁶
   objets les 2026-10-23, 24 et 29 (rapport d'audit 38,8 s pour 10 min le 2026-10-29 ;
   `docs/spec/invariants.md` § Performance). (Claude, tâches 010-1 et 010-19)
-- [ ] Exigences envers le noyau N25 à N33 (design, § Exigences) : à porter dans les specs
-  003 à 005 avant la v0.2. (Claude)
+- [x] Exigences envers le noyau N25 à N33 (design, § Exigences) : portées par la spec
+  016, implémentée (REQ-016-1, 3 à 6, 12, 13 ; vérifié le 2026-10-29). (Claude)

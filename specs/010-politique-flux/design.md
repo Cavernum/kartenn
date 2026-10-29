@@ -473,19 +473,19 @@ module suit la table de couverture de l'ADR 0026.
 
 | # | Exigence | État |
 |---|---|---|
-| N9 | **Lecture groupée** des valeurs résolues de plusieurs propriétés avec explication pour N objets à (`valid_at`, `as_of`) : 512 objets < 30 ms | à prévoir (tâche 010-2) |
+| N9 | **Lecture groupée** des valeurs résolues de plusieurs propriétés avec explication pour N objets à (`valid_at`, `as_of`) : 512 objets < 30 ms | tenu (REQ-016-1, `reads::resolved_many` ; appelé par 010-2) |
 | N17 | Propriété ensemble de liste fermée, héritable, avec remplacement, explication, filtrage et obligation par domaine | tenu (REQ-003-9, 11 à 16, 25) |
 | N18 | Différentiel de propriétés complet disponible avant les contrôles et dans la simulation | tenu (REQ-003-19, 20) |
 | N19 | Déclencheur d'approbation sur une propriété, directe ou indirecte | tenu (REQ-004-40) |
-| N20 | Contrat de source de valeurs attendues amendé pour l'inférence (ancêtres, révision dynamique, lecture du module dans la transaction, lot) | à prévoir : amendement additif de la 003 (tâche 010-15) |
+| N20 | Contrat de source de valeurs attendues amendé pour l'inférence (ancêtres, révision dynamique, lecture du module dans la transaction, lot) | tenu (REQ-016-4, amendement additif de la 003 ; tâche 010-15 faite) |
 | N24 | Voir le design de la 011 | tenu |
-| N25 | Propriété de liste fermée **déclarée par un administrateur** (P1) désignable comme axe, avec les garanties d'une propriété de module (héritage, remplacement, explication, obligation par domaine, lecture groupée) | à vérifier (P1 de la 003 ; la désignation est une donnée du module) |
-| N26 | Type de valeur **référence externe** (système source en liste fermée administrable, identifiant, libellé en cache), comparable sur système et identifiant, sans vérification d'existence | à prévoir : nouveau type de valeur de la 003 |
+| N25 | Propriété de liste fermée **déclarée par un administrateur** (P1) désignable comme axe, avec les garanties d'une propriété de module (héritage, remplacement, explication, obligation par domaine, lecture groupée) | tenu (REQ-016-6, vérifie REQ-003-1 par un test, sans code ; la désignation est une donnée du module) |
+| N26 | Type de valeur **référence externe** (système source en liste fermée administrable, identifiant, libellé en cache), comparable sur système et identifiant, sans vérification d'existence | tenu (REQ-016-3 : type `external_ref`, liste `core.external_system`) |
 | N27 | Attribut par valeur de liste fermée (transverse) | tenu dans le module (`policy_value`, S2 amendée) ; rien à offrir par le noyau |
-| N28 | Source de valeurs attendues à **plusieurs candidats**, sans défaut, mode « suggestion seule » | à prévoir : avec N20 |
+| N28 | Source de valeurs attendues à **plusieurs candidats**, sans défaut, mode « suggestion seule » | tenu (REQ-016-5 : `Expected::Candidates`) |
 | N29 | **Simulation à blanc** d'un changeset non soumis, contributions de module comprises | tenu (REQ-004-9 ; sections calculées en simulation, ADR 0026 clause 13) |
 | N30 | Déclencheur d'approbation sur un **seuil d'héritiers** reclassés | tenu par un déclencheur de module (`policy.reclassify`) sur la section `policy.reclassified` ; s'appuie sur N5 |
-| N31 | **Identité agissant pour le compte d'un demandeur** sans compte kartenn, enregistrée comme auteur d'intention dans l'audit et le changeset | à prévoir : 004 (champ du changeset), 005, 012 (événement d'audit) |
+| N31 | **Identité agissant pour le compte d'un demandeur** sans compte kartenn, enregistrée comme auteur d'intention dans l'audit et le changeset | tenu (REQ-016-12, 13 : en-tête `Kartenn-On-Behalf-Of`, permission `core.identity.act_on_behalf`, `changeset.on_behalf_of`, événement d'audit) |
 | N32 | Permission **sans lecture des objets visés** (« demander un flux ») : opération dont le résultat est filtré, à concilier avec P7 | tenu dans le module (vérification de `policy.flow.request` sur l'entité, résultat filtré par le module) ; la 005 n'a qu'à admettre une permission de module portée par entité (clause 8) |
 | N33 | **Textes pédagogiques** versionnés avec l'objet, par langue | tenu dans le module (`policy_text`, S29) |
 
@@ -549,8 +549,8 @@ M7 (section des rattachements changés) est un besoin de la 011.
 - Les points différés N5, N14, N15 et le second volet de N7 de l'ADR 0026 sont livrés
   par les tâches de la 010 : s'ils ne s'ajoutent pas de façon additive, la 010 rouvre le
   contrat. L'ADR les a conçus comme méthodes à implémentation par défaut.
-- N9, N20, N26, N28, N31 touchent le noyau : à porter dans les specs 003 à 005 et 012
-  avant la v0.2.
+- N9, N20, N26, N28, N31 touchent le noyau : portés par la spec 016 (REQ-016-1, 3 à 5,
+  12, 13), implémentée.
 - La combinatoire du différentiel croît avec le nombre d'axes cités par une règle ;
   bornée par le budget exceptionnel.
 - Union permissive (D25) : une valeur transverse ouvre beaucoup ; mitigé par le
@@ -587,6 +587,6 @@ M7 (section des rattachements changés) est un besoin de la 011.
   amendement 3 (`operation_permissions`, `ModuleTx::actors`), amendement 4
   (`run_job_findings`, constats d'une tâche de fond journalisés dans un changeset
   système).
-- Amendements à prévoir : 003 (référence externe N26, source attendue N20 et N28,
-  lecture groupée N9) ; 004 et 012 (auteur d'intention N31) ; ADR 0018 (clés d'ordre de
+- Amendements faits par la 016 : 003 (référence externe N26, source attendue N20 et N28,
+  lecture groupée N9) ; 004 et 012 (auteur d'intention N31). Reste à prévoir : ADR 0018 (clés d'ordre de
   l'outbox, second volet de N6).
