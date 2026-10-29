@@ -1,0 +1,8 @@
+- main:
+  - region "ShortcutHint":
+    - heading "ShortcutHint" [level=1]
+    - paragraph: "Motif : — (une combinaison, ou une séquence de combinaisons jointes par « puis »)"
+    - 'figure "sequence — Une séquence : g puis p"':
+      - text: ""
+      - code: sequence
+      - text: ""

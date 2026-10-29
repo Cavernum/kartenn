@@ -113,7 +113,7 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 |---|---|---|
 | `Icon` | `aria-hidden` par défaut ; nom obligatoire si seule porteuse de sens (`meaningful` + `label`, vérifié au typage) | ◐ |
 | `Stack`, `Cluster`, `Grid`, `Split` | mise en page ; écart par `gap` (échelle), `Split` dans l'ordre de lecture | ◐ |
-| `Button`, `IconButton` | Button ; occupé = `aria-disabled` + `aria-busy` (reste focalisable), bascule `aria-pressed`, raccourci `aria-keyshortcuts` | ◐ |
+| `Button`, `IconButton` | Button ; occupé = `aria-disabled` + `aria-busy` (reste focalisable), bascule `aria-pressed`, raccourci `aria-keyshortcuts` ; `disabled` natif sort de l'ordre de tabulation : une action refusée avec motif prend `forbidden` ou `reason`, jamais `disabled` ; occupé ou refusé, un `submit` n'envoie rien ; `IconButton` : infobulle automatique de son nom et de son raccourci (`shortcut`), décorative, montée ouverte seulement ; refusé, son nom puis le motif, la description = le motif seul ; cibles ≥ 24 px (`sm` en compacte) | ● |
 | `TextField`, `FormField` | champ natif étiqueté ; erreur puis aide par `aria-describedby` | ◐ (`TextField`) |
 | `Select`, `Combobox` | Listbox ; Combobox | ☐ |
 | `FilterChip`, `FilterPicker` | Button + Combobox en séquence | ◐ (`FilterChip`) |
@@ -127,7 +127,7 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `Toolbar` | Toolbar ; actions repliées dans « … » par priorité ; sous 360 px, l'action principale seule ; entrées `more` toujours dans « … » (un seul « … » par barre) | ● |
 | `MatrixGrid` | Grid ; en-têtes de lignes et de colonnes figés ; croix de survol ou de la cellule active (`data-cross`, en-têtes compris) ; `axes` : sens lignes ↓ colonnes → au coin et pointes d'accent sur les bordures de la croix (`data-flow` : fin de l'en-tête source, bas de l'en-tête destination, début et haut de la cellule montrée ; pseudo-éléments, retournées en RTL) (virtualisation au-delà de 50 × 50 à venir) | ● |
 | `Toast` | `status` / `alert`, pause au survol et au focus | ☐ |
-| `Tooltip`, `Popover` | Tooltip (`useTooltip`, action refusée : `forbidden`, `reason` sur `Button`, `IconButton`, entrée de `Menu`) ; Dialog non modal | ◐ (`Tooltip` ●) |
+| `Tooltip`, `Popover` | Tooltip (`useTooltip`, action refusée : `forbidden`, `reason` sur `Button`, `IconButton`, entrée de `Menu`) : focus clavier (`:focus-visible`) aussitôt, survol après 300 ms, survolable, fermé au départ du focus ou du pointeur (le pointeur qui part laisse ouverte celle du focus clavier), ou d'un défilement qui déplace l'ancre ; ouverte par `listeners(enabled, { pin, passEscape })`, Échap la ferme où que soit le focus (1.4.13) : sous le pointeur seul, rien d'autre ne reçoit la touche ; sous le focus, la couche autour reste (défaut empêché), sauf `passEscape` (infobulle du nom d'un `IconButton`) : la touche va ensuite au contrôle (son dialogue, sa grille) ; jamais sur un bouton dont le menu est ouvert (`aria-expanded`) ; un clic l'épingle si `pin`, sinon la ferme ; Dialog non modal | ◐ (`Tooltip` ●) |
 | `Breadcrumb`, `SidebarNav` | Breadcrumb ; Disclosure dans `navigation` | ◐ |
 | `CommandPalette` | Combobox dans un Dialog modal (liste `position="inline"`, sans Viewport) | ◐ |
 | `DataGrid` | Grid (maison) ; une seule grille, lignes en `subgrid` (024) ; tri (`aria-sort`) et filtre de colonne (Alt+Bas, `filter`) ; navigation au clavier ; colonne de message `wrap` (va à la ligne) ; états de ligne `draft`, `review`, `removed` (barrée), ligne entrée dans un brouillon éclairée une fois (`data-fresh`) (virtualisation et édition à venir) ; racine conteneur, colonnes à `priority` masquées par `@container` et sélecteur « Colonnes » (`columnVisibility`), clé collante ; sélection Espace, Maj+Espace, Ctrl+A (`selectable` ou `"single"`) ; widgets d'une cellule hors tabulation (Entrée, F2, Échap) ; colonne jamais plus étroite que son en-tête ; erreur de cellule sur sa propre ligne | ◐ |
@@ -136,7 +136,7 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `CodeBadge`, `KeyLabel`, `EnvChip`, `StatusBadge` | Button (copier, nom = contenu, « Copier » caché) ; — | ◐ |
 | `Skeleton`, `EmptyState`, `ErrorState`, `InlineAlert` | `status` présent vide puis rempli, sans `aria-busy` (reflet en boucle `k-skeleton-fill`, fond fixe sous mouvement réduit) ; `alert` ; `status` | ◐ |
 | `DatePill`, `DraftCounter`, `TimeBand` | Button ; bascule du panneau (`aria-expanded`, `aria-controls` ; ouvert, icône en croix) et Menu Button des brouillons ; `status` | ◐ (`DraftCounter` ●) |
-| `Kbd`, `ShortcutHint` | — ; `kbd` imbriqués, noms de touches dans la langue | ◐ (`Kbd`) |
+| `Kbd`, `ShortcutHint` | — ; `Kbd` : une combinaison, `kbd` imbriqués, noms de touches dans la langue (Maj, Origine, Suppr) ; `ShortcutHint` : une combinaison ou une séquence (`[["g"], ["p"]]`, « g puis p »), jamais une séquence dans un seul `Kbd` ; `aria-keyshortcuts` pour une combinaison seulement (`shortcutAria`) | ● |
 | `DiffList` | liste groupée, Disclosure ; signe, mot caché, `del`/`ins` | ◐ |
 | `DiffValue` | `ins`/`del` en ligne : signe attaché à sa valeur, mot caché ; `changed` avant → après | ◐ |
 | `BarChart` | `role="img"` nommé par un résumé + table cachée ; SVG maison mesuré (`ResizeObserver`), infobulle décorative au survol ; l'image prend le focus, flèches de barre en barre (région `polite`) | ● |
@@ -155,7 +155,8 @@ annuler) ; `[` (barre latérale) ; `]` (panneau droit) ;
 Alt+Flèche bas sur un en-tête de grille (filtre de colonne, convention maison, dite dans
 l'aide). Un composant qui consomme les caractères (recherche à la saisie de l'arbre)
 porte `data-k-typeahead`. Les raccourcis à une touche se désactivent (WCAG 2.1.4) ; ils
-sont montrés par `Kbd` dans les menus et les infobulles, lus au registre du SDK.
+sont montrés par `Kbd` (une combinaison) ou `ShortcutHint` (une séquence) dans les menus,
+les infobulles et l'aide, lus au registre du SDK.
 
 ## 6. Pièges de Reka UI (prototype, `docs/spikes/005-framework-web.md`)
 
@@ -202,6 +203,9 @@ boutons primaires multiples dans une même zone.
   par `?etat=`, et vérifiée par axe sur sa page). Les couches flottantes vont dans
   `providePortalTarget` (le catalogue les garde dans `main`) ; les liens passent par
   `provideLink` (le routeur du shell). Captures : un état par mode, plus la page entière
-  en densité confortable.
+  en densité confortable ; un survol attend le délai d'une infobulle avant la capture.
+- Scripts clavier des composants de P4 : `web/v2/e2e/components/<composant>.spec.ts`
+  (projet `visual`, donc `k-web2-check`), sur un état du catalogue ouvert par `openState`
+  (horloge réelle) ; l'état `keyboard` d'un composant rassemble ce que le script joue.
 - Relectures : sous-agents `ui-reviewer` (maquette, brief, doublons) et `a11y-auditor`
   (motif APG, WCAG 2.2 AA) à la fin de chaque composant, maquette ou écran.

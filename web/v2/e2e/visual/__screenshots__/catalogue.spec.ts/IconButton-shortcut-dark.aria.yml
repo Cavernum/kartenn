@@ -1,0 +1,8 @@
+- main:
+  - region "IconButton":
+    - heading "IconButton" [level=1]
+    - paragraph: "Motif : Button (nom accessible obligatoire)"
+    - figure "shortcut — Raccourci dans l'infobulle (aria-keyshortcuts)":
+      - button "Replier la barre latérale"
+      - code: shortcut
+      - text: ""

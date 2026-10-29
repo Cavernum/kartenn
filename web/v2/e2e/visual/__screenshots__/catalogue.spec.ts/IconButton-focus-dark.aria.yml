@@ -2,7 +2,7 @@
   - region "IconButton":
     - heading "IconButton" [level=1]
     - paragraph: "Motif : Button (nom accessible obligatoire)"
-    - figure "focus — Focus visible":
+    - 'figure "focus — Focus visible : son nom en infobulle, aussitôt"':
       - button "Modifier"
       - code: focus
       - text: ""

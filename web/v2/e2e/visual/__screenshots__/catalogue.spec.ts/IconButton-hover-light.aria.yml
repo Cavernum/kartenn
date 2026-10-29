@@ -2,7 +2,7 @@
   - region "IconButton":
     - heading "IconButton" [level=1]
     - paragraph: "Motif : Button (nom accessible obligatoire)"
-    - figure "hover — Survol":
+    - 'figure "hover — Survol : son nom en infobulle, après un délai"':
       - button "Modifier"
       - code: hover
       - text: ""

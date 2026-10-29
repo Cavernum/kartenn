@@ -21,7 +21,6 @@ const LATER = [
   { component: "Popover", task: "21", where: "E2 (explication d'une propriété)" },
   { component: "Toast", task: "22", where: "E9 (accusé « proposé, en revue »)" },
   { component: "FormField", task: "17", where: "E7 (formulaire de liaison)" },
-  { component: "ShortcutHint", task: "16", where: "E8 (aide : touches en Kbd seules)" },
 ];
 
 /** Choices of the mock-ups to settle with the user (task 15). */

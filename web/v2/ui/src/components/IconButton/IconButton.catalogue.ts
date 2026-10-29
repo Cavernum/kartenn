@@ -26,15 +26,31 @@ export default {
     },
     {
       name: "hover",
-      description: "Survol",
+      description: "Survol : son nom en infobulle, après un délai",
       props: { icon: "pencil", label: "Modifier" },
       interaction: "hover",
     },
     {
       name: "focus",
-      description: "Focus visible",
+      description: "Focus visible : son nom en infobulle, aussitôt",
       props: { icon: "pencil", label: "Modifier" },
       interaction: "focus",
+    },
+    {
+      name: "shortcut",
+      description: "Raccourci dans l'infobulle (aria-keyshortcuts)",
+      props: { icon: "panel-left", label: "Replier la barre latérale", shortcut: ["["] },
+      interaction: "focus",
+    },
+    {
+      name: "forbidden",
+      description: "Interdit : son nom puis « Il faut … » en infobulle, la raison en description",
+      props: {
+        icon: "trash",
+        label: "Supprimer",
+        variant: "secondary",
+        forbidden: "prefix.delete",
+      },
     },
     {
       name: "pressed",

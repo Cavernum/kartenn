@@ -2,6 +2,9 @@ import { readdirSync } from "node:fs";
 import type { Page } from "@playwright/test";
 import { expectAccessible, open, snap, test } from "../fixtures/index.ts";
 
+/** The delay of a tooltip under the pointer (ui/src/components/Tooltip/tooltip.ts). */
+const TOOLTIP_DELAY = 300;
+
 // Captures of the catalogue (spec 020, task 9; REQ-020-26, 27, 28): each page and each
 // declared state of each component, in both modes; each component page and the tokens in
 // the comfortable density too.
@@ -63,7 +66,12 @@ async function interact(page: Page): Promise<void> {
     (await figure.getAttribute("data-target")) ??
     "button, a[href], input, select, textarea, [tabindex]:not([tabindex='-1'])";
   const target = figure.locator(".k-cat-state__render").locator(selector).first();
-  if (interaction === "hover") await target.hover();
+  if (interaction === "hover") {
+    await target.hover();
+    // A tooltip opens under the pointer after its delay (`TOOLTIP_DELAY`, 300 ms): the
+    // capture shows it, not the instant before.
+    await page.waitForTimeout(TOOLTIP_DELAY + 100);
+  }
   if (interaction === "focus") await target.focus();
   if (interaction === "press") {
     await target.click();

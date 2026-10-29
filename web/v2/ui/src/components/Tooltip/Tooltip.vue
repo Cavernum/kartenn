@@ -8,7 +8,8 @@
 // anchor (or after it, `side="inline-end"`), turned to the other side when it would leave
 // the viewport. Never the only bearer of a needed information: the anchor names it by
 // `aria-describedby` (the bubble stays in the document, hidden, when closed), or the host
-// says it otherwise and marks the bubble `decorative`. Placed through CSSOM (REQ-020-14).
+// says it otherwise and marks the bubble `decorative` (then it may be mounted only while
+// open: placed as soon as it is). Placed through CSSOM (REQ-020-14).
 import { nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { injectPortalTarget } from "../../context.ts";
 import type { TooltipControl } from "./tooltip.ts";
@@ -56,17 +57,28 @@ function place(): void {
   el.style.setProperty("--k-tooltip-y", `${Math.round(y)}px`);
 }
 
-/** The page moves under an open tooltip: it closes rather than float away from its anchor. */
-const onScroll = () => props.control.hide();
+/**
+ * The anchor moves under an open tooltip (the page or one of its scrolling ancestors
+ * scrolls): it closes rather than float away. A scroll elsewhere (a neighbouring list)
+ * leaves it open (WCAG 1.4.13, persistent).
+ */
+const onScroll = (event: Event) => {
+  const target = event.target;
+  const anchor = props.control.anchor.value;
+  if (target === document || (target instanceof Node && anchor && target.contains(anchor)))
+    props.control.hide();
+};
 watch(
   () => props.control.open.value,
-  async (open) => {
+  async (open, was) => {
     if (open) {
       await nextTick();
       place();
       window.addEventListener("scroll", onScroll, { capture: true, passive: true });
-    } else window.removeEventListener("scroll", onScroll, { capture: true });
+    } else if (was) window.removeEventListener("scroll", onScroll, { capture: true });
   },
+  // A bubble mounted open (an anchor that mounts it only then) is placed at once.
+  { immediate: true },
 );
 onBeforeUnmount(() => window.removeEventListener("scroll", onScroll, { capture: true }));
 </script>
@@ -129,6 +141,21 @@ onBeforeUnmount(() => window.removeEventListener("scroll", onScroll, { capture: 
 
   .k-tooltip[hidden] {
     display: none;
+  }
+
+  /* The name of an icon button and its shortcut, then what it adds (why it is refused). */
+  .k-tooltip__name {
+    display: flex;
+    gap: var(--k-space-2);
+    align-items: center;
+  }
+
+  .k-tooltip__name:has(+ .k-tooltip__detail) {
+    font-weight: var(--k-weight-medium);
+  }
+
+  .k-tooltip__detail {
+    display: block;
   }
 
   .k-tooltip code {
