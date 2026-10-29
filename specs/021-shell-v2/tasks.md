@@ -35,7 +35,7 @@ aucun en parallèle sur `@kartenn/ui` (020).
 
 ## P1 — SDK 1.0 (phase 3)
 
-- [ ] 25. Espace `web/v2/` : `pnpm-workspace.yaml` et lockfile propres, paquets `sdk`
+- [x] 25. Espace `web/v2/` : `pnpm-workspace.yaml` et lockfile propres, paquets `sdk`
   (copie de `web/sdk` passée en 1.0.0), `ui`, `shell`, `plugins`, `e2e` vides qui
   compilent ; `stylelint.config.js` ; étape `web/v2` de `scripts/ci.sh` ; commandes devenv
   `k-web2-check` et `k-web2-e2e` (sous `k-heavy`) ; configuration de test de
@@ -46,11 +46,34 @@ aucun en parallèle sur `@kartenn/ui` (020).
     `devenv.nix` `scripts.k-web-check`, `scripts.k-web-e2e` (vers les lignes 494 et 533) ;
     `web/e2e/kartenn.toml`, `web/e2e/serve.sh`
   - dépend de : —
-  - en cours : espace, lockfile, `ui`, `shell`, `e2e`, lint, étape de `ci.sh` et commandes
-    devenv faits avec la 020 (2026-10-23) ; paquet `sdk` copié le 2026-10-24 (1.0.0, MPL-2.0,
+  - fait : espace, lockfile, `ui`, `shell`, `e2e`, lint, étape de `ci.sh` et commandes
+    devenv avec la 020 (2026-10-23) ; paquet `sdk` copié le 2026-10-24 (1.0.0, MPL-2.0,
     `LICENSE`, contrat généré depuis `web/v2/sdk/scripts/gen.mjs`, test du paquet sur
     `tools/notices.ts`) ; `tokens` retiré du SDK (les jetons sont ceux de `@kartenn/ui`).
-    Reste : `plugins`, configuration de test de kartenn-server sur les builds de `web/v2/`.
+    Le 2026-10-29 : `plugins/*` dans l'espace, premier paquet `web/v2/plugins/example`
+    (`@kartenn/plugin-example` 1.0.0, MPL-2.0, manifeste `sdk: "^1.0"` sans extension,
+    `definePlugin` vide, build vers `web/v2/dist/plugins/example/1.0.0/`, test du paquet) ;
+    `web/v2/e2e/kartenn.toml` (`[web] root = "web/v2/dist/shell"`,
+    `plugins_dir = "web/v2/dist/plugins"`), `web/v2/e2e/serve.sh` (`idp`, `kartenn`),
+    `journeys.config.ts` et parcours `journeys/served.spec.ts` (shell servi sous la CSP du
+    serveur, carte d'import à trois entrées, aucune violation ; manifeste du plugin publié) ;
+    `k-web2-e2e` lance ces parcours, étape `e2e-v2` de `ci.sh`. Vérifié : `k-web2-check`
+    (318 tests, 1308 captures), `k-web2-e2e` (4 passés, Chromium et Firefox), `k-web-check`
+    (170) et `k-ci-lint` verts ; `[web] root` par défaut (`web/e2e/kartenn.toml`,
+    `nix/module.nix`, OCI) inchangé, sur l'ancien shell.
+  - choix : `plugins` est un dossier de paquets (`plugins/*`, comme `web/` et la 017 :
+    `web/v2/plugins/<nom>`, règle ESLint `plugins/*/src/**` déjà posée), pas un paquet
+    unique ; le paquet vide est l'amorce de l'exemple, que la tâche 19 remplit. Le build
+    externalise les trois modules de la carte d'import (`@kartenn/sdk`, `@kartenn/ui`,
+    `vue`). `plugins_dir` pointe directement sur `web/v2/dist/plugins` (pas de
+    rassemblement sous `.state` tant qu'aucun plugin de test n'est porté). Le matériel
+    (certificat, trousseau, émetteur de `web/e2e/users.toml`) reste celui de
+    `web/e2e/.state` jusqu'au portage des parcours (tâche 26) ; base `kartenn_e2e_v2`,
+    preuves de secours dans `web/e2e/.state/breakglass-v2.txt` ; mêmes ports que `web/e2e`,
+    sérialisés par `k-heavy --pg --all`. Les parcours ont leur propre configuration
+    Playwright (`journeys.config.ts`) : les `webServer` sont globaux à une configuration,
+    et les captures de `k-web2-check` ne doivent ni compiler kartenn-server ni attendre
+    PostgreSQL ; `playwright.config.ts` reste celle des captures.
 
 - [x] 2. Cache : `@tanstack/query-core` dans le SDK, `queryClient` unique, fabriques de
   clés (`keys.object`, `keys.list`, `keys.sub`, `timeKey`), fonction de requête sur le

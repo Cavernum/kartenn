@@ -56,6 +56,8 @@ step web-v2 k-web2-check
 step python k-py-check
 step python-wheels scripts/py-wheels.sh
 step e2e k-web-e2e
+# The journeys of the new shell, against kartenn-server on the builds of web/v2.
+step e2e-v2 k-web2-e2e
 step e2e-cli k-py-e2e
 [ "$nix_checks" -eq 0 ] || step nix k-heavy --all nix flake check --max-jobs 1 --cores 12
 

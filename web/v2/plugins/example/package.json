@@ -1,0 +1,15 @@
+{
+  "name": "@kartenn/plugin-example",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Example plugin of kartenn on the SDK 1.0, Custom Elements without a framework",
+  "license": "MPL-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kartenn/sdk": "workspace:*"
+  }
+}

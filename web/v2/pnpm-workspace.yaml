@@ -5,6 +5,7 @@ packages:
   - sdk
   - ui
   - shell
+  - plugins/*
   - e2e
 
 # openapi-typescript 7 declares TypeScript ^5 and generates the same types under 6.

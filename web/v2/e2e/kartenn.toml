@@ -1,0 +1,36 @@
+# kartenn-server of the journeys of the new shell (spec 021, REQ-021-31; task 25): the one
+# of web/e2e/kartenn.toml, but `[web]` on the builds of web/v2 — never in production, where
+# `[web] root` serves the old shell until the cutover. The material (certificate, key ring,
+# issuer) is the one web/e2e/serve.sh writes under web/e2e/.state, until the journeys are
+# ported. Started by web/v2/e2e/serve.sh; paths are relative to the repository.
+[telemetry]
+outputs = [{ kind = "stdout", filter = "warn" }]
+
+[http]
+listen = "127.0.0.1:9443"
+public_origin = "https://127.0.0.1:9443"
+
+[http.tls]
+cert_file = "web/e2e/.state/cert.pem"
+key_file = "web/e2e/.state/key.pem"
+
+[web]
+# `vite build` of web/v2/shell (production mode, without the catalogue).
+root = "web/v2/dist/shell"
+# The builds of web/v2/plugins/*, at web/v2/dist/plugins/<name>/<version>/.
+plugins_dir = "web/v2/dist/plugins"
+
+[auth]
+key_file = "web/e2e/.state/kartenn-keys"
+redirect_uri = "https://127.0.0.1:9443/v1/auth/callback"
+
+[[auth.issuers]]
+id = "dev"
+issuer = "https://127.0.0.1:9444"
+client_id = "kartenn"
+client_secret_file = "web/e2e/.state/idp-secret"
+audience = "kartenn"
+algorithms = ["ES256"]
+native_client_id = "kartenn-cli"
+native_scopes = ["openid", "offline_access"]
+native_device = true

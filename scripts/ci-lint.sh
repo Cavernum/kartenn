@@ -20,7 +20,7 @@ actionlint
 offline=--offline
 [ -z "${GH_TOKEN:-}" ] || offline=
 zizmor --quiet ${offline:+"$offline"} .github/workflows .github/dependabot.yml
-shellcheck --shell=dash scripts/*.sh web/e2e/serve.sh .claude/*.sh .claude/hooks/*.sh
+shellcheck --shell=dash scripts/*.sh web/e2e/serve.sh web/v2/e2e/serve.sh .claude/*.sh .claude/hooks/*.sh
 devenv=
 if [ -n "${K_DASH_SCRIPTS:-}" ]; then
   # shellcheck disable=SC2086 # a list of store paths, without blanks
