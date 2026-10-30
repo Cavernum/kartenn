@@ -63,4 +63,6 @@ Le coût d'une session croît avec la taille du contexte × le nombre de requêt
   `ref-researcher` (sonnet : RFC, drafts, docs officielles → brouillon de note),
   `spec-keeper` (sonnet : dérive spec/code), `Explore` avec `model: haiku` (balayage).
   Conception, implémentation, revue et arbitrages restent dans l'agent principal. Ne pas
-  déléguer la lecture d'un fichier qu'on va modifier.
+  déléguer la lecture d'un fichier qu'on va modifier. Exception : une session qui
+  orchestre plusieurs tâches confie chacune, entière, à `kartenn-tache` (son worktree, sa
+  branche, un rapport ; ni push ni fusion).
