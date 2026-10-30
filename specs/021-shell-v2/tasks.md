@@ -205,8 +205,9 @@ aucun en parallèle sur `@kartenn/ui` (020).
   de navigation (attente ≤ 100 ms), page suivante et enfants préchargés, modules de
   plugins au survol — REQ-021-22 — verify : parcours : navigation vers une fiche survolée
   sans squelette ; marque `k:view` ≤ 100 ms (banc, tâche 22)
-  - où : `web/shell/src/router.ts` ; `web/shell/src/plugins/loader.ts` (`modulepreload`)
-    ; `web/shell/src/data/recent.ts`
+  - où : `web/v2/shell/src/prefetch/` (`intent.ts`, `KLink.vue`, `nextPage.ts`,
+    `tree.ts`), `web/v2/shell/src/plugins/preload.ts`, `web/v2/sdk/src/data/prefetch.ts` ;
+    test `web/v2/shell/test/prefetch.test.ts` ; design § « Routes », « Préchargement »
   - dépend de : 2
   - en cours : partie SDK faite le 2026-10-24 — `web/v2/sdk/src/data/prefetch.ts` :
     `prefetch.intent(cible, requêtes)` (survol tenu 60 ms, focus immédiat, sortie avant le
@@ -216,22 +217,27 @@ aucun en parallèle sur `@kartenn/ui` (020).
     l'approche de la fin, enfants survolés, `modulepreload` des plugins, parcours et banc.
   - en cours : partie shell faite le 2026-10-30 — `web/v2/shell/src/prefetch/` :
     `intent.ts` (`RouteMeta.queries(params, time, query)` et `RouteMeta.modules(params)`
-    déclarés, `timeOf` : dates de la cible, sinon celles du contexte, comme `carryTime` ;
-    `queriesOf`, `intentOf`, `installPrefetch` : garde `beforeResolve` sur
-    `prefetch.guard`, posée dans `main.ts`, sans attente pour une route sans lectures),
-    `KLink.vue` (`useLink`, `aria-current="page"`, `prefetch.intent` sur son `<a>`),
-    `nextPage.ts` (`useNextPage(liste, fenêtre)` : page suivante lue à moins de deux écrans
-    de la fin des lignes chargées, une à la fois, rien pendant une lecture ni après la
-    dernière page), `tree.ts` (`childrenIntent(racine, enfants)` : un écouteur délégué sur
-    la racine d'un `TreeGrid`, enfants d'une ligne fermée lus après 60 ms de pointeur ou de
-    focus) ; `web/v2/shell/src/plugins/preload.ts` (`preloadModules` : un `modulepreload`
-    avec empreinte par module `.js` de `integrity`, une fois par URL, oublié s'il échoue).
-    Vitest (`shell/test/prefetch.test.ts`) : survol de 60 ms et passage sans lecture,
+    déclarés ; `timeOf` : dates de la cible, sinon celles du contexte au survol (comme
+    `carryTime`), le présent dans la garde (retour explicite au présent) ; `queriesOf`,
+    `preloadModulesOf`, `installPrefetch` : garde `beforeResolve` sur `prefetch.guard`,
+    posée dans `main.ts`, sans attente pour une route sans lectures), `KLink.vue`
+    (`useLink`, `aria-current="page"`, `prefetch.intent` sur son `<a>`), `nextPage.ts`
+    (`useNextPage(liste, fenêtre)` : page suivante lue à moins de deux écrans de la fin
+    des lignes chargées, `end` étant un index parmi les lignes chargées ; une à la fois,
+    rien pendant une lecture, après la dernière page ni après un échec de la page suivante
+    tant que la liste n'est pas relue), `tree.ts` (`childrenIntent(racine, enfants)` : un
+    écouteur délégué sur la racine d'un `TreeGrid`, enfants d'une ligne fermée lus après
+    60 ms de pointeur ou de focus) ; `web/v2/shell/src/plugins/preload.ts`
+    (`preloadModules` : un `modulepreload` avec empreinte par module `.js` de
+    `integrity`, une fois par URL, oublié s'il échoue). Vitest
+    (`shell/test/prefetch.test.ts`, 19 tests) : survol de 60 ms et passage sans lecture,
     focus immédiat, dates de la cible et du contexte, clic et page courante, modules d'un
-    plugin une fois chacun ; garde qui attend la lecture, plafond de 100 ms, route sans
-    lectures, 403, lectures non déclarables ; page suivante (seuil, une à la fois, lien
-    `next` d'une liste du cache) ; enfants d'un nœud fermé sur un vrai `TreeGrid`, au
-    pointeur et au focus (chacun son délai), rien pour un nœud ouvert ni une ligne passée. Choix notés : `meta.queries` reçoit aussi la
+    plugin une fois chacun, module en échec inséré de nouveau ; garde qui attend la
+    lecture, plafond de 100 ms, route sans lectures, 403, retour au présent, lectures non
+    déclarables (avertissement) ; page suivante (seuil, une à la fois, lien `next` d'une
+    liste du cache, arrêt après 403 et après 503 et ses deux reprises) ; enfants d'un nœud
+    fermé sur un vrai `TreeGrid`, au pointeur et au focus (chacun son délai), rien pour un
+    nœud ouvert ni une ligne passée. Choix notés : `meta.queries` reçoit aussi la
     requête de la cible (filtres d'une liste) ; `meta.modules` porte les modules d'un
     plugin (la route `/x/:plugin/…` le déclarera) et `KLink` les insère au même moment que
     ses lectures ; le focus d'un nœud de l'arbre attend aussi 60 ms (les flèches passent
@@ -383,7 +389,9 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/shell/src/app/AppShell.vue`, `navigation.ts`, `UserMenu.vue`,
     `time/TimeBanner.vue`, `time/index.ts` ; maquettes E1, E6 ; `web/shell/index.html` ;
     repris de la tâche 7 : `provideLink(KLink)` (`web/v2/shell/src/prefetch/KLink.vue`) à
-    la racine du cadre, `meta.breadcrumb` à côté de `meta.queries` (`prefetch/intent.ts`)
+    la racine du cadre, `meta.breadcrumb` à côté de `meta.queries` (`prefetch/intent.ts`) ;
+    garde du temps en `beforeEach` (dates reportées écrites dans la cible avant la garde de
+    préchargement, qui lit une cible sans dates au présent)
   - dépend de : 7, 8 ; 020-23
 - [ ] 10. Raccourcis et palette : registre (portée, conflits, réglage à une touche), un
   écouteur, séquences `g`, aide `?` et `/help/shortcuts`, palette Ctrl+K (navigation,
