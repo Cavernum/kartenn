@@ -163,6 +163,31 @@ describe("KLink", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(preloads()).toHaveLength(2);
   });
+
+  it("forgets a module that failed, inserted again on the next intent", async () => {
+    serve();
+    const router = makeRouter([
+      {
+        path: "/x/:plugin/:id/:rest(.*)*",
+        component: Empty,
+        meta: {
+          modules: () => ({ base: "/plugins/hosts/1.0.0/", integrity: { "view.js": "sha384-v" } }),
+        },
+      },
+    ]);
+    const a = await link(router, "/x/hosts/list");
+    const preload = () => document.head.querySelector<HTMLLinkElement>('link[rel="modulepreload"]');
+    a.dispatchEvent(new Event("focusin"));
+    await vi.advanceTimersByTimeAsync(0);
+    const first = preload()!;
+    first.dispatchEvent(new Event("error"));
+    expect(preload()).toBeNull();
+    a.dispatchEvent(new Event("focusin"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(preload()).not.toBeNull();
+    expect(preload()).not.toBe(first);
+    expect(preload()!.getAttribute("href")).toBe("/plugins/hosts/1.0.0/view.js");
+  });
 });
 
 describe("guard of navigation", () => {
@@ -214,8 +239,16 @@ describe("guard of navigation", () => {
     expect(router.currentRoute.value.path).toBe(`/prefixes/${P1}`);
   });
 
+  it("reads at the present a target left without dates: the return to the present", async () => {
+    const seen = serve();
+    setContext({ time: { validAt: "2026-02-01T00:00:00Z", asOf: null } });
+    const router = makeRouter();
+    await router.push(`/prefixes/${P1}`);
+    expect(seen).toEqual([`/v1/prefixes/${P1}`]);
+  });
+
   it("goes on when a route's reads cannot be declared", async () => {
-    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const router = makeRouter([
       {
         path: "/broken",
@@ -229,6 +262,11 @@ describe("guard of navigation", () => {
     ]);
     await router.push("/broken");
     expect(router.currentRoute.value.path).toBe("/broken");
+    expect(warn).toHaveBeenCalledWith(
+      "kartenn: the reads of /broken could not be declared",
+      expect.any(TypeError),
+    );
+    warn.mockRestore();
   });
 });
 
@@ -251,6 +289,7 @@ describe("next page of a list", () => {
       data: shallowRef({ pages: [page(50)], pageParams: [null] }),
       hasNextPage,
       isFetching,
+      isFetchNextPageError: ref(false),
       fetchNextPage,
     };
     const view = ref({ end: 10, size: 20 });
@@ -287,6 +326,42 @@ describe("next page of a list", () => {
     await vi.advanceTimersByTimeAsync(0);
     await vi.waitFor(() => expect(list.data.value?.pages).toHaveLength(2));
     expect(seen).toEqual(["/v1/prefixes", "/v1/prefixes?cursor=c2"]);
+    scope.stop();
+  });
+
+  it.each([
+    [403, 1],
+    [503, 3],
+  ])("stops after a next page refused with %i (%i reads)", async (status, count) => {
+    const seen: string[] = [];
+    setFetch((async (input: RequestInfo | URL) => {
+      const url = String(input);
+      seen.push(url);
+      return url.includes("cursor=")
+        ? new Response(JSON.stringify({ status, code: "core.failed" }), {
+            status,
+            headers: { "Content-Type": "application/problem+json" },
+          })
+        : new Response(
+            JSON.stringify({ items: [{ id: P1 }], links: { next: "/v1/prefixes?cursor=c2" } }),
+            { headers: { "Content-Type": "application/json", ETag: '"v1"' } },
+          );
+    }) as typeof fetch);
+    const scope = effectScope();
+    const view = ref({ end: 0, size: 20 });
+    const list = scope.run(() => {
+      const list = useInfiniteQuery(reads.list("/v1/prefixes", {}));
+      useNextPage(list, view);
+      return list;
+    })!;
+    // The retries of a 5xx (two, 1 s then 2 s), none for a 4xx.
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(list.isFetchNextPageError.value).toBe(true);
+    // The window moves, still near the end: nothing read again.
+    view.value = { end: 1, size: 20 };
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(seen.filter((url) => url.includes("cursor="))).toHaveLength(count);
+    expect(list.data.value?.pages).toHaveLength(1);
     scope.stop();
   });
 });

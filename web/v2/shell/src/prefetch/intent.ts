@@ -26,20 +26,27 @@ const instant = (value: LocationQuery[string] | undefined) =>
   typeof value === "string" && value !== "" ? value : null;
 
 /**
- * The dated context of a target: its own when its query names a date, else the current
- * one, which the navigation carries (W9, 007 `carryTime`).
+ * The dated context of a target. Its own when its query names a date. Otherwise, for a
+ * link not yet followed (`carry`), the current one, which the navigation will carry (W9,
+ * 007 `carryTime`); in the guard, the present: the guard of time (`beforeEach`) has
+ * already written the carried dates in the target, and a target left without them is the
+ * explicit return to the present.
  */
-export function timeOf(query: LocationQuery): TimeArg {
+export function timeOf(query: LocationQuery, carry = true): TimeArg {
   if ("valid_at" in query || "as_of" in query) {
     return { validAt: instant(query.valid_at), asOf: instant(query.as_of) };
   }
+  if (!carry) return { validAt: null, asOf: null };
   const { validAt, asOf } = context.get().time;
   return { validAt, asOf };
 }
 
-/** The reads that the routes of a target declare; a route that throws declares none. */
-export function queriesOf(target: Target): Prefetchable[] {
-  const time = timeOf(target.query);
+/**
+ * The reads that the routes of a target declare, in its dated context (`timeOf`); a route
+ * that throws declares none.
+ */
+export function queriesOf(target: Target, carry = true): Prefetchable[] {
+  const time = timeOf(target.query, carry);
   return target.matched.flatMap((record) => {
     try {
       return [...(record.meta.queries?.(target.params, time, target.query) ?? [])];
@@ -50,14 +57,13 @@ export function queriesOf(target: Target): Prefetchable[] {
   });
 }
 
-/** The intent of a link: the modules of a plugin inserted, the reads of the target returned. */
-export function intentOf(target: Target): Prefetchable[] {
+/** Inserts the `modulepreload` of the plugin whose view a target opens, if it opens one. */
+export function preloadModulesOf(target: Target): void {
   for (const record of target.matched) {
     const modules = record.meta.modules?.(target.params);
     // A module refused or missing shows when the view opens, set aside by the loader.
     if (modules) preloadModules(modules).catch(() => {});
   }
-  return queriesOf(target);
 }
 
 /**
@@ -67,7 +73,7 @@ export function intentOf(target: Target): Prefetchable[] {
  */
 export function installPrefetch(router: Router, guard = prefetch.guard): void {
   router.beforeResolve(async (to) => {
-    const queries = queriesOf(to);
+    const queries = queriesOf(to, false);
     if (queries.length > 0) await guard(queries);
   });
 }

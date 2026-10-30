@@ -7,7 +7,7 @@
 import { prefetch } from "@kartenn/sdk";
 import { onBeforeUnmount, onMounted, useTemplateRef } from "vue";
 import { useLink, type RouteLocationRaw } from "vue-router";
-import { intentOf } from "./intent.ts";
+import { preloadModulesOf, queriesOf } from "./intent.ts";
 
 const props = defineProps<{ to: RouteLocationRaw; replace?: boolean }>();
 const { route, href, isExactActive, navigate } = useLink(props);
@@ -15,7 +15,12 @@ const anchor = useTemplateRef<HTMLAnchorElement>("anchor");
 
 let stop = () => {};
 onMounted(() => {
-  if (anchor.value) stop = prefetch.intent(anchor.value, () => intentOf(route.value));
+  // Called once the intent is held: the plugin's modules go with the reads of the target.
+  const onIntent = () => {
+    preloadModulesOf(route.value);
+    return queriesOf(route.value);
+  };
+  if (anchor.value) stop = prefetch.intent(anchor.value, onIntent);
 });
 onBeforeUnmount(() => stop());
 </script>
