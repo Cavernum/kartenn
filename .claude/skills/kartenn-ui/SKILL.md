@@ -117,7 +117,7 @@ Statut : ☐ à écrire, ◐ version visuelle, ● complet (états, clavier, cap
 | `Button`, `IconButton` | Button ; occupé = `aria-disabled` + `aria-busy` (reste focalisable), bascule `aria-pressed`, raccourci `aria-keyshortcuts` ; `disabled` natif sort de l'ordre de tabulation : une action refusée avec motif prend `forbidden` ou `reason`, jamais `disabled` ; occupé ou refusé, un `submit` n'envoie rien ; `IconButton` : infobulle automatique de son nom et de son raccourci (`shortcut`), décorative, montée ouverte seulement ; refusé, son nom puis le motif, la description = le motif seul ; cibles ≥ 24 px (`sm` en compacte) | ● |
 | `TextField`, `FormField` | champ natif étiqueté ; `FormField` : étiquette, erreur puis aide par `aria-describedby`, l'erreur dite dans une région `polite` présente vide avant elle ; l'emplacement reçoit `id`, `labelId`, `describedBy`, `invalid` ; `group` : groupe nommé et décrit (cases, bascules) ; `TextField` (sur `FormField`) : `aria-invalid`, en attente dit en mots (`aria-busy`), lecture seule, chasse fixe | ● |
 | `Select`, `Combobox` | Select-Only Combobox (Reka : options focalisées ; Entrée, Espace, Bas, Haut ouvrent sur la choisie ; Échap sans choisir ; Tab choisit, ferme et passe au contrôle suivant ; `readonly` ne s'ouvre pas ; `inlineLabel` dans une barre) ; Combobox (`aria-autocomplete="list"`, sélection manuelle, `aria-activedescendant`, `aria-selected` sur la mise en avant, coche sur la valeur prise ; `suggest(texte, signal)` après 150 ms, annulée par un texte plus récent ; Alt+Bas ouvre sans bouger, Bas va à la première, Entrée prend la mise en avant sinon `submit`, Échap ferme et laisse le suivant à la couche, Origine/Fin dans le texte ; nombre, chargement, rien, échec dits par une région `polite` présente avant) ; liste commune `Select/options.css`, au moins aussi large que le champ | ● |
-| `FilterChip`, `FilterPicker` | Button + Combobox en séquence | ◐ (`FilterChip`) |
+| `FilterChip`, `FilterPicker` | Button + Combobox en séquence dans un popover non modal (Reka) : la barre (`role="group"` nommé) tient les pastilles et « Ajouter un filtre » (`aria-haspopup="dialog"`, `aria-expanded` sur le déclencheur, pastille ou bouton ; le même une seconde fois ferme, un autre reprend le popover) ; dans le popover, défilant dans la fenêtre (1.4.10), « Annuler » puis « Appliquer » ; propriété dans sa liste fermée ouverte à l'ouverture (libellé puis clé ; clé seule en chasse fixe), puis l'opérateur (si plusieurs) ou la valeur ; valeur par liste fermée (`options` ou `suggest`, plusieurs pour `eq`) ou champ typé (`number`, `prefix`, `address`, `date` ; `within` prend un préfixe) refusé avant l'application, motif lié au champ ; deux Échap ; laissé à moitié, un filtre reste brouillon (hors URL), « Annuler » l'écarte ; focus rendu à la pastille appliquée ou au bouton ; appliqué et retiré dits par une région `polite` ; URL = paramètres de la route (`filtersToParams`, `filtersFromParams`, `checkFilter` ; valeur hors type relue et marquée invalide) | ● |
 | `DateTimeField`, `PeriodPicker` | Date Picker Dialog ; spin button | ☐ |
 | `Checkbox`, `Switch` | Checkbox (deux et trois états : modèle `true`, `false` ou `"mixed"` posé sur `indeterminate`, jamais `aria-checked` sur la case native ; mixte, elle se coche au basculement) ; Switch (`button` `role="switch"`, `aria-checked`, Espace et Entrée ; réglage pris aussitôt seulement, sinon `Checkbox`) ; étiquette englobante : la rangée est la cible (≥ 24 px, étiquette cachée comprise), l'aide hors du nom (`aria-describedby`) | ● |
 | `Tabs` | Tabs (activation manuelle) | ◐ |
@@ -183,6 +183,17 @@ Version exacte épinglée ; toute montée repasse les scripts clavier et le parc
   (jetons seulement) : la largeur du champ est posée par CSSOM (`--k-list-anchor-width`).
 - Une feuille `.css` importée depuis un composant crée un fragment vide que le build du
   shell (`kartenn-shared-modules`) ne trouve pas : une feuille partagée va dans `style.css`.
+- Popover (`FilterPicker`) : l'auto-focus d'ouverture et de fermeture d'un `FocusScope`
+  est un événement qui remonte (celui d'un `Select` ou d'une liste à l'intérieur compris)
+  et qui vient deux fois à la fermeture : ne traiter que celui du popover (sa cible est
+  l'enveloppe qui le contient), une fois. Sans `PopoverTrigger`, le focus se rend à la
+  main ; un clic sur la barre elle-même (`interactOutside` annulé) ne ferme pas.
+- `SelectValue` ne montre que le libellé d'une option montée avant la valeur : un `Select`
+  dont les options arrivent avec sa valeur se remonte (`:key`).
+- Une couche qui s'efface (liste, `Select`) reste la couche du dessus jusqu'à la fin de son
+  fondu : un Échap aussitôt est pour elle ; un script clavier attend qu'elle soit partie.
+- `defineModel` tenu par l'hôte : la valeur relue juste après l'écriture est l'ancienne
+  jusqu'au rendu de l'hôte ; un index se calcule sur la liste écrite, pas relue.
 - Slots de `TreeVirtualizer` typés `Record<string, any>` : enveloppes typées dans
   `@kartenn/ui`, aucun transtypage dans les écrans.
 - Ligne focalisée démontée par la molette : la garder montée.

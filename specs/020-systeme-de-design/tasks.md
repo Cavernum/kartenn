@@ -509,13 +509,77 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     fois (`Menu`, liste, `CommandPalette`) ; aucune capture d'option mise en avant (le
     catalogue ne joue pas de touche) ; `Combobox` sans chevron ni action « Réessayer » ;
     largeur propre du `Select` hors colonne de formulaire.
-- [ ] 19. `FilterChip`, `FilterPicker` : propriété → opérateur → valeur, listes fermées,
+- [x] 19. `FilterChip`, `FilterPicker` : propriété → opérateur → valeur, listes fermées,
   champs typés, sérialisation et lecture dans l'URL — REQ-020-20 — verify : ajout,
   modification, retrait au clavier seul ; valeur hors type refusée ; aller-retour URL
   (Vitest)
   - où : design § « Inventaire » ligne 6 ; `web/shell/src/data/collections.ts` (filtres
     actuels par collection)
   - dépend de : 18
+  - fait : `filters.ts` (nouveau) : modèle d'une liste (`FilterModel` : clé du paramètre,
+    libellé, type `text`, `enum`, `number`, `prefix`, `address`, `date`, opérateurs servis,
+    domaine fermé en `options` ou `suggest`, paramètre propre d'un opérateur), opérateurs
+    `eq` (une valeur ou « l'un de »), `ne`, `contains`, `within` (un préfixe), `before`,
+    `after`, `between` (bornes ouvertes), `exists`, `absent` ; `checkValue`, `checkFilter`
+    (préfixe : forme, longueur, bits d'hôte avec le préfixe canonique RFC 5952 ; adresse
+    IPv4 sans zéro de tête, IPv6 sous ses formes ; date réelle ; nombre ; liste fermée) ;
+    `filtersToParams`, `filtersFromParams` dans la grammaire de la route (006 « Filtres » :
+    `clé=v` répété, `clé:between=a..b`, `clé:exists=true|false`, `clé:<op>=v`), brouillons
+    hors URL, paramètres étrangers gardés, valeur hors type relue et marquée invalide ;
+    `filterWords`, `filterSentence` (libellé, sinon la clé en chasse fixe). `FilterPicker`
+    (nouveau) : barre `group` nommée (pastilles, « Ajouter un filtre » avec son raccourci),
+    popover non modal de Reka : propriété (`Combobox`, liste ouverte à l'ouverture, libellé
+    puis clé, « Clé : » en aide une fois choisie), opérateur (`Select`, en lecture seule
+    s'il n'y en a qu'un), valeur (`Combobox` d'un domaine fermé, plusieurs valeurs
+    retirables pour `eq`, ajout et retrait dits ; sinon `TextField` typé avec son aide ;
+    deux bornes pour `between`) refusée avant l'application, motif lié au champ et focus
+    dessus ; deux Échap ; laissé à moitié, un filtre reste brouillon (pastille en
+    pointillés, hors URL), « Annuler » l'écarte ; un filtre par paramètre (le nouveau
+    remplace l'ancien) ; focus rendu à la pastille appliquée ou au déclencheur, le même
+    déclencheur une seconde fois ferme ; appliqué et retiré dits par une région `polite` ;
+    popover borné à la fenêtre et défilant (1.4.10). `FilterChip` : `propertyMono`,
+    `expanded`, phrase qui va à la ligne dans sa pastille. Maquettes : E3 et E11 prennent
+    `FilterPicker` sur un modèle typé (repères « À venir » retirés, `FilterPicker` retiré de
+    la revue), colonnes filtrées d'E3 tirées des filtres appliqués ; E1 dit « dans » et
+    « est ». Catalogue : `FilterPicker` (dix états : `rest`, `empty`, `draft`, `invalid`,
+    `keys`, `open`, `values`, `refused`, `between`, `keyboard` avec l'URL écrite),
+    `FilterChip` `key`. Script `e2e/components/filter-picker.spec.ts` (lecture de l'URL,
+    ajout, valeur hors type, modification avec bits d'hôte, retrait, deux Échap, brouillon
+    puis « Annuler », opérateur sans valeur et remplacement, Tab dans la liste des
+    opérateurs, valeur retirée au clavier, déclencheur repris ou refermé, Tab hors de la
+    barre) ; Vitest `ui/test/filters.test.ts` (grammaire, aller-retour sur 500 cas à
+    graine fixe, vérifications par type, mots d'une pastille en deux langues, rendu).
+    Revues `a11y-auditor` et `ui-reviewer` (code et captures) ; corrigés : popover borné
+    à la fenêtre, ajout et retrait d'une valeur dits, clés stables des pastilles, focus
+    sur la propriété inconnue, motif d'un `exists` hors valeur sur l'opérateur, déclencheur
+    repris ou refermé, script au clavier seul (plus de `focus()` sur une option), pastille
+    longue à 390 px (E11), clé de la propriété en aide, clé des valeurs lues par `suggest`,
+    « Annuler » avant « Appliquer », brouillon rouvert sur sa pastille, colonnes filtrées
+    d'E3, vocabulaire d'E1, commentaire orphelin, valeurs choisies d'un aspect neutre.
+    Captures réécrites (voulues) : index (un composant de plus), `FilterChip` page entière
+    (état `key`), E1-ajout, E1-noeud, E1-replie (mots « dans », « est »), E3-edition et
+    E3-selection (le vrai `FilterPicker` à la place du repère, opérateurs en mots,
+    « Propriétaire » non filtré tant qu'il est brouillon), E11-registre (de même ; à
+    390 px la pastille « État » va à la ligne d'un bloc) ; nouvelles : `FilterPicker`,
+    `FilterChip` `key`.
+  - choix : popover non modal (design, leçon du prototype) nommé par `aria-label` (Reka
+    cache les voisins de la liste ouverte) ; pastilles sans liste autour (le bouton reste
+    sur la rangée) ; après la propriété, le focus va à l'opérateur s'il y en a plusieurs,
+    sinon à la valeur ; plusieurs valeurs seulement par `eq` (paramètre répété = « l'un
+    de ») ; `before`, `after`, `contains`, `ne` sérialisés en `clé:<op>` (la grammaire de
+    la 006, servis seulement si le modèle tiré du contrat les déclare) ; `within` prend
+    toujours un préfixe ; une valeur hors type lue dans l'URL y reste (l'URL tient ce que
+    l'utilisateur a écrit), l'hôte n'envoie que ce que `checkFilter` accepte. Restent (à
+    vérifier ou à arbitrer) : clé d'une pastille et d'une valeur choisie en infobulle et
+    copiable (`KeyLabel` complet, tâche 24) ; une alerte par pastille invalide au
+    chargement (conception de `FilterChip`, tâche 12) ; lecture au lecteur d'écran
+    (annonce « Filtre appliqué » pendant que Reka lève `aria-hidden`, clé dans le nom d'une
+    option) ; liste des propriétés qui dépasse le bord du popover de quelques pixels ;
+    surface du popover recopiée de `.k-list` et du menu (`Popover`, tâche 21) ; le
+    `Select` dit « est » même avec plusieurs valeurs ; aide de type répétée par l'erreur ;
+    un Échap ou un Tab pendant le fondu d'une liste va à elle (Reka) ; modèle d'E3 sans
+    filtres d'environnement, de site ni de VLAN alors que leurs colonnes ont un entonnoir
+    (un modèle commun barre et colonnes, 021/024) ; deux Échap à dire dans l'aide (E8).
 - [ ] 20. `DateTimeField`, `PeriodPicker` (fuseau nommé, raccourcis) — verify : script
   Date Picker Dialog ; saisie au clavier seul ; date invalide refusée
   - où : `web/shell/src/time/` (contexte temporel actuel)
