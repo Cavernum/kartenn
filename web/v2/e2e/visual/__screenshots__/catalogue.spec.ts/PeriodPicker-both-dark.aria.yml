@@ -1,0 +1,40 @@
+- main:
+  - region "PeriodPicker":
+    - heading "PeriodPicker" [level=1]
+    - paragraph: "Motif : Formulaire de deux DateTimeField (valid_at, as_of) et raccourcis"
+    - 'figure "both — Les deux axes : valide au 3 novembre, tel que connu le 1er décembre"':
+      - form "Lire à une date":
+        - heading "Lire à une date" [level=2]
+        - group "Valide au":
+          - text: ""
+          - spinbutton "Année"
+          - spinbutton "Mois"
+          - spinbutton "Jour"
+          - spinbutton "Heure"
+          - spinbutton "Minutes"
+          - text: /Europe\/Paris UTC\+\d+:\d+/
+          - 'button "Choisir la date : Valide au"'
+          - paragraph: "Ce qui était vrai à cette date ; vide : maintenant."
+        - 'group "Raccourcis : Valide au"':
+          - button "Maintenant"
+          - button "Hier"
+          - button "Début du mois"
+        - group "Connu au":
+          - text: ""
+          - spinbutton "Année"
+          - spinbutton "Mois"
+          - spinbutton "Jour"
+          - spinbutton "Heure"
+          - spinbutton "Minutes"
+          - text: /Europe\/Paris UTC\+\d+:\d+/
+          - 'button "Choisir la date : Connu au"'
+          - paragraph: "Ce que la base savait à cette date ; vide : ce qu'elle sait."
+        - 'group "Raccourcis : Connu au"':
+          - button "Maintenant"
+          - button "Hier"
+          - button "Début du mois"
+        - status
+        - button "Revenir au présent"
+        - button "Appliquer"
+      - code: both
+      - text: ""
