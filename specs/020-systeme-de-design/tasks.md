@@ -580,10 +580,76 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     un Échap ou un Tab pendant le fondu d'une liste va à elle (Reka) ; modèle d'E3 sans
     filtres d'environnement, de site ni de VLAN alors que leurs colonnes ont un entonnoir
     (un modèle commun barre et colonnes, 021/024) ; deux Échap à dire dans l'aide (E8).
-- [ ] 20. `DateTimeField`, `PeriodPicker` (fuseau nommé, raccourcis) — verify : script
+- [x] 20. `DateTimeField`, `PeriodPicker` (fuseau nommé, raccourcis) — verify : script
   Date Picker Dialog ; saisie au clavier seul ; date invalide refusée
   - où : `web/shell/src/time/` (contexte temporel actuel)
   - dépend de : 18
+  - fait : `DateTimeField/dates.ts` (nouveau) : saisie par segments dans l'ordre d'ISO 8601
+    (`parseEntry`, une saisie gardée telle que tapée), `checkEntry` (vide, incomplète, mois,
+    jour du mois — 31 février —, heure, minute, année 0, heure sautée par le fuseau au
+    passage à l'heure d'été ; de l'heure répétée, la plus tôt), valeur `AAAA-MM-JJ` ou
+    instant RFC 3339 en UTC ; horloge murale d'un fuseau IANA par `Intl` seul (`wallAt`,
+    `offsetAt`, `instantsOf`, `offsetLabel`), raccourcis (`shortcut` : maintenant à la
+    minute, hier à la même heure, le 1er du mois à minuit). `DateTimeField` (nouveau) :
+    `FormField` `group`, un `spinbutton` par segment (chiffres qui remplissent et avancent,
+    séparateurs, Haut et Bas qui bouclent, Origine et Fin, Gauche et Droite, Retour arrière,
+    Suppr, collage d'une date ISO, saisie d'un clavier virtuel par `beforeinput`, Entrée
+    qui envoie le formulaire), `aria-valuenow` dans les bornes seulement, `aria-valuetext`
+    (mois en mots, « vide »), fuseau et décalage écrits et décrivant l'heure, refus au
+    départ du champ ou par `check()`, motif lié au groupe et à chaque segment, segment
+    fautif souligné ; `DateCalendar` : bouton « Choisir la date : <étiquette> » (Alt+Bas)
+    ouvrant un popover modal de Reka (`aria-modal`), grille du mois nommée par son titre
+    `aria-live`, semaines du lundi, flèches, Origine, Fin, Pg préc./suiv. (Maj : année),
+    Entrée ou Espace (minuit si l'heure manque), « Annuler », Échap. `PeriodPicker`
+    (nouveau) : formulaire « Lire à une date », « Valide au » et « Connu au », raccourcis
+    sous chacun dits par une région `polite`, refus à l'envoi (date impossible, `as_of`
+    futur, 006) avec focus sur le champ, « Revenir au présent » hors présent ; `titleId`
+    pour la couche de l'hôte. `fill` passe de `filters.ts` à `i18n.ts` ; icônes
+    `chevrons-left`, `chevrons-right` ; `DateTimeField` dans la liste `FLOATING`. Maquette :
+    E6 prend `PeriodPicker` (repère retiré, `PeriodPicker` retiré de la revue). Catalogue :
+    `DateTimeField` (quatorze états : `empty`, `filled`, `summer`, `day`, `small`,
+    `invalid`, `hour`, `gap`, `incomplete`, `readonly`, `disabled`, `focus`, `calendar`,
+    `keyboard`), `PeriodPicker` (`present`, `past`, `both`, `refused`, `keyboard`).
+    Scripts `e2e/components/date-time-field.spec.ts` (Tab de segment en segment, saisie au
+    clavier seul, séparateurs et chiffres seuls, décalage d'été, bornes et boucles, 31
+    février, 25 h et heure sautée refusés au départ du champ puis réparés, incomplète,
+    Retour arrière, jour seul et 29 février ; grille : ouverture, flèches, Origine, Fin,
+    Pg préc./suiv. et Maj, passage de mois, Échap, Tab piégé, Alt+Bas) et
+    `period-picker.spec.ts` (ordre, Entrée qui applique, « Revenir au présent »,
+    raccourcis, date impossible et `as_of` futur refusés) ; Vitest `ui/test/dates.test.ts`
+    (calendrier, saisie, refus en deux langues, heures d'été, décalages, raccourcis,
+    rendu). Revues `a11y-auditor` et `ui-reviewer` (code et captures) ; corrigés : focus
+    du jour choisi invisible (anneau dehors), contour transparent pour les couleurs
+    forcées (segment, jour choisi), motif lié à chaque segment, texte des segments caché
+    (la valeur est `aria-valuetext`), `aria-valuenow` hors bornes retiré, décalage jamais
+    coupé (le nom du fuseau seul), annonce répétée d'un même raccourci, clé inutilisée,
+    anneau d'« aujourd'hui » (tables fusionnées par le reset), aujourd'hui et choisi,
+    bouton à la hauteur du cadre (`sm`) et sans boîte désactivé, retrait de fin selon la
+    présence du bouton, segment focalisé en lecture seule adouci, raccourcis alignés sur le
+    bord du champ, formulaire non renommé quand l'hôte nomme sa couche (E6). Captures
+    réécrites (voulues) : index (deux composants de plus), icônes (deux chevrons doubles),
+    E6-selecteur aux cinq largeurs et son arbre (le vrai `PeriodPicker` à la place du
+    repère) ; nouvelles : `DateTimeField`, `PeriodPicker`.
+  - choix : composants écrits sans `@internationalized/date` (dépendance seulement
+    transitive de Reka : `DateField` et `DatePicker` de Reka en demandent l'import direct
+    et corrigent en silence un 31 février) ; ordre ISO dans les deux langues ; tous les
+    segments dans l'ordre de tabulation (comme un champ date natif) ; segments
+    `contenteditable` (`inputmode="numeric"`) pour les claviers virtuels ; valeur `null`
+    tant que la saisie n'est pas valide, refus montré au départ du champ (comme
+    `TextField`) ; dialogue nommé par son bouton (Reka écrase `aria-labelledby`), grille
+    par le mois ; semaine du lundi (ISO 8601) ; « Hier » à la même heure ; « Appliquer »
+    plutôt que « Lire à cette date » ; fuseau par défaut celui du navigateur, toujours
+    écrit ; `PeriodPicker` sans surface propre (la couche est à la `DatePill`, tâche 23).
+    Restent (à vérifier ou à arbitrer) : `FilterPicker` garde un `TextField` pour le type
+    `date` (le prendre suppose `check()` à l'application, une valeur hors type lue dans
+    l'URL et le focus sur un segment) ; lecture réelle des segments `contenteditable` au
+    lecteur d'écran et sur mobile ; choix du fuseau par l'utilisateur (préférence) ;
+    écriture d'une date dans le champ (« 2025 - 11 - 03 ») et dans une grille
+    (« 2025-11-03 ») ; segment focalisé plein d'accent ou `accent-soft` ; élévation du
+    calendrier ouvert depuis la couche de la pastille (tâche 23) ; « Lire au présent » de
+    la barre d'E6 et « Revenir au présent » ; largeur d'un champ qui grandit avec son
+    erreur dans un conteneur ajusté au contenu ; la couche d'E6 recouvre la page à 390 px
+    (focus caché derrière, tâche 23).
 - [ ] 21. `Menu`, `MenuButton`, `Popover`, `Tabs`, `Breadcrumb` — verify : scripts Menu
   et Tabs (activation manuelle) ; raccourcis affichés dans le menu
   - où : design § « Inventaire »
