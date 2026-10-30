@@ -37,6 +37,10 @@ propre à la tâche.
   regardée.
 - **Relectures**, pour toute interface : un sous-agent `ui-reviewer` et un sous-agent
   `a11y-auditor` sur le code et les captures ; corrige les vrais écarts.
+- **Charge** : d'autres agents tournent en même temps et `k-heavy` n'a que deux
+  créneaux. En route, des vérifications ciblées (`k-check -p <crate> <filtre>`, un
+  fichier Vitest, un script Playwright) ; la vérification complète une fois, avant le
+  commit, et de nouveau seulement après une correction.
 - **Bancs** : tu n'en lances aucun. Si la tâche en demande un, dis-le dans le rapport.
 
 ## Règles fixes
