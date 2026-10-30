@@ -1,0 +1,33 @@
+- main:
+  - dialog "Modifier le filtre":
+    - text: Propriété
+    - combobox "Propriété": Création
+    - status
+    - paragraph: "Clé : created"
+    - text: Opérateur
+    - combobox "Opérateur": après
+    - text: Valeur
+    - textbox "Valeur" [invalid]: /\d+-\d+-\d+/
+    - paragraph: "/Date invalide : le mois va de \\d+ à \\d+\\./"
+    - paragraph: /AAAA-MM-JJ, par exemple \d+-\d+-\d+\./
+    - status
+    - button "Annuler"
+    - button "Appliquer"
+  - region "FilterPicker":
+    - heading "FilterPicker" [level=1]
+    - paragraph: "Motif : Button puis Combobox en séquence (propriété, opérateur, valeur) dans un popover"
+    - 'figure "refused — Modification d''un filtre invalide : le motif lié au champ de la valeur"':
+      - group "Filtres":
+        - button /Création après \d+-\d+-\d+ \(invalide\)/ [expanded]
+        - button /Retirer le filtre Création après \d+-\d+-\d+/
+        - alert: "/Date invalide : le mois va de \\d+ à \\d+\\./"
+        - button /Adresse dans \d+\.\d+\.2\.0\/\d+ \(invalide\)/
+        - button /Retirer le filtre Adresse dans \d+\.\d+\.2\.0\/\d+/
+        - alert: /Longueur de préfixe hors de 0 à \d+\./
+        - button /prop\.dns\.ttl entre \d+ et \d+ \(invalide\)/
+        - button /Retirer le filtre prop\.dns\.ttl entre \d+ et \d+/
+        - alert: La borne basse dépasse la borne haute.
+        - button "Ajouter un filtre"
+        - status
+      - code: refused
+      - text: ""

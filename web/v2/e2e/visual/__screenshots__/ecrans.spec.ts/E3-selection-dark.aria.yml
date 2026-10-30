@@ -60,22 +60,20 @@
     - toolbar "Actions sur les adresses":
       - button "Créer"
       - button "Importer"
-    - button "Domaine = Centre de données nord"
-    - button "Retirer le filtre Domaine = Centre de données nord"
-    - button /Inclus dans = \d+\.\d+\.2\.0\/\d+/
-    - button /Retirer le filtre Inclus dans = \d+\.\d+\.2\.0\/\d+/
-    - button "Usage ∈ Hôte, VIP"
-    - button "Retirer le filtre Usage ∈ Hôte, VIP"
-    - button "Propriétaire = Atelier Nord (en brouillon)"
-    - button "Retirer le filtre Propriétaire"
-    - button /Créée après = \d+-\d+-\d+ \(invalide\)/
-    - button "Retirer le filtre Créée après"
-    - alert: "/Date invalide : le mois va de \\d+ à \\d+\\./"
-    - button "Ajouter un filtre"
-    - paragraph:
-      - text: "À venir :"
-      - code: FilterPicker
-      - text: /\(tâche \d+\)/
+    - group "Filtres des adresses":
+      - button "Domaine est Centre de données nord"
+      - button "Retirer le filtre Domaine est Centre de données nord"
+      - button /Adresse dans \d+\.\d+\.2\.0\/\d+/
+      - button /Retirer le filtre Adresse dans \d+\.\d+\.2\.0\/\d+/
+      - button "Usage est l'un de Hôte, VIP"
+      - button "Retirer le filtre Usage est l'un de Hôte, VIP"
+      - button "Propriétaire est Atelier Nord (en brouillon)"
+      - button "Retirer le filtre Propriétaire est Atelier Nord"
+      - button /Création après \d+-\d+-\d+ \(invalide\)/
+      - button /Retirer le filtre Création après \d+-\d+-\d+/
+      - alert: "/Date invalide : le mois va de \\d+ à \\d+\\./"
+      - button "Ajouter un filtre"
+      - status
     - status: 3 adresses sélectionnées
     - button "Action groupée" [expanded]
     - checkbox /Tout sélectionner \(1 \d+\)/ [checked=mixed]
@@ -83,7 +81,7 @@
     - button "Annuler la sélection"
     - grid "Adresses, filtrées":
       - rowgroup:
-        - row "Valeur (filtrée) Usage (filtrée) Environnement Propriétaire (filtrée) Site Machine VLAN":
+        - row "Valeur (filtrée) Usage (filtrée) Environnement Propriétaire Site Machine VLAN":
           - columnheader "Valeur (filtrée)":
             - text: ""
             - 'button "Filtrer : Valeur"'
@@ -95,10 +93,9 @@
           - columnheader "Environnement":
             - text: ""
             - 'button "Filtrer : Environnement"'
-          - columnheader "Propriétaire (filtrée)":
+          - columnheader "Propriétaire":
             - text: ""
             - 'button "Filtrer : Propriétaire"'
-            - text: ""
           - columnheader "Site":
             - text: ""
             - 'button "Filtrer : Site"'

@@ -1,0 +1,9 @@
+- main:
+  - region "FilterChip":
+    - heading "FilterChip" [level=1]
+    - paragraph: "Motif : Button (ouvre le sélecteur) et Button (retirer)"
+    - 'figure "key — Propriété sans libellé dans la langue : sa clé en chasse fixe"':
+      - button /prop\.dns\.ttl entre \d+ et \d+/
+      - button /Retirer le filtre prop\.dns\.ttl entre \d+ et \d+/
+      - code: key
+      - text: ""

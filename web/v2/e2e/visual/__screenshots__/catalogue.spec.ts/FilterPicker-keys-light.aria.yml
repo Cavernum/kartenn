@@ -1,0 +1,16 @@
+- main:
+  - region "FilterPicker":
+    - heading "FilterPicker" [level=1]
+    - paragraph: "Motif : Button puis Combobox en séquence (propriété, opérateur, valeur) dans un popover"
+    - 'figure "keys — Sans libellé dans la langue : la clé en chasse fixe (propriété, valeur)"':
+      - group "Filtres":
+        - button /prop\.dns\.ttl entre \d+ et \d+/
+        - button /Retirer le filtre prop\.dns\.ttl entre \d+ et \d+/
+        - button "Environnement est form"
+        - button "Retirer le filtre Environnement est form"
+        - button "Description n'est pas renseigné"
+        - button "Retirer le filtre Description n'est pas renseigné"
+        - button "Ajouter un filtre"
+        - status
+      - code: keys
+      - text: ""

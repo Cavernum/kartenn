@@ -110,6 +110,23 @@ export type {
   TreeRow,
 } from "./components/TreeGrid/tree.ts";
 export { default as FilterChip } from "./components/FilterChip/FilterChip.vue";
+export { default as FilterPicker } from "./components/FilterPicker/FilterPicker.vue";
+export {
+  arity,
+  checkFilter,
+  checkValue,
+  filterSentence,
+  filtersFromParams,
+  filtersToParams,
+  operatorLabel,
+} from "./components/FilterPicker/filters.ts";
+export type {
+  Filter,
+  FilterModel,
+  FilterOperator,
+  FilterProperty,
+  FilterType,
+} from "./components/FilterPicker/filters.ts";
 export { default as BarChart } from "./components/BarChart/BarChart.vue";
 export { default as BarList } from "./components/BarList/BarList.vue";
 export { layoutBars, niceCeil } from "./components/BarChart/chart.ts";

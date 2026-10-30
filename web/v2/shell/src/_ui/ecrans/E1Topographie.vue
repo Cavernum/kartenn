@@ -267,13 +267,9 @@ const addAction = ref("draft");
         </template>
         <template #toolbar>
           <Cluster gap="2">
-            <FilterChip property="Inclus dans" operator="=" value="192.0.2.64/26" mono />
-            <FilterChip
-              property="Environnement"
-              operator="="
-              :value="ENV.prod.label"
-              remove-label="Retirer le filtre Environnement"
-            />
+            <!-- The words of FilterPicker (« dans », « est »), its bar without « Ajouter ». -->
+            <FilterChip property="Valeur" operator="dans" value="192.0.2.64/26" mono />
+            <FilterChip property="Environnement" operator="est" :value="ENV.prod.label" />
           </Cluster>
         </template>
         <DataGrid

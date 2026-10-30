@@ -4,6 +4,8 @@
  * of kartenn. No link with any real information system.
  */
 
+import type { Filter, FilterModel, ListOption } from "@kartenn/ui";
+
 /** Environments (REQ-020-8): key, label, hue of the closed palette. */
 export const ENV = {
   prod: { value: "prod", label: "Production", hue: 1 },
@@ -29,6 +31,54 @@ export const usageLabel = (key: string): string | null => USAGE[key] ?? null;
 
 /** The domain read by the mock-ups. */
 export const DOMAIN = { key: "dc-nord", label: "Centre de données nord" } as const;
+
+/** The domains a filter proposes. */
+const DOMAINS: ListOption[] = [
+  { value: DOMAIN.key, label: DOMAIN.label },
+  { value: "dc-sud", label: "Centre de données sud" },
+];
+
+/**
+ * The typed filters of the list of addresses (E3; REQ-020-20, 006 « Filtres »): the
+ * parameters of `GET /v1/addresses` and declared properties, as the 021 draws them.
+ */
+export const ADDRESS_FILTERS: FilterModel = [
+  { key: "domain", label: "Domaine", type: "enum", operators: ["eq"], options: DOMAINS },
+  {
+    key: "value",
+    label: "Adresse",
+    type: "address",
+    operators: ["eq", "within"],
+    params: { within: "within" },
+  },
+  {
+    key: "usage",
+    label: "Usage",
+    type: "enum",
+    operators: ["eq"],
+    options: Object.entries(USAGE).map(([value, label]) => ({ value, label })),
+  },
+  {
+    key: "prop.core.owner",
+    label: "Propriétaire",
+    type: "enum",
+    operators: ["eq", "exists", "absent"],
+    options: [
+      { value: "atelier-nord", label: "Atelier Nord" },
+      { value: "atelier-sud", label: "Atelier Sud" },
+    ],
+  },
+  { key: "created", label: "Création", type: "date", operators: ["after", "before", "between"] },
+];
+
+/** The filters of E3: applied, a draft left half written, one read from the URL out of type. */
+export const ADDRESS_FILTERS_SET: Filter[] = [
+  { key: "domain", operator: "eq", values: [DOMAIN.key] },
+  { key: "value", operator: "within", values: ["192.0.2.0/24"] },
+  { key: "usage", operator: "eq", values: ["host", "vip"] },
+  { key: "prop.core.owner", operator: "eq", values: ["atelier-nord"], draft: true },
+  { key: "created", operator: "after", values: ["2026-13-01"] },
+];
 
 /** The fixed instant of the past readings (the captures freeze the clock at 2026-01-15). */
 export const PAST = "2025-11-03T09:30:00+01:00";

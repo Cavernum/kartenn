@@ -4,9 +4,10 @@
 
 <script setup lang="ts">
 // A typed filter (design « Inventaire », line 6; REQ-020-20): « property operator value »
-// as one button that opens the picker (`FilterPicker`, complete version), and a button
-// that removes it. A filter being written is a draft (dashed); an invalid one says so in
-// its name and why in its description, an alert when it turns invalid.
+// as one button that opens the picker (`FilterPicker`), and a button that removes it. A
+// filter being written is a draft (dashed); an invalid one says so in its name and why in
+// its description, an alert when it turns invalid. A property without a label shows its
+// key, in fixed pitch (REQ-020-21).
 import { computed, useId } from "vue";
 import { t } from "../../i18n.ts";
 import Icon from "../Icon/Icon.vue";
@@ -18,12 +19,22 @@ const props = withDefaults(
     value?: string | undefined;
     /** The value is a key, an address, a prefix: fixed pitch. */
     mono?: boolean;
+    /** The property is shown by its key (no label in the language): fixed pitch. */
+    propertyMono?: boolean;
     state?: "applied" | "draft" | "invalid";
     /** Why the filter is invalid. */
     reason?: string | undefined;
     removeLabel?: string | undefined;
+    /** Its picker is open (`aria-expanded` of the button that opens it). */
+    expanded?: boolean | undefined;
   }>(),
-  { value: undefined, state: "applied", reason: undefined, removeLabel: undefined },
+  {
+    value: undefined,
+    state: "applied",
+    reason: undefined,
+    removeLabel: undefined,
+    expanded: undefined,
+  },
 );
 const emit = defineEmits<{ edit: []; remove: [] }>();
 const reasonId = useId();
@@ -40,11 +51,14 @@ const sentence = computed(() =>
         type="button"
         class="k-filter-chip__body"
         aria-haspopup="dialog"
+        :aria-expanded="props.expanded"
         :aria-describedby="props.state === 'invalid' && props.reason ? reasonId : undefined"
         @click="emit('edit')"
       >
         <Icon v-if="props.state === 'invalid'" name="triangle-alert" class="k-filter-chip__warn" />
-        <span class="k-filter-chip__property">{{ props.property }}</span>
+        <span class="k-filter-chip__property" :class="{ 'k-mono': props.propertyMono }">{{
+          props.property
+        }}</span>
         <span class="k-filter-chip__operator">{{ props.operator }}</span>
         <span v-if="props.value" class="k-filter-chip__value" :class="{ 'k-mono': props.mono }">{{
           props.value
@@ -80,11 +94,13 @@ const sentence = computed(() =>
     flex-wrap: wrap;
     gap: var(--k-space-1);
     align-items: center;
+    max-inline-size: 100%;
   }
 
   .k-filter-chip__pill {
     display: inline-flex;
     align-items: stretch;
+    min-inline-size: 0;
     min-block-size: var(--k-control-height-sm);
     color: var(--k-text);
     background-color: var(--k-surface);
@@ -122,6 +138,22 @@ const sentence = computed(() =>
     border-radius: var(--k-radius-md);
   }
 
+  /* A long sentence goes to the line inside its chip, never wider than the row: the
+   * property and the operator stay whole, the value wraps (structure before style). */
+  .k-filter-chip__body {
+    flex-wrap: wrap;
+    min-inline-size: 0;
+    /* One pixel: a single line keeps the height of the control (24 px, a mono value
+     * included); wrapped lines keep off the border. */
+    padding-block: var(--k-space-px);
+    text-align: start;
+  }
+
+  .k-filter-chip__property,
+  .k-filter-chip__operator {
+    white-space: nowrap;
+  }
+
   /* At least 24 × 24 px inside the border (WCAG 2.5.8): chips sit side by side. */
   .k-filter-chip__remove {
     justify-content: center;
@@ -151,6 +183,7 @@ const sentence = computed(() =>
     font-weight: var(--k-weight-medium);
   }
 
+  .k-filter-chip__property.k-mono,
   .k-filter-chip__value.k-mono {
     font-size: var(--k-text-sm);
   }

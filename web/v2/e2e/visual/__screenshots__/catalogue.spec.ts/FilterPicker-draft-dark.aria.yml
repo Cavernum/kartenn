@@ -1,0 +1,14 @@
+- main:
+  - region "FilterPicker":
+    - heading "FilterPicker" [level=1]
+    - paragraph: "Motif : Button puis Combobox en séquence (propriété, opérateur, valeur) dans un popover"
+    - 'figure "draft — Brouillon : un filtre commencé puis laissé, en pointillés, hors de l''URL"':
+      - group "Filtres":
+        - button "Domaine est Centre de données nord"
+        - button "Retirer le filtre Domaine est Centre de données nord"
+        - button "Propriétaire est Atelier Nord (en brouillon)"
+        - button "Retirer le filtre Propriétaire est Atelier Nord"
+        - button "Ajouter un filtre"
+        - status
+      - code: draft
+      - text: ""

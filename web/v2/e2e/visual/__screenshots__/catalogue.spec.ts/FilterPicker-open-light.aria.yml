@@ -1,0 +1,48 @@
+- main:
+  - dialog "Ajouter un filtre":
+    - text: Propriété
+    - combobox "Propriété" [expanded]
+    - status: 8 suggestions
+    - text: Opérateur
+    - combobox "Opérateur" [disabled]
+    - status
+    - button "Annuler"
+    - button "Appliquer"
+  - listbox "Propriété":
+    - option "Domaine domain":
+      - text: ""
+      - code: domain
+    - option "Adresse value":
+      - text: ""
+      - code: value
+    - option "Usage usage":
+      - text: ""
+      - code: usage
+    - option "Environnement prop.policy.environment":
+      - text: ""
+      - code: prop.policy.environment
+    - option "Propriétaire prop.core.owner":
+      - text: ""
+      - code: prop.core.owner
+    - option "prop.dns.ttl"
+    - option "Création created":
+      - text: ""
+      - code: created
+    - option "Description prop.core.description":
+      - text: ""
+      - code: prop.core.description
+  - region "FilterPicker":
+    - heading "FilterPicker" [level=1]
+    - paragraph: "Motif : Button puis Combobox en séquence (propriété, opérateur, valeur) dans un popover"
+    - 'figure "open — Ajout : la liste des propriétés ouverte, libellé puis clé"':
+      - group "Filtres":
+        - button "Domaine est Centre de données nord"
+        - button "Retirer le filtre Domaine est Centre de données nord"
+        - button /Adresse dans \d+\.\d+\.2\.0\/\d+/
+        - button /Retirer le filtre Adresse dans \d+\.\d+\.2\.0\/\d+/
+        - button "Usage est l'un de Hôte, VIP"
+        - button "Retirer le filtre Usage est l'un de Hôte, VIP"
+        - button "Ajouter un filtre" [expanded]
+        - status
+      - code: open
+      - text: ""
