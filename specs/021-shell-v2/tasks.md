@@ -359,12 +359,14 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   verify : Vitest du registre ; parcours : `g c`, `?`, saisie « gc » dans un champ sans
   effet, réglage désactivé ; palette au clavier seul
   - où : `web/shell/src/app/SearchBox.vue`, `views/SearchView.vue` (recherche actuelle) ;
-    design § « Raccourcis » ; maquette E8
+    design § « Raccourcis » ; maquette E8 ; l'aide dit l'Échap en deux temps des
+    filtres (020, décision A8)
   - dépend de : 9
 - [ ] 11. Référentiel (dépend aussi de 28 et 29) : accueil en tableau de bord
   (`GET /v1/stats`, tuiles `widget`), Topographie (arbre des préfixes en `TreeGrid`,
   colonnes de plugins, « + » sur un nœud ; 024), listes
-  (`DataGrid`, filtres typés tirés du contrat : `filters.ts` généré comme `dated.ts`),
+  (`DataGrid`, filtres typés tirés du contrat : `filters.ts` généré comme `dated.ts`,
+  un seul modèle pour la barre et les filtres de colonne, 020 décision A7),
   fiche en panneaux, anomalies, propriétés — REQ-021-9, 18 — verify : parcours `records`,
   `tree` réécrits ; lien filtré copié rouvert à l'identique ; captures E0 à E3
   - où : `web/shell/src/views/{HomeView,ListView,ObjectView,AnomaliesView,PropertiesView}.vue`,

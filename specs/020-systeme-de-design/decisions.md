@@ -216,6 +216,14 @@ libellés par langue).
 - **A6 — Écarts à la direction** : `text-muted` clair `#5d6a7e`, `border-control`,
   palette d'environnement distincte des états : acceptés.
 
+## Arbitrages (tranchés le 2026-10-30 par l'utilisateur)
+
+- **A7 — Un seul modèle de filtres par liste** : la barre `FilterPicker` et les filtres
+  de colonne du `DataGrid` lisent le même modèle, tiré du contrat (021, tâche 11) ; une
+  colonne ne montre l'icône de filtre que si le modèle sert ce paramètre.
+- **A8 — Échap en deux temps dans `FilterPicker`** : le premier ferme la liste, le second
+  le panneau ; l'aide des raccourcis (E8, 021 tâche 10) le dit.
+
 ## Questions (closes le 2026-10-23)
 
 - **Q-020-1** — Couleur d'un environnement : déduite de la clé (teinte stable de la
