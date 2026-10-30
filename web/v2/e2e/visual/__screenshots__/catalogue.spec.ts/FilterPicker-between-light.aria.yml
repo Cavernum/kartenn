@@ -1,0 +1,31 @@
+- main:
+  - dialog "Modifier le filtre":
+    - text: Propriété
+    - combobox "Propriété": prop.dns.ttl
+    - status
+    - text: Opérateur
+    - combobox "Opérateur": entre
+    - text: De
+    - textbox "De": /\d+/
+    - paragraph: /Un nombre, par exemple \d+ ou 3\.5\./
+    - text: À
+    - textbox "À": /\d+/
+    - paragraph: Une borne laissée vide reste ouverte.
+    - status
+    - button "Annuler"
+    - button "Appliquer"
+  - region "FilterPicker":
+    - heading "FilterPicker" [level=1]
+    - paragraph: "Motif : Button puis Combobox en séquence (propriété, opérateur, valeur) dans un popover"
+    - 'figure "between — Entre deux bornes : deux champs typés, une borne vide reste ouverte"':
+      - group "Filtres":
+        - button /prop\.dns\.ttl entre \d+ et \d+/ [expanded]
+        - button /Retirer le filtre prop\.dns\.ttl entre \d+ et \d+/
+        - button "Environnement est form"
+        - button "Retirer le filtre Environnement est form"
+        - button "Description n'est pas renseigné"
+        - button "Retirer le filtre Description n'est pas renseigné"
+        - button "Ajouter un filtre"
+        - status
+      - code: between
+      - text: ""

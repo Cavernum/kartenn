@@ -1,0 +1,94 @@
+- main:
+  - region "FilterPicker":
+    - heading "FilterPicker" [level=1]
+    - paragraph: "Motif : Button puis Combobox en séquence (propriété, opérateur, valeur) dans un popover"
+    - 'figure "rest — Filtres appliqués : libellés des valeurs, plusieurs valeurs (« l''un de »)"':
+      - group "Filtres":
+        - button "Domaine est Centre de données nord"
+        - button "Retirer le filtre Domaine est Centre de données nord"
+        - button /Adresse dans \d+\.\d+\.2\.0\/\d+/
+        - button /Retirer le filtre Adresse dans \d+\.\d+\.2\.0\/\d+/
+        - button "Usage est l'un de Hôte, VIP"
+        - button "Retirer le filtre Usage est l'un de Hôte, VIP"
+        - button "Ajouter un filtre"
+        - status
+      - code: rest
+      - text: ""
+    - 'figure "empty — Aucun filtre : le bouton d''ajout seul"':
+      - group "Filtres":
+        - button "Ajouter un filtre"
+        - status
+      - code: empty
+      - text: ""
+    - 'figure "draft — Brouillon : un filtre commencé puis laissé, en pointillés, hors de l''URL"':
+      - group "Filtres":
+        - button "Domaine est Centre de données nord"
+        - button "Retirer le filtre Domaine est Centre de données nord"
+        - button "Propriétaire est Atelier Nord (en brouillon)"
+        - button "Retirer le filtre Propriétaire est Atelier Nord"
+        - button "Ajouter un filtre"
+        - status
+      - code: draft
+      - text: ""
+    - 'figure "invalid — Lus dans l''URL et hors type : marqués invalides, le motif dit"':
+      - group "Filtres":
+        - button /Création après \d+-\d+-\d+ \(invalide\)/
+        - button /Retirer le filtre Création après \d+-\d+-\d+/
+        - alert: "/Date invalide : le mois va de \\d+ à \\d+\\./"
+        - button /Adresse dans \d+\.\d+\.2\.0\/\d+ \(invalide\)/
+        - button /Retirer le filtre Adresse dans \d+\.\d+\.2\.0\/\d+/
+        - alert: /Longueur de préfixe hors de 0 à \d+\./
+        - button /prop\.dns\.ttl entre \d+ et \d+ \(invalide\)/
+        - button /Retirer le filtre prop\.dns\.ttl entre \d+ et \d+/
+        - alert: La borne basse dépasse la borne haute.
+        - button "Ajouter un filtre"
+        - status
+      - code: invalid
+      - text: ""
+    - 'figure "keys — Sans libellé dans la langue : la clé en chasse fixe (propriété, valeur)"':
+      - group "Filtres":
+        - button /prop\.dns\.ttl entre \d+ et \d+/
+        - button /Retirer le filtre prop\.dns\.ttl entre \d+ et \d+/
+        - button "Environnement est form"
+        - button "Retirer le filtre Environnement est form"
+        - button "Description n'est pas renseigné"
+        - button "Retirer le filtre Description n'est pas renseigné"
+        - button "Ajouter un filtre"
+        - status
+      - code: keys
+      - text: ""
+    - 'figure "open — Ajout : la liste des propriétés ouverte, libellé puis clé"':
+      - link "Voir l'état open seul":
+        - /url: /_ui/c/FilterPicker?mode=light&densite=confortable&etat=open
+      - code: open
+      - text: ""
+    - 'figure "values — Modification : plusieurs valeurs choisies, chacune retirable"':
+      - link "Voir l'état values seul":
+        - /url: /_ui/c/FilterPicker?mode=light&densite=confortable&etat=values
+      - code: values
+      - text: ""
+    - 'figure "refused — Modification d''un filtre invalide : le motif lié au champ de la valeur"':
+      - link "Voir l'état refused seul":
+        - /url: /_ui/c/FilterPicker?mode=light&densite=confortable&etat=refused
+      - code: refused
+      - text: ""
+    - 'figure "between — Entre deux bornes : deux champs typés, une borne vide reste ouverte"':
+      - link "Voir l'état between seul":
+        - /url: /_ui/c/FilterPicker?mode=light&densite=confortable&etat=between
+      - code: between
+      - text: ""
+    - 'figure "keyboard — Au clavier : ajout, modification, retrait ; l''URL écrite à chaque filtre"':
+      - group "Filtres des adresses":
+        - button "Domaine est Centre de données nord"
+        - button "Retirer le filtre Domaine est Centre de données nord"
+        - button /Adresse dans \d+\.\d+\.2\.0\/\d+/
+        - button /Retirer le filtre Adresse dans \d+\.\d+\.2\.0\/\d+/
+        - button "Ajouter un filtre"
+        - status
+      - paragraph:
+        - text: "URL :"
+        - code: /\?valid_at=\d+-\d+-15T10:\d+:\d+\+\d+:\d+&domain=dc-nord&within=\d+\.\d+\.2\.0\/\d+/
+      - text: Note
+      - textbox "Note"
+      - code: keyboard
+      - text: ""

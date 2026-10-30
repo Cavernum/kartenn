@@ -21,7 +21,7 @@ import {
   Cluster,
   DataGrid,
   EnvChip,
-  FilterChip,
+  FilterPicker,
   Icon,
   IconButton,
   InlineAlert,
@@ -37,6 +37,8 @@ import {
   useTooltip,
   type CellRef,
   type CellState,
+  type Filter,
+  type FilterModel,
   type GridColumn,
   type GridSort,
   type MatrixAxis,
@@ -49,7 +51,6 @@ import {
 } from "@kartenn/ui";
 import { computed, nextTick, ref, watch } from "vue";
 import { RouterLink, useRoute, useRouter, type RouteLocationRaw } from "vue-router";
-import AVenir from "./AVenir.vue";
 import Attributs from "./EcranAttributs.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
@@ -426,6 +427,48 @@ const STATE: Record<FlowState, { state: State; label: string }> = {
   waived: { state: "warn", label: "Dérogé" },
   expired: { state: "neutral", label: "Échu" },
 };
+
+/** The typed filters of the register (REQ-011-14, REQ-020-20), as the 021 draws them. */
+const FLOW_FILTERS: FilterModel = [
+  {
+    key: "domain",
+    label: "Domaine",
+    type: "enum",
+    operators: ["eq"],
+    options: [{ value: DOMAIN.key, label: DOMAIN.label }],
+  },
+  {
+    key: "endpoint",
+    label: "Extrémité",
+    type: "address",
+    operators: ["eq", "within"],
+    params: { within: "endpoint" },
+  },
+  {
+    key: "kind",
+    label: "Sorte",
+    type: "enum",
+    operators: ["eq"],
+    options: [{ value: "requested", label: "Déclaré" }],
+  },
+  {
+    key: "state",
+    label: "État",
+    type: "enum",
+    operators: ["eq"],
+    options: Object.entries(STATE).map(([value, s]) => ({ value, label: s.label })),
+  },
+];
+const flowFilters = ref<Filter[]>([
+  { key: "domain", operator: "eq", values: [DOMAIN.key] },
+  { key: "endpoint", operator: "within", values: ["192.0.2.0/24"] },
+  { key: "kind", operator: "eq", values: ["requested"] },
+  {
+    key: "state",
+    operator: "eq",
+    values: ["requested", "active", "noncompliant", "waived", "expired"],
+  },
+]);
 interface RegisterRow extends Record<string, unknown> {
   key: string;
   flow: RegisteredFlow;
@@ -1129,22 +1172,12 @@ const IFACE_HISTORY = [
         />
       </template>
       <template #toolbar>
-        <Cluster gap="2">
-          <FilterChip property="Domaine" operator="=" :value="DOMAIN.label" />
-          <FilterChip property="Extrémité" operator="⊂" value="192.0.2.0/24" mono />
-          <FilterChip property="Sorte" operator="=" value="Déclaré" />
-          <FilterChip
-            property="État"
-            operator="∈"
-            value="Demandé, Actif, Non conforme, Dérogé, Échu"
-            remove-label="Retirer le filtre État"
-          />
-          <AVenir component="FilterPicker" task="19" inline>
-            <Button variant="ghost" size="sm" icon="funnel" :shortcut="['/']"
-              >Ajouter un filtre</Button
-            >
-          </AVenir>
-        </Cluster>
+        <FilterPicker
+          v-model="flowFilters"
+          :model="FLOW_FILTERS"
+          label="Filtres du registre"
+          :shortcut="['/']"
+        />
       </template>
       <DataGrid
         v-model:sort="registerSort"

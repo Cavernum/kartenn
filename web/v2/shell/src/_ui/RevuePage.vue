@@ -14,7 +14,6 @@ const COMBOS = [
 
 /** Components of the P4 replaced in the mock-ups by a marked stand-in. */
 const LATER = [
-  { component: "FilterPicker", task: "19", where: "E3 (ajout d'un filtre)" },
   { component: "PeriodPicker", task: "20", where: "E6 (sélecteur de la pastille de date)" },
   { component: "Popover", task: "21", where: "E2 (explication d'une propriété)" },
   { component: "Toast", task: "22", where: "E9 (accusé « proposé, en revue »)" },

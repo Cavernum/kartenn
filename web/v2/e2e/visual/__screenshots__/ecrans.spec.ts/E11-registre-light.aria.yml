@@ -37,19 +37,17 @@
       - button "Proposer des flux"
       - button "Tester une connexion"
       - button "Exporter"
-    - button "Domaine = Centre de données nord"
-    - button "Retirer le filtre Domaine = Centre de données nord"
-    - button /Extrémité ⊂ \d+\.\d+\.2\.0\/\d+/
-    - button /Retirer le filtre Extrémité ⊂ \d+\.\d+\.2\.0\/\d+/
-    - button "Sorte = Déclaré"
-    - button "Retirer le filtre Sorte = Déclaré"
-    - button "État ∈ Demandé, Actif, Non conforme, Dérogé, Échu"
-    - button "Retirer le filtre État"
-    - button "Ajouter un filtre"
-    - paragraph:
-      - text: "À venir :"
-      - code: FilterPicker
-      - text: /\(tâche \d+\)/
+    - group "Filtres du registre":
+      - button "Domaine est Centre de données nord"
+      - button "Retirer le filtre Domaine est Centre de données nord"
+      - button /Extrémité dans \d+\.\d+\.2\.0\/\d+/
+      - button /Retirer le filtre Extrémité dans \d+\.\d+\.2\.0\/\d+/
+      - button "Sorte est Déclaré"
+      - button "Retirer le filtre Sorte est Déclaré"
+      - button "État est l'un de Demandé, Actif, Non conforme, Dérogé, Échu"
+      - button "Retirer le filtre État est l'un de Demandé, Actif, Non conforme, Dérogé, Échu"
+      - button "Ajouter un filtre"
+      - status
     - grid "Flux déclarés et ouverts, filtrés":
       - rowgroup:
         - row "Source (filtrée) Destination (filtrée) Service Type de flux État (filtrée) Conformité, issue Échéance":

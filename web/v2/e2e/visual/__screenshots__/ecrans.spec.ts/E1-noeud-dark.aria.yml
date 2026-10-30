@@ -122,10 +122,10 @@
     - toolbar /Actions sur \d+\.\d+\.\d+\.\d+\/\d+/:
       - button "Créer"
       - button "Plus d'actions"
-    - button /Inclus dans = \d+\.\d+\.\d+\.\d+\/\d+/
-    - button /Retirer le filtre Inclus dans = \d+\.\d+\.\d+\.\d+\/\d+/
-    - button "Environnement = Production"
-    - button "Retirer le filtre Environnement"
+    - button /Valeur dans \d+\.\d+\.\d+\.\d+\/\d+/
+    - button /Retirer le filtre Valeur dans \d+\.\d+\.\d+\.\d+\/\d+/
+    - button "Environnement est Production"
+    - button "Retirer le filtre Environnement est Production"
     - button "Colonnes"
     - grid /Contenu de \d+\.\d+\.\d+\.\d+\/\d+, environnement Production/:
       - rowgroup:

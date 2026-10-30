@@ -1,0 +1,16 @@
+- main:
+  - region "FilterPicker":
+    - heading "FilterPicker" [level=1]
+    - paragraph: "Motif : Button puis Combobox en séquence (propriété, opérateur, valeur) dans un popover"
+    - 'figure "rest — Filtres appliqués : libellés des valeurs, plusieurs valeurs (« l''un de »)"':
+      - group "Filtres":
+        - button "Domaine est Centre de données nord"
+        - button "Retirer le filtre Domaine est Centre de données nord"
+        - button /Adresse dans \d+\.\d+\.2\.0\/\d+/
+        - button /Retirer le filtre Adresse dans \d+\.\d+\.2\.0\/\d+/
+        - button "Usage est l'un de Hôte, VIP"
+        - button "Retirer le filtre Usage est l'un de Hôte, VIP"
+        - button "Ajouter un filtre"
+        - status
+      - code: rest
+      - text: ""

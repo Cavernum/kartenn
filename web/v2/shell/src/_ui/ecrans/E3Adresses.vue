@@ -8,28 +8,41 @@
 import {
   Button,
   Checkbox,
+  checkFilter,
   Cluster,
   DataGrid,
   EnvChip,
-  FilterChip,
+  FilterPicker,
   Kbd,
   KeyLabel,
   Menu,
   Toolbar,
   type CellState,
+  type Filter,
   type GridColumn,
   type GridSort,
   type MenuItem,
   type ToolbarAction,
 } from "@kartenn/ui";
 import { computed, ref, watch } from "vue";
-import AVenir from "./AVenir.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
-import { DOMAIN, ENV, usageLabel, type EnvKey } from "./donnees.ts";
+import { ADDRESS_FILTERS, ADDRESS_FILTERS_SET, ENV, usageLabel, type EnvKey } from "./donnees.ts";
 
 const props = defineProps<{ vue: string }>();
 const selecting = props.vue === "selection";
+const filters = ref<Filter[]>(ADDRESS_FILTERS_SET.map((f) => ({ ...f, values: [...f.values] })));
+/** The columns a filter applies to: neither a draft nor an invalid one filters anything. */
+const COLUMN_OF: Record<string, string> = {
+  value: "value",
+  usage: "usage",
+  "prop.core.owner": "owner",
+};
+const filteredColumns = computed(() =>
+  filters.value
+    .filter((f) => !f.draft && !checkFilter(ADDRESS_FILTERS, f))
+    .flatMap((f) => (COLUMN_OF[f.key] ? [COLUMN_OF[f.key]!] : [])),
+);
 
 interface Row extends Record<string, unknown> {
   value: string;
@@ -195,32 +208,12 @@ const bulk: MenuItem[] = [
         <Toolbar label="Actions sur les adresses" align="end" :actions="actions" />
       </template>
       <template #toolbar>
-        <Cluster gap="2">
-          <FilterChip property="Domaine" operator="=" :value="DOMAIN.label" />
-          <FilterChip property="Inclus dans" operator="=" value="192.0.2.0/24" mono />
-          <FilterChip property="Usage" operator="∈" value="Hôte, VIP" />
-          <FilterChip
-            property="Propriétaire"
-            operator="="
-            value="Atelier Nord"
-            state="draft"
-            remove-label="Retirer le filtre Propriétaire"
-          />
-          <FilterChip
-            property="Créée après"
-            operator="="
-            value="2026-13-01"
-            mono
-            state="invalid"
-            reason="Date invalide : le mois va de 01 à 12."
-            remove-label="Retirer le filtre Créée après"
-          />
-          <AVenir component="FilterPicker" task="19" inline>
-            <Button variant="ghost" size="sm" icon="funnel" :shortcut="['/']"
-              >Ajouter un filtre</Button
-            >
-          </AVenir>
-        </Cluster>
+        <FilterPicker
+          v-model="filters"
+          :model="ADDRESS_FILTERS"
+          label="Filtres des adresses"
+          :shortcut="['/']"
+        />
       </template>
       <Cluster v-if="selecting" gap="3" class="k-ecran-selection">
         <span class="k-num" role="status">{{
@@ -244,7 +237,7 @@ const bulk: MenuItem[] = [
         :columns="columns"
         :rows="rows"
         row-key="value"
-        :filtered="['value', 'usage', 'owner']"
+        :filtered="filteredColumns"
         :selectable="selecting"
         :cell-state="cellState"
         :active="

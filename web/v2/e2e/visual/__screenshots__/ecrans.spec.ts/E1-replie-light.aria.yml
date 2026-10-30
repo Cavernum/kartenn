@@ -90,6 +90,9 @@
       - link "Émetteurs":
         - /url: /admin/issuers
     - listitem:
+      - link "Paramètres":
+        - /url: /admin/settings
+    - listitem:
       - link "Audit":
         - /url: /admin/audit
   - button "Barre latérale"
@@ -176,10 +179,10 @@
       - button "Prochain libre"
       - button "Copier les valeurs"
       - button "Plus d'actions"
-    - button /Inclus dans = \d+\.\d+\.\d+\.\d+\/\d+/
-    - button /Retirer le filtre Inclus dans = \d+\.\d+\.\d+\.\d+\/\d+/
-    - button "Environnement = Production"
-    - button "Retirer le filtre Environnement"
+    - button /Valeur dans \d+\.\d+\.\d+\.\d+\/\d+/
+    - button /Retirer le filtre Valeur dans \d+\.\d+\.\d+\.\d+\/\d+/
+    - button "Environnement est Production"
+    - button "Retirer le filtre Environnement est Production"
     - grid /Contenu de \d+\.\d+\.\d+\.\d+\/\d+, environnement Production/:
       - rowgroup:
         - row "Objet Usage Environnement (filtrée) Propriétaire":

@@ -1,0 +1,10 @@
+- main:
+  - region "FilterPicker":
+    - heading "FilterPicker" [level=1]
+    - paragraph: "Motif : Button puis Combobox en séquence (propriété, opérateur, valeur) dans un popover"
+    - 'figure "empty — Aucun filtre : le bouton d''ajout seul"':
+      - group "Filtres":
+        - button "Ajouter un filtre"
+        - status
+      - code: empty
+      - text: ""

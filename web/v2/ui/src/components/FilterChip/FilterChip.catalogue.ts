@@ -36,6 +36,17 @@ export default {
       props: { property: "Préfixe", operator: "dans", value: prefixes[0], mono: true },
     },
     {
+      name: "key",
+      description: "Propriété sans libellé dans la langue : sa clé en chasse fixe",
+      props: {
+        property: "prop.dns.ttl",
+        propertyMono: true,
+        operator: "entre",
+        value: "60 et 3600",
+        mono: true,
+      },
+    },
+    {
       name: "draft",
       description: "Brouillon de filtre (valeur à choisir)",
       props: { property: "Responsable", operator: "contient", state: "draft" },

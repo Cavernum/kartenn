@@ -1,0 +1,19 @@
+- main:
+  - region "FilterPicker":
+    - heading "FilterPicker" [level=1]
+    - paragraph: "Motif : Button puis Combobox en séquence (propriété, opérateur, valeur) dans un popover"
+    - 'figure "keyboard — Au clavier : ajout, modification, retrait ; l''URL écrite à chaque filtre"':
+      - group "Filtres des adresses":
+        - button "Domaine est Centre de données nord"
+        - button "Retirer le filtre Domaine est Centre de données nord"
+        - button /Adresse dans \d+\.\d+\.2\.0\/\d+/
+        - button /Retirer le filtre Adresse dans \d+\.\d+\.2\.0\/\d+/
+        - button "Ajouter un filtre"
+        - status
+      - paragraph:
+        - text: "URL :"
+        - code: /\?valid_at=\d+-\d+-15T10:\d+:\d+\+\d+:\d+&domain=dc-nord&within=\d+\.\d+\.2\.0\/\d+/
+      - text: Note
+      - textbox "Note"
+      - code: keyboard
+      - text: ""

@@ -1,0 +1,36 @@
+- main:
+  - dialog "Modifier le filtre":
+    - text: Propriété
+    - combobox "Propriété": Usage
+    - status
+    - paragraph: "Clé : usage"
+    - text: Opérateur
+    - combobox "Opérateur": est
+    - text: Valeur
+    - combobox "Valeur"
+    - status
+    - list "Valeurs choisies":
+      - listitem:
+        - text: Hôte
+        - button "Retirer Hôte"
+      - listitem:
+        - text: VIP
+        - button "Retirer VIP"
+    - status
+    - button "Annuler"
+    - button "Appliquer"
+  - region "FilterPicker":
+    - heading "FilterPicker" [level=1]
+    - paragraph: "Motif : Button puis Combobox en séquence (propriété, opérateur, valeur) dans un popover"
+    - 'figure "values — Modification : plusieurs valeurs choisies, chacune retirable"':
+      - group "Filtres":
+        - button "Domaine est Centre de données nord"
+        - button "Retirer le filtre Domaine est Centre de données nord"
+        - button /Adresse dans \d+\.\d+\.2\.0\/\d+/
+        - button /Retirer le filtre Adresse dans \d+\.\d+\.2\.0\/\d+/
+        - button "Usage est l'un de Hôte, VIP" [expanded]
+        - button "Retirer le filtre Usage est l'un de Hôte, VIP"
+        - button "Ajouter un filtre"
+        - status
+      - code: values
+      - text: ""
