@@ -199,7 +199,11 @@ impl PgTx {
             return Ok(());
         }
         let (from, closed_list) = self.diff_context(property, start).await?;
+        // Planned for its arrays at each run, as `record_sql`: the generic plan tests the
+        // excluded objects on each heir, 0.67 s instead of 0.09 s for 2 000 excluded and
+        // 1.2·10⁵ heirs on the reduced bench (task 003-20).
         sqlx::query(sqlx::AssertSqlSafe(value_sql()))
+            .persistent(false)
             .bind(property)
             .bind(origins)
             .bind(from)
@@ -241,7 +245,14 @@ impl PgTx {
             .execute(&mut *self.tx)
             .await
             .map_err(store_err)?;
+        // Planned for its arrays at each run, never kept prepared: the generic plan, chosen
+        // from the sixth run on a connection, reads the prefixes of `ex` by their period
+        // alone and tests the array of objects on each (2 s instead of 0.4 s for the 2·10⁴
+        // objects of three domains on the reduced bench, quadratic with the scale; task
+        // 003-20). Planning costs a few milliseconds, less than that scan even for a few
+        // objects.
         sqlx::query(sqlx::AssertSqlSafe(record_sql()))
+            .persistent(false)
             .bind(property)
             .bind(&objects)
             .bind(from)
