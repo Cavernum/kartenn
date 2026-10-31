@@ -1,18 +1,24 @@
-//! A measure run alone (`--only`) gives the verdict it gives in the whole bench, at the
+//! A measure run alone (`--only`) measures what it measures in the whole bench, at the
 //! scale of the tests (ADR 0041, decision 1; task 028-1): for each bench, a measure with
-//! prerequisites or a setup of its own, whose forgotten prerequisite would show.
+//! prerequisites or a setup of its own, whose forgotten prerequisite would show in the
+//! counts of its report (objects changed, nodes in scope, flows concerned…).
 //!
-//! Each run is the binary on an empty database of its own in the cluster of
-//! `DATABASE_URL`, named as the databases of the tests (ADR 0028): `kartenn-testing-clean`
-//! drops those a failed test leaves.
+//! The timings of the small scale move with the load of the machine: lines are compared
+//! with their durations, percentages and load averages blanked, not by their verdicts.
+//! The runs take one bench at a time (an advisory lock of the cluster), each on an empty
+//! database of its own in the cluster of `DATABASE_URL`, named as the databases of the
+//! tests (ADR 0028): `kartenn-testing-clean` drops those a failed test leaves.
 
 use std::collections::BTreeMap;
 use std::process::Command;
 
 use sqlx::{Connection, PgConnection};
+use tokio::runtime::Runtime;
 
 /// The last line of a run at the scale of the tests, written after the verdicts.
 const CAVEAT: &str = "échelle de test : ne vaut pas mesure de budget";
+/// The advisory lock that runs the benches of these tests one at a time (`kb_only`).
+const SERIAL: i64 = 0x006b_625f_6f6e_6c79;
 
 /// `DATABASE_URL` aimed at the database `name`.
 fn url_of(name: &str) -> String {
@@ -27,44 +33,58 @@ fn url_of(name: &str) -> String {
     }
 }
 
-/// `kartenn-bench <bench> <url> 42 small [--only <only>]` on an empty database; its standard
-/// output. The database is dropped when the run went to its end.
-fn run(bench: &str, only: Option<&str>) -> String {
-    let runtime = tokio::runtime::Runtime::new().expect("a runtime");
-    let name = kartenn_testing::database_name(&format!(
-        "kartenn_bench::only::{bench}::{}",
-        only.unwrap_or("*")
-    ));
-    let mut conn = runtime.block_on(async {
-        let mut conn = PgConnection::connect_with(&kartenn_testing::master_options())
-            .await
-            .expect("connecting to DATABASE_URL");
-        kartenn_testing::create_empty(&mut conn, &name)
-            .await
-            .expect("creating the database of the bench");
-        conn
-    });
-    let mut command = Command::new(env!("CARGO_BIN_EXE_kartenn-bench"));
-    command
-        .args([bench, &url_of(&name), "42", "small"])
-        .env_remove("K_BENCH_SCALE");
-    if let Some(only) = only {
-        command.args(["--only", only]);
+/// A connection to the cluster that holds [`SERIAL`] until it is dropped.
+struct Serial {
+    runtime: Runtime,
+    conn: PgConnection,
+}
+
+impl Serial {
+    fn take() -> Self {
+        let runtime = Runtime::new().expect("a runtime");
+        let conn = runtime.block_on(async {
+            let mut conn = PgConnection::connect_with(&kartenn_testing::master_options())
+                .await
+                .expect("connecting to DATABASE_URL");
+            sqlx::query("SELECT pg_advisory_lock($1)")
+                .bind(SERIAL)
+                .execute(&mut conn)
+                .await
+                .expect("taking the lock of the benches of the tests");
+            conn
+        });
+        Self { runtime, conn }
     }
-    let output = command.output().expect("running kartenn-bench");
-    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-    assert!(
-        stdout.lines().any(|l| l == CAVEAT),
-        "{bench} {only:?} did not reach its verdicts:\n{stdout}\n{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    runtime.block_on(async {
-        kartenn_testing::drop_database(&mut conn, &name)
-            .await
+
+    /// `kartenn-bench <bench> <url> 42 small [--only <only>]` on an empty database; its
+    /// standard output. The database is dropped when the run went to its end.
+    fn run(&mut self, bench: &str, only: Option<&str>) -> String {
+        let name = kartenn_testing::database_name(&format!(
+            "kartenn_bench::only::{bench}::{}",
+            only.unwrap_or("*")
+        ));
+        self.runtime
+            .block_on(kartenn_testing::create_empty(&mut self.conn, &name))
+            .expect("creating the database of the bench");
+        let mut command = Command::new(env!("CARGO_BIN_EXE_kartenn-bench"));
+        command
+            .args([bench, &url_of(&name), "42", "small"])
+            .env_remove("K_BENCH_SCALE");
+        if let Some(only) = only {
+            command.args(["--only", only]);
+        }
+        let output = command.output().expect("running kartenn-bench");
+        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        assert!(
+            stdout.lines().any(|l| l == CAVEAT),
+            "{bench} {only:?} did not reach its verdicts:\n{stdout}\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        self.runtime
+            .block_on(kartenn_testing::drop_database(&mut self.conn, &name))
             .expect("dropping the database of the bench");
-        let _ = conn.close().await;
-    });
-    stdout
+        stdout
+    }
 }
 
 /// The name a line of the report gives its budget: up to its first `: `, or to the columns
@@ -77,47 +97,75 @@ fn key(rest: &str) -> String {
     rest[..end].trim().to_owned()
 }
 
-/// The verdicts of a report by budget, in their order: `PASS` and `FAIL` lines.
-fn verdicts(report: &str) -> BTreeMap<String, Vec<&'static str>> {
-    let mut verdicts: BTreeMap<String, Vec<&'static str>> = BTreeMap::new();
-    for line in report.lines() {
-        let verdict = match line.split_once(' ') {
-            Some(("PASS", rest)) => ("PASS", rest),
-            Some(("FAIL", rest)) => ("FAIL", rest),
-            _ => continue,
-        };
-        verdicts.entry(key(verdict.1)).or_default().push(verdict.0);
-    }
-    verdicts
+/// A word that moves with the load: a duration (`1.2s`, `40ms`, `0ns`), a decimal, a
+/// percentage, whether a target was met.
+fn moves(word: &str) -> bool {
+    let core = word.trim_matches(|c: char| "(),;:<+".contains(c));
+    let numeric = |n: &str| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit() || c == '.');
+    (core.contains('.') && core.chars().any(|c| c.is_ascii_digit()))
+        || core.ends_with('%')
+        || ["ns", "µs", "ms", "s"]
+            .iter()
+            .any(|unit| core.strip_suffix(unit).is_some_and(numeric))
+        || core == "met"
+        || core == "missed"
 }
 
-/// `measure` alone gives the verdicts it gives in the whole bench on `budgets`, its lines,
-/// and fewer verdicts than the whole bench. The last verdict of a budget counts: the
-/// modelled overhead in `telemetry`, whose first table may turn a line into `INFO` with the
-/// noise. The verdicts of the prerequisites are not compared: some are noise at this scale
-/// (the control of the inference of `policy`, in the order of its budget).
-fn alone_as_in_the_whole(bench: &str, measure: &str, budgets: &[&str]) {
-    let whole = run(bench, None);
-    let alone = run(bench, Some(measure));
+/// A line of the report without its verdict, its moving words blanked.
+fn steady(rest: &str) -> String {
+    rest.split_whitespace()
+        .map(|w| if moves(w) { "#" } else { w })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// The `PASS` and `FAIL` lines of a report by budget, in their order, made [`steady`].
+fn budgets(report: &str) -> BTreeMap<String, Vec<String>> {
+    let mut budgets: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for line in report.lines() {
+        if let Some(("PASS" | "FAIL", rest)) = line.split_once(' ') {
+            budgets.entry(key(rest)).or_default().push(steady(rest));
+        }
+    }
+    budgets
+}
+
+/// `only` alone reports fewer budgets than the whole bench, all of them in the whole
+/// bench; on `same`, the same line as there, its timings blanked (the last of a budget:
+/// the modelled overhead of `telemetry`); `present` there and alone (a line whose counts
+/// follow the draws, which differ alone).
+fn alone_as_in_the_whole(bench: &str, only: &str, same: &[&str], present: &[&str]) {
+    let mut serial = Serial::take();
+    let whole = serial.run(bench, None);
+    let alone = serial.run(bench, Some(only));
+    let asked = format!("mesures : {}", only.replace(',', ", "));
+    assert!(alone.lines().any(|l| l.starts_with(&asked)), "{alone}");
+    let (all, mine) = (budgets(&whole), budgets(&alone));
+    let lines = |b: &BTreeMap<String, Vec<String>>| b.values().map(Vec::len).sum::<usize>();
     assert!(
-        alone
-            .lines()
-            .any(|l| l.starts_with(&format!("mesures : {measure}"))),
-        "{alone}"
+        lines(&mine) < lines(&all),
+        "{only} ran every measure:\n{alone}"
     );
-    let (all, only) = (verdicts(&whole), verdicts(&alone));
-    assert!(
-        only.values().map(Vec::len).sum::<usize>() < all.values().map(Vec::len).sum(),
-        "{measure} ran every measure:\n{alone}"
-    );
-    for budget in budgets {
-        let last = |verdicts: &BTreeMap<String, Vec<&'static str>>| {
-            verdicts.get(*budget).and_then(|v| v.last().copied())
-        };
-        let (in_whole, in_alone) = (last(&all), last(&only));
-        assert!(in_alone.is_some(), "{budget}: no verdict alone\n{alone}");
+    for budget in mine.keys() {
+        assert!(
+            all.contains_key(budget),
+            "{budget}: alone, not in the whole bench\n{whole}"
+        );
+    }
+    for budget in same {
+        let last =
+            |b: &BTreeMap<String, Vec<String>>| b.get(*budget).and_then(|v| v.last()).cloned();
+        let in_alone = last(&mine);
+        assert!(in_alone.is_some(), "{budget}: not reported alone\n{alone}");
         assert_eq!(
-            in_alone, in_whole,
+            in_alone,
+            last(&all),
+            "{budget}: alone\n{alone}\nin the whole bench\n{whole}"
+        );
+    }
+    for budget in present {
+        assert!(
+            mine.contains_key(*budget) && all.contains_key(*budget),
             "{budget}: alone\n{alone}\nin the whole bench\n{whole}"
         );
     }
@@ -132,7 +180,12 @@ fn props() {
     alone_as_in_the_whole(
         "props",
         "props.origins-3-domains",
-        &["origins of 3 domains removed (P10)"],
+        &[
+            "changeset, differential up to 10^4",
+            "value of every root (up to 10^6)",
+            "origins of 3 domains removed (P10)",
+        ],
+        &[],
     );
 }
 
@@ -141,8 +194,33 @@ fn props() {
 fn core() {
     alone_as_in_the_whole(
         "core",
-        "core.machines-read",
-        &["read a machine with its interfaces and addresses, p95"],
+        "core.machines-suggestions,core.stats",
+        &[
+            "children of a container of 10^4, page of 100, p95",
+            "import",
+            "stats, reader of everything, route from the snapshot, p95",
+            "stats, 1 000 bindings, computation, p95",
+        ],
+        &[
+            "suggest addresses, p95",
+            "suggest prefixes, p95",
+            "suggest machines as the reader of one owner, p95",
+            "suggest VLANs, p95",
+        ],
+    );
+}
+
+#[test]
+#[ignore = "benches at the small scale: k-check -p kartenn-bench --run-ignored all"]
+fn core_machines() {
+    alone_as_in_the_whole(
+        "core",
+        "core.machines-read,core.machines-network",
+        &[
+            "read a machine with its interfaces and addresses, p95",
+            "import",
+        ],
+        &["machines of a /24, p95"],
     );
 }
 
@@ -152,7 +230,11 @@ fn rbac() {
     alone_as_in_the_whole(
         "rbac",
         "rbac.read-past",
-        &["read an object as known in the past, p95"],
+        &[
+            "read an object, p95",
+            "read an object as known in the past, p95",
+        ],
+        &[],
     );
 }
 
@@ -162,7 +244,11 @@ fn http() {
     alone_as_in_the_whole(
         "http",
         "http.read-past",
-        &["read an object as known in the past, p95"],
+        &[
+            "read an object, p95",
+            "read an object as known in the past, p95",
+        ],
+        &[],
     );
 }
 
@@ -172,7 +258,11 @@ fn policy() {
     alone_as_in_the_whole(
         "policy",
         "policy.inference-preview",
-        &["preview of a rule of inference in its simulation, added"],
+        &[
+            "control of the inference on a changeset of 10⁴ objects, added",
+            "preview of a rule of inference in its simulation, added",
+        ],
+        &[],
     );
 }
 
@@ -181,8 +271,13 @@ fn policy() {
 fn flow() {
     alone_as_in_the_whole(
         "flow",
-        "flow.nonconformities-page",
-        &["page of non-conformities, p95"],
+        "flow.rule-written",
+        &[
+            "request a flow interface x interface 16 x 16, triage included, p95",
+            "re-evaluate the flows of a reclassified container, added",
+            "re-evaluate the flows of a flow type on a rule written",
+        ],
+        &[],
     );
 }
 
@@ -193,9 +288,11 @@ fn events() {
         "events",
         "events.storm",
         &[
+            "memory per idle stream",
             "resumption of every stream of an instance",
             "unitary changeset during the storm, p95 (INV-34)",
         ],
+        &[],
     );
 }
 
@@ -206,11 +303,28 @@ fn telemetry() {
         "telemetry",
         "telemetry.filtered-page",
         &["filtered page of 100"],
+        &[],
     );
 }
 
-/// `--list` prints the catalogue; an unknown name is refused with it, before any database
-/// is touched.
+#[test]
+fn steady_lines_blank_what_moves() {
+    assert_eq!(
+        steady("read an object, p95: 3.2ms with access control, budget 6ms (2ms without, +50.0 %)"),
+        "read an object, p95: # with access control, budget # # without, # #"
+    );
+    assert_eq!(
+        steady("x: 0ns (limit 1s; 30001 nodes in scope; load 6.59; target < 10ms: met)"),
+        "x: # (limit # 30001 nodes in scope; load # target < # #"
+    );
+    assert_eq!(
+        steady("filtered page of 100   12   3    1.20%   2.31%"),
+        "filtered page of 100 12 3 # #"
+    );
+}
+
+/// `--list` prints the catalogue, `--list --only` the measures that would run; an unknown
+/// name is refused with the catalogue, before any database is touched.
 #[test]
 fn list_and_unknown_names() {
     let bench = || Command::new(env!("CARGO_BIN_EXE_kartenn-bench"));
@@ -222,22 +336,32 @@ fn list_and_unknown_names() {
         "{list}"
     );
     assert!(list.contains("props.origins-3-domains (après props.value-every-root)\n"));
-    let refused = bench()
-        .args([
+    let selected = bench()
+        .args(["props", "--list", "--only", "props.value-every-root"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(selected.stdout).unwrap(),
+        "mesures : props.value-every-root ; préalables : props.changeset-10k\n"
+    );
+    for args in [
+        &[
             "props",
             "postgres://nowhere.invalid/x",
             "42",
             "small",
             "--only",
             "props.nope",
-        ])
-        .output()
-        .unwrap();
-    assert!(!refused.status.success());
-    let error = String::from_utf8_lossy(&refused.stderr);
-    assert!(
-        error.contains("`props.nope` is no measure of the bench `props`"),
-        "{error}"
-    );
-    assert!(error.contains(list.trim_end()), "{error}");
+        ][..],
+        &["props", "--list", "--only", "props.nope"],
+    ] {
+        let refused = bench().args(args).output().unwrap();
+        assert!(!refused.status.success(), "{args:?}");
+        let error = String::from_utf8_lossy(&refused.stderr);
+        assert!(
+            error.contains("`props.nope` is no measure of the bench `props`"),
+            "{error}"
+        );
+        assert!(error.contains(list.trim_end()), "{error}");
+    }
 }

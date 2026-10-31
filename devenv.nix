@@ -315,25 +315,46 @@
     inherit description;
     exec = ''
       set -euo pipefail
-      for a in "$@"; do
-        [ "$a" != --list ] || exec k-heavy cargo run --release -q -p kartenn-bench -- ${command} --list
-      done
+      # The arguments checked before any lock: a mistake fails at once.
+      usage() {
+        echo "bench : $1 ; [seed] [small] [--only <m1,m2>] | --list [--only <m1,m2>]" >&2
+        exit 2
+      }
+      seed="" small="" only="" asked="" list=""
+      parse() {
+        while [ $# -gt 0 ]; do
+          case $1 in
+            --list) list=1 ;;
+            small) small=small ;;
+            --only | --only=*)
+              [ -z "$asked" ] || usage "--only deux fois"
+              asked=1
+              if [ "$1" = --only ]; then
+                [ $# -ge 2 ] || usage "--only sans valeur"
+                only=$2
+                shift
+              else
+                only=''${1#--only=}
+              fi
+              [ -n "$only" ] || usage "--only sans mesure" ;;
+            "" | *[!0-9]*) usage "argument inattendu « $1 »" ;;
+            *) [ -z "$seed" ] || usage "deux graines"; seed=$1 ;;
+          esac
+          shift
+        done
+      }
+      parse "$@"
+      if [ -n "$list" ]; then
+        exec k-heavy cargo run --release -q -p kartenn-bench -- ${command} --list ''${only:+--only "$only"}
+      fi
       [ -n "''${K_BENCH_HELD:-}" ] || exec k-heavy --bench ${dash} "$0" "$@"
-      seed="" small="" only=""
-      while [ $# -gt 0 ]; do
-        case $1 in
-          small) small=small ;;
-          --only) [ $# -ge 2 ] || { echo "bench : --only <m1,m2>" >&2; exit 2; }; only=$2; shift ;;
-          --only=*) only=''${1#--only=} ;;
-          *) [ -z "$seed" ] || { echo "bench : [seed] [small] [--only <m1,m2>] | --list" >&2; exit 2; }; seed=$1 ;;
-        esac
-        shift
-      done
       k-pg-bench
+      cargo build --release -q -p kartenn-bench
+      # The measures named, checked before the database is touched.
+      [ -z "$only" ] || cargo run --release -q -p kartenn-bench -- ${command} --list --only "$only" >/dev/null
       bench=''${K_BENCH_DATABASE_URL:-${benchDatabase}}
       PGOPTIONS='-c client_min_messages=warning' psql "''${bench%/*}/postgres" -q -c "DROP DATABASE IF EXISTS \"''${bench##*/}\" WITH (FORCE)" \
         -c "CREATE DATABASE \"''${bench##*/}\""
-      cargo build --release -q -p kartenn-bench
       # Watchdog: a bench whose last step line is older than K_BENCH_STALL minutes (60 at
       # full scale, 20 reduced; 0 for no limit) is stopped, so a stuck step never holds the
       # bench lock and a slot for hours (2026-10-30: 9 h on one step of bench-core).

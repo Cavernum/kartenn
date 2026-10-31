@@ -321,14 +321,14 @@ core.vlan-read
 core.vlan-filtered-page
 core.vlan-occupancy
 core.vlan-create
-core.machines-read
+core.machines-read (après core.unitary-changeset, core.sustained, core.import)
 core.machines-owner-page
 core.machines-site-page
-core.machines-network
+core.machines-network (après core.wide-children, core.unitary-changeset, core.sustained, core.import)
 core.machines-create
-core.machines-suggestions
+core.machines-suggestions (après core.wide-children, core.unitary-changeset, core.sustained, core.import, core.vlan-create, core.machines-create)
 core.machines-import
-core.stats (après core.wide-children, core.import, core.machines-import)
+core.stats (après core.wide-children, core.unitary-changeset, core.sustained, core.import, core.vlan-create, core.machines-create, core.machines-import)
 [rbac]
 rbac.read-object
 rbac.read-past (après rbac.read-object)
@@ -350,7 +350,7 @@ policy.verdict-pair
 policy.interface-pair
 policy.raw-port
 policy.rules-differential
-policy.audit-report
+policy.audit-report (après policy.rules-differential)
 policy.inference-suggestion
 policy.inference-control
 policy.inference-preview (après policy.inference-control)

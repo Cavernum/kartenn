@@ -62,7 +62,8 @@ pub(crate) static BENCH: Bench = Bench {
         Measure::new(INTERFACES),
         Measure::new(RAW_PORT),
         Measure::new(DIFFERENTIAL),
-        Measure::new(REPORT),
+        // The report goes over the rules, the denies of the differential among them.
+        Measure::new(REPORT).after(&[DIFFERENTIAL]),
         Measure::new(SUGGESTION),
         Measure::new(CONTROL),
         Measure::new(PREVIEW).after(&[CONTROL]),

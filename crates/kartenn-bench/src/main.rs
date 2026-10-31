@@ -54,7 +54,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use anyhow::{Context, bail};
-use kartenn_bench::measures::{Selection, bench};
+use kartenn_bench::measures::{Bench, Selection, bench};
 use kartenn_bench::{Scale, generate};
 
 /// What follows the seed: `small`, and `--only <m1,m2>` (or `--only=<m1,m2>`), in any order.
@@ -171,11 +171,7 @@ fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.as_slice() {
         [command, seed, dir, rest @ ..] if command == "gen" => generate_files(seed, dir, rest),
-        [command, flag] if flag == "--list" => {
-            let bench = bench(command).with_context(|| format!("no bench `{command}`"))?;
-            print!("{}", bench.list());
-            Ok(())
-        }
+        [command, flag, rest @ ..] if flag == "--list" => list(command, rest),
         [command, database, seed, rest @ ..]
             if ["props", "core", "rbac", "http", "policy", "flow"].contains(&command.as_str()) =>
         {
@@ -266,10 +262,21 @@ fn main() -> anyhow::Result<()> {
         _ => bail!(
             "usage: kartenn-bench gen <seed> <output-dir> [small] \
              | props|core|rbac|http|policy|flow|events|telemetry <database-url> <seed> [small] [--only <m1,m2>] \
-             | props|core|rbac|http|policy|flow|events|telemetry --list \
+             | props|core|rbac|http|policy|flow|events|telemetry --list [--only <m1,m2>] \
              | seed <database-url> <seed> [small]"
         ),
     }
+}
+
+/// `<bench> --list`: the catalogue; with `--only`, the names checked and the measures that
+/// would run.
+fn list(command: &str, rest: &[String]) -> anyhow::Result<()> {
+    let selection = Options::parse(rest)?.selection(command)?;
+    match selection.announce() {
+        Some(line) => println!("{line}"),
+        None => print!("{}", bench(command).map(Bench::list).unwrap_or_default()),
+    }
+    Ok(())
 }
 
 fn generate_files(seed: &str, dir: &str, rest: &[String]) -> anyhow::Result<()> {

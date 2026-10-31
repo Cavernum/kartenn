@@ -207,6 +207,7 @@ pub(crate) async fn run(
     pool: &PgPool,
     author: Uuid,
     data: &Dataset,
+    seed: u64,
     rng: &mut ChaCha8Rng,
     selection: &Selection,
     report: &mut String,
@@ -454,7 +455,7 @@ pub(crate) async fn run(
     progress(&format!("machines measures: {:?}", started.elapsed()));
 
     if selection.runs(SUGGESTIONS) {
-        budgets.extend(all_suggestions(pool, &entities, rng).await?);
+        budgets.extend(all_suggestions(pool, &entities, seed, rng).await?);
         progress(&format!("suggestions: {:?}", started.elapsed()));
     }
     if selection.runs(IMPORT) {
@@ -469,6 +470,7 @@ pub(crate) async fn run(
 async fn all_suggestions(
     pool: &PgPool,
     entities: &[Uuid],
+    seed: u64,
     rng: &mut ChaCha8Rng,
 ) -> anyhow::Result<Vec<Budget>> {
     let all = reader(
@@ -494,7 +496,7 @@ async fn all_suggestions(
     let everyone = crate::vlan_budgets::app(pool, registry.clone(), routes(), all)?;
     let owner = reader_on(pool, &["machines.read"], Some(entities[0])).await?;
     let one_owner = crate::vlan_budgets::app(pool, registry, routes(), owner)?;
-    suggestions(pool, &everyone, &one_owner, rng).await
+    suggestions(pool, &everyone, &one_owner, seed, rng).await
 }
 
 /// The import of the acceptance of REQ-009-19, in a domain of its own, owned by `entity`.
@@ -691,11 +693,13 @@ fn suggested(enumerated: &str) -> Vec<Suggested> {
 /// names, 200 prefixes of 1 to 6 characters of existing keys, as typed, answered by a page
 /// of 20 under 50 ms at the p95; the values of a closed list and the catalogue of the
 /// rules alike; the machines once more as the reader of one owner, whose rows the read
-/// predicate thins.
+/// predicate thins. The keys are drawn by a hash of each with the seed: the same keys
+/// from one run to the next, whatever the order of the rows, without a draw of `rng`.
 async fn suggestions(
     pool: &PgPool,
     everyone: &axum::Router,
     one_owner: &axum::Router,
+    seed: u64,
     rng: &mut ChaCha8Rng,
 ) -> anyhow::Result<Vec<Budget>> {
     let enumerated: String = sqlx::query_scalar(
@@ -710,9 +714,10 @@ async fn suggestions(
     for route in suggested(&enumerated) {
         let app = if route.scoped { one_owner } else { everyone };
         let keys: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
-            "{} ORDER BY random() LIMIT 200",
+            "SELECT k FROM ({}) AS t(k) ORDER BY md5(k || $1), k LIMIT 200",
             route.keys
         )))
+        .bind(seed.to_string())
         .fetch_all(pool)
         .await?;
         if keys.is_empty() {

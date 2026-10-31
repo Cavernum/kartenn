@@ -52,10 +52,34 @@ const UNITARY: &str = "core.unitary-changeset";
 const SUSTAINED_RATE: &str = "core.sustained";
 const IMPORT: &str = "core.import";
 
+/// The writes of the core measures: addresses (the unitary changesets, the sustained rate,
+/// a second dataset by the import) and 10⁴ prefixes (the wide container).
+const ADDRESSES: &[&str] = &[UNITARY, SUSTAINED_RATE, IMPORT];
+const CORE_WRITES: &[&str] = &[WIDE_CHILDREN, UNITARY, SUSTAINED_RATE, IMPORT];
+/// Those and the writes of the modules: what the suggestions and the statistics read.
+const ALL_WRITES: &[&str] = &[
+    WIDE_CHILDREN,
+    UNITARY,
+    SUSTAINED_RATE,
+    IMPORT,
+    vlan::CREATE,
+    machines::CREATE,
+];
+const ALL_WRITES_AND_IMPORT: &[&str] = &[
+    WIDE_CHILDREN,
+    UNITARY,
+    SUSTAINED_RATE,
+    IMPORT,
+    vlan::CREATE,
+    machines::CREATE,
+    machines::IMPORT,
+];
+
 /// The measures of `bench-core` (ADR 0041): those of the core, then those of the VLANs,
 /// of the machines (whose owners are the entities of the VLANs) and of the statistics,
-/// each module set up when one of its measures runs. The statistics count what the large
-/// writes before them added.
+/// each module set up when one of its measures runs. A measure that reads the tables the
+/// writes before it grew (addresses, prefixes, machines, VLANs) runs after them, as in the
+/// whole bench.
 pub(crate) static BENCH: Bench = Bench {
     name: "core",
     measures: &[
@@ -73,14 +97,16 @@ pub(crate) static BENCH: Bench = Bench {
         Measure::new(vlan::FILTERED_PAGE),
         Measure::new(vlan::OCCUPANCY),
         Measure::new(vlan::CREATE),
-        Measure::new(machines::READ),
+        // The card of a machine reads its addresses.
+        Measure::new(machines::READ).after(ADDRESSES),
         Measure::new(machines::OWNER_PAGE),
         Measure::new(machines::SITE_PAGE),
-        Measure::new(machines::NETWORK),
+        // The machines of a /24 go through the addresses and the prefixes.
+        Measure::new(machines::NETWORK).after(CORE_WRITES),
         Measure::new(machines::CREATE),
-        Measure::new(machines::SUGGESTIONS),
+        Measure::new(machines::SUGGESTIONS).after(ALL_WRITES),
         Measure::new(machines::IMPORT),
-        Measure::new(STATS).after(&[WIDE_CHILDREN, IMPORT, machines::IMPORT]),
+        Measure::new(STATS).after(ALL_WRITES_AND_IMPORT),
     ],
 };
 
@@ -674,7 +700,7 @@ pub async fn run(
         budgets.extend(run.await?);
     }
     if selection.any("core.machines-") || statistics {
-        let run = machines::run(&pool, author, data, &mut rng, selection, &mut report);
+        let run = machines::run(&pool, author, data, seed, &mut rng, selection, &mut report);
         budgets.extend(run.await?);
     }
     if statistics {
