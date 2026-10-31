@@ -36,6 +36,7 @@ import {
   checkFilter,
   checkValue,
   filterParam,
+  filterQuery,
   filterSentence,
   filterWords,
   monoValues,
@@ -526,6 +527,7 @@ const chips = computed(() =>
       state: filter.draft ? "draft" : reason ? "invalid" : "applied",
       reason,
       sentence: filterSentence(props.model, filter),
+      query: filter.draft ? undefined : filterQuery(props.model, filter),
     } as const;
   }),
 );
@@ -562,6 +564,7 @@ onMounted(() => {
           :reason="chip.reason"
           :remove-label="`${t('removeFilter')} ${chip.sentence}`"
           :expanded="open && opener === chip.index"
+          :query="chip.query"
           @edit="openEdit(chip.index)"
           @remove="remove(chip.index)"
         />

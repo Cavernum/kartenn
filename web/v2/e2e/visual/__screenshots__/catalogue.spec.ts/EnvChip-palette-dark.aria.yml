@@ -1,8 +1,19 @@
 - main:
   - region "EnvChip":
     - heading "EnvChip" [level=1]
-    - paragraph: "Motif : — (pastille et libellé)"
+    - paragraph: "Motif : Button (copier la clé) ; pastille et libellé"
     - figure "palette — Les six teintes":
-      - text: Environnement 1 Environnement 2 Environnement 3 Environnement 4 Environnement 5 Environnement 6
+      - button "Environnement 1"
+      - status
+      - button "Environnement 2"
+      - status
+      - button "Environnement 3"
+      - status
+      - button "Environnement 4"
+      - status
+      - button "Environnement 5"
+      - status
+      - button "Environnement 6"
+      - status
       - code: palette
       - text: ""

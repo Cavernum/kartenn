@@ -104,7 +104,7 @@
   - heading "Anomalies ouvertes" [level=2]
   - alert: "Les anomalies n'ont pas pu être lues : le service est momentanément indisponible."
   - paragraph: Le reste de l'écran reste utilisable. Si l'erreur persiste, transmettez ces deux codes.
-  - button "Copier urn:kartenn:problem:unavailable":
+  - button "Copier type urn:kartenn:problem:unavailable":
     - text: ""
     - code: urn:kartenn:problem:unavailable
   - status

@@ -132,7 +132,9 @@
       - list:
         - listitem:
           - code: /\d+\.\d+\.\d+\.\d+/
-          - text: /Recette Environnement posée sur l'adresse · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
+          - button "Recette"
+          - status
+          - text: /Environnement posée sur l'adresse · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
     - region "Destination interface":
       - heading "Destination interface" [level=3]
       - paragraph:
@@ -144,10 +146,14 @@
       - list:
         - listitem:
           - code: /\d+\.\d+\.\d+\.\d+/
-          - text: /Production Environnement héritée de \d+\.\d+\.2\.0\/\d+ · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
+          - button "Production"
+          - status
+          - text: /Environnement héritée de \d+\.\d+\.2\.0\/\d+ · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
         - listitem:
           - code: /\d+\.\d+\.\d+\.\d+/
-          - text: /Production Environnement héritée de \d+\.\d+\.2\.0\/\d+ · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
+          - button "Production"
+          - status
+          - text: /Environnement héritée de \d+\.\d+\.2\.0\/\d+ · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
   - button "Hauteur du panneau"
   - button "Fermer le panneau"
 - button "Ouvrir le panneau"

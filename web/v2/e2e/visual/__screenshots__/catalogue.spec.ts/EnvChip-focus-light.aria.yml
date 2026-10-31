@@ -1,0 +1,9 @@
+- main:
+  - region "EnvChip":
+    - heading "EnvChip" [level=1]
+    - paragraph: "Motif : Button (copier la clé) ; pastille et libellé"
+    - figure "focus — Focus visible":
+      - button "Recette"
+      - status
+      - code: focus
+      - text: ""

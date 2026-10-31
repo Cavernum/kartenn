@@ -59,8 +59,10 @@
           - gridcell /srv-web-\d+ · eth0/
           - gridcell /srv-app-\d+ · eth0/
           - gridcell "Web chiffré https":
-            - text: ""
-            - code: https
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
           - gridcell /ticketing:CHG-\d+/
           - gridcell "Nouveau frontal"
           - gridcell /Actif flux-\d+/:
@@ -71,8 +73,10 @@
           - gridcell /srv-app-\d+ · eth0/
           - gridcell /\d+\.\d+\.\d+\.\d+/
           - gridcell "PostgreSQL postgres":
-            - text: ""
-            - code: postgres
+            - button "PostgreSQL postgres":
+              - text: ""
+              - code: postgres
+            - status
           - gridcell /ticketing:CHG-\d+/
           - gridcell "Base du frontal"
           - gridcell /Actif flux-\d+/:

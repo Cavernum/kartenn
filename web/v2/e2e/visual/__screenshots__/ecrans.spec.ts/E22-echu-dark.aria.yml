@@ -69,8 +69,10 @@
     - definition: /srv-app-\d+ · eth0/
     - term: Service
     - definition:
-      - text: Web chiffré
-      - code: https
+      - button "Web chiffré https":
+        - text: ""
+        - code: https
+      - status
     - term: État
     - definition: Échu
     - term: Période

@@ -13,6 +13,7 @@ import CodeBadge from "../src/components/CodeBadge/CodeBadge.vue";
 import Combobox from "../src/components/Combobox/Combobox.vue";
 import { filterOptions } from "../src/components/Combobox/combobox.ts";
 import EnvChip from "../src/components/EnvChip/EnvChip.vue";
+import { envHue } from "../src/components/EnvChip/env.ts";
 import FormField from "../src/components/FormField/FormField.vue";
 import IconButton from "../src/components/IconButton/IconButton.vue";
 import Kbd from "../src/components/Kbd/Kbd.vue";
@@ -372,18 +373,72 @@ describe("StatusBadge", () => {
     expect(html).toContain("<svg");
     expect(html).toContain("Libellé");
   });
+
+  it("without a label, the word of its state", async () => {
+    expect(await render(StatusBadge, { state: "review" })).toContain("En revue");
+    setLocale("en");
+    expect(await render(StatusBadge, { state: "neutral" })).toContain("Inactive");
+  });
 });
 
 describe("KeyLabel and EnvChip (REQ-020-21)", () => {
+  /** The text of the button, and the description it points to. */
+  const parts = (html: string) => {
+    const button = /<button[^>]*>(.*?)<\/button>/s.exec(html)![1]!;
+    const described = /aria-describedby="([^"]+)"/.exec(html)![1]!;
+    const description = new RegExp(`id="${described}" hidden>([^<]*)<`).exec(html)![1]!;
+    return { name: button.replace(/<[^>]+>/g, "").trim(), description };
+  };
+
   it("show the label, else the key in fixed pitch", async () => {
     const labelled = await render(KeyLabel, { value: "dc-nord", label: "Centre nord" });
     expect(labelled).toContain('data-state="labelled"');
-    expect(labelled).not.toContain("dc-nord");
+    expect(parts(labelled).name).toBe("Centre nord");
     const alone = await render(KeyLabel, { value: "bureaux", label: null });
     expect(alone).toMatch(/<code[^>]*>bureaux<\/code>/);
     const env = await render(EnvChip, { value: "form", hue: 4 });
     expect(env).toMatch(/<code[^>]*>form<\/code>/);
     expect(env).toContain('data-hue="4"');
+  });
+
+  it("are buttons that copy the key, said by their description and a status region", async () => {
+    const labelled = await render(KeyLabel, { value: "prod", label: "Production" });
+    expect(labelled).toMatch(/<button class="k-key-label__text" type="button"/);
+    expect(parts(labelled).description).toBe("Clé : prod. Clic, Entrée ou Espace : copier la clé.");
+    expect(labelled).toContain('role="status"');
+    // Without a label, the key is the name: the description only says how to copy it.
+    const alone = await render(KeyLabel, { value: "prod", label: null });
+    expect(parts(alone)).toEqual({
+      name: "prod",
+      description: "Clic, Entrée ou Espace : copier la clé.",
+    });
+    const env = await render(EnvChip, { value: "prod", label: "Production", hue: 1 });
+    expect(parts(env)).toEqual({
+      name: "Production",
+      description: "Clé : prod. Clic, Entrée ou Espace : copier la clé.",
+    });
+    setLocale("en");
+    expect(parts(await render(KeyLabel, { value: "prod", label: null })).description).toBe(
+      "Click, Enter or Space: copy the key.",
+    );
+  });
+
+  it("plain: no control inside a control, the key shown beside the label", async () => {
+    for (const component of [KeyLabel, EnvChip]) {
+      const html = await render(component, { value: "prod", label: "Production", plain: true });
+      expect(html).not.toContain("<button");
+      expect(html).not.toContain('role="status"');
+      expect(html).toContain("Production");
+      expect(html).toMatch(/<code[^>]*>prod<\/code>/);
+    }
+  });
+
+  it("EnvChip: the hue from the key (FNV-1a over UTF-8, mod 6, + 1); the host's first", async () => {
+    // FNV-1a 32 bits: "" is the offset basis 0x811c9dc5; "prod" 0xed3e3174; "dmz"
+    // 0xd96d25c0; "préprod" (é in two UTF-8 bytes) 0x6a6de696; "é" 0x1e9de8c1.
+    expect(["", "prod", "dmz", "préprod", "é"].map(envHue)).toEqual([2, 3, 1, 5, 4]);
+    expect(await render(EnvChip, { value: "prod" })).toContain('data-hue="3"');
+    expect(await render(EnvChip, { value: "prod", hue: 6 })).toContain('data-hue="6"');
   });
 });
 

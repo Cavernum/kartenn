@@ -70,8 +70,11 @@
    * the place loads (`infinite`, a loading indicator, REQ-020-11). The stop that WCAG 2.2.2
    * asks of what moves more than 5 s is the reduced motion, the system's or the setting
    * « Mouvement : réduit » (`data-motion="reduce"`): the band goes, the fill stays. */
+  /* Its transparent border paints nothing, under the fill; in forced colours, where the
+   * fill is the system's background, it outlines the bar in the colour of the system. */
   .k-skeleton-fill {
     background-color: var(--k-skeleton);
+    border: var(--k-border-width) solid transparent;
     background-image: linear-gradient(to right, transparent, var(--k-skeleton-sheen), transparent);
     background-repeat: no-repeat;
     background-size: 50% 100%;

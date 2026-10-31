@@ -107,36 +107,46 @@
           - rowgroup:
             - row /Web chiffré https Applicatif tcp\/\d+/:
               - gridcell "Web chiffré https":
-                - text: ""
-                - code: https
+                - button "Web chiffré https":
+                  - text: ""
+                  - code: https
+                - status
               - gridcell "Applicatif"
               - gridcell /tcp\/\d+/:
                 - code: /tcp\/\d+/
             - row /API interne api Applicatif tcp\/\d+/:
               - gridcell "API interne api":
-                - text: ""
-                - code: api
+                - button "API interne api":
+                  - text: ""
+                  - code: api
+                - status
               - gridcell "Applicatif"
               - gridcell /tcp\/\d+/:
                 - code: /tcp\/\d+/
             - row /Web des essais web-essais Applicatif tcp\/\d+-\d+/:
               - gridcell "Web des essais web-essais":
-                - text: ""
-                - code: web-essais
+                - button "Web des essais web-essais":
+                  - text: ""
+                  - code: web-essais
+                - status
               - gridcell "Applicatif"
               - gridcell /tcp\/\d+-\d+/:
                 - code: /tcp\/\d+-\d+/
             - row /Shell sécurisé ssh Administratif tcp\/\d+/:
               - gridcell "Shell sécurisé ssh":
-                - text: ""
-                - code: ssh
+                - button "Shell sécurisé ssh":
+                  - text: ""
+                  - code: ssh
+                - status
               - gridcell "Administratif"
               - gridcell /tcp\/\d+/:
                 - code: /tcp\/\d+/
             - row /Écho ICMP ping Administratif icmp type 8 code 0, icmpv6 type \d+/:
               - gridcell "Écho ICMP ping":
-                - text: ""
-                - code: ping
+                - button "Écho ICMP ping":
+                  - text: ""
+                  - code: ping
+                - status
               - gridcell "Administratif"
               - gridcell /icmp type 8 code 0, icmpv6 type \d+/:
                 - code: icmp type 8 code 0
@@ -144,8 +154,10 @@
                 - code: /icmpv6 type \d+/
             - row /Tunnel IPsec ipsec Administratif ip proto \d+, udp\/\d+, udp\/\d+/:
               - gridcell "Tunnel IPsec ipsec":
-                - text: ""
-                - code: ipsec
+                - button "Tunnel IPsec ipsec":
+                  - text: ""
+                  - code: ipsec
+                - status
               - gridcell "Administratif"
               - gridcell /ip proto \d+, udp\/\d+, udp\/\d+/:
                 - code: /ip proto \d+/
@@ -155,15 +167,19 @@
                 - code: /udp\/\d+/
             - row /PostgreSQL postgres Base de données tcp\/\d+/:
               - gridcell "PostgreSQL postgres":
-                - text: ""
-                - code: postgres
+                - button "PostgreSQL postgres":
+                  - text: ""
+                  - code: postgres
+                - status
               - gridcell "Base de données"
               - gridcell /tcp\/\d+/:
                 - code: /tcp\/\d+/
             - row /Partage NFS nfs Fichier tcp\/\d+, udp\/\d+/:
               - gridcell "Partage NFS nfs":
-                - text: ""
-                - code: nfs
+                - button "Partage NFS nfs":
+                  - text: ""
+                  - code: nfs
+                - status
               - gridcell "Fichier"
               - gridcell /tcp\/\d+, udp\/\d+/:
                 - code: /tcp\/\d+/
@@ -171,8 +187,10 @@
                 - code: /udp\/\d+/
             - row /Signalisation signalisation Applicatif sctp\/\d+/:
               - gridcell "Signalisation signalisation":
-                - text: ""
-                - code: signalisation
+                - button "Signalisation signalisation":
+                  - text: ""
+                  - code: signalisation
+                - status
               - gridcell "Applicatif"
               - gridcell /sctp\/\d+/:
                 - code: /sctp\/\d+/
@@ -219,13 +237,17 @@
           - rowgroup:
             - 'row "Environnement policy.environment imposé : les environnements"':
               - gridcell "Environnement policy.environment":
-                - text: ""
-                - code: policy.environment
+                - button "Environnement policy.environment":
+                  - text: ""
+                  - code: policy.environment
+                - status
               - 'gridcell "imposé : les environnements"'
             - row "Sensibilité policy.sensitivity public, internal, confidential":
               - gridcell "Sensibilité policy.sensitivity":
-                - text: ""
-                - code: policy.sensitivity
+                - button "Sensibilité policy.sensitivity":
+                  - text: ""
+                  - code: policy.sensitivity
+                - status
               - gridcell "public, internal, confidential":
                 - code: public
                 - text: ""
@@ -234,16 +256,20 @@
                 - code: confidential
             - row "Cadre réglementaire policy.regulatory none, health":
               - gridcell "Cadre réglementaire policy.regulatory":
-                - text: ""
-                - code: policy.regulatory
+                - button "Cadre réglementaire policy.regulatory":
+                  - text: ""
+                  - code: policy.regulatory
+                - status
               - gridcell "none, health":
                 - code: none
                 - text: ""
                 - code: health
             - row "Criticité policy.criticality low, medium, high":
               - gridcell "Criticité policy.criticality":
-                - text: ""
-                - code: policy.criticality
+                - button "Criticité policy.criticality":
+                  - text: ""
+                  - code: policy.criticality
+                - status
               - gridcell "low, medium, high":
                 - code: low
                 - text: ""

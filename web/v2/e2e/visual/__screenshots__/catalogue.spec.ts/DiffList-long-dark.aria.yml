@@ -1,0 +1,437 @@
+- main:
+  - region "DiffList":
+    - heading "DiffList" [level=1]
+    - paragraph: "Motif : liste groupée par objet, Disclosure"
+    - 'figure /long — \d+ lignes : virtualisée, elle défile en place ; chaque objet reste atteignable au clavier/':
+      - 'heading /modifié : Sous-réseau 1 \d+\.\d+\.2\.0\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau 1 \d+\.\d+\.2\.0\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.2\.0\/\d+/
+          - text: ""
+      - list:
+        - listitem:
+          - text: "modifié : Attribut 1"
+          - deletion: "avant : ancienne valeur 1"
+          - insertion: "après : nouvelle valeur 1"
+        - listitem:
+          - text: "ajouté : Attribut 2"
+          - insertion: "après : nouvelle valeur 2"
+        - listitem:
+          - text: "retiré : Attribut 3"
+          - deletion: "avant : ancienne valeur 3"
+        - listitem:
+          - text: "modifié : Attribut 4"
+          - deletion: "avant : ancienne valeur 4"
+          - insertion: "après : nouvelle valeur 4"
+        - listitem:
+          - text: "ajouté : Attribut 5"
+          - insertion: "après : nouvelle valeur 5"
+        - listitem:
+          - text: "retiré : Attribut 6"
+          - deletion: "avant : ancienne valeur 6"
+      - 'heading /ajouté : Sous-réseau 2 \d+\.\d+\.2\.4\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau 2 \d+\.\d+\.2\.4\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.2\.4\/\d+/
+          - text: ""
+      - list:
+        - listitem:
+          - text: "ajouté : Attribut 1"
+          - insertion: "après : nouvelle valeur 1"
+        - listitem:
+          - text: "retiré : Attribut 2"
+          - deletion: "avant : ancienne valeur 2"
+        - listitem:
+          - text: "modifié : Attribut 3"
+          - deletion: "avant : ancienne valeur 3"
+          - insertion: "après : nouvelle valeur 3"
+        - listitem:
+          - text: "ajouté : Attribut 4"
+          - insertion: "après : nouvelle valeur 4"
+        - listitem:
+          - text: "retiré : Attribut 5"
+          - deletion: "avant : ancienne valeur 5"
+        - listitem:
+          - text: "modifié : Attribut 6"
+          - deletion: "avant : ancienne valeur 6"
+          - insertion: "après : nouvelle valeur 6"
+      - 'heading /retiré : Sous-réseau 3 \d+\.\d+\.2\.8\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau 3 \d+\.\d+\.2\.8\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.2\.8\/\d+/
+          - text: ""
+      - list:
+        - listitem:
+          - text: "retiré : Attribut 1"
+          - deletion: "avant : ancienne valeur 1"
+        - listitem:
+          - text: "modifié : Attribut 2"
+          - deletion: "avant : ancienne valeur 2"
+          - insertion: "après : nouvelle valeur 2"
+        - listitem:
+          - text: "ajouté : Attribut 3"
+          - insertion: "après : nouvelle valeur 3"
+        - listitem:
+          - text: "retiré : Attribut 4"
+          - deletion: "avant : ancienne valeur 4"
+        - listitem:
+          - text: "modifié : Attribut 5"
+          - deletion: "avant : ancienne valeur 5"
+          - insertion: "après : nouvelle valeur 5"
+        - listitem:
+          - text: "ajouté : Attribut 6"
+          - insertion: "après : nouvelle valeur 6"
+      - 'heading /modifié : Sous-réseau 4 \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau 4 \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list:
+        - listitem:
+          - text: "modifié : Attribut 1"
+          - deletion: "avant : ancienne valeur 1"
+          - insertion: "après : nouvelle valeur 1"
+        - listitem:
+          - text: "ajouté : Attribut 2"
+          - insertion: "après : nouvelle valeur 2"
+        - listitem:
+          - text: "retiré : Attribut 3"
+          - deletion: "avant : ancienne valeur 3"
+      - 'heading /ajouté : Sous-réseau 5 \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau 5 \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau 6 \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau 6 \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau 7 \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau 7 \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau 8 \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau 8 \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau 9 \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau 9 \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /modifié : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /ajouté : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - 'heading /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [level=3]':
+        - 'button /retiré : Sous-réseau \d+ \d+\.\d+\.\d+\.\d+\/\d+ 6/ [expanded]':
+          - text: ""
+          - code: /\d+\.\d+\.\d+\.\d+\/\d+/
+          - text: ""
+      - list
+      - code: long
+      - text: ""

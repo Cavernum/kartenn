@@ -84,8 +84,10 @@
     - tab "Brouillon 3"
   - tabpanel "Détail":
     - heading "Lecture d'API api-lecture" [level=2]:
-      - text: ""
-      - code: api-lecture
+      - button "Lecture d'API api-lecture":
+        - text: ""
+        - code: api-lecture
+      - status
     - term: Depuis
     - definition: /\d+-\d+-\d+/
     - term: Requis par

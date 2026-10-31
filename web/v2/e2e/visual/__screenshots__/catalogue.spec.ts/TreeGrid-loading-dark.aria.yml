@@ -1,0 +1,34 @@
+- main:
+  - region "TreeGrid":
+    - heading "TreeGrid" [level=1]
+    - paragraph: "Motif : Treegrid"
+    - 'figure "loading — Chargement : une ligne de squelettes par nœud attendu, l''arbre occupé"':
+      - treegrid "Arbre des préfixes":
+        - rowgroup:
+          - row "Préfixe Environnement Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Environnement"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row "Chargement" [level=1]:
+            - gridcell "Chargement"
+            - gridcell
+            - gridcell
+          - row [level=1]:
+            - gridcell
+            - gridcell
+            - gridcell
+          - row [level=1]:
+            - gridcell
+            - gridcell
+            - gridcell
+          - row [level=1]:
+            - gridcell
+            - gridcell
+            - gridcell
+          - row [level=1]:
+            - gridcell
+            - gridcell
+            - gridcell
+      - code: loading
+      - text: ""

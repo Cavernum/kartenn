@@ -1,17 +1,45 @@
 - main:
   - region "KeyLabel":
     - heading "KeyLabel" [level=1]
-    - paragraph: "Motif : — (libellé, à défaut la clé)"
+    - paragraph: "Motif : Button (copier la clé) ; libellé, à défaut la clé"
     - figure "labelled — Libellé dans la langue":
-      - text: Centre de données nord
+      - button "Centre de données nord"
+      - status
       - code: labelled
       - text: ""
     - figure "with-key — Libellé et clé côte à côte":
-      - text: Centre de données sud
-      - code: dc-sud
+      - button "Centre de données sud dc-sud":
+        - text: ""
+        - code: dc-sud
+      - status
       - code: with-key
       - text: ""
     - 'figure "key-only — Sans libellé : la clé en chasse fixe"':
-      - code: bureaux
+      - button "bureaux":
+        - code: bureaux
+      - status
       - code: key-only
+      - text: ""
+    - 'figure "hover — Survol : la clé dans la bulle, et comment la copier"':
+      - button "Centre de données nord"
+      - status
+      - code: hover
+      - text: ""
+    - 'figure "focus — Focus visible : la bulle aussitôt"':
+      - button "Centre de données nord"
+      - status
+      - code: focus
+      - text: ""
+    - 'figure "plain — Sans bouton (dans un contrôle) : la clé toujours à côté"':
+      - text: Centre de données nord
+      - code: dc-nord
+      - code: plain
+      - text: ""
+    - 'figure "fallback — prod : « Production » en français, sa clé dans une langue sans libellé"':
+      - button "Production"
+      - status
+      - button "bureaux":
+        - code: bureaux
+      - status
+      - code: fallback
       - text: ""

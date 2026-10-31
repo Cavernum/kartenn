@@ -46,6 +46,24 @@ const groups: DiffGroup[] = [
   },
 ];
 
+/**
+ * A changeset of 60 objects of 6 changes (420 lines): virtualised, it scrolls in its place
+ * and holds only the changes near the view (e2e/components/diff-list.spec.ts).
+ */
+const KINDS = ["changed", "added", "removed"] as const;
+const long: DiffGroup[] = Array.from({ length: 60 }, (_, g) => ({
+  id: `l${g}`,
+  title: `Sous-réseau ${g + 1}`,
+  objectKey: `192.0.2.${(g * 4) % 256}/30`,
+  kind: KINDS[g % 3]!,
+  changes: Array.from({ length: 6 }, (_, c) => ({
+    attribute: `Attribut ${c + 1}`,
+    kind: KINDS[(g + c) % 3]!,
+    ...(KINDS[(g + c) % 3] !== "added" ? { before: `ancienne valeur ${c + 1}` } : {}),
+    ...(KINDS[(g + c) % 3] !== "removed" ? { after: `nouvelle valeur ${c + 1}` } : {}),
+  })),
+}));
+
 export default {
   component: DiffList,
   pattern: "liste groupée par objet, Disclosure",
@@ -60,6 +78,13 @@ export default {
       name: "collapsed",
       description: "Un objet replié",
       props: { groups, collapsed: ["g1"] },
+      wide: true,
+    },
+    {
+      name: "long",
+      description:
+        "420 lignes : virtualisée, elle défile en place ; chaque objet reste atteignable au clavier",
+      props: { groups: long },
       wide: true,
     },
   ],

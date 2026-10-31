@@ -96,8 +96,7 @@ const cellState = (row: Row, column: GridColumn): CellState | undefined => {
       <Panneau title="Anomalies ouvertes">
         <ErrorState
           title="Les anomalies n'ont pas pu être lues : le service est momentanément indisponible."
-          code="urn:kartenn:problem:unavailable"
-          :request-id="ID.request"
+          :problem="{ type: 'urn:kartenn:problem:unavailable', requestId: ID.request }"
           retry-label="Réessayer"
         >
           Le reste de l'écran reste utilisable. Si l'erreur persiste, transmettez ces deux codes.

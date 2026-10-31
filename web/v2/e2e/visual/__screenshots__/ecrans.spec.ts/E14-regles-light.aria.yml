@@ -75,63 +75,127 @@
             - gridcell "app-meme-env":
               - code: app-meme-env
             - gridcell "Autoriser"
-            - gridcell "Production Recette Développement"
+            - gridcell "Production Recette Développement":
+              - button "Production"
+              - status
+              - button "Recette"
+              - status
+              - button "Développement"
+              - status
             - gridcell "même environnement"
           - row "rece-vers-prod Autoriser Recette Production":
             - gridcell "rece-vers-prod":
               - code: rece-vers-prod
             - gridcell "Autoriser"
-            - gridcell "Recette"
-            - gridcell "Production"
+            - gridcell "Recette":
+              - button "Recette"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
           - row "deny-deve-prod Interdire Développement Production" [selected]:
             - gridcell "deny-deve-prod":
               - code: deny-deve-prod
             - gridcell "Interdire"
-            - gridcell "Développement"
-            - gridcell "Production"
+            - gridcell "Développement":
+              - button "Développement"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
           - row "deny-prod-hors-prod Interdire Production Recette Développement":
             - gridcell "deny-prod-hors-prod":
               - code: deny-prod-hors-prod
             - gridcell "Interdire"
-            - gridcell "Production"
-            - gridcell "Recette Développement"
+            - gridcell "Production":
+              - button "Production"
+              - status
+            - gridcell "Recette Développement":
+              - button "Recette"
+              - status
+              - button "Développement"
+              - status
           - row "admin-par-bastion Autoriser Administration Production Recette Développement Administration":
             - gridcell "admin-par-bastion":
               - code: admin-par-bastion
             - gridcell "Autoriser"
-            - gridcell "Administration"
-            - gridcell "Production Recette Développement Administration"
+            - gridcell "Administration":
+              - button "Administration"
+              - status
+            - gridcell "Production Recette Développement Administration":
+              - button "Production"
+              - status
+              - button "Recette"
+              - status
+              - button "Développement"
+              - status
+              - button "Administration"
+              - status
           - row "deny-admin-hors-bastion Interdire Production Recette Développement Production Recette Développement":
             - gridcell "deny-admin-hors-bastion":
               - code: deny-admin-hors-bastion
             - gridcell "Interdire"
-            - gridcell "Production Recette Développement"
-            - gridcell "Production Recette Développement"
+            - gridcell "Production Recette Développement":
+              - button "Production"
+              - status
+              - button "Recette"
+              - status
+              - button "Développement"
+              - status
+            - gridcell "Production Recette Développement":
+              - button "Production"
+              - status
+              - button "Recette"
+              - status
+              - button "Développement"
+              - status
           - row "bdd-meme-env Autoriser Production Recette Développement même environnement":
             - gridcell "bdd-meme-env":
               - code: bdd-meme-env
             - gridcell "Autoriser"
-            - gridcell "Production Recette Développement"
+            - gridcell "Production Recette Développement":
+              - button "Production"
+              - status
+              - button "Recette"
+              - status
+              - button "Développement"
+              - status
             - gridcell "même environnement"
           - row "deny-rece-vers-prod-bdd Interdire Recette Production":
             - gridcell "deny-rece-vers-prod-bdd":
               - code: deny-rece-vers-prod-bdd
             - gridcell "Interdire"
-            - gridcell "Recette"
-            - gridcell "Production"
+            - gridcell "Recette":
+              - button "Recette"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
           - row "fichier-prod Autoriser Production Production":
             - gridcell "fichier-prod":
               - code: fichier-prod
             - gridcell "Autoriser"
-            - gridcell "Production"
-            - gridcell "Production"
+            - gridcell "Production":
+              - button "Production"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
           - row "deny-restreint-hors-prod Hors matrice Interdire Production Restreinte Recette Développement":
             - gridcell "deny-restreint-hors-prod Hors matrice":
               - code: deny-restreint-hors-prod
               - text: ""
             - gridcell "Interdire"
-            - gridcell "Production Restreinte"
-            - gridcell "Recette Développement"
+            - gridcell "Production Restreinte":
+              - button "Production"
+              - status
+              - button "Restreinte"
+              - status
+            - gridcell "Recette Développement":
+              - button "Recette"
+              - status
+              - button "Développement"
+              - status
     - text: "/\\d+ règles · 1 hors matrice · 4 motifs Hors matrice : une règle qui cite un autre axe que l'environnement/"
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
@@ -148,9 +212,13 @@
       - code: "{environment: prod}"
       - text: ", tous les types de flux, tous les services"
     - term: Source
-    - definition: Développement
+    - definition:
+      - button "Développement"
+      - status
     - term: Destination
-    - definition: Production
+    - definition:
+      - button "Production"
+      - status
     - term: Types de flux
     - definition: Tous (4)
     - term: Motifs requis

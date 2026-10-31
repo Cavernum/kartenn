@@ -1,8 +1,9 @@
 - main:
   - region "KeyLabel":
     - heading "KeyLabel" [level=1]
-    - paragraph: "Motif : — (libellé, à défaut la clé)"
+    - paragraph: "Motif : Button (copier la clé) ; libellé, à défaut la clé"
     - figure "labelled — Libellé dans la langue":
-      - text: Centre de données nord
+      - button "Centre de données nord"
+      - status
       - code: labelled
       - text: ""

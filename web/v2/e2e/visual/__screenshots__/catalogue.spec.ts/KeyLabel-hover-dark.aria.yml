@@ -1,0 +1,9 @@
+- main:
+  - region "KeyLabel":
+    - heading "KeyLabel" [level=1]
+    - paragraph: "Motif : Button (copier la clé) ; libellé, à défaut la clé"
+    - 'figure "hover — Survol : la clé dans la bulle, et comment la copier"':
+      - button "Centre de données nord"
+      - status
+      - code: hover
+      - text: ""

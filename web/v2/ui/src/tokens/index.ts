@@ -140,6 +140,8 @@ export const tokens = [
   "--k-size-col-sm",
   "--k-size-col-md",
   "--k-size-col-lg",
+  "--k-size-list-max",
+  "--k-size-line",
   "--k-size-tile-min",
   "--k-size-target-coarse",
   "--k-size-viewport",

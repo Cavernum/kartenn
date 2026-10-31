@@ -23,11 +23,21 @@ const All = () =>
     STATES.map((state) => h(StatusBadge, { state, label: LABELS[state] })),
   );
 
+/** The six states with no label given: the word of each state, in the language. */
+const Defaults = () =>
+  h(Cluster, { gap: "2" }, () => STATES.map((state) => h(StatusBadge, { state })));
+
 export default {
   component: StatusBadge,
   pattern: "— (couleur, icône et libellé)",
   states: [
     { name: "all", description: "Les six états côte à côte", props: {}, demo: All },
+    {
+      name: "defaults",
+      description: "Libellés par défaut des six états (design « États »)",
+      props: {},
+      demo: Defaults,
+    },
     ...STATES.map((state) => ({
       name: state,
       description: `État ${state}`,

@@ -83,8 +83,10 @@
     - definition: /srv-app-\d+ · eth1/
     - term: Service
     - definition:
-      - text: Shell sécurisé
-      - code: ssh
+      - button "Shell sécurisé ssh":
+        - text: ""
+        - code: ssh
+      - status
     - term: État
     - definition: Actif
     - term: Période

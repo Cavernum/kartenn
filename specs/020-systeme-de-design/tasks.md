@@ -868,12 +868,108 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     le shell (021) : `[` quand un bouton d'espace a le focus le démonte ; état de
     chargement d'un `apply` de la pastille (rien n'indique l'attente de l'hôte) ;
     calendrier de `DateTimeField` hors de la surface `k-popover`.
-- [ ] 24. `CodeBadge` (copie annoncée), `KeyLabel`, `EnvChip`, `StatusBadge`,
+- [x] 24. `CodeBadge` (copie annoncée), `KeyLabel`, `EnvChip`, `StatusBadge`,
   `Skeleton`, `EmptyState`, `ErrorState`, `DiffList` — REQ-020-21 à 23 — verify : copie
   au clavier ; repli sur la clé ; CLS 0 entre squelette et données
   - où : `web/shell/src/admin/WriteOutcome.vue` (problèmes affichés aujourd'hui) ;
     `web/sdk/src/api/problem.ts` (`ApiProblem`, `requestId`)
   - dépend de : 21
+  - fait : copie commune (`internal/copy.ts`, `useCopy`) : API asynchrone, à défaut la
+    commande `copy` du document (son événement reçoit le texte : ni sélection ni focus
+    déplacé, `clipboard.ts`), issue dite par une région `status` et montrée dans la bulle
+    épinglée du bouton (« Copié » deux secondes ; les deux refusées : texte sélectionné,
+    « copiez-le avec Ctrl+C » jusqu'à la fermeture de la bulle). `CodeBadge` : code coupé
+    entier dans la bulle (survol, focus). `KeyLabel`, `EnvChip` : boutons qui copient la
+    clé, nom = ce qu'ils montrent, description « Clé : prod. Clic, Entrée ou Espace : copier la
+    clé. », clé dans la bulle ; `plain` (texte seul, dans un contrôle) ; `EnvChip` :
+    teinte déduite de la clé (`envHue`, FNV-1a modulo 6, design « Environnements ») sauf
+    `hue`, pastille cerclée de sa teinte (anneau gardé en couleurs forcées).
+    `StatusBadge` : libellé par défaut de l'état. `ErrorState` : `problem` (`ProblemFacts`,
+    un `ApiProblem` tel quel) : violations (message et règle), `type`, `Request-Id`
+    copiables ; phrase en `alert` présente, montrée une image après. `TreeGrid` :
+    `loading`, `loadingRows` (lignes de squelettes, arbre occupé) ; barre d'enfants en
+    chargement sur `k-skeleton-fill`. `k-skeleton-fill` : bordure transparente (contour en
+    couleurs forcées). `DiffList` : virtualisée au-delà de 200 lignes
+    (`@tanstack/vue-virtual`, jeton `--k-size-list-max`), intervalles mesurés,
+    `aria-setsize`/`aria-posinset`, en-têtes tous gardés. `FilterChip` : clés de la
+    pastille (`filterQuery` : `usage=host`) en infobulle et en description. Catalogue :
+    `CodeBadge` `cut`, `keyboard` ; `KeyLabel` `hover`, `focus`, `plain`,
+    `fallback` ; `EnvChip` `hover`, `focus`, `plain`, `from-key` ; `StatusBadge`
+    `defaults` ; `ErrorState` `precondition` (412), `violations`, `network` ; `DataGrid`
+    et `TreeGrid` `settle` (`demo/settle.ts`), `TreeGrid` `loading` ; `DiffList` `long` ;
+    `FilterChip` `query`. E7 : groupes en `KeyLabel` (clé à côté, montée à la main) ; E9 :
+    `ErrorState` par `problem`. Scripts `e2e/components/code-badge.spec.ts` (copie au
+    clavier, repli sur la commande, refus, code coupé, 412), `key-label.spec.ts` (repli
+    sur la clé en anglais, copie, bulle, `EnvChip`), `skeleton.spec.ts` (CLS 0 grille et
+    arbre), `diff-list.spec.ts`, `forced-colors.spec.ts`, `filter-picker.spec.ts`
+    (clés d'une pastille) ; Vitest : boutons de clé, `envHue`, `filterQuery`, `ErrorState`,
+    `TreeGrid` en chargement, `DiffList` sous 200 lignes. Revues `a11y-auditor` et
+    `ui-reviewer` (code et captures) ; corrigés : cibles de `KeyLabel` et `EnvChip` de
+    24 px sans place prise (marges négatives, `--k-size-line` ; cadre transparent autour de
+    la pastille d'`EnvChip`) ; anneau de `KeyLabel` sur sa ligne (il était coupé par la
+    cellule d'une grille, 2.4.7) ; la clé cède avant le libellé, le libellé coupé entier
+    dans la bulle ; `stacked` (clé dessous) : E7 « Groupes » et « Droits effectifs » d'une
+    même façon ; `DiffList` virtualisée positionnée (ses mots cachés étiraient la page) ;
+    E11 : `KeyLabel` `plain` dans la grille des propositions (Entrée et le clic y
+    choisissent la ligne) ; Échap d'une bulle qui en dit plus que le bouton (code coupé,
+    clé cachée) ne ferme qu'elle ; curseur `copy` partout ; « Clic, Entrée ou Espace » ;
+    « Ctrl+C, ⌘C sur Mac » ; `ErrorState` : violations alignées au début, `type` nommé,
+    codes à transmettre écartés ; `TreeGrid` en chargement garde un arrêt de tabulation ;
+    `KeyBubble` commun à `KeyLabel` et `EnvChip`. Captures réécrites (voulues) : `CodeBadge`
+    `copied` (coche), pages entières confortables de `CodeBadge`, `KeyLabel`, `EnvChip`,
+    `StatusBadge`, `ErrorState`, `FilterChip`, `DataGrid`, `TreeGrid`, `DiffList` (états
+    nouveaux), `TreeGrid` `loading-children` (barre en `k-skeleton-fill`), E7 identité et
+    rôles (groupes en `KeyLabel` empilé), E9 zones (`type` nommé), E13 politique-lecture
+    (texte d'en-tête déjà changé sur main, référence restée sous la tolérance), instantanés
+    ARIA des maquettes où une pastille devient bouton ; nouvelles : les états cités, et
+    `e2e/components/__screenshots__/forced-colors.spec.ts/` (pastilles, états, squelette).
+  - choix : copie de `KeyLabel` et `EnvChip` par le bouton qu'ils sont (nom = ce qu'ils
+    montrent, l'action en description), plutôt qu'une icône de copie à côté (densité) ;
+    repli sans API asynchrone par la commande `copy` du document plutôt qu'une zone de
+    texte cachée (ni focus ni sélection déplacés ; après un refus de l'API, la commande
+    part une microtâche plus tard, hors de l'activation : prouvé sur Chromium seul,
+    d'autres moteurs peuvent la refuser, le chemin du refus tient alors) ; refus : bulle épinglée plutôt qu'un
+    message dans le flux (aucun décalage) ; teinte d'environnement par FNV-1a ;
+    `ErrorState` prend un `ApiProblem` tel quel (`ProblemFacts`, aucune dépendance au
+    SDK) et remplace `code`/`requestId` ; `DiffList` : tous les en-têtes gardés hors
+    virtualisation (Tab et titres atteignent chaque objet), liste qui défile en place
+    (`--k-size-list-max`, 480 px) ; `FilterChip` : clés en infobulle et en description,
+    la copie laissée au sélecteur (indice « Clé : » de la propriété) ; démos de CLS par
+    un bouton, les données arrivant par un script dans le test (une entrée de
+    l'utilisateur exclut le décalage du CLS). Restent (à vérifier ou à arbitrer) : copie
+    des clés d'une pastille de filtre (la pastille est déjà un bouton : une action de
+    plus ou Ctrl+C sur elle) ; un arrêt de tabulation par `KeyLabel`/`EnvChip` hors
+    grille (listes et panneaux d'E7, E11 : `plain` par défaut dans les listes ?) ;
+    `DiffList` virtualisée en mode lecture d'un lecteur d'écran (le curseur virtuel saute
+    les changements non rendus, Ctrl+F ne les trouve pas : « Tout afficher » ?) ; une
+    région `status` par pastille (annonceur commun ?) ; nommage différent de
+    `CodeBadge` (« Copier » d'abord) et de `KeyLabel` (libellé, action en description) ;
+    lignes de squelette 2 à N lues une à une ; titres d'E7 et d'E13 qui écrivent encore
+    libellé et clé à la main (un objet et son identifiant), rôle d'une liaison d'E7
+    (barré quand retiré) gardé à la main ; nom d'un en-tête de `DiffList` qui finit par
+    un nombre nu (antérieur) ; icône de l'état `review` : `eye` dans le code et les
+    maquettes validées, `git-pull-request` dans le design (§ « États ») ; lecture au
+    lecteur d'écran (description dans une cellule,
+    régions répétées).
+  - seconde revue (après la fusion de main, 017-1 et 020-22) ; corrigés : focus sur la
+    cellule de chargement de `TreeGrid` rendu à la première ligne quand les nœuds arrivent
+    (2.4.3) ; anneau d'un widget de cellule (`EnvChip`, `KeyLabel`) entier : la valeur
+    d'une cellule de `DataGrid` coupe en `clip` avec une marge d'anneau
+    (`overflow-clip-margin`) ; anneau de `KeyLabel` sur sa ligne, marge négative jamais
+    positive (ligne de plus de 24 px) ; Échap passe aussi pour un `EnvChip` sans libellé ;
+    `plain` montre toujours la clé à côté du libellé ; `ErrorState` : gravité de chaque
+    violation (un avertissement le dit), `about:blank` non montré, un `ApiProblem` du SDK
+    vérifié comme `ProblemFacts` ; `envHue` sur les octets UTF-8 (FNV-1a usuel), teintes
+    attendues fixées ; une copie ancienne qui aboutit après une nouvelle est ignorée ;
+    scripts : défilement de `DiffList` au clavier et sans saut au remplacement d'un
+    intervalle, refus de copie de `KeyLabel`, repli sans sélection ni focus déplacé, repli
+    sans API ; audit tactile : une cible sous une couche (la surface sous le panneau
+    droit) n'est plus comptée ; E18, E19, E22 (maquettes de la 017) : codes de règle en
+    `CodeBadge`, `ErrorState` par `problem`. Captures réécrites (voulues) : nouvelles
+    maquettes de la 017 (pastilles devenues boutons), E9 (fusion du `Toast`), états
+    `plain` de `KeyLabel` et `EnvChip` (clé à côté), `ErrorState` `violations` (gravités) ;
+    nouvelles : `DataGrid` `widget-env`, `widget-key`. Reste : la pastille de personne
+    d'E21 (`k-e21-chip`, valeur retirable) n'a pas de composant de la bibliothèque.
 - [ ] 25. `DataGrid` **maison** (Reka n'a pas de grille) : motif APG Grid complet (index de
   lignes et colonnes, tabindex itinérant, Flèches, Début/Fin, Ctrl+Début/Fin, Page,
   sélection Espace/Maj+flèches/Ctrl+A, tri `aria-sort`, filtre d'en-tête par Alt+Flèche

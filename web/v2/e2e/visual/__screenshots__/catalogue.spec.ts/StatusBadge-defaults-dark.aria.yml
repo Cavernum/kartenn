@@ -1,0 +1,8 @@
+- main:
+  - region "StatusBadge":
+    - heading "StatusBadge" [level=1]
+    - paragraph: "Motif : — (couleur, icône et libellé)"
+    - figure "defaults — Libellés par défaut des six états (design « États »)":
+      - text: Conforme Avertissement Erreur En revue Information Inactif
+      - code: defaults
+      - text: ""

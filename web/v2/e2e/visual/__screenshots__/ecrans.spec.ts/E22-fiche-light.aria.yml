@@ -77,8 +77,10 @@
     - definition: /srv-db-\d+ · eth0/
     - term: Service
     - definition:
-      - text: PostgreSQL
-      - code: postgres
+      - button "PostgreSQL postgres":
+        - text: ""
+        - code: postgres
+      - status
     - term: État
     - definition: Dérogé
     - term: Période

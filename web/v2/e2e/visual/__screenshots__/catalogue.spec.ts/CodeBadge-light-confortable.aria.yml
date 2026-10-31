@@ -30,10 +30,28 @@
       - status
       - code: focus
       - text: ""
-    - figure "copied — Copié (annoncé)":
+    - 'figure "copied — Copié : dit par la région, coché (la bulle le dit tant que le pointeur reste)"':
       - button "Copier Request-Id req_7f3a9c2e5b1d4068":
         - text: ""
         - code: req_7f3a9c2e5b1d4068
       - status
       - code: copied
+      - text: ""
+    - 'figure "cut — Coupé par la largeur : entier dans la bulle, au survol et au focus"':
+      - button "Copier urn:kartenn:problem:precondition-failed":
+        - text: ""
+        - code: urn:kartenn:problem:precondition-failed
+      - status
+      - code: cut
+      - text: ""
+    - figure "keyboard — Deux codes, copiés au clavier":
+      - button "Copier urn:kartenn:problem:precondition-failed":
+        - text: ""
+        - code: urn:kartenn:problem:precondition-failed
+      - status
+      - button "Copier Request-Id req_7f3a9c2e5b1d4068":
+        - text: ""
+        - code: req_7f3a9c2e5b1d4068
+      - status
+      - code: keyboard
       - text: ""

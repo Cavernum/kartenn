@@ -7,10 +7,14 @@
 // as one button that opens the picker (`FilterPicker`), and a button that removes it. A
 // filter being written is a draft (dashed); an invalid one says so in its name and why in
 // its description, an alert when it turns invalid. A property without a label shows its
-// key, in fixed pitch (REQ-020-21).
+// key, in fixed pitch (REQ-020-21); the keys behind the labels (`query`, the filter as the
+// URL holds it: `usage=host`) come in a tooltip under the pointer and the keyboard focus,
+// and in the description of the button.
 import { computed, useId } from "vue";
 import { t } from "../../i18n.ts";
 import Icon from "../Icon/Icon.vue";
+import Tooltip from "../Tooltip/Tooltip.vue";
+import { useTooltip } from "../Tooltip/tooltip.ts";
 
 const props = withDefaults(
   defineProps<{
@@ -27,6 +31,8 @@ const props = withDefaults(
     removeLabel?: string | undefined;
     /** Its picker is open (`aria-expanded` of the button that opens it). */
     expanded?: boolean | undefined;
+    /** The filter as the query holds it, keys only (`filterQuery`). */
+    query?: string | undefined;
   }>(),
   {
     value: undefined,
@@ -34,10 +40,19 @@ const props = withDefaults(
     reason: undefined,
     removeLabel: undefined,
     expanded: undefined,
+    query: undefined,
   },
 );
 const emit = defineEmits<{ edit: []; remove: [] }>();
 const reasonId = useId();
+const tip = useTooltip();
+const keys = tip.listeners(() => !!props.query, { pin: () => false });
+const described = computed(
+  () =>
+    [props.state === "invalid" && props.reason ? reasonId : "", props.query ? tip.id : ""]
+      .filter(Boolean)
+      .join(" ") || undefined,
+);
 
 const sentence = computed(() =>
   [props.property, props.operator, props.value].filter(Boolean).join(" "),
@@ -52,7 +67,8 @@ const sentence = computed(() =>
         class="k-filter-chip__body"
         aria-haspopup="dialog"
         :aria-expanded="props.expanded"
-        :aria-describedby="props.state === 'invalid' && props.reason ? reasonId : undefined"
+        :aria-describedby="described"
+        v-on="keys"
         @click="emit('edit')"
       >
         <Icon v-if="props.state === 'invalid'" name="triangle-alert" class="k-filter-chip__warn" />
@@ -83,6 +99,9 @@ const sentence = computed(() =>
       class="k-filter-chip__reason"
       role="alert"
       >{{ props.reason }}</span
+    >
+    <Tooltip v-if="props.query" :control="tip"
+      >{{ t("filterParameter") }} <code>{{ props.query }}</code></Tooltip
     >
   </span>
 </template>

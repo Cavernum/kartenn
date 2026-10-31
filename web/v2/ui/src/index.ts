@@ -52,6 +52,8 @@ export { default as StatusBadge } from "./components/StatusBadge/StatusBadge.vue
 export { default as KeyLabel } from "./components/KeyLabel/KeyLabel.vue";
 export { default as EnvChip } from "./components/EnvChip/EnvChip.vue";
 export { default as CodeBadge } from "./components/CodeBadge/CodeBadge.vue";
+export { envHue } from "./components/EnvChip/env.ts";
+export type { EnvHue } from "./components/EnvChip/env.ts";
 export { default as Breadcrumb } from "./components/Breadcrumb/Breadcrumb.vue";
 export type { Crumb } from "./components/Breadcrumb/breadcrumb.ts";
 export { default as SidebarNav } from "./components/SidebarNav/SidebarNav.vue";
@@ -124,6 +126,7 @@ export {
   arity,
   checkFilter,
   checkValue,
+  filterQuery,
   filterSentence,
   filtersFromParams,
   filtersToParams,
@@ -151,6 +154,7 @@ export type { DiffChange, DiffGroup, DiffKind } from "./components/DiffList/diff
 export { default as Skeleton } from "./components/Skeleton/Skeleton.vue";
 export { default as EmptyState } from "./components/EmptyState/EmptyState.vue";
 export { default as ErrorState } from "./components/ErrorState/ErrorState.vue";
+export type { ProblemFacts } from "./components/ErrorState/problem.ts";
 export { default as InlineAlert } from "./components/InlineAlert/InlineAlert.vue";
 export type { AlertTone } from "./components/InlineAlert/alert.ts";
 export { default as Icon } from "./components/Icon/Icon.vue";

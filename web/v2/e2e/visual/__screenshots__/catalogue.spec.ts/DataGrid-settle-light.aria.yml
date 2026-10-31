@@ -1,0 +1,52 @@
+- main:
+  - region "DataGrid":
+    - heading "DataGrid" [level=1]
+    - paragraph: "Motif : Grid (maison) ; une seule grille, lignes en subgrid ; tri et filtre de colonne"
+    - 'figure "settle — Du squelette aux données : les lignes prennent la place de leurs squelettes, rien ne bouge (CLS 0)"':
+      - button "Recevoir les données"
+      - grid "Préfixes du domaine":
+        - rowgroup:
+          - row "Préfixe Libellé Environnement Occupation Responsable":
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
+            - columnheader "Libellé"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
+            - columnheader "Occupation"
+            - columnheader "Responsable"
+        - rowgroup:
+          - row "Chargement":
+            - gridcell "Chargement"
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+          - row:
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+          - row:
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+          - row:
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+          - row:
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+            - gridcell
+      - paragraph: Ce qui suit la zone reste à sa place.
+      - code: settle
+      - text: ""

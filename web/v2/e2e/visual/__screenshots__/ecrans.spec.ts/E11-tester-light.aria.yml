@@ -67,8 +67,11 @@
     - heading "Résultat" [level=2]
     - text: /\d+\.\d+\.\d+\.\d+ → srv-app-\d+ · eth0 · tcp\/\d+/
     - paragraph:
-      - text: Ouvert et conforme 2 paires d'adresses · Web chiffré
-      - code: https
+      - text: Ouvert et conforme 2 paires d'adresses ·
+      - button "Web chiffré https":
+        - text: ""
+        - code: https
+      - status
       - text: /· lu le \d+-\d+-\d+, politique r42/
     - paragraph: "/Couvert par flux-\\d+ et autorisé par app-meme-env : rien à faire\\./"
     - region "Ouvert ? Ouvert":
@@ -91,7 +94,13 @@
           - text: ""
           - code: app-meme-env
         - status
-        - text: règle décisive Production vers Production Applicatif
+        - text: règle décisive
+        - button "Production"
+        - status
+        - text: vers
+        - button "Production"
+        - status
+        - text: Applicatif
       - paragraph: Les applications d'un même environnement se parlent par leurs services déclarés.
       - paragraph: "Issue d'une déclaration, dossier non évalué : Instruction"
     - region "Par paire d'adresses":

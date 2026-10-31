@@ -57,33 +57,45 @@
       - rowgroup:
         - row /Non classifiés unclassified \d+/ [selected]:
           - gridcell "Non classifiés unclassified":
-            - text: ""
-            - code: unclassified
+            - button "Non classifiés unclassified":
+              - text: ""
+              - code: unclassified
+            - status
           - gridcell /\d+/
         - row "Flux non conformes noncompliant_flows 4":
           - gridcell "Flux non conformes noncompliant_flows":
-            - text: ""
-            - code: noncompliant_flows
+            - button "Flux non conformes noncompliant_flows":
+              - text: ""
+              - code: noncompliant_flows
+            - status
           - gridcell "4"
         - row "Règles hors matrice outside_rules 1":
           - gridcell "Règles hors matrice outside_rules":
-            - text: ""
-            - code: outside_rules
+            - button "Règles hors matrice outside_rules":
+              - text: ""
+              - code: outside_rules
+            - status
           - gridcell "1"
         - row "Écarts d'inférence inference_mismatches 5":
           - gridcell "Écarts d'inférence inference_mismatches":
-            - text: ""
-            - code: inference_mismatches
+            - button "Écarts d'inférence inference_mismatches":
+              - text: ""
+              - code: inference_mismatches
+            - status
           - gridcell "5"
         - row "Dérogations échues expired_waivers 0":
           - gridcell "Dérogations échues expired_waivers":
-            - text: ""
-            - code: expired_waivers
+            - button "Dérogations échues expired_waivers":
+              - text: ""
+              - code: expired_waivers
+            - status
           - gridcell "0"
         - row "Règles sans effet unused_rules Indisponible":
           - gridcell "Règles sans effet unused_rules":
-            - text: ""
-            - code: unused_rules
+            - button "Règles sans effet unused_rules":
+              - text: ""
+              - code: unused_rules
+            - status
           - gridcell "Indisponible"
     - text: "« Indisponible » : rubrique que ce serveur ne calcule pas, à ne pas lire comme zéro."
   - heading "Non classifiés" [level=2]

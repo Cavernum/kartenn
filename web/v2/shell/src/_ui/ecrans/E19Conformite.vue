@@ -369,7 +369,7 @@ const POINT_VALUES = [
               :state="OUTCOME[row.outcome].state"
               :label="OUTCOME[row.outcome].label"
             />
-            <code v-else-if="column.id === 'decisive'">{{ value }}</code>
+            <CodeBadge v-else-if="column.id === 'decisive'" :code="String(value)" />
             <template v-else>{{ value }}</template>
           </template>
         </DataGrid>
@@ -428,7 +428,7 @@ const POINT_VALUES = [
           <h3 id="k-e19-discarded" class="k-ecran-subtitle">Règles écartées</h3>
           <ul class="k-ecran-list k-e19-list">
             <li>
-              <code>bdd-meme-env</code>
+              <CodeBadge code="bdd-meme-env" />
               <span class="k-ecran-muted">destination d'un autre environnement</span>
             </li>
           </ul>
@@ -437,10 +437,13 @@ const POINT_VALUES = [
           <h3 id="k-e19-conditions" class="k-ecran-subtitle">Conditions</h3>
           <ul class="k-ecran-list k-e19-list">
             <li>
-              <StatusBadge state="neutral" label="Non évaluée" /> <code>justification-requise</code>
+              <StatusBadge state="neutral" label="Non évaluée" />
+              <CodeBadge code="justification-requise" />
               <span class="k-ecran-muted">sans dossier</span>
             </li>
-            <li><StatusBadge state="ok" label="Remplie" /> <code>reference-externe</code></li>
+            <li>
+              <StatusBadge state="ok" label="Remplie" /><CodeBadge code="reference-externe" />
+            </li>
           </ul>
         </Stack>
         <Stack as="section" gap="1" aria-labelledby="k-e19-values">

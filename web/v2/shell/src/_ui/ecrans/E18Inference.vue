@@ -635,8 +635,7 @@ const DISCARDED = [
           <h3 id="k-e18-discarded" class="k-ecran-subtitle">Règles écartées</h3>
           <ul class="k-ecran-list k-e18-plain">
             <li v-for="d in DISCARDED" :key="d.rule" class="k-e18-values">
-              <code>{{ d.rule }}</code
-              ><span class="k-ecran-muted">{{ d.why }}</span>
+              <CodeBadge :code="d.rule" /><span class="k-ecran-muted">{{ d.why }}</span>
             </li>
           </ul>
         </Stack>

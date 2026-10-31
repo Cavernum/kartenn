@@ -5,7 +5,10 @@
 import { defineComponent, h, ref, type Component } from "vue";
 import type { CatalogueEntry } from "../../catalogue.ts";
 import DemoFrame from "../../demo/DemoFrame.vue";
+import { settleDemo } from "../../demo/settle.ts";
 import { environments, prefixes } from "../../fixtures/index.ts";
+import EnvChip from "../EnvChip/EnvChip.vue";
+import KeyLabel from "../KeyLabel/KeyLabel.vue";
 import DataGrid from "./DataGrid.vue";
 import type { CellState, GridColumn } from "./grid.ts";
 
@@ -37,6 +40,26 @@ const states: Record<string, CellState> = {
   [`${prefixes[4]}:env`]: "review",
 };
 const cellState = (row: Row, column: GridColumn) => states[`${row.prefix}:${column.id}`];
+
+/**
+ * Cells holding a widget: an environment chip and a key label, out of the tab order,
+ * reached by Enter (APG Grid). Their focus ring must stand whole inside the cell.
+ */
+const Widgets = () =>
+  h(
+    DataGrid as Component,
+    { ...base, rows: rows.slice(0, 2) },
+    {
+      cell: ({ row, column }: { row: Row; column: GridColumn }) => {
+        const env = environments.find((e) => e.label === row.env) ?? environments[0];
+        if (column.id === "env")
+          return h(EnvChip, { value: env.key, label: env.label, hue: env.hue });
+        if (column.id === "owner")
+          return h(KeyLabel, { value: "reseau", label: row.owner, showKey: true });
+        return String(row[column.id as keyof Row]);
+      },
+    },
+  );
 
 /** The host keeps the filters: Alt+Down (or the funnel) on a header sets or clears one. */
 const filtering = defineComponent({
@@ -185,6 +208,35 @@ export default {
       description:
         "Chargement : squelettes animés dans les cellules (immobiles sous mouvement réduit)",
       props: { ...base, loading: true },
+      wide: true,
+    },
+    {
+      name: "settle",
+      description:
+        "Du squelette aux données : les lignes prennent la place de leurs squelettes, rien ne bouge (CLS 0)",
+      props: {},
+      demo: settleDemo((loading) =>
+        h(DataGrid as Component, { ...base, loading, loadingRows: rows.length }),
+      ),
+      wide: true,
+    },
+    {
+      name: "widget-env",
+      description:
+        "Pastille d'environnement d'une cellule au focus (Entrée) : son anneau entier, la cellule ne le coupe pas",
+      props: {},
+      demo: Widgets,
+      interaction: "focus",
+      target: ".k-env-chip-frame",
+      wide: true,
+    },
+    {
+      name: "widget-key",
+      description: "Libellé et clé d'une cellule au focus : son anneau entier, sa bulle",
+      props: {},
+      demo: Widgets,
+      interaction: "focus",
+      target: ".k-key-label__text",
       wide: true,
     },
     {

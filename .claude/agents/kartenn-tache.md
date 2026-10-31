@@ -32,7 +32,9 @@ propre à la tâche.
   élément interne). Mets à jour les lignes d'inventaire de
   `specs/020-systeme-de-design/design.md` et de la skill ; remplace dans les maquettes
   (`web/v2/shell/src/_ui/ecrans/`) les éléments simulés par le vrai composant.
-  Vérification : `devenv shell -- k-web2-check` ; captures réécrites avec
+  Vérification : `devenv shell -- k-web2-check`, plus
+  `devenv shell -- k-check -p kartenn-server no_old_permission` si l'interface nomme des
+  permissions (refus, maquettes) : ce test lit aussi `web/v2` ; captures réécrites avec
   `k-web-shots --update changed`, seulement pour des changements voulus, chacune
   regardée.
 - **Relectures**, pour toute interface : un sous-agent `ui-reviewer` et un sous-agent

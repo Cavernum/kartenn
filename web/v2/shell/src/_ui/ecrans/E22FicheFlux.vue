@@ -140,7 +140,7 @@ const menu: MenuItem[] = ended
         label: "Clore…",
         icon: "trash",
         danger: true,
-        ...(reduced ? { forbidden: "flow.write" } : {}),
+        ...(reduced ? { forbidden: "flow.edit" } : {}),
       },
     ];
 
@@ -245,8 +245,7 @@ const changesetLink = lien("E23", "decision", route.query);
     <Panneau v-if="absent" title="flux-9999" main>
       <ErrorState
         title="Ce flux est absent ou vous n'avez pas le droit de le lire."
-        code="urn:kartenn:problem:not-found"
-        :request-id="ID.request"
+        :problem="{ type: 'urn:kartenn:problem:not-found', requestId: ID.request }"
       >
         Le lien peut viser un flux qui n'existe pas, ou un flux dont aucune extrémité ne vous est
         lisible. Les deux cas se lisent de la même façon.
@@ -264,7 +263,7 @@ const changesetLink = lien("E23", "decision", route.query);
           v-else
           icon="pencil"
           :shortcut="['e']"
-          v-bind="reduced ? { forbidden: 'flow.write' } : {}"
+          v-bind="reduced ? { forbidden: 'flow.edit' } : {}"
           >Modifier</Button
         >
         <Menu label="Actions" icon="ellipsis" align="end" :items="menu" />

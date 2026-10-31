@@ -95,35 +95,49 @@
       - heading "Groupes · 3" [level=3]
       - list:
         - listitem:
-          - text: Astreinte
-          - code: astreinte
+          - button "Astreinte astreinte":
+            - text: ""
+            - code: astreinte
+          - status
           - text: via idp-interne / astreinte
         - listitem:
-          - text: Équipe réseau
-          - code: reseau
+          - button "Équipe réseau reseau":
+            - text: ""
+            - code: reseau
+          - status
           - text: direct
         - listitem:
-          - text: Équipe supervision
-          - code: supervision
+          - button "Équipe supervision supervision":
+            - text: ""
+            - code: supervision
+          - status
           - text: via idp-interne / supervision-n1
     - region "Droits effectifs · 4":
       - heading "Droits effectifs · 4" [level=3]
       - list:
         - listitem:
-          - text: Éditeur
-          - code: editor
+          - button "Éditeur editor":
+            - text: ""
+            - code: editor
+          - status
           - text: "Entité : Atelier Nord via le groupe Équipe réseau"
         - listitem:
-          - text: Lecteur réseau
-          - code: lecteur-reseau
+          - button "Lecteur réseau lecteur-reseau":
+            - text: ""
+            - code: lecteur-reseau
+          - status
           - text: "Entité : Atelier Nord via le groupe Équipe supervision"
         - listitem:
-          - text: Instructeur
-          - code: instructeur-flux
+          - button "Instructeur instructeur-flux":
+            - text: ""
+            - code: instructeur-flux
+          - status
           - text: "Site : site-ouest via le groupe Équipe supervision"
         - listitem:
-          - text: Lecteur
-          - code: reader
+          - button "Lecteur reader":
+            - text: ""
+            - code: reader
+          - status
           - text: Globale via le groupe Astreinte
     - region "Groupes de l'IdP lors de sa dernière connexion · 3":
       - heading "Groupes de l'IdP lors de sa dernière connexion · 3" [level=3]

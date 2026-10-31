@@ -55,5 +55,7 @@ export const problems = {
   conflict: "urn:kartenn:problem:conflict",
   forbidden: "urn:kartenn:problem:forbidden",
   unavailable: "urn:kartenn:problem:unavailable",
+  precondition: "urn:kartenn:problem:precondition-failed",
+  refused: "urn:kartenn:problem:changeset-refused",
   violation: "prefix.overlaps-sibling",
 } as const;

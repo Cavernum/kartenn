@@ -86,11 +86,17 @@
         - rowgroup:
           - 'row "Sous réserve Recette Production Web chiffré https avant : flow.verdict.default après : rece-vers-prod"':
             - gridcell "Sous réserve"
-            - gridcell "Recette"
-            - gridcell "Production"
+            - gridcell "Recette":
+              - button "Recette"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
             - gridcell "Web chiffré https":
-              - text: ""
-              - code: https
+              - button "Web chiffré https":
+                - text: ""
+                - code: https
+              - status
             - 'gridcell "avant : flow.verdict.default après : rece-vers-prod"':
               - deletion:
                 - text: "avant :"
@@ -100,11 +106,17 @@
                 - code: rece-vers-prod
           - 'row "Sous réserve Recette Production API interne api avant : flow.verdict.default après : rece-vers-prod"':
             - gridcell "Sous réserve"
-            - gridcell "Recette"
-            - gridcell "Production"
+            - gridcell "Recette":
+              - button "Recette"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
             - gridcell "API interne api":
-              - text: ""
-              - code: api
+              - button "API interne api":
+                - text: ""
+                - code: api
+              - status
             - 'gridcell "avant : flow.verdict.default après : rece-vers-prod"':
               - deletion:
                 - text: "avant :"
@@ -114,11 +126,17 @@
                 - code: rece-vers-prod
           - 'row "S''ouvre Administration Recette Shell sécurisé ssh avant : flow.verdict.default après : admin-par-bastion"':
             - gridcell "S'ouvre"
-            - gridcell "Administration"
-            - gridcell "Recette"
+            - gridcell "Administration":
+              - button "Administration"
+              - status
+            - gridcell "Recette":
+              - button "Recette"
+              - status
             - gridcell "Shell sécurisé ssh":
-              - text: ""
-              - code: ssh
+              - button "Shell sécurisé ssh":
+                - text: ""
+                - code: ssh
+              - status
             - 'gridcell "avant : flow.verdict.default après : admin-par-bastion"':
               - deletion:
                 - text: "avant :"
@@ -128,11 +146,17 @@
                 - code: admin-par-bastion
           - 'row "S''ouvre Administration Développement Shell sécurisé ssh avant : flow.verdict.default après : admin-par-bastion"':
             - gridcell "S'ouvre"
-            - gridcell "Administration"
-            - gridcell "Développement"
+            - gridcell "Administration":
+              - button "Administration"
+              - status
+            - gridcell "Développement":
+              - button "Développement"
+              - status
             - gridcell "Shell sécurisé ssh":
-              - text: ""
-              - code: ssh
+              - button "Shell sécurisé ssh":
+                - text: ""
+                - code: ssh
+              - status
             - 'gridcell "avant : flow.verdict.default après : admin-par-bastion"':
               - deletion:
                 - text: "avant :"
@@ -142,11 +166,17 @@
                 - code: admin-par-bastion
           - 'row "Se ferme Développement Recette PostgreSQL postgres avant : bdd-meme-env après : deny-deve-rece-bdd"':
             - gridcell "Se ferme"
-            - gridcell "Développement"
-            - gridcell "Recette"
+            - gridcell "Développement":
+              - button "Développement"
+              - status
+            - gridcell "Recette":
+              - button "Recette"
+              - status
             - gridcell "PostgreSQL postgres":
-              - text: ""
-              - code: postgres
+              - button "PostgreSQL postgres":
+                - text: ""
+                - code: postgres
+              - status
             - 'gridcell "avant : bdd-meme-env après : deny-deve-rece-bdd"':
               - deletion:
                 - text: "avant :"
@@ -156,11 +186,17 @@
                 - code: deny-deve-rece-bdd
           - 'row "Se ferme Développement Recette Partage NFS nfs avant : fichier-deve après : deny-deve-rece-bdd"':
             - gridcell "Se ferme"
-            - gridcell "Développement"
-            - gridcell "Recette"
+            - gridcell "Développement":
+              - button "Développement"
+              - status
+            - gridcell "Recette":
+              - button "Recette"
+              - status
             - gridcell "Partage NFS nfs":
-              - text: ""
-              - code: nfs
+              - button "Partage NFS nfs":
+                - text: ""
+                - code: nfs
+              - status
             - 'gridcell "avant : fichier-deve après : deny-deve-rece-bdd"':
               - deletion:
                 - text: "avant :"

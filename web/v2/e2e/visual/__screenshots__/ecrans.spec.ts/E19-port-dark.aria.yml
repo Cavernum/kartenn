@@ -93,12 +93,15 @@
         - columnheader "Issue"
         - columnheader "Élément décisif"
     - rowgroup:
-      - row /\d+\.\d+\.\d+\.\d+ → \d+\.\d+\.\d+\.\d+ Non conforme À instruire unknown_service/ [selected]:
+      - row /\d+\.\d+\.\d+\.\d+ → \d+\.\d+\.\d+\.\d+ Non conforme À instruire Copier unknown_service/ [selected]:
         - gridcell /\d+\.\d+\.\d+\.\d+ → \d+\.\d+\.\d+\.\d+/
         - gridcell "Non conforme"
         - gridcell "À instruire"
-        - gridcell "unknown_service":
-          - code: unknown_service
+        - gridcell "Copier unknown_service":
+          - button "Copier unknown_service":
+            - text: ""
+            - code: unknown_service
+          - status
   - text: "Entrée sur une ligne : son explication à droite Requête req_7f3a9c2e5b1d4068"
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"

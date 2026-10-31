@@ -1,0 +1,12 @@
+- main:
+  - region "KeyLabel":
+    - heading "KeyLabel" [level=1]
+    - paragraph: "Motif : Button (copier la clé) ; libellé, à défaut la clé"
+    - 'figure "fallback — prod : « Production » en français, sa clé dans une langue sans libellé"':
+      - button "Production"
+      - status
+      - button "bureaux":
+        - code: bureaux
+      - status
+      - code: fallback
+      - text: ""
