@@ -39,10 +39,11 @@
         - link "Matrice":
           - /url: /x/policy/matrix
       - listitem: application
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 2 opérations" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
+- status
 - main:
   - heading "Matrice de politique applicatif" [level=1]
   - region "Matrice":
@@ -197,3 +198,5 @@
   - button "Fermer le panneau"
   - button "Appliquer seule"
   - button "Ajouter au brouillon"
+- alert
+- status

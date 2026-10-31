@@ -33,7 +33,7 @@
         - link "Registre":
           - /url: /x/flow/flows
       - listitem: /flux-\d+/
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -109,3 +109,5 @@
     - term: Accordée par
     - definition: Noa Petit
 - button "Ouvrir le panneau"
+- alert
+- status

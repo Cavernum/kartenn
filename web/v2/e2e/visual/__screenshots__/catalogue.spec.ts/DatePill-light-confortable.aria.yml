@@ -1,24 +1,60 @@
 - main:
   - region "DatePill":
     - heading "DatePill" [level=1]
-    - paragraph: "Motif : Button (ouvre le choix de la période)"
+    - paragraph: "Motif : Button qui ouvre un Dialog non modal (le choix de la période)"
     - figure "present — Présent":
-      - button "Présent"
+      - 'button "Date de lecture : Présent"'
       - code: present
       - text: ""
     - 'figure "past — Hors présent : couleurs de la bande, fuseau nommé"':
-      - button /3 nov\. \d+, \d+:\d+ Europe\/Paris/:
+      - 'button /Date de lecture : 3 nov\. \d+, \d+:\d+ Europe\/Paris/':
+        - text: ""
         - time: /3 nov\. \d+, \d+:\d+/
         - text: ""
       - code: past
       - text: ""
+    - 'figure "known — État connu à une date passée (as_of) : cadenas, « Connu au »"':
+      - 'button /Date de lecture : Connu au 1 déc\. \d+, \d+:\d+ Europe\/Paris/':
+        - text: ""
+        - time: /1 déc\. \d+, \d+:\d+/
+        - text: ""
+      - code: known
+      - text: ""
+    - figure "both — Les deux dates":
+      - 'button /Date de lecture : 3 nov\. \d+, \d+:\d+ · connu au 1 déc\. \d+, \d+:\d+ Europe\/Paris/':
+        - text: ""
+        - time: /3 nov\. \d+, \d+:\d+/
+        - text: ""
+        - time: /1 déc\. \d+, \d+:\d+/
+        - text: ""
+      - code: both
+      - text: ""
     - figure "hover — Survol":
-      - button "Présent"
+      - 'button "Date de lecture : Présent"'
       - code: hover
       - text: ""
     - figure "focus — Focus visible":
-      - button /3 nov\. \d+, \d+:\d+ Europe\/Paris/:
+      - 'button /Date de lecture : 3 nov\. \d+, \d+:\d+ Europe\/Paris/':
+        - text: ""
         - time: /3 nov\. \d+, \d+:\d+/
         - text: ""
       - code: focus
+      - text: ""
+    - 'figure "open — Ouverte : le choix de la période sous la pastille, nommé par son titre, le focus sur « Valide au »"':
+      - link "Voir l'état open seul":
+        - /url: /_ui/c/DatePill?mode=light&densite=confortable&etat=open
+      - code: open
+      - text: ""
+    - figure /host — Refus de l'API \(\d+ sur as_of\) rendu sur son champ, la couche ouverte/:
+      - link "Voir l'état host seul":
+        - /url: /_ui/c/DatePill?mode=light&densite=confortable&etat=host
+      - code: host
+      - text: ""
+    - 'figure "keyboard — Au clavier : ouvrir, appliquer, refus du serveur sur son champ, sortir par Tab ou Maj+Tab"':
+      - 'button "Date de lecture : Présent"'
+      - button "Après la pastille"
+      - paragraph:
+        - text: "URL :"
+        - code: (présent)
+      - code: keyboard
       - text: ""

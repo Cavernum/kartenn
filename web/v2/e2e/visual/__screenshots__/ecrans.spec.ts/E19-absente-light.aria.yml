@@ -36,7 +36,7 @@
         - link "Politique":
           - /url: /x/policy
       - listitem: Conformité
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -73,3 +73,5 @@
   - paragraph: "Pas de réponse : la destination est absente ou non autorisée"
   - paragraph: Vérifiez l'identifiant collé, ou cherchez l'adresse par sa valeur.
 - button "Ouvrir le panneau"
+- alert
+- status

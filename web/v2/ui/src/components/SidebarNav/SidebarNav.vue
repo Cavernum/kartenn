@@ -4,15 +4,23 @@
 
 <script setup lang="ts">
 // The sidebar (Disclosure in a `navigation` landmark; design « Inventaire », line 18; spec
-// 021, « Cadre »): the brand, the palette button (Ctrl+K), the spaces as disclosures of
-// entries, the active entry `aria-current="page"`, the collapse toggle at the bottom (`[`).
-// Collapsed, it shows icons only: each entry keeps its name, the labels are hidden on
-// screen only (the tooltips come with the complete version, task 23).
+// 021, « Cadre », REQ-021-2): the brand, the palette button (Ctrl+K), the spaces as
+// disclosures of entries (a space without entries is left out), the active entry
+// `aria-current="page"`, the collapse toggle at the bottom (`[`; the shortcuts are the
+// shell's, said here by `aria-keyshortcuts`). Collapsed (a model the host keeps), it
+// shows icons only: every space open, each list named by its space, each control keeping
+// its name (labels hidden on screen only, the counter in the name), and a tooltip after
+// it on hover and keyboard focus (APG Tooltip) that repeats its name, its counter and its
+// shortcut: decorative, Escape closes it and goes on.
 import { computed, nextTick, onMounted, ref, useId, watch } from "vue";
 import { t } from "../../i18n.ts";
 import Icon from "../Icon/Icon.vue";
 import LinkTo from "../internal/LinkTo.vue";
 import Kbd from "../Kbd/Kbd.vue";
+import ShortcutHint from "../ShortcutHint/ShortcutHint.vue";
+import type { Shortcut } from "../ShortcutHint/shortcutHint.ts";
+import Tooltip from "../Tooltip/Tooltip.vue";
+import { useTooltip } from "../Tooltip/tooltip.ts";
 import type { SidebarGroup } from "./sidebar.ts";
 
 const props = withDefaults(
@@ -39,6 +47,40 @@ function toggle(group: string): void {
   closedGroups.value = next;
 }
 const state = computed(() => (collapsed.value ? "collapsed" : "expanded"));
+const groups = computed(() => props.groups.filter((group) => group.entries.length > 0));
+
+/** The tooltip of the rail: one bubble, after the control under the pointer or the focus. */
+interface Tip {
+  /** The control it names: an entry's id, or `:palette`, `:collapse`. */
+  id: string;
+  label: string;
+  badge?: number | undefined;
+  shortcut?: Shortcut | undefined;
+}
+const tip = useTooltip();
+const tipped = ref<Tip>();
+const base = tip.listeners(() => collapsed.value, { pin: () => false, passEscape: () => true });
+/** The listeners of a control of the rail, which say what its tooltip shows. */
+function tipOf(item: Tip): Record<string, (event: Event) => void> {
+  const set = (handler: ((event: Event) => void) | undefined) => (event: Event) => {
+    tipped.value = item;
+    handler?.(event);
+  };
+  return { ...base, pointerenter: set(base.pointerenter), focus: set(base.focus) };
+}
+watch(collapsed, (now) => {
+  if (!now) tip.hide();
+});
+const paletteTip = computed<Tip>(() => ({
+  id: ":palette",
+  label: props.paletteLabel ?? t("search"),
+  shortcut: ["Mod", "k"],
+}));
+const collapseTip = computed<Tip>(() => ({
+  id: ":collapse",
+  label: t("sidebarToggle"),
+  shortcut: ["["],
+}));
 
 // The current entry is always in view (relecture du 2026-10-26): in a rail every space is
 // open, and the entries of the last ones fall under the fold of a short window. The list
@@ -68,14 +110,16 @@ watch(() => [props.active, collapsed.value], revealCurrent);
       type="button"
       class="k-sidebar__palette"
       aria-keyshortcuts="Control+K"
+      aria-haspopup="dialog"
       @click="emit('palette')"
+      v-on="tipOf(paletteTip)"
     >
       <Icon name="search" />
-      <span class="k-sidebar__label">{{ props.paletteLabel ?? t("search") }}</span>
+      <span class="k-sidebar__label">{{ paletteTip.label }}</span>
       <Kbd :keys="['Mod', 'k']" aria-hidden="true" class="k-sidebar__kbd" />
     </button>
     <div ref="scroller" class="k-sidebar__groups">
-      <section v-for="group in props.groups" :key="group.id" class="k-sidebar__group">
+      <section v-for="group in groups" :key="group.id" class="k-sidebar__group">
         <button
           v-if="!collapsed"
           type="button"
@@ -102,6 +146,7 @@ watch(() => [props.active, collapsed.value], revealCurrent);
               :to="entry.to"
               class="k-sidebar__entry"
               :aria-current="entry.id === props.active ? 'page' : undefined"
+              v-on="tipOf(entry)"
             >
               <Icon :name="entry.icon" class="k-sidebar__icon" />
               <span class="k-sidebar__label">{{ entry.label }}</span>
@@ -117,11 +162,27 @@ watch(() => [props.active, collapsed.value], revealCurrent);
       :aria-expanded="!collapsed"
       aria-keyshortcuts="["
       @click="collapsed = !collapsed"
+      v-on="tipOf(collapseTip)"
     >
       <Icon name="panel-left" />
-      <span class="k-sidebar__label">{{ t("sidebarToggle") }}</span>
+      <span class="k-sidebar__label">{{ collapseTip.label }}</span>
       <Kbd :keys="['[']" aria-hidden="true" class="k-sidebar__kbd" />
     </button>
+    <!-- Decorative: it repeats the name of its control, mounted only while open; mounted
+         again for each control, so that it is placed after the one it names. -->
+    <Tooltip
+      v-if="collapsed && tip.open.value && tipped"
+      :key="tipped.id"
+      :control="tip"
+      side="inline-end"
+      decorative
+    >
+      <span class="k-tooltip__name"
+        >{{ tipped.label
+        }}<span v-if="tipped.badge" class="k-sidebar__tip-badge">{{ tipped.badge }}</span
+        ><ShortcutHint v-if="tipped.shortcut" :keys="tipped.shortcut"
+      /></span>
+    </Tooltip>
   </nav>
 </template>
 
@@ -160,10 +221,14 @@ watch(() => [props.active, collapsed.value], revealCurrent);
     color: var(--k-sidebar-active-icon);
   }
 
+  /* The list scrolls itself; room around its entries for their focus ring (2 px, 1 px
+   * out), which the scrolling box would clip, its edges kept where they were. */
   .k-sidebar__groups {
     display: grid;
     gap: var(--k-space-3);
     align-content: start;
+    padding: var(--k-space-1);
+    margin: calc(var(--k-space-1) * -1);
     overflow-y: auto;
   }
 
@@ -242,7 +307,10 @@ watch(() => [props.active, collapsed.value], revealCurrent);
     white-space: nowrap;
   }
 
-  .k-sidebar__badge {
+  /* A counter: in an entry, and in the tooltip of the rail (in the portal, out of the bar,
+   * in the accent as over the corner of its icon). */
+  .k-sidebar__badge,
+  .k-sidebar__tip-badge {
     min-inline-size: var(--k-space-5);
     padding-inline: var(--k-space-1);
     font-size: var(--k-text-xs);
@@ -252,6 +320,11 @@ watch(() => [props.active, collapsed.value], revealCurrent);
     text-align: center;
     background-color: var(--k-sidebar-active-bg);
     border-radius: var(--k-radius-full);
+  }
+
+  .k-sidebar__tip-badge {
+    color: var(--k-accent-fg);
+    background-color: var(--k-accent);
   }
 
   .k-sidebar__kbd .k-kbd__key {

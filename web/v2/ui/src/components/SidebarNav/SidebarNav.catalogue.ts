@@ -2,7 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import { defineComponent, h, ref } from "vue";
 import type { CatalogueEntry } from "../../catalogue.ts";
+import Cluster from "../Cluster/Cluster.vue";
 import SidebarNav from "./SidebarNav.vue";
 import type { SidebarGroup } from "./sidebar.ts";
 
@@ -43,6 +45,30 @@ const groups: SidebarGroup[] = [
   },
 ];
 
+/**
+ * The sidebar of the keyboard script (e2e/components/sidebar-nav.spec.ts), collapsed at
+ * first, its state kept by the host (the shell keeps it in `localStorage`); « Rechercher »
+ * says that it would open the palette.
+ */
+const Keyboard = defineComponent({
+  setup() {
+    const collapsed = ref(true);
+    const palette = ref(0);
+    return () =>
+      h(Cluster, { gap: "3", align: "start", wrap: false }, () => [
+        h(SidebarNav, {
+          brand: "kartenn",
+          groups,
+          active: "prefixes",
+          collapsed: collapsed.value,
+          "onUpdate:collapsed": (next: boolean) => (collapsed.value = next),
+          onPalette: () => palette.value++,
+        }),
+        h("p", { class: "k-cat-note", "data-palette": "" }, `Palette demandée : ${palette.value}`),
+      ]);
+  },
+});
+
 export default {
   component: SidebarNav,
   pattern: "Disclosure dans un repère navigation",
@@ -63,6 +89,21 @@ export default {
       props: { brand: "kartenn", groups, active: "prefixes", collapsed: true },
     },
     {
+      name: "collapsed-focus",
+      description:
+        "Repliée, focus clavier sur une entrée : infobulle de son nom et de son compteur, après elle",
+      props: { brand: "kartenn", groups, active: "prefixes", collapsed: true },
+      interaction: "focus",
+      target: "a[href='/anomalies']",
+    },
+    {
+      name: "collapsed-hover",
+      description: "Repliée, survol du bouton de repli : son nom et son raccourci",
+      props: { brand: "kartenn", groups, active: "prefixes", collapsed: true },
+      interaction: "hover",
+      target: ".k-sidebar__collapse",
+    },
+    {
       name: "hover",
       description: "Survol d'une entrée",
       props: { brand: "kartenn", groups, active: "prefixes" },
@@ -75,6 +116,13 @@ export default {
       props: { brand: "kartenn", groups, active: "prefixes" },
       interaction: "focus",
       target: "a[href='/domains']",
+    },
+    {
+      name: "keyboard",
+      description:
+        "Au clavier : repliée, noms gardés et infobulles au focus ; dépliée, espaces en Disclosure",
+      props: {},
+      demo: Keyboard,
     },
   ],
 } satisfies CatalogueEntry;

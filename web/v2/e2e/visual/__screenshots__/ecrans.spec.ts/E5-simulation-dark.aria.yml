@@ -48,7 +48,7 @@
         - link "Référentiel":
           - /url: /
       - listitem: Adresses
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -120,3 +120,5 @@
   - button "Ajouter une description"
   - button "Appliquer" [disabled]
   - button "Choisir l'action"
+- alert
+- status

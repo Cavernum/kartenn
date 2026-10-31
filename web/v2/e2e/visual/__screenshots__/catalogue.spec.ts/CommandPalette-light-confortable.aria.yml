@@ -17,3 +17,8 @@
         - /url: /_ui/c/CommandPalette?mode=light&densite=confortable&etat=loading
       - code: loading
       - text: ""
+    - 'figure "keyboard — Au clavier : ouverte par un bouton, filtrée à la saisie, la première entrée mise en avant, Entrée lance, Échap ferme"':
+      - button "Ouvrir la palette"
+      - paragraph: "Commande lancée : aucune"
+      - code: keyboard
+      - text: ""

@@ -54,7 +54,7 @@
         - link "Adresses":
           - /url: /addresses
       - listitem: /\d+\.\d+\.\d+\.\d+/
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -143,3 +143,5 @@
     - term: Propriétaire
     - definition: Atelier Nord
 - button "Ouvrir le panneau"
+- alert
+- status

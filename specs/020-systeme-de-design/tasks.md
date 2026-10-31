@@ -786,7 +786,7 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     imbriquées dans celles des toasts ; `aria-atomic="false"` sur `alert`) ; un toast
     ajouté sous une couche modale n'est pas redit quand elle se ferme ; texte d'un toast
     en chaînes seules (ni adresse ni code en chasse fixe dans la phrase).
-- [ ] 23. `SidebarNav` (repliable, groupes), `CommandPalette`, `DatePill`,
+- [x] 23. `SidebarNav` (repliable, groupes), `CommandPalette`, `DatePill`,
   `DraftCounter`, `TimeBand` — verify : palette (Combobox dans Dialog) au clavier ;
   barre latérale repliée : noms accessibles et infobulles ; raccourci d'une entrée de la
   palette dit comme dans `Menu` (combinaison en `aria-keyshortcuts`, séquence en
@@ -796,6 +796,92 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     rend un 400 de l'API sur `valid_at` ou `as_of` sur son champ par la prop `errors`
     (état `host` du catalogue ; 006 compare `as_of` au `now()` de la base)
   - dépend de : 22
+  - fait : `SidebarNav` : espace sans entrée omis ; repliée, une infobulle décorative
+    (`useTooltip`, remontée pour chaque contrôle, après lui) au survol et au focus clavier
+    redit le nom, le compteur et le raccourci (« Rechercher » Ctrl K, « Barre latérale »
+    `[`), Échap la ferme et passe ; « Rechercher » `aria-haspopup="dialog"` ; place
+    autour des entrées pour leur anneau (la liste qui défile le rognait) ; compteur de
+    l'infobulle sur la règle du compteur. `CommandPalette` : `aria-modal` écrit, focus
+    rendu par `useOpener` ; sélection automatique (la première entrée mise en avant et
+    `aria-selected`, réécrit d'après `data-highlighted` ; Entrée la lance) ; région
+    `polite` présente avant la liste (« 6 résultats », « Chargement », « Aucun
+    résultat ») ; sans résultat, plus d'`aria-activedescendant` ; Échap ferme (la liste
+    inline de Reka prenait la touche), Tab et Maj+Tab restent dans le champ, texte gardé
+    au départ du focus ; champ nommé « Rechercher une commande, un objet, une page » ;
+    anneau sur la rangée du champ ; raccourci d'une entrée comme dans `Menu`
+    (`aria-keyshortcuts` pour une combinaison, séquence « g puis p » en description).
+    `DatePill` : `validAt`, `asOf`, `errors`, `defaultOpen`, `v-model:open`, `apply` ;
+    nommée « Date de lecture : <contexte> » (« Présent », la date, « Connu au » ; cadenas
+    sous `as_of`) ; héberge `PeriodPicker` dans un Dialog non modal de Reka sous elle
+    (surface `k-popover`, fond `--k-surface-raised`, bordure `--k-border-control`, ombre
+    `--k-shadow-modal` de la revue du 2026-10-26 d'E6 ; nommé par le titre du formulaire,
+    croix « Fermer » sur la ligne du titre, focus au premier champ ou au champ refusé) ;
+    Tab après la fin et Maj+Tab au début ferment et passent (`tabOut` de
+    `internal/tabOrder.ts`, repris par `Popover`), si bien qu'à 390 px la couche qui
+    couvre la page ne cache jamais le focus ; fermée quand la période lue change, ou
+    aussitôt si c'est la même ; refus de l'API rendu par `errors` (focus sur le champ par
+    `PeriodPicker`, qui suit maintenant sa prop `errors`), effacé à la fermeture.
+    `TimeBand` : `validAt`, `asOf` ; les deux cas de REQ-021-5 (« Lecture au … (fuseau) —
+    brouillon daté possible », « État connu au … (fuseau) — lecture seule », les deux
+    ensemble) ; au présent, sa région `status` reste, vide (dite à l'entrée hors présent).
+    Calendrier de `DateTimeField` (Date Picker Dialog, modal) : fond `--k-surface-raised`,
+    bordure `--k-border-control`, ombre `--k-shadow-modal`, au-dessus de la couche de la
+    pastille (plan commun, la plus récente dessus). `DatePill` dans la liste `FLOATING`.
+    Maquettes : le cadre tient la palette (« Rechercher », Ctrl+K, depuis le tiroir une
+    fois fermé ; E8 passe `palette`, ses entrées dans `ecrans/palette.ts`, filtrées), la
+    pastille (`picker` l'ouvre ; appliquer change la lecture) et la bande (« Revenir au
+    présent ») ; couche `.k-ecran__picker` et créneau `#picker` retirés ; E15 au passé lit
+    un `as_of` (prop `asOf` du cadre : lecture seule, accordé à son panneau). Catalogue :
+    `SidebarNav` `collapsed-focus`, `collapsed-hover`, `keyboard` ; `CommandPalette`
+    `keyboard` ; `DatePill` `known`, `both`, `open`, `host`, `keyboard` ; `TimeBand`
+    `known`, `both`. Scripts `e2e/components/command-palette.spec.ts`,
+    `date-pill.spec.ts`, `sidebar-nav.spec.ts` ; `visual/clavier.spec.ts` : E6 à 390 px
+    (Tab hors de la couche, Échap), bande et retour au présent, palette du cadre par
+    Ctrl+K, par « Rechercher » et depuis le tiroir ; Vitest `components-frame.test.ts`
+    (pastille, bande, espace vide). Revues `a11y-auditor` et `ui-reviewer` (code et
+    captures) ; corrigés : infobulle du rail placée sur le contrôle précédent ; calendrier
+    sous la couche en sombre ; fuseau coupé à 390 px (colonne de la croix) ; espace
+    manquante dans la pastille ; anneau rogné dans le rail ; état `host` sans focus sur le
+    champ refusé ; refus de l'API resté affiché à la réouverture ; région de la bande
+    insérée avec son texte ; palette ouverte du tiroir qui perdait le focus au profit du
+    tiroir ; champ de la palette sans signe de focus ; E15 contraire à REQ-021-5 ; compteur
+    de l'infobulle recopié. Captures réécrites (voulues) : `DatePill` (motif, nom
+    « Date de lecture : … »), `TimeBand` (phrases de REQ-021-5), `SidebarNav` pages et
+    `focus` (anneau entier), `CommandPalette` (anneau du champ, région, nom du champ),
+    `DateTimeField` `calendar` (surface de couche modale), E6 (couche de la pastille, bande)
+    et E15 `passe` (lecture `as_of`) à toutes largeurs, E8 `palette` (anneau) ; arbres de
+    toutes les maquettes (nom de la pastille ; quelques arbres réécrits en entier) ;
+    nouvelles : `SidebarNav` `collapsed-focus`, `collapsed-hover`, `keyboard`,
+    `CommandPalette` `keyboard`, `DatePill` `known`, `both`, `open`, `host`, `keyboard`,
+    `TimeBand` `known`, `both`. `DraftCounter` : livré par la 024 (M8), sans changement
+    ici ; son script `e2e/components/draft-counter.spec.ts` (au clavier seul : bascule,
+    compteur à 0, liste des brouillons, flèches en boucle, Échap et choix rendent le focus
+    au chevron) remplace celui de `visual/clavier.spec.ts`. Relecture de la branche ;
+    corrigés : « Revenir au présent » de la bande, qui part avec elle, rend le focus à la
+    pastille (`focus()` exposé par `DatePill`, appelé par le cadre) ; un refus arrivé
+    couche fermée est ignoré, ouvrir ou fermer la couche efface le dernier (contrat de
+    `errors` dans le design : un objet neuf par refus) ; E15 dit « Connu au » (registre,
+    panneau) ; nombre de la palette dit aussi à l'ouverture (région remplie une image
+    après le montage) ; infobulle du rail remontée par contrôle (`id`), plus par libellé ;
+    règle morte `.k-ecran__body:nth-child(2)` retirée ; Ctrl+K de la maquette ignore un
+    défaut empêché et garde le texte d'une palette ouverte ; scripts du cadre au clavier
+    seul (plus de `focus()` interne, de clic ni d'attente fixe).
+  - choix : couche de la pastille ancrée à elle (Reka) plutôt qu'au bord du cadre comme
+    le repère d'E6 ; focus au premier champ (pas sur le dialogue, comme `Popover`) ; croix
+    avant le formulaire dans l'ordre de tabulation ; la couche se ferme d'elle-même quand
+    la période lue change (pas de fermeture par l'hôte) ; « · connu au » dans la
+    pastille, « , connu au » dans la phrase de la bande ; palette : sélection automatique
+    (REQ-021-3 : « 10.1. », Entrée → l'objet), l'hôte filtre ; infobulle du rail
+    décorative, une seule bulle ; région de la bande gardée montée (`display: contents`
+    au présent) ; E15 lu en `as_of`. Restent (à vérifier ou à arbitrer) : lecture réelle au
+    lecteur d'écran (bande qui paraît, descriptions « g puis p », `aria-selected` posé
+    après rendu, `aria-keyshortcuts` d'une option) ; `aria-describedby` d'un segment de
+    `DateTimeField` refusé qui cite deux fois l'erreur (tâche 20) ; `[` et Ctrl+K liés par
+    le shell (021) : `[` quand un bouton d'espace a le focus le démonte ; état de
+    chargement d'un `apply` de la pastille (rien n'indique l'attente de l'hôte) ;
+    calendrier de `DateTimeField` hors de la surface `k-popover` ; à arbitrer : REQ-017-26
+    (les plugins Politique et Flux n'offrent d'écriture qu'au présent) contre REQ-021-5 (sous `valid_at` seule, un
+    brouillon daté est permis) — E15 lit un `as_of` pour rester d'accord avec les deux.
 - [x] 24. `CodeBadge` (copie annoncée), `KeyLabel`, `EnvChip`, `StatusBadge`,
   `Skeleton`, `EmptyState`, `ErrorState`, `DiffList` — REQ-020-21 à 23 — verify : copie
   au clavier ; repli sur la clé ; CLS 0 entre squelette et données

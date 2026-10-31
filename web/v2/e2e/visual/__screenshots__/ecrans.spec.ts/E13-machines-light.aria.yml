@@ -42,7 +42,7 @@
         - link "Paramètres":
           - /url: /admin/settings
       - listitem: Machines
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 2 opérations" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -201,3 +201,5 @@
       - text: .
   - button "Largeur du panneau"
   - button "Fermer le panneau"
+- alert
+- status

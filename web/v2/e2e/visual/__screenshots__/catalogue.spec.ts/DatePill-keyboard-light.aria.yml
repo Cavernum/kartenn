@@ -1,0 +1,12 @@
+- main:
+  - region "DatePill":
+    - heading "DatePill" [level=1]
+    - paragraph: "Motif : Button qui ouvre un Dialog non modal (le choix de la période)"
+    - 'figure "keyboard — Au clavier : ouvrir, appliquer, refus du serveur sur son champ, sortir par Tab ou Maj+Tab"':
+      - 'button "Date de lecture : Présent"'
+      - button "Après la pastille"
+      - paragraph:
+        - text: "URL :"
+        - code: (présent)
+      - code: keyboard
+      - text: ""

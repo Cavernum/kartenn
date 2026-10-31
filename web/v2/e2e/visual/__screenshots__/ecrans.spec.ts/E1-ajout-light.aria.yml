@@ -54,7 +54,7 @@
         - link /\d+\.\d+\.2\.0\/\d+/:
           - /url: /topology?node=p1
       - listitem: /\d+\.\d+\.\d+\.\d+\/\d+/
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -187,3 +187,5 @@
   - button "Fermer le panneau"
   - button "Ajouter au brouillon"
   - button "Choisir l'action"
+- alert
+- status

@@ -45,7 +45,7 @@
   - navigation "Fil d'Ariane":
     - list:
       - listitem: Accueil
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -85,3 +85,5 @@
       - /url: /_ui/ecrans/E21?vue=instruction&mode=dark
   - paragraph: Vu avec policy.catalogue.read, policy.rule.admin et flow.review. Relues à chaque changement, par le flux d'événements.
 - button "Ouvrir le panneau"
+- alert
+- status

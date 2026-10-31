@@ -39,7 +39,7 @@
         - link "Inférence":
           - /url: /x/policy/inference
       - listitem: Nouvelle règle
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 1 opération" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -249,3 +249,5 @@
   - button "Fermer le panneau"
   - button "Annuler"
   - button "Ajouter au brouillon" [disabled]
+- alert
+- status

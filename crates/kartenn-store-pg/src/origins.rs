@@ -102,6 +102,11 @@ hit AS (
 /// `x.id = ANY($1)`: once the prepared statement runs its generic plan, `$1` is a
 /// parameter whose array PostgreSQL does not hash, and the test is linear in the targets
 /// for each object walked (more than an hour for 10⁶ targets, task 010-19).
+///
+/// It is planned for its parameters at each run, never kept prepared: its generic plan,
+/// chosen from the sixth run on a connection, plans the array of targets as a few rows
+/// (291 s instead of 0.5 s for the 1.4·10⁵ targets of the roots on the reduced bench,
+/// 73 s for 2·10⁴ before task 010-19; task 003-20).
 const SEGMENTS_DOWN: &str = concat!(
     targets!(),
     "
@@ -267,8 +272,12 @@ impl PgTx {
         targets: &[Uuid],
         from: OffsetDateTime,
     ) -> Result<Vec<Row>, StoreError> {
+        // Both lookups are planned for the array of targets at each run, never kept
+        // prepared: a generic plan may test it row by row over every object of a module or
+        // every VLAN (task 003-20), and planning so small a query costs next to nothing.
         let modular: Vec<Uuid> =
             sqlx::query_scalar("SELECT DISTINCT id FROM module_object WHERE id = ANY($1)")
+                .persistent(false)
                 .bind(targets)
                 .fetch_all(&mut *self.tx)
                 .await
@@ -276,6 +285,7 @@ impl PgTx {
         // The VLANs climb the tree of their groups (spec 026), as the objects of a module.
         let vlans: Vec<Uuid> =
             sqlx::query_scalar("SELECT DISTINCT id FROM vlan_tree WHERE id = ANY($1)")
+                .persistent(false)
                 .bind(targets)
                 .fetch_all(&mut *self.tx)
                 .await
@@ -292,25 +302,25 @@ impl PgTx {
         };
         let carriers: Vec<String> = tree.kinds().iter().map(|k| (*k).to_owned()).collect();
         let mut computed: Vec<Row> = Vec::new();
-        for (segments, objects) in [
-            (
-                match tree {
-                    InheritTree::Entity => SEGMENTS_ENTITY,
-                    InheritTree::Site => SEGMENTS_SITE,
-                    InheritTree::Module(_) => SEGMENTS_MODULE,
-                    InheritTree::Addressing if others.len() >= self.down_from => SEGMENTS_DOWN,
-                    InheritTree::Addressing => SEGMENTS_UP,
-                },
-                &others,
-            ),
-            (SEGMENTS_MODULE, &modular),
-            (SEGMENTS_VLAN, &vlans),
+        // Each query with whether it is kept prepared: not the way down (see SEGMENTS_DOWN).
+        let (segments, prepared) = match tree {
+            InheritTree::Entity => (SEGMENTS_ENTITY, true),
+            InheritTree::Site => (SEGMENTS_SITE, true),
+            InheritTree::Module(_) => (SEGMENTS_MODULE, true),
+            InheritTree::Addressing if others.len() >= self.down_from => (SEGMENTS_DOWN, false),
+            InheritTree::Addressing => (SEGMENTS_UP, true),
+        };
+        for (segments, prepared, objects) in [
+            (segments, prepared, &others),
+            (SEGMENTS_MODULE, true, &modular),
+            (SEGMENTS_VLAN, true, &vlans),
         ] {
             if objects.is_empty() {
                 continue;
             }
             computed.extend(
                 sqlx::query_as::<_, Row>(segments)
+                    .persistent(prepared)
                     .bind(objects)
                     .bind(property)
                     .bind(from)

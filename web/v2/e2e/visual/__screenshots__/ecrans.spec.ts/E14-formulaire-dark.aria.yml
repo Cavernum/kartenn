@@ -39,7 +39,7 @@
         - link "Règles et motifs":
           - /url: /x/policy/rules
       - listitem: Nouvelle règle
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 4 opérations" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -273,4 +273,6 @@
   - button "Annuler"
   - button "Ajouter au brouillon" [disabled]
   - button "Choisir l'action"
+- alert
+- status
 - 'tooltip "Une règle Interdire exige un texte en français : il s''affiche à qui la rencontre."'

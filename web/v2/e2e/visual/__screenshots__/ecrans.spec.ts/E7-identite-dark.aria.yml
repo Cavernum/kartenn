@@ -42,7 +42,7 @@
         - link "Identités":
           - /url: /admin/identities
       - listitem: lou.bernard
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -147,3 +147,5 @@
         - listitem: idp-interne / tous-agents aucun groupe kartenn
   - button "Largeur du panneau"
   - button "Fermer le panneau"
+- alert
+- status

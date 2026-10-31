@@ -36,7 +36,7 @@
         - link "Politique":
           - /url: /x/policy
       - listitem: Catalogue
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -93,3 +93,5 @@
       - paragraph: Un rôle exempté ne déclenche pas les signaux de risque sur les flux qu'il demande.
     - text: 3 conditions · 3 signaux · 2 rôles exemptés Au présent · politique r42
 - button "Ouvrir le panneau"
+- alert
+- status

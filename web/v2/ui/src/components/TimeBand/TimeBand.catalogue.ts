@@ -11,14 +11,30 @@ export default {
   states: [
     {
       name: "past",
-      description: "Lecture au passé",
-      props: { at: "2025-11-03T08:30:00Z", timeZone: "Europe/Paris" },
+      description: "Date de validité seule (valid_at) : brouillon daté possible",
+      props: { validAt: "2025-11-03T08:30:00Z", timeZone: "Europe/Paris" },
+      wide: true,
+    },
+    {
+      name: "known",
+      description: "État connu à une date passée (as_of) : lecture seule",
+      props: { asOf: "2025-12-01T07:00:00Z", timeZone: "Europe/Paris" },
+      wide: true,
+    },
+    {
+      name: "both",
+      description: "Les deux dates : lecture seule",
+      props: {
+        validAt: "2025-11-03T08:30:00Z",
+        asOf: "2025-12-01T07:00:00Z",
+        timeZone: "Europe/Paris",
+      },
       wide: true,
     },
     {
       name: "other-zone",
       description: "Autre fuseau nommé",
-      props: { at: "2025-11-03T08:30:00Z", timeZone: "America/Montreal" },
+      props: { validAt: "2025-11-03T08:30:00Z", timeZone: "America/Montreal" },
       wide: true,
     },
   ],

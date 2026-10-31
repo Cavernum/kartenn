@@ -566,6 +566,99 @@ async fn going_down_matches_the_oracle(pool: PgPool) {
     matches_the_oracle(&pool, PgStore::new(pool.clone()).with_down_from(0)).await;
 }
 
+/// The statements whose arrays hold every target of a large refresh (the segments going
+/// down, the objects of modules and the VLANs among the targets, the differential over the
+/// carriers and that of the heirs of a new value) are planned for their arrays at each run
+/// and never kept prepared on the connection: from its sixth run PostgreSQL may switch a
+/// prepared statement to its generic plan, which tests the array of targets row by row
+/// (task 003-20: 291 s instead of 0.5 s going down on the reduced bench). The session
+/// forces generic plans, so that a statement kept prepared shows one from its first run.
+#[kartenn_testing::pg_test]
+async fn large_refreshes_are_planned_for_their_arrays(pool: PgPool) {
+    let one = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .after_connect(|conn, _| {
+            Box::pin(async move {
+                sqlx::raw_sql("SET plan_cache_mode = force_generic_plan")
+                    .execute(conn)
+                    .await
+                    .map(|_| ())
+            })
+        })
+        .connect_with((*pool.connect_options()).clone())
+        .await
+        .unwrap();
+    let f = Fixture::new(&one, PgStore::new(one.clone()).with_down_from(0)).await;
+    f.applied(
+        vec![
+            f.prefix("10.0.0.0/8", Nature::Container),
+            f.prefix("10.1.2.0/24", Nature::Network),
+            f.address("10.1.2.3"),
+        ],
+        0,
+        None,
+    )
+    .await;
+    let root = f.id("prefix", "prefix", "10.0.0.0/8").await;
+    let addr = f.id("address", "address", "10.1.2.3").await;
+    for d in 1..=3 {
+        let outcome = f
+            .submit(vec![f.assign(root, ObjectKind::Prefix, "a")], d, None)
+            .await;
+        let Outcome::Applied { diff, .. } = outcome else {
+            panic!("{outcome:?}");
+        };
+        assert!(!diff.is_empty(), "the differential is recorded");
+        // A new value where one is carried: no origin moves, the heirs change value.
+        let outcome = f
+            .submit(vec![f.assign(root, ObjectKind::Prefix, "b")], d, None)
+            .await;
+        let Outcome::Applied { diff, .. } = outcome else {
+            panic!("{outcome:?}");
+        };
+        assert!(
+            !diff.is_empty(),
+            "the differential of the heirs is recorded"
+        );
+        f.applied(
+            vec![Operation::UnassignProperty {
+                object: Ref::Id(root),
+                kind: ObjectKind::Prefix,
+                property: Ref::Id(f.property),
+            }],
+            d,
+            None,
+        )
+        .await;
+    }
+    f.applied(vec![f.assign(root, ObjectKind::Prefix, "b")], 4, None)
+        .await;
+    assert_eq!(f.origin(addr, 4).await, Some(root));
+    let kept: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT statement, generic_plans FROM pg_prepared_statements
+          WHERE NOT from_sql
+            AND (statement LIKE '%x.id IN (SELECT id FROM t)%'
+                 OR statement LIKE '%FROM carrier_object, w%'
+                 OR statement LIKE '%NOT r.object_id = ANY%'
+                 OR statement LIKE 'SELECT DISTINCT id FROM module_object WHERE id = ANY%'
+                 OR statement LIKE 'SELECT DISTINCT id FROM vlan_tree WHERE id = ANY%')",
+    )
+    // Unprepared, so that this query does not find itself.
+    .persistent(false)
+    .fetch_all(&one)
+    .await
+    .unwrap();
+    assert!(kept.is_empty(), "{kept:?}");
+    // The other statements stay prepared, under the generic plan this session forces.
+    let generic: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM pg_prepared_statements WHERE NOT from_sql AND generic_plans > 0",
+    )
+    .fetch_one(&one)
+    .await
+    .unwrap();
+    assert!(generic > 0);
+}
+
 async fn matches_the_oracle(pool: &PgPool, store: PgStore) {
     let f = Fixture::new(pool, store).await;
     for seed in 1..=4_u64 {

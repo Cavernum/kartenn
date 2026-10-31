@@ -10,7 +10,8 @@
 // before → after, « voir tout »); Ctrl+Entrée applies one cell at once (PUT under
 // If-Match, motive asked); the matrix read again after a 412 (`policy.matrix.stale`), the
 // draft kept; a submission held (202) and its link; a flow type without a living
-// environment; the matrix read in the past, without any write.
+// environment; the matrix read in the past, without any write (a past system date,
+// `as_of`: read only, REQ-021-5).
 import {
   Button,
   CodeBadge,
@@ -247,7 +248,7 @@ const effectLink = lien("E16", "combinaisons", route.query);
     active="matrix"
     space="policy"
     :spaces="SPACES_017"
-    :at="past ? PAST : undefined"
+    :as-of="past ? PAST : undefined"
     :draft="held || past ? 0 : 2"
     :panel="held || empty ? undefined : stale ? 'draft' : 'detail'"
     :crumbs="[
@@ -432,7 +433,7 @@ const effectLink = lien("E16", "combinaisons", route.query);
               { key: 'flowType', label: 'Type de flux', value: shown },
               { key: 'state', label: 'État' },
               { key: 'rule', label: 'Règle' },
-              { key: 'at', label: 'Lue au', value: '2025-11-03 09:30', mono: true },
+              { key: 'at', label: 'Connu au', value: '2025-11-03 09:30', mono: true },
             ]"
           >
             <template #state><StatusBadge state="neutral" label="Refus par défaut" /></template>

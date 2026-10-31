@@ -39,10 +39,11 @@
         - link "Matrice":
           - /url: /x/policy/matrix
       - listitem: backup
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 2 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
+- status
 - main:
   - heading "Matrice de politique sauvegarde" [level=1]
   - region "Matrice":
@@ -57,3 +58,5 @@
     - paragraph: "La matrice d'un type de flux croise les environnements vivants à la date : aucun n'est ouvert à la sauvegarde. Les environnements s'ouvrent dans les Paramètres de la politique."
     - button "Ouvrir les Paramètres de la politique"
 - button "Ouvrir le panneau"
+- alert
+- status

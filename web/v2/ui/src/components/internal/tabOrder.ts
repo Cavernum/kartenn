@@ -52,3 +52,23 @@ export function besideInTabOrder(
   if (!wraps) return all[at];
   return all.length > 0 ? all[(at + all.length) % all.length] : undefined;
 }
+
+/**
+ * Tab past the end, Shift+Tab from the start of a non-modal layer (`layer`, in the portal)
+ * opened from `trigger`: where the focus goes once the layer closes, as if it followed its
+ * trigger (Shift+Tab: back to the trigger; Tab: what follows it), or `undefined` while the
+ * key stays inside. Heard in capture, before the loop of Reka's focus scope.
+ */
+export function tabOut(
+  event: KeyboardEvent,
+  layer: HTMLElement,
+  trigger: HTMLElement,
+): HTMLElement | undefined {
+  if (event.key !== "Tab" || event.ctrlKey || event.altKey || event.metaKey) return undefined;
+  const inside = tabbables(layer);
+  const at = document.activeElement;
+  const first = at === layer || at === inside[0];
+  const last = inside.length === 0 || at === inside.at(-1);
+  if (event.shiftKey ? !first : !last) return undefined;
+  return event.shiftKey ? trigger : (besideInTabOrder(trigger, 1, layer) ?? trigger);
+}

@@ -27,7 +27,7 @@
         - link "Registre":
           - /url: /x/flow/flows
       - listitem: Proposer des flux
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 4 opérations" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -135,3 +135,5 @@
   - button "Ajouter une description"
   - button "Soumettre en revue"
   - button "Choisir l'action"
+- alert
+- status

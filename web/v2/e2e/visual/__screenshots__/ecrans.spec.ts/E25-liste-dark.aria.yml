@@ -30,7 +30,7 @@
         - link "Flux":
           - /url: /x/flow
       - listitem: Non-conformités
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -119,3 +119,5 @@
     - text: 4 non-conformités
     - button "Suivantes"
 - button "Ouvrir le panneau"
+- alert
+- status

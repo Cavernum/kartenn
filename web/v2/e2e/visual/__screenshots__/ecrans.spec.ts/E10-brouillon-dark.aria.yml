@@ -33,7 +33,7 @@
         - link "Matrice":
           - /url: /x/policy/matrix
       - listitem: application
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -254,3 +254,5 @@
   - button "Ajouter une description"
   - button "Soumettre en revue"
   - button "Choisir l'action"
+- alert
+- status
