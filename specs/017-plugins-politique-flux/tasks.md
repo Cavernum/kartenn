@@ -43,6 +43,18 @@ sous-agents d'implémentation à la fois (CLAUDE.md).
   avec les composants de `@kartenn/ui` ; design « Plugin `policy` », « Plugin `flow` » ;
   maquettes E1 à E10 de la 020 pour le style
   dépend de : 020-15
+  - en cours : maquettes faites le 2026-10-30, à valider — E14 à E27 au catalogue
+    (`web/v2/shell/src/_ui/ecrans/E14Regles.vue` à `E27Fiches.vue`, données
+    `donnees017.ts`, registre `registry017.ts`, barre latérale des vues des deux manifestes
+    `SPACES_017`, prop `spaces` d'`EcranCadre`), 57 vues capturées par
+    `e2e/visual/ecrans.spec.ts` ; à la suite d'E10 (matrice), E11 (registre, proposition,
+    test d'une connexion) et E13 (paramètres de la politique, 027). Reste : validation de
+    l'utilisateur consignée en U14, puis report des écarts dans le design avant la tâche 2.
+  - choix : une maquette par vue des manifestes, ses onglets, actions et états en vues ;
+    formulaires d'écriture (règle, cellule, condition, règle d'inférence, dossier) dans le
+    panneau droit (024/M13) ; composants absents (`DateTimeField`) marqués « À venir » ;
+    zone de texte multiligne absente de l'inventaire, simulée par `TextField` ; arbre des
+    exceptions d'inférence en liste indentée (pas de `Tree` éditable).
 
 ## P1 — Squelettes
 
