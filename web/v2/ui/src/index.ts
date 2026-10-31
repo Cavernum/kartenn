@@ -102,8 +102,11 @@ export { columnsTemplate, nextSort } from "./components/DataGrid/grid.ts";
 export type {
   CellRef,
   CellState,
+  ColumnWidths,
   GridColumn,
+  GridCommit,
   GridSort,
+  GridWindow,
   RowState,
 } from "./components/DataGrid/grid.ts";
 export { default as ExpandableGrid } from "./components/ExpandableGrid/ExpandableGrid.vue";

@@ -47,6 +47,7 @@
             - gridcell
             - gridcell
             - gridcell
+      - alert
       - paragraph: Ce qui suit la zone reste à sa place.
       - code: settle
       - text: ""

@@ -7,7 +7,9 @@
       - grid "Préfixes du domaine":
         - rowgroup:
           - row "Préfixe Libellé":
-            - columnheader "Préfixe"
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
             - columnheader "Libellé"
         - rowgroup:
           - row /\d+\.\d+\.2\.0\/\d+ Serveurs de bases/:
@@ -25,5 +27,6 @@
           - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités/:
             - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
             - gridcell "Invités"
+      - alert
       - code: priorities
       - text: ""

@@ -31,6 +31,7 @@
   - button "Brouillon 4 opérations" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
+- status
 - main:
   - heading "Proposer des flux" [level=1]
   - region "Proposer des flux":
@@ -81,7 +82,8 @@
               - text: ""
               - code: unclassified
             - status
-    - text: "4 flux · 1 automatique · 1 à instruire · 2 non conformes à la matrice Entrée : le flux choisi en bas · F2 : modifier"
+    - alert
+    - text: "4 flux · 1 automatique · 1 à instruire · 2 non conformes à la matrice Espace ou clic : le flux choisi en bas · Entrée ou F2 : modifier"
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
   - tablist "Onglets du panneau":

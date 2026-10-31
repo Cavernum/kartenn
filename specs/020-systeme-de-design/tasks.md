@@ -984,7 +984,7 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     `plain` de `KeyLabel` et `EnvChip` (clé à côté), `ErrorState` `violations` (gravités) ;
     nouvelles : `DataGrid` `widget-env`, `widget-key`. Reste : la pastille de personne
     d'E21 (`k-e21-chip`, valeur retirable) n'a pas de composant de la bibliothèque.
-- [ ] 25. `DataGrid` **maison** (Reka n'a pas de grille) : motif APG Grid complet (index de
+- [x] 25. `DataGrid` **maison** (Reka n'a pas de grille) : motif APG Grid complet (index de
   lignes et colonnes, tabindex itinérant, Flèches, Début/Fin, Ctrl+Début/Fin, Page,
   sélection Espace/Maj+flèches/Ctrl+A, tri `aria-sort`, filtre d'en-tête par Alt+Flèche
   bas), `@tanstack/vue-virtual`, colonnes redimensionnables au clavier, colonne
@@ -992,9 +992,88 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
   19 — verify : 10⁴ lignes → quelques centaines dans le DOM ; script APG Grid complet (au
   moins les 10 cas du prototype) ; états `pending`, `draft`, `review`, `error` ; bancs
   filtre/tri/édition (tâche 27)
-  - où : `web/shell/src/data/DataTable.vue`, `admin/PagedTable.vue` (actuels, à
-    remplacer) ; APG Grid
+  - où : `web/v2/ui/src/components/DataGrid/` (`DataGrid.vue`, `grid.ts`, catalogue),
+    `internal/cellEditor.ts`, `internal/virtualRows.ts`, `internal/gridKeys.ts` ;
+    script `web/v2/e2e/components/data-grid.spec.ts` ; comportement de l'ancien
+    `web/shell/src/data/DataTable.vue`, `admin/PagedTable.vue` ; APG Grid
   - dépend de : 24
+  - fait : `DataGrid` (`web/v2/ui/src/components/DataGrid/`) : Pg préc./suiv. d'un écran
+    de lignes (`moveInGrid`, paramètre `page`) ; sélection Maj+Haut/Bas depuis l'ancre
+    (`selectRange`), colonne de cases en tête pour plusieurs lignes (case de toutes les
+    lignes à trois états, focus rendu à la cellule, Maj+clic en plage), clic sur la ligne
+    pour une seule ; virtualisée au-delà de 200 lignes (`@tanstack/vue-virtual`, hauteurs
+    mesurées, blancs `bodyParts`, `max-block-size` `--k-size-list-max`), lignes du focus et
+    de l'éditeur gardées montées, déplacements sur les index ; `rowCount` (`aria-rowcount`,
+    `-1`) ; événement `window` (`end` parmi les lignes chargées = `ListWindow.end` de
+    `useNextPage`, branché par 021-11) ; contrat d'édition (`editable`, `validate`,
+    `commit`, `v-model:editing`, emplacement `editor` ; Entrée ou F2, Échap, Entrée ou Tab ;
+    sortie du focus = validation) : éditeur natif dans `k-field-frame` à la hauteur de la
+    cellule, erreur locale ou de l'hôte dans la bulle `CellError`, dite par la région
+    `alert` de la grille (y compris l'erreur rendue par l'hôte après un `commit`) ;
+    `aria-readonly` ; `resizable` (poignée `separator` par en-tête, F2 par les contrôles de
+    l'en-tête, flèches 16/64 px, Origine, Fin, glisser, clic = largeur de jeton suivante ;
+    `v-model:columnWidths`, jamais sous l'en-tête) ; colonne d'extension (`element`,
+    `elementProps`, propriétés posées, contrôles sortis de la tabulation par un
+    `MutationObserver`) ; en-tête filtrable `aria-keyshortcuts`. Catalogue : `keyboard`,
+    `virtual` (10⁴ lignes), `editing-error`, `resized`, `extension`
+    (`demo/extensionCell.ts`). Script `e2e/components/data-grid.spec.ts` (8 cas : arrêt
+    unique et déplacements, en-tête, sélection, édition et états de l'hôte, largeur,
+    10⁴ lignes avec 500 × Flèche bas exact et ligne du focus gardée, extension) ; Vitest :
+    gabarits, plage, largeurs de jeton, blancs, 10⁴ lignes en SSR,
+    `rowCount`, extension, éditeur décrit par sa bulle. Revues `a11y-auditor` et
+    `ui-reviewer` ; corrigés : F2 d'un en-tête passe aussi par l'entonnoir,
+    `aria-keyshortcuts` ; largeurs remesurées quand une colonne revient ou que l'hôte les
+    change ; contrôles tardifs d'un élément d'extension ; focus dans l'éditeur ouvert par
+    l'hôte sur la cellule focalisée ; poignées sous les en-têtes collants ; en liste
+    empilée, les contrôles de l'en-tête commencent après la case de toutes les lignes
+    (lignes repliées comprises) ; E3 : la case de la grille choisit les lignes montrées, un
+    bouton de la barre étend à toute la liste (« Sélectionner les 1 284 adresses ») au
+    lieu d'une seconde case à trois états ; état `resize-focus` (poignée au focus).
+    Captures réécrites (voulues) : `DataGrid` `selected`, `stacked` (colonne de cases), `editing`,
+    pages entières confortables, E3 `selection` (colonne de cases), E3 `edition`, E11
+    `proposition`, E13 `coeur` (éditeur à la hauteur de la cellule : la ligne ne grandit
+    plus d'un pixel) ; références restées sous la tolérance remises au rendu de main
+    (entonnoir à côté du titre : `rest`, `filtered`, `loading`, `priorities`, `row-states`,
+    `sticky`, `wrap`) ; instantanés ARIA plus complets (région `alert`, contrôles des
+    en-têtes) ; nouvelles : `keyboard`, `virtual`, `editing-error`, `resized`,
+    `resize-focus`, `extension`.
+    Banc filtre/tri/édition : tâche 27 (aucun lancé).
+  - après la fusion de main (020-23) et la revue de la branche : E11 suit le contrat
+    d'édition (`editable`, `commit` ; Espace ou clic choisit la ligne, Entrée ou F2
+    modifie ; aide et script réécrits) ; E3 : colonne « Site » en `sm` (la grille tient à
+    1280 px sans défilement de côté) ; sortie de l'éditeur : un texte inchangé ne valide
+    jamais, le focus parti ailleurs dans la page valide un texte changé, parti hors de la
+    fenêtre laisse l'éditeur ouvert ; refus local dit avec « Échap annule la saisie. » ;
+    case native remise d'après le modèle après un Maj+clic ; `MutationObserver` dès
+    qu'une colonne d'extension existe (aussi venue après), attributs `tabindex`, `href`,
+    `contenteditable`, sous-arbre muté seulement ; `rowOffset` (`aria-rowindex` d'une
+    liste dont les premières pages sont tombées) ; `window` = lignes en vue, virtualisée
+    ou non (lu au défilement de tout conteneur, une fois par image) ; Pg préc./suiv. des
+    lignes mesurées en vue ; hauteur de ligne relue au changement de densité ; commits
+    suivis jusqu'à l'état de l'hôte ou la valeur appliquée, 64 au plus ; `pointercancel`
+    n'est pas un clic ; contrat et lignes gardées montées en composables
+    (`internal/cellEditor.ts`, `internal/virtualRows.ts`, pour la tâche 26). Script :
+    10 cas (dont Maj+clic, sortie de l'éditeur, fenêtre ; glisser de la poignée et contrôle
+    tardif d'extension ajoutés aux cas de la largeur et de l'extension) ; Vitest : contrat d'édition, suivi des commits, `keptIndexes`,
+    `rowOffset` (le compte des lignes rendues est au script).
+  - choix : redimensionnement et colonne de cases sans option de colonne (`resizable` sur
+    la grille ; cases dès que `selectable` vaut `true`) ; un clic sur la poignée sans
+    glisser passe à la largeur de jeton suivante (alternative à un pointeur, 2.5.7) plutôt
+    qu'un menu par en-tête ; Tab dans l'éditeur valide puis passe à la cellule voisine de
+    la ligne ; une grille sans `editable` laisse les touches de l'éditeur à l'hôte ;
+    l'éditeur par défaut est un champ natif dans `k-field-frame` (`TextField` grandissait
+    la cellule de son erreur) ; seuil de virtualisation 200 lignes comme `DiffList` ;
+    arbitrages du coordinateur : E11 passé au contrat (Espace ou clic choisit) ; E3 tenu
+    à 1280 px par une colonne plus étroite (« Site » en `sm`) plutôt qu'une priorité 3, qui
+    ne masque rien au-dessus de 960 px de conteneur ; refus local : la sortie (Échap) dite
+    plutôt que Tab qui sortirait en laissant l'erreur.
+  - restent (à arbitrer) : REQ-020-19 dit « hauteur de ligne fixe tirée de la densité »,
+    le design et le code mesurent les hauteurs (colonne `wrap` qui grandit) ; grille plus
+    étroite que son cadre (colonnes redimensionnées) : en-tête et filets
+    s'arrêtent à la dernière colonne ; liseré de sélection redondant avec la case ; une hauteur bornée par l'hôte au lieu de
+    `--k-size-list-max` pour une grille virtualisée plein écran (021-11) ; lecture au
+    lecteur d'écran (annonce de `aria-sort`, erreur dite deux fois : alerte et
+    description) ; contrôles d'un élément d'extension en racine d'ombre (à l'élément).
 - [ ] 26. `TreeGrid`, `Tree` : virtualisation, enfants paginés, `aria-setsize="-1"`,
   édition en place, mode de parenté (`derived`/`declared`), déplacement contrôlé
   (`canMove`, intention, états `pending`/`refused`), garde d'invariant — REQ-020-19, 31,

@@ -6,9 +6,13 @@
       - grid "Préfixes du domaine":
         - rowgroup:
           - row "Préfixe Libellé Environnement Occupation Responsable":
-            - columnheader "Préfixe"
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
             - columnheader "Libellé"
-            - columnheader "Environnement"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
             - columnheader "Occupation"
             - columnheader "Responsable"
         - rowgroup:
@@ -24,10 +28,9 @@
             - gridcell "Recette"
             - gridcell /\d+ %/
             - gridcell "Équipe postes"
-          - row /\d+\.\d+\.\d+\.\d+\/\d+ Libellé — \d+\.\d+\.\d+\.\d+\/\d+ Supervision Développement \d+ % Exploitation/:
+          - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Développement \d+ % Exploitation/:
             - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
-            - gridcell /Libellé — \d+\.\d+\.\d+\.\d+\/\d+ Supervision/:
-              - text: ""
+            - gridcell "Supervision":
               - textbox /Libellé — \d+\.\d+\.\d+\.\d+\/\d+/: Supervision
             - gridcell "Développement"
             - gridcell /\d+ %/
@@ -44,5 +47,6 @@
             - gridcell "Recette"
             - gridcell /\d+ %/
             - gridcell "Équipe postes"
+      - alert
       - code: editing
       - text: ""

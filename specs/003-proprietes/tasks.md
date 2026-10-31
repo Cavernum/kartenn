@@ -119,9 +119,9 @@ voir [`../README.md`](../README.md).
   principale sur une machine sans autre agent ; si la cause est un plan de requête, un
   test qui le fixe (correctifs voisins dc8d52f4, 9b3e83ca : plan générique après cinq
   exécutions préparées)
-  - où : mesures de `crates/kartenn-bench/src/props.rs` (l. 298, 393, 465, 496) ;
+  - où : mesures de `crates/kartenn-bench/src/props.rs` (l. 315, 410, 482, 513) ;
     écriture des origines et des valeurs dans `crates/kartenn-store-pg/src/write.rs`
-    (`objects_without_value` l. 2224 et voisins) ; `crates/kartenn-service/src/resolution.rs`
+    (`objects_without_value` l. 2231 et voisins) ; `crates/kartenn-service/src/resolution.rs`
     (l. 652), `declarations.rs` (l. 278) ; lecture groupée N9 de la 016 ; bissection sur
     `git log --since=2026-10-15 -- crates/kartenn-store-pg crates/kartenn-service`
     (suspects : 003-18 arbres `entity` et `site`, 016, 008-12, 024 « undo »)
@@ -130,3 +130,21 @@ voir [`../README.md`](../README.md).
     base du banc ; vérifier d'abord que le banc réduit reproduit l'écart en proportion.
     Aucun banc pleine échelle par l'agent.
   - dépend de : —
+  - en cours : causes et correction faites le 2026-10-31 (design § « Banc REQ-003-26 »,
+    « Dépassements du 2026-10-30 ») — plan générique de `SEGMENTS_DOWN` et de
+    `record_sql`, présent dès 5f614621, désormais planifiés pour leurs paramètres
+    (`origins.rs`, `diff.rs`), comme `value_sql` et la recherche des objets de module et
+    des VLAN parmi les cibles ; objets du différentiel lus une fois pour les droits de
+    l'auteur et de celui qui applique, la politique d'approbation et le périmètre d'un
+    changeset en attente (`rights::effects`) ; bascule vers la descente ramenée à la
+    taille du jeu au banc réduit (`props.rs`, `PgStore::down_from`) ; test
+    `resolution::large_refreshes_are_planned_for_their_arrays` (échoue sans les deux
+    premiers `persistent`, les deux requêtes restant préparées). Valeur de toutes les
+    racines : expliquée en partie seulement, le seuil peut encore ne pas tenir (pistes au
+    design). Résolution groupée : pas de régression trouvée, première mesure à pleine
+    échelle. Reste : le banc complet du `verify`, par la session principale.
+  - choix : la bascule du banc réduit suit le nombre d'adresses du jeu (inchangée à partir
+    de la moitié du jeu de référence) ; `record_sql` toujours planifié sur mesure (son plan
+    générique lit tous les préfixes même pour quelques objets : 7,7 ms contre 3,6 ms et
+    4 ms de planification pour 19 objets), `SEGMENTS_DOWN` aussi (il ne sert qu'au-delà de
+    la bascule).

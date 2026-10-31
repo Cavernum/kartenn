@@ -40,5 +40,6 @@
                 - text: ""
                 - code: reseau
               - status
+      - alert
       - code: widget-env
       - text: ""

@@ -101,7 +101,7 @@ pub(crate) async fn holding_policy<T: WriteTx>(
     req: &ChangesetRequest,
     author: &Subject,
     planned: &[Planned],
-    diff: &[DiffCount],
+    (diff, effects): (&[DiffCount], &crate::rights::Effects),
     domains: &[Uuid],
     measures: &BTreeMap<String, u64>,
 ) -> Result<Option<Uuid>, StoreError> {
@@ -129,7 +129,7 @@ pub(crate) async fn holding_policy<T: WriteTx>(
     let scopes: BTreeSet<&(String, Uuid)> = policies.iter().flat_map(|p| &p.scopes).collect();
     if !scopes.is_empty() {
         let mut objects: BTreeSet<Uuid> = planned.iter().map(Planned::object).collect();
-        objects.extend(crate::rights::diff_objects(tx, diff).await?);
+        objects.extend(crate::rights::diff_objects(effects));
         let objects: Vec<Uuid> = objects.into_iter().collect();
         for (kind, scope) in scopes {
             if tx.scope_touched(kind, *scope, &objects).await? {
