@@ -199,7 +199,11 @@ impl PgTx {
             return Ok(());
         }
         let (from, closed_list) = self.diff_context(property, start).await?;
+        // Planned for its arrays at each run, as `record_sql`: the generic plan tests the
+        // excluded objects on each heir, 0.67 s instead of 0.09 s for 2 000 excluded and
+        // 1.2·10⁵ heirs on the reduced bench (task 003-20).
         sqlx::query(sqlx::AssertSqlSafe(value_sql()))
+            .persistent(false)
             .bind(property)
             .bind(origins)
             .bind(from)

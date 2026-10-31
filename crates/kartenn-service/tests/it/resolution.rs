@@ -566,8 +566,9 @@ async fn going_down_matches_the_oracle(pool: PgPool) {
     matches_the_oracle(&pool, PgStore::new(pool.clone()).with_down_from(0)).await;
 }
 
-/// The statements whose arrays hold every target of a large refresh, the segments going
-/// down and the differential over the carriers, are planned for their arrays at each run
+/// The statements whose arrays hold every target of a large refresh (the segments going
+/// down, the objects of modules and the VLANs among the targets, the differential over the
+/// carriers and that of the heirs of a new value) are planned for their arrays at each run
 /// and never kept prepared on the connection: from its sixth run PostgreSQL may switch a
 /// prepared statement to its generic plan, which tests the array of targets row by row
 /// (task 003-20: 291 s instead of 0.5 s going down on the reduced bench). The session
@@ -608,6 +609,17 @@ async fn large_refreshes_are_planned_for_their_arrays(pool: PgPool) {
             panic!("{outcome:?}");
         };
         assert!(!diff.is_empty(), "the differential is recorded");
+        // A new value where one is carried: no origin moves, the heirs change value.
+        let outcome = f
+            .submit(vec![f.assign(root, ObjectKind::Prefix, "b")], d, None)
+            .await;
+        let Outcome::Applied { diff, .. } = outcome else {
+            panic!("{outcome:?}");
+        };
+        assert!(
+            !diff.is_empty(),
+            "the differential of the heirs is recorded"
+        );
         f.applied(
             vec![Operation::UnassignProperty {
                 object: Ref::Id(root),
@@ -626,7 +638,10 @@ async fn large_refreshes_are_planned_for_their_arrays(pool: PgPool) {
         "SELECT statement, generic_plans FROM pg_prepared_statements
           WHERE NOT from_sql
             AND (statement LIKE '%x.id IN (SELECT id FROM t)%'
-                 OR statement LIKE '%FROM carrier_object, w%')",
+                 OR statement LIKE '%FROM carrier_object, w%'
+                 OR statement LIKE '%NOT r.object_id = ANY%'
+                 OR statement LIKE 'SELECT DISTINCT id FROM module_object WHERE id = ANY%'
+                 OR statement LIKE 'SELECT DISTINCT id FROM vlan_tree WHERE id = ANY%')",
     )
     // Unprepared, so that this query does not find itself.
     .persistent(false)
