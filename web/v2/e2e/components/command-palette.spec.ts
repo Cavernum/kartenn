@@ -109,3 +109,13 @@ test.describe("CommandPalette (Combobox in a Dialog (Modal))", () => {
     await expect(page.getByRole("option", { name: "Préfixes", exact: true })).toHaveCount(1);
   });
 });
+
+test.describe("CommandPalette, the host still searching", () => {
+  test("says loading, not a count that is not the last one yet", async ({ page }) => {
+    await openState(page, "CommandPalette", "loading-entries");
+    const dialog = page.getByRole("dialog", { name: "Palette de commandes" });
+    await expect(dialog.getByRole("option").first()).toBeVisible();
+    await expect(dialog.getByRole("status")).toHaveText(/^Chargement/);
+    await expect(dialog.getByRole("combobox")).toHaveAttribute("aria-busy", "true");
+  });
+});

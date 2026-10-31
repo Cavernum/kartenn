@@ -54,6 +54,8 @@ const demo = defineComponent({
     cover: Boolean,
     sheet: Boolean,
     long: Boolean,
+    /** The host's shortcut (`]` in the shell). */
+    shortcut: { type: Array as () => string[] | undefined, default: undefined },
   },
   setup(props) {
     const open = ref(props.open);
@@ -94,6 +96,7 @@ const demo = defineComponent({
                 tabs,
                 cover: props.cover,
                 sheet: props.sheet,
+                shortcut: props.shortcut,
                 rail: true,
                 open: open.value,
                 "onUpdate:open": (v: boolean) => (open.value = v),
@@ -229,6 +232,25 @@ export default {
       wide: true,
       interaction: "focus",
       target: ".k-side-panel-rail__open",
+    },
+    {
+      name: "rail-shortcut",
+      description:
+        "Raccourci de l'hôte (`]`) : focus sur le chevron, son infobulle dit son nom et sa touche",
+      props: { open: false, shortcut: ["]"] },
+      demo,
+      wide: true,
+      interaction: "focus",
+      target: ".k-side-panel-rail__open",
+    },
+    {
+      name: "close-shortcut",
+      description: "Raccourci de l'hôte (`]`) : focus sur la croix, son infobulle dit sa touche",
+      props: { open: true, tab: "detail", shortcut: ["]"] },
+      demo,
+      wide: true,
+      interaction: "focus",
+      target: ".k-side-panel__close",
     },
     {
       name: "handle-focus",

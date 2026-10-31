@@ -104,6 +104,14 @@ export default {
       target: ".k-sidebar__collapse",
     },
     {
+      name: "single-keys-off",
+      description:
+        "Raccourcis à une touche coupés par l'hôte (WCAG 2.1.4) : le repli ne montre ni ne déclare `[` ; Ctrl+K reste",
+      props: { brand: "kartenn", groups, active: "prefixes", collapsed: true, singleKeys: false },
+      interaction: "hover",
+      target: ".k-sidebar__collapse",
+    },
+    {
       name: "hover",
       description: "Survol d'une entrée",
       props: { brand: "kartenn", groups, active: "prefixes" },
