@@ -63,6 +63,27 @@ for (const [component, role] of [
   });
 }
 
+test("TreeGrid: focus on its loading cell goes to the first row when the nodes come", async ({
+  page,
+}) => {
+  await openState(page, "TreeGrid", "settle");
+  const state = page.locator("[data-state-name='settle']");
+  const tree = state.getByRole("treegrid");
+  await state.getByRole("button", { name: "Recevoir les données" }).focus();
+  const loading = tree.locator("[tabindex='0']");
+  // Past the column chooser of the tree, if it shows one.
+  for (let i = 0; i < 3 && !(await loading.evaluate((el) => el === document.activeElement)); i++)
+    await page.keyboard.press("Tab");
+  await expect(loading).toBeFocused();
+  await expect(loading).toContainText("Chargement");
+  // The nodes arrive (a script): the focus goes to the stop of the tree, not to the page.
+  await state.evaluate((el) => el.querySelector("button")!.click());
+  await expect(tree).not.toHaveAttribute("aria-busy");
+  const first = tree.getByRole("row").nth(1).getByRole("gridcell").first();
+  await expect(first).toBeFocused();
+  await expect(first).toHaveAttribute("tabindex", "0");
+});
+
 test("a loading grid says it once, in words, its bars hidden", async ({ page }) => {
   await openState(page, "DataGrid", "loading");
   const grid = page.getByRole("grid");

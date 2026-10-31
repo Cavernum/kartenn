@@ -124,6 +124,22 @@ async function moveTo(id: string): Promise<void> {
     ?.focus();
 }
 
+/**
+ * The nodes arrive while the focus is on the cell that said the tree was loading: that
+ * cell goes, the focus goes to the row of the stop (WCAG 2.4.3), not to the page. Read
+ * before the render (`flush: "pre"`), while the skeleton is still there.
+ */
+watch(
+  () => props.loading,
+  (now, was) => {
+    const skeleton = grid.value?.querySelector("[data-loading]");
+    if (was && !now && skeleton?.contains(document.activeElement)) {
+      if (stop.value) void moveTo(stop.value);
+    }
+  },
+  { flush: "pre" },
+);
+
 function onKeydown(event: KeyboardEvent): void {
   const target = event.target as HTMLElement;
   const cell = target.closest<HTMLElement>(".k-tree-grid__node");
@@ -226,7 +242,7 @@ const word = (node: TreeNode) => {
           </div>
         </div>
       </div>
-      <div v-if="props.loading" role="rowgroup">
+      <div v-if="props.loading" role="rowgroup" data-loading>
         <div
           v-for="r in props.loadingRows"
           :key="r"
