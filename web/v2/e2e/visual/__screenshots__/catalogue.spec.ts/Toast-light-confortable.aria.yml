@@ -1,0 +1,29 @@
+- main:
+  - region "Toast":
+    - heading "Toast" [level=1]
+    - paragraph: "Motif : status (polite) ; alert (assertive), pause au survol et au focus"
+    - figure "ok — Succès, dit poliment (status) ; il part au bout de 8 s, tenu ici":
+      - link "Voir l'état ok seul":
+        - /url: /_ui/c/Toast?mode=light&densite=confortable&etat=ok
+      - code: ok
+      - text: ""
+    - figure "error — Erreur, dite aussitôt (alert), avec son code et son Request-Id ; elle reste jusqu'à ce qu'on la ferme":
+      - link "Voir l'état error seul":
+        - /url: /_ui/c/Toast?mode=light&densite=confortable&etat=error
+      - code: error
+      - text: ""
+    - 'figure "stack — Plusieurs : les erreurs au-dessus, les autres dans l''ordre d''arrivée ; une information avec son action"':
+      - link "Voir l'état stack seul":
+        - /url: /_ui/c/Toast?mode=light&densite=confortable&etat=stack
+      - code: stack
+      - text: ""
+    - 'figure "keyboard — Au clavier : aucun toast ne prend le focus ; Tab les atteint, Échap ou la croix les ferment ; survol et focus les retiennent"':
+      - text: Note
+      - textbox "Note"
+      - button "Ajouter"
+      - button "Enregistrer"
+      - button "Propriétés"
+      - alert
+      - status
+      - code: keyboard
+      - text: ""

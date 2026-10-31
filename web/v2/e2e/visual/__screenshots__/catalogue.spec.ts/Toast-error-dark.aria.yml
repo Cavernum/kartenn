@@ -1,0 +1,25 @@
+- main:
+  - region "Toast":
+    - heading "Toast" [level=1]
+    - paragraph: "Motif : status (polite) ; alert (assertive), pause au survol et au focus"
+    - figure "error — Erreur, dite aussitôt (alert), avec son code et son Request-Id ; elle reste jusqu'à ce qu'on la ferme":
+      - paragraph: Les toasts paraissent en bas de la fenêtre, au milieu, par-dessus la page.
+      - region "Notifications":
+        - alert:
+          - list:
+            - listitem:
+              - paragraph: "Erreur : L'enregistrement a échoué : le service est momentanément indisponible."
+              - paragraph: Rien n'a été écrit ; votre saisie est gardée. Si l'erreur persiste, transmettez ces deux codes.
+              - paragraph:
+                - button "Copier urn:kartenn:problem:unavailable":
+                  - text: ""
+                  - code: urn:kartenn:problem:unavailable
+                - status
+                - button "Copier Request-Id req_7f3a9c2e5b1d4068":
+                  - text: ""
+                  - code: req_7f3a9c2e5b1d4068
+                - status
+              - button "Fermer la notification"
+        - status
+      - code: error
+      - text: ""

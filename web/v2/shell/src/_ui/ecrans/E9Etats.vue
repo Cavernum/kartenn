@@ -3,12 +3,12 @@
 // 024/M12, M16): every data zone has its three states (empty with a sentence and an action,
 // loading in animated skeletons in the cells of the table, error in plain language with its
 // code and Request-Id next to it), and the outcomes of a quick edit: 412 with a clear
-// message and the input kept, 202 « proposé, en revue » with its reason. An HTTP problem
+// message and the input kept, 202 « proposé, en revue » with its reason (a toast, which
+// never takes the focus; the cell shows « en revue » meanwhile). An HTTP problem
 // shows the `type` the API serves (RFC 9457, `urn:kartenn:problem:<slug>`, 006 design
 // « Erreurs »); a violation or a reason shows its rule code as served.
 import {
   Button,
-  CodeBadge,
   DataGrid,
   Dialog,
   EmptyState,
@@ -19,9 +19,9 @@ import {
   TextField,
   type CellState,
   type GridColumn,
+  type ToastInput,
 } from "@kartenn/ui";
 import { ref } from "vue";
-import AVenir from "./AVenir.vue";
 import Attributs from "./EcranAttributs.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
@@ -29,6 +29,16 @@ import { ID, usageLabel } from "./donnees.ts";
 
 const props = defineProps<{ vue: string }>();
 const kept = ref("Atelier Nord");
+
+/** The 202 of a quick edit: received, sent to review, with its reason and its code. */
+const proposed: ToastInput = {
+  tone: "info",
+  title: "Proposé, en revue : votre modification attend une validation.",
+  description:
+    "Vous n'avez pas le droit d'appliquer vous-même les adresses ; la cellule garde la valeur lue d'ici là.",
+  code: "changeset.approval.self.missing",
+  action: { label: "Voir le changeset", run: () => undefined },
+};
 
 interface Row extends Record<string, unknown> {
   value: string;
@@ -69,6 +79,7 @@ const cellState = (row: Row, column: GridColumn): CellState | undefined => {
         ? [{ label: 'Référentiel', to: '/' }, { label: 'Bureaux' }]
         : [{ label: 'Référentiel', to: '/' }, { label: 'Adresses' }]
     "
+    :toasts="props.vue === 'revue' ? [proposed] : undefined"
   >
     <template v-if="props.vue === 'zones'">
       <Panneau title="Adresses" detail="chargement" main flush>
@@ -94,23 +105,6 @@ const cellState = (row: Row, column: GridColumn): CellState | undefined => {
     </template>
 
     <Panneau v-else title="Adresses" detail="1 284" main flush>
-      <template v-if="props.vue === 'revue'" #toolbar>
-        <AVenir component="Toast" task="22">
-          <InlineAlert
-            tone="info"
-            title="Proposé, en revue : votre modification de 192.0.2.12 attend une validation."
-            :items="[
-              {
-                message:
-                  'Vous n\'avez pas le droit d\'appliquer vous-même les adresses (core.address.approval.self).',
-                code: 'changeset.approval.self.missing',
-              },
-            ]"
-          >
-            Changeset <CodeBadge :code="ID.changeset" /> ; la cellule garde la valeur lue d'ici là.
-          </InlineAlert>
-        </AVenir>
-      </template>
       <DataGrid
         label="Adresses"
         :columns="columns"

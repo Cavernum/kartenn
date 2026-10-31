@@ -137,6 +137,14 @@ test.describe("Popover, edges of the tab order", () => {
     await page.keyboard.press("Enter");
     const dialog = page.getByRole("dialog", { name: "Propriétaire : valeur héritée" });
     await expect(dialog).toBeFocused();
+    // Over the modal dialog, not under its scrim: the plane of the modal layers, the later
+    // one on top.
+    const onTop = await dialog.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      return hit !== null && el.contains(hit);
+    });
+    expect(onTop).toBe(true);
     await page.keyboard.press("Tab");
     await page.keyboard.press("Tab");
     await page.keyboard.press("Tab");

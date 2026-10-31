@@ -1,0 +1,40 @@
+- main:
+  - region "Toast":
+    - heading "Toast" [level=1]
+    - paragraph: "Motif : status (polite) ; alert (assertive), pause au survol et au focus"
+    - 'figure "stack — Plusieurs : les erreurs au-dessus, les autres dans l''ordre d''arrivée ; une information avec son action"':
+      - paragraph: Les toasts paraissent en bas de la fenêtre, au milieu, par-dessus la page.
+      - region "Notifications":
+        - alert:
+          - list:
+            - listitem:
+              - paragraph: "Erreur : L'enregistrement a échoué : le service est momentanément indisponible."
+              - paragraph: Rien n'a été écrit ; votre saisie est gardée. Si l'erreur persiste, transmettez ces deux codes.
+              - paragraph:
+                - button "Copier urn:kartenn:problem:unavailable":
+                  - text: ""
+                  - code: urn:kartenn:problem:unavailable
+                - status
+                - button "Copier Request-Id req_7f3a9c2e5b1d4068":
+                  - text: ""
+                  - code: req_7f3a9c2e5b1d4068
+                - status
+              - button "Fermer la notification"
+        - status:
+          - list:
+            - listitem:
+              - paragraph: "Information : Proposé, en revue : votre modification attend une validation."
+              - paragraph: Vous n'avez pas le droit d'appliquer vous-même les adresses.
+              - paragraph:
+                - button "Copier changeset.approval.self.missing":
+                  - text: ""
+                  - code: changeset.approval.self.missing
+                - status
+              - paragraph:
+                - button "Voir le changeset"
+              - button "Fermer la notification"
+            - listitem:
+              - paragraph: "/Succès : Préfixe \\d+\\.\\d+\\.2\\.0\\/\\d+ ajouté au brouillon\\./"
+              - button "Fermer la notification"
+      - code: stack
+      - text: ""

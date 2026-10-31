@@ -7,8 +7,9 @@
  * set by CSSOM when it opens), its options a control's height, the highlighted one in the
  * accent's soft fill and inner edge (shape, not colour alone), the chosen one ticked. */
 @layer components {
+  /* The plane of the modal layers: a list opened in a dialog lies over it. */
   .k-list {
-    z-index: var(--k-z-overlay);
+    z-index: var(--k-z-modal);
     display: grid;
     align-content: start;
     min-inline-size: max(var(--k-size-menu-min), var(--k-list-anchor-width));

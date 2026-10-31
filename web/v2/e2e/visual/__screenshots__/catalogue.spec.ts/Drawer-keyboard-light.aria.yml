@@ -1,0 +1,10 @@
+- main:
+  - region "Drawer":
+    - heading "Drawer" [level=1]
+    - paragraph: "Motif : Dialog (modal), sur le côté de la page"
+    - 'figure "keyboard — Au clavier : ouvert par un bouton de l''hôte, focus sur le premier champ, piégé, Échap, focus rendu au bouton"':
+      - button "Modifier le site"
+      - text: Note
+      - textbox "Note"
+      - code: keyboard
+      - text: ""

@@ -7,8 +7,10 @@
  * its motion only: each layer sets its own size and padding. Shared, so in style.css (a
  * sheet imported from a component would be a fragment the shell's build does not find). */
 @layer components {
+  /* On the plane of the modal layers (`--k-z-modal`), the later one over the earlier: a
+   * menu or a popover opened in a dialog lies over it, not under its scrim. */
   .k-popover {
-    z-index: var(--k-z-overlay);
+    z-index: var(--k-z-modal);
     color: var(--k-text);
     background-color: var(--k-surface);
     border: var(--k-border-width) solid var(--k-border-strong);

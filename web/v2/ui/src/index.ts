@@ -76,6 +76,14 @@ export { default as Popover } from "./components/Popover/Popover.vue";
 export { default as Dialog } from "./components/Dialog/Dialog.vue";
 export { default as AlertDialog } from "./components/AlertDialog/AlertDialog.vue";
 export { default as Drawer } from "./components/Drawer/Drawer.vue";
+export { default as ToastRegion } from "./components/Toast/ToastRegion.vue";
+export {
+  TOAST_DURATION,
+  createToasts,
+  injectToasts,
+  provideToasts,
+} from "./components/Toast/toasts.ts";
+export type { ToastEntry, ToastInput, Toasts } from "./components/Toast/toasts.ts";
 export { default as SidePanel } from "./components/SidePanel/SidePanel.vue";
 export { default as BottomPanel } from "./components/BottomPanel/BottomPanel.vue";
 export { default as CommitForm } from "./components/CommitForm/CommitForm.vue";
