@@ -221,6 +221,10 @@ fusionnée).
 - **A8 — 007/W17** : précisée (le cache n'est pas un magasin d'état d'application).
 - **A9 — Bande hors présent** : W9 gardée ; pas d'« écritures désactivées » sous
   `valid_at` seul.
+- **A10 — Compilateur de vue-i18n (2026-10-31)** : gardé, comme dans la 007 (« vue-i18n
+  et CSP ») : les catalogues des plugins se compilent à l'exécution ; la ligne « i18n » de
+  la pile retenue du design est amendée. Le test du build interdit `eval` et
+  `new Function`.
 
 ## Questions (closes le 2026-10-23)
 

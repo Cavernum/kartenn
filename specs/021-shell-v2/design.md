@@ -677,7 +677,7 @@ tri et filtre de 130 à 260 ms).
 |---|---|
 | Adaptateur du cache | adaptateur propre sur les observateurs de `@tanstack/query-core` (`useQuery`, `useInfiniteQuery`, `useMutation`, fin à la portée d'effets) et le `QueryClient` du SDK, dans `@kartenn/ui` (ADR 0037, amendée le 2026-10-24 : plus de `@tanstack/vue-query`) |
 | Routeur et préchargement | vue-router ; `meta.queries` ; garde `beforeResolve` qui attend au plus 100 ms |
-| i18n | vue-i18n (W11, build sans compilateur de messages à l'exécution, sans `eval`) |
+| i18n | vue-i18n (W11) : compilation des messages à l'exécution (JIT), compilateur gardé pour les catalogues des plugins, sans `eval` ni `new Function` (007 § « vue-i18n et CSP » ; arbitrage A10 du 2026-10-31) |
 | Hôte de plugin | `createApp` par élément, `provide` du contexte et du `QueryClient`, démontage à `disconnectedCallback` |
 | Import map | `vue` en build *runtime* de production (pas de compilateur de gabarits : CSP sans `unsafe-eval`) ; plage `framework: "^3.5.0"` |
 | Données d'arbre et de grille | `shallowRef`/`markRaw` : la réactivité est portée par le cache, pas par les nœuds |
