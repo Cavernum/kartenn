@@ -140,7 +140,7 @@ const menu: MenuItem[] = ended
         label: "Clore…",
         icon: "trash",
         danger: true,
-        ...(reduced ? { forbidden: "flow.write" } : {}),
+        ...(reduced ? { forbidden: "flow.edit" } : {}),
       },
     ];
 
@@ -263,7 +263,7 @@ const changesetLink = lien("E23", "decision", route.query);
           v-else
           icon="pencil"
           :shortcut="['e']"
-          v-bind="reduced ? { forbidden: 'flow.write' } : {}"
+          v-bind="reduced ? { forbidden: 'flow.edit' } : {}"
           >Modifier</Button
         >
         <Menu label="Actions" icon="ellipsis" align="end" :items="menu" />
