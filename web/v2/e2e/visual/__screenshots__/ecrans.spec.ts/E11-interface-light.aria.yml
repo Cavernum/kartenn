@@ -37,6 +37,7 @@
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
+- status
 - main:
   - heading /Interface srv-app-\d+ · eth0/ [level=1]
   - region /srv-app-\d+ · eth0/:

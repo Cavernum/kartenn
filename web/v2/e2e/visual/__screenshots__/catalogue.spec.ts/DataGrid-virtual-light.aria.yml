@@ -1,0 +1,259 @@
+- main:
+  - region "DataGrid":
+    - heading "DataGrid" [level=1]
+    - paragraph: "Motif : Grid (maison) ; une seule grille, lignes en subgrid ; tri et filtre de colonne"
+    - 'figure "virtual — Dix mille lignes : quelques dizaines dans le document, la ligne du focus gardée, la fenêtre dite"':
+      - grid "Dix mille préfixes":
+        - rowgroup:
+          - row "Sélectionner toutes les lignes Préfixe Libellé Environnement Occupation Responsable":
+            - columnheader "Sélectionner toutes les lignes":
+              - checkbox "Sélectionner toutes les lignes"
+              - text: ""
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
+            - columnheader "Libellé"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
+            - columnheader "Occupation"
+            - columnheader "Responsable"
+        - rowgroup:
+          - row /Sélectionner \d+\.\d+\.0\.0\/\d+ \d+\.\d+\.0\.0\/\d+ Serveurs de bases 1 Production 0 % Équipe réseau/:
+            - gridcell /Sélectionner \d+\.\d+\.0\.0\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.0\.0\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.0\.0\/\d+/
+            - gridcell "Serveurs de bases 1"
+            - gridcell "Production"
+            - gridcell "0 %"
+            - gridcell "Équipe réseau"
+          - row /Sélectionner \d+\.\d+\.1\.0\/\d+ \d+\.\d+\.1\.0\/\d+ Postes du siège 2 Recette \d+ % Équipe postes/:
+            - gridcell /Sélectionner \d+\.\d+\.1\.0\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.1\.0\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.1\.0\/\d+/
+            - gridcell "Postes du siège 2"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /Sélectionner \d+\.\d+\.2\.0\/\d+ \d+\.\d+\.2\.0\/\d+ Supervision 3 Développement \d+ % Exploitation/:
+            - gridcell /Sélectionner \d+\.\d+\.2\.0\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.2\.0\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Supervision 3"
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /Sélectionner \d+\.\d+\.3\.0\/\d+ \d+\.\d+\.3\.0\/\d+ Sauvegardes 4 Production \d+ % Équipe réseau/:
+            - gridcell /Sélectionner \d+\.\d+\.3\.0\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.3\.0\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.3\.0\/\d+/
+            - gridcell "Sauvegardes 4"
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /Sélectionner \d+\.\d+\.4\.0\/\d+ \d+\.\d+\.4\.0\/\d+ Invités 5 Recette \d+ % Équipe postes/:
+            - gridcell /Sélectionner \d+\.\d+\.4\.0\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.4\.0\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.4\.0\/\d+/
+            - gridcell "Invités 5"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /Sélectionner \d+\.\d+\.5\.0\/\d+ \d+\.\d+\.5\.0\/\d+ Serveurs de bases 6 Développement \d+ % Exploitation/:
+            - gridcell /Sélectionner \d+\.\d+\.5\.0\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.5\.0\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.5\.0\/\d+/
+            - gridcell "Serveurs de bases 6"
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /Sélectionner \d+\.\d+\.6\.0\/\d+ \d+\.\d+\.6\.0\/\d+ Postes du siège 7 Production \d+ % Équipe réseau/:
+            - gridcell /Sélectionner \d+\.\d+\.6\.0\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.6\.0\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.6\.0\/\d+/
+            - gridcell "Postes du siège 7"
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /Sélectionner \d+\.\d+\.7\.0\/\d+ \d+\.\d+\.7\.0\/\d+ Supervision 8 Recette \d+ % Équipe postes/:
+            - gridcell /Sélectionner \d+\.\d+\.7\.0\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.7\.0\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.7\.0\/\d+/
+            - gridcell "Supervision 8"
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /Sélectionner \d+\.\d+\.8\.0\/\d+ \d+\.\d+\.8\.0\/\d+ Sauvegardes 9 Développement \d+ % Exploitation/:
+            - gridcell /Sélectionner \d+\.\d+\.8\.0\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.8\.0\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.8\.0\/\d+/
+            - gridcell "Sauvegardes 9"
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /Sélectionner \d+\.\d+\.9\.0\/\d+ \d+\.\d+\.9\.0\/\d+ Invités \d+ Production \d+ % Équipe réseau/:
+            - gridcell /Sélectionner \d+\.\d+\.9\.0\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.9\.0\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.9\.0\/\d+/
+            - gridcell /Invités \d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Serveurs de bases \d+ Recette \d+ % Équipe postes/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /Serveurs de bases \d+/
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Postes du siège \d+ Développement 3 % Exploitation/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /Postes du siège \d+/
+            - gridcell "Développement"
+            - gridcell "3 %"
+            - gridcell "Exploitation"
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Supervision \d+ Production \d+ % Équipe réseau/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /Supervision \d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes \d+ Recette \d+ % Équipe postes/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /Sauvegardes \d+/
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ Développement \d+ % Exploitation/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /Invités \d+/
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Serveurs de bases \d+ Production \d+ % Équipe réseau/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /Serveurs de bases \d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Postes du siège \d+ Recette \d+ % Équipe postes/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /Postes du siège \d+/
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Supervision \d+ Développement \d+ % Exploitation/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /Supervision \d+/
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes \d+ Production \d+ % Équipe réseau/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /Sauvegardes \d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ Recette \d+ % Équipe postes/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /Invités \d+/
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Serveurs de bases \d+ Développement \d+ % Exploitation/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /Serveurs de bases \d+/
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Postes du siège \d+ Production \d+ % Équipe réseau/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /Postes du siège \d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Supervision \d+ Recette 6 % Équipe postes/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /Supervision \d+/
+            - gridcell "Recette"
+            - gridcell "6 %"
+            - gridcell "Équipe postes"
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes \d+ Développement \d+ % Exploitation/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /Sauvegardes \d+/
+            - gridcell "Développement"
+            - gridcell /\d+ %/
+            - gridcell "Exploitation"
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ Production \d+ % Équipe réseau/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /Invités \d+/
+            - gridcell "Production"
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau"
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Serveurs de bases \d+ Recette \d+ % Équipe postes/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /Serveurs de bases \d+/
+            - gridcell "Recette"
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes"
+      - alert
+      - paragraph: "/En vue : lignes 1 à \\d+ sur \\d+ \\d+ \\(un écran : \\d+\\)/"
+      - code: virtual
+      - text: ""

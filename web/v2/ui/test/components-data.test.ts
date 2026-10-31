@@ -7,7 +7,17 @@ import { renderToString } from "vue/server-renderer";
 import { describe, expect, it } from "vitest";
 import DataGrid from "../src/components/DataGrid/DataGrid.vue";
 import { placeCellError } from "../src/components/DataGrid/cellError.ts";
-import { columnsTemplate, type GridColumn } from "../src/components/DataGrid/grid.ts";
+import { bodyParts, keptIndexes } from "../src/components/internal/virtualRows.ts";
+import { useCellEditor, useCommitWatch } from "../src/components/internal/cellEditor.ts";
+import { nextTick, ref } from "vue";
+import type { CellRef, CellState, GridCommit } from "../src/components/DataGrid/grid.ts";
+import {
+  columnsTemplate,
+  columnTemplates,
+  nextPresetWidth,
+  selectRange,
+  type GridColumn,
+} from "../src/components/DataGrid/grid.ts";
 import BarChart from "../src/components/BarChart/BarChart.vue";
 import { layoutBars, niceCeil } from "../src/components/BarChart/chart.ts";
 import BarList from "../src/components/BarList/BarList.vue";
@@ -61,15 +71,219 @@ describe("DataGrid", () => {
       selectable: true,
       selected: ["198.51.100.0/24"],
     });
-    expect(html).toMatch(/role="grid" aria-label="Préfixes" aria-rowcount="3" aria-colcount="2"/);
+    // A column of checkboxes first (several selectable): counted, indexed 1.
+    expect(html).toMatch(/role="grid" aria-label="Préfixes" aria-rowcount="3" aria-colcount="3"/);
     expect(html).toContain('aria-multiselectable="true"');
-    expect(html).toContain('style="--k-grid-columns:');
+    expect(html).toContain('style="--k-grid-columns:calc(');
     expect(html).toMatch(/role="columnheader"[^>]*aria-sort="descending"/);
+    expect(html).toMatch(/data-column="prefix"[^>]*aria-colindex="2"/);
+    expect(text(html)).toContain("Sélectionner toutes les lignes");
+    expect(text(html)).toContain("Sélectionner 198.51.100.0/24");
     // The unsortable column has no aria-sort.
     expect(html.match(/aria-sort=/g)).toHaveLength(1);
     expect(html).toContain('aria-rowindex="3" aria-selected="true"');
     // One cell only in the tab order: the roving tabindex.
     expect(html.match(/tabindex="0"/g)).toHaveLength(1);
+    // Nothing editable: read only.
+    expect(html).toContain('aria-readonly="true"');
+  });
+
+  it("templates: a width the user gave, the track of the checkboxes", () => {
+    expect(columnsTemplate(columns, { label: 300.4 })).toBe(
+      "minmax(auto, var(--k-size-col-md)) minmax(auto, 300px)",
+    );
+    const templates = columnTemplates(columns, {}, {}, true);
+    expect(templates["--k-grid-columns"]).toMatch(/^calc\(var\(--k-control-height-sm\)/);
+  });
+
+  it("selects a range from its anchor, the earlier choice kept", () => {
+    const keys = ["a", "b", "c", "d", "e"];
+    expect(selectRange(keys, ["e"], "b", "d")).toEqual(["e", "b", "c", "d"]);
+    expect(selectRange(keys, [], "d", "b")).toEqual(["b", "c", "d"]);
+    expect(selectRange(keys, ["a"], "z", "b")).toEqual(["a"]);
+  });
+
+  it("steps a click on a handle through the token widths, then back to the narrowest", () => {
+    expect(nextPresetWidth(100, [56, 96, 160, 240])).toBe(160);
+    expect(nextPresetWidth(240, [56, 96, 160, 240])).toBe(56);
+    expect(nextPresetWidth(159.5, [56, 96, 160, 240])).toBe(240);
+  });
+
+  it("lays the body out: rendered rows, and gaps of the heights left out", () => {
+    const start = (i: number) => 30 + i * 28;
+    const end = (i: number) => start(i) + 28;
+    // The window 10 to 12, and the row of the focus far below.
+    expect(bodyParts([10, 11, 12, 500, 11], 1000, start, end, 30)).toEqual([
+      { gap: 280, key: "gap-10" },
+      { index: 10 },
+      { index: 11 },
+      { index: 12 },
+      { gap: (500 - 13) * 28, key: "gap-500" },
+      { index: 500 },
+      { gap: 499 * 28, key: "gap-end" },
+    ]);
+    expect(bodyParts([], 0, start, end, 30)).toEqual([]);
+    // The rows of the focus and of the editor join the window, wherever they are.
+    const at = new Map([
+      ["a", 3],
+      ["z", 900],
+    ]);
+    expect(keptIndexes([10, 11], ["z", undefined, "a", "?"], (k) => at.get(k))).toEqual([
+      10, 11, 900, 3,
+    ]);
+  });
+
+  // The contract of in-place editing (design « Contrat d'édition »), without a DOM.
+  function editorOf(text = "Serveurs", check?: (value: string) => string | undefined) {
+    const editing = ref<CellRef | undefined>(undefined);
+    const commits: GridCommit[] = [];
+    const refusals: string[] = [];
+    const moves: number[] = [];
+    const editor = useCellEditor({
+      editing,
+      textOf: () => text,
+      driven: () => true,
+      check: (_, value) => check?.(value),
+      cellElement: () => null,
+      moveFocus: (_, by) => moves.push(by),
+      commit: (commit) => commits.push(commit),
+      refuse: (_, error) => refusals.push(error),
+    });
+    return { editing, editor, commits, refusals, moves };
+  }
+  const cell: CellRef = { row: "192.0.2.0/24", column: "label" };
+  // Events as the editor reads them (the tests run without a DOM).
+  const key = (k: string, shiftKey = false) =>
+    ({ key: k, shiftKey, defaultPrevented: false, preventDefault() {} }) as KeyboardEvent;
+
+  it("editing: an unchanged text never commits; Tab moves on, Escape cancels", async () => {
+    const { editing, editor, commits, moves } = editorOf();
+    editing.value = cell;
+    await nextTick();
+    expect(editor.draft.value).toBe("Serveurs");
+    editor.onKeydown(key("Tab"));
+    expect(commits).toEqual([]);
+    expect(editing.value).toBeUndefined();
+    expect(moves).toEqual([1]);
+    editing.value = cell;
+    await nextTick();
+    editor.draft.value = "Serveurs du nord";
+    editor.onKeydown(key("Escape"));
+    expect(commits).toEqual([]);
+    await editor.start(cell);
+    expect(editor.draft.value).toBe("Serveurs");
+    editor.draft.value = "Serveurs du nord";
+    editor.onKeydown(key("Enter"));
+    expect(commits).toEqual([{ ...cell, value: "Serveurs du nord" }]);
+    expect(moves).toEqual([1, 0, 0]);
+  });
+
+  it("editing: a refused text stays, said; the focus leaving the window keeps the editor", async () => {
+    const { editing, editor, commits, refusals } = editorOf("Serveurs", (v) =>
+      v.trim() ? undefined : "Le libellé est obligatoire.",
+    );
+    editing.value = cell;
+    await nextTick();
+    editor.draft.value = "";
+    editor.onKeydown(key("Tab"));
+    expect(editing.value).toEqual(cell);
+    expect(editor.error.value).toBe("Le libellé est obligatoire.");
+    expect(refusals).toEqual(["Le libellé est obligatoire."]);
+    editor.draft.value = "Bases";
+    await nextTick();
+    expect(editor.error.value).toBeUndefined();
+    // Nowhere to go (another window): still open, nothing committed.
+    const input = { closest: (selector: string) => selector === ".k-data-grid__editor" };
+    const away = (to: object | null) =>
+      editor.onFocusout({ relatedTarget: to, target: input } as unknown as FocusEvent);
+    away(null);
+    expect(editing.value).toEqual(cell);
+    expect(commits).toEqual([]);
+    // Elsewhere in the page: the changed text commits.
+    away({});
+    expect(commits).toEqual([{ ...cell, value: "Bases" }]);
+    expect(editing.value).toBeUndefined();
+  });
+
+  it("follows commits until the host settles them, bounded", async () => {
+    const states = ref<Record<string, CellState | undefined>>({});
+    const texts = ref<Record<string, string>>({});
+    const said: string[] = [];
+    const watch = useCommitWatch(
+      (c) => states.value[c.row],
+      (c) => texts.value[c.row],
+      (c, error) => said.push(`${c.row}: ${error.error}`),
+    );
+    watch.follow({ row: "a", column: "x", value: "1" });
+    watch.follow({ row: "b", column: "x", value: "2" });
+    states.value = { a: "pending" };
+    await nextTick();
+    expect(watch.awaiting.value).toHaveLength(2);
+    // Applied without a state (the text is the committed one), refused with an error.
+    texts.value = { b: "2" };
+    states.value = { a: { error: "Refusé." } };
+    await nextTick();
+    expect(watch.awaiting.value).toHaveLength(0);
+    expect(said).toEqual(["a: Refusé."]);
+    for (let i = 0; i < 100; i++) watch.follow({ row: `r${i}`, column: "x", value: "v" });
+    expect(watch.awaiting.value.length).toBeLessThanOrEqual(64);
+  });
+
+  // REQ-020-19: a grid of 10⁴ rows holds a few hundred at most in the document.
+  // The number of rows in the document under a real scroll is the e2e script's
+  // (data-grid.spec.ts, 10⁴ rows); here, the counts and the row kept for the focus.
+  it("counts 10 000 rows, keeps the row of the focus at its index, offsets the indexes", async () => {
+    const many = Array.from({ length: 10_000 }, (_, i) => ({
+      prefix: `p-${i}`,
+      label: `Ligne ${i}`,
+    }));
+    const html = await render(DataGrid, {
+      label: "Préfixes",
+      columns,
+      rows: many,
+      rowKey: "prefix",
+      active: { row: "p-9999", column: "prefix" },
+      rowOffset: 500,
+      rowCount: 20_000,
+    });
+    expect(html).toContain('data-virtual="true"');
+    expect(html).toContain('aria-rowcount="20001"');
+    // The row of the focus stays in the document, at its index after the dropped pages.
+    expect(html).toContain('aria-rowindex="10501"');
+    expect(html).toContain("k-data-grid__gap");
+    // A paged list: the whole count, or -1 while unknown.
+    const paged = await render(DataGrid, {
+      label: "Préfixes",
+      columns,
+      rows,
+      rowKey: "prefix",
+      rowCount: 1284,
+    });
+    expect(paged).toContain('aria-rowcount="1285"');
+    const unknown = await render(DataGrid, {
+      label: "Préfixes",
+      columns,
+      rows,
+      rowKey: "prefix",
+      rowCount: -1,
+    });
+    expect(unknown).toContain('aria-rowcount="-1"');
+  });
+
+  it("holds the element of an extension column per row, and says editable cells", async () => {
+    const html = await render(DataGrid, {
+      label: "Préfixes",
+      columns: [...columns, { id: "ext", label: "Extension", element: "k-demo-cell" }],
+      rows,
+      rowKey: "prefix",
+      editable: (_: unknown, column: GridColumn) => column.id === "label",
+    });
+    expect(html.match(/<k-demo-cell/g)).toHaveLength(rows.length);
+    expect(html).not.toMatch(/role="grid"[^>]*aria-readonly/);
+    expect(html).toMatch(/data-column="prefix"[^>]*aria-readonly="true"/);
+    expect(html).not.toMatch(/data-column="label"[^>]*aria-readonly/);
+    // An extension cell is never editable.
+    expect(html).toMatch(/data-column="ext"[^>]*aria-readonly="true"/);
   });
 
   it("selects one row only when `single`: no aria-multiselectable", async () => {
@@ -149,21 +363,33 @@ describe("DataGrid", () => {
     expect(placeCellError({ ...base, rtl: true })).toMatchObject({ x: 20, align: "start" });
   });
 
-  it("leaves the error of a cell being edited to its editor, without a layer", async () => {
-    const html = await render(DataGrid, {
-      label: "Préfixes",
-      columns,
-      rows,
-      rowKey: "prefix",
-      editing: { row: "198.51.100.0/24", column: "label" },
-      cellState: (row: (typeof rows)[number], column: GridColumn) =>
-        column.id === "label" && row.prefix === "198.51.100.0/24"
-          ? { error: "Libellé trop long.", code: "core.label.too-long" }
-          : undefined,
-    });
-    expect(html).not.toContain("k-cell-error");
-    expect(html).not.toMatch(/role="gridcell"[^>]*aria-describedby/);
-    expect(text(html)).toContain("Libellé trop long.");
+  // The error of a cell never resizes it (024, cell errors in a bubble): the editor of an
+  // invalid cell is described by the layer of the message, which stays out of the cell.
+  it("gives the error of a cell being edited to its layer, the editor described by it", async () => {
+    const context: { teleports?: Record<string, string> } = {};
+    const html = await renderToString(
+      createSSRApp({
+        render: () =>
+          h(DataGrid as Component, {
+            label: "Préfixes",
+            columns,
+            rows,
+            rowKey: "prefix",
+            editing: { row: "198.51.100.0/24", column: "label" },
+            cellState: (row: (typeof rows)[number], column: GridColumn) =>
+              column.id === "label" && row.prefix === "198.51.100.0/24"
+                ? { error: "Libellé trop long.", code: "core.label.too-long" }
+                : undefined,
+          }),
+      }),
+      context,
+    );
+    expect(text(html)).not.toContain("Libellé trop long.");
+    const id = /<input[^>]*aria-describedby="([^"]+)"/.exec(html)?.[1];
+    expect(id).toBeTruthy();
+    expect(html).toMatch(/<input[^>]*aria-invalid="true"/);
+    const layers = Object.values(context.teleports ?? {}).join("");
+    expect(layers).toMatch(new RegExp(`id="${id}"[^>]*>.*Libellé trop long\\.`, "s"));
   });
 
   it("puts an editor in the cell being edited, named after its column and row", async () => {
@@ -176,7 +402,7 @@ describe("DataGrid", () => {
     });
     expect(html).toContain('data-editing="true"');
     expect(html).toMatch(/<input[^>]*value="Postes"/);
-    expect(text(html)).toContain("Libellé — 198.51.100.0/24");
+    expect(html).toContain('aria-label="Libellé — 198.51.100.0/24"');
   });
 
   it("lets the cells of a message column wrap, the others stay on one line", async () => {

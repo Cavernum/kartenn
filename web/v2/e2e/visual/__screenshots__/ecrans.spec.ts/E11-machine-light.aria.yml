@@ -34,6 +34,7 @@
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
+- status
 - main:
   - heading /Machine srv-app-\d+/ [level=1]
   - region /srv-app-\d+/:

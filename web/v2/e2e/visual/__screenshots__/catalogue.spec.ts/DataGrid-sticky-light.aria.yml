@@ -6,9 +6,13 @@
       - grid "Préfixes du domaine":
         - rowgroup:
           - row "Préfixe Libellé Environnement Occupation Responsable":
-            - columnheader "Préfixe"
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
             - columnheader "Libellé"
-            - columnheader "Environnement"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
             - columnheader "Occupation"
             - columnheader "Responsable"
         - rowgroup:
@@ -192,5 +196,6 @@
             - gridcell "Développement"
             - gridcell /\d+ %/
             - gridcell "Exploitation"
+      - alert
       - code: sticky
       - text: ""

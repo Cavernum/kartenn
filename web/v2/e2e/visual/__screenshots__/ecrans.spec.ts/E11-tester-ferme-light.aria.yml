@@ -31,6 +31,7 @@
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
+- status
 - main:
   - heading "Tester une connexion" [level=1]
   - heading "Tester une connexion" [level=2]
@@ -121,6 +122,7 @@
             - gridcell "Non conforme deny-prod-hors-prod":
               - text: ""
               - code: deny-prod-hors-prod
+      - alert
 - button "Ouvrir le panneau"
 - alert
 - status

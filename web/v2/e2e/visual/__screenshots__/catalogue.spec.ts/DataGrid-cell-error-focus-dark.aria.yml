@@ -51,5 +51,6 @@
             - gridcell "Recette (en revue)"
             - gridcell /\d+ %/
             - gridcell "Équipe postes"
+      - alert
       - code: cell-error-focus
       - text: ""

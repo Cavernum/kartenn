@@ -37,6 +37,7 @@ import {
   useTooltip,
   type CellRef,
   type CellState,
+  type GridCommit,
   type Filter,
   type FilterModel,
   type GridColumn,
@@ -824,7 +825,10 @@ const editing = ref<CellRef | undefined>(
     ? undefined
     : { row: "ligne-2", column: "justification" },
 );
-/** Enter on a cell, or a click on a row, chooses it and opens the bottom panel. */
+/**
+ * Space or a click on a row chooses it (the grid's single selection), Enter on a cell that
+ * is not editable too; the bottom panel opens on it.
+ */
 function choose(cell: CellRef): void {
   chosen.value = [cell.row];
   bottomOpen.value = true;
@@ -852,9 +856,10 @@ async function addRow(): Promise<void> {
     ?.focus();
 }
 /*
- * Editing a cell, in the mockup's own state (no server): F2 or a double click opens the
- * editor of an editable cell, Enter or leaving it writes the row, Escape drops the input.
- * The row's evaluation, its verdict and the bottom panel follow the written values.
+ * Editing a cell by the grid's contract, in the mockup's own state (no server): Enter, F2
+ * or a double click opens the editor of an editable cell, Enter, Tab or leaving it commits
+ * (`write`), Escape drops the input. The row's evaluation, its verdict and the bottom panel
+ * follow the written values.
  */
 type EditableColumn = "source" | "destination" | "object" | "reference" | "justification";
 const EDITABLE: readonly string[] = [
@@ -916,55 +921,8 @@ function write(cell: CellRef, raw: string): void {
   refused.value = others;
   proposals.value = proposals.value.map((p) => (p.key === cell.row ? { ...p, ...patch } : p));
 }
-const cellOf = (cell: CellRef) =>
-  document.querySelector<HTMLElement>(
-    `[role="gridcell"][data-row="${cell.row}"][data-column="${cell.column}"]`,
-  );
-async function startEditing(cell: CellRef): Promise<void> {
-  if (!EDITABLE.includes(cell.column)) return;
-  editing.value = cell;
-  proposalActive.value = cell;
-  await nextTick();
-  const input = cellOf(cell)?.querySelector("input");
-  input?.focus();
-  input?.select();
-}
-/** Leaves the editor, writing its text or not; the focus goes back to the cell. */
-async function stopEditing(input: HTMLInputElement, keep: boolean): Promise<void> {
-  const cell = editing.value;
-  if (!cell) return;
-  editing.value = undefined;
-  if (keep) write(cell, input.value);
-  await nextTick();
-  cellOf(cell)?.focus();
-}
-function onGridKeydown(event: KeyboardEvent): void {
-  const target = event.target as HTMLElement;
-  if (target instanceof HTMLInputElement && target.closest(".k-data-grid__editor")) {
-    if (event.key === "Enter" || event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      void stopEditing(target, event.key === "Enter");
-    }
-    return;
-  }
-  const { row, column } = target.dataset;
-  if (event.key === "F2" && row && column && target.getAttribute("role") === "gridcell")
-    void startEditing({ row, column });
-}
-function onGridDblclick(event: MouseEvent): void {
-  const target = event.target as HTMLElement;
-  if (target.closest(".k-data-grid__editor")) return;
-  const cell = target.closest<HTMLElement>('[role="gridcell"]');
-  const { row, column } = cell?.dataset ?? {};
-  if (row && column) void startEditing({ row, column });
-}
-/** Leaving the editor (a click elsewhere, Tab) writes it, as Enter does. */
-function onGridFocusout(event: FocusEvent): void {
-  const target = event.target as HTMLElement;
-  if (target instanceof HTMLInputElement && target.closest(".k-data-grid__editor"))
-    void stopEditing(target, true);
-}
+/** The cells the grid lets the user edit (its contract): every column but the verdict. */
+const editableCell = (_: ProposalRow, column: GridColumn) => EDITABLE.includes(column.id);
 const proposalRowState = (): RowState => "draft";
 const proposalCellState = (row: ProposalRow, column: GridColumn): CellState | undefined => {
   const refusal = refused.value[cellKey(row.key, column.id)];
@@ -1275,20 +1233,19 @@ const IFACE_HISTORY = [
       <DataGrid
         v-model:active="proposalActive"
         v-model:selected="chosen"
+        v-model:editing="editing"
         label="Flux proposés dans le changeset"
         :columns="proposalColumns"
         :rows="proposalRows"
         row-key="key"
         selectable="single"
         stack
-        :editing="editing"
+        :editable="editableCell"
         :row-state="proposalRowState"
         :cell-state="proposalCellState"
         @activate="choose"
+        @commit="(commit: GridCommit) => write(commit, commit.value)"
         @click="onGridClick"
-        @dblclick="onGridDblclick"
-        @keydown="onGridKeydown"
-        @focusout="onGridFocusout"
       >
         <template #cell="{ row, column, value }">
           <span v-if="!value && column.id !== 'verdict'" class="k-ecran-muted">—</span>
@@ -1327,7 +1284,9 @@ const IFACE_HISTORY = [
           {{ byOutcome.review }} à instruire · {{ byOutcome.noncompliant }} non conformes à la
           matrice<template v-if="incomplete"> · {{ incomplete }} à compléter</template></span
         >
-        <span class="k-ecran-muted">Entrée : le flux choisi en bas · F2 : modifier</span>
+        <span class="k-ecran-muted"
+          >Espace ou clic : le flux choisi en bas · Entrée ou F2 : modifier</span
+        >
       </template>
     </Panneau>
 

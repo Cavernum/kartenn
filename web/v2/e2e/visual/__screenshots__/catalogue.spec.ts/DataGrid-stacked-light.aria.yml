@@ -5,36 +5,58 @@
     - 'figure /stacked — Liste simple \(stack\) dans \d+ px : lignes empilées, la clé puis chaque attribut sous son libellé, toutes les colonnes montrées/':
       - grid "Préfixes du domaine":
         - rowgroup:
-          - row "Préfixe (filtrée) Libellé Occupation Responsable":
-            - columnheader "Préfixe (filtrée)"
+          - row "Sélectionner toutes les lignes Préfixe (filtrée) Libellé Occupation Responsable":
+            - columnheader "Sélectionner toutes les lignes":
+              - checkbox "Sélectionner toutes les lignes" [checked=mixed]
+              - text: ""
+            - columnheader "Préfixe (filtrée)":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
+              - text: ""
             - columnheader "Libellé"
             - columnheader "Occupation"
             - columnheader "Responsable"
         - rowgroup:
-          - row /\d+\.\d+\.2\.0\/\d+ Serveurs de bases \d+ % Équipe réseau/:
+          - row /Sélectionner \d+\.\d+\.2\.0\/\d+ \d+\.\d+\.2\.0\/\d+ Serveurs de bases \d+ % Équipe réseau/:
+            - gridcell /Sélectionner \d+\.\d+\.2\.0\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.2\.0\/\d+/
+              - text: ""
             - gridcell /\d+\.\d+\.2\.0\/\d+/
             - gridcell "Serveurs de bases"
             - gridcell /\d+ %/
             - gridcell "Équipe réseau"
-          - row /\d+\.\d+\.2\.0\/\d+ Postes du siège \d+ % Équipe postes/ [selected]:
+          - row /Sélectionner \d+\.\d+\.2\.0\/\d+ \d+\.\d+\.2\.0\/\d+ Postes du siège \d+ % Équipe postes/ [selected]:
+            - gridcell /Sélectionner \d+\.\d+\.2\.0\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.2\.0\/\d+/ [checked]
+              - text: ""
             - gridcell /\d+\.\d+\.2\.0\/\d+/
             - gridcell "Postes du siège"
             - gridcell /\d+ %/
             - gridcell "Équipe postes"
-          - row /\(en brouillon\) \d+\.\d+\.\d+\.\d+\/\d+ Supervision \d+ % Exploitation/:
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \(en brouillon\) \d+\.\d+\.\d+\.\d+\/\d+ Supervision \d+ % Exploitation/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
             - gridcell /\(en brouillon\) \d+\.\d+\.\d+\.\d+\/\d+/
             - gridcell "Supervision"
             - gridcell /\d+ %/
             - gridcell "Exploitation"
-          - row /\d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes 3 % Équipe réseau/:
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Sauvegardes 3 % Équipe réseau/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
             - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
             - gridcell "Sauvegardes"
             - gridcell "3 %"
             - gridcell "Équipe réseau"
-          - row /\d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ % Équipe postes/:
+          - row /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+\/\d+ Invités \d+ % Équipe postes/:
+            - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/:
+              - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+\/\d+/
+              - text: ""
             - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
             - gridcell "Invités"
             - gridcell /\d+ %/
             - gridcell "Équipe postes"
+      - alert
       - code: stacked
       - text: ""
