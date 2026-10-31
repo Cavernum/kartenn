@@ -200,7 +200,7 @@ function onPointerleave(event: PointerEvent): void {
     position: fixed;
     inset-block-start: var(--k-cell-error-y);
     inset-inline-start: var(--k-cell-error-x);
-    z-index: var(--k-z-overlay);
+    z-index: var(--k-z-modal);
     inline-size: var(--k-cell-error-width);
     block-size: var(--k-cell-error-height);
     pointer-events: none;

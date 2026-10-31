@@ -1,0 +1,14 @@
+- main:
+  - region "Toast":
+    - heading "Toast" [level=1]
+    - paragraph: "Motif : status (polite) ; alert (assertive), pause au survol et au focus"
+    - 'figure "keyboard — Au clavier : aucun toast ne prend le focus ; Tab les atteint, Échap ou la croix les ferment ; survol et focus les retiennent"':
+      - text: Note
+      - textbox "Note"
+      - button "Ajouter"
+      - button "Enregistrer"
+      - button "Propriétés"
+      - alert
+      - status
+      - code: keyboard
+      - text: ""

@@ -14,10 +14,10 @@
 // not announced, relecture du 2026-10-26). The box keeps its size meanwhile: no shift.
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import type { IconName } from "../../icons/index.ts";
-import { t, type MessageKey } from "../../i18n.ts";
+import { t } from "../../i18n.ts";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import Icon from "../Icon/Icon.vue";
-import type { AlertTone } from "./alert.ts";
+import { TONE_ICONS, TONE_WORDS, type AlertTone } from "./alert.ts";
 
 const props = withDefaults(
   defineProps<{
@@ -30,22 +30,6 @@ const props = withDefaults(
   }>(),
   { tone: "info", items: () => [], icon: undefined },
 );
-
-const ICONS: Record<AlertTone, IconName> = {
-  info: "info",
-  ok: "circle-check",
-  warn: "triangle-alert",
-  ko: "circle-x",
-};
-
-// The tone in words too (WCAG 1.3.1): the icon is decorative, the colour is not read; a
-// warning and an information would otherwise sound the same.
-const WORDS: Record<AlertTone, MessageKey> = {
-  info: "toneInfo",
-  ok: "toneOk",
-  warn: "toneWarn",
-  ko: "toneKo",
-};
 
 const said = ref(false);
 let frame = 0;
@@ -62,10 +46,10 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
     :data-state="said ? undefined : 'waiting'"
     :role="props.tone === 'ko' ? 'alert' : 'status'"
   >
-    <Icon :name="props.icon ?? ICONS[props.tone]" class="k-inline-alert__icon" />
+    <Icon :name="props.icon ?? TONE_ICONS[props.tone]" class="k-inline-alert__icon" />
     <div class="k-inline-alert__body">
       <p class="k-inline-alert__title">
-        <span class="k-visually-hidden">{{ t(WORDS[props.tone]) }}{{ t("colon") }} </span
+        <span class="k-visually-hidden">{{ t(TONE_WORDS[props.tone]) }}{{ t("colon") }} </span
         >{{ props.title }}
       </p>
       <div v-if="$slots.default" class="k-inline-alert__text"><slot /></div>
@@ -81,63 +65,13 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
 
 <style>
 @layer components {
+  /* The tone, the icon, the body and the title: `tone.css`, shared with `Toast`. */
   .k-inline-alert {
-    --k-inline-alert-fg: var(--k-state-info-fg);
-    --k-inline-alert-bg: var(--k-state-info-bg);
-    --k-inline-alert-border: var(--k-state-info-border);
-
-    display: flex;
-    gap: var(--k-space-2);
-    align-items: start;
     padding: var(--k-space-2) var(--k-space-3);
-    color: var(--k-text);
-    background-color: var(--k-inline-alert-bg);
-    border: var(--k-border-width) solid var(--k-inline-alert-border);
-    border-radius: var(--k-radius-md);
-  }
-
-  .k-inline-alert[data-tone="ok"] {
-    --k-inline-alert-fg: var(--k-state-ok-fg);
-    --k-inline-alert-bg: var(--k-state-ok-bg);
-    --k-inline-alert-border: var(--k-state-ok-border);
-  }
-
-  .k-inline-alert[data-tone="warn"] {
-    --k-inline-alert-fg: var(--k-state-warn-fg);
-    --k-inline-alert-bg: var(--k-state-warn-bg);
-    --k-inline-alert-border: var(--k-state-warn-border);
-  }
-
-  .k-inline-alert[data-tone="ko"] {
-    --k-inline-alert-fg: var(--k-state-ko-fg);
-    --k-inline-alert-bg: var(--k-state-ko-bg);
-    --k-inline-alert-border: var(--k-state-ko-border);
   }
 
   .k-inline-alert[data-state="waiting"] > * {
     visibility: hidden;
-  }
-
-  .k-inline-alert__icon {
-    margin-block-start: var(--k-space-0-5);
-    color: var(--k-inline-alert-fg);
-  }
-
-  /* One elastic column: a long code shortens (its badge), a word breaks; never wider than
-   * the alert. */
-  .k-inline-alert__body {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    flex: 1;
-    overflow-wrap: anywhere;
-    gap: var(--k-space-1);
-    min-inline-size: 0;
-  }
-
-  .k-inline-alert__title {
-    margin: 0;
-    font-weight: var(--k-weight-semibold);
-    color: var(--k-inline-alert-fg);
   }
 
   .k-inline-alert__items {

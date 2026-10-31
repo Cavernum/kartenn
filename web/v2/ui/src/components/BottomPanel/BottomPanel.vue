@@ -315,11 +315,12 @@ function onPointerup(event: PointerEvent): void {
     inset-inline: 0;
   }
 
-  /* A sheet: the whole window, over the frame; its back button at the start. */
+  /* A sheet: the whole window, over the frame; its back button at the start. A modal
+   * layer, on their plane (the toasts under it, its menus over it). */
   .k-bottom-panel[data-sheet] {
     position: fixed;
     inset: 0;
-    z-index: var(--k-z-overlay);
+    z-index: var(--k-z-modal);
     block-size: auto;
     margin-block-start: 0;
   }

@@ -1,0 +1,11 @@
+- main:
+  - region "Dialog":
+    - heading "Dialog" [level=1]
+    - paragraph: "Motif : Dialog (Modal)"
+    - 'figure "keyboard — Au clavier : ouvert par son bouton ou par une entrée de menu, focus sur le premier champ, piégé, Échap, focus rendu (au bouton du menu quand l''entrée n''est plus là)"':
+      - button "Nouveau préfixe"
+      - button "Actions"
+      - text: Note
+      - textbox "Note"
+      - code: keyboard
+      - text: ""

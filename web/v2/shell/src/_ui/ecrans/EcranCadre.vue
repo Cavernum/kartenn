@@ -3,7 +3,8 @@
 // M15): fixed slots laid by its grid — sidebar of spaces (collapsible), status bar
 // (breadcrumb, date pill, draft counter, user menu), band out of the present, work
 // surface, right panel (SidePanel) beside the surface, and an optional bottom panel
-// (BottomPanel, slot `bottom-<tab>`) under it. Each slot scrolls inside itself; the page
+// (BottomPanel, slot `bottom-<tab>`) under it; the toasts (ToastRegion, its store
+// provided to the screen) at the bottom of the window. Each slot scrolls inside itself; the page
 // never does. The surface is an isolated stacking context: its sticky headers never pass
 // over a panel nor over a floating layer. The draft counter opens
 // the panel on its draft tab, or closes it when open (its icon is then a cross); closed,
@@ -33,9 +34,12 @@ import {
   SidePanel,
   SidebarNav,
   TimeBand,
+  ToastRegion,
   WIDTH_CLASSES,
   applyMotion,
+  createToasts,
   currentMotion,
+  provideToasts,
   t,
   widthQuery,
   type Crumb,
@@ -44,6 +48,7 @@ import {
   type MenuItem,
   type SidebarGroup,
   type TabItem,
+  type ToastInput,
   type WidthClass,
 } from "@kartenn/ui";
 import { computed, onBeforeUnmount, ref, useSlots, watch } from "vue";
@@ -80,6 +85,8 @@ const props = withDefaults(
     bottom?: TabItem[] | undefined;
     /** The name of the bottom panel. */
     bottomLabel?: string;
+    /** Toasts shown at first, held for the capture (a real one goes after its duration). */
+    toasts?: ToastInput[] | undefined;
     /** The spaces of the sidebar, when a mock-up adds entries (E14 to E27: views of the 017). */
     spaces?: SidebarGroup[];
   }>(),
@@ -89,10 +96,16 @@ const props = withDefaults(
     panel: undefined,
     bottom: undefined,
     bottomLabel: "Panneau du bas",
+    toasts: undefined,
     spaces: () => SPACES,
   },
 );
 const slots = useSlots();
+
+// The toasts of the frame: one region, after the rest of the frame in the tab order.
+const frameToasts = createToasts();
+provideToasts(frameToasts);
+for (const toast of props.toasts ?? []) frameToasts.show({ duration: Infinity, ...toast });
 
 const ZONE = "Europe/Paris";
 const PANEL = "k-ecran-panel";
@@ -306,6 +319,7 @@ function toggleDraft(): void {
         <slot name="picker" />
       </div>
     </div>
+    <ToastRegion />
     <div id="k-ecran-layers" class="k-ecran__layers"></div>
   </div>
 </template>

@@ -4,7 +4,10 @@
 
 <script setup lang="ts">
 // A side dialog (APG Dialog (Modal); design « Inventaire », line 13): a Reka Dialog on the
-// side of the page, for a long form; the focus is trapped and given back, Escape closes.
+// side of the page, for a long form; the rest of the page hidden (`aria-modal` written
+// here, Reka does not), the focus on the first field of its body (else its close button),
+// trapped, and given back to what opened it (WCAG 2.4.3), also when the host opens it by
+// its model, without a Reka trigger (the button of the compact frame); Escape closes.
 // Modal only: the non-modal panel beside the surface is `SidePanel` (024/M8).
 import {
   DialogClose,
@@ -15,10 +18,10 @@ import {
   DialogRoot,
   DialogTitle,
 } from "reka-ui";
-import { watch } from "vue";
 import { injectPortalTarget } from "../../context.ts";
 import { t } from "../../i18n.ts";
 import IconButton from "../IconButton/IconButton.vue";
+import { focusFirstField, useOpener } from "../internal/modal.ts";
 
 const props = withDefaults(
   defineProps<{
@@ -31,20 +34,8 @@ const props = withDefaults(
 );
 const open = defineModel<boolean>("open", { default: false });
 const portal = injectPortalTarget();
-
-// The focus goes back to what had it when the drawer opened (WCAG 2.4.3), also when the
-// host opens it by its model, without a Reka trigger (the button of the compact frame).
-let opener: HTMLElement | null = null;
-watch(open, (now) => {
-  if (now && typeof document !== "undefined")
-    opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-});
-function onCloseAutoFocus(event: Event): void {
-  if (!opener?.isConnected || opener === document.body) return;
-  event.preventDefault();
-  opener.focus();
-  opener = null;
-}
+const onCloseFocus = useOpener(open);
+const onOpenFocus = (event: Event) => focusFirstField(event, ".k-drawer__body");
 </script>
 
 <template>
@@ -53,10 +44,12 @@ function onCloseAutoFocus(event: Event): void {
       <DialogOverlay class="k-dialog__overlay" />
       <DialogContent
         class="k-drawer"
+        aria-modal="true"
         v-bind="props.description ? {} : { 'aria-describedby': undefined }"
         :data-side="props.side"
         :data-size="props.size"
-        @close-auto-focus="onCloseAutoFocus"
+        @open-auto-focus="onOpenFocus"
+        @close-auto-focus="onCloseFocus"
       >
         <header class="k-drawer__header">
           <DialogTitle class="k-drawer__title">{{ props.title }}</DialogTitle>

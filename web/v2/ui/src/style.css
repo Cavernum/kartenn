@@ -12,4 +12,5 @@
 @import "./components/shared.css";
 @import "./components/Select/options.css";
 @import "./components/Popover/surface.css";
+@import "./components/InlineAlert/tone.css";
 @import "./styles/utilities.css";

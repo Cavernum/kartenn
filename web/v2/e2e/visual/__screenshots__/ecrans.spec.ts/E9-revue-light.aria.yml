@@ -57,25 +57,6 @@
   - region "Adresses":
     - heading "Adresses" [level=2]
     - text: /1 \d+/
-    - paragraph:
-      - text: "À venir :"
-      - code: Toast
-      - text: /\(tâche \d+\)/
-    - status:
-      - paragraph: "/Proposé, en revue : votre modification de \\d+\\.\\d+\\.\\d+\\.\\d+ attend une validation\\./"
-      - text: Changeset
-      - button "Copier 01JD4K8B2C3D4E5F6G7H8J9K0M":
-        - text: ""
-        - code: 01JD4K8B2C3D4E5F6G7H8J9K0M
-      - status
-      - text: ; la cellule garde la valeur lue d'ici là.
-      - list:
-        - listitem:
-          - text: Vous n'avez pas le droit d'appliquer vous-même les adresses (core.address.approval.self).
-          - button "Copier changeset.approval.self.missing":
-            - text: ""
-            - code: changeset.approval.self.missing
-          - status
     - grid "Adresses":
       - rowgroup:
         - row "Valeur Usage Propriétaire Site":
@@ -111,3 +92,18 @@
           - gridcell "Service Pilote"
           - gridcell "site-ouest"
 - button "Ouvrir le panneau"
+- region "Notifications":
+  - alert
+  - status:
+    - list:
+      - listitem:
+        - paragraph: "Information : Proposé, en revue : votre modification attend une validation."
+        - paragraph: Vous n'avez pas le droit d'appliquer vous-même les adresses ; la cellule garde la valeur lue d'ici là.
+        - paragraph:
+          - button "Copier changeset.approval.self.missing":
+            - text: ""
+            - code: changeset.approval.self.missing
+          - status
+        - paragraph:
+          - button "Voir le changeset"
+        - button "Fermer la notification"

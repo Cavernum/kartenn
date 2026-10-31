@@ -4,8 +4,12 @@
 
 <script setup lang="ts">
 // A modal dialog (APG Dialog (Modal); design « Inventaire », line 12): Reka's Dialog, the
-// focus trapped and given back, Escape closes; a title (its name), an optional description,
-// the body and the actions (slot `actions`, the primary one last).
+// rest of the page hidden (`aria-hidden`, written by Reka; `aria-modal`, which it does not
+// write), the focus trapped (Tab and Shift+Tab go round) and given back to what opened it,
+// Escape and the close button close; a title (its name), an optional description, the body
+// and the actions (slot `actions`, the primary one last). The trigger is the host's: one
+// control in the `trigger` slot (made Reka's trigger: `aria-haspopup="dialog"`,
+// `aria-expanded`), or any control that sets the model.
 import {
   DialogClose,
   DialogContent,
@@ -14,10 +18,12 @@ import {
   DialogPortal,
   DialogRoot,
   DialogTitle,
+  DialogTrigger,
 } from "reka-ui";
 import { injectPortalTarget } from "../../context.ts";
 import { t } from "../../i18n.ts";
 import IconButton from "../IconButton/IconButton.vue";
+import { focusFirstField, useOpener } from "../internal/modal.ts";
 
 const props = withDefaults(
   defineProps<{
@@ -34,39 +40,24 @@ const props = withDefaults(
 );
 const open = defineModel<boolean>("open", { default: false });
 const portal = injectPortalTarget();
-
-/**
- * On open, the focus goes to the element the host marks `data-autofocus` (the safe action
- * of a dialog whose close would lose something: a secret shown once), else to the first
- * field of the body, else where Reka puts it.
- */
-function focusFirstField(event: Event): void {
-  const content = event.target as HTMLElement | null;
-  const marked = content?.querySelector<HTMLElement>("[data-autofocus]");
-  const focusable = "button:not([disabled]), a[href], input:not([disabled]), select, textarea";
-  const field =
-    (marked?.matches(focusable) ? marked : marked?.querySelector<HTMLElement>(focusable)) ??
-    content?.querySelector<HTMLElement>(
-      ".k-dialog__body input:not([disabled]), .k-dialog__body select, .k-dialog__body textarea",
-    );
-  if (field) {
-    event.preventDefault();
-    field.focus();
-  }
-}
+const onCloseFocus = useOpener(open);
+/** On open: the element marked `data-autofocus`, else the first field of the body. */
+const onOpenFocus = (event: Event) => focusFirstField(event, ".k-dialog__body");
 </script>
 
 <template>
   <DialogRoot v-model:open="open">
-    <slot name="trigger" />
+    <DialogTrigger v-if="$slots.trigger" as-child><slot name="trigger" /></DialogTrigger>
     <DialogPortal :to="portal">
       <DialogOverlay class="k-dialog__overlay" />
       <DialogContent
         class="k-dialog"
         :data-size="props.size"
         :data-contained="props.contained ? 'true' : undefined"
+        aria-modal="true"
         v-bind="props.description ? {} : { 'aria-describedby': undefined }"
-        @open-auto-focus="focusFirstField"
+        @open-auto-focus="onOpenFocus"
+        @close-auto-focus="onCloseFocus"
       >
         <header class="k-dialog__header">
           <DialogTitle class="k-dialog__title">{{ props.title }}</DialogTitle>

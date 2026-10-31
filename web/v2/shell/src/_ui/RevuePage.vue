@@ -12,8 +12,8 @@ const COMBOS = [
   { mode: "dark", densite: "confortable", label: "sombre, confortable" },
 ] as const;
 
-/** Components of the P4 replaced in the mock-ups by a marked stand-in. */
-const LATER = [{ component: "Toast", task: "22", where: "E9 (accusé « proposé, en revue »)" }];
+/** Components of the P4 replaced in the mock-ups by a marked stand-in (none left). */
+const LATER: { component: string; task: string; where: string }[] = [];
 
 /** Choices of the mock-ups to settle with the user (task 15). */
 const OPEN = [
@@ -81,29 +81,31 @@ const OPEN = [
       </tbody>
     </table>
 
-    <h2 class="k-cat-subtitle">Composants à venir, remplacés par un repère</h2>
-    <p class="k-cat-lead">
-      Encadrés en tirets et nommés dans la maquette (« À venir : … ») ; le plus proche composant
-      existant tient leur place.
-    </p>
-    <table class="k-cat-table">
-      <thead>
-        <tr>
-          <th scope="col">Composant</th>
-          <th scope="col">Tâche (P4)</th>
-          <th scope="col">Où</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="item in LATER" :key="item.component">
-          <th scope="row">
-            <code>{{ item.component }}</code>
-          </th>
-          <td class="k-num">{{ item.task }}</td>
-          <td>{{ item.where }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <template v-if="LATER.length > 0">
+      <h2 class="k-cat-subtitle">Composants à venir, remplacés par un repère</h2>
+      <p class="k-cat-lead">
+        Encadrés en tirets et nommés dans la maquette (« À venir : … ») ; le plus proche composant
+        existant tient leur place.
+      </p>
+      <table class="k-cat-table">
+        <thead>
+          <tr>
+            <th scope="col">Composant</th>
+            <th scope="col">Tâche (P4)</th>
+            <th scope="col">Où</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in LATER" :key="item.component">
+            <th scope="row">
+              <code>{{ item.component }}</code>
+            </th>
+            <td class="k-num">{{ item.task }}</td>
+            <td>{{ item.where }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </template>
 
     <h2 class="k-cat-subtitle">Points à trancher</h2>
     <ul class="k-cat-list k-cat-lead">
