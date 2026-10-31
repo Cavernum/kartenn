@@ -450,15 +450,19 @@ fermée) et 7 non héritables (entiers, 20 % des adresses, chargés par `COPY`),
 héritables par le pipeline (racines des domaines, puis 3 % des préfixes), puis mesure,
 par le service et l'adaptateur réels :
 
-| Mesure | Seuil | Mesuré (2026-10-15, graine 42) |
-|---|---|---|
-| Première valeur sur toutes les racines (1,19·10⁶ changements d'origine, P10) | < 60 s | 41,8 s |
-| Explication d'une propriété pour une adresse, p95 sur 200 tirages | < 50 ms | 32 ms |
-| Page filtrée de 100, égalité sur héritable, p95 sur 100 tirages | < 150 ms | 16 ms |
-| Page filtrée de 100, intervalle sur non héritable, p95 sur 100 tirages | < 150 ms | 72 ms |
-| Changeset dont le différentiel touche ≤ 10⁴ objets (affectation d'un conteneur de 7 409 adresses ; 8 315 objets changent) | < 2,5 s (P14) | 1,82 s (2,07 s au passage précédent) |
-| Changement de valeur de toutes les racines (≈ 10⁶ objets, sans changement d'origine) | < 10 s | 9,1 s |
-| Retrait des racines de 3 domaines (> 10⁵ changements d'origine, P10) | < 60 s | 13,8 s |
+| Mesure | Seuil | Mesuré (2026-10-15, graine 42) | Mesuré (2026-10-31, graine 42) |
+|---|---|---|---|
+| Première valeur sur toutes les racines (1,19·10⁶ changements d'origine, P10) | < 60 s | 41,8 s | 40,8 s |
+| Explication d'une propriété pour une adresse, p95 sur 200 tirages | < 50 ms | 32 ms | 34 ms |
+| Résolution groupée 512 × 6, p95 sur 50 tirages (N9, 016-4) | < 30 ms | — | 21 ms |
+| Page filtrée de 100, égalité sur héritable, p95 sur 100 tirages | < 150 ms | 16 ms | 27 ms |
+| Page filtrée de 100, intervalle sur non héritable, p95 sur 100 tirages | < 150 ms | 72 ms | 76 ms |
+| Changeset dont le différentiel touche ≤ 10⁴ objets (affectation d'un conteneur de 7 409 adresses ; 8 315 objets changent) | < 2,5 s (P14) | 1,82 s (2,07 s au passage précédent) | 1,94 s |
+| Changement de valeur de toutes les racines (≈ 10⁶ objets, sans changement d'origine) | < 10 s | 9,1 s | 8,1 s |
+| Retrait des racines de 3 domaines (> 10⁵ changements d'origine, P10) | < 60 s | 13,8 s | 16,2 s |
+
+La colonne du 2026-10-31 est celle du banc pleine échelle qui clôt la tâche 20, machine
+sans autre agent (voir « Dépassements du 2026-10-30 »).
 
 Les mesures portent sur le changeset entier (pipeline, historique, journal, validation).
 Pour le cas ≤ 10⁴, le temps se répartit entre l'écriture des origines avec leur historique
@@ -515,8 +519,32 @@ banc et `EXPLAIN (ANALYZE, BUFFERS)` des requêtes en plan générique
   lots de 1 000 préfixes descendent au jeu réduit et montent à pleine échelle). Test :
   `resolution::large_refreshes_are_planned_for_their_arrays` (session en plan générique
   forcé, aucune de ces requêtes gardée préparée ; il échoue sans la correction).
-- **Valeur de toutes les racines** : explication partielle, le seuil peut encore ne pas
-  tenir à pleine échelle. Linéaire, sans plan fautif : 0,88 s à 5f614621 et 0,94 à
+
+  Au banc pleine échelle qui suit (2026-10-31, 55447a0f), la mesure dépasse encore :
+  947 s, puis 926 s. L'échantillonnage de `pg_stat_activity` met ≈ 890 s sur
+  `SEGMENTS_DOWN`, pourtant planifiée sur mesure. Son plan ne voyait pas la fenêtre :
+  `tstzrange($3, NULL)` était calculée dans une CTE `w` citée deux fois (cibles `t` et
+  affectations `a`), donc matérialisée (PostgreSQL ne fond dans la requête qu'une CTE
+  citée une seule fois), et `valid_period && w.r` prenait la sélectivité par défaut. Les
+  cibles étaient estimées à 1 669 lignes pour 207 049, les
+  affectations à 34 pour 6 030. L'appartenance d'un objet trouvé sous un porteur aux
+  cibles (`x.id IN (SELECT id FROM t)`) devenait une boucle imbriquée qui parcourt toutes
+  les cibles pour chaque objet. Le coût est quadratique, invisible au banc réduit.
+  `EXPLAIN ANALYZE` sur la base laissée par le banc : plus de 120 s (arrêtée) avec la CTE,
+  2,4 s avec la fenêtre écrite en clair (estimations 333 805 et 6 839, jointures par
+  hachage). Correction : la fenêtre est écrite en clair dans `SEGMENTS_DOWN` et dans
+  `value_sql`, l'autre requête planifiée sur mesure où `w` était citée deux fois
+  (`vb`, `va`). `SEGMENTS_UP` (par `targets!`, partagé) et `record_sql`, où `w` n'était
+  citée qu'une fois et donc déjà fondue, l'écrivent de même par uniformité, sans effet
+  attendu sur leur plan. Tests `origins::tests::the_queries_planned_for_their_arrays_see_the_window`
+  et `diff::tests::the_differentials_see_the_window` : aucune fenêtre nommée par une CTE
+  dans ces requêtes (ils portent sur le texte, non sur le plan). Pleine échelle :
+  16,2 s. Au banc réduit, la même mesure passe de 1,79 s (code précédent, machine
+  chargée) à 3,2 s (un passage, machine calme ; cause non cherchée, loin du seuil :
+  peut-être des jointures par hachage, choisies sur une estimation désormais juste,
+  plus chères pour peu de cibles).
+- **Valeur de toutes les racines** : explication partielle ; le seuil tient au banc
+  pleine échelle du 2026-10-31 (voir la fin de ce point). Linéaire, sans plan fautif : 0,88 s à 5f614621 et 0,94 à
   1,09 s sur main au banc réduit, soit l'écart de 9,1 à 10,72 s observé à pleine échelle
   (≈ 1,6 s). La seule part trouvée vient de la 024 (9b0c3eec) : sous `approval.self`, les
   droits sont vérifiés pour l'auteur puis pour celui qui applique, et chaque vérification
@@ -528,13 +556,18 @@ banc et `EXPLAIN (ANALYZE, BUFFERS)` des requêtes en plan générique
   regarder : la copie du détail dans `changeset_diff` (≈ 0,43 s des ≈ 1 s du banc
   réduit : tri sur `before::text, after::text` et trois index), puis les passes plus
   petites sur `diff_detail` ajoutées depuis le 2026-10-15 (lecture des réseaux du V9 des
-  VLAN, décomptes), à mesurer une à une à pleine échelle.
+  VLAN, décomptes), à mesurer une à une à pleine échelle. Au banc pleine échelle du
+  2026-10-31, le seuil tient : 8,8 s, puis 8,1 s une fois la fenêtre écrite en clair dans
+  `value_sql` (un passage de chaque côté : gain plausible, `w` y étant matérialisée, non
+  démontré).
 - **Résolution groupée 512 × 6** : pas de régression trouvée. La mesure de 38,2 ms est
   la première à pleine échelle (016-4 ne l'avait mesurée qu'aux jeux réduit et `small`) ;
   au banc réduit, 15,5 à 17 ms, inchangée par les corrections. Les ancêtres de 128
   adresses le long de l'arbre d'adressage coûtent ≈ 6 ms au banc réduit (un sondage `GiST`
   de `prefix_unique_per_domain` par adresse), en parallèle de la requête des valeurs.
-  Reste à voir au banc complet, machine calme, si le seuil tient.
+  Au banc complet du 2026-10-31, machine calme, le seuil tient : 21 ms aux trois
+  passages. Les 38,2 ms du 2026-10-30 tenaient à la charge de la machine ou au plan
+  générique corrigé, sans qu'on puisse départager.
 
 | Banc réduit, graine 42 | main | main, bascule ramenée | deux plans sur mesure | + effets lus une fois (machine chargée) | code final (machine chargée) | 5f614621, bascule ramenée |
 |---|---|---|---|---|---|---|

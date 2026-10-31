@@ -104,7 +104,7 @@ voir [`../README.md`](../README.md).
 
 ## P8 — Régression des budgets
 
-- [ ] 20. Budgets de REQ-003-26 repassés sous leurs seuils. Au banc pleine échelle du
+- [x] 20. Budgets de REQ-003-26 repassés sous leurs seuils. Au banc pleine échelle du
   2026-10-30 (graine 42, main 5d2da650), trois mesures dépassent :
   - retrait des racines de 3 domaines (P10) : 1 197,8 s pour 60 s, contre 13,8 s le
     2026-10-15 ;
@@ -130,7 +130,7 @@ voir [`../README.md`](../README.md).
     base du banc ; vérifier d'abord que le banc réduit reproduit l'écart en proportion.
     Aucun banc pleine échelle par l'agent.
   - dépend de : —
-  - en cours : causes et correction faites le 2026-10-31 (design § « Banc REQ-003-26 »,
+  - fait : causes et correction faites le 2026-10-31 (design § « Banc REQ-003-26 »,
     « Dépassements du 2026-10-30 ») — plan générique de `SEGMENTS_DOWN` et de
     `record_sql`, présent dès 5f614621, désormais planifiés pour leurs paramètres
     (`origins.rs`, `diff.rs`), comme `value_sql` et la recherche des objets de module et
@@ -140,11 +140,23 @@ voir [`../README.md`](../README.md).
     taille du jeu au banc réduit (`props.rs`, `PgStore::down_from`) ; test
     `resolution::large_refreshes_are_planned_for_their_arrays` (échoue sans les deux
     premiers `persistent`, les deux requêtes restant préparées). Valeur de toutes les
-    racines : expliquée en partie seulement, le seuil peut encore ne pas tenir (pistes au
-    design). Résolution groupée : pas de régression trouvée, première mesure à pleine
-    échelle. Reste : le banc complet du `verify`, par la session principale.
+    racines : expliquée en partie seulement (pistes au design). Résolution groupée : pas
+    de régression trouvée, première mesure à pleine échelle. Le banc complet du `verify`
+    (session principale, 55447a0f) dépassait encore sur le retrait des 3 domaines
+    (947 s) : fenêtre `tstzrange($3, NULL)` dans une CTE citée deux fois, donc
+    matérialisée, sélectivité par défaut, cibles estimées 1 669 pour 207 049,
+    appartenance aux cibles en boucle imbriquée. Elle est écrite en clair dans
+    `SEGMENTS_DOWN` et `value_sql` (CTE citée deux fois), et par uniformité dans
+    `SEGMENTS_UP` (par `targets!`) et `record_sql` (citée une fois, déjà fondue) ; tests `origins::tests::the_queries_planned_for_their_arrays_see_the_window`
+    et `diff::tests::the_differentials_see_the_window`. Banc complet du 2026-10-31, machine
+    sans autre agent : les huit budgets tiennent (retrait des 3 domaines 16,2 s, valeur de
+    toutes les racines 8,1 s, résolution groupée 21 ms ; tableau du design).
   - choix : la bascule du banc réduit suit le nombre d'adresses du jeu (inchangée à partir
     de la moitié du jeu de référence) ; `record_sql` toujours planifié sur mesure (son plan
     générique lit tous les préfixes même pour quelques objets : 7,7 ms contre 3,6 ms et
     4 ms de planification pour 19 objets), `SEGMENTS_DOWN` aussi (il ne sert qu'au-delà de
-    la bascule).
+    la bascule) ; la fenêtre écrite en clair aussi dans `SEGMENTS_UP`, qui partage
+    `targets!` et reste préparé (sans effet sur son plan générique, estimations justes
+    pour ses cinq premières exécutions) ; les arbres d'ancrage (`segments_anchor!`, préparés)
+    gardent leur CTE `w` : citée une fois, elle est fondue dans la requête, et leur plan
+    générique ne connaît pas `$3` de toute façon.
