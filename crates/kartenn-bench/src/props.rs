@@ -254,9 +254,11 @@ pub(crate) fn progress(line: &str) {
 }
 
 /// The store of the bench. Below the reference dataset (10⁶ addresses), the number of
-/// targets from which origins are recomputed going down shrinks with it, so that each
-/// measure takes the way it takes at full scale: the reduced bench went up where the full
-/// one went down, and missed the generic plan of the way down (task 003-20).
+/// targets from which origins are recomputed going down shrinks with it, so that the large
+/// changes of origin measured go down as at full scale: the reduced bench went up where
+/// the full one went down, and missed the generic plan of the way down (task 003-20). The
+/// setup steps do not all follow (its batches of 1 000 prefixes go down here, up at full
+/// scale).
 fn store(pool: &PgPool, data: &Dataset) -> PgStore {
     const REFERENCE: usize = 1_000_000;
     let store = PgStore::new(pool.clone());
