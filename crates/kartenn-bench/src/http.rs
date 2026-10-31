@@ -79,6 +79,9 @@ const WRITE_BOUND: Duration = Duration::from_secs(60);
 const TARGET: Duration = Duration::from_millis(10);
 /// What a browser accepts.
 const ACCEPT_ENCODING: &str = "gzip, deflate, br, zstd";
+/// A write applied by its author, who may (spec 024, REQ-024-13), as the browser sends it:
+/// without `approval=self`, the changeset is held as a proposal.
+const CHANGESETS: &str = "/v1/changesets?approval=self";
 
 /// The keys the issuer publishes.
 struct Published(Vec<Jwk>);
@@ -788,7 +791,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
                     }
                 },
                 async || {
-                    user.timed("POST", "/v1/changesets", Some(body), StatusCode::CREATED)
+                    user.timed("POST", CHANGESETS, Some(body), StatusCode::CREATED)
                         .await
                 },
             )
@@ -934,7 +937,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
                         break;
                     }
                     let (_, body) = new_address(&pool, mine[i % mine.len()]).await?;
-                    load.record(&mut writer, true, "POST", "/v1/changesets", Some(body))
+                    load.record(&mut writer, true, "POST", CHANGESETS, Some(body))
                         .await?;
                     i += 1;
                 }
