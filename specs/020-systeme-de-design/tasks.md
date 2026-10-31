@@ -992,8 +992,10 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
   19 — verify : 10⁴ lignes → quelques centaines dans le DOM ; script APG Grid complet (au
   moins les 10 cas du prototype) ; états `pending`, `draft`, `review`, `error` ; bancs
   filtre/tri/édition (tâche 27)
-  - où : `web/shell/src/data/DataTable.vue`, `admin/PagedTable.vue` (actuels, à
-    remplacer) ; APG Grid
+  - où : `web/v2/ui/src/components/DataGrid/` (`DataGrid.vue`, `grid.ts`, catalogue),
+    `internal/cellEditor.ts`, `internal/virtualRows.ts`, `internal/gridKeys.ts` ;
+    script `web/v2/e2e/components/data-grid.spec.ts` ; comportement de l'ancien
+    `web/shell/src/data/DataTable.vue`, `admin/PagedTable.vue` ; APG Grid
   - dépend de : 24
   - fait : `DataGrid` (`web/v2/ui/src/components/DataGrid/`) : Pg préc./suiv. d'un écran
     de lignes (`moveInGrid`, paramètre `page`) ; sélection Maj+Haut/Bas depuis l'ancre
@@ -1017,7 +1019,7 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     (`demo/extensionCell.ts`). Script `e2e/components/data-grid.spec.ts` (8 cas : arrêt
     unique et déplacements, en-tête, sélection, édition et états de l'hôte, largeur,
     10⁴ lignes avec 500 × Flèche bas exact et ligne du focus gardée, extension) ; Vitest :
-    gabarits, plage, largeurs de jeton, blancs, 10⁴ lignes en SSR (< 300 lignes rendues),
+    gabarits, plage, largeurs de jeton, blancs, 10⁴ lignes en SSR,
     `rowCount`, extension, éditeur décrit par sa bulle. Revues `a11y-auditor` et
     `ui-reviewer` ; corrigés : F2 d'un en-tête passe aussi par l'entonnoir,
     `aria-keyshortcuts` ; largeurs remesurées quand une colonne revient ou que l'hôte les
@@ -1036,20 +1038,38 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     en-têtes) ; nouvelles : `keyboard`, `virtual`, `editing-error`, `resized`,
     `resize-focus`, `extension`.
     Banc filtre/tri/édition : tâche 27 (aucun lancé).
+  - après la fusion de main (020-23) et la revue de la branche : E11 suit le contrat
+    d'édition (`editable`, `commit` ; Espace ou clic choisit la ligne, Entrée ou F2
+    modifie ; aide et script réécrits) ; E3 : colonne « Site » en `sm` (la grille tient à
+    1280 px sans défilement de côté) ; sortie de l'éditeur : un texte inchangé ne valide
+    jamais, le focus parti ailleurs dans la page valide un texte changé, parti hors de la
+    fenêtre laisse l'éditeur ouvert ; refus local dit avec « Échap annule la saisie. » ;
+    case native remise d'après le modèle après un Maj+clic ; `MutationObserver` dès
+    qu'une colonne d'extension existe (aussi venue après), attributs `tabindex`, `href`,
+    `contenteditable`, sous-arbre muté seulement ; `rowOffset` (`aria-rowindex` d'une
+    liste dont les premières pages sont tombées) ; `window` = lignes en vue, virtualisée
+    ou non (lu au défilement de tout conteneur, une fois par image) ; Pg préc./suiv. des
+    lignes mesurées en vue ; hauteur de ligne relue au changement de densité ; commits
+    suivis jusqu'à l'état de l'hôte ou la valeur appliquée, 64 au plus ; `pointercancel`
+    n'est pas un clic ; contrat et lignes gardées montées en composables
+    (`internal/cellEditor.ts`, `internal/virtualRows.ts`, pour la tâche 26). Script :
+    10 cas (dont Maj+clic, sortie de l'éditeur, fenêtre ; glisser de la poignée et contrôle
+    tardif d'extension ajoutés aux cas de la largeur et de l'extension) ; Vitest : contrat d'édition, suivi des commits, `keptIndexes`,
+    `rowOffset` (le compte des lignes rendues est au script).
   - choix : redimensionnement et colonne de cases sans option de colonne (`resizable` sur
     la grille ; cases dès que `selectable` vaut `true`) ; un clic sur la poignée sans
     glisser passe à la largeur de jeton suivante (alternative à un pointeur, 2.5.7) plutôt
     qu'un menu par en-tête ; Tab dans l'éditeur valide puis passe à la cellule voisine de
-    la ligne ; une grille sans `editable` laisse les touches de l'éditeur à l'hôte (E11
-    garde les siennes) ; l'éditeur par défaut est un champ natif dans `k-field-frame`
-    (`TextField` grandissait la cellule de son erreur) ; seuil de virtualisation 200 lignes
-    comme `DiffList`.
-  - restent : E11 édite par ses propres gestionnaires (Entrée y choisit la ligne, F2
-    modifie), contre le contrat (Entrée ouvre l'éditeur) : à trancher avec 017 ; E3
-    `selection` à 1280 px : la colonne de cases (44 px) fait défiler la grille en place
-    (VLAN atteint par le défilement, clé et cases collantes ; les seuils `@container` sont
-    fixes) — à trancher : une colonne de plus en priorité 3, ou des cases plus étroites ;
-    grille plus étroite que son cadre (colonnes redimensionnées) : en-tête et filets
+    la ligne ; une grille sans `editable` laisse les touches de l'éditeur à l'hôte ;
+    l'éditeur par défaut est un champ natif dans `k-field-frame` (`TextField` grandissait
+    la cellule de son erreur) ; seuil de virtualisation 200 lignes comme `DiffList` ;
+    arbitrages du coordinateur : E11 passé au contrat (Espace ou clic choisit) ; E3 tenu
+    à 1280 px par une colonne plus étroite (« Site » en `sm`) plutôt qu'une priorité 3, qui
+    ne masque rien au-dessus de 960 px de conteneur ; refus local : la sortie (Échap) dite
+    plutôt que Tab qui sortirait en laissant l'erreur.
+  - restent (à arbitrer) : REQ-020-19 dit « hauteur de ligne fixe tirée de la densité »,
+    le design et le code mesurent les hauteurs (colonne `wrap` qui grandit) ; grille plus
+    étroite que son cadre (colonnes redimensionnées) : en-tête et filets
     s'arrêtent à la dernière colonne ; liseré de sélection redondant avec la case ; une hauteur bornée par l'hôte au lieu de
     `--k-size-list-max` pour une grille virtualisée plein écran (021-11) ; lecture au
     lecteur d'écran (annonce de `aria-sort`, erreur dite deux fois : alerte et

@@ -959,6 +959,13 @@ Contrat d'édition en place (`DataGrid`, `TreeGrid`, REQ-020-19), indépendant d
 - Entrée ou F2 ouvre l'éditeur ; Échap annule ; Entrée ou Tab valide et émet
   `commit({ row, column, value })` ; l'hôte rend ensuite l'état de la cellule :
   `pending`, `draft`, `review`, `error` (avec code) ou valeur appliquée ;
+- un texte inchangé n'émet jamais `commit` (l'éditeur se ferme, Tab passe à la cellule
+  suivante) ; le focus qui part ailleurs dans la page valide un texte changé ; le focus
+  qui quitte la fenêtre (`relatedTarget` nul) laisse l'éditeur ouvert ; un texte refusé
+  par la vérification locale garde l'éditeur ouvert, son motif dit avec la sortie
+  (« Échap annule la saisie. », WCAG 2.1.2) ; logique commune aux grilles :
+  `internal/cellEditor.ts` (`useCellEditor`, `useCommitWatch`), lignes gardées montées :
+  `internal/virtualRows.ts` ;
 - en mode navigation, les flèches déplacent la cellule active (APG Grid) ; en mode
   édition, elles appartiennent à l'éditeur ;
 - l'arbre ne change jamais lui-même la place d'un nœud : il rend la relation
