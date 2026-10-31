@@ -640,6 +640,13 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     par le mois ; semaine du lundi (ISO 8601) ; « Hier » à la même heure ; « Appliquer »
     plutôt que « Lire à cette date » ; fuseau par défaut celui du navigateur, toujours
     écrit ; `PeriodPicker` sans surface propre (la couche est à la `DatePill`, tâche 23).
+    Relecture avant fusion : un instant collé avec son `Z` ou son décalage est cet instant,
+    montré dans le fuseau du champ (`pastedEntry`), une suite de séparateurs et d'espaces
+    compte pour un (« 2025 - 11 - 03 09:30 ») ; un collage écrit la valeur s'il tient et ne
+    refuse qu'au départ du champ, comme la frappe ; un instant dont l'année en UTC sort de
+    0001…9999 est refusé (RFC 3339 `date-fullyear`) ; `as_of` futur refusé strictement à
+    l'horloge du navigateur, le refus de l'API (`now()` de la base) rendu sur son champ par
+    la prop `errors` (état `host`) ; aide de « Valide au » : passée ou à venir (REQ-007-23).
     Restent (à vérifier ou à arbitrer) : `FilterPicker` garde un `TextField` pour le type
     `date` (le prendre suppose `check()` à l'application, une valeur hors type lue dans
     l'URL et le focus sur un segment) ; lecture réelle des segments `contenteditable` au
@@ -662,7 +669,10 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
 - [ ] 23. `SidebarNav` (repliable, groupes), `CommandPalette`, `DatePill`,
   `DraftCounter`, `TimeBand` — verify : palette (Combobox dans Dialog) au clavier ;
   barre latérale repliée : noms accessibles et infobulles
-  - où : `web/shell/src/app/AppShell.vue`, `navigation.ts` (entrées actuelles)
+  - où : `web/shell/src/app/AppShell.vue`, `navigation.ts` (entrées actuelles) ; `DatePill`
+    ouvre `PeriodPicker` (`web/v2/ui/src/components/PeriodPicker/PeriodPicker.vue`) et
+    rend un 400 de l'API sur `valid_at` ou `as_of` sur son champ par la prop `errors`
+    (état `host` du catalogue ; 006 compare `as_of` au `now()` de la base)
   - dépend de : 22
 - [ ] 24. `CodeBadge` (copie annoncée), `KeyLabel`, `EnvChip`, `StatusBadge`,
   `Skeleton`, `EmptyState`, `ErrorState`, `DiffList` — REQ-020-21 à 23 — verify : copie
