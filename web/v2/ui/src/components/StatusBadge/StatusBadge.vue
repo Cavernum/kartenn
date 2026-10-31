@@ -4,12 +4,24 @@
 
 <script setup lang="ts">
 // A state (design « Inventaire », line 24; REQ-020-7): its colour, its icon and its label,
-// never the colour alone (WCAG 1.4.1). The icon is decorative: the label names the state.
+// never the colour alone (WCAG 1.4.1). The icon is decorative: the label names the state;
+// without one, the default word of the state (design « États »). In forced colours, the
+// border, the icon and the label stay, in the colours of the system.
 import type { IconName } from "../../icons/index.ts";
+import { t, type MessageKey } from "../../i18n.ts";
 import type { State } from "../../tokens/index.ts";
 import Icon from "../Icon/Icon.vue";
 
-const props = defineProps<{ state: State; label: string }>();
+const props = defineProps<{ state: State; label?: string | undefined }>();
+
+const WORDS: Record<State, MessageKey> = {
+  ok: "stateOk",
+  warn: "stateWarn",
+  ko: "stateKo",
+  review: "stateReview",
+  info: "stateInfo",
+  neutral: "stateNeutral",
+};
 
 const ICONS: Record<State, IconName> = {
   ok: "circle-check",
@@ -23,7 +35,7 @@ const ICONS: Record<State, IconName> = {
 
 <template>
   <span class="k-status-badge" :data-state="props.state">
-    <Icon :name="ICONS[props.state]" />{{ props.label }}
+    <Icon :name="ICONS[props.state]" />{{ props.label ?? t(WORDS[props.state]) }}
   </span>
 </template>
 

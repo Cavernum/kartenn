@@ -5,6 +5,7 @@
 import { defineComponent, h, ref, type Component } from "vue";
 import type { CatalogueEntry } from "../../catalogue.ts";
 import DemoFrame from "../../demo/DemoFrame.vue";
+import { settleDemo } from "../../demo/settle.ts";
 import { environments, prefixes } from "../../fixtures/index.ts";
 import DataGrid from "./DataGrid.vue";
 import type { CellState, GridColumn } from "./grid.ts";
@@ -185,6 +186,16 @@ export default {
       description:
         "Chargement : squelettes animés dans les cellules (immobiles sous mouvement réduit)",
       props: { ...base, loading: true },
+      wide: true,
+    },
+    {
+      name: "settle",
+      description:
+        "Du squelette aux données : les lignes prennent la place de leurs squelettes, rien ne bouge (CLS 0)",
+      props: {},
+      demo: settleDemo((loading) =>
+        h(DataGrid as Component, { ...base, loading, loadingRows: rows.length }),
+      ),
       wide: true,
     },
     {

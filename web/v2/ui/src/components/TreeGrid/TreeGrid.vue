@@ -34,6 +34,7 @@ import {
 } from "../DataGrid/grid.ts";
 import Icon from "../Icon/Icon.vue";
 import IconButton from "../IconButton/IconButton.vue";
+import Skeleton from "../Skeleton/Skeleton.vue";
 import ColumnChooser from "../internal/ColumnChooser.vue";
 
 defineOptions({ inheritAttrs: false });
@@ -50,12 +51,19 @@ const props = withDefaults(
     nodeState?: ((node: TreeNode) => TreeNodeState | undefined) | undefined;
     /** The name of the « + » of a node (« Ajouter dans 192.0.2.0/24 »); none, no button. */
     addLabel?: ((node: TreeNode) => string | undefined) | undefined;
+    /**
+     * The nodes are coming: skeleton rows of the height of a row, in the cells, the tree
+     * busy (REQ-020-23); as many as the host expects, so that the nodes take their place.
+     */
+    loading?: boolean;
+    loadingRows?: number;
   }>(),
   {
     columns: () => [],
     selected: undefined,
     nodeState: undefined,
     addLabel: undefined,
+    loadingRows: 5,
   },
 );
 const emit = defineEmits<{ add: [id: string] }>();
@@ -193,6 +201,7 @@ const word = (node: TreeNode) => {
       role="treegrid"
       :aria-label="props.label"
       :aria-colcount="props.columns.length + 1"
+      :aria-busy="props.loading ? 'true' : undefined"
       :style="template"
       @keydown="onKeydown"
       @focusin="onFocusin"
@@ -217,7 +226,40 @@ const word = (node: TreeNode) => {
           </div>
         </div>
       </div>
-      <div role="rowgroup">
+      <div v-if="props.loading" role="rowgroup">
+        <div
+          v-for="r in props.loadingRows"
+          :key="r"
+          role="row"
+          class="k-tree-grid__row"
+          aria-level="1"
+        >
+          <!-- The tree keeps its tab stop while it loads: the cell that says it. -->
+          <div
+            role="gridcell"
+            class="k-tree-grid__cell k-tree-grid__node"
+            aria-colindex="1"
+            :tabindex="r === 1 ? 0 : undefined"
+          >
+            <span class="k-tree-grid__twisty" aria-hidden="true"></span>
+            <span v-if="r === 1" class="k-visually-hidden">{{ t("loading") }}</span>
+            <Skeleton variant="cell" :rows="r" :columns="0" />
+          </div>
+          <div
+            v-for="(column, c) in shown"
+            :key="column.id"
+            role="gridcell"
+            class="k-tree-grid__cell"
+            :data-align="column.align"
+            :data-priority="priority(column)"
+            :data-width="column.width ?? 'md'"
+            :aria-colindex="colIndex(column)"
+          >
+            <Skeleton variant="cell" :rows="r" :columns="c + 1" />
+          </div>
+        </div>
+      </div>
+      <div v-else role="rowgroup">
         <template v-for="row in rows" :key="row.node.id">
           <div
             role="row"
@@ -317,7 +359,7 @@ const word = (node: TreeNode) => {
               :style="{ '--k-tree-depth': String(row.level) }"
             >
               <span class="k-tree-grid__twisty" aria-hidden="true"></span>
-              <span class="k-tree-grid__bar" aria-hidden="true"></span>
+              <span class="k-tree-grid__bar k-skeleton-fill" aria-hidden="true"></span>
               <span class="k-visually-hidden">{{ t("childrenLoading") }}</span>
             </div>
           </div>
@@ -563,8 +605,7 @@ const word = (node: TreeNode) => {
 
   .k-tree-grid__bar {
     inline-size: var(--k-size-col-md);
-    block-size: var(--k-space-2);
-    background-color: var(--k-surface-sunken);
+    block-size: var(--k-space-3);
     border-radius: var(--k-radius-sm);
   }
 }

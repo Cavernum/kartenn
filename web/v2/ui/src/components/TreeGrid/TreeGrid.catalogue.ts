@@ -2,10 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import { h, type Component } from "vue";
 import type { CatalogueEntry } from "../../catalogue.ts";
+import { settleDemo } from "../../demo/settle.ts";
 import type { GridColumn } from "../DataGrid/grid.ts";
 import TreeGrid from "./TreeGrid.vue";
-import type { TreeNode, TreeNodeState } from "./tree.ts";
+import { flatten, type TreeNode, type TreeNodeState } from "./tree.ts";
 
 const columns: GridColumn[] = [
   { id: "env", label: "Environnement", width: "md" },
@@ -81,6 +83,26 @@ export default {
       name: "expanded",
       description: "Domaine et préfixe dépliés, un nœud sélectionné",
       props: { ...base, selected: "p2" },
+      wide: true,
+    },
+    {
+      name: "loading",
+      description: "Chargement : une ligne de squelettes par nœud attendu, l'arbre occupé",
+      props: { ...base, loading: true },
+      wide: true,
+    },
+    {
+      name: "settle",
+      description:
+        "Du squelette aux nœuds : les lignes prennent la place de leurs squelettes, rien ne bouge (CLS 0)",
+      props: {},
+      demo: settleDemo((loading) =>
+        h(TreeGrid as Component, {
+          ...base,
+          loading,
+          loadingRows: flatten(nodes, new Set(base.expanded)).length,
+        }),
+      ),
       wide: true,
     },
     {

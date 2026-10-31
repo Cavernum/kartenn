@@ -12,6 +12,7 @@ import {
   checkFilter,
   checkValue,
   filterParam,
+  filterQuery,
   filterSentence,
   filtersFromParams,
   filtersToParams,
@@ -51,6 +52,16 @@ describe("the URL of the filters", () => {
         "created:between=..2026-01-15&prop.policy.environment:exists=true&" +
         "prop.core.owner:exists=false&prop.core.description:contains=dns&created:after=2026-01-01",
     );
+  });
+
+  it("gives each filter its part of the query, keys only (REQ-020-21)", () => {
+    expect(filterQuery(model, { key: "usage", operator: "eq", values: ["host", "vip"] })).toBe(
+      "usage=host&usage=vip",
+    );
+    expect(filterQuery(model, { key: "prop.core.owner", operator: "absent", values: [] })).toBe(
+      "prop.core.owner:exists=false",
+    );
+    expect(filterQuery(model, { key: "usage", operator: "eq", values: [], draft: true })).toBe("");
   });
 
   it("leaves the drafts out", () => {
