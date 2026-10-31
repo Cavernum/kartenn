@@ -15,9 +15,10 @@ export const PAGE_ROWS = 10;
  * Where the focus goes for `event` in a grid of `rows` × `columns` cells (APG Grid,
  * « Keyboard interaction » of data grids): arrows by one cell, Home and End to the ends
  * of the row, Ctrl+Home and Ctrl+End to the first and last cell, Page Up and Page Down by
- * a page of rows; null for a key the grid leaves alone. The inline arrows follow the
- * direction of the text (`rtl`). With Alt, nothing: Alt+Left and Alt+Right belong to the
- * browser (history), Alt+Down to the filter of a header.
+ * a page of rows (`page`, the rows of one screen where the grid knows it); null for a key
+ * the grid leaves alone. The inline arrows follow the direction of the text (`rtl`). With
+ * Alt, nothing: Alt+Left and Alt+Right belong to the browser (history), Alt+Down to the
+ * filter of a header.
  */
 export function moveInGrid(
   from: GridPosition,
@@ -25,6 +26,7 @@ export function moveInGrid(
   rows: number,
   columns: number,
   rtl = false,
+  page = PAGE_ROWS,
 ): GridPosition | null {
   if (event.altKey) return null;
   const clamp = (row: number, column: number): GridPosition => ({
@@ -47,9 +49,9 @@ export function moveInGrid(
     case "End":
       return clamp(ctrl ? rows - 1 : from.row, columns - 1);
     case "PageDown":
-      return clamp(from.row + PAGE_ROWS, from.column);
+      return clamp(from.row + page, from.column);
     case "PageUp":
-      return clamp(from.row - PAGE_ROWS, from.column);
+      return clamp(from.row - page, from.column);
     default:
       return null;
   }
