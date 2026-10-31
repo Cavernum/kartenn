@@ -989,8 +989,12 @@ interface TreeMoveProps<N> {
 - `declared` : glisser-déposer, **et** « Couper » (Ctrl+X) puis « Coller dans » (Ctrl+V)
   sur la cible, **et** « Déplacer vers… » (`Combobox` des seules cibles où `canMove` rend
   `ok`). Pendant un glisser, la cible survolée n'est mise en évidence (`data-drop="ok"`)
-  qu'après `canMove` ; sinon `data-drop="refused"`, infobulle du motif et `CodeBadge` du
-  code, annonce `role="status"` ; `dragover` sans `preventDefault`, donc dépôt impossible.
+  qu'après `canMove` ; sinon `data-drop="refused"`, motif écrit en ligne dans la ligne
+  (lu par sa description) et `CodeBadge` du code, annonce `role="status"` ; `dragenter` et
+  `dragover` sans `preventDefault`, donc dépôt impossible (tâche 26 : en ligne plutôt
+  qu'en infobulle, le motif reste lisible sans survol). Un nœud dont le déplacement est
+  en attente n'est ni glissable ni coupable jusqu'à la réponse (pas de seconde intention
+  en vol).
 - Après un dépôt accepté : `onMove(intention)` ; le nœud garde sa place d'origine avec
   `moveState = 'pending'` (icône et `aria-busy`) ; il ne change de place que si le modèle
   fourni par l'hôte change ; `refused` affiche motif et code sur le nœud.

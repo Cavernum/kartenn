@@ -1146,12 +1146,30 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     gardée jusqu'à la cible suivante ou la fin du glisser (la plateforme quitte aussitôt
     une cible non acceptée) ; boutons de copie d'un motif hors tabulation dans `Tree`
     (pointeur seul ; code lu dans la description) ; démo de pages servie par un bouton
-    (captures stables).
+    (captures stables) ; décision de la session principale : un nœud `pending` n'est ni
+    glissable ni coupable ni proposé à « Déplacer vers… » jusqu'à la réponse (pas de
+    seconde intention en vol) ; `happy-dom` (déjà dans l'espace, version de `shell` et
+    `sdk`) en dépendance de développement de `@kartenn/ui` pour les instances montées.
+  - après la revue de la branche : `canMove` lu à chaque appel (prop changée ou retirée
+    après le montage, sans erreur) ; verdict sous le pointeur repris quand le modèle ou
+    `canMove` change pendant un glisser (`recheck`) ; garde d'affichage sur les lignes
+    rendues (`misplacedRendered`, `guardRendered` : fenêtre, lignes gardées, intervalles,
+    parent lu dans les nœuds du modèle) ; page annoncée pour ses seuls nouveaux enfants
+    (`pageGrowth` : ni un nœud déplacé dedans, ni un retrait) ; `DataGrid` passe sur
+    `useVirtualRows` et `useCellErrors` (captures et scripts inchangés). Test de propriété
+    déplacé sur des instances montées (`test/trees-mounted.test.ts`, happy-dom) :
+    `TreeGrid` et `Tree`, plus de 200 lignes, ligne du focus gardée hors fenêtre,
+    modèles successifs, dépôts par les événements de la plateforme et le `useTreeMove`
+    du composant, invariant lu sur les lignes rendues ; `canMove` dans les deux sens ;
+    nœud en attente ni glissé ni coupé.
   - restent : à 390 px, E1 coupe encore des libellés devant leur préfixe
     (« Supervisi… ») ; contour et règles CSS de `Tree` et `TreeGrid` encore en double
     (préfixes différents) ; lecture au lecteur d'écran (nom de ligne, description cachée,
     ligne « Afficher la suite ») ; l'hôte d'un arbre `declared` doit offrir « Déplacer
-    vers… » (aucun écran réel encore).
+    vers… » (aucun écran réel encore) ; la question ouverte de la 25 (REQ-020-19
+    « hauteur de ligne fixe » contre hauteurs mesurées) vaut aussi pour `Tree` et
+    `TreeGrid` (`measureElement`) ; pour la 27 : mesurer le coût de `refusedKeys`
+    (`moveState` lu sur toutes les lignes à chaque changement).
 
 ## P5 — Budgets et clôture
 
