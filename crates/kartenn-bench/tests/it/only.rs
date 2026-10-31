@@ -10,7 +10,7 @@
 //! tests (ADR 0028): `kartenn-testing-clean` drops those a failed test leaves.
 
 use std::collections::BTreeMap;
-use std::process::Command;
+use std::process::{Command, Output};
 
 use sqlx::{Connection, PgConnection};
 use tokio::runtime::Runtime;
@@ -34,13 +34,13 @@ fn url_of(name: &str) -> String {
 }
 
 /// A connection to the cluster that holds [`SERIAL`] until it is dropped.
-struct Serial {
-    runtime: Runtime,
-    conn: PgConnection,
+pub(crate) struct Serial {
+    pub(crate) runtime: Runtime,
+    pub(crate) conn: PgConnection,
 }
 
 impl Serial {
-    fn take() -> Self {
+    pub(crate) fn take() -> Self {
         let runtime = Runtime::new().expect("a runtime");
         let conn = runtime.block_on(async {
             let mut conn = PgConnection::connect_with(&kartenn_testing::master_options())
@@ -56,9 +56,52 @@ impl Serial {
         Self { runtime, conn }
     }
 
-    /// `kartenn-bench <bench> <url> 42 small [--only <only>]` on an empty database; its
-    /// standard output. The database is dropped when the run went to its end.
-    fn run(&mut self, bench: &str, only: Option<&str>) -> String {
+    /// The templates of `bench` in the cluster, oldest first, and whether each accepts
+    /// connections.
+    pub(crate) fn templates(&mut self, bench: &str) -> Vec<(String, bool)> {
+        self.runtime
+            .block_on(
+                sqlx::query_as(
+                    "SELECT datname::text, datallowconn FROM pg_database
+                      WHERE datname ~ ('^kartenn_bench_tpl_' || $1 || '_[0-9a-f]{16}$')
+                      ORDER BY oid",
+                )
+                .bind(bench)
+                .fetch_all(&mut self.conn),
+            )
+            .expect("listing the templates")
+    }
+
+    /// Drops the templates of `bench` in the cluster.
+    pub(crate) fn drop_templates(&mut self, bench: &str) {
+        for (name, _) in self.templates(bench) {
+            self.runtime
+                .block_on(
+                    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+                        r#"DROP DATABASE IF EXISTS "{name}" WITH (FORCE)"#
+                    )))
+                    .execute(&mut self.conn),
+                )
+                .expect("dropping a template");
+        }
+    }
+
+    /// `kartenn-bench <bench> <url> 42 small [--only <only>] <extra>` on an empty database;
+    /// its standard output. The database is dropped when the run went to its end.
+    pub(crate) fn run_with(&mut self, bench: &str, only: Option<&str>, extra: &[&str]) -> String {
+        let output = self.output(bench, only, extra);
+        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        assert!(
+            stdout.lines().any(|l| l == CAVEAT),
+            "{bench} {only:?} did not reach its verdicts:\n{stdout}\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        stdout
+    }
+
+    /// The output of `kartenn-bench <bench> <url> 42 small [--only <only>] <extra>` on an
+    /// empty database, dropped after the run.
+    pub(crate) fn output(&mut self, bench: &str, only: Option<&str>, extra: &[&str]) -> Output {
         let name = kartenn_testing::database_name(&format!(
             "kartenn_bench::only::{bench}::{}",
             only.unwrap_or("*")
@@ -69,21 +112,16 @@ impl Serial {
         let mut command = Command::new(env!("CARGO_BIN_EXE_kartenn-bench"));
         command
             .args([bench, &url_of(&name), "42", "small"])
+            .args(extra)
             .env_remove("K_BENCH_SCALE");
         if let Some(only) = only {
             command.args(["--only", only]);
         }
         let output = command.output().expect("running kartenn-bench");
-        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-        assert!(
-            stdout.lines().any(|l| l == CAVEAT),
-            "{bench} {only:?} did not reach its verdicts:\n{stdout}\n{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
         self.runtime
             .block_on(kartenn_testing::drop_database(&mut self.conn, &name))
             .expect("dropping the database of the bench");
-        stdout
+        output
     }
 }
 
@@ -120,7 +158,7 @@ fn steady(rest: &str) -> String {
 }
 
 /// The `PASS` and `FAIL` lines of a report by budget, in their order, made [`steady`].
-fn budgets(report: &str) -> BTreeMap<String, Vec<String>> {
+pub(crate) fn budgets(report: &str) -> BTreeMap<String, Vec<String>> {
     let mut budgets: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for line in report.lines() {
         if let Some(("PASS" | "FAIL", rest)) = line.split_once(' ') {
@@ -134,10 +172,19 @@ fn budgets(report: &str) -> BTreeMap<String, Vec<String>> {
 /// bench; on `same`, the same line as there, its timings blanked (the last of a budget:
 /// the modelled overhead of `telemetry`); `present` there and alone (a line whose counts
 /// follow the draws, which differ alone).
+///
+/// Both run through a template (ADR 0041, decision 2): the whole bench prepares and keeps
+/// it, the measure alone runs on its copy, without preparing.
 fn alone_as_in_the_whole(bench: &str, only: &str, same: &[&str], present: &[&str]) {
     let mut serial = Serial::take();
-    let whole = serial.run(bench, None);
-    let alone = serial.run(bench, Some(only));
+    serial.drop_templates(bench);
+    let whole = serial.run_with(bench, None, &["--template"]);
+    let alone = serial.run_with(bench, Some(only), &["--template"]);
+    serial.drop_templates(bench);
+    assert!(
+        alone.contains("INFO prepared database: copy of kartenn_bench_tpl_"),
+        "{alone}"
+    );
     let asked = format!("mesures : {}", only.replace(',', ", "));
     assert!(alone.lines().any(|l| l.starts_with(&asked)), "{alone}");
     let (all, mine) = (budgets(&whole), budgets(&alone));

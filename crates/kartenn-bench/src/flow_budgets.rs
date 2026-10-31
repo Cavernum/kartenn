@@ -29,11 +29,13 @@ use kartenn_store_pg::write::PgStore;
 use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde_json::{Value, json};
+use sqlx::PgPool;
 use sqlx::types::Uuid;
 
-use crate::core_budgets::{Prepared, prepare, unitary};
+use crate::core_budgets::{Ids, Prepared, prepare_with, unitary};
 use crate::measures::{Bench, Measure, Selection};
 use crate::props::{Budget, p95, progress, verdict};
+use crate::template::Reuse;
 use crate::vlan_budgets::{app, get, import, reader, reader_on, sync};
 use crate::{Dataset, Nature, Prefix};
 
@@ -238,46 +240,188 @@ fn median(mut samples: Vec<Duration>) -> Duration {
     samples[samples.len() / 2]
 }
 
-/// Loads the dataset, deploys the modules, the policy and the flows, and measures;
-/// returns the report and whether every budget holds.
-///
-/// # Errors
-///
-/// Database, pipeline or router failures.
-#[allow(clippy::too_many_lines)] // one linear scenario, step by step
-#[allow(clippy::many_single_char_names)] // the indices of the grid of the policy
-pub async fn run(
-    database: &str,
-    data: &Dataset,
-    seed: u64,
-    selection: &Selection,
-) -> anyhow::Result<(String, bool)> {
-    let started = Instant::now();
-    let Prepared {
-        pool,
-        author,
-        mut report,
-        ..
-    } = prepare(database, data, seed).await?;
-    let mut rng = ChaCha8Rng::seed_from_u64(seed.wrapping_add(11));
-    // The flows: 10⁵ on the reference dataset, else a tenth of the addresses, as there.
-    let (flows, hot_flows) = if data.addresses.len() >= FLOWS * 2 {
+/// The flows: 10⁵ on the reference dataset, else a tenth of the addresses, as there; and
+/// those that leave the hot container.
+fn flow_counts(data: &Dataset) -> (usize, usize) {
+    if data.addresses.len() >= FLOWS * 2 {
         (FLOWS, HOT)
     } else {
         let flows = data.addresses.len() / 10;
         (flows, flows / 10)
-    };
-    let environments = environments_for(flows);
+    }
+}
 
-    // The deployment of a build with the four modules, as `vlan_budgets` does: the
-    // declarations without their obligations, an owner on each loaded domain, then all.
+/// A build with the four modules.
+fn registry() -> anyhow::Result<Arc<ModuleRegistry>> {
     let modules: Vec<Arc<dyn Module>> = vec![
         Arc::new(kartenn_machines::Machines),
         Arc::new(kartenn_policy::Policy),
         Arc::new(kartenn_flow::Flows),
     ];
-    let registry = Arc::new(ModuleRegistry::new(modules)?);
-    kartenn_store_pg::modules::migrate(&pool, &registry).await?;
+    Ok(Arc::new(ModuleRegistry::new(modules)?))
+}
+
+/// The classified containers ([`zones`]) by domain and from the largest: the first two,
+/// of one domain and of comparable size, are the hot container 10⁴ flows leave and the
+/// cold one no flow touches.
+fn sorted_zones(data: &Dataset, environments: usize) -> anyhow::Result<Vec<Zone>> {
+    let mut zones = zones(data, environments);
+    if zones.len() < 4 {
+        bail!(
+            "{} containers to classify, 4 at least expected",
+            zones.len()
+        );
+    }
+    zones.sort_by_key(|z| (z.domain, std::cmp::Reverse(z.addresses.len())));
+    if zones[0].domain != zones[1].domain {
+        bail!("no domain with two classified containers");
+    }
+    Ok(zones)
+}
+
+/// The machines of [`PER_MACHINE`] addresses, in pairs whose cells allow one of the
+/// services: the pairs `(machine, machine, flow type)`, and each machine's container and
+/// the range of its addresses there (each takes the next ones: an address has one
+/// interface).
+type Hosts = (
+    Vec<(usize, usize, usize)>,
+    Vec<(usize, std::ops::Range<usize>)>,
+);
+
+fn machine_pairs(zones: &[Zone]) -> anyhow::Result<Hosts> {
+    let mut pairs = Vec::new();
+    let mut hosts = Vec::new();
+    let mut taken = vec![0; zones.len()];
+    'pairs: for x in 2..zones.len() {
+        for y in 2..zones.len() {
+            if pairs.len() == PAIRS {
+                break 'pairs;
+            }
+            let (a, b) = (&zones[x], &zones[y]);
+            let free = |z: usize| zones[z].addresses.len() >= taken[z] + PER_MACHINE;
+            if x == y || !free(x) || !free(y) {
+                continue;
+            }
+            let Some(k) = (0..FLOW_TYPES).find(|&k| !denied(a.environment, b.environment, k))
+            else {
+                continue;
+            };
+            let m = hosts.len();
+            for z in [x, y] {
+                hosts.push((z, taken[z]..taken[z] + PER_MACHINE));
+                taken[z] += PER_MACHINE;
+            }
+            pairs.push((m, m + 1, k));
+        }
+    }
+    if pairs.is_empty() {
+        bail!("no pair of containers for the machines 16 × 16");
+    }
+    Ok((pairs, hosts))
+}
+
+/// The flows of the bench, allowed by construction (a denied one needs a waiver): the
+/// source, destination and service of each, the first `hot_flows` leaving the hot
+/// container (the first of `zones`). The run that prepares draws them; the next ones
+/// draw them again, without writing, so that the measures draw what follows, as there.
+fn draw_flows(
+    zones: &[Zone],
+    services: &[Uuid],
+    flows: usize,
+    hot_flows: usize,
+    rng: &mut ChaCha8Rng,
+) -> Vec<(Uuid, Uuid, Uuid)> {
+    let hot = 0;
+    let others: Vec<usize> = (2..zones.len()).collect();
+    let mut drawn = HashSet::new();
+    let mut out = Vec::with_capacity(flows);
+    while out.len() < flows {
+        let source_zone = if out.len() < hot_flows {
+            hot
+        } else {
+            others[rng.random_range(0..others.len())]
+        };
+        let destination_zone = others[rng.random_range(0..others.len())];
+        let (s, d) = (&zones[source_zone], &zones[destination_zone]);
+        let k = rng.random_range(0..FLOW_TYPES);
+        if denied(s.environment, d.environment, k) {
+            continue;
+        }
+        let source = s.addresses[rng.random_range(0..s.addresses.len())];
+        let destination = d.addresses[rng.random_range(0..d.addresses.len())];
+        // A service of the flow type `k`.
+        let used = services[k * SERVICES_PER_TYPE + rng.random_range(0..SERVICES_PER_TYPE)];
+        if source == destination || !drawn.insert((source, destination, used)) {
+            continue;
+        }
+        out.push((source, destination, used));
+    }
+    out
+}
+
+/// The entities of the bench, `bench-flow-<e>`.
+async fn entities(pool: &PgPool) -> anyhow::Result<Vec<Uuid>> {
+    let mut entities = Vec::with_capacity(ENTITIES);
+    for e in 0..ENTITIES {
+        entities.push(
+            sqlx::query_scalar::<_, Uuid>(
+                "SELECT id FROM entity WHERE slug = $1 AND valid_period @> now()",
+            )
+            .bind(format!("bench-flow-{e}"))
+            .fetch_one(pool)
+            .await
+            .context("an entity of the preparation")?,
+        );
+    }
+    Ok(entities)
+}
+
+/// The services of the policy of the bench, by key.
+async fn services(pool: &PgPool) -> anyhow::Result<Vec<Uuid>> {
+    let services: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT s.id FROM policy.policy_service s WHERE s.key LIKE 'svc%' ORDER BY s.key",
+    )
+    .fetch_all(pool)
+    .await?;
+    if services.len() != FLOW_TYPES * SERVICES_PER_TYPE {
+        bail!(
+            "{} services, {} expected",
+            services.len(),
+            FLOW_TYPES * SERVICES_PER_TYPE
+        );
+    }
+    Ok(services)
+}
+
+/// The identifier of the property `key`.
+async fn property(pool: &PgPool, key: &str) -> anyhow::Result<Uuid> {
+    sqlx::query_scalar::<_, Uuid>("SELECT id FROM property_declaration WHERE key = $1")
+        .bind(key)
+        .fetch_one(pool)
+        .await
+        .with_context(|| format!("the property {key}"))
+}
+
+/// The preparation of the flows, after that of the core: the modules deployed, the
+/// entities and the owners, the policy, the classification, the flows, the machines.
+#[allow(clippy::too_many_lines)] // one linear scenario, step by step
+#[allow(clippy::many_single_char_names)] // the indices of the grid of the policy
+async fn write(
+    pool: &PgPool,
+    author: Uuid,
+    data: &Dataset,
+    seed: u64,
+    report: &mut String,
+) -> anyhow::Result<()> {
+    let started = Instant::now();
+    let mut rng = ChaCha8Rng::seed_from_u64(seed.wrapping_add(11));
+    let (flows, hot_flows) = flow_counts(data);
+    let environments = environments_for(flows);
+
+    // The deployment of a build with the four modules, as `vlan_budgets` does: the
+    // declarations without their obligations, an owner on each loaded domain, then all.
+    let registry = registry()?;
+    kartenn_store_pg::modules::migrate(pool, &registry).await?;
     let store = PgStore::new(pool.clone()).with_modules(registry.clone());
     let declarations: Vec<_> = std::iter::once(core_declarations_for(&registry))
         .chain(registry.modules().filter_map(|m| m.declarations()))
@@ -289,42 +433,23 @@ pub async fn run(
         }
     }
     sync(&store, &relaxed).await?;
-    let mut entities = Vec::new();
     for e in 0..ENTITIES {
-        let slug = format!("bench-flow-{e}");
         unitary(
             &store,
             author,
             Operation::CreateEntity {
                 local: None,
-                slug: slug.clone(),
+                slug: format!("bench-flow-{e}"),
                 parent: None,
             },
         )
         .await?;
-        entities.push(
-            sqlx::query_scalar::<_, Uuid>(
-                "SELECT id FROM entity WHERE slug = $1 AND valid_period @> now()",
-            )
-            .bind(slug)
-            .fetch_one(&pool)
-            .await?,
-        );
     }
-    let property = |key: &'static str| {
-        let pool = pool.clone();
-        async move {
-            sqlx::query_scalar::<_, Uuid>("SELECT id FROM property_declaration WHERE key = $1")
-                .bind(key)
-                .fetch_one(&pool)
-                .await
-                .with_context(|| format!("the property {key}"))
-        }
-    };
-    let owner = property("core.owner").await?;
+    let entities = entities(pool).await?;
+    let owner = property(pool, "core.owner").await?;
     let domains: Vec<Uuid> =
         sqlx::query_scalar("SELECT id FROM addressing_domain WHERE upper_inf(valid_period)")
-            .fetch_all(&pool)
+            .fetch_all(pool)
             .await?;
     let items = domains
         .iter()
@@ -346,7 +471,7 @@ pub async fn run(
         author,
         Operation::AddEnumValue {
             local: None,
-            property: Ref::Id(property("core.external_system").await?),
+            property: Ref::Id(property(pool, "core.external_system").await?),
             key: "bench".into(),
             labels: std::collections::BTreeMap::new(),
         },
@@ -355,7 +480,7 @@ pub async fn run(
     // The approval policies installed by the modules would hold a changeset that makes a
     // flow non-conforming (011-6): the measures are of the write itself.
     sqlx::query("UPDATE approval_policy SET enabled = false")
-        .execute(&pool)
+        .execute(pool)
         .await?;
     progress(&format!("flow modules: {:?}", started.elapsed()));
 
@@ -431,24 +556,12 @@ pub async fn run(
     progress(&format!("policy: {:?}", started.elapsed()));
 
     // The environments on the first containers below the roots.
-    let mut zones = zones(data, environments);
-    if zones.len() < 4 {
-        bail!(
-            "{} containers to classify, 4 at least expected",
-            zones.len()
-        );
-    }
-    let classification = property("policy.environment").await?;
-    let classify = |zone: Uuid, e: usize| Operation::AssignProperty {
-        object: Ref::Id(zone),
-        kind: ObjectKind::Prefix,
-        property: Ref::Id(classification),
-        values: vec![RawInput::Text(environment(e))],
-    };
+    let zones = sorted_zones(data, environments)?;
+    let classification = property(pool, "policy.environment").await?;
     let t = Instant::now();
     let items = zones
         .iter()
-        .map(|z| item(classify(z.id, z.environment)))
+        .map(|z| item(classify(classification, z.id, z.environment)))
         .collect();
     import(&store, author, "bench-flow-classes", items).await?;
     writeln!(
@@ -460,53 +573,13 @@ pub async fn run(
     )?;
     progress(&format!("classification: {:?}", started.elapsed()));
 
-    // The hot container 10⁴ flows leave and the cold one no flow touches: two of the
-    // largest containers of one domain, of comparable size.
-    zones.sort_by_key(|z| (z.domain, std::cmp::Reverse(z.addresses.len())));
-    let (hot, cold) = (0, 1);
-    if zones[hot].domain != zones[cold].domain {
-        bail!("no domain with two classified containers");
-    }
-    let services: Vec<Uuid> = sqlx::query_scalar(
-        "SELECT s.id FROM policy.policy_service s WHERE s.key LIKE 'svc%' ORDER BY s.key",
-    )
-    .fetch_all(&pool)
-    .await?;
-    if services.len() != FLOW_TYPES * SERVICES_PER_TYPE {
-        bail!(
-            "{} services, {} expected",
-            services.len(),
-            FLOW_TYPES * SERVICES_PER_TYPE
-        );
-    }
-    // A service of the flow type `k`.
-    let service = |k: usize, rng: &mut ChaCha8Rng| {
-        services[k * SERVICES_PER_TYPE + rng.random_range(0..SERVICES_PER_TYPE)]
-    };
-
-    // The flows, allowed by construction (a denied one needs a waiver).
-    let others: Vec<usize> = (2..zones.len()).collect();
-    let mut drawn = HashSet::new();
+    let services = services(pool).await?;
     let mut items = Vec::with_capacity(flows);
-    while items.len() < flows {
-        let n = items.len();
-        let source_zone = if n < hot_flows {
-            hot
-        } else {
-            others[rng.random_range(0..others.len())]
-        };
-        let destination_zone = others[rng.random_range(0..others.len())];
-        let (s, d) = (&zones[source_zone], &zones[destination_zone]);
-        let k = rng.random_range(0..FLOW_TYPES);
-        if denied(s.environment, d.environment, k) {
-            continue;
-        }
-        let source = s.addresses[rng.random_range(0..s.addresses.len())];
-        let destination = d.addresses[rng.random_range(0..d.addresses.len())];
-        let used = service(k, &mut rng);
-        if source == destination || !drawn.insert((source, destination, used)) {
-            continue;
-        }
+    for (n, (source, destination, used)) in
+        draw_flows(&zones, &services, flows, hot_flows, &mut rng)
+            .into_iter()
+            .enumerate()
+    {
         items.push(named(
             format!("flow-{n}"),
             op(
@@ -529,10 +602,10 @@ pub async fn run(
         "VACUUM ANALYZE flow.flow, flow.flow_endpoint_address, flow.flow_evaluation, \
          flow.flow_summary, flow.flow_registration",
     )
-    .execute(&pool)
+    .execute(pool)
     .await?;
     let count: i64 = sqlx::query_scalar("SELECT count(*) FROM flow.flow")
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await?;
     if count != i64::try_from(flows)? {
         bail!("{count} flows registered, {flows} expected");
@@ -545,10 +618,7 @@ pub async fn run(
 
     // Machines of 16 addresses each, in pairs whose cells allow one of the services.
     let mut machine_items = Vec::new();
-    let mut pairs = Vec::new();
     let mut local = 0;
-    // Each machine takes the next addresses of its container: an address has one interface.
-    let mut taken = vec![0; zones.len()];
     let mut add_machine = |addresses: &[Uuid], m: usize, items: &mut Vec<ImportItem>| {
         local += 2;
         let (machine, interface) = (local - 1, local);
@@ -578,32 +648,9 @@ pub async fn run(
         }
         anyhow::Ok(())
     };
-    let mut m = 0;
-    'pairs: for x in 2..zones.len() {
-        for y in 2..zones.len() {
-            if pairs.len() == PAIRS {
-                break 'pairs;
-            }
-            let (a, b) = (&zones[x], &zones[y]);
-            let free = |z: usize| zones[z].addresses.len() >= taken[z] + PER_MACHINE;
-            if x == y || !free(x) || !free(y) {
-                continue;
-            }
-            let Some(k) = (0..FLOW_TYPES).find(|&k| !denied(a.environment, b.environment, k))
-            else {
-                continue;
-            };
-            for (z, n) in [(x, m), (y, m + 1)] {
-                let addresses = &zones[z].addresses[taken[z]..taken[z] + PER_MACHINE];
-                taken[z] += PER_MACHINE;
-                add_machine(addresses, n, &mut machine_items)?;
-            }
-            pairs.push((m, m + 1, k));
-            m += 2;
-        }
-    }
-    if pairs.is_empty() {
-        bail!("no pair of containers for the machines 16 × 16");
+    let (_, hosts) = machine_pairs(&zones)?;
+    for (n, (z, addresses)) in hosts.into_iter().enumerate() {
+        add_machine(&zones[z].addresses[addresses], n, &mut machine_items)?;
     }
     import(&store, author, "bench-flow-machines", machine_items).await?;
     // Measured in a steady state: without fresh statistics after these imports, the
@@ -612,8 +659,69 @@ pub async fn run(
         "VACUUM ANALYZE machines.machine, machines.interface, machines.attachment, \
          module_object, property_origin, property_assignment",
     )
-    .execute(&pool)
+    .execute(pool)
     .await?;
+    progress(&format!("machines: {:?}", started.elapsed()));
+    Ok(())
+}
+
+/// A container classified in the environment `e`.
+fn classify(classification: Uuid, zone: Uuid, e: usize) -> Operation {
+    Operation::AssignProperty {
+        object: Ref::Id(zone),
+        kind: ObjectKind::Prefix,
+        property: Ref::Id(classification),
+        values: vec![RawInput::Text(environment(e))],
+    }
+}
+
+/// Prepares the database (the dataset, the modules, the policy, the flows and the
+/// machines), or copies its template, and measures; returns the report and whether every
+/// budget holds.
+///
+/// # Errors
+///
+/// Database, pipeline or router failures.
+#[allow(clippy::too_many_lines)] // one linear scenario, step by step
+pub async fn run(
+    database: &str,
+    data: &Dataset,
+    seed: u64,
+    selection: &Selection,
+    reuse: &Reuse,
+) -> anyhow::Result<(String, bool)> {
+    let started = Instant::now();
+    let (
+        Prepared {
+            pool,
+            author,
+            mut report,
+            ..
+        },
+        _,
+    ) = prepare_with(
+        database,
+        data,
+        seed,
+        reuse,
+        async |pool, ids: Ids, report| write(pool, ids.author, data, seed, report).await,
+    )
+    .await?;
+    let (flows, hot_flows) = flow_counts(data);
+    let environments = environments_for(flows);
+    let registry = registry()?;
+    let store = PgStore::new(pool.clone()).with_modules(registry.clone());
+    let entities = entities(&pool).await?;
+    let zones = sorted_zones(data, environments)?;
+    let (hot, cold) = (0, 1);
+    let services = services(&pool).await?;
+    // The draws of the preparation again, without writing: the measures draw what follows
+    // them, in the order of the measures that run.
+    let mut rng = ChaCha8Rng::seed_from_u64(seed.wrapping_add(11));
+    draw_flows(&zones, &services, flows, hot_flows, &mut rng);
+    let classification = property(&pool, "policy.environment").await?;
+    let classify = |zone: Uuid, e: usize| classify(classification, zone, e);
+    let (pairs, _) = machine_pairs(&zones)?;
     let machines: HashMap<String, Uuid> = sqlx::query_as::<_, (String, Uuid)>(
         "SELECT e.external_id, e.object_id FROM external_id e
           WHERE e.source = 'bench-flow-machines'",

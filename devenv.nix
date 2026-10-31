@@ -308,7 +308,8 @@
       exit 1
     '';
   # A bench script (ADR 0032): under the bench lock, on a kartenn_bench database recreated
-  # in the bench instance; `<name> [seed] [small] [--only <m1,m2>]`, or `<name> --list`
+  # in the bench instance, a copy of the template of its preparation when one matches
+  # (ADR 0041, decision 2); `<name> [seed] [small] [--only <m1,m2>]`, or `<name> --list`
   # for its measures (ADR 0041), without the bench lock nor the database.
   benchDatabase = "postgres://kartenn@127.0.0.1:5433/kartenn_bench";
   bench = command: description: {
@@ -355,13 +356,17 @@
       bench=''${K_BENCH_DATABASE_URL:-${benchDatabase}}
       PGOPTIONS='-c client_min_messages=warning' psql "''${bench%/*}/postgres" -q -c "DROP DATABASE IF EXISTS \"''${bench##*/}\" WITH (FORCE)" \
         -c "CREATE DATABASE \"''${bench##*/}\""
+      # The prepared database kept as a template and copied by the next runs (ADR 0041),
+      # on the bench instance only: its templates are the only databases a run drops.
+      template=""
+      case $bench in *@127.0.0.1:5433/*) template=--template ;; esac
       # Watchdog: a bench whose last step line is older than K_BENCH_STALL minutes (60 at
       # full scale, 20 reduced; 0 for no limit) is stopped, so a stuck step never holds the
       # bench lock and a slot for hours (2026-10-30: 9 h on one step of bench-core).
       if [ "''${K_BENCH_SCALE:-}" = full ]; then stall=''${K_BENCH_STALL:-60}; else stall=''${K_BENCH_STALL:-20}; fi
       log=$(mktemp)
       trap 'rm -f "$log"' EXIT
-      cargo run --release -q -p kartenn-bench -- ${command} "$bench" "''${seed:-42}" ''${small:+"$small"} ''${only:+--only "$only"} 2>"$log" &
+      cargo run --release -q -p kartenn-bench -- ${command} "$bench" "''${seed:-42}" ''${small:+"$small"} ''${only:+--only "$only"} ''${template:+"$template"} 2>"$log" &
       pid=$!
       tail -n +1 -f --pid="$pid" "$log" >&2 &
       follower=$!

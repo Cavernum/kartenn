@@ -39,6 +39,7 @@ use crate::machine_budgets as machines;
 use crate::measures::{Bench, Measure, Selection};
 use crate::props::{Budget, SINCE, copy, load, p95, progress, verdict};
 use crate::stats_budgets::STATS;
+use crate::template::{self, Reuse};
 use crate::vlan_budgets as vlan;
 
 const READ_OBJECT: &str = "core.read-object";
@@ -328,7 +329,7 @@ pub(crate) async fn wide_container(
 ///
 /// Database or pipeline failures.
 pub async fn seed(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<String> {
-    let Prepared { pool, .. } = prepare(database, data, seed).await?;
+    let Prepared { pool, .. } = prepare(database, data, seed, &Reuse::off()).await?;
     let (domain, container) = wide_container(&pool, "bench-web", "100.64.0.0/13", 100_000).await?;
     sqlx::raw_sql("VACUUM ANALYZE prefix")
         .execute(&pool)
@@ -346,29 +347,110 @@ pub(crate) struct Prepared {
     pub(crate) report: String,
 }
 
-/// Loads `data` into the empty database at `database` and prepares it for the measures.
+/// The identifiers the preparation of `bench-core` makes: the author of the changesets
+/// and the property `custom.rack`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Ids {
+    pub(crate) author: Uuid,
+    pub(crate) rack: Uuid,
+}
+
+/// Prepares the database at `database` for the measures, or copies its template
+/// (ADR 0041, decision 2).
 ///
 /// # Errors
 ///
 /// Database or pipeline failures.
-pub(crate) async fn prepare(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<Prepared> {
-    let pool = PgPool::connect(database)
-        .await
-        .with_context(|| format!("connecting to {database}"))?;
-    kartenn_store_pg::MIGRATOR.run(&pool).await?;
+pub(crate) async fn prepare(
+    database: &str,
+    data: &Dataset,
+    seed: u64,
+    reuse: &Reuse,
+) -> anyhow::Result<Prepared> {
+    Ok(
+        prepare_with(database, data, seed, reuse, async |_, _, _| Ok(()))
+            .await?
+            .0,
+    )
+}
+
+/// [`prepare`], and `more` after the preparation of the core, as part of the
+/// preparation of the bench (in its template), with the lines of the report; what `more`
+/// returned, when it ran.
+///
+/// # Errors
+///
+/// Database or pipeline failures.
+pub(crate) async fn prepare_with<T>(
+    database: &str,
+    data: &Dataset,
+    seed: u64,
+    reuse: &Reuse,
+    more: impl AsyncFnOnce(&PgPool, Ids, &mut String) -> anyhow::Result<T>,
+) -> anyhow::Result<(Prepared, Option<T>)> {
+    let (pool, report, more) = template::prepared(database, reuse, async |pool, report| {
+        let ids = write(pool, data, seed, report).await?;
+        more(pool, ids, report).await
+    })
+    .await?;
+    let Ids { author, rack } = ids(&pool).await?;
+    Ok((
+        Prepared {
+            pool,
+            author,
+            rack,
+            report,
+        },
+        more,
+    ))
+}
+
+/// The author of the changesets of a bench, the one person named `bench`.
+///
+/// # Errors
+///
+/// Database failures, or not exactly one such person.
+pub(crate) async fn author(pool: &PgPool) -> anyhow::Result<Uuid> {
+    let found: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM person WHERE display_name = 'bench'")
+        .fetch_all(pool)
+        .await?;
+    match found.as_slice() {
+        [one] => Ok(*one),
+        other => bail!("{} persons named bench, one expected", other.len()),
+    }
+}
+
+/// The identifiers of the preparation, read back from the prepared database.
+async fn ids(pool: &PgPool) -> anyhow::Result<Ids> {
+    Ok(Ids {
+        author: author(pool).await?,
+        rack: sqlx::query_scalar("SELECT id FROM property_declaration WHERE key = 'custom.rack'")
+            .fetch_one(pool)
+            .await
+            .context("the property custom.rack of the preparation")?,
+    })
+}
+
+/// Loads `data` into the empty database `pool` and prepares it for the measures.
+async fn write(
+    pool: &PgPool,
+    data: &Dataset,
+    seed: u64,
+    report: &mut String,
+) -> anyhow::Result<Ids> {
+    kartenn_store_pg::MIGRATOR.run(pool).await?;
     let started = Instant::now();
-    load(&pool, data).await?;
+    load(pool, data).await?;
     progress(&format!("load: {:?}", started.elapsed()));
-    history(&pool).await?;
+    history(pool).await?;
     progress(&format!("history: {:?}", started.elapsed()));
     let author: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'bench') RETURNING id",
     )
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await?;
     let store = PgStore::new(pool.clone());
     let mut rng = ChaCha8Rng::seed_from_u64(seed);
-    let mut report = String::new();
 
     // A non-heritable integer on 20 % of the addresses, for the filtered pages.
     unitary(
@@ -395,7 +477,7 @@ pub(crate) async fn prepare(database: &str, data: &Dataset, seed: u64) -> anyhow
     .await?;
     let rack: Uuid =
         sqlx::query_scalar("SELECT id FROM property_declaration WHERE key = 'custom.rack'")
-            .fetch_one(&pool)
+            .fetch_one(pool)
             .await?;
     let mut rows = String::new();
     for a in &data.addresses {
@@ -410,23 +492,18 @@ pub(crate) async fn prepare(database: &str, data: &Dataset, seed: u64) -> anyhow
         }
     }
     copy(
-        &pool,
+        pool,
         "COPY property_assignment (object_id, object_type, property_id, kind, v_int, provenance, valid_period, changeset_id) FROM STDIN",
         rows,
     )
     .await?;
     // Measured in a steady state: no checkpoint of the bulk writes under way.
     // CHECKPOINT needs the role pg_checkpoint; without it, VACUUM has written most pages.
-    sqlx::raw_sql("VACUUM ANALYZE").execute(&pool).await?;
-    let checkpoint = sqlx::raw_sql("CHECKPOINT").execute(&pool).await.is_ok();
+    sqlx::raw_sql("VACUUM ANALYZE").execute(pool).await?;
+    let checkpoint = sqlx::raw_sql("CHECKPOINT").execute(pool).await.is_ok();
     writeln!(report, "INFO checkpoint before the measures: {checkpoint}")?;
     progress(&format!("assignments: {:?}", started.elapsed()));
-    Ok(Prepared {
-        pool,
-        author,
-        rack,
-        report,
-    })
+    Ok(Ids { author, rack })
 }
 
 /// Loads, writes the history and measures what `selection` runs; returns the report and
@@ -441,6 +518,7 @@ pub async fn run(
     data: &Dataset,
     seed: u64,
     selection: &Selection,
+    reuse: &Reuse,
 ) -> anyhow::Result<(String, bool)> {
     let started = Instant::now();
     let Prepared {
@@ -448,7 +526,7 @@ pub async fn run(
         author,
         rack,
         mut report,
-    } = prepare(database, data, seed).await?;
+    } = prepare(database, data, seed, reuse).await?;
     let store = PgStore::new(pool.clone());
     // Draws distinct from those of the preparation, in the order of the measures that run.
     let mut rng = ChaCha8Rng::seed_from_u64(seed.wrapping_add(1));

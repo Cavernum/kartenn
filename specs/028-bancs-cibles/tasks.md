@@ -69,7 +69,7 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     `random()` : les mêmes d'un passage à l'autre, sans tirage du générateur du banc ;
     `bench-http` envoie `approval=self` sur ses écritures (sans lui, tout changeset passait
     en proposition et le banc échouait dès la première écriture, depuis la 024-11).
-- [ ] 2. Base préparée réutilisée : empreinte (migrations, sources du générateur et de la
+- [x] 2. Base préparée réutilisée : empreinte (migrations, sources du générateur et de la
   préparation du banc, graine, échelle) ; modèle
   `kartenn_bench_tpl_<banc>_<empreinte>` enregistré après la préparation ; passage
   suivant repartant de `CREATE DATABASE … TEMPLATE … STRATEGY FILE_COPY` ; essai de
@@ -82,6 +82,41 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
   - où : `crates/kartenn-bench/src/main.rs`, `lib.rs` (connexion, création de la base) ;
     `devenv.nix` (`bench`, `pgBench` et ses réglages) ; ADR 0032 (instance, verrou).
   - dépend de : 1
+  - fait : `kartenn_bench::template` (`Reuse`, `prepared` : sans modèle de l'empreinte, ou
+    sous une mesure « de préparation », la préparation écrit dans la base vide, puis la
+    base est renommée en modèle `ALLOW_CONNECTIONS false`, commentée (banc, graine,
+    échelle, date) et copiée ; sinon copie seule ; `CREATE DATABASE … TEMPLATE …
+    STRATEGY FILE_COPY` après `SET file_copy_method = clone` ; connexions ouvertes sur la
+    base renommée, la base du passage ou le modèle refusées avec leurs pid ; trois modèles
+    par banc, les plus anciens par oid supprimés, seulement les noms
+    `kartenn_bench_tpl_<banc>_<16 hex>` ; empreinte FNV-1a 64 bits du banc, de la graine,
+    de l'échelle et de ses volumes, des migrations du cœur (sommes de sqlx) et des
+    modules machines, politique, flux (SQL), des sources de la préparation par banc) ;
+    chaque banc découpé en écriture de sa préparation (`write`) et relecture dans la
+    copie de ce qu'en tirent les mesures (`core_budgets::prepare_with`, `Ids`, `author` ;
+    `rbac` et `http` : liaisons et personnes dans la préparation ; `policy`, `flow` : modules,
+    politique, flux et machines ; `events` : abonnés `r<i>`) ; `Selection::bench`,
+    `prepares` ; `main.rs` (`--template`) ; `devenv.nix` (`bench` passe `--template` sur
+    le port 5433 seulement). Tests : `template` (empreinte : migration ajoutée ou changée,
+    graine, échelle, banc, sources ; noms ; trois gardés ; chaque banc liste ses sources),
+    `measures` (`prepares`), `main` (`--template`) ; `tests/it/template.rs` (second passage
+    copié aux mêmes lignes, mesure « de préparation » qui reprépare et remplace, modèle
+    sans connexion permise, connexion ouverte refusée nommément) ; `tests/it/only.rs` :
+    chaque banc entier prépare et garde son modèle, la mesure seule tourne sur sa copie.
+    Passages réduits `bench-core 42 --only core.read-object` : préparation 10,6 s puis
+    copie 0,35 s, mesures dans le bruit ; une migration ajoutée (sonde jetable) a donné une
+    autre empreinte et une nouvelle préparation, retirée la copie du premier modèle ;
+    tableau de l'ADR 0041 (ligne pleine échelle à mesurer par la session principale).
+  - choix : la copie aussi au premier passage (la base préparée est renommée en modèle,
+    puis copiée) : premier passage et suivants mesurent de la même façon ; l'état tiré de
+    la préparation (identifiants, abonnés, paires de machines…) est relu ou recalculé dans
+    la copie, jamais transmis en mémoire ; les tirages de la préparation sont rejoués sans
+    écrire (`props`, `policy`, `flow`) pour que les mesures tirent ce qu'elles tiraient ;
+    `http` garde ses jetons et cookies hors du modèle (ils suivent les clés du serveur
+    lancé à chaque passage), ses personnes et liaisons y sont ; sources à la granularité
+    du fichier (une mesure modifiée dans le fichier d'une préparation invalide le
+    modèle) ; ordre d'ancienneté par oid ; sans `--template` (`bench-web`, autre instance que
+    celle des bancs), même chemin sans copie.
 - [ ] 3. Historique local : une ligne JSON par mesure et par passage dans
   `.bench/history.jsonl` à la racine de la copie principale (parent de
   `git rev-parse --git-common-dir`), exclu par `.git/info/exclude` (`/.bench/`, ajouté

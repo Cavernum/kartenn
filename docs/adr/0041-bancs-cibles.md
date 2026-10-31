@@ -42,6 +42,19 @@ Conséquences constatées les 2026-10-30 et 31 :
      cloner les fichiers sur btrfs (`file_copy_method = clone`, à vérifier à la tâche
      2). Sinon, il prépare puis enregistre le modèle.
    - Trois modèles au plus sont gardés par banc ; le plus ancien est supprimé.
+   - Vérifié à la tâche 2 : `file_copy_method` est un réglage de contexte `user`. Le
+     programme le pose par session (`SET file_copy_method = clone`) avant la copie, sans
+     toucher à la configuration de l'instance ni la redémarrer. Les données de
+     l'instance des bancs sont sur btrfs : la copie clone les fichiers
+     (`copy_file_range`), et un modèle ne partage que ses blocs avec ses copies.
+   - Un modèle n'accepte aucune connexion (`ALLOW_CONNECTIONS false`). Le programme
+     vérifie avant de renommer ou de copier qu'aucune connexion n'est ouverte sur la
+     base, et l'erreur nomme les connexions trouvées. Ce qu'une mesure tire de la
+     préparation (identifiants…) est relu dans la copie, au premier passage comme aux
+     suivants : les deux mesurent sur une copie, de la même façon.
+   - Le nettoyage ne supprime que les bases nommées comme les modèles du banc
+     (`kartenn_bench_tpl_<banc>_` suivi de 16 chiffres hexadécimaux). Les scripts
+     `bench-*` ne gardent de modèles que sur l'instance des bancs (port 5433).
 
 3. **Mesures touchées par une modification.** Une table du crate `kartenn-bench` associe
    chaque mesure aux chemins du dépôt qu'elle exerce.
@@ -99,3 +112,18 @@ Conséquences constatées les 2026-10-30 et 31 :
 - L'historique est propre à la machine. Il ne vaut pas mesure de budget pour une
   validation : seul compte le passage pleine échelle consigné dans le design de la spec.
 - Complète l'ADR 0032 sans le remplacer : même instance, même verrou, mêmes scripts.
+
+### Coût d'un modèle (tâche 2)
+
+`bench-core 42 --only core.read-object` sur l'instance des bancs (btrfs, PostgreSQL 18.6),
+mesuré le 2026-10-31. La copie du premier passage suit la préparation ; celle des
+passages suivants la remplace. La taille est `pg_database_size` ; le disque propre est la
+part exclusive donnée par `btrfs filesystem du`, le reste étant partagé avec la copie.
+
+| Échelle  | Préparation | Copie, premier passage | Copie, passages suivants | Taille  | Disque propre du modèle |
+| -------- | ----------- | ---------------------- | ------------------------ | ------- | ----------------------- |
+| réduite  | 10,6 s      | 2,1 s                  | 0,35 à 0,84 s            | 201 Mio | 0 o (201 Mio partagés)  |
+| complète | à mesurer   | à mesurer              | à mesurer                | à mesurer | à mesurer             |
+
+La ligne pleine échelle revient à la session principale (aucun banc pleine échelle par un
+agent).

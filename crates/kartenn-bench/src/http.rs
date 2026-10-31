@@ -64,10 +64,11 @@ use time::format_description::well_known::Rfc3339;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::task::JoinHandle;
 
-use crate::core_budgets::{Prepared, prepare};
+use crate::core_budgets::{Prepared, prepare_with};
 use crate::measures::{Bench, Measure, Selection};
 use crate::props::{p95, progress};
 use crate::rbac::{GROUPS, ISSUER, bind};
+use crate::template::Reuse;
 use crate::{Dataset, Nature};
 
 const READ: &str = "http.read-object";
@@ -358,14 +359,20 @@ fn unix_now() -> anyhow::Result<i64> {
 
 /// The users, each known to the issuer by its subject with the 50 groups; the even ones
 /// prove themselves by an access token, the odd ones by a session.
+/// The person of the user `k`, created by the preparation, found by the next calls.
+async fn person(store: &PgStore, k: usize) -> anyhow::Result<Uuid> {
+    let (identity, _) = store
+        .upsert_person(ISSUER, &format!("u-{k}"), &format!("Person {k}"))
+        .await
+        .map_err(|e| anyhow!("{e:?}"))?;
+    Ok(identity)
+}
+
 async fn users(served: &Served, store: &PgStore) -> anyhow::Result<Vec<User>> {
     let mut users = Vec::with_capacity(USERS);
     for k in 0..USERS {
         let subject = format!("u-{k}");
-        let (identity, _) = store
-            .upsert_person(ISSUER, &subject, &format!("Person {k}"))
-            .await
-            .map_err(|e| anyhow!("{e:?}"))?;
+        let identity = person(store, k).await?;
         let proof = if k % 2 == 0 {
             let now = unix_now()?;
             let claims = json!({
@@ -563,20 +570,34 @@ pub async fn run(
     data: &Dataset,
     seed: u64,
     selection: &Selection,
+    reuse: &Reuse,
 ) -> anyhow::Result<(String, bool)> {
     let started = Instant::now();
-    let Prepared {
-        pool,
-        author: _,
-        rack,
-        mut report,
-    } = prepare(database, data, seed).await?;
+    // The persons of the users and the bindings of the first, part of the preparation (and
+    // of the template); their proofs follow the keys of the server.
+    let (
+        Prepared {
+            pool,
+            author: _,
+            rack,
+            mut report,
+        },
+        _,
+    ) = prepare_with(database, data, seed, reuse, async |pool, _, _| {
+        let store = PgStore::new(pool.clone());
+        // The first user is the person of `bench-rbac`, with its own bindings.
+        let first = person(&store, 0).await?;
+        for k in 1..USERS {
+            person(&store, k).await?;
+        }
+        bind(pool, data, first, seed).await?;
+        progress(&format!("bindings, users: {:?}", started.elapsed()));
+        anyhow::Ok(())
+    })
+    .await?;
     let store = PgStore::new(pool.clone());
     let served = serve(database).await?;
     let mut users = users(&served, &store).await?;
-    // The first user is the person of `bench-rbac`, with its own bindings.
-    bind(&pool, data, users[0].subject.id, seed).await?;
-    progress(&format!("bindings, users: {:?}", started.elapsed()));
     let authorizer = PgAuthorizer::new(pool.clone());
     let mut rng = ChaCha8Rng::seed_from_u64(seed.wrapping_add(1));
     let now = OffsetDateTime::now_utc();

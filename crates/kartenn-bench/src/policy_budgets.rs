@@ -35,9 +35,10 @@ use sqlx::types::time::OffsetDateTime;
 use sqlx::{PgConnection, PgPool};
 
 use crate::Dataset;
-use crate::core_budgets::{Prepared, prepare, unitary};
+use crate::core_budgets::{Ids, Prepared, prepare_with, unitary};
 use crate::measures::{Bench, Measure, Selection};
 use crate::props::{Budget, p95, progress, verdict};
+use crate::template::Reuse;
 use crate::vlan_budgets::{app_with, get, import, reader, sync};
 
 const SNAPSHOT: &str = "policy.snapshot-cold";
@@ -225,6 +226,15 @@ fn some_environments(rng: &mut ChaCha8Rng) -> Vec<String> {
     picked
 }
 
+/// An environment of its own on a tenth of the `networks` networks of the dataset: their
+/// indices and environments.
+fn network_environments(networks: usize, rng: &mut ChaCha8Rng) -> Vec<(usize, usize)> {
+    (0..networks)
+        .step_by(10)
+        .map(|n| (n, rng.random_range(0..ENVIRONMENTS)))
+        .collect()
+}
+
 /// The 10⁴ rules: 80 % allow, 10 % allow under a pattern, 10 % deny; a tenth select on
 /// the exposure as well, a twentieth require the same exposure on both sides.
 fn rule_items(
@@ -351,13 +361,25 @@ pub async fn run(
     data: &Dataset,
     seed: u64,
     selection: &Selection,
+    reuse: &Reuse,
 ) -> anyhow::Result<(String, bool)> {
-    let Prepared {
-        pool,
-        author,
-        mut report,
-        ..
-    } = prepare(database, data, seed).await?;
+    let (
+        Prepared {
+            pool,
+            author,
+            mut report,
+            ..
+        },
+        _,
+    ) = prepare_with(
+        database,
+        data,
+        seed,
+        reuse,
+        async |pool, ids: Ids, report| write(pool, ids.author, data, seed, report).await,
+    )
+    .await?;
+    // The generator of the preparation: the measures draw what follows its draws.
     let mut rng = ChaCha8Rng::seed_from_u64(seed.wrapping_add(2));
     let budgets = measure(&pool, author, data, &mut rng, selection, &mut report).await?;
     let (lines, ok) = verdict(&budgets)?;
@@ -365,20 +387,28 @@ pub async fn run(
     Ok((report, ok))
 }
 
+/// The modules the bench deploys.
+fn registry() -> anyhow::Result<Arc<ModuleRegistry>> {
+    let modules: Vec<Arc<dyn Module>> =
+        vec![Arc::new(kartenn_machines::Machines), Arc::new(Policy)];
+    Ok(Arc::new(ModuleRegistry::new(modules)?))
+}
+
+/// The preparation of the policy, after that of the core: the modules deployed, an owner
+/// on each domain, the catalogue, the rules, the classification, a domain of its own and
+/// its machines.
 #[allow(clippy::too_many_lines)] // one linear scenario, step by step
-async fn measure(
+async fn write(
     pool: &PgPool,
     author: Uuid,
     data: &Dataset,
-    rng: &mut ChaCha8Rng,
-    selection: &Selection,
+    seed: u64,
     report: &mut String,
-) -> anyhow::Result<Vec<Budget>> {
+) -> anyhow::Result<()> {
     let started = Instant::now();
     let load = |what: &str| format!("{what}: {:?}, {}", started.elapsed(), load_now());
-    let modules: Vec<Arc<dyn Module>> =
-        vec![Arc::new(kartenn_machines::Machines), Arc::new(Policy)];
-    let registry = Arc::new(ModuleRegistry::new(modules)?);
+    let rng = &mut ChaCha8Rng::seed_from_u64(seed.wrapping_add(2));
+    let registry = registry()?;
     kartenn_store_pg::modules::migrate(pool, &registry).await?;
     let store = PgStore::new(pool.clone()).with_modules(registry.clone());
     let declarations: Vec<_> = std::iter::once(core_declarations_for(&registry))
@@ -428,7 +458,6 @@ async fn measure(
         .collect();
     import(&store, author, "bench-policy-owners", assignments).await?;
     sync(&store, &declarations).await?;
-    let sources = Sources::none().with(Arc::new(kartenn_policy::infer::InferenceSource));
 
     // The catalogue, then the rules, which cite it by identifier.
     import(&store, author, "bench-policy-catalogue", catalogue_items()?).await?;
@@ -484,15 +513,13 @@ async fn measure(
         .iter()
         .filter(|p| p.nature == crate::Nature::Network)
         .collect();
-    for (n, network) in networks.iter().enumerate() {
-        if n % 10 == 0 {
-            items.push(plain(assign(
-                network.id,
-                ObjectKind::Prefix,
-                environment,
-                &env(rng.random_range(0..ENVIRONMENTS)),
-            )));
-        }
+    for (n, e) in network_environments(networks.len(), rng) {
+        items.push(plain(assign(
+            networks[n].id,
+            ObjectKind::Prefix,
+            environment,
+            &env(e),
+        )));
     }
     let classified = items.len();
     import(&store, author, "bench-policy-classification", items).await?;
@@ -538,11 +565,7 @@ async fn measure(
         }));
     }
     import(&store, author, "bench-policy-domain", items).await?;
-    let domain: Uuid = sqlx::query_scalar(
-        "SELECT id FROM addressing_domain WHERE slug = 'bench-policy' AND valid_period @> now()",
-    )
-    .fetch_one(pool)
-    .await?;
+    let domain = own_domain(pool).await?;
     // The machines: one interface each, 16 new addresses attached.
     let mut items = Vec::new();
     let mut local = 100_u32;
@@ -576,20 +599,6 @@ async fn measure(
         }
     }
     import(&store, author, "bench-policy-machines", items).await?;
-    // A machine is no endpoint (011/F21): the queries name the interface of each.
-    let wide: Vec<(String, Uuid)> = sqlx::query_as(
-        "SELECT m.name, i.id FROM machines.machine m
-           JOIN machines.interface i ON i.machine_id = m.id AND upper_inf(i.valid_period)
-          WHERE m.name LIKE 'policy%' AND upper_inf(m.valid_period) ORDER BY m.name",
-    )
-    .fetch_all(pool)
-    .await?;
-    let (sources_side, destinations): (Vec<_>, Vec<_>) = wide
-        .iter()
-        .partition(|(name, _)| name.starts_with("policy0"));
-    if sources_side.len() != WIDE_MACHINES || destinations.len() != WIDE_MACHINES {
-        bail!("{} machines of 16 addresses loaded", wide.len());
-    }
     sqlx::raw_sql("VACUUM ANALYZE").execute(pool).await?;
     writeln!(
         report,
@@ -601,6 +610,66 @@ async fn measure(
         started.elapsed()
     )?;
     progress(&load("policy dataset"));
+    Ok(())
+}
+
+/// The machines of 16 addresses of the domain `bench-policy`: their names and interfaces,
+/// sorted by name.
+async fn wide_machines(pool: &PgPool) -> anyhow::Result<Vec<(String, Uuid)>> {
+    // A machine is no endpoint (011/F21): the queries name the interface of each.
+    Ok(sqlx::query_as(
+        "SELECT m.name, i.id FROM machines.machine m
+           JOIN machines.interface i ON i.machine_id = m.id AND upper_inf(i.valid_period)
+          WHERE m.name LIKE 'policy%' AND upper_inf(m.valid_period) ORDER BY m.name",
+    )
+    .fetch_all(pool)
+    .await?)
+}
+
+/// The domain of the bench, `bench-policy`.
+async fn own_domain(pool: &PgPool) -> anyhow::Result<Uuid> {
+    sqlx::query_scalar(
+        "SELECT id FROM addressing_domain WHERE slug = 'bench-policy' AND valid_period @> now()",
+    )
+    .fetch_one(pool)
+    .await
+    .context("the domain bench-policy of the preparation")
+}
+
+/// Measures what `selection` runs on the prepared database, whose identifiers it reads
+/// back.
+#[allow(clippy::too_many_lines)] // one linear scenario, step by step
+async fn measure(
+    pool: &PgPool,
+    author: Uuid,
+    data: &Dataset,
+    rng: &mut ChaCha8Rng,
+    selection: &Selection,
+    report: &mut String,
+) -> anyhow::Result<Vec<Budget>> {
+    let started = Instant::now();
+    let load = |what: &str| format!("{what}: {:?}, {}", started.elapsed(), load_now());
+    let registry = registry()?;
+    let store = PgStore::new(pool.clone()).with_modules(registry.clone());
+    let sources = Sources::none().with(Arc::new(kartenn_policy::infer::InferenceSource));
+    let flow_types = ids(pool, "policy_flow_type").await?;
+    let domain = own_domain(pool).await?;
+    let wide = wide_machines(pool).await?;
+    let (sources_side, destinations): (Vec<_>, Vec<_>) = wide
+        .iter()
+        .partition(|(name, _)| name.starts_with("policy0"));
+    if sources_side.len() != WIDE_MACHINES || destinations.len() != WIDE_MACHINES {
+        bail!("{} machines of 16 addresses prepared", wide.len());
+    }
+    let networks: Vec<_> = data
+        .prefixes
+        .iter()
+        .filter(|p| p.nature == crate::Nature::Network)
+        .collect();
+    // The draws of the preparation again, without writing (the rules, the classification of
+    // the networks): the measures draw what follows them, in the order of those that run.
+    rule_items(rng, &flow_types, &ids(pool, "policy_pattern").await?)?;
+    network_environments(networks.len(), rng);
 
     // The snapshot of the policy, read cold (REQ-010-16, ADR 0030).
     if selection.runs(SNAPSHOT) {
