@@ -37,6 +37,13 @@ propre à la tâche.
   regardée.
 - **Relectures**, pour toute interface : un sous-agent `ui-reviewer` et un sous-agent
   `a11y-auditor` sur le code et les captures ; corrige les vrais écarts.
+- **Charge** : d'autres agents tournent en même temps et `k-heavy` n'a que deux
+  créneaux. En route, des vérifications ciblées (`k-check -p <crate> <filtre>`, un
+  fichier Vitest, un script Playwright) ; la vérification complète une fois, avant le
+  commit, et de nouveau seulement après une correction. Tes commandes lourdes portent
+  `K_HEAVY_WAIT=30` : au bout de 30 min d'attente d'un créneau, `k-heavy` abandonne
+  (code 75). Note alors `k-heavy --status`, réessaie une fois, puis arrête-toi sur un
+  rapport qui dit qui tient le créneau, plutôt que d'attendre sans fin.
 - **Bancs** : tu n'en lances aucun. Si la tâche en demande un, dis-le dans le rapport.
 
 ## Règles fixes

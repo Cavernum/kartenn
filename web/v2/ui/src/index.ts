@@ -128,6 +128,10 @@ export type {
   FilterProperty,
   FilterType,
 } from "./components/FilterPicker/filters.ts";
+export { default as DateTimeField } from "./components/DateTimeField/DateTimeField.vue";
+export { default as PeriodPicker } from "./components/PeriodPicker/PeriodPicker.vue";
+export { checkEntry, parseEntry } from "./components/DateTimeField/dates.ts";
+export type { DateCheck, DateGranularity, Period } from "./components/DateTimeField/dates.ts";
 export { default as BarChart } from "./components/BarChart/BarChart.vue";
 export { default as BarList } from "./components/BarList/BarList.vue";
 export { layoutBars, niceCeil } from "./components/BarChart/chart.ts";

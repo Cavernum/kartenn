@@ -36,8 +36,17 @@
   commandes lourdes passent par le sémaphore `k-heavy` (2 créneaux, `nice`, cœurs
   partagés) : `k-check`, `k-web-check`, `k-web-e2e`, `db-prepare`, les bancs et le hook
   clippy le prennent d'eux-mêmes ; toute autre commande lourde se lance en
-  `k-heavy cargo …`. Pas plus de trois sous-agents d'implémentation en parallèle ;
-  `sccache` partage les dépendances compilées entre worktrees.
+  `k-heavy cargo …`. Pas plus de dix sous-agents en parallèle ; `sccache` partage les
+  dépendances compilées entre worktrees. Le goulot reste `k-heavy` et ses verrous
+  (`--pg`, `--bench`) : en route, des vérifications ciblées (`k-check -p <crate>`, un
+  fichier Vitest) ; la vérification complète une fois, avant le commit. Les bancs
+  pleine échelle se lancent par la session principale seulement, un à la fois, et
+  seulement quand aucun autre agent ne tourne (`k-heavy --status` tout libre) : un banc
+  garde un créneau des heures durant. Un banc dont l'étape en cours dépasse
+  `K_BENCH_STALL` minutes (60 en pleine échelle) s'arrête de lui-même. Une session qui
+  laisse des agents tourner sans surveillance programme un point horaire (`k-heavy
+  --status`, derniers commits des branches) et traite tout verrou tenu plus de deux
+  heures.
 
 ## Économie de contexte
 
@@ -65,4 +74,5 @@ Le coût d'une session croît avec la taille du contexte × le nombre de requêt
   Conception, implémentation, revue et arbitrages restent dans l'agent principal. Ne pas
   déléguer la lecture d'un fichier qu'on va modifier. Exception : une session qui
   orchestre plusieurs tâches confie chacune, entière, à `kartenn-tache` (son worktree, sa
-  branche, un rapport ; ni push ni fusion).
+  branche, un rapport ; ni push ni fusion), puis fait relire la branche par
+  `kartenn-revue` (qualité et conformité à la spec) avant de la fusionner.

@@ -197,7 +197,7 @@ export const MOCKUPS: Mockup[] = [
         id: "selecteur",
         label: "Sélecteur de date",
         description:
-          "Pastille de date ouverte sur le sélecteur (composant à venir), en surimpression : la page ne bouge pas.",
+          "Pastille de date ouverte sur le sélecteur de période (valide au, connu au, raccourcis), en surimpression : la page ne bouge pas.",
       },
       {
         id: "chronologie",

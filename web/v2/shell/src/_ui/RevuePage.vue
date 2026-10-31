@@ -13,10 +13,7 @@ const COMBOS = [
 ] as const;
 
 /** Components of the P4 replaced in the mock-ups by a marked stand-in. */
-const LATER = [
-  { component: "PeriodPicker", task: "20", where: "E6 (sélecteur de la pastille de date)" },
-  { component: "Toast", task: "22", where: "E9 (accusé « proposé, en revue »)" },
-];
+const LATER = [{ component: "Toast", task: "22", where: "E9 (accusé « proposé, en revue »)" }];
 
 /** Choices of the mock-ups to settle with the user (task 15). */
 const OPEN = [

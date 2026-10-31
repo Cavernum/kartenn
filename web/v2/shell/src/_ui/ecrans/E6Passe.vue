@@ -1,24 +1,19 @@
 <script setup lang="ts">
 // E6 — Lecture au passé (design « Maquettes »; 021, « Cadre » : bande, « Édition en
 // place » : hors présent; 024/M14, M15): the amber band, the date pill open on the period
-// picker, laid over the page (a non-modal dialog in the `picker` slot of the frame, out of
-// the flow under the date pill: the page does not move; the picker itself is still to
-// come, a marked stand-in), writes greyed with
-// their reason in their tooltip, the chronology of versions with the one valid at the date
-// read.
+// picker (`PeriodPicker`, task 20), laid over the page (a non-modal dialog in the `picker`
+// slot of the frame, out of the flow under the date pill: the page does not move), writes
+// greyed with their reason in their tooltip, the chronology of versions with the one valid
+// at the date read.
 import {
-  Button,
-  Cluster,
   DataGrid,
-  Stack,
+  PeriodPicker,
   StatusBadge,
-  TextField,
   type GridColumn,
   type GridSort,
   type ToolbarAction,
 } from "@kartenn/ui";
 import { ref } from "vue";
-import AVenir from "./AVenir.vue";
 import Attributs from "./EcranAttributs.vue";
 import Barre from "./EcranBarre.vue";
 import Cadre from "./EcranCadre.vue";
@@ -139,35 +134,7 @@ const sort = ref<GridSort>({ column: "version", direction: "descending" });
     <!-- The picker lies over the page, under the date pill: the page keeps its layout. -->
     <template v-if="picker" #picker>
       <div role="dialog" aria-labelledby="k-ecran-periode" class="k-ecran-surimpression">
-        <AVenir component="PeriodPicker" task="20">
-          <section class="k-ecran-periode">
-            <h2 id="k-ecran-periode" class="k-ecran-subtitle">Lire à une date</h2>
-            <Stack gap="3">
-              <Cluster gap="2" role="group" aria-label="Axe du temps">
-                <Button size="sm" :pressed="true">Valide au</Button>
-                <Button size="sm" :pressed="false">Connu au</Button>
-              </Cluster>
-              <Cluster gap="3" align="end">
-                <TextField
-                  label="Date et heure"
-                  mono
-                  model-value="2025-11-03 09:30"
-                  hint="AAAA-MM-JJ hh:mm"
-                />
-                <TextField label="Fuseau" readonly model-value="Europe/Paris" />
-              </Cluster>
-              <Cluster gap="2">
-                <Button size="sm" variant="ghost">Il y a une semaine</Button>
-                <Button size="sm" variant="ghost">Début du mois</Button>
-                <Button size="sm" variant="ghost">Fin 2025</Button>
-              </Cluster>
-              <Cluster gap="2" justify="end">
-                <Button variant="ghost" icon="undo-2">Lire au présent</Button>
-                <Button variant="primary" icon="calendar">Lire à cette date</Button>
-              </Cluster>
-            </Stack>
-          </section>
-        </AVenir>
+        <PeriodPicker title-id="k-ecran-periode" :valid-at="PAST" time-zone="Europe/Paris" />
       </div>
     </template>
   </Cadre>
@@ -180,17 +147,7 @@ const sort = ref<GridSort>({ column: "version", direction: "descending" });
   .k-ecran-surimpression {
     inline-size: var(--k-size-panel-lg);
     max-inline-size: 100%;
-  }
-
-  /* The frame of the stand-in takes the background of the layer, not a sunken one. */
-  .k-ecran-surimpression > .k-ecran-later {
-    background-color: transparent;
-  }
-
-  .k-ecran-periode {
-    display: grid;
-    gap: var(--k-space-3);
-    padding: var(--k-space-2);
+    padding: var(--k-space-3);
   }
 }
 </style>
