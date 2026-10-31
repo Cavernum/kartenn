@@ -1,0 +1,209 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem:
+        - link "Règles et motifs":
+          - /url: /x/policy/rules
+      - listitem: Nouvelle règle
+  - button "Présent"
+  - button "Brouillon 4 opérations" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Règles et motifs" [level=1]
+  - region "Règles et motifs":
+    - heading "Règles et motifs" [level=2]
+    - text: au présent · politique r42
+    - toolbar "Actions des règles":
+      - button "Créer une règle"
+      - button "Plus d'actions"
+    - tablist "Règles et motifs":
+      - tab /Règles \d+/ [selected]
+      - tab "Motifs 4"
+    - tabpanel /Règles \d+/:
+      - group "Filtres des règles":
+        - button "Effet est l'un de Autoriser, Interdire"
+        - button "Retirer le filtre Effet est l'un de Autoriser, Interdire"
+        - button "Ajouter un filtre"
+        - status
+      - button "Colonnes"
+      - grid "Règles de la politique":
+        - rowgroup:
+          - row "Règle Effet (filtrée) Source Destination":
+            - columnheader "Règle":
+              - text: ""
+              - 'button "Filtrer : Règle"'
+            - columnheader "Effet (filtrée)":
+              - text: ""
+              - 'button "Filtrer : Effet"'
+              - text: ""
+            - columnheader "Source"
+            - columnheader "Destination"
+        - rowgroup:
+          - row "app-meme-env Autoriser Production Recette Développement même environnement":
+            - gridcell "app-meme-env":
+              - code: app-meme-env
+            - gridcell "Autoriser"
+            - gridcell "Production Recette Développement"
+            - gridcell "même environnement"
+          - row "rece-vers-prod Autoriser Recette Production":
+            - gridcell "rece-vers-prod":
+              - code: rece-vers-prod
+            - gridcell "Autoriser"
+            - gridcell "Recette"
+            - gridcell "Production"
+          - row "deny-deve-prod Interdire Développement Production":
+            - gridcell "deny-deve-prod":
+              - code: deny-deve-prod
+            - gridcell "Interdire"
+            - gridcell "Développement"
+            - gridcell "Production"
+          - row "deny-prod-hors-prod Interdire Production Recette Développement":
+            - gridcell "deny-prod-hors-prod":
+              - code: deny-prod-hors-prod
+            - gridcell "Interdire"
+            - gridcell "Production"
+            - gridcell "Recette Développement"
+          - row "admin-par-bastion Autoriser Administration Production Recette Développement Administration":
+            - gridcell "admin-par-bastion":
+              - code: admin-par-bastion
+            - gridcell "Autoriser"
+            - gridcell "Administration"
+            - gridcell "Production Recette Développement Administration"
+          - row "deny-admin-hors-bastion Interdire Production Recette Développement Production Recette Développement":
+            - gridcell "deny-admin-hors-bastion":
+              - code: deny-admin-hors-bastion
+            - gridcell "Interdire"
+            - gridcell "Production Recette Développement"
+            - gridcell "Production Recette Développement"
+          - row "bdd-meme-env Autoriser Production Recette Développement même environnement":
+            - gridcell "bdd-meme-env":
+              - code: bdd-meme-env
+            - gridcell "Autoriser"
+            - gridcell "Production Recette Développement"
+            - gridcell "même environnement"
+          - row "deny-rece-vers-prod-bdd Interdire Recette Production":
+            - gridcell "deny-rece-vers-prod-bdd":
+              - code: deny-rece-vers-prod-bdd
+            - gridcell "Interdire"
+            - gridcell "Recette"
+            - gridcell "Production"
+          - row "fichier-prod Autoriser Production Production":
+            - gridcell "fichier-prod":
+              - code: fichier-prod
+            - gridcell "Autoriser"
+            - gridcell "Production"
+            - gridcell "Production"
+          - row "deny-restreint-hors-prod Hors matrice Interdire Production Restreinte Recette Développement":
+            - gridcell "deny-restreint-hors-prod Hors matrice":
+              - code: deny-restreint-hors-prod
+              - text: ""
+            - gridcell "Interdire"
+            - gridcell "Production Restreinte"
+            - gridcell "Recette Développement"
+    - text: "/\\d+ règles · 1 hors matrice · 4 motifs Hors matrice : une règle qui cite un autre axe que l'environnement/"
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Détail" [selected]
+    - tab "Brouillon 4"
+  - tabpanel "Détail":
+    - heading "Nouvelle règle" [level=2]
+    - text: Clé (obligatoire)
+    - textbox "Clé (obligatoire)": deny-restreint-partenaires
+    - paragraph: Figée après la création.
+    - text: Libellé (fr)
+    - textbox "Libellé (fr)": Restreint vers les partenaires
+    - group "Effet (obligatoire)":
+      - text: ""
+      - button "Autoriser"
+      - button "Interdire" [pressed]
+    - 'group "Source : axe → valeurs (obligatoire)"':
+      - text: "Source : axe → valeurs (obligatoire) Axe de la source"
+      - combobox "Axe de la source": Sensibilité
+      - text: Restreint
+      - button "Ajouter une valeur de sensibilité"
+      - button "Retirer l'axe Sensibilité de la source"
+      - text: Second axe de la source
+      - combobox "Second axe de la source": Environnement
+      - text: Production
+      - button "Ajouter un environnement"
+      - button "Retirer l'axe Environnement de la source"
+      - button "Ajouter un axe"
+    - 'group "Destination : axe → valeurs (obligatoire)"':
+      - text: "Destination : axe → valeurs (obligatoire) Axe de la destination"
+      - combobox "Axe de la destination": Zone
+      - text: Partenaires
+      - button "Ajouter une zone"
+      - button "Retirer l'axe Zone de la destination"
+      - checkbox "Même valeur à la source et à la destination"
+      - text: Même valeur à la source et à la destination
+      - paragraph: Contrainte « même valeur » sur un axe (par exemple le même site).
+    - group "Types de flux":
+      - text: ""
+      - checkbox "Applicatif" [checked]
+      - text: Applicatif
+      - checkbox "Administratif"
+      - text: Administratif
+      - checkbox "Base de données" [checked]
+      - text: Base de données
+      - checkbox "Fichier" [checked]
+      - text: Fichier
+    - text: Services
+    - combobox "Services": Tous les services des types choisis
+    - text: Motifs requis
+    - combobox "Motifs requis": "Aucun : la règle interdit"
+    - paragraph: Seulement pour une règle Autoriser.
+    - text: Texte pédagogique (fr) (obligatoire)
+    - textbox "Texte pédagogique (fr) (obligatoire)"
+    - paragraph: "Exigé pour une règle Interdire : il s'affiche à qui la rencontre."
+    - text: Texte pédagogique (en)
+    - textbox "Texte pédagogique (en)"
+    - paragraph: "Facultatif : sinon le français, langue indiquée."
+    - group "Début":
+      - text: ""
+      - spinbutton "Année"
+      - spinbutton "Mois"
+      - spinbutton "Jour"
+      - 'button "Choisir la date : Début"'
+      - paragraph: "Vide : au présent. Une règle datée s'écrit au présent ou dans le futur."
+  - button "Largeur du panneau"
+  - button "Fermer le panneau"
+  - button "Annuler"
+  - button "Ajouter au brouillon" [disabled]
+  - button "Choisir l'action"
+- 'tooltip "Une règle Interdire exige un texte en français : il s''affiche à qui la rencontre."'

@@ -1,0 +1,109 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 3":
+        - /url: /x/flow/review
+    - listitem:
+      - link "Échéances 2":
+        - /url: /x/flow/expiring
+    - listitem:
+      - link "Non-conformités 4":
+        - /url: /x/flow/nonconformities
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem:
+        - link "Instruction":
+          - /url: /x/flow/review
+      - listitem: 01JF3C1E3G
+  - button "Présent"
+  - button "Brouillon 0 opération" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Instruire une demande de flux" [level=1]
+  - region "Demande de flux postgres":
+    - heading "Demande de flux postgres" [level=2]
+    - text: de Alex Durand
+    - paragraph:
+      - text: /dev-web-\d+ · eth0 → srv-db-\d+ · eth0 PostgreSQL/
+      - code: postgres
+      - text: Base de données
+    - paragraph:
+      - text: "Triage : Non conforme Issue : non conforme"
+      - button "Copier Développement vers production deny-deve-prod":
+        - text: ""
+        - code: deny-deve-prod
+      - status
+      - text: /score \d+ · politique r42/
+    - paragraph: "Le développement n'atteint jamais la production : ses données n'en sortent pas, ses outils n'y entrent pas."
+    - term: Paires
+    - definition: "/\\d+\\.\\d+\\.\\d+\\.\\d+ → \\d+\\.\\d+\\.\\d+\\.\\d+ : non conforme/"
+    - term: Conditions non remplies
+    - definition: justification-requise
+    - term: Avertissements
+    - definition: données restreintes (signal donnees-restreintes)
+    - term: Entité
+    - definition: Atelier Nord
+    - term: Référence
+    - definition: /ticketing:CHG-\d+/
+    - term: Période demandée
+    - definition: /au présent → \d+-\d+-\d+/
+    - term: Auteur du changeset
+    - definition: Alex Durand
+    - term: Pour le compte de
+    - definition: —
+    - text: "Motif du changeset : « Reprise des jeux de test »"
+    - button "Copier 01JF3C1E3G5J7L9N1Q3S5U7W9Y":
+      - text: ""
+      - code: 01JF3C1E3G5J7L9N1Q3S5U7W9Y
+    - status
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Détail" [selected]
+    - tab "Brouillon 0"
+  - tabpanel "Détail":
+    - heading "Décision" [level=2]
+    - group "Fin du flux (obligatoire)":
+      - text: ""
+      - spinbutton "Année"
+      - spinbutton "Mois"
+      - spinbutton "Jour"
+      - 'button "Choisir la date : Fin du flux"'
+      - paragraph: "/Au plus \\d+ mois après la décision : le \\d+-\\d+-\\d+\\./"
+    - region "Dérogation exigée":
+      - heading "Dérogation exigée" [level=3]
+      - paragraph: "Le triage est non conforme : approuver, c'est déroger."
+      - text: Motif (obligatoire)
+      - textbox "Motif (obligatoire)": Reprise ponctuelle des jeux de test anonymisés
+      - text: Risque accepté (obligatoire)
+      - textbox "Risque accepté (obligatoire)": Données anonymisées, lecture seule, fin en juin
+      - group "Fin de la dérogation (obligatoire)":
+        - text: ""
+        - spinbutton "Année"
+        - spinbutton "Mois"
+        - spinbutton "Jour"
+        - 'button "Choisir la date : Fin de la dérogation"'
+        - paragraph: /Au plus tôt de la fin du flux et du \d+-\d+-\d+ \(6 mois\)\./
+  - button "Largeur du panneau"
+  - button "Fermer le panneau"
+  - button "Rejeter…"
+  - button "Approuver avec dérogation"

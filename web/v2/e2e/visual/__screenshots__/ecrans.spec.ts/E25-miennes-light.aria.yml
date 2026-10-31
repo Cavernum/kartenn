@@ -1,0 +1,91 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 3":
+        - /url: /x/flow/review
+    - listitem:
+      - link "Échéances 2":
+        - /url: /x/flow/expiring
+    - listitem:
+      - link "Non-conformités 4":
+        - /url: /x/flow/nonconformities
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem: Mes non-conformités
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Mes non-conformités" [level=1]
+  - region "Mes non-conformités":
+    - heading "Mes non-conformités" [level=2]
+    - text: demandeur Camille Martin
+    - group "Filtres des non-conformités":
+      - button "Demandeur est Camille Martin"
+      - button "Retirer le filtre Demandeur est Camille Martin"
+      - button "Ajouter un filtre"
+      - status
+    - grid "Non-conformités des flux":
+      - rowgroup:
+        - row "État Date Flux ou changeset Règle en cause Texte de la règle, motif Action":
+          - columnheader "État":
+            - text: ""
+            - 'button "Filtrer : État"'
+          - columnheader "Date"
+          - columnheader "Flux ou changeset"
+          - columnheader "Règle en cause":
+            - text: ""
+            - 'button "Filtrer : Règle en cause"'
+          - columnheader "Texte de la règle, motif"
+          - columnheader "Action"
+      - rowgroup:
+        - 'row /Rejetée \d+-\d+-\d+ 01JF3C1E3G Copier deny-deve-prod Développement vers production Le développement n''atteint jamais la production : ses données n''en sortent pas, ses outils n''y entrent pas\. Motif : La recette dispose de ses propres jeux : passez par l''export anonymisé\. —/':
+          - gridcell "Rejetée"
+          - gridcell /\d+-\d+-\d+/
+          - gridcell "01JF3C1E3G":
+            - link "01JF3C1E3G":
+              - /url: /changesets/01JF3C1E3G5J7L9N1Q3S5U7W9Y
+          - gridcell "Copier deny-deve-prod Développement vers production":
+            - button "Copier deny-deve-prod":
+              - text: ""
+              - code: deny-deve-prod
+            - status
+            - text: ""
+          - 'gridcell "Le développement n''atteint jamais la production : ses données n''en sortent pas, ses outils n''y entrent pas. Motif : La recette dispose de ses propres jeux : passez par l''export anonymisé."'
+          - gridcell "—"
+        - 'row /Dérogée \d+-\d+-\d+ flux-\d+ Copier deny-deve-prod Développement vers production Le développement n''atteint jamais la production : ses données n''en sortent pas, ses outils n''y entrent pas\. Motif : Dérogé jusqu''au \d+-\d+-\d+ —/':
+          - gridcell "Dérogée"
+          - gridcell /\d+-\d+-\d+/
+          - gridcell /flux-\d+/:
+            - link /flux-\d+/:
+              - /url: /x/flow/flows/flux-1037
+          - gridcell "Copier deny-deve-prod Développement vers production":
+            - button "Copier deny-deve-prod":
+              - text: ""
+              - code: deny-deve-prod
+            - status
+            - text: ""
+          - 'gridcell /Le développement n''atteint jamais la production : ses données n''en sortent pas, ses outils n''y entrent pas\. Motif : Dérogé jusqu''au \d+-\d+-\d+/'
+          - gridcell "—"
+    - text: ""
+    - button "Suivantes"
+- button "Ouvrir le panneau"

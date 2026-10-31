@@ -1,0 +1,15 @@
+- main:
+  - region "Non-conformités":
+    - group "Filtres des non-conformités":
+      - status
+- dialog /Acquitter la non-conformité de flux-\d+/:
+  - banner:
+    - heading /Acquitter la non-conformité de flux-\d+/ [level=2]
+    - button "Fermer"
+  - paragraph: L'anomalie flow.verdict.denied du flux quitte les ouvertes ; le flux reste non conforme et l'acquittement reste dans son historique.
+  - text: Commentaire
+  - textbox "Commentaire": /Bastion en cours de déploiement sur ce site, flux retiré le \d+-\d+-\d+\./
+  - paragraph: Ce qui est prévu pour ce flux.
+  - contentinfo:
+    - button "Annuler"
+    - button "Acquitter"

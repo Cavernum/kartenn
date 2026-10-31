@@ -1,0 +1,119 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel" [expanded]
+  - list:
+    - listitem:
+      - link "Accueil":
+        - /url: /
+    - listitem:
+      - link "Topographie":
+        - /url: /topology
+    - listitem:
+      - link "VLAN":
+        - /url: /vlans
+    - listitem:
+      - link "Domaines":
+        - /url: /domains
+    - listitem:
+      - link "Préfixes":
+        - /url: /prefixes
+    - listitem:
+      - link "Plages":
+        - /url: /ranges
+    - listitem:
+      - link "Adresses":
+        - /url: /addresses
+    - listitem:
+      - link "Entités":
+        - /url: /entities
+    - listitem:
+      - link "Sites":
+        - /url: /sites
+    - listitem:
+      - link /Anomalies \d+/:
+        - /url: /anomalies
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Référentiel":
+          - /url: /
+      - listitem:
+        - link "Centre de données nord":
+          - /url: /domains/dc-nord
+      - listitem:
+        - link "Préfixes":
+          - /url: /prefixes
+      - listitem: /\d+\.\d+\.\d+\.\d+\/\d+/
+  - button "Présent"
+  - button "Brouillon 3 opérations"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading /Préfixe \d+\.\d+\.\d+\.\d+\/\d+/ [level=1]
+  - region /\d+\.\d+\.\d+\.\d+\/\d+/:
+    - heading /\d+\.\d+\.\d+\.\d+\/\d+/ [level=2]
+    - text: préfixe · réseau · Supervision
+    - button "Modifier"
+    - button "Actions"
+    - tablist "Sections de la fiche":
+      - tab "Propriétés 5"
+      - tab "Historique 3"
+      - tab "Flux 3" [selected]
+    - tabpanel "Flux 3":
+      - button "Colonnes"
+      - grid /Flux de \d+\.\d+\.\d+\.\d+\/\d+/:
+        - rowgroup:
+          - row "Sens Flux Autre extrémité État Par":
+            - columnheader "Sens"
+            - columnheader "Flux"
+            - columnheader "Autre extrémité"
+            - columnheader "État"
+            - columnheader "Par"
+        - rowgroup:
+          - row /Entrant flux-\d+ srv-app-\d+ · eth0 Non conforme le préfixe lui-même/:
+            - gridcell "Entrant"
+            - gridcell /flux-\d+/:
+              - link /flux-\d+/:
+                - /url: /_ui/ecrans/E22?vue=fiche&mode=dark
+            - gridcell /srv-app-\d+ · eth0/
+            - gridcell "Non conforme"
+            - gridcell "le préfixe lui-même"
+          - row /Entrant flux-\d+ bastion-\d+ · eth0 Actif \d+\.\d+\.\d+\.\d+, qu'il contient/:
+            - gridcell "Entrant"
+            - gridcell /flux-\d+/:
+              - link /flux-\d+/:
+                - /url: /_ui/ecrans/E22?vue=fiche&mode=dark
+            - gridcell /bastion-\d+ · eth0/
+            - gridcell "Actif"
+            - gridcell /\d+\.\d+\.\d+\.\d+, qu'il contient/
+          - row /Entrant changeset srv-web-\d+ · eth0 Demandé \d+\.\d+\.\d+\.\d+, qu'il contient/:
+            - gridcell "Entrant"
+            - gridcell "changeset":
+              - link "changeset":
+                - /url: /changesets/01JF3C1E3G5J7L9N1Q3S5U7W9Y
+            - gridcell /srv-web-\d+ · eth0/
+            - gridcell "Demandé"
+            - gridcell /\d+\.\d+\.\d+\.\d+, qu'il contient/
+      - paragraph:
+        - text: "Une demande en attente n'a pas encore de fiche : son changeset la montre."
+        - link "Tous ses flux dans le registre":
+          - /url: /_ui/ecrans/E11?vue=registre&mode=dark
+        - text: .
+    - heading "Attributs" [level=2]
+    - term: Domaine
+    - definition: Centre de données nord
+    - term: Environnement
+    - definition: Production
+    - term: Propriétaire
+    - definition: Atelier Nord
+- button "Ouvrir le panneau"

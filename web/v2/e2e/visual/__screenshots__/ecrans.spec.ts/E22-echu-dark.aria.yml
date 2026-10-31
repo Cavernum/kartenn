@@ -1,0 +1,91 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 3":
+        - /url: /x/flow/review
+    - listitem:
+      - link "Échéances 2":
+        - /url: /x/flow/expiring
+    - listitem:
+      - link "Non-conformités 4":
+        - /url: /x/flow/nonconformities
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem:
+        - link "Registre":
+          - /url: /x/flow/flows
+      - listitem: /flux-\d+/
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading /Flux flux-\d+/ [level=1]
+  - region /flux-\d+/:
+    - heading /flux-\d+/ [level=2]
+    - text: flux · échu · Applicatif
+    - button "Nouvelle demande pré-remplie"
+    - button "Actions"
+    - status:
+      - paragraph: "/Information : Ce flux a pris fin le \\d+-\\d+-\\d+ : il ne se prolonge plus\\./"
+      - list:
+        - listitem:
+          - text: Une nouvelle demande pré-remplie le renouvelle, avec son dossier.
+          - button "Copier flow.update.ended":
+            - text: ""
+            - code: flow.update.ended
+          - status
+    - tablist "Sections de la fiche":
+      - tab "Évaluations 0" [selected]
+      - tab "Historique 3"
+    - tabpanel "Évaluations 0":
+      - paragraph: "Au présent : Non conforme politique r42"
+      - paragraph: Aucune adresse à la date
+      - paragraph: "/srv-rec-\\d+ · eth0 ne porte plus d'adresse : le flux est non conforme faute de paire à évaluer\\./"
+      - term: À l'enregistrement
+      - definition: "/\\d+-\\d+-\\d+ : sous réserve, instruit/"
+    - heading "Flux" [level=2]
+    - term: Source
+    - definition: /srv-rec-\d+ · eth0/
+    - term: Destination
+    - definition: /srv-app-\d+ · eth0/
+    - term: Service
+    - definition:
+      - text: Web chiffré
+      - code: https
+    - term: État
+    - definition: Échu
+    - term: Période
+    - definition: /\d+-\d+-\d+ → \d+-\d+-\d+/
+    - heading "Dossier" [level=2]
+    - term: Entité
+    - definition: Atelier Nord
+    - term: Demandeur
+    - definition: Camille Martin
+    - term: Référence
+    - definition: /ticketing:CHG-\d+/
+    - term: Justification
+    - definition: Jeux de contrôle de la recette
+    - term: Responsables
+    - definition: Lou Bernard
+    - term: Nature des données
+    - definition: Interne
+- button "Ouvrir le panneau"

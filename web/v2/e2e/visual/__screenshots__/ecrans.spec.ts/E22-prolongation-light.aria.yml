@@ -1,0 +1,105 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 3":
+        - /url: /x/flow/review
+    - listitem:
+      - link "Échéances 2":
+        - /url: /x/flow/expiring
+    - listitem:
+      - link "Non-conformités 4":
+        - /url: /x/flow/nonconformities
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem:
+        - link "Registre":
+          - /url: /x/flow/flows
+      - listitem: /flux-\d+/
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading /Flux flux-\d+/ [level=1]
+  - region /flux-\d+/:
+    - heading /flux-\d+/ [level=2]
+    - text: flux · actif · Administratif
+    - button "Modifier"
+    - button "Actions"
+    - status:
+      - paragraph: "/Information : Prolongation jusqu'au \\d+-\\d+-\\d+ en attente d'instruction\\./"
+      - text: Changeset
+      - link "01JF3C4H6K":
+        - /url: /_ui/ecrans/E23?vue=decision&mode=light
+      - text: /, demandé par Camille Martin le \d+-\d+-\d+\./
+      - list:
+        - listitem:
+          - text: /La fiche garde la fin du \d+-\d+-\d+ tant que la prolongation n'est pas approuvée\./
+          - button "Copier flow.created":
+            - text: ""
+            - code: flow.created
+          - status
+    - tablist "Sections de la fiche":
+      - tab "Évaluations 1" [selected]
+      - tab "Historique 3"
+    - tabpanel "Évaluations 1":
+      - paragraph: "Au présent : Conforme politique r42"
+      - button "Colonnes"
+      - grid "Évaluations courantes par paire":
+        - rowgroup:
+          - row "Paire d'adresses Verdict Élément décisif":
+            - columnheader "Paire d'adresses"
+            - columnheader "Verdict"
+            - columnheader "Élément décisif"
+        - rowgroup:
+          - row /\d+\.\d+\.\d+\.\d+ → \d+\.\d+\.\d+\.\d+ Conforme admin-par-bastion/:
+            - gridcell /\d+\.\d+\.\d+\.\d+ → \d+\.\d+\.\d+\.\d+/
+            - gridcell "Conforme"
+            - gridcell "admin-par-bastion"
+      - term: À l'enregistrement
+      - definition: "/\\d+-\\d+-\\d+ : conforme, automatique/"
+    - heading "Flux" [level=2]
+    - term: Source
+    - definition: /bastion-\d+ · eth0/
+    - term: Destination
+    - definition: /srv-app-\d+ · eth1/
+    - term: Service
+    - definition:
+      - text: Shell sécurisé
+      - code: ssh
+    - term: État
+    - definition: Actif
+    - term: Période
+    - definition: /\d+-\d+-\d+ → \d+-\d+-\d+/
+    - heading "Dossier" [level=2]
+    - term: Entité
+    - definition: Atelier Nord
+    - term: Demandeur
+    - definition: Alex Durand
+    - term: Référence
+    - definition: /ticketing:CHG-\d+/
+    - term: Justification
+    - definition: Administration des serveurs d'application
+    - term: Responsables
+    - definition: Lou Bernard
+    - term: Nature des données
+    - definition: Interne
+- button "Ouvrir le panneau"

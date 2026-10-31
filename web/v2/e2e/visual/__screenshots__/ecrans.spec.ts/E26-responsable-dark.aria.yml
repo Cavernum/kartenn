@@ -1,0 +1,87 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel" [expanded]
+  - list:
+    - listitem:
+      - link "Accueil":
+        - /url: /
+    - listitem:
+      - link "Topographie":
+        - /url: /topology
+    - listitem:
+      - link "VLAN":
+        - /url: /vlans
+    - listitem:
+      - link "Domaines":
+        - /url: /domains
+    - listitem:
+      - link "Préfixes":
+        - /url: /prefixes
+    - listitem:
+      - link "Plages":
+        - /url: /ranges
+    - listitem:
+      - link "Adresses":
+        - /url: /addresses
+    - listitem:
+      - link "Entités":
+        - /url: /entities
+    - listitem:
+      - link "Sites":
+        - /url: /sites
+    - listitem:
+      - link /Anomalies \d+/:
+        - /url: /anomalies
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem: Accueil
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Accueil" [level=1]
+  - paragraph: Les tuiles du cœur (E0) précèdent celles des plugins.
+  - heading "Politique" [level=2]
+  - text: plugin Politique
+  - term: Écarts d'inférence ouverts
+  - definition:
+    - link "4":
+      - /url: /_ui/ecrans/E18?vue=ecarts&mode=dark
+  - term: Dernier rapport d'audit
+  - definition:
+    - link /rpt-\d+/:
+      - /url: /_ui/ecrans/E20?vue=rapport&mode=dark
+    - text: /Fait au \d+-\d+-\d+/
+  - term: En cours
+  - definition:
+    - link /rpt-\d+/:
+      - /url: /_ui/ecrans/E20?vue=liste&mode=dark
+    - text: En cours
+  - heading "Flux" [level=2]
+  - text: plugin Flux
+  - term: À instruire
+  - definition:
+    - link "3":
+      - /url: /_ui/ecrans/E23?vue=file&mode=dark
+  - term: Échéances sous 7 jours
+  - definition:
+    - link "2":
+      - /url: /_ui/ecrans/E24?vue=echeances&mode=dark
+    - text: J-5 au plus tôt
+  - term: Mes demandes en attente
+  - definition:
+    - link "1":
+      - /url: /_ui/ecrans/E21?vue=instruction&mode=dark
+  - paragraph: Vu avec policy.catalogue.read, policy.rule.admin et flow.review. Relues à chaque changement, par le flux d'événements.
+- button "Ouvrir le panneau"

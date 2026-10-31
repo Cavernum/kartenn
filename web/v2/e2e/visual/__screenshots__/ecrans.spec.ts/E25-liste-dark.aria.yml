@@ -1,0 +1,121 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 3":
+        - /url: /x/flow/review
+    - listitem:
+      - link "Échéances 2":
+        - /url: /x/flow/expiring
+    - listitem:
+      - link "Non-conformités 4":
+        - /url: /x/flow/nonconformities
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem: Non-conformités
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Non-conformités" [level=1]
+  - region "Non-conformités":
+    - heading "Non-conformités" [level=2]
+    - text: au présent
+    - group "Filtres des non-conformités":
+      - button "État est l'un de Rejetée, Non conforme, Dérogée"
+      - button "Retirer le filtre État est l'un de Rejetée, Non conforme, Dérogée"
+      - button "Ajouter un filtre"
+      - status
+    - grid "Non-conformités des flux":
+      - rowgroup:
+        - row "État (filtrée) Date Flux ou changeset Règle en cause Texte de la règle, motif Action":
+          - columnheader "État (filtrée)":
+            - text: ""
+            - 'button "Filtrer : État"'
+            - text: ""
+          - columnheader "Date"
+          - columnheader "Flux ou changeset"
+          - columnheader "Règle en cause":
+            - text: ""
+            - 'button "Filtrer : Règle en cause"'
+          - columnheader "Texte de la règle, motif"
+          - columnheader "Action"
+      - rowgroup:
+        - 'row /Rejetée \d+-\d+-\d+ 01JF3C1E3G Copier deny-deve-prod Développement vers production Le développement n''atteint jamais la production : ses données n''en sortent pas, ses outils n''y entrent pas\. Motif : La recette dispose de ses propres jeux : passez par l''export anonymisé\. —/':
+          - gridcell "Rejetée"
+          - gridcell /\d+-\d+-\d+/
+          - gridcell "01JF3C1E3G":
+            - link "01JF3C1E3G":
+              - /url: /changesets/01JF3C1E3G5J7L9N1Q3S5U7W9Y
+          - gridcell "Copier deny-deve-prod Développement vers production":
+            - button "Copier deny-deve-prod":
+              - text: ""
+              - code: deny-deve-prod
+            - status
+            - text: ""
+          - 'gridcell "Le développement n''atteint jamais la production : ses données n''en sortent pas, ses outils n''y entrent pas. Motif : La recette dispose de ses propres jeux : passez par l''export anonymisé."'
+          - gridcell "—"
+        - 'row /Non conforme \d+-\d+-\d+ flux-\d+ Copier deny-admin-hors-bastion Administration hors bastion L''administration ne part que du bastion : une machine n''en administre pas une autre\. Motif : Devenu non conforme : politique r39 Acquitter…/':
+          - gridcell "Non conforme"
+          - gridcell /\d+-\d+-\d+/
+          - gridcell /flux-\d+/:
+            - link /flux-\d+/:
+              - /url: /x/flow/flows/flux-1029
+          - gridcell "Copier deny-admin-hors-bastion Administration hors bastion":
+            - button "Copier deny-admin-hors-bastion":
+              - text: ""
+              - code: deny-admin-hors-bastion
+            - status
+            - text: ""
+          - 'gridcell "L''administration ne part que du bastion : une machine n''en administre pas une autre. Motif : Devenu non conforme : politique r39"'
+          - gridcell "Acquitter…":
+            - button "Acquitter…"
+        - 'row /Dérogée \d+-\d+-\d+ flux-\d+ Copier deny-deve-prod Développement vers production Le développement n''atteint jamais la production : ses données n''en sortent pas, ses outils n''y entrent pas\. Motif : Dérogé jusqu''au \d+-\d+-\d+ —/':
+          - gridcell "Dérogée"
+          - gridcell /\d+-\d+-\d+/
+          - gridcell /flux-\d+/:
+            - link /flux-\d+/:
+              - /url: /x/flow/flows/flux-1037
+          - gridcell "Copier deny-deve-prod Développement vers production":
+            - button "Copier deny-deve-prod":
+              - text: ""
+              - code: deny-deve-prod
+            - status
+            - text: ""
+          - 'gridcell /Le développement n''atteint jamais la production : ses données n''en sortent pas, ses outils n''y entrent pas\. Motif : Dérogé jusqu''au \d+-\d+-\d+/'
+          - gridcell "—"
+        - 'row /Non conforme \d+-\d+-\d+ flux-\d+ Copier deny-partenaire-sortant Outbound flows to partner networks go through the egress relay\. \(texte en anglais : aucun texte français\) Motif : Devenu non conforme : politique r41 Acquitter…/':
+          - gridcell "Non conforme"
+          - gridcell /\d+-\d+-\d+/
+          - gridcell /flux-\d+/:
+            - link /flux-\d+/:
+              - /url: /x/flow/flows/flux-1110
+          - gridcell "Copier deny-partenaire-sortant":
+            - button "Copier deny-partenaire-sortant":
+              - text: ""
+              - code: deny-partenaire-sortant
+            - status
+          - 'gridcell "Outbound flows to partner networks go through the egress relay. (texte en anglais : aucun texte français) Motif : Devenu non conforme : politique r41"'
+          - gridcell "Acquitter…":
+            - button "Acquitter…"
+    - text: 4 non-conformités
+    - button "Suivantes"
+- button "Ouvrir le panneau"

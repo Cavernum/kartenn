@@ -1,0 +1,59 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem:
+        - link "Matrice":
+          - /url: /x/policy/matrix
+      - listitem: backup
+  - button "Présent"
+  - button "Brouillon 2 opérations"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Matrice de politique sauvegarde" [level=1]
+  - region "Matrice":
+    - heading "Matrice" [level=2]
+    - text: Sauvegarde Type de flux
+    - combobox "Type de flux": Sauvegarde
+    - toolbar "Actions de la matrice":
+      - button "2 règles hors vue"
+      - button "Simuler le brouillon"
+      - button "Exporter"
+    - paragraph: /Aucun environnement vivant au \d+-\d+-\d+ pour la sauvegarde/
+    - paragraph: "La matrice d'un type de flux croise les environnements vivants à la date : aucun n'est ouvert à la sauvegarde. Les environnements s'ouvrent dans les Paramètres de la politique."
+    - button "Ouvrir les Paramètres de la politique"
+- button "Ouvrir le panneau"
