@@ -1,0 +1,44 @@
+- main:
+  - region "DataGrid":
+    - heading "DataGrid" [level=1]
+    - paragraph: "Motif : Grid (maison) ; une seule grille, lignes en subgrid ; tri et filtre de colonne"
+    - 'figure "widget-env — Pastille d''environnement d''une cellule au focus (Entrée) : son anneau entier, la cellule ne le coupe pas"':
+      - grid "Préfixes du domaine":
+        - rowgroup:
+          - row "Préfixe Libellé Environnement Occupation Responsable":
+            - columnheader "Préfixe":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
+            - columnheader "Libellé"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
+            - columnheader "Occupation"
+            - columnheader "Responsable"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Serveurs de bases Production \d+ % Équipe réseau reseau/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Serveurs de bases"
+            - gridcell "Production":
+              - button "Production"
+              - status
+            - gridcell /\d+ %/
+            - gridcell "Équipe réseau reseau":
+              - button "Équipe réseau reseau":
+                - text: ""
+                - code: reseau
+              - status
+          - row /\d+\.\d+\.2\.0\/\d+ Postes du siège Recette \d+ % Équipe postes reseau/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Postes du siège"
+            - gridcell "Recette":
+              - button "Recette"
+              - status
+            - gridcell /\d+ %/
+            - gridcell "Équipe postes reseau":
+              - button "Équipe postes reseau":
+                - text: ""
+                - code: reseau
+              - status
+      - code: widget-env
+      - text: ""

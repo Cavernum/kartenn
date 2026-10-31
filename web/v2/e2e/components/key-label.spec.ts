@@ -15,7 +15,7 @@ test("prod: its label in French, its key in English; copyable in both", async ({
   context,
 }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await page.goto("/_ui/c/KeyLabel?etat=fallback");
+  await openState(page, "KeyLabel", "fallback");
   const production = page.getByRole("button", { name: "Production", exact: true });
   await expect(production).toHaveAccessibleDescription(
     "Clé : prod. Clic, Entrée ou Espace : copier la clé.",
@@ -27,7 +27,9 @@ test("prod: its label in French, its key in English; copyable in both", async ({
   await expect(bubble(page)).toContainText("Clé copiée");
   expect(await clipboard(page)).toBe("prod");
 
+  // The same state in English (`?langue=`, which `openState` does not set).
   await page.goto("/_ui/c/KeyLabel?etat=fallback&langue=en");
+  await page.locator("[data-state-name]").first().waitFor();
   const key = page.getByRole("button", { name: "prod", exact: true });
   // No label in English: the key, in fixed pitch, is the name; nothing is empty.
   await expect(key.locator("code")).toHaveText("prod");
@@ -53,10 +55,37 @@ test("the bubble under the keyboard focus; Escape closes it, the focus stays", a
   await expect(label).toBeFocused();
 });
 
-test("plain: the text alone, no button", async ({ page }) => {
+test("plain: no button, the key shown beside the label", async ({ page }) => {
   await openState(page, "KeyLabel", "plain");
-  await expect(page.locator("[data-state-name] .k-key-label")).toHaveText("Centre de données nord");
-  await expect(page.locator("[data-state-name] .k-key-label button")).toHaveCount(0);
+  const pastille = page.locator("[data-state-name] .k-key-label");
+  await expect(pastille).toContainText("Centre de données nord");
+  await expect(pastille.locator("code")).toHaveText("dc-nord");
+  await expect(pastille.locator("button")).toHaveCount(0);
+});
+
+test("refused copy: the key selected in the bubble, the way to copy it shown and said", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator.clipboard, "writeText", {
+      value: () => Promise.reject(new DOMException("Refused", "NotAllowedError")),
+    });
+    Object.defineProperty(document, "execCommand", { value: () => false });
+  });
+  await openState(page, "KeyLabel", "labelled");
+  const label = page.getByRole("button", { name: "Centre de données nord" });
+  await label.focus();
+  await page.keyboard.press("Enter");
+  const message =
+    "Copie impossible : le texte est sélectionné, copiez-le au clavier (Ctrl+C, ⌘C sur Mac).";
+  await expect(page.locator(".k-key-label").getByRole("status")).toHaveText(message);
+  await expect(bubble(page)).toContainText(message);
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("dc-nord");
+  await expect(label).toBeFocused();
+  await page.keyboard.press("ControlOrMeta+C");
+  expect(await clipboard(page)).toBe("dc-nord");
 });
 
 test("EnvChip: a button that copies its key", async ({ page, context }) => {

@@ -23,8 +23,9 @@
       - status
       - code: focus
       - text: ""
-    - figure "plain — Texte seul (dans un contrôle)":
+    - 'figure "plain — Sans bouton (dans un contrôle) : la clé toujours à côté"':
       - text: Production
+      - code: prod
       - code: plain
       - text: ""
     - figure "palette — Les six teintes":

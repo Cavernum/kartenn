@@ -46,14 +46,44 @@ test("copied from the keyboard, said and shown; Space too", async ({ page, conte
   await expect(bubble(page)).toHaveCount(0, { timeout: 4000 });
 });
 
-test("without the Clipboard API, the copy command takes over", async ({ page, context }) => {
+test("API refused: the copy command takes over, no selection, the focus kept", async ({
+  page,
+  context,
+}) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await refuse(page, false);
   await openState(page, "CodeBadge", "keyboard");
-  await page.getByRole("button", { name: `Copier ${CODE}` }).focus();
+  const code = page.getByRole("button", { name: `Copier ${CODE}` });
+  await code.focus();
   await page.keyboard.press("Enter");
   await expect(page.locator(".k-code-badge").first().getByRole("status")).toHaveText("Copié");
   expect(await clipboard(page)).toBe(CODE);
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("");
+  await expect(code).toBeFocused();
+});
+
+test("no Clipboard API at all (insecure context): the copy command, in the activation", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  // The page loses the API (as over plain HTTP); the script reads the clipboard through
+  // the one it kept.
+  await page.addInitScript(() => {
+    const read = navigator.clipboard.readText.bind(navigator.clipboard);
+    (window as unknown as { kRead: () => Promise<string> }).kRead = read;
+    Object.defineProperty(navigator, "clipboard", { value: undefined });
+  });
+  await openState(page, "CodeBadge", "keyboard");
+  const code = page.getByRole("button", { name: `Copier ${CODE}` });
+  await code.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".k-code-badge").first().getByRole("status")).toHaveText("Copié");
+  expect(
+    await page.evaluate(() => (window as unknown as { kRead: () => Promise<string> }).kRead()),
+  ).toBe(CODE);
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("");
+  await expect(code).toBeFocused();
 });
 
 test("both refused: the code selected, the way to copy it shown and said", async ({

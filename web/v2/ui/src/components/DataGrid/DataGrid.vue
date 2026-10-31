@@ -957,9 +957,13 @@ onBeforeUnmount(() => observer?.disconnect());
     color: var(--k-accent);
   }
 
+  /* Clipped to the cell, its focus ring kept: a widget of the cell (a copy pastille, a
+   * link) takes the focus with a ring outside its box (WCAG 2.4.7), which a plain `hidden`
+   * cut away. A plain length: the engines refuse a `calc()` there. */
   .k-data-grid__value {
     min-inline-size: 0;
-    overflow: hidden;
+    overflow: clip;
+    overflow-clip-margin: var(--k-space-2);
     text-overflow: ellipsis;
   }
 

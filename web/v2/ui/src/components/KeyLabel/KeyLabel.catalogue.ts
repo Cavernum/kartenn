@@ -54,7 +54,7 @@ export default {
     },
     {
       name: "plain",
-      description: "Texte seul (dans un contrôle, ou clé donnée ailleurs)",
+      description: "Sans bouton (dans un contrôle) : la clé toujours à côté",
       props: { value: domains[0].key, label: domains[0].label, plain: true },
     },
     {

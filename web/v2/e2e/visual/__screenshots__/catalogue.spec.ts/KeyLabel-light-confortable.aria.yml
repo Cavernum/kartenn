@@ -30,8 +30,9 @@
       - status
       - code: focus
       - text: ""
-    - figure "plain — Texte seul (dans un contrôle, ou clé donnée ailleurs)":
+    - 'figure "plain — Sans bouton (dans un contrôle) : la clé toujours à côté"':
       - text: Centre de données nord
+      - code: dc-nord
       - code: plain
       - text: ""
     - 'figure "fallback — prod : « Production » en français, sa clé dans une langue sans libellé"':

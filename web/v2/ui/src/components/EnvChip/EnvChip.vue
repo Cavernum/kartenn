@@ -7,7 +7,8 @@
 // closed palette, and its label, never the dot alone; without a label, its key in fixed
 // pitch. The hue comes from the key (`envHue`), unless the host gives one. Like
 // `KeyLabel`, the chip is a button that copies its key, shown in its bubble and said in
-// its description; `plain` for a chip inside a control. In forced colours the dot keeps
+// its description; `plain` for a chip inside a control, its key then shown beside its
+// label (REQ-020-21: never behind nothing). In forced colours the dot keeps
 // its ring (its border, of its own hue otherwise): the backgrounds are the system's.
 import { computed, ref, useId } from "vue";
 import { useCopy } from "../internal/copy.ts";
@@ -27,6 +28,8 @@ const copy = useCopy({
   text: () => props.value,
   selection: () => bubble.value?.keyNode(),
   atRest: () => true,
+  // The key already shown (no label): the bubble only repeats the button, Escape goes on.
+  passAtRest: () => !props.label,
 });
 const control = computed(() =>
   props.plain
@@ -51,6 +54,8 @@ const control = computed(() =>
         <span class="k-env-chip__dot" aria-hidden="true"></span>
         <span v-if="props.label" class="k-env-chip__label">{{ props.label }}</span>
         <code v-else class="k-env-chip__label">{{ props.value }}</code>
+        <!-- Plain, no bubble: the key beside its label. -->
+        <code v-if="props.plain && props.label" class="k-env-chip__key">{{ props.value }}</code>
       </span>
     </component>
     <KeyBubble
@@ -82,6 +87,12 @@ const control = computed(() =>
     background: none;
     border: 0;
     border-radius: var(--k-radius-full);
+  }
+
+  /* The ring in the frame, around the pill: within the 24 px of the target, so a row of
+   * 28 px holds it whole (the row after paints over what passes its border). */
+  button.k-env-chip-frame:focus-visible {
+    outline-offset: calc(var(--k-focus-width) * -1);
   }
 
   .k-env-chip {
@@ -145,9 +156,14 @@ const control = computed(() =>
     border-radius: var(--k-radius-full);
   }
 
-  .k-env-chip code.k-env-chip__label {
+  .k-env-chip code.k-env-chip__label,
+  .k-env-chip__key {
     font-size: var(--k-text-sm);
     line-height: var(--k-text-sm-line);
+  }
+
+  .k-env-chip__key {
+    color: var(--k-text-muted);
   }
 }
 </style>

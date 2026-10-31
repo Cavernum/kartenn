@@ -10,8 +10,9 @@
 // pastille is a button that copies it (a click, Enter, Space), its bubble shows it under
 // the pointer and the keyboard focus, and its description says it (« Clé : prod ») with
 // how to copy it; the outcome is said by a `status` region and shown in the bubble
-// (`useCopy`, `KeyBubble`). Its name is what it shows. `plain`: the text alone, for a
-// pastille inside a control (a button, a link) or whose key is given otherwise.
+// (`useCopy`, `KeyBubble`). Its name is what it shows. `plain`: text, no button, for a
+// pastille inside a control (a button, a link) or a grid whose rows activate; the key is
+// then always shown beside the label (it is no longer behind a bubble, REQ-020-21).
 import { computed, ref, useId } from "vue";
 import { useCopy } from "../internal/copy.ts";
 import KeyBubble from "../internal/KeyBubble.vue";
@@ -59,7 +60,7 @@ const control = computed(() =>
     >
       <template v-if="props.label">
         <span ref="shown" class="k-key-label__label">{{ props.label }}</span>
-        <code v-if="props.showKey || props.stacked" class="k-key-label__key">{{
+        <code v-if="props.showKey || props.stacked || props.plain" class="k-key-label__key">{{
           props.value
         }}</code>
       </template>
@@ -112,7 +113,9 @@ const control = computed(() =>
     max-inline-size: calc(100% + var(--k-space-1) * 2);
     min-block-size: var(--k-space-6);
     padding: 0 var(--k-space-1);
-    margin: calc((var(--k-size-line) - var(--k-space-6)) / 2) calc(var(--k-space-1) * -1);
+    /* Never positive: a line taller than the target is left as it is. */
+    margin: calc((min(var(--k-size-line), var(--k-space-6)) - var(--k-space-6)) / 2)
+      calc(var(--k-space-1) * -1);
     font: inherit;
     color: inherit;
     text-align: start;
@@ -125,7 +128,9 @@ const control = computed(() =>
   /* The ring on the line it gives back, inside its box: whole even where a cell clips its
    * text to its line (`DataGrid`, WCAG 2.4.7). */
   button.k-key-label__text:focus-visible {
-    outline-offset: calc((var(--k-size-line) - var(--k-space-6)) / 2);
+    outline-offset: calc(
+      (min(var(--k-size-line), var(--k-space-6)) - var(--k-space-6)) / 2 - var(--k-focus-width)
+    );
   }
 
   button.k-key-label__text[data-stacked] {

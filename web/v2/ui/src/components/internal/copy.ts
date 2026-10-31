@@ -41,12 +41,17 @@ export function useCopy(options: {
     passEscape: () => outcome.value === null && options.passAtRest?.() === true,
   });
 
+  /** The last activation: the outcome of an earlier one, settled later, is dropped. */
+  let last = 0;
   async function copy(): Promise<void> {
+    const mine = ++last;
     clearTimeout(timer);
     outcome.value = null;
     const result = await copyText(options.text());
+    if (mine !== last) return;
     if (result === "failed") selectText(options.selection());
     outcome.value = result;
+    clearTimeout(timer);
     if (result === "copied")
       timer = setTimeout(() => {
         outcome.value = null;

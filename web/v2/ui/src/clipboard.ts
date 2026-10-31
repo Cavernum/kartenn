@@ -10,7 +10,10 @@ export type CopyOutcome = "copied" | "failed";
  * secure context and the focus of the document; without it, or refused, the copy command
  * of the document takes over, its `copy` event given the text (no selection made, no focus
  * moved). A refusal of both is an outcome, never a throw: the component then selects the
- * text and says how to copy it by hand (`selectText`).
+ * text and says how to copy it by hand (`selectText`). Without the API, the command runs
+ * inside the user's activation (before any `await`); after a refusal of the API, it runs
+ * a microtask later, which Chromium accepts (proven by the scripts) and other engines may
+ * refuse: the refusal path then holds.
  */
 export async function copyText(text: string): Promise<CopyOutcome> {
   try {

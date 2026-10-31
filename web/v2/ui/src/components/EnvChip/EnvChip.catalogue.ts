@@ -52,7 +52,7 @@ export default {
     },
     {
       name: "plain",
-      description: "Texte seul (dans un contrôle)",
+      description: "Sans bouton (dans un contrôle) : la clé toujours à côté",
       props: {
         value: environments[0].key,
         label: environments[0].label,

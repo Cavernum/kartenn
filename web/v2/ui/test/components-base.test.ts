@@ -423,23 +423,21 @@ describe("KeyLabel and EnvChip (REQ-020-21)", () => {
     );
   });
 
-  it("plain: the text alone, no control inside a control", async () => {
+  it("plain: no control inside a control, the key shown beside the label", async () => {
     for (const component of [KeyLabel, EnvChip]) {
       const html = await render(component, { value: "prod", label: "Production", plain: true });
       expect(html).not.toContain("<button");
       expect(html).not.toContain('role="status"');
       expect(html).toContain("Production");
+      expect(html).toMatch(/<code[^>]*>prod<\/code>/);
     }
   });
 
-  it("EnvChip: the hue from the key, stable, in the palette; the host's first", async () => {
-    const keys = ["prod", "rece", "deve", "form", "preprod", "dmz", "é", ""];
-    for (const key of keys) expect(envHue(key)).toBeGreaterThanOrEqual(1);
-    for (const key of keys) expect(envHue(key)).toBeLessThanOrEqual(6);
-    expect(keys.map(envHue)).toEqual(keys.map(envHue));
-    // FNV-1a of "prod" (0xed3e3174 = 3980276084), modulo 6, plus 1.
-    expect(envHue("prod")).toBe(3);
-    expect(await render(EnvChip, { value: "prod" })).toContain(`data-hue="${envHue("prod")}"`);
+  it("EnvChip: the hue from the key (FNV-1a over UTF-8, mod 6, + 1); the host's first", async () => {
+    // FNV-1a 32 bits: "" is the offset basis 0x811c9dc5; "prod" 0xed3e3174; "dmz"
+    // 0xd96d25c0; "préprod" (é in two UTF-8 bytes) 0x6a6de696; "é" 0x1e9de8c1.
+    expect(["", "prod", "dmz", "préprod", "é"].map(envHue)).toEqual([2, 3, 1, 5, 4]);
+    expect(await render(EnvChip, { value: "prod" })).toContain('data-hue="3"');
     expect(await render(EnvChip, { value: "prod", hue: 6 })).toContain('data-hue="6"');
   });
 });
