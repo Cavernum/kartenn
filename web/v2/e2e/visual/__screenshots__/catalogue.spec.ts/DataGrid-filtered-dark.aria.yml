@@ -6,9 +6,14 @@
       - grid "Préfixes du domaine":
         - rowgroup:
           - row "Préfixe (filtrée) Libellé Environnement Occupation Responsable":
-            - columnheader "Préfixe (filtrée)"
+            - columnheader "Préfixe (filtrée)":
+              - text: ""
+              - 'button "Filtrer : Préfixe"'
+              - text: ""
             - columnheader "Libellé"
-            - columnheader "Environnement"
+            - columnheader "Environnement":
+              - text: ""
+              - 'button "Filtrer : Environnement"'
             - columnheader "Occupation"
             - columnheader "Responsable"
         - rowgroup:
@@ -42,5 +47,6 @@
             - gridcell "Recette"
             - gridcell /\d+ %/
             - gridcell "Équipe postes"
+      - alert
       - code: filtered
       - text: ""

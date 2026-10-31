@@ -7,7 +7,6 @@
 // into « … » when the header narrows.
 import {
   Button,
-  Checkbox,
   checkFilter,
   Cluster,
   DataGrid,
@@ -156,17 +155,12 @@ const sort = ref<GridSort | undefined>({ column: "value", direction: "ascending"
 /** The selected rows: Space toggles one, Ctrl+A all (the grid's keys). */
 const selection = ref<string[]>(selecting ? ["192.0.2.10", "192.0.2.12", "192.0.2.72"] : []);
 /**
- * The box of the whole list (1 284 addresses, more than the page shows): mixed while some
- * are chosen, checked once all are asked for, until a row is left out again.
+ * The whole list (1 284 addresses, more than the page shows): the box of the grid's header
+ * selects the rows shown; once all of them are, a button of the bar widens the selection
+ * to the whole list, and narrows it back. Left as soon as a row is left out again.
  */
 const everything = ref(false);
-const allState = computed<boolean | "mixed">(() =>
-  everything.value ? true : selection.value.length ? "mixed" : false,
-);
-function selectAll(on: boolean | "mixed"): void {
-  everything.value = on === true;
-  selection.value = on === true ? rows.map((row) => row.value) : [];
-}
+const pageChosen = computed(() => rows.every((row) => selection.value.includes(row.value)));
 watch(selection, (chosen) => {
   if (chosen.length < rows.length) everything.value = false;
 });
@@ -217,18 +211,19 @@ const bulk: MenuItem[] = [
       </template>
       <Cluster v-if="selecting" gap="3" class="k-ecran-selection">
         <span class="k-num" role="status">{{
-          selection.length === 1
-            ? "1 adresse sélectionnée"
-            : `${selection.length} adresses sélectionnées`
+          everything
+            ? "Les 1 284 adresses sélectionnées"
+            : selection.length === 1
+              ? "1 adresse sélectionnée"
+              : `${selection.length} adresses sélectionnées`
         }}</span>
         <Menu label="Action groupée" icon="layers" :items="bulk" default-open />
-        <Checkbox
-          label="Tout sélectionner (1 284)"
-          size="sm"
-          :model-value="allState"
-          @update:model-value="selectAll"
-        />
-        <Button variant="ghost" size="sm" icon="x">Annuler la sélection</Button>
+        <Button v-if="pageChosen" variant="ghost" size="sm" @click="everything = !everything">{{
+          everything ? "Ne sélectionner que les 8 affichées" : "Sélectionner les 1 284 adresses"
+        }}</Button>
+        <Button variant="ghost" size="sm" icon="x" @click="selection = []"
+          >Annuler la sélection</Button
+        >
       </Cluster>
       <DataGrid
         v-model:sort="sort"

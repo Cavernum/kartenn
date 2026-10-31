@@ -101,72 +101,107 @@
       - rowgroup:
         - row /\d+\.\d+\.\d+\.\d+ Hôte Production Atelier Nord site-ouest srv-app-\d+ \d+/:
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "Hôte"
-          - gridcell "Production"
+          - gridcell "Hôte":
+            - button "Hôte"
+            - status
+          - gridcell "Production":
+            - button "Production"
+            - status
           - gridcell "Atelier Nord"
           - gridcell "site-ouest"
           - gridcell /srv-app-\d+/
           - gridcell /\d+/
         - row /\d+\.\d+\.\d+\.\d+ VIP \(en brouillon\) Production Atelier Nord site-ouest — \d+/:
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "VIP (en brouillon)"
-          - gridcell "Production"
+          - gridcell "VIP (en brouillon)":
+            - button "VIP"
+            - status
+            - text: ""
+          - gridcell "Production":
+            - button "Production"
+            - status
           - gridcell "Atelier Nord"
           - gridcell "site-ouest"
           - gridcell "—"
           - gridcell /\d+/
-        - row /\d+\.\d+\.\d+\.\d+ Hôte Recette Propriétaire — \d+\.\d+\.\d+\.\d+ Atelier Nord site-ouest srv-rec-\d+ \d+/:
+        - row /\d+\.\d+\.\d+\.\d+ Hôte Recette Atelier Nord site-ouest srv-rec-\d+ \d+/:
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "Hôte"
-          - gridcell "Recette"
-          - gridcell /Propriétaire — \d+\.\d+\.\d+\.\d+ Atelier Nord/:
-            - text: ""
+          - gridcell "Hôte":
+            - button "Hôte"
+            - status
+          - gridcell "Recette":
+            - button "Recette"
+            - status
+          - gridcell "Atelier Nord":
             - textbox /Propriétaire — \d+\.\d+\.\d+\.\d+/: Atelier Nord
           - gridcell "site-ouest"
           - gridcell /srv-rec-\d+/
           - gridcell /\d+/
         - row /\d+\.\d+\.\d+\.\d+ Hôte Recette Atelier Nord site-ouest \(en attente\) srv-rec-\d+ \d+/:
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "Hôte"
-          - gridcell "Recette"
+          - gridcell "Hôte":
+            - button "Hôte"
+            - status
+          - gridcell "Recette":
+            - button "Recette"
+            - status
           - gridcell "Atelier Nord"
           - gridcell "site-ouest (en attente)"
           - gridcell /srv-rec-\d+/
           - gridcell /\d+/
         - row /\d+\.\d+\.\d+\.\d+ Hôte Développement Atelier Nord site-est dev-web-\d+ \d+/:
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "Hôte" [invalid]
-          - gridcell "Développement"
+          - gridcell "Hôte" [invalid]:
+            - button "Hôte"
+            - status
+          - gridcell "Développement":
+            - button "Développement"
+            - status
           - gridcell "Atelier Nord"
           - gridcell "site-est"
           - gridcell /dev-web-\d+/
           - gridcell /\d+/
         - row /\d+\.\d+\.\d+\.\d+ VIP Production Atelier Nord site-est — \d+/:
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "VIP"
-          - gridcell "Production"
+          - gridcell "VIP":
+            - button "VIP"
+            - status
+          - gridcell "Production":
+            - button "Production"
+            - status
           - gridcell "Atelier Nord"
           - gridcell "site-est"
           - gridcell "—"
           - gridcell /\d+/
         - row /\d+\.\d+\.\d+\.\d+ Hôte Production Atelier Nord site-est srv-app-\d+ \d+/:
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "Hôte"
-          - gridcell "Production"
+          - gridcell "Hôte":
+            - button "Hôte"
+            - status
+          - gridcell "Production":
+            - button "Production"
+            - status
           - gridcell "Atelier Nord"
           - gridcell "site-est"
           - gridcell /srv-app-\d+/
           - gridcell /\d+/
         - row /\d+\.\d+\.\d+\.\d+ Hôte Production Atelier Nord site-est srv-app-\d+ \d+/:
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "Hôte"
-          - gridcell "Production"
+          - gridcell "Hôte":
+            - button "Hôte"
+            - status
+          - gridcell "Production":
+            - button "Production"
+            - status
           - gridcell "Atelier Nord"
           - gridcell "site-est"
           - gridcell /srv-app-\d+/
           - gridcell /\d+/
+    - alert
     - text: /8 affichées sur 1 \d+ Entrée vers le brouillon · Ctrl Entrée appliquer avec motif · Échap annuler/
 - button "Ouvrir le panneau"
+- alert
+- status
 - text: Une adresse d'une plage DHCP ne peut pas être un hôte fixe.
 - button "Copier core.address.range_usage":
   - text: ""

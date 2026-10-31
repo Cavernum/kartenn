@@ -136,6 +136,7 @@
               - gridcell "Préfixe"
               - gridcell "oui"
               - gridcell "non"
+        - alert
       - region "Système externe core.external_system · 5":
         - heading "Système externe core.external_system · 5" [level=3]:
           - text: ""
@@ -172,11 +173,10 @@
               - gridcell /\d+-\d+-\d+/
               - gridcell "—"
               - gridcell /\d+/
-            - row /supervision Supervision Libellé \(en\) — supervision Monitoring \d+-\d+-\d+ — \d+/:
+            - row /supervision Supervision Monitoring \d+-\d+-\d+ — \d+/:
               - gridcell "supervision"
               - gridcell "Supervision"
-              - gridcell "Libellé (en) — supervision Monitoring":
-                - text: ""
+              - gridcell "Monitoring":
                 - textbox "Libellé (en) — supervision": Monitoring
               - gridcell /\d+-\d+-\d+/
               - gridcell "—"
@@ -195,6 +195,9 @@
               - gridcell /\d+-\d+-\d+/
               - gridcell "—"
               - gridcell "0"
+        - alert
         - paragraph: Clé figée après création · Entrée vers le brouillon · Échap annuler
     - text: Au présent Toute modification va au brouillon, puis à un changeset
 - button "Ouvrir le panneau"
+- alert
+- status

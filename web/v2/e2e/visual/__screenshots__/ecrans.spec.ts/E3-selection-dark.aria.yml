@@ -76,12 +76,13 @@
       - status
     - status: 3 adresses sélectionnées
     - button "Action groupée" [expanded]
-    - checkbox /Tout sélectionner \(1 \d+\)/ [checked=mixed]
-    - text: /Tout sélectionner \(1 \d+\)/
     - button "Annuler la sélection"
     - grid "Adresses, filtrées":
       - rowgroup:
-        - row "Valeur (filtrée) Usage (filtrée) Environnement Propriétaire Site Machine VLAN":
+        - row "Sélectionner toutes les lignes Valeur (filtrée) Usage (filtrée) Environnement Propriétaire Site Machine VLAN":
+          - columnheader "Sélectionner toutes les lignes":
+            - checkbox "Sélectionner toutes les lignes" [checked=mixed]
+            - text: ""
           - columnheader "Valeur (filtrée)":
             - text: ""
             - 'button "Filtrer : Valeur"'
@@ -104,72 +105,131 @@
             - 'button "Filtrer : Machine"'
           - columnheader "VLAN"
       - rowgroup:
-        - row /\d+\.\d+\.\d+\.\d+ Hôte Production Atelier Nord site-ouest srv-app-\d+ \d+/ [selected]:
+        - row /Sélectionner \d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ Hôte Production Atelier Nord site-ouest srv-app-\d+ \d+/ [selected]:
+          - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+/:
+            - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+/ [checked]
+            - text: ""
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "Hôte"
-          - gridcell "Production"
+          - gridcell "Hôte":
+            - button "Hôte"
+            - status
+          - gridcell "Production":
+            - button "Production"
+            - status
           - gridcell "Atelier Nord"
           - gridcell "site-ouest"
           - gridcell /srv-app-\d+/
           - gridcell /\d+/
-        - row /\d+\.\d+\.\d+\.\d+ VIP Production Atelier Nord site-ouest — \d+/:
+        - row /Sélectionner \d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ VIP Production Atelier Nord site-ouest — \d+/:
+          - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+/:
+            - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+/
+            - text: ""
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "VIP"
-          - gridcell "Production"
+          - gridcell "VIP":
+            - button "VIP"
+            - status
+          - gridcell "Production":
+            - button "Production"
+            - status
           - gridcell "Atelier Nord"
           - gridcell "site-ouest"
           - gridcell "—"
           - gridcell /\d+/
-        - row /\d+\.\d+\.\d+\.\d+ Hôte Recette Atelier Nord site-ouest srv-rec-\d+ \d+/ [selected]:
+        - row /Sélectionner \d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ Hôte Recette Atelier Nord site-ouest srv-rec-\d+ \d+/ [selected]:
+          - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+/:
+            - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+/ [checked]
+            - text: ""
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "Hôte"
-          - gridcell "Recette"
+          - gridcell "Hôte":
+            - button "Hôte"
+            - status
+          - gridcell "Recette":
+            - button "Recette"
+            - status
           - gridcell "Atelier Nord"
           - gridcell "site-ouest"
           - gridcell /srv-rec-\d+/
           - gridcell /\d+/
-        - row /\d+\.\d+\.\d+\.\d+ Hôte Recette Atelier Nord site-ouest srv-rec-\d+ \d+/:
+        - row /Sélectionner \d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ Hôte Recette Atelier Nord site-ouest srv-rec-\d+ \d+/:
+          - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+/:
+            - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+/
+            - text: ""
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "Hôte"
-          - gridcell "Recette"
+          - gridcell "Hôte":
+            - button "Hôte"
+            - status
+          - gridcell "Recette":
+            - button "Recette"
+            - status
           - gridcell "Atelier Nord"
           - gridcell "site-ouest"
           - gridcell /srv-rec-\d+/
           - gridcell /\d+/
-        - row /\d+\.\d+\.\d+\.\d+ Hôte Développement Atelier Nord site-est dev-web-\d+ \d+/:
+        - row /Sélectionner \d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ Hôte Développement Atelier Nord site-est dev-web-\d+ \d+/:
+          - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+/:
+            - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+/
+            - text: ""
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "Hôte"
-          - gridcell "Développement"
+          - gridcell "Hôte":
+            - button "Hôte"
+            - status
+          - gridcell "Développement":
+            - button "Développement"
+            - status
           - gridcell "Atelier Nord"
           - gridcell "site-est"
           - gridcell /dev-web-\d+/
           - gridcell /\d+/
-        - row /\d+\.\d+\.\d+\.\d+ VIP Production Atelier Nord site-est — \d+/:
+        - row /Sélectionner \d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ VIP Production Atelier Nord site-est — \d+/:
+          - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+/:
+            - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+/
+            - text: ""
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "VIP"
-          - gridcell "Production"
+          - gridcell "VIP":
+            - button "VIP"
+            - status
+          - gridcell "Production":
+            - button "Production"
+            - status
           - gridcell "Atelier Nord"
           - gridcell "site-est"
           - gridcell "—"
           - gridcell /\d+/
-        - row /\d+\.\d+\.\d+\.\d+ Hôte Production Atelier Nord site-est srv-app-\d+ \d+/ [selected]:
+        - row /Sélectionner \d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ Hôte Production Atelier Nord site-est srv-app-\d+ \d+/ [selected]:
+          - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+/:
+            - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+/ [checked]
+            - text: ""
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "Hôte"
-          - gridcell "Production"
+          - gridcell "Hôte":
+            - button "Hôte"
+            - status
+          - gridcell "Production":
+            - button "Production"
+            - status
           - gridcell "Atelier Nord"
           - gridcell "site-est"
           - gridcell /srv-app-\d+/
           - gridcell /\d+/
-        - row /\d+\.\d+\.\d+\.\d+ Hôte Production Atelier Nord site-est srv-app-\d+ \d+/:
+        - row /Sélectionner \d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ Hôte Production Atelier Nord site-est srv-app-\d+ \d+/:
+          - gridcell /Sélectionner \d+\.\d+\.\d+\.\d+/:
+            - checkbox /Sélectionner \d+\.\d+\.\d+\.\d+/
+            - text: ""
           - gridcell /\d+\.\d+\.\d+\.\d+/
-          - gridcell "Hôte"
-          - gridcell "Production"
+          - gridcell "Hôte":
+            - button "Hôte"
+            - status
+          - gridcell "Production":
+            - button "Production"
+            - status
           - gridcell "Atelier Nord"
           - gridcell "site-est"
           - gridcell /srv-app-\d+/
           - gridcell /\d+/
+    - alert
     - text: /8 affichées sur 1 \d+ Entrée vers le brouillon · Ctrl Entrée appliquer avec motif · Échap annuler/
 - button "Ouvrir le panneau"
+- alert
+- status
 - menu "Action groupée":
   - menuitem "Changer l'usage…"
   - menuitem "Changer le propriétaire…"

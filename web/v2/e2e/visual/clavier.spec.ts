@@ -267,8 +267,16 @@ async function addressesBesidePanel(page: Page): Promise<void> {
       if ((await focusedCell(page)) === key) break;
     }
   }
-  // The header row has no key; « Usage » and « Environnement » folded, the arrows skip them.
-  expect([...seen]).toEqual(["|value", "|owner", "192.0.2.10|value", "192.0.2.10|owner"]);
+  // The checkboxes first (several rows selectable); « Usage » and « Environnement » folded,
+  // the arrows skip them.
+  expect([...seen]).toEqual([
+    "|k-select",
+    "|value",
+    "|owner",
+    "192.0.2.10|k-select",
+    "192.0.2.10|value",
+    "192.0.2.10|owner",
+  ]);
 
   await panel.getByRole("button", { name: "Fermer le panneau" }).click();
   await expect(usage).toBeVisible();

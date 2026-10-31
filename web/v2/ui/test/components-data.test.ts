@@ -7,7 +7,14 @@ import { renderToString } from "vue/server-renderer";
 import { describe, expect, it } from "vitest";
 import DataGrid from "../src/components/DataGrid/DataGrid.vue";
 import { placeCellError } from "../src/components/DataGrid/cellError.ts";
-import { columnsTemplate, type GridColumn } from "../src/components/DataGrid/grid.ts";
+import {
+  bodyParts,
+  columnsTemplate,
+  columnTemplates,
+  nextPresetWidth,
+  selectRange,
+  type GridColumn,
+} from "../src/components/DataGrid/grid.ts";
 import BarChart from "../src/components/BarChart/BarChart.vue";
 import { layoutBars, niceCeil } from "../src/components/BarChart/chart.ts";
 import BarList from "../src/components/BarList/BarList.vue";
@@ -61,15 +68,114 @@ describe("DataGrid", () => {
       selectable: true,
       selected: ["198.51.100.0/24"],
     });
-    expect(html).toMatch(/role="grid" aria-label="Préfixes" aria-rowcount="3" aria-colcount="2"/);
+    // A column of checkboxes first (several selectable): counted, indexed 1.
+    expect(html).toMatch(/role="grid" aria-label="Préfixes" aria-rowcount="3" aria-colcount="3"/);
     expect(html).toContain('aria-multiselectable="true"');
-    expect(html).toContain('style="--k-grid-columns:');
+    expect(html).toContain('style="--k-grid-columns:calc(');
     expect(html).toMatch(/role="columnheader"[^>]*aria-sort="descending"/);
+    expect(html).toMatch(/data-column="prefix"[^>]*aria-colindex="2"/);
+    expect(text(html)).toContain("Sélectionner toutes les lignes");
+    expect(text(html)).toContain("Sélectionner 198.51.100.0/24");
     // The unsortable column has no aria-sort.
     expect(html.match(/aria-sort=/g)).toHaveLength(1);
     expect(html).toContain('aria-rowindex="3" aria-selected="true"');
     // One cell only in the tab order: the roving tabindex.
     expect(html.match(/tabindex="0"/g)).toHaveLength(1);
+    // Nothing editable: read only.
+    expect(html).toContain('aria-readonly="true"');
+  });
+
+  it("templates: a width the user gave, the track of the checkboxes", () => {
+    expect(columnsTemplate(columns, { label: 300.4 })).toBe(
+      "minmax(auto, var(--k-size-col-md)) minmax(auto, 300px)",
+    );
+    const templates = columnTemplates(columns, {}, {}, true);
+    expect(templates["--k-grid-columns"]).toMatch(/^calc\(var\(--k-control-height-sm\)/);
+  });
+
+  it("selects a range from its anchor, the earlier choice kept", () => {
+    const keys = ["a", "b", "c", "d", "e"];
+    expect(selectRange(keys, ["e"], "b", "d")).toEqual(["e", "b", "c", "d"]);
+    expect(selectRange(keys, [], "d", "b")).toEqual(["b", "c", "d"]);
+    expect(selectRange(keys, ["a"], "z", "b")).toEqual(["a"]);
+  });
+
+  it("steps a click on a handle through the token widths, then back to the narrowest", () => {
+    expect(nextPresetWidth(100, [56, 96, 160, 240])).toBe(160);
+    expect(nextPresetWidth(240, [56, 96, 160, 240])).toBe(56);
+    expect(nextPresetWidth(159.5, [56, 96, 160, 240])).toBe(240);
+  });
+
+  it("lays the body out: rendered rows, and gaps of the heights left out", () => {
+    const start = (i: number) => 30 + i * 28;
+    const end = (i: number) => start(i) + 28;
+    // The window 10 to 12, and the row of the focus far below.
+    expect(bodyParts([10, 11, 12, 500, 11], 1000, start, end, 30)).toEqual([
+      { gap: 280, key: "gap-10" },
+      { index: 10 },
+      { index: 11 },
+      { index: 12 },
+      { gap: (500 - 13) * 28, key: "gap-500" },
+      { index: 500 },
+      { gap: 499 * 28, key: "gap-end" },
+    ]);
+    expect(bodyParts([], 0, start, end, 30)).toEqual([]);
+  });
+
+  // REQ-020-19: a grid of 10⁴ rows holds a few hundred at most in the document.
+  it("virtualises 10 000 rows: a window in the document, all of them counted", async () => {
+    const many = Array.from({ length: 10_000 }, (_, i) => ({
+      prefix: `p-${i}`,
+      label: `Ligne ${i}`,
+    }));
+    const html = await render(DataGrid, {
+      label: "Préfixes",
+      columns,
+      rows: many,
+      rowKey: "prefix",
+      active: { row: "p-9999", column: "prefix" },
+    });
+    expect(html).toContain('data-virtual="true"');
+    expect(html).toContain('aria-rowcount="10001"');
+    const rendered = html.match(/role="row"/g)?.length ?? 0;
+    expect(rendered).toBeGreaterThan(1);
+    expect(rendered).toBeLessThan(300);
+    // The row of the focus stays in the document, at its index.
+    expect(html).toContain('aria-rowindex="10001"');
+    expect(html).toContain("k-data-grid__gap");
+    // A paged list: the whole count, or -1 while unknown.
+    const paged = await render(DataGrid, {
+      label: "Préfixes",
+      columns,
+      rows,
+      rowKey: "prefix",
+      rowCount: 1284,
+    });
+    expect(paged).toContain('aria-rowcount="1285"');
+    const unknown = await render(DataGrid, {
+      label: "Préfixes",
+      columns,
+      rows,
+      rowKey: "prefix",
+      rowCount: -1,
+    });
+    expect(unknown).toContain('aria-rowcount="-1"');
+  });
+
+  it("holds the element of an extension column per row, and says editable cells", async () => {
+    const html = await render(DataGrid, {
+      label: "Préfixes",
+      columns: [...columns, { id: "ext", label: "Extension", element: "k-demo-cell" }],
+      rows,
+      rowKey: "prefix",
+      editable: (_: unknown, column: GridColumn) => column.id === "label",
+    });
+    expect(html.match(/<k-demo-cell/g)).toHaveLength(rows.length);
+    expect(html).not.toMatch(/role="grid"[^>]*aria-readonly/);
+    expect(html).toMatch(/data-column="prefix"[^>]*aria-readonly="true"/);
+    expect(html).not.toMatch(/data-column="label"[^>]*aria-readonly/);
+    // An extension cell is never editable.
+    expect(html).toMatch(/data-column="ext"[^>]*aria-readonly="true"/);
   });
 
   it("selects one row only when `single`: no aria-multiselectable", async () => {
@@ -149,21 +255,33 @@ describe("DataGrid", () => {
     expect(placeCellError({ ...base, rtl: true })).toMatchObject({ x: 20, align: "start" });
   });
 
-  it("leaves the error of a cell being edited to its editor, without a layer", async () => {
-    const html = await render(DataGrid, {
-      label: "Préfixes",
-      columns,
-      rows,
-      rowKey: "prefix",
-      editing: { row: "198.51.100.0/24", column: "label" },
-      cellState: (row: (typeof rows)[number], column: GridColumn) =>
-        column.id === "label" && row.prefix === "198.51.100.0/24"
-          ? { error: "Libellé trop long.", code: "core.label.too-long" }
-          : undefined,
-    });
-    expect(html).not.toContain("k-cell-error");
-    expect(html).not.toMatch(/role="gridcell"[^>]*aria-describedby/);
-    expect(text(html)).toContain("Libellé trop long.");
+  // The error of a cell never resizes it (024, cell errors in a bubble): the editor of an
+  // invalid cell is described by the layer of the message, which stays out of the cell.
+  it("gives the error of a cell being edited to its layer, the editor described by it", async () => {
+    const context: { teleports?: Record<string, string> } = {};
+    const html = await renderToString(
+      createSSRApp({
+        render: () =>
+          h(DataGrid as Component, {
+            label: "Préfixes",
+            columns,
+            rows,
+            rowKey: "prefix",
+            editing: { row: "198.51.100.0/24", column: "label" },
+            cellState: (row: (typeof rows)[number], column: GridColumn) =>
+              column.id === "label" && row.prefix === "198.51.100.0/24"
+                ? { error: "Libellé trop long.", code: "core.label.too-long" }
+                : undefined,
+          }),
+      }),
+      context,
+    );
+    expect(text(html)).not.toContain("Libellé trop long.");
+    const id = /<input[^>]*aria-describedby="([^"]+)"/.exec(html)?.[1];
+    expect(id).toBeTruthy();
+    expect(html).toMatch(/<input[^>]*aria-invalid="true"/);
+    const layers = Object.values(context.teleports ?? {}).join("");
+    expect(layers).toMatch(new RegExp(`id="${id}"[^>]*>.*Libellé trop long\\.`, "s"));
   });
 
   it("puts an editor in the cell being edited, named after its column and row", async () => {
@@ -176,7 +294,7 @@ describe("DataGrid", () => {
     });
     expect(html).toContain('data-editing="true"');
     expect(html).toMatch(/<input[^>]*value="Postes"/);
-    expect(text(html)).toContain("Libellé — 198.51.100.0/24");
+    expect(html).toContain('aria-label="Libellé — 198.51.100.0/24"');
   });
 
   it("lets the cells of a message column wrap, the others stay on one line", async () => {

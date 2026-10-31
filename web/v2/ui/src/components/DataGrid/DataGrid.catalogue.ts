@@ -5,12 +5,20 @@
 import { defineComponent, h, ref, type Component } from "vue";
 import type { CatalogueEntry } from "../../catalogue.ts";
 import DemoFrame from "../../demo/DemoFrame.vue";
+import { DEMO_CELL, defineDemoCell } from "../../demo/extensionCell.ts";
 import { settleDemo } from "../../demo/settle.ts";
 import { environments, prefixes } from "../../fixtures/index.ts";
 import EnvChip from "../EnvChip/EnvChip.vue";
 import KeyLabel from "../KeyLabel/KeyLabel.vue";
 import DataGrid from "./DataGrid.vue";
-import type { CellState, GridColumn } from "./grid.ts";
+import type {
+  CellState,
+  ColumnWidths,
+  GridColumn,
+  GridCommit,
+  GridSort,
+  GridWindow,
+} from "./grid.ts";
 
 const columns: GridColumn[] = [
   { id: "prefix", label: "Préfixe", width: "md", mono: true, sortable: true, filterable: true },
@@ -127,6 +135,119 @@ const stacked = () =>
       rowState: (row: Row) => (row.prefix === prefixes[2] ? "draft" : undefined),
     }),
   ]);
+
+const OWNERS = ["Équipe réseau", "Équipe postes", "Exploitation"];
+
+/**
+ * The script of the keyboard (`e2e/components/data-grid.spec.ts`): thirty rows, several
+ * selectable, columns resizable, the label and the owner editable. The host of the demo
+ * plays the server: a commit is pending a moment, then in the draft, or refused for an
+ * owner it does not know (its code shown, the error said).
+ */
+const keyboard = defineComponent({
+  setup() {
+    const data = ref(many.map((row) => ({ ...row })));
+    const states = ref<Record<string, CellState>>({});
+    const selected = ref<string[]>([]);
+    const sort = ref<GridSort | undefined>(undefined);
+    const filtered = ref<string[]>([]);
+    const widths = ref<ColumnWidths>({});
+    const last = ref("");
+    function onCommit(commit: GridCommit): void {
+      data.value = data.value.map((row) =>
+        row.prefix === commit.row ? { ...row, [commit.column]: commit.value } : row,
+      );
+      const key = `${commit.row}:${commit.column}`;
+      states.value = { ...states.value, [key]: "pending" };
+      last.value = `${commit.column} de ${commit.row} : ${commit.value}`;
+      setTimeout(() => {
+        states.value = {
+          ...states.value,
+          [key]:
+            commit.column === "owner" && !OWNERS.includes(commit.value)
+              ? { error: "Responsable inconnu.", code: "core.owner.unknown" }
+              : "draft",
+        };
+      }, 300);
+    }
+    return () =>
+      h("div", [
+        h(DataGrid as Component, {
+          ...base,
+          rows: data.value,
+          selectable: true,
+          resizable: true,
+          selected: selected.value,
+          "onUpdate:selected": (next: string[]) => (selected.value = next),
+          sort: sort.value,
+          "onUpdate:sort": (next: GridSort) => (sort.value = next),
+          filtered: filtered.value,
+          onFilter: (column: string) =>
+            (filtered.value = filtered.value.includes(column)
+              ? filtered.value.filter((c) => c !== column)
+              : [...filtered.value, column]),
+          columnWidths: widths.value,
+          "onUpdate:columnWidths": (next: ColumnWidths) => (widths.value = next),
+          editable: (_: Row, column: GridColumn) => column.id === "label" || column.id === "owner",
+          validate: (_: Row, column: GridColumn, value: string) =>
+            column.id === "label" && value.trim() === ""
+              ? "Le libellé est obligatoire."
+              : undefined,
+          cellState: (row: Row, column: GridColumn) => states.value[`${row.prefix}:${column.id}`],
+          onCommit,
+        }),
+        h("p", { "data-demo": "commit" }, last.value),
+      ]);
+  },
+});
+
+/**
+ * Ten thousand rows (REQ-020-19): a few dozen in the document, the row of the focus kept
+ * there whatever the scroll; the window (`window` event) said below, as the shell's
+ * `useNextPage` reads it (`end` among the loaded rows).
+ */
+const tenThousand = Array.from({ length: 10_000 }, (_, i) => ({
+  prefix: `10.${Math.floor(i / 256)}.${i % 256}.0/24`,
+  label: `${LABELS[i % LABELS.length]} ${i + 1}`,
+  env: environments[i % 3]!.label,
+  used: `${(i * 37) % 101} %`,
+  owner: OWNERS[i % 3]!,
+}));
+const virtualGrid = defineComponent({
+  setup() {
+    const view = ref<GridWindow>({ start: 0, end: 0, size: 0 });
+    const selected = ref<string[]>([]);
+    return () =>
+      h("div", [
+        h(DataGrid as Component, {
+          ...base,
+          label: "Dix mille préfixes",
+          rows: tenThousand,
+          selectable: true,
+          selected: selected.value,
+          "onUpdate:selected": (next: string[]) => (selected.value = next),
+          onWindow: (next: GridWindow) => (view.value = next),
+        }),
+        h(
+          "p",
+          { "data-demo": "window" },
+          `Dans le document : lignes ${view.value.start + 1} à ${view.value.end} sur ${tenThousand.length.toLocaleString("fr-FR")} (un écran : ${view.value.size})`,
+        ),
+      ]);
+  },
+});
+
+/** A column of an extension (W5): a custom element per row, its `row` set as a property. */
+const extension = () => {
+  defineDemoCell();
+  return h(DataGrid as Component, {
+    ...base,
+    columns: [
+      ...columns,
+      { id: "probe", label: "Supervision (extension)", width: "md", element: DEMO_CELL },
+    ],
+  });
+};
 
 export default {
   component: DataGrid,
@@ -278,6 +399,58 @@ export default {
         editing: { row: prefixes[2], column: "label" },
         active: { row: prefixes[2], column: "label" },
       },
+      wide: true,
+    },
+    {
+      name: "editing-error",
+      description:
+        "Cellule en édition refusée : l'éditeur garde la taille de la cellule, le motif et le code dans sa bulle",
+      props: {
+        ...base,
+        editing: { row: prefixes[1], column: "owner" },
+        active: { row: prefixes[1], column: "owner" },
+        cellState,
+      },
+      wide: true,
+    },
+    {
+      name: "resized",
+      description:
+        "Colonnes redimensionnées (libellé élargi, responsable réduit) ; jamais plus étroites que leur en-tête",
+      props: { ...base, resizable: true, columnWidths: { label: 200, owner: 120, used: 40 } },
+      wide: true,
+    },
+    {
+      name: "resize-focus",
+      description:
+        "Poignée de largeur du libellé au focus (F2 depuis l'en-tête) : son trait en accent, la valeur en pixels",
+      props: { ...base, resizable: true, columnWidths: { label: 200 } },
+      wide: true,
+      interaction: "focus",
+      target: "[data-column='label'] .k-data-grid__resize",
+    },
+    {
+      name: "extension",
+      description:
+        "Colonne d'une extension : un élément personnalisé par ligne, recréé quand la ligne revient",
+      props: {},
+      demo: extension,
+      wide: true,
+    },
+    {
+      name: "virtual",
+      description:
+        "Dix mille lignes : quelques dizaines dans le document, la ligne du focus gardée, la fenêtre dite",
+      props: {},
+      demo: virtualGrid,
+      wide: true,
+    },
+    {
+      name: "keyboard",
+      description:
+        "Script du clavier : sélection multiple, colonnes redimensionnables, libellé et responsable modifiables (Entrée ou F2)",
+      props: {},
+      demo: keyboard,
       wide: true,
     },
   ],

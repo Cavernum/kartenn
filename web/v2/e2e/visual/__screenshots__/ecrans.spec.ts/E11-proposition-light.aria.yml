@@ -61,7 +61,7 @@
             - status
           - gridcell /ticketing:CHG-\d+/
           - gridcell "Appels du portail vers l'API métier"
-        - row /\(en brouillon\) srv-rec-\d+ · eth0 srv-app-\d+ · eth0 Web chiffré https Sous réserve Copier rece-vers-prod ticketing:CHG-\d+ Justification — ligne-2/ [selected]:
+        - row /\(en brouillon\) srv-rec-\d+ · eth0 srv-app-\d+ · eth0 Web chiffré https Sous réserve Copier rece-vers-prod ticketing:CHG-\d+/ [selected]:
           - gridcell /\(en brouillon\) srv-rec-\d+ · eth0/
           - gridcell /srv-app-\d+ · eth0/
           - gridcell "Web chiffré https":
@@ -74,8 +74,7 @@
               - code: rece-vers-prod
             - status
           - gridcell /ticketing:CHG-\d+/
-          - gridcell "Justification — ligne-2":
-            - text: ""
+          - gridcell:
             - textbox "Justification — ligne-2"
         - row /\(en brouillon\) dev-web-\d+ · eth0 srv-db-\d+ · eth0 PostgreSQL postgres Non conforme Copier deny-deve-prod ticketing:CHG-\d+ Jeu de données pour les tests de charge/:
           - gridcell /\(en brouillon\) dev-web-\d+ · eth0/
@@ -105,6 +104,7 @@
             - status
           - gridcell /ticketing:CHG-\d+/
           - gridcell "Nouveau collecteur de journaux"
+    - alert
     - text: "4 flux · 1 automatique · 1 à instruire · 2 non conformes à la matrice Entrée : le flux choisi en bas · F2 : modifier"
 - complementary "Flux choisi":
   - separator "Redimensionner le panneau"
@@ -157,3 +157,5 @@
   - button "Hauteur du panneau"
   - button "Fermer le panneau"
 - button "Ouvrir le panneau"
+- alert
+- status
