@@ -28,20 +28,26 @@
       - button "Relire"
       - code: precondition
       - text: ""
-    - 'figure "violations — Violations : chaque message et son code"':
+    - 'figure "violations — Violations : chaque gravité, message et code (un avertissement le dit)"':
       - alert: Le changeset est refusé.
       - list:
         - listitem:
-          - text: Le préfixe chevauche un voisin.
+          - text: Erreur Le préfixe chevauche un voisin.
           - button "Copier prefix.overlaps-sibling":
             - text: ""
             - code: prefix.overlaps-sibling
           - status
         - listitem:
-          - text: Le responsable est inconnu.
+          - text: Erreur Le responsable est inconnu.
           - button "Copier core.owner.unknown":
             - text: ""
             - code: core.owner.unknown
+          - status
+        - listitem:
+          - text: Avertissement Le TTL DNS est attendu en production.
+          - button "Copier prop.dns.ttl-missing":
+            - text: ""
+            - code: prop.dns.ttl-missing
           - status
       - button "Copier type urn:kartenn:problem:changeset-refused":
         - text: ""

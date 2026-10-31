@@ -4,11 +4,17 @@
 
 /**
  * What an error state shows of a problem of the API (RFC 9457; REQ-020-22): its `type`
- * (`urn:kartenn:problem:<slug>`), the `Request-Id` of the answer, and the violations, each
- * its rule (the code) and its message. An `ApiProblem` of the SDK is one as it is.
+ * (`urn:kartenn:problem:<slug>`; `about:blank`, no type, is not shown), the `Request-Id`
+ * of the answer, and the violations, each its rule (the code), its message and its
+ * severity (`error` or `warning`: a warning is not an error, and says so). An
+ * `ApiProblem` of the SDK is one as it is.
  */
 export interface ProblemFacts {
   readonly type: string;
   readonly requestId?: string | null;
-  readonly violations?: readonly { readonly rule: string; readonly detail: string }[];
+  readonly violations?: readonly {
+    readonly rule: string;
+    readonly detail: string;
+    readonly severity?: string;
+  }[];
 }

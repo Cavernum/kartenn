@@ -15,6 +15,7 @@ import { onBeforeUnmount, onMounted, ref } from "vue";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import Button from "../Button/Button.vue";
 import Icon from "../Icon/Icon.vue";
+import StatusBadge from "../StatusBadge/StatusBadge.vue";
 import type { ProblemFacts } from "./problem.ts";
 
 const props = withDefaults(
@@ -48,12 +49,18 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
         :key="i"
         class="k-error-state__violation"
       >
+        <StatusBadge :state="violation.severity === 'warning' ? 'warn' : 'ko'" />
         <span>{{ violation.detail }}</span>
         <CodeBadge :code="violation.rule" />
       </li>
     </ul>
     <div v-if="props.problem" class="k-error-state__codes">
-      <CodeBadge :code="props.problem.type" label="type" />
+      <!-- `about:blank` says no type (RFC 9457 §4.2.1): nothing to pass on. -->
+      <CodeBadge
+        v-if="props.problem.type !== 'about:blank'"
+        :code="props.problem.type"
+        label="type"
+      />
       <CodeBadge
         v-if="props.problem.requestId"
         :code="props.problem.requestId"

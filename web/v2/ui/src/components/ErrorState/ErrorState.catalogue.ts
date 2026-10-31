@@ -32,15 +32,28 @@ export default {
     },
     {
       name: "violations",
-      description: "Violations : chaque message et son code",
+      description: "Violations : chaque gravité, message et code (un avertissement le dit)",
       props: {
         title: "Le changeset est refusé.",
         problem: {
           type: problems.refused,
           requestId: ids.request,
           violations: [
-            { rule: problems.violation, detail: "Le préfixe chevauche un voisin." },
-            { rule: "core.owner.unknown", detail: "Le responsable est inconnu." },
+            {
+              rule: problems.violation,
+              detail: "Le préfixe chevauche un voisin.",
+              severity: "error",
+            },
+            {
+              rule: "core.owner.unknown",
+              detail: "Le responsable est inconnu.",
+              severity: "error",
+            },
+            {
+              rule: "prop.dns.ttl-missing",
+              detail: "Le TTL DNS est attendu en production.",
+              severity: "warning",
+            },
           ],
         },
       },

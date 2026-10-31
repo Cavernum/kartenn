@@ -14,7 +14,9 @@ import BarList from "../src/components/BarList/BarList.vue";
 import DiffList from "../src/components/DiffList/DiffList.vue";
 import DiffValue from "../src/components/DiffValue/DiffValue.vue";
 import ExpandableGrid from "../src/components/ExpandableGrid/ExpandableGrid.vue";
+import { ApiProblem } from "../../sdk/src/api/problem.ts";
 import ErrorState from "../src/components/ErrorState/ErrorState.vue";
+import type { ProblemFacts } from "../src/components/ErrorState/problem.ts";
 import FilterChip from "../src/components/FilterChip/FilterChip.vue";
 import InlineAlert from "../src/components/InlineAlert/InlineAlert.vue";
 import Skeleton from "../src/components/Skeleton/Skeleton.vue";
@@ -388,6 +390,30 @@ describe("filters, differential, view states", () => {
     expect(text(html)).not.toContain("Request-Id");
     const bare = await render(ErrorState, { title: "Le serveur est injoignable." });
     expect(bare).not.toContain("k-code-badge");
+  });
+
+  it("ErrorState takes an ApiProblem of the SDK as it is; a warning says so; no about:blank", async () => {
+    // Type level: an ApiProblem is a ProblemFacts (checked by vue-tsc on this file).
+    const problem: ProblemFacts = new ApiProblem({
+      status: 422,
+      type: "about:blank",
+      title: "Unprocessable Content",
+      violations: [
+        {
+          rule: "core.owner.unknown",
+          detail: "Responsable inconnu.",
+          severity: "error",
+          subjects: [],
+        },
+        { rule: "prop.dns.ttl-missing", detail: "TTL absent.", severity: "warning", subjects: [] },
+      ],
+      requestId: "req_1",
+    });
+    const html = await render(ErrorState, { title: "Refusé.", problem });
+    expect(text(html)).toMatch(/Erreur\s*Responsable inconnu\.\s*Copier core\.owner\.unknown/);
+    expect(text(html)).toMatch(/Avertissement\s*TTL absent\.\s*Copier prop\.dns\.ttl-missing/);
+    expect(text(html)).not.toContain("about:blank");
+    expect(text(html)).toContain("Copier Request-Id req_1");
   });
 
   it("DiffList: up to 200 lines, every change rendered, no gap", async () => {
