@@ -1,0 +1,45 @@
+- main:
+  - dialog "Lire à une date":
+    - button "Fermer"
+    - heading "Lire à une date" [level=2]
+    - group "Valide au":
+      - text: ""
+      - spinbutton "Année"
+      - spinbutton "Mois"
+      - spinbutton "Jour"
+      - spinbutton "Heure"
+      - spinbutton "Minutes"
+      - text: /Europe\/Paris UTC\+\d+:\d+/
+      - 'button "Choisir la date : Valide au"'
+      - paragraph: "Ce qui est vrai à cette date, passée ou à venir ; vide : maintenant."
+    - 'group "Raccourcis : Valide au"':
+      - button "Maintenant"
+      - button "Hier"
+      - button "Début du mois"
+    - group "Connu au":
+      - text: ""
+      - spinbutton "Année"
+      - spinbutton "Mois"
+      - spinbutton "Jour"
+      - spinbutton "Heure"
+      - spinbutton "Minutes"
+      - text: /Europe\/Paris UTC\+\d+:\d+/
+      - 'button "Choisir la date : Connu au"'
+      - paragraph: "Ce que la base savait à cette date ; vide : ce qu'elle sait."
+    - 'group "Raccourcis : Connu au"':
+      - button "Maintenant"
+      - button "Hier"
+      - button "Début du mois"
+    - status
+    - button "Revenir au présent"
+    - button "Appliquer"
+  - region "DatePill":
+    - heading "DatePill" [level=1]
+    - paragraph: "Motif : Button qui ouvre un Dialog non modal (le choix de la période)"
+    - 'figure "open — Ouverte : le choix de la période sous la pastille, nommé par son titre, le focus sur « Valide au »"':
+      - 'button /Date de lecture : 3 nov\. \d+, \d+:\d+ Europe\/Paris/ [expanded]':
+        - text: ""
+        - time: /3 nov\. \d+, \d+:\d+/
+        - text: ""
+      - code: open
+      - text: ""

@@ -66,18 +66,49 @@ describe("SidebarNav", () => {
     expect(html).toContain('aria-label="Référentiel"');
     expect(html).not.toContain("aria-controls");
   });
+
+  it("leaves out a space without entries; « Rechercher » opens a dialog (Ctrl+K)", async () => {
+    const html = await render(SidebarNav, {
+      brand: "kartenn",
+      groups: [...groups, { id: "admin", label: "Administration", entries: [] }],
+    });
+    expect(html).not.toContain("Administration");
+    expect(html).toMatch(/aria-keyshortcuts="Control\+K" aria-haspopup="dialog"/);
+  });
 });
 
 describe("status bar", () => {
-  it("DatePill: present, or the instant with its named zone, opening a dialog", async () => {
+  it("DatePill: present, or the dates read with their named zone, opening a dialog", async () => {
+    const text = (markup: string) =>
+      markup
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
     const present = await render(DatePill, { timeZone: "Europe/Paris" });
-    expect(present).toContain('data-state="present"');
+    expect(present).toContain('data-period="present"');
     expect(present).toContain('aria-haspopup="dialog"');
-    expect(present).toContain("Présent");
-    const past = await render(DatePill, { at: "2025-11-03T08:30:00Z", timeZone: "Europe/Paris" });
-    expect(past).toContain('data-state="past"');
+    expect(present).toContain('aria-expanded="false"');
+    expect(text(present)).toBe("Date de lecture : Présent");
+    const past = await render(DatePill, {
+      validAt: "2025-11-03T08:30:00Z",
+      timeZone: "Europe/Paris",
+    });
+    expect(past).toContain('data-period="past"');
     expect(past).toContain('datetime="2025-11-03T08:30:00.000Z"');
-    expect(past).toContain("Europe/Paris");
+    expect(text(past)).toBe("Date de lecture : 3 nov. 2025, 09:30 Europe/Paris");
+    const known = await render(DatePill, {
+      asOf: "2025-12-01T07:00:00Z",
+      timeZone: "Europe/Paris",
+    });
+    expect(text(known)).toBe("Date de lecture : Connu au 1 déc. 2025, 08:00 Europe/Paris");
+    const both = await render(DatePill, {
+      validAt: "2025-11-03T08:30:00Z",
+      asOf: "2025-12-01T07:00:00Z",
+      timeZone: "Europe/Paris",
+    });
+    expect(text(both)).toBe(
+      "Date de lecture : 3 nov. 2025, 09:30 · connu au 1 déc. 2025, 08:00 Europe/Paris",
+    );
   });
 
   it("formats an instant in the language and the named zone", () => {
@@ -101,11 +132,35 @@ describe("status bar", () => {
     expect(await render(DraftCounter, { count: 0 })).toContain('data-state="empty"');
   });
 
-  it("TimeBand: a status with the instant and the way back", async () => {
-    const html = await render(TimeBand, { at: "2025-11-03T08:30:00Z", timeZone: "Europe/Paris" });
-    expect(html).toContain('role="status"');
-    expect(html).toContain("Lecture au");
-    expect(html).toContain("Revenir au présent");
+  it("TimeBand: a status in two cases (valid_at, as_of) and the way back", async () => {
+    const said = (markup: string) =>
+      (markup.match(/role="status"[^>]*>(.*?)<\/p>/)?.[1] ?? "")
+        // Inline elements (the dates): no space of their own.
+        .replace(/<[^>]+>/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    const ZONE = "Europe/Paris";
+    const valid = await render(TimeBand, { validAt: "2025-11-03T08:30:00Z", timeZone: ZONE });
+    // A validity date alone never says that writes are off: a dated draft stays allowed.
+    expect(said(valid)).toBe(
+      "Lecture au 3 nov. 2025, 09:30 (Europe/Paris) — brouillon daté possible",
+    );
+    expect(valid).toContain("Revenir au présent");
+    const known = await render(TimeBand, { asOf: "2025-12-01T07:00:00Z", timeZone: ZONE });
+    expect(said(known)).toBe("État connu au 1 déc. 2025, 08:00 (Europe/Paris) — lecture seule");
+    const both = await render(TimeBand, {
+      validAt: "2025-11-03T08:30:00Z",
+      asOf: "2025-12-01T07:00:00Z",
+      timeZone: ZONE,
+    });
+    expect(said(both)).toBe(
+      "Lecture au 3 nov. 2025, 09:30, connu au 1 déc. 2025, 08:00 (Europe/Paris) — lecture seule",
+    );
+    // At the present, its status region alone, empty: present before the band is said.
+    const present = await render(TimeBand, { timeZone: ZONE });
+    expect(present).toContain('data-state="present"');
+    expect(said(present)).toBe("");
+    expect(present).not.toContain("Revenir au présent");
   });
 });
 

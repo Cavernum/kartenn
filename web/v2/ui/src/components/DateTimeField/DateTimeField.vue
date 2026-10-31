@@ -595,14 +595,17 @@ defineExpose({ check, focus });
     border-color: transparent;
   }
 
+  /* A modal dialog (Date Picker Dialog): the look of a layer laid on the page, as the one
+   * of the date pill it may open from (task 23): the shadow of the upper level, a
+   * contrasted border, a background of its own; over that layer, the later one above. */
   .k-date-field__popover {
     z-index: var(--k-z-modal);
     padding: var(--k-space-3);
     color: var(--k-text);
-    background-color: var(--k-surface);
-    border: var(--k-border-width) solid var(--k-border-strong);
+    background-color: var(--k-surface-raised);
+    border: var(--k-border-width) solid var(--k-border-control);
     border-radius: var(--k-radius-lg);
-    box-shadow: var(--k-shadow-overlay);
+    box-shadow: var(--k-shadow-modal);
     transition-property: opacity, translate;
     transition-duration: max(var(--k-duration-short), var(--k-duration-fade));
     transition-timing-function: var(--k-ease-standard);

@@ -48,7 +48,7 @@
         - link "Référentiel":
           - /url: /
       - listitem: Adresses
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 2 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -170,6 +170,8 @@
           - gridcell /\d+/
     - text: /8 affichées sur 1 \d+ Entrée vers le brouillon · Ctrl Entrée appliquer avec motif · Échap annuler/
 - button "Ouvrir le panneau"
+- alert
+- status
 - menu "Action groupée":
   - menuitem "Changer l'usage…"
   - menuitem "Changer le propriétaire…"

@@ -1,9 +1,10 @@
 - main:
   - region "DatePill":
     - heading "DatePill" [level=1]
-    - paragraph: "Motif : Button (ouvre le choix de la période)"
+    - paragraph: "Motif : Button qui ouvre un Dialog non modal (le choix de la période)"
     - figure "focus — Focus visible":
-      - button /3 nov\. \d+, \d+:\d+ Europe\/Paris/:
+      - 'button /Date de lecture : 3 nov\. \d+, \d+:\d+ Europe\/Paris/':
+        - text: ""
         - time: /3 nov\. \d+, \d+:\d+/
         - text: ""
       - code: focus

@@ -39,7 +39,7 @@
         - link "Inférence":
           - /url: /x/policy/inference
       - listitem: Écarts
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -102,3 +102,5 @@
             - button "Acquitter"
     - text: /4 écarts ouverts · \d+ héritiers en écart Un écart acquitté reste dans l'historique de l'anomalie/
 - button "Ouvrir le panneau"
+- alert
+- status

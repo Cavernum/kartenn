@@ -1,0 +1,11 @@
+- main:
+  - region "DatePill":
+    - heading "DatePill" [level=1]
+    - paragraph: "Motif : Button qui ouvre un Dialog non modal (le choix de la période)"
+    - 'figure "known — État connu à une date passée (as_of) : cadenas, « Connu au »"':
+      - 'button /Date de lecture : Connu au 1 déc\. \d+, \d+:\d+ Europe\/Paris/':
+        - text: ""
+        - time: /1 déc\. \d+, \d+:\d+/
+        - text: ""
+      - code: known
+      - text: ""

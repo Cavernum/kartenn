@@ -42,7 +42,7 @@
         - link "Rôles":
           - /url: /admin/roles
       - listitem: lecteur-reseau
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -196,3 +196,5 @@
           - text: "Entité : Atelier Nord"
   - button "Largeur du panneau"
   - button "Fermer le panneau"
+- alert
+- status

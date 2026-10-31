@@ -1,0 +1,13 @@
+- main:
+  - region "DatePill":
+    - heading "DatePill" [level=1]
+    - paragraph: "Motif : Button qui ouvre un Dialog non modal (le choix de la période)"
+    - figure "both — Les deux dates":
+      - 'button /Date de lecture : 3 nov\. \d+, \d+:\d+ · connu au 1 déc\. \d+, \d+:\d+ Europe\/Paris/':
+        - text: ""
+        - time: /3 nov\. \d+, \d+:\d+/
+        - text: ""
+        - time: /1 déc\. \d+, \d+:\d+/
+        - text: ""
+      - code: both
+      - text: ""

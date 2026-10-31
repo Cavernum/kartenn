@@ -42,7 +42,7 @@
         - link "Paramètres":
           - /url: /admin/settings
       - listitem: Politique
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -318,6 +318,8 @@
                 - code: high
     - text: Au présent Toute modification va au brouillon, puis à un changeset
 - button "Ouvrir le panneau"
+- alert
+- status
 - tooltip "Il faut policy.settings.edit":
   - text: ""
   - code: policy.settings.edit

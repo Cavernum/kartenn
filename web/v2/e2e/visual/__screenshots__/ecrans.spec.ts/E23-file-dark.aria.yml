@@ -30,7 +30,7 @@
         - link "Flux":
           - /url: /x/flow
       - listitem: Instruction
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -94,3 +94,5 @@
             - button "Instruire"
     - text: /4 en attente · 3 demandes · 1 prolongation Évaluation du triage, telle qu'enregistrée · page de \d+/
 - button "Ouvrir le panneau"
+- alert
+- status

@@ -54,7 +54,7 @@
         - link "campus-ouest":
           - /url: /vlan-groups/campus-ouest
       - listitem: /\d+ supervision/
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -136,3 +136,5 @@
         - code: 01JD4M2V6N8Q0R2T4W6Y8A0C2E
       - status
 - button "Ouvrir le panneau"
+- alert
+- status

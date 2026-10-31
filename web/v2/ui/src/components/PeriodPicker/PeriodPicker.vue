@@ -68,6 +68,18 @@ watch(
   () => (asOfError.value = undefined),
 );
 
+// The host's refusal comes back after the sending (a 400 of the API): the focus goes to
+// the refused field, as for a refusal of its own, its reason read with it.
+watch(
+  () => props.errors,
+  async (errors) => {
+    const axis = AXES.find((a) => errors?.[a.key])?.key;
+    if (!axis) return;
+    await nextTick();
+    fields[axis]?.focus();
+  },
+);
+
 const said = ref("");
 
 function useShortcut(axis: Axis, kind: (typeof SHORTCUTS)[number]["kind"]): void {

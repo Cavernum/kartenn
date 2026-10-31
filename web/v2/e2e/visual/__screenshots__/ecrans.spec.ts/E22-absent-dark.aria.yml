@@ -33,7 +33,7 @@
         - link "Registre":
           - /url: /x/flow/flows
       - listitem: /flux-\d+/
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -52,3 +52,5 @@
       - code: req_7f3a9c2e5b1d4068
     - status
 - button "Ouvrir le panneau"
+- alert
+- status

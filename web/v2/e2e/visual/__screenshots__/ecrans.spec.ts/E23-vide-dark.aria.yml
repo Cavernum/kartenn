@@ -30,7 +30,7 @@
         - link "Flux":
           - /url: /x/flow
       - listitem: Instruction
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -42,3 +42,5 @@
     - paragraph: Aucune demande ni prolongation n'attend une décision que vous pouvez prendre.
     - button "Voir les échéances"
 - button "Ouvrir le panneau"
+- alert
+- status

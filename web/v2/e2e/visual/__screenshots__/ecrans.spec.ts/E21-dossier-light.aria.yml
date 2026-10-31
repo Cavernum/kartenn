@@ -33,7 +33,7 @@
         - link "Registre":
           - /url: /x/flow/flows
       - listitem: Proposer des flux
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 1 opération" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -134,3 +134,5 @@
       - paragraph: Facultative.
   - button "Largeur du panneau"
   - button "Fermer le panneau"
+- alert
+- status

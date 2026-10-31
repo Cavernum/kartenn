@@ -24,7 +24,7 @@
         - link "Flux":
           - /url: /x/flow
       - listitem: Registre
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -252,3 +252,5 @@
           - gridcell "—"
     - text: "/\\d+ flux · 1 demandé · 1 non conforme à la matrice · 1 dérogé Échéance : fin de la dérogation d'un flux dérogé, sinon fin du flux/"
 - button "Ouvrir le panneau"
+- alert
+- status

@@ -51,7 +51,7 @@
         - link "VLAN":
           - /url: /vlans
       - listitem: campus-ouest
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -181,3 +181,5 @@
         - gridcell /\d+–\d+/
         - gridcell /\d+ utilisés/
 - button "Ouvrir le panneau"
+- alert
+- status

@@ -36,7 +36,7 @@
         - link "Politique":
           - /url: /x/policy
       - listitem: Conformité
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -123,3 +123,5 @@
     - paragraph: "Sans service, le type de flux est inconnu : aucune règle ne s'applique et la demande partirait à l'instruction."
   - button "Largeur du panneau"
   - button "Fermer le panneau"
+- alert
+- status

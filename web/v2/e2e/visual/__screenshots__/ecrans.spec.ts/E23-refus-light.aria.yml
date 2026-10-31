@@ -33,7 +33,7 @@
         - link "Instruction":
           - /url: /x/flow/review
       - listitem: 01JF3C1E3G
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -121,3 +121,5 @@
   - button "Fermer le panneau"
   - button "Rejeter…"
   - button "Approuver avec dérogation" [disabled]
+- alert
+- status

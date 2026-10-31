@@ -27,7 +27,7 @@
         - link "Changesets":
           - /url: /changesets
       - listitem: À instruire
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -87,3 +87,5 @@
             - button "Rejeter…"
     - text: "4 changesets · 2 de flux « Valider » n'ajoute pas la revue d'un flux : sa demande s'instruit dans Flux"
 - button "Ouvrir le panneau"
+- alert
+- status

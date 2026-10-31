@@ -54,7 +54,8 @@
         - link "Préfixes":
           - /url: /prefixes
       - listitem: /\d+\.\d+\.\d+\.\d+\/\d+/
-  - button /3 nov\. \d+, \d+:\d+ Europe\/Paris/ [expanded]:
+  - 'button /Date de lecture : 3 nov\. \d+, \d+:\d+ Europe\/Paris/ [expanded]':
+    - text: ""
     - time: /3 nov\. \d+, \d+:\d+/
     - text: ""
   - button "Brouillon 3 opérations"
@@ -63,7 +64,7 @@
 - status:
   - text: Lecture au
   - time: /3 nov\. \d+, \d+:\d+/
-  - text: (Europe/Paris)
+  - text: (Europe/Paris) — brouillon daté possible
 - button "Revenir au présent"
 - main:
   - heading /Préfixe \d+\.\d+\.\d+\.\d+\/\d+, lu au 3 novembre \d+/ [level=1]
@@ -121,7 +122,10 @@
         - gridcell /\d+-\d+-\d+/
         - gridcell "Import initial"
 - button "Ouvrir le panneau"
+- alert
+- status
 - dialog "Lire à une date":
+  - button "Fermer"
   - heading "Lire à une date" [level=2]
   - group "Valide au":
     - text: ""

@@ -33,7 +33,7 @@
         - link "Matrice":
           - /url: /x/policy/matrix
       - listitem: application
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -117,7 +117,7 @@
     - text: Libellé
     - textbox "Libellé": Lecture des API de production depuis la recette
     - status:
-      - paragraph: "/Effet simulé : \\d+ flux applicatifs deviennent non conformes à la matrice/"
+      - paragraph: "/Avertissement : Effet simulé : \\d+ flux applicatifs deviennent non conformes à la matrice/"
     - text: /3 sur \d+ lignes/
     - 'button "Agrandir : Flux applicatifs non conformes à la matrice par Recette → Production"'
     - grid "Flux applicatifs non conformes à la matrice par Recette → Production":
@@ -159,3 +159,5 @@
   - button "Largeur du panneau"
   - button "Fermer le panneau"
   - button "Ajouter au brouillon"
+- alert
+- status

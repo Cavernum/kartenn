@@ -33,7 +33,7 @@
         - link "Registre":
           - /url: /x/flow/flows
       - listitem: Proposition envoyée
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -98,3 +98,5 @@
   - paragraph: Le flux ne lit que des API exposées en lecture, sans écriture ni export de masse.
   - paragraph: "L'issue affichée est celle de la pré-vérification : le triage du serveur fait foi et remplace cette ligne s'il diffère."
 - button "Ouvrir le panneau"
+- alert
+- status

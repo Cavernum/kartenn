@@ -6,7 +6,7 @@
       - status:
         - text: Lecture au
         - time: /3 nov\. \d+, \d+:\d+/
-        - text: (America/Montreal)
+        - text: (America/Montreal) — brouillon daté possible
       - button "Revenir au présent"
       - code: other-zone
       - text: ""

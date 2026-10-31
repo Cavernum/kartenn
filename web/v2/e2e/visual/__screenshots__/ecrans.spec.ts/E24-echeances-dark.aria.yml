@@ -30,7 +30,7 @@
         - link "Flux":
           - /url: /x/flow
       - listitem: Échéances
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -111,3 +111,5 @@
             - button "Prolonger…"
     - text: 5 échéances · 2 sous 7 jours Un flux sans fin n'y figure jamais ; d'un flux dérogé, la plus proche des deux fins
 - button "Ouvrir le panneau"
+- alert
+- status

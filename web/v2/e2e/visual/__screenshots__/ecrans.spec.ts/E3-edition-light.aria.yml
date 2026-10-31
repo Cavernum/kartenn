@@ -48,7 +48,7 @@
         - link "Référentiel":
           - /url: /
       - listitem: Adresses
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -167,6 +167,8 @@
           - gridcell /\d+/
     - text: /8 affichées sur 1 \d+ Entrée vers le brouillon · Ctrl Entrée appliquer avec motif · Échap annuler/
 - button "Ouvrir le panneau"
+- alert
+- status
 - text: Une adresse d'une plage DHCP ne peut pas être un hôte fixe.
 - button "Copier core.address.range_usage":
   - text: ""

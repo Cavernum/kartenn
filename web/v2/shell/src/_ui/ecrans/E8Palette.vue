@@ -2,45 +2,11 @@
 // E8 — Palette et aide (design « Maquettes »; 021, « Raccourcis »): the palette Ctrl+K over
 // the home page (commands, navigation, objects), and the help « ? » of the shortcuts, read
 // from the registry, by scope.
-import {
-  CommandPalette,
-  DataGrid,
-  Dialog,
-  ShortcutHint,
-  Stack,
-  type GridColumn,
-  type PaletteGroup,
-} from "@kartenn/ui";
+import { DataGrid, Dialog, ShortcutHint, Stack, type GridColumn } from "@kartenn/ui";
 import Accueil from "./EcranAccueil.vue";
 import Cadre from "./EcranCadre.vue";
 
 const props = defineProps<{ vue: string }>();
-
-const groups: PaletteGroup[] = [
-  {
-    label: "Objets",
-    items: [
-      { id: "p1", label: "Salle A", icon: "prefix", detail: "192.0.2.0/24" },
-      { id: "p2", label: "Supervision", icon: "prefix", detail: "192.0.2.64/26" },
-      { id: "a1", label: "srv-app-01", icon: "address", detail: "192.0.2.10" },
-    ],
-  },
-  {
-    label: "Commandes",
-    items: [
-      { id: "create", label: "Créer un préfixe dans 192.0.2.0/24", icon: "plus", shortcut: ["c"] },
-      { id: "free", label: "Prochain libre dans 192.0.2.0/24", icon: "search" },
-      { id: "date", label: "Lire à une autre date…", icon: "calendar" },
-    ],
-  },
-  {
-    label: "Navigation",
-    items: [
-      { id: "prefixes", label: "Préfixes", icon: "prefix", shortcut: [["g"], ["p"]] },
-      { id: "addresses", label: "Adresses", icon: "address", shortcut: [["g"], ["a"]] },
-    ],
-  },
-];
 
 interface Shortcut extends Record<string, unknown> {
   id: string;
@@ -83,12 +49,18 @@ const shortcutColumns: GridColumn[] = [
 </script>
 
 <template>
-  <Cadre title="Accueil" active="home" space="referential" :crumbs="[{ label: 'Accueil' }]">
-    <!-- The home page of E0 itself under the layer, never a stale copy. -->
+  <Cadre
+    title="Accueil"
+    active="home"
+    space="referential"
+    :crumbs="[{ label: 'Accueil' }]"
+    :palette="props.vue === 'palette'"
+  >
+    <!-- The home page of E0 itself under the layer, never a stale copy; the palette is the
+         frame's (« Rechercher », Ctrl+K). -->
     <Accueil />
-    <CommandPalette v-if="props.vue === 'palette'" :open="true" :groups="groups" />
     <Dialog
-      v-else
+      v-if="props.vue !== 'palette'"
       :open="true"
       size="lg"
       title="Raccourcis clavier"

@@ -18,6 +18,7 @@ export const FLOATING = [
   "SidePanel",
   "Toast",
   "CommandPalette",
+  "DatePill",
 ];
 
 /** Properties whose value must be a token (design « Architecture CSS »). */

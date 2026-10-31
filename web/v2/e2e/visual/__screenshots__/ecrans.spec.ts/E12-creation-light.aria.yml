@@ -51,7 +51,7 @@
         - link "Centre de données nord":
           - /url: /domains/dc-nord
       - listitem: Préfixes
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -132,3 +132,5 @@
   - button "Fermer le panneau"
   - button "Ajouter au brouillon"
   - button "Choisir l'action"
+- alert
+- status
