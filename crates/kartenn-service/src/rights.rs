@@ -364,15 +364,7 @@ pub(crate) async fn check_objects<T: WriteTx + Send, A: Authorizer>(
     Ok(())
 }
 
-/// Objects of the differential recorded so far, all properties.
-pub(crate) async fn diff_objects<T: WriteTx>(
-    tx: &mut T,
-    diff: &[DiffCount],
-) -> Result<BTreeSet<Uuid>, StoreError> {
-    let mut objects = BTreeSet::new();
-    let keys: BTreeSet<&str> = diff.iter().map(|d| d.property.as_str()).collect();
-    for key in keys {
-        objects.extend(tx.diff_objects(key).await?);
-    }
-    Ok(objects)
+/// Objects of the differential, all properties.
+pub(crate) fn diff_objects(effects: &Effects) -> BTreeSet<Uuid> {
+    effects.values().flatten().copied().collect()
 }

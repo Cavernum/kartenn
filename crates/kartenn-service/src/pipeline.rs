@@ -2172,6 +2172,7 @@ async fn stages<S: Store, A: Authorizer>(
     .await;
     let Checked {
         diff,
+        effects,
         expected: checked,
     } = match props {
         Ok(Some(found)) => found,
@@ -2240,7 +2241,7 @@ async fn stages<S: Store, A: Authorizer>(
                 req,
                 author,
                 &planned,
-                &diff,
+                (&diff, &effects),
                 &domains,
                 &module_findings.measures,
             )
@@ -2261,7 +2262,7 @@ async fn stages<S: Store, A: Authorizer>(
             };
             if !req.approval_self || reason.is_some() {
                 let mut perimeter: BTreeSet<Uuid> = objects.iter().copied().collect();
-                perimeter.extend(crate::rights::diff_objects(&mut tx, &diff).await?);
+                perimeter.extend(crate::rights::diff_objects(&effects));
                 tx.rollback().await?;
                 let review = !reviewed.is_empty();
                 required.extend(reviewed);
@@ -2522,10 +2523,12 @@ async fn hold<S: Store>(
 /// Entries of the differential detail returned by a simulation (003/design).
 const SIMULATION_SAMPLE: i64 = 100;
 
-/// What the properties stage found: the differential and the objects whose expected values
-/// were checked.
+/// What the properties stage found: the differential, its objects by property (read once,
+/// for the rights, the policies and the perimeter of a pending changeset) and the objects
+/// whose expected values were checked.
 struct Checked {
     diff: Vec<DiffCount>,
+    effects: crate::rights::Effects,
     expected: Vec<Uuid>,
 }
 
@@ -2618,6 +2621,7 @@ async fn properties<T: WriteTx + Send, A: Authorizer>(
     let checked = crate::expected::check(tx, sources, &touched, period, violations).await?;
     Ok(Some(Checked {
         diff,
+        effects,
         expected: checked,
     }))
 }
