@@ -76,14 +76,6 @@ jobs:
         run: |
           nix build --inputs-from . nixpkgs#devenv --out-link "$RUNNER_TEMP/devenv"
           echo "$RUNNER_TEMP/devenv/bin" >>"$GITHUB_PATH"
-      # sccache (RUSTC_WRAPPER of devenv.nix): compiled dependencies, keyed on the locks.
-      # Never restored for a tag: a release is checked from a clean state.
-      - name: Cache sccache
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/sccache
-          key: sccache-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'devenv.lock') }}
       - name: PostgreSQL 18
         run: |
           devenv up --detach postgres
