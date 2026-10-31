@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { ApiProblem, reads } from "@kartenn/sdk";
 import { resetContext } from "@kartenn/sdk/host";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryHistory, createRouter, type RouteRecordRaw } from "vue-router";
 import { crumbsOf } from "../src/frame/breadcrumb.ts";
 import { frameRoutes } from "../src/frame/routes.ts";
@@ -18,7 +18,7 @@ import {
 import { CORE_SPACES, locate, sidebarGroups, spaceEntry } from "../src/frame/spaces.ts";
 import { installPrefetch, queriesOf } from "../src/prefetch/intent.ts";
 import { Rights, type Me } from "../src/rights/index.ts";
-import { checkPeriod, goToPeriod, installTime } from "../src/time/index.ts";
+import { checkPeriod, goToPeriod, installTime, probePath } from "../src/time/index.ts";
 
 // The frame of the shell (REQ-021-1, 2, 4, 5): spaces by rights, breadcrumb, guards of
 // session, time and prefetch in their order, the check of a period by the API, the
@@ -169,6 +169,19 @@ describe("guards of the frame", () => {
     expect(router.currentRoute.value.query).toEqual({});
   });
 
+  it("carries no date on a move in the history", async () => {
+    const router = frameRouter([], signedOut);
+    await router.push("/prefixes/p1");
+    await router.push(`/prefixes/p1?valid_at=${VALID_AT}`);
+    // Back, to the page as it was: at the present.
+    router.back();
+    await vi.waitFor(() => expect(router.currentRoute.value.query).toEqual({}));
+    expect(router.currentRoute.value.path).toBe("/prefixes/p1");
+    // A link followed afterwards from that page carries nothing either.
+    await router.push("/");
+    expect(router.currentRoute.value.query).toEqual({});
+  });
+
   it("reads the session once, before the first page of the frame, never for /_ui", async () => {
     let loads = 0;
     let starts = 0;
@@ -199,10 +212,20 @@ describe("guards of the frame", () => {
 });
 
 describe("check of a period by the API", () => {
-  it("asks nothing at the present", async () => {
+  it("asks nothing at the present, nor without a dated list the user may read", async () => {
     const asked: string[] = [];
-    expect(await checkPeriod({ validAt: null, asOf: null }, async (u) => asked.push(u))).toBeNull();
+    const get = async (u: string) => asked.push(u);
+    expect(await checkPeriod({ validAt: null, asOf: null }, "/v1/domains", get)).toBeNull();
+    expect(await checkPeriod({ validAt: null, asOf: "2026-01-01T00:00:00Z" }, null, get)).toBe(
+      null,
+    );
     expect(asked).toEqual([]);
+  });
+
+  it("asks the lightest dated list the user may read", () => {
+    expect(probePath((p) => READER.has(p))).toBe("/v1/domains");
+    expect(probePath((p) => p === "core.address.read")).toBe("/v1/addresses");
+    expect(probePath(() => false)).toBeNull();
   });
 
   it("brings a 400 on as_of back on its field, lets a 403 through", async () => {
@@ -216,13 +239,13 @@ describe("check of a period by the API", () => {
         detail: "as_of is later than the time of kartenn",
       });
     };
-    expect(await checkPeriod({ validAt: null, asOf: "2026-01-01T00:00:00Z" }, refuse(400))).toEqual(
-      { asOf: "as_of is later than the time of kartenn" },
-    );
-    expect(asked[0]).toBe("/v1/domains?page_size=1&as_of=2026-01-01T00%3A00%3A00Z");
-    expect(
-      await checkPeriod({ validAt: "2026-01-01T00:00:00Z", asOf: null }, refuse(403)),
-    ).toBeNull();
+    const asOf = { validAt: null, asOf: "2026-01-01T00:00:00Z" };
+    expect(await checkPeriod(asOf, "/v1/sites", refuse(400))).toEqual({
+      asOf: "as_of is later than the time of kartenn",
+    });
+    expect(asked[0]).toBe("/v1/sites?page_size=1&as_of=2026-01-01T00%3A00%3A00Z");
+    const validAt = { validAt: "2026-01-01T00:00:00Z", asOf: null };
+    expect(await checkPeriod(validAt, "/v1/sites", refuse(403))).toBeNull();
   });
 });
 

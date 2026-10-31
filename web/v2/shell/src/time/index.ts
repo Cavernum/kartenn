@@ -66,10 +66,24 @@ export function carryTime(
   return { path: to.path, query, hash: to.hash, replace: true };
 }
 
-/** Installs the guard, and pushes the context to the SDK after each navigation. */
+/**
+ * Installs the guard, and pushes the context to the SDK after each navigation. A move in
+ * the history (Back, Forward) goes to the URL as it was, dates or none: never carried.
+ * Its listener goes before the router's (installed before the first navigation), so the
+ * guard knows the navigation it starts is a traversal.
+ */
 export function installTime(router: Router): void {
-  router.beforeEach(carryTime);
+  let traversal = false;
+  router.options.history.listen(() => {
+    traversal = true;
+  });
+  router.beforeEach((to, from) => {
+    if (!traversal) return carryTime(to, from);
+    traversal = false;
+    return true;
+  });
   router.afterEach((to) => {
+    traversal = false;
     const { validAt, asOf } = timeOf(to.query);
     setContext({ time: { validAt, asOf } });
   });
@@ -119,24 +133,43 @@ export type Probe = (url: string) => Promise<unknown>;
 
 const probe: Probe = (url) => api.request("GET", url);
 
+/** The dated lists a read right opens, the lightest first: where a period is asked. */
+const PROBES: readonly (readonly [permission: string, path: string])[] = [
+  ["core.domain.read", "/v1/domains"],
+  ["core.entity.read", "/v1/entities"],
+  ["core.site.read", "/v1/sites"],
+  ["core.vlan_group.read", "/v1/vlan-groups"],
+  ["core.vlan.read", "/v1/vlans"],
+  ["core.prefix.read", "/v1/prefixes"],
+  ["core.range.read", "/v1/ranges"],
+  ["core.address.read", "/v1/addresses"],
+];
+
+/** The dated list to ask a period of, among those `has` opens; `null` if none. */
+export function probePath(has: (permission: string) => boolean): string | null {
+  return PROBES.find(([permission]) => has(permission))?.[1] ?? null;
+}
+
 /**
  * Asks the API whether it reads at `period` before the URL takes it, so that its refusal
  * comes back on the field of the date pill (020, `DatePill` `errors`): the browser's
  * clock refuses an `as_of` it sees in the future, the database's `now()` may still be
- * earlier (`as_of is later than the time of kartenn`). The lightest dated read: one
- * domain. Any answer but a 400 lets the period through (a 403 is a screen's business).
- * At the present, nothing to ask.
+ * earlier (`as_of is later than the time of kartenn`). One row of `path`, a dated list
+ * the user may read (`probePath`); without one, nothing is asked and the period goes
+ * through (a screen shows the refusal of its own reads). Any answer but a 400 lets it
+ * through. At the present, nothing to ask.
  */
 export async function checkPeriod(
   period: Period,
+  path: string | null,
   get: Probe = probe,
 ): Promise<PeriodRefusal | null> {
-  if (!period.validAt && !period.asOf) return null;
+  if ((!period.validAt && !period.asOf) || path === null) return null;
   const search = new URLSearchParams({ page_size: "1" });
   if (period.validAt) search.set("valid_at", period.validAt);
   if (period.asOf) search.set("as_of", period.asOf);
   try {
-    await get(`/v1/domains?${search}`);
+    await get(`${path}?${search}`);
     return null;
   } catch (error) {
     if (!(error instanceof ApiProblem) || error.status !== 400) return null;

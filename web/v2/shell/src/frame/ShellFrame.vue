@@ -54,6 +54,7 @@ import { useSession } from "../rights/index.ts";
 import {
   checkPeriod,
   goToPeriod,
+  probePath,
   toPresent,
   useTime,
   type Period,
@@ -186,10 +187,15 @@ function toggleDraft(): void {
 // the focus to the pill (2.4.3).
 const pill = ref<{ focus(): void } | null>(null);
 const refusal = ref<PeriodRefusal>();
+/** The period asked last: the answer to an earlier one is dropped. */
+let asked = 0;
 async function applyPeriod(period: Period): Promise<void> {
   const now = time.value;
+  const ask = ++asked;
   if (period.validAt === now.validAt && period.asOf === now.asOf) return;
-  const refused = await checkPeriod(period);
+  const path = probePath((permission) => session.value.rights.has(permission));
+  const refused = await checkPeriod(period, path);
+  if (ask !== asked) return;
   if (refused) {
     refusal.value = Object.fromEntries(
       Object.entries(refused).map(([field, reason]) => [
@@ -205,6 +211,7 @@ async function applyPeriod(period: Period): Promise<void> {
   await goToPeriod(router, period);
 }
 async function backToPresent(): Promise<void> {
+  asked++;
   await toPresent(router);
   await nextTick();
   pill.value?.focus();

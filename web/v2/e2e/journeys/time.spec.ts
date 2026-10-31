@@ -67,7 +67,10 @@ test("a validity date alone leaves the dated draft possible", async ({ page, log
   await expect(band(page)).not.toContainText("désactivé");
 });
 
-test("the date pill applies a period to the URL", async ({ page, login }) => {
+test("the date pill applies a period to the URL; Back returns to the present", async ({
+  page,
+  login,
+}) => {
   await login("bob");
   await page.goto("/prefixes");
   await pill(page).click();
@@ -80,6 +83,12 @@ test("the date pill applies a period to the URL", async ({ page, login }) => {
   await expect(layer(page)).toHaveCount(0);
   await expect(page).toHaveURL(/\/prefixes\?valid_at=/);
   await expect(band(page)).toContainText("brouillon daté possible");
+  // A move in the history goes to the URL as it was: the dates are not carried.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/prefixes$/);
+  await expect(pill(page)).toHaveAccessibleName(/^Date de lecture : Présent/);
+  await page.goForward();
+  await expect(page).toHaveURL(/\/prefixes\?valid_at=/);
 });
 
 test("a date the API refuses comes back on its field, the URL unchanged", async ({
