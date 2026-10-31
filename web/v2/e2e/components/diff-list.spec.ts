@@ -21,8 +21,41 @@ test("420 lines: a few changes in the document, all the headings, Tab to the las
   const first = list.locator(".k-diff-list__change").first();
   await expect(first).toHaveAttribute("aria-setsize", "6");
   await expect(first).toHaveAttribute("aria-posinset", "1");
-  // The scroll of the list brings the last changes into the document.
-  await list.evaluate((el) => (el.scrollTop = el.scrollHeight));
+  // The keys scroll the list from a heading in it: Page down, then End, bring the next and
+  // the last changes into the document.
+  const toggles = list.getByRole("button", { expanded: true });
+  await toggles.first().focus();
+  await page.keyboard.press("PageDown");
+  await page.keyboard.press("PageDown");
+  // A gap replaced by its measured lines does not move what is shown: the row on top of
+  // the view stays where it is once measured.
+  const top = async () =>
+    list.evaluate((el) => {
+      const view = el.getBoundingClientRect().top;
+      const row = [...el.querySelectorAll(".k-diff-list__change")].find(
+        (li) => li.getBoundingClientRect().bottom > view,
+      )!;
+      return {
+        text: row.textContent,
+        y: Math.round(row.getBoundingClientRect().top),
+        scroll: el.scrollTop,
+      };
+    });
+  // The keys scroll smoothly: the list has moved, and stopped, before the measure.
+  await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  let settled = -1;
+  await expect
+    .poll(async () => {
+      const now = await list.evaluate((el) => el.scrollTop);
+      const still = now === settled;
+      settled = now;
+      return still;
+    })
+    .toBe(true);
+  const before = await top();
+  await page.evaluate(() => new Promise((done) => setTimeout(done, 300)));
+  expect(await top()).toEqual(before);
+  await page.keyboard.press("End");
   await expect(list.getByText("Sous-réseau 60")).toBeInViewport();
   const last = list
     .locator("section")
@@ -31,10 +64,10 @@ test("420 lines: a few changes in the document, all the headings, Tab to the las
     .filter({ hasText: "Attribut 6" });
   await expect(last).toBeVisible();
   await expect(last).toHaveAttribute("aria-posinset", "6");
-  // Back to the top; the keyboard goes from heading to heading down to the last object.
-  await list.evaluate((el) => (el.scrollTop = 0));
-  const toggles = list.getByRole("button", { expanded: true });
-  await toggles.first().focus();
+  // Back to the top (Home); Tab goes from heading to heading down to the last object.
+  await page.keyboard.press("Home");
+  await expect(toggles.first()).toBeInViewport();
+  await expect(toggles.first()).toBeFocused();
   for (let i = 1; i < 60; i++) await page.keyboard.press("Tab");
   await expect(list.getByRole("button", { name: /Sous-réseau 60/ })).toBeFocused();
   await expect(list.getByRole("button", { name: /Sous-réseau 60/ })).toBeInViewport();

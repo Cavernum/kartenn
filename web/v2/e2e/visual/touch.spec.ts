@@ -41,11 +41,19 @@ function audit(page: Page): Promise<{ small: Finding[]; main: Finding[] }> {
         .slice(0, 40)} »`;
     const inSentence = (el: Element) =>
       el.tagName === "A" && getComputedStyle(el).display === "inline";
+    // A target under a layer (the surface under the right panel, which lies over it at
+    // every width) is no target a finger reaches: the layer takes the touch.
+    const covered = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      return top !== null && !el.contains(top) && !top.contains(el);
+    };
     const els = [...document.querySelectorAll(selector)].filter(
       (el) =>
         !el.closest("[inert], [hidden], .k-visually-hidden") &&
         el.checkVisibility({ visibilityProperty: true, opacityProperty: true }) &&
-        !inSentence(el),
+        !inSentence(el) &&
+        !covered(el),
     );
     const boxes = els
       .map((el) => ({ el, r: el.getBoundingClientRect() }))
