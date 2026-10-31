@@ -16,6 +16,7 @@
     "@kartenn/ui": "workspace:*",
     "@tanstack/query-core": "5.102.4",
     "vue": "^3.5.44",
+    "vue-i18n": "11.4.16",
     "vue-router": "^5.4.0"
   },
   "devDependencies": {

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import vue from "@vitejs/plugin-vue";
 import type { Plugin, ResolvedConfig } from "vite";
 import { defineConfig } from "vitest/config";
@@ -18,6 +19,18 @@ const SHARED = [
 ];
 /** The sheet of @kartenn/ui, as a module of the build. */
 const UI_SHEET = /\/ui\/src\/style\.css(\?|$)/;
+/**
+ * Every module of @kartenn/ui (its scripts, components and sheets): under the sources of
+ * the package beside the shell, wherever the workspace lies (`web/v2` until the switch,
+ * `web` after it, task 27).
+ */
+const UI_ROOT = fileURLToPath(new URL("../ui/src/", import.meta.url));
+const UI_SOURCES = (id: string) => id.startsWith(UI_ROOT);
+/**
+ * The runtime of Vue (`vue` and its `@vue/*` packages), without the devtools of
+ * vue-router and vue-i18n, which are no part of what the import map shares.
+ */
+const VUE_SOURCES = /\/node_modules\/(vue|@vue\/(?!devtools-)[^/]+)\//;
 const IMPORT_MAP = /<script type="importmap">([\s\S]*?)<\/script>/;
 const PLACEHOLDER = "<!--kartenn-import-map-->";
 
@@ -60,6 +73,20 @@ function sharedModules(): Plugin {
             ...Object.fromEntries(SHARED.map(({ entry, source }) => [entry, source])),
           },
           preserveEntrySignatures: "strict",
+          // @kartenn/ui in one chunk, hence one sheet in the order of its sources: split by
+          // the screens that use its components, its rules of a same layer would come in
+          // the order of the split sheets instead (a later rule no longer winning).
+          // `vue` first, in a chunk of its own: the library's group would take it along
+          // with its other dependencies, and a plugin that imports `vue` alone would load
+          // the whole library.
+          output: {
+            codeSplitting: {
+              groups: [
+                { name: "vue.runtime", test: VUE_SOURCES, priority: 2 },
+                { name: "ui", test: UI_SOURCES, priority: 1 },
+              ],
+            },
+          },
         },
       },
     }),
@@ -176,6 +203,16 @@ function preloadFont(): Plugin {
 // artefact).
 export default defineConfig(({ mode }) => ({
   plugins: [vue(), preloadFont(), sharedModules()],
+  define: {
+    // vue-i18n (W11, as web/shell): composition API only, no devtools. Its message
+    // compiler stays in the build (`__INTLIFY_DROP_MESSAGE_COMPILER__` false): the catalogs
+    // are compiled when first read, without eval nor new Function (CSP), and the design
+    // (« Pile retenue ») asks for them precompiled instead — left to arbitration, task 9.
+    __VUE_I18N_FULL_INSTALL__: true,
+    __VUE_I18N_LEGACY_API__: false,
+    __INTLIFY_PROD_DEVTOOLS__: false,
+    __INTLIFY_DROP_MESSAGE_COMPILER__: false,
+  },
   build: {
     target: "es2022",
     outDir: mode === "catalogue" ? "../dist/catalogue" : "../dist/shell",

@@ -97,6 +97,34 @@ describe("builds of the shell", () => {
     }
   });
 
+  it("links the critical sheet first, with the order of the layers whole", () => {
+    // A sheet of a component split out of the chunk of the library (a lazy screen, the
+    // catalogue) is linked before the library's: without this one first, it would declare
+    // `components` first, under `reset` (REQ-020-12).
+    // The statement of @kartenn/ui itself, whatever its layers become.
+    const declared = /@layer [^;{]+;/.exec(
+      readFileSync(join(root, "../ui/src/styles/layers.css"), "utf8"),
+    )?.[0];
+    expect(declared).toBeDefined();
+    const layers = new RegExp(declared!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    for (const { outDir, html } of [production, catalogue]) {
+      const sheets = [...html.matchAll(/<link rel="stylesheet"[^>]* href="([^"]+)"/g)];
+      expect(sheets[0]?.[1]).toBe("/boot.css");
+      // The library whole in one sheet, its rules in the order of its sources.
+      expect(sheets[1]?.[1]).toMatch(/^\/assets\/ui-[^/]+\.css$/);
+      expect(sheets.filter(([, href]) => !/\/(boot|ui-|index-)/.test(href!))).toEqual([]);
+      expect(readFileSync(join(outDir, "boot.css"), "utf8")).toMatch(layers);
+    }
+  });
+
+  it("holds the static skeleton of the frame, styled by a sheet (REQ-021-1)", () => {
+    for (const { html } of [production, catalogue]) {
+      const app = /<div id="app">([\s\S]*?)<\/body>/.exec(html)?.[1] ?? "";
+      for (const part of ["k-boot__sidebar", "k-boot__bar", "k-boot__panel"])
+        expect(app).toContain(part);
+    }
+  });
+
   it("serves the runtime build of vue: nothing evaluated under the CSP", () => {
     for (const { js } of [production, catalogue]) {
       expect(js).not.toMatch(/new Function\(|\beval\(/);

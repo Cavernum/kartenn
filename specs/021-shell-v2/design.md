@@ -99,19 +99,22 @@ Révisé par la 024 (M8, M15 ; disposition B arbitrée sur prototype, hors dép�
   (`/v1/anomalies` par règle) ; relus par le flux d'événements, jamais par sondage.
 - Barre d'état : `Breadcrumb`, `DatePill`, `DraftCounter`, menu de l'utilisateur
   (langue, thème, densité, raccourcis à une touche, à propos, déconnexion).
-- Bande : `TimeBand` sous la barre d'état, pleine largeur, `--k-band-bg` ; la barre et la
-  bande sont collantes, et la surface défile dessous avec `scroll-padding-top` égal à leur
-  hauteur (2.4.11).
+- Bande : `TimeBand` sous la barre d'état, dans le repère `banner`, pleine largeur,
+  `--k-band-bg` ; la barre et la bande sont des emplacements fixes du cadre, au-dessus de
+  la surface qui défile dans le sien : elles ne couvrent jamais le focus (2.4.11).
 - **Panneau droit** (`SidePanel`, 020) : région `complementary` non modale, 420 px par
-  défaut, redimensionnable (poignée au clavier), en surimpression de la surface : la vue
-  garde sa largeur, le panneau couvre sa droite. La surface est un contexte d'empilement
-  isolé (`isolation: isolate`) : ses en-têtes collants ne passent jamais au-dessus du
-  panneau. Onglets « Détail » (la sélection courante) et « Brouillon n » ; ouvrir le
+  défaut, redimensionnable (poignée au clavier). **Tout s'adapte** (020, décision du
+  2026-10-26, qui remplace la surimpression) : en classes large et standard, le panneau
+  est à côté de la surface, qui se réduit à la largeur qu'il laisse, chacun défilant dans
+  le sien ; en classe étroite il couvre la surface (`cover`), en classe compacte il est une
+  feuille. La surface est un contexte d'empilement isolé (`isolation: isolate`) : ses
+  en-têtes collants ne passent jamais au-dessus d'une couche. Onglets « Détail » (la sélection courante) et « Brouillon n » ; ouvrir le
   brouillon le met devant. Replié, il ne laisse qu'une languette au bord de fin de la
   surface (option `rail`, dans le flux : elle ne couvre rien, `cover` compris), dont le
   chevron « Ouvrir le panneau » le rouvre sur son dernier onglet ; son état (ouvert,
-  onglet, largeur) est gardé en `localStorage` (`kartenn.panel`). Jamais au-dessus d'une
-  cellule en édition : la grille fait défiler la cellule active hors de la zone couverte.
+  onglet, largeur) est gardé en `localStorage` (`kartenn.panel`). Quand il couvre la
+  surface (`cover`), jamais au-dessus d'une cellule en édition : la grille fait défiler la
+  cellule active hors de la zone couverte.
 - **Compteur du brouillon** (`DraftCounter`) : toujours visible, bascule du panneau
   (`aria-expanded`, `aria-controls`) : fermé, il l'ouvre sur l'onglet Brouillon ; ouvert,
   quel que soit l'onglet, il le ferme, et son icône de brouillon devient une croix
@@ -156,7 +159,8 @@ Les routes de la 007 sont gardées (liens existants valides) ; s'ajoutent :
 
 Chaque route déclare `meta.queries(params, time, query)` (requêtes à précharger : `time`
 est le contexte daté de la cible, `query` sa requête, filtres d'une liste compris),
-`meta.breadcrumb(params)` et, pour une vue de plugin, `meta.modules(params)` (`base` et
+`meta.breadcrumb(params, t)` (libellés dans la langue de `t` ; le cadre ôte le lien du
+dernier élément) et, pour une vue de plugin, `meta.modules(params)` (`base` et
 `integrity` du plugin, dont les `modulepreload` partent avec les lectures). Contexte daté
 de la cible : ses dates si elle en nomme ; sinon, au survol d'un lien, celles de la page
 (que la navigation reportera) ; dans la garde, qui suit celle du temps, le présent (retour

@@ -135,7 +135,9 @@ Acceptation :
 
 #### REQ-021-6 — Panneau à droite et brouillon
 Le détail de la sélection et le brouillon doivent partager un panneau à droite, non modal,
-en surimpression de la surface (la table garde sa largeur), à onglets « Détail » et
+à côté de la surface, qui se réduit à la largeur qu'il laisse, chacun défilant dans le
+sien (« tout s'adapte », 020, décision du 2026-10-26 ; il couvre la surface en fenêtre
+étroite et devient une feuille en fenêtre compacte), à onglets « Détail » et
 « Brouillon n ». « Brouillon (n) » dans la barre d'état doit compter les opérations du
 brouillon actif, rester visible et faire bascule : il ouvre le panneau sur l'onglet
 Brouillon, ou le ferme s'il y est déjà. L'onglet Brouillon montre les opérations et la

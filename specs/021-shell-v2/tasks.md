@@ -242,8 +242,8 @@ aucun en parallèle sur `@kartenn/ui` (020).
     plugin (la route `/x/:plugin/…` le déclarera) et `KLink` les insère au même moment que
     ses lectures ; le focus d'un nœud de l'arbre attend aussi 60 ms (les flèches passent
     sur beaucoup de lignes), celui d'un lien lit tout de suite ; `meta.breadcrumb` laissé
-    au fil d'Ariane de la tâche 9. Reste, faute d'écran : `provideLink(KLink)` à la racine
-    du cadre (tâche 9 ; d'ici là les liens du catalogue restent des `<a>` simples) ;
+    au fil d'Ariane de la tâche 9. Fait par la tâche 9 : `provideLink(KLink)` à la racine du
+    cadre, `meta.breadcrumb`, garde du temps en `beforeEach`. Reste, faute d'écran :
     `meta.queries` des routes de la fiche, des listes et de la Topographie, `useNextPage`
     branché sur la fenêtre de la `DataGrid` virtualisée et `childrenIntent` sur la
     Topographie (tâche 11) ; `meta.modules` de `/x/:plugin/…`, chargeur qui attend les
@@ -381,7 +381,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
 `web/v2/e2e` et verts, captures comparées aux maquettes validées, revues `ui-reviewer` et
 `a11y-auditor`, lignes de la liste de parité cochées. L'ancien shell n'est pas modifié.
 
-- [ ] 9. Cadre : squelette statique de `index.html` et feuille critique, barre latérale
+- [x] 9. Cadre : squelette statique de `index.html` et feuille critique, barre latérale
   (espaces, repli), barre d'état (fil d'Ariane, pastille de date, « Brouillon (n) », menu
   de l'utilisateur : langue, thème, densité, raccourcis), bande hors présent, lien
   d'évitement — REQ-021-1, 2, 4, 5, 6 — verify : parcours `shell`, `time` ; CLS ≤ 0,05 ;
@@ -393,6 +393,79 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     garde du temps en `beforeEach` (dates reportées écrites dans la cible avant la garde de
     préchargement, qui lit une cible sans dates au présent)
   - dépend de : 7, 8 ; 020-23
+  - fait le 2026-10-31 : `web/v2/shell/index.html` (squelette du cadre, statut
+    « Chargement de kartenn… », `noscript`) et `public/boot.css` (feuille critique liée en
+    premier : géométrie du cadre en jetons et ordre des couches entier) ;
+    `src/frame/ShellFrame.vue` (cadre de la maquette `EcranCadre.vue` : `SidebarNav`
+    repliable gardée en `kartenn.sidebar`, tiroir en classe compacte, en-tête `banner`
+    avec `Breadcrumb`, `DatePill`, `DraftCounter`, `Menu` de l'utilisateur, puis
+    `TimeBand` ; surface `main`, `SidePanel` Détail/Brouillon gardé en `kartenn.panel`,
+    `CommandPalette` ouverte par « Rechercher » sur la navigation, `ToastRegion`, couche
+    `#k-layers` ; `provideLink(KLink)`, titre du document et page atteinte dite par une
+    région `status`) ; `frame/spaces.ts` (espaces du cœur dans l'ordre fermé, entrées
+    par droits), `routes.ts` (une route par entrée, `meta.breadcrumb`, vue d'attente
+    `PendingView.vue`, page introuvable), `breadcrumb.ts`, `settings.ts` (thème,
+    densité, mouvement, raccourcis à une touche `kartenn.shortcuts.single`, panneau),
+    `session.ts` (`GET /v1/me` avant la première page du cadre, puis `startData`) ;
+    `src/rights/` (repris de `web/shell`, lecture par le client du SDK) ; `src/time/`
+    (repris, `carryTime` en `beforeEach` avant la garde de préchargement, `goToPeriod`,
+    `checkPeriod` : refus de l'API rendu sur le champ de la pastille, un objet neuf par
+    refus) ; `src/i18n/` (vue-i18n, catalogues FR/EN, langue gardée en
+    `kartenn.locale`) ; `main.ts` (gardes session, temps, préchargement ; montage après
+    `router.isReady()`, échec du démarrage dit sur le squelette) ; `meta.breadcrumb`
+    déclaré dans `prefetch/intent.ts`. Vitest : `shell/test/frame.test.ts` (espaces par
+    droits, `locate`, fil d'Ariane, ordre des gardes et dates reportées lues par la garde
+    de préchargement, retour au présent, session lue une fois et jamais pour `/_ui`,
+    `startData` seulement connecté, `checkPeriod`, réglages gardés), `build.test.ts`
+    (feuille critique liée en premier, squelette dans `index.html`). Parcours
+    (`web/v2/e2e/journeys/`, `global-setup.ts` : émetteur rattaché, groupes de
+    `users.toml` liés) : `shell.spec.ts` (lien d'évitement premier arrêt, espaces d'un
+    lecteur et d'un administrateur, fil d'Ariane, barre repliée gardée au rechargement,
+    langue, thème et densité gardés, compteur du brouillon bascule du panneau, CLS ≤ 0,05
+    sous Chromium, 2.4.11 : chaque lien d'une surface longue, sous la bande, est le point
+    au centre de sa boîte), `time.spec.ts` (lien daté identique pour un second
+    navigateur, navigation qui garde les dates, retour au présent et focus sur la
+    pastille, `valid_at` seul, période appliquée par la pastille, `as_of` refusé par
+    l'API rendu sur son champ), `served.spec.ts` mis à jour.
+  - choix : menu de l'utilisateur en groupes radio (langue, thème, densité) et cases
+    (« Toujours réduire le mouvement », raccourcis à une touche) plutôt que les entrées
+    uniques de la maquette, qui n'agissaient pas ; VLAN et groupes de VLAN dans l'espace
+    `network` (REQ-021-2), la maquette les plaçant sous Référentiel ; entrées masquées
+    par droits (accueil, anomalies et propriétés : l'une des lectures du référentiel ;
+    brouillons et imports : une édition du cœur, `prop.<clé>.edit` ou
+    `core.draft.admin` ; rôles aussi `core.role.admin`, identités aussi
+    `core.account.admin`), l'élément d'espace du fil d'Ariane et `/admin` mènent à la
+    première entrée visible ; `meta.breadcrumb(params, t)` (libellés traduits, design
+    § « Routes » amendé) ; vérification d'une période par une ligne de la première liste
+    datée que l'utilisateur lit (`probePath`, ordre : domaines, entités, sites, groupes de
+    VLAN, VLAN, préfixes, plages, adresses), sans lecture permise rien n'est demandé, seul
+    un 400 la refuse, la réponse d'une demande dépassée est écartée ; un déplacement dans
+    l'historique (Retour, Avancer) ne reporte aucune date ; vue d'attente et cadre dans le
+    premier fichier ; `boot.css` dans `public/` (copiée telle quelle, liée en premier) ;
+    squelette à la géométrie du cadre par un script de démarrage en fichier
+    (`public/boot.js`, CSP `'self'`, aucun script en ligne) qui lit avant la peinture
+    l'état gardé (barre repliée, panneau ouvert et sa largeur, thème, densité,
+    mouvement) et les dates de l'URL (rang de la bande), et marque la racine
+    (`data-boot-*`) ; parcours : boîtes du squelette et du cadre égales emplacement par
+    emplacement à 1280 et 1100 px, au départ, repliée, datée, repliée datée panneau
+    ouvert ; build du shell (`vite.config.ts`) : `@kartenn/ui` en
+    un seul fichier (groupe `ui` de `codeSplitting`, `vue` dans son groupe propre), car
+    un écran paresseux scindait des composants de la bibliothèque, dont les feuilles
+    passaient alors avant la sienne ou manquaient (`Dialog` absent des pages d'`AlertDialog`,
+    `Drawer`, `CommandPalette` du catalogue : captures de référence réécrites, voile et
+    dialogue désormais stylés) ; brouillons lus
+    seulement par qui détient une édition ; sans session, le cadre montre ce qui ne
+    demande aucun droit (connexion : tâche 16).
+  - reste : registre, `[`, `]`, Ctrl+K, aide et palette complète (tâche 10 ; le réglage
+    à une touche est gardé, rien ne le lit encore) ; contenu de l'onglet Brouillon
+    (tâche 14) ; compteurs de la barre latérale (tâches 11, 14) ; entrées des plugins par
+    espace, connexion, « À propos », déconnexion (tâche 16) ; à la bibliothèque (020) :
+    groupes radio d'un `Menu` nommés par leur étiquette, `lang` d'une entrée (noms des
+    langues), relevés par la relecture d'accessibilité ; à arbitrer : catalogues de
+    vue-i18n précompilés au build et compilateur de messages retiré (design « Pile
+    retenue ») — le compilateur reste, faute d'outil de précompilation dans le dépôt, et
+    la 007 (« vue-i18n et CSP ») le garde pour les catalogues des plugins ; squelette à
+    la classe compacte, où la bande peut aller à la ligne (non mesuré).
 - [ ] 10. Raccourcis et palette : registre (portée, conflits, réglage à une touche), un
   écouteur, séquences `g`, aide `?` et `/help/shortcuts`, palette Ctrl+K (navigation,
   actions, recherche par valeur, récents, commandes des plugins) — REQ-021-3, 7, 8 —

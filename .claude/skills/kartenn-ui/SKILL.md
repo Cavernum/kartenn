@@ -187,6 +187,10 @@ Version exacte épinglée ; toute montée repasse les scripts clavier et le parc
   (jetons seulement) : la largeur du champ est posée par CSSOM (`--k-list-anchor-width`).
 - Une feuille `.css` importée depuis un composant crée un fragment vide que le build du
   shell (`kartenn-shared-modules`) ne trouve pas : une feuille partagée va dans `style.css`.
+- Build du shell : `@kartenn/ui` tient en un seul fichier (groupe `ui` de
+  `codeSplitting`, `vue` à part) ; sans lui, un écran paresseux scinde des composants
+  dont les feuilles passent avant celle de la bibliothèque ou manquent à la page.
+  `public/boot.css`, liée en premier, fixe l'ordre des couches (`test/build.test.ts`).
 - Popover (`FilterPicker`) : l'auto-focus d'ouverture et de fermeture d'un `FocusScope`
   est un événement qui remonte (celui d'un `Select` ou d'une liste à l'intérieur compris)
   et qui vient deux fois à la fermeture : ne traiter que celui du popover (sa cible est

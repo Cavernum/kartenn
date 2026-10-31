@@ -1,4 +1,5 @@
 import { context, prefetch, type Prefetchable, type TimeArg } from "@kartenn/sdk";
+import type { Crumb } from "@kartenn/ui";
 import type { LocationQuery, RouteLocationNormalized, RouteParams, Router } from "vue-router";
 import { preloadModules, type PluginModules } from "../plugins/preload.ts";
 
@@ -16,6 +17,11 @@ declare module "vue-router" {
     queries?: (params: RouteParams, time: TimeArg, query: LocationQuery) => readonly Prefetchable[];
     /** The modules of the plugin whose view the route opens, preloaded on intent. */
     modules?: (params: RouteParams) => PluginModules | null;
+    /**
+     * The breadcrumb of the screen (REQ-021-4): space, collection, object and its relevant
+     * ancestors, labels in the language of `t`; the frame drops the link of the last one.
+     */
+    breadcrumb?: (params: RouteParams, t: (key: string) => string) => Crumb[];
   }
 }
 

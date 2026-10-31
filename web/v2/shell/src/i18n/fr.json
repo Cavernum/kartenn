@@ -1,0 +1,72 @@
+{
+  "app": {
+    "name": "kartenn",
+    "skip": "Aller au contenu",
+    "rightPanel": "Panneau droit",
+    "notFound": "Page introuvable",
+    "notFoundText": "Aucun écran de kartenn ne répond à cette adresse.",
+    "notFoundTitle": "Rien à cette adresse",
+    "pendingTitle": "Écran à venir",
+    "pending": "Cet écran arrive avec la suite du nouveau shell.",
+    "noSelection": "Aucune sélection : choisir une ligne ou un nœud en montre ici le détail.",
+    "draftEmpty": "Aucune opération dans le brouillon actif.",
+    "draftCount": "Le brouillon actif compte {n} opération. | Le brouillon actif compte {n} opérations.",
+    "draftsPage": "Ouvrir la page des brouillons",
+    "detail": "Détail",
+    "draft": "Brouillon"
+  },
+  "space": {
+    "referential": "Référentiel",
+    "changes": "Changesets",
+    "network": "Réseau",
+    "admin": "Administration"
+  },
+  "nav": {
+    "home": "Accueil",
+    "topology": "Topographie",
+    "domains": "Domaines",
+    "prefixes": "Préfixes",
+    "ranges": "Plages",
+    "addresses": "Adresses",
+    "entities": "Entités",
+    "sites": "Sites",
+    "anomalies": "Anomalies",
+    "properties": "Propriétés",
+    "changesets": "Changesets",
+    "proposals": "À instruire",
+    "drafts": "Mes brouillons",
+    "imports": "Imports",
+    "vlans": "VLAN",
+    "vlanGroups": "Groupes de VLAN",
+    "groups": "Groupes",
+    "roles": "Rôles",
+    "identities": "Identités",
+    "accounts": "Comptes de service",
+    "issuers": "Émetteurs",
+    "settings": "Paramètres",
+    "audit": "Audit",
+    "observability": "Observabilité"
+  },
+  "palette": {
+    "navigation": "Navigation"
+  },
+  "user": {
+    "menu": "Compte de {name}",
+    "anonymousMenu": "Compte : non connecté",
+    "anonymous": "Non connecté",
+    "language": "Langue",
+    "theme": "Thème",
+    "themeSystem": "Celui du système",
+    "themeLight": "Clair",
+    "themeDark": "Sombre",
+    "density": "Densité",
+    "densityCompact": "Compacte",
+    "densityComfortable": "Confortable",
+    "reducedMotion": "Toujours réduire le mouvement",
+    "singleKeys": "Raccourcis à une touche"
+  },
+  "time": {
+    "refused": "kartenn refuse cette date : {reason}",
+    "asOfLater": "Date postérieure à l'heure de kartenn : il n'a encore rien affirmé à cet instant."
+  }
+}
