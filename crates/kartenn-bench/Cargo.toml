@@ -45,3 +45,8 @@ kartenn-policy = { version = "0.1.0", path = "../kartenn-policy", features = ["r
 kartenn-flow = { version = "0.1.0", path = "../kartenn-flow", features = ["rest"] }
 axum = { version = "0.8.9", default-features = false, features = ["json"] }
 tower = { version = "0.5", features = ["util"] }
+
+[dev-dependencies]
+# The databases of the tests of `--only` (task 028-1), named and dropped as those of
+# ADR 0028.
+kartenn-testing = { version = "0.1.0", path = "../kartenn-testing" }

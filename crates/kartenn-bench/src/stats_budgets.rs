@@ -35,6 +35,9 @@ use crate::props::{Budget, SINCE, progress};
 use crate::rbac::{GROUPS, ISSUER, bind};
 use crate::vlan_budgets::As;
 
+/// The measure of the statistics in `bench-core` (ADR 0041).
+pub(crate) const STATS: &str = "core.stats";
+
 /// Computations per subject (each of seconds at the full scale).
 const COMPUTATIONS: usize = 20;
 /// Reads of the route per subject, served from the snapshot.

@@ -35,7 +35,80 @@ use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
 
 use crate::Dataset;
+use crate::machine_budgets as machines;
+use crate::measures::{Bench, Measure, Selection};
 use crate::props::{Budget, SINCE, copy, load, p95, progress, verdict};
+use crate::stats_budgets::STATS;
+use crate::vlan_budgets as vlan;
+
+const READ_OBJECT: &str = "core.read-object";
+const HISTORY_INDEX: &str = "core.history-index";
+const FILTERED_PAGE: &str = "core.filtered-page";
+const SUBTREE: &str = "core.subtree";
+const ROOTS_PAGE: &str = "core.roots-page";
+const WIDE_CHILDREN: &str = "core.wide-children";
+const SUBTREE_PAST: &str = "core.subtree-past";
+const UNITARY: &str = "core.unitary-changeset";
+const SUSTAINED_RATE: &str = "core.sustained";
+const IMPORT: &str = "core.import";
+
+/// The writes of the core measures: addresses (the unitary changesets, the sustained rate,
+/// a second dataset by the import) and 10⁴ prefixes (the wide container).
+const ADDRESSES: &[&str] = &[UNITARY, SUSTAINED_RATE, IMPORT];
+const CORE_WRITES: &[&str] = &[WIDE_CHILDREN, UNITARY, SUSTAINED_RATE, IMPORT];
+/// Those and the writes of the modules: what the suggestions and the statistics read.
+const ALL_WRITES: &[&str] = &[
+    WIDE_CHILDREN,
+    UNITARY,
+    SUSTAINED_RATE,
+    IMPORT,
+    vlan::CREATE,
+    machines::CREATE,
+];
+const ALL_WRITES_AND_IMPORT: &[&str] = &[
+    WIDE_CHILDREN,
+    UNITARY,
+    SUSTAINED_RATE,
+    IMPORT,
+    vlan::CREATE,
+    machines::CREATE,
+    machines::IMPORT,
+];
+
+/// The measures of `bench-core` (ADR 0041): those of the core, then those of the VLANs,
+/// of the machines (whose owners are the entities of the VLANs) and of the statistics,
+/// each module set up when one of its measures runs. A measure that reads the tables the
+/// writes before it grew (addresses, prefixes, machines, VLANs) runs after them, as in the
+/// whole bench.
+pub(crate) static BENCH: Bench = Bench {
+    name: "core",
+    measures: &[
+        Measure::new(READ_OBJECT),
+        Measure::new(HISTORY_INDEX),
+        Measure::new(FILTERED_PAGE),
+        Measure::new(SUBTREE),
+        Measure::new(ROOTS_PAGE),
+        Measure::new(WIDE_CHILDREN),
+        Measure::new(SUBTREE_PAST),
+        Measure::new(UNITARY),
+        Measure::new(SUSTAINED_RATE),
+        Measure::new(IMPORT),
+        Measure::new(vlan::READ),
+        Measure::new(vlan::FILTERED_PAGE),
+        Measure::new(vlan::OCCUPANCY),
+        Measure::new(vlan::CREATE),
+        // The card of a machine reads its addresses.
+        Measure::new(machines::READ).after(ADDRESSES),
+        Measure::new(machines::OWNER_PAGE),
+        Measure::new(machines::SITE_PAGE),
+        // The machines of a /24 go through the addresses and the prefixes.
+        Measure::new(machines::NETWORK).after(CORE_WRITES),
+        Measure::new(machines::CREATE),
+        Measure::new(machines::SUGGESTIONS).after(ALL_WRITES),
+        Measure::new(machines::IMPORT),
+        Measure::new(STATS).after(ALL_WRITES_AND_IMPORT),
+    ],
+};
 
 /// Start of the three years of history.
 const HISTORY_FROM: &str = "2023-10-01";
@@ -356,14 +429,19 @@ pub(crate) async fn prepare(database: &str, data: &Dataset, seed: u64) -> anyhow
     })
 }
 
-/// Loads, writes the history and measures; returns the report and whether every budget
-/// holds.
+/// Loads, writes the history and measures what `selection` runs; returns the report and
+/// whether every budget holds.
 ///
 /// # Errors
 ///
 /// Database or pipeline failures.
 #[allow(clippy::too_many_lines)] // one linear scenario, step by step
-pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(String, bool)> {
+pub async fn run(
+    database: &str,
+    data: &Dataset,
+    seed: u64,
+    selection: &Selection,
+) -> anyhow::Result<(String, bool)> {
     let started = Instant::now();
     let Prepared {
         pool,
@@ -372,177 +450,193 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         mut report,
     } = prepare(database, data, seed).await?;
     let store = PgStore::new(pool.clone());
-    // Draws distinct from those of the preparation.
+    // Draws distinct from those of the preparation, in the order of the measures that run.
     let mut rng = ChaCha8Rng::seed_from_u64(seed.wrapping_add(1));
     let mut budgets = Vec::new();
+    let mut ok = true;
 
     // Reading an object, now and as known at a past date (REQ-004-38: at most twice).
     let now = OffsetDateTime::now_utc();
     // HISTORY_FROM, 2023-10-01T00:00Z.
     let from = OffsetDateTime::from_unix_timestamp(1_696_118_400)?;
-    // Independent draws for both reads (the same object read twice would be in cache
-    // the second time), after a warm-up of the connections and statements.
-    let draw = |rng: &mut ChaCha8Rng| {
-        if rng.random_range(0..4) == 0 {
-            data.prefixes[rng.random_range(0..data.prefixes.len())].id
-        } else {
-            data.addresses[rng.random_range(0..data.addresses.len())].id
+    if selection.runs(READ_OBJECT) {
+        // Independent draws for both reads (the same object read twice would be in cache
+        // the second time), after a warm-up of the connections and statements.
+        let draw = |rng: &mut ChaCha8Rng| {
+            if rng.random_range(0..4) == 0 {
+                data.prefixes[rng.random_range(0..data.prefixes.len())].id
+            } else {
+                data.addresses[rng.random_range(0..data.addresses.len())].id
+            }
+        };
+        for i in 0..20 {
+            let as_of = (i % 2 == 0).then(|| from + DAY * 100);
+            object(&pool, draw(&mut rng), now, as_of).await?;
         }
-    };
-    for i in 0..20 {
-        let as_of = (i % 2 == 0).then(|| from + DAY * 100);
-        object(&pool, draw(&mut rng), now, as_of).await?;
+        let mut current = Vec::new();
+        let mut past = Vec::new();
+        for _ in 0..200 {
+            let t = Instant::now();
+            object(&pool, draw(&mut rng), now, None)
+                .await?
+                .context("a loaded object is missing")?;
+            current.push(t.elapsed());
+            let as_of = from + DAY * rng.random_range(0..700);
+            let t = Instant::now();
+            object(&pool, draw(&mut rng), now, Some(as_of))
+                .await?
+                .context("a past version is missing")?;
+            past.push(t.elapsed());
+        }
+        let current = p95(current);
+        let past = p95(past);
+        budgets.push(Budget {
+            name: "read an object, p95",
+            limit: Duration::from_millis(50),
+            measured: current,
+            note: "200 draws, with its properties".into(),
+        });
+        budgets.push(Budget {
+            name: "read an object as known in the past, p95",
+            limit: (current * 2).max(Duration::from_millis(5)),
+            measured: past,
+            note: "limit: twice the current read (floor 5 ms)".into(),
+        });
     }
-    let mut current = Vec::new();
-    let mut past = Vec::new();
-    for _ in 0..200 {
-        let t = Instant::now();
-        object(&pool, draw(&mut rng), now, None)
-            .await?
-            .context("a loaded object is missing")?;
-        current.push(t.elapsed());
-        let as_of = from + DAY * rng.random_range(0..700);
-        let t = Instant::now();
-        object(&pool, draw(&mut rng), now, Some(as_of))
-            .await?
-            .context("a past version is missing")?;
-        past.push(t.elapsed());
-    }
-    let current = p95(current);
-    let past = p95(past);
-    budgets.push(Budget {
-        name: "read an object, p95",
-        limit: Duration::from_millis(50),
-        measured: current,
-        note: "200 draws, with its properties".into(),
-    });
-    budgets.push(Budget {
-        name: "read an object as known in the past, p95",
-        limit: (current * 2).max(Duration::from_millis(5)),
-        measured: past,
-        note: "limit: twice the current read (floor 5 ms)".into(),
-    });
 
     // The versions asserted over a day, from the system period index (004-25): usable
     // (blocking), and chosen by the planner (depends on the volume, reported).
-    let day = from + DAY * 400;
-    let over_a_day = "SELECT count(*) FROM address_history
-                      WHERE tstzrange(sys_start, sys_end) && tstzrange($1, $1 + interval '1 day')";
-    let explain = format!("EXPLAIN {over_a_day}");
-    let chosen = uses_index(&pool, &explain, day, false).await?;
-    let usable = uses_index(&pool, &explain, day, true).await?;
-    let t = Instant::now();
-    let _: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(over_a_day))
-        .bind(day)
-        .fetch_one(&pool)
-        .await?;
-    writeln!(
-        report,
-        "{} system period index of the history: usable {usable}, chosen {chosen} ({:?} for a day)",
-        if usable { "PASS" } else { "FAIL" },
-        t.elapsed()
-    )?;
+    if selection.runs(HISTORY_INDEX) {
+        let day = from + DAY * 400;
+        let over_a_day = "SELECT count(*) FROM address_history
+                          WHERE tstzrange(sys_start, sys_end) && tstzrange($1, $1 + interval '1 day')";
+        let explain = format!("EXPLAIN {over_a_day}");
+        let chosen = uses_index(&pool, &explain, day, false).await?;
+        let usable = uses_index(&pool, &explain, day, true).await?;
+        let t = Instant::now();
+        let _: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(over_a_day))
+            .bind(day)
+            .fetch_one(&pool)
+            .await?;
+        writeln!(
+            report,
+            "{} system period index of the history: usable {usable}, chosen {chosen} ({:?} for a day)",
+            if usable { "PASS" } else { "FAIL" },
+            t.elapsed()
+        )?;
+        ok &= usable;
+    }
 
     // Filtered pages of 100.
-    let mut samples = Vec::new();
-    for _ in 0..100 {
-        let domain = data.domains[rng.random_range(0..data.domains.len())].id;
-        let low: i64 = rng.random_range(0..900_000);
-        let condition =
-            Condition::Between(Some(low.to_string()), Some((low + 100_000).to_string()));
-        let t = Instant::now();
-        filter(&pool, rack, domain, &condition, now, None, 100).await?;
-        samples.push(t.elapsed());
+    if selection.runs(FILTERED_PAGE) {
+        let mut samples = Vec::new();
+        for _ in 0..100 {
+            let domain = data.domains[rng.random_range(0..data.domains.len())].id;
+            let low: i64 = rng.random_range(0..900_000);
+            let condition =
+                Condition::Between(Some(low.to_string()), Some((low + 100_000).to_string()));
+            let t = Instant::now();
+            filter(&pool, rack, domain, &condition, now, None, 100).await?;
+            samples.push(t.elapsed());
+        }
+        budgets.push(Budget {
+            name: "filtered page of 100, p95",
+            limit: Duration::from_millis(150),
+            measured: p95(samples),
+            note: "100 draws".into(),
+        });
     }
-    budgets.push(Budget {
-        name: "filtered page of 100, p95",
-        limit: Duration::from_millis(150),
-        measured: p95(samples),
-        note: "100 draws".into(),
-    });
 
     // Subtree (direct content) and occupancy of a prefix.
-    let mut samples = Vec::new();
-    for _ in 0..200 {
-        let p = &data.prefixes[rng.random_range(0..data.prefixes.len())];
-        let t = Instant::now();
-        children(&pool, p.id, now).await?;
-        occupancy(&pool, p.id, now)
-            .await?
-            .context("a loaded prefix is missing")?;
-        samples.push(t.elapsed());
+    if selection.runs(SUBTREE) {
+        let mut samples = Vec::new();
+        for _ in 0..200 {
+            let p = &data.prefixes[rng.random_range(0..data.prefixes.len())];
+            let t = Instant::now();
+            children(&pool, p.id, now).await?;
+            occupancy(&pool, p.id, now)
+                .await?
+                .context("a loaded prefix is missing")?;
+            samples.push(t.elapsed());
+        }
+        budgets.push(Budget {
+            name: "subtree and occupancy, p95",
+            limit: Duration::from_millis(200),
+            measured: p95(samples),
+            note: "200 draws, containers and networks".into(),
+        });
     }
-    budgets.push(Budget {
-        name: "subtree and occupancy, p95",
-        limit: Duration::from_millis(200),
-        measured: p95(samples),
-        note: "200 draws, containers and networks".into(),
-    });
 
     // The first page of 100 roots of a domain (spec 007, REQ-007-39).
-    let mut samples = Vec::new();
-    for _ in 0..100 {
-        let domain = data.domains[rng.random_range(0..data.domains.len())].id;
-        let t = Instant::now();
-        roots_of(&pool, domain, now, None, &ReadScope::all(), None, Some(101)).await?;
-        samples.push(t.elapsed());
+    if selection.runs(ROOTS_PAGE) {
+        let mut samples = Vec::new();
+        for _ in 0..100 {
+            let domain = data.domains[rng.random_range(0..data.domains.len())].id;
+            let t = Instant::now();
+            roots_of(&pool, domain, now, None, &ReadScope::all(), None, Some(101)).await?;
+            samples.push(t.elapsed());
+        }
+        budgets.push(Budget {
+            name: "roots of a domain, page of 100, p95",
+            limit: Duration::from_millis(150),
+            measured: p95(samples),
+            note: "100 draws".into(),
+        });
     }
-    budgets.push(Budget {
-        name: "roots of a domain, page of 100, p95",
-        limit: Duration::from_millis(150),
-        measured: p95(samples),
-        note: "100 draws".into(),
-    });
 
     // A page of 100 children of a container with 10⁴ of them, after a cursor and as known
     // when the first page was read, as the API reads it (task 007-18): a domain of its own.
-    let (_, wide) = wide_container(&pool, "bench-wide", "100.64.0.0/16", 10_000).await?;
-    let parent = prefix_as_of(&pool, wide, now, None)
-        .await?
-        .context("the wide container is missing")?;
-    let all = children_of(&pool, &parent, now, None, &ReadScope::all(), None, None).await?;
-    let mut samples = Vec::new();
-    for _ in 0..100 {
-        let after = all[rng.random_range(0..99) * 100 + 99].key();
-        let t = Instant::now();
-        children_of(
-            &pool,
-            &parent,
-            now,
-            Some(now),
-            &ReadScope::all(),
-            Some(&after),
-            Some(101),
-        )
-        .await?;
-        samples.push(t.elapsed());
+    if selection.runs(WIDE_CHILDREN) {
+        let (_, wide) = wide_container(&pool, "bench-wide", "100.64.0.0/16", 10_000).await?;
+        let parent = prefix_as_of(&pool, wide, now, None)
+            .await?
+            .context("the wide container is missing")?;
+        let all = children_of(&pool, &parent, now, None, &ReadScope::all(), None, None).await?;
+        let mut samples = Vec::new();
+        for _ in 0..100 {
+            let after = all[rng.random_range(0..99) * 100 + 99].key();
+            let t = Instant::now();
+            children_of(
+                &pool,
+                &parent,
+                now,
+                Some(now),
+                &ReadScope::all(),
+                Some(&after),
+                Some(101),
+            )
+            .await?;
+            samples.push(t.elapsed());
+        }
+        budgets.push(Budget {
+            name: "children of a container of 10^4, page of 100, p95",
+            limit: Duration::from_millis(150),
+            measured: p95(samples),
+            note: format!("100 draws among {} children, after a cursor", all.len()),
+        });
     }
-    budgets.push(Budget {
-        name: "children of a container of 10^4, page of 100, p95",
-        limit: Duration::from_millis(150),
-        measured: p95(samples),
-        note: format!("100 draws among {} children, after a cursor", all.len()),
-    });
 
     // The same as known in the past (task 006-12d): the prefix read first, its domain and
     // value given to the queries, so that the history keeps its per-domain index.
-    let mut samples = Vec::new();
-    for _ in 0..200 {
-        let p = &data.prefixes[rng.random_range(0..data.prefixes.len())];
-        let as_of = Some(from + DAY * rng.random_range(0..700));
-        let t = Instant::now();
-        children_as_of(&pool, p.id, now, as_of, &ReadScope::all()).await?;
-        occupancy_as_of(&pool, p.id, now, as_of)
-            .await?
-            .context("a past prefix is missing")?;
-        samples.push(t.elapsed());
+    if selection.runs(SUBTREE_PAST) {
+        let mut samples = Vec::new();
+        for _ in 0..200 {
+            let p = &data.prefixes[rng.random_range(0..data.prefixes.len())];
+            let as_of = Some(from + DAY * rng.random_range(0..700));
+            let t = Instant::now();
+            children_as_of(&pool, p.id, now, as_of, &ReadScope::all()).await?;
+            occupancy_as_of(&pool, p.id, now, as_of)
+                .await?
+                .context("a past prefix is missing")?;
+            samples.push(t.elapsed());
+        }
+        budgets.push(Budget {
+            name: "subtree and occupancy in the past, p95",
+            limit: Duration::from_millis(200),
+            measured: p95(samples),
+            note: "200 draws over two years of history".into(),
+        });
     }
-    budgets.push(Budget {
-        name: "subtree and occupancy in the past, p95",
-        limit: Duration::from_millis(200),
-        measured: p95(samples),
-        note: "200 draws over two years of history".into(),
-    });
 
     // Unitary changesets: a new address in a random network.
     let networks: Vec<(Uuid, Uuid)> = data
@@ -551,24 +645,80 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         .filter(|p| p.nature == crate::Nature::Network)
         .map(|p| (p.id, data.domains[p.domain].id))
         .collect();
-    let mut samples = Vec::new();
-    for _ in 0..100 {
-        let network = networks[rng.random_range(0..networks.len())];
-        let operation = new_address(&pool, network).await?;
-        samples.push(unitary(&store, author, operation).await?);
+    if selection.runs(UNITARY) {
+        let mut samples = Vec::new();
+        for _ in 0..100 {
+            let network = networks[rng.random_range(0..networks.len())];
+            let operation = new_address(&pool, network).await?;
+            samples.push(unitary(&store, author, operation).await?);
+        }
+        budgets.push(Budget {
+            name: "unitary changeset, p95",
+            limit: Duration::from_millis(200),
+            measured: p95(samples),
+            note: "100 new addresses, validated and applied".into(),
+        });
     }
-    budgets.push(Budget {
-        name: "unitary changeset, p95",
-        limit: Duration::from_millis(200),
-        measured: p95(samples),
-        note: "100 new addresses, validated and applied".into(),
-    });
     progress(&format!(
         "reads and unitary changesets: {:?}",
         started.elapsed()
     ));
 
-    // Sustained rate: writers on disjoint networks for a while.
+    if selection.runs(SUSTAINED_RATE) {
+        budgets.push(sustained(&pool, &store, author, &networks).await?);
+        progress(&format!("sustained rate: {:?}", started.elapsed()));
+    }
+
+    // Import of as many addresses as the dataset holds, in batches.
+    if selection.runs(IMPORT) {
+        let count = data.addresses.len();
+        let items = import_items(count);
+        let t = Instant::now();
+        let import = create_import(&store, author, "bench", items, MAX_OPERATIONS).await?;
+        let status = run_import(&store, &Unrestricted, import, MAX_OPERATIONS)
+            .await?
+            .context("the import vanished")?;
+        let elapsed = t.elapsed();
+        if status.state != "done" {
+            bail!("import not done: {status:?}");
+        }
+        budgets.push(Budget {
+            name: "import",
+            limit: Duration::from_mins(15),
+            measured: elapsed,
+            note: format!("{count} addresses, {} batches", status.applied),
+        });
+        progress(&format!("import: {:?}", started.elapsed()));
+    }
+
+    // The VLANs of the core on the same dataset (spec 026, REQ-026-7; REQ-008-25), whose
+    // entities own the machines; the machines module beside it (spec 009, REQ-009-21);
+    // the counters of the home page over both (spec 024, REQ-024-16).
+    let statistics = selection.runs(STATS);
+    if selection.any("core.vlan-") || selection.any("core.machines-") || statistics {
+        let run = vlan::run(&pool, author, data, &mut rng, selection, &mut report);
+        budgets.extend(run.await?);
+    }
+    if selection.any("core.machines-") || statistics {
+        let run = machines::run(&pool, author, data, seed, &mut rng, selection, &mut report);
+        budgets.extend(run.await?);
+    }
+    if statistics {
+        budgets.extend(crate::stats_budgets::run(&pool, data, seed, &mut report).await?);
+    }
+
+    let (lines, all) = verdict(&budgets)?;
+    report.push_str(&lines);
+    Ok((report, ok && all))
+}
+
+/// Sustained rate: writers on disjoint networks for a while.
+async fn sustained(
+    pool: &PgPool,
+    store: &PgStore,
+    author: Uuid,
+    networks: &[(Uuid, Uuid)],
+) -> anyhow::Result<Budget> {
     let done = Arc::new(AtomicUsize::new(0));
     let mut writers = Vec::new();
     let begun = Instant::now();
@@ -596,43 +746,11 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     }
     let count = done.load(Ordering::Relaxed);
     let rate = f64::from(u32::try_from(count)?) / begun.elapsed().as_secs_f64();
-    budgets.push(Budget {
+    Ok(Budget {
         name: "sustained unitary changesets",
         // As a time per changeset: 50 per second at least.
         limit: Duration::from_millis(20),
         measured: begun.elapsed() / u32::try_from(count.max(1))?,
         note: format!("{rate:.1} changesets/s, {WRITERS} writers, {count} in {SUSTAINED:?}"),
-    });
-    progress(&format!("sustained rate: {:?}", started.elapsed()));
-
-    // Import of as many addresses as the dataset holds, in batches.
-    let count = data.addresses.len();
-    let items = import_items(count);
-    let t = Instant::now();
-    let import = create_import(&store, author, "bench", items, MAX_OPERATIONS).await?;
-    let status = run_import(&store, &Unrestricted, import, MAX_OPERATIONS)
-        .await?
-        .context("the import vanished")?;
-    let elapsed = t.elapsed();
-    if status.state != "done" {
-        bail!("import not done: {status:?}");
-    }
-    budgets.push(Budget {
-        name: "import",
-        limit: Duration::from_mins(15),
-        measured: elapsed,
-        note: format!("{count} addresses, {} batches", status.applied),
-    });
-    progress(&format!("import: {:?}", started.elapsed()));
-
-    // The VLANs of the core on the same dataset (spec 026, REQ-026-7; REQ-008-25).
-    budgets.extend(crate::vlan_budgets::run(&pool, author, data, &mut rng, &mut report).await?);
-    // The machines module beside it (spec 009, REQ-009-21).
-    budgets.extend(crate::machine_budgets::run(&pool, author, data, &mut rng, &mut report).await?);
-    // The counters of the home page over both (spec 024, REQ-024-16).
-    budgets.extend(crate::stats_budgets::run(&pool, data, seed, &mut report).await?);
-
-    let (lines, ok) = verdict(&budgets)?;
-    report.push_str(&lines);
-    Ok((report, ok && usable))
+    })
 }

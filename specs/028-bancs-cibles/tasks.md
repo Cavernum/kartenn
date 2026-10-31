@@ -13,8 +13,9 @@ Commun à toutes les tâches : les budgets et leurs seuils ne changent pas. Une 
 lancée seule ou dans le banc entier donne le même verdict. Aucun banc pleine échelle
 par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suffisent.
 
-- [ ] 1. Mesures nommées et `--only` : chaque banc de `kartenn-bench` (`props`, `core`,
-  `rbac`, `http`, `policy`, `flow`, `events`, `stats`, `telemetry`) se découpe en
+- [x] 1. Mesures nommées et `--only` : chaque banc de `kartenn-bench` (`props`, `core`,
+  `rbac`, `http`, `policy`, `flow`, `events`, `telemetry` ; les statistiques sont des
+  mesures de `core`, `core.stats`) se découpe en
   préparation et en mesures nommées `<banc>.<mesure>`, chacune avec ses préalables. Les
   mesures qui chronomètrent la préparation sont marquées « de préparation ».
   `kartenn-bench <banc> --list` les donne ; `--only <m1,m2>` exécute la préparation, les
@@ -27,6 +28,47 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     `*_budgets.rs`, `props.rs`, `rbac.rs`, `http.rs`, `telemetry.rs` (mesures actuelles,
     `progress`) ; `devenv.nix` (`bench`, l. 302).
   - dépend de : —
+  - fait : `kartenn_bench::measures` (`Measure`, `Bench`, `BENCHES`, `Selection` :
+    préalables fermés transitivement, `runs`, `any` pour une mise en place partagée,
+    ligne `mesures : … ; préalables : …` sous `--only`) ; un `BENCH` par module
+    (`props.rs`, `core_budgets.rs` avec les mesures de `vlan_budgets.rs`,
+    `machine_budgets.rs`, `stats_budgets.rs`, `rbac.rs`, `http.rs`, `policy_budgets.rs`,
+    `flow_budgets.rs`, `events_budgets.rs`, `telemetry.rs`), chaque mesure sous
+    `selection.runs(…)` ; `main.rs` (`<banc> --list [--only …]`, qui vérifie les noms
+    et donne les mesures qui tourneraient ; `[small] [--only <m1,m2>]` dans tout ordre ;
+    enfant `telemetry-run` avec les mêmes mesures ; la graine de `events`, qui ne tire
+    rien, est désormais vérifiée comme entier non signé, comme ailleurs) ; `devenv.nix`
+    (`bench` : arguments vérifiés avant tout verrou — `--only` sans valeur ou vide, deux
+    `--only`, deux graines, argument inconnu refusés aussitôt ; `--list` hors verrou des
+    bancs ; noms de `--only` vérifiés après la compilation, avant de recréer la base).
+    Tests : `measures` (catalogues bien formés, listes figées, préalables, nom inconnu
+    refusé avec la liste), `main` (arguments) ; `tests/it/only.rs` (une mesure seule
+    contre le banc entier pour chaque banc, `core.stats` et `core.machines-suggestions`
+    compris, à l'échelle `small`, un banc à la fois sous un verrou consultatif du
+    cluster, lignes comparées durées, pourcentages et charge masqués ; ignorés par
+    défaut : `k-check -p kartenn-bench --run-ignored all` ; `--list`, `--list --only`
+    et nom inconnu par le binaire). Passage réduit
+    `bench-properties 42 --only props.origins-3-domains`. Texte de la tâche corrigé : pas
+    de banc `stats`, les statistiques sont la mesure `core.stats`.
+  - choix : les tirages restent ceux du générateur du banc, dans l'ordre des mesures
+    (le banc entier tire ce qu'il tirait ; seule, une mesure tire autre chose, de même
+    loi) ; une mesure peut donner plusieurs lignes (boucles entrelacées) ; préalables
+    d'état déclarés là où la mesure en dépend (écritures de `props` en chaîne ; dans
+    `core`, ce qui lit les tables que les écritures grossissent part après elles : la
+    fiche d'une machine après les écritures d'adresses, les machines d'un /24 après
+    celles-ci et le conteneur large, les suggestions après toutes les écritures du cœur et
+    des modules, `core.stats` après elles et l'import des machines ; rapport d'audit après
+    le différentiel des règles ; aperçu et réévaluation de l'inférence après le contrôle,
+    pages de non-conformités après les écritures de la politique, tempête après la
+    mémoire, lecture passée après la lecture courante dont elle tire son seuil) ; mises
+    en place partagées (VLAN, machines, règles d'inférence, lecteur par extrémités)
+    lancées quand une de leurs mesures tourne ; seule mesure « de préparation » :
+    `props.origins-every-root` (seul budget pris dans la préparation) ; la visibilité de
+    `events` écrit d'abord les adresses qui manqueraient (aucune dans le banc entier) ;
+    les clés des suggestions de `core` sont tirées par `md5(clé || graine)` et non plus
+    `random()` : les mêmes d'un passage à l'autre, sans tirage du générateur du banc ;
+    `bench-http` envoie `approval=self` sur ses écritures (sans lui, tout changeset passait
+    en proposition et le banc échouait dès la première écriture, depuis la 024-11).
 - [ ] 2. Base préparée réutilisée : empreinte (migrations, sources du générateur et de la
   préparation du banc, graine, échelle) ; modèle
   `kartenn_bench_tpl_<banc>_<empreinte>` enregistré après la préparation ; passage

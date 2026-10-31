@@ -32,9 +32,35 @@ use serde_json::{Value, json};
 use sqlx::types::Uuid;
 
 use crate::core_budgets::{Prepared, prepare, unitary};
+use crate::measures::{Bench, Measure, Selection};
 use crate::props::{Budget, p95, progress, verdict};
 use crate::vlan_budgets::{app, get, import, reader, reader_on, sync};
 use crate::{Dataset, Nature, Prefix};
+
+const REQUEST: &str = "flow.request-interfaces";
+const RECLASSIFY: &str = "flow.reclassify";
+const RULE_WRITTEN: &str = "flow.rule-written";
+const POLICY_WRITTEN: &str = "flow.policy-written";
+const FLOWS_PAGE: &str = "flow.flows-page";
+const NONCONFORMITIES: &str = "flow.nonconformities-page";
+const ENDPOINTS_FLOWS: &str = "flow.endpoints-flows-page";
+const ENDPOINTS_NONCONFORMITIES: &str = "flow.endpoints-nonconformities-page";
+
+/// The measures of `bench-flow` (ADR 0041): the requests add flows, the writes re-evaluate
+/// them, and the non-conformities are those the writes left.
+pub(crate) static BENCH: Bench = Bench {
+    name: "flow",
+    measures: &[
+        Measure::new(REQUEST),
+        Measure::new(RECLASSIFY),
+        Measure::new(RULE_WRITTEN).after(&[REQUEST, RECLASSIFY]),
+        Measure::new(POLICY_WRITTEN).after(&[RULE_WRITTEN]),
+        Measure::new(FLOWS_PAGE).after(&[REQUEST]),
+        Measure::new(NONCONFORMITIES).after(&[POLICY_WRITTEN]),
+        Measure::new(ENDPOINTS_FLOWS),
+        Measure::new(ENDPOINTS_NONCONFORMITIES).after(&[POLICY_WRITTEN]),
+    ],
+};
 
 /// Flows of the reference dataset (REQ-011-19), and those that leave the hot container.
 const FLOWS: usize = 100_000;
@@ -220,7 +246,12 @@ fn median(mut samples: Vec<Duration>) -> Duration {
 /// Database, pipeline or router failures.
 #[allow(clippy::too_many_lines)] // one linear scenario, step by step
 #[allow(clippy::many_single_char_names)] // the indices of the grid of the policy
-pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(String, bool)> {
+pub async fn run(
+    database: &str,
+    data: &Dataset,
+    seed: u64,
+    selection: &Selection,
+) -> anyhow::Result<(String, bool)> {
     let started = Instant::now();
     let Prepared {
         pool,
@@ -603,65 +634,70 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     let mut budgets = Vec::new();
 
     // The request of a flow interface × interface, its 256 pairs evaluated and triaged.
-    let mut samples = Vec::new();
-    let mut applied = 0;
-    for (n, &(a, b, k)) in pairs.iter().enumerate() {
-        let operation = op(
-            "flow",
-            "request",
-            json!({
-                "local": 1,
-                "source": {"kind": "interface", "id": {"id": interface(a)?}},
-                "destination": {"kind": "interface", "id": {"id": interface(b)?}},
-                "service": {"id": services[k * SERVICES_PER_TYPE]},
-                "external_refs": [{"system": "bench", "id": format!("BENCH-M-{n}")}],
-                "entity": {"id": entities[n % ENTITIES]},
-            }),
-        )?;
-        let (elapsed, outcome) = timed(&store, author, vec![operation]).await?;
-        match outcome {
-            Outcome::Applied { .. } => applied += 1,
-            Outcome::Pending { .. } => {}
-            other => bail!("a request interface × interface not taken: {other:?}"),
-        }
-        samples.push(elapsed);
-    }
-    budgets.push(Budget {
-        name: "request a flow interface x interface 16 x 16, triage included, p95",
-        limit: Duration::from_millis(300),
-        measured: p95(samples),
-        note: format!(
-            "{} requests of 256 pairs, {applied} applied, the others held for review",
-            pairs.len()
-        ),
-    });
-    progress(&format!("requests: {:?}", started.elapsed()));
-
-    // The reclassification of the hot container against the cold one, in turn.
-    let mut warm = Vec::new();
-    let mut idle = Vec::new();
-    for round in 0..ROUNDS {
-        for (z, samples) in [(cold, &mut idle), (hot, &mut warm)] {
-            let e = (zones[z].environment + 1 + round) % environments;
-            let (elapsed, outcome) = timed(&store, author, vec![classify(zones[z].id, e)]).await?;
-            if !matches!(outcome, Outcome::Applied { .. }) {
-                bail!("a reclassification not applied: {outcome:?}");
+    if selection.runs(REQUEST) {
+        let mut samples = Vec::new();
+        let mut applied = 0;
+        for (n, &(a, b, k)) in pairs.iter().enumerate() {
+            let operation = op(
+                "flow",
+                "request",
+                json!({
+                    "local": 1,
+                    "source": {"kind": "interface", "id": {"id": interface(a)?}},
+                    "destination": {"kind": "interface", "id": {"id": interface(b)?}},
+                    "service": {"id": services[k * SERVICES_PER_TYPE]},
+                    "external_refs": [{"system": "bench", "id": format!("BENCH-M-{n}")}],
+                    "entity": {"id": entities[n % ENTITIES]},
+                }),
+            )?;
+            let (elapsed, outcome) = timed(&store, author, vec![operation]).await?;
+            match outcome {
+                Outcome::Applied { .. } => applied += 1,
+                Outcome::Pending { .. } => {}
+                other => bail!("a request interface × interface not taken: {other:?}"),
             }
             samples.push(elapsed);
         }
+        budgets.push(Budget {
+            name: "request a flow interface x interface 16 x 16, triage included, p95",
+            limit: Duration::from_millis(300),
+            measured: p95(samples),
+            note: format!(
+                "{} requests of 256 pairs, {applied} applied, the others held for review",
+                pairs.len()
+            ),
+        });
+        progress(&format!("requests: {:?}", started.elapsed()));
     }
-    let (warm, idle) = (median(warm), median(idle));
-    budgets.push(Budget {
-        name: "re-evaluate the flows of a reclassified container, added",
-        limit: Duration::from_secs(3),
-        measured: warm.saturating_sub(idle),
-        note: format!(
-            "{hot_flows} flows: {warm:?} against {idle:?} for a container of {} addresses \
+
+    // The reclassification of the hot container against the cold one, in turn.
+    if selection.runs(RECLASSIFY) {
+        let mut warm = Vec::new();
+        let mut idle = Vec::new();
+        for round in 0..ROUNDS {
+            for (z, samples) in [(cold, &mut idle), (hot, &mut warm)] {
+                let e = (zones[z].environment + 1 + round) % environments;
+                let (elapsed, outcome) =
+                    timed(&store, author, vec![classify(zones[z].id, e)]).await?;
+                if !matches!(outcome, Outcome::Applied { .. }) {
+                    bail!("a reclassification not applied: {outcome:?}");
+                }
+                samples.push(elapsed);
+            }
+        }
+        let (warm, idle) = (median(warm), median(idle));
+        budgets.push(Budget {
+            name: "re-evaluate the flows of a reclassified container, added",
+            limit: Duration::from_secs(3),
+            measured: warm.saturating_sub(idle),
+            note: format!(
+                "{hot_flows} flows: {warm:?} against {idle:?} for a container of {} addresses \
              no flow touches (medians of {ROUNDS})",
-            zones[cold].addresses.len()
-        ),
-    });
-    progress(&format!("reclassification: {:?}", started.elapsed()));
+                zones[cold].addresses.len()
+            ),
+        });
+        progress(&format!("reclassification: {:?}", started.elapsed()));
+    }
 
     // Writes of the policy: a rule re-evaluates the flows of its flow type, a new
     // environment every living flow (no background job re-evaluates them otherwise, F14).
@@ -681,18 +717,23 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
                "destination": {"policy.environment": [environment(1)]}}),
     )?;
     let environment = op("policy", "environment.create", json!({"key": "bench-new"}))?;
-    for (name, operation, note) in [
+    for (measure, name, operation, note) in [
         (
+            RULE_WRITTEN,
             "re-evaluate the flows of a flow type on a rule written",
             rule,
             format!("{concerned} flows of the 50 services of the flow type of a new rule"),
         ),
         (
+            POLICY_WRITTEN,
             "re-evaluate every flow on a write of the policy",
             environment,
             format!("{flows} living flows, a new environment"),
         ),
     ] {
+        if !selection.runs(measure) {
+            continue;
+        }
         let (elapsed, outcome) = timed(&store, author, vec![operation]).await?;
         if !matches!(outcome, Outcome::Applied { .. }) {
             bail!("a write of the policy not applied: {outcome:?}");
@@ -707,149 +748,161 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     progress(&format!("policy write: {:?}", started.elapsed()));
 
     // Filtered pages through the router of the module.
-    let identity = reader(
-        &pool,
-        &[
-            "flow.read",
-            "core.address.read",
-            "core.prefix.read",
-            "machines.read",
-            "machines.interface.read",
-            "policy.catalogue.read",
-        ],
-    )
-    .await?;
-    let app = app(
-        &pool,
-        registry.clone(),
-        vec![kartenn_flow::rest::routes()],
-        identity,
-    )?;
-    for _ in 0..10 {
-        get(
-            &app,
-            &format!("/v1/flows?entity={}&page_size=100", entities[0]),
+    if selection.runs(FLOWS_PAGE) || selection.runs(NONCONFORMITIES) {
+        let identity = reader(
+            &pool,
+            &[
+                "flow.read",
+                "core.address.read",
+                "core.prefix.read",
+                "machines.read",
+                "machines.interface.read",
+                "policy.catalogue.read",
+            ],
         )
         .await?;
+        let app = app(
+            &pool,
+            registry.clone(),
+            vec![kartenn_flow::rest::routes()],
+            identity,
+        )?;
+        for _ in 0..10 {
+            get(
+                &app,
+                &format!("/v1/flows?entity={}&page_size=100", entities[0]),
+            )
+            .await?;
+        }
+        if selection.runs(FLOWS_PAGE) {
+            let mut samples = Vec::new();
+            let mut rows = 0;
+            for _ in 0..100 {
+                let entity = entities[rng.random_range(0..ENTITIES)];
+                let service = services[rng.random_range(0..services.len())];
+                let uri = format!("/v1/flows?entity={entity}&service={service}&page_size=100");
+                let (elapsed, page) = get(&app, &uri).await?;
+                rows += page["items"].as_array().map_or(0, Vec::len);
+                samples.push(elapsed);
+            }
+            if rows == 0 {
+                bail!("the filtered pages of flows are empty");
+            }
+            budgets.push(Budget {
+                name: "filtered page of 100 flows, p95",
+                limit: Duration::from_millis(150),
+                measured: p95(samples),
+                note: format!(
+                    "100 draws of the flows of an entity for a service, {} rows a page on average",
+                    rows / 100
+                ),
+            });
+        }
+        if selection.runs(NONCONFORMITIES) {
+            let mut samples = Vec::new();
+            let mut rows = 0;
+            for _ in 0..100 {
+                let entity = entities[rng.random_range(0..ENTITIES)];
+                let uri = format!("/v1/flow-nonconformities?entity={entity}&page_size=100");
+                let (elapsed, page) = get(&app, &uri).await?;
+                rows += page["items"].as_array().map_or(0, Vec::len);
+                samples.push(elapsed);
+            }
+            budgets.push(Budget {
+                name: "page of non-conformities, p95",
+                limit: Duration::from_millis(150),
+                measured: p95(samples),
+                note: format!(
+                    "100 draws of an entity, {} rows a page on average",
+                    rows / 100
+                ),
+            });
+        }
+        progress(&format!("pages: {:?}", started.elapsed()));
     }
-    let mut samples = Vec::new();
-    let mut rows = 0;
-    for _ in 0..100 {
-        let entity = entities[rng.random_range(0..ENTITIES)];
-        let service = services[rng.random_range(0..services.len())];
-        let uri = format!("/v1/flows?entity={entity}&service={service}&page_size=100");
-        let (elapsed, page) = get(&app, &uri).await?;
-        rows += page["items"].as_array().map_or(0, Vec::len);
-        samples.push(elapsed);
-    }
-    if rows == 0 {
-        bail!("the filtered pages of flows are empty");
-    }
-    budgets.push(Budget {
-        name: "filtered page of 100 flows, p95",
-        limit: Duration::from_millis(150),
-        measured: p95(samples),
-        note: format!(
-            "100 draws of the flows of an entity for a service, {} rows a page on average",
-            rows / 100
-        ),
-    });
-    let mut samples = Vec::new();
-    let mut rows = 0;
-    for _ in 0..100 {
-        let entity = entities[rng.random_range(0..ENTITIES)];
-        let uri = format!("/v1/flow-nonconformities?entity={entity}&page_size=100");
-        let (elapsed, page) = get(&app, &uri).await?;
-        rows += page["items"].as_array().map_or(0, Vec::len);
-        samples.push(elapsed);
-    }
-    budgets.push(Budget {
-        name: "page of non-conformities, p95",
-        limit: Duration::from_millis(150),
-        measured: p95(samples),
-        note: format!(
-            "100 draws of an entity, {} rows a page on average",
-            rows / 100
-        ),
-    });
-    progress(&format!("pages: {:?}", started.elapsed()));
 
     // The same pages for a reader through the endpoints (spec 027, REQ-027-4): `flow.read`
     // on an entity no flow is of, the addresses and prefixes of the hot container read.
-    unitary(
-        &store,
-        author,
-        Operation::CreateEntity {
-            local: None,
-            slug: "bench-flow-reader".into(),
-            parent: None,
-        },
-    )
-    .await?;
-    let unrelated: Uuid = sqlx::query_scalar(
-        "SELECT id FROM entity WHERE slug = 'bench-flow-reader' AND valid_period @> now()",
-    )
-    .fetch_one(&pool)
-    .await?;
-    let identity = reader_on(&pool, &["flow.read"], Some(unrelated)).await?;
-    granted_on_prefix(
-        &pool,
-        identity,
-        &["core.address.read", "core.prefix.read"],
-        zones[hot].id,
-    )
-    .await?;
-    let app = self::app(
-        &pool,
-        registry,
-        vec![kartenn_flow::rest::routes()],
-        identity,
-    )?;
-    let hot_zone = zones[hot].id;
-    for _ in 0..10 {
-        get(&app, &format!("/v1/flows?prefix={hot_zone}&page_size=100")).await?;
-    }
-    let mut samples = Vec::new();
-    let mut rows = 0;
-    for _ in 0..100 {
-        let service = services[rng.random_range(0..services.len())];
-        let uri = format!("/v1/flows?prefix={hot_zone}&service={service}&page_size=100");
-        let (elapsed, page) = get(&app, &uri).await?;
-        rows += page["items"].as_array().map_or(0, Vec::len);
-        samples.push(elapsed);
-    }
-    if rows == 0 {
-        bail!("the pages of flows read through the endpoints are empty");
-    }
-    budgets.push(Budget {
-        name: "filtered page of flows, reader by endpoints, p95",
-        limit: Duration::from_millis(150),
-        measured: p95(samples),
-        note: format!(
-            "100 draws of the flows of the hot container for a service, `flow.read` \
+    if selection.runs(ENDPOINTS_FLOWS) || selection.runs(ENDPOINTS_NONCONFORMITIES) {
+        unitary(
+            &store,
+            author,
+            Operation::CreateEntity {
+                local: None,
+                slug: "bench-flow-reader".into(),
+                parent: None,
+            },
+        )
+        .await?;
+        let unrelated: Uuid = sqlx::query_scalar(
+            "SELECT id FROM entity WHERE slug = 'bench-flow-reader' AND valid_period @> now()",
+        )
+        .fetch_one(&pool)
+        .await?;
+        let identity = reader_on(&pool, &["flow.read"], Some(unrelated)).await?;
+        granted_on_prefix(
+            &pool,
+            identity,
+            &["core.address.read", "core.prefix.read"],
+            zones[hot].id,
+        )
+        .await?;
+        let app = self::app(
+            &pool,
+            registry,
+            vec![kartenn_flow::rest::routes()],
+            identity,
+        )?;
+        let hot_zone = zones[hot].id;
+        for _ in 0..10 {
+            get(&app, &format!("/v1/flows?prefix={hot_zone}&page_size=100")).await?;
+        }
+        if selection.runs(ENDPOINTS_FLOWS) {
+            let mut samples = Vec::new();
+            let mut rows = 0;
+            for _ in 0..100 {
+                let service = services[rng.random_range(0..services.len())];
+                let uri = format!("/v1/flows?prefix={hot_zone}&service={service}&page_size=100");
+                let (elapsed, page) = get(&app, &uri).await?;
+                rows += page["items"].as_array().map_or(0, Vec::len);
+                samples.push(elapsed);
+            }
+            if rows == 0 {
+                bail!("the pages of flows read through the endpoints are empty");
+            }
+            budgets.push(Budget {
+                name: "filtered page of flows, reader by endpoints, p95",
+                limit: Duration::from_millis(150),
+                measured: p95(samples),
+                note: format!(
+                    "100 draws of the flows of the hot container for a service, `flow.read` \
              elsewhere, {} rows a page on average",
-            rows / 100
-        ),
-    });
-    let mut samples = Vec::new();
-    let mut rows = 0;
-    for _ in 0..100 {
-        let entity = entities[rng.random_range(0..ENTITIES)];
-        let uri = format!("/v1/flow-nonconformities?entity={entity}&page_size=100");
-        let (elapsed, page) = get(&app, &uri).await?;
-        rows += page["items"].as_array().map_or(0, Vec::len);
-        samples.push(elapsed);
+                    rows / 100
+                ),
+            });
+        }
+        if selection.runs(ENDPOINTS_NONCONFORMITIES) {
+            let mut samples = Vec::new();
+            let mut rows = 0;
+            for _ in 0..100 {
+                let entity = entities[rng.random_range(0..ENTITIES)];
+                let uri = format!("/v1/flow-nonconformities?entity={entity}&page_size=100");
+                let (elapsed, page) = get(&app, &uri).await?;
+                rows += page["items"].as_array().map_or(0, Vec::len);
+                samples.push(elapsed);
+            }
+            budgets.push(Budget {
+                name: "page of non-conformities, reader by endpoints, p95",
+                limit: Duration::from_millis(150),
+                measured: p95(samples),
+                note: format!(
+                    "100 draws of an entity, {} rows a page on average",
+                    rows / 100
+                ),
+            });
+        }
+        progress(&format!("pages by endpoints: {:?}", started.elapsed()));
     }
-    budgets.push(Budget {
-        name: "page of non-conformities, reader by endpoints, p95",
-        limit: Duration::from_millis(150),
-        measured: p95(samples),
-        note: format!(
-            "100 draws of an entity, {} rows a page on average",
-            rows / 100
-        ),
-    });
-    progress(&format!("pages by endpoints: {:?}", started.elapsed()));
 
     let (lines, ok) = verdict(&budgets)?;
     report.push_str(&lines);

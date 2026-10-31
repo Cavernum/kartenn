@@ -20,6 +20,7 @@ pub mod events_budgets;
 pub mod flow_budgets;
 pub mod http;
 pub mod machine_budgets;
+pub mod measures;
 pub mod policy_budgets;
 pub mod props;
 pub mod rbac;

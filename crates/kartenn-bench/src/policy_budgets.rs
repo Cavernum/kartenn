@@ -36,8 +36,40 @@ use sqlx::{PgConnection, PgPool};
 
 use crate::Dataset;
 use crate::core_budgets::{Prepared, prepare, unitary};
+use crate::measures::{Bench, Measure, Selection};
 use crate::props::{Budget, p95, progress, verdict};
 use crate::vlan_budgets::{app_with, get, import, reader, sync};
+
+const SNAPSHOT: &str = "policy.snapshot-cold";
+const VERDICT: &str = "policy.verdict-pair";
+const INTERFACES: &str = "policy.interface-pair";
+const RAW_PORT: &str = "policy.raw-port";
+const DIFFERENTIAL: &str = "policy.rules-differential";
+const REPORT: &str = "policy.audit-report";
+const SUGGESTION: &str = "policy.inference-suggestion";
+const CONTROL: &str = "policy.inference-control";
+const PREVIEW: &str = "policy.inference-preview";
+const CHECK: &str = "policy.inference-check";
+
+/// The measures of `bench-policy` (ADR 0041). The rules of inference are loaded when one of
+/// the measures of the inference runs; the preview and the full re-evaluation cover the
+/// addresses the control writes.
+pub(crate) static BENCH: Bench = Bench {
+    name: "policy",
+    measures: &[
+        Measure::new(SNAPSHOT),
+        Measure::new(VERDICT),
+        Measure::new(INTERFACES),
+        Measure::new(RAW_PORT),
+        Measure::new(DIFFERENTIAL),
+        // The report goes over the rules, the denies of the differential among them.
+        Measure::new(REPORT).after(&[DIFFERENTIAL]),
+        Measure::new(SUGGESTION),
+        Measure::new(CONTROL),
+        Measure::new(PREVIEW).after(&[CONTROL]),
+        Measure::new(CHECK).after(&[CONTROL]),
+    ],
+};
 
 /// The size of the policy of the budget (REQ-010-28).
 const ENVIRONMENTS: usize = 50;
@@ -314,7 +346,12 @@ fn addresses_request(author: Uuid, domain: Uuid, base: [u8; 2], count: usize) ->
 /// # Errors
 ///
 /// Database, pipeline or router failures.
-pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(String, bool)> {
+pub async fn run(
+    database: &str,
+    data: &Dataset,
+    seed: u64,
+    selection: &Selection,
+) -> anyhow::Result<(String, bool)> {
     let Prepared {
         pool,
         author,
@@ -322,7 +359,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         ..
     } = prepare(database, data, seed).await?;
     let mut rng = ChaCha8Rng::seed_from_u64(seed.wrapping_add(2));
-    let budgets = measure(&pool, author, data, &mut rng, &mut report).await?;
+    let budgets = measure(&pool, author, data, &mut rng, selection, &mut report).await?;
     let (lines, ok) = verdict(&budgets)?;
     report.push_str(&lines);
     Ok((report, ok))
@@ -334,6 +371,7 @@ async fn measure(
     author: Uuid,
     data: &Dataset,
     rng: &mut ChaCha8Rng,
+    selection: &Selection,
     report: &mut String,
 ) -> anyhow::Result<Vec<Budget>> {
     let started = Instant::now();
@@ -565,24 +603,26 @@ async fn measure(
     progress(&load("policy dataset"));
 
     // The snapshot of the policy, read cold (REQ-010-16, ADR 0030).
-    let mut conn = pool.acquire().await?;
-    let mut samples = Vec::new();
-    for _ in 0..10 {
-        let cache = kartenn_policy::cache::SnapshotCache::new();
-        let t = Instant::now();
-        cache
-            .snapshot(&mut conn, OffsetDateTime::now_utc(), None)
-            .await?;
-        samples.push(t.elapsed());
+    if selection.runs(SNAPSHOT) {
+        let mut conn = pool.acquire().await?;
+        let mut samples = Vec::new();
+        for _ in 0..10 {
+            let cache = kartenn_policy::cache::SnapshotCache::new();
+            let t = Instant::now();
+            cache
+                .snapshot(&mut conn, OffsetDateTime::now_utc(), None)
+                .await?;
+            samples.push(t.elapsed());
+        }
+        drop(conn);
+        writeln!(
+            report,
+            "INFO policy snapshot of {} rules read cold: p95 {:?} (10 reads; {})",
+            RULES + 1,
+            p95(samples),
+            load_now()
+        )?;
     }
-    drop(conn);
-    writeln!(
-        report,
-        "INFO policy snapshot of {} rules read cold: p95 {:?} (10 reads; {})",
-        RULES + 1,
-        p95(samples),
-        load_now()
-    )?;
 
     let identity = reader(
         pool,
@@ -623,132 +663,113 @@ async fn measure(
     }
 
     // The verdict of a pair of addresses for a service.
-    let mut samples = Vec::new();
-    for _ in 0..200 {
-        let uri = format!(
-            "/v1/verdicts?source=address:{}&destination=address:{}&service=svc{:03}",
-            address(rng),
-            address(rng),
-            rng.random_range(0..SERVICES)
-        );
-        samples.push(get(&app, &uri).await?.0);
+    if selection.runs(VERDICT) {
+        let mut samples = Vec::new();
+        for _ in 0..200 {
+            let uri = format!(
+                "/v1/verdicts?source=address:{}&destination=address:{}&service=svc{:03}",
+                address(rng),
+                address(rng),
+                rng.random_range(0..SERVICES)
+            );
+            samples.push(get(&app, &uri).await?.0);
+        }
+        budgets.push(Budget {
+            name: "verdict of a pair of addresses for a service, p95",
+            limit: Duration::from_millis(50),
+            measured: p95(samples),
+            note: format!(
+                "200 draws through the router, {} rules; {}",
+                RULES + 1,
+                load_now()
+            ),
+        });
     }
-    budgets.push(Budget {
-        name: "verdict of a pair of addresses for a service, p95",
-        limit: Duration::from_millis(50),
-        measured: p95(samples),
-        note: format!(
-            "200 draws through the router, {} rules; {}",
-            RULES + 1,
-            load_now()
-        ),
-    });
 
     // Interface × interface, 16 × 16 addresses, a flow type of 10 services.
-    let mut samples = Vec::new();
-    let mut verdicts = 0;
-    for _ in 0..100 {
-        let (_, source) = sources_side[rng.random_range(0..WIDE_MACHINES)];
-        let (_, destination) = destinations[rng.random_range(0..WIDE_MACHINES)];
-        let uri = format!(
-            "/v1/verdicts?source=interface:{source}&destination=interface:{destination}&flow_type=ft00"
-        );
-        let (elapsed, answer) = get(&app, &uri).await?;
-        verdicts += answer["evaluations"].as_array().map_or(0, Vec::len);
-        samples.push(elapsed);
+    if selection.runs(INTERFACES) {
+        let mut samples = Vec::new();
+        let mut verdicts = 0;
+        for _ in 0..100 {
+            let (_, source) = sources_side[rng.random_range(0..WIDE_MACHINES)];
+            let (_, destination) = destinations[rng.random_range(0..WIDE_MACHINES)];
+            let uri = format!(
+                "/v1/verdicts?source=interface:{source}&destination=interface:{destination}&flow_type=ft00"
+            );
+            let (elapsed, answer) = get(&app, &uri).await?;
+            verdicts += answer["evaluations"].as_array().map_or(0, Vec::len);
+            samples.push(elapsed);
+        }
+        if verdicts == 0 {
+            bail!("interface × interface answers no verdict");
+        }
+        budgets.push(Budget {
+            name: "interface × interface 16 × 16, flow type of 10 services, p95",
+            limit: Duration::from_millis(300),
+            measured: p95(samples),
+            note: format!(
+                "100 draws, {} evaluations an answer on average; {}",
+                verdicts / 100,
+                load_now()
+            ),
+        });
     }
-    if verdicts == 0 {
-        bail!("interface × interface answers no verdict");
-    }
-    budgets.push(Budget {
-        name: "interface × interface 16 × 16, flow type of 10 services, p95",
-        limit: Duration::from_millis(300),
-        measured: p95(samples),
-        note: format!(
-            "100 draws, {} evaluations an answer on average; {}",
-            verdicts / 100,
-            load_now()
-        ),
-    });
 
     // A raw port covered by 20 services.
-    let mut samples = Vec::new();
-    for _ in 0..200 {
-        let uri = format!(
-            "/v1/verdicts?source=address:{}&destination=address:{}&transport=tcp&port=443",
-            address(rng),
-            address(rng)
-        );
-        samples.push(get(&app, &uri).await?.0);
+    if selection.runs(RAW_PORT) {
+        let mut samples = Vec::new();
+        for _ in 0..200 {
+            let uri = format!(
+                "/v1/verdicts?source=address:{}&destination=address:{}&transport=tcp&port=443",
+                address(rng),
+                address(rng)
+            );
+            samples.push(get(&app, &uri).await?.0);
+        }
+        budgets.push(Budget {
+            name: "raw port covered by 20 services, p95",
+            limit: Duration::from_millis(100),
+            measured: p95(samples),
+            note: format!("200 draws, tcp/443; {}", load_now()),
+        });
     }
-    budgets.push(Budget {
-        name: "raw port covered by 20 services, p95",
-        limit: Duration::from_millis(100),
-        measured: p95(samples),
-        note: format!("200 draws, tcp/443; {}", load_now()),
-    });
     progress(&load("policy verdicts"));
 
     // The policy differential of a changeset of rules: a deny without end.
-    let mut samples = Vec::new();
-    for i in 0..20 {
-        let operation = op(
-            "rule.create",
-            json!({ "key": format!("bench-deny-{i}"), "labels": { "fr": format!("Interdiction {i}") },
-                    "effect": "deny", "texts": { "fr": { "body": TEXT } },
-                    "flow_types": [{ "id": flow_types[rng.random_range(0..FLOW_TYPES)] }],
-                    "source": { "policy.environment": some_environments(rng) },
-                    "destination": { "policy.environment": some_environments(rng) } }),
-        )?;
-        samples.push(unitary(&store, author, operation).await?);
+    if selection.runs(DIFFERENTIAL) {
+        let mut samples = Vec::new();
+        for i in 0..20 {
+            let operation = op(
+                "rule.create",
+                json!({ "key": format!("bench-deny-{i}"), "labels": { "fr": format!("Interdiction {i}") },
+                        "effect": "deny", "texts": { "fr": { "body": TEXT } },
+                        "flow_types": [{ "id": flow_types[rng.random_range(0..FLOW_TYPES)] }],
+                        "source": { "policy.environment": some_environments(rng) },
+                        "destination": { "policy.environment": some_environments(rng) } }),
+            )?;
+            samples.push(unitary(&store, author, operation).await?);
+        }
+        budgets.push(Budget {
+            name: "policy differential of a changeset of rules, p95",
+            limit: Duration::from_secs(1),
+            measured: p95(samples),
+            note: format!(
+                "20 unitary changesets of a deny without end, validated and applied; {}",
+                load_now()
+            ),
+        });
+        progress(&load("policy differential"));
     }
-    budgets.push(Budget {
-        name: "policy differential of a changeset of rules, p95",
-        limit: Duration::from_secs(1),
-        measured: p95(samples),
-        note: format!(
-            "20 unitary changesets of a deny without end, validated and applied; {}",
-            load_now()
-        ),
-    });
-    progress(&load("policy differential"));
 
     // The audit report, by its background task.
-    let mut conn = pool.acquire().await?;
-    let t = Instant::now();
-    let id = match kartenn_policy::report::request(&mut conn, OffsetDateTime::now_utc(), None)
-        .await?
-    {
-        kartenn_policy::report::Requested::Started(id) => id,
-        kartenn_policy::report::Requested::Busy(id) => bail!("a report {id} is already running"),
-    };
-    let mut runs = 0;
-    loop {
-        kartenn_policy::report::run_with(
-            &mut conn,
-            kartenn_policy::report::BATCH,
-            kartenn_policy::report::STEPS,
-        )
-        .await?;
-        runs += 1;
-        let state = kartenn_policy::report::report(&mut conn, id)
-            .await?
-            .context("the report vanished")?
-            .state;
-        if state == "done" {
-            break;
-        }
+    if selection.runs(REPORT) {
+        budgets.push(audit_report(pool, report).await?);
+        progress(&load("policy report"));
     }
-    budgets.push(Budget {
-        name: "audit report",
-        limit: Duration::from_mins(10),
-        measured: t.elapsed(),
-        note: format!("{runs} runs of the task; {}", load_now()),
-    });
-    transverse_windows(&mut conn, report).await?;
-    drop(conn);
-    progress(&load("policy report"));
 
+    if !selection.any("policy.inference-") {
+        return Ok(budgets);
+    }
     // The inference: 2 000 rules on the networks of the dataset, a fifth of them on the
     // domain of the budget.
     let mut items = Vec::with_capacity(INFERENCE_RULES + 2);
@@ -791,75 +812,81 @@ async fn measure(
     if inferred.is_empty() {
         bail!("no address under a rule of inference");
     }
-    for _ in 0..20 {
-        let a = inferred[rng.random_range(0..inferred.len())];
-        get(
-            &app,
-            &format!("/v1/addresses/{a}/properties/policy.environment/suggestion"),
-        )
-        .await?;
-    }
-    let mut samples = Vec::new();
-    for _ in 0..200 {
-        let a = inferred[rng.random_range(0..inferred.len())];
-        samples.push(
+    if selection.runs(SUGGESTION) {
+        for _ in 0..20 {
+            let a = inferred[rng.random_range(0..inferred.len())];
             get(
                 &app,
                 &format!("/v1/addresses/{a}/properties/policy.environment/suggestion"),
             )
-            .await?
-            .0,
-        );
+            .await?;
+        }
+        let mut samples = Vec::new();
+        for _ in 0..200 {
+            let a = inferred[rng.random_range(0..inferred.len())];
+            samples.push(
+                get(
+                    &app,
+                    &format!("/v1/addresses/{a}/properties/policy.environment/suggestion"),
+                )
+                .await?
+                .0,
+            );
+        }
+        budgets.push(Budget {
+            name: "suggestion of the inference for an object, p95",
+            limit: Duration::from_millis(50),
+            measured: p95(samples),
+            note: format!(
+                "200 draws among {} addresses under a rule; {}",
+                inferred.len(),
+                load_now()
+            ),
+        });
     }
-    budgets.push(Budget {
-        name: "suggestion of the inference for an object, p95",
-        limit: Duration::from_millis(50),
-        measured: p95(samples),
-        note: format!(
-            "200 draws among {} addresses under a rule; {}",
-            inferred.len(),
-            load_now()
-        ),
-    });
 
     // The control of the inference on a changeset of 10⁴ objects: the same changeset
     // with and without the source, in two networks under a rule each, three times in
     // turn; the added time is the difference of the medians, a changeset of 10⁴ objects
     // varying by more than the budget with the load of the machine.
-    let (mut with, mut without) = (Vec::new(), Vec::new());
-    for round in 0..CONTROL_ROUNDS {
-        let offset = u8::try_from(round * 40)?;
-        for (network, controlled) in [(3, true), (4, false)] {
-            let request = addresses_request(author, domain, [network, offset], CONTROLLED);
-            let t = Instant::now();
-            let outcome = if controlled {
-                submit_with(&store, &Unrestricted, &sources, &request, MAX_OPERATIONS).await?
-            } else {
-                submit(&store, &Unrestricted, &request, MAX_OPERATIONS).await?
-            };
-            let elapsed = t.elapsed();
-            if !matches!(outcome, Outcome::Applied { .. }) {
-                bail!("the changeset of the control (round {round}) is not applied: {outcome:?}");
-            }
-            if controlled { &mut with } else { &mut without }.push(elapsed);
-        }
-    }
     let median = |mut samples: Vec<Duration>| {
         samples.sort();
         samples[samples.len() / 2]
     };
-    let (with, without) = (median(with), median(without));
-    budgets.push(Budget {
-        name: "control of the inference on a changeset of 10⁴ objects, added",
-        limit: Duration::from_secs(1),
-        measured: with.saturating_sub(without),
-        note: format!(
-            "medians of {CONTROL_ROUNDS} rounds in turn: {with:?} with the source, {without:?} \
-             without; {}",
-            load_now()
-        ),
-    });
-    progress(&load("policy inference control"));
+    if selection.runs(CONTROL) {
+        let (mut with, mut without) = (Vec::new(), Vec::new());
+        for round in 0..CONTROL_ROUNDS {
+            let offset = u8::try_from(round * 40)?;
+            for (network, controlled) in [(3, true), (4, false)] {
+                let request = addresses_request(author, domain, [network, offset], CONTROLLED);
+                let t = Instant::now();
+                let outcome = if controlled {
+                    submit_with(&store, &Unrestricted, &sources, &request, MAX_OPERATIONS).await?
+                } else {
+                    submit(&store, &Unrestricted, &request, MAX_OPERATIONS).await?
+                };
+                let elapsed = t.elapsed();
+                if !matches!(outcome, Outcome::Applied { .. }) {
+                    bail!(
+                        "the changeset of the control (round {round}) is not applied: {outcome:?}"
+                    );
+                }
+                if controlled { &mut with } else { &mut without }.push(elapsed);
+            }
+        }
+        let (with, without) = (median(with), median(without));
+        budgets.push(Budget {
+            name: "control of the inference on a changeset of 10⁴ objects, added",
+            limit: Duration::from_secs(1),
+            measured: with.saturating_sub(without),
+            note: format!(
+                "medians of {CONTROL_ROUNDS} rounds in turn: {with:?} with the source, \
+                 {without:?} without; {}",
+                load_now()
+            ),
+        });
+        progress(&load("policy inference control"));
+    }
 
     // The preview of a rule of inference in the simulation of its changeset (REQ-010-55,
     // S36): a rule over the network of the control, against the same rule over an empty
@@ -880,69 +907,111 @@ async fn measure(
             approval_self: true,
         })
     };
-    let (mut wide, mut empty) = (Vec::new(), Vec::new());
-    let mut scope = 0;
-    for _ in 0..CONTROL_ROUNDS {
-        for (prefix, measured) in [("10.3.0.0/16", true), ("10.250.0.0/16", false)] {
-            let request = preview(prefix)?;
-            let t = Instant::now();
-            let outcome = submit(&store, &Unrestricted, &request, MAX_OPERATIONS).await?;
-            let elapsed = t.elapsed();
-            let Outcome::Simulated { sections, .. } = outcome else {
-                bail!("the preview is not simulated: {outcome:?}");
-            };
-            if measured {
-                scope = sections
-                    .iter()
-                    .flat_map(|s| &s.rows)
-                    .find(|r| r.kind == "policy.inference.summary")
-                    .and_then(|r| r.after.as_ref()?.get("scope")?.as_u64())
-                    .unwrap_or_default();
+    if selection.runs(PREVIEW) {
+        let (mut wide, mut empty) = (Vec::new(), Vec::new());
+        let mut scope = 0;
+        for _ in 0..CONTROL_ROUNDS {
+            for (prefix, measured) in [("10.3.0.0/16", true), ("10.250.0.0/16", false)] {
+                let request = preview(prefix)?;
+                let t = Instant::now();
+                let outcome = submit(&store, &Unrestricted, &request, MAX_OPERATIONS).await?;
+                let elapsed = t.elapsed();
+                let Outcome::Simulated { sections, .. } = outcome else {
+                    bail!("the preview is not simulated: {outcome:?}");
+                };
+                if measured {
+                    scope = sections
+                        .iter()
+                        .flat_map(|s| &s.rows)
+                        .find(|r| r.kind == "policy.inference.summary")
+                        .and_then(|r| r.after.as_ref()?.get("scope")?.as_u64())
+                        .unwrap_or_default();
+                }
+                if measured { &mut wide } else { &mut empty }.push(elapsed);
             }
-            if measured { &mut wide } else { &mut empty }.push(elapsed);
         }
-    }
-    let (wide, empty) = (median(wide), median(empty));
-    budgets.push(Budget {
-        name: "preview of a rule of inference in its simulation, added",
-        limit: Duration::from_secs(scope.div_ceil(10_000).max(1)),
-        measured: wide.saturating_sub(empty),
-        note: format!(
-            "{scope} nodes in scope; medians of {CONTROL_ROUNDS} rounds: {wide:?}, {empty:?} \
+        let (wide, empty) = (median(wide), median(empty));
+        budgets.push(Budget {
+            name: "preview of a rule of inference in its simulation, added",
+            limit: Duration::from_secs(scope.div_ceil(10_000).max(1)),
+            measured: wide.saturating_sub(empty),
+            note: format!(
+                "{scope} nodes in scope; medians of {CONTROL_ROUNDS} rounds: {wide:?}, {empty:?} \
              over an empty prefix; {}",
-            load_now()
-        ),
-    });
-    progress(&load("policy inference preview"));
+                load_now()
+            ),
+        });
+        progress(&load("policy inference preview"));
+    }
 
     // The full re-evaluation of the deviations of the inference: the rules cite every
     // domain, so the pass goes over every origin and its heirs.
-    let t = Instant::now();
-    let runs = drain(&store, "policy.inference_check", async || {
-        let (pass, checked, revision): (Option<i64>, i64, i64) = sqlx::query_as(
-            "SELECT c.pass, c.checked, r.inference
+    if selection.runs(CHECK) {
+        let t = Instant::now();
+        let runs = drain(&store, "policy.inference_check", async || {
+            let (pass, checked, revision): (Option<i64>, i64, i64) = sqlx::query_as(
+                "SELECT c.pass, c.checked, r.inference
                FROM policy.policy_inference_check c, policy.policy_revision r",
-        )
-        .fetch_one(pool)
-        .await?;
-        Ok(pass.is_none() && checked == revision)
-    })
-    .await?;
-    let heirs: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM address WHERE upper_inf(valid_period)")
+            )
             .fetch_one(pool)
             .await?;
-    budgets.push(Budget {
-        name: "full re-evaluation of the inference",
+            Ok(pass.is_none() && checked == revision)
+        })
+        .await?;
+        let heirs: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM address WHERE upper_inf(valid_period)")
+                .fetch_one(pool)
+                .await?;
+        budgets.push(Budget {
+            name: "full re-evaluation of the inference",
+            limit: Duration::from_mins(10),
+            measured: t.elapsed(),
+            note: format!(
+                "{runs} runs of the task, {heirs} addresses in the referential; {}",
+                load_now()
+            ),
+        });
+        progress(&load("policy inference check"));
+    }
+    Ok(budgets)
+}
+
+/// The audit report, by its background task; then, for information, the windows of its
+/// rubric of transverse values.
+async fn audit_report(pool: &PgPool, report: &mut String) -> anyhow::Result<Budget> {
+    let mut conn = pool.acquire().await?;
+    let t = Instant::now();
+    let id = match kartenn_policy::report::request(&mut conn, OffsetDateTime::now_utc(), None)
+        .await?
+    {
+        kartenn_policy::report::Requested::Started(id) => id,
+        kartenn_policy::report::Requested::Busy(id) => bail!("a report {id} is already running"),
+    };
+    let mut runs = 0;
+    loop {
+        kartenn_policy::report::run_with(
+            &mut conn,
+            kartenn_policy::report::BATCH,
+            kartenn_policy::report::STEPS,
+        )
+        .await?;
+        runs += 1;
+        let state = kartenn_policy::report::report(&mut conn, id)
+            .await?
+            .context("the report vanished")?
+            .state;
+        if state == "done" {
+            break;
+        }
+    }
+    let budget = Budget {
+        name: "audit report",
         limit: Duration::from_mins(10),
         measured: t.elapsed(),
-        note: format!(
-            "{runs} runs of the task, {heirs} addresses in the referential; {}",
-            load_now()
-        ),
-    });
-    progress(&load("policy inference check"));
-    Ok(budgets)
+        note: format!("{runs} runs of the task; {}", load_now()),
+    };
+    transverse_windows(&mut conn, report).await?;
+    Ok(budget)
 }
 
 /// The windows of the rubric `transverse` of the audit report (nodes holding a transverse
