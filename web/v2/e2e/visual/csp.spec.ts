@@ -25,7 +25,8 @@ test("the catalogue raises no CSP violation and loads nothing from elsewhere", a
     .locator("main a")
     .evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).pathname));
   test.setTimeout(300_000);
-  for (const path of ["/_ui", ...pages]) {
+  // Each page once: the index links every view of a mock-up, all on the same path.
+  for (const path of new Set(["/_ui", ...pages])) {
     for (const query of ["?mode=light", "?mode=dark&densite=confortable"]) {
       await open(page, `${path}${query}`);
       // States shown alone (open layers: dialogs, menus, palette) are visited too.
