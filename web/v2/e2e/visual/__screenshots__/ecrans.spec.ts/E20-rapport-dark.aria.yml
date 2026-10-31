@@ -1,0 +1,197 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem:
+        - link "Rapports d'audit":
+          - /url: /x/policy/reports
+      - listitem: /rpt-\d+/
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Rapports d'audit" [level=1]
+  - region /rpt-\d+/:
+    - heading /rpt-\d+/ [level=2]
+    - text: /au \d+-\d+-\d+ · fait le \d+-\d+-\d+ à \d+:\d+/
+    - button "Copier l'identifiant"
+    - grid "Décompte par rubrique":
+      - rowgroup:
+        - row "Rubrique Décompte":
+          - columnheader "Rubrique"
+          - columnheader "Décompte"
+      - rowgroup:
+        - row /Non classifiés unclassified \d+/ [selected]:
+          - gridcell "Non classifiés unclassified":
+            - button "Non classifiés unclassified":
+              - text: ""
+              - code: unclassified
+            - status
+          - gridcell /\d+/
+        - row "Flux non conformes noncompliant_flows 4":
+          - gridcell "Flux non conformes noncompliant_flows":
+            - button "Flux non conformes noncompliant_flows":
+              - text: ""
+              - code: noncompliant_flows
+            - status
+          - gridcell "4"
+        - row "Règles hors matrice outside_rules 1":
+          - gridcell "Règles hors matrice outside_rules":
+            - button "Règles hors matrice outside_rules":
+              - text: ""
+              - code: outside_rules
+            - status
+          - gridcell "1"
+        - row "Écarts d'inférence inference_mismatches 5":
+          - gridcell "Écarts d'inférence inference_mismatches":
+            - button "Écarts d'inférence inference_mismatches":
+              - text: ""
+              - code: inference_mismatches
+            - status
+          - gridcell "5"
+        - row "Dérogations échues expired_waivers 0":
+          - gridcell "Dérogations échues expired_waivers":
+            - button "Dérogations échues expired_waivers":
+              - text: ""
+              - code: expired_waivers
+            - status
+          - gridcell "0"
+        - row "Règles sans effet unused_rules Indisponible":
+          - gridcell "Règles sans effet unused_rules":
+            - button "Règles sans effet unused_rules":
+              - text: ""
+              - code: unused_rules
+            - status
+          - gridcell "Indisponible"
+    - text: "« Indisponible » : rubrique que ce serveur ne calcule pas, à ne pas lire comme zéro."
+  - heading "Non classifiés" [level=2]
+  - text: /\d+ nœuds sans environnement/
+  - button "Exporter en JSON"
+  - grid /Nœuds non classifiés au \d+-\d+-\d+/:
+    - rowgroup:
+      - row "Nœud Sorte Propriétaire Axe sans valeur":
+        - columnheader "Nœud"
+        - columnheader "Sorte"
+        - columnheader "Propriétaire"
+        - columnheader "Axe sans valeur"
+    - rowgroup:
+      - row /\d+\.\d+\.\d+\.\d+ Adresse Atelier Nord policy\.environment/:
+        - gridcell /\d+\.\d+\.\d+\.\d+/:
+          - link /\d+\.\d+\.\d+\.\d+/:
+            - /url: /addresses/192.0.2.200
+        - gridcell "Adresse"
+        - gridcell "Atelier Nord"
+        - gridcell "policy.environment"
+      - row /\d+\.\d+\.\d+\.\d+ Adresse Atelier Nord policy\.environment/:
+        - gridcell /\d+\.\d+\.\d+\.\d+/:
+          - link /\d+\.\d+\.\d+\.\d+/:
+            - /url: /addresses/192.0.2.201
+        - gridcell "Adresse"
+        - gridcell "Atelier Nord"
+        - gridcell "policy.environment"
+      - row /\d+\.\d+\.\d+\.\d+ Adresse Atelier Nord policy\.environment/:
+        - gridcell /\d+\.\d+\.\d+\.\d+/:
+          - link /\d+\.\d+\.\d+\.\d+/:
+            - /url: /addresses/192.0.2.202
+        - gridcell "Adresse"
+        - gridcell "Atelier Nord"
+        - gridcell "policy.environment"
+      - row /\d+\.\d+\.\d+\.\d+\/\d+ Préfixe Atelier Nord policy\.environment/:
+        - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/:
+          - link /\d+\.\d+\.\d+\.\d+\/\d+/:
+            - /url: /prefixes/192.0.2.208/29
+        - gridcell "Préfixe"
+        - gridcell "Atelier Nord"
+        - gridcell "policy.environment"
+      - row /\d+\.\d+\.\d+\.\d+\/\d+ Préfixe Atelier Sud policy\.environment/:
+        - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/:
+          - link /\d+\.\d+\.\d+\.\d+\/\d+/:
+            - /url: /prefixes/198.51.100.96/28
+        - gridcell "Préfixe"
+        - gridcell "Atelier Sud"
+        - gridcell "policy.environment"
+      - row /\d+\.\d+\.\d+\.\d+ Adresse Atelier Sud policy\.environment/:
+        - gridcell /\d+\.\d+\.\d+\.\d+/:
+          - link /\d+\.\d+\.\d+\.\d+/:
+            - /url: /addresses/198.51.100.100
+        - gridcell "Adresse"
+        - gridcell "Atelier Sud"
+        - gridcell "policy.environment"
+      - row /\d+\.\d+\.\d+\.\d+ Adresse Atelier Sud policy\.environment/:
+        - gridcell /\d+\.\d+\.\d+\.\d+/:
+          - link /\d+\.\d+\.\d+\.\d+/:
+            - /url: /addresses/198.51.100.101
+        - gridcell "Adresse"
+        - gridcell "Atelier Sud"
+        - gridcell "policy.environment"
+      - row /\d+:db8:\d+::\/\d+ Préfixe Atelier Nord policy\.environment/:
+        - gridcell /\d+:db8:\d+::\/\d+/:
+          - link /\d+:db8:\d+::\/\d+/:
+            - /url: /prefixes/2001:db8:30::/64
+        - gridcell "Préfixe"
+        - gridcell "Atelier Nord"
+        - gridcell "policy.environment"
+      - row /\d+:db8:\d+::\d+ Adresse Atelier Nord policy\.environment/:
+        - gridcell /\d+:db8:\d+::\d+/:
+          - link /\d+:db8:\d+::\d+/:
+            - /url: /addresses/2001:db8:30::10
+        - gridcell "Adresse"
+        - gridcell "Atelier Nord"
+        - gridcell "policy.environment"
+      - row /\d+:db8:\d+::\d+ Adresse Atelier Nord policy\.environment/:
+        - gridcell /\d+:db8:\d+::\d+/:
+          - link /\d+:db8:\d+::\d+/:
+            - /url: /addresses/2001:db8:30::11
+        - gridcell "Adresse"
+        - gridcell "Atelier Nord"
+        - gridcell "policy.environment"
+      - row /\d+\.\d+\.\d+\.\d+\/\d+ Préfixe Atelier Nord policy\.environment/:
+        - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/:
+          - link /\d+\.\d+\.\d+\.\d+\/\d+/:
+            - /url: /prefixes/203.0.113.64/27
+        - gridcell "Préfixe"
+        - gridcell "Atelier Nord"
+        - gridcell "policy.environment"
+      - row /\d+\.\d+\.\d+\.\d+ Adresse Atelier Nord policy\.environment/:
+        - gridcell /\d+\.\d+\.\d+\.\d+/:
+          - link /\d+\.\d+\.\d+\.\d+/:
+            - /url: /addresses/203.0.113.70
+        - gridcell "Adresse"
+        - gridcell "Atelier Nord"
+        - gridcell "policy.environment"
+  - text: /\d+ sur \d+ · une page Pages de \d+, l'export les met bout à bout/
+- button "Ouvrir le panneau"

@@ -1,0 +1,95 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem: Catalogue
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Catalogue de la politique" [level=1]
+  - region "Catalogue":
+    - heading "Catalogue" [level=2]
+    - text: ce qui change les verdicts, au présent
+    - status:
+      - paragraph: "Avertissement : Lecture seule : écrire le catalogue demande policy.rule.admin."
+      - list:
+        - listitem:
+          - text: Vous lisez le catalogue avec policy.catalogue.read.
+          - button "Copier policy.rule.admin":
+            - text: ""
+            - code: policy.rule.admin
+          - status
+    - paragraph:
+      - text: "Environnements, services, types de flux, axes et valeurs :"
+      - link "Paramètres de la politique":
+        - /url: /_ui/ecrans/E13?vue=politique&mode=dark
+      - text: .
+    - tablist "Collections du catalogue":
+      - tab "Conditions d'admissibilité 3"
+      - tab "Signaux de risque 3"
+      - tab "Rôles exemptés 2" [selected]
+    - tabpanel "Rôles exemptés 2":
+      - grid "Rôles exemptés de la politique":
+        - rowgroup:
+          - row "Rôle Exempté depuis Actions":
+            - columnheader "Rôle"
+            - columnheader "Exempté depuis"
+            - columnheader "Actions"
+        - rowgroup:
+          - row /Supervision supervision \d+-\d+-\d+ Clore l'exemption de Supervision/:
+            - gridcell "Supervision supervision":
+              - button "Supervision supervision":
+                - text: ""
+                - code: supervision
+              - status
+            - gridcell /\d+-\d+-\d+/
+            - gridcell "Clore l'exemption de Supervision":
+              - button "Clore l'exemption de Supervision" [disabled]
+          - row /Sauvegarde sauvegarde \d+-\d+-\d+ Clore l'exemption de Sauvegarde/:
+            - gridcell "Sauvegarde sauvegarde":
+              - button "Sauvegarde sauvegarde":
+                - text: ""
+                - code: sauvegarde
+              - status
+            - gridcell /\d+-\d+-\d+/
+            - gridcell "Clore l'exemption de Sauvegarde":
+              - button "Clore l'exemption de Sauvegarde" [disabled]
+      - button "Exempter un rôle" [disabled]
+      - paragraph: Un rôle exempté ne déclenche pas les signaux de risque sur les flux qu'il demande.
+    - text: 3 conditions · 3 signaux · 2 rôles exemptés Au présent · politique r42
+- button "Ouvrir le panneau"

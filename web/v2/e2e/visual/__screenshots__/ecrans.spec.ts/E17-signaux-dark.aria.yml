@@ -1,0 +1,146 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem: Catalogue
+  - button "Présent"
+  - button "Brouillon 1 opération" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Catalogue de la politique" [level=1]
+  - region "Catalogue":
+    - heading "Catalogue" [level=2]
+    - text: ce qui change les verdicts, au présent
+    - paragraph:
+      - text: "Environnements, services, types de flux, axes et valeurs :"
+      - link "Paramètres de la politique":
+        - /url: /_ui/ecrans/E13?vue=politique&mode=dark
+      - text: .
+    - tablist "Collections du catalogue":
+      - tab "Conditions d'admissibilité 3"
+      - tab "Signaux de risque 3" [selected]
+      - tab "Rôles exemptés 2"
+    - tabpanel "Signaux de risque 3":
+      - grid "Signaux de risque":
+        - rowgroup:
+          - row "Signal Sorte Paramètres Poids":
+            - columnheader "Signal"
+            - columnheader "Sorte"
+            - columnheader "Paramètres"
+            - columnheader "Poids"
+        - rowgroup:
+          - 'row /exposition-internet zone zone = internet avant : \d+ après : \d+ \(en brouillon\)/':
+            - gridcell "exposition-internet"
+            - gridcell "zone"
+            - gridcell "zone = internet"
+            - 'gridcell /avant : \d+ après : \d+ \(en brouillon\)/':
+              - deletion: "/avant : \\d+/"
+              - insertion: "/après : \\d+/"
+              - text: ""
+          - row /donnees-restreintes axis_value sensitivity = restreint \d+/:
+            - gridcell "donnees-restreintes"
+            - gridcell "axis_value"
+            - gridcell "sensitivity = restreint"
+            - gridcell /\d+/
+          - row /ports-hauts port_range tcp \d+–\d+ \d+/:
+            - gridcell "ports-hauts"
+            - gridcell "port_range"
+            - gridcell /tcp \d+–\d+/
+            - gridcell /\d+/
+    - text: 3 conditions · 3 signaux · 2 rôles exemptés Au présent · politique r42
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Détail"
+    - tab "Brouillon 1" [selected]
+  - tabpanel "Brouillon 1":
+    - list "Opérations du brouillon":
+      - listitem:
+        - code: exposition-internet
+        - text: "· Poids :"
+        - deletion: "/avant : \\d+/"
+        - insertion: "/après : \\d+/"
+        - button "Retirer le changement de poids de exposition-internet"
+    - region "Effet simulé":
+      - heading "Effet simulé" [level=2]
+      - term: Scores changés
+      - definition: "9"
+      - term: Deviennent à instruire
+      - definition: "2"
+      - text: 4 lignes
+      - 'button "Agrandir : Flux dont le score change avec le brouillon"'
+      - grid "Flux dont le score change avec le brouillon":
+        - rowgroup:
+          - row "Flux Score":
+            - columnheader "Flux"
+            - columnheader "Score"
+        - rowgroup:
+          - 'row /flux-\d+ avant : \d+ après : \d+/':
+            - gridcell /flux-\d+/
+            - 'gridcell /avant : \d+ après : \d+/':
+              - deletion: "/avant : \\d+/"
+              - insertion: "/après : \\d+/"
+          - 'row /flux-\d+ avant : \d+ après : \d+/':
+            - gridcell /flux-\d+/
+            - 'gridcell /avant : \d+ après : \d+/':
+              - deletion: "/avant : \\d+/"
+              - insertion: "/après : \\d+/"
+          - 'row /flux-\d+ avant : \d+ après : \d+/':
+            - gridcell /flux-\d+/
+            - 'gridcell /avant : \d+ après : \d+/':
+              - deletion: "/avant : \\d+/"
+              - insertion: "/après : \\d+/"
+          - 'row /flux-\d+ avant : \d+ après : \d+/':
+            - gridcell /flux-\d+/
+            - 'gridcell /avant : \d+ après : \d+/':
+              - deletion: "/avant : \\d+/"
+              - insertion: "/après : \\d+/"
+      - paragraph:
+        - text: Section
+        - button "Copier flow.flows":
+          - text: ""
+          - code: flow.flows
+        - status
+        - text: de la simulation.
+  - button "Largeur du panneau"
+  - button "Fermer le panneau"
+  - status: Simulation valide 0 violation · effet au présent
+  - text: Résumé (obligatoire)
+  - textbox "Résumé (obligatoire)": Exposition à internet pèse plus
+  - button "Ajouter une description"
+  - button "Appliquer"
+  - button "Choisir l'action"

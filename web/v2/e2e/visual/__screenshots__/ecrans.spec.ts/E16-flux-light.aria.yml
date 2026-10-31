@@ -1,0 +1,166 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem: Effet d'un changement
+      - listitem: 01JF3B6D8F
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - 'heading "Effet sur la politique : Recette vers production sous motif" [level=1]'
+  - region "Recette vers production sous motif":
+    - heading "Recette vers production sous motif" [level=2]
+    - text: effet sur la politique En revue
+    - toolbar "Actions sur le changeset":
+      - button "Ouvrir le changeset"
+      - button "Copier l'identifiant"
+    - term: Auteur
+    - definition: Sacha Morel
+    - term: Soumis
+    - definition: /\d+-\d+-\d+ \d+:\d+/
+    - term: Retenu par
+    - definition: Ouverture de flux
+    - term: Déclencheur
+    - definition:
+      - button "Copier policy.opens":
+        - text: ""
+        - code: policy.opens
+      - status
+    - term: Opérations
+    - definition: 2 cellules de matrice
+    - term: Identifiant
+    - definition:
+      - button "Copier 01JF3B6D8F0H2K4M6P8R0T2V4X":
+        - text: ""
+        - code: 01JF3B6D8F0H2K4M6P8R0T2V4X
+      - status
+    - tablist "Sections du changeset":
+      - tab /Combinaisons \d+/
+      - tab "Nœuds reclassés 2"
+      - tab "Flux déclarés 7" [selected]
+    - tabpanel "Flux déclarés 7":
+      - paragraph: 5 deviennent non conformes · 1 redevient conforme · 2 changent d'issue · section flow.flows
+      - grid "Flux déclarés dont la conformité change, par type de flux":
+        - rowgroup:
+          - row "Type de flux Source Destination Service Changement Règle décisive après":
+            - columnheader "Type de flux"
+            - columnheader "Source"
+            - columnheader "Destination"
+            - columnheader "Service"
+            - columnheader "Changement"
+            - columnheader "Règle décisive après"
+        - rowgroup:
+          - row /Applicatif srv-rec-\d+ · eth0 srv-app-\d+ · eth0 Web chiffré https Redevient conforme rece-vers-prod/:
+            - gridcell "Applicatif"
+            - gridcell /srv-rec-\d+ · eth0/
+            - gridcell /srv-app-\d+ · eth0/
+            - gridcell "Web chiffré https":
+              - button "Web chiffré https":
+                - text: ""
+                - code: https
+              - status
+            - gridcell "Redevient conforme"
+            - gridcell "rece-vers-prod"
+          - 'row /Applicatif \d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ API interne api Issue : à instruire rece-vers-prod/':
+            - gridcell "Applicatif"
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "API interne api":
+              - button "API interne api":
+                - text: ""
+                - code: api
+              - status
+            - 'gridcell "Issue : à instruire"'
+            - gridcell "rece-vers-prod"
+          - 'row /Applicatif \d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ API interne api Issue : à instruire rece-vers-prod/':
+            - gridcell "Applicatif"
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "API interne api":
+              - button "API interne api":
+                - text: ""
+                - code: api
+              - status
+            - 'gridcell "Issue : à instruire"'
+            - gridcell "rece-vers-prod"
+          - row /Base de données dev-web-\d+ · eth0 \d+\.\d+\.\d+\.\d+ PostgreSQL postgres Devient non conforme deny-deve-rece-bdd/:
+            - gridcell "Base de données"
+            - gridcell /dev-web-\d+ · eth0/
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "PostgreSQL postgres":
+              - button "PostgreSQL postgres":
+                - text: ""
+                - code: postgres
+              - status
+            - gridcell "Devient non conforme"
+            - gridcell "deny-deve-rece-bdd"
+          - row /Base de données dev-web-\d+ · eth0 \d+\.\d+\.\d+\.\d+ PostgreSQL postgres Devient non conforme deny-deve-rece-bdd/:
+            - gridcell "Base de données"
+            - gridcell /dev-web-\d+ · eth0/
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "PostgreSQL postgres":
+              - button "PostgreSQL postgres":
+                - text: ""
+                - code: postgres
+              - status
+            - gridcell "Devient non conforme"
+            - gridcell "deny-deve-rece-bdd"
+          - row /Fichier dev-web-\d+ · eth0 \d+\.\d+\.\d+\.\d+ Partage NFS nfs Devient non conforme deny-deve-rece-bdd/:
+            - gridcell "Fichier"
+            - gridcell /dev-web-\d+ · eth0/
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "Partage NFS nfs":
+              - button "Partage NFS nfs":
+                - text: ""
+                - code: nfs
+              - status
+            - gridcell "Devient non conforme"
+            - gridcell "deny-deve-rece-bdd"
+          - row /Fichier \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+ Partage NFS nfs Devient non conforme deny-deve-rece-bdd/:
+            - gridcell "Fichier"
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "Partage NFS nfs":
+              - button "Partage NFS nfs":
+                - text: ""
+                - code: nfs
+              - status
+            - gridcell "Devient non conforme"
+            - gridcell "deny-deve-rece-bdd"
+    - text: 7 sur 7
+- button "Ouvrir le panneau"

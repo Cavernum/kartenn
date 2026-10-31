@@ -1,0 +1,210 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem:
+        - link "Matrice":
+          - /url: /x/policy/matrix
+      - listitem: application
+  - button "Présent"
+  - button "Brouillon 2 opérations" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Matrice de politique applicatif" [level=1]
+  - alert:
+    - paragraph: "Erreur : La matrice a changé depuis votre lecture : elle est relue, votre brouillon est gardé."
+    - list:
+      - listitem:
+        - text: /Lou Bernard a écrit Intégration → Recette à \d+:\d+\. Vos deux cellules reprendront la nouvelle version à la soumission\./
+        - button "Copier policy.matrix.stale":
+          - text: ""
+          - code: policy.matrix.stale
+        - status
+  - region "Matrice":
+    - heading "Matrice" [level=2]
+    - text: Applicatif Type de flux
+    - combobox "Type de flux": Applicatif
+    - toolbar "Actions de la matrice":
+      - button "2 règles hors vue"
+      - button "Simuler le brouillon"
+      - button "Plus d'actions"
+    - 'grid "Matrice Applicatif : source en ligne, destination en colonne"':
+      - rowgroup:
+        - row "Source → destination Production Préproduction Recette Intégration Développement":
+          - columnheader "Source → destination"
+          - columnheader "Production"
+          - columnheader "Préproduction"
+          - columnheader "Recette"
+          - columnheader "Intégration"
+          - columnheader "Développement"
+      - rowgroup:
+        - row "Production Autoriser Interdire Interdire Interdire Interdire":
+          - rowheader "Production"
+          - gridcell "Autoriser"
+          - gridcell "Interdire"
+          - gridcell "Interdire"
+          - gridcell "Interdire"
+          - gridcell "Interdire"
+        - row "Préproduction Sous motif Autoriser Refus par défaut Interdire Interdire":
+          - rowheader "Préproduction"
+          - gridcell "Sous motif"
+          - gridcell "Autoriser"
+          - gridcell "Refus par défaut"
+          - gridcell "Interdire"
+          - gridcell "Interdire"
+        - row "Recette Refus par défaut (en brouillon) Refus par défaut Autoriser Autoriser Refus par défaut":
+          - rowheader "Recette"
+          - gridcell "Refus par défaut (en brouillon)"
+          - gridcell "Refus par défaut"
+          - gridcell "Autoriser"
+          - gridcell "Autoriser"
+          - gridcell "Refus par défaut"
+        - row "Intégration Interdire Refus par défaut (en brouillon) Interdire Changée par Lou Bernard depuis votre lecture Autoriser Autoriser":
+          - rowheader "Intégration"
+          - gridcell "Interdire"
+          - gridcell "Refus par défaut (en brouillon)"
+          - gridcell "Interdire Changée par Lou Bernard depuis votre lecture":
+            - text: ""
+            - img "Changée par Lou Bernard depuis votre lecture"
+          - gridcell "Autoriser"
+          - gridcell "Autoriser"
+        - row "Développement Interdire Interdire Refus par défaut Autoriser Autoriser":
+          - rowheader "Développement"
+          - gridcell "Interdire"
+          - gridcell "Interdire"
+          - gridcell "Refus par défaut"
+          - gridcell "Autoriser"
+          - gridcell "Autoriser"
+    - list "Légende de la matrice":
+      - listitem: dans le brouillon
+      - listitem: en revue
+      - listitem: cellule choisie
+      - listitem: changée depuis votre lecture
+    - text: "Flèches : de cellule en cellule · Entrée : choisir · Ctrl+Entrée : appliquer la seule cellule"
+  - heading "Effet simulé du brouillon" [level=2]
+  - text: /simulation de \d+:\d+ · 2 cellules, 2 types de flux/
+  - region "Combinaisons":
+    - heading "Combinaisons" [level=3]
+    - text: policy.combinations
+    - paragraph: 0 s'ouvre · 3 passent sous réserve · 0 se ferme
+    - text: 3 lignes
+    - 'button "Agrandir : Combinaisons changées par le brouillon"'
+    - grid "Combinaisons changées par le brouillon":
+      - rowgroup:
+        - row "Source Destination Avant → après":
+          - columnheader "Source"
+          - columnheader "Destination"
+          - columnheader "Avant → après"
+      - rowgroup:
+        - 'row "Recette Production avant : Refus par défaut après : Sous motif"':
+          - gridcell "Recette"
+          - gridcell "Production"
+          - 'gridcell "avant : Refus par défaut après : Sous motif"':
+            - deletion: "avant : Refus par défaut"
+            - insertion: "après : Sous motif"
+        - 'row "Recette Production avant : Refus par défaut après : Sous motif"':
+          - gridcell "Recette"
+          - gridcell "Production"
+          - 'gridcell "avant : Refus par défaut après : Sous motif"':
+            - deletion: "avant : Refus par défaut"
+            - insertion: "après : Sous motif"
+        - 'row "Intégration Préproduction avant : Autoriser après : Sous motif"':
+          - gridcell "Intégration"
+          - gridcell "Préproduction"
+          - 'gridcell "avant : Autoriser après : Sous motif"':
+            - deletion: "avant : Autoriser"
+            - insertion: "après : Sous motif"
+  - region "Flux déclarés":
+    - heading "Flux déclarés" [level=3]
+    - text: flow.flows
+    - paragraph: 2 deviennent non conformes · 1 redevient conforme · 1 change d'issue
+    - text: 3 sur 4 lignes
+    - 'button "Agrandir : Flux déclarés dont la conformité change avec le brouillon"'
+    - grid "Flux déclarés dont la conformité change avec le brouillon":
+      - rowgroup:
+        - row "Flux Changement":
+          - columnheader "Flux"
+          - columnheader "Changement"
+      - rowgroup:
+        - row /flux-\d+ Redevient conforme/:
+          - gridcell /flux-\d+/
+          - gridcell "Redevient conforme"
+        - row /flux-\d+ Devient non conforme/:
+          - gridcell /flux-\d+/
+          - gridcell "Devient non conforme"
+        - row /flux-\d+ Devient non conforme/:
+          - gridcell /flux-\d+/
+          - gridcell "Devient non conforme"
+        - 'row /flux-\d+ Issue : à instruire/':
+          - gridcell /flux-\d+/
+          - 'gridcell "Issue : à instruire"'
+  - text: Tout le brouillon simulé, matrices des deux types de flux comprises ; le détail complet se lit dans l'effet du changeset une fois soumis.
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Détail"
+    - tab "Brouillon 2" [selected]
+  - tabpanel "Brouillon 2":
+    - status:
+      - paragraph: "/Information : Vos cellules sont gardées : elles reprennent la matrice relue \\(version m-\\d+\\) à la soumission\\./"
+    - list "Cellules du brouillon":
+      - listitem:
+        - text: Applicatif
+        - button "Recette"
+        - status
+        - button "Production"
+        - status
+        - button "Retirer la cellule Recette → Production"
+        - deletion: "avant : Refus par défaut"
+        - insertion: "après : Sous motif"
+      - listitem:
+        - text: Administratif
+        - button "Intégration"
+        - status
+        - button "Préproduction"
+        - status
+        - button "Retirer la cellule Intégration → Préproduction"
+        - deletion: "avant : Autoriser"
+        - insertion: "après : Sous motif"
+  - button "Largeur du panneau"
+  - button "Fermer le panneau"
+  - status: Revue requise Simulation valide ; politique « Ouverture de flux ».
+  - text: Résumé (obligatoire)
+  - textbox "Résumé (obligatoire)": Recette vers production sous motif
+  - button "Ajouter une description"
+  - button "Soumettre en revue"
+  - button "Choisir l'action"

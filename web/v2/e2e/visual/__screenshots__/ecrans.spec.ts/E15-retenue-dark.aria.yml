@@ -1,0 +1,117 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem:
+        - link "Matrice":
+          - /url: /x/policy/matrix
+      - listitem: application
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Matrice de politique applicatif" [level=1]
+  - status:
+    - paragraph: "Information : Soumis, retenu en revue : la politique « Ouverture de flux » attend un approbateur."
+    - link "Voir l'effet du changeset":
+      - /url: /_ui/ecrans/E16?vue=combinaisons&mode=dark
+    - list:
+      - listitem:
+        - text: Une combinaison s'ouvre sous réserve ; le brouillon est vidé, la matrice relue montre l'état appliqué.
+        - button "Copier policy.opens":
+          - text: ""
+          - code: policy.opens
+        - status
+  - region "Matrice":
+    - heading "Matrice" [level=2]
+    - text: Applicatif Type de flux
+    - combobox "Type de flux": Applicatif
+    - toolbar "Actions de la matrice":
+      - button "2 règles hors vue"
+      - button "Simuler le brouillon"
+      - button "Exporter"
+    - 'grid "Matrice Applicatif : source en ligne, destination en colonne"':
+      - rowgroup:
+        - row "Source → destination Production Préproduction Recette Intégration Développement":
+          - columnheader "Source → destination"
+          - columnheader "Production"
+          - columnheader "Préproduction"
+          - columnheader "Recette"
+          - columnheader "Intégration"
+          - columnheader "Développement"
+      - rowgroup:
+        - row "Production Autoriser Interdire Interdire Interdire Interdire":
+          - rowheader "Production"
+          - gridcell "Autoriser"
+          - gridcell "Interdire"
+          - gridcell "Interdire"
+          - gridcell "Interdire"
+          - gridcell "Interdire"
+        - row "Préproduction Sous motif Autoriser Refus par défaut Interdire Interdire":
+          - rowheader "Préproduction"
+          - gridcell "Sous motif"
+          - gridcell "Autoriser"
+          - gridcell "Refus par défaut"
+          - gridcell "Interdire"
+          - gridcell "Interdire"
+        - row "Recette Sous motif (en revue) Refus par défaut Autoriser Autoriser Refus par défaut":
+          - rowheader "Recette"
+          - gridcell "Sous motif (en revue)"
+          - gridcell "Refus par défaut"
+          - gridcell "Autoriser"
+          - gridcell "Autoriser"
+          - gridcell "Refus par défaut"
+        - row "Intégration Interdire Refus par défaut (en revue) Autoriser Autoriser Autoriser":
+          - rowheader "Intégration"
+          - gridcell "Interdire"
+          - gridcell "Refus par défaut (en revue)"
+          - gridcell "Autoriser"
+          - gridcell "Autoriser"
+          - gridcell "Autoriser"
+        - row "Développement Interdire Interdire Refus par défaut Autoriser Autoriser":
+          - rowheader "Développement"
+          - gridcell "Interdire"
+          - gridcell "Interdire"
+          - gridcell "Refus par défaut"
+          - gridcell "Autoriser"
+          - gridcell "Autoriser"
+    - list "Légende de la matrice":
+      - listitem: dans le brouillon
+      - listitem: en revue
+      - listitem: cellule choisie
+    - text: "Flèches : de cellule en cellule · Entrée : choisir · Ctrl+Entrée : appliquer la seule cellule"
+- button "Ouvrir le panneau"

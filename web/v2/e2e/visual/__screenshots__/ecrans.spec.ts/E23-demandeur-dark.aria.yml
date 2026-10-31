@@ -1,0 +1,98 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 3":
+        - /url: /x/flow/review
+    - listitem:
+      - link "Échéances 2":
+        - /url: /x/flow/expiring
+    - listitem:
+      - link "Non-conformités 4":
+        - /url: /x/flow/nonconformities
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem:
+        - link "Instruction":
+          - /url: /x/flow/review
+      - listitem: 01JF3C1E3G
+  - button "Présent"
+  - button "Brouillon 0 opération" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Instruire une demande de flux" [level=1]
+  - region "Demande de flux postgres":
+    - heading "Demande de flux postgres" [level=2]
+    - text: de Lou Bernard, pour votre compte
+    - paragraph:
+      - text: /dev-web-\d+ · eth0 → srv-db-\d+ · eth0/
+      - button "PostgreSQL postgres":
+        - text: ""
+        - code: postgres
+      - status
+      - text: Base de données
+    - paragraph:
+      - text: "Triage : Non conforme Issue : non conforme"
+      - button "Copier Développement vers production deny-deve-prod":
+        - text: ""
+        - code: deny-deve-prod
+      - status
+      - text: /score \d+ · politique r42/
+    - paragraph: "Le développement n'atteint jamais la production : ses données n'en sortent pas, ses outils n'y entrent pas."
+    - term: Paires
+    - definition: "/\\d+\\.\\d+\\.\\d+\\.\\d+ → \\d+\\.\\d+\\.\\d+\\.\\d+ : non conforme/"
+    - term: Conditions non remplies
+    - definition: justification-requise
+    - term: Avertissements
+    - definition: données restreintes (signal donnees-restreintes)
+    - term: Entité
+    - definition: Atelier Nord
+    - term: Référence
+    - definition: /ticketing:CHG-\d+/
+    - term: Période demandée
+    - definition: /au présent → \d+-\d+-\d+/
+    - term: Auteur du changeset
+    - definition: Lou Bernard
+    - term: Pour le compte de
+    - definition: Camille Martin
+    - text: "Motif du changeset : « Reprise des jeux de test »"
+    - button "Copier 01JF3C1E3G5J7L9N1Q3S5U7W9Y":
+      - text: ""
+      - code: 01JF3C1E3G5J7L9N1Q3S5U7W9Y
+    - status
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Détail" [selected]
+    - tab "Brouillon 0"
+  - tabpanel "Détail":
+    - heading "Décision" [level=2]
+    - status:
+      - paragraph: "Information : Cette demande est faite pour votre compte : un autre instructeur en décide."
+      - list:
+        - listitem:
+          - text: L'instructeur est distinct du demandeur et de celui pour le compte duquel il demande.
+          - button "Copier flow.separation":
+            - text: ""
+            - code: flow.separation
+          - status
+  - button "Largeur du panneau"
+  - button "Fermer le panneau"

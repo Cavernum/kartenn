@@ -1,0 +1,113 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 3":
+        - /url: /x/flow/review
+    - listitem:
+      - link "Échéances 2":
+        - /url: /x/flow/expiring
+    - listitem:
+      - link "Non-conformités 4":
+        - /url: /x/flow/nonconformities
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem: Échéances
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Échéances" [level=1]
+  - region "Échéances":
+    - heading "Échéances" [level=2]
+    - text: /fins sous \d+ jours, jusqu'au \d+-\d+-\d+/
+    - grid /Flux et dérogations qui finissent sous \d+ jours/:
+      - rowgroup:
+        - row "Flux Extrémités Service Ce qui finit Fin Action":
+          - columnheader "Flux"
+          - columnheader "Extrémités"
+          - columnheader "Service"
+          - columnheader "Ce qui finit"
+          - columnheader "Fin"
+          - columnheader "Action"
+      - rowgroup:
+        - row /flux-\d+ srv-web-\d+ · eth0 → \d+\.\d+\.\d+\.\d+ PostgreSQL postgres Le flux \d+-\d+-\d+ J-5 Prolonger…/:
+          - gridcell /flux-\d+/
+          - gridcell /srv-web-\d+ · eth0 → \d+\.\d+\.\d+\.\d+/
+          - gridcell "PostgreSQL postgres":
+            - button "PostgreSQL postgres":
+              - text: ""
+              - code: postgres
+            - status
+          - gridcell "Le flux"
+          - gridcell /\d+-\d+-\d+ J-5/
+          - gridcell "Prolonger…":
+            - button "Prolonger…"
+        - row /flux-\d+ \d+\.\d+\.\d+\.\d+ → srv-app-\d+ · eth0 API interne api Sa dérogation \d+-\d+-\d+ J-6 Recertifier…/:
+          - gridcell /flux-\d+/
+          - gridcell /\d+\.\d+\.\d+\.\d+ → srv-app-\d+ · eth0/
+          - gridcell "API interne api":
+            - button "API interne api":
+              - text: ""
+              - code: api
+            - status
+          - gridcell "Sa dérogation"
+          - gridcell /\d+-\d+-\d+ J-6/
+          - gridcell "Recertifier…":
+            - button "Recertifier…"
+        - row /flux-\d+ srv-sauv-\d+ · eth0 → \d+\.\d+\.\d+\.\d+ Partage NFS nfs Le flux \d+-\d+-\d+ J-\d+ Prolonger…/:
+          - gridcell /flux-\d+/
+          - gridcell /srv-sauv-\d+ · eth0 → \d+\.\d+\.\d+\.\d+/
+          - gridcell "Partage NFS nfs":
+            - button "Partage NFS nfs":
+              - text: ""
+              - code: nfs
+            - status
+          - gridcell "Le flux"
+          - gridcell /\d+-\d+-\d+ J-\d+/
+          - gridcell "Prolonger…":
+            - button "Prolonger…"
+        - row /flux-\d+ srv-app-\d+ · eth0 → \d+\.\d+\.\d+\.\d+\/\d+ Shell sécurisé ssh Sa dérogation \d+-\d+-\d+ J-\d+ Recertifier…/:
+          - gridcell /flux-\d+/
+          - gridcell /srv-app-\d+ · eth0 → \d+\.\d+\.\d+\.\d+\/\d+/
+          - gridcell "Shell sécurisé ssh":
+            - button "Shell sécurisé ssh":
+              - text: ""
+              - code: ssh
+            - status
+          - gridcell "Sa dérogation"
+          - gridcell /\d+-\d+-\d+ J-\d+/
+          - gridcell "Recertifier…":
+            - button "Recertifier…"
+        - row /flux-\d+ \d+\.\d+\.\d+\.\d+ → srv-app-\d+ · eth0 Web chiffré https Le flux \d+-\d+-\d+ J-\d+ Prolonger…/:
+          - gridcell /flux-\d+/
+          - gridcell /\d+\.\d+\.\d+\.\d+ → srv-app-\d+ · eth0/
+          - gridcell "Web chiffré https":
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
+          - gridcell "Le flux"
+          - gridcell /\d+-\d+-\d+ J-\d+/
+          - gridcell "Prolonger…":
+            - button "Prolonger…"
+    - text: 5 échéances · 2 sous 7 jours Un flux sans fin n'y figure jamais ; d'un flux dérogé, la plus proche des deux fins
+- button "Ouvrir le panneau"

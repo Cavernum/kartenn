@@ -1,0 +1,251 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem:
+        - link "Inférence":
+          - /url: /x/policy/inference
+      - listitem: Nouvelle règle
+  - button "Présent"
+  - button "Brouillon 1 opération" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Nouvelle règle d'inférence" [level=1]
+  - region "Règles d'inférence":
+    - heading "Règles d'inférence" [level=2]
+    - text: jeu r17 · axe Environnement Axe visé
+    - combobox "Axe visé": Environnement
+    - toolbar "Actions des règles d'inférence":
+      - button "Créer une règle"
+      - button "Écarts ouverts (5)"
+      - button "Plus d'actions"
+    - button "Colonnes"
+    - grid "Règles d'inférence de l'axe Environnement":
+      - rowgroup:
+        - row "Priorité Règle Attendu Critères":
+          - columnheader "Priorité"
+          - columnheader "Règle"
+          - columnheader "Attendu"
+          - columnheader "Critères"
+      - rowgroup:
+        - row /\d+ env-par-site Production site = site-ouest · famille IPv4 ou IPv6/:
+          - gridcell /\d+/
+          - gridcell "env-par-site"
+          - gridcell "Production":
+            - button "Production"
+            - status
+          - gridcell "site = site-ouest · famille IPv4 ou IPv6"
+        - row /\d+ env-par-vlan Recette core\.vlan = \d+–\d+/:
+          - gridcell /\d+/
+          - gridcell "env-par-vlan"
+          - gridcell "Recette":
+            - button "Recette"
+            - status
+          - gridcell /core\.vlan = \d+–\d+/
+        - row /\d+ env-par-nom Développement nom ~ \^dev-/:
+          - gridcell /\d+/
+          - gridcell "env-par-nom"
+          - gridcell "Développement":
+            - button "Développement"
+            - status
+          - gridcell "nom ~ ^dev-"
+        - row /\d+ admin-par-prefixe Administration préfixe ⊂ \d+\.\d+\.\d+\.\d+\/\d+/:
+          - gridcell /\d+/
+          - gridcell "admin-par-prefixe"
+          - gridcell "Administration":
+            - button "Administration"
+            - status
+          - gridcell /préfixe ⊂ \d+\.\d+\.\d+\.\d+\/\d+/
+    - text: "/4 règles · révision du jeu r17, \\d+-\\d+-\\d+ À priorité égale, deux attendus différents : aucun n'est retenu/"
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Détail" [selected]
+    - tab "Brouillon 1"
+  - tabpanel "Détail":
+    - heading "Nouvelle règle d'inférence" [level=2]
+    - text: Clé (obligatoire)
+    - textbox "Clé (obligatoire)": prod-salle-a
+    - text: Priorité (obligatoire)
+    - textbox "Priorité (obligatoire)": /\d+/
+    - paragraph: La plus haute l'emporte.
+    - text: Axe visé (obligatoire)
+    - combobox "Axe visé (obligatoire)": Environnement
+    - text: Valeur attendue (obligatoire)
+    - combobox "Valeur attendue (obligatoire)": Production
+    - text: Domaine
+    - combobox "Domaine": Centre de données nord
+    - paragraph: Il faut policy.inference.admin sur ce domaine.
+    - region "Critères tous remplis":
+      - heading "Critères tous remplis" [level=3]
+      - text: Critère 1
+      - combobox "Critère 1": Préfixe
+      - text: Valeur du critère 1
+      - textbox "Valeur du critère 1": /\d+\.\d+\.2\.0\/\d+/
+      - button "Retirer le critère"
+      - text: Critère 2
+      - combobox "Critère 2": Nom par expression régulière
+      - text: Valeur du critère 2
+      - textbox "Valeur du critère 2" [invalid]: ^srv-(app|db)-[0-9+$
+      - paragraph: "Expression régulière invalide : crochet non fermé (policy.inference.regex_invalid)"
+      - button "Retirer le critère"
+      - button "Ajouter un critère"
+    - region "Exceptions 4 niveaux au plus":
+      - heading "Exceptions 4 niveaux au plus" [level=3]
+      - list "Exceptions imbriquées":
+        - listitem:
+          - text: "1"
+          - code: /préfixe ⊂ \d+\.\d+\.\d+\.\d+\/\d+/
+          - text: attendu
+          - button "Recette"
+          - status
+          - button "Exception"
+        - listitem:
+          - text: "2"
+          - code: nom ~ ^srv-rec-0[1-4]$
+          - text: attendu
+          - button "Production"
+          - status
+          - button "Exception"
+        - listitem:
+          - text: "3"
+          - code: type d'objet = adresse
+          - text: attendu
+          - button "Recette"
+          - status
+          - button "Exception"
+        - listitem:
+          - text: "4"
+          - code: /core\.vlan = \d+/
+          - text: attendu
+          - button "Production"
+          - status
+          - button "Exception" [disabled]
+      - button "Ajouter une exception"
+    - region "Aperçu sans écriture, relancé après une pause":
+      - heading "Aperçu sans écriture, relancé après une pause" [level=3]
+      - term: Nœuds visés
+      - definition: /\d+/
+      - term: Écarts ouverts
+      - definition: "3"
+      - term: Écarts fermés
+      - definition: "0"
+      - status:
+        - paragraph: "Avertissement : Une autre règle de même priorité vise une partie de ces nœuds."
+        - list:
+          - listitem:
+            - text: "/env-par-vlan \\(priorité \\d+\\) attend Recette sur \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+ : à égalité, aucun attendu n'y serait retenu\\./"
+            - button "Copier policy.inference.conflict":
+              - text: ""
+              - code: policy.inference.conflict
+            - status
+      - grid /Nœuds que viserait la règle \(7 sur \d+\)/:
+        - rowgroup:
+          - row "Nœud Déclaré Attendu Écart":
+            - columnheader "Nœud"
+            - columnheader "Déclaré"
+            - columnheader "Attendu"
+            - columnheader "Écart"
+        - rowgroup:
+          - row /\d+\.\d+\.2\.0\/\d+ Production Production —/:
+            - gridcell /\d+\.\d+\.2\.0\/\d+/
+            - gridcell "Production":
+              - button "Production"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
+            - gridcell "—"
+          - row /\d+\.\d+\.\d+\.\d+ Production Production —/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "Production":
+              - button "Production"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
+            - gridcell "—"
+          - row /\d+\.\d+\.\d+\.\d+ Production Production —/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "Production":
+              - button "Production"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
+            - gridcell "—"
+          - row /\d+\.\d+\.\d+\.\d+ Développement Production S'ouvre/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "Développement":
+              - button "Développement"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
+            - gridcell "S'ouvre"
+          - row /\d+\.\d+\.\d+\.\d+ Développement Production S'ouvre/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "Développement":
+              - button "Développement"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
+            - gridcell "S'ouvre"
+          - row /\d+\.\d+\.\d+\.\d+ Production Production —/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "Production":
+              - button "Production"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
+            - gridcell "—"
+          - row /\d+\.\d+\.\d+\.\d+ Développement Recette S'ouvre/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "Développement":
+              - button "Développement"
+              - status
+            - gridcell "Recette":
+              - button "Recette"
+              - status
+            - gridcell "S'ouvre"
+      - paragraph: /Lu par la route d'aperçu \(\d+\/S36\) avec le critère invalide écarté\./
+  - button "Largeur du panneau"
+  - button "Fermer le panneau"
+  - button "Annuler"
+  - button "Ajouter au brouillon" [disabled]

@@ -1,0 +1,176 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 3":
+        - /url: /x/flow/review
+    - listitem:
+      - link "Échéances 2":
+        - /url: /x/flow/expiring
+    - listitem:
+      - link "Non-conformités 4":
+        - /url: /x/flow/nonconformities
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem:
+        - link "Registre":
+          - /url: /x/flow/flows
+      - listitem: Proposer des flux
+  - button "Présent"
+  - button "Brouillon 2 opérations" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Proposer des flux" [level=1]
+  - alert:
+    - paragraph: "Erreur : La proposition n'a pas été envoyée : le serveur refuse 3 champs."
+    - text: Votre saisie est gardée ; chaque refus est sur sa cellule ou son champ.
+    - list:
+      - listitem:
+        - text: "Ligne 1 : au moins une référence externe."
+        - button "Copier flow.reference.missing":
+          - text: ""
+          - code: flow.reference.missing
+        - status
+      - listitem:
+        - text: "Ligne 2 : une plage n'est pas une extrémité."
+        - button "Copier flow.endpoint.invalid":
+          - text: ""
+          - code: flow.endpoint.invalid
+        - status
+      - listitem:
+        - text: "Entité Atelier Sud : il faut prop.core.owner.write sur elle."
+        - button "Copier core.object.forbidden":
+          - text: ""
+          - code: core.object.forbidden
+        - status
+  - region "Proposer des flux":
+    - heading "Proposer des flux" [level=2]
+    - text: une ligne par flux
+    - button "Ajouter un flux"
+    - button "Colonnes"
+    - grid "Flux proposés":
+      - rowgroup:
+        - row "Source Destination Service Référence Verdict":
+          - columnheader "Source"
+          - columnheader "Destination"
+          - columnheader "Service"
+          - columnheader "Référence"
+          - columnheader "Verdict"
+      - rowgroup:
+        - row /\(en brouillon\) srv-rec-\d+ · eth0 srv-app-\d+ · eth0 Web chiffré https — Sous réserve Copier rece-vers-prod/ [selected]:
+          - gridcell /\(en brouillon\) srv-rec-\d+ · eth0/
+          - gridcell /srv-app-\d+ · eth0/
+          - gridcell "Web chiffré https":
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
+          - gridcell "—" [invalid]
+          - gridcell "Sous réserve Copier rece-vers-prod":
+            - text: ""
+            - button "Copier rece-vers-prod":
+              - text: ""
+              - code: rece-vers-prod
+            - status
+        - row /\(en brouillon\) \d+\.\d+\.\d+\.\d+–\d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ PostgreSQL postgres ticketing:CHG-\d+ Non conforme Copier flow\.endpoint\.invalid/:
+          - gridcell /\(en brouillon\) \d+\.\d+\.\d+\.\d+–\d+\.\d+\.\d+\.\d+/ [invalid]
+          - gridcell /\d+\.\d+\.\d+\.\d+/
+          - gridcell "PostgreSQL postgres":
+            - button "PostgreSQL postgres":
+              - text: ""
+              - code: postgres
+            - status
+          - gridcell /ticketing:CHG-\d+/
+          - gridcell "Non conforme Copier flow.endpoint.invalid":
+            - text: ""
+            - button "Copier flow.endpoint.invalid":
+              - text: ""
+              - code: flow.endpoint.invalid
+            - status
+    - text: 2 flux · 1 sous réserve · 1 refusé Le dossier, à droite, vaut pour toutes les lignes
+- complementary "Flux choisi":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Pré-vérification" [selected]
+  - tabpanel "Pré-vérification":
+    - paragraph: /srv-rec-\d+ · eth0 → srv-app-\d+ · eth0 · https · Applicatif/
+    - paragraph:
+      - text: Sous réserve À instruire
+      - button "Copier Recette vers production rece-vers-prod":
+        - text: ""
+        - code: rece-vers-prod
+      - status
+      - text: 2 paires d'adresses · 0 conforme · 2 sous réserve · politique r42
+    - term: Règle
+    - definition: La recette lit les API de production pour ses jeux de contrôle, sous le motif api-lecture.
+    - term: Motif attendu
+    - definition:
+      - button "Lecture d'API api-lecture":
+        - text: ""
+        - code: api-lecture
+      - status
+    - term: Conditions
+    - definition: "justification-requise : remplie"
+    - paragraph: "Pré-vérification de la ligne avec le dossier : aucun changeset n'est créé."
+  - button "Hauteur du panneau"
+  - button "Fermer le panneau"
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Détail" [selected]
+    - tab "Brouillon 2"
+  - tabpanel "Détail":
+    - heading "Dossier de la proposition" [level=2]
+    - text: Entité (obligatoire)
+    - combobox "Entité (obligatoire)" [invalid]: Atelier Sud
+    - paragraph: Il faut prop.core.owner.write sur Atelier Sud (core.object.forbidden)
+    - paragraph: Parmi les entités lisibles, ou par identifiant collé.
+    - text: Pour le compte de
+    - textbox "Pour le compte de":
+      - /placeholder: Une identité
+    - paragraph: "Facultatif : le demandeur reste vous."
+    - text: Responsables Lou Bernard
+    - button "Retirer Lou Bernard"
+    - button "Ajouter"
+    - text: Système des références
+    - combobox "Système des références": Gestion des demandes
+    - paragraph: Liste core.external_system ; chaque ligne porte sa référence.
+    - text: Nature des données
+    - combobox "Nature des données": Interne
+    - paragraph: Valeurs de l'axe Sensibilité.
+    - checkbox "Données personnelles"
+    - text: Données personnelles
+    - group "Début":
+      - text: ""
+      - spinbutton "Année"
+      - spinbutton "Mois"
+      - spinbutton "Jour"
+      - 'button "Choisir la date : Début"'
+      - paragraph: "Vide : au présent."
+    - group "Fin":
+      - text: ""
+      - spinbutton "Année"
+      - spinbutton "Mois"
+      - spinbutton "Jour"
+      - 'button "Choisir la date : Fin"'
+      - paragraph: Facultative.
+  - button "Largeur du panneau"
+  - button "Fermer le panneau"

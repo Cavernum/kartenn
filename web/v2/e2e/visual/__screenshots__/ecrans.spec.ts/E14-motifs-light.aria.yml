@@ -1,0 +1,110 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem: Règles et motifs
+  - button "Présent"
+  - button "Brouillon 3 opérations" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Règles et motifs" [level=1]
+  - region "Règles et motifs":
+    - heading "Règles et motifs" [level=2]
+    - text: au présent · politique r42
+    - toolbar "Actions des règles":
+      - button "Créer une règle"
+      - button "Plus d'actions"
+    - tablist "Règles et motifs":
+      - tab /Règles \d+/
+      - tab "Motifs 4" [selected]
+    - tabpanel "Motifs 4":
+      - button "Colonnes"
+      - grid "Motifs de la politique":
+        - rowgroup:
+          - row "Motif Texte pédagogique Règles":
+            - columnheader "Motif"
+            - columnheader "Texte pédagogique"
+            - columnheader "Règles"
+        - rowgroup:
+          - row "api-lecture Le flux ne lit que des API exposées en lecture, sans écriture ni export de masse. 2" [selected]:
+            - gridcell "api-lecture"
+            - gridcell "Le flux ne lit que des API exposées en lecture, sans écriture ni export de masse."
+            - gridcell "2"
+          - row "bastion-admin La session part du bastion, nominative et enregistrée. 1":
+            - gridcell "bastion-admin"
+            - gridcell "La session part du bastion, nominative et enregistrée."
+            - gridcell "1"
+          - row "object-storage-relay Les fichiers passent par le relais de stockage objet, chiffrés et à durée de rétention fixée. 1":
+            - gridcell "object-storage-relay"
+            - gridcell "Les fichiers passent par le relais de stockage objet, chiffrés et à durée de rétention fixée."
+            - gridcell "1"
+          - row "sauvegarde-chiffree La sauvegarde est chiffrée de bout en bout, la clé reste chez le propriétaire des données. 0":
+            - gridcell "sauvegarde-chiffree"
+            - gridcell "La sauvegarde est chiffrée de bout en bout, la clé reste chez le propriétaire des données."
+            - gridcell "0"
+    - text: 4 motifs · 4 règles les requièrent
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Détail" [selected]
+    - tab "Brouillon 3"
+  - tabpanel "Détail":
+    - heading "Lecture d'API api-lecture" [level=2]:
+      - button "Lecture d'API api-lecture":
+        - text: ""
+        - code: api-lecture
+      - status
+    - term: Depuis
+    - definition: /\d+-\d+-\d+/
+    - term: Requis par
+    - definition: rece-vers-prod, api-partenaires
+    - region "Texte pédagogique (fr)":
+      - heading "Texte pédagogique (fr)" [level=3]
+      - paragraph: Le flux ne lit que des API exposées en lecture, sans écriture ni export de masse.
+    - status:
+      - paragraph: "Information : Ce motif ne se clôt pas tant que deux règles le requièrent."
+      - list:
+        - listitem:
+          - text: Retirez-le de rece-vers-prod et api-partenaires d'abord.
+          - button "Copier policy.reference.closed":
+            - text: ""
+            - code: policy.reference.closed
+          - status
+  - button "Largeur du panneau"
+  - button "Fermer le panneau"
+  - button "Clore…" [disabled]
+  - button "Modifier"

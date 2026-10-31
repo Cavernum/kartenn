@@ -1,0 +1,25 @@
+- main:
+  - region "Matrice"
+- complementary "Panneau droit":
+  - tabpanel "Détail":
+    - group "État* (obligatoire)"
+- dialog "Appliquer la cellule Recette → Production":
+  - banner:
+    - heading "Appliquer la cellule Recette → Production" [level=2]
+    - button "Fermer"
+  - paragraph: La seule cellule s'écrit tout de suite, sous la version lue de la matrice ; les autres opérations du brouillon y restent.
+  - term: Type de flux
+  - definition: Applicatif
+  - term: État
+  - definition:
+    - deletion: "avant : Refus par défaut"
+    - insertion: "après : Sous motif api-lecture"
+  - term: Version lue
+  - definition: /m-\d+/
+  - text: Résumé (obligatoire)
+  - textbox "Résumé (obligatoire)": Lecture des API de production depuis la recette
+  - text: Description (facultative)
+  - textbox "Description (facultative)"
+  - contentinfo:
+    - button "Annuler"
+    - button "Appliquer"

@@ -1,0 +1,64 @@
+- dialog /Attendu d'inférence de \d+\.\d+\.\d+\.\d+/:
+  - banner:
+    - heading /Attendu d'inférence de \d+\.\d+\.\d+\.\d+/ [level=2]
+    - button "Fermer"
+  - paragraph: "Axe Environnement, jeu de règles r17. Lecture seule : rien n'est écrit."
+  - status:
+    - paragraph: "Information : Deux candidats à égalité de priorité : aucun attendu n'est retenu, aucun écart n'est signalé."
+  - region "Candidat 1 Production Copier env-par-site":
+    - heading "Candidat 1 Production Copier env-par-site" [level=3]:
+      - text: ""
+      - button "Production"
+      - status
+      - button "Copier env-par-site":
+        - text: ""
+        - code: env-par-site
+      - status
+    - term: Nœud de correspondance
+    - definition: /\d+\.\d+\.2\.0\/\d+/
+    - term: Règle et exceptions
+    - definition: /env-par-site → exception salle B non applicable \(\d+\.\d+\.\d+\.\d+ ∉ \d+\.\d+\.\d+\.\d+\/\d+\)/
+    - list "Critères du candidat 1":
+      - listitem:
+        - text: Rempli
+        - code: site = site-ouest
+        - text: "observé : site-ouest"
+      - listitem:
+        - text: Rempli
+        - code: famille IPv4 ou IPv6
+        - text: "observé : IPv4"
+  - region "Candidat 2 Recette Copier env-par-vlan":
+    - heading "Candidat 2 Recette Copier env-par-vlan" [level=3]:
+      - text: ""
+      - button "Recette"
+      - status
+      - button "Copier env-par-vlan":
+        - text: ""
+        - code: env-par-vlan
+      - status
+    - term: Nœud de correspondance
+    - definition: /\d+\.\d+\.2\.0\/\d+/
+    - term: Règle et exceptions
+    - definition: env-par-vlan, sans exception
+    - list "Critères du candidat 2":
+      - listitem:
+        - text: Rempli
+        - code: /core\.vlan = \d+–\d+/
+        - text: "/observé : \\d+ \\(posé sur \\d+\\.\\d+\\.2\\.0\\/\\d+\\)/"
+  - region "Règles écartées":
+    - heading "Règles écartées" [level=3]
+    - list:
+      - listitem:
+        - button "Copier env-par-nom":
+          - text: ""
+          - code: env-par-nom
+        - status
+        - text: /priorité \d+, inférieure/
+      - listitem:
+        - button "Copier admin-par-prefixe":
+          - text: ""
+          - code: admin-par-prefixe
+        - status
+        - text: "/critère non rempli : \\d+\\.\\d+\\.\\d+\\.\\d+ ∉ \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+/"
+  - contentinfo:
+    - button "Fermer"

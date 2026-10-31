@@ -1,0 +1,199 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem: Conformité
+  - button "Présent"
+  - button "Brouillon 0 opération" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Conformité" [level=1]
+  - region "Vérifier une connexion":
+    - heading "Vérifier une connexion" [level=2]
+    - text: au présent · politique r42
+    - paragraph:
+      - text: Source pré-remplie depuis la fiche de
+      - link /\d+\.\d+\.\d+\.\d+/:
+        - /url: /_ui/ecrans/E27?vue=actions&mode=light
+      - text: .
+    - group "Source (obligatoire)":
+      - text: Source (obligatoire) Sorte de la source
+      - combobox "Sorte de la source": Adresse
+      - text: "Source : recherche ou identifiant collé"
+      - 'textbox "Source : recherche ou identifiant collé"': /\d+\.\d+\.\d+\.\d+/
+    - group "Destination (obligatoire)":
+      - text: Destination (obligatoire) Sorte de la destination
+      - combobox "Sorte de la destination": Interface
+      - text: "Destination : recherche ou identifiant collé"
+      - 'textbox "Destination : recherche ou identifiant collé"': /srv-db-\d+ · eth0/
+    - group "Objet (obligatoire)":
+      - text: ""
+      - button "Service" [pressed]
+      - button "Transport et port"
+      - button "Type de flux"
+      - text: Service
+      - combobox "Service": PostgreSQL
+    - text: Entité
+    - combobox "Entité": Aucune
+    - paragraph: Facultative avec policy.verdict.read.
+    - button "Ajouter un dossier"
+    - button "Copier le lien"
+    - button "Vérifier"
+  - heading "Réponse" [level=2]
+  - text: 3 évaluations
+  - paragraph: "En partie conforme Issue la plus défavorable : Non conforme 1 conforme · 2 non conformes · politique r42 · sans dossier"
+  - button "Colonnes"
+  - grid "Évaluations de la requête":
+    - rowgroup:
+      - row "Paire d'adresses Verdict Issue Élément décisif":
+        - columnheader "Paire d'adresses"
+        - columnheader "Verdict":
+          - text: ""
+          - 'button "Filtrer : Verdict"'
+        - columnheader "Issue"
+        - columnheader "Élément décisif"
+    - rowgroup:
+      - row /\d+\.\d+\.\d+\.\d+ → \d+\.\d+\.\d+\.\d+ Conforme Automatique Copier bdd-meme-env/:
+        - gridcell /\d+\.\d+\.\d+\.\d+ → \d+\.\d+\.\d+\.\d+/
+        - gridcell "Conforme"
+        - gridcell "Automatique"
+        - gridcell "Copier bdd-meme-env":
+          - button "Copier bdd-meme-env":
+            - text: ""
+            - code: bdd-meme-env
+          - status
+      - row /\d+\.\d+\.\d+\.\d+ → \d+\.\d+\.\d+\.\d+ Non conforme Non conforme Copier deny-prod-hors-prod/ [selected]:
+        - gridcell /\d+\.\d+\.\d+\.\d+ → \d+\.\d+\.\d+\.\d+/
+        - gridcell "Non conforme"
+        - gridcell "Non conforme"
+        - gridcell "Copier deny-prod-hors-prod":
+          - button "Copier deny-prod-hors-prod":
+            - text: ""
+            - code: deny-prod-hors-prod
+          - status
+      - row /\d+\.\d+\.\d+\.\d+ → \d+:db8::\d+ Non conforme À instruire Copier unclassified/:
+        - gridcell /\d+\.\d+\.\d+\.\d+ → \d+:db8::\d+/
+        - gridcell "Non conforme"
+        - gridcell "À instruire"
+        - gridcell "Copier unclassified":
+          - button "Copier unclassified":
+            - text: ""
+            - code: unclassified
+          - status
+  - text: "Entrée sur une ligne : son explication à droite Requête req_7f3a9c2e5b1d4068"
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Détail" [selected]
+    - tab "Brouillon 0"
+  - tabpanel "Détail":
+    - heading /\d+\.\d+\.\d+\.\d+ → \d+\.\d+\.\d+\.\d+/ [level=2]
+    - term: Verdict
+    - definition: Non conforme
+    - term: Élément décisif
+    - definition:
+      - button "Copier Production vers hors production deny-prod-hors-prod":
+        - text: ""
+        - code: deny-prod-hors-prod
+      - status
+    - term: Combinaison
+    - definition:
+      - button "Production"
+      - status
+      - text: →
+      - button "Recette"
+      - status
+      - text: Base de données
+    - term: Score
+    - definition: /\d+ \(données restreintes\)/
+    - region "Pourquoi":
+      - heading "Pourquoi" [level=3]
+      - paragraph: La production ne pousse rien vers la recette ni le développement.
+    - region "Règles écartées":
+      - heading "Règles écartées" [level=3]
+      - list:
+        - listitem:
+          - button "Copier bdd-meme-env":
+            - text: ""
+            - code: bdd-meme-env
+          - status
+          - text: destination d'un autre environnement
+    - region "Conditions":
+      - heading "Conditions" [level=3]
+      - list:
+        - listitem:
+          - text: Non évaluée
+          - button "Copier justification-requise":
+            - text: ""
+            - code: justification-requise
+          - status
+          - text: sans dossier
+        - listitem:
+          - text: Remplie
+          - button "Copier reference-externe":
+            - text: ""
+            - code: reference-externe
+          - status
+    - region "Valeurs des points":
+      - heading "Valeurs des points" [level=3]
+      - list:
+        - listitem:
+          - code: /\d+\.\d+\.\d+\.\d+/
+          - text: Environnement
+          - button "Production"
+          - status
+          - text: arbre, de
+          - link /\d+\.\d+\.2\.0\/\d+/:
+            - /url: /prefixes/192.0.2.0/26
+        - listitem:
+          - code: /\d+\.\d+\.\d+\.\d+/
+          - text: Sensibilité
+          - button "Interne"
+          - status
+          - text: machine
+          - link /srv-app-\d+/:
+            - /url: /prefixes/srv-app-01
+        - listitem:
+          - code: /\d+\.\d+\.\d+\.\d+/
+          - text: Environnement
+          - button "Recette"
+          - status
+          - text: arbre, de
+          - link /\d+\.\d+\.\d+\.\d+/:
+            - /url: /prefixes/192.0.2.34
+  - button "Largeur du panneau"
+  - button "Fermer le panneau"

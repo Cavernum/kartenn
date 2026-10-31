@@ -1,0 +1,121 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem: Effet d'un changement
+      - listitem: 01JF3B6D8F
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - 'heading "Effet sur la politique : Recette vers production sous motif" [level=1]'
+  - region "Recette vers production sous motif":
+    - heading "Recette vers production sous motif" [level=2]
+    - text: effet sur la politique En revue
+    - toolbar "Actions sur le changeset":
+      - button "Ouvrir le changeset"
+      - button "Copier l'identifiant"
+    - term: Auteur
+    - definition: Sacha Morel
+    - term: Soumis
+    - definition: /\d+-\d+-\d+ \d+:\d+/
+    - term: Retenu par
+    - definition: Ouverture de flux
+    - term: Déclencheur
+    - definition:
+      - button "Copier policy.opens":
+        - text: ""
+        - code: policy.opens
+      - status
+    - term: Opérations
+    - definition: 2 cellules de matrice
+    - term: Identifiant
+    - definition:
+      - button "Copier 01JF3B6D8F0H2K4M6P8R0T2V4X":
+        - text: ""
+        - code: 01JF3B6D8F0H2K4M6P8R0T2V4X
+      - status
+    - tablist "Sections du changeset":
+      - tab /Combinaisons \d+/
+      - tab "Nœuds reclassés 2" [selected]
+      - tab "Flux déclarés 7"
+    - tabpanel "Nœuds reclassés 2":
+      - paragraph: /2 nœuds reclassés, \d+ héritiers avec eux · section policy\.reclassified/
+      - grid "Nœuds reclassés par le changeset":
+        - rowgroup:
+          - row "Nœud Axe Valeur, avant → après Héritiers reclassés":
+            - columnheader "Nœud"
+            - columnheader "Axe"
+            - columnheader "Valeur, avant → après"
+            - columnheader "Héritiers reclassés"
+        - rowgroup:
+          - 'row /\d+\.\d+\.\d+\.\d+\/\d+ Environnement avant : Recette après : Production \d+/':
+            - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/:
+              - link /\d+\.\d+\.\d+\.\d+\/\d+/:
+                - /url: /prefixes/198.51.100.0/26
+            - gridcell "Environnement":
+              - button "Environnement"
+              - status
+            - 'gridcell "avant : Recette après : Production"':
+              - deletion:
+                - text: "avant :"
+                - button "Recette"
+                - status
+              - insertion:
+                - text: "après :"
+                - button "Production"
+                - status
+            - gridcell /\d+/
+          - 'row /\d+:db8:\d+::\/\d+ Environnement avant : Recette après : Production \d+/':
+            - gridcell /\d+:db8:\d+::\/\d+/:
+              - link /\d+:db8:\d+::\/\d+/:
+                - /url: /prefixes/2001:db8:20::/64
+            - gridcell "Environnement":
+              - button "Environnement"
+              - status
+            - 'gridcell "avant : Recette après : Production"':
+              - deletion:
+                - text: "avant :"
+                - button "Recette"
+                - status
+              - insertion:
+                - text: "après :"
+                - button "Production"
+                - status
+            - gridcell /\d+/
+    - text: 2 sur 2
+- button "Ouvrir le panneau"

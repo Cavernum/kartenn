@@ -42,6 +42,7 @@ import {
   type MotionSetting,
   type DraftSummary,
   type MenuItem,
+  type SidebarGroup,
   type TabItem,
   type WidthClass,
 } from "@kartenn/ui";
@@ -79,8 +80,17 @@ const props = withDefaults(
     bottom?: TabItem[] | undefined;
     /** The name of the bottom panel. */
     bottomLabel?: string;
+    /** The spaces of the sidebar, when a mock-up adds entries (E14 to E27: views of the 017). */
+    spaces?: SidebarGroup[];
   }>(),
-  { at: undefined, draft: 3, panel: undefined, bottom: undefined, bottomLabel: "Panneau du bas" },
+  {
+    at: undefined,
+    draft: 3,
+    panel: undefined,
+    bottom: undefined,
+    bottomLabel: "Panneau du bas",
+    spaces: () => SPACES,
+  },
 );
 const slots = useSlots();
 
@@ -181,7 +191,7 @@ function toggleDraft(): void {
     <SidebarNav
       v-model:collapsed="collapsed"
       brand="kartenn"
-      :groups="SPACES"
+      :groups="props.spaces"
       :active="props.active"
       :closed="closedBut(props.space)"
     />
@@ -194,7 +204,7 @@ function toggleDraft(): void {
     >
       <SidebarNav
         brand="kartenn"
-        :groups="SPACES"
+        :groups="props.spaces"
         :active="props.active"
         :closed="closedBut(props.space)"
       />

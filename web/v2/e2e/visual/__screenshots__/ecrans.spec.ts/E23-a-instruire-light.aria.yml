@@ -1,0 +1,89 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets" [expanded]
+  - list:
+    - listitem:
+      - link "Changesets":
+        - /url: /changesets
+    - listitem:
+      - link "À instruire 3":
+        - /url: /proposals
+    - listitem:
+      - link "Mes brouillons 3":
+        - /url: /drafts
+  - button "Machines"
+  - button "Politique"
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Changesets":
+          - /url: /changesets
+      - listitem: À instruire
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "À instruire" [level=1]
+  - region "À instruire":
+    - heading "À instruire" [level=2]
+    - text: changesets d'autres auteurs, et les vôtres
+    - grid "Changesets à instruire":
+      - rowgroup:
+        - row "Changeset Origine Auteur Soumis Actions":
+          - columnheader "Changeset"
+          - columnheader "Origine":
+            - text: ""
+            - 'button "Filtrer : Origine"'
+          - columnheader "Auteur"
+          - columnheader "Soumis"
+          - columnheader "Actions"
+      - rowgroup:
+        - 'row /Demande de flux postgres Flux : demande Alex Durand \d+-\d+-\d+ \d+:\d+ Instruire dans Flux/':
+          - gridcell "Demande de flux postgres":
+            - link "Demande de flux postgres":
+              - /url: /_ui/ecrans/E23?vue=decision&mode=light
+          - 'gridcell "Flux : demande"'
+          - gridcell "Alex Durand"
+          - gridcell /\d+-\d+-\d+ \d+:\d+/
+          - gridcell "Instruire dans Flux":
+            - button "Instruire dans Flux"
+        - 'row /Prolongation de flux-\d+ Flux : prolongation Camille Martin \d+-\d+-\d+ \d+:\d+ Instruire dans Flux/':
+          - gridcell /Prolongation de flux-\d+/:
+            - link /Prolongation de flux-\d+/:
+              - /url: /_ui/ecrans/E23?vue=decision&mode=light
+          - 'gridcell "Flux : prolongation"'
+          - gridcell "Camille Martin"
+          - gridcell /\d+-\d+-\d+ \d+:\d+/
+          - gridcell "Instruire dans Flux":
+            - button "Instruire dans Flux" [disabled]
+        - row /Renumérotation salle B Référentiel Lou Bernard \d+-\d+-\d+ \d+:\d+ Valider Rejeter…/:
+          - gridcell "Renumérotation salle B":
+            - link "Renumérotation salle B":
+              - /url: /_ui/ecrans/E4?vue=relecteur&mode=light
+          - gridcell "Référentiel"
+          - gridcell "Lou Bernard"
+          - gridcell /\d+-\d+-\d+ \d+:\d+/
+          - gridcell "Valider Rejeter…":
+            - button "Valider"
+            - button "Rejeter…"
+        - row /Recette vers production sous motif Politique Sacha Morel \d+-\d+-\d+ \d+:\d+ Valider Rejeter…/:
+          - gridcell "Recette vers production sous motif":
+            - link "Recette vers production sous motif":
+              - /url: /_ui/ecrans/E4?vue=relecteur&mode=light
+          - gridcell "Politique"
+          - gridcell "Sacha Morel"
+          - gridcell /\d+-\d+-\d+ \d+:\d+/
+          - gridcell "Valider Rejeter…":
+            - button "Valider"
+            - button "Rejeter…"
+    - text: "4 changesets · 2 de flux « Valider » n'ajoute pas la revue d'un flux : sa demande s'instruit dans Flux"
+- button "Ouvrir le panneau"
