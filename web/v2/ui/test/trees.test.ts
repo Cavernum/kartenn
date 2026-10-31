@@ -11,15 +11,15 @@ import {
   closedSiblings,
   flatten,
   indexNodes,
+  misplacedRendered,
   searchRow,
   treeStep,
   typesAhead,
-  type MoveCheck,
   type MoveIntent,
-  type MoveState,
   type TreeNode,
 } from "../src/components/TreeGrid/tree.ts";
 import { useTreeMove } from "../src/components/internal/treeMove.ts";
+import { pageGrowth } from "../src/components/internal/treePages.ts";
 import { moveNode, noCycle } from "../src/demo/treeHost.ts";
 import { virtualTree } from "../src/demo/trees.ts";
 
@@ -185,6 +185,57 @@ describe("the contract of moves (REQ-020-31)", () => {
     expect(moves.targets("a", all, "del").map((o) => o.label)).toEqual(["Delta"]);
   });
 
+  it("a new model during a drag: the verdict under the pointer is taken again", () => {
+    let model = tree;
+    const moves = useTreeMove({
+      mode: () => "declared",
+      canMove: noCycle,
+      nodeOf: (id) => indexNodes(model).get(id)?.node,
+      move: () => {},
+      announce: () => {},
+    });
+    moves.onDragStart("b", dragEvent());
+    moves.onDragOver("c", dragEvent());
+    expect(moves.dropOf("c")).toEqual({ ok: true });
+    // c now under b: b over c would make a cycle.
+    model = moveNode(tree, "c", "b");
+    moves.recheck();
+    expect(moves.dropOf("c")).toMatchObject({ ok: false, code: "tree.cycle" });
+    // The node dragged gone: no drag left.
+    model = tree.filter((n) => n.id !== "b");
+    moves.recheck();
+    expect(moves.dragging.value).toBeNull();
+  });
+
+  it("a node whose move is pending is neither dragged, nor cut, nor moved again", () => {
+    const intents: MoveIntent[] = [];
+    const moves = useTreeMove({
+      mode: () => "declared",
+      canMove: noCycle,
+      nodeOf: (id) => indexNodes(tree).get(id)?.node,
+      pending: (id) => id === "b",
+      move: (intent) => intents.push(intent),
+      announce: () => {},
+    });
+    const start = dragEvent();
+    moves.onDragStart("b", start);
+    expect(start.defaultPrevented).toBe(true);
+    moves.onDragOver("c", dragEvent());
+    moves.onDrop("c", dragEvent());
+    expect(moves.cutNode("b")).toBe(false);
+    expect(moves.movable("b")).toBe(false);
+    expect(moves.movable("c")).toBe(true);
+    expect(intents).toEqual([]);
+  });
+
+  it("a page is said for its new children only: not a node moved in, not a removal", () => {
+    const known = new Set(["x1", "x2"]);
+    expect(pageGrowth(known, ["x1", "x2", "x3", "x4"], new Set())).toBe(2);
+    expect(pageGrowth(known, ["x1", "x2", "m"], new Set(["m"]))).toBe(0);
+    expect(pageGrowth(known, ["x1"], new Set())).toBe(0);
+    expect(pageGrowth(known, ["x1", "m", "x3"], new Set(["m"]))).toBe(1);
+  });
+
   // REQ-020-33: the prototype deleted the last child; the node moved is the one chosen,
   // taken by its id from the model of now.
   it("the node moved is the one chosen, by its id", () => {
@@ -197,127 +248,28 @@ describe("the contract of moves (REQ-020-31)", () => {
   });
 });
 
-// ——— Display invariant (REQ-020-32), by property ———
+// ——— Display invariant (REQ-020-32) ———
+// The property test runs on mounted instances (test/trees-mounted.test.ts); here, the
+// guard itself, on the rows rendered against the model.
 
-/** A seeded random source (mulberry32): the same suite on each run. */
-function random(seed: number): () => number {
-  return () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-const pick = <T>(rand: () => number, list: readonly T[]): T =>
-  list[Math.floor(rand() * list.length)]!;
+describe("the display guard on the rows rendered (REQ-020-32)", () => {
+  const open = new Set(["a", "a1", "c"]);
+  const rows = flatten(tree, open);
+  const parentOf = (key: string) => indexNodes(tree).get(key)?.parent;
 
-/** A random tree of `count` nodes: each under an earlier one, or at the first level. */
-function randomTree(rand: () => number, count: number): TreeNode[] {
-  let nodes: TreeNode[] = [];
-  for (let i = 0; i < count; i++) {
-    const ids = [...indexNodes(nodes).keys()];
-    const parent = ids.length && rand() < 0.7 ? pick(rand, ids) : null;
-    const node = { id: `n${i}`, label: `Nœud ${i}` };
-    nodes = parent === null ? [...nodes, node] : moveNode([...nodes, node], node.id, parent);
-  }
-  return nodes;
-}
+  it("a window and a row kept beyond a gap: each under the parent of its model", () => {
+    // Rendered: the first two rows, then (after a gap) the last one, kept.
+    expect(misplacedRendered(rows, [0, 1, rows.length - 1], parentOf)).toEqual([]);
+  });
 
-/** The rows a render shows: key and level, in order, of the rows with a node. */
-function shownRows(html: string, role: "row" | "treeitem") {
-  const rows: { key: string; level: number }[] = [];
-  for (const tag of html.match(new RegExp(`<div[^>]*role="${role}"[^>]*>`, "g")) ?? []) {
-    const key = /data-node="([^"]*)"/.exec(tag)?.[1];
-    const level = /aria-level="(\d+)"/.exec(tag)?.[1];
-    if (key !== undefined && level) rows.push({ key, level: Number(level) });
-  }
-  return rows;
-}
-
-/** Visual parent = parent of the model, for each row shown (`more:x`: its list's). */
-function checkParents(rows: { key: string; level: number }[], model: TreeNode[]): void {
-  const index = indexNodes(model);
-  const stack: string[] = [];
-  for (const row of rows) {
-    stack.length = row.level - 1;
-    const visual = row.level === 1 ? null : (stack[row.level - 2] ?? null);
-    const parent = row.key.startsWith("more:")
-      ? row.key.slice(5) || null
-      : index.has(row.key)
-        ? index.get(row.key)!.parent
-        : "absent";
-    expect(visual, `row ${row.key}`).toBe(parent);
-    stack[row.level - 1] = row.key;
-  }
-}
-
-describe("display invariant under drops, refusals, late answers, new models (REQ-020-32)", () => {
-  for (const seed of [1, 7, 42]) {
-    it(`seed ${seed}: at each render, the visual parent is the parent of the model`, async () => {
-      const rand = random(seed);
-      let model = randomTree(rand, 18);
-      const states = new Map<string, MoveState>();
-      const inflight: MoveIntent[] = [];
-      let refusedDrops = 0;
-      const moves = useTreeMove({
-        mode: () => "declared",
-        canMove: noCycle,
-        nodeOf: (id) => indexNodes(model).get(id)?.node,
-        move: (intent) => {
-          inflight.push(intent);
-          states.set(intent.node.id, "pending");
-        },
-        announce: () => {},
-      });
-      for (let step = 0; step < 80; step++) {
-        const ids = [...indexNodes(model).keys()];
-        const r = rand();
-        if (r < 0.35 && ids.length > 1) {
-          // A drop on a random target: refused ones never become an intent.
-          const node = pick(rand, ids);
-          const target = pick(rand, ids);
-          const before = inflight.length;
-          moves.onDragStart(node, dragEvent());
-          moves.onDragOver(target, dragEvent());
-          const check: MoveCheck = moves.check(node, target);
-          moves.onDrop(target, dragEvent());
-          if (!check.ok) {
-            refusedDrops += 1;
-            expect(inflight.length).toBe(before);
-          } else expect(inflight.length).toBe(before + 1);
-        } else if (r < 0.65 && inflight.length) {
-          // A late answer, on a model that may have changed meanwhile.
-          const intent = inflight.splice(Math.floor(rand() * inflight.length), 1)[0]!;
-          if (rand() < 0.7) {
-            model = moveNode(model, intent.node.id, intent.target?.id ?? null);
-            states.delete(intent.node.id);
-          } else
-            states.set(intent.node.id, {
-              refused: { ok: false, reason: "Refusé par le serveur.", code: "server.refused" },
-            });
-        } else if (r < 0.85 && ids.length > 1) {
-          // Another change of the model: a node moved elsewhere, or removed.
-          const node = pick(rand, ids);
-          model =
-            rand() < 0.8
-              ? moveNode(model, node, rand() < 0.2 ? null : pick(rand, ids))
-              : moveNode(model, node, null).filter((n) => n.id !== node);
-        }
-        const expanded = [...indexNodes(model).keys()].filter(() => rand() < 0.8);
-        const props = {
-          nodes: model,
-          expanded,
-          parentMode: "declared",
-          moveState: (node: TreeNode) => states.get(node.id),
-        };
-        const grid = await render(TreeGrid, { label: "Arbre", treeLabel: "Nœud", ...props });
-        checkParents(shownRows(grid, "row"), model);
-        const view = await render(Tree, { label: "Arbre", ...props });
-        checkParents(shownRows(view, "treeitem"), model);
-      }
-      expect(refusedDrops).toBeGreaterThan(0);
-    });
-  }
+  it("a row laid out under a parent its model does not give it is found", () => {
+    // The layout says a11 is under a1; a model where a11 belongs to c says otherwise.
+    const other = (key: string) => (key === "a11" ? "c" : parentOf(key));
+    const at = rows.findIndex((row) => row.key === "a11");
+    expect(misplacedRendered(rows, [at], other)).toEqual(["a11"]);
+    // Not rendered, not checked.
+    expect(misplacedRendered(rows, [0], other)).toEqual([]);
+  });
 });
 
 // ——— The components ———

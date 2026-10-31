@@ -64,14 +64,27 @@ export function useTreeStates(
   const status = useRegion();
   const alerts = useRegion();
 
+  /** The nodes the tree asked to move into each parent (`""`: the first level). */
+  const movedInto = new Map<string, Set<string>>();
   const moves = useTreeMove({
     mode: () => props.parentMode ?? "derived",
-    canMove: props.canMove ? (node, target) => props.canMove!(node, target) : undefined,
+    // Read at each call: the host may change its check, or take it away, after mounting.
+    canMove: (node, target) => props.canMove?.(node, target),
     nodeOf,
-    move: (intent) => emit.move(intent),
+    pending: (id) => {
+      const node = nodeOf(id);
+      return !!node && props.moveState?.(node) === "pending";
+    },
+    move: (intent) => {
+      const key = intent.target?.id ?? "";
+      movedInto.set(key, (movedInto.get(key) ?? new Set()).add(intent.node.id));
+      emit.move(intent);
+    },
     announce: (text) => void status.say(text),
   });
   const declared = computed(() => props.parentMode === "declared");
+  // A new model or a new check during a drag: the verdict under the pointer is taken again.
+  watch([() => props.nodes, () => props.canMove], () => moves.recheck());
 
   /** The state of the move of a node, as the host gives it, or cut, waiting for its parent. */
   function moveOf(node: TreeNode): "pending" | "refused" | "cut" | undefined {
@@ -126,7 +139,7 @@ export function useTreeStates(
   const movingLabel = computed(() => (moving.value ? (nodeOf(moving.value)?.label ?? "") : ""));
   /** « Déplacer vers… » for the node `id`: the host's action on the chosen node. */
   function openMove(id: string): boolean {
-    if (!declared.value || !nodeOf(id)) return false;
+    if (!moves.movable(id) || !nodeOf(id)) return false;
     moving.value = id;
     return true;
   }
@@ -142,15 +155,16 @@ export function useTreeStates(
     if (moving.value !== null) moves.ask(moving.value, target);
   }
 
-  const sizeOf = (parent: string | null) =>
-    parent === null ? props.nodes.length : (nodeOf(parent)?.children?.length ?? 0);
-  const pages = useTreePages(
-    scroller,
-    sizeOf,
-    (parent) => emit.load(parent),
-    (count, whole) => void status.say(fill(whole ? "pageLoadedLast" : "pageLoaded", { count })),
-    (parent) => (parent === null ? !!props.more : !!nodeOf(parent)?.more),
-  );
+  const childrenOf = (parent: string | null) =>
+    parent === null ? props.nodes : (nodeOf(parent)?.children ?? []);
+  const pages = useTreePages(scroller, {
+    children: (parent) => childrenOf(parent).map((node) => node.id),
+    movedIn: (parent) => movedInto.get(parent ?? "") ?? new Set(),
+    load: (parent) => emit.load(parent),
+    arrived: (count, whole) =>
+      void status.say(fill(whole ? "pageLoadedLast" : "pageLoaded", { count })),
+    rest: (parent) => (parent === null ? !!props.more : !!nodeOf(parent)?.more),
+  });
   /** The next page of a list is coming: the host's state of its parent, or of the roots. */
   function pageLoading(parent: string | null): boolean {
     if (parent === null) return !!props.moreLoading;

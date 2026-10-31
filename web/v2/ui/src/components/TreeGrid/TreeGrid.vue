@@ -65,7 +65,7 @@ import { useTreeStates } from "../internal/treeStates.ts";
 import { rowsInView, useVirtualRows } from "../internal/virtualRows.ts";
 import {
   flatten,
-  guarded,
+  guardRendered,
   hasChildren,
   indexNodes,
   landingRow,
@@ -164,7 +164,7 @@ const uid = useId();
 const open = computed(() => new Set(expanded.value));
 const index = computed(() => indexNodes(props.nodes));
 const nodeOf = (id: string) => index.value.get(id)?.node;
-const rows = computed(() => guarded("TreeGrid", flatten(props.nodes, open.value, props.more)));
+const rows = computed(() => flatten(props.nodes, open.value, props.more));
 const rowIndex = computed(() => new Map(rows.value.map((row, i) => [row.key, i])));
 const isExpanded = (id: string) => open.value.has(id);
 const anyMore = computed(() => rows.value.some((row) => row.kind === "more"));
@@ -270,11 +270,19 @@ const virtual = useVirtualRows({
   top: () => headHeight.value,
   off: () => !!props.loading,
 });
-const parts = computed(() =>
-  virtual.parts.value.map((part) =>
+/** The rows rendered and their gaps; the display guard runs on them (REQ-020-32). */
+const parts = computed(() => {
+  const list = virtual.parts.value;
+  guardRendered(
+    "TreeGrid",
+    rows.value,
+    list.flatMap((part) => ("index" in part ? [part.index] : [])),
+    (key) => index.value.get(key)?.parent,
+  );
+  return list.map((part) =>
     "index" in part ? { index: part.index, row: rows.value[part.index]! } : part,
-  ),
-);
+  );
+});
 /** The rows of one screen (Page Up, Page Down): the rows wholly in view, less one. */
 function pageRows(): number {
   const el = grid.value;
@@ -740,7 +748,7 @@ onBeforeUnmount(() => observer?.disconnect());
             :data-state="props.nodeState?.(part.row.node)"
             :data-move="moveOf(part.row.node)"
             :data-drop="dropOf(part.row.node)"
-            :draggable="declared ? 'true' : undefined"
+            :draggable="moves.movable(part.row.key) ? 'true' : undefined"
             @click="onRowClick(part.row, $event)"
             @dragstart="moves.onDragStart(part.row.key, $event)"
             @dragover="moves.onDragOver(part.row.key, $event)"

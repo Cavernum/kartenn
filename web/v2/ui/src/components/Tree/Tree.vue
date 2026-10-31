@@ -18,10 +18,14 @@
 // - virtualised beyond 200 rows as `TreeGrid` (not Reka's `TreeVirtualizer`, which unmounts
 //   the focused row and keys its rows by index): the focused row and the renamed one stay
 //   mounted;
-// - each row is named by its label alone (`aria-label`), its key, detail and states are its
-//   description (`aria-describedby`).
-// Children read page by page, moves (`parentMode`, `canMove`, `moveState`, an intent only)
-// and the display guard as `TreeGrid`. The tree consumes the printable keys
+// - each row is named by its label alone, from its content (no `aria-label`, which axe
+//   would find shorter than the text shown): its key, detail, states and reasons are in
+//   a part hidden from the name (`aria-hidden`) that is its description
+//   (`aria-describedby`); the copy buttons of a reason are the pointer's (out of the tab
+//   order).
+// Children read page by page, moves (`parentMode`, `canMove`, `moveState`, an intent only;
+// a node whose move is pending is neither dragged nor cut) and the display guard on the
+// rows rendered, as `TreeGrid`. The tree consumes the printable keys
 // (`data-k-typeahead`: the one-key shortcuts of the shell leave them to it).
 import { TreeItem, TreeRoot } from "reka-ui";
 import {
@@ -48,7 +52,7 @@ import { useVirtualRows } from "../internal/virtualRows.ts";
 import {
   closedSiblings,
   flatten,
-  guarded,
+  guardRendered,
   hasChildren,
   indexNodes,
   landingRow,
@@ -127,7 +131,7 @@ const uid = useId();
 const open = computed(() => new Set(expanded.value));
 const index = computed(() => indexNodes(props.nodes));
 const nodeOf = (id: string) => index.value.get(id)?.node;
-const rows = computed(() => guarded("Tree", flatten(props.nodes, open.value, props.more)));
+const rows = computed(() => flatten(props.nodes, open.value, props.more));
 const rowIndex = computed(() => new Map(rows.value.map((row, i) => [row.key, i])));
 const isExpanded = (id: string) => open.value.has(id);
 
@@ -198,11 +202,19 @@ const virtual = useVirtualRows({
   kept: () => [stop.value, editing.value],
   off: () => !!props.loading,
 });
-const parts = computed(() =>
-  virtual.parts.value.map((part) =>
+/** The rows rendered and their gaps; the display guard runs on them (REQ-020-32). */
+const parts = computed(() => {
+  const list = virtual.parts.value;
+  guardRendered(
+    "Tree",
+    rows.value,
+    list.flatMap((part) => ("index" in part ? [part.index] : [])),
+    (key) => index.value.get(key)?.parent,
+  );
+  return list.map((part) =>
     "index" in part ? { index: part.index, row: rows.value[part.index]! } : part,
-  ),
-);
+  );
+});
 onMounted(() => virtual.readEstimate());
 /** The copy buttons of the reasons stay out of the tab order: one tab stop, the row's. */
 function tame(): void {
@@ -468,7 +480,7 @@ function onKeydown(event: KeyboardEvent): void {
             :data-state="props.nodeState?.(part.row.node)"
             :data-move="moveOf(part.row.node)"
             :data-drop="dropOf(part.row.node)"
-            :draggable="declared ? 'true' : undefined"
+            :draggable="moves.movable(part.row.key) ? 'true' : undefined"
             :style="{ '--k-tree-depth': String(part.row.level - 1) }"
             @dragstart="moves.onDragStart(part.row.key, $event)"
             @dragover="moves.onDragOver(part.row.key, $event)"

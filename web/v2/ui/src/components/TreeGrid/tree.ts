@@ -113,16 +113,49 @@ export function misplaced(rows: readonly { key: string; level: number; parent: s
   return wrong;
 }
 
+/** The parent the model gives the row of `key` (a `more:` row: its list's), or `undefined`. */
+type ParentOf = (key: string) => string | null | undefined;
+
 /**
- * The rows of a component, the guard checked outside production (REQ-020-32): a row under
- * a parent not its own throws.
+ * The display invariant on the rows rendered (REQ-020-32): each rendered row (`rendered`,
+ * its indexes in the layout, the rows left out standing in their gaps) has for visual
+ * parent — the nearest row before it in the layout, of level − 1 — the parent its node
+ * has in the model (`parentOf`, read from the nodes, not from the layout). Returns the
+ * keys of the rows that break it.
  */
-export function guarded(component: string, rows: TreeRow[]): TreeRow[] {
-  if (import.meta.env.MODE !== "production") {
-    const wrong = misplaced(rows);
-    if (wrong.length) throw new Error(`${component}: rows under a parent not theirs: ${wrong}`);
+export function misplacedRendered(
+  rows: readonly TreeRow[],
+  rendered: readonly number[],
+  parentOf: ParentOf,
+): string[] {
+  const visual: (string | null)[] = [];
+  const stack: string[] = [];
+  for (const row of rows) {
+    stack.length = row.level - 1;
+    visual.push(row.level === 1 ? null : (stack[row.level - 2] ?? null));
+    stack[row.level - 1] = row.key;
   }
-  return rows;
+  return rendered.flatMap((i) => {
+    const row = rows[i];
+    if (!row) return [];
+    const model = row.kind === "more" ? row.key.slice(5) || null : parentOf(row.key);
+    return visual[i] === model ? [] : [row.key];
+  });
+}
+
+/**
+ * The guard of a component, outside production (REQ-020-32): a rendered row under a parent
+ * not its own throws.
+ */
+export function guardRendered(
+  component: string,
+  rows: readonly TreeRow[],
+  rendered: readonly number[],
+  parentOf: ParentOf,
+): void {
+  if (import.meta.env.MODE === "production") return;
+  const wrong = misplacedRendered(rows, rendered, parentOf);
+  if (wrong.length) throw new Error(`${component}: rows under a parent not theirs: ${wrong}`);
 }
 
 /** Each node of a tree by its id, with the id of its parent. */

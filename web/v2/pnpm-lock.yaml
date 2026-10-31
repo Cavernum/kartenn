@@ -287,6 +287,10 @@ importers:
       vue:
         specifier: ^3.5.44
         version: 3.5.44(typescript@6.0.3)
+    devDependencies:
+      happy-dom:
+        specifier: ^21.0.3
+        version: 21.0.4
 
 packages:
 

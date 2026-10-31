@@ -7,26 +7,41 @@
 // page (`load`) as soon as it comes into the view of the tree, or when it is activated; a
 // node opened whose children are still to read asks for its first page. One ask per list
 // and per number of children read: a page that has not come yet is never asked twice.
-// A page that comes is said (its count, and whether the list is whole), WCAG 4.1.3.
+// The page that comes is said (its count, and whether the list is whole), WCAG 4.1.3:
+// only the children new to the list since the ask, the nodes the tree asked to move into
+// it left out; a list that shrinks (a node moved away) says nothing and keeps waiting.
 
 import { onBeforeUnmount, onMounted, onUpdated, type Ref } from "vue";
 
 /** The attribute of the row that reads the next page: the parent's id, `""` for the roots. */
 export const MORE_ATTRIBUTE = "data-more";
 
-export function useTreePages(
-  scroller: Ref<HTMLElement | null>,
-  /** The number of children of `parent` read so far (`null`: the first level). */
-  sizeOf: (parent: string | null) => number,
-  load: (parent: string | null) => void,
+/** What a tree gives its pages. */
+export interface TreePagesHost {
+  /** The ids of the children of `parent` read so far (`null`: the first level). */
+  children(parent: string | null): readonly string[];
+  /** The nodes the tree asked to move into `parent` (they are no page). */
+  movedIn(parent: string | null): ReadonlySet<string>;
+  load(parent: string | null): void;
   /** A page came: `count` children more; `whole`, the list has no page left. */
-  arrived: (count: number, whole: boolean) => void,
+  arrived(count: number, whole: boolean): void;
   /** Whether pages remain after the children of `parent` read so far. */
-  rest: (parent: string | null) => boolean,
-) {
+  rest(parent: string | null): boolean;
+}
+
+/** The new children of a list that came by a page: not known when asked, not moved in. */
+export function pageGrowth(
+  before: ReadonlySet<string>,
+  now: readonly string[],
+  movedIn: ReadonlySet<string>,
+): number {
+  return now.filter((id) => !before.has(id) && !movedIn.has(id)).length;
+}
+
+export function useTreePages(scroller: Ref<HTMLElement | null>, host: TreePagesHost) {
   const asked = new Map<string, number>();
-  /** The lists whose page is awaited, with their size when asked. */
-  const awaited = new Map<string, { parent: string | null; size: number }>();
+  /** The lists whose page is awaited, with their children when asked. */
+  const awaited = new Map<string, { parent: string | null; known: Set<string> }>();
 
   /**
    * Asks for the next page of `parent`, unless asked already at this size; `force` (the
@@ -34,20 +49,20 @@ export function useTreePages(
    */
   function request(parent: string | null, force = false): void {
     const key = parent ?? "";
-    const size = sizeOf(parent);
-    if (!force && asked.get(key) === size) return;
-    asked.set(key, size);
-    awaited.set(key, { parent, size });
-    load(parent);
+    const children = host.children(parent);
+    if (!force && asked.get(key) === children.length) return;
+    asked.set(key, children.length);
+    awaited.set(key, { parent, known: new Set(children) });
+    host.load(parent);
   }
 
-  /** The pages come between renders: each one awaited that grew its list is said. */
+  /** The pages come between renders: each awaited one that brought new children is said. */
   function said(): void {
-    for (const [key, { parent, size }] of awaited) {
-      const now = sizeOf(parent);
-      if (now === size) continue;
+    for (const [key, { parent, known }] of awaited) {
+      const count = pageGrowth(known, host.children(parent), host.movedIn(parent));
+      if (count === 0) continue;
       awaited.delete(key);
-      arrived(now - size, !rest(parent));
+      host.arrived(count, !host.rest(parent));
     }
   }
 

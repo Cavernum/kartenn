@@ -24,9 +24,12 @@ const TARGETS_LISTED = 50;
 /** What a tree gives the contract of moves. */
 export interface TreeMoveHost {
   mode(): ParentMode;
-  canMove: ((node: TreeNode, target: TreeNode | null) => MoveCheck) | undefined;
+  /** The host's check, read at each call (a prop that changes, or goes, is followed). */
+  canMove(node: TreeNode, target: TreeNode | null): MoveCheck | undefined;
   /** The node of this id in the model of now. */
   nodeOf(id: string): TreeNode | undefined;
+  /** A move of this node is pending (an intent in flight): no second one until it settles. */
+  pending?(id: string): boolean;
   move(intent: MoveIntent): void;
   /** The status region of the tree: a refusal, a cut, a move asked. */
   announce(text: string): void;
@@ -60,7 +63,26 @@ export function useTreeMove(host: TreeMoveHost) {
     const target = targetId === null ? null : host.nodeOf(targetId);
     if (!node || target === undefined) return { ok: false, reason: t("moveGone") };
     if (target?.id === node.id) return { ok: false, reason: t("moveSelf") };
-    return host.canMove?.(node, target) ?? { ok: false, reason: t("moveNone") };
+    return host.canMove(node, target) ?? { ok: false, reason: t("moveNone") };
+  }
+
+  /** Whether `id` may start a move now: declared parents, no move of it in flight. */
+  const movable = (id: string) => declared() && !host.pending?.(id);
+
+  /**
+   * The model or `canMove` changed during a drag: the verdict on the target under the
+   * pointer is taken again (a gone target, no verdict).
+   */
+  function recheck(): void {
+    if (dragging.value === null || over.value === null) return;
+    if (!host.nodeOf(dragging.value)) {
+      dragging.value = null;
+      over.value = null;
+      return;
+    }
+    over.value = host.nodeOf(over.value.id)
+      ? { id: over.value.id, check: check(dragging.value, over.value.id) }
+      : null;
   }
 
   /** Asks the host to move: the intent, with the nodes of now. */
@@ -78,7 +100,7 @@ export function useTreeMove(host: TreeMoveHost) {
   }
 
   function onDragStart(id: string, event: DragEvent): void {
-    if (!declared()) {
+    if (!movable(id)) {
       event.preventDefault();
       return;
     }
@@ -136,7 +158,7 @@ export function useTreeMove(host: TreeMoveHost) {
 
   /** Ctrl+X on a node: cut, said with the way on. False when the tree offers no move. */
   function cutNode(id: string): boolean {
-    if (!declared()) return false;
+    if (!movable(id)) return false;
     cut.value = id;
     host.announce(fill("cutSay", { node: host.nodeOf(id)?.label ?? id }));
     return true;
@@ -202,5 +224,7 @@ export function useTreeMove(host: TreeMoveHost) {
     cancelCut,
     targets,
     dropOf,
+    movable,
+    recheck,
   };
 }
