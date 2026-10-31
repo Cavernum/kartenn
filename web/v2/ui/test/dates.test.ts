@@ -12,6 +12,7 @@ import {
   instantsOf,
   offsetLabel,
   parseEntry,
+  pastedEntry,
   shiftDate,
   shortcut,
   weekday,
@@ -82,6 +83,33 @@ describe("an entry", () => {
     });
     expect(parseEntry("2026-1-5T9:05")).toMatchObject({ month: "1", day: "5", hour: "9" });
     expect(parseEntry("2026-01")).toMatchObject({ year: "2026", month: "01", day: "" });
+    // A run of separators and spaces is one separator (a date written spaced, pasted).
+    expect(parseEntry(" 2025 - 11 - 03  09 : 30 ")).toEqual({
+      year: "2025",
+      month: "11",
+      day: "03",
+      hour: "09",
+      minute: "30",
+    });
+    expect(check("2025 - 11 - 03 09:30")).toEqual({ ok: true, value: "2025-11-03T08:30:00Z" });
+  });
+
+  it("pasted, an instant with its offset is that instant, shown in the zone", () => {
+    const pasted = pastedEntry("2026-01-15T09:00:00+05:00", "minute", PARIS);
+    expect(pasted).toMatchObject({ day: "15", hour: "05", minute: "00" });
+    expect(checkEntry(pasted, "minute", PARIS)).toEqual({
+      ok: true,
+      value: "2026-01-15T04:00:00Z",
+    });
+    expect(pastedEntry("2026-01-15T23:30:00Z", "day", PARIS)).toEqual({
+      year: "2026",
+      month: "01",
+      day: "16",
+      hour: "",
+      minute: "",
+    });
+    // Without an offset, a wall clock as typed.
+    expect(pastedEntry("2026-01-15T09:00", "minute", PARIS)).toMatchObject({ hour: "09" });
   });
 
   it("is empty, a date or an instant of RFC 3339 in UTC", () => {
@@ -131,12 +159,26 @@ describe("an entry", () => {
     expect(check("0000-01-01", "day")).toMatchObject({ segment: "year" });
   });
 
+  it("refuses an instant whose year in UTC leaves 0001…9999 (RFC 3339 date-fullyear)", () => {
+    const reason = "En UTC, cet instant tombe hors des années 0001 à 9999 (RFC 3339).";
+    expect(check("9999-12-31 23:59", "minute", "America/New_York")).toEqual({
+      ok: false,
+      reason,
+      segment: "year",
+    });
+    expect(check("0001-01-01 00:00", "minute", "Asia/Tokyo")).toMatchObject({ reason });
+    expect(check("9999-12-31 23:59", "minute", "UTC")).toEqual({
+      ok: true,
+      value: "9999-12-31T23:59:00Z",
+    });
+  });
+
   it("says what is missing", () => {
     expect(check("2026-01-15")).toMatchObject({
       reason: "Date incomplète : il manque l'heure.",
       segment: "hour",
     });
-    expect(check("2026--15", "day")).toMatchObject({ segment: "month" });
+    expect(check("2026-01", "day")).toMatchObject({ segment: "day" });
   });
 
   it("refuses the hour a zone skips, and takes the earlier of an hour repeated", () => {
@@ -193,6 +235,16 @@ describe("the shortcuts", () => {
     const after = Date.parse("2026-03-30T08:00:00Z");
     expect(shortcut("yesterday", after, PARIS)).toBe("2026-03-29T08:00:00Z");
     expect(shortcut("monthStart", after, PARIS)).toBe("2026-02-28T23:00:00Z");
+  });
+
+  it("in an hour a zone skips, the same clock an hour on (Santiago, midnight)", () => {
+    // Chile goes forward at midnight: 6 September 2026, 00:00 to 00:59 do not exist.
+    const SANTIAGO = "America/Santiago";
+    expect(instantsOf({ year: 2026, month: 9, day: 6, hour: 0, minute: 30 }, SANTIAGO)).toEqual([]);
+    // 7 September, 00:30 (UTC−03:00): yesterday 00:30 is read as 01:30 (UTC−03:00).
+    const after = Date.parse("2026-09-07T03:30:00Z");
+    expect(shortcut("yesterday", after, SANTIAGO)).toBe("2026-09-06T04:30:00Z");
+    expect(entryOf("2026-09-06T04:30:00Z", "minute", SANTIAGO)).toMatchObject({ hour: "01" });
   });
 });
 

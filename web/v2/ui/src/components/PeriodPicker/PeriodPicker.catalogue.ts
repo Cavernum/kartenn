@@ -64,6 +64,15 @@ export default {
       target: "button[type='submit']",
     },
     {
+      name: "host",
+      description: "Refus de l'hôte (l'API compare à l'heure de la base) : sur son champ",
+      props: {
+        timeZone: ZONE,
+        asOf: "2026-01-15T09:00:00Z",
+        errors: { asOf: "Refusé par le serveur : cette date dépasse son heure." },
+      },
+    },
+    {
       name: "keyboard",
       description: "Au clavier : saisie, raccourcis, refus, envoi ; l'URL écrite",
       props: {},

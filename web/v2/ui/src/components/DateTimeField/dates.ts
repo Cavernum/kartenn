@@ -205,22 +205,31 @@ export function entryOf(
 
 /**
  * The entry of a text in the order of ISO 8601 (`2026-02-31`, `2026-02-31 10:30`,
- * `2026-02-31T10:30`), as typed: digits kept even when impossible, so that the check
- * can say why; one separator between two segments (a segment left out stays empty:
- * `2026--15` has no month).
+ * `2026-02-31T10:30`, `2025 - 11 - 03 09:30`), as typed: digits kept even when
+ * impossible, so that the check can say why; a run of separators and spaces counts as
+ * one. Any offset is ignored: a written instant is read by `pastedEntry`.
  */
 export function parseEntry(text: string): Entry {
   const entry = emptyEntry();
-  const groups = text
-    .trim()
-    .replace(/\s+/g, " ")
-    .split(/[^0-9]/);
+  const groups = text.split(/[^0-9]+/).filter(Boolean);
   const kinds: SegmentKind[] = ["year", "month", "day", "hour", "minute"];
   kinds.forEach((kind, i) => {
     const digits = groups[i];
     if (digits) entry[kind] = digits.slice(0, LIMITS[kind].digits);
   });
   return entry;
+}
+
+/**
+ * The entry of a pasted text: an instant of RFC 3339 with its `Z` or offset is that
+ * instant, shown in the zone of the field (its date only, for a day); anything else is
+ * read as typed (`parseEntry`).
+ */
+export function pastedEntry(text: string, granularity: DateGranularity, timeZone: string): Entry {
+  const trimmed = text.trim();
+  const instant = entryOf(trimmed, "minute", timeZone);
+  if (!instant) return parseEntry(trimmed);
+  return granularity === "day" ? { ...instant, hour: "", minute: "" } : instant;
 }
 
 export const isEmpty = (entry: Entry, granularity: DateGranularity) =>
@@ -303,6 +312,12 @@ export function checkEntry(
       }),
       segment: "hour",
     };
+  }
+  // RFC 3339 writes a year of four digits: the instant in UTC must stay in 0001…9999
+  // (9999-12-31 23:59 in New York is 10000 in UTC).
+  const utcYear = new Date(first).getUTCFullYear();
+  if (utcYear < LIMITS.year.min || utcYear > LIMITS.year.max) {
+    return { ok: false, reason: t("dateUtcRange"), segment: "year" };
   }
   return { ok: true, value: instantText(first) };
 }

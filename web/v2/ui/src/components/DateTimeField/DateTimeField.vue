@@ -13,7 +13,8 @@
 // grid by the month shown. The value
 // is a date `YYYY-MM-DD` or an instant of RFC 3339 in UTC; `null` while the entry is
 // empty, incomplete or impossible. An impossible entry (31 février, 25 h, the hour skipped
-// when the clocks go forward) is kept as typed and refused: its reason comes when the
+// when the clocks go forward, an instant whose year in UTC leaves 0001…9999), typed or
+// pasted, is kept as typed and refused: its reason comes when the
 // field is left (or on `check()`, before a form is sent), linked to the field and said
 // (`FormField`), on the segment at fault.
 import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from "reka-ui";
@@ -34,6 +35,7 @@ import {
   monthName,
   offsetLabel,
   parseEntry,
+  pastedEntry,
   SEGMENTS,
   wallAt,
   type DateGranularity,
@@ -282,15 +284,19 @@ function onBeforeInput(event: InputEvent, index: number): void {
   }
 }
 
-/** A pasted date in the order of ISO 8601 fills the segments it has. */
+/**
+ * A pasted date in the order of ISO 8601 fills the segments it has; a pasted instant
+ * with its offset (`…+05:00`, `…Z`) is that instant, shown in the zone of the field.
+ */
 function onPaste(event: ClipboardEvent): void {
   event.preventDefault();
   if (!editable.value) return;
-  const pasted = parseEntry(event.clipboardData?.getData("text") ?? "");
+  const text = event.clipboardData?.getData("text") ?? "";
+  const pasted = pastedEntry(text, props.granularity, zone.value);
   if (kinds.value.every((kind) => pasted[kind] === "")) return;
   for (const kind of kinds.value) entry[kind] = pasted[kind];
+  // As typed: the value written if it holds, a refusal only as the field is left.
   changed();
-  check();
 }
 
 function onSegmentFocus(): void {

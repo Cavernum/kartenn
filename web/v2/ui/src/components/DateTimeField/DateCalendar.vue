@@ -26,7 +26,7 @@ const props = defineProps<{
   /** The day chosen in the field, if any. */
   selected: Day | null;
   today: Day;
-  /** The id of the heading, which names the dialog too. */
+  /** The id of the heading, which names the grid (the dialog is named by its button). */
   headingId: string;
 }>();
 const emit = defineEmits<{ select: [day: Day]; cancel: [] }>();

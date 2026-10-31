@@ -132,7 +132,7 @@
     - spinbutton "Minutes"
     - text: /Europe\/Paris UTC\+\d+:\d+/
     - 'button "Choisir la date : Valide au"'
-    - paragraph: "Ce qui était vrai à cette date ; vide : maintenant."
+    - paragraph: "Ce qui est vrai à cette date, passée ou à venir ; vide : maintenant."
   - 'group "Raccourcis : Valide au"':
     - button "Maintenant"
     - button "Hier"

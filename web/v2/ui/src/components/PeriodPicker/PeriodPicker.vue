@@ -10,6 +10,8 @@
 // « Début du mois » (its first day at midnight) under each, said by a polite region. Sent,
 // an impossible entry is refused with its reason on its field, as is an `as_of` later than
 // now (the system time has no future, 006 « Lectures datées »): the focus goes to it.
+// That check reads the clock of the browser, strictly; the API compares with the `now()`
+// of the base, and its refusal (a 400 on a date) comes back on its field by `errors`.
 // Away from the present, « Revenir au présent » clears both. The layer around it (under
 // the date pill, spec 021) is the host's, as are Escape and the focus given back.
 import { nextTick, reactive, ref, useId, watch } from "vue";
@@ -30,8 +32,10 @@ const props = withDefaults(
      * then not named a second time (a form landmark of its own otherwise).
      */
     titleId?: string | undefined;
+    /** The host's refusal of a date (the API's, with its reason), shown on its field. */
+    errors?: Partial<Record<keyof Period, string>> | undefined;
   }>(),
-  { validAt: null, asOf: null, titleId: undefined },
+  { validAt: null, asOf: null, titleId: undefined, errors: undefined },
 );
 const emit = defineEmits<{ apply: [period: Period] }>();
 
@@ -102,7 +106,7 @@ const offPresent = () => props.validAt !== null || props.asOf !== null;
         :label="t(axis.label)"
         :hint="t(axis.hint)"
         :time-zone="props.timeZone"
-        :error="axis.key === 'asOf' ? asOfError : undefined"
+        :error="(axis.key === 'asOf' ? asOfError : undefined) ?? props.errors?.[axis.key]"
       />
       <div
         class="k-period-picker__shortcuts"
