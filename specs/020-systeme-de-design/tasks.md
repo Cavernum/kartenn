@@ -758,7 +758,19 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     `pointerleave`) ; repli du focus sur le contenu principal ; listes vides hors de
     l'arbre ; 202 d'E9 et du catalogue alignés (code de motif, pas l'identifiant du
     changeset ; plus de code ni d'adresse en texte courant) ; croix centrée sur la première
-    ligne ; phrase dans la figure des états isolés. Captures réécrites (voulues) : index (un
+    ligne ; phrase dans la figure des états isolés. Seconde revue (après la fusion de main,
+    maquettes E14 à E27, aucune couche faite main) ; corrigés : couches flottantes (popover,
+    menu, liste, calendrier, erreur de cellule) et feuilles de `SidePanel` et `BottomPanel`
+    sur le plan des couches modales (`--k-z-modal` ; un popover ouvert dans un dialogue
+    était sous son voile, une feuille sous les toasts) ; toasts retenus tant qu'une couche
+    modale les couvre (`aria-hidden`, `inert`, observés) ; `returnTo` remis à rien quand le
+    focus vient d'hors de la page ; Échap déjà pris (défaut empêché) laissé ; focus passé au
+    toast voisin seulement au clavier, rien après un clic ; tons, icône, corps et titre
+    communs à `InlineAlert` et `Toast` (`InlineAlert/tone.css`, dans `style.css`) ;
+    `AlertDialog` n'émet `cancel` que pour Échap et « Annuler » ; scripts : popover sur le
+    dialogue, toasts sous un dialogue et sous la feuille compacte, retenus sous le
+    dialogue et page cachée, repli sur le toast précédent et sur le contenu principal,
+    clic sans relais du focus. Captures réécrites (voulues) : index (un
     composant de plus), `Dialog`, `AlertDialog`, `Drawer` pages entières (état
     `keyboard`), E9-revue (toutes largeurs, aria) ; nouvelles : `Toast` (`ok`, `error`,
     `stack`, `keyboard`, pages), `Dialog`, `AlertDialog`, `Drawer` `keyboard`.
@@ -771,8 +783,8 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     les toasts ; focus rendu quand l'ouvreur a disparu et n'était pas une entrée de menu
     (ligne supprimée, action d'un toast : repli fourni par l'hôte ?) ; lecture au lecteur
     d'écran (toast lu en entier, noms des boutons compris ; régions `status` des `CodeBadge`
-    imbriquées dans celles des toasts ; `aria-atomic="false"` sur `alert`) ; bloc des
-    couleurs des quatre tons recopié de `.k-inline-alert` vers `.k-toast` ; texte d'un toast
+    imbriquées dans celles des toasts ; `aria-atomic="false"` sur `alert`) ; un toast
+    ajouté sous une couche modale n'est pas redit quand elle se ferme ; texte d'un toast
     en chaînes seules (ni adresse ni code en chasse fixe dans la phrase).
 - [ ] 23. `SidebarNav` (repliable, groupes), `CommandPalette`, `DatePill`,
   `DraftCounter`, `TimeBand` — verify : palette (Combobox dans Dialog) au clavier ;
