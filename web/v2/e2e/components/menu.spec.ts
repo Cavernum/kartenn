@@ -142,3 +142,23 @@ test.describe("Menu, entries to tick (menuitemcheckbox)", () => {
     await expect(used).toBeFocused();
   });
 });
+
+test.describe("Menu in a modal dialog", () => {
+  test("Tab from the menu of the last control goes round inside the dialog", async ({ page }) => {
+    // The state of the popover's catalogue: a field, a popover, then this menu.
+    await openState(page, "Popover", "in-dialog");
+    const modal = page.getByRole("dialog", { name: "Propriétés du préfixe" });
+    const button = modal.getByRole("button", { name: "Actions" });
+    await button.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("menuitem", { name: "Copier l'identifiant" })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    // Past the last control, the dialog's trap goes round to its first, the close button.
+    await expect(modal.getByRole("button", { name: "Fermer" })).toBeFocused();
+    await button.focus();
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Shift+Tab");
+    await expect(modal.getByRole("button", { name: "Héritée" })).toBeFocused();
+  });
+});
