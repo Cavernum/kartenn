@@ -14,10 +14,10 @@
 // not announced, relecture du 2026-10-26). The box keeps its size meanwhile: no shift.
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import type { IconName } from "../../icons/index.ts";
-import { t, type MessageKey } from "../../i18n.ts";
+import { t } from "../../i18n.ts";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import Icon from "../Icon/Icon.vue";
-import type { AlertTone } from "./alert.ts";
+import { TONE_ICONS, TONE_WORDS, type AlertTone } from "./alert.ts";
 
 const props = withDefaults(
   defineProps<{
@@ -30,22 +30,6 @@ const props = withDefaults(
   }>(),
   { tone: "info", items: () => [], icon: undefined },
 );
-
-const ICONS: Record<AlertTone, IconName> = {
-  info: "info",
-  ok: "circle-check",
-  warn: "triangle-alert",
-  ko: "circle-x",
-};
-
-// The tone in words too (WCAG 1.3.1): the icon is decorative, the colour is not read; a
-// warning and an information would otherwise sound the same.
-const WORDS: Record<AlertTone, MessageKey> = {
-  info: "toneInfo",
-  ok: "toneOk",
-  warn: "toneWarn",
-  ko: "toneKo",
-};
 
 const said = ref(false);
 let frame = 0;
@@ -62,10 +46,10 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
     :data-state="said ? undefined : 'waiting'"
     :role="props.tone === 'ko' ? 'alert' : 'status'"
   >
-    <Icon :name="props.icon ?? ICONS[props.tone]" class="k-inline-alert__icon" />
+    <Icon :name="props.icon ?? TONE_ICONS[props.tone]" class="k-inline-alert__icon" />
     <div class="k-inline-alert__body">
       <p class="k-inline-alert__title">
-        <span class="k-visually-hidden">{{ t(WORDS[props.tone]) }}{{ t("colon") }} </span
+        <span class="k-visually-hidden">{{ t(TONE_WORDS[props.tone]) }}{{ t("colon") }} </span
         >{{ props.title }}
       </p>
       <div v-if="$slots.default" class="k-inline-alert__text"><slot /></div>
