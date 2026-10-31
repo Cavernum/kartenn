@@ -3,9 +3,11 @@
  * first paint is no blank page and the application replaces it without a shift. A file
  * (no inline rule, CSP), copied as is from public/ (not minified, which would cut the
  * statement below) and linked first in the head; its values are the tokens of @kartenn/ui,
- * whose sheet the build links after it. The order of the layers first, as the sheet of
- * @kartenn/ui sets it: the first sheet of the page fixes it, and a test build links the
- * sheets of components split out of the library before the library's (test/build). */
+ * whose sheet the build links after it. What the frame keeps is read before the paint by
+ * public/boot.js, which marks the root: `data-boot-sidebar` (collapsed), `data-boot-dated`
+ * (the band), `data-boot-panel` and `--k-boot-panel-width` (the right panel open). The
+ * order of the layers first, as the sheet of @kartenn/ui sets it: the first sheet of the
+ * page fixes it (test/build). */
 @layer reset, tokens, base, components, plugins, utilities;
 
 @layer components {
@@ -24,6 +26,12 @@
     border-inline-end: var(--k-border-width) solid var(--k-border);
   }
 
+  [data-boot-sidebar="collapsed"] .k-boot__sidebar {
+    inline-size: var(--k-size-sidebar-collapsed);
+  }
+
+  /* The head (the bar, the band out of the present) and the body, as the column of the
+   * frame. */
   .k-boot__column {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
@@ -37,17 +45,54 @@
     border-block-end: var(--k-border-width) solid var(--k-border-strong);
   }
 
+  /* The band of TimeBand: its row only out of the present. */
+  .k-boot__band {
+    display: none;
+    min-block-size: var(--k-control-height-lg);
+    background-color: var(--k-band-bg);
+    border-block-end: var(--k-border-width) solid var(--k-border);
+  }
+
+  [data-boot-dated] .k-boot__band {
+    display: block;
+  }
+
+  /* The surface, then the strip of the closed right panel (or the panel kept open), in
+   * the `auto` track, as SidePanel lays them. */
+  .k-boot__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-block-size: 0;
+    container-type: inline-size;
+  }
+
   /* Two empty panels, as the surface of a screen lays them before its data. */
   .k-boot__surface {
     display: grid;
     grid-template-rows: var(--k-control-height-lg) minmax(0, 1fr);
     gap: var(--k-space-3);
+    min-inline-size: 0;
     min-block-size: 0;
     padding: var(--k-space-3);
   }
 
   .k-boot__panel {
     border-radius: var(--k-radius-md);
+  }
+
+  .k-boot__rail {
+    inline-size: calc(var(--k-control-height-sm) + var(--k-space-2));
+    background-color: var(--k-surface);
+    border-inline-start: var(--k-border-width) solid var(--k-border-strong);
+  }
+
+  [data-boot-panel="open"] .k-boot__rail {
+    inline-size: min(
+      var(--k-boot-panel-width, var(--k-size-panel-lg)),
+      var(--k-size-panel-room-inline)
+    );
+    margin-inline-start: var(--k-space-3);
+    border-inline-start: 0;
   }
 
   /* Without scripts, or when the start fails: the sentence over the skeleton. */
@@ -65,9 +110,11 @@
     translate: -50% 0;
   }
 
-  /* The width classes of the frame (WIDTH_CLASSES of @kartenn/ui). Narrow: a rail. */
+  /* The width classes of the frame (WIDTH_CLASSES of @kartenn/ui). Narrow: a rail, and
+   * the panel open covers the surface (out of the flow). */
   @media (width < 1024px) {
-    .k-boot__sidebar {
+    .k-boot__sidebar,
+    [data-boot-sidebar="collapsed"] .k-boot__sidebar {
       inline-size: var(--k-size-sidebar-collapsed);
     }
 
@@ -75,15 +122,20 @@
       gap: var(--k-space-2);
       padding: var(--k-space-2);
     }
+
+    [data-boot-panel="open"] .k-boot__rail {
+      display: none;
+    }
   }
 
-  /* Compact: one column, the sidebar in a drawer. */
+  /* Compact: one column, the sidebar in a drawer, the panel a sheet (no strip). */
   @media (width < 600px) {
     .k-boot {
       grid-template-columns: minmax(0, 1fr);
     }
 
-    .k-boot__sidebar {
+    .k-boot__sidebar,
+    .k-boot__rail {
       display: none;
     }
   }

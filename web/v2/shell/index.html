@@ -8,6 +8,8 @@
          (spec 021, REQ-021-1), and the order of the layers, fixed by the first sheet of the
          page whatever sheets the build links after it. -->
     <link rel="stylesheet" href="/boot.css" />
+    <!-- What the frame keeps (sidebar, panel, dates, theme), read before the first paint. -->
+    <script src="/boot.js"></script>
   </head>
   <body>
     <!-- The static skeleton of the frame, in its geometry, replaced by the application
@@ -18,10 +20,16 @@
       <div class="k-boot" aria-hidden="true">
         <div class="k-boot__sidebar"></div>
         <div class="k-boot__column">
-          <div class="k-boot__bar"></div>
-          <div class="k-boot__surface">
-            <div class="k-boot__panel k-skeleton-fill"></div>
-            <div class="k-boot__panel k-skeleton-fill"></div>
+          <div>
+            <div class="k-boot__bar"></div>
+            <div class="k-boot__band"></div>
+          </div>
+          <div class="k-boot__body">
+            <div class="k-boot__surface">
+              <div class="k-boot__panel k-skeleton-fill"></div>
+              <div class="k-boot__panel k-skeleton-fill"></div>
+            </div>
+            <div class="k-boot__rail"></div>
           </div>
         </div>
       </div>

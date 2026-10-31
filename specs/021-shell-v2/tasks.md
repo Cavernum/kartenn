@@ -431,13 +431,24 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (« Toujours réduire le mouvement », raccourcis à une touche) plutôt que les entrées
     uniques de la maquette, qui n'agissaient pas ; VLAN et groupes de VLAN dans l'espace
     `network` (REQ-021-2), la maquette les plaçant sous Référentiel ; entrées masquées
-    par droits de lecture (accueil, anomalies et propriétés : l'une des lectures du
-    référentiel ; brouillons et imports : une édition du cœur), `/admin` mène aux
-    groupes ; `meta.breadcrumb(params, t)` (libellés traduits, design § « Routes »
-    amendé) ; vérification d'une période par la lecture datée la plus légère
-    (`GET /v1/domains?page_size=1`), seulement hors présent, seul un 400 la refuse ;
-    vue d'attente et cadre dans le premier fichier ; `boot.css` dans `public/` (copiée
-    telle quelle, liée en premier) ; build du shell (`vite.config.ts`) : `@kartenn/ui` en
+    par droits (accueil, anomalies et propriétés : l'une des lectures du référentiel ;
+    brouillons et imports : une édition du cœur, `prop.<clé>.edit` ou
+    `core.draft.admin` ; rôles aussi `core.role.admin`, identités aussi
+    `core.account.admin`), l'élément d'espace du fil d'Ariane et `/admin` mènent à la
+    première entrée visible ; `meta.breadcrumb(params, t)` (libellés traduits, design
+    § « Routes » amendé) ; vérification d'une période par une ligne de la première liste
+    datée que l'utilisateur lit (`probePath`, ordre : domaines, entités, sites, groupes de
+    VLAN, VLAN, préfixes, plages, adresses), sans lecture permise rien n'est demandé, seul
+    un 400 la refuse, la réponse d'une demande dépassée est écartée ; un déplacement dans
+    l'historique (Retour, Avancer) ne reporte aucune date ; vue d'attente et cadre dans le
+    premier fichier ; `boot.css` dans `public/` (copiée telle quelle, liée en premier) ;
+    squelette à la géométrie du cadre par un script de démarrage en fichier
+    (`public/boot.js`, CSP `'self'`, aucun script en ligne) qui lit avant la peinture
+    l'état gardé (barre repliée, panneau ouvert et sa largeur, thème, densité,
+    mouvement) et les dates de l'URL (rang de la bande), et marque la racine
+    (`data-boot-*`) ; parcours : boîtes du squelette et du cadre égales emplacement par
+    emplacement à 1280 et 1100 px, au départ, repliée, datée, repliée datée panneau
+    ouvert ; build du shell (`vite.config.ts`) : `@kartenn/ui` en
     un seul fichier (groupe `ui` de `codeSplitting`, `vue` dans son groupe propre), car
     un écran paresseux scindait des composants de la bibliothèque, dont les feuilles
     passaient alors avant la sienne ou manquaient (`Dialog` absent des pages d'`AlertDialog`,
@@ -450,7 +461,11 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (tâche 14) ; compteurs de la barre latérale (tâches 11, 14) ; entrées des plugins par
     espace, connexion, « À propos », déconnexion (tâche 16) ; à la bibliothèque (020) :
     groupes radio d'un `Menu` nommés par leur étiquette, `lang` d'une entrée (noms des
-    langues), relevés par la relecture d'accessibilité.
+    langues), relevés par la relecture d'accessibilité ; à arbitrer : catalogues de
+    vue-i18n précompilés au build et compilateur de messages retiré (design « Pile
+    retenue ») — le compilateur reste, faute d'outil de précompilation dans le dépôt, et
+    la 007 (« vue-i18n et CSP ») le garde pour les catalogues des plugins ; squelette à
+    la classe compacte, où la bande peut aller à la ligne (non mesuré).
 - [ ] 10. Raccourcis et palette : registre (portée, conflits, réglage à une touche), un
   écouteur, séquences `g`, aide `?` et `/help/shortcuts`, palette Ctrl+K (navigation,
   actions, recherche par valeur, récents, commandes des plugins) — REQ-021-3, 7, 8 —

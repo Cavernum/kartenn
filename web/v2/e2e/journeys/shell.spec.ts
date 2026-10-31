@@ -109,6 +109,95 @@ test("the draft counter opens the panel on its tab, then closes it", async ({ pa
   await expect(panel.getByRole("tab")).toHaveCount(0);
 });
 
+/** The slots of the skeleton of index.html and those of the mounted frame, by name. */
+const SKELETON = {
+  sidebar: ".k-boot__sidebar",
+  bar: ".k-boot__bar",
+  band: ".k-boot__band",
+  surface: ".k-boot__surface",
+  panel: ".k-boot__rail",
+} as const;
+const FRAME = {
+  sidebar: ".k-frame > .k-sidebar",
+  bar: ".k-frame__bar",
+  band: ".k-time-band",
+  surface: "#k-surface",
+  panel: ".k-side-panel-rail, .k-side-panel",
+} as const;
+
+type Boxes = Record<keyof typeof SKELETON, number[] | null>;
+
+/** The box of each slot (x, y, width, height, rounded), `null` when it shows none. */
+async function boxesOf(page: Page, slots: Record<keyof typeof SKELETON, string>) {
+  return page.evaluate((selectors) => {
+    const out: Record<string, number[] | null> = {};
+    for (const [name, selector] of Object.entries(selectors)) {
+      const box = document.querySelector(selector)?.getBoundingClientRect();
+      out[name] =
+        box && box.width > 0 && box.height > 0
+          ? [box.x, box.y, box.width, box.height].map(Math.round)
+          : null;
+    }
+    return out;
+  }, slots) as Promise<Boxes>;
+}
+
+// The skeleton of index.html in the geometry the frame mounts in (REQ-021-1): the mount
+// replaces its nodes, which no layout shift measures, so the boxes are compared slot by
+// slot, with what the frame keeps (sidebar collapsed, panel open) and a dated URL (band).
+// The module refused, Firefox reports its digest as that of no content (the SHA-384 of the
+// empty string), and a font of the skeleton cut short by the next load as failed: the
+// doing of the journey, not errors.
+test.describe("skeleton", () => {
+  // An array value goes in its tuple: Playwright reads `[value, options]`.
+  test.use({
+    toleratedErrors: [
+      [
+        /computed hash is “OLBgp1GsljhM2TJ\+sbHjaiH9txEUvgdDTAzHv2P24/,
+        /downloadable font: download failed .* status=2152398850/,
+      ],
+      { scope: "test" },
+    ],
+  });
+  for (const width of [1280, 1100]) {
+    for (const { name, kept, query } of [
+      { name: "at first", kept: {}, query: "" },
+      { name: "sidebar collapsed", kept: { "kartenn.sidebar": "collapsed" }, query: "" },
+      { name: "dated", kept: {}, query: "?valid_at=2026-01-01T00%3A00%3A00Z" },
+      {
+        name: "collapsed, dated, panel open",
+        kept: {
+          "kartenn.sidebar": "collapsed",
+          "kartenn.panel": JSON.stringify({ open: true, tab: "detail", width: 480 }),
+        },
+        query: "?as_of=2026-01-01T00%3A00%3A00Z",
+      },
+    ]) {
+      test(`the skeleton has the geometry of the frame at ${width} px, ${name}`, async ({
+        page,
+        login,
+      }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await login("bob");
+        await page.evaluate((entries) => {
+          for (const [key, value] of Object.entries(entries)) localStorage.setItem(key, value);
+        }, kept);
+        // The skeleton alone: the module of the application refused.
+        await page.route(/\/assets\/index-[^/]+\.js$/, (route) => route.abort());
+        await page.goto(`/prefixes${query}`);
+        await page.locator(".k-boot").waitFor();
+        const skeleton = await boxesOf(page, SKELETON);
+        await page.unroute(/\/assets\/index-[^/]+\.js$/);
+        await page.goto(`/prefixes${query}`);
+        await expect(page.getByRole("heading", { level: 1, name: "Préfixes" })).toBeVisible();
+        const frame = await boxesOf(page, FRAME);
+        expect(skeleton.band === null).toBe(query === "");
+        expect(skeleton).toEqual(frame);
+      });
+    }
+  }
+});
+
 test("the frame replaces the skeleton without a shift", async ({ page, login, browserName }) => {
   test.skip(browserName !== "chromium", "Layout Instability API: Chromium only");
   await login("bob");
