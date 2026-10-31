@@ -18,6 +18,10 @@ const SHARED = [
 ];
 /** The sheet of @kartenn/ui, as a module of the build. */
 const UI_SHEET = /\/ui\/src\/style\.css(\?|$)/;
+/** Every module of @kartenn/ui (its scripts, components and sheets). */
+const UI_SOURCES = /\/web\/v2\/ui\/src\//;
+/** The modules of Vue (`vue` and its `@vue/*` packages). */
+const VUE_SOURCES = /\/node_modules\/(vue|@vue)\//;
 const IMPORT_MAP = /<script type="importmap">([\s\S]*?)<\/script>/;
 const PLACEHOLDER = "<!--kartenn-import-map-->";
 
@@ -60,6 +64,20 @@ function sharedModules(): Plugin {
             ...Object.fromEntries(SHARED.map(({ entry, source }) => [entry, source])),
           },
           preserveEntrySignatures: "strict",
+          // @kartenn/ui in one chunk, hence one sheet in the order of its sources: split by
+          // the screens that use its components, its rules of a same layer would come in
+          // the order of the split sheets instead (a later rule no longer winning).
+          // `vue` first, in a chunk of its own: the library's group would take it along
+          // with its other dependencies, and a plugin that imports `vue` alone would load
+          // the whole library.
+          output: {
+            codeSplitting: {
+              groups: [
+                { name: "vue.runtime", test: VUE_SOURCES, priority: 2 },
+                { name: "ui", test: UI_SOURCES, priority: 1 },
+              ],
+            },
+          },
         },
       },
     }),
@@ -176,6 +194,16 @@ function preloadFont(): Plugin {
 // artefact).
 export default defineConfig(({ mode }) => ({
   plugins: [vue(), preloadFont(), sharedModules()],
+  define: {
+    // vue-i18n (W11, as web/shell): composition API only; messages compiled to an AST at
+    // run time (JIT, no eval nor new Function: CSP without 'unsafe-eval'), so the message
+    // compiler stays in the build for the catalogs of plugins.
+    __VUE_I18N_FULL_INSTALL__: true,
+    __VUE_I18N_LEGACY_API__: false,
+    __INTLIFY_PROD_DEVTOOLS__: false,
+    __INTLIFY_JIT_COMPILATION__: true,
+    __INTLIFY_DROP_MESSAGE_COMPILER__: false,
+  },
   build: {
     target: "es2022",
     outDir: mode === "catalogue" ? "../dist/catalogue" : "../dist/shell",

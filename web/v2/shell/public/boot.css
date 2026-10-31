@@ -1,0 +1,90 @@
+/* The critical sheet of the shell (spec 021, REQ-021-1; design « Cadre »): the static
+ * skeleton of index.html in the geometry of the frame (frame/ShellFrame.vue), so that the
+ * first paint is no blank page and the application replaces it without a shift. A file
+ * (no inline rule, CSP), copied as is from public/ (not minified, which would cut the
+ * statement below) and linked first in the head; its values are the tokens of @kartenn/ui,
+ * whose sheet the build links after it. The order of the layers first, as the sheet of
+ * @kartenn/ui sets it: the first sheet of the page fixes it, and a test build links the
+ * sheets of components split out of the library before the library's (test/build). */
+@layer reset, tokens, base, components, plugins, utilities;
+
+@layer components {
+  .k-boot {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    block-size: var(--k-size-viewport);
+    overflow: hidden;
+    background-color: var(--k-bg);
+  }
+
+  .k-boot__sidebar {
+    inline-size: var(--k-size-sidebar);
+    background-color: var(--k-sidebar-bg);
+    box-sizing: border-box;
+    border-inline-end: var(--k-border-width) solid var(--k-border);
+  }
+
+  .k-boot__column {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-inline-size: 0;
+    min-block-size: 0;
+  }
+
+  .k-boot__bar {
+    min-block-size: var(--k-size-status-bar);
+    background-color: var(--k-surface);
+    border-block-end: var(--k-border-width) solid var(--k-border-strong);
+  }
+
+  /* Two empty panels, as the surface of a screen lays them before its data. */
+  .k-boot__surface {
+    display: grid;
+    grid-template-rows: var(--k-control-height-lg) minmax(0, 1fr);
+    gap: var(--k-space-3);
+    min-block-size: 0;
+    padding: var(--k-space-3);
+  }
+
+  .k-boot__panel {
+    border-radius: var(--k-radius-md);
+  }
+
+  /* Without scripts, or when the start fails: the sentence over the skeleton. */
+  .k-boot__noscript,
+  .k-boot__failed {
+    position: fixed;
+    inset-block-start: var(--k-space-8);
+    inset-inline-start: 50%;
+    z-index: var(--k-z-overlay);
+    padding: var(--k-space-3);
+    color: var(--k-text);
+    background-color: var(--k-surface);
+    border: var(--k-border-width) solid var(--k-border-strong);
+    border-radius: var(--k-radius-md);
+    translate: -50% 0;
+  }
+
+  /* The width classes of the frame (WIDTH_CLASSES of @kartenn/ui). Narrow: a rail. */
+  @media (width < 1024px) {
+    .k-boot__sidebar {
+      inline-size: var(--k-size-sidebar-collapsed);
+    }
+
+    .k-boot__surface {
+      gap: var(--k-space-2);
+      padding: var(--k-space-2);
+    }
+  }
+
+  /* Compact: one column, the sidebar in a drawer. */
+  @media (width < 600px) {
+    .k-boot {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .k-boot__sidebar {
+      display: none;
+    }
+  }
+}

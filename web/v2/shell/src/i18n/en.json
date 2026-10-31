@@ -1,0 +1,72 @@
+{
+  "app": {
+    "name": "kartenn",
+    "skip": "Skip to content",
+    "rightPanel": "Right panel",
+    "notFound": "Page not found",
+    "notFoundText": "No screen of kartenn answers at this address.",
+    "notFoundTitle": "Nothing at this address",
+    "pendingTitle": "Screen to come",
+    "pending": "This screen comes with the rest of the new shell.",
+    "noSelection": "No selection: choose a row or a node to show its detail here.",
+    "draftEmpty": "No operation in the active draft.",
+    "draftCount": "The active draft holds {n} operation. | The active draft holds {n} operations.",
+    "draftsPage": "Open the page of the drafts",
+    "detail": "Detail",
+    "draft": "Draft"
+  },
+  "space": {
+    "referential": "Referential",
+    "changes": "Changesets",
+    "network": "Network",
+    "admin": "Administration"
+  },
+  "nav": {
+    "home": "Home",
+    "topology": "Topography",
+    "domains": "Domains",
+    "prefixes": "Prefixes",
+    "ranges": "Ranges",
+    "addresses": "Addresses",
+    "entities": "Entities",
+    "sites": "Sites",
+    "anomalies": "Anomalies",
+    "properties": "Properties",
+    "changesets": "Changesets",
+    "proposals": "To review",
+    "drafts": "My drafts",
+    "imports": "Imports",
+    "vlans": "VLANs",
+    "vlanGroups": "VLAN groups",
+    "groups": "Groups",
+    "roles": "Roles",
+    "identities": "Identities",
+    "accounts": "Service accounts",
+    "issuers": "Issuers",
+    "settings": "Settings",
+    "audit": "Audit",
+    "observability": "Observability"
+  },
+  "palette": {
+    "navigation": "Navigation"
+  },
+  "user": {
+    "menu": "Account of {name}",
+    "anonymousMenu": "Account: not signed in",
+    "anonymous": "Not signed in",
+    "language": "Language",
+    "theme": "Theme",
+    "themeSystem": "The system's",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "density": "Density",
+    "densityCompact": "Compact",
+    "densityComfortable": "Comfortable",
+    "reducedMotion": "Always reduce motion",
+    "singleKeys": "Single-key shortcuts"
+  },
+  "time": {
+    "refused": "kartenn refuses this date: {reason}",
+    "asOfLater": "A date later than the time of kartenn: it has asserted nothing yet at that instant."
+  }
+}
