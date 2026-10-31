@@ -102,6 +102,11 @@ hit AS (
 /// `x.id = ANY($1)`: once the prepared statement runs its generic plan, `$1` is a
 /// parameter whose array PostgreSQL does not hash, and the test is linear in the targets
 /// for each object walked (more than an hour for 10⁶ targets, task 010-19).
+///
+/// It is planned for its parameters at each run, never kept prepared: its generic plan,
+/// chosen from the sixth run on a connection, plans the array of targets as a few rows
+/// (291 s instead of 0.5 s for the 1.4·10⁵ targets of the roots on the reduced bench,
+/// 73 s for 2·10⁴ before task 010-19; task 003-20).
 const SEGMENTS_DOWN: &str = concat!(
     targets!(),
     "
@@ -311,6 +316,7 @@ impl PgTx {
             }
             computed.extend(
                 sqlx::query_as::<_, Row>(segments)
+                    .persistent(segments != SEGMENTS_DOWN)
                     .bind(objects)
                     .bind(property)
                     .bind(from)

@@ -473,6 +473,64 @@ Le programme sort en erreur si un seuil est dépassé. Il s'exécute par le scri
 `bench-properties` (base `kartenn_bench` recréée) ; son branchement dans la CI attend la
 mise en place de celle-ci, comme le banc de la 002 (002-27).
 
+**Dépassements du 2026-10-30 (tâche 20).** Au banc pleine échelle de 5d2da650, trois
+mesures dépassent : retrait des racines de 3 domaines 1 197,8 s pour 60 s, valeur de
+toutes les racines 10,72 s pour 10 s, résolution groupée 512 × 6 38,2 ms pour 30 ms.
+Causes trouvées au banc réduit, par l'échantillonnage de `pg_stat_activity` pendant le
+banc et `EXPLAIN (ANALYZE, BUFFERS)` des requêtes en plan générique
+(`plan_cache_mode = force_generic_plan`) et sur mesure :
+
+- **Retrait des racines de 3 domaines** : le plan générique de deux requêtes préparées
+  dont un paramètre porte toutes les cibles. PostgreSQL passe au plan générique d'une
+  requête préparée à partir de sa sixième exécution sur une connexion ; ce plan estime
+  le tableau à quelques éléments. Les segments calculés en descendant des porteurs
+  (`SEGMENTS_DOWN`) y prennent 291 s au lieu de 0,5 s pour les 1,4·10⁵ cibles des
+  racines (0,84 s au lieu de 0,10 s pour 2,2·10⁴ cibles, plan générique forcé après
+  coup, les statistiques à jour). Le différentiel (`record_sql`) y lit les préfixes de `ex` par leur seule
+  période et teste le tableau des objets sur chacun, coût quadratique avec l'échelle :
+  2,0 s au lieu de 0,4 s pour 2,2·10⁴ objets. Ce n'est pas une régression du code : à
+  5f614621 (le banc du 2026-10-15), le même banc réduit, la bascule vers la descente
+  ramenée à l'échelle, dépasse déjà (75,4 s, dont 72,7 s pour la descente en plan
+  générique). Le banc complet du 2026-10-15 avait tenu parce que la connexion du
+  changeset mesuré n'avait pas encore exécuté cinq fois la descente ; celui du
+  2026-10-30, si. Le banc réduit ne le voyait pas : ses 2·10⁴ cibles restaient sous la
+  bascule `DOWN_FROM` (5·10⁴) et montaient. Correction : ces deux requêtes sont
+  planifiées pour leurs paramètres à chaque exécution (`persistent(false)`, comme
+  `filter.rs`, `tree.rs`, `explain.rs` et la réévaluation des flux) ; le banc ramène la
+  bascule à la taille du jeu au-dessous du jeu de référence, pour que chaque mesure prenne
+  le chemin qu'elle prend à pleine échelle. Test :
+  `resolution::large_refreshes_are_planned_for_their_arrays` (session en plan générique
+  forcé, aucune des deux requêtes gardée préparée).
+- **Valeur de toutes les racines** : linéaire, sans plan fautif ; 0,88 s à 5f614621 et
+  0,94 à 1,09 s sur main au banc réduit, soit l'écart de 9,1 à 10,72 s observé à pleine
+  échelle. Une part vient de la 024 (9b0c3eec) : sous `approval.self`, les droits sont
+  vérifiés pour l'auteur puis pour celui qui applique, et chaque vérification relisait
+  tous les objets du différentiel (≈ 30 ms pour 1,2·10⁵ objets au banc réduit, de l'ordre
+  de 0,5 s pour 10⁶). Ils sont lus une fois (`rights::effects`) pour les deux.
+- **Résolution groupée 512 × 6** : pas de régression trouvée. La mesure de 38,2 ms est
+  la première à pleine échelle (016-4 ne l'avait mesurée qu'aux jeux réduit et `small`) ;
+  au banc réduit, 15,5 à 17 ms, inchangée par les corrections. Les ancêtres de 128
+  adresses le long de l'arbre d'adressage coûtent ≈ 6 ms au banc réduit (un sondage `GiST`
+  de `prefix_unique_per_domain` par adresse), en parallèle de la requête des valeurs.
+  Reste à voir au banc complet, machine calme, si le seuil tient.
+
+| Banc réduit, graine 42 | main | main, bascule ramenée | plans sur mesure | + effets lus une fois (machine chargée) | 5f614621, bascule ramenée |
+|---|---|---|---|---|---|
+| Première valeur sur toutes les racines | 4,71 s | 4,99 s | 4,67 s | 5,10 s | 4,27 s |
+| Explication, p95 | 9,2 ms | 5,6 ms | 5,5 ms | 7,4 ms | 7,8 ms |
+| Résolution groupée 512 × 6, p95 | 15,5 ms | 16,2 ms | 17,0 ms | 23,7 ms | — |
+| Page filtrée, héritable, p95 | 5,3 ms | 5,9 ms | 8,4 ms | 9,7 ms | 6,1 ms |
+| Page filtrée, non héritable, p95 | 4,6 ms | 5,1 ms | 4,7 ms | 8,6 ms | 3,8 ms |
+| Changeset ≤ 10⁴ (2 080 objets) | 0,41 s | 0,43 s | 0,34 s | 0,50 s | 0,29 s |
+| Valeur de toutes les racines (1,2·10⁵ objets) | 0,94 s | 1,09 s | 1,00 s | 1,29 s | 0,88 s |
+| Retrait des racines de 3 domaines (1,8·10⁴ objets) | 4,17 s | 1,36 s | 1,45 s | 1,87 s | **75,4 s** |
+| Affectation de `custom.h3` aux racines et à 3 % des préfixes (hors seuil) | 8,3 s | **300,5 s** | 6,6 s | 7,9 s | 17,3 s |
+
+« Bascule ramenée » : `DOWN_FROM` × adresses du jeu / 10⁶ (5 500 au jeu réduit), le banc
+committé depuis la tâche 20. Les colonnes « main » et « 5f614621 » sont avant correction ;
+la quatrième a tourné pendant la compilation d'un autre agent (toutes ses mesures
+montent, sans rapport avec la correction).
+
 ## ADR
 
 - [`docs/adr/0016-resolution-materialisee-proprietes.md`](../../docs/adr/0016-resolution-materialisee-proprietes.md) (accepté)

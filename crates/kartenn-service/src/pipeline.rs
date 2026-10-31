@@ -2586,13 +2586,14 @@ async fn properties<T: WriteTx + Send, A: Authorizer>(
     }
     let touched = crate::resolution::touched(&all, refreshed);
     let diff = crate::resolution::diff(tx, &all, &maintained, period).await?;
+    let effects = crate::rights::effects(tx, &diff).await?;
     // Default values are not the author's choice: only their effects need rights.
     crate::rights::check(
         tx,
         authorizer,
         rights.edit,
         rights.authored,
-        &diff,
+        &effects,
         period,
         Some(rights.required),
         violations,
@@ -2607,7 +2608,7 @@ async fn properties<T: WriteTx + Send, A: Authorizer>(
             authorizer,
             application,
             planned,
-            &diff,
+            &effects,
             period,
             None,
             rights.unapplied,

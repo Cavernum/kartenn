@@ -241,7 +241,14 @@ impl PgTx {
             .execute(&mut *self.tx)
             .await
             .map_err(store_err)?;
+        // Planned for its arrays at each run, never kept prepared: the generic plan, chosen
+        // from the sixth run on a connection, reads the prefixes of `ex` by their period
+        // alone and tests the array of objects on each (2 s instead of 0.4 s for the 2·10⁴
+        // objects of three domains on the reduced bench, quadratic with the scale; task
+        // 003-20). Planning costs a few milliseconds, less than that scan even for a few
+        // objects.
         sqlx::query(sqlx::AssertSqlSafe(record_sql()))
+            .persistent(false)
             .bind(property)
             .bind(&objects)
             .bind(from)

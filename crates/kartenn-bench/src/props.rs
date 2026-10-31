@@ -253,6 +253,21 @@ pub(crate) fn progress(line: &str) {
     eprintln!("{line}");
 }
 
+/// The store of the bench. Below the reference dataset (10⁶ addresses), the number of
+/// targets from which origins are recomputed going down shrinks with it, so that each
+/// measure takes the way it takes at full scale: the reduced bench went up where the full
+/// one went down, and missed the generic plan of the way down (task 003-20).
+fn store(pool: &PgPool, data: &Dataset) -> PgStore {
+    const REFERENCE: usize = 1_000_000;
+    let store = PgStore::new(pool.clone());
+    let addresses = data.addresses.len();
+    if addresses >= REFERENCE / 2 {
+        return store;
+    }
+    let down_from = store.down_from() * addresses / REFERENCE;
+    store.with_down_from(down_from.max(1))
+}
+
 /// Loads, assigns and measures; returns the report and whether every budget holds.
 ///
 /// # Errors
@@ -274,7 +289,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     .fetch_one(&pool)
     .await?;
     let bench = Bench {
-        store: PgStore::new(pool.clone()),
+        store: store(&pool, data),
         pool: pool.clone(),
         author,
     };

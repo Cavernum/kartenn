@@ -37,7 +37,26 @@ pub(crate) struct Check<'a> {
     pub verb: Verb,
 }
 
-/// Checks the rights of `check` on the assignments and on the effects of the changeset
+/// The effects of the changeset: the objects of its differential, by property key. Read
+/// once for the checks of the author and of whoever applies, which ask rights on the same
+/// objects (task 003-20: read twice under `approval.self`, about 30 ms more for 1.2·10⁵
+/// objects).
+pub(crate) type Effects = BTreeMap<String, Vec<Uuid>>;
+
+/// Reads the [`Effects`] of the differential recorded so far.
+pub(crate) async fn effects<T: WriteTx>(
+    tx: &mut T,
+    diff: &[DiffCount],
+) -> Result<Effects, StoreError> {
+    let keys: BTreeSet<&str> = diff.iter().map(|d| d.property.as_str()).collect();
+    let mut effects = Effects::new();
+    for key in keys {
+        effects.insert(key.to_owned(), tx.diff_objects(key).await?);
+    }
+    Ok(effects)
+}
+
+/// Checks the rights of `check` on the assignments and on the `effects` of the changeset
 /// (its differential); the objects refused are listed per property. Every edit
 /// permission asked is added to `required` when given.
 #[allow(clippy::too_many_arguments)] // the context of a changeset, passed down unbundled
@@ -47,7 +66,7 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
     authorizer: &A,
     check: Check<'_>,
     planned: &[Planned],
-    diff: &[DiffCount],
+    effects: &Effects,
     period: Option<Period>,
     mut required: Option<&mut Required>,
     violations: &mut Vec<Violation>,
@@ -108,12 +127,11 @@ pub(crate) async fn check<T: WriteTx + Send, A: Authorizer>(
                 .insert(*object);
         }
     }
-    let keys: BTreeSet<&str> = diff.iter().map(|d| d.property.as_str()).collect();
-    for key in keys {
+    for (key, affected) in effects {
         objects
-            .entry(key.to_owned())
+            .entry(key.clone())
             .or_default()
-            .extend(tx.diff_objects(key).await?);
+            .extend(affected.iter().copied());
     }
     for (key, objects) in objects {
         let Ok(key) = PropertyKey::parse(&key) else {

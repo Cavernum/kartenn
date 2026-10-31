@@ -311,6 +311,13 @@ impl PgStore {
         self.down_from = targets;
         self
     }
+
+    /// The number of targets from which origins are recomputed going down (see
+    /// [`Self::with_down_from`]).
+    #[must_use]
+    pub const fn down_from(&self) -> usize {
+        self.down_from
+    }
 }
 
 /// A write transaction.

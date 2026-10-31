@@ -130,3 +130,18 @@ voir [`../README.md`](../README.md).
     base du banc ; vérifier d'abord que le banc réduit reproduit l'écart en proportion.
     Aucun banc pleine échelle par l'agent.
   - dépend de : —
+  - en cours : causes et correction faites le 2026-10-31 (design § « Banc REQ-003-26 »,
+    « Dépassements du 2026-10-30 ») — plan générique de `SEGMENTS_DOWN` et de
+    `record_sql`, présent dès 5f614621, désormais planifiés pour leurs paramètres
+    (`origins.rs`, `diff.rs`) ; objets du différentiel lus une fois pour les droits de
+    l'auteur et de celui qui applique (`rights::effects`) ; bascule vers la descente
+    ramenée à la taille du jeu au banc réduit (`props.rs`, `PgStore::down_from`) ; test
+    `resolution::large_refreshes_are_planned_for_their_arrays` (échoue sans les deux
+    `persistent`, les deux requêtes restant préparées). Résolution groupée :
+    pas de régression trouvée, première mesure à pleine échelle. Reste : le banc complet
+    du `verify`, par la session principale.
+  - choix : la bascule du banc réduit suit le nombre d'adresses du jeu (inchangée à partir
+    de la moitié du jeu de référence) ; `record_sql` toujours planifié sur mesure (son plan
+    générique lit tous les préfixes même pour quelques objets : 7,7 ms contre 3,6 ms et
+    4 ms de planification pour 19 objets), `SEGMENTS_DOWN` aussi (il ne sert qu'au-delà de
+    la bascule).
