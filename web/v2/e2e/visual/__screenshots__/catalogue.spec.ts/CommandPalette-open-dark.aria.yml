@@ -1,10 +1,11 @@
 - main:
   - dialog "Palette de commandes":
-    - combobox "Palette de commandes" [expanded]
+    - combobox "Rechercher une commande, un objet, une page" [expanded]
+    - status: 6 résultats
     - listbox "Palette de commandes":
       - group "Commandes":
         - text: ""
-        - option "Créer un préfixe"
+        - option "Créer un préfixe" [selected]
         - option "Ouvrir le brouillon"
       - group "Navigation":
         - text: ""

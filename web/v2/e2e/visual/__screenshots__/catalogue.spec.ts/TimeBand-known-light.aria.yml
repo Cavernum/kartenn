@@ -1,0 +1,12 @@
+- main:
+  - region "TimeBand":
+    - heading "TimeBand" [level=1]
+    - paragraph: "Motif : role=status, bouton de retour au présent"
+    - 'figure "known — État connu à une date passée (as_of) : lecture seule"':
+      - status:
+        - text: État connu au
+        - time: /1 déc\. \d+, \d+:\d+/
+        - text: (Europe/Paris) — lecture seule
+      - button "Revenir au présent"
+      - code: known
+      - text: ""

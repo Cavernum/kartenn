@@ -1,0 +1,46 @@
+- main:
+  - region "SidebarNav":
+    - heading "SidebarNav" [level=1]
+    - paragraph: "Motif : Disclosure dans un repère navigation"
+    - 'figure "collapsed-hover — Repliée, survol du bouton de repli : son nom et son raccourci"':
+      - navigation "Navigation principale":
+        - button "Rechercher"
+        - list "Référentiel":
+          - listitem:
+            - link "Accueil":
+              - /url: /
+          - listitem:
+            - link "Topographie":
+              - /url: /topology
+          - listitem:
+            - link "VLAN":
+              - /url: /vlans
+          - listitem:
+            - link "Domaines":
+              - /url: /domains
+          - listitem:
+            - link "Préfixes":
+              - /url: /prefixes
+          - listitem:
+            - link "Adresses":
+              - /url: /addresses
+          - listitem:
+            - link "Anomalies 4":
+              - /url: /anomalies
+        - list "Changesets":
+          - listitem:
+            - link "Changesets":
+              - /url: /changesets
+          - listitem:
+            - link "À instruire 2":
+              - /url: /proposals
+          - listitem:
+            - link "Brouillon":
+              - /url: /draft
+        - list "Administration":
+          - listitem:
+            - link "Administration":
+              - /url: /admin
+        - button "Barre latérale"
+      - code: collapsed-hover
+      - text: ""

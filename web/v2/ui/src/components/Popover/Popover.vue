@@ -21,7 +21,7 @@ import { injectPortalTarget } from "../../context.ts";
 import { t } from "../../i18n.ts";
 import IconButton from "../IconButton/IconButton.vue";
 import { setRoom } from "../internal/room.ts";
-import { besideInTabOrder, tabbables } from "../internal/tabOrder.ts";
+import { tabOut } from "../internal/tabOrder.ts";
 
 const props = withDefaults(
   defineProps<{
@@ -93,18 +93,12 @@ function onCloseFocus(event: Event): void {
  * Heard before Reka's scope, which would take the focus round inside (`loop`).
  */
 function onKey(event: KeyboardEvent): void {
-  if (event.key !== "Tab" || event.ctrlKey || event.altKey || event.metaKey) return;
-  const el = event.currentTarget as HTMLElement;
-  const inside = tabbables(el);
-  const at = document.activeElement as HTMLElement | null;
-  const first = at === el || at === inside[0];
-  const last = inside.length === 0 || at === inside.at(-1);
-  if (event.shiftKey ? !first : !last) return;
   const from = triggerEl();
-  if (!from) return;
+  const to = from && tabOut(event, event.currentTarget as HTMLElement, from);
+  if (!to) return;
   event.preventDefault();
   event.stopPropagation();
-  leaving = event.shiftKey ? from : (besideInTabOrder(from, 1, el) ?? from);
+  leaving = to;
   open.value = false;
   leaving.focus();
 }

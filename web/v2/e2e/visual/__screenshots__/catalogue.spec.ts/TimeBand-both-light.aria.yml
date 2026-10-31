@@ -1,0 +1,14 @@
+- main:
+  - region "TimeBand":
+    - heading "TimeBand" [level=1]
+    - paragraph: "Motif : role=status, bouton de retour au présent"
+    - 'figure "both — Les deux dates : lecture seule"':
+      - status:
+        - text: Lecture au
+        - time: /3 nov\. \d+, \d+:\d+/
+        - text: ", connu au"
+        - time: /1 déc\. \d+, \d+:\d+/
+        - text: (Europe/Paris) — lecture seule
+      - button "Revenir au présent"
+      - code: both
+      - text: ""

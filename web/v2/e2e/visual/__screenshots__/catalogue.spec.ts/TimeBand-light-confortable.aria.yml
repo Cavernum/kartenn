@@ -2,19 +2,37 @@
   - region "TimeBand":
     - heading "TimeBand" [level=1]
     - paragraph: "Motif : role=status, bouton de retour au présent"
-    - figure "past — Lecture au passé":
+    - 'figure "past — Date de validité seule (valid_at) : brouillon daté possible"':
       - status:
         - text: Lecture au
         - time: /3 nov\. \d+, \d+:\d+/
-        - text: (Europe/Paris)
+        - text: (Europe/Paris) — brouillon daté possible
       - button "Revenir au présent"
       - code: past
+      - text: ""
+    - 'figure "known — État connu à une date passée (as_of) : lecture seule"':
+      - status:
+        - text: État connu au
+        - time: /1 déc\. \d+, \d+:\d+/
+        - text: (Europe/Paris) — lecture seule
+      - button "Revenir au présent"
+      - code: known
+      - text: ""
+    - 'figure "both — Les deux dates : lecture seule"':
+      - status:
+        - text: Lecture au
+        - time: /3 nov\. \d+, \d+:\d+/
+        - text: ", connu au"
+        - time: /1 déc\. \d+, \d+:\d+/
+        - text: (Europe/Paris) — lecture seule
+      - button "Revenir au présent"
+      - code: both
       - text: ""
     - figure "other-zone — Autre fuseau nommé":
       - status:
         - text: Lecture au
         - time: /3 nov\. \d+, \d+:\d+/
-        - text: (America/Montreal)
+        - text: (America/Montreal) — brouillon daté possible
       - button "Revenir au présent"
       - code: other-zone
       - text: ""
