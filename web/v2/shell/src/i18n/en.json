@@ -86,6 +86,7 @@
     "columnFilter": "Filter the column",
     "sidebar": "Collapse or expand the sidebar",
     "panel": "Open or close the right panel",
+    "off": "{action} (off)",
     "singleOn": "Single-key shortcuts are on; the account menu turns them off. Ctrl+K, Ctrl+Enter and Escape stay.",
     "singleOff": "Single-key shortcuts are off: only Ctrl+K, Ctrl+Enter and Escape act. The account menu turns them back on.",
     "go": {

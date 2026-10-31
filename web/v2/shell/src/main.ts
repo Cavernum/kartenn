@@ -1,3 +1,4 @@
+import { reserveKeys } from "@kartenn/sdk/host";
 import { createApp } from "vue";
 import { createRouter, createWebHistory } from "vue-router";
 import "./shared/ui.ts";
@@ -8,6 +9,7 @@ import { useSettings } from "./frame/settings.ts";
 import { createShellI18n } from "./i18n/index.ts";
 import { installPrefetch } from "./prefetch/intent.ts";
 import { shellRoutes } from "./router.ts";
+import { SHELL_KEYS } from "./shortcuts/shell.ts";
 import { installTime } from "./time/index.ts";
 
 // The new shell (spec 021): its frame and screens and, outside production, the catalogue of
@@ -17,6 +19,8 @@ import { installTime } from "./time/index.ts";
 // most, REQ-021-22). The settings of the user apply before the first render, and the
 // skeleton of index.html stays until the first page is ready (REQ-021-1).
 async function start(): Promise<void> {
+  // The shell's keys, refused to the plugins' shortcuts before any plugin registers one.
+  reserveKeys(SHELL_KEYS);
   useSettings();
   const i18n = createShellI18n();
   const router = createRouter({ history: createWebHistory(), routes: await shellRoutes() });

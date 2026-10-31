@@ -489,7 +489,8 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     préfixes et adresses, et par slug ou nom sur domaines, entités, sites, VLAN, groupes,
     par droit de lecture, par le cache du SDK aux dates de la page, 150 ms après la
     dernière touche, réponse dépassée écartée), `recent.ts` (objets récents,
-    `kartenn.recent.objects`, `forgetRecent` pour la déconnexion), `palette.ts` (groupes :
+    `kartenn.recent.objects.<identité>`, filtrés par droits de lecture, `forgetRecent` pour
+    la déconnexion), `help.ts` (lignes de l'aide), `palette.ts` (groupes :
     objets trouvés ou récents, commandes, pages ; commandes des plugins hors droits
     absentes), `ShortcutHelp.vue` (table de l'aide, réglage dit), `HelpView.vue`
     (`/help/shortcuts`), `context.ts` ; `frame/ShellFrame.vue` (registre, écouteur, aide
@@ -514,20 +515,31 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     montrée ni jouée ; `/`, `c`, `e` passent par `useViewAction` (aucune vue ne les donne
     encore : tâches 11 et 12) ; les touches seules s'arrêtent aussi dans tout dialogue et
     dans les rôles `menu`, `menubar`, `listbox`, `tree` (recherche à la saisie de l'APG) ;
-    AltGr compte comme sans modificateur (`[` des claviers AZERTY) ; Ctrl+Maj+K n'est pas
+    AltGr compte comme une modification (REQ-021-8 : aucune autre que Maj), donc `[` et `]`
+    tapés par AltGr (AZERTY, dont Mac) ne jouent rien : la palette (« Replier la barre
+    latérale », « Ouvrir le panneau droit ») et les boutons restent le recours ; une lettre
+    tapée avec Verr. Maj sans Maj compte comme sans ; Ctrl+Maj+K n'est pas
     Ctrl+K ; une touche nommée (Tab, Échap) clôt une séquence ; Ctrl+K ne s'ouvre pas
     par-dessus une autre couche modale (le tiroir de la barre lui cède la place), et une
     commande de la palette ne joue qu'une fois le focus rendu à son ouvreur (l'aide ouverte
-    de la palette rend le focus au bouton « Rechercher ») ; registre : mêmes touches
+    de la palette rend le focus au bouton « Rechercher » ; un focus ailleurs, une nouvelle
+    ouverture ou 1 s sans retour du focus abandonnent la commande) ; registre : mêmes touches
     toujours refusées, préfixe de séquence refusé entre raccourcis joués seulement (Échap
-    et Échap Échap de l'A8 sont documentaires) ; aide : réglage dit en tête, colonne
-    « Portée » de priorité 2, libellés courts de la maquette ; objets de la palette en un
+    et Échap Échap de l'A8 sont documentaires) ; aide : réglage dit en tête, réglage coupé
+    chaque touche seule jouée marquée « (désactivé) » dans son action, colonne
+    « Portée » de priorité 2, libellés courts de la maquette ; `reserveKeys` posé dans
+    `main.ts` avant le montage ; objets de la palette en un
     groupe « Objets » comme la maquette, nom = type en mots et lieu (« Préfixe ·
     production »), valeur en chasse fixe en détail, 5 par collection et 8 en tout ;
-    recherche par `q` (début de valeur, de slug ou de nom), par valeur seulement si le texte
-    en a l'air ; une collection en échec est omise sans message ; récents gardés en
-    `localStorage` comme les recherches de la 007 (REQ-007-28), effacés à la déconnexion
-    (tâche 16) ; fiches `/:collection/:id` en vue d'attente pour que la palette y mène ;
+    recherche par `q` (début de valeur, de slug ou de nom ; filtre typé du contrat), par
+    valeur seulement si le texte en a l'air, annulée (`AbortController`, annulation de la
+    requête du cache) à chaque saisie et à la fermeture, les objets trouvés gardés jusqu'à
+    la réponse suivante ; page de 20 (la suggestion du contrat) : les filtres de liste du SDK
+    écartent `page_size` (une clé de cache par filtre), la palette en prend les premiers ;
+    une collection en échec est omise sans message ; récents gardés en `localStorage` comme
+    les recherches de la 007 (REQ-007-28), sous l'identité de l'utilisateur
+    (`kartenn.recent.objects.<identité>`, un UUID), montrés seulement pour les collections
+    qu'il lit encore, effacés à la déconnexion (tâche 16) ; fiches `/:collection/:id` en vue d'attente pour que la palette y mène ;
     indices des touches seules masqués quand le réglage les coupe (palette, menus,
     `SidebarNav`, `SidePanel`) ; `CommandPalette` dit « Chargement » tant que l'hôte
     cherche, même avec des entrées ; `ShortcutHelp` sans feuille propre (partagé avec E8,
@@ -613,7 +625,14 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     écarte `incompatible` par `unmetRange` (`@kartenn/sdk/host`), `handle.styles()` lie la
     feuille de `@kartenn/ui` ; repris de la tâche 7 : `meta.modules` de `/x/:plugin/…`, le
     chargeur attend les mêmes `preloadModules` (`web/v2/shell/src/plugins/preload.ts`),
-    entrées des plugins préchargées au repos (`requestIdleCallback`)
+    entrées des plugins préchargées au repos (`requestIdleCallback`) ; repris de la
+    tâche 10 : la déconnexion appelle `forgetRecent()` (`web/v2/shell/src/shortcuts/recent.ts`,
+    objets récents de tous les utilisateurs du navigateur) ; les lettres `g` des manifestes
+    (`m`, `t`, `q`, `f` : machines, matrice, conformité, flux) s'enregistrent au registre du
+    cadre (`createShortcutRegistry`, `ShellFrame.vue`, `navigate` vers `/x/<plugin>/…`,
+    `shown` par droits), une lettre prise refusée et le plugin signalé ; `reserveKeys`
+    (`SHELL_KEYS`, posé dans `main.ts` avant le montage) reste avant tout chargement de
+    plugin
   - dépend de : 9
 
 ## P3 — Plugins (phase 5)

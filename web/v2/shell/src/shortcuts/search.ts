@@ -1,4 +1,4 @@
-import { queryClient, reads, type ListPath } from "@kartenn/sdk";
+import { queryClient, reads, type FiltersOf, type ListPath } from "@kartenn/sdk";
 import type { IconName } from "@kartenn/ui";
 import type { FoundObject } from "./recent.ts";
 
@@ -9,9 +9,14 @@ import type { FoundObject } from "./recent.ts";
 // again is read from it), at the dates of the page. A collection that fails is left out:
 // the palette offers what it found.
 
+/** The lists whose contract takes `q` (the start of a value, a slug or a name). */
+export type SearchPath = {
+  [P in ListPath]: "q" extends keyof FiltersOf<P> ? P : never;
+}[ListPath];
+
 interface Searched {
   type: string;
-  path: ListPath;
+  path: SearchPath;
   /** The read without which the collection is not searched. */
   read: string;
   icon: IconName;
@@ -100,18 +105,47 @@ export function pageOf(link: unknown): string | null {
   return typeof link === "string" && link.startsWith("/v1/") ? link.slice(3) : null;
 }
 
-/** Reads the first page of a collection for `q` (the cache of the SDK, the page's dates). */
-export type SearchRead = (path: ListPath, q: string) => Promise<readonly unknown[]>;
+/** Whether the objects of `type` are searched, and shown among the recent ones, for `has`. */
+export function readableType(type: string, has: (permission: string) => boolean): boolean {
+  const searched = SEARCHED.find((s) => s.type === type);
+  return !!searched && has(searched.read);
+}
 
-const cacheRead: SearchRead = async (path, q) => {
-  const data = await queryClient.fetchInfiniteQuery(reads.list(path, { q } as never));
-  return (data.pages[0]?.data.items ?? []) as readonly unknown[];
+/**
+ * Reads the first page of a collection for `q`; `signal` aborts it (a new text, the palette
+ * closed).
+ */
+export type SearchRead = (
+  path: SearchPath,
+  q: string,
+  signal: AbortSignal,
+) => Promise<readonly unknown[]>;
+
+/**
+ * Through the cache of the SDK, at the page's dates. The size of the page stays the
+ * contract's for a suggestion (20): the SDK's list filters leave `page_size` out, the cache
+ * keeping one key per filter; the palette takes the first ones.
+ */
+const cacheRead: SearchRead = async (path, q, signal) => {
+  const options = reads.list(path, { q });
+  const cancel = () => void queryClient.cancelQueries({ queryKey: options.queryKey, exact: true });
+  signal.addEventListener("abort", cancel, { once: true });
+  try {
+    const data = await queryClient.fetchInfiniteQuery(options);
+    return (data.pages[0]?.data.items ?? []) as readonly unknown[];
+  } finally {
+    signal.removeEventListener("abort", cancel);
+  }
 };
 
-/** The objects found for `text`, in the order of the collections, for whom holds `has`. */
+/**
+ * The objects found for `text`, in the order of the collections, for whom holds `has`;
+ * aborted by `signal` (then the answer is not read).
+ */
 export async function searchObjects(
   input: string,
   has: (permission: string) => boolean,
+  signal: AbortSignal,
   read: SearchRead = cacheRead,
 ): Promise<FoundObject[]> {
   const q = input.trim().slice(0, MAX_TEXT);
@@ -120,7 +154,7 @@ export async function searchObjects(
   const searched = SEARCHED.filter((s) => has(s.read) && (value || !s.byValue));
   const results = await Promise.all(
     searched.map(async (s) => {
-      const items = await read(s.path, q).catch(() => [] as readonly unknown[]);
+      const items = await read(s.path, q, signal).catch(() => [] as readonly unknown[]);
       return items.slice(0, FOUND_PER_TYPE).flatMap((raw): FoundObject[] => {
         const item = raw as Record<string, unknown>;
         const links = item.links as { self?: unknown } | undefined;

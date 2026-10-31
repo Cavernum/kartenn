@@ -129,13 +129,25 @@ function matches(step: readonly string[], event: KeyboardEvent): boolean {
   return event.shiftKey === step.includes("Shift");
 }
 
-/** Whether the event holds Ctrl, Alt or Méta, AltGr apart (it types `[` on many layouts). */
+/**
+ * Whether the event holds Ctrl, Alt or Méta (REQ-021-8: no modifier but Shift). AltGr
+ * included: a key it types (`[` on many layouts) plays no single-key shortcut; the palette
+ * offers the same commands.
+ */
 function modified(event: KeyboardEvent): boolean {
-  // AltGr: alone on some systems, Ctrl+Alt on others; never Alt alone, nor with Méta.
-  const altGr =
-    event.getModifierState?.("AltGraph") && event.ctrlKey === event.altKey && !event.metaKey;
-  if (altGr) return false;
   return event.ctrlKey || event.altKey || event.metaKey;
+}
+
+/**
+ * The character of a key as the shortcuts name it: a letter typed with Caps Lock and
+ * without Shift is the letter without it (`G` → `g`); with both, the capital (`g` → `G`).
+ */
+function characterOf(event: KeyboardEvent): string {
+  const key = event.key;
+  if (!event.getModifierState?.("CapsLock") || key.toLowerCase() === key.toUpperCase()) {
+    return key;
+  }
+  return event.shiftKey ? key.toUpperCase() : key.toLowerCase();
 }
 
 export interface ListenerOptions {
@@ -196,12 +208,13 @@ export function createKeyListener(options: ListenerOptions): (event: KeyboardEve
       return;
     }
     const single = shortcuts.filter((s) => isSingleKey(s.keys));
+    const key = characterOf(event);
     const first = pending;
     pending = null;
     if (first && now() - first.at <= timeout) {
       const second = single.find((s) => {
         const steps = shortcutSteps(s.keys);
-        return steps.length === 2 && steps[0]![0] === first.key && steps[1]![0] === event.key;
+        return steps.length === 2 && steps[0]![0] === first.key && steps[1]![0] === key;
       });
       if (second) {
         act(second, event);
@@ -210,16 +223,16 @@ export function createKeyListener(options: ListenerOptions): (event: KeyboardEve
     }
     const starts = single.some((s) => {
       const steps = shortcutSteps(s.keys);
-      return steps.length > 1 && steps[0]![0] === event.key;
+      return steps.length > 1 && steps[0]![0] === key;
     });
     if (starts) {
-      pending = { key: event.key, at: now() };
+      pending = { key, at: now() };
       event.preventDefault();
       return;
     }
     const one = single.find((s) => {
       const steps = shortcutSteps(s.keys);
-      return steps.length === 1 && steps[0]!.length === 1 && steps[0]![0] === event.key;
+      return steps.length === 1 && steps[0]!.length === 1 && steps[0]![0] === key;
     });
     if (one) act(one, event);
   };

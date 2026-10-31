@@ -161,12 +161,15 @@ annuler) ; `[` (barre latérale) ; `]` (panneau droit) ;
 Alt+Flèche bas sur un en-tête de grille (filtre de colonne, convention maison, dite dans
 l'aide). Un composant qui consomme les caractères (recherche à la saisie de l'arbre)
 porte `data-k-typeahead` ; les rôles `menu`, `menubar`, `listbox`, `tree` et tout dialogue
-arrêtent aussi les touches seules. Les raccourcis à une touche se désactivent (WCAG 2.1.4) ; ils
-sont montrés par `Kbd` (une combinaison) ou `ShortcutHint` (une séquence) dans les menus,
-les infobulles et l'aide, lus au registre (`shell/src/shortcuts/`, et `shortcuts.register`
-du SDK pour la vue d'un plugin), jamais montrés quand le réglage les coupe. Une vue du shell
-donne `/`, `c`, `e` par `useViewAction` (`filter`, `create`, `edit` ; `allowed` : le droit) ;
-`c` et `e` n'agissent qu'au présent.
+arrêtent aussi les touches seules, comme Ctrl, Alt (AltGr compris) et Méta ; une lettre
+tapée avec Verr. Maj compte comme sans. Les raccourcis à une touche se désactivent (WCAG
+2.1.4). Ils sont lus au registre (`shell/src/shortcuts/`, et `shortcuts.register` du SDK
+pour la vue d'un plugin) et montrés par `Kbd` (une combinaison) ou `ShortcutHint` (une
+séquence) : réglage coupé, ni la palette, ni le menu du compte, ni `SidebarNav`
+(`singleKeys`), ni `SidePanel` (`shortcut`) ne les montrent ; l'aide les garde, chacun
+marqué « (désactivé) » dans son action, et le dit en tête. Une vue du shell donne `/`, `c`,
+`e` par `useViewAction` (`filter`, `create`, `edit` ; `allowed` : le droit) ; `c` et `e`
+n'agissent qu'au présent.
 
 ## 6. Pièges de Reka UI (prototype, `docs/spikes/005-framework-web.md`)
 

@@ -5,30 +5,16 @@
 // plugin's view — each with its keys (`ShortcutHint`: « g puis c »), what it does and
 // where it acts.
 // In the dialog `?` and on the page /help/shortcuts.
-import { DataGrid, ShortcutHint, Stack, type GridColumn, type Shortcut } from "@kartenn/ui";
+import { DataGrid, ShortcutHint, Stack, type GridColumn } from "@kartenn/ui";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
+import { helpRows, type HelpRow } from "./help.ts";
 import type { ShellShortcut } from "./registry.ts";
 
 const props = defineProps<{ shortcuts: readonly ShellShortcut[]; singleKeys: boolean }>();
 const { t } = useI18n();
 
-interface Row extends Record<string, unknown> {
-  id: string;
-  keys: Shortcut;
-  action: string;
-  scope: string;
-}
-const rows = computed<Row[]>(() =>
-  props.shortcuts
-    .filter((s) => s.shown?.() !== false)
-    .map((s) => ({
-      id: s.id,
-      keys: s.keys,
-      action: s.label(),
-      scope: t(`shortcuts.where.${s.where}`),
-    })),
-);
+const rows = computed(() => helpRows(props.shortcuts, props.singleKeys, t));
 const columns = computed<GridColumn[]>(() => [
   { id: "keys", label: t("shortcuts.keys"), width: "md" },
   { id: "action", label: t("shortcuts.action"), width: "fill", wrap: true },
@@ -46,7 +32,7 @@ const columns = computed<GridColumn[]>(() => [
       <template #cell="{ row, column, value }">
         <span v-if="column.id === 'keys'">
           <span class="k-visually-hidden">{{ t("shortcuts.keysSaid") }}</span>
-          <ShortcutHint :keys="(row as Row).keys" />
+          <ShortcutHint :keys="(row as HelpRow).keys" />
         </span>
         <template v-else>{{ value }}</template>
       </template>

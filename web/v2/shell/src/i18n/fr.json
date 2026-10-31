@@ -86,6 +86,7 @@
     "columnFilter": "Filtrer la colonne",
     "sidebar": "Replier ou déplier la barre latérale",
     "panel": "Ouvrir ou fermer le panneau droit",
+    "off": "{action} (désactivé)",
     "singleOn": "Les raccourcis à une touche sont actifs ; le menu du compte les désactive. Ctrl+K, Ctrl+Entrée et Échap restent.",
     "singleOff": "Les raccourcis à une touche sont désactivés : seuls Ctrl+K, Ctrl+Entrée et Échap agissent. Le menu du compte les réactive.",
     "go": {

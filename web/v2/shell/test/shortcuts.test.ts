@@ -4,6 +4,7 @@ import { reserveKeys } from "@kartenn/sdk/host";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { effectScope } from "vue";
 import { Rights } from "../src/rights/index.ts";
+import { helpRows } from "../src/shortcuts/help.ts";
 import { paletteGroups, pluginEntries, type PaletteEntry } from "../src/shortcuts/palette.ts";
 import {
   forgetRecent,
@@ -21,7 +22,7 @@ import {
   takesCharacters,
   type ShellShortcut,
 } from "../src/shortcuts/registry.ts";
-import { looksLikeValue, pageOf, searchObjects } from "../src/shortcuts/search.ts";
+import { looksLikeValue, pageOf, readableType, searchObjects } from "../src/shortcuts/search.ts";
 import {
   navigationTarget,
   pluginShortcut,
@@ -50,10 +51,15 @@ const shortcut = (id: string, keys: ShellShortcut["keys"], run = vi.fn()): Shell
 
 function press(
   key: string,
-  init: KeyboardEventInit = {},
+  init: KeyboardEventInit & { capsLock?: boolean; altGraph?: boolean } = {},
   target: EventTarget = document.body,
 ): KeyboardEvent {
-  const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init });
+  const { capsLock = false, altGraph = false, ...rest } = init;
+  const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...rest });
+  // happy-dom knows neither lock: the states a browser gives.
+  const state = event.getModifierState.bind(event);
+  event.getModifierState = (name: string) =>
+    name === "CapsLock" ? capsLock : name === "AltGraph" ? altGraph : state(name);
   target.dispatchEvent(event);
   return event;
 }
@@ -229,6 +235,31 @@ describe("one listener", () => {
     expect(palette).toHaveBeenCalledTimes(2);
   });
 
+  it("plays a letter typed with Caps Lock as without it", () => {
+    const go = vi.fn();
+    const help = vi.fn();
+    list = [shortcut("go", [["g"], ["c"]], go), shortcut("help", ["?"], help)];
+    press("G", { capsLock: true });
+    press("C", { capsLock: true });
+    expect(go).toHaveBeenCalledTimes(1);
+    // Caps Lock and Shift: the capital, which no shortcut of the shell takes.
+    press("g", { capsLock: true, shiftKey: true });
+    press("c", { capsLock: true, shiftKey: true });
+    expect(go).toHaveBeenCalledTimes(1);
+    press("?", { capsLock: true, shiftKey: true });
+    expect(help).toHaveBeenCalledTimes(1);
+  });
+
+  it("plays no single key with Alt, nor AltGr (no modifier but Shift)", () => {
+    const sidebar = vi.fn();
+    list = [shortcut("sidebar", ["["], sidebar)];
+    press("[", { altKey: true });
+    press("[", { ctrlKey: true, altKey: true, altGraph: true });
+    expect(sidebar).not.toHaveBeenCalled();
+    press("[");
+    expect(sidebar).toHaveBeenCalledTimes(1);
+  });
+
   it("ends a sequence on any other key, not on Shift", () => {
     const go = vi.fn();
     list = [shortcut("go", [["g"], ["C"]], go)];
@@ -322,6 +353,29 @@ describe("the shortcuts of the shell", () => {
       "shell.filterEscape",
       "shell.columnFilter",
     ]);
+  });
+});
+
+describe("help", () => {
+  const t = (key: string, named?: Record<string, unknown>) =>
+    named ? `${key}(${String(named.action)})` : key;
+
+  it("marks off in words the single keys the setting turns off, not Échap nor Ctrl+K", () => {
+    const set = shellShortcuts(actions({ rights: () => ADMIN }));
+    const on = new Map(helpRows(set, true, t).map((r) => [r.id, r.action]));
+    const off = new Map(helpRows(set, false, t).map((r) => [r.id, r.action]));
+    expect(on.get("shell.go.changesets")).toBe("shortcuts.go.changesets");
+    expect(off.get("shell.go.changesets")).toBe("shortcuts.off(shortcuts.go.changesets)");
+    expect(off.get("shell.help")).toBe("shortcuts.off(shortcuts.help)");
+    expect(off.get("shell.palette")).toBe("shortcuts.palette");
+    expect(off.get("shell.escape")).toBe("shortcuts.escape");
+    expect(off.get("shell.filterEscape")).toBe("shortcuts.filterEscape");
+  });
+
+  it("lists only what the rights show", () => {
+    const ids = helpRows(shellShortcuts(actions()), true, t).map((r) => r.id);
+    expect(ids).toContain("shell.go.changesets");
+    expect(ids).not.toContain("shell.go.admin");
   });
 });
 
@@ -454,10 +508,17 @@ describe("search by value and by name", () => {
           ]
         : [],
     );
-    const found = await searchObjects(" 192.0.2. ", (p) => READER.has(p), read);
+    const signal = new AbortController().signal;
+    const found = await searchObjects(" 192.0.2. ", (p) => READER.has(p), signal, read);
     expect(read.mock.calls.map((c) => c[0])).toEqual(["/v1/prefixes", "/v1/addresses"]);
-    expect(read).toHaveBeenCalledWith("/v1/prefixes", "192.0.2.");
+    expect(read).toHaveBeenCalledWith("/v1/prefixes", "192.0.2.", signal);
     expect(found).toEqual([PREFIX]);
+  });
+
+  it("knows the collections a user reads", () => {
+    expect(readableType("prefix", (p) => READER.has(p))).toBe(true);
+    expect(readableType("vlan", (p) => READER.has(p))).toBe(false);
+    expect(readableType("machine", (p) => ADMIN.has(p))).toBe(false);
   });
 
   it("searches the other collections by name, leaves a failed one out", async () => {
@@ -467,7 +528,8 @@ describe("search by value and by name", () => {
         ? [{ id: "v1", name: "supervision", vid: 10, href: "/v1/vlans/v1" }]
         : [];
     });
-    const found = await searchObjects("sup", (p) => ADMIN.has(p), read);
+    const signal = new AbortController().signal;
+    const found = await searchObjects("sup", (p) => ADMIN.has(p), signal, read);
     expect(read.mock.calls.map((c) => c[0])).not.toContain("/v1/prefixes");
     expect(found).toEqual([
       {
@@ -479,24 +541,48 @@ describe("search by value and by name", () => {
         to: "/vlans/v1",
       },
     ]);
-    expect(await searchObjects("   ", () => true, read)).toEqual([]);
+    expect(await searchObjects("   ", () => true, signal, read)).toEqual([]);
   });
 });
 
 describe("recent objects", () => {
   afterEach(forgetRecent);
+  const ALICE = "0b5e0000-0000-4000-8000-00000000a11c";
+  const BOB = "0b5e0000-0000-4000-8000-000000000b0b";
+  const all = () => true;
 
   it("keeps the latest first, once, and so many", () => {
-    rememberObject(PREFIX);
+    rememberObject(ALICE, PREFIX);
     for (let i = 0; i < RECENT_KEPT; i++) {
-      rememberObject({ ...PREFIX, id: `a${i}`, type: "address" });
+      rememberObject(ALICE, { ...PREFIX, id: `a${i}`, type: "address" });
     }
-    rememberObject(PREFIX);
-    const recent = recentObjects();
+    rememberObject(ALICE, PREFIX);
+    const recent = recentObjects(ALICE, all);
     expect(recent).toHaveLength(RECENT_KEPT);
     expect(recent[0]).toEqual(PREFIX);
     expect(recent.filter((o) => o.id === "p1")).toHaveLength(1);
-    localStorage.setItem("kartenn.recent.objects", "{not json");
-    expect(recentObjects()).toEqual([]);
+    localStorage.setItem(`kartenn.recent.objects.${ALICE}`, "{not json");
+    expect(recentObjects(ALICE, all)).toEqual([]);
+  });
+
+  it("never shows them to another user of the browser, nor signed out", () => {
+    rememberObject(ALICE, PREFIX);
+    expect(recentObjects(BOB, all)).toEqual([]);
+    expect(recentObjects(null, all)).toEqual([]);
+    rememberObject(null, PREFIX);
+    expect(Object.keys(localStorage).filter((k) => k.startsWith("kartenn.recent"))).toEqual([
+      `kartenn.recent.objects.${ALICE}`,
+    ]);
+    forgetRecent();
+    expect(recentObjects(ALICE, all)).toEqual([]);
+  });
+
+  it("leaves out the objects of a collection the user may no longer read", () => {
+    rememberObject(ALICE, PREFIX);
+    rememberObject(ALICE, { ...PREFIX, id: "v1", type: "vlan", icon: "vlan", to: "/vlans/v1" });
+    const read = (rights: Rights) => (type: string) => readableType(type, (p) => rights.has(p));
+    expect(recentObjects(ALICE, read(ADMIN)).map((o) => o.type)).toEqual(["vlan", "prefix"]);
+    expect(recentObjects(ALICE, read(READER)).map((o) => o.type)).toEqual(["prefix"]);
+    expect(recentObjects(ALICE, read(new Rights([])))).toEqual([]);
   });
 });

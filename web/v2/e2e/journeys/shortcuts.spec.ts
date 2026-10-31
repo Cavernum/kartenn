@@ -41,11 +41,12 @@ test("`?` shows the help of every shortcut, also at /help/shortcuts", async ({ p
   await expect(grid.getByRole("row", { name: /Palette de commandes/ })).toBeVisible();
   await expect(help.getByText(/Les raccourcis à une touche sont actifs/)).toBeVisible();
   await expectAccessible(page);
-  // Ctrl+K over the help opens no second modal layer.
+  // Ctrl+K over the help opens no second modal layer: one Escape then closes the help (a
+  // palette over it would have taken that Escape).
   await page.keyboard.press("Control+k");
-  await expect(palette(page)).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(help).toBeHidden();
+  await expect(palette(page)).toHaveCount(0);
 
   // The help from the palette gives the focus back to what opened the palette (2.4.3).
   const search = page
@@ -77,8 +78,15 @@ test("a reader is not offered the navigation out of their rights", async ({ page
   await expect(grid.getByRole("row", { name: /Aller aux préfixes/ })).toBeVisible();
   await expect(grid.getByRole("row", { name: /Aller à l'administration/ })).toHaveCount(0);
   await page.keyboard.press("Escape");
+  // The help gone (its exit over), the keys are the page's again.
+  await expect(page.getByRole("dialog", { name: "Raccourcis clavier" })).toHaveCount(0);
   await page.keyboard.press("g");
   await page.keyboard.press("x");
+  // Then a shortcut that navigates: it arrives, and the page before it is still the home.
+  await page.keyboard.press("g");
+  await page.keyboard.press("p");
+  await expect(page).toHaveURL(/\/prefixes$/);
+  await page.goBack();
   await expect(page).toHaveURL(/\/$/);
 });
 
@@ -88,9 +96,14 @@ test("« gc » typed in a field goes nowhere", async ({ page, login }) => {
   await expect(field(page)).toBeFocused();
   await page.keyboard.type("gc");
   await expect(field(page)).toHaveValue("gc");
-  await expect(page).toHaveURL(/\/$/);
   await page.keyboard.press("Escape");
   await expect(palette(page)).toBeHidden();
+  // Then a shortcut that navigates: it arrives, and the page before it is still the home.
+  await page.keyboard.press("g");
+  await page.keyboard.press("p");
+  await expect(page).toHaveURL(/\/prefixes$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test("the single keys turned off, `g c` does nothing and Ctrl+K stays", async ({ page, login }) => {
@@ -103,13 +116,26 @@ test("the single keys turned off, `g c` does nothing and Ctrl+K stays", async ({
   await page.keyboard.press("g");
   await page.keyboard.press("c");
   await page.keyboard.press("Shift+?");
-  await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole("dialog", { name: "Raccourcis clavier" })).toHaveCount(0);
+  // Ctrl+K opens the palette: no help is open (it would refuse it).
   await page.keyboard.press("Control+k");
   await expect(field(page)).toBeFocused();
+  await expect(page.getByRole("dialog", { name: "Raccourcis clavier" })).toHaveCount(0);
   // No hint of a single key while they are off.
   await expect(palette(page).getByText("puis")).toHaveCount(0);
-  await page.keyboard.press("Escape");
+  // A page from the palette: it arrives, and the page before it is still the home.
+  await page.keyboard.type("préfixes");
+  await expect(
+    palette(page)
+      .getByRole("option", { name: /Préfixes/ })
+      .first(),
+  ).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/prefixes$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+  // The help says them off.
+  await page.goto("/help/shortcuts");
+  await expect(page.getByRole("row", { name: /Aller aux changesets \(désactivé\)/ })).toBeVisible();
 });
 
 test("`[` collapses the sidebar, `]` opens and closes the right panel", async ({ page, login }) => {
