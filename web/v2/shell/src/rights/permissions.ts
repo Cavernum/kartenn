@@ -29,9 +29,14 @@ export class Rights {
     return this.entries.some((entry) => covers(entry, permission));
   }
 
-  /** Any of `permissions`. */
+  /**
+   * Any of `permissions`; one may be a pattern (`prop.*.edit`), held when an entry covers
+   * it or it covers an entry (`prop.core.owner.edit` is one of `prop.*.edit`).
+   */
   hasAny(permissions: readonly string[]): boolean {
-    return permissions.some((p) => this.has(p));
+    return permissions.some(
+      (p) => this.has(p) || (p.includes("*") && this.entries.some((entry) => covers(p, entry))),
+    );
   }
 }
 

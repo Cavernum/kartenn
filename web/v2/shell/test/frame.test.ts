@@ -15,7 +15,7 @@ import {
   THEME_KEY,
   useSettings,
 } from "../src/frame/settings.ts";
-import { locate, sidebarGroups } from "../src/frame/spaces.ts";
+import { CORE_SPACES, locate, sidebarGroups, spaceEntry } from "../src/frame/spaces.ts";
 import { installPrefetch, queriesOf } from "../src/prefetch/intent.ts";
 import { Rights, type Me } from "../src/rights/index.ts";
 import { checkPeriod, goToPeriod, installTime } from "../src/time/index.ts";
@@ -53,6 +53,32 @@ describe("spaces of the sidebar", () => {
   it("shows the administration and the changesets to an administrator", () => {
     const ids = sidebarGroups(new Rights(["*"]), t).map((g) => g.id);
     expect(ids).toEqual(["referential", "changes", "network", "admin"]);
+  });
+
+  it("gives the drafts to an editor of a property or an administrator of drafts", () => {
+    for (const entry of ["prop.core.owner.edit", "prop.*.edit", "core.draft.admin"]) {
+      const changes = sidebarGroups(new Rights([entry]), t).find((g) => g.id === "changes");
+      expect(
+        changes?.entries.map((e) => e.id),
+        entry,
+      ).toEqual(["drafts", "imports"]);
+    }
+    expect(sidebarGroups(new Rights(["prop.core.owner.read"]), t)).toEqual([]);
+  });
+
+  it("shows roles to a role administrator, identities to an account administrator", () => {
+    const ids = (entry: string) =>
+      sidebarGroups(new Rights([entry]), t)
+        .find((g) => g.id === "admin")
+        ?.entries.map((e) => e.id);
+    expect(ids("core.role.admin")).toEqual(["roles"]);
+    expect(ids("core.account.admin")).toEqual(["identities", "accounts"]);
+  });
+
+  it("leads a space to its first entry the user may see", () => {
+    const admin = CORE_SPACES.find((space) => space.id === "admin")!;
+    expect(spaceEntry(admin, new Rights(["core.audit.read"])).to).toBe("/admin/audit");
+    expect(spaceEntry(admin, new Rights([])).to).toBe("/admin/groups");
   });
 
   it("finds the space and entry of a path, the longest entry first", () => {

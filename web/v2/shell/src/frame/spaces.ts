@@ -33,8 +33,6 @@ export interface Space {
   id: SpaceId;
   /** The key of its label (`space.<id>`). */
   label: string;
-  /** Where its crumb leads: the first page of the space. */
-  home: string;
   entries: readonly SpaceEntry[];
 }
 
@@ -48,7 +46,11 @@ const REFERENTIAL_READS = [
   "core.site.read",
 ] as const;
 
-/** What lets one fill a draft: the edition of an object of the core. */
+/**
+ * What gives drafts (crates/kartenn-core/src/authz.rs): the edition of an object of the
+ * core or of a property (`prop.<key>.edit`, any key), or the administration of the drafts
+ * of others.
+ */
 export const EDITS = [
   "core.entity.edit",
   "core.site.edit",
@@ -58,6 +60,8 @@ export const EDITS = [
   "core.address.edit",
   "core.vlan_group.edit",
   "core.vlan.edit",
+  "prop.*.edit",
+  "core.draft.admin",
 ] as const;
 
 const RBAC = ["core.rbac.read", "core.rbac.admin"] as const;
@@ -67,7 +71,6 @@ export const CORE_SPACES: readonly Space[] = [
   {
     id: "referential",
     label: "space.referential",
-    home: "/",
     entries: [
       { id: "home", label: "nav.home", icon: "house", to: "/", anyOf: REFERENTIAL_READS },
       {
@@ -132,7 +135,6 @@ export const CORE_SPACES: readonly Space[] = [
   {
     id: "changes",
     label: "space.changes",
-    home: "/changesets",
     entries: [
       {
         id: "changesets",
@@ -161,7 +163,6 @@ export const CORE_SPACES: readonly Space[] = [
   {
     id: "network",
     label: "space.network",
-    home: "/vlans",
     entries: [
       { id: "vlans", label: "nav.vlans", icon: "vlan", to: "/vlans", anyOf: ["core.vlan.read"] },
       {
@@ -176,16 +177,21 @@ export const CORE_SPACES: readonly Space[] = [
   {
     id: "admin",
     label: "space.admin",
-    home: "/admin",
     entries: [
       { id: "groups", label: "nav.groups", icon: "users", to: "/admin/groups", anyOf: RBAC },
-      { id: "roles", label: "nav.roles", icon: "key-round", to: "/admin/roles", anyOf: RBAC },
+      {
+        id: "roles",
+        label: "nav.roles",
+        icon: "key-round",
+        to: "/admin/roles",
+        anyOf: [...RBAC, "core.role.admin"],
+      },
       {
         id: "identities",
         label: "nav.identities",
         icon: "user",
         to: "/admin/identities",
-        anyOf: RBAC,
+        anyOf: [...RBAC, "core.account.admin"],
       },
       {
         id: "accounts",
@@ -229,6 +235,14 @@ export const CORE_SPACES: readonly Space[] = [
 /** Whether `rights` may see `entry`. */
 export function visible(entry: SpaceEntry, rights: Rights): boolean {
   return !entry.anyOf || rights.hasAny(entry.anyOf);
+}
+
+/**
+ * Where a space leads (its crumb, `/admin`): its first entry `rights` may see, else its
+ * first entry (the server answers there).
+ */
+export function spaceEntry(space: Space, rights: Rights): SpaceEntry {
+  return space.entries.find((entry) => visible(entry, rights)) ?? space.entries[0]!;
 }
 
 /**
