@@ -596,7 +596,7 @@ defineExpose({ check, focus });
   }
 
   .k-date-field__popover {
-    z-index: var(--k-z-overlay);
+    z-index: var(--k-z-modal);
     padding: var(--k-space-3);
     color: var(--k-text);
     background-color: var(--k-surface);
