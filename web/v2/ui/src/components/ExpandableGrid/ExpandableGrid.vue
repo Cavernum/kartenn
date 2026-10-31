@@ -11,7 +11,6 @@
 // `DataGrid`s over the same rows, sort and filters (the host keeps them, as for
 // `DataGrid`); the compact one may show fewer columns (`compactColumns`). It never
 // truncates silently: whatever is left out is one button away.
-import { DialogTrigger } from "reka-ui";
 import { computed } from "vue";
 import { currentLocale, t } from "../../i18n.ts";
 import DataGrid from "../DataGrid/DataGrid.vue";
@@ -78,9 +77,7 @@ const shownCount = computed(() =>
       <span class="k-expandable-grid__count">{{ shownCount }}</span>
       <Dialog v-model:open="expanded" :title="props.label" :description="count" size="lg" contained>
         <template #trigger>
-          <DialogTrigger as-child>
-            <IconButton icon="maximize-2" size="sm" :label="`${t('enlarge')} : ${props.label}`" />
-          </DialogTrigger>
+          <IconButton icon="maximize-2" size="sm" :label="`${t('enlarge')} : ${props.label}`" />
         </template>
         <DataGrid
           v-model:sort="sort"

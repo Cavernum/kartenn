@@ -1,0 +1,9 @@
+- main:
+  - region "AlertDialog":
+    - heading "AlertDialog" [level=1]
+    - paragraph: "Motif : Alert Dialog (focus sur Annuler)"
+    - 'figure "keyboard — Au clavier : ouverte par son bouton, focus sur « Annuler », piégé, Échap annule, focus rendu au bouton"':
+      - button "Abandonner le brouillon"
+      - paragraph: Aucune réponse.
+      - code: keyboard
+      - text: ""
