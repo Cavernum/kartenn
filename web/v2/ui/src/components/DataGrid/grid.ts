@@ -78,10 +78,10 @@ export interface GridCommit {
 }
 
 /**
- * The rows of a virtualised grid in the document: `start` the index of the first rendered
- * row, `end` the index after the last one, among the rows the grid was given (the loaded
- * rows, never the whole list: `ListWindow.end` of the shell's `useNextPage`), `size` the
- * rows of one screen.
+ * The rows of a grid in view (virtualised or not): `start` the index of the first one,
+ * `end` the index after the last one, among the rows the grid was given (the loaded rows,
+ * never the whole list: `ListWindow.end` of the shell's `useNextPage`; `rowOffset` only
+ * moves `aria-rowindex`), `size` the rows of one screen.
  */
 export interface GridWindow {
   start: number;
@@ -106,34 +106,6 @@ export function selectRange(
   const out = new Set(base);
   for (const key of range) out.add(key);
   return [...out];
-}
-
-/**
- * The parts of the body of a virtualised grid, in order: the rows to render (`index`), and
- * between them gaps of the height of the rows left out (`gap`, pixels). `rendered`: the
- * indexes in the document (the window, plus the row of the focus and of the editor, kept
- * mounted whatever the scroll); `start(i)` and `end(i)`: where row `i` begins and ends.
- */
-export type BodyPart = { index: number } | { gap: number; key: string };
-export function bodyParts(
-  rendered: readonly number[],
-  count: number,
-  start: (i: number) => number,
-  end: (i: number) => number,
-  origin = 0,
-): BodyPart[] {
-  const indexes = [...new Set(rendered)].filter((i) => i >= 0 && i < count).sort((a, b) => a - b);
-  const parts: BodyPart[] = [];
-  let at = origin;
-  for (const index of indexes) {
-    const gap = start(index) - at;
-    if (gap > 0) parts.push({ gap, key: `gap-${index}` });
-    parts.push({ index });
-    at = end(index);
-  }
-  const last = count > 0 ? end(count - 1) : origin;
-  if (last - at > 0) parts.push({ gap: last - at, key: "gap-end" });
-  return parts;
 }
 
 /** The priority a column follows: the user's choice first, the key always shown. */

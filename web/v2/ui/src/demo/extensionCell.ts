@@ -26,9 +26,20 @@ export function defineDemoCell(): void {
       connectedCallback(): void {
         this.#render();
       }
+      /**
+       * « Non sondé » at once; « Sondé » a moment later, as a link to the probe (a control
+       * that comes after the grid rendered: it must leave the tab order all the same).
+       */
       #render(): void {
         const used = parseInt(String(this.#row?.used ?? ""), 10);
-        this.textContent = !this.#row ? "" : used >= 50 ? "Sondé" : "Non sondé";
+        this.textContent = !this.#row || used >= 50 ? "" : "Non sondé";
+        if (!this.#row || used < 50) return;
+        queueMicrotask(() => {
+          const link = document.createElement("a");
+          link.href = "#sonde";
+          link.textContent = "Sondé";
+          this.replaceChildren(link);
+        });
       }
     },
   );

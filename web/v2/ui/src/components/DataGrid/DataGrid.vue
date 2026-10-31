@@ -58,10 +58,11 @@ import Checkbox from "../Checkbox/Checkbox.vue";
 import Icon from "../Icon/Icon.vue";
 import ColumnChooser from "../internal/ColumnChooser.vue";
 import CellError from "./CellError.vue";
+import { useCellEditor, useCommitWatch } from "../internal/cellEditor.ts";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
+import { bodyParts, keptIndexes, rowsInView, type BodyPart } from "../internal/virtualRows.ts";
 import Skeleton from "../Skeleton/Skeleton.vue";
 import {
-  bodyParts,
   columnTemplates,
   nextPresetWidth,
   nextSort,
@@ -72,7 +73,6 @@ import {
   WIDTH_MAX,
   WIDTH_STEP,
   WIDTH_STEP_LARGE,
-  type BodyPart,
   type CellRef,
   type CellState,
   type ColumnVisibility,
@@ -127,6 +127,12 @@ const props = withDefaults(
      * left out: `aria-rowcount` is this plus one; `-1` while unknown.
      */
     rowCount?: number | undefined;
+    /**
+     * Where the first row given stands in the whole list (a paged list whose first pages
+     * the cache dropped): `aria-rowindex` counts from it; the `window` event does not
+     * (its indexes are among the rows given, as `useNextPage` reads them).
+     */
+    rowOffset?: number;
     /** The columns take a width from the keyboard and the pointer (`columnWidths`). */
     resizable?: boolean;
     /** The properties of the elements of the extension columns, beside `row`. */
@@ -141,6 +147,7 @@ const props = withDefaults(
     editable: undefined,
     validate: undefined,
     rowCount: undefined,
+    rowOffset: 0,
     elementProps: undefined,
   },
 );
@@ -300,31 +307,69 @@ const parts = computed<Part[]>(() => {
   };
   if (!virtual.value) return props.rows.map((_, index) => withRow({ index }));
   const v = virtualizer.value;
-  const keep = v.getVirtualItems().map((item) => item.index);
-  for (const cell of [current.value, editing.value]) {
-    const i = cell ? indexOfKey.value.get(cell.row) : undefined;
-    if (i !== undefined) keep.push(i);
-  }
+  const keep = keptIndexes(
+    v.getVirtualItems().map((item) => item.index),
+    [current.value.row, editing.value?.row],
+    (key) => indexOfKey.value.get(key),
+  );
   const sizes = v.measurementsCache;
   const at = (i: number) => sizes[i]?.start ?? headHeight.value + i * estimate.value;
   const end = (i: number) => sizes[i]?.end ?? at(i) + estimate.value;
   return bodyParts(keep, props.rows.length, at, end, at(0)).map(withRow);
 });
-/** The rows of one screen of the grid (Page Up, Page Down; the window's `size`). */
+/** The rows in view now, by their boxes (virtualised or not; the page may scroll too). */
+const inView = () =>
+  grid.value
+    ? rowsInView(
+        grid.value,
+        grid.value.querySelectorAll<HTMLElement>(".k-data-grid__body > [role='row']"),
+        headHeight.value,
+      )
+    : null;
+/** The rows of one screen (Page Up, Page Down): the rows wholly in view, less one. */
 function pageRows(): number {
+  const seen = inView();
+  if (seen && seen.count > 1) return seen.count - 1;
   const el = grid.value;
   if (!el) return 10;
   const view = Math.min(el.clientHeight, window.innerHeight) - headHeight.value;
   return Math.max(1, Math.floor(view / estimate.value) - 1);
 }
-const windowOf = computed<GridWindow>(() => {
-  if (!virtual.value) return { start: 0, end: props.rows.length, size: 0 };
-  const items = virtualizer.value.getVirtualItems();
-  return { start: items[0]?.index ?? 0, end: (items.at(-1)?.index ?? -1) + 1, size: 0 };
+/**
+ * The window of the grid (`window`): the rows in view, among the rows given; read again
+ * when anything scrolls (the grid, the page, a panel), the window resizes or the rows
+ * change, once per frame.
+ */
+let last = "";
+let frame = 0;
+function emitWindow(): void {
+  frame = 0;
+  if (props.loading) return;
+  const seen = inView();
+  const view: GridWindow = seen
+    ? { start: seen.first, end: seen.last + 1, size: Math.max(1, seen.count) }
+    : { start: 0, end: 0, size: 0 };
+  const key = `${view.start} ${view.end} ${view.size}`;
+  if (key === last) return;
+  last = key;
+  emit("window", view);
+}
+function scheduleWindow(): void {
+  if (!frame) frame = requestAnimationFrame(emitWindow);
+}
+onMounted(() => {
+  document.addEventListener("scroll", scheduleWindow, { capture: true, passive: true });
+  window.addEventListener("resize", scheduleWindow, { passive: true });
+  scheduleWindow();
+});
+onBeforeUnmount(() => {
+  document.removeEventListener("scroll", scheduleWindow, { capture: true });
+  window.removeEventListener("resize", scheduleWindow);
+  if (frame) cancelAnimationFrame(frame);
 });
 watch(
-  () => [windowOf.value.start, windowOf.value.end] as const,
-  ([start, end]) => emit("window", { start, end, size: pageRows() }),
+  () => [props.rows, props.loading],
+  () => void nextTick(scheduleWindow),
 );
 
 // ——— Errors of cells ———
@@ -351,9 +396,7 @@ const shownError = computed(
     [hovered.value, focused.value].find((k) => k !== null && k !== dismissed.value && errorAt(k)) ??
     null,
 );
-/** The error of the editor's text, from the host's check (`validate`). */
-const draftError = ref<string | undefined>(undefined);
-/** The error a cell shows: its editor's, else the host's. */
+/** The error a cell shows: its editor's (the host's check, `validate`), else the host's. */
 function messageOf(row: R, column: GridColumn): { error: string; code?: string } | undefined {
   if (isEditing(row, column) && draftError.value) return { error: draftError.value };
   return errorOf(row, column);
@@ -392,10 +435,7 @@ function onFocusout(event: FocusEvent): void {
   // Into the message of the cell (its copy button, by Enter or F2): still focused.
   if (to?.closest(".k-cell-error")) return;
   if (!grid.value?.contains(to)) focused.value = null;
-  // The focus leaves an open editor for elsewhere (a click, another window): it commits.
-  const from = (event.target as HTMLElement).closest(".k-data-grid__editor");
-  const cell = editing.value;
-  if (props.editable && from && cell && !cellElement(cell)?.contains(to)) commitEditor(null);
+  editor.onFocusout(event);
 }
 /** The widgets of the open message of a cell (the copy button of its code). */
 function errorWidgetsOf(cell: HTMLElement): HTMLElement[] {
@@ -422,24 +462,17 @@ async function announce(text: string): Promise<void> {
 }
 const sayError = (column: GridColumn, key: string, error: { error: string; code?: string }) =>
   `${column.label}, ${key} : ${error.error}${error.code ? ` (${error.code})` : ""}`;
-/** The cells committed and not yet settled by the host (no state, or pending). */
-const awaiting = ref<CellRef[]>([]);
-watch(
-  () =>
-    awaiting.value.map((cell) => {
-      const row = rowOf(cell.row);
-      const column = columnOf(cell.column);
-      return row && column ? props.cellState?.(row, column) : undefined;
-    }),
-  (states) => {
-    const still: CellRef[] = [];
-    states.forEach((state, i) => {
-      const cell = awaiting.value[i]!;
-      if (typeof state === "object")
-        void announce(sayError(columnOf(cell.column)!, cell.row, state));
-      else if (state === undefined || state === "pending") still.push(cell);
-    });
-    if (still.length !== awaiting.value.length) awaiting.value = still;
+/** The commits not yet settled by the host: an error it gives then is said once. */
+const commits = useCommitWatch(
+  (cell) => {
+    const row = rowOf(cell.row);
+    const column = columnOf(cell.column);
+    return row && column ? props.cellState?.(row, column) : undefined;
+  },
+  (cell) => (rowOf(cell.row) ? textOf(cell) : undefined),
+  (cell, error) => {
+    const column = columnOf(cell.column);
+    if (column) void announce(sayError(column, cell.row, error));
   },
 );
 
@@ -513,33 +546,53 @@ function onFocusin(event: FocusEvent): void {
 }
 
 /** The widgets inside a cell (a link, a copy button): out of the tab order, reached by keys. */
-const WIDGETS = "a[href], button, input, select, textarea, [tabindex]";
+const WIDGETS = "a[href], button, input, select, textarea, [tabindex], [contenteditable]";
 function widgetsOf(cell: HTMLElement): HTMLElement[] {
   return [...cell.querySelectorAll<HTMLElement>(WIDGETS)].filter(
     (el) => !el.closest(".k-data-grid__editor"),
   );
 }
-/** The grid keeps one tab stop: the widgets of its cells leave the tab order (APG Grid). */
-function tameWidgets(): void {
-  const all = grid.value?.querySelectorAll<HTMLElement>(
-    WIDGETS.split(", ")
-      .map((w) => `[data-column] ${w}`)
-      .join(", "),
-  );
-  for (const el of all ?? [])
-    if (el.tabIndex !== -1 && !el.closest(".k-data-grid__editor")) el.tabIndex = -1;
+/** A widget of a cell (never the cell itself, nor an editor) leaves the tab order. */
+function tame(el: Element): void {
+  if (!(el instanceof HTMLElement) || !el.matches(WIDGETS) || el.matches("[data-column]")) return;
+  if (!el.parentElement?.closest("[data-column]") || el.closest(".k-data-grid__editor")) return;
+  if (el.tabIndex !== -1) el.tabIndex = -1;
 }
-onMounted(tameWidgets);
-onUpdated(tameWidgets);
+/** The grid keeps one tab stop: the widgets of its cells leave the tab order (APG Grid). */
+function tameWidgets(root: ParentNode | null = grid.value): void {
+  for (const el of root?.querySelectorAll(WIDGETS) ?? []) tame(el);
+}
+onMounted(() => tameWidgets());
+onUpdated(() => tameWidgets());
 // The element of an extension column renders when it likes (its plugin, after a read):
-// its controls leave the tab order as they come, in the light DOM (ADR 0038, § 4).
+// its controls leave the tab order as they come or turn focusable, in the light DOM (ADR
+// 0038, § 4), each mutation looked at in its own subtree.
 let mutations: MutationObserver | undefined;
-onMounted(() => {
-  if (!grid.value || typeof MutationObserver === "undefined") return;
-  if (!props.columns.some((column) => column.element)) return;
-  mutations = new MutationObserver(tameWidgets);
-  mutations.observe(grid.value, { childList: true, subtree: true });
-});
+function onMutations(records: MutationRecord[]): void {
+  for (const record of records) {
+    if (record.type === "attributes") tame(record.target as Element);
+    for (const node of record.addedNodes) {
+      if (!(node instanceof Element)) continue;
+      tame(node);
+      tameWidgets(node);
+    }
+  }
+}
+const extended = computed(() => props.columns.some((column) => column.element));
+function observeExtensions(): void {
+  mutations?.disconnect();
+  mutations = undefined;
+  if (!extended.value || !grid.value || typeof MutationObserver === "undefined") return;
+  mutations = new MutationObserver(onMutations);
+  mutations.observe(grid.value, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["tabindex", "href", "contenteditable"],
+  });
+}
+onMounted(observeExtensions);
+watch(extended, observeExtensions);
 onBeforeUnmount(() => mutations?.disconnect());
 
 // ——— Selection ———
@@ -562,10 +615,19 @@ let shiftClick = false;
 function noteShift(event: MouseEvent): void {
   shiftClick = event.shiftKey;
 }
-function onBox(key: string): void {
+async function onBox(key: string): Promise<void> {
   if (shiftClick && anchor) {
     selected.value = selectRange(rowKeys.value.slice(1), anchor.base, anchor.key, key);
   } else toggleRow(key);
+  // The native box follows the model: a range that keeps the clicked row selected leaves
+  // its model unchanged, while the click turned the box off (no patch would turn it on).
+  await nextTick();
+  for (const box of grid.value?.querySelectorAll<HTMLInputElement>(
+    ".k-data-grid__body .k-data-grid__select input",
+  ) ?? []) {
+    const row = box.closest<HTMLElement>("[data-row]")?.dataset.row;
+    if (row !== undefined) box.checked = selectedSet.value.has(row);
+  }
 }
 /** A click on a row of a single selection selects it (not on a widget or an editor). */
 function onBodyClick(event: MouseEvent): void {
@@ -578,88 +640,40 @@ function onBodyClick(event: MouseEvent): void {
 
 // ——— Editing ———
 
-/** The text of the open editor. */
-const draft = ref("");
-watch(
+// The contract (`internal/cellEditor.ts`): the grid's cells, focus and alert.
+const textOf = (cell: CellRef) => String(rowOf(cell.row)?.[cell.column] ?? "");
+const editor = useCellEditor({
   editing,
-  (cell, before) => {
-    if (cell && (cell.row !== before?.row || cell.column !== before?.column)) {
-      const row = rowOf(cell.row);
-      draft.value = String(row?.[cell.column] ?? "");
-      draftError.value = undefined;
-      // The host opened the editor of the cell that has the focus: the focus goes into it
-      // (the cell leaves the tab order while it edits; WCAG 2.4.3).
-      const el = cellElement(cell);
-      if (el && document.activeElement === el) void focusEditor(cell);
-    }
-    if (!cell) draftError.value = undefined;
+  textOf,
+  driven: () => !!props.editable,
+  check: (cell, value) => {
+    const row = rowOf(cell.row);
+    const column = columnOf(cell.column);
+    return row && column ? props.validate?.(row, column, value) : undefined;
   },
-  { immediate: true },
-);
-/** A new text: the refusal of the former one no longer holds. */
-watch(draft, () => (draftError.value = undefined));
-const editorLabel = (row: R, column: GridColumn) => `${column.label} — ${keyOf(row)}`;
-async function startEditing(cell: CellRef): Promise<void> {
-  editing.value = cell;
-  active.value = cell;
-  await focusEditor(cell);
-}
-/** The focus into the editor of `cell` once it is rendered, its text chosen. */
-async function focusEditor(cell: CellRef): Promise<void> {
-  await nextTick();
-  const el = cellElement(cell)?.querySelector<HTMLElement>(`.k-data-grid__editor :is(${WIDGETS})`);
-  if (!el || el === document.activeElement) return;
-  el.focus();
-  if (el instanceof HTMLInputElement) el.select();
-}
-/**
- * Leaves the editor with its text (Enter, Tab, the focus leaving it): refused by the
- * local check, it stays open with its error, said; else committed. `move`: the column the
- * focus goes on to (Tab: 1, Shift+Tab: -1, Enter: 0), or none (the focus left).
- */
-function commitEditor(move: number | null): boolean {
-  const cell = editing.value;
-  const row = cell ? rowOf(cell.row) : undefined;
-  const column = cell ? columnOf(cell.column) : undefined;
-  if (!cell || !row || !column) return false;
-  const refused = props.validate?.(row, column, draft.value);
-  if (refused) {
-    draftError.value = refused;
-    void announce(sayError(column, cell.row, { error: refused }));
-    return false;
-  }
-  emit("commit", { row: cell.row, column: cell.column, value: draft.value });
-  awaiting.value = [
-    ...awaiting.value.filter((c) => c.row !== cell.row || c.column !== cell.column),
-    cell,
-  ];
-  editing.value = undefined;
-  if (move !== null) {
+  cellElement,
+  moveFocus(cell, by) {
     const columns = navColumns();
     const at = columns.indexOf(cell.column);
-    const to = columns[Math.max(0, Math.min(columns.length - 1, at + move))] ?? cell.column;
+    const to = columns[Math.max(0, Math.min(columns.length - 1, at + by))] ?? cell.column;
     active.value = { row: cell.row, column: to };
     void focusActive();
-  }
-  return true;
-}
-function cancelEditor(): void {
-  const cell = editing.value;
-  editing.value = undefined;
-  if (cell) {
-    active.value = cell;
-    void focusActive();
-  }
-}
-function onEditorKeydown(event: KeyboardEvent): void {
-  if (event.defaultPrevented) return;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    cancelEditor();
-  } else if (event.key === "Enter" || event.key === "Tab") {
-    event.preventDefault();
-    commitEditor(event.key === "Enter" ? 0 : event.shiftKey ? -1 : 1);
-  }
+  },
+  commit(commit) {
+    emit("commit", commit);
+    commits.follow(commit);
+  },
+  refuse(cell, error) {
+    const column = columnOf(cell.column);
+    if (column) void announce(`${sayError(column, cell.row, { error })} ${t("editEscape")}`);
+  },
+});
+const draft = editor.draft;
+const draftError = editor.error;
+const editorLabel = (row: R, column: GridColumn) => `${column.label} — ${keyOf(row)}`;
+async function startEditing(cell: CellRef): Promise<void> {
+  active.value = cell;
+  await editor.start(cell);
 }
 function onDblclick(event: MouseEvent): void {
   const target = event.target as HTMLElement;
@@ -768,8 +782,10 @@ function onHandleMove(event: PointerEvent): void {
 function onHandleUp(event: PointerEvent): void {
   if (!drag) return;
   (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
-  // A click without a drag: the next token width (WCAG 2.5.7, no path needed).
-  if (!drag.moved) void setWidth(drag.column, nextPresetWidth(drag.width, presets()));
+  // A click without a drag: the next token width (WCAG 2.5.7, no path needed). A pointer
+  // the browser cancels (a scroll, a gesture) is no click.
+  if (!drag.moved && event.type === "pointerup")
+    void setWidth(drag.column, nextPresetWidth(drag.width, presets()));
   drag = null;
 }
 
@@ -792,7 +808,7 @@ function onKeydown(event: KeyboardEvent): void {
   // The editor of a cell keeps its keys, but Escape, Enter and Tab (the contract); a host
   // that opens editors without `editable` keeps those too (it drives its editing).
   if (target.closest(".k-data-grid__editor")) {
-    if (props.editable) onEditorKeydown(event);
+    editor.onKeydown(event);
     return;
   }
   // A widget inside a cell keeps its keys (Enter on a copy button copies); Escape or F2
@@ -940,19 +956,24 @@ function measureKey(): void {
   if (head && head.offsetHeight > 0) headHeight.value = head.offsetHeight;
 }
 let observer: ResizeObserver | undefined;
-onMounted(() => {
+/** The row height of the density, read again when the density changes (rows resize). */
+function readEstimate(): void {
   const row = grid.value
     ? parseFloat(getComputedStyle(grid.value).getPropertyValue("--k-row-height"))
     : NaN;
-  if (Number.isFinite(row)) estimate.value = row;
+  if (Number.isFinite(row) && row !== estimate.value) estimate.value = row;
+}
+onMounted(() => {
+  readEstimate();
   measureKey();
   measureHeaders();
-  emit("window", { ...windowOf.value, size: pageRows() });
   if (typeof ResizeObserver === "undefined" || !root.value) return;
   observer = new ResizeObserver(() => {
+    readEstimate();
     keepStop();
     measureKey();
     measureHeaders();
+    scheduleWindow();
   });
   observer.observe(root.value);
 });
@@ -1104,7 +1125,7 @@ onBeforeUnmount(() => observer?.disconnect());
         </div>
       </div>
       <div v-else role="rowgroup" class="k-data-grid__body">
-        <template v-for="part in parts" :key="'index' in part ? part.key : part.key">
+        <template v-for="part in parts" :key="part.key">
           <div
             v-if="'gap' in part"
             class="k-data-grid__gap"
@@ -1116,8 +1137,8 @@ onBeforeUnmount(() => observer?.disconnect());
             :ref="measure"
             role="row"
             class="k-data-grid__row"
-            :data-index="virtual ? part.index : undefined"
-            :aria-rowindex="part.index + 2"
+            :data-index="part.index"
+            :aria-rowindex="props.rowOffset + part.index + 2"
             :aria-selected="props.selectable ? isSelected(part.row) : undefined"
             :data-row-state="props.rowState?.(part.row)"
             :data-fresh="fresh.has(part.key) ? 'true' : undefined"

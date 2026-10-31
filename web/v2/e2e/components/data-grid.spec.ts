@@ -132,6 +132,23 @@ test.describe("DataGrid (APG Grid)", () => {
     await expect(chosen).toHaveCount(30);
   });
 
+  test("the boxes: Shift+click selects a range from the anchor, every box as its row", async ({
+    page,
+  }) => {
+    await openState(page, "DataGrid", "keyboard");
+    const grid = page.getByRole("grid");
+    const chosen = grid.locator('[role="row"][aria-selected="true"]');
+    const box = (i: number) => grid.getByRole("checkbox", { name: `Sélectionner ${row(i)}` });
+    await box(0).click();
+    await box(2).click();
+    await expect(chosen).toHaveCount(2);
+    // A range back to a row already chosen: it stays chosen, its box with it.
+    await box(0).click({ modifiers: ["Shift"] });
+    await expect(chosen).toHaveCount(3);
+    for (const i of [0, 1, 2]) await expect(box(i)).toBeChecked();
+    await expect(box(3)).not.toBeChecked();
+  });
+
   test("editing: Enter or F2 opens, Escape cancels, Enter or Tab commits; the host's states", async ({
     page,
   }) => {
@@ -207,6 +224,47 @@ test.describe("DataGrid (APG Grid)", () => {
     );
   });
 
+  test("leaving the editor: unchanged, no commit; another window, still open; elsewhere, committed", async ({
+    page,
+  }) => {
+    await openState(page, "DataGrid", "keyboard");
+    const grid = page.getByRole("grid");
+    const said = page.locator("[data-demo='commit']");
+    await tabIn(page);
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowRight");
+    // Tab out of an editor left as it was: the next cell, nothing committed.
+    await page.keyboard.press("F2");
+    await page.keyboard.press("Tab");
+    expect(await focusedCell(page)).toBe(`${first}|env`);
+    await expect(said).toHaveText("");
+    // The focus leaves for nowhere (another window): the editor stays, its text with it.
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("F2");
+    const editor = grid.getByRole("textbox", { name: `Libellé — ${first}` });
+    await page.keyboard.type("Bases");
+    await editor.evaluate((el) => (el as HTMLElement).blur());
+    await expect(editor).toHaveValue("Bases");
+    await expect(said).toHaveText("");
+    // Back in the editor, then a click on another cell: the changed text commits.
+    await editor.click();
+    await grid.locator(`[data-row="${row(3)}"][data-column="owner"]`).click();
+    await expect(said).toHaveText(`label de ${first} : Bases`);
+    await expect(grid.getByRole("textbox")).toHaveCount(0);
+  });
+
+  test("the window of the grid: the rows in view, to the end of the list", async ({ page }) => {
+    await openState(page, "DataGrid", "keyboard");
+    const view = page.locator("[data-demo='window']");
+    const end = async () => Number(await view.getAttribute("data-end"));
+    // Thirty rows, the page as their scroller: those in the viewport, not all of them.
+    await expect.poll(end).toBeGreaterThan(5);
+    expect(await end()).toBeLessThan(30);
+    await tabIn(page);
+    await page.keyboard.press("Control+End");
+    await expect.poll(end).toBe(30);
+  });
+
   test("the width of a column: F2 on its header, arrows, Home, End; Escape back", async ({
     page,
   }) => {
@@ -241,6 +299,15 @@ test.describe("DataGrid (APG Grid)", () => {
     // A click on the handle, no drag: the next token width (WCAG 2.5.7).
     await handle.click();
     await expect.poll(width).toBeGreaterThan(min);
+    // A drag: the width follows the pointer.
+    const before = await width();
+    const box = (await handle.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 20, box.y + box.height / 2, { steps: 4 });
+    await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2, { steps: 4 });
+    await page.mouse.up();
+    await expect.poll(width).toBe(before + 40);
   });
 
   test("10 000 rows: a window in the document, the focus exact and kept mounted", async ({
@@ -269,6 +336,9 @@ test.describe("DataGrid (APG Grid)", () => {
     await page.keyboard.press("Control+End");
     await expect(page.locator(":focus")).toHaveAttribute("data-row", "10.39.15.0/24");
     await expect(page.locator(":focus")).toBeInViewport();
+    await expect
+      .poll(async () => Number(await page.locator("[data-demo='window']").getAttribute("data-end")))
+      .toBe(10_000);
     // The view scrolled back to the top (as the wheel does) takes the focused row out of the
     // window: it stays in the document, focused.
     await grid.evaluate((el) => el.scrollTo({ top: 0 }));
@@ -295,5 +365,15 @@ test.describe("DataGrid (APG Grid)", () => {
     await expect(cells.nth(1)).toHaveText("Sondé");
     await expect(cells.nth(0)).toHaveText("Non sondé");
     expect(await cells.nth(1).evaluate((el) => el.hasAttribute("row"))).toBe(false);
+    // Its link came after the grid rendered: out of the tab order all the same.
+    const late = cells.nth(1).getByRole("link", { name: "Sondé" });
+    await expect(late).toHaveAttribute("tabindex", "-1");
+    // One tab stop still: from the title, Tab enters the grid, Tab again leaves it.
+    await page.locator("#ui-component-title").click();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => !!document.activeElement?.closest("[role='grid']"))).toBe(
+      false,
+    );
   });
 });

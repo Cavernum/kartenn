@@ -7,8 +7,11 @@ import { renderToString } from "vue/server-renderer";
 import { describe, expect, it } from "vitest";
 import DataGrid from "../src/components/DataGrid/DataGrid.vue";
 import { placeCellError } from "../src/components/DataGrid/cellError.ts";
+import { bodyParts, keptIndexes } from "../src/components/internal/virtualRows.ts";
+import { useCellEditor, useCommitWatch } from "../src/components/internal/cellEditor.ts";
+import { nextTick, ref } from "vue";
+import type { CellRef, CellState, GridCommit } from "../src/components/DataGrid/grid.ts";
 import {
-  bodyParts,
   columnsTemplate,
   columnTemplates,
   nextPresetWidth,
@@ -120,10 +123,116 @@ describe("DataGrid", () => {
       { gap: 499 * 28, key: "gap-end" },
     ]);
     expect(bodyParts([], 0, start, end, 30)).toEqual([]);
+    // The rows of the focus and of the editor join the window, wherever they are.
+    const at = new Map([
+      ["a", 3],
+      ["z", 900],
+    ]);
+    expect(keptIndexes([10, 11], ["z", undefined, "a", "?"], (k) => at.get(k))).toEqual([
+      10, 11, 900, 3,
+    ]);
+  });
+
+  // The contract of in-place editing (design « Contrat d'édition »), without a DOM.
+  function editorOf(text = "Serveurs", check?: (value: string) => string | undefined) {
+    const editing = ref<CellRef | undefined>(undefined);
+    const commits: GridCommit[] = [];
+    const refusals: string[] = [];
+    const moves: number[] = [];
+    const editor = useCellEditor({
+      editing,
+      textOf: () => text,
+      driven: () => true,
+      check: (_, value) => check?.(value),
+      cellElement: () => null,
+      moveFocus: (_, by) => moves.push(by),
+      commit: (commit) => commits.push(commit),
+      refuse: (_, error) => refusals.push(error),
+    });
+    return { editing, editor, commits, refusals, moves };
+  }
+  const cell: CellRef = { row: "192.0.2.0/24", column: "label" };
+  // Events as the editor reads them (the tests run without a DOM).
+  const key = (k: string, shiftKey = false) =>
+    ({ key: k, shiftKey, defaultPrevented: false, preventDefault() {} }) as KeyboardEvent;
+
+  it("editing: an unchanged text never commits; Tab moves on, Escape cancels", async () => {
+    const { editing, editor, commits, moves } = editorOf();
+    editing.value = cell;
+    await nextTick();
+    expect(editor.draft.value).toBe("Serveurs");
+    editor.onKeydown(key("Tab"));
+    expect(commits).toEqual([]);
+    expect(editing.value).toBeUndefined();
+    expect(moves).toEqual([1]);
+    editing.value = cell;
+    await nextTick();
+    editor.draft.value = "Serveurs du nord";
+    editor.onKeydown(key("Escape"));
+    expect(commits).toEqual([]);
+    await editor.start(cell);
+    expect(editor.draft.value).toBe("Serveurs");
+    editor.draft.value = "Serveurs du nord";
+    editor.onKeydown(key("Enter"));
+    expect(commits).toEqual([{ ...cell, value: "Serveurs du nord" }]);
+    expect(moves).toEqual([1, 0, 0]);
+  });
+
+  it("editing: a refused text stays, said; the focus leaving the window keeps the editor", async () => {
+    const { editing, editor, commits, refusals } = editorOf("Serveurs", (v) =>
+      v.trim() ? undefined : "Le libellé est obligatoire.",
+    );
+    editing.value = cell;
+    await nextTick();
+    editor.draft.value = "";
+    editor.onKeydown(key("Tab"));
+    expect(editing.value).toEqual(cell);
+    expect(editor.error.value).toBe("Le libellé est obligatoire.");
+    expect(refusals).toEqual(["Le libellé est obligatoire."]);
+    editor.draft.value = "Bases";
+    await nextTick();
+    expect(editor.error.value).toBeUndefined();
+    // Nowhere to go (another window): still open, nothing committed.
+    const input = { closest: (selector: string) => selector === ".k-data-grid__editor" };
+    const away = (to: object | null) =>
+      editor.onFocusout({ relatedTarget: to, target: input } as unknown as FocusEvent);
+    away(null);
+    expect(editing.value).toEqual(cell);
+    expect(commits).toEqual([]);
+    // Elsewhere in the page: the changed text commits.
+    away({});
+    expect(commits).toEqual([{ ...cell, value: "Bases" }]);
+    expect(editing.value).toBeUndefined();
+  });
+
+  it("follows commits until the host settles them, bounded", async () => {
+    const states = ref<Record<string, CellState | undefined>>({});
+    const texts = ref<Record<string, string>>({});
+    const said: string[] = [];
+    const watch = useCommitWatch(
+      (c) => states.value[c.row],
+      (c) => texts.value[c.row],
+      (c, error) => said.push(`${c.row}: ${error.error}`),
+    );
+    watch.follow({ row: "a", column: "x", value: "1" });
+    watch.follow({ row: "b", column: "x", value: "2" });
+    states.value = { a: "pending" };
+    await nextTick();
+    expect(watch.awaiting.value).toHaveLength(2);
+    // Applied without a state (the text is the committed one), refused with an error.
+    texts.value = { b: "2" };
+    states.value = { a: { error: "Refusé." } };
+    await nextTick();
+    expect(watch.awaiting.value).toHaveLength(0);
+    expect(said).toEqual(["a: Refusé."]);
+    for (let i = 0; i < 100; i++) watch.follow({ row: `r${i}`, column: "x", value: "v" });
+    expect(watch.awaiting.value.length).toBeLessThanOrEqual(64);
   });
 
   // REQ-020-19: a grid of 10⁴ rows holds a few hundred at most in the document.
-  it("virtualises 10 000 rows: a window in the document, all of them counted", async () => {
+  // The number of rows in the document under a real scroll is the e2e script's
+  // (data-grid.spec.ts, 10⁴ rows); here, the counts and the row kept for the focus.
+  it("counts 10 000 rows, keeps the row of the focus at its index, offsets the indexes", async () => {
     const many = Array.from({ length: 10_000 }, (_, i) => ({
       prefix: `p-${i}`,
       label: `Ligne ${i}`,
@@ -134,14 +243,13 @@ describe("DataGrid", () => {
       rows: many,
       rowKey: "prefix",
       active: { row: "p-9999", column: "prefix" },
+      rowOffset: 500,
+      rowCount: 20_000,
     });
     expect(html).toContain('data-virtual="true"');
-    expect(html).toContain('aria-rowcount="10001"');
-    const rendered = html.match(/role="row"/g)?.length ?? 0;
-    expect(rendered).toBeGreaterThan(1);
-    expect(rendered).toBeLessThan(300);
-    // The row of the focus stays in the document, at its index.
-    expect(html).toContain('aria-rowindex="10001"');
+    expect(html).toContain('aria-rowcount="20001"');
+    // The row of the focus stays in the document, at its index after the dropped pages.
+    expect(html).toContain('aria-rowindex="10501"');
     expect(html).toContain("k-data-grid__gap");
     // A paged list: the whole count, or -1 while unknown.
     const paged = await render(DataGrid, {

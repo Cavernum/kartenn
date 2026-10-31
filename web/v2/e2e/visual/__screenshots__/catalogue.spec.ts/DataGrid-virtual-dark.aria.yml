@@ -254,6 +254,6 @@
             - gridcell /\d+ %/
             - gridcell "Équipe postes"
       - alert
-      - paragraph: "/Dans le document : lignes 1 à \\d+ sur \\d+ \\d+ \\(un écran : \\d+\\)/"
+      - paragraph: "/En vue : lignes 1 à \\d+ sur \\d+ \\d+ \\(un écran : \\d+\\)/"
       - code: virtual
       - text: ""

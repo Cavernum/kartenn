@@ -30,7 +30,9 @@
             - gridcell "Recette"
             - gridcell /\d+ %/
             - gridcell "Équipe postes"
-            - gridcell "Sondé"
+            - gridcell "Sondé":
+              - link "Sondé":
+                - /url: "#sonde"
           - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Développement \d+ % Exploitation Non sondé/:
             - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
             - gridcell "Supervision"
@@ -51,7 +53,9 @@
             - gridcell "Recette"
             - gridcell /\d+ %/
             - gridcell "Équipe postes"
-            - gridcell "Sondé"
+            - gridcell "Sondé":
+              - link "Sondé":
+                - /url: "#sonde"
       - alert
       - code: extension
       - text: ""

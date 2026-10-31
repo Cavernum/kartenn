@@ -1097,7 +1097,9 @@
             - gridcell "Recette"
             - gridcell /\d+ %/
             - gridcell "Équipe postes"
-            - gridcell "Sondé"
+            - gridcell "Sondé":
+              - link "Sondé":
+                - /url: "#sonde"
           - row /\d+\.\d+\.\d+\.\d+\/\d+ Supervision Développement \d+ % Exploitation Non sondé/:
             - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
             - gridcell "Supervision"
@@ -1118,7 +1120,9 @@
             - gridcell "Recette"
             - gridcell /\d+ %/
             - gridcell "Équipe postes"
-            - gridcell "Sondé"
+            - gridcell "Sondé":
+              - link "Sondé":
+                - /url: "#sonde"
       - alert
       - code: extension
       - text: ""
@@ -1347,7 +1351,7 @@
             - gridcell "6 %"
             - gridcell "Équipe postes"
       - alert
-      - paragraph: "/Dans le document : lignes 1 à \\d+ sur \\d+ \\d+ \\(un écran : \\d+\\)/"
+      - paragraph: "/En vue : lignes 1 à 0 sur \\d+ \\d+ \\(un écran : 0\\)/"
       - code: virtual
       - text: ""
     - 'figure "keyboard — Script du clavier : sélection multiple, colonnes redimensionnables, libellé et responsable modifiables (Entrée ou F2)"':
@@ -1647,5 +1651,6 @@
             - gridcell "Exploitation"
       - alert
       - paragraph
+      - paragraph: "/En vue : lignes 1 à 0 sur \\d+/"
       - code: keyboard
       - text: ""

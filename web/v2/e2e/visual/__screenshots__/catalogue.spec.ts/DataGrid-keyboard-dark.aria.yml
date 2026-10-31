@@ -299,5 +299,6 @@
             - gridcell "Exploitation"
       - alert
       - paragraph
+      - paragraph: "/En vue : lignes 1 à \\d+ sur \\d+/"
       - code: keyboard
       - text: ""

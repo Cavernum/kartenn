@@ -153,6 +153,7 @@ const keyboard = defineComponent({
     const filtered = ref<string[]>([]);
     const widths = ref<ColumnWidths>({});
     const last = ref("");
+    const view = ref<GridWindow>({ start: 0, end: 0, size: 0 });
     function onCommit(commit: GridCommit): void {
       data.value = data.value.map((row) =>
         row.prefix === commit.row ? { ...row, [commit.column]: commit.value } : row,
@@ -195,8 +196,14 @@ const keyboard = defineComponent({
               : undefined,
           cellState: (row: Row, column: GridColumn) => states.value[`${row.prefix}:${column.id}`],
           onCommit,
+          onWindow: (next: GridWindow) => (view.value = next),
         }),
         h("p", { "data-demo": "commit" }, last.value),
+        h(
+          "p",
+          { "data-demo": "window", "data-end": view.value.end },
+          `En vue : lignes ${view.value.start + 1} à ${view.value.end} sur ${data.value.length}`,
+        ),
       ]);
   },
 });
@@ -230,8 +237,8 @@ const virtualGrid = defineComponent({
         }),
         h(
           "p",
-          { "data-demo": "window" },
-          `Dans le document : lignes ${view.value.start + 1} à ${view.value.end} sur ${tenThousand.length.toLocaleString("fr-FR")} (un écran : ${view.value.size})`,
+          { "data-demo": "window", "data-end": view.value.end },
+          `En vue : lignes ${view.value.start + 1} à ${view.value.end} sur ${tenThousand.length.toLocaleString("fr-FR")} (un écran : ${view.value.size})`,
         ),
       ]);
   },
