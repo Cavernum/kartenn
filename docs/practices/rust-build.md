@@ -83,6 +83,57 @@ recompile à chaque alternance. Deux parades, cumulables :
 `cargo build --timings` produit un rapport HTML (crates sur le chemin critique,
 parallélisme effectif). On mesure avant d'ajouter une optimisation.
 
+### 1.5 Worktree neuf : `target` cloné (`k-target-seed`)
+
+Mesures du 2026-10-31 (main 94746bc9, Rust 1.98.1, 24 cœurs, btrfs, un créneau
+`k-heavy` soit 12 tâches ; `cargo nextest run --no-run --workspace --all-features`, ce
+que compile `k-check` ; chaque mesure lancée machine au repos, deux passages par cas) :
+
+| `target` au départ | sans sccache | avec sccache |
+|---|---|---|
+| vide, chemin jamais vu par le cache (worktree neuf) | 200 s, 210 s | 166 s, 169 s (82 % de succès Rust) |
+| vide, chemin déjà vu par le cache | 200 s | 127 s, 127 s (100 %) |
+| cloné en reflink d'un `target` chaud | 96 s, 93 s | 91 s, 91 s |
+| chaud, `kartenn-core` modifié | 10,9 s, 11,6 s | 11,2 s, 11,6 s |
+
+- **Copie reflink** (btrfs, XFS) : `cp -a --reflink=always` d'un `target` de 33 Go prend
+  4 s et n'occupe pas de disque tant que rien ne diverge. Cargo garde les dépendances et
+  ne recompile que les 16 crates du workspace : leur empreinte contient leur chemin.
+- **Chemins absolus** : la sortie des scripts de build (`target/*/build/*/output`) nomme
+  encore le `target` source (chemins de lien de `ring` et de `zstd-sys`), mais cargo la
+  relocalise d'après `root-output` (l'`OUT_DIR` de l'exécution) : la copie lie ses propres
+  bibliothèques. Vérifié par une copie de copie dont la source intermédiaire est supprimée
+  avant le build : 16 crates recompilées, 98 s, `-L native=` vers la copie. Réécrire ces
+  sorties ferait relancer les scripts et recompiler 33 crates au lieu de 16, pour rien.
+- **sccache** : il ne met en cache que les dépendances (les crates du workspace sont
+  incrémentales : « non-cacheable: incremental ») ; ses échecs (62 à 81 compilations Rust)
+  reviennent dans chaque chemin neuf, donc dépendent du chemin. Il gagne ≈ 35 s
+  sur un `target` vide, rien de mesurable sur un `target` cloné ou chaud.
+- `k-target-seed` prend le `target` du worktree `integration` de la copie principale,
+  sinon celui de la copie principale, ou `K_TARGET_BASE` (racine d'un worktree, chemin
+  absolu). Sans reflink, ou si un build de la source retire un fichier pendant la copie,
+  il s'arrête et le build part à froid, au lieu de faire une copie pleine.
+
+### 1.6 Disque : sessions incrémentales (`k-target-prune`)
+
+Un `target` qui vit longtemps grossit sans fin : chaque variante d'une crate (version des
+dépendances, jeu de features) garde ses artefacts et sa session incrémentale. Le
+2026-10-31, celui d'`integration` faisait 303 Go, dont 172 Go dans `debug/deps` et 134 Go
+dans `debug/incremental`, ramenés à 33 Go.
+
+- `cargo sweep --time N` juge l'âge par la date d'accès, qu'un montage `noatime` (celui
+  de la machine) ne met jamais à jour : il supprime des dépendances encore utilisées
+  (166 Go libérés, puis 378 crates recompilées, 95 s). Il n'est donc pas outillé ici.
+- `k-target-prune [racine…]` (`K_DAYS`, 7 par défaut) supprime les sessions
+  incrémentales sans compilation depuis `K_DAYS` jours : rustc écrit une nouvelle session
+  à chaque compilation d'une crate et retire la précédente, la date d'une session est
+  donc fiable. Une session encore utile supprimée coûte une recompilation non
+  incrémentale de sa crate. À lancer quand aucun build n'utilise ce `target`. Mesuré :
+  116 Go libérés, aucune recompilation ensuite. Il couvre aussi
+  `target/rust-analyzer/*/incremental` (§1.3, option 2).
+- Les artefacts d'anciennes variantes de `debug/deps` restent. Un worktree neuf n'a que
+  ceux de sa source ; le `target` d'un worktree supprimé part avec lui.
+
 ## 2. Projet (`Cargo.toml` du workspace)
 
 ### 2.1 Dépendances optimisées en dev
@@ -224,6 +275,6 @@ Source : [Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.htm
 | Sujet | Quand | Remarque |
 |---|---|---|
 | `cargo-nextest` | premiers tests d'intégration PostgreSQL | un processus par test : isolation, délais par test, rapports JUnit ; les doctests restent sur `cargo test --doc`. [nexte.st](https://nexte.st/docs/design/why-process-per-test/) |
-| Cache CI (rust-cache, sccache) | mise en place de la CI | peu utile en local avec une seule copie du dépôt et l'incrémental |
+| Cache CI (rust-cache, sccache) | mise en place de la CI | en local, ≈ 35 s sur un `target` vide, rien sur un `target` cloné (§1.5) |
 | Backend Cranelift, `-Zthreads` | si la boucle de dev devient lente | exige une chaîne nightly (rust-overlay) ; à réévaluer |
 | `chattr +C` sur `target/` (btrfs) | si les E/S dominent `--timings` | gain marginal attendu |

@@ -14,6 +14,10 @@ propre à la tâche.
   (`/home/safenein/Repos/kartenn`) ni dans un autre worktree.
 - Vérifie que ton arbre contient le commit de main donné (`git log --oneline -1 <commit>`),
   sinon `git merge --ff-only main`. Crée la branche demandée (`feat/NNN-M-slug`).
+- Avant la première commande cargo (`k-check` compris, aussi pour le seul test
+  `no_old_permission`) : `devenv shell -- k-target-seed`, qui clone un `target` chaud
+  (≈ 95 s de build au lieu de 170 s ; `docs/practices/rust-build.md` §1.5). S'il échoue,
+  le build part à froid : dis-le dans le rapport.
 - Suis `.claude/commands/tache.md`, étapes 1 à 5, en mode autonome : tu tranches les choix
   peu coûteux à défaire et invisibles de l'extérieur, et tu les notes dans la ligne
   `choix :` de la tâche. Devant un choix structurant (contrat REST ou OpenAPI, schéma,

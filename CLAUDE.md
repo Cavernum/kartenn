@@ -36,8 +36,11 @@
   commandes lourdes passent par le sémaphore `k-heavy` (2 créneaux, `nice`, cœurs
   partagés) : `k-check`, `k-web-check`, `k-web-e2e`, `db-prepare`, les bancs et le hook
   clippy le prennent d'eux-mêmes ; toute autre commande lourde se lance en
-  `k-heavy cargo …`. Pas plus de dix sous-agents en parallèle ; `sccache` partage les
-  dépendances compilées entre worktrees. Le goulot reste `k-heavy` et ses verrous
+  `k-heavy cargo …`. Pas plus de dix sous-agents en parallèle ; un worktree neuf clone
+  un `target` chaud avant sa première compilation (`k-target-seed`,
+  `docs/practices/rust-build.md` §1.5). Jamais `cargo clean` ni `cargo sweep` ; une
+  commande cargo ad hoc garde les options de `k-check` (`--all-features`, profil dev),
+  sans quoi elle compile une autre variante. Le goulot reste `k-heavy` et ses verrous
   (`--pg`, `--bench`) : en route, des vérifications ciblées (`k-check -p <crate>`, un
   fichier Vitest) ; la vérification complète une fois, avant le commit. Les bancs
   pleine échelle se lancent par la session principale seulement, un à la fois, et
