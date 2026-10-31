@@ -55,6 +55,22 @@ test.describe("FilterPicker (typed filters)", () => {
     );
   });
 
+  test("the keys behind the labels of a chip: its description, its tooltip under the focus", async ({
+    page,
+  }) => {
+    const domain = chip(page, "Domaine est Centre de données nord");
+    await expect(domain).toHaveAccessibleDescription("Paramètre : domain=dc-nord");
+    await domain.focus();
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    await expect(domain).toBeFocused();
+    await expect(page.getByRole("tooltip")).toHaveText("Paramètre : domain=dc-nord");
+    // Open, the picker is not covered by it.
+    await page.keyboard.press("Enter");
+    await expect(popover(page)).toBeVisible();
+    await expect(page.getByRole("tooltip")).toBeHidden();
+  });
+
   test("add with the keyboard alone: the property list open, labels and keys, values of a closed list", async ({
     page,
   }) => {

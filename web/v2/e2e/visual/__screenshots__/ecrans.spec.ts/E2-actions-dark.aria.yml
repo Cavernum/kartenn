@@ -87,34 +87,46 @@
         - rowgroup:
           - 'row /Propriétaire core\.owner Atelier Nord Héritée de \d+\.\d+\.2\.0\/\d+ Expliquer la valeur : Propriétaire/':
             - gridcell "Propriétaire core.owner":
-              - text: ""
-              - code: core.owner
+              - button "Propriétaire core.owner":
+                - text: ""
+                - code: core.owner
+              - status
             - gridcell "Atelier Nord"
             - 'gridcell /Héritée de \d+\.\d+\.2\.0\/\d+ Expliquer la valeur : Propriétaire/':
               - text: ""
               - 'button "Expliquer la valeur : Propriétaire"'
           - row "Site core.site site-ouest Directe":
             - gridcell "Site core.site":
-              - text: ""
-              - code: core.site
+              - button "Site core.site":
+                - text: ""
+                - code: core.site
+              - status
             - gridcell "site-ouest"
             - gridcell "Directe"
           - row "Environnement policy.environment Production Inférée règle env-par-site":
             - gridcell "Environnement policy.environment":
-              - text: ""
-              - code: policy.environment
-            - gridcell "Production"
+              - button "Environnement policy.environment":
+                - text: ""
+                - code: policy.environment
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
             - gridcell "Inférée règle env-par-site"
           - row "TTL DNS dns.ttl — Sans valeur":
             - gridcell "TTL DNS dns.ttl":
-              - text: ""
-              - code: dns.ttl
+              - button "TTL DNS dns.ttl":
+                - text: ""
+                - code: dns.ttl
+              - status
             - gridcell "—"
             - gridcell "Sans valeur"
           - row "Contact core.contact •••••• Masquée droit de lecture manquant":
             - gridcell "Contact core.contact":
-              - text: ""
-              - code: core.contact
+              - button "Contact core.contact":
+                - text: ""
+                - code: core.contact
+              - status
             - gridcell "••••••"
             - gridcell "Masquée droit de lecture manquant"
       - status:
@@ -130,7 +142,9 @@
     - term: Domaine
     - definition: Centre de données nord
     - term: Nature
-    - definition: Réseau
+    - definition:
+      - button "Réseau"
+      - status
     - term: Point à point
     - definition: non
     - term: Anycast

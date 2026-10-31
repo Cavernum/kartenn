@@ -45,7 +45,9 @@
       - tab "Historique 3"
     - tabpanel "Information":
       - term: Environnement déclaré
-      - definition: Production
+      - definition:
+        - button "Production"
+        - status
       - term: Site
       - definition: site-ouest
       - term: Propriétaire
@@ -76,8 +78,10 @@
             - text: depuis
             - link /srv-web-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-web-02&iface=eth0&mode=dark
-            - text: API interne
-            - code: api
+            - button "API interne api":
+              - text: ""
+              - code: api
+            - status
             - text: Applicatif Conforme
           - listitem:
             - link "eth0":
@@ -85,8 +89,11 @@
             - text: depuis
             - link /\d+\.\d+\.\d+\.\d+\/\d+/:
               - /url: /_ui/ecrans/E2?mode=dark
-            - text: préfixe Web chiffré
-            - code: https
+            - text: préfixe
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
             - text: Applicatif Conforme
           - listitem:
             - link "eth1":
@@ -94,8 +101,10 @@
             - text: depuis
             - link /bastion-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=bastion-01&iface=eth0&mode=dark
-            - text: Shell sécurisé
-            - code: ssh
+            - button "Shell sécurisé ssh":
+              - text: ""
+              - code: ssh
+            - status
             - text: Administratif Conforme
           - listitem:
             - link "eth0":
@@ -103,8 +112,10 @@
             - text: depuis
             - link /srv-rec-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-rec-03&iface=eth0&mode=dark
-            - text: Web chiffré
-            - code: https
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
             - text: Applicatif Sous réserve Demandé
           - listitem:
             - link "eth0":
@@ -112,8 +123,10 @@
             - text: depuis
             - link /srv-rec-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-rec-04&iface=eth0&mode=dark
-            - text: Web chiffré
-            - code: https
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
             - text: Applicatif Sous réserve Échu
           - listitem:
             - link "eth0":
@@ -121,8 +134,10 @@
             - text: depuis interface
             - code: /\d+\.\d+\.\d+\.\d+, \d+:db8::\d+/
             - button "Fiche non accessible"
-            - text: API interne
-            - code: api
+            - button "API interne api":
+              - text: ""
+              - code: api
+            - status
             - text: Applicatif Conforme
         - heading "Sortants 3" [level=4]
         - list "Sortants 3":
@@ -134,8 +149,10 @@
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-db-02&mode=dark
             - link /srv-db-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-db-02&iface=eth0&mode=dark
-            - text: PostgreSQL
-            - code: postgres
+            - button "PostgreSQL postgres":
+              - text: ""
+              - code: postgres
+            - status
             - text: Base de données Conforme
           - listitem:
             - link "eth0":
@@ -145,8 +162,10 @@
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-sauv-01&mode=dark
             - link /srv-sauv-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-sauv-01&iface=eth0&mode=dark
-            - text: Partage NFS
-            - code: nfs
+            - button "Partage NFS nfs":
+              - text: ""
+              - code: nfs
+            - status
             - text: Fichier Conforme
           - listitem:
             - link "eth0":
@@ -154,7 +173,9 @@
             - text: vers préfixe
             - code: /\d+\.\d+\.\d+\.\d+\/\d+/
             - button "Fiche non accessible"
-            - text: Web chiffré
-            - code: https
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
             - text: Applicatif Conforme
 - button "Ouvrir le panneau"

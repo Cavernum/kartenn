@@ -1,0 +1,9 @@
+- main:
+  - region "EnvChip":
+    - heading "EnvChip" [level=1]
+    - paragraph: "Motif : Button (copier la clé) ; pastille et libellé"
+    - 'figure "hover — Survol : la clé dans la bulle"':
+      - button "Recette"
+      - status
+      - code: hover
+      - text: ""

@@ -1,0 +1,15 @@
+- main:
+  - region "CodeBadge":
+    - heading "CodeBadge" [level=1]
+    - paragraph: "Motif : Button (copier), annonce role=status"
+    - figure "keyboard — Deux codes, copiés au clavier":
+      - button "Copier urn:kartenn:problem:precondition-failed":
+        - text: ""
+        - code: urn:kartenn:problem:precondition-failed
+      - status
+      - button "Copier Request-Id req_7f3a9c2e5b1d4068":
+        - text: ""
+        - code: req_7f3a9c2e5b1d4068
+      - status
+      - code: keyboard
+      - text: ""

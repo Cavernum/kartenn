@@ -90,8 +90,10 @@
             - gridcell /srv-rec-\d+ · eth0/
             - gridcell /srv-app-\d+ · eth0/
             - gridcell "Web chiffré https":
-              - text: ""
-              - code: https
+              - button "Web chiffré https":
+                - text: ""
+                - code: https
+              - status
             - gridcell "Redevient conforme"
             - gridcell "rece-vers-prod"
           - 'row /Applicatif \d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ API interne api Issue : à instruire rece-vers-prod/':
@@ -99,8 +101,10 @@
             - gridcell /\d+\.\d+\.\d+\.\d+/
             - gridcell /\d+\.\d+\.\d+\.\d+/
             - gridcell "API interne api":
-              - text: ""
-              - code: api
+              - button "API interne api":
+                - text: ""
+                - code: api
+              - status
             - 'gridcell "Issue : à instruire"'
             - gridcell "rece-vers-prod"
           - 'row /Applicatif \d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ API interne api Issue : à instruire rece-vers-prod/':
@@ -108,8 +112,10 @@
             - gridcell /\d+\.\d+\.\d+\.\d+/
             - gridcell /\d+\.\d+\.\d+\.\d+/
             - gridcell "API interne api":
-              - text: ""
-              - code: api
+              - button "API interne api":
+                - text: ""
+                - code: api
+              - status
             - 'gridcell "Issue : à instruire"'
             - gridcell "rece-vers-prod"
           - row /Base de données dev-web-\d+ · eth0 \d+\.\d+\.\d+\.\d+ PostgreSQL postgres Devient non conforme deny-deve-rece-bdd/:
@@ -117,8 +123,10 @@
             - gridcell /dev-web-\d+ · eth0/
             - gridcell /\d+\.\d+\.\d+\.\d+/
             - gridcell "PostgreSQL postgres":
-              - text: ""
-              - code: postgres
+              - button "PostgreSQL postgres":
+                - text: ""
+                - code: postgres
+              - status
             - gridcell "Devient non conforme"
             - gridcell "deny-deve-rece-bdd"
           - row /Base de données dev-web-\d+ · eth0 \d+\.\d+\.\d+\.\d+ PostgreSQL postgres Devient non conforme deny-deve-rece-bdd/:
@@ -126,8 +134,10 @@
             - gridcell /dev-web-\d+ · eth0/
             - gridcell /\d+\.\d+\.\d+\.\d+/
             - gridcell "PostgreSQL postgres":
-              - text: ""
-              - code: postgres
+              - button "PostgreSQL postgres":
+                - text: ""
+                - code: postgres
+              - status
             - gridcell "Devient non conforme"
             - gridcell "deny-deve-rece-bdd"
           - row /Fichier dev-web-\d+ · eth0 \d+\.\d+\.\d+\.\d+ Partage NFS nfs Devient non conforme deny-deve-rece-bdd/:
@@ -135,8 +145,10 @@
             - gridcell /dev-web-\d+ · eth0/
             - gridcell /\d+\.\d+\.\d+\.\d+/
             - gridcell "Partage NFS nfs":
-              - text: ""
-              - code: nfs
+              - button "Partage NFS nfs":
+                - text: ""
+                - code: nfs
+              - status
             - gridcell "Devient non conforme"
             - gridcell "deny-deve-rece-bdd"
           - row /Fichier \d+\.\d+\.\d+\.\d+\/\d+ \d+\.\d+\.\d+\.\d+ Partage NFS nfs Devient non conforme deny-deve-rece-bdd/:
@@ -144,8 +156,10 @@
             - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/
             - gridcell /\d+\.\d+\.\d+\.\d+/
             - gridcell "Partage NFS nfs":
-              - text: ""
-              - code: nfs
+              - button "Partage NFS nfs":
+                - text: ""
+                - code: nfs
+              - status
             - gridcell "Devient non conforme"
             - gridcell "deny-deve-rece-bdd"
     - text: 7 sur 7

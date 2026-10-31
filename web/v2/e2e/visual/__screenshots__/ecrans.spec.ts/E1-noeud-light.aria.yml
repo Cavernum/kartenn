@@ -170,9 +170,13 @@
     - term: Sorte
     - definition: Adresse
     - term: Usage
-    - definition: Hôte
+    - definition:
+      - button "Hôte"
+      - status
     - term: Environnement
-    - definition: Production
+    - definition:
+      - button "Production"
+      - status
     - term: Propriétaire
     - definition: Service Pilote
     - term: Machine

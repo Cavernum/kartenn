@@ -1,0 +1,35 @@
+- main:
+  - region "ErrorState":
+    - heading "ErrorState" [level=1]
+    - paragraph: "Motif : role=alert, codes copiables"
+    - 'figure "violations — Violations : chaque gravité, message et code (un avertissement le dit)"':
+      - alert: Le changeset est refusé.
+      - list:
+        - listitem:
+          - text: Erreur Le préfixe chevauche un voisin.
+          - button "Copier prefix.overlaps-sibling":
+            - text: ""
+            - code: prefix.overlaps-sibling
+          - status
+        - listitem:
+          - text: Erreur Le responsable est inconnu.
+          - button "Copier core.owner.unknown":
+            - text: ""
+            - code: core.owner.unknown
+          - status
+        - listitem:
+          - text: Avertissement Le TTL DNS est attendu en production.
+          - button "Copier prop.dns.ttl-missing":
+            - text: ""
+            - code: prop.dns.ttl-missing
+          - status
+      - button "Copier type urn:kartenn:problem:changeset-refused":
+        - text: ""
+        - code: urn:kartenn:problem:changeset-refused
+      - status
+      - button "Copier Request-Id req_7f3a9c2e5b1d4068":
+        - text: ""
+        - code: req_7f3a9c2e5b1d4068
+      - status
+      - code: violations
+      - text: ""

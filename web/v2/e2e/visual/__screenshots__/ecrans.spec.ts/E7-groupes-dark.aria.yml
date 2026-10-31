@@ -26,6 +26,9 @@
       - link "Émetteurs":
         - /url: /admin/issuers
     - listitem:
+      - link "Paramètres":
+        - /url: /admin/settings
+    - listitem:
       - link "Audit":
         - /url: /admin/audit
   - button "Barre latérale" [expanded]
@@ -60,27 +63,39 @@
       - rowgroup:
         - row "Secours secours":
           - gridcell "Secours secours":
-            - text: ""
-            - code: secours
+            - button "Secours secours":
+              - text: ""
+              - code: secours
+            - status
         - row "Équipe supervision supervision" [selected]:
           - gridcell "Équipe supervision supervision":
-            - text: ""
-            - code: supervision
+            - button "Équipe supervision supervision":
+              - text: ""
+              - code: supervision
+            - status
         - row "Équipe réseau reseau":
           - gridcell "Équipe réseau reseau":
-            - text: ""
-            - code: reseau
+            - button "Équipe réseau reseau":
+              - text: ""
+              - code: reseau
+            - status
         - row "Astreinte astreinte":
           - gridcell "Astreinte astreinte":
-            - text: ""
-            - code: astreinte
+            - button "Astreinte astreinte":
+              - text: ""
+              - code: astreinte
+            - status
         - row "Équipe sauvegarde sauvegarde":
           - gridcell "Équipe sauvegarde sauvegarde":
-            - text: ""
-            - code: sauvegarde
+            - button "Équipe sauvegarde sauvegarde":
+              - text: ""
+              - code: sauvegarde
+            - status
         - row "compte-sync-ipam":
           - gridcell "compte-sync-ipam":
-            - code: compte-sync-ipam
+            - button "compte-sync-ipam":
+              - code: compte-sync-ipam
+            - status
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
   - tablist "Onglets du panneau":

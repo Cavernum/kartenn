@@ -4,33 +4,34 @@
 
 <script setup lang="ts">
 // A code (design « Inventaire », line 22; REQ-020-22): fixed pitch, copied by a click or
-// the keyboard (APG Button), the outcome announced by a `status` region. `label` names
-// what the code is (« Request-Id »). The name is the content, « Copier » first, hidden on
-// screen: it keeps the visible text (WCAG 2.5.3).
-import { computed, onBeforeUnmount, ref } from "vue";
-import { copyText, type CopyOutcome } from "../../clipboard.ts";
+// the keyboard (APG Button), the outcome announced by a `status` region and shown in its
+// bubble (« Copié » for a while; the clipboard refused, the code selected and how to copy
+// it by hand). `label` names what the code is (« Request-Id »). The name is the content,
+// « Copier » first, hidden on screen: it keeps the visible text (WCAG 2.5.3). A code cut
+// by the width shows whole in the bubble, under the pointer and the keyboard focus.
+import { computed, ref } from "vue";
 import { t } from "../../i18n.ts";
 import Icon from "../Icon/Icon.vue";
+import { useCopy } from "../internal/copy.ts";
+import Tooltip from "../Tooltip/Tooltip.vue";
 
 const props = defineProps<{ code: string; label?: string }>();
 
-/** How long the outcome stays shown, in milliseconds. */
-const OUTCOME_MS = 2000;
+const shown = ref<HTMLElement | null>(null);
+const isCut = () => !!shown.value && shown.value.scrollWidth > shown.value.clientWidth;
+const { tip, outcome, listeners } = useCopy({
+  text: () => props.code,
+  selection: () => shown.value,
+  // Cut, the bubble shows more than the button: Escape closes it alone (1.4.13).
+  atRest: isCut,
+});
 
-const outcome = ref<CopyOutcome | null>(null);
-let timer: ReturnType<typeof setTimeout> | undefined;
-
-const announcement = computed(() =>
-  outcome.value === "copied" ? t("copied") : outcome.value === "failed" ? t("copyFailed") : "",
+const said = computed(() =>
+  outcome.value === "copied" ? t("copied") : outcome.value === "failed" ? t("copyByHand") : "",
 );
-
-async function copy(): Promise<void> {
-  outcome.value = await copyText(props.code);
-  clearTimeout(timer);
-  timer = setTimeout(() => (outcome.value = null), OUTCOME_MS);
-}
-
-onBeforeUnmount(() => clearTimeout(timer));
+const icon = computed(() =>
+  outcome.value === "copied" ? "check" : outcome.value === "failed" ? "circle-x" : "copy",
+);
 </script>
 
 <template>
@@ -39,14 +40,18 @@ onBeforeUnmount(() => clearTimeout(timer));
       type="button"
       class="k-code-badge__button"
       :data-state="outcome ?? undefined"
-      @click="copy"
+      v-on="listeners"
     >
       <span class="k-visually-hidden">{{ `${t("copy")} ` }}</span>
       <span v-if="props.label" class="k-code-badge__label">{{ `${props.label} ` }}</span>
-      <code class="k-code-badge__code">{{ props.code }}</code>
-      <Icon :name="outcome === 'copied' ? 'check' : outcome === 'failed' ? 'circle-x' : 'copy'" />
+      <code ref="shown" class="k-code-badge__code">{{ props.code }}</code>
+      <Icon :name="icon" />
     </button>
-    <span role="status" class="k-visually-hidden">{{ announcement }}</span>
+    <span role="status" class="k-visually-hidden">{{ said }}</span>
+    <Tooltip v-if="tip.open.value && (outcome || isCut())" :control="tip" decorative>
+      <code v-if="isCut()" class="k-tooltip__name k-code-badge__whole">{{ props.code }}</code>
+      <span v-if="outcome" class="k-tooltip__detail">{{ said }}</span>
+    </Tooltip>
   </span>
 </template>
 
@@ -67,7 +72,7 @@ onBeforeUnmount(() => clearTimeout(timer));
     padding-inline: var(--k-control-padding-inline-sm);
     font: inherit;
     color: var(--k-text);
-    cursor: pointer;
+    cursor: copy;
     background-color: var(--k-surface-sunken);
     border: var(--k-border-width) solid var(--k-border-strong);
     border-radius: var(--k-radius-md);
@@ -99,10 +104,17 @@ onBeforeUnmount(() => clearTimeout(timer));
     color: var(--k-text-muted);
   }
 
+  /* The code, selectable for a copy by hand (a button's text is not, by default). */
   .k-code-badge__code {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    user-select: text;
+  }
+
+  /* Whole in the bubble: a long code breaks anywhere rather than overflow it. */
+  .k-code-badge__whole {
+    overflow-wrap: anywhere;
   }
 }
 </style>

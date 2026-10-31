@@ -565,9 +565,7 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
             </h3>
             <ul class="k-ecran-list k-ecran-lignes k-ecran-lignes--lecture">
               <li v-for="g in IDENTITY_GROUPS" :key="g.key">
-                <span
-                  >{{ g.label }} <code class="k-ecran-muted">{{ g.key }}</code></span
-                >
+                <KeyLabel :value="g.key" :label="g.label" stacked />
                 <span v-if="g.via" class="k-ecran-muted"
                   >via
                   <span class="k-mono"
@@ -589,10 +587,7 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
             </h3>
             <ul class="k-ecran-list k-ecran-lignes k-ecran-lignes--lecture">
               <li v-for="right in IDENTITY_RIGHTS" :key="`${right.role} ${right.scope}`">
-                <span
-                  >{{ right.roleLabel }}
-                  <code class="k-ecran-muted k-ecran-ligne__cle">{{ right.role }}</code></span
-                >
+                <KeyLabel :value="right.role" :label="right.roleLabel" stacked />
                 <span class="k-ecran-muted k-ecran-ligne__valeur"
                   ><span>{{ right.scope }}</span
                   ><span>via le groupe {{ right.group }}</span></span
@@ -661,9 +656,7 @@ const SECRET = "ksk_live_7Q2mX9vR4tB8nL1cW6pZ3hJ5";
             </h3>
             <ul class="k-ecran-list k-ecran-lignes k-ecran-lignes--lecture">
               <li v-for="g in ROLE_GROUPS" :key="g.key">
-                <span
-                  >{{ g.label }} <code class="k-ecran-muted">{{ g.key }}</code></span
-                >
+                <KeyLabel :value="g.key" :label="g.label" stacked />
                 <span class="k-ecran-muted">{{ g.scope }}</span>
               </li>
             </ul>

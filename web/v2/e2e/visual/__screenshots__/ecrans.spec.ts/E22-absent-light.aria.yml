@@ -43,7 +43,7 @@
     - heading /flux-\d+/ [level=2]
     - alert: Ce flux est absent ou vous n'avez pas le droit de le lire.
     - paragraph: Le lien peut viser un flux qui n'existe pas, ou un flux dont aucune extrémité ne vous est lisible. Les deux cas se lisent de la même façon.
-    - button "Copier urn:kartenn:problem:not-found":
+    - button "Copier type urn:kartenn:problem:not-found":
       - text: ""
       - code: urn:kartenn:problem:not-found
     - status

@@ -74,8 +74,10 @@
           - gridcell /\(en revue\) srv-rec-\d+ · eth0/
           - gridcell /srv-app-\d+ · eth0/
           - gridcell "Web chiffré https":
-            - text: ""
-            - code: https
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
           - gridcell /ticketing:CHG-\d+/
           - gridcell "Jeux de contrôle de la recette, reconduits"
           - 'gridcell "Demandé pré-vérification : Sous réserve Copier rece-vers-prod"':

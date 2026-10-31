@@ -81,8 +81,11 @@
     - text: /srv-web-\d+ · eth0 → \d+\.\d+\.\d+\.\d+ · tcp\/\d+/
     - button "Déclarer ce flux"
     - paragraph:
-      - text: Non ouvert mais conforme 2 paires d'adresses · PostgreSQL
-      - code: postgres
+      - text: Non ouvert mais conforme 2 paires d'adresses ·
+      - button "PostgreSQL postgres":
+        - text: ""
+        - code: postgres
+      - status
       - text: /· lu le \d+-\d+-\d+, politique r42/
     - paragraph: "Aucun flux du registre ne couvre ces paires ; bdd-meme-env les autorise : déclarer ce flux l'ouvre, après instruction si son issue le demande."
     - region "Ouvert ? Non ouvert":
@@ -100,7 +103,13 @@
           - text: ""
           - code: bdd-meme-env
         - status
-        - text: règle décisive Production vers Production Base de données
+        - text: règle décisive
+        - button "Production"
+        - status
+        - text: vers
+        - button "Production"
+        - status
+        - text: Base de données
       - paragraph: Une base n'est lue que depuis son propre environnement.
       - paragraph: "Issue d'une déclaration, dossier non évalué : Instruction"
     - region "Par paire d'adresses":

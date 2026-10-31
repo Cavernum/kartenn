@@ -8,6 +8,8 @@
   - region "Candidat 1 Production Copier env-par-site":
     - heading "Candidat 1 Production Copier env-par-site" [level=3]:
       - text: ""
+      - button "Production"
+      - status
       - button "Copier env-par-site":
         - text: ""
         - code: env-par-site
@@ -28,6 +30,8 @@
   - region "Candidat 2 Recette Copier env-par-vlan":
     - heading "Candidat 2 Recette Copier env-par-vlan" [level=3]:
       - text: ""
+      - button "Recette"
+      - status
       - button "Copier env-par-vlan":
         - text: ""
         - code: env-par-vlan
@@ -45,10 +49,16 @@
     - heading "Règles écartées" [level=3]
     - list:
       - listitem:
-        - code: env-par-nom
+        - button "Copier env-par-nom":
+          - text: ""
+          - code: env-par-nom
+        - status
         - text: /priorité \d+, inférieure/
       - listitem:
-        - code: admin-par-prefixe
+        - button "Copier admin-par-prefixe":
+          - text: ""
+          - code: admin-par-prefixe
+        - status
         - text: "/critère non rempli : \\d+\\.\\d+\\.\\d+\\.\\d+ ∉ \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+/"
   - contentinfo:
     - button "Fermer"

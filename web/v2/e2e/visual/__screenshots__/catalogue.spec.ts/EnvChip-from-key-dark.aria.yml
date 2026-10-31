@@ -1,0 +1,25 @@
+- main:
+  - region "EnvChip":
+    - heading "EnvChip" [level=1]
+    - paragraph: "Motif : Button (copier la clé) ; pastille et libellé"
+    - figure "from-key — Teinte déduite de la clé":
+      - button "prod":
+        - code: prod
+      - status
+      - button "rece":
+        - code: rece
+      - status
+      - button "deve":
+        - code: deve
+      - status
+      - button "form":
+        - code: form
+      - status
+      - button "preprod":
+        - code: preprod
+      - status
+      - button "dmz":
+        - code: dmz
+      - status
+      - code: from-key
+      - text: ""

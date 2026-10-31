@@ -65,22 +65,30 @@
         - row /\d+ env-par-site Production site = site-ouest · famille IPv4 ou IPv6/:
           - gridcell /\d+/
           - gridcell "env-par-site"
-          - gridcell "Production"
+          - gridcell "Production":
+            - button "Production"
+            - status
           - gridcell "site = site-ouest · famille IPv4 ou IPv6"
         - row /\d+ env-par-vlan Recette core\.vlan = \d+–\d+/:
           - gridcell /\d+/
           - gridcell "env-par-vlan"
-          - gridcell "Recette"
+          - gridcell "Recette":
+            - button "Recette"
+            - status
           - gridcell /core\.vlan = \d+–\d+/
         - row /\d+ env-par-nom Développement nom ~ \^dev-/:
           - gridcell /\d+/
           - gridcell "env-par-nom"
-          - gridcell "Développement"
+          - gridcell "Développement":
+            - button "Développement"
+            - status
           - gridcell "nom ~ ^dev-"
         - row /\d+ admin-par-prefixe Administration préfixe ⊂ \d+\.\d+\.\d+\.\d+\/\d+/:
           - gridcell /\d+/
           - gridcell "admin-par-prefixe"
-          - gridcell "Administration"
+          - gridcell "Administration":
+            - button "Administration"
+            - status
           - gridcell /préfixe ⊂ \d+\.\d+\.\d+\.\d+\/\d+/
     - text: "/4 règles · révision du jeu r17, \\d+-\\d+-\\d+ À priorité égale, deux attendus différents : aucun n'est retenu/"
 - complementary "Panneau droit":
@@ -122,22 +130,30 @@
         - listitem:
           - text: "1"
           - code: /préfixe ⊂ \d+\.\d+\.\d+\.\d+\/\d+/
-          - text: attendu Recette
+          - text: attendu
+          - button "Recette"
+          - status
           - button "Exception"
         - listitem:
           - text: "2"
           - code: nom ~ ^srv-rec-0[1-4]$
-          - text: attendu Production
+          - text: attendu
+          - button "Production"
+          - status
           - button "Exception"
         - listitem:
           - text: "3"
           - code: type d'objet = adresse
-          - text: attendu Recette
+          - text: attendu
+          - button "Recette"
+          - status
           - button "Exception"
         - listitem:
           - text: "4"
           - code: /core\.vlan = \d+/
-          - text: attendu Production
+          - text: attendu
+          - button "Production"
+          - status
           - button "Exception" [disabled]
       - button "Ajouter une exception"
     - region "Aperçu sans écriture, relancé après une pause":
@@ -167,38 +183,66 @@
         - rowgroup:
           - row /\d+\.\d+\.2\.0\/\d+ Production Production —/:
             - gridcell /\d+\.\d+\.2\.0\/\d+/
-            - gridcell "Production"
-            - gridcell "Production"
+            - gridcell "Production":
+              - button "Production"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
             - gridcell "—"
           - row /\d+\.\d+\.\d+\.\d+ Production Production —/:
             - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell "Production"
-            - gridcell "Production"
+            - gridcell "Production":
+              - button "Production"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
             - gridcell "—"
           - row /\d+\.\d+\.\d+\.\d+ Production Production —/:
             - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell "Production"
-            - gridcell "Production"
+            - gridcell "Production":
+              - button "Production"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
             - gridcell "—"
           - row /\d+\.\d+\.\d+\.\d+ Développement Production S'ouvre/:
             - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell "Développement"
-            - gridcell "Production"
+            - gridcell "Développement":
+              - button "Développement"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
             - gridcell "S'ouvre"
           - row /\d+\.\d+\.\d+\.\d+ Développement Production S'ouvre/:
             - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell "Développement"
-            - gridcell "Production"
+            - gridcell "Développement":
+              - button "Développement"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
             - gridcell "S'ouvre"
           - row /\d+\.\d+\.\d+\.\d+ Production Production —/:
             - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell "Production"
-            - gridcell "Production"
+            - gridcell "Production":
+              - button "Production"
+              - status
+            - gridcell "Production":
+              - button "Production"
+              - status
             - gridcell "—"
           - row /\d+\.\d+\.\d+\.\d+ Développement Recette S'ouvre/:
             - gridcell /\d+\.\d+\.\d+\.\d+/
-            - gridcell "Développement"
-            - gridcell "Recette"
+            - gridcell "Développement":
+              - button "Développement"
+              - status
+            - gridcell "Recette":
+              - button "Recette"
+              - status
             - gridcell "S'ouvre"
       - paragraph: /Lu par la route d'aperçu \(\d+\/S36\) avec le critère invalide écarté\./
   - button "Largeur du panneau"

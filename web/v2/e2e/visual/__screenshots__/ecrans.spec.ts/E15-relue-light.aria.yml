@@ -183,12 +183,20 @@
       - paragraph: "/Information : Vos cellules sont gardées : elles reprennent la matrice relue \\(version m-\\d+\\) à la soumission\\./"
     - list "Cellules du brouillon":
       - listitem:
-        - text: Applicatif Recette Production
+        - text: Applicatif
+        - button "Recette"
+        - status
+        - button "Production"
+        - status
         - button "Retirer la cellule Recette → Production"
         - deletion: "avant : Refus par défaut"
         - insertion: "après : Sous motif"
       - listitem:
-        - text: Administratif Intégration Préproduction
+        - text: Administratif
+        - button "Intégration"
+        - status
+        - button "Préproduction"
+        - status
         - button "Retirer la cellule Intégration → Préproduction"
         - deletion: "avant : Autoriser"
         - insertion: "après : Sous motif"

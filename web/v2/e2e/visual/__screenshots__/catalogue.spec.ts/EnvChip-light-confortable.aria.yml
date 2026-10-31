@@ -1,16 +1,66 @@
 - main:
   - region "EnvChip":
     - heading "EnvChip" [level=1]
-    - paragraph: "Motif : — (pastille et libellé)"
+    - paragraph: "Motif : Button (copier la clé) ; pastille et libellé"
     - figure "labelled — Pastille et libellé":
-      - text: Production
+      - button "Production"
+      - status
       - code: labelled
       - text: ""
     - 'figure "key-only — Sans libellé : la clé en chasse fixe"':
-      - code: form
+      - button "form":
+        - code: form
+      - status
       - code: key-only
       - text: ""
+    - 'figure "hover — Survol : la clé dans la bulle"':
+      - button "Recette"
+      - status
+      - code: hover
+      - text: ""
+    - figure "focus — Focus visible":
+      - button "Recette"
+      - status
+      - code: focus
+      - text: ""
+    - 'figure "plain — Sans bouton (dans un contrôle) : la clé toujours à côté"':
+      - text: Production
+      - code: prod
+      - code: plain
+      - text: ""
     - figure "palette — Les six teintes":
-      - text: Environnement 1 Environnement 2 Environnement 3 Environnement 4 Environnement 5 Environnement 6
+      - button "Environnement 1"
+      - status
+      - button "Environnement 2"
+      - status
+      - button "Environnement 3"
+      - status
+      - button "Environnement 4"
+      - status
+      - button "Environnement 5"
+      - status
+      - button "Environnement 6"
+      - status
       - code: palette
+      - text: ""
+    - figure "from-key — Teinte déduite de la clé":
+      - button "prod":
+        - code: prod
+      - status
+      - button "rece":
+        - code: rece
+      - status
+      - button "deve":
+        - code: deve
+      - status
+      - button "form":
+        - code: form
+      - status
+      - button "preprod":
+        - code: preprod
+      - status
+      - button "dmz":
+        - code: dmz
+      - status
+      - code: from-key
       - text: ""

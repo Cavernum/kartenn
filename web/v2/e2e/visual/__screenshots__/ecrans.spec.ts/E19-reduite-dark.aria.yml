@@ -83,24 +83,33 @@
         - columnheader "Issue"
         - columnheader "Élément décisif"
     - rowgroup:
-      - row "point 1 → point 1 Conforme Automatique bdd-meme-env":
+      - row "point 1 → point 1 Conforme Automatique Copier bdd-meme-env":
         - gridcell "point 1 → point 1"
         - gridcell "Conforme"
         - gridcell "Automatique"
-        - gridcell "bdd-meme-env":
-          - code: bdd-meme-env
-      - row "point 1 → point 2 Non conforme Non conforme deny-prod-hors-prod" [selected]:
+        - gridcell "Copier bdd-meme-env":
+          - button "Copier bdd-meme-env":
+            - text: ""
+            - code: bdd-meme-env
+          - status
+      - row "point 1 → point 2 Non conforme Non conforme Copier deny-prod-hors-prod" [selected]:
         - gridcell "point 1 → point 2"
         - gridcell "Non conforme"
         - gridcell "Non conforme"
-        - gridcell "deny-prod-hors-prod":
-          - code: deny-prod-hors-prod
-      - row "point 1 → point 3 Non conforme À instruire unclassified":
+        - gridcell "Copier deny-prod-hors-prod":
+          - button "Copier deny-prod-hors-prod":
+            - text: ""
+            - code: deny-prod-hors-prod
+          - status
+      - row "point 1 → point 3 Non conforme À instruire Copier unclassified":
         - gridcell "point 1 → point 3"
         - gridcell "Non conforme"
         - gridcell "À instruire"
-        - gridcell "unclassified":
-          - code: unclassified
+        - gridcell "Copier unclassified":
+          - button "Copier unclassified":
+            - text: ""
+            - code: unclassified
+          - status
   - text: "Entrée sur une ligne : son explication à droite Requête req_7f3a9c2e5b1d4068"
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
@@ -118,7 +127,13 @@
         - code: deny-prod-hors-prod
       - status
     - term: Combinaison
-    - definition: Production → Recette Base de données
+    - definition:
+      - button "Production"
+      - status
+      - text: →
+      - button "Recette"
+      - status
+      - text: Base de données
     - term: Score
     - definition: /\d+ \(données restreintes\)/
     - region "Pourquoi":
@@ -128,23 +143,41 @@
       - heading "Règles écartées" [level=3]
       - list:
         - listitem:
-          - code: bdd-meme-env
+          - button "Copier bdd-meme-env":
+            - text: ""
+            - code: bdd-meme-env
+          - status
           - text: destination d'un autre environnement
     - region "Conditions":
       - heading "Conditions" [level=3]
       - list:
         - listitem:
           - text: Non évaluée
-          - code: justification-requise
+          - button "Copier justification-requise":
+            - text: ""
+            - code: justification-requise
+          - status
           - text: sans dossier
         - listitem:
           - text: Remplie
-          - code: reference-externe
+          - button "Copier reference-externe":
+            - text: ""
+            - code: reference-externe
+          - status
     - region "Valeurs des points":
       - heading "Valeurs des points" [level=3]
       - list:
-        - listitem: Point 1 Environnement Production
-        - listitem: Point 1 Sensibilité Interne
-        - listitem: Point 2 Environnement Recette
+        - listitem:
+          - text: Point 1 Environnement
+          - button "Production"
+          - status
+        - listitem:
+          - text: Point 1 Sensibilité
+          - button "Interne"
+          - status
+        - listitem:
+          - text: Point 2 Environnement
+          - button "Recette"
+          - status
   - button "Largeur du panneau"
   - button "Fermer le panneau"

@@ -73,15 +73,19 @@
         - rowgroup:
           - row /Supervision supervision \d+-\d+-\d+ Clore l'exemption de Supervision/:
             - gridcell "Supervision supervision":
-              - text: ""
-              - code: supervision
+              - button "Supervision supervision":
+                - text: ""
+                - code: supervision
+              - status
             - gridcell /\d+-\d+-\d+/
             - gridcell "Clore l'exemption de Supervision":
               - button "Clore l'exemption de Supervision" [disabled]
           - row /Sauvegarde sauvegarde \d+-\d+-\d+ Clore l'exemption de Sauvegarde/:
             - gridcell "Sauvegarde sauvegarde":
-              - text: ""
-              - code: sauvegarde
+              - button "Sauvegarde sauvegarde":
+                - text: ""
+                - code: sauvegarde
+              - status
             - gridcell /\d+-\d+-\d+/
             - gridcell "Clore l'exemption de Sauvegarde":
               - button "Clore l'exemption de Sauvegarde" [disabled]

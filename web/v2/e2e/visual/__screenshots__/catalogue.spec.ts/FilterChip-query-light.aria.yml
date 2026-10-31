@@ -1,0 +1,12 @@
+- main:
+  - 'tooltip "Paramètre : prop.policy.environment=prod&prop.policy.environment=rece"':
+    - text: ""
+    - code: prop.policy.environment=prod&prop.policy.environment=rece
+  - region "FilterChip":
+    - heading "FilterChip" [level=1]
+    - paragraph: "Motif : Button (ouvre le sélecteur) et Button (retirer)"
+    - 'figure "query — Focus : les clés derrière les libellés, en infobulle (paramètre de l''URL)"':
+      - button "Environnement est l'un de Production, Recette"
+      - button "Retirer le filtre Environnement est l'un de Production, Recette"
+      - code: query
+      - text: ""

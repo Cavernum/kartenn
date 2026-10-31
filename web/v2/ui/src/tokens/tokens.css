@@ -175,6 +175,12 @@
     --k-size-col-sm: 96px;
     --k-size-col-md: 160px;
     --k-size-col-lg: 240px;
+    /* The most a long list takes before it scrolls in its own place (a virtualised
+     * `DiffList`). */
+    --k-size-list-max: 480px;
+    /* The line of the element that reads it (unregistered: resolved where it is used): an
+     * inline target of 24 px gives back what it adds to its line (`KeyLabel`). */
+    --k-size-line: 1lh;
     /* Adaptation to the width (design « Adaptation à la largeur »): the least width of a
      * tile of an intrinsic grid, the target of a main action under a coarse pointer, the
      * height of the window (dynamic where supported, below). */

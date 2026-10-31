@@ -411,3 +411,10 @@ export function filterSentence(model: FilterModel, filter: Filter): string {
 /** The parameter of a filter: two filters on the same one cannot both stand (one replaces). */
 export const filterParam = (model: FilterModel, filter: Filter): string =>
   paramOf(filter.key, filter.operator, propertyOf(model, filter.key));
+
+/**
+ * A filter as its part of the query, keys only (`usage=host&usage=vip`, REQ-020-21): what
+ * the URL and the API hold behind the labels of its chip. Empty for a draft.
+ */
+export const filterQuery = (model: FilterModel, filter: Filter): string =>
+  [...filtersToParams(model, [filter])].map(([name, value]) => `${name}=${value}`).join("&");

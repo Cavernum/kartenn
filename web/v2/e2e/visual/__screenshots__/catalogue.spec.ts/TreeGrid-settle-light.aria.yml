@@ -1,0 +1,40 @@
+- main:
+  - region "TreeGrid":
+    - heading "TreeGrid" [level=1]
+    - paragraph: "Motif : Treegrid"
+    - 'figure "settle — Du squelette aux nœuds : les lignes prennent la place de leurs squelettes, rien ne bouge (CLS 0)"':
+      - button "Recevoir les données"
+      - treegrid "Arbre des préfixes":
+        - rowgroup:
+          - row "Préfixe Environnement Occupation":
+            - columnheader "Préfixe"
+            - columnheader "Environnement"
+            - columnheader "Occupation"
+        - rowgroup:
+          - row "Chargement" [level=1]:
+            - gridcell "Chargement"
+            - gridcell
+            - gridcell
+          - row [level=1]:
+            - gridcell
+            - gridcell
+            - gridcell
+          - row [level=1]:
+            - gridcell
+            - gridcell
+            - gridcell
+          - row [level=1]:
+            - gridcell
+            - gridcell
+            - gridcell
+          - row [level=1]:
+            - gridcell
+            - gridcell
+            - gridcell
+          - row [level=1]:
+            - gridcell
+            - gridcell
+            - gridcell
+      - paragraph: Ce qui suit la zone reste à sa place.
+      - code: settle
+      - text: ""

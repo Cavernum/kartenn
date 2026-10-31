@@ -53,8 +53,10 @@
           - gridcell /flux-\d+/
           - gridcell /srv-web-\d+ · eth0 → \d+\.\d+\.\d+\.\d+/
           - gridcell "PostgreSQL postgres":
-            - text: ""
-            - code: postgres
+            - button "PostgreSQL postgres":
+              - text: ""
+              - code: postgres
+            - status
           - gridcell "Le flux"
           - gridcell /\d+-\d+-\d+ J-5/
           - gridcell "Prolonger…":
@@ -63,8 +65,10 @@
           - gridcell /flux-\d+/
           - gridcell /\d+\.\d+\.\d+\.\d+ → srv-app-\d+ · eth0/
           - gridcell "API interne api":
-            - text: ""
-            - code: api
+            - button "API interne api":
+              - text: ""
+              - code: api
+            - status
           - gridcell "Sa dérogation"
           - gridcell /\d+-\d+-\d+ J-6/
           - gridcell "Recertifier…":
@@ -73,8 +77,10 @@
           - gridcell /flux-\d+/
           - gridcell /srv-sauv-\d+ · eth0 → \d+\.\d+\.\d+\.\d+/
           - gridcell "Partage NFS nfs":
-            - text: ""
-            - code: nfs
+            - button "Partage NFS nfs":
+              - text: ""
+              - code: nfs
+            - status
           - gridcell "Le flux"
           - gridcell /\d+-\d+-\d+ J-\d+/
           - gridcell "Prolonger…":
@@ -83,8 +89,10 @@
           - gridcell /flux-\d+/
           - gridcell /srv-app-\d+ · eth0 → \d+\.\d+\.\d+\.\d+\/\d+/
           - gridcell "Shell sécurisé ssh":
-            - text: ""
-            - code: ssh
+            - button "Shell sécurisé ssh":
+              - text: ""
+              - code: ssh
+            - status
           - gridcell "Sa dérogation"
           - gridcell /\d+-\d+-\d+ J-\d+/
           - gridcell "Recertifier…":
@@ -93,8 +101,10 @@
           - gridcell /flux-\d+/
           - gridcell /\d+\.\d+\.\d+\.\d+ → srv-app-\d+ · eth0/
           - gridcell "Web chiffré https":
-            - text: ""
-            - code: https
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
           - gridcell "Le flux"
           - gridcell /\d+-\d+-\d+ J-\d+/
           - gridcell "Prolonger…":

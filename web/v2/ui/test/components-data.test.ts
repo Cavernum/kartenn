@@ -14,7 +14,9 @@ import BarList from "../src/components/BarList/BarList.vue";
 import DiffList from "../src/components/DiffList/DiffList.vue";
 import DiffValue from "../src/components/DiffValue/DiffValue.vue";
 import ExpandableGrid from "../src/components/ExpandableGrid/ExpandableGrid.vue";
+import { ApiProblem } from "../../sdk/src/api/problem.ts";
 import ErrorState from "../src/components/ErrorState/ErrorState.vue";
+import type { ProblemFacts } from "../src/components/ErrorState/problem.ts";
 import FilterChip from "../src/components/FilterChip/FilterChip.vue";
 import InlineAlert from "../src/components/InlineAlert/InlineAlert.vue";
 import Skeleton from "../src/components/Skeleton/Skeleton.vue";
@@ -362,17 +364,107 @@ describe("filters, differential, view states", () => {
   it("ErrorState: an alert with the problem type and the request identifier", async () => {
     const html = await render(ErrorState, {
       title: "Le service ne répond pas.",
-      code: "urn:kartenn:problem:unavailable",
-      requestId: "req_1",
+      problem: { type: "urn:kartenn:problem:unavailable", requestId: "req_1" },
       retryLabel: "Réessayer",
     });
-    // The alert is the sentence; codes and action stay out of it.
+    // The alert is the sentence, waiting (hidden) until it is in the tree; codes and
+    // action stay out of it.
     expect(html).toMatch(
-      /<p class="k-error-state__title" role="alert">Le service ne répond pas\.<\/p>/,
+      /<p class="k-error-state__title" role="alert" data-state="waiting"><span class="k-error-state__sentence">Le service ne répond pas\.<\/span><\/p>/,
     );
     expect(text(html)).toContain("urn:kartenn:problem:unavailable");
     expect(text(html)).toContain("Copier Request-Id req_1");
     expect(text(html)).toContain("Réessayer");
+  });
+
+  it("ErrorState: each violation, its message and its code; no code without a problem", async () => {
+    const html = await render(ErrorState, {
+      title: "Le changeset est refusé.",
+      problem: {
+        type: "urn:kartenn:problem:changeset-refused",
+        requestId: null,
+        violations: [{ rule: "prefix.overlaps-sibling", detail: "Le préfixe chevauche." }],
+      },
+    });
+    expect(text(html)).toMatch(/Le préfixe chevauche\.\s*Copier prefix\.overlaps-sibling/);
+    expect(text(html)).not.toContain("Request-Id");
+    const bare = await render(ErrorState, { title: "Le serveur est injoignable." });
+    expect(bare).not.toContain("k-code-badge");
+  });
+
+  it("ErrorState takes an ApiProblem of the SDK as it is; a warning says so; no about:blank", async () => {
+    // Type level: an ApiProblem is a ProblemFacts (checked by vue-tsc on this file).
+    const problem: ProblemFacts = new ApiProblem({
+      status: 422,
+      type: "about:blank",
+      title: "Unprocessable Content",
+      violations: [
+        {
+          rule: "core.owner.unknown",
+          detail: "Responsable inconnu.",
+          severity: "error",
+          subjects: [],
+        },
+        { rule: "prop.dns.ttl-missing", detail: "TTL absent.", severity: "warning", subjects: [] },
+      ],
+      requestId: "req_1",
+    });
+    const html = await render(ErrorState, { title: "Refusé.", problem });
+    expect(text(html)).toMatch(/Erreur\s*Responsable inconnu\.\s*Copier core\.owner\.unknown/);
+    expect(text(html)).toMatch(/Avertissement\s*TTL absent\.\s*Copier prop\.dns\.ttl-missing/);
+    expect(text(html)).not.toContain("about:blank");
+    expect(text(html)).toContain("Copier Request-Id req_1");
+  });
+
+  it("DiffList: up to 200 lines, every change rendered, no gap", async () => {
+    const groups = Array.from({ length: 20 }, (_, g) => ({
+      id: `g${g}`,
+      title: `Objet ${g}`,
+      kind: "changed" as const,
+      changes: Array.from({ length: 9 }, (_, c) => ({
+        attribute: `a${c}`,
+        kind: "changed" as const,
+        before: "x",
+        after: "y",
+      })),
+    }));
+    // 20 headings + 180 changes = 200 lines: not virtualised.
+    const html = await render(DiffList, { groups });
+    expect(html).not.toContain("data-virtual");
+    expect(html.match(/class="k-diff-list__change"/g)).toHaveLength(180);
+    expect(html).not.toContain("aria-setsize");
+  });
+
+  it("TreeGrid: loading, skeleton rows in the cells, the tree busy", async () => {
+    const html = await render(TreeGrid, {
+      label: "Arbre",
+      treeLabel: "Préfixe",
+      nodes: [{ id: "a", label: "A" }],
+      columns: [{ id: "env", label: "Environnement" }],
+      loading: true,
+      loadingRows: 3,
+    });
+    expect(html).toContain('aria-busy="true"');
+    expect(html.match(/role="row" class="k-tree-grid__row" aria-level="1"/g)).toHaveLength(3);
+    expect(html.match(/k-skeleton-fill/g)).toHaveLength(6);
+    expect(text(html)).toContain("Chargement");
+    expect(text(html)).not.toContain("A");
+    // Its tab stop kept: the cell that says it loads.
+    expect(html.match(/tabindex="0"/g)).toHaveLength(1);
+  });
+
+  it("FilterChip: the keys behind the labels in the description of its button", async () => {
+    const html = await render(FilterChip, {
+      property: "Usage",
+      operator: "est",
+      value: "Hôte",
+      query: "usage=host",
+    });
+    // Its tooltip, in the layer of the frame (a teleport: e2e/components/filter-picker.spec.ts
+    // reads it); without keys, none.
+    expect(html).toMatch(/class="k-filter-chip__body"[^>]*aria-describedby="k-tooltip-[^"]+"/);
+    const bare = await render(FilterChip, { property: "Usage", operator: "est", value: "Hôte" });
+    expect(bare).not.toContain("aria-describedby");
   });
 
   it("InlineAlert: alert for an error, status otherwise", async () => {

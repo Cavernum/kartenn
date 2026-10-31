@@ -82,8 +82,10 @@
             - link /srv-app-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
           - gridcell "API interne api":
-            - text: ""
-            - code: api
+            - button "API interne api":
+              - text: ""
+              - code: api
+            - status
           - gridcell "Applicatif"
           - gridcell "Actif"
           - gridcell "Conforme Automatique"
@@ -96,8 +98,10 @@
             - link /srv-app-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
           - gridcell "Web chiffré https":
-            - text: ""
-            - code: https
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
           - gridcell "Applicatif"
           - gridcell "Actif"
           - gridcell "Conforme Automatique"
@@ -110,8 +114,10 @@
             - link /\d+\.\d+\.\d+\.\d+/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-db-02&mode=light
           - gridcell "PostgreSQL postgres":
-            - text: ""
-            - code: postgres
+            - button "PostgreSQL postgres":
+              - text: ""
+              - code: postgres
+            - status
           - gridcell "Base de données"
           - gridcell "Actif"
           - gridcell "Conforme Automatique"
@@ -124,8 +130,10 @@
             - link /srv-app-\d+ · eth1/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth1&mode=light
           - gridcell "Shell sécurisé ssh":
-            - text: ""
-            - code: ssh
+            - button "Shell sécurisé ssh":
+              - text: ""
+              - code: ssh
+            - status
           - gridcell "Administratif"
           - gridcell "Actif"
           - gridcell "Conforme Automatique"
@@ -138,8 +146,10 @@
             - link /srv-app-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
           - gridcell "Web chiffré https":
-            - text: ""
-            - code: https
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
           - gridcell "Applicatif"
           - gridcell "Demandé"
           - gridcell "Sous réserve Instruction"
@@ -152,8 +162,10 @@
             - link /srv-db-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-db-02&iface=eth0&mode=light
           - gridcell "PostgreSQL postgres":
-            - text: ""
-            - code: postgres
+            - button "PostgreSQL postgres":
+              - text: ""
+              - code: postgres
+            - status
           - gridcell "Base de données"
           - gridcell "Dérogé"
           - gridcell "Non conforme"
@@ -166,8 +178,10 @@
             - link /\d+\.\d+\.\d+\.\d+/:
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-sauv-01&mode=light
           - gridcell "Partage NFS nfs":
-            - text: ""
-            - code: nfs
+            - button "Partage NFS nfs":
+              - text: ""
+              - code: nfs
+            - status
           - gridcell "Fichier"
           - gridcell "Actif"
           - gridcell "Conforme Automatique"
@@ -180,8 +194,10 @@
             - link /\d+\.\d+\.\d+\.\d+\/\d+/:
               - /url: /_ui/ecrans/E2?mode=light
           - gridcell "Shell sécurisé ssh":
-            - text: ""
-            - code: ssh
+            - button "Shell sécurisé ssh":
+              - text: ""
+              - code: ssh
+            - status
           - gridcell "Administratif"
           - gridcell "Non conforme"
           - gridcell "Non conforme"
@@ -194,8 +210,10 @@
             - link /srv-app-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
           - gridcell "Web chiffré https":
-            - text: ""
-            - code: https
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
           - gridcell "Applicatif"
           - gridcell "Échu"
           - gridcell "Sous réserve Instruction"
@@ -208,8 +226,10 @@
             - text: ""
             - button "Fiche non accessible"
           - gridcell "Web chiffré https":
-            - text: ""
-            - code: https
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
           - gridcell "Applicatif"
           - gridcell "Actif"
           - gridcell "Conforme Automatique"
@@ -222,8 +242,10 @@
             - link /srv-app-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-app-01&iface=eth0&mode=light
           - gridcell "API interne api":
-            - text: ""
-            - code: api
+            - button "API interne api":
+              - text: ""
+              - code: api
+            - status
           - gridcell "Applicatif"
           - gridcell "Actif"
           - gridcell "Conforme Automatique"

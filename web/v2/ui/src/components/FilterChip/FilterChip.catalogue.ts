@@ -47,6 +47,17 @@ export default {
       },
     },
     {
+      name: "query",
+      description: "Focus : les clés derrière les libellés, en infobulle (paramètre de l'URL)",
+      props: {
+        property: "Environnement",
+        operator: "est l'un de",
+        value: "Production, Recette",
+        query: "prop.policy.environment=prod&prop.policy.environment=rece",
+      },
+      interaction: "focus",
+    },
+    {
       name: "draft",
       description: "Brouillon de filtre (valeur à choisir)",
       props: { property: "Responsable", operator: "contient", state: "draft" },

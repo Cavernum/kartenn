@@ -26,6 +26,9 @@
       - link "Émetteurs":
         - /url: /admin/issuers
     - listitem:
+      - link "Paramètres":
+        - /url: /admin/settings
+    - listitem:
       - link "Audit":
         - /url: /admin/audit
   - button "Barre latérale" [expanded]
@@ -60,27 +63,39 @@
       - rowgroup:
         - row "Lecteur reader":
           - gridcell "Lecteur reader":
-            - text: ""
-            - code: reader
+            - button "Lecteur reader":
+              - text: ""
+              - code: reader
+            - status
         - row "Éditeur editor":
           - gridcell "Éditeur editor":
-            - text: ""
-            - code: editor
+            - button "Éditeur editor":
+              - text: ""
+              - code: editor
+            - status
         - row "Administrateur admin":
           - gridcell "Administrateur admin":
-            - text: ""
-            - code: admin
+            - button "Administrateur admin":
+              - text: ""
+              - code: admin
+            - status
         - row "Lecteur réseau lecteur-reseau" [selected]:
           - gridcell "Lecteur réseau lecteur-reseau":
-            - text: ""
-            - code: lecteur-reseau
+            - button "Lecteur réseau lecteur-reseau":
+              - text: ""
+              - code: lecteur-reseau
+            - status
         - row "Instructeur instructeur-flux":
           - gridcell "Instructeur instructeur-flux":
-            - text: ""
-            - code: instructeur-flux
+            - button "Instructeur instructeur-flux":
+              - text: ""
+              - code: instructeur-flux
+            - status
         - row "import-ipam":
           - gridcell "import-ipam":
-            - code: import-ipam
+            - button "import-ipam":
+              - code: import-ipam
+            - status
 - complementary "Panneau droit":
   - separator "Redimensionner le panneau"
   - tablist "Onglets du panneau":
@@ -156,20 +171,28 @@
       - heading "Groupes liés · 4" [level=3]
       - list:
         - listitem:
-          - text: Astreinte
-          - code: astreinte
+          - button "Astreinte astreinte":
+            - text: ""
+            - code: astreinte
+          - status
           - text: Globale
         - listitem:
-          - text: Équipe réseau
-          - code: reseau
+          - button "Équipe réseau reseau":
+            - text: ""
+            - code: reseau
+          - status
           - text: "Entité : Atelier Nord"
         - listitem:
-          - text: Équipe sauvegarde
-          - code: sauvegarde
+          - button "Équipe sauvegarde sauvegarde":
+            - text: ""
+            - code: sauvegarde
+          - status
           - text: "Domaine : dc-nord"
         - listitem:
-          - text: Équipe supervision
-          - code: supervision
+          - button "Équipe supervision supervision":
+            - text: ""
+            - code: supervision
+          - status
           - text: "Entité : Atelier Nord"
   - button "Largeur du panneau"
   - button "Fermer le panneau"

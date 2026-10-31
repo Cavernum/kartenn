@@ -43,8 +43,11 @@
     - heading "Demande de flux postgres" [level=2]
     - text: de Lou Bernard, pour votre compte
     - paragraph:
-      - text: /dev-web-\d+ · eth0 → srv-db-\d+ · eth0 PostgreSQL/
-      - code: postgres
+      - text: /dev-web-\d+ · eth0 → srv-db-\d+ · eth0/
+      - button "PostgreSQL postgres":
+        - text: ""
+        - code: postgres
+      - status
       - text: Base de données
     - paragraph:
       - text: "Triage : Non conforme Issue : non conforme"

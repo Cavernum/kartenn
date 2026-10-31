@@ -87,19 +87,35 @@
             - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/:
               - link /\d+\.\d+\.\d+\.\d+\/\d+/:
                 - /url: /prefixes/198.51.100.0/26
-            - gridcell "Environnement"
+            - gridcell "Environnement":
+              - button "Environnement"
+              - status
             - 'gridcell "avant : Recette après : Production"':
-              - deletion: "avant : Recette"
-              - insertion: "après : Production"
+              - deletion:
+                - text: "avant :"
+                - button "Recette"
+                - status
+              - insertion:
+                - text: "après :"
+                - button "Production"
+                - status
             - gridcell /\d+/
           - 'row /\d+:db8:\d+::\/\d+ Environnement avant : Recette après : Production \d+/':
             - gridcell /\d+:db8:\d+::\/\d+/:
               - link /\d+:db8:\d+::\/\d+/:
                 - /url: /prefixes/2001:db8:20::/64
-            - gridcell "Environnement"
+            - gridcell "Environnement":
+              - button "Environnement"
+              - status
             - 'gridcell "avant : Recette après : Production"':
-              - deletion: "avant : Recette"
-              - insertion: "après : Production"
+              - deletion:
+                - text: "avant :"
+                - button "Recette"
+                - status
+              - insertion:
+                - text: "après :"
+                - button "Production"
+                - status
             - gridcell /\d+/
     - text: 2 sur 2
 - button "Ouvrir le panneau"

@@ -79,8 +79,10 @@
           - gridcell /\(en brouillon\) srv-rec-\d+ · eth0/
           - gridcell /srv-app-\d+ · eth0/
           - gridcell "Web chiffré https":
-            - text: ""
-            - code: https
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
           - gridcell "—" [invalid]
           - gridcell "Sous réserve Copier rece-vers-prod":
             - text: ""
@@ -92,8 +94,10 @@
           - gridcell /\(en brouillon\) \d+\.\d+\.\d+\.\d+–\d+\.\d+\.\d+\.\d+/ [invalid]
           - gridcell /\d+\.\d+\.\d+\.\d+/
           - gridcell "PostgreSQL postgres":
-            - text: ""
-            - code: postgres
+            - button "PostgreSQL postgres":
+              - text: ""
+              - code: postgres
+            - status
           - gridcell /ticketing:CHG-\d+/
           - gridcell "Non conforme Copier flow.endpoint.invalid":
             - text: ""
@@ -119,8 +123,10 @@
     - definition: La recette lit les API de production pour ses jeux de contrôle, sous le motif api-lecture.
     - term: Motif attendu
     - definition:
-      - text: Lecture d'API
-      - code: api-lecture
+      - button "Lecture d'API api-lecture":
+        - text: ""
+        - code: api-lecture
+      - status
     - term: Conditions
     - definition: "justification-requise : remplie"
     - paragraph: "Pré-vérification de la ligne avec le dossier : aucun changeset n'est créé."

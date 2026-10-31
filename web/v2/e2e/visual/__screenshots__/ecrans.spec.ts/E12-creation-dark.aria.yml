@@ -119,8 +119,10 @@
     - definition: /\d+\.\d+\.\d+\.\d+\/\d+/
     - term: Propriété posée
     - definition:
-      - text: VLAN
-      - code: core.vlan
+      - button "VLAN core.vlan":
+        - text: ""
+        - code: core.vlan
+      - status
     - status:
       - paragraph: "Information : Deux opérations au brouillon"
       - text: /Créer le VLAN \d+ impression dans campus-ouest, puis le poser sur/
