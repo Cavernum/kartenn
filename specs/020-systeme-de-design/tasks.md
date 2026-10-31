@@ -854,7 +854,9 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
   - choix : copie de `KeyLabel` et `EnvChip` par le bouton qu'ils sont (nom = ce qu'ils
     montrent, l'action en description), plutôt qu'une icône de copie à côté (densité) ;
     repli sans API asynchrone par la commande `copy` du document plutôt qu'une zone de
-    texte cachée (ni focus ni sélection déplacés) ; refus : bulle épinglée plutôt qu'un
+    texte cachée (ni focus ni sélection déplacés ; après un refus de l'API, la commande
+    part une microtâche plus tard, hors de l'activation : prouvé sur Chromium seul,
+    d'autres moteurs peuvent la refuser, le chemin du refus tient alors) ; refus : bulle épinglée plutôt qu'un
     message dans le flux (aucun décalage) ; teinte d'environnement par FNV-1a ;
     `ErrorState` prend un `ApiProblem` tel quel (`ProblemFacts`, aucune dépendance au
     SDK) et remplace `code`/`requestId` ; `DiffList` : tous les en-têtes gardés hors
@@ -877,6 +879,25 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     maquettes validées, `git-pull-request` dans le design (§ « États ») ; lecture au
     lecteur d'écran (description dans une cellule,
     régions répétées).
+  - seconde revue (après la fusion de main, 017-1 et 020-22) ; corrigés : focus sur la
+    cellule de chargement de `TreeGrid` rendu à la première ligne quand les nœuds arrivent
+    (2.4.3) ; anneau d'un widget de cellule (`EnvChip`, `KeyLabel`) entier : la valeur
+    d'une cellule de `DataGrid` coupe en `clip` avec une marge d'anneau
+    (`overflow-clip-margin`) ; anneau de `KeyLabel` sur sa ligne, marge négative jamais
+    positive (ligne de plus de 24 px) ; Échap passe aussi pour un `EnvChip` sans libellé ;
+    `plain` montre toujours la clé à côté du libellé ; `ErrorState` : gravité de chaque
+    violation (un avertissement le dit), `about:blank` non montré, un `ApiProblem` du SDK
+    vérifié comme `ProblemFacts` ; `envHue` sur les octets UTF-8 (FNV-1a usuel), teintes
+    attendues fixées ; une copie ancienne qui aboutit après une nouvelle est ignorée ;
+    scripts : défilement de `DiffList` au clavier et sans saut au remplacement d'un
+    intervalle, refus de copie de `KeyLabel`, repli sans sélection ni focus déplacé, repli
+    sans API ; audit tactile : une cible sous une couche (la surface sous le panneau
+    droit) n'est plus comptée ; E18, E19, E22 (maquettes de la 017) : codes de règle en
+    `CodeBadge`, `ErrorState` par `problem`. Captures réécrites (voulues) : nouvelles
+    maquettes de la 017 (pastilles devenues boutons), E9 (fusion du `Toast`), états
+    `plain` de `KeyLabel` et `EnvChip` (clé à côté), `ErrorState` `violations` (gravités) ;
+    nouvelles : `DataGrid` `widget-env`, `widget-key`. Reste : la pastille de personne
+    d'E21 (`k-e21-chip`, valeur retirable) n'a pas de composant de la bibliothèque.
 - [ ] 25. `DataGrid` **maison** (Reka n'a pas de grille) : motif APG Grid complet (index de
   lignes et colonnes, tabindex itinérant, Flèches, Début/Fin, Ctrl+Début/Fin, Page,
   sélection Espace/Maj+flèches/Ctrl+A, tri `aria-sort`, filtre d'en-tête par Alt+Flèche
