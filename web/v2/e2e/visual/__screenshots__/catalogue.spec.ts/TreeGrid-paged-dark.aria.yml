@@ -1,0 +1,42 @@
+- main:
+  - region "TreeGrid":
+    - heading "TreeGrid" [level=1]
+    - paragraph: "Motif : Treegrid"
+    - 'figure "paged — Enfants paginés : leur nombre inconnu (aria-setsize -1), la ligne de la suite lit la page suivante en venant en vue"':
+      - treegrid "Groupes de VLAN":
+        - rowgroup:
+          - row "Groupe":
+            - columnheader "Groupe"
+        - rowgroup:
+          - row "Site A (chargement des enfants)" [expanded] [level=1]:
+            - gridcell "Site A (chargement des enfants)"
+          - row /VLAN \d+ \d+/ [level=2]:
+            - gridcell /VLAN \d+ \d+/:
+              - text: ""
+              - code: /\d+/
+          - row /VLAN \d+ \d+/ [level=2]:
+            - gridcell /VLAN \d+ \d+/:
+              - text: ""
+              - code: /\d+/
+          - row /VLAN \d+ \d+/ [level=2]:
+            - gridcell /VLAN \d+ \d+/:
+              - text: ""
+              - code: /\d+/
+          - row /VLAN \d+ \d+/ [level=2]:
+            - gridcell /VLAN \d+ \d+/:
+              - text: ""
+              - code: /\d+/
+          - row /VLAN \d+ \d+/ [level=2]:
+            - gridcell /VLAN \d+ \d+/:
+              - text: ""
+              - code: /\d+/
+          - row "chargement des enfants" [level=2]:
+            - gridcell "chargement des enfants"
+          - row "Site B" [level=1]:
+            - gridcell "Site B"
+      - status
+      - alert
+      - button "Envoyer les pages demandées"
+      - text: "Pages demandées : 1"
+      - code: paged
+      - text: ""

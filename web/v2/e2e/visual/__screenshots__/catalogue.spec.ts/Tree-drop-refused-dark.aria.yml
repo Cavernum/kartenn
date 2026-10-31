@@ -1,0 +1,20 @@
+- main:
+  - region "Tree":
+    - heading "Tree" [level=1]
+    - paragraph: "Motif : Tree View"
+    - 'figure "drop-refused — Glisser sur un descendant : cible refusée, jamais mise en évidence, motif et code"':
+      - tree "Entités":
+        - treeitem "Infrastructure" [expanded] [level=1]
+        - treeitem "Réseaux" [expanded] [level=2]
+        - treeitem "Cœur" [level=3]
+        - treeitem "Accès" [level=3]
+        - treeitem "Serveurs" [level=2]
+        - treeitem "Stockage" [level=2]
+        - treeitem "Postes de travail" [expanded] [level=1]
+        - treeitem "Assistance" [level=2]
+        - treeitem "Ateliers" [level=2]
+        - treeitem "Archives" [level=1]
+      - status: "Cible refusée : Un nœud ne peut pas aller sous l'un de ses descendants. (tree.cycle)"
+      - alert
+      - code: drop-refused
+      - text: ""

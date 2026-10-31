@@ -31,5 +31,8 @@
     "lucide": "1.61.0",
     "reka-ui": "2.11.0",
     "vue": "^3.5.44"
+  },
+  "devDependencies": {
+    "happy-dom": "^21.0.3"
   }
 }

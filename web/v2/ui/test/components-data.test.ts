@@ -508,7 +508,11 @@ describe("TreeGrid", () => {
   it("flattens the expanded nodes, depth first, with level, size and position", () => {
     const flat = flatten(tree, new Set(["a", "a1"]));
     expect(
-      flat.map((row) => [row.node.id, row.level, row.setSize, row.posInSet, row.parent]),
+      flat.map((row) =>
+        row.kind === "node"
+          ? [row.node.id, row.level, row.setSize, row.posInSet, row.parent]
+          : [row.key],
+      ),
     ).toEqual([
       ["a", 1, 2, 1, null],
       ["a1", 2, 2, 1, "a"],
@@ -523,7 +527,7 @@ describe("TreeGrid", () => {
     const flat = flatten(tree, new Set(["a", "a1"]));
     // A move drawn by the view, not by the model: a11 shown right under b.
     const moved: TreeRow[] = [
-      ...flat.filter((row) => row.node.id !== "a11"),
+      ...flat.filter((row) => row.key !== "a11"),
       { ...flat[2]!, level: 2 },
     ];
     expect(misplaced(moved)).toEqual(["a11"]);
@@ -536,20 +540,23 @@ describe("TreeGrid", () => {
       nodes: tree,
       expanded: ["a"],
       selected: "a1",
-      nodeState: (node: TreeNode) =>
+      parentMode: "declared",
+      moveState: (node: TreeNode) =>
         node.id === "a2"
-          ? "move-pending"
+          ? "pending"
           : node.id === "b"
-            ? { refused: { reason: "Parent déduit.", code: "tree.derived-parent" } }
+            ? { refused: { ok: false, reason: "Parent verrouillé.", code: "entity.locked" } }
             : undefined,
     });
     expect(html).toContain('role="treegrid"');
-    expect(html).toMatch(/aria-level="1" aria-setsize="2" aria-posinset="1" aria-expanded="true"/);
+    expect(html).toMatch(
+      /aria-level="1" aria-setsize="2" aria-posinset="1"[^>]*aria-expanded="true"/,
+    );
     expect(html).toMatch(/aria-level="2"[^>]*aria-expanded="false" aria-selected="true"/);
-    expect(html).toMatch(/aria-busy="true" data-state="move-pending"/);
+    expect(html).toMatch(/aria-busy="true" data-move="pending"/);
     expect(text(html)).toContain("(déplacement en attente)");
-    expect(text(html)).toContain("Parent déduit.");
-    expect(text(html)).toContain("tree.derived-parent");
+    expect(text(html)).toContain("Parent verrouillé.");
+    expect(text(html)).toContain("entity.locked");
     expect(html).toContain('style="--k-tree-depth:1;"');
   });
 });

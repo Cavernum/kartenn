@@ -1,0 +1,10 @@
+- main:
+  - region "Tree":
+    - heading "Tree" [level=1]
+    - paragraph: "Motif : Tree View"
+    - 'figure "loading — Chargement : des lignes de squelettes, l''arbre occupé"':
+      - tree "Sites": Chargement
+      - status
+      - alert
+      - code: loading
+      - text: ""

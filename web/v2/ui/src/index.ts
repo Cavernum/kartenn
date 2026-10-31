@@ -115,9 +115,12 @@ export type { MatrixAxis, MatrixCell, MatrixCellState } from "./components/Matri
 export { moveInGrid } from "./components/internal/gridKeys.ts";
 export type { GridPosition } from "./components/internal/gridKeys.ts";
 export { default as TreeGrid } from "./components/TreeGrid/TreeGrid.vue";
-export { flatten, misplaced } from "./components/TreeGrid/tree.ts";
+export { default as Tree } from "./components/Tree/Tree.vue";
+export { flatten, indexNodes, misplaced } from "./components/TreeGrid/tree.ts";
 export type {
   MoveCheck,
+  MoveIntent,
+  MoveState,
   ParentMode,
   TreeNode,
   TreeNodeState,

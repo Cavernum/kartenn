@@ -1,0 +1,18 @@
+- main:
+  - region "Tree":
+    - heading "Tree" [level=1]
+    - paragraph: "Motif : Tree View"
+    - figure "move-states — Déplacement en attente (à sa place), déplacement refusé avec code":
+      - tree "Entités":
+        - treeitem "Infrastructure" [expanded] [level=1]
+        - treeitem "Réseaux" [level=2]
+        - treeitem "Serveurs" [level=2]
+        - treeitem "Stockage" [level=2]
+        - treeitem "Postes de travail" [expanded] [level=1]
+        - treeitem "Assistance" [level=2]
+        - treeitem "Ateliers" [level=2]
+        - treeitem "Archives" [level=1]
+      - status
+      - alert
+      - code: move-states
+      - text: ""

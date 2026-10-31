@@ -1074,7 +1074,7 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     `--k-size-list-max` pour une grille virtualisée plein écran (021-11) ; lecture au
     lecteur d'écran (annonce de `aria-sort`, erreur dite deux fois : alerte et
     description) ; contrôles d'un élément d'extension en racine d'ombre (à l'élément).
-- [ ] 26. `TreeGrid`, `Tree` : virtualisation, enfants paginés, `aria-setsize="-1"`,
+- [x] 26. `TreeGrid`, `Tree` : virtualisation, enfants paginés, `aria-setsize="-1"`,
   édition en place, mode de parenté (`derived`/`declared`), déplacement contrôlé
   (`canMove`, intention, états `pending`/`refused`), garde d'invariant — REQ-020-19, 31,
   32, 33 — Reka `TreeRoot`/`TreeVirtualizer` avec les correctifs du design § « Vue et
@@ -1090,6 +1090,86 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
   - où : `web/shell/src/tree/` (arbre actuel, pagination des enfants) ; APG Treegrid ;
     design § « Contrat de déplacement »
   - dépend de : 25
+  - fait : modèle partagé `TreeGrid/tree.ts` (`flatten` avec lignes `more` et
+    `aria-setsize` -1, `guarded`/`misplaced`, `indexNodes`, `treeStep`, `closedSiblings`,
+    `searchRow`/`typesAhead`, `landingRow`) ; `internal/treeMove.ts` (contrat de
+    déplacement : `canMove` avant toute marque, `dragenter`/`dragover` annulés pour une
+    cible acceptée seulement, Ctrl+X/Ctrl+V/Échap, cibles de « Déplacer vers… », nœuds
+    pris par identifiant dans le modèle du moment), `internal/treePages.ts` (pages :
+    `IntersectionObserver` sur la ligne « Afficher la suite », une demande par liste et
+    par taille, page reçue dite), `internal/treeStates.ts` (états, régions `status` et
+    `alert`, « Déplacer vers… », pages, communs aux deux), `internal/MoveDialog.vue`
+    (`Dialog` + `Combobox` des cibles acceptées, premier niveau compris ; deux Échap),
+    `useVirtualRows` dans `internal/virtualRows.ts`, `useCellErrors` dans
+    `internal/cellEditor.ts` (et `editorClass`). `TreeGrid` complet : virtualisé au-delà
+    de 200 lignes (ligne du focus et de l'éditeur gardées), `aria-rowcount`/`rowindex`,
+    focus sur les cellules (APG Treegrid), Espace et clic sélectionnent (`selected` en
+    modèle), chevron cliquable (24 px), contrat d'édition (`editable`, `validate`,
+    `cellState`, `commit`, `editing`, bulle `CellError`, alerte), `parentMode`,
+    `canMove`, `moveState`, `move`, `openMove`, widgets de cellule hors tabulation (F2 au
+    suivant), colonne d'arbre en `scroll-padding-inline-start`. `Tree` nouveau
+    (`components/Tree/`) : `TreeRoot`/`TreeItem` de Reka, touches interceptées en capture
+    (Haut, Bas, Origine, Fin, Droite, Gauche, `*`, Entrée/F2 renommer sinon activer,
+    recherche à la saisie), sélection par identifiant, nœuds `markRaw`, `data-k-typeahead`,
+    nom = libellé, clé, détail, états et motifs en description ; mêmes pages, déplacements,
+    garde ; focus d'une ligne qui quitte l'affichage vers son nouveau parent. Catalogue :
+    `TreeGrid` (`paged`, `editing`, `drop-accepted`, `drop-refused`, `move-states`,
+    `virtual` 10⁵ nœuds, `keyboard`), `Tree` (mêmes états, `loading`, `expanded`),
+    démos `demo/trees.ts`, `demo/treeHost.ts` (hôte qui répond tard ou refuse avec code).
+    Scripts `e2e/components/tree-grid.spec.ts` (9 cas) et `tree.spec.ts` (9 cas : `*`,
+    recherche avec Maj sans caractère parasite, renommer, dérivé sans déplacement, glisser
+    refusé jamais marqué et sans dépôt, glisser accepté en attente à sa place puis sous
+    son parent, Ctrl+X/Ctrl+V et refus de l'hôte avec code, « Déplacer vers… » sans cible
+    refusée et le nœud choisi déplacé, 10⁵ nœuds : 500 × Bas exact, ligne gardée à la
+    molette, déplacement au clavier, pages) ; le test clavier de `TreeGrid` quitte
+    `visual/clavier.spec.ts`. Vitest `test/trees.test.ts` : modèle et touches, contrat de
+    déplacement, régression du prototype (le nœud choisi), test de propriété (3 graines ×
+    80 pas de dépôts, refus, réponses tardives, modèles remplacés : à chaque rendu SSR de
+    `TreeGrid` et de `Tree`, parent visuel = parent du modèle ; dépôt refusé = aucune
+    intention), 10⁵ nœuds en SSR. E1 : arbre en modèles (`expanded`, `selected`),
+    `parent-mode="derived"`. Revues `ui-reviewer` et `a11y-auditor` ; corrigés : contour
+    de cible sur la cellule collante, squelette de `Tree` lisible, marques et motif dans le
+    même ordre que `TreeGrid`, éditeur `md`, marque du brouillon (icône), page reçue dite,
+    marge de défilement de la colonne d'arbre, logique commune extraite
+    (`treeStates.ts`), bouton de démo refusé sans sélection, nom de `Tree` sans
+    `aria-label` (description cachée référencée). « ≤ 5 % de trames perdues » : banc de
+    la tâche 27 (aucun lancé).
+  - choix : virtualisation de `Tree` par `useVirtualRows` et non `TreeVirtualizer` (il
+    démonte la ligne focalisée et clé ses lignes par leur rang ; design mis à jour) ;
+    `TreeGrid` : Droite sur un nœud ouvert ou une feuille entre dans la ligne (APG
+    Treegrid ; avant : premier enfant), un nœud ouvert sans autre cellule va au premier
+    enfant ; « Déplacer vers… » ouvert par l'action de l'hôte (`openMove`) et non par une
+    touche de l'arbre ; ligne « Afficher la suite » demandée en venant en vue
+    (`IntersectionObserver`), forcée à l'activation ; valeur du premier niveau `:root`
+    dans la liste ; `TreeNodeState` réduit à `draft`, `loading-children` (les états de
+    déplacement passent par `moveState` et le glisser) ; marque d'une cible refusée
+    gardée jusqu'à la cible suivante ou la fin du glisser (la plateforme quitte aussitôt
+    une cible non acceptée) ; boutons de copie d'un motif hors tabulation dans `Tree`
+    (pointeur seul ; code lu dans la description) ; démo de pages servie par un bouton
+    (captures stables) ; décision de la session principale : un nœud `pending` n'est ni
+    glissable ni coupable ni proposé à « Déplacer vers… » jusqu'à la réponse (pas de
+    seconde intention en vol) ; `happy-dom` (déjà dans l'espace, version de `shell` et
+    `sdk`) en dépendance de développement de `@kartenn/ui` pour les instances montées.
+  - après la revue de la branche : `canMove` lu à chaque appel (prop changée ou retirée
+    après le montage, sans erreur) ; verdict sous le pointeur repris quand le modèle ou
+    `canMove` change pendant un glisser (`recheck`) ; garde d'affichage sur les lignes
+    rendues (`misplacedRendered`, `guardRendered` : fenêtre, lignes gardées, intervalles,
+    parent lu dans les nœuds du modèle) ; page annoncée pour ses seuls nouveaux enfants
+    (`pageGrowth` : ni un nœud déplacé dedans, ni un retrait) ; `DataGrid` passe sur
+    `useVirtualRows` et `useCellErrors` (captures et scripts inchangés). Test de propriété
+    déplacé sur des instances montées (`test/trees-mounted.test.ts`, happy-dom) :
+    `TreeGrid` et `Tree`, plus de 200 lignes, ligne du focus gardée hors fenêtre,
+    modèles successifs, dépôts par les événements de la plateforme et le `useTreeMove`
+    du composant, invariant lu sur les lignes rendues ; `canMove` dans les deux sens ;
+    nœud en attente ni glissé ni coupé.
+  - restent : à 390 px, E1 coupe encore des libellés devant leur préfixe
+    (« Supervisi… ») ; contour et règles CSS de `Tree` et `TreeGrid` encore en double
+    (préfixes différents) ; lecture au lecteur d'écran (nom de ligne, description cachée,
+    ligne « Afficher la suite ») ; l'hôte d'un arbre `declared` doit offrir « Déplacer
+    vers… » (aucun écran réel encore) ; la question ouverte de la 25 (REQ-020-19
+    « hauteur de ligne fixe » contre hauteurs mesurées) vaut aussi pour `Tree` et
+    `TreeGrid` (`measureElement`) ; pour la 27 : mesurer le coût de `refusedKeys`
+    (`moveState` lu sur toutes les lignes à chaque changement).
 
 ## P5 — Budgets et clôture
 

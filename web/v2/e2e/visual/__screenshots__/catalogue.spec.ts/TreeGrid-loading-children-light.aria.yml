@@ -35,5 +35,7 @@
               - code: /\d+\.\d+\.\d+\.\d+\/\d+/
             - gridcell "Développement"
             - gridcell "3 %"
+      - status
+      - alert
       - code: loading-children
       - text: ""

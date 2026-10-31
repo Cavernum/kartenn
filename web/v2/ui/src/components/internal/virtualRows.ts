@@ -2,12 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-// The rows of a virtualised list of rows (`DataGrid`; `TreeGrid`, task 26): the window the
+// The rows of a virtualised list of rows (`DataGrid`, `TreeGrid`, `Tree`): the window the
 // virtualiser renders, plus the rows that must stay in the document whatever the scroll
 // (the row of the focus, the row of an editor: a row unmounted under the focus sends it to
 // `<body>`, spike 005), laid out between gaps of the height of the rows left out; and the
 // rows in view, read from the boxes of the rendered rows (Page Up, Page Down, the window
 // of a paged list).
+
+import { useVirtualizer } from "@tanstack/vue-virtual";
+import { computed, ref, type ComponentPublicInstance, type Ref } from "vue";
 
 /**
  * The parts of a virtualised body, in order: the rows to render (`index`), and between
@@ -52,6 +55,71 @@ export function keptIndexes(
     if (i !== undefined) out.push(i);
   }
   return out;
+}
+
+/** Rows beyond which a list is virtualised (as `DiffList` and `DataGrid`, design). */
+export const VIRTUAL_ROWS = 200;
+
+/** What a virtualised list of rows gives `useVirtualRows`. */
+export interface VirtualRowsHost {
+  count(): number;
+  keyAt(index: number): string;
+  indexOf(key: string): number | undefined;
+  scroller: Ref<HTMLElement | null>;
+  /** The keys of the rows kept mounted whatever the scroll (the focus, an editor). */
+  kept(): (string | undefined)[];
+  /** The height above the rows in the scroller (a sticky header). */
+  top?(): number;
+  /** Not virtualised now (the list is loading). */
+  off?(): boolean;
+}
+
+/**
+ * The virtualisation of a list of rows (`TreeGrid`, `Tree`): beyond `VIRTUAL_ROWS`, the
+ * window of `@tanstack/vue-virtual` and the rows kept mounted, between gaps of the height
+ * of the others (measured, else the row height of the density, read from `--k-row-height`
+ * of the scroller); every row below it.
+ */
+export function useVirtualRows(host: VirtualRowsHost) {
+  const virtual = computed(() => !host.off?.() && host.count() > VIRTUAL_ROWS);
+  /** The height of a row before it is measured: the row height of the density. */
+  const estimate = ref(28);
+  const top = () => host.top?.() ?? 0;
+  const virtualizer = useVirtualizer<HTMLElement, HTMLElement>(
+    computed(() => ({
+      count: virtual.value ? host.count() : 0,
+      getScrollElement: () => host.scroller.value,
+      estimateSize: () => estimate.value,
+      getItemKey: (index: number) => host.keyAt(index),
+      overscan: 10,
+      scrollMargin: top(),
+    })),
+  );
+  function measure(el: Element | ComponentPublicInstance | null): void {
+    const node = el instanceof Element ? el : (el?.$el as Element | undefined);
+    if (virtual.value && node instanceof HTMLElement) virtualizer.value.measureElement(node);
+  }
+  const parts = computed<BodyPart[]>(() => {
+    const count = host.count();
+    if (!virtual.value) return Array.from({ length: count }, (_, index) => ({ index }));
+    const v = virtualizer.value;
+    const keep = keptIndexes(
+      v.getVirtualItems().map((item) => item.index),
+      host.kept(),
+      host.indexOf,
+    );
+    const sizes = v.measurementsCache;
+    const at = (i: number) => sizes[i]?.start ?? top() + i * estimate.value;
+    const end = (i: number) => sizes[i]?.end ?? at(i) + estimate.value;
+    return bodyParts(keep, count, at, end, at(0));
+  });
+  /** The row height of the density, read again when the density changes. */
+  function readEstimate(): void {
+    const el = host.scroller.value;
+    const row = el ? parseFloat(getComputedStyle(el).getPropertyValue("--k-row-height")) : NaN;
+    if (Number.isFinite(row) && row !== estimate.value) estimate.value = row;
+  }
+  return { virtual, parts, measure, estimate, readEstimate };
 }
 
 /** The rows wholly in view: their indexes, from the first to the last one. */

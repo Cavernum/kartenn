@@ -1,0 +1,38 @@
+- main:
+  - region "Tree":
+    - heading "Tree" [level=1]
+    - paragraph: "Motif : Tree View"
+    - 'figure "virtual — Cent mille nœuds : une fenêtre dans le document, la ligne du focus gardée, déplacement au clavier"':
+      - tree "Cent mille nœuds":
+        - treeitem "Domaine 1" [expanded] [level=1]
+        - treeitem "Nœud 1.1" [level=2]
+        - treeitem "Nœud 1.2" [level=2]
+        - treeitem "Nœud 1.3" [level=2]
+        - treeitem "Nœud 1.4" [level=2]
+        - treeitem "Nœud 1.5" [level=2]
+        - treeitem "Nœud 1.6" [level=2]
+        - treeitem "Nœud 1.7" [level=2]
+        - treeitem "Nœud 1.8" [level=2]
+        - treeitem "Nœud 1.9" [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+      - status
+      - alert
+      - code: virtual
+      - text: ""
