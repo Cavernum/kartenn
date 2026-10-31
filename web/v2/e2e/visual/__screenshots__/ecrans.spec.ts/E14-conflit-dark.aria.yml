@@ -1,0 +1,29 @@
+- main:
+  - region "Règles et motifs":
+    - tabpanel /Règles \d+/:
+      - group "Filtres des règles":
+        - status
+- dialog "La règle a changé depuis votre lecture":
+  - banner:
+    - heading "La règle a changé depuis votre lecture" [level=2]
+    - button "Fermer"
+  - paragraph: "Lou Bernard a modifié rece-vers-prod dans un autre onglet après que vous l'avez lue : rien n'a été écrit, votre saisie est gardée."
+  - alert:
+    - paragraph: "Erreur : Vous avez lu la version v3, la version actuelle est la v4."
+    - list:
+      - listitem:
+        - text: Relisez la règle actuelle, puis réappliquez ou abandonnez votre saisie.
+        - button "Copier urn:kartenn:problem:precondition-failed":
+          - text: ""
+          - code: urn:kartenn:problem:precondition-failed
+        - status
+  - term: Texte actuel
+  - definition: La recette lit les API de production pour ses jeux de contrôle, sous le motif api-lecture.
+  - term: Modifiée par
+  - definition: /Lou Bernard, \d+:\d+/
+  - text: Votre saisie, gardée
+  - textbox "Votre saisie, gardée": La recette lit les API de production sous le motif api-lecture, jamais en masse.
+  - paragraph: Texte pédagogique (fr) de rece-vers-prod
+  - contentinfo:
+    - button "Garder la règle actuelle"
+    - button "Réappliquer ma saisie"

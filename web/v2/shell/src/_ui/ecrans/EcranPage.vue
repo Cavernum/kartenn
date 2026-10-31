@@ -30,6 +30,21 @@ const SCREENS: Record<string, Component> = {
   E11: defineAsyncComponent(() => import("./E11Flux.vue")),
   E12: defineAsyncComponent(() => import("./E12Vlan.vue")),
   E13: defineAsyncComponent(() => import("./E13Parametres.vue")),
+  // The plugins policy and flow (017, task 1).
+  E14: defineAsyncComponent(() => import("./E14Regles.vue")),
+  E15: defineAsyncComponent(() => import("./E15Matrice.vue")),
+  E16: defineAsyncComponent(() => import("./E16Effet.vue")),
+  E17: defineAsyncComponent(() => import("./E17Catalogue.vue")),
+  E18: defineAsyncComponent(() => import("./E18Inference.vue")),
+  E19: defineAsyncComponent(() => import("./E19Conformite.vue")),
+  E20: defineAsyncComponent(() => import("./E20Rapports.vue")),
+  E21: defineAsyncComponent(() => import("./E21Demande.vue")),
+  E22: defineAsyncComponent(() => import("./E22FicheFlux.vue")),
+  E23: defineAsyncComponent(() => import("./E23Instruction.vue")),
+  E24: defineAsyncComponent(() => import("./E24Echeances.vue")),
+  E25: defineAsyncComponent(() => import("./E25NonConformites.vue")),
+  E26: defineAsyncComponent(() => import("./E26Tuiles.vue")),
+  E27: defineAsyncComponent(() => import("./E27Fiches.vue")),
 };
 
 const mockup = computed(() => MOCKUPS.find((m) => m.id === props.ecran));

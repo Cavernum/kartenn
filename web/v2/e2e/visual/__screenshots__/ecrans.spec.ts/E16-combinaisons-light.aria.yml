@@ -1,0 +1,173 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem: Effet d'un changement
+      - listitem: 01JF3B6D8F
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - 'heading "Effet sur la politique : Recette vers production sous motif" [level=1]'
+  - region "Recette vers production sous motif":
+    - heading "Recette vers production sous motif" [level=2]
+    - text: effet sur la politique En revue
+    - toolbar "Actions sur le changeset":
+      - button "Ouvrir le changeset"
+      - button "Copier l'identifiant"
+    - term: Auteur
+    - definition: Sacha Morel
+    - term: Soumis
+    - definition: /\d+-\d+-\d+ \d+:\d+/
+    - term: Retenu par
+    - definition: Ouverture de flux
+    - term: Déclencheur
+    - definition:
+      - button "Copier policy.opens":
+        - text: ""
+        - code: policy.opens
+      - status
+    - term: Opérations
+    - definition: 2 cellules de matrice
+    - term: Identifiant
+    - definition:
+      - button "Copier 01JF3B6D8F0H2K4M6P8R0T2V4X":
+        - text: ""
+        - code: 01JF3B6D8F0H2K4M6P8R0T2V4X
+      - status
+    - tablist "Sections du changeset":
+      - tab /Combinaisons \d+/ [selected]
+      - tab "Nœuds reclassés 2"
+      - tab "Flux déclarés 7"
+    - tabpanel /Combinaisons \d+/:
+      - paragraph: /4 s'ouvrent · 2 passent sous réserve · \d+ se ferment · section policy\.combinations/
+      - grid "Combinaisons changées par le changeset, page 1":
+        - rowgroup:
+          - row "Nature Source Destination Service Élément décisif, avant → après":
+            - columnheader "Nature"
+            - columnheader "Source"
+            - columnheader "Destination"
+            - columnheader "Service"
+            - columnheader "Élément décisif, avant → après"
+        - rowgroup:
+          - 'row "Sous réserve Recette Production Web chiffré https avant : flow.verdict.default après : rece-vers-prod"':
+            - gridcell "Sous réserve"
+            - gridcell "Recette"
+            - gridcell "Production"
+            - gridcell "Web chiffré https":
+              - text: ""
+              - code: https
+            - 'gridcell "avant : flow.verdict.default après : rece-vers-prod"':
+              - deletion:
+                - text: "avant :"
+                - code: flow.verdict.default
+              - insertion:
+                - text: "après :"
+                - code: rece-vers-prod
+          - 'row "Sous réserve Recette Production API interne api avant : flow.verdict.default après : rece-vers-prod"':
+            - gridcell "Sous réserve"
+            - gridcell "Recette"
+            - gridcell "Production"
+            - gridcell "API interne api":
+              - text: ""
+              - code: api
+            - 'gridcell "avant : flow.verdict.default après : rece-vers-prod"':
+              - deletion:
+                - text: "avant :"
+                - code: flow.verdict.default
+              - insertion:
+                - text: "après :"
+                - code: rece-vers-prod
+          - 'row "S''ouvre Administration Recette Shell sécurisé ssh avant : flow.verdict.default après : admin-par-bastion"':
+            - gridcell "S'ouvre"
+            - gridcell "Administration"
+            - gridcell "Recette"
+            - gridcell "Shell sécurisé ssh":
+              - text: ""
+              - code: ssh
+            - 'gridcell "avant : flow.verdict.default après : admin-par-bastion"':
+              - deletion:
+                - text: "avant :"
+                - code: flow.verdict.default
+              - insertion:
+                - text: "après :"
+                - code: admin-par-bastion
+          - 'row "S''ouvre Administration Développement Shell sécurisé ssh avant : flow.verdict.default après : admin-par-bastion"':
+            - gridcell "S'ouvre"
+            - gridcell "Administration"
+            - gridcell "Développement"
+            - gridcell "Shell sécurisé ssh":
+              - text: ""
+              - code: ssh
+            - 'gridcell "avant : flow.verdict.default après : admin-par-bastion"':
+              - deletion:
+                - text: "avant :"
+                - code: flow.verdict.default
+              - insertion:
+                - text: "après :"
+                - code: admin-par-bastion
+          - 'row "Se ferme Développement Recette PostgreSQL postgres avant : bdd-meme-env après : deny-deve-rece-bdd"':
+            - gridcell "Se ferme"
+            - gridcell "Développement"
+            - gridcell "Recette"
+            - gridcell "PostgreSQL postgres":
+              - text: ""
+              - code: postgres
+            - 'gridcell "avant : bdd-meme-env après : deny-deve-rece-bdd"':
+              - deletion:
+                - text: "avant :"
+                - code: bdd-meme-env
+              - insertion:
+                - text: "après :"
+                - code: deny-deve-rece-bdd
+          - 'row "Se ferme Développement Recette Partage NFS nfs avant : fichier-deve après : deny-deve-rece-bdd"':
+            - gridcell "Se ferme"
+            - gridcell "Développement"
+            - gridcell "Recette"
+            - gridcell "Partage NFS nfs":
+              - text: ""
+              - code: nfs
+            - 'gridcell "avant : fichier-deve après : deny-deve-rece-bdd"':
+              - deletion:
+                - text: "avant :"
+                - code: fichier-deve
+              - insertion:
+                - text: "après :"
+                - code: deny-deve-rece-bdd
+    - text: /Page 1 sur 4 · \d+ lignes par page \(extrait\)/
+    - button "Page suivante"
+- button "Ouvrir le panneau"

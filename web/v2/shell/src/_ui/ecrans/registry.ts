@@ -5,8 +5,10 @@
  * data, to be validated by the user on captures.
  * Each mock-up has one or more views (`?vue=`), each one URL and one capture per width
  * (1440, 1280, 1024, 768 px) and mode. Pure data: the captures (`e2e/visual/ecrans.spec.ts`)
- * read this list.
+ * read this list. E14 to E27, the plugins of the 017, are listed in `registry017.ts`.
  */
+
+import { MOCKUPS_017 } from "./registry017.ts";
 
 /** A view of a mock-up: a state of the screen, shown alone. */
 export interface MockupView {
@@ -448,6 +450,8 @@ export const MOCKUPS: Mockup[] = [
       },
     ],
   },
+  // E14 to E27: the plugins policy and flow (017, task 1).
+  ...MOCKUPS_017,
 ];
 
 /** The view `id` of a mock-up, or its first one. */

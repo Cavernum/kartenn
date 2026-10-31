@@ -1,0 +1,121 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem: Rapports d'audit
+  - button "Présent"
+  - button "Brouillon 0 opération" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Rapports d'audit" [level=1]
+  - region "Rapports d'audit":
+    - heading "Rapports d'audit" [level=2]
+    - text: politique au présent À la date du
+    - textbox "À la date du": /\d+-\d+-\d+/
+    - paragraph:
+      - text: "À venir :"
+      - code: DateTimeField
+      - text: /\(tâche \d+-\d+\)/
+    - button "Demander un rapport"
+    - status:
+      - paragraph: "/Information : Un rapport au \\d+-\\d+-\\d+ est déjà en cours : il est ouvert ci-contre\\./"
+      - list:
+        - listitem:
+          - text: /Demandé par Sacha Morel à \d+:\d+ ; un seul rapport tourne à la fois\./
+          - button "Copier urn:kartenn:problem:conflict":
+            - text: ""
+            - code: urn:kartenn:problem:conflict
+          - status
+    - button "Colonnes"
+    - grid "Rapports d'audit":
+      - rowgroup:
+        - row "Rapport À la date du État Demandé par":
+          - columnheader "Rapport"
+          - columnheader "À la date du"
+          - columnheader "État"
+          - columnheader "Demandé par"
+      - rowgroup:
+        - row /rpt-\d+ \d+-\d+-\d+ En cours Sacha Morel/ [selected]:
+          - gridcell /rpt-\d+/
+          - gridcell /\d+-\d+-\d+/
+          - gridcell "En cours"
+          - gridcell "Sacha Morel"
+        - row /rpt-\d+ \d+-\d+-\d+ Fait Camille Martin/:
+          - gridcell /rpt-\d+/
+          - gridcell /\d+-\d+-\d+/
+          - gridcell "Fait"
+          - gridcell "Camille Martin"
+        - row /rpt-\d+ \d+-\d+-\d+ Fait Camille Martin/:
+          - gridcell /rpt-\d+/
+          - gridcell /\d+-\d+-\d+/
+          - gridcell "Fait"
+          - gridcell "Camille Martin"
+        - row /rpt-\d+ \d+-\d+-\d+ Fait Sacha Morel/:
+          - gridcell /rpt-\d+/
+          - gridcell /\d+-\d+-\d+/
+          - gridcell "Fait"
+          - gridcell "Sacha Morel"
+    - text: 4 rapports Un rapport en cours est relu toutes les 5 s
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Détail" [selected]
+    - tab "Brouillon 0"
+  - tabpanel "Détail":
+    - heading /rpt-\d+/ [level=2]:
+      - code: /rpt-\d+/
+    - term: État
+    - definition: En cours
+    - term: À la date du
+    - definition: /\d+-\d+-\d+/
+    - term: Demandé par
+    - definition: Sacha Morel
+    - term: Lien
+    - definition:
+      - button /Copier \/v1\/policy-reports\/rpt-\d+/:
+        - text: ""
+        - code: /\/v1\/policy-reports\/rpt-\d+/
+      - status
+    - status: /Relu à \d+:\d+:\d+ · prochaine lecture dans 5 s\. Les décomptes viennent quand il est fait\./
+    - status: Chargement
+    - paragraph:
+      - text: "Pour comparer, le rapport précédent :"
+      - link /rpt-\d+/:
+        - /url: "#rpt-0041"
+      - text: /, avec \d+ non classifiés\./
+  - button "Largeur du panneau"
+  - button "Fermer le panneau"

@@ -1,0 +1,127 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 3":
+        - /url: /x/flow/review
+    - listitem:
+      - link "Échéances 2":
+        - /url: /x/flow/expiring
+    - listitem:
+      - link "Non-conformités 4":
+        - /url: /x/flow/nonconformities
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem:
+        - link "Registre":
+          - /url: /x/flow/flows
+      - listitem: Proposer des flux
+  - button "Présent"
+  - button "Brouillon 1 opération" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Proposer des flux" [level=1]
+  - region "Proposer des flux":
+    - heading "Proposer des flux" [level=2]
+    - text: /pré-remplie depuis flux-\d+, échu/
+    - button "Ajouter un flux"
+    - button "Colonnes"
+    - grid "Flux proposés":
+      - rowgroup:
+        - row "Source Destination Service Verdict":
+          - columnheader "Source"
+          - columnheader "Destination"
+          - columnheader "Service"
+          - columnheader "Verdict"
+      - rowgroup:
+        - row /\(en brouillon\) srv-rec-\d+ · eth0 srv-app-\d+ · eth0 Web chiffré https Sous réserve Copier rece-vers-prod/ [selected]:
+          - gridcell /\(en brouillon\) srv-rec-\d+ · eth0/
+          - gridcell /srv-app-\d+ · eth0/
+          - gridcell "Web chiffré https":
+            - text: ""
+            - code: https
+          - gridcell "Sous réserve Copier rece-vers-prod":
+            - text: ""
+            - button "Copier rece-vers-prod":
+              - text: ""
+              - code: rece-vers-prod
+            - status
+    - text: 1 flux · 1 sous réserve Le dossier, à droite, vaut pour toutes les lignes
+- complementary "Flux choisi":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Pré-vérification" [selected]
+  - tabpanel "Pré-vérification":
+    - paragraph: /srv-rec-\d+ · eth0 → srv-app-\d+ · eth0 · https · Applicatif/
+    - paragraph:
+      - text: Sous réserve À instruire
+      - button "Copier Recette vers production rece-vers-prod":
+        - text: ""
+        - code: rece-vers-prod
+      - status
+      - text: 2 paires d'adresses · 0 conforme · 2 sous réserve · politique r42
+    - term: Règle
+    - definition: La recette lit les API de production pour ses jeux de contrôle, sous le motif api-lecture.
+    - term: Motif attendu
+    - definition:
+      - text: Lecture d'API
+      - code: api-lecture
+    - term: Conditions
+    - definition: "justification-requise : remplie"
+    - paragraph: "Pré-vérification de la ligne avec le dossier : aucun changeset n'est créé."
+  - button "Hauteur du panneau"
+  - button "Fermer le panneau"
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Détail" [selected]
+    - tab "Brouillon 1"
+  - tabpanel "Détail":
+    - heading "Dossier de la proposition" [level=2]
+    - text: Entité (obligatoire)
+    - combobox "Entité (obligatoire)": Atelier Nord
+    - paragraph: Parmi les entités lisibles, ou par identifiant collé.
+    - text: Pour le compte de
+    - textbox "Pour le compte de":
+      - /placeholder: Une identité
+    - paragraph: "Facultatif : le demandeur reste vous."
+    - text: Responsables Lou Bernard
+    - button "Retirer Lou Bernard"
+    - button "Ajouter"
+    - text: Système des références
+    - combobox "Système des références": Gestion des demandes
+    - paragraph: Liste core.external_system ; chaque ligne porte sa référence.
+    - text: Nature des données
+    - combobox "Nature des données": Interne
+    - paragraph: Valeurs de l'axe Sensibilité.
+    - checkbox "Données personnelles"
+    - text: Données personnelles
+    - paragraph:
+      - text: "À venir :"
+      - code: DateTimeField
+      - text: /\(tâche \d+-\d+\)/
+    - text: Début
+    - textbox "Début": au présent
+    - text: Fin
+    - textbox "Fin": /\d+-\d+-\d+/
+    - paragraph: Facultative.
+  - button "Largeur du panneau"
+  - button "Fermer le panneau"

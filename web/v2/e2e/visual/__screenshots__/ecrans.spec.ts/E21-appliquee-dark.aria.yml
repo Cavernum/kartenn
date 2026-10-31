@@ -1,0 +1,83 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 3":
+        - /url: /x/flow/review
+    - listitem:
+      - link "Échéances 2":
+        - /url: /x/flow/expiring
+    - listitem:
+      - link "Non-conformités 4":
+        - /url: /x/flow/nonconformities
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem:
+        - link "Registre":
+          - /url: /x/flow/flows
+      - listitem: Proposition envoyée
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Proposer des flux" [level=1]
+  - status:
+    - paragraph: "Succès : Proposition enregistrée : les deux flux sont actifs."
+    - text: Conformes à la matrice de flux, enregistrés sans instruction.
+  - region "Flux proposés":
+    - heading "Flux proposés" [level=2]
+    - text: une ligne par flux
+    - grid "Flux proposés":
+      - rowgroup:
+        - row "Source Destination Service Référence Justification Résultat":
+          - columnheader "Source"
+          - columnheader "Destination"
+          - columnheader "Service"
+          - columnheader "Référence"
+          - columnheader "Justification"
+          - columnheader "Résultat"
+      - rowgroup:
+        - row /srv-web-\d+ · eth0 srv-app-\d+ · eth0 Web chiffré https ticketing:CHG-\d+ Nouveau frontal Actif flux-\d+/:
+          - gridcell /srv-web-\d+ · eth0/
+          - gridcell /srv-app-\d+ · eth0/
+          - gridcell "Web chiffré https":
+            - text: ""
+            - code: https
+          - gridcell /ticketing:CHG-\d+/
+          - gridcell "Nouveau frontal"
+          - gridcell /Actif flux-\d+/:
+            - text: ""
+            - link /flux-\d+/:
+              - /url: /_ui/ecrans/E22?vue=fiche&mode=dark
+        - row /srv-app-\d+ · eth0 \d+\.\d+\.\d+\.\d+ PostgreSQL postgres ticketing:CHG-\d+ Base du frontal Actif flux-\d+/:
+          - gridcell /srv-app-\d+ · eth0/
+          - gridcell /\d+\.\d+\.\d+\.\d+/
+          - gridcell "PostgreSQL postgres":
+            - text: ""
+            - code: postgres
+          - gridcell /ticketing:CHG-\d+/
+          - gridcell "Base du frontal"
+          - gridcell /Actif flux-\d+/:
+            - text: ""
+            - link /flux-\d+/:
+              - /url: /_ui/ecrans/E22?vue=fiche&mode=dark
+    - text: 2 flux · changeset appliqué
+- button "Ouvrir le panneau"
