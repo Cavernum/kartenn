@@ -194,13 +194,13 @@
     - text: Texte pédagogique (en)
     - textbox "Texte pédagogique (en)"
     - paragraph: "Facultatif : sinon le français, langue indiquée."
-    - paragraph:
-      - text: "À venir :"
-      - code: DateTimeField
-      - text: /\(tâche \d+-\d+\)/
-    - text: Début
-    - textbox "Début": au présent
-    - paragraph: Une règle datée s'écrit au présent ou dans le futur.
+    - group "Début":
+      - text: ""
+      - spinbutton "Année"
+      - spinbutton "Mois"
+      - spinbutton "Jour"
+      - 'button "Choisir la date : Début"'
+      - paragraph: "Vide : au présent. Une règle datée s'écrit au présent ou dans le futur."
   - button "Largeur du panneau"
   - button "Fermer le panneau"
   - button "Annuler"

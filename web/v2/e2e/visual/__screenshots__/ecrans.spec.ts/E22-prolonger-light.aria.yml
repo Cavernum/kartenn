@@ -3,13 +3,13 @@
     - heading /Prolonger flux-\d+/ [level=2]
     - button "Fermer"
   - paragraph: Une prolongation repasse par l'instruction quand la portion ajoutée n'est pas conforme sans réserve ; rien ne se prolonge seul.
-  - paragraph:
-    - text: "À venir :"
-    - code: DateTimeField
-    - text: /\(tâche \d+-\d+\)/
-  - text: Nouvelle fin (obligatoire)
-  - textbox "Nouvelle fin (obligatoire)": /\d+-\d+-\d+/
-  - paragraph: "/Fin actuelle : \\d+-\\d+-\\d+\\. Au plus \\d+ mois après la décision\\./"
+  - group "Nouvelle fin (obligatoire)":
+    - text: ""
+    - spinbutton "Année"
+    - spinbutton "Mois"
+    - spinbutton "Jour"
+    - 'button "Choisir la date : Nouvelle fin"'
+    - paragraph: "/Fin actuelle : \\d+-\\d+-\\d+\\. Au plus \\d+ mois après la décision\\./"
   - region "Pré-vérification de la portion ajoutée":
     - heading "Pré-vérification de la portion ajoutée" [level=3]
     - paragraph:

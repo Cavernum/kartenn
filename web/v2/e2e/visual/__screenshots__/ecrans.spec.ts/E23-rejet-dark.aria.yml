@@ -1,6 +1,8 @@
 - complementary "Panneau droit":
   - tabpanel "Détail":
-    - region "Dérogation exigée"
+    - group "Fin du flux* (obligatoire)"
+    - region "Dérogation exigée":
+      - group "Fin de la dérogation* (obligatoire)"
 - dialog "Rejeter la demande de flux postgres":
   - banner:
     - heading "Rejeter la demande de flux postgres" [level=2]

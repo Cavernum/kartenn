@@ -15,6 +15,7 @@ import {
   CodeBadge,
   Cluster,
   DataGrid,
+  DateTimeField,
   Dialog,
   EmptyState,
   FilterPicker,
@@ -31,7 +32,6 @@ import {
 } from "@kartenn/ui";
 import { ref } from "vue";
 import { RouterLink, useRoute } from "vue-router";
-import AVenir from "./AVenir.vue";
 import Attributs from "./EcranAttributs.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
@@ -176,10 +176,10 @@ const EMPTY_SPACES = SPACES_017.map((space) => ({
 // ——— The card of review ———
 
 const denyText = RULES.find((r) => r.key === "deny-deve-prod")!.text;
-const flowEnd = ref(refused ? "2027-02-15" : "2026-12-31");
+const flowEnd = ref<string | null>(refused ? "2027-02-15" : "2026-12-31");
 const waiverReason = ref("Reprise ponctuelle des jeux de test anonymisés");
 const waiverRisk = ref("Données anonymisées, lecture seule, fin en juin");
-const waiverEnd = ref("2026-06-30");
+const waiverEnd = ref<string | null>("2026-06-30");
 const motive = ref("La recette dispose de ses propres jeux : passez par l'export anonymisé.");
 
 // ——— « À instruire » of the shell ———
@@ -455,25 +455,23 @@ const proposalColumns: GridColumn[] = [
         >
           Votre saisie est gardée.
         </InlineAlert>
-        <AVenir component="DateTimeField" task="020-20">
-          <TextField
-            v-model="flowEnd"
-            label="Fin du flux"
-            mono
-            required
-            :error="refused ? 'Au plus le 2027-01-15, 12 mois après la décision' : undefined"
-            hint="Au plus 12 mois après la décision : le 2027-01-15."
-          />
-        </AVenir>
+        <DateTimeField
+          v-model="flowEnd"
+          label="Fin du flux"
+          granularity="day"
+          required
+          :error="refused ? 'Au plus le 2027-01-15, 12 mois après la décision' : undefined"
+          hint="Au plus 12 mois après la décision : le 2027-01-15."
+        />
         <Stack as="section" gap="2" aria-labelledby="k-e23-waiver">
           <h3 id="k-e23-waiver" class="k-ecran-subtitle">Dérogation exigée</h3>
           <p class="k-ecran-muted">Le triage est non conforme : approuver, c'est déroger.</p>
           <TextField v-model="waiverReason" label="Motif" required />
           <TextField v-model="waiverRisk" label="Risque accepté" required />
-          <TextField
+          <DateTimeField
             v-model="waiverEnd"
             label="Fin de la dérogation"
-            mono
+            granularity="day"
             required
             hint="Au plus tôt de la fin du flux et du 2026-07-15 (6 mois)."
           />

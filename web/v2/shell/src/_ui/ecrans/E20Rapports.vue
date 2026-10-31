@@ -12,18 +12,17 @@ import {
   CodeBadge,
   Cluster,
   DataGrid,
+  DateTimeField,
   InlineAlert,
   KeyLabel,
   Skeleton,
   Stack,
   StatusBadge,
-  TextField,
   type GridColumn,
   type GridSort,
   type State,
 } from "@kartenn/ui";
 import { ref } from "vue";
-import AVenir from "./AVenir.vue";
 import Attributs from "./EcranAttributs.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
@@ -31,6 +30,8 @@ import { ME, PEOPLE, SPACES_017 } from "./donnees017.ts";
 
 const props = defineProps<{ vue: string }>();
 const report = props.vue === "rapport";
+/** The date of the report asked for. */
+const reportAt = ref<string | null>("2026-01-15");
 
 type ReportState = "pending" | "running" | "done";
 const STATE: Record<ReportState, { state: State; label: string }> = {
@@ -140,9 +141,7 @@ const nodeColumns: GridColumn[] = [
       <template #toolbar>
         <Stack gap="2">
           <Cluster gap="2" align="end">
-            <AVenir component="DateTimeField" task="020-20" inline>
-              <TextField label="À la date du" model-value="2026-01-15" mono size="sm" />
-            </AVenir>
+            <DateTimeField v-model="reportAt" label="À la date du" granularity="day" size="sm" />
             <Button variant="primary" icon="plus">Demander un rapport</Button>
           </Cluster>
           <InlineAlert

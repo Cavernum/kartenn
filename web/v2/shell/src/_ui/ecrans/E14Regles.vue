@@ -16,6 +16,7 @@ import {
   Checkbox,
   Cluster,
   DataGrid,
+  DateTimeField,
   Dialog,
   EnvChip,
   FilterPicker,
@@ -40,7 +41,6 @@ import {
   type ToolbarAction,
 } from "@kartenn/ui";
 import { computed, ref } from "vue";
-import AVenir from "./AVenir.vue";
 import Attributs from "./EcranAttributs.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
@@ -223,6 +223,8 @@ const SERVICE_CHOICES: ListOption[] = [
 const service = ref<string | undefined>(violations ? "ftp-ancien" : "all");
 const textFr = ref("");
 const textEn = ref("");
+/** The start of the rule: empty, at the present. */
+const start = ref<string | null>(null);
 const label = ref("Restreint vers les partenaires");
 const sendActions = computed<SplitAction[]>(() => {
   const reason = violations
@@ -533,14 +535,12 @@ const PATTERN = PATTERNS[0]!;
           label="Texte pédagogique (en)"
           hint="Facultatif : sinon le français, langue indiquée."
         />
-        <AVenir component="DateTimeField" task="020-20">
-          <TextField
-            label="Début"
-            model-value="au présent"
-            readonly
-            hint="Une règle datée s'écrit au présent ou dans le futur."
-          />
-        </AVenir>
+        <DateTimeField
+          v-model="start"
+          label="Début"
+          granularity="day"
+          hint="Vide : au présent. Une règle datée s'écrit au présent ou dans le futur."
+        />
       </Stack>
 
       <!-- The chosen pattern. -->

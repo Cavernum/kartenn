@@ -18,13 +18,13 @@
   - textbox "Motif (obligatoire)": Migration des jeux de test reportée à mars
   - text: Risque accepté (obligatoire)
   - textbox "Risque accepté (obligatoire)": Lecture seule, données anonymisées
-  - paragraph:
-    - text: "À venir :"
-    - code: DateTimeField
-    - text: /\(tâche \d+-\d+\)/
-  - text: Nouvelle fin (obligatoire)
-  - textbox "Nouvelle fin (obligatoire)": /\d+-\d+-\d+/
-  - paragraph: "/Au plus 6 mois après aujourd'hui : le \\d+-\\d+-\\d+\\./"
+  - group "Nouvelle fin (obligatoire)":
+    - text: ""
+    - spinbutton "Année"
+    - spinbutton "Mois"
+    - spinbutton "Jour"
+    - 'button "Choisir la date : Nouvelle fin"'
+    - paragraph: "/Au plus 6 mois après aujourd'hui : le \\d+-\\d+-\\d+\\./"
   - paragraph: La politique « Dérogations » (flow.waiver) peut retenir la recertification pour un autre approbateur.
   - contentinfo:
     - button "Annuler"

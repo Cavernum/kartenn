@@ -10,6 +10,7 @@ import {
   Button,
   CodeBadge,
   DataGrid,
+  DateTimeField,
   Dialog,
   InlineAlert,
   KeyLabel,
@@ -20,7 +21,6 @@ import {
   type GridSort,
 } from "@kartenn/ui";
 import { ref } from "vue";
-import AVenir from "./AVenir.vue";
 import Attributs from "./EcranAttributs.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
@@ -92,7 +92,7 @@ const columns: GridColumn[] = [
 const sort = ref<GridSort | undefined>({ column: "end", direction: "ascending" });
 const reason = ref("Migration des jeux de test reportée à mars");
 const risk = ref("Lecture seule, données anonymisées");
-const newEnd = ref(invalid ? "2026-09-30" : "2026-03-31");
+const newEnd = ref<string | null>(invalid ? "2026-09-30" : "2026-03-31");
 const denyText = RULES.find((r) => r.key === "deny-deve-prod")!.text;
 </script>
 
@@ -185,16 +185,14 @@ const denyText = RULES.find((r) => r.key === "deny-deve-prod")!.text;
         />
         <TextField v-model="reason" label="Motif" required />
         <TextField v-model="risk" label="Risque accepté" required />
-        <AVenir component="DateTimeField" task="020-20">
-          <TextField
-            v-model="newEnd"
-            label="Nouvelle fin"
-            mono
-            required
-            :error="invalid ? 'Au plus le 2026-07-15, 6 mois après l\'octroi' : undefined"
-            hint="Au plus 6 mois après aujourd'hui : le 2026-07-15."
-          />
-        </AVenir>
+        <DateTimeField
+          v-model="newEnd"
+          label="Nouvelle fin"
+          granularity="day"
+          required
+          :error="invalid ? 'Au plus le 2026-07-15, 6 mois après l\'octroi' : undefined"
+          hint="Au plus 6 mois après aujourd'hui : le 2026-07-15."
+        />
         <p class="k-ecran-muted">
           La politique « Dérogations » (flow.waiver) peut retenir la recertification pour un autre
           approbateur.

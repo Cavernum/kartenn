@@ -16,6 +16,7 @@ import {
   CodeBadge,
   Cluster,
   DataGrid,
+  DateTimeField,
   IconButton,
   InlineAlert,
   KeyLabel,
@@ -31,7 +32,6 @@ import {
 } from "@kartenn/ui";
 import { ref } from "vue";
 import { RouterLink, useRoute } from "vue-router";
-import AVenir from "./AVenir.vue";
 import Attributs from "./EcranAttributs.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
@@ -158,6 +158,9 @@ const NATURE: ListOption[] = [
 ];
 const nature = ref<string | undefined>("interne");
 const personal = ref(false);
+/** Start empty (at the present), end of the request. */
+const start = ref<string | null>(null);
+const end = ref<string | null>("2026-12-31");
 const SYSTEMS: ListOption[] = [
   { value: "ticketing", label: "Gestion des demandes", detail: "ticketing" },
   { value: "cmdb", label: "Inventaire", detail: "cmdb" },
@@ -389,12 +392,8 @@ const registerMine = lien("E11", "registre", route.query);
         <div class="k-e21-check">
           <Checkbox v-model="personal" label="Données personnelles" />
         </div>
-        <AVenir component="DateTimeField" task="020-20">
-          <Cluster gap="2" :wrap="false" align="start" class="k-e21-dates">
-            <TextField label="Début" model-value="au présent" />
-            <TextField label="Fin" model-value="2026-12-31" mono hint="Facultative." />
-          </Cluster>
-        </AVenir>
+        <DateTimeField v-model="start" label="Début" granularity="day" hint="Vide : au présent." />
+        <DateTimeField v-model="end" label="Fin" granularity="day" hint="Facultative." />
       </Stack>
     </template>
   </Cadre>
@@ -428,11 +427,6 @@ const registerMine = lien("E11", "registre", route.query);
   /* Off the edge of the right panel: its resizing handle is a target too (2.5.8). */
   .k-e21-check {
     padding-inline-start: var(--k-space-2);
-  }
-
-  .k-e21-dates > * {
-    flex: 1 1 0;
-    min-inline-size: 0;
   }
 }
 </style>

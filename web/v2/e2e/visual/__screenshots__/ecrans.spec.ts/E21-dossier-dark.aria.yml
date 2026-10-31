@@ -114,14 +114,19 @@
     - paragraph: Valeurs de l'axe Sensibilité.
     - checkbox "Données personnelles"
     - text: Données personnelles
-    - paragraph:
-      - text: "À venir :"
-      - code: DateTimeField
-      - text: /\(tâche \d+-\d+\)/
-    - text: Début
-    - textbox "Début": au présent
-    - text: Fin
-    - textbox "Fin": /\d+-\d+-\d+/
-    - paragraph: Facultative.
+    - group "Début":
+      - text: ""
+      - spinbutton "Année"
+      - spinbutton "Mois"
+      - spinbutton "Jour"
+      - 'button "Choisir la date : Début"'
+      - paragraph: "Vide : au présent."
+    - group "Fin":
+      - text: ""
+      - spinbutton "Année"
+      - spinbutton "Mois"
+      - spinbutton "Jour"
+      - 'button "Choisir la date : Fin"'
+      - paragraph: Facultative.
   - button "Largeur du panneau"
   - button "Fermer le panneau"

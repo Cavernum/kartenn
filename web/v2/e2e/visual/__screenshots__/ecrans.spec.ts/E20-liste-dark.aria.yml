@@ -44,12 +44,13 @@
   - heading "Rapports d'audit" [level=1]
   - region "Rapports d'audit":
     - heading "Rapports d'audit" [level=2]
-    - text: politique au présent À la date du
-    - textbox "À la date du": /\d+-\d+-\d+/
-    - paragraph:
-      - text: "À venir :"
-      - code: DateTimeField
-      - text: /\(tâche \d+-\d+\)/
+    - text: politique au présent
+    - group "À la date du":
+      - text: ""
+      - spinbutton "Année"
+      - spinbutton "Mois"
+      - spinbutton "Jour"
+      - 'button "Choisir la date : À la date du"'
     - button "Demander un rapport"
     - status:
       - paragraph: "/Information : Un rapport au \\d+-\\d+-\\d+ est déjà en cours : il est ouvert ci-contre\\./"

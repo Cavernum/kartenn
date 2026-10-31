@@ -16,6 +16,7 @@ import {
   Cluster,
   CodeBadge,
   DataGrid,
+  DateTimeField,
   Dialog,
   EmptyState,
   ErrorState,
@@ -26,7 +27,6 @@ import {
   Stack,
   StatusBadge,
   Tabs,
-  TextField,
   type GridColumn,
   type MenuItem,
   type State,
@@ -34,7 +34,6 @@ import {
 } from "@kartenn/ui";
 import { ref } from "vue";
 import { RouterLink, useRoute } from "vue-router";
-import AVenir from "./AVenir.vue";
 import Attributs from "./EcranAttributs.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
@@ -226,7 +225,7 @@ const versionColumns: GridColumn[] = [
   { id: "author", label: "Par", width: "md", priority: 2 },
 ];
 const denyText = RULES.find((r) => r.key === "deny-deve-prod")!.text;
-const newEnd = ref("2026-12-31");
+const newEnd = ref<string | null>("2026-12-31");
 const changesetLink = lien("E23", "decision", route.query);
 </script>
 
@@ -453,15 +452,13 @@ const changesetLink = lien("E23", "decision", route.query);
       description="Une prolongation repasse par l'instruction quand la portion ajoutée n'est pas conforme sans réserve ; rien ne se prolonge seul."
     >
       <Stack gap="3">
-        <AVenir component="DateTimeField" task="020-20">
-          <TextField
-            v-model="newEnd"
-            label="Nouvelle fin"
-            mono
-            required
-            hint="Fin actuelle : 2026-06-30. Au plus 12 mois après la décision."
-          />
-        </AVenir>
+        <DateTimeField
+          v-model="newEnd"
+          label="Nouvelle fin"
+          granularity="day"
+          required
+          hint="Fin actuelle : 2026-06-30. Au plus 12 mois après la décision."
+        />
         <Stack as="section" gap="2" aria-labelledby="k-e22-portion">
           <h3 id="k-e22-portion" class="k-ecran-subtitle">
             Pré-vérification de la portion ajoutée

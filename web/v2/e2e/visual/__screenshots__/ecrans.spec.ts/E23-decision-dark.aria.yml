@@ -82,13 +82,13 @@
     - tab "Brouillon 0"
   - tabpanel "Détail":
     - heading "Décision" [level=2]
-    - paragraph:
-      - text: "À venir :"
-      - code: DateTimeField
-      - text: /\(tâche \d+-\d+\)/
-    - text: Fin du flux (obligatoire)
-    - textbox "Fin du flux (obligatoire)": /\d+-\d+-\d+/
-    - paragraph: "/Au plus \\d+ mois après la décision : le \\d+-\\d+-\\d+\\./"
+    - group "Fin du flux (obligatoire)":
+      - text: ""
+      - spinbutton "Année"
+      - spinbutton "Mois"
+      - spinbutton "Jour"
+      - 'button "Choisir la date : Fin du flux"'
+      - paragraph: "/Au plus \\d+ mois après la décision : le \\d+-\\d+-\\d+\\./"
     - region "Dérogation exigée":
       - heading "Dérogation exigée" [level=3]
       - paragraph: "Le triage est non conforme : approuver, c'est déroger."
@@ -96,9 +96,13 @@
       - textbox "Motif (obligatoire)": Reprise ponctuelle des jeux de test anonymisés
       - text: Risque accepté (obligatoire)
       - textbox "Risque accepté (obligatoire)": Données anonymisées, lecture seule, fin en juin
-      - text: Fin de la dérogation (obligatoire)
-      - textbox "Fin de la dérogation (obligatoire)": /\d+-\d+-\d+/
-      - paragraph: /Au plus tôt de la fin du flux et du \d+-\d+-\d+ \(6 mois\)\./
+      - group "Fin de la dérogation (obligatoire)":
+        - text: ""
+        - spinbutton "Année"
+        - spinbutton "Mois"
+        - spinbutton "Jour"
+        - 'button "Choisir la date : Fin de la dérogation"'
+        - paragraph: /Au plus tôt de la fin du flux et du \d+-\d+-\d+ \(6 mois\)\./
   - button "Largeur du panneau"
   - button "Fermer le panneau"
   - button "Rejeter…"
