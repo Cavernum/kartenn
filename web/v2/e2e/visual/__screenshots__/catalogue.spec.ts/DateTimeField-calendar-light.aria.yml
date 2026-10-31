@@ -1,0 +1,62 @@
+- main:
+  - 'dialog "Choisir la date : Valide au"':
+    - button "Année précédente"
+    - button "Mois précédent"
+    - heading /janvier \d+/ [level=2]
+    - button "Mois suivant"
+    - button "Année suivante"
+    - grid /janvier \d+/:
+      - rowgroup:
+        - row "lun. mar. mer. jeu. ven. sam. dim.":
+          - columnheader "lun."
+          - columnheader "mar."
+          - columnheader "mer."
+          - columnheader "jeu."
+          - columnheader "ven."
+          - columnheader "sam."
+          - columnheader "dim."
+      - rowgroup:
+        - row "1 2 3 4":
+          - gridcell
+          - gridcell
+          - gridcell
+          - gridcell "1"
+          - gridcell "2"
+          - gridcell "3"
+          - gridcell "4"
+        - row /5 6 7 8 9 \d+ \d+/:
+          - gridcell "5"
+          - gridcell "6"
+          - gridcell "7"
+          - gridcell "8"
+          - gridcell "9"
+          - gridcell /\d+/
+          - gridcell /\d+/
+        - row /\d+ \d+ \d+ \d+ \d+ \d+ \d+/:
+          - gridcell /\d+/
+          - gridcell /\d+/
+          - gridcell /\d+/
+          - gridcell /\d+/
+          - gridcell /\d+/
+          - gridcell /\d+/
+          - gridcell /\d+/
+        - row /\d+ \d+ \d+ \d+ \d+ \d+ \d+/:
+          - gridcell /\d+/
+          - gridcell /\d+/ [selected]
+          - gridcell /\d+/
+          - gridcell /\d+/
+          - gridcell /\d+/
+          - gridcell /\d+/
+          - gridcell /\d+/
+        - row /\d+ \d+ \d+ \d+ \d+ \d+/:
+          - gridcell /\d+/
+          - gridcell /\d+/
+          - gridcell /\d+/
+          - gridcell /\d+/
+          - gridcell /\d+/
+          - gridcell /\d+/
+          - gridcell
+    - button "Annuler"
+  - region "DateTimeField":
+    - 'figure "calendar — Calendrier ouvert (dialogue modal) : le jour choisi, aujourd''hui entouré"':
+      - group "Valide au"

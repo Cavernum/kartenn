@@ -1,0 +1,17 @@
+- main:
+  - region "DateTimeField":
+    - heading "DateTimeField" [level=1]
+    - paragraph: "/Motif : Spinbutton par segment \\(ISO \\d+\\) et Date Picker Dialog/"
+    - 'figure /invalid — \d+ février : gardé tel que saisi, refusé, le motif lié et le segment marqué/':
+      - group "Valide au":
+        - text: ""
+        - spinbutton "Année" [invalid]
+        - spinbutton "Mois" [invalid]
+        - spinbutton "Jour" [invalid]
+        - spinbutton "Heure" [invalid]
+        - spinbutton "Minutes" [invalid]
+        - text: /Europe\/Paris UTC\+\d+:\d+/
+        - 'button "Choisir la date : Valide au"'
+        - paragraph: "/Le \\d+ février \\d+ n'existe pas : février \\d+ a \\d+ jours\\./"
+      - code: invalid
+      - text: ""
