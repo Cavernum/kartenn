@@ -119,7 +119,7 @@ export function useVirtualRows(host: VirtualRowsHost) {
     const row = el ? parseFloat(getComputedStyle(el).getPropertyValue("--k-row-height")) : NaN;
     if (Number.isFinite(row) && row !== estimate.value) estimate.value = row;
   }
-  return { virtual, parts, measure, readEstimate };
+  return { virtual, parts, measure, estimate, readEstimate };
 }
 
 /** The rows wholly in view: their indexes, from the first to the last one. */

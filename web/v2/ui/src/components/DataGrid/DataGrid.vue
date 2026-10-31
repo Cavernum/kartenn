@@ -37,7 +37,6 @@
 // the value (generated content, its alternative text empty: the column header names the
 // cell already), labels and values aligned by a subgrid of the row; every column shows,
 // the header is a strip of controls. Still a grid of rows and cells, same keys.
-import { useVirtualizer } from "@tanstack/vue-virtual";
 import {
   computed,
   h,
@@ -50,7 +49,6 @@ import {
   useId,
   useSlots,
   watch,
-  type ComponentPublicInstance,
   type FunctionalComponent,
 } from "vue";
 import { t } from "../../i18n.ts";
@@ -58,9 +56,9 @@ import Checkbox from "../Checkbox/Checkbox.vue";
 import Icon from "../Icon/Icon.vue";
 import ColumnChooser from "../internal/ColumnChooser.vue";
 import CellError from "./CellError.vue";
-import { useCellEditor, useCommitWatch } from "../internal/cellEditor.ts";
+import { useCellEditor, useCellErrors, useCommitWatch } from "../internal/cellEditor.ts";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
-import { bodyParts, keptIndexes, rowsInView, type BodyPart } from "../internal/virtualRows.ts";
+import { rowsInView, useVirtualRows, type BodyPart } from "../internal/virtualRows.ts";
 import Skeleton from "../Skeleton/Skeleton.vue";
 import {
   columnTemplates,
@@ -276,47 +274,32 @@ function errorOf(row: R, column: GridColumn): { error: string; code?: string } |
 
 // ——— Virtualisation ———
 
-/** Rows beyond which the grid is virtualised (as `DiffList`, design). */
-const VIRTUAL_ROWS = 200;
-const OVERSCAN = 10;
-const virtual = computed(() => !props.loading && props.rows.length > VIRTUAL_ROWS);
-/** The height of a row before it is measured: the row height of the density. */
-const estimate = ref(28);
 /** The height of the header, above the rows in the scroll container. */
 const headHeight = ref(30);
-const virtualizer = useVirtualizer<HTMLElement, HTMLElement>(
-  computed(() => ({
-    count: virtual.value ? props.rows.length : 0,
-    getScrollElement: () => grid.value,
-    estimateSize: () => estimate.value,
-    getItemKey: (index: number) => (props.rows[index] ? keyOf(props.rows[index]) : index),
-    overscan: OVERSCAN,
-    scrollMargin: headHeight.value,
-  })),
-);
-function measure(el: Element | ComponentPublicInstance | null): void {
-  if (virtual.value && el instanceof HTMLElement) virtualizer.value.measureElement(el);
-}
+// Virtualised beyond 200 rows (`internal/virtualRows.ts`, shared with the trees): the
+// window, and the rows of the focus and of the editor kept mounted.
+const rowsWindow = useVirtualRows({
+  count: () => props.rows.length,
+  keyAt: (index) => (props.rows[index] ? keyOf(props.rows[index]) : String(index)),
+  indexOf: (key) => indexOfKey.value.get(key),
+  scroller: grid,
+  kept: () => [current.value.row, editing.value?.row],
+  top: () => headHeight.value,
+  off: () => !!props.loading,
+});
+const virtual = rowsWindow.virtual;
+const estimate = rowsWindow.estimate;
+const measure = rowsWindow.measure;
+const readEstimate = rowsWindow.readEstimate;
 /** The rows and gaps of the body: every row, or the window and the rows kept mounted. */
 type Part = { index: number; row: R; key: string } | { gap: number; key: string };
-const parts = computed<Part[]>(() => {
-  const withRow = (part: BodyPart): Part => {
+const parts = computed<Part[]>(() =>
+  rowsWindow.parts.value.map((part: BodyPart): Part => {
     if (!("index" in part)) return part;
     const row = props.rows.at(part.index)!;
     return { index: part.index, row, key: keyOf(row) };
-  };
-  if (!virtual.value) return props.rows.map((_, index) => withRow({ index }));
-  const v = virtualizer.value;
-  const keep = keptIndexes(
-    v.getVirtualItems().map((item) => item.index),
-    [current.value.row, editing.value?.row],
-    (key) => indexOfKey.value.get(key),
-  );
-  const sizes = v.measurementsCache;
-  const at = (i: number) => sizes[i]?.start ?? headHeight.value + i * estimate.value;
-  const end = (i: number) => sizes[i]?.end ?? at(i) + estimate.value;
-  return bodyParts(keep, props.rows.length, at, end, at(0)).map(withRow);
-});
+  }),
+);
 /** The rows in view now, by their boxes (virtualised or not; the page may scroll too). */
 const inView = () =>
   grid.value
@@ -381,9 +364,6 @@ watch(
 const uid = useId();
 const errorId = (r: number, c: number) => `k-data-grid-${uid}-error-${r}-${c}`;
 const cellKey = (row: string, column: string) => `${row}\n${column}`;
-const hovered = ref<string | null>(null);
-const focused = ref<string | null>(null);
-const dismissed = ref<string | null>(null);
 /** Whether the cell of key `k` has an error now (it may come after the focus, by a commit). */
 function errorAt(k: string): boolean {
   const [r, c] = k.split("\n");
@@ -391,11 +371,11 @@ function errorAt(k: string): boolean {
   const column = columnOf(c!);
   return !!row && !!column && hasError(row, column);
 }
-const shownError = computed(
-  () =>
-    [hovered.value, focused.value].find((k) => k !== null && k !== dismissed.value && errorAt(k)) ??
-    null,
-);
+// Hovered, focused, dismissed: `useCellErrors` (`internal/cellEditor.ts`, as `TreeGrid`).
+const errors = useCellErrors(errorAt);
+const hovered = errors.hovered;
+const focused = errors.focused;
+const shownError = errors.shown;
 /** The error a cell shows: its editor's (the host's check, `validate`), else the host's. */
 function messageOf(row: R, column: GridColumn): { error: string; code?: string } | undefined {
   if (isEditing(row, column) && draftError.value) return { error: draftError.value };
@@ -414,21 +394,12 @@ const cellElement = (cell: CellRef) =>
   grid.value?.querySelector<HTMLElement>(
     `[data-row="${CSS.escape(cell.row)}"][data-column="${CSS.escape(cell.column)}"]`,
   ) ?? null;
-watch([hovered, focused], ([h, f]) => {
-  if (dismissed.value !== null && h !== dismissed.value && f !== dismissed.value)
-    dismissed.value = null;
-});
-/** A touch pointer leaves its target when the finger lifts: the focus speaks for it. */
 function onCellEnter(row: R, column: GridColumn, event: PointerEvent): void {
-  if (event.pointerType !== "touch" && hasError(row, column))
-    hovered.value = cellKey(keyOf(row), column.id);
+  errors.enter(cellKey(keyOf(row), column.id), event);
 }
+/** Onto its message (adjacent): still hovered. */
 function onCellLeave(r: number, c: number, event: PointerEvent): void {
-  if (event.pointerType === "touch") return;
-  // Onto its message (adjacent): still hovered.
-  const to = event.relatedTarget as Node | null;
-  if (to && document.getElementById(errorId(r, c))?.contains(to)) return;
-  hovered.value = null;
+  errors.leave(event, document.getElementById(errorId(r, c)));
 }
 function onFocusout(event: FocusEvent): void {
   const to = event.relatedTarget as HTMLElement | null;
@@ -833,7 +804,7 @@ function onKeydown(event: KeyboardEvent): void {
   // Escape closes the error of the cell only, not the layer around the grid (1.4.13).
   if (event.key === "Escape" && shownError.value !== null) {
     event.preventDefault();
-    dismissed.value = shownError.value;
+    errors.dismiss();
     return;
   }
   const cell = current.value;
@@ -956,13 +927,6 @@ function measureKey(): void {
   if (head && head.offsetHeight > 0) headHeight.value = head.offsetHeight;
 }
 let observer: ResizeObserver | undefined;
-/** The row height of the density, read again when the density changes (rows resize). */
-function readEstimate(): void {
-  const row = grid.value
-    ? parseFloat(getComputedStyle(grid.value).getPropertyValue("--k-row-height"))
-    : NaN;
-  if (Number.isFinite(row) && row !== estimate.value) estimate.value = row;
-}
 onMounted(() => {
   readEstimate();
   measureKey();
@@ -1267,7 +1231,7 @@ onBeforeUnmount(() => observer?.disconnect());
                 :code="messageOf(part.row, column)!.code"
                 :anchor="errorAnchor(part.row, column)"
                 @leave="hovered = null"
-                @dismiss="dismissed = shownError ?? dismissed"
+                @dismiss="errors.dismiss()"
                 @back="focusCell(part.index, c)"
                 @blur="focused = null"
               />
