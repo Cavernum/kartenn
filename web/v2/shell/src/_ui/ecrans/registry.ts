@@ -78,7 +78,13 @@ export const MOCKUPS: Mockup[] = [
       {
         id: "proprietes",
         label: "Propriétés",
-        description: "Onglet des propriétés résolues, explication d'une valeur héritée ouverte.",
+        description: "Onglet des propriétés résolues, sources et propriété attendue manquante.",
+      },
+      {
+        id: "explication",
+        label: "Explication",
+        description:
+          "Explication d'une valeur héritée ouverte (Popover) : d'où elle vient, le changeset qui l'a posée.",
       },
       {
         id: "historique",
@@ -193,7 +199,7 @@ export const MOCKUPS: Mockup[] = [
         id: "selecteur",
         label: "Sélecteur de date",
         description:
-          "Pastille de date ouverte sur le sélecteur (composant à venir), en surimpression : la page ne bouge pas.",
+          "Pastille de date ouverte sur le sélecteur de période (valide au, connu au, raccourcis), en surimpression : la page ne bouge pas.",
       },
       {
         id: "chronologie",

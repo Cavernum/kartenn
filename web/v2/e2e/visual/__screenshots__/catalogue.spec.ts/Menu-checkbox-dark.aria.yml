@@ -1,0 +1,13 @@
+- main:
+  - menu "Colonnes":
+    - text: ""
+    - menuitemcheckbox "Propriétaire" [checked]
+    - menuitemcheckbox "Occupation"
+    - menuitemcheckbox "Site" [checked]
+  - region "Menu":
+    - heading "Menu" [level=1]
+    - paragraph: "Motif : Menu Button, Menu"
+    - 'figure "checkbox — Entrées à cocher (menuitemcheckbox) : le menu reste ouvert quand on en coche une"':
+      - button "Colonnes" [expanded]
+      - code: checkbox
+      - text: ""

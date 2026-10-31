@@ -456,7 +456,7 @@ function toggleDraft(): void {
     background-color: var(--k-surface-raised);
     border: var(--k-border-width) solid var(--k-border-control);
     border-radius: var(--k-radius-md);
-    /* stylelint-disable-next-line kartenn/floating-shadow -- the stand-in of PeriodPicker, a floating layer */
+    /* stylelint-disable-next-line kartenn/floating-shadow -- the layer of PeriodPicker, floating (DatePill, task 23) */
     box-shadow: var(--k-shadow-modal);
   }
 

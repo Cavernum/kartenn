@@ -1,0 +1,42 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+/* The surface of a layer anchored to a control (design « Inventaire », line 16): the
+ * popover's, the menu's and the filter picker's, one rule. The surface, its elevation and
+ * its motion only: each layer sets its own size and padding. Shared, so in style.css (a
+ * sheet imported from a component would be a fragment the shell's build does not find). */
+@layer components {
+  .k-popover {
+    z-index: var(--k-z-overlay);
+    color: var(--k-text);
+    background-color: var(--k-surface);
+    border: var(--k-border-width) solid var(--k-border-strong);
+    border-radius: var(--k-radius-lg);
+    box-shadow: var(--k-shadow-overlay);
+    transition-property: opacity, translate;
+    transition-duration: max(var(--k-duration-short), var(--k-duration-fade));
+    transition-timing-function: var(--k-ease-standard);
+  }
+
+  /* Motion (design « Mouvement »): 4 px out of its anchor, then a fade. Interactive from
+   * its first frame; the focus is placed at once. */
+  @starting-style {
+    .k-popover {
+      opacity: 0;
+      translate: 0 calc(var(--k-motion-shift-sm) * -1);
+    }
+
+    .k-popover[data-side="top"] {
+      translate: 0 var(--k-motion-shift-sm);
+    }
+  }
+
+  .k-popover[data-state="closed"] {
+    pointer-events: none;
+    animation-name: k-fade-out;
+    animation-duration: var(--k-duration-fade);
+    animation-timing-function: var(--k-ease-exit);
+    animation-fill-mode: forwards;
+  }
+}

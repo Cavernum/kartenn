@@ -1,0 +1,22 @@
+- main:
+  - 'dialog "Propriétaire : valeur héritée"':
+    - 'heading "Propriétaire : valeur héritée" [level=2]'
+    - button "Fermer"
+    - paragraph:
+      - text: Héritée de
+      - code: /\d+\.\d+\.2\.0\/\d+/
+      - text: (Salle A), où elle est posée directement depuis la version v3 ; aucune règle ne la remplace ici.
+    - paragraph:
+      - text: Posée par le changeset
+      - button "Copier 01JD4K8B2C3D4E5F6G7H8J9K0M":
+        - text: ""
+        - code: 01JD4K8B2C3D4E5F6G7H8J9K0M
+      - status
+      - text: .
+  - region "Popover":
+    - heading "Popover" [level=1]
+    - paragraph: "Motif : Dialog non modal"
+    - 'figure "open — Ouvert : explication d''une valeur héritée, nommée par son titre, le focus sur elle"':
+      - button "Héritée" [expanded]
+      - code: open
+      - text: ""

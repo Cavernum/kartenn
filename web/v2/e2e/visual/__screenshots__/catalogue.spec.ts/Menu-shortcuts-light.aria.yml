@@ -1,0 +1,15 @@
+- main:
+  - menu "Menu de l'utilisateur":
+    - menuitem "Palette de commandes"
+    - menuitem "Raccourcis"
+    - separator
+    - text: Aller à
+    - menuitem "Préfixes"
+    - menuitem "Brouillons"
+  - region "Menu":
+    - heading "Menu" [level=1]
+    - paragraph: "Motif : Menu Button, Menu"
+    - 'figure "shortcuts — Raccourcis à droite : une combinaison (Ctrl K), une touche (?), une séquence (g puis p : deux touches, jamais une combinaison)"':
+      - button "Menu de l'utilisateur" [expanded]
+      - code: shortcuts
+      - text: ""

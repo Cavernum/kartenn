@@ -101,3 +101,32 @@ voir [`../README.md`](../README.md).
 - [x] 19. Propriétés sensibles : colonne versionnée, opération `SetSensitivity`, clés
   sensibles dans la lecture d'un objet — REQ-003-27 — verify : test de bout en bout avec
   la tâche 012-7 (amendement du 2026-10-17, P17)
+
+## P8 — Régression des budgets
+
+- [ ] 20. Budgets de REQ-003-26 repassés sous leurs seuils. Au banc pleine échelle du
+  2026-10-30 (graine 42, main 5d2da650), trois mesures dépassent :
+  - retrait des racines de 3 domaines (P10) : 1 197,8 s pour 60 s, contre 13,8 s le
+    2026-10-15 ;
+  - changement de valeur de toutes les racines : 10,72 s pour 10 s, contre 9,1 s ;
+  - résolution groupée 512 × 6 (N9, 016-4) : p95 de 38,2 ms pour 30 ms, contre 16,3 ms
+    au banc réduit du 2026-10-21.
+
+  Trouver la cause de chaque écart (régression de code, plan de requête, ou budget
+  jamais tenu à cette échelle), la corriger, puis écrire la cause et les nouvelles
+  mesures dans le design (§ « Banc REQ-003-26 », tableau des mesures) — REQ-003-26 —
+  verify : `K_BENCH_SCALE=full bench-properties` sans dépassement, lancé par la session
+  principale sur une machine sans autre agent ; si la cause est un plan de requête, un
+  test qui le fixe (correctifs voisins dc8d52f4, 9b3e83ca : plan générique après cinq
+  exécutions préparées)
+  - où : mesures de `crates/kartenn-bench/src/props.rs` (l. 298, 393, 465, 496) ;
+    écriture des origines et des valeurs dans `crates/kartenn-store-pg/src/write.rs`
+    (`objects_without_value` l. 2224 et voisins) ; `crates/kartenn-service/src/resolution.rs`
+    (l. 652), `declarations.rs` (l. 278) ; lecture groupée N9 de la 016 ; bissection sur
+    `git log --since=2026-10-15 -- crates/kartenn-store-pg crates/kartenn-service`
+    (suspects : 003-18 arbres `entity` et `site`, 016, 008-12, 024 « undo »)
+  - méthode : itérer au banc réduit (`bench-properties`, échelle par défaut, un seul à
+    la fois, `K_BENCH_STALL` laissé à 20 min) et par `EXPLAIN (ANALYZE, BUFFERS)` sur la
+    base du banc ; vérifier d'abord que le banc réduit reproduit l'écart en proportion.
+    Aucun banc pleine échelle par l'agent.
+  - dépend de : —

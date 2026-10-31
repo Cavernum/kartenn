@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { t, type MessageKey } from "../../i18n.ts";
+import { fill, t, type MessageKey } from "../../i18n.ts";
 import type { Suggest } from "../Combobox/combobox.ts";
 import type { ListOption } from "../Select/select.ts";
 
@@ -114,11 +114,6 @@ export function valueLabel(
   const option = property?.options?.find((o) => o.value === value);
   if (option) return option.label === option.value ? undefined : option.label;
   return property?.valueLabel?.(value);
-}
-
-/** A sentence of the library with its `{name}` holes filled. */
-function fill(key: MessageKey, values: Record<string, string | number> = {}): string {
-  return t(key).replace(/\{(\w+)\}/g, (_, name: string) => String(values[name] ?? ""));
 }
 
 // Addresses (RFC 791, RFC 4291 § 2.2) as integers, for the check of a prefix (its host

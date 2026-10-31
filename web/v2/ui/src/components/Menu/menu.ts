@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import type { IconName } from "../../icons/index.ts";
+import type { Shortcut } from "../ShortcutHint/shortcutHint.ts";
 
 /** An entry of a menu; a disabled one says why (design « Inventaire », line 11). */
 export interface MenuEntry {
@@ -10,8 +11,12 @@ export interface MenuEntry {
   id: string;
   label: string;
   icon?: IconName;
-  /** The shortcut shown at the end, as `KeyboardEvent.key` names the keys. */
-  shortcut?: string[];
+  /**
+   * The shortcut shown at the end, as `KeyboardEvent.key` names the keys: a combination
+   * (`["Mod", "k"]`, also in `aria-keyshortcuts`) or a sequence (`[["g"], ["p"]]`, « g
+   * puis p », in the entry's description: ARIA has no syntax for one).
+   */
+  shortcut?: Shortcut;
   /** Disabled: it stays in the menu and focusable (`aria-disabled`), with its reason. */
   disabled?: boolean;
   /** Why the entry is disabled: its tooltip and its description. */

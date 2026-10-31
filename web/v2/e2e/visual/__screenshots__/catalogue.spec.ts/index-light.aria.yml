@@ -58,6 +58,9 @@
         - link "DatePill":
           - /url: /_ui/c/DatePill?mode=light
       - listitem:
+        - link "DateTimeField":
+          - /url: /_ui/c/DateTimeField?mode=light
+      - listitem:
         - link "Dialog":
           - /url: /_ui/c/Dialog?mode=light
       - listitem:
@@ -117,6 +120,12 @@
       - listitem:
         - link "Menu":
           - /url: /_ui/c/Menu?mode=light
+      - listitem:
+        - link "PeriodPicker":
+          - /url: /_ui/c/PeriodPicker?mode=light
+      - listitem:
+        - link "Popover":
+          - /url: /_ui/c/Popover?mode=light
       - listitem:
         - link "Select":
           - /url: /_ui/c/Select?mode=light
@@ -185,6 +194,9 @@
       - listitem:
         - link "E2 Fiche d'un préfixe — Propriétés":
           - /url: /_ui/ecrans/E2?mode=light&vue=proprietes
+      - listitem:
+        - link "E2 Fiche d'un préfixe — Explication":
+          - /url: /_ui/ecrans/E2?mode=light&vue=explication
       - listitem:
         - link "E2 Fiche d'un préfixe — Historique":
           - /url: /_ui/ecrans/E2?mode=light&vue=historique

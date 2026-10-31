@@ -70,6 +70,7 @@ export type {
   MenuItem,
   MenuRadio,
 } from "./components/Menu/menu.ts";
+export { default as Popover } from "./components/Popover/Popover.vue";
 export { default as Dialog } from "./components/Dialog/Dialog.vue";
 export { default as AlertDialog } from "./components/AlertDialog/AlertDialog.vue";
 export { default as Drawer } from "./components/Drawer/Drawer.vue";
@@ -127,6 +128,10 @@ export type {
   FilterProperty,
   FilterType,
 } from "./components/FilterPicker/filters.ts";
+export { default as DateTimeField } from "./components/DateTimeField/DateTimeField.vue";
+export { default as PeriodPicker } from "./components/PeriodPicker/PeriodPicker.vue";
+export { checkEntry, parseEntry } from "./components/DateTimeField/dates.ts";
+export type { DateCheck, DateGranularity, Period } from "./components/DateTimeField/dates.ts";
 export { default as BarChart } from "./components/BarChart/BarChart.vue";
 export { default as BarList } from "./components/BarList/BarList.vue";
 export { layoutBars, niceCeil } from "./components/BarChart/chart.ts";

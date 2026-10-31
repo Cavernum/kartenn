@@ -27,6 +27,7 @@ import Combobox from "../Combobox/Combobox.vue";
 import { filterOptions, type Suggest } from "../Combobox/combobox.ts";
 import FilterChip from "../FilterChip/FilterChip.vue";
 import IconButton from "../IconButton/IconButton.vue";
+import { setRoom } from "../internal/room.ts";
 import Select from "../Select/Select.vue";
 import type { ListOption } from "../Select/select.ts";
 import TextField from "../TextField/TextField.vue";
@@ -308,11 +309,7 @@ watch(open, async (now) => {
   await nextTick();
   const surface = form.value?.closest<HTMLElement>(".k-filter-picker__popover");
   const rect = anchor.value?.getBoundingClientRect();
-  if (!surface || !rect) return;
-  const margin = 12;
-  const room = Math.max(window.innerHeight - rect.bottom, rect.top) - margin;
-  surface.style.setProperty("--k-filter-picker-room-inline", `${window.innerWidth - 2 * 8}px`);
-  surface.style.setProperty("--k-filter-picker-room-block", `${Math.max(room, 120)}px`);
+  if (surface && rect) setRoom(surface, rect, "filter-picker");
 });
 
 /** Closed by Escape or by « Appliquer » : back to what opened it; by a click outside, not. */
@@ -584,7 +581,7 @@ onMounted(() => {
     </PopoverAnchor>
     <PopoverPortal :to="portal">
       <PopoverContent
-        class="k-filter-picker__popover"
+        class="k-popover k-filter-picker__popover"
         side="bottom"
         align="start"
         :side-offset="4"
@@ -711,38 +708,14 @@ onMounted(() => {
     min-inline-size: 0;
   }
 
-  /* The surface of a floating layer, at the width of a narrow panel; its motion is the
-   * one of a menu (design « Mouvement »), 4 px out of its anchor, then a fade. */
+  /* At the width of a narrow panel; the surface and its motion are the popover's
+   * (`k-popover`, Popover/surface.css). */
   .k-filter-picker__popover {
-    z-index: var(--k-z-overlay);
     inline-size: var(--k-size-panel-md);
     max-inline-size: var(--k-filter-picker-room-inline, var(--k-size-panel-md));
     max-block-size: var(--k-filter-picker-room-block, var(--k-size-dialog-md));
     padding: var(--k-space-3);
     overflow: auto;
-    color: var(--k-text);
-    background-color: var(--k-surface);
-    border: var(--k-border-width) solid var(--k-border-strong);
-    border-radius: var(--k-radius-lg);
-    box-shadow: var(--k-shadow-overlay);
-    transition-property: opacity, translate;
-    transition-duration: max(var(--k-duration-short), var(--k-duration-fade));
-    transition-timing-function: var(--k-ease-standard);
-  }
-
-  @starting-style {
-    .k-filter-picker__popover {
-      opacity: 0;
-      translate: 0 calc(var(--k-motion-shift-sm) * -1);
-    }
-  }
-
-  .k-filter-picker__popover[data-state="closed"] {
-    pointer-events: none;
-    animation-name: k-fade-out;
-    animation-duration: var(--k-duration-fade);
-    animation-timing-function: var(--k-ease-exit);
-    animation-fill-mode: forwards;
   }
 
   .k-filter-picker__form,

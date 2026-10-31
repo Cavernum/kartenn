@@ -10,6 +10,7 @@ export const FLOATING = [
   "Select",
   "Combobox",
   "FilterPicker",
+  "DateTimeField",
   "PeriodPicker",
   "Dialog",
   "AlertDialog",

@@ -26,6 +26,7 @@ import { injectPortalTarget } from "../../context.ts";
 import { t } from "../../i18n.ts";
 import Icon from "../Icon/Icon.vue";
 import Kbd from "../Kbd/Kbd.vue";
+import ShortcutHint from "../ShortcutHint/ShortcutHint.vue";
 import type { PaletteGroup } from "./palette.ts";
 
 const props = defineProps<{ groups: PaletteGroup[]; loading?: boolean }>();
@@ -100,7 +101,7 @@ function onSelect(id: string): void {
                 <Icon v-if="item.icon" :name="item.icon" class="k-palette__icon" />
                 <span class="k-palette__text">{{ item.label }}</span>
                 <code v-if="item.detail" class="k-palette__detail">{{ item.detail }}</code>
-                <Kbd v-if="item.shortcut" :keys="item.shortcut" aria-hidden="true" />
+                <ShortcutHint v-if="item.shortcut" :keys="item.shortcut" aria-hidden="true" />
               </ComboboxItem>
             </ComboboxGroup>
           </ComboboxContent>

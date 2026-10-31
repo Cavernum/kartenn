@@ -154,8 +154,13 @@ Les routes de la 007 sont gardées (liens existants valides) ; s'ajoutent :
 | `/help/shortcuts` | aide des raccourcis (aussi `?`) | E8 |
 | `/_ui/*` | catalogue (hors production, 020) | — |
 
-Chaque route déclare `meta.queries(params, time)` (requêtes à précharger) et
-`meta.breadcrumb(params)`.
+Chaque route déclare `meta.queries(params, time, query)` (requêtes à précharger : `time`
+est le contexte daté de la cible, `query` sa requête, filtres d'une liste compris),
+`meta.breadcrumb(params)` et, pour une vue de plugin, `meta.modules(params)` (`base` et
+`integrity` du plugin, dont les `modulepreload` partent avec les lectures). Contexte daté
+de la cible : ses dates si elle en nomme ; sinon, au survol d'un lien, celles de la page
+(que la navigation reportera) ; dans la garde, qui suit celle du temps, le présent (retour
+explicite au présent).
 
 ## Raccourcis (REQ-021-7, 8)
 
