@@ -39,7 +39,7 @@
         - link "Rapports d'audit":
           - /url: /x/policy/reports
       - listitem: /rpt-\d+/
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -183,3 +183,5 @@
         - gridcell "policy.environment"
   - text: /\d+ sur \d+ · une page Pages de \d+, l'export les met bout à bout/
 - button "Ouvrir le panneau"
+- alert
+- status

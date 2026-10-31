@@ -27,7 +27,7 @@
         - link "Changesets":
           - /url: /changesets
       - listitem: Mes brouillons
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -71,3 +71,5 @@
             - button "Actions sur « Plan d'adressage de la salle C »"
     - text: /Un brouillon sans modification depuis \d+ jours est supprimé ; la date s'annonce une semaine avant\./
 - button "Ouvrir le panneau"
+- alert
+- status

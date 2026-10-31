@@ -37,7 +37,7 @@
           - /url: /x/policy
       - listitem: Effet d'un changement
       - listitem: 01JF3B6D8F
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -103,3 +103,5 @@
             - gridcell /\d+/
     - text: 2 sur 2
 - button "Ouvrir le panneau"
+- alert
+- status

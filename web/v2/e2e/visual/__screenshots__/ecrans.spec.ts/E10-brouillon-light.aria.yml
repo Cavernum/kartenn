@@ -33,7 +33,7 @@
         - link "Matrice":
           - /url: /x/policy/matrix
       - listitem: application
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -156,7 +156,7 @@
       - term: Conformes de nouveau
       - definition: "0"
       - status:
-        - paragraph: /\d+ flux deviennent non conformes à la matrice de leur type/
+        - paragraph: "/Avertissement : \\d+ flux deviennent non conformes à la matrice de leur type/"
         - text: Ils étaient conformes avant ce brouillon. Seuls les types de flux dont il change la matrice sont touchés ; la règle qui refuse chaque flux est dans sa liste.
       - region "Applicatif":
         - heading "Applicatif" [level=3]
@@ -244,3 +244,5 @@
   - button "Ajouter une description"
   - button "Soumettre en revue"
   - button "Choisir l'action"
+- alert
+- status

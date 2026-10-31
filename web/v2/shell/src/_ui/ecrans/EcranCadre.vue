@@ -8,7 +8,9 @@
 // never does. The surface is an isolated stacking context: its sticky headers never pass
 // over a panel nor over a floating layer. The draft counter opens
 // the panel on its draft tab, or closes it when open (its icon is then a cross); closed,
-// the panel leaves its strip at the end of the body, whose chevron reopens it. The real
+// the panel leaves its strip at the end of the body, whose chevron reopens it. The date
+// pill opens the period picker in its layer, and the band goes back to the present; the
+// palette (CommandPalette) opens from « Rechercher » or Ctrl+K. The real
 // frame is a task of the 021; here it only places components of @kartenn/ui (layout, no
 // look of its own).
 //
@@ -26,6 +28,7 @@
 import {
   BottomPanel,
   Breadcrumb,
+  CommandPalette,
   DatePill,
   DraftCounter,
   Drawer,
@@ -46,15 +49,17 @@ import {
   type MotionSetting,
   type DraftSummary,
   type MenuItem,
+  type Period,
   type SidebarGroup,
   type TabItem,
   type ToastInput,
   type WidthClass,
 } from "@kartenn/ui";
-import { computed, onBeforeUnmount, ref, useSlots, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, useSlots, watch } from "vue";
 import Brouillon from "./EcranBrouillon.vue";
 import Soumission from "./EcranSoumission.vue";
 import { DRAFTS } from "./donnees.ts";
+import { paletteFilter } from "./palette.ts";
 import { SPACES, closedBut } from "./sidebar.ts";
 
 const props = withDefaults(
@@ -65,10 +70,14 @@ const props = withDefaults(
     active: string;
     space: string;
     crumbs: Crumb[];
-    /** The instant read, out of the present (band and date pill). */
+    /** The validity date read (`valid_at`), out of the present (band and date pill). */
     at?: string | undefined;
-    /** The date pill open on its picker (slot `picker`, laid over the surface). */
+    /** The system date read (`as_of`): a read-only reading (band and date pill). */
+    asOf?: string | undefined;
+    /** The date pill open on its period picker, in its layer under it. */
     picker?: boolean;
+    /** The palette open (E8); otherwise « Rechercher » or Ctrl+K opens it. */
+    palette?: boolean;
     /** The operations of the active draft. */
     draft?: number;
     /** The right panel open on this tab at first; closed when unset. */
@@ -92,6 +101,7 @@ const props = withDefaults(
   }>(),
   {
     at: undefined,
+    asOf: undefined,
     draft: 3,
     panel: undefined,
     bottom: undefined,
@@ -182,6 +192,46 @@ const bottomTab = ref<string>(props.bottom?.[0]?.value ?? "");
 const besidePanel = computed(
   () => !slots.drawer && open.value && (width.value === "standard" || width.value === "wide"),
 );
+/**
+ * The dated context of the mock-up: the date pill applies a period, the band goes back to
+ * the present (the real frame writes them in the URL, spec 021).
+ */
+const period = ref<Period>({ validAt: props.at ?? null, asOf: props.asOf ?? null });
+
+/**
+ * The palette: open at first on E8, opened by « Rechercher » of the sidebar (from the
+ * drawer of the compact class, once it is closed) or Ctrl+K anywhere, as the shell will.
+ */
+const paletteOpen = ref(props.palette);
+const paletteQuery = ref("");
+const paletteGroups = computed(() => paletteFilter(paletteQuery.value));
+/**
+ * From the drawer, the palette opens once the drawer has closed and given the focus back
+ * to its button (at the end of its exit), which the palette gives it back to in turn.
+ */
+let paletteAfterNav = false;
+function openPalette(): void {
+  paletteQuery.value = "";
+  if (!navOpen.value) {
+    paletteOpen.value = true;
+    return;
+  }
+  paletteAfterNav = true;
+  navOpen.value = false;
+}
+function onNavFocus(): void {
+  if (!paletteAfterNav) return;
+  paletteAfterNav = false;
+  paletteOpen.value = true;
+}
+const onKey = (event: KeyboardEvent) => {
+  if (event.key.toLowerCase() !== "k" || !(event.ctrlKey || event.metaKey) || event.altKey) return;
+  event.preventDefault();
+  openPalette();
+};
+onMounted(() => document.addEventListener("keydown", onKey));
+onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
+
 /** The counter opens the panel on the draft, or closes it, whatever its tab. */
 function toggleDraft(): void {
   if (open.value) open.value = false;
@@ -207,6 +257,7 @@ function toggleDraft(): void {
       :groups="props.spaces"
       :active="props.active"
       :closed="closedBut(props.space)"
+      @palette="openPalette"
     />
     <Drawer
       v-if="width === 'compact'"
@@ -220,6 +271,7 @@ function toggleDraft(): void {
         :groups="props.spaces"
         :active="props.active"
         :closed="closedBut(props.space)"
+        @palette="openPalette"
       />
     </Drawer>
     <div class="k-ecran__column">
@@ -232,14 +284,16 @@ function toggleDraft(): void {
           aria-haspopup="dialog"
           :aria-expanded="navOpen ? 'true' : 'false'"
           @click="navOpen = true"
+          @focus="onNavFocus"
         />
         <Breadcrumb :items="props.crumbs" class="k-ecran__crumbs" />
         <div class="k-ecran__bar-end">
           <DatePill
-            :at="props.at ?? null"
+            :valid-at="period.validAt"
+            :as-of="period.asOf"
             :time-zone="ZONE"
-            :expanded="props.picker"
-            :aria-controls="slots.picker ? 'k-ecran-picker' : undefined"
+            :default-open="props.picker"
+            @apply="period = $event"
           />
           <DraftCounter
             :count="props.draft"
@@ -260,7 +314,12 @@ function toggleDraft(): void {
           />
         </div>
       </header>
-      <TimeBand v-if="props.at" :at="props.at" :time-zone="ZONE" />
+      <TimeBand
+        :valid-at="period.validAt"
+        :as-of="period.asOf"
+        :time-zone="ZONE"
+        @present="period = { validAt: null, asOf: null }"
+      />
       <div class="k-ecran__body">
         <!-- The surface and, under it, the bottom panel: it takes height, never width. -->
         <div class="k-ecran__work">
@@ -315,10 +374,12 @@ function toggleDraft(): void {
           </template>
         </SidePanel>
       </div>
-      <div v-if="slots.picker" id="k-ecran-picker" class="k-ecran__picker">
-        <slot name="picker" />
-      </div>
     </div>
+    <CommandPalette
+      v-model:open="paletteOpen"
+      v-model:query="paletteQuery"
+      :groups="paletteGroups"
+    />
     <ToastRegion />
     <div id="k-ecran-layers" class="k-ecran__layers"></div>
   </div>
@@ -453,25 +514,6 @@ function toggleDraft(): void {
     overflow: auto;
     isolation: isolate;
     container: k-surface / inline-size;
-  }
-
-  /* The period picker, laid over the band and the surface under the date pill, out of the
-   * flow: the page does not move (024/M15). It reads as laid on top (relecture du
-   * 2026-10-26, E6): the shadow of the upper level, a contrasted border, a background of
-   * its own, in both modes. */
-  .k-ecran__picker {
-    position: absolute;
-    inset-block-start: calc(var(--k-size-status-bar) + var(--k-space-1));
-    inset-inline-end: var(--k-space-2);
-    z-index: var(--k-z-overlay);
-    max-inline-size: calc(100% - var(--k-space-4));
-    max-block-size: calc(100% - var(--k-size-status-bar) - var(--k-space-2));
-    overflow: auto;
-    background-color: var(--k-surface-raised);
-    border: var(--k-border-width) solid var(--k-border-control);
-    border-radius: var(--k-radius-md);
-    /* stylelint-disable-next-line kartenn/floating-shadow -- the layer of PeriodPicker, floating (DatePill, task 23) */
-    box-shadow: var(--k-shadow-modal);
   }
 
   .k-ecran__layers {

@@ -39,10 +39,11 @@
         - link "Matrice":
           - /url: /x/policy/matrix
       - listitem: application
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
+- status
 - main:
   - heading "Matrice de politique applicatif" [level=1]
   - status:
@@ -115,3 +116,5 @@
       - listitem: cellule choisie
     - text: "Flèches : de cellule en cellule · Entrée : choisir · Ctrl+Entrée : appliquer la seule cellule"
 - button "Ouvrir le panneau"
+- alert
+- status

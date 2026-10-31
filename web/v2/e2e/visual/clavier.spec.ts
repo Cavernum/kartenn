@@ -190,6 +190,94 @@ test.describe("Compact frame (390 px)", () => {
     await expect(counter).toBeFocused();
     await expect(page.locator(".k-ecran__work")).toHaveJSProperty("inert", false);
   });
+
+  test("E6: the layer of the date pill covers the page; the focus leaving closes it", async ({
+    page,
+  }) => {
+    await page.goto("/_ui/ecrans/E6?vue=selecteur");
+    const layer = page.getByRole("dialog", { name: "Lire à une date" });
+    await expect(layer).toBeVisible();
+    const pill = page.getByRole("button", { name: /^Date de lecture/ });
+    await expect(pill).toHaveAttribute("aria-expanded", "true");
+    // Past its last control, the focus goes on to what follows the pill, never behind it.
+    const apply = layer.getByRole("button", { name: "Appliquer" });
+    await apply.focus();
+    await page.keyboard.press("Tab");
+    await expect(layer).toHaveCount(0);
+    await expect(page.getByRole("button", { name: COUNTER.name })).toBeFocused();
+    // Reopened, Escape gives the focus back to the pill.
+    await pill.focus();
+    await page.keyboard.press("Enter");
+    await expect(layer).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(layer).toHaveCount(0);
+    await expect(pill).toBeFocused();
+  });
+
+  test("« Rechercher » of the drawer opens the palette once the drawer is closed", async ({
+    page,
+  }) => {
+    await page.goto("/_ui/ecrans/E3?vue=edition");
+    const nav = page.getByRole("button", { name: "Navigation principale" });
+    await nav.focus();
+    await page.keyboard.press("Enter");
+    const drawer = page.getByRole("dialog", { name: "Navigation principale" });
+    await drawer.getByRole("button", { name: /^Rechercher/ }).click();
+    const palette = page.getByRole("dialog", { name: "Palette de commandes" });
+    const field = palette.getByRole("combobox");
+    await expect(field).toBeFocused();
+    await expect(drawer).toBeHidden();
+    // Still there once every layer has settled: the drawer took nothing back.
+    await page.waitForTimeout(400);
+    await expect(field).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(palette).toHaveCount(0);
+    await expect(nav).toBeFocused();
+  });
+
+  test("E6: the band goes back to the present; the pill says it", async ({ page }) => {
+    await page.goto("/_ui/ecrans/E6?vue=chronologie");
+    const band = page.getByRole("status").filter({ hasText: "brouillon daté possible" });
+    await expect(band).toBeVisible();
+    await page.getByRole("button", { name: "Revenir au présent" }).click();
+    await expect(band).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^Date de lecture/ })).toHaveAccessibleName(
+      "Date de lecture : Présent",
+    );
+  });
+});
+
+test.describe("Palette of the frame (Ctrl+K)", () => {
+  test("Ctrl+K opens it over any screen; Enter runs the first entry; the focus back", async ({
+    page,
+  }) => {
+    await page.goto("/_ui/ecrans/E3?vue=edition");
+    const counter = page.getByRole("button", { name: /^Brouillon\s*\d+\s*opération/ });
+    await counter.focus();
+    await page.keyboard.press("Control+k");
+    const palette = page.getByRole("dialog", { name: "Palette de commandes" });
+    await expect(palette).toBeVisible();
+    await page.keyboard.type("192.0.2.64");
+    await expect(palette.getByRole("status")).toHaveText("1 résultat");
+    await expect(palette.getByRole("option", { selected: true })).toContainText("Supervision");
+    await page.keyboard.press("Enter");
+    await expect(palette).toHaveCount(0);
+    await expect(counter).toBeFocused();
+  });
+
+  test("« Rechercher » of the sidebar opens it; Escape gives the focus back", async ({ page }) => {
+    await page.goto("/_ui/ecrans/E3?vue=edition");
+    const search = page
+      .getByRole("navigation", { name: "Navigation principale" })
+      .getByRole("button", { name: /^Rechercher/ });
+    await search.focus();
+    await page.keyboard.press("Enter");
+    const palette = page.getByRole("dialog", { name: "Palette de commandes" });
+    await expect(palette.getByRole("combobox")).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(palette).toHaveCount(0);
+    await expect(search).toBeFocused();
+  });
 });
 
 test.describe("Narrow frame (768 px)", () => {

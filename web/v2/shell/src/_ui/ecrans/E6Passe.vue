@@ -1,13 +1,11 @@
 <script setup lang="ts">
 // E6 — Lecture au passé (design « Maquettes »; 021, « Cadre » : bande, « Édition en
 // place » : hors présent; 024/M14, M15): the amber band, the date pill open on the period
-// picker (`PeriodPicker`, task 20), laid over the page (a non-modal dialog in the `picker`
-// slot of the frame, out of the flow under the date pill: the page does not move), writes
-// greyed with their reason in their tooltip, the chronology of versions with the one valid
-// at the date read.
+// picker (`DatePill`, its non-modal layer under it, over the page: the page does not
+// move), writes greyed with their reason in their tooltip, the chronology of versions with
+// the one valid at the date read.
 import {
   DataGrid,
-  PeriodPicker,
   StatusBadge,
   type GridColumn,
   type GridSort,
@@ -131,23 +129,5 @@ const sort = ref<GridSort>({ column: "version", direction: "descending" });
         </template>
       </DataGrid>
     </Panneau>
-    <!-- The picker lies over the page, under the date pill: the page keeps its layout. -->
-    <template v-if="picker" #picker>
-      <div role="dialog" aria-labelledby="k-ecran-periode" class="k-ecran-surimpression">
-        <PeriodPicker title-id="k-ecran-periode" :valid-at="PAST" time-zone="Europe/Paris" />
-      </div>
-    </template>
   </Cadre>
 </template>
-
-<style>
-@layer components {
-  /* A non-modal layer: the frame lays it under the date pill, over the band and the page,
-   * and gives it the look of a layer on top (`.k-ecran__picker`). */
-  .k-ecran-surimpression {
-    inline-size: var(--k-size-panel-lg);
-    max-inline-size: 100%;
-    padding: var(--k-space-3);
-  }
-}
-</style>

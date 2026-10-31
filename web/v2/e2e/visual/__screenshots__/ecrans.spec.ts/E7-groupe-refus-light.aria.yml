@@ -42,7 +42,7 @@
         - link "Groupes":
           - /url: /admin/groups
       - listitem: astreinte
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -125,3 +125,5 @@
       - button "Ajouter un rôle" [disabled]
   - button "Largeur du panneau"
   - button "Fermer le panneau"
+- alert
+- status

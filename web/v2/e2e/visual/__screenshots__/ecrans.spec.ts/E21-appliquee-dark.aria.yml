@@ -33,7 +33,7 @@
         - link "Registre":
           - /url: /x/flow/flows
       - listitem: Proposition envoyée
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -81,3 +81,5 @@
               - /url: /_ui/ecrans/E22?vue=fiche&mode=dark
     - text: 2 flux · changeset appliqué
 - button "Ouvrir le panneau"
+- alert
+- status

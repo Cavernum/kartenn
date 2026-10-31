@@ -42,7 +42,7 @@
         - link "Paramètres":
           - /url: /admin/settings
       - listitem: Politique
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -296,3 +296,5 @@
     - definition: /\d+-\d+-\d+/
   - button "Largeur du panneau"
   - button "Fermer le panneau"
+- alert
+- status

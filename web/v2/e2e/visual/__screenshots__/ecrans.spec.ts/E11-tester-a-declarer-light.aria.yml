@@ -27,7 +27,7 @@
         - link "Registre":
           - /url: /x/flow/flows
       - listitem: Tester une connexion
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -128,3 +128,5 @@
               - text: ""
               - code: bdd-meme-env
 - button "Ouvrir le panneau"
+- alert
+- status

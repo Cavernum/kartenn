@@ -48,7 +48,7 @@
         - link "Référentiel":
           - /url: /
       - listitem: Adresses
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -108,7 +108,7 @@
         - insertion: "après : Atelier Sud"
         - button /Retirer l'opération « Propriétaire » sur \d+\.\d+\.\d+\.\d+/
         - alert:
-          - paragraph: "/\\d+\\.\\d+\\.\\d+\\.\\d+ : refusée par la simulation/"
+          - paragraph: "/Erreur : \\d+\\.\\d+\\.\\d+\\.\\d+ : refusée par la simulation/"
           - list:
             - listitem:
               - text: « Atelier Sud » n'est pas une entité connue.
@@ -122,7 +122,7 @@
         - insertion: "ajouté : Hôte, Service Pilote"
         - button /Retirer l'opération « Créer l'adresse » sur \d+\.\d+\.\d+\.\d+/
         - alert:
-          - paragraph: "/\\d+\\.\\d+\\.\\d+\\.\\d+ : refusée par la simulation/"
+          - paragraph: "/Erreur : \\d+\\.\\d+\\.\\d+\\.\\d+ : refusée par la simulation/"
           - list:
             - listitem:
               - text: /L'adresse sort du réseau \d+\.\d+\.2\.0\/\d+ qui devait la contenir\./
@@ -138,3 +138,5 @@
   - button "Ajouter une description"
   - button "Enregistrer le brouillon"
   - button "Choisir l'action"
+- alert
+- status

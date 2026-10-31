@@ -36,7 +36,7 @@
         - link "Politique":
           - /url: /x/policy
       - listitem: Catalogue
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -98,3 +98,5 @@
   - button "Annuler"
   - button "Ajouter au brouillon" [disabled]
   - button "Choisir l'action"
+- alert
+- status

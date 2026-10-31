@@ -27,7 +27,7 @@
         - link "Changesets":
           - /url: /changesets
       - listitem: Renumérotation salle B
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -136,3 +136,5 @@
           - deletion: "avant : site-ouest"
           - insertion: "après : site-est"
 - button "Ouvrir le panneau"
+- alert
+- status

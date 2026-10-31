@@ -26,6 +26,9 @@
       - link "Émetteurs":
         - /url: /admin/issuers
     - listitem:
+      - link "Paramètres":
+        - /url: /admin/settings
+    - listitem:
       - link "Audit":
         - /url: /admin/audit
   - button "Barre latérale" [expanded]
@@ -39,7 +42,7 @@
         - link "Groupes":
           - /url: /admin/groups
       - listitem: supervision
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 4 opérations" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -147,3 +150,5 @@
       - button "Ajouter un rôle"
   - button "Largeur du panneau"
   - button "Fermer le panneau"
+- alert
+- status

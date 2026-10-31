@@ -54,7 +54,7 @@
         - link "Préfixes":
           - /url: /prefixes
       - listitem: /\d+\.\d+\.\d+\.\d+\/\d+/
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -161,3 +161,5 @@
     - term: Groupe
     - definition: campus-ouest
 - button "Ouvrir le panneau"
+- alert
+- status

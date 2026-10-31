@@ -45,7 +45,7 @@
   - navigation "Fil d'Ariane":
     - list:
       - listitem: Accueil
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -229,3 +229,5 @@
     - time: il y a 2 min
     - text: ", relus à chaque changement."
 - button "Ouvrir le panneau"
+- alert
+- status

@@ -39,16 +39,17 @@
         - link "Matrice":
           - /url: /x/policy/matrix
       - listitem: application
-  - button /3 nov\. \d+, \d+:\d+ Europe\/Paris/:
+  - 'button /Date de lecture : Connu au 3 nov\. \d+, \d+:\d+ Europe\/Paris/':
+    - text: ""
     - time: /3 nov\. \d+, \d+:\d+/
     - text: ""
   - button "Brouillon 0 opération" [expanded]
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
 - status:
-  - text: Lecture au
+  - text: État connu au
   - time: /3 nov\. \d+, \d+:\d+/
-  - text: (Europe/Paris)
+  - text: (Europe/Paris) — lecture seule
 - button "Revenir au présent"
 - main:
   - heading "Matrice de politique applicatif" [level=1]
@@ -130,3 +131,5 @@
   - button "Fermer le panneau"
   - button "Appliquer seule" [disabled]
   - button "Ajouter au brouillon" [disabled]
+- alert
+- status

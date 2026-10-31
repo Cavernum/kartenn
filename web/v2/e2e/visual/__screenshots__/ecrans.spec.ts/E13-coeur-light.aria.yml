@@ -42,7 +42,7 @@
         - link "Paramètres":
           - /url: /admin/settings
       - listitem: Cœur
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -198,3 +198,5 @@
         - paragraph: Clé figée après création · Entrée vers le brouillon · Échap annuler
     - text: Au présent Toute modification va au brouillon, puis à un changeset
 - button "Ouvrir le panneau"
+- alert
+- status

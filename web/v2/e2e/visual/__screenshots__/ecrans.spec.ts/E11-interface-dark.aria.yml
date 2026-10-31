@@ -33,7 +33,7 @@
         - link /srv-app-\d+/:
           - /url: /x/machines/srv-app-01
       - listitem: eth0
-  - button "Présent"
+  - 'button "Date de lecture : Présent"'
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
@@ -146,3 +146,5 @@
             - code: https
             - text: Applicatif Conforme
 - button "Ouvrir le panneau"
+- alert
+- status
