@@ -101,7 +101,12 @@ describe("builds of the shell", () => {
     // A sheet of a component split out of the chunk of the library (a lazy screen, the
     // catalogue) is linked before the library's: without this one first, it would declare
     // `components` first, under `reset` (REQ-020-12).
-    const layers = /@layer reset, tokens, base, components, plugins, utilities;/;
+    // The statement of @kartenn/ui itself, whatever its layers become.
+    const declared = /@layer [^;{]+;/.exec(
+      readFileSync(join(root, "../ui/src/styles/layers.css"), "utf8"),
+    )?.[0];
+    expect(declared).toBeDefined();
+    const layers = new RegExp(declared!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
     for (const { outDir, html } of [production, catalogue]) {
       const sheets = [...html.matchAll(/<link rel="stylesheet"[^>]* href="([^"]+)"/g)];
       expect(sheets[0]?.[1]).toBe("/boot.css");

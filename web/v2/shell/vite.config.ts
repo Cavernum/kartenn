@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import vue from "@vitejs/plugin-vue";
 import type { Plugin, ResolvedConfig } from "vite";
 import { defineConfig } from "vitest/config";
@@ -18,10 +19,18 @@ const SHARED = [
 ];
 /** The sheet of @kartenn/ui, as a module of the build. */
 const UI_SHEET = /\/ui\/src\/style\.css(\?|$)/;
-/** Every module of @kartenn/ui (its scripts, components and sheets). */
-const UI_SOURCES = /\/web\/v2\/ui\/src\//;
-/** The modules of Vue (`vue` and its `@vue/*` packages). */
-const VUE_SOURCES = /\/node_modules\/(vue|@vue)\//;
+/**
+ * Every module of @kartenn/ui (its scripts, components and sheets): under the sources of
+ * the package beside the shell, wherever the workspace lies (`web/v2` until the switch,
+ * `web` after it, task 27).
+ */
+const UI_ROOT = fileURLToPath(new URL("../ui/src/", import.meta.url));
+const UI_SOURCES = (id: string) => id.startsWith(UI_ROOT);
+/**
+ * The runtime of Vue (`vue` and its `@vue/*` packages), without the devtools of
+ * vue-router and vue-i18n, which are no part of what the import map shares.
+ */
+const VUE_SOURCES = /\/node_modules\/(vue|@vue\/(?!devtools-)[^/]+)\//;
 const IMPORT_MAP = /<script type="importmap">([\s\S]*?)<\/script>/;
 const PLACEHOLDER = "<!--kartenn-import-map-->";
 
@@ -195,13 +204,13 @@ function preloadFont(): Plugin {
 export default defineConfig(({ mode }) => ({
   plugins: [vue(), preloadFont(), sharedModules()],
   define: {
-    // vue-i18n (W11, as web/shell): composition API only; messages compiled to an AST at
-    // run time (JIT, no eval nor new Function: CSP without 'unsafe-eval'), so the message
-    // compiler stays in the build for the catalogs of plugins.
+    // vue-i18n (W11, as web/shell): composition API only, no devtools. Its message
+    // compiler stays in the build (`__INTLIFY_DROP_MESSAGE_COMPILER__` false): the catalogs
+    // are compiled when first read, without eval nor new Function (CSP), and the design
+    // (« Pile retenue ») asks for them precompiled instead — left to arbitration, task 9.
     __VUE_I18N_FULL_INSTALL__: true,
     __VUE_I18N_LEGACY_API__: false,
     __INTLIFY_PROD_DEVTOOLS__: false,
-    __INTLIFY_JIT_COMPILATION__: true,
     __INTLIFY_DROP_MESSAGE_COMPILER__: false,
   },
   build: {
