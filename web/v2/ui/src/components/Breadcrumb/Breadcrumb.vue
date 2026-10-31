@@ -9,6 +9,7 @@
 // (an identifier, a prefix). Short of room, a crumb is cut by an ellipsis: its whole
 // label comes in a tooltip under the pointer and the keyboard focus (decorative: the link
 // keeps its whole name), never a text cut with no way to read it.
+import { computed, type ComponentPublicInstance } from "vue";
 import { t } from "../../i18n.ts";
 import Icon from "../Icon/Icon.vue";
 import LinkTo from "../internal/LinkTo.vue";
@@ -19,19 +20,21 @@ import type { Crumb } from "./breadcrumb.ts";
 const props = defineProps<{ items: Crumb[]; label?: string }>();
 
 const tip = useTooltip();
-/** Whether the crumb the pointer or the focus came to is cut, measured as it comes. */
-let cut = false;
-const shared = tip.listeners(() => cut, { pin: () => false, passEscape: () => true });
-const listeners = Object.fromEntries(
-  Object.entries(shared).map(([name, listener]) => [
-    name,
-    (event: Event) => {
-      const el = event.currentTarget as HTMLElement;
-      cut = el.scrollWidth > el.clientWidth;
-      listener(event);
-    },
-  ]),
+/** The links, by index: each says whether it is cut, measured as the pointer or focus comes. */
+const links: (HTMLElement | null)[] = [];
+const isCut = (i: number) => {
+  const el = links[i];
+  return !!el && el.scrollWidth > el.clientWidth;
+};
+/** The listeners of each crumb: its tooltip only while its own label is cut. */
+const listeners = computed(() =>
+  props.items.map((_, i) =>
+    tip.listeners(() => isCut(i), { pin: () => false, passEscape: () => true }),
+  ),
 );
+function linkRef(i: number, link: unknown): void {
+  links[i] = ((link as ComponentPublicInstance | null)?.$el as HTMLElement | undefined) ?? null;
+}
 </script>
 
 <template>
@@ -48,10 +51,11 @@ const listeners = Object.fromEntries(
         >
         <LinkTo
           v-else-if="item.to"
+          :ref="(link: unknown) => linkRef(i, link)"
           :to="item.to"
           class="k-breadcrumb__link"
           :class="{ 'k-mono': item.mono }"
-          v-on="listeners"
+          v-on="listeners[i]"
           >{{ item.label }}</LinkTo
         >
         <span v-else class="k-breadcrumb__text" :class="{ 'k-mono': item.mono }">{{

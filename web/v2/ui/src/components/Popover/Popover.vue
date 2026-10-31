@@ -13,10 +13,10 @@
 // the focus back to the trigger. Nothing around it is hidden or inert: it reads as if it
 // followed its trigger in the tab order (Shift+Tab from its start goes back to the
 // trigger, Tab past its end to what follows the trigger), and closes as the focus leaves
-// it. Bounded by the viewport, its body scrolls (1.4.10); it stays in the viewport even when
+// it. Bounded by the viewport, its body scrolls (1.4.10), a tab stop while it does; it stays in the viewport even when
 // its trigger is scrolled out of it (a cell of a grid scrolled sideways: `sticky`).
 import { PopoverClose, PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from "reka-ui";
-import { ref, useId, type ComponentPublicInstance } from "vue";
+import { onBeforeUnmount, ref, useId, watch, type ComponentPublicInstance } from "vue";
 import { injectPortalTarget } from "../../context.ts";
 import { t } from "../../i18n.ts";
 import IconButton from "../IconButton/IconButton.vue";
@@ -44,6 +44,22 @@ const trigger = ref<ComponentPublicInstance | null>(null);
 const triggerEl = () => trigger.value?.$el as HTMLElement | undefined;
 /** Left by Tab or Shift+Tab: where the focus goes once it is closed. */
 let leaving: HTMLElement | undefined;
+
+/**
+ * A body that scrolls (a narrow or zoomed viewport, 1.4.10) is reached by Tab and scrolled
+ * by the arrows (2.1.1): a tab stop, a group named by the title, while it overflows.
+ */
+const body = ref<HTMLElement | null>(null);
+const scrolls = ref(false);
+let watcher: ResizeObserver | undefined;
+watch(body, (el) => {
+  watcher?.disconnect();
+  scrolls.value = false;
+  if (!el) return;
+  watcher = new ResizeObserver(() => (scrolls.value = el.scrollHeight > el.clientHeight));
+  for (const part of [el, ...el.children]) watcher.observe(part);
+});
+onBeforeUnmount(() => watcher?.disconnect());
 
 /**
  * Open, the focus goes to the dialog itself, which Reka names after its trigger: named
@@ -118,7 +134,13 @@ function onKey(event: KeyboardEvent): void {
             <IconButton icon="x" :label="t('close')" size="sm" variant="ghost" />
           </PopoverClose>
         </header>
-        <div class="k-popover__body"><slot /></div>
+        <div
+          ref="body"
+          class="k-popover__body"
+          v-bind="scrolls ? { tabindex: 0, role: 'group', 'aria-labelledby': titleId } : {}"
+        >
+          <slot />
+        </div>
       </PopoverContent>
     </PopoverPortal>
   </PopoverRoot>
@@ -129,8 +151,10 @@ function onKey(event: KeyboardEvent): void {
   .k-popover__dialog {
     --k-popover-size: var(--k-size-panel-md);
 
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
+    /* A column: under a bounded height (no definite one), the body shrinks and scrolls; a
+     * grid track of `1fr` would keep its content's height and spill out. */
+    display: flex;
+    flex-direction: column;
     gap: var(--k-space-2);
     inline-size: var(--k-popover-size);
     max-inline-size: var(--k-popover-room-inline, var(--k-popover-size));
@@ -149,6 +173,7 @@ function onKey(event: KeyboardEvent): void {
 
   .k-popover__header {
     display: flex;
+    flex: none;
     gap: var(--k-space-2);
     align-items: center;
     justify-content: space-between;
@@ -166,6 +191,7 @@ function onKey(event: KeyboardEvent): void {
 
   .k-popover__body {
     display: grid;
+    flex: 1 1 auto;
     gap: var(--k-space-2);
     align-content: start;
     min-block-size: 0;

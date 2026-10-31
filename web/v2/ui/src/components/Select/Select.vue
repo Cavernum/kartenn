@@ -32,6 +32,7 @@ import type { IconName } from "../../icons/index.ts";
 import { t } from "../../i18n.ts";
 import FormField from "../FormField/FormField.vue";
 import Icon from "../Icon/Icon.vue";
+import { besideInTabOrder } from "../internal/tabOrder.ts";
 import type { ControlSize } from "../layout.ts";
 import type { ListOption } from "./select.ts";
 
@@ -66,9 +67,6 @@ const portal = injectPortalTarget();
 const id = useId();
 const open = ref(props.defaultOpen && !props.readonly && !props.disabled);
 const trigger = ref<ComponentPublicInstance | null>(null);
-const TABBABLE =
-  "a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), " +
-  "textarea:not(:disabled), [tabindex]:not([tabindex='-1'])";
 
 // Closed, Reka leaves an empty <div> where its list goes (its options live in a detached
 // fragment, for the value and the typing ahead): it stays in place, in the field, rather
@@ -105,10 +103,7 @@ function onClosed(event: Event): void {
   tabbed = 0;
   if (!button) return;
   event.preventDefault();
-  const all = [...document.querySelectorAll<HTMLElement>(TABBABLE)].filter(
-    (el) => el === button || (el.tabIndex >= 0 && el.getClientRects().length > 0),
-  );
-  (all[all.indexOf(button) + step] ?? button).focus();
+  (besideInTabOrder(button, step) ?? button).focus();
 }
 
 function onChoose(next: unknown): void {

@@ -2,12 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { defineComponent, h, ref, type Component } from "vue";
+import { defineComponent, h, ref, type Component, type FunctionalComponent } from "vue";
 import type { CatalogueEntry } from "../../catalogue.ts";
 import { ids, prefixes, problems } from "../../fixtures/index.ts";
 import Button from "../Button/Button.vue";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
+import Dialog from "../Dialog/Dialog.vue";
 import IconButton from "../IconButton/IconButton.vue";
+import Menu from "../Menu/Menu.vue";
 import Stack from "../Stack/Stack.vue";
 import TextField from "../TextField/TextField.vue";
 import Popover from "./Popover.vue";
@@ -33,6 +35,36 @@ const Inherited = defineComponent({
         {
           trigger: () => h(Button, { variant: "ghost", size: "sm", icon: "info" }, () => "Héritée"),
           default: explanation,
+        },
+      );
+  },
+});
+
+/** The versions an inherited value went through: a body longer than the room it has. */
+const versions = [
+  ["v1", "2025-03-17", "import initial, sans propriétaire"],
+  ["v2", "2025-06-01", "propriétaire posé sur 192.0.2.0/24 (Atelier Sud)"],
+  ["v3", "2025-09-12", "propriétaire corrigé sur 192.0.2.0/24 (Atelier Nord)"],
+  ["v4", "2025-12-02", "192.0.2.64/26 découpé, la valeur héritée sans changement"],
+  ["v5", "2026-02-10", "règle env-par-site ajoutée, elle ne touche pas au propriétaire"],
+  ["v6", "2026-05-04", "192.0.2.0/24 rattaché au site ouest"],
+] as const;
+
+/** A long explanation: the body scrolls in the room left by the viewport, a tab stop then. */
+const Long = defineComponent({
+  props: { defaultOpen: Boolean },
+  setup(props) {
+    return () =>
+      h(
+        Popover as Component,
+        { title: "Propriétaire : historique de la valeur", defaultOpen: props.defaultOpen },
+        {
+          trigger: () =>
+            h(Button, { variant: "ghost", size: "sm", icon: "clock" }, () => "Historique"),
+          default: () =>
+            versions.map(([version, date, what]) =>
+              h("p", null, [h("code", null, version), ` (${date}) : ${what}.`]),
+            ),
         },
       );
   },
@@ -95,6 +127,32 @@ const Keyboard = defineComponent({
   },
 });
 
+/**
+ * A popover and a menu in a modal dialog, the menu its last control (keyboard scripts of
+ * Popover and Menu): leaving either by Tab stays in the dialog and goes round, as its trap.
+ */
+const InDialog: FunctionalComponent = () =>
+  h(
+    Dialog as Component,
+    { title: "Propriétés du préfixe", open: true },
+    {
+      default: () =>
+        h(Stack, { gap: "3" }, () => [
+          h(TextField, { label: "Nom" }),
+          h("div", null, [h(Inherited)]),
+          h("div", null, [
+            h(Menu, {
+              label: "Actions",
+              items: [
+                { id: "copy", label: "Copier l'identifiant", icon: "copy" },
+                { id: "history", label: "Historique", icon: "clock" },
+              ],
+            }),
+          ]),
+        ]),
+    },
+  );
+
 export default {
   component: Popover,
   pattern: "Dialog non modal",
@@ -121,10 +179,26 @@ export default {
       isolated: true,
     },
     {
+      name: "long",
+      description:
+        "Corps long : dans une fenêtre basse (zoom à 400 %), il défile, et devient alors un arrêt de tabulation nommé par le titre",
+      props: { defaultOpen: true },
+      demo: Long,
+      isolated: true,
+    },
+    {
       name: "keyboard",
       description: "Au clavier : ouvrir, parcourir, fermer, sortir par Tab ou Maj+Tab",
       props: {},
       demo: Keyboard,
+    },
+    {
+      name: "in-dialog",
+      description:
+        "Dans un dialogue modal, avec un menu en dernier contrôle : Tab qui en sort reste dans le dialogue",
+      props: {},
+      demo: InDialog,
+      isolated: true,
     },
   ],
 } satisfies CatalogueEntry;

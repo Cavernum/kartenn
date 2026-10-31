@@ -16,6 +16,11 @@
         - /url: /_ui/c/Popover?mode=dark&densite=confortable&etat=code
       - code: code
       - text: ""
+    - 'figure /long — Corps long : dans une fenêtre basse \(zoom à \d+ %\), il défile, et devient alors un arrêt de tabulation nommé par le titre/':
+      - link "Voir l'état long seul":
+        - /url: /_ui/c/Popover?mode=dark&densite=confortable&etat=long
+      - code: long
+      - text: ""
     - 'figure "keyboard — Au clavier : ouvrir, parcourir, fermer, sortir par Tab ou Maj+Tab"':
       - text: Préfixe
       - textbox "Préfixe"
@@ -23,4 +28,9 @@
       - text: Description
       - textbox "Description"
       - code: keyboard
+      - text: ""
+    - 'figure "in-dialog — Dans un dialogue modal, avec un menu en dernier contrôle : Tab qui en sort reste dans le dialogue"':
+      - link "Voir l'état in-dialog seul":
+        - /url: /_ui/c/Popover?mode=dark&densite=confortable&etat=in-dialog
+      - code: in-dialog
       - text: ""
