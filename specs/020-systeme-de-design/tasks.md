@@ -724,11 +724,56 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     catalogue est en tête de `main` (le dialogue avant son déclencheur en mode lecture) ;
     `.k-list` de `Select` garde sa surface recopiée ; lecture au lecteur d'écran (dialogue
     nommé, séquence « g puis p » en description) à faire.
-- [ ] 22. `Dialog`, `AlertDialog`, `Drawer` (modal), `Toast` — le panneau non modal est
+- [x] 22. `Dialog`, `AlertDialog`, `Drawer` (modal), `Toast` — le panneau non modal est
   `SidePanel` (024, tâche 10) — verify :
   focus piégé et rendu ; Échap ; toast d'erreur persistant, pause au survol (2.2.1)
   - où : `web/shell/src/draft/DraftDrawer.vue`, `admin/SecretDialog.vue` (usages actuels)
   - dépend de : 21
+  - fait : `Dialog`, `AlertDialog`, `Drawer` : `aria-modal="true"` écrit (Reka ne le pose
+    pas) ; déclencheur du slot `trigger` fait déclencheur de Reka (`aria-haspopup="dialog"`,
+    `aria-expanded` ; `ExpandableGrid` ne l'enveloppe plus lui-même) ; `internal/modal.ts` :
+    `useOpener` (focus rendu à ce qui l'avait à l'ouverture, au bouton du menu quand c'était
+    une entrée de menu, partie avec lui) et `focusFirstField` (`data-autofocus`, sinon le
+    premier champ du corps ; `Drawer` aussi) ; `AlertDialog` : Échap et « Annuler »
+    émettent `cancel`, le bouton de confirmation émet `confirm` puis ferme. `Toast`
+    (nouveau, maison : le Toast de Reka ferme tous les toasts à tout Échap de la page) :
+    `toasts.ts` (`createToasts`, `provideToasts`, `injectToasts`, `TOAST_DURATION`),
+    `Toast.vue`, `ToastRegion.vue` (deux régions vivantes `alert` et `status` présentes
+    vides, `aria-atomic="false"`, liste vide en `role="none"` ; repère « Notifications »
+    tant qu'elle tient des toasts ; en bas au milieu de la fenêtre, sous une couche modale ;
+    erreur, avertissement, toast à action sans durée, les autres 8 s ; pause au survol, au
+    focus, page cachée ; Échap dans un toast le ferme ; focus au toast voisin, sinon d'où il
+    venait, sinon au contenu principal ; entrée et sortie selon § « Mouvement ») ; tables
+    `TONE_ICONS`, `TONE_WORDS` partagées avec `InlineAlert` (`alert.ts`). États `keyboard`
+    de `Dialog` (bouton, entrée de menu), `AlertDialog`, `Drawer` ; `Toast` : `ok`,
+    `error`, `stack`, `keyboard`. Scripts `e2e/components/dialog.spec.ts`,
+    `toast.spec.ts` ; `ui/test/toasts.test.ts`. Maquettes : le cadre (`EcranCadre`) tient
+    la région des toasts (prop `toasts`) ; E9 « revue » montre le 202 en toast (repère « À
+    venir » et ligne de la revue retirés, table des composants à venir masquée vide).
+    Revues `a11y-auditor` et `ui-reviewer` (code et captures) ; corrigés : région au milieu
+    du bas (les coins tiennent « Soumettre » des tiroirs et du panneau), sous la couche
+    modale (`--k-z-overlay` ; `--k-z-toast` reste celui des infobulles), haute de la moitié
+    de la fenêtre au plus ; avertissement et toast à action sans durée (2.2.1) ; pause
+    relâchée quand le dernier toast part (un nœud retiré n'émet ni `focusout` ni
+    `pointerleave`) ; repli du focus sur le contenu principal ; listes vides hors de
+    l'arbre ; 202 d'E9 et du catalogue alignés (code de motif, pas l'identifiant du
+    changeset ; plus de code ni d'adresse en texte courant) ; croix centrée sur la première
+    ligne ; phrase dans la figure des états isolés. Captures réécrites (voulues) : index (un
+    composant de plus), `Dialog`, `AlertDialog`, `Drawer` pages entières (état
+    `keyboard`), E9-revue (toutes largeurs, aria) ; nouvelles : `Toast` (`ok`, `error`,
+    `stack`, `keyboard`, pages), `Dialog`, `AlertDialog`, `Drawer` `keyboard`.
+  - choix : Toast maison plutôt que celui de Reka ; atteint par Tab seulement (région après
+    le reste du cadre), sans raccourci global (F8 serait un raccourci réservé de plus, spec
+    021) ; une couche modale dit ses issues en elle (`InlineAlert`), un toast montré pendant
+    qu'elle est ouverte attend sous son voile, caché ; durée de 8 s ; Échap dans un toast le
+    ferme ; erreurs au-dessus des autres (deux régions) ; `AVenir.vue` gardé (le mécanisme
+    de la revue sert encore). Restent (à vérifier ou à arbitrer) : raccourci pour atteindre
+    les toasts ; focus rendu quand l'ouvreur a disparu et n'était pas une entrée de menu
+    (ligne supprimée, action d'un toast : repli fourni par l'hôte ?) ; lecture au lecteur
+    d'écran (toast lu en entier, noms des boutons compris ; régions `status` des `CodeBadge`
+    imbriquées dans celles des toasts ; `aria-atomic="false"` sur `alert`) ; bloc des
+    couleurs des quatre tons recopié de `.k-inline-alert` vers `.k-toast` ; texte d'un toast
+    en chaînes seules (ni adresse ni code en chasse fixe dans la phrase).
 - [ ] 23. `SidebarNav` (repliable, groupes), `CommandPalette`, `DatePill`,
   `DraftCounter`, `TimeBand` — verify : palette (Combobox dans Dialog) au clavier ;
   barre latérale repliée : noms accessibles et infobulles ; raccourci d'une entrée de la
