@@ -511,7 +511,7 @@ test.describe("BottomPanel (complementary + Tabs, Window Splitter)", () => {
 });
 
 test.describe("E11: proposal of flows (Grid + BottomPanel)", () => {
-  test("« Ajouter un flux » adds a row, focused; Enter or Space on a row shows it below", async ({
+  test("« Ajouter un flux » adds a row, focused; Space on a row shows it below, Enter edits", async ({
     page,
   }) => {
     await page.goto("/_ui/ecrans/E11?vue=proposition");
@@ -528,11 +528,16 @@ test.describe("E11: proposal of flows (Grid + BottomPanel)", () => {
     await expect(rows).toHaveCount(6);
     expect(await focusedCell(page)).toBe("nouvelle-1|source");
     await expect(rows.nth(5)).toContainText("À évaluer");
-    // Up to the flow refused by a deny rule: Enter chooses it and opens the bottom panel.
+    // Up to the flow refused by a deny rule: Space chooses it and opens the bottom panel.
     await page.keyboard.press("ArrowUp");
     await page.keyboard.press("ArrowUp");
     expect(await focusedCell(page)).toBe("ligne-3|source");
+    // Enter opens the editor of the cell (the grid's contract); Escape gives it back.
     await page.keyboard.press("Enter");
+    await expect(rows.nth(3).getByRole("textbox")).toBeFocused();
+    await page.keyboard.press("Escape");
+    expect(await focusedCell(page)).toBe("ligne-3|source");
+    await page.keyboard.press("Space");
     await expect(panel).toBeVisible();
     await expect(rows.nth(3)).toHaveAttribute("aria-selected", "true");
     await expect(panel.getByRole("heading", { level: 2 })).toContainText("dev-web-01");

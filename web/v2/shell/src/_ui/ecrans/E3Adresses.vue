@@ -134,7 +134,8 @@ const columns: GridColumn[] = [
   {
     id: "site",
     label: "Site",
-    width: "md",
+    // A short key (`site-ouest`): room left for the column of checkboxes at 1280 px.
+    width: "sm",
     mono: true,
     sortable: true,
     filterable: true,

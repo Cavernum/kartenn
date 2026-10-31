@@ -28,6 +28,7 @@
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
+- status
 - main:
   - heading "Flux" [level=1]
   - region "Flux":
@@ -250,6 +251,7 @@
           - gridcell "Actif"
           - gridcell "Conforme Automatique"
           - gridcell "—"
+    - alert
     - text: "/\\d+ flux · 1 demandé · 1 non conforme à la matrice · 1 dérogé Échéance : fin de la dérogation d'un flux dérogé, sinon fin du flux/"
 - button "Ouvrir le panneau"
 - alert

@@ -52,6 +52,7 @@
   - button "Brouillon 2 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
+- status
 - main:
   - heading "Adresses" [level=1]
   - region "Adresses":
