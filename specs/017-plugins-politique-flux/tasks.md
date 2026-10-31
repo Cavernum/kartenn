@@ -52,7 +52,7 @@ sous-agents d'implémentation à la fois (CLAUDE.md).
     l'utilisateur consignée en U14, puis report des écarts dans le design avant la tâche 2.
   - choix : une maquette par vue des manifestes, ses onglets, actions et états en vues ;
     formulaires d'écriture (règle, cellule, condition, règle d'inférence, dossier) dans le
-    panneau droit (024/M13) ; composants absents (`DateTimeField`) marqués « À venir » ;
+    panneau droit (024/M13) ; dates par `DateTimeField` au jour (020-20) ;
     zone de texte multiligne absente de l'inventaire, simulée par `TextField` ; arbre des
     exceptions d'inférence en liste indentée (pas de `Tree` éditable).
 
