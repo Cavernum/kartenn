@@ -56,7 +56,37 @@ use tokio::io::AsyncReadExt;
 
 use crate::Dataset;
 use crate::core_budgets::{new_address, prepare, unitary};
+use crate::measures::{Bench, Measure, Selection};
 use crate::props::{p95, progress};
+
+const READ: &str = "telemetry.read-object";
+const FILTERED_PAGE: &str = "telemetry.filtered-page";
+const SUBTREE: &str = "telemetry.subtree";
+const UNITARY: &str = "telemetry.unitary-changeset";
+const SUSTAINED_RATE: &str = "telemetry.sustained";
+const VOLUME: &str = "telemetry.audit-volume";
+
+/// The measures of `bench-telemetry` (ADR 0041): those of the workload run in every child,
+/// with the cost of an event and of a span on which the verdict rests; then the volume of
+/// the audit of reads.
+pub(crate) static BENCH: Bench = Bench {
+    name: "telemetry",
+    measures: &[
+        Measure::new(READ),
+        Measure::new(FILTERED_PAGE),
+        Measure::new(SUBTREE),
+        Measure::new(UNITARY),
+        Measure::new(SUSTAINED_RATE),
+        Measure::new(VOLUME),
+    ],
+};
+
+/// Whether a measure of the workload runs: the children have something to measure.
+fn workload_runs(selection: &Selection) -> bool {
+    [READ, FILTERED_PAGE, SUBTREE, UNITARY, SUSTAINED_RATE]
+        .iter()
+        .any(|m| selection.runs(m))
+}
 
 /// The configurations, in their order of measure within a round.
 const CONFIGS: [&str; 3] = ["none", "reference", "blocked"];
@@ -161,8 +191,8 @@ fn config(run: &str, syslog: &str, blocked: &str, otlp: &str) -> String {
 }
 
 /// Prepares the database, measures each configuration in a child process, compares them
-/// and measures the volume of the audit of reads; returns the report and whether every
-/// overhead holds.
+/// and measures the volume of the audit of reads, as far as `selection` runs; returns the
+/// report and whether every overhead holds.
 ///
 /// # Errors
 ///
@@ -172,9 +202,39 @@ pub async fn run(
     data: &Dataset,
     seed: u64,
     small: bool,
+    selection: &Selection,
 ) -> anyhow::Result<(String, bool)> {
     let prepared = prepare(database, data, seed).await?;
     let mut report = prepared.report;
+    let mut ok = true;
+    if workload_runs(selection) {
+        ok = configurations(
+            database,
+            data,
+            seed,
+            small,
+            selection,
+            &prepared.pool,
+            &mut report,
+        )
+        .await?;
+    }
+    if selection.runs(VOLUME) {
+        volume(&prepared.pool, &mut report).await?;
+    }
+    Ok((report, ok))
+}
+
+/// Each configuration measured in a child process, round after round, then compared.
+async fn configurations(
+    database: &str,
+    data: &Dataset,
+    seed: u64,
+    small: bool,
+    selection: &Selection,
+    pool: &PgPool,
+    report: &mut String,
+) -> anyhow::Result<bool> {
     let counts = tokio::task::block_in_place(|| counts(database, data))?;
     let syslog = receiver(true).await?;
     let blocked = receiver(false).await?;
@@ -201,9 +261,7 @@ pub async fn run(
                 config(name, &syslog, &blocked, &otlp.to_string()),
             )?;
             // The writes of the previous run vacuumed, its background work finished.
-            sqlx::raw_sql("VACUUM ANALYZE")
-                .execute(&prepared.pool)
-                .await?;
+            sqlx::raw_sql("VACUUM ANALYZE").execute(pool).await?;
             tokio::time::sleep(Duration::from_secs(2)).await;
             let mut command = std::process::Command::new(std::env::current_exe()?);
             command
@@ -214,6 +272,9 @@ pub async fn run(
                 .arg(&result_path);
             if small {
                 command.arg("small");
+            }
+            if let Some(only) = selection.only() {
+                command.arg("--only").arg(only);
             }
             // The JSON lines of the standard output are written, then dropped.
             command.stdout(std::process::Stdio::null());
@@ -226,9 +287,12 @@ pub async fn run(
         }
     }
     std::fs::remove_dir_all(&dir)?;
-    let ok = compare(&mut report, &results, &counts)?;
-    volume(&prepared.pool, &mut report).await?;
-    Ok((report, ok))
+    // The operations of the measures that ran.
+    let counts: Vec<_> = counts
+        .into_iter()
+        .filter(|(name, _, _)| results[0][0].iter().any(|(n, _)| n == name))
+        .collect();
+    compare(report, &results, &counts)
 }
 
 /// `name\tnanoseconds` lines.
@@ -554,6 +618,7 @@ pub async fn measure(
     seed: u64,
     config_path: &Path,
     result_path: &Path,
+    selection: &Selection,
 ) -> anyhow::Result<()> {
     let pool = PgPool::connect(database)
         .await
@@ -570,7 +635,7 @@ pub async fn measure(
         }
     });
     tokio::time::sleep(Duration::from_millis(500)).await;
-    let results = workload(&pool, data, seed).await;
+    let results = workload(&pool, data, seed, selection).await;
     let costs = costs();
     let _ = stop.send(());
     let report = instance.await??;
@@ -635,12 +700,13 @@ fn measured(results: &mut Vec<(String, Duration)>, name: &str, samples: Vec<Dura
     results.push((format!("{name} (mean)"), mean));
 }
 
-/// The budgets of the core, read through the service (audited).
+/// The budgets of the core `selection` runs, read through the service (audited).
 #[allow(clippy::too_many_lines)] // one linear scenario, step by step
 async fn workload(
     pool: &PgPool,
     data: &Dataset,
     seed: u64,
+    selection: &Selection,
 ) -> anyhow::Result<Vec<(String, Duration)>> {
     let author: Uuid = sqlx::query_scalar("SELECT id FROM person WHERE display_name = 'bench'")
         .fetch_one(pool)
@@ -666,76 +732,82 @@ async fn workload(
             data.addresses[rng.random_range(0..data.addresses.len())].id
         }
     };
-    for _ in 0..20 {
-        read_object(
-            &store,
-            &Unrestricted,
-            &journal,
-            &context,
-            draw(&mut rng),
-            at,
-            None,
-            ReadAudit::default(),
-        )
-        .await?;
-    }
-    let (mut current, mut known) = (Vec::new(), Vec::new());
-    for _ in 0..1_000 {
-        let t = Instant::now();
-        read_object(
-            &store,
-            &Unrestricted,
-            &journal,
-            &context,
-            draw(&mut rng),
-            at,
-            None,
-            ReadAudit::default(),
-        )
-        .await?
-        .context("a loaded object is missing")?;
-        current.push(t.elapsed());
-        let t = Instant::now();
-        read_object(
-            &store,
-            &Unrestricted,
-            &journal,
-            &context,
-            draw(&mut rng),
-            at,
-            Some(past),
-            ReadAudit::default(),
-        )
-        .await?
-        .context("a past version is missing")?;
-        known.push(t.elapsed());
-    }
-    measured(&mut results, "read an object (audited)", current);
-    measured(&mut results, "read an object as known (audited)", known);
-
-    let mut samples = Vec::new();
-    for _ in 0..500 {
-        let domain = data.domains[rng.random_range(0..data.domains.len())].id;
-        let low: i64 = rng.random_range(0..900_000);
-        let condition =
-            Condition::Between(Some(low.to_string()), Some((low + 100_000).to_string()));
-        let t = Instant::now();
-        filter(pool, rack, domain, &condition, now, None, 100).await?;
-        samples.push(t.elapsed());
-    }
-    measured(&mut results, "filtered page of 100", samples);
-
-    let mut samples = Vec::new();
-    for _ in 0..1_000 {
-        let p = &data.prefixes[rng.random_range(0..data.prefixes.len())];
-        let t = Instant::now();
-        children(pool, p.id, now).await?;
-        occupancy(pool, p.id, now)
+    if selection.runs(READ) {
+        for _ in 0..20 {
+            read_object(
+                &store,
+                &Unrestricted,
+                &journal,
+                &context,
+                draw(&mut rng),
+                at,
+                None,
+                ReadAudit::default(),
+            )
+            .await?;
+        }
+        let (mut current, mut known) = (Vec::new(), Vec::new());
+        for _ in 0..1_000 {
+            let t = Instant::now();
+            read_object(
+                &store,
+                &Unrestricted,
+                &journal,
+                &context,
+                draw(&mut rng),
+                at,
+                None,
+                ReadAudit::default(),
+            )
             .await?
-            .context("a loaded prefix is missing")?;
-        samples.push(t.elapsed());
+            .context("a loaded object is missing")?;
+            current.push(t.elapsed());
+            let t = Instant::now();
+            read_object(
+                &store,
+                &Unrestricted,
+                &journal,
+                &context,
+                draw(&mut rng),
+                at,
+                Some(past),
+                ReadAudit::default(),
+            )
+            .await?
+            .context("a past version is missing")?;
+            known.push(t.elapsed());
+        }
+        measured(&mut results, "read an object (audited)", current);
+        measured(&mut results, "read an object as known (audited)", known);
     }
-    measured(&mut results, "subtree and occupancy", samples);
+
+    if selection.runs(FILTERED_PAGE) {
+        let mut samples = Vec::new();
+        for _ in 0..500 {
+            let domain = data.domains[rng.random_range(0..data.domains.len())].id;
+            let low: i64 = rng.random_range(0..900_000);
+            let condition =
+                Condition::Between(Some(low.to_string()), Some((low + 100_000).to_string()));
+            let t = Instant::now();
+            filter(pool, rack, domain, &condition, now, None, 100).await?;
+            samples.push(t.elapsed());
+        }
+        measured(&mut results, "filtered page of 100", samples);
+    }
+
+    if selection.runs(SUBTREE) {
+        let mut samples = Vec::new();
+        for _ in 0..1_000 {
+            let p = &data.prefixes[rng.random_range(0..data.prefixes.len())];
+            let t = Instant::now();
+            children(pool, p.id, now).await?;
+            occupancy(pool, p.id, now)
+                .await?
+                .context("a loaded prefix is missing")?;
+            samples.push(t.elapsed());
+        }
+        measured(&mut results, "subtree and occupancy", samples);
+    }
 
     let networks: Vec<(Uuid, Uuid)> = data
         .prefixes
@@ -743,43 +815,47 @@ async fn workload(
         .filter(|p| p.nature == crate::Nature::Network)
         .map(|p| (p.id, data.domains[p.domain].id))
         .collect();
-    let mut samples = Vec::new();
-    for _ in 0..500 {
-        let network = networks[rng.random_range(0..networks.len())];
-        let operation = new_address(pool, network).await?;
-        samples.push(unitary(&store, author, operation).await?);
+    if selection.runs(UNITARY) {
+        let mut samples = Vec::new();
+        for _ in 0..500 {
+            let network = networks[rng.random_range(0..networks.len())];
+            let operation = new_address(pool, network).await?;
+            samples.push(unitary(&store, author, operation).await?);
+        }
+        measured(&mut results, "unitary changeset", samples);
     }
-    measured(&mut results, "unitary changeset", samples);
 
-    let done = Arc::new(AtomicUsize::new(0));
-    let mut writers = Vec::new();
-    let begun = Instant::now();
-    for w in 0..WRITERS {
-        let (pool, store, done) = (pool.clone(), store.clone(), done.clone());
-        let mine: Vec<(Uuid, Uuid)> = networks
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| i % WRITERS == w)
-            .map(|(_, n)| *n)
-            .collect();
-        writers.push(tokio::spawn(async move {
-            let mut i = 0;
-            while begun.elapsed() < SUSTAINED {
-                let operation = new_address(&pool, mine[i % mine.len()]).await?;
-                unitary(&store, author, operation).await?;
-                done.fetch_add(1, Ordering::Relaxed);
-                i += 1;
-            }
-            anyhow::Ok(())
-        }));
+    if selection.runs(SUSTAINED_RATE) {
+        let done = Arc::new(AtomicUsize::new(0));
+        let mut writers = Vec::new();
+        let begun = Instant::now();
+        for w in 0..WRITERS {
+            let (pool, store, done) = (pool.clone(), store.clone(), done.clone());
+            let mine: Vec<(Uuid, Uuid)> = networks
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| i % WRITERS == w)
+                .map(|(_, n)| *n)
+                .collect();
+            writers.push(tokio::spawn(async move {
+                let mut i = 0;
+                while begun.elapsed() < SUSTAINED {
+                    let operation = new_address(&pool, mine[i % mine.len()]).await?;
+                    unitary(&store, author, operation).await?;
+                    done.fetch_add(1, Ordering::Relaxed);
+                    i += 1;
+                }
+                anyhow::Ok(())
+            }));
+        }
+        for w in writers {
+            w.await??;
+        }
+        let count = u32::try_from(done.load(Ordering::Relaxed).max(1))?;
+        results.push((
+            "sustained, time per changeset".into(),
+            begun.elapsed() / count,
+        ));
     }
-    for w in writers {
-        w.await??;
-    }
-    let count = u32::try_from(done.load(Ordering::Relaxed).max(1))?;
-    results.push((
-        "sustained, time per changeset".into(),
-        begun.elapsed() / count,
-    ));
     Ok(results)
 }

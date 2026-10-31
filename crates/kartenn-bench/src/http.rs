@@ -65,9 +65,33 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::task::JoinHandle;
 
 use crate::core_budgets::{Prepared, prepare};
+use crate::measures::{Bench, Measure, Selection};
 use crate::props::{p95, progress};
 use crate::rbac::{GROUPS, ISSUER, bind};
 use crate::{Dataset, Nature};
+
+const READ: &str = "http.read-object";
+const READ_PAST: &str = "http.read-past";
+const FILTERED_PAGE: &str = "http.filtered-page";
+const SUBTREE: &str = "http.subtree";
+const UNITARY: &str = "http.unitary-changeset";
+const LABELS: &str = "http.labels";
+const LOAD_TEST: &str = "http.load";
+
+/// The measures of `bench-http` (ADR 0041). The budget of the read in the past is twice
+/// the current read through HTTP.
+pub(crate) static BENCH: Bench = Bench {
+    name: "http",
+    measures: &[
+        Measure::new(READ),
+        Measure::new(READ_PAST).after(&[READ]),
+        Measure::new(FILTERED_PAGE),
+        Measure::new(SUBTREE),
+        Measure::new(UNITARY),
+        Measure::new(LABELS),
+        Measure::new(LOAD_TEST),
+    ],
+};
 
 const USERS: usize = 200;
 /// Users who also write once a second during the load: 55 offered, 50 at least applied.
@@ -527,14 +551,19 @@ impl Load {
     }
 }
 
-/// Loads, binds, serves and measures; returns the report and whether every budget holds
-/// through HTTP.
+/// Loads, binds, serves and measures what `selection` runs; returns the report and whether
+/// every budget holds through HTTP.
 ///
 /// # Errors
 ///
 /// Database, server or client failures, a scenario refused.
 #[allow(clippy::too_many_lines)] // one linear scenario, step by step
-pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(String, bool)> {
+pub async fn run(
+    database: &str,
+    data: &Dataset,
+    seed: u64,
+    selection: &Selection,
+) -> anyhow::Result<(String, bool)> {
     let started = Instant::now();
     let Prepared {
         pool,
@@ -605,54 +634,27 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         turn % USERS
     };
 
+    let mut pairs = Vec::new();
     // Reading an object.
-    let mut read = Pair::new("read an object", Duration::from_millis(50));
-    for i in 0..200 {
-        let (collection, id) = draw(&mut rng);
-        let user = &mut users[next()];
-        let subject = user.subject.clone();
-        read.measure(
-            i,
-            async || {
-                object(&pool, id, now, None)
-                    .await?
-                    .context("a loaded object is missing")?;
-                decided(&subject, format!("core.{}.read", kind(collection)), id).await
-            },
-            async || {
-                user.timed(
-                    "GET",
-                    &format!("/v1/{collection}/{id}"),
-                    None,
-                    StatusCode::OK,
-                )
-                .await
-            },
-        )
-        .await?;
-    }
-
-    // Reading an object as known in the past (INV-33).
-    let mut dated = Pair::new("read an object as known in the past", Duration::ZERO);
-    for i in 0..200 {
-        let (collection, id) = draw(&mut rng);
-        let at = from + day * rng.random_range(0..700);
-        let as_of = rfc3339(at)?;
-        let user = &mut users[next()];
-        let subject = user.subject.clone();
-        dated
-            .measure(
+    let mut current = None;
+    if selection.runs(READ) {
+        let mut read = Pair::new("read an object", Duration::from_millis(50));
+        for i in 0..200 {
+            let (collection, id) = draw(&mut rng);
+            let user = &mut users[next()];
+            let subject = user.subject.clone();
+            read.measure(
                 i,
                 async || {
-                    object(&pool, id, now, Some(at))
+                    object(&pool, id, now, None)
                         .await?
-                        .context("a past version is missing")?;
+                        .context("a loaded object is missing")?;
                     decided(&subject, format!("core.{}.read", kind(collection)), id).await
                 },
                 async || {
                     user.timed(
                         "GET",
-                        &format!("/v1/{collection}/{id}?as_of={as_of}"),
+                        &format!("/v1/{collection}/{id}"),
                         None,
                         StatusCode::OK,
                     )
@@ -660,93 +662,143 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
                 },
             )
             .await?;
+        }
+        current = Some(p95(read.http.clone()));
+        pairs.push(read);
+    }
+
+    // Reading an object as known in the past (INV-33): twice the current read through
+    // HTTP (floor 5 ms).
+    if selection.runs(READ_PAST) {
+        let current = current.context("the current read is a prerequisite")?;
+        let mut dated = Pair::new(
+            "read an object as known in the past",
+            (current * 2).max(Duration::from_millis(5)),
+        );
+        for i in 0..200 {
+            let (collection, id) = draw(&mut rng);
+            let at = from + day * rng.random_range(0..700);
+            let as_of = rfc3339(at)?;
+            let user = &mut users[next()];
+            let subject = user.subject.clone();
+            dated
+                .measure(
+                    i,
+                    async || {
+                        object(&pool, id, now, Some(at))
+                            .await?
+                            .context("a past version is missing")?;
+                        decided(&subject, format!("core.{}.read", kind(collection)), id).await
+                    },
+                    async || {
+                        user.timed(
+                            "GET",
+                            &format!("/v1/{collection}/{id}?as_of={as_of}"),
+                            None,
+                            StatusCode::OK,
+                        )
+                        .await
+                    },
+                )
+                .await?;
+        }
+        pairs.push(dated);
     }
 
     // Filtered pages of 100.
-    let mut page = Pair::new("filtered page of 100", Duration::from_millis(150));
-    for i in 0..100 {
-        let domain = &data.domains[rng.random_range(0..data.domains.len())];
-        let low: i64 = rng.random_range(0..900_000);
-        let user = &mut users[next()];
-        let subject = user.subject.clone();
-        page.measure(
-            i,
-            async || {
-                let scope = authorizer
-                    .read_scope(&subject, now)
-                    .await
-                    .map_err(|e| anyhow!(e.0))?;
-                let condition =
-                    Condition::Between(Some(low.to_string()), Some((low + 100_000).to_string()));
-                filter_in(&pool, rack, domain.id, &condition, now, None, 100, &scope).await?;
-                Ok(())
-            },
-            async || {
-                let path = format!(
-                    "/v1/addresses?domain={}&prop.custom.rack:between={low}..{}&page_size=100",
-                    domain.slug,
-                    low + 100_000
-                );
-                user.timed("GET", &path, None, StatusCode::OK).await
-            },
-        )
-        .await?;
+    if selection.runs(FILTERED_PAGE) {
+        let mut page = Pair::new("filtered page of 100", Duration::from_millis(150));
+        for i in 0..100 {
+            let domain = &data.domains[rng.random_range(0..data.domains.len())];
+            let low: i64 = rng.random_range(0..900_000);
+            let user = &mut users[next()];
+            let subject = user.subject.clone();
+            page.measure(
+                i,
+                async || {
+                    let scope = authorizer
+                        .read_scope(&subject, now)
+                        .await
+                        .map_err(|e| anyhow!(e.0))?;
+                    let condition = Condition::Between(
+                        Some(low.to_string()),
+                        Some((low + 100_000).to_string()),
+                    );
+                    filter_in(&pool, rack, domain.id, &condition, now, None, 100, &scope).await?;
+                    Ok(())
+                },
+                async || {
+                    let path = format!(
+                        "/v1/addresses?domain={}&prop.custom.rack:between={low}..{}&page_size=100",
+                        domain.slug,
+                        low + 100_000
+                    );
+                    user.timed("GET", &path, None, StatusCode::OK).await
+                },
+            )
+            .await?;
+        }
+        pairs.push(page);
     }
 
     // Subtree (a page of the direct content) and occupancy, now and in the past.
-    let mut subtree = Pair::new("subtree and occupancy", Duration::from_millis(200));
-    let mut dated_subtree = Pair::new(
-        "subtree and occupancy in the past",
-        Duration::from_millis(200),
-    );
-    for i in 0..400 {
-        let p = data.prefixes[rng.random_range(0..data.prefixes.len())].id;
-        let at = (i % 2 == 1).then(|| from + day * rng.random_range(0..700));
-        let query = at
-            .map(|at| rfc3339(at).map(|a| format!("?as_of={a}")))
-            .transpose()?
-            .unwrap_or_default();
-        let user = &mut users[next()];
-        let subject = user.subject.clone();
-        let pair = if at.is_some() {
-            &mut dated_subtree
-        } else {
-            &mut subtree
-        };
-        pair.measure(
-            i / 2,
-            async || {
-                let scope = authorizer
-                    .read_scope(&subject, now)
-                    .await
-                    .map_err(|e| anyhow!(e.0))?;
-                children_as_of(&pool, p, now, at, &scope).await?;
-                occupancy_as_of(&pool, p, now, at)
-                    .await?
-                    .context("a loaded prefix is missing")?;
-                Ok(())
-            },
-            async || {
-                let children = user
-                    .timed(
-                        "GET",
-                        &format!("/v1/prefixes/{p}/children{query}"),
-                        None,
-                        StatusCode::OK,
-                    )
-                    .await?;
-                let occupancy = user
-                    .timed(
-                        "GET",
-                        &format!("/v1/prefixes/{p}/occupancy{query}"),
-                        None,
-                        StatusCode::OK,
-                    )
-                    .await?;
-                Ok(children + occupancy)
-            },
-        )
-        .await?;
+    if selection.runs(SUBTREE) {
+        let mut subtree = Pair::new("subtree and occupancy", Duration::from_millis(200));
+        let mut dated_subtree = Pair::new(
+            "subtree and occupancy in the past",
+            Duration::from_millis(200),
+        );
+        for i in 0..400 {
+            let p = data.prefixes[rng.random_range(0..data.prefixes.len())].id;
+            let at = (i % 2 == 1).then(|| from + day * rng.random_range(0..700));
+            let query = at
+                .map(|at| rfc3339(at).map(|a| format!("?as_of={a}")))
+                .transpose()?
+                .unwrap_or_default();
+            let user = &mut users[next()];
+            let subject = user.subject.clone();
+            let pair = if at.is_some() {
+                &mut dated_subtree
+            } else {
+                &mut subtree
+            };
+            pair.measure(
+                i / 2,
+                async || {
+                    let scope = authorizer
+                        .read_scope(&subject, now)
+                        .await
+                        .map_err(|e| anyhow!(e.0))?;
+                    children_as_of(&pool, p, now, at, &scope).await?;
+                    occupancy_as_of(&pool, p, now, at)
+                        .await?
+                        .context("a loaded prefix is missing")?;
+                    Ok(())
+                },
+                async || {
+                    let children = user
+                        .timed(
+                            "GET",
+                            &format!("/v1/prefixes/{p}/children{query}"),
+                            None,
+                            StatusCode::OK,
+                        )
+                        .await?;
+                    let occupancy = user
+                        .timed(
+                            "GET",
+                            &format!("/v1/prefixes/{p}/occupancy{query}"),
+                            None,
+                            StatusCode::OK,
+                        )
+                        .await?;
+                    Ok(children + occupancy)
+                },
+            )
+            .await?;
+        }
+        pairs.push(subtree);
+        pairs.push(dated_subtree);
     }
 
     // Unitary changesets: a new address in a random network, each way.
@@ -756,115 +808,116 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         .filter(|p| p.nature == Nature::Network)
         .map(|p| (p.id, data.domains[p.domain].id))
         .collect();
-    let mut changeset = Pair::new("unitary changeset", Duration::from_millis(200));
-    for i in 0..100 {
-        let (operation, _) =
-            new_address(&pool, networks[rng.random_range(0..networks.len())]).await?;
-        let (_, body) = new_address(&pool, networks[rng.random_range(0..networks.len())]).await?;
-        let user = &mut users[next()];
-        let subject = user.subject.clone();
-        changeset
-            .measure(
-                i,
-                async || {
-                    let request = ChangesetRequest {
-                        author: subject.id,
-                        motive: "bench".into(),
-                        period: None,
-                        operations: vec![operation],
-                        simulate: false,
-                        idempotency_key: None,
-                        approval_self: true,
-                    };
-                    match submit_in(
-                        &store,
-                        &authorizer,
-                        &Sources::none(),
-                        &RequestContext::of(&subject),
-                        &request,
-                        MAX_OPERATIONS,
-                    )
-                    .await?
-                    {
-                        Outcome::Applied { .. } => Ok(()),
-                        other => bail!("changeset not applied: {other:?}"),
-                    }
-                },
-                async || {
-                    user.timed("POST", CHANGESETS, Some(body), StatusCode::CREATED)
-                        .await
-                },
-            )
-            .await?;
+    if selection.runs(UNITARY) {
+        let mut changeset = Pair::new("unitary changeset", Duration::from_millis(200));
+        for i in 0..100 {
+            let (operation, _) =
+                new_address(&pool, networks[rng.random_range(0..networks.len())]).await?;
+            let (_, body) =
+                new_address(&pool, networks[rng.random_range(0..networks.len())]).await?;
+            let user = &mut users[next()];
+            let subject = user.subject.clone();
+            changeset
+                .measure(
+                    i,
+                    async || {
+                        let request = ChangesetRequest {
+                            author: subject.id,
+                            motive: "bench".into(),
+                            period: None,
+                            operations: vec![operation],
+                            simulate: false,
+                            idempotency_key: None,
+                            approval_self: true,
+                        };
+                        match submit_in(
+                            &store,
+                            &authorizer,
+                            &Sources::none(),
+                            &RequestContext::of(&subject),
+                            &request,
+                            MAX_OPERATIONS,
+                        )
+                        .await?
+                        {
+                            Outcome::Applied { .. } => Ok(()),
+                            other => bail!("changeset not applied: {other:?}"),
+                        }
+                    },
+                    async || {
+                        user.timed("POST", CHANGESETS, Some(body), StatusCode::CREATED)
+                            .await
+                    },
+                )
+                .await?;
+        }
+        pairs.push(changeset);
     }
     // The dictionary of labels (spec 018, REQ-018-20): the whole of one language, then
     // the same under its `ETag` (304); the stored labels read by the service.
-    let mut dictionary = Pair::new(
-        "dictionary of labels, one language",
-        Duration::from_millis(50),
-    );
-    let mut unchanged = Pair::new("dictionary of labels, 304", Duration::from_millis(10));
-    let mut largest = 0;
-    for i in 0..200 {
-        let lang = if i % 2 == 0 { "fr" } else { "en" };
-        let path = format!("/v1/labels?lang={lang}");
-        let user = &mut users[next()];
-        let mut etag = None;
-        let stored = async || {
-            kartenn_store_pg::labels_read::stored(&pool, OffsetDateTime::now_utc(), None, &[])
-                .await
-                .map(drop)
-                .map_err(|e| anyhow!(e))
-        };
-        dictionary
-            .measure(i, stored, async || {
-                let (elapsed, status, tag, body) = user.get_with(&path, &[], i < 2).await?;
-                if status != StatusCode::OK {
-                    bail!("GET {path}: {status}");
-                }
-                if i < 2 {
-                    largest = largest.max(body.len());
-                }
-                etag = tag;
-                Ok(elapsed)
-            })
-            .await?;
-        let etag = etag.context("the dictionary has an ETag")?;
-        unchanged
-            .measure(i, stored, async || {
-                let (elapsed, status, _, _) = user
-                    .get_with(&path, &[(header::IF_NONE_MATCH, etag.as_str())], false)
-                    .await?;
-                if status != StatusCode::NOT_MODIFIED {
-                    bail!("GET {path} under its ETag: {status}");
-                }
-                Ok(elapsed)
-            })
-            .await?;
+    let mut largest = None;
+    if selection.runs(LABELS) {
+        let mut dictionary = Pair::new(
+            "dictionary of labels, one language",
+            Duration::from_millis(50),
+        );
+        let mut unchanged = Pair::new("dictionary of labels, 304", Duration::from_millis(10));
+        let mut size = 0;
+        for i in 0..200 {
+            let lang = if i % 2 == 0 { "fr" } else { "en" };
+            let path = format!("/v1/labels?lang={lang}");
+            let user = &mut users[next()];
+            let mut etag = None;
+            let stored = async || {
+                kartenn_store_pg::labels_read::stored(&pool, OffsetDateTime::now_utc(), None, &[])
+                    .await
+                    .map(drop)
+                    .map_err(|e| anyhow!(e))
+            };
+            dictionary
+                .measure(i, stored, async || {
+                    let (elapsed, status, tag, body) = user.get_with(&path, &[], i < 2).await?;
+                    if status != StatusCode::OK {
+                        bail!("GET {path}: {status}");
+                    }
+                    if i < 2 {
+                        size = size.max(body.len());
+                    }
+                    etag = tag;
+                    Ok(elapsed)
+                })
+                .await?;
+            let etag = etag.context("the dictionary has an ETag")?;
+            unchanged
+                .measure(i, stored, async || {
+                    let (elapsed, status, _, _) = user
+                        .get_with(&path, &[(header::IF_NONE_MATCH, etag.as_str())], false)
+                        .await?;
+                    if status != StatusCode::NOT_MODIFIED {
+                        bail!("GET {path} under its ETag: {status}");
+                    }
+                    Ok(elapsed)
+                })
+                .await?;
+        }
+        largest = Some(size);
+        pairs.push(dictionary);
+        pairs.push(unchanged);
     }
     progress(&format!("scenarios: {:?}", started.elapsed()));
 
-    // INV-33: twice the current read through HTTP (floor 5 ms).
-    dated.limit = (p95(read.http.clone()) * 2).max(Duration::from_millis(5));
     let mut ok = true;
     // REQ-018-20: less than 1 MB uncompressed.
-    let small = largest < 1_000_000;
-    ok &= small;
-    writeln!(
-        report,
-        "{} dictionary of labels, one language: {largest} bytes uncompressed, budget < 1 MB",
-        if small { "PASS" } else { "FAIL" },
-    )?;
-    for pair in [
-        read,
-        dated,
-        page,
-        subtree,
-        dated_subtree,
-        changeset,
-        dictionary,
-        unchanged,
-    ] {
+    if let Some(largest) = largest {
+        let small = largest < 1_000_000;
+        ok &= small;
+        writeln!(
+            report,
+            "{} dictionary of labels, one language: {largest} bytes uncompressed, budget < 1 MB",
+            if small { "PASS" } else { "FAIL" },
+        )?;
+    }
+    for pair in pairs {
         let service = p95(pair.service);
         let http = p95(pair.http);
         let overhead = http.saturating_sub(service);
@@ -882,7 +935,8 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
 
     // The load: every user reads with a think time; the writers write once a second on
     // networks of their own as well, on a connection of their own.
-    let paths = Arc::new(
+    if selection.runs(LOAD_TEST) {
+        let paths = Arc::new(
         (0..2_000)
             .map(|i| {
                 let (collection, id) = draw(&mut rng);
@@ -905,89 +959,90 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
             })
             .collect::<Vec<_>>(),
     );
-    let mut tasks: Vec<JoinHandle<anyhow::Result<Load>>> = Vec::new();
-    let begun = Instant::now();
-    for (k, mut user) in users.into_iter().enumerate() {
-        if k < WRITERS {
-            let mut writer = User {
-                subject: user.subject.clone(),
-                proof: user.proof.clone(),
-                forwarded: user.forwarded.clone(),
-                client: Client::connect(served.address).await?,
-            };
-            let mine: Vec<(Uuid, Uuid)> = networks
-                .iter()
-                .enumerate()
-                .filter(|(i, _)| i % WRITERS == k)
-                .map(|(_, n)| *n)
-                .collect();
-            let pool = pool.clone();
-            let offset = Duration::from_millis(rng.random_range(0..1_000));
+        let mut tasks: Vec<JoinHandle<anyhow::Result<Load>>> = Vec::new();
+        let begun = Instant::now();
+        for (k, mut user) in users.into_iter().enumerate() {
+            if k < WRITERS {
+                let mut writer = User {
+                    subject: user.subject.clone(),
+                    proof: user.proof.clone(),
+                    forwarded: user.forwarded.clone(),
+                    client: Client::connect(served.address).await?,
+                };
+                let mine: Vec<(Uuid, Uuid)> = networks
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| i % WRITERS == k)
+                    .map(|(_, n)| *n)
+                    .collect();
+                let pool = pool.clone();
+                let offset = Duration::from_millis(rng.random_range(0..1_000));
+                tasks.push(tokio::spawn(async move {
+                    let mut load = Load::default();
+                    let mut ticks = tokio::time::interval_at(
+                        tokio::time::Instant::from_std(begun + offset),
+                        Duration::from_secs(1),
+                    );
+                    ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+                    let mut i = 0;
+                    loop {
+                        ticks.tick().await;
+                        if begun.elapsed() >= LOAD {
+                            break;
+                        }
+                        let (_, body) = new_address(&pool, mine[i % mine.len()]).await?;
+                        load.record(&mut writer, true, "POST", CHANGESETS, Some(body))
+                            .await?;
+                        i += 1;
+                    }
+                    Ok(load)
+                }));
+            }
+            let paths = paths.clone();
+            let mut rng = ChaCha8Rng::seed_from_u64(seed.wrapping_add(100 + k as u64));
             tasks.push(tokio::spawn(async move {
                 let mut load = Load::default();
-                let mut ticks = tokio::time::interval_at(
-                    tokio::time::Instant::from_std(begun + offset),
-                    Duration::from_secs(1),
-                );
-                ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-                let mut i = 0;
-                loop {
-                    ticks.tick().await;
-                    if begun.elapsed() >= LOAD {
-                        break;
-                    }
-                    let (_, body) = new_address(&pool, mine[i % mine.len()]).await?;
-                    load.record(&mut writer, true, "POST", CHANGESETS, Some(body))
-                        .await?;
-                    i += 1;
+                while begun.elapsed() < LOAD {
+                    tokio::time::sleep(Duration::from_millis(rng.random_range(500..1_500))).await;
+                    let path = &paths[rng.random_range(0..paths.len())];
+                    load.record(&mut user, false, "GET", path, None).await?;
                 }
                 Ok(load)
             }));
         }
-        let paths = paths.clone();
-        let mut rng = ChaCha8Rng::seed_from_u64(seed.wrapping_add(100 + k as u64));
-        tasks.push(tokio::spawn(async move {
-            let mut load = Load::default();
-            while begun.elapsed() < LOAD {
-                tokio::time::sleep(Duration::from_millis(rng.random_range(500..1_500))).await;
-                let path = &paths[rng.random_range(0..paths.len())];
-                load.record(&mut user, false, "GET", path, None).await?;
-            }
-            Ok(load)
-        }));
+        let mut total = Load::default();
+        for task in tasks {
+            let load = task.await??;
+            total.reads.extend(load.reads);
+            total.writes.extend(load.writes);
+            total.answers.extend(load.answers);
+        }
+        let elapsed = begun.elapsed();
+        progress(&format!("load: {:?}", started.elapsed()));
+        let count = |a: Answer| total.answers.iter().filter(|x| **x == a).count();
+        let (sheddings, errors, refused) = (
+            count(Answer::Shed),
+            count(Answer::Error),
+            count(Answer::Refused),
+        );
+        let writes = total.writes.len();
+        let rate = f64::from(u32::try_from(writes)?) / elapsed.as_secs_f64();
+        let sustained = rate >= 50.0;
+        let clean = errors == 0 && refused == 0;
+        ok &= sustained && clean;
+        writeln!(
+            report,
+            "{} sustained writes through HTTP: {rate:.1}/s ({writes} in {elapsed:?}, {WRITERS} writers at 1/s, at least 50/s)",
+            if sustained { "PASS" } else { "FAIL" },
+        )?;
+        writeln!(
+            report,
+            "{} {USERS} concurrent users: {} requests, {errors} 5xx but the shedding, {refused} refused, {sheddings} shed; p95 of a read {:?}, of a write {:?}",
+            if clean { "PASS" } else { "FAIL" },
+            total.answers.len(),
+            p95(total.reads),
+            p95(total.writes),
+        )?;
     }
-    let mut total = Load::default();
-    for task in tasks {
-        let load = task.await??;
-        total.reads.extend(load.reads);
-        total.writes.extend(load.writes);
-        total.answers.extend(load.answers);
-    }
-    let elapsed = begun.elapsed();
-    progress(&format!("load: {:?}", started.elapsed()));
-    let count = |a: Answer| total.answers.iter().filter(|x| **x == a).count();
-    let (sheddings, errors, refused) = (
-        count(Answer::Shed),
-        count(Answer::Error),
-        count(Answer::Refused),
-    );
-    let writes = total.writes.len();
-    let rate = f64::from(u32::try_from(writes)?) / elapsed.as_secs_f64();
-    let sustained = rate >= 50.0;
-    let clean = errors == 0 && refused == 0;
-    ok &= sustained && clean;
-    writeln!(
-        report,
-        "{} sustained writes through HTTP: {rate:.1}/s ({writes} in {elapsed:?}, {WRITERS} writers at 1/s, at least 50/s)",
-        if sustained { "PASS" } else { "FAIL" },
-    )?;
-    writeln!(
-        report,
-        "{} {USERS} concurrent users: {} requests, {errors} 5xx but the shedding, {refused} refused, {sheddings} shed; p95 of a read {:?}, of a write {:?}",
-        if clean { "PASS" } else { "FAIL" },
-        total.answers.len(),
-        p95(total.reads),
-        p95(total.writes),
-    )?;
     Ok((report, ok))
 }

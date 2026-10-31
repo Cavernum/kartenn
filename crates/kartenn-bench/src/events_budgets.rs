@@ -32,7 +32,28 @@ use sqlx::PgPool;
 use sqlx::types::Uuid;
 use tokio::sync::watch;
 
+use crate::measures::{Bench, Measure, Selection};
 use crate::props::{Budget, p95, progress, verdict};
+
+const READER_OVERHEAD: &str = "events.reader-overhead";
+const LATENCY: &str = "events.latency";
+const MEMORY: &str = "events.memory";
+const STORM: &str = "events.storm";
+const VISIBILITY: &str = "events.visibility";
+
+/// The measures of `bench-events` (ADR 0041). The storm reopens the idle streams of the
+/// measure of the memory; the visibility query reads the latest addresses, written first
+/// when the measures before it did not.
+pub(crate) static BENCH: Bench = Bench {
+    name: "events",
+    measures: &[
+        Measure::new(READER_OVERHEAD),
+        Measure::new(LATENCY),
+        Measure::new(MEMORY),
+        Measure::new(STORM).after(&[MEMORY]),
+        Measure::new(VISIBILITY),
+    ],
+};
 
 /// The sizes of a run (ADR 0032).
 #[derive(Debug, Clone, Copy)]
@@ -245,13 +266,17 @@ fn percentile(mut samples: Vec<Duration>, per: usize) -> Duration {
     samples.get(i).copied().unwrap_or_default()
 }
 
-/// Measures the budgets; returns the report and whether every one holds.
+/// Measures the budgets `selection` runs; returns the report and whether every one holds.
 ///
 /// # Errors
 ///
 /// Database or pipeline failures.
 #[allow(clippy::too_many_lines)] // one linear scenario, step by step
-pub async fn run(database: &str, sizes: Sizes) -> anyhow::Result<(String, bool)> {
+pub async fn run(
+    database: &str,
+    sizes: Sizes,
+    selection: &Selection,
+) -> anyhow::Result<(String, bool)> {
     let pool = PgPool::connect(database)
         .await
         .with_context(|| format!("connecting to {database}"))?;
@@ -340,26 +365,30 @@ pub async fn run(database: &str, sizes: Sizes) -> anyhow::Result<(String, bool)>
     // The overhead of the reader (NOTIFY included): rounds without then with a reader
     // listening and reading, no stream open, so that the drift of a shared machine
     // weighs on both alike.
-    let (mut without, mut with) = (Vec::new(), Vec::new());
-    for _ in 0..5 {
-        for _ in 0..60 {
-            without.push(timed(&store, author, next()).await?.1);
+    let mut overhead = None;
+    if selection.runs(READER_OVERHEAD) {
+        let (mut without, mut with) = (Vec::new(), Vec::new());
+        for _ in 0..5 {
+            for _ in 0..60 {
+                without.push(timed(&store, author, next()).await?.1);
+            }
+            let reader = Reader::start(hub.clone(), pool.clone()).await?;
+            let (stop, stopped) = watch::channel(false);
+            let task = tokio::spawn(reader.run(stopped));
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            for _ in 0..60 {
+                with.push(timed(&store, author, next()).await?.1);
+            }
+            let _ = stop.send(true);
+            let _ = task.await;
         }
-        let reader = Reader::start(hub.clone(), pool.clone()).await?;
-        let (stop, stopped) = watch::channel(false);
-        let task = tokio::spawn(reader.run(stopped));
-        tokio::time::sleep(Duration::from_millis(200)).await;
-        for _ in 0..60 {
-            with.push(timed(&store, author, next()).await?.1);
-        }
-        let _ = stop.send(true);
-        let _ = task.await;
+        let baseline = p95(without);
+        let with_reader = p95(with);
+        progress(&format!(
+            "unitary p95 {baseline:?} without, {with_reader:?} with the reader"
+        ));
+        overhead = Some((baseline, with_reader));
     }
-    let baseline = p95(without);
-    let with_reader = p95(with);
-    progress(&format!(
-        "unitary p95 {baseline:?} without, {with_reader:?} with the reader"
-    ));
     let reader = Reader::start(hub.clone(), pool.clone()).await?;
     let counters = reader.counters.clone();
     let (stop, stopped) = watch::channel(false);
@@ -367,209 +396,233 @@ pub async fn run(database: &str, sizes: Sizes) -> anyhow::Result<(String, bool)>
     let checks = tokio::spawn(hub.clone().watch(stopped));
 
     // Latency at 50 writes per second with `streams` streams.
-    let seen: Seen = Arc::default();
-    let barrier = Arc::new(tokio::sync::Barrier::new(sizes.streams + 1));
-    let mut tasks = Vec::new();
-    for i in 0..sizes.streams {
-        let identity = identities[i % sizes.identities];
-        tasks.push(stream(&hub, identity, None, &seen, Some(barrier.clone()))?);
-    }
-    barrier.wait().await;
-    let mut commits: HashMap<Uuid, Instant> = HashMap::new();
-    let mut loaded = Vec::new();
-    let passes_before = counters.passes.load(std::sync::atomic::Ordering::Relaxed);
-    let queries_before = counters.queries.load(std::sync::atomic::Ordering::Relaxed);
-    let mut tick = tokio::time::interval(Duration::from_millis(1_000 / RATE));
-    let started = Instant::now();
-    for _ in 0..sizes.seconds * RATE {
-        tick.tick().await;
-        let (changeset, took) = timed(&store, author, next()).await?;
-        commits.insert(changeset, Instant::now());
-        loaded.push(took);
-    }
-    tokio::time::sleep(Duration::from_secs(2)).await;
-    let wrote = started.elapsed();
-    let passes = counters.passes.load(std::sync::atomic::Ordering::Relaxed) - passes_before;
-    let queries = counters.queries.load(std::sync::atomic::Ordering::Relaxed) - queries_before;
-    let mut lags = Vec::new();
-    let mut missing = 0usize;
-    {
-        let seen = seen
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        for (changeset, committed) in &commits {
-            let got = seen.get(changeset).map_or(0, Vec::len);
-            missing += sizes.streams.saturating_sub(got);
-            for at in seen.get(changeset).into_iter().flatten() {
-                lags.push(at.saturating_duration_since(*committed));
-            }
+    if selection.runs(LATENCY) {
+        let seen: Seen = Arc::default();
+        let barrier = Arc::new(tokio::sync::Barrier::new(sizes.streams + 1));
+        let mut tasks = Vec::new();
+        for i in 0..sizes.streams {
+            let identity = identities[i % sizes.identities];
+            tasks.push(stream(&hub, identity, None, &seen, Some(barrier.clone()))?);
         }
-    }
-    writeln!(
-        report,
-        "INFO {} streams ({} identities), {} changesets in {wrote:?}: {} deliveries, {missing} missing; reader: {passes} passes, {queries} queries",
-        sizes.streams,
-        sizes.identities,
-        commits.len(),
-        lags.len()
-    )?;
-    let note = format!("{} streams, {RATE} changesets/s", sizes.streams);
-    budgets.push(Budget {
-        name: "commit to event written, p95",
-        limit: Duration::from_millis(500),
-        measured: percentile(lags.clone(), 95),
-        note: note.clone(),
-    });
-    budgets.push(Budget {
-        name: "commit to event written, p99",
-        limit: Duration::from_secs(1),
-        measured: percentile(lags, 99),
-        note,
-    });
-    budgets.push(Budget {
-        name: "events lost on a stream",
-        limit: Duration::ZERO,
-        measured: Duration::from_millis(missing as u64),
-        note: "count, as milliseconds".into(),
-    });
-    let loaded = p95(loaded);
-    writeln!(
-        report,
-        "INFO unitary changeset p95: {baseline:?} without the reader, {with_reader:?} with it, \
-         {loaded:?} with it and {} streams read in the same process",
-        sizes.streams
-    )?;
-    for t in tasks.drain(..) {
-        t.abort();
-    }
-    tokio::time::sleep(Duration::from_millis(200)).await;
-
-    // Memory per idle stream, up to the ceiling of the instance.
-    let before = rss_kib();
-    let quiet: Seen = Arc::default();
-    let barrier = Arc::new(tokio::sync::Barrier::new(sizes.ceiling + 1));
-    let mut idle = Vec::new();
-    for i in 0..sizes.ceiling {
-        let identity = identities[i % sizes.identities];
-        idle.push((
-            stream(&hub, identity, None, &quiet, Some(barrier.clone()))?,
-            identity,
-        ));
-    }
-    barrier.wait().await;
-    let after = rss_kib();
-    let per = (after.saturating_sub(before) * 1024) / sizes.ceiling as u64;
-    writeln!(
-        report,
-        "INFO {} idle streams: {before} KiB then {after} KiB, {} open",
-        sizes.ceiling,
-        hub.open_streams()
-    )?;
-    budgets.push(Budget {
-        name: "memory per idle stream",
-        limit: Duration::from_millis(64 * 1024),
-        measured: Duration::from_millis(per),
-        note: "octets, as milliseconds".into(),
-    });
-
-    // The storm: every stream reopened with its cursor within 10 s, writes meanwhile.
-    let floor = hub.floor();
-    for (t, _) in &idle {
-        t.abort();
-    }
-    let identities_of: Vec<Uuid> = idle.iter().map(|(_, i)| *i).collect();
-    drop(idle);
-    for _ in 0..20 {
-        timed(&store, author, next()).await?;
-    }
-    tokio::time::sleep(Duration::from_millis(300)).await;
-    let resumed_seen: Seen = Arc::default();
-    let barrier = Arc::new(tokio::sync::Barrier::new(sizes.ceiling + 1));
-    let started = Instant::now();
-    let writer = {
-        let store = store.clone();
-        let mut ops: Vec<Operation> = (0..RATE * 10).map(|_| next()).collect();
-        tokio::spawn(async move {
-            let mut took = Vec::new();
-            let mut tick = tokio::time::interval(Duration::from_millis(1_000 / RATE));
-            for op in ops.drain(..) {
-                tick.tick().await;
-                if let Ok((_, t)) = timed(&store, author, op).await {
-                    took.push(t);
+        barrier.wait().await;
+        let mut commits: HashMap<Uuid, Instant> = HashMap::new();
+        let mut loaded = Vec::new();
+        let passes_before = counters.passes.load(std::sync::atomic::Ordering::Relaxed);
+        let queries_before = counters.queries.load(std::sync::atomic::Ordering::Relaxed);
+        let mut tick = tokio::time::interval(Duration::from_millis(1_000 / RATE));
+        let started = Instant::now();
+        for _ in 0..sizes.seconds * RATE {
+            tick.tick().await;
+            let (changeset, took) = timed(&store, author, next()).await?;
+            commits.insert(changeset, Instant::now());
+            loaded.push(took);
+        }
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        let wrote = started.elapsed();
+        let passes = counters.passes.load(std::sync::atomic::Ordering::Relaxed) - passes_before;
+        let queries = counters.queries.load(std::sync::atomic::Ordering::Relaxed) - queries_before;
+        let mut lags = Vec::new();
+        let mut missing = 0usize;
+        {
+            let seen = seen
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            for (changeset, committed) in &commits {
+                let got = seen.get(changeset).map_or(0, Vec::len);
+                missing += sizes.streams.saturating_sub(got);
+                for at in seen.get(changeset).into_iter().flatten() {
+                    lags.push(at.saturating_duration_since(*committed));
                 }
             }
-            took
-        })
-    };
-    let mut reopened = Vec::new();
-    for identity in identities_of {
-        reopened.push(stream(
-            &hub,
-            identity,
-            Some(floor),
-            &resumed_seen,
-            Some(barrier.clone()),
-        )?);
-        // Spread over the first seconds, as the `retry:` of the stop spreads them.
-        tokio::task::yield_now().await;
-    }
-    barrier.wait().await;
-    let resumed = started.elapsed();
-    let took = writer.await.unwrap_or_default();
-    writeln!(
-        report,
-        "INFO storm: {} resumptions served in {resumed:?}; {} writes meanwhile",
-        sizes.ceiling,
-        took.len()
-    )?;
-    budgets.push(Budget {
-        name: "resumption of every stream of an instance",
-        limit: Duration::from_secs(10),
-        measured: resumed,
-        note: format!("{} streams with their cursor", sizes.ceiling),
-    });
-    budgets.push(Budget {
-        name: "unitary changeset during the storm, p95 (INV-34)",
-        limit: Duration::from_millis(200),
-        measured: p95(took),
-        note: format!("{RATE} changesets/s"),
-    });
-    for t in reopened {
-        t.abort();
+        }
+        writeln!(
+            report,
+            "INFO {} streams ({} identities), {} changesets in {wrote:?}: {} deliveries, {missing} missing; reader: {passes} passes, {queries} queries",
+            sizes.streams,
+            sizes.identities,
+            commits.len(),
+            lags.len()
+        )?;
+        let note = format!("{} streams, {RATE} changesets/s", sizes.streams);
+        budgets.push(Budget {
+            name: "commit to event written, p95",
+            limit: Duration::from_millis(500),
+            measured: percentile(lags.clone(), 95),
+            note: note.clone(),
+        });
+        budgets.push(Budget {
+            name: "commit to event written, p99",
+            limit: Duration::from_secs(1),
+            measured: percentile(lags, 99),
+            note,
+        });
+        budgets.push(Budget {
+            name: "events lost on a stream",
+            limit: Duration::ZERO,
+            measured: Duration::from_millis(missing as u64),
+            note: "count, as milliseconds".into(),
+        });
+        let loaded = p95(loaded);
+        if let Some((baseline, with_reader)) = overhead {
+            writeln!(
+                report,
+                "INFO unitary changeset p95: {baseline:?} without the reader, {with_reader:?} with it, \
+             {loaded:?} with it and {} streams read in the same process",
+                sizes.streams
+            )?;
+        } else {
+            writeln!(
+                report,
+                "INFO unitary changeset p95: {loaded:?} with the reader and {} streams read in the \
+             same process",
+                sizes.streams
+            )?;
+        }
+        for t in tasks.drain(..) {
+            t.abort();
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
     }
 
-    // The visibility query of a batch: subjects × objects, none reading everywhere.
-    let authorizer = PgAuthorizer::new(pool.clone());
-    let mut scopes = Vec::new();
-    for (i, identity) in identities
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| i % 3 != 0)
-        .take(sizes.subjects)
-    {
-        let scope = authorizer
-            .read_scope(&Subject::from(*identity), time::OffsetDateTime::now_utc())
+    // Memory per idle stream, up to the ceiling of the instance.
+    if selection.runs(MEMORY) {
+        let before = rss_kib();
+        let quiet: Seen = Arc::default();
+        let barrier = Arc::new(tokio::sync::Barrier::new(sizes.ceiling + 1));
+        let mut idle = Vec::new();
+        for i in 0..sizes.ceiling {
+            let identity = identities[i % sizes.identities];
+            idle.push((
+                stream(&hub, identity, None, &quiet, Some(barrier.clone()))?,
+                identity,
+            ));
+        }
+        barrier.wait().await;
+        let after = rss_kib();
+        let per = (after.saturating_sub(before) * 1024) / sizes.ceiling as u64;
+        writeln!(
+            report,
+            "INFO {} idle streams: {before} KiB then {after} KiB, {} open",
+            sizes.ceiling,
+            hub.open_streams()
+        )?;
+        budgets.push(Budget {
+            name: "memory per idle stream",
+            limit: Duration::from_millis(64 * 1024),
+            measured: Duration::from_millis(per),
+            note: "octets, as milliseconds".into(),
+        });
+
+        // The storm: every stream reopened with its cursor within 10 s, writes meanwhile.
+        let floor = hub.floor();
+        for (t, _) in &idle {
+            t.abort();
+        }
+        if selection.runs(STORM) {
+            let identities_of: Vec<Uuid> = idle.iter().map(|(_, i)| *i).collect();
+            drop(idle);
+            for _ in 0..20 {
+                timed(&store, author, next()).await?;
+            }
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            let resumed_seen: Seen = Arc::default();
+            let barrier = Arc::new(tokio::sync::Barrier::new(sizes.ceiling + 1));
+            let started = Instant::now();
+            let writer = {
+                let store = store.clone();
+                let mut ops: Vec<Operation> = (0..RATE * 10).map(|_| next()).collect();
+                tokio::spawn(async move {
+                    let mut took = Vec::new();
+                    let mut tick = tokio::time::interval(Duration::from_millis(1_000 / RATE));
+                    for op in ops.drain(..) {
+                        tick.tick().await;
+                        if let Ok((_, t)) = timed(&store, author, op).await {
+                            took.push(t);
+                        }
+                    }
+                    took
+                })
+            };
+            let mut reopened = Vec::new();
+            for identity in identities_of {
+                reopened.push(stream(
+                    &hub,
+                    identity,
+                    Some(floor),
+                    &resumed_seen,
+                    Some(barrier.clone()),
+                )?);
+                // Spread over the first seconds, as the `retry:` of the stop spreads them.
+                tokio::task::yield_now().await;
+            }
+            barrier.wait().await;
+            let resumed = started.elapsed();
+            let took = writer.await.unwrap_or_default();
+            writeln!(
+                report,
+                "INFO storm: {} resumptions served in {resumed:?}; {} writes meanwhile",
+                sizes.ceiling,
+                took.len()
+            )?;
+            budgets.push(Budget {
+                name: "resumption of every stream of an instance",
+                limit: Duration::from_secs(10),
+                measured: resumed,
+                note: format!("{} streams with their cursor", sizes.ceiling),
+            });
+            budgets.push(Budget {
+                name: "unitary changeset during the storm, p95 (INV-34)",
+                limit: Duration::from_millis(200),
+                measured: p95(took),
+                note: format!("{RATE} changesets/s"),
+            });
+            for t in reopened {
+                t.abort();
+            }
+        }
+    }
+
+    // The visibility query of a batch: subjects × objects, none reading everywhere. The
+    // objects are the latest addresses: as many as the measures before wrote at least.
+    if selection.runs(VISIBILITY) {
+        let written: i64 = sqlx::query_scalar("SELECT count(*) FROM address")
+            .fetch_one(&pool)
             .await?;
-        if let Some(json) = scope.to_json() {
-            scopes.push((i32::try_from(i)?, json));
+        for _ in usize::try_from(written)?..sizes.objects {
+            timed(&store, author, next()).await?;
         }
-    }
-    let objects: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM address ORDER BY id DESC LIMIT $1")
-        .bind(i64::try_from(sizes.objects)?)
-        .fetch_all(&pool)
-        .await?;
-    let mut conn = pool.acquire().await?;
-    kartenn_store_pg::events::visible(&mut conn, &scopes, &objects).await?;
-    let mut costs = Vec::new();
-    for _ in 0..10 {
-        let t = Instant::now();
-        let pairs = kartenn_store_pg::events::visible(&mut conn, &scopes, &objects).await?;
-        costs.push(t.elapsed());
-        if pairs.is_empty() {
-            bail!("the visibility query found nothing visible");
+        let authorizer = PgAuthorizer::new(pool.clone());
+        let mut scopes = Vec::new();
+        for (i, identity) in identities
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| i % 3 != 0)
+            .take(sizes.subjects)
+        {
+            let scope = authorizer
+                .read_scope(&Subject::from(*identity), time::OffsetDateTime::now_utc())
+                .await?;
+            if let Some(json) = scope.to_json() {
+                scopes.push((i32::try_from(i)?, json));
+            }
         }
-    }
-    budgets.push(Budget {
+        let objects: Vec<Uuid> =
+            sqlx::query_scalar("SELECT id FROM address ORDER BY id DESC LIMIT $1")
+                .bind(i64::try_from(sizes.objects)?)
+                .fetch_all(&pool)
+                .await?;
+        let mut conn = pool.acquire().await?;
+        kartenn_store_pg::events::visible(&mut conn, &scopes, &objects).await?;
+        let mut costs = Vec::new();
+        for _ in 0..10 {
+            let t = Instant::now();
+            let pairs = kartenn_store_pg::events::visible(&mut conn, &scopes, &objects).await?;
+            costs.push(t.elapsed());
+            if pairs.is_empty() {
+                bail!("the visibility query found nothing visible");
+            }
+        }
+        budgets.push(Budget {
         name: "visibility of a batch, p95",
         limit: Duration::from_millis(250),
         measured: p95(costs),
@@ -579,18 +632,20 @@ pub async fn run(database: &str, sizes: Sizes) -> anyhow::Result<(String, bool)>
             objects.len()
         ),
     });
-    drop(conn);
+        drop(conn);
+    }
 
     let _ = stop.send(true);
     let _ = reader_task.await;
     checks.abort();
-    let reference = baseline;
-    budgets.push(Budget {
-        name: "overhead of the reader on the unitary changeset, p95",
-        limit: reference.mul_f64(0.05).max(Duration::from_millis(1)),
-        measured: with_reader.saturating_sub(reference),
-        note: "NOTIFY included, 5 rounds of 60 draws each way; limit: 5 % of the baseline (floor 1 ms)".into(),
-    });
+    if let Some((reference, with_reader)) = overhead {
+        budgets.push(Budget {
+            name: "overhead of the reader on the unitary changeset, p95",
+            limit: reference.mul_f64(0.05).max(Duration::from_millis(1)),
+            measured: with_reader.saturating_sub(reference),
+            note: "NOTIFY included, 5 rounds of 60 draws each way; limit: 5 % of the baseline (floor 1 ms)".into(),
+        });
+    }
     let (lines, ok) = verdict(&budgets)?;
     report.push_str(&lines);
     Ok((report, ok))

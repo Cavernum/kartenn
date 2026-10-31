@@ -30,7 +30,29 @@ use sqlx::types::time::OffsetDateTime;
 
 use crate::Dataset;
 use crate::core_budgets::{Prepared, new_address, prepare};
+use crate::measures::{Bench, Measure, Selection};
 use crate::props::{SINCE, p95, progress};
+
+const READ: &str = "rbac.read-object";
+const READ_PAST: &str = "rbac.read-past";
+const FILTERED_PAGE: &str = "rbac.filtered-page";
+const SUBTREE: &str = "rbac.subtree";
+const UNITARY: &str = "rbac.unitary-changeset";
+const RESOLUTION: &str = "rbac.resolution";
+
+/// The measures of `bench-rbac` (ADR 0041). The budget of the read in the past is twice
+/// the current read with access control.
+pub(crate) static BENCH: Bench = Bench {
+    name: "rbac",
+    measures: &[
+        Measure::new(READ),
+        Measure::new(READ_PAST).after(&[READ]),
+        Measure::new(FILTERED_PAGE),
+        Measure::new(SUBTREE),
+        Measure::new(UNITARY),
+        Measure::new(RESOLUTION),
+    ],
+};
 
 pub(crate) const ISSUER: &str = "https://idp.bench.invalid";
 /// The groups of the issuer in the token of the person (`g00` to `g49`).
@@ -329,14 +351,19 @@ async fn unitary<A: Authorizer>(
     }
 }
 
-/// Loads, binds and measures; returns the report and whether every budget holds with
-/// access control.
+/// Loads, binds and measures what `selection` runs; returns the report and whether every
+/// budget holds with access control.
 ///
 /// # Errors
 ///
 /// Database or pipeline failures, a draw the person cannot see.
 #[allow(clippy::too_many_lines)] // one linear scenario, step by step
-pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(String, bool)> {
+pub async fn run(
+    database: &str,
+    data: &Dataset,
+    seed: u64,
+    selection: &Selection,
+) -> anyhow::Result<(String, bool)> {
     let started = Instant::now();
     let Prepared {
         pool,
@@ -396,170 +423,191 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
             .map_err(|e| anyhow!(e.0))?;
     }
 
+    let mut pairs = Vec::new();
     // Reading an object: the read, then the decision on it.
-    let mut read = Pair::new("read an object", Duration::from_millis(50));
-    for _ in 0..200 {
-        let id = if rng.random_range(0..4) == 0 {
-            data.prefixes[rng.random_range(0..data.prefixes.len())].id
-        } else {
-            data.addresses[rng.random_range(0..data.addresses.len())].id
-        };
-        let t = Instant::now();
-        object(&pool, id, now, None)
-            .await?
-            .context("a loaded object is missing")?;
-        read.plain.push(t.elapsed());
-        let t = Instant::now();
-        let found = object(&pool, id, now, None)
-            .await?
-            .context("a loaded object is missing")?;
-        let outside = authorizer
-            .authorize_many(&subject, &format!("core.{}.read", found.kind), &[id])
-            .await
-            .map_err(|e| anyhow!(e.0))?;
-        read.controlled.push(t.elapsed());
-        if !outside.is_empty() {
-            bail!("the person cannot read {id}: the bindings miss a domain");
+    let mut current = None;
+    if selection.runs(READ) {
+        let mut read = Pair::new("read an object", Duration::from_millis(50));
+        for _ in 0..200 {
+            let id = if rng.random_range(0..4) == 0 {
+                data.prefixes[rng.random_range(0..data.prefixes.len())].id
+            } else {
+                data.addresses[rng.random_range(0..data.addresses.len())].id
+            };
+            let t = Instant::now();
+            object(&pool, id, now, None)
+                .await?
+                .context("a loaded object is missing")?;
+            read.plain.push(t.elapsed());
+            let t = Instant::now();
+            let found = object(&pool, id, now, None)
+                .await?
+                .context("a loaded object is missing")?;
+            let outside = authorizer
+                .authorize_many(&subject, &format!("core.{}.read", found.kind), &[id])
+                .await
+                .map_err(|e| anyhow!(e.0))?;
+            read.controlled.push(t.elapsed());
+            if !outside.is_empty() {
+                bail!("the person cannot read {id}: the bindings miss a domain");
+            }
         }
+        current = Some(p95(read.controlled.clone()));
+        pairs.push(read);
     }
 
-    // Reading an object as known in the past (INV-33): the same decision, on now.
-    let mut dated = Pair::new(
-        "read an object as known in the past",
-        Duration::from_millis(50),
-    );
-    let from = OffsetDateTime::from_unix_timestamp(1_696_118_400)?;
-    for _ in 0..200 {
-        let id = data.addresses[rng.random_range(0..data.addresses.len())].id;
-        let as_of = Some(from + Duration::from_hours(24) * rng.random_range(0..700));
-        let t = Instant::now();
-        object(&pool, id, now, as_of)
-            .await?
-            .context("a past version is missing")?;
-        dated.plain.push(t.elapsed());
-        let t = Instant::now();
-        object(&pool, id, now, as_of)
-            .await?
-            .context("a past version is missing")?;
-        authorizer
-            .authorize_many(&subject, "core.address.read", &[id])
-            .await
-            .map_err(|e| anyhow!(e.0))?;
-        dated.controlled.push(t.elapsed());
+    // Reading an object as known in the past (INV-33): the same decision, on now; twice
+    // the current read, with access control as well (floor 5 ms).
+    if selection.runs(READ_PAST) {
+        let current = current.context("the current read is a prerequisite")?;
+        let mut dated = Pair::new(
+            "read an object as known in the past",
+            (current * 2).max(Duration::from_millis(5)),
+        );
+        let from = OffsetDateTime::from_unix_timestamp(1_696_118_400)?;
+        for _ in 0..200 {
+            let id = data.addresses[rng.random_range(0..data.addresses.len())].id;
+            let as_of = Some(from + Duration::from_hours(24) * rng.random_range(0..700));
+            let t = Instant::now();
+            object(&pool, id, now, as_of)
+                .await?
+                .context("a past version is missing")?;
+            dated.plain.push(t.elapsed());
+            let t = Instant::now();
+            object(&pool, id, now, as_of)
+                .await?
+                .context("a past version is missing")?;
+            authorizer
+                .authorize_many(&subject, "core.address.read", &[id])
+                .await
+                .map_err(|e| anyhow!(e.0))?;
+            dated.controlled.push(t.elapsed());
+        }
+        pairs.push(dated);
     }
 
     // Filtered pages of 100: the scope of the person, then the filtered page.
-    let mut page = Pair::new("filtered page of 100", Duration::from_millis(150));
-    let mut scopes = Vec::new();
-    for _ in 0..100 {
-        let domain = data.domains[rng.random_range(0..data.domains.len())].id;
-        let low: i64 = rng.random_range(0..900_000);
-        let condition =
-            Condition::Between(Some(low.to_string()), Some((low + 100_000).to_string()));
-        let t = Instant::now();
-        let all = filter(&pool, rack, domain, &condition, now, None, 100).await?;
-        page.plain.push(t.elapsed());
-        let t = Instant::now();
-        let scope = authorizer
-            .read_scope(&subject, now)
-            .await
-            .map_err(|e| anyhow!(e.0))?;
-        scopes.push(t.elapsed());
-        let visible = filter_in(&pool, rack, domain, &condition, now, None, 100, &scope).await?;
-        page.controlled.push(t.elapsed());
-        if visible != all {
-            bail!("a filtered page differs for a person who sees every domain");
+    if selection.runs(FILTERED_PAGE) {
+        let mut page = Pair::new("filtered page of 100", Duration::from_millis(150));
+        let mut scopes = Vec::new();
+        for _ in 0..100 {
+            let domain = data.domains[rng.random_range(0..data.domains.len())].id;
+            let low: i64 = rng.random_range(0..900_000);
+            let condition =
+                Condition::Between(Some(low.to_string()), Some((low + 100_000).to_string()));
+            let t = Instant::now();
+            let all = filter(&pool, rack, domain, &condition, now, None, 100).await?;
+            page.plain.push(t.elapsed());
+            let t = Instant::now();
+            let scope = authorizer
+                .read_scope(&subject, now)
+                .await
+                .map_err(|e| anyhow!(e.0))?;
+            scopes.push(t.elapsed());
+            let visible =
+                filter_in(&pool, rack, domain, &condition, now, None, 100, &scope).await?;
+            page.controlled.push(t.elapsed());
+            if visible != all {
+                bail!("a filtered page differs for a person who sees every domain");
+            }
         }
+        writeln!(
+            report,
+            "INFO the read scope of the person, p95: {:?}",
+            p95(scopes)
+        )?;
+        pairs.push(page);
     }
 
     // Subtree and occupancy.
-    let mut subtree = Pair::new("subtree and occupancy", Duration::from_millis(200));
-    for _ in 0..200 {
-        let p = data.prefixes[rng.random_range(0..data.prefixes.len())].id;
-        let t = Instant::now();
-        children(&pool, p, now).await?;
-        occupancy(&pool, p, now).await?;
-        subtree.plain.push(t.elapsed());
-        let t = Instant::now();
-        let scope = authorizer
-            .read_scope(&subject, now)
-            .await
-            .map_err(|e| anyhow!(e.0))?;
-        children_in(&pool, p, now, &scope).await?;
-        occupancy(&pool, p, now).await?;
-        subtree.controlled.push(t.elapsed());
+    if selection.runs(SUBTREE) {
+        let mut subtree = Pair::new("subtree and occupancy", Duration::from_millis(200));
+        for _ in 0..200 {
+            let p = data.prefixes[rng.random_range(0..data.prefixes.len())].id;
+            let t = Instant::now();
+            children(&pool, p, now).await?;
+            occupancy(&pool, p, now).await?;
+            subtree.plain.push(t.elapsed());
+            let t = Instant::now();
+            let scope = authorizer
+                .read_scope(&subject, now)
+                .await
+                .map_err(|e| anyhow!(e.0))?;
+            children_in(&pool, p, now, &scope).await?;
+            occupancy(&pool, p, now).await?;
+            subtree.controlled.push(t.elapsed());
+        }
+        pairs.push(subtree);
     }
 
     // Unitary changesets: a new address in a random network, alternately.
-    let networks: Vec<(Uuid, Uuid)> = data
-        .prefixes
-        .iter()
-        .filter(|p| p.nature == crate::Nature::Network)
-        .map(|p| (p.id, data.domains[p.domain].id))
-        .collect();
-    let mut changeset = Pair::new("unitary changeset", Duration::from_millis(200));
-    for _ in 0..100 {
-        let network = networks[rng.random_range(0..networks.len())];
-        let operation = new_address(&pool, network).await?;
-        changeset
-            .plain
-            .push(unitary(&store, &Unrestricted, &system, author, operation).await?);
-        let network = networks[rng.random_range(0..networks.len())];
-        let operation = new_address(&pool, network).await?;
-        changeset
-            .controlled
-            .push(unitary(&store, &authorizer, &person, author, operation).await?);
+    if selection.runs(UNITARY) {
+        let networks: Vec<(Uuid, Uuid)> = data
+            .prefixes
+            .iter()
+            .filter(|p| p.nature == crate::Nature::Network)
+            .map(|p| (p.id, data.domains[p.domain].id))
+            .collect();
+        let mut changeset = Pair::new("unitary changeset", Duration::from_millis(200));
+        for _ in 0..100 {
+            let network = networks[rng.random_range(0..networks.len())];
+            let operation = new_address(&pool, network).await?;
+            changeset
+                .plain
+                .push(unitary(&store, &Unrestricted, &system, author, operation).await?);
+            let network = networks[rng.random_range(0..networks.len())];
+            let operation = new_address(&pool, network).await?;
+            changeset
+                .controlled
+                .push(unitary(&store, &authorizer, &person, author, operation).await?);
+        }
+        pairs.push(changeset);
     }
 
     // The resolution of the groups (REQ-025-15): the decision on an address and the read
     // scope, for 50 groups of the issuer resolved to 0, 1 or 5 groups of kartenn, then
     // for the person.
-    let mut resolved = Vec::with_capacity(RESOLVED.len() + 1);
-    for (n, who) in resolution
-        .iter()
-        .map(|(n, s)| (*n, s))
-        .chain([(usize::try_from(held)?, &subject)])
-    {
-        let mut decisions = Vec::with_capacity(200);
-        let mut reads = Vec::with_capacity(200);
-        for _ in 0..200 {
-            let id = data.addresses[rng.random_range(0..data.addresses.len())].id;
-            let t = Instant::now();
-            let outside = authorizer
-                .authorize_many(who, "core.address.read", &[id])
-                .await
-                .map_err(|e| anyhow!(e.0))?;
-            decisions.push(t.elapsed());
-            if outside.is_empty() == (n == 0) {
-                bail!("the decision on {id} for {n} groups of kartenn is wrong");
+    if selection.runs(RESOLUTION) {
+        let mut resolved = Vec::with_capacity(RESOLVED.len() + 1);
+        for (n, who) in resolution
+            .iter()
+            .map(|(n, s)| (*n, s))
+            .chain([(usize::try_from(held)?, &subject)])
+        {
+            let mut decisions = Vec::with_capacity(200);
+            let mut reads = Vec::with_capacity(200);
+            for _ in 0..200 {
+                let id = data.addresses[rng.random_range(0..data.addresses.len())].id;
+                let t = Instant::now();
+                let outside = authorizer
+                    .authorize_many(who, "core.address.read", &[id])
+                    .await
+                    .map_err(|e| anyhow!(e.0))?;
+                decisions.push(t.elapsed());
+                if outside.is_empty() == (n == 0) {
+                    bail!("the decision on {id} for {n} groups of kartenn is wrong");
+                }
+                let t = Instant::now();
+                authorizer
+                    .read_scope(who, now)
+                    .await
+                    .map_err(|e| anyhow!(e.0))?;
+                reads.push(t.elapsed());
             }
-            let t = Instant::now();
-            authorizer
-                .read_scope(who, now)
-                .await
-                .map_err(|e| anyhow!(e.0))?;
-            reads.push(t.elapsed());
+            resolved.push((n, p95(decisions), p95(reads)));
         }
-        resolved.push((n, p95(decisions), p95(reads)));
+        for (n, decision, read) in resolved {
+            writeln!(
+                report,
+                "INFO {GROUPS} groups of the issuer, {n} groups of kartenn: decision on an \
+                 address p95 {decision:?}, read scope p95 {read:?}"
+            )?;
+        }
     }
     progress(&format!("measures: {:?}", started.elapsed()));
-    writeln!(
-        report,
-        "INFO the read scope of the person, p95: {:?}",
-        p95(scopes)
-    )?;
-    for (n, decision, read) in resolved {
-        writeln!(
-            report,
-            "INFO {GROUPS} groups of the issuer, {n} groups of kartenn: decision on an \
-             address p95 {decision:?}, read scope p95 {read:?}"
-        )?;
-    }
 
-    // INV-33: twice the current read, with access control as well (floor 5 ms).
-    dated.limit = (p95(read.controlled.clone()) * 2).max(Duration::from_millis(5));
     let mut ok = true;
-    for pair in [read, dated, page, subtree, changeset] {
+    for pair in pairs {
         let plain = p95(pair.plain);
         let controlled = p95(pair.controlled);
         let overhead = controlled.as_secs_f64() / plain.as_secs_f64().max(1e-9) - 1.0;

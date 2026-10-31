@@ -33,8 +33,18 @@ use sqlx::types::Uuid;
 
 use crate::Dataset;
 use crate::core_budgets::unitary;
+use crate::measures::Selection;
 use crate::props::{Budget, p95, progress};
 use crate::vlan_budgets::{app, get, import, reader, reader_on, sync};
+
+/// The measures of the machines in `bench-core` (ADR 0041).
+pub(crate) const READ: &str = "core.machines-read";
+pub(crate) const OWNER_PAGE: &str = "core.machines-owner-page";
+pub(crate) const SITE_PAGE: &str = "core.machines-site-page";
+pub(crate) const NETWORK: &str = "core.machines-network";
+pub(crate) const CREATE: &str = "core.machines-create";
+pub(crate) const SUGGESTIONS: &str = "core.machines-suggestions";
+pub(crate) const IMPORT: &str = "core.machines-import";
 
 /// Machines, clusters and interfaces per machine of the reference dataset (REQ-009-21);
 /// a smaller dataset keeps the reference ratio of a machine per ten of its addresses, as
@@ -186,7 +196,8 @@ fn acceptance_items(owner: Uuid, domain: Uuid, count: usize) -> anyhow::Result<V
 }
 
 /// Deploys the module beside the VLAN module, loads its machines, interfaces and
-/// attachments, and measures; appends to `report` and returns the budgets.
+/// attachments, and measures what `selection` runs; appends to `report` and returns the
+/// budgets.
 ///
 /// # Errors
 ///
@@ -197,6 +208,7 @@ pub(crate) async fn run(
     author: Uuid,
     data: &Dataset,
     rng: &mut ChaCha8Rng,
+    selection: &Selection,
     report: &mut String,
 ) -> anyhow::Result<Vec<Budget>> {
     let started = Instant::now();
@@ -330,109 +342,135 @@ pub(crate) async fn run(
     }
 
     // Reading a machine, its card with its interfaces and their addresses.
-    let mut samples = Vec::new();
-    let mut interfaces = 0;
-    for _ in 0..200 {
-        let machine = machine_ids[rng.random_range(0..machine_ids.len())];
-        let (elapsed, card) = get(&app, &format!("/v1/machines/{machine}")).await?;
-        interfaces += card["interfaces"].as_array().map_or(0, Vec::len);
-        samples.push(elapsed);
+    if selection.runs(READ) {
+        let mut samples = Vec::new();
+        let mut interfaces = 0;
+        for _ in 0..200 {
+            let machine = machine_ids[rng.random_range(0..machine_ids.len())];
+            let (elapsed, card) = get(&app, &format!("/v1/machines/{machine}")).await?;
+            interfaces += card["interfaces"].as_array().map_or(0, Vec::len);
+            samples.push(elapsed);
+        }
+        if interfaces == 0 {
+            bail!("the machine cards carry no interface");
+        }
+        budgets.push(Budget {
+            name: "read a machine with its interfaces and addresses, p95",
+            limit: Duration::from_millis(50),
+            measured: p95(samples),
+            note: format!(
+                "200 draws, through the router, {} interfaces a card on average",
+                interfaces / 200
+            ),
+        });
     }
-    if interfaces == 0 {
-        bail!("the machine cards carry no interface");
-    }
-    budgets.push(Budget {
-        name: "read a machine with its interfaces and addresses, p95",
-        limit: Duration::from_millis(50),
-        measured: p95(samples),
-        note: format!(
-            "200 draws, through the router, {} interfaces a card on average",
-            interfaces / 200
-        ),
-    });
 
     // Filtered pages of 100: the virtual machines of an owner.
-    let mut samples = Vec::new();
-    let mut rows = 0;
-    for _ in 0..100 {
-        let owner = entities[rng.random_range(0..entities.len())];
-        let uri = format!("/v1/machines?kind=virtual&owner={owner}&page_size=100");
-        let (elapsed, page) = get(&app, &uri).await?;
-        rows += page["items"].as_array().map_or(0, Vec::len);
-        samples.push(elapsed);
+    if selection.runs(OWNER_PAGE) {
+        let mut samples = Vec::new();
+        let mut rows = 0;
+        for _ in 0..100 {
+            let owner = entities[rng.random_range(0..entities.len())];
+            let uri = format!("/v1/machines?kind=virtual&owner={owner}&page_size=100");
+            let (elapsed, page) = get(&app, &uri).await?;
+            rows += page["items"].as_array().map_or(0, Vec::len);
+            samples.push(elapsed);
+        }
+        budgets.push(Budget {
+            name: "filtered page of 100 machines, p95",
+            limit: Duration::from_millis(150),
+            measured: p95(samples),
+            note: format!(
+                "100 draws of the virtual machines of an owner, {} rows a page on average",
+                rows / 100
+            ),
+        });
     }
-    budgets.push(Budget {
-        name: "filtered page of 100 machines, p95",
-        limit: Duration::from_millis(150),
-        measured: p95(samples),
-        note: format!(
-            "100 draws of the virtual machines of an owner, {} rows a page on average",
-            rows / 100
-        ),
-    });
 
     // Filtered pages of 100: the physical machines of a site.
-    let mut samples = Vec::new();
-    let mut rows = 0;
-    for _ in 0..100 {
-        let site = sites[rng.random_range(0..sites.len())];
-        let uri = format!("/v1/machines?kind=physical&site={site}&page_size=100");
-        let (elapsed, page) = get(&app, &uri).await?;
-        rows += page["items"].as_array().map_or(0, Vec::len);
-        samples.push(elapsed);
+    if selection.runs(SITE_PAGE) {
+        let mut samples = Vec::new();
+        let mut rows = 0;
+        for _ in 0..100 {
+            let site = sites[rng.random_range(0..sites.len())];
+            let uri = format!("/v1/machines?kind=physical&site={site}&page_size=100");
+            let (elapsed, page) = get(&app, &uri).await?;
+            rows += page["items"].as_array().map_or(0, Vec::len);
+            samples.push(elapsed);
+        }
+        if rows == 0 {
+            bail!("no machine found on the drawn sites");
+        }
+        budgets.push(Budget {
+            name: "page of 100 machines of a site, p95",
+            limit: Duration::from_millis(150),
+            measured: p95(samples),
+            note: format!(
+                "100 draws of the physical machines of a site, {} rows a page on average",
+                rows / 100
+            ),
+        });
     }
-    if rows == 0 {
-        bail!("no machine found on the drawn sites");
-    }
-    budgets.push(Budget {
-        name: "page of 100 machines of a site, p95",
-        limit: Duration::from_millis(150),
-        measured: p95(samples),
-        note: format!(
-            "100 draws of the physical machines of a site, {} rows a page on average",
-            rows / 100
-        ),
-    });
 
     // The machines of a /24.
-    let mut samples = Vec::new();
-    let mut rows = 0;
-    for _ in 0..200 {
-        let network = networks[rng.random_range(0..networks.len())];
-        let (elapsed, page) = get(&app, &format!("/v1/machines?network={network}")).await?;
-        rows += page["items"].as_array().map_or(0, Vec::len);
-        samples.push(elapsed);
+    if selection.runs(NETWORK) {
+        let mut samples = Vec::new();
+        let mut rows = 0;
+        for _ in 0..200 {
+            let network = networks[rng.random_range(0..networks.len())];
+            let (elapsed, page) = get(&app, &format!("/v1/machines?network={network}")).await?;
+            rows += page["items"].as_array().map_or(0, Vec::len);
+            samples.push(elapsed);
+        }
+        if rows == 0 {
+            bail!("no machine found in the drawn networks");
+        }
+        budgets.push(Budget {
+            name: "machines of a /24, p95",
+            limit: Duration::from_millis(150),
+            measured: p95(samples),
+            note: format!("200 draws, {} machines a network on average", rows / 200),
+        });
     }
-    if rows == 0 {
-        bail!("no machine found in the drawn networks");
-    }
-    budgets.push(Budget {
-        name: "machines of a /24, p95",
-        limit: Duration::from_millis(150),
-        measured: p95(samples),
-        note: format!("200 draws, {} machines a network on average", rows / 200),
-    });
 
     // Unitary changesets: a new machine for a random owner.
-    let mut samples = Vec::new();
-    for i in 0..100 {
-        let owner = entities[rng.random_range(0..entities.len())];
-        let operation = op(
-            "create_machine",
-            json!({"name": format!("new{i}"), "kind": "physical", "owner": {"id": owner}}),
-        )?;
-        samples.push(unitary(&store, author, operation).await?);
+    if selection.runs(CREATE) {
+        let mut samples = Vec::new();
+        for i in 0..100 {
+            let owner = entities[rng.random_range(0..entities.len())];
+            let operation = op(
+                "create_machine",
+                json!({"name": format!("new{i}"), "kind": "physical", "owner": {"id": owner}}),
+            )?;
+            samples.push(unitary(&store, author, operation).await?);
+        }
+        budgets.push(Budget {
+            name: "create a machine, p95",
+            limit: Duration::from_millis(200),
+            measured: p95(samples),
+            note: "100 unitary changesets, validated and applied".into(),
+        });
     }
-    budgets.push(Budget {
-        name: "create a machine, p95",
-        limit: Duration::from_millis(200),
-        measured: p95(samples),
-        note: "100 unitary changesets, validated and applied".into(),
-    });
     progress(&format!("machines measures: {:?}", started.elapsed()));
 
-    // The suggestions by prefix of the core and of both modules (spec 018, REQ-018-23),
-    // as the reader of all, then the machines as the reader of one owner.
+    if selection.runs(SUGGESTIONS) {
+        budgets.extend(all_suggestions(pool, &entities, rng).await?);
+        progress(&format!("suggestions: {:?}", started.elapsed()));
+    }
+    if selection.runs(IMPORT) {
+        acceptance(pool, &store, author, entities[0], machines, report).await?;
+        progress(&format!("machines import: {:?}", started.elapsed()));
+    }
+    Ok(budgets)
+}
+
+/// The suggestions by prefix of the core and of both modules (spec 018, REQ-018-23), as
+/// the reader of all, then the machines as the reader of one owner.
+async fn all_suggestions(
+    pool: &PgPool,
+    entities: &[Uuid],
+    rng: &mut ChaCha8Rng,
+) -> anyhow::Result<Vec<Budget>> {
     let all = reader(
         pool,
         &[
@@ -456,10 +494,18 @@ pub(crate) async fn run(
     let everyone = crate::vlan_budgets::app(pool, registry.clone(), routes(), all)?;
     let owner = reader_on(pool, &["machines.read"], Some(entities[0])).await?;
     let one_owner = crate::vlan_budgets::app(pool, registry, routes(), owner)?;
-    budgets.extend(suggestions(pool, &everyone, &one_owner, rng).await?);
-    progress(&format!("suggestions: {:?}", started.elapsed()));
+    suggestions(pool, &everyone, &one_owner, rng).await
+}
 
-    // The import of the acceptance of REQ-009-19, in a domain of its own.
+/// The import of the acceptance of REQ-009-19, in a domain of its own, owned by `entity`.
+async fn acceptance(
+    pool: &PgPool,
+    store: &PgStore,
+    author: Uuid,
+    entity: Uuid,
+    machines: usize,
+    report: &mut String,
+) -> anyhow::Result<()> {
     let imported = (machines * IMPORTED / MACHINES).max(1);
     let owner: Uuid =
         sqlx::query_scalar("SELECT id FROM property_declaration WHERE key = 'core.owner'")
@@ -475,7 +521,7 @@ pub(crate) async fn run(
             object: Ref::Local(1),
             kind: ObjectKind::Domain,
             property: Ref::Id(owner),
-            values: vec![RawInput::Text(entities[0].to_string())],
+            values: vec![RawInput::Text(entity.to_string())],
         },
         Operation::CreatePrefix {
             local: None,
@@ -494,7 +540,7 @@ pub(crate) async fn run(
             operation,
         })
         .collect();
-    import(&store, author, "bench-machines-domain", items).await?;
+    import(store, author, "bench-machines-domain", items).await?;
     let domain: Uuid = sqlx::query_scalar(
         "SELECT id FROM addressing_domain WHERE slug = 'bench-machines-import' AND valid_period @> now()",
     )
@@ -502,10 +548,10 @@ pub(crate) async fn run(
     .await?;
     let t = Instant::now();
     import(
-        &store,
+        store,
         author,
         "bench-machines-import",
-        acceptance_items(entities[0], domain, imported)?,
+        acceptance_items(entity, domain, imported)?,
     )
     .await?;
     let elapsed = t.elapsed();
@@ -528,8 +574,7 @@ pub(crate) async fn run(
          by local names, in {elapsed:?}",
         imported * 2
     )?;
-    progress(&format!("machines import: {:?}", started.elapsed()));
-    Ok(budgets)
+    Ok(())
 }
 
 /// A suggestion route measured: its budget's name, its path, and the query of the keys

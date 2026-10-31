@@ -43,7 +43,14 @@ use tower::ServiceExt;
 
 use crate::Dataset;
 use crate::core_budgets::unitary;
+use crate::measures::Selection;
 use crate::props::{Budget, p95, progress};
+
+/// The measures of the VLANs in `bench-core` (ADR 0041).
+pub(crate) const READ: &str = "core.vlan-read";
+pub(crate) const FILTERED_PAGE: &str = "core.vlan-filtered-page";
+pub(crate) const OCCUPANCY: &str = "core.vlan-occupancy";
+pub(crate) const CREATE: &str = "core.vlan-create";
 
 /// Groups and VLANs of the reference dataset (REQ-008-25); a smaller dataset (fewer
 /// networks than the VLANs carry) gets one VLAN per network and a fifth as many groups.
@@ -222,8 +229,8 @@ pub(crate) async fn get(app: &Router, uri: &str) -> anyhow::Result<(Duration, Va
     Ok((elapsed, serde_json::from_slice(&bytes)?))
 }
 
-/// Deploys the module, loads its groups, VLANs and networks, and measures; appends to
-/// `report` and returns the budgets.
+/// Deploys the module, loads its groups, VLANs and networks, and measures what `selection`
+/// runs; appends to `report` and returns the budgets.
 ///
 /// # Errors
 ///
@@ -234,6 +241,7 @@ pub(crate) async fn run(
     author: Uuid,
     data: &Dataset,
     rng: &mut ChaCha8Rng,
+    selection: &Selection,
     report: &mut String,
 ) -> anyhow::Result<Vec<Budget>> {
     let started = Instant::now();
@@ -405,75 +413,83 @@ pub(crate) async fn run(
     }
 
     // Reading a VLAN.
-    let mut samples = Vec::new();
-    for _ in 0..200 {
-        let vlan = vlan_ids[rng.random_range(0..vlan_ids.len())];
-        samples.push(get(&app, &format!("/v1/vlans/{vlan}")).await?.0);
+    if selection.runs(READ) {
+        let mut samples = Vec::new();
+        for _ in 0..200 {
+            let vlan = vlan_ids[rng.random_range(0..vlan_ids.len())];
+            samples.push(get(&app, &format!("/v1/vlans/{vlan}")).await?.0);
+        }
+        budgets.push(Budget {
+            name: "read a VLAN, p95",
+            limit: Duration::from_millis(50),
+            measured: p95(samples),
+            note: "200 draws, through the router".into(),
+        });
     }
-    budgets.push(Budget {
-        name: "read a VLAN, p95",
-        limit: Duration::from_millis(50),
-        measured: p95(samples),
-        note: "200 draws, through the router".into(),
-    });
 
     // Filtered pages of 100: a range of VIDs and a status, across the groups.
-    let mut samples = Vec::new();
-    let mut rows = 0;
-    for _ in 0..100 {
-        let low = rng.random_range(1..=per_group.max(1));
-        let uri = format!(
-            "/v1/vlans?vid={low}..{}&status=active&page_size=100",
-            low + 1
-        );
-        let (elapsed, page) = get(&app, &uri).await?;
-        rows += page["items"].as_array().map_or(0, Vec::len);
-        samples.push(elapsed);
+    if selection.runs(FILTERED_PAGE) {
+        let mut samples = Vec::new();
+        let mut rows = 0;
+        for _ in 0..100 {
+            let low = rng.random_range(1..=per_group.max(1));
+            let uri = format!(
+                "/v1/vlans?vid={low}..{}&status=active&page_size=100",
+                low + 1
+            );
+            let (elapsed, page) = get(&app, &uri).await?;
+            rows += page["items"].as_array().map_or(0, Vec::len);
+            samples.push(elapsed);
+        }
+        budgets.push(Budget {
+            name: "filtered page of 100 VLANs, p95",
+            limit: Duration::from_millis(150),
+            measured: p95(samples),
+            note: format!(
+                "100 draws of two VIDs across the groups, {} rows a page on average",
+                rows / 100
+            ),
+        });
     }
-    budgets.push(Budget {
-        name: "filtered page of 100 VLANs, p95",
-        limit: Duration::from_millis(150),
-        measured: p95(samples),
-        note: format!(
-            "100 draws of two VIDs across the groups, {} rows a page on average",
-            rows / 100
-        ),
-    });
 
     // Occupancy of a group.
-    let mut samples = Vec::new();
-    for _ in 0..200 {
-        let group = group_ids[rng.random_range(0..group_ids.len())];
-        samples.push(
-            get(&app, &format!("/v1/vlan-groups/{group}/occupancy"))
-                .await?
-                .0,
-        );
+    if selection.runs(OCCUPANCY) {
+        let mut samples = Vec::new();
+        for _ in 0..200 {
+            let group = group_ids[rng.random_range(0..group_ids.len())];
+            samples.push(
+                get(&app, &format!("/v1/vlan-groups/{group}/occupancy"))
+                    .await?
+                    .0,
+            );
+        }
+        budgets.push(Budget {
+            name: "occupancy of a VLAN group, p95",
+            limit: Duration::from_millis(200),
+            measured: p95(samples),
+            note: "200 draws, through the router".into(),
+        });
     }
-    budgets.push(Budget {
-        name: "occupancy of a VLAN group, p95",
-        limit: Duration::from_millis(200),
-        measured: p95(samples),
-        note: "200 draws, through the router".into(),
-    });
 
     // Unitary changesets: a new VLAN in a random group, past the loaded VIDs.
-    let mut samples = Vec::new();
-    for i in 0..100 {
-        let group = group_ids[rng.random_range(0..group_ids.len())];
-        let vid = 1_000 + i;
-        let operation = op(
-            "create_vlan",
-            json!({"group": {"id": group}, "vid": vid, "name": format!("new{vid}")}),
-        )?;
-        samples.push(unitary(&store, author, operation).await?);
+    if selection.runs(CREATE) {
+        let mut samples = Vec::new();
+        for i in 0..100 {
+            let group = group_ids[rng.random_range(0..group_ids.len())];
+            let vid = 1_000 + i;
+            let operation = op(
+                "create_vlan",
+                json!({"group": {"id": group}, "vid": vid, "name": format!("new{vid}")}),
+            )?;
+            samples.push(unitary(&store, author, operation).await?);
+        }
+        budgets.push(Budget {
+            name: "create a VLAN, p95",
+            limit: Duration::from_millis(200),
+            measured: p95(samples),
+            note: "100 unitary changesets, validated and applied".into(),
+        });
     }
-    budgets.push(Budget {
-        name: "create a VLAN, p95",
-        limit: Duration::from_millis(200),
-        measured: p95(samples),
-        note: "100 unitary changesets, validated and applied".into(),
-    });
     progress(&format!("vlan measures: {:?}", started.elapsed()));
     Ok(budgets)
 }

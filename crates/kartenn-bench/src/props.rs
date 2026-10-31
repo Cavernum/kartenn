@@ -23,6 +23,31 @@ use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
 
 use crate::Dataset;
+use crate::measures::{self, Measure, Selection};
+
+const ORIGINS_EVERY_ROOT: &str = "props.origins-every-root";
+const RESOLUTION: &str = "props.explained-resolution";
+const GROUPED: &str = "props.grouped-resolution";
+const FILTERED: &str = "props.filtered-pages";
+const CHANGESET: &str = "props.changeset-10k";
+const VALUE_EVERY_ROOT: &str = "props.value-every-root";
+const ORIGINS_3_DOMAINS: &str = "props.origins-3-domains";
+
+/// The measures of `bench-properties` (ADR 0041). The writes run in turn on the tables the
+/// previous one left, as in the whole bench.
+pub(crate) static BENCH: measures::Bench = measures::Bench {
+    name: "props",
+    measures: &[
+        // The first heritable property assigned on every root, by the preparation.
+        Measure::new(ORIGINS_EVERY_ROOT).preparation(),
+        Measure::new(RESOLUTION),
+        Measure::new(GROUPED),
+        Measure::new(FILTERED),
+        Measure::new(CHANGESET),
+        Measure::new(VALUE_EVERY_ROOT).after(&[CHANGESET]),
+        Measure::new(ORIGINS_3_DOMAINS).after(&[VALUE_EVERY_ROOT]),
+    ],
+};
 
 /// Validity of the loaded objects.
 pub(crate) const SINCE: &str = "[\"2026-01-01 00:00:00+00\",)";
@@ -270,13 +295,19 @@ fn store(pool: &PgPool, data: &Dataset) -> PgStore {
     store.with_down_from(down_from.max(1))
 }
 
-/// Loads, assigns and measures; returns the report and whether every budget holds.
+/// Loads, assigns and measures what `selection` runs; returns the report and whether every
+/// budget holds.
 ///
 /// # Errors
 ///
 /// Database or pipeline failures.
 #[allow(clippy::too_many_lines)] // one linear scenario, step by step
-pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(String, bool)> {
+pub async fn run(
+    database: &str,
+    data: &Dataset,
+    seed: u64,
+    selection: &Selection,
+) -> anyhow::Result<(String, bool)> {
     let pool = PgPool::connect(database)
         .await
         .with_context(|| format!("connecting to {database}"))?;
@@ -310,7 +341,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
             .map(|(r, (id, _))| assign(*id, property, &format!("v{}", (r + i) % 10)))
             .collect();
         let (elapsed, diff) = bench.submit(ops).await?;
-        if i == 0 {
+        if i == 0 && selection.runs(ORIGINS_EVERY_ROOT) {
             budgets.push(Budget {
                 name: "origins of every root (P10)",
                 limit: Duration::from_secs(60),
@@ -376,44 +407,138 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
     let n1 = bench.property(PLAIN[0]).await?;
 
     // Explained resolution of an address.
-    let mut samples = Vec::new();
-    for _ in 0..200 {
-        let a = &data.addresses[rng.random_range(0..data.addresses.len())];
-        let property = h[rng.random_range(0..h.len())];
-        let t = Instant::now();
-        explain(&pool, a.id, property, now, None).await?;
-        samples.push(t.elapsed());
+    if selection.runs(RESOLUTION) {
+        let mut samples = Vec::new();
+        for _ in 0..200 {
+            let a = &data.addresses[rng.random_range(0..data.addresses.len())];
+            let property = h[rng.random_range(0..h.len())];
+            let t = Instant::now();
+            explain(&pool, a.id, property, now, None).await?;
+            samples.push(t.elapsed());
+        }
+        budgets.push(Budget {
+            name: "explained resolution, p95",
+            limit: Duration::from_millis(50),
+            measured: p95(samples),
+            note: "200 draws".into(),
+        });
     }
-    budgets.push(Budget {
-        name: "explained resolution, p95",
-        limit: Duration::from_millis(50),
-        measured: p95(samples),
-        note: "200 draws".into(),
-    });
 
     // Grouped read: 512 addresses, 6 properties (REQ-016-1).
-    let keys: Vec<String> = HERITABLE
-        .iter()
-        .chain(&PLAIN[..3])
-        .map(|k| (*k).to_owned())
-        .collect();
-    let mut samples = Vec::new();
-    for _ in 0..50 {
-        let objects: Vec<Uuid> = (0..512)
-            .map(|_| data.addresses[rng.random_range(0..data.addresses.len())].id)
+    if selection.runs(GROUPED) {
+        let keys: Vec<String> = HERITABLE
+            .iter()
+            .chain(&PLAIN[..3])
+            .map(|k| (*k).to_owned())
             .collect();
-        let t = Instant::now();
-        resolved_many(&pool, &objects, &keys, now, None).await?;
-        samples.push(t.elapsed());
+        let mut samples = Vec::new();
+        for _ in 0..50 {
+            let objects: Vec<Uuid> = (0..512)
+                .map(|_| data.addresses[rng.random_range(0..data.addresses.len())].id)
+                .collect();
+            let t = Instant::now();
+            resolved_many(&pool, &objects, &keys, now, None).await?;
+            samples.push(t.elapsed());
+        }
+        budgets.push(Budget {
+            name: "grouped resolution 512 × 6, p95",
+            limit: Duration::from_millis(30),
+            measured: p95(samples),
+            note: "50 draws".into(),
+        });
     }
-    budgets.push(Budget {
-        name: "grouped resolution 512 × 6, p95",
-        limit: Duration::from_millis(30),
-        measured: p95(samples),
-        note: "50 draws".into(),
-    });
 
     // Filtered pages of 100.
+    if selection.runs(FILTERED) {
+        filtered_pages(&pool, data, &h, n1, now, &mut rng, &mut budgets).await?;
+    }
+
+    // A changeset whose differential touches at most 10⁴ objects: the largest container
+    // under 10⁴ addresses that carries no value yet, so that origins move.
+    if selection.runs(CHANGESET) {
+        let (container, n): (Uuid, i64) = sqlx::query_as(
+            "SELECT p.id, count(*) AS n FROM prefix p
+             JOIN address a ON a.domain_id = p.domain_id AND a.address <<= p.prefix
+             WHERE p.nature = 'container'
+               AND NOT EXISTS (SELECT 1 FROM property_assignment x WHERE x.object_id = p.id)
+             GROUP BY p.id HAVING count(*) <= 10000 ORDER BY n DESC, p.id LIMIT 1",
+        )
+        .fetch_optional(&pool)
+        .await?
+        .context("no container under 10^4 addresses")?;
+        let (elapsed, diff) = bench.submit(vec![assign(container, h[0], "v9")]).await?;
+        budgets.push(Budget {
+            name: "changeset, differential up to 10^4",
+            limit: Duration::from_millis(2_500),
+            measured: elapsed,
+            note: format!("{n} addresses below, {} objects changed", touched(&diff)),
+        });
+    }
+
+    // New value on every root: about 10⁶ objects change value, no origin moves.
+    if selection.runs(VALUE_EVERY_ROOT) {
+        let ops = roots
+            .iter()
+            .enumerate()
+            .map(|(r, (id, _))| assign(*id, h[1], &format!("v{}", (r + 5) % 10)))
+            .collect();
+        let (elapsed, diff) = bench.submit(ops).await?;
+        budgets.push(Budget {
+            name: "value of every root (up to 10^6)",
+            limit: Duration::from_secs(10),
+            measured: elapsed,
+            note: format!("{} objects changed", touched(&diff)),
+        });
+    }
+
+    // Removing the roots' value in the three largest domains: > 10⁵ origins move.
+    if selection.runs(ORIGINS_3_DOMAINS) {
+        let mut sizes: Vec<(usize, Uuid)> = data
+            .domains
+            .iter()
+            .enumerate()
+            .map(|(i, d)| {
+                (
+                    data.addresses.iter().filter(|a| a.domain == i).count(),
+                    d.id,
+                )
+            })
+            .collect();
+        sizes.sort_by_key(|s| std::cmp::Reverse(s.0));
+        let largest: Vec<Uuid> = sizes.iter().take(3).map(|s| s.1).collect();
+        let ops = roots
+            .iter()
+            .filter(|(_, d)| largest.contains(d))
+            .map(|(id, _)| Operation::UnassignProperty {
+                object: Ref::Id(*id),
+                kind: ObjectKind::Prefix,
+                property: Ref::Id(h[2]),
+            })
+            .collect();
+        let (elapsed, diff) = bench.submit(ops).await?;
+        budgets.push(Budget {
+            name: "origins of 3 domains removed (P10)",
+            limit: Duration::from_secs(60),
+            measured: elapsed,
+            note: format!("{} objects changed", touched(&diff)),
+        });
+    }
+
+    let (lines, ok) = verdict(&budgets)?;
+    report.push_str(&lines);
+    Ok((report, ok))
+}
+
+/// Filtered pages of 100, on a heritable property then on a non-heritable one, in turn.
+async fn filtered_pages(
+    pool: &PgPool,
+    data: &Dataset,
+    h: &[Uuid],
+    n1: Uuid,
+    now: OffsetDateTime,
+    rng: &mut ChaCha8Rng,
+    budgets: &mut Vec<Budget>,
+) -> anyhow::Result<()> {
     let mut heritable = Vec::new();
     let mut plain = Vec::new();
     for _ in 0..100 {
@@ -421,7 +546,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         let condition = Condition::Equals(format!("v{}", rng.random_range(0..10)));
         let t = Instant::now();
         filter(
-            &pool,
+            pool,
             h[rng.random_range(0..h.len())],
             domain,
             &condition,
@@ -435,7 +560,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         let condition =
             Condition::Between(Some(low.to_string()), Some((low + 100_000).to_string()));
         let t = Instant::now();
-        filter(&pool, n1, domain, &condition, now, None, 100).await?;
+        filter(pool, n1, domain, &condition, now, None, 100).await?;
         plain.push(t.elapsed());
     }
     budgets.push(Budget {
@@ -450,75 +575,7 @@ pub async fn run(database: &str, data: &Dataset, seed: u64) -> anyhow::Result<(S
         measured: p95(plain),
         note: "100 draws".into(),
     });
-
-    // A changeset whose differential touches at most 10⁴ objects: the largest container
-    // under 10⁴ addresses that carries no value yet, so that origins move.
-    let (container, n): (Uuid, i64) = sqlx::query_as(
-        "SELECT p.id, count(*) AS n FROM prefix p
-         JOIN address a ON a.domain_id = p.domain_id AND a.address <<= p.prefix
-         WHERE p.nature = 'container'
-           AND NOT EXISTS (SELECT 1 FROM property_assignment x WHERE x.object_id = p.id)
-         GROUP BY p.id HAVING count(*) <= 10000 ORDER BY n DESC, p.id LIMIT 1",
-    )
-    .fetch_optional(&pool)
-    .await?
-    .context("no container under 10^4 addresses")?;
-    let (elapsed, diff) = bench.submit(vec![assign(container, h[0], "v9")]).await?;
-    budgets.push(Budget {
-        name: "changeset, differential up to 10^4",
-        limit: Duration::from_millis(2_500),
-        measured: elapsed,
-        note: format!("{n} addresses below, {} objects changed", touched(&diff)),
-    });
-
-    // New value on every root: about 10⁶ objects change value, no origin moves.
-    let ops = roots
-        .iter()
-        .enumerate()
-        .map(|(r, (id, _))| assign(*id, h[1], &format!("v{}", (r + 5) % 10)))
-        .collect();
-    let (elapsed, diff) = bench.submit(ops).await?;
-    budgets.push(Budget {
-        name: "value of every root (up to 10^6)",
-        limit: Duration::from_secs(10),
-        measured: elapsed,
-        note: format!("{} objects changed", touched(&diff)),
-    });
-
-    // Removing the roots' value in the three largest domains: > 10⁵ origins move.
-    let mut sizes: Vec<(usize, Uuid)> = data
-        .domains
-        .iter()
-        .enumerate()
-        .map(|(i, d)| {
-            (
-                data.addresses.iter().filter(|a| a.domain == i).count(),
-                d.id,
-            )
-        })
-        .collect();
-    sizes.sort_by_key(|s| std::cmp::Reverse(s.0));
-    let largest: Vec<Uuid> = sizes.iter().take(3).map(|s| s.1).collect();
-    let ops = roots
-        .iter()
-        .filter(|(_, d)| largest.contains(d))
-        .map(|(id, _)| Operation::UnassignProperty {
-            object: Ref::Id(*id),
-            kind: ObjectKind::Prefix,
-            property: Ref::Id(h[2]),
-        })
-        .collect();
-    let (elapsed, diff) = bench.submit(ops).await?;
-    budgets.push(Budget {
-        name: "origins of 3 domains removed (P10)",
-        limit: Duration::from_secs(60),
-        measured: elapsed,
-        note: format!("{} objects changed", touched(&diff)),
-    });
-
-    let (lines, ok) = verdict(&budgets)?;
-    report.push_str(&lines);
-    Ok((report, ok))
+    Ok(())
 }
 
 /// One line per budget, and whether all hold.

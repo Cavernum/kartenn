@@ -308,13 +308,27 @@
       exit 1
     '';
   # A bench script (ADR 0032): under the bench lock, on a kartenn_bench database recreated
-  # in the bench instance; `<name> [seed] [small]`.
+  # in the bench instance; `<name> [seed] [small] [--only <m1,m2>]`, or `<name> --list`
+  # for its measures (ADR 0041), without the bench lock nor the database.
   benchDatabase = "postgres://kartenn@127.0.0.1:5433/kartenn_bench";
   bench = command: description: {
     inherit description;
     exec = ''
       set -euo pipefail
+      for a in "$@"; do
+        [ "$a" != --list ] || exec k-heavy cargo run --release -q -p kartenn-bench -- ${command} --list
+      done
       [ -n "''${K_BENCH_HELD:-}" ] || exec k-heavy --bench ${dash} "$0" "$@"
+      seed="" small="" only=""
+      while [ $# -gt 0 ]; do
+        case $1 in
+          small) small=small ;;
+          --only) [ $# -ge 2 ] || { echo "bench : --only <m1,m2>" >&2; exit 2; }; only=$2; shift ;;
+          --only=*) only=''${1#--only=} ;;
+          *) [ -z "$seed" ] || { echo "bench : [seed] [small] [--only <m1,m2>] | --list" >&2; exit 2; }; seed=$1 ;;
+        esac
+        shift
+      done
       k-pg-bench
       bench=''${K_BENCH_DATABASE_URL:-${benchDatabase}}
       PGOPTIONS='-c client_min_messages=warning' psql "''${bench%/*}/postgres" -q -c "DROP DATABASE IF EXISTS \"''${bench##*/}\" WITH (FORCE)" \
@@ -326,7 +340,7 @@
       if [ "''${K_BENCH_SCALE:-}" = full ]; then stall=''${K_BENCH_STALL:-60}; else stall=''${K_BENCH_STALL:-20}; fi
       log=$(mktemp)
       trap 'rm -f "$log"' EXIT
-      cargo run --release -q -p kartenn-bench -- ${command} "$bench" "''${1:-42}" ''${2:+"$2"} 2>"$log" &
+      cargo run --release -q -p kartenn-bench -- ${command} "$bench" "''${seed:-42}" ''${small:+"$small"} ''${only:+--only "$only"} 2>"$log" &
       pid=$!
       tail -n +1 -f --pid="$pid" "$log" >&2 &
       follower=$!

@@ -42,6 +42,11 @@
 //! domain whose container has 10⁵ networks, into a database migrated by
 //! `kartenn-server migrate`, for the budgets of the browser (`bench-web`, REQ-007-32);
 //! prints `domain=<id> container=<id>`.
+//!
+//! Named measures (ADR 0041): `kartenn-bench <bench> --list` prints the measures of a bench
+//! (`<bench>.<measure>`, those « de préparation », their prerequisites);
+//! `kartenn-bench <bench> <database-url> <seed> [small] --only <m1,m2>` runs the preparation,
+//! then those measures and their prerequisites only.
 
 use std::fs::File;
 use std::io::BufWriter;
@@ -49,9 +54,48 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use anyhow::{Context, bail};
+use kartenn_bench::measures::{Selection, bench};
 use kartenn_bench::{Scale, generate};
 
-/// The scale of a run (ADR 0032): `small` as last argument, for tests; otherwise
+/// What follows the seed: `small`, and `--only <m1,m2>` (or `--only=<m1,m2>`), in any order.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct Options {
+    small: bool,
+    only: Option<String>,
+}
+
+impl Options {
+    fn parse(rest: &[String]) -> anyhow::Result<Self> {
+        let mut options = Self::default();
+        let mut args = rest.iter();
+        while let Some(arg) = args.next() {
+            let only = match arg.as_str() {
+                "small" => {
+                    options.small = true;
+                    continue;
+                }
+                "--only" => args.next().context("--only <m1,m2>")?.clone(),
+                other => match other.strip_prefix("--only=") {
+                    Some(names) => names.to_owned(),
+                    None => bail!("unexpected argument `{other}`: [small] [--only <m1,m2>]"),
+                },
+            };
+            if options.only.replace(only).is_some() {
+                bail!("--only twice");
+            }
+        }
+        Ok(options)
+    }
+
+    /// The measures of the bench `name` this run selects.
+    fn selection(&self, name: &str) -> anyhow::Result<Selection> {
+        bench(name)
+            .with_context(|| format!("no bench `{name}`"))?
+            .select(self.only.as_deref())
+    }
+}
+
+/// The scale of a run (ADR 0032): `small` after the seed, for tests; otherwise
 /// `K_BENCH_SCALE`, `reduced` (default, about a tenth of the volumes) or `full` (the
 /// reference dataset, the only one whose verdict is a budget measure).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,8 +106,8 @@ enum Level {
 }
 
 impl Level {
-    fn of(rest: &[String]) -> anyhow::Result<Self> {
-        if rest.first().map(String::as_str) == Some("small") {
+    fn of(small: bool) -> anyhow::Result<Self> {
+        if small {
             return Ok(Self::Small);
         }
         match std::env::var("K_BENCH_SCALE").as_deref() {
@@ -82,8 +126,16 @@ impl Level {
         }
     }
 
+    /// The first lines of the output: the scale, then the measures under `--only`.
+    fn announce(self, selection: &Selection) {
+        println!("{}", self.scale_line());
+        if let Some(line) = selection.announce() {
+            println!("{line}");
+        }
+    }
+
     /// The first line of the output.
-    const fn announce(self) -> &'static str {
+    const fn scale_line(self) -> &'static str {
         match self {
             Self::Full => "échelle complète (K_BENCH_SCALE=full) : mesure de budget",
             Self::Reduced => {
@@ -119,45 +171,59 @@ fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.as_slice() {
         [command, seed, dir, rest @ ..] if command == "gen" => generate_files(seed, dir, rest),
+        [command, flag] if flag == "--list" => {
+            let bench = bench(command).with_context(|| format!("no bench `{command}`"))?;
+            print!("{}", bench.list());
+            Ok(())
+        }
         [command, database, seed, rest @ ..]
             if ["props", "core", "rbac", "http", "policy", "flow"].contains(&command.as_str()) =>
         {
             let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
-            let level = Level::of(rest)?;
-            println!("{}", level.announce());
+            let options = Options::parse(rest)?;
+            let selection = options.selection(command)?;
+            let level = Level::of(options.small)?;
+            level.announce(&selection);
             let data = generate(seed, level.scale());
             let runtime = tokio::runtime::Runtime::new()?;
+            let s = &selection;
             let (report, ok) = match command.as_str() {
-                "props" => runtime.block_on(kartenn_bench::props::run(database, &data, seed))?,
-                "rbac" => runtime.block_on(kartenn_bench::rbac::run(database, &data, seed))?,
-                "http" => runtime.block_on(kartenn_bench::http::run(database, &data, seed))?,
-                "policy" => {
-                    runtime.block_on(kartenn_bench::policy_budgets::run(database, &data, seed))?
-                }
+                "props" => runtime.block_on(kartenn_bench::props::run(database, &data, seed, s))?,
+                "rbac" => runtime.block_on(kartenn_bench::rbac::run(database, &data, seed, s))?,
+                "http" => runtime.block_on(kartenn_bench::http::run(database, &data, seed, s))?,
+                "policy" => runtime
+                    .block_on(kartenn_bench::policy_budgets::run(database, &data, seed, s))?,
                 "flow" => {
-                    runtime.block_on(kartenn_bench::flow_budgets::run(database, &data, seed))?
+                    runtime.block_on(kartenn_bench::flow_budgets::run(database, &data, seed, s))?
                 }
-                _ => runtime.block_on(kartenn_bench::core_budgets::run(database, &data, seed))?,
+                _ => {
+                    runtime.block_on(kartenn_bench::core_budgets::run(database, &data, seed, s))?
+                }
             };
             level.verdict(&report, ok, "a budget is exceeded")
         }
-        [command, database, _seed, rest @ ..] if command == "events" => {
-            let level = Level::of(rest)?;
-            println!("{}", level.announce());
+        [command, database, seed, rest @ ..] if command == "events" => {
+            // The seed draws nothing here; it is checked as elsewhere.
+            let _: u64 = seed.parse().context("seed must be an unsigned integer")?;
+            let options = Options::parse(rest)?;
+            let selection = options.selection(command)?;
+            let level = Level::of(options.small)?;
+            level.announce(&selection);
             let sizes = match level {
                 Level::Full => kartenn_bench::events_budgets::Sizes::FULL,
                 Level::Reduced => kartenn_bench::events_budgets::Sizes::REDUCED,
                 Level::Small => kartenn_bench::events_budgets::Sizes::SMALL,
             };
-            let (report, ok) = tokio::runtime::Runtime::new()?
-                .block_on(kartenn_bench::events_budgets::run(database, sizes))?;
+            let (report, ok) = tokio::runtime::Runtime::new()?.block_on(
+                kartenn_bench::events_budgets::run(database, sizes, &selection),
+            )?;
             level.verdict(&report, ok, "a budget is exceeded")
         }
         [command, database, seed, rest @ ..] if command == "seed" => {
             let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
             // The standard output is the ids of the seeded domain (`bench-web`).
-            let level = Level::of(rest)?;
-            eprintln!("{}", level.announce());
+            let level = Level::of(rest.first().map(String::as_str) == Some("small"))?;
+            eprintln!("{}", level.scale_line());
             let data = generate(seed, level.scale());
             let line = tokio::runtime::Runtime::new()?
                 .block_on(kartenn_bench::core_budgets::seed(database, &data, seed))?;
@@ -166,29 +232,42 @@ fn main() -> anyhow::Result<()> {
         }
         [command, database, seed, rest @ ..] if command == "telemetry" => {
             let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
-            let level = Level::of(rest)?;
-            println!("{}", level.announce());
+            let options = Options::parse(rest)?;
+            let selection = options.selection(command)?;
+            let level = Level::of(options.small)?;
+            level.announce(&selection);
             let data = generate(seed, level.scale());
             let runtime = tokio::runtime::Runtime::new()?;
-            let small = level == Level::Small;
-            let (report, ok) =
-                runtime.block_on(kartenn_bench::telemetry::run(database, &data, seed, small))?;
+            let (report, ok) = runtime.block_on(kartenn_bench::telemetry::run(
+                database,
+                &data,
+                seed,
+                options.small,
+                &selection,
+            ))?;
             level.verdict(&report, ok, "an overhead is exceeded")
         }
-        // A child of `telemetry`: the same scale, through the same argument or environment.
+        // A child of `telemetry`: the same scale and measures, through the same arguments or
+        // environment.
         [command, database, seed, config, result, rest @ ..] if command == "telemetry-run" => {
             let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
-            let data = generate(seed, Level::of(rest)?.scale());
+            let options = Options::parse(rest)?;
+            let selection = options.selection("telemetry")?;
+            let data = generate(seed, Level::of(options.small)?.scale());
             tokio::runtime::Runtime::new()?.block_on(kartenn_bench::telemetry::measure(
                 database,
                 &data,
                 seed,
                 config.as_ref(),
                 result.as_ref(),
+                &selection,
             ))
         }
         _ => bail!(
-            "usage: kartenn-bench gen <seed> <output-dir> [small] | props|core|rbac|http|events|telemetry|seed <database-url> <seed> [small]"
+            "usage: kartenn-bench gen <seed> <output-dir> [small] \
+             | props|core|rbac|http|policy|flow|events|telemetry <database-url> <seed> [small] [--only <m1,m2>] \
+             | props|core|rbac|http|policy|flow|events|telemetry --list \
+             | seed <database-url> <seed> [small]"
         ),
     }
 }
@@ -198,8 +277,8 @@ fn generate_files(seed: &str, dir: &str, rest: &[String]) -> anyhow::Result<()> 
     let dir = PathBuf::from(dir);
     std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
 
-    let level = Level::of(rest)?;
-    println!("{}", level.announce());
+    let level = Level::of(rest.first().map(String::as_str) == Some("small"))?;
+    println!("{}", level.scale_line());
     let started = Instant::now();
     let data = generate(seed, level.scale());
     let generated = started.elapsed();
@@ -226,4 +305,47 @@ fn generate_files(seed: &str, dir: &str, rest: &[String]) -> anyhow::Result<()> 
         started.elapsed(),
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(args: &[&str]) -> anyhow::Result<Options> {
+        let args: Vec<String> = args.iter().map(|a| (*a).to_owned()).collect();
+        Options::parse(&args)
+    }
+
+    #[test]
+    fn small_and_only_in_any_order() {
+        let only = |names: &str| Some(names.to_owned());
+        for (args, small, names) in [
+            (&[][..], false, None),
+            (&["small"][..], true, None),
+            (
+                &["--only", "props.changeset-10k"][..],
+                false,
+                only("props.changeset-10k"),
+            ),
+            (&["small", "--only=a,b"][..], true, only("a,b")),
+            (&["--only", "a", "small"][..], true, only("a")),
+        ] {
+            assert_eq!(
+                parse(args).unwrap(),
+                Options { small, only: names },
+                "{args:?}"
+            );
+        }
+        for args in [&["--only"][..], &["large"], &["--only", "a", "--only=b"]] {
+            assert!(parse(args).is_err(), "{args:?}");
+        }
+    }
+
+    #[test]
+    fn an_unknown_measure_is_refused() {
+        let options = parse(&["--only", "props.nope"]).unwrap();
+        let error = options.selection("props").unwrap_err().to_string();
+        assert!(error.contains("props.origins-3-domains"), "{error}");
+        assert!(options.selection("stats").is_err());
+    }
 }
