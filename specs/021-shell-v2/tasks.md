@@ -466,7 +466,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     retenue ») — le compilateur reste, faute d'outil de précompilation dans le dépôt, et
     la 007 (« vue-i18n et CSP ») le garde pour les catalogues des plugins ; squelette à
     la classe compacte, où la bande peut aller à la ligne (non mesuré).
-- [ ] 10. Raccourcis et palette : registre (portée, conflits, réglage à une touche), un
+- [x] 10. Raccourcis et palette : registre (portée, conflits, réglage à une touche), un
   écouteur, séquences `g`, aide `?` et `/help/shortcuts`, palette Ctrl+K (navigation,
   actions, recherche par valeur, récents, commandes des plugins) — REQ-021-3, 7, 8 —
   verify : Vitest du registre ; parcours : `g c`, `?`, saisie « gc » dans un champ sans
@@ -475,6 +475,65 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     design § « Raccourcis » ; maquette E8 ; l'aide dit l'Échap en deux temps des
     filtres (020, décision A8)
   - dépend de : 9
+  - fait le 2026-10-31 : `web/v2/shell/src/shortcuts/` — `registry.ts` (registre : `id`,
+    touches en combinaison ou séquence, portée `global`/`view`, lieu dit par l'aide,
+    `shown` par droits ; refus des mêmes touches et d'une touche seule qui ouvre une
+    séquence ; écouteur unique `keydown` sur `document`, bouillonnement : ignore
+    `defaultPrevented`, composition, touche tenue, Ctrl/Alt/Méta sauf AltGr, champ
+    éditable, `data-k-typeahead`, rôles `menu`/`menubar`/`listbox`/`tree`, dialogue ;
+    séquence 1,5 s ; Ctrl+K et ⌘K partout ; réglage coupé : combinaisons seules),
+    `shell.ts` (jeu du shell dans l'ordre de l'aide, `g` + lettre par droits,
+    `SHELL_KEYS` réservées aux plugins par `reserveKeys`, raccourcis des vues des plugins
+    lus au registre du SDK), `view.ts` (`useViewAction` : `/`, `c`, `e` d'une vue, `c` et
+    `e` au présent et avec `allowed`), `search.ts` (recherche par valeur, `q` sur
+    préfixes et adresses, et par slug ou nom sur domaines, entités, sites, VLAN, groupes,
+    par droit de lecture, par le cache du SDK aux dates de la page, 150 ms après la
+    dernière touche, réponse dépassée écartée), `recent.ts` (objets récents,
+    `kartenn.recent.objects`, `forgetRecent` pour la déconnexion), `palette.ts` (groupes :
+    objets trouvés ou récents, commandes, pages ; commandes des plugins hors droits
+    absentes), `ShortcutHelp.vue` (table de l'aide, réglage dit), `HelpView.vue`
+    (`/help/shortcuts`), `context.ts` ; `frame/ShellFrame.vue` (registre, écouteur, aide
+    `?` en dialogue, palette complète : créer et modifier de la vue, ouvrir le brouillon,
+    revenir au présent, barre latérale, panneau, aide, commandes des plugins ; entrée
+    « Raccourcis clavier » du menu de l'utilisateur ; `[` et `]` montrés sur leurs
+    boutons tant que le réglage les permet) ; `frame/routes.ts` (`/help/shortcuts`,
+    fiches `/:collection/:id` en vue d'attente pour les collections cherchées) ;
+    catalogues FR/EN ; `@kartenn/ui` : `SidebarNav` `singleKeys`, `SidePanel` `shortcut` ;
+    maquette E8 sur `ShortcutHelp` et le jeu réel. Vitest : `shell/test/shortcuts.test.ts`
+    (conflits, clés du shell refusées aux plugins, séquence et délai, champ, consommateur,
+    menu, dialogue, modificateurs, Ctrl+K dans un champ, réglage coupé, raccourci d'un
+    plugin, navigation par droits, actions de la vue au présent, groupes de la palette,
+    commande d'un plugin absente sans `core.vlan_group.edit`, recherche par valeur et par
+    nom, récents). Parcours `e2e/journeys/shortcuts.spec.ts` (`g c`, `?` et
+    `/help/shortcuts`, lecteur sans `g x`, « gc » dans le champ de la palette, réglage
+    coupé gardé au rechargement avec Ctrl+K actif, `[` et `]`, palette au clavier seul :
+    « 192.0.2. » Entrée → fiche du préfixe, récent, page) ; `global-setup.ts` charge
+    une entité, un domaine, un préfixe et une adresse (RFC 5737).
+  - choix : `g v` au cœur (VLAN, écrans du cœur depuis la 026), `m t q f` laissées aux
+    manifestes (tâche 16) ; `g x` mène à `/admin` ; une navigation hors des droits n'est ni
+    montrée ni jouée ; `/`, `c`, `e` passent par `useViewAction` (aucune vue ne les donne
+    encore : tâches 11 et 12) ; les touches seules s'arrêtent aussi dans tout dialogue et
+    dans les rôles `menu`, `menubar`, `listbox`, `tree` (recherche à la saisie de l'APG) ;
+    AltGr compte comme sans modificateur (`[` des claviers AZERTY) ; Ctrl+Maj+K n'est pas
+    Ctrl+K ; une touche nommée (Tab, Échap) clôt une séquence ; Ctrl+K ne s'ouvre pas
+    par-dessus une autre couche modale (le tiroir de la barre lui cède la place), et une
+    commande de la palette ne joue qu'une fois le focus rendu à son ouvreur (l'aide ouverte
+    de la palette rend le focus au bouton « Rechercher ») ; registre : mêmes touches
+    toujours refusées, préfixe de séquence refusé entre raccourcis joués seulement (Échap
+    et Échap Échap de l'A8 sont documentaires) ; aide : réglage dit en tête, colonne
+    « Portée » de priorité 2, libellés courts de la maquette ; objets de la palette en un
+    groupe « Objets » comme la maquette, nom = type en mots et lieu (« Préfixe ·
+    production »), valeur en chasse fixe en détail, 5 par collection et 8 en tout ;
+    recherche par `q` (début de valeur, de slug ou de nom), par valeur seulement si le texte
+    en a l'air ; une collection en échec est omise sans message ; récents gardés en
+    `localStorage` comme les recherches de la 007 (REQ-007-28), effacés à la déconnexion
+    (tâche 16) ; fiches `/:collection/:id` en vue d'attente pour que la palette y mène ;
+    indices des touches seules masqués quand le réglage les coupe (palette, menus,
+    `SidebarNav`, `SidePanel`) ; `CommandPalette` dit « Chargement » tant que l'hôte
+    cherche, même avec des entrées ; `ShortcutHelp` sans feuille propre (partagé avec E8,
+    il passerait dans un morceau commun refusé par `build.test.ts`).
+  - reste : aucun raccourci ni touche réservée pour les messages passagers (décision
+    ouverte) ; F8 et les touches de fonction restent libres au registre.
 - [ ] 11. Référentiel (dépend aussi de 28 et 29) : accueil en tableau de bord
   (`GET /v1/stats`, tuiles `widget`), Topographie (arbre des préfixes en `TreeGrid`,
   colonnes de plugins, « + » sur un nœud ; 024), listes

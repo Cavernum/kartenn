@@ -31,8 +31,13 @@ const props = withDefaults(
     paletteLabel?: string | undefined;
     /** Spaces closed at first. */
     closed?: string[];
+    /**
+     * The single-key shortcuts on (the setting of the shell, WCAG 2.1.4): off, the toggle
+     * neither shows nor declares `[`.
+     */
+    singleKeys?: boolean;
   }>(),
-  { active: undefined, paletteLabel: undefined, closed: () => [] },
+  { active: undefined, paletteLabel: undefined, closed: () => [], singleKeys: true },
 );
 const collapsed = defineModel<boolean>("collapsed", { default: false });
 const emit = defineEmits<{ palette: [] }>();
@@ -79,7 +84,7 @@ const paletteTip = computed<Tip>(() => ({
 const collapseTip = computed<Tip>(() => ({
   id: ":collapse",
   label: t("sidebarToggle"),
-  shortcut: ["["],
+  shortcut: props.singleKeys ? ["["] : undefined,
 }));
 
 // The current entry is always in view (relecture du 2026-10-26): in a rail every space is
@@ -160,13 +165,13 @@ watch(() => [props.active, collapsed.value], revealCurrent);
       type="button"
       class="k-sidebar__collapse"
       :aria-expanded="!collapsed"
-      aria-keyshortcuts="["
+      :aria-keyshortcuts="props.singleKeys ? '[' : undefined"
       @click="collapsed = !collapsed"
       v-on="tipOf(collapseTip)"
     >
       <Icon name="panel-left" />
       <span class="k-sidebar__label">{{ collapseTip.label }}</span>
-      <Kbd :keys="['[']" aria-hidden="true" class="k-sidebar__kbd" />
+      <Kbd v-if="props.singleKeys" :keys="['[']" aria-hidden="true" class="k-sidebar__kbd" />
     </button>
     <!-- Decorative: it repeats the name of its control, mounted only while open; mounted
          again for each control, so that it is placed after the one it names. -->

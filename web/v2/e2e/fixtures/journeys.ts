@@ -20,6 +20,17 @@ export const GROUPS: Record<string, readonly string[]> = {
   lecteurs: ["reader"],
 };
 
+/**
+ * The objects of the referential the journeys read (global-setup.ts), in documentation
+ * addresses (RFC 5737): what the palette finds by value and by name (REQ-021-3).
+ */
+export const DATA = {
+  entity: "exemple",
+  domain: "production",
+  prefix: "192.0.2.0/24",
+  address: "192.0.2.10",
+} as const;
+
 type Guarded = {
   /** Logs `user` in through the page of the development issuer, back on the shell. */
   login: (user: keyof typeof USERS) => Promise<void>;

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
-import { request, type APIRequestContext } from "@playwright/test";
+import { request, type APIRequestContext, type APIResponse } from "@playwright/test";
 import { BASE_URL, ISSUER, STATE } from "../fixtures/env.ts";
-import { GROUPS } from "../fixtures/journeys.ts";
+import { DATA, GROUPS } from "../fixtures/journeys.ts";
 import { totp } from "../fixtures/totp.ts";
 
 /**
@@ -43,6 +43,33 @@ export default async function globalSetup(): Promise<void> {
         ...roles.map((role) => ({ op: "bind", group: key, role, scope: { kind: "global" } })),
       ]),
     });
+    // The referential the palette searches (REQ-021-3): an entity, a domain that it owns
+    // (`core.owner` from its creation, REQ-002-11), a prefix and an address in it.
+    const entity = await created(api, "/v1/entities?approval=self", {
+      motive: "end-to-end data set",
+      slug: DATA.entity,
+    });
+    const declarations = (await (await api.get("/v1/property-declarations")).json()) as {
+      items: { id: string; key: string }[];
+    };
+    const owner = declarations.items.find((d) => d.key === "core.owner")?.id;
+    if (!owner) throw new Error("no declaration of core.owner");
+    const domain = { local: 0 };
+    await expectOk(api, "/v1/changesets?approval=self", {
+      motive: "end-to-end data set",
+      operations: [
+        { op: "create_domain", local: 0, slug: DATA.domain },
+        {
+          op: "assign_property",
+          object: domain,
+          kind: "domain",
+          property: { id: owner },
+          values: [entity],
+        },
+        { op: "create_prefix", domain, prefix: DATA.prefix, nature: "network" },
+        { op: "create_address", domain, address: DATA.address, usage: "host" },
+      ],
+    });
   } finally {
     await api.dispose();
   }
@@ -53,10 +80,19 @@ async function expectOk(
   path: string,
   body: object,
   ...statuses: number[]
-): Promise<void> {
+): Promise<APIResponse> {
   const response = await api.post(path, { data: body });
   const expected = statuses.length > 0 ? statuses : [200, 201];
   if (!expected.includes(response.status())) {
     throw new Error(`POST ${path}: ${response.status()} ${await response.text()}`);
   }
+  return response;
+}
+
+/** Creates an object by its collection, and returns its identifier (from `Location`). */
+async function created(api: APIRequestContext, path: string, body: object): Promise<string> {
+  const response = await expectOk(api, path, body);
+  const id = response.headers()["location"]?.split("/").pop();
+  if (!id) throw new Error(`POST ${path}: no Location`);
+  return id;
 }

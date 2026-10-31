@@ -59,7 +59,8 @@ const empty = computed(() => props.groups.every((group) => group.items.length ==
 const count = computed(() => props.groups.reduce((n, group) => n + group.items.length, 0));
 /** What the list holds, in words (the polite region). */
 const said = computed(() => {
-  if (props.loading && empty.value) return t("loading");
+  // Loading, the count is not yet the last one: it is said once the host has its answer.
+  if (props.loading) return t("loading");
   if (empty.value) return t("noResults");
   return `${count.value} ${t(count.value === 1 ? "resultOne" : "resultMany")}`;
 });

@@ -48,7 +48,70 @@
     "observability": "Observability"
   },
   "palette": {
-    "navigation": "Navigation"
+    "navigation": "Navigation",
+    "commands": "Commands",
+    "objects": "Objects",
+    "recent": "Recent",
+    "type": {
+      "prefix": "Prefix",
+      "address": "Address",
+      "domain": "Domain",
+      "entity": "Entity",
+      "site": "Site",
+      "vlan": "VLAN",
+      "vlan-group": "VLAN group"
+    },
+    "openDraft": "Open the active draft",
+    "present": "Back to the present",
+    "help": "Keyboard shortcuts",
+    "collapseSidebar": "Collapse the sidebar",
+    "expandSidebar": "Expand the sidebar",
+    "openPanel": "Open the right panel",
+    "closePanel": "Close the right panel"
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "keys": "Keys",
+    "keysSaid": "Keys: ",
+    "action": "Action",
+    "scope": "Where",
+    "palette": "Command palette",
+    "filter": "Filter or search the view",
+    "help": "This help",
+    "create": "Create in the current collection",
+    "edit": "Modify the object or the cell",
+    "apply": "Apply; action of the split button",
+    "escape": "Close the layer, cancel the edit",
+    "filterEscape": "Filter: close the list, then the panel",
+    "columnFilter": "Filter the column",
+    "sidebar": "Collapse or expand the sidebar",
+    "panel": "Open or close the right panel",
+    "singleOn": "Single-key shortcuts are on; the account menu turns them off. Ctrl+K, Ctrl+Enter and Escape stay.",
+    "singleOff": "Single-key shortcuts are off: only Ctrl+K, Ctrl+Enter and Escape act. The account menu turns them back on.",
+    "go": {
+      "home": "Go to the home page",
+      "topology": "Go to the topography",
+      "domains": "Go to the domains",
+      "prefixes": "Go to the prefixes",
+      "ranges": "Go to the ranges",
+      "addresses": "Go to the addresses",
+      "entities": "Go to the entities",
+      "sites": "Go to the sites",
+      "changesets": "Go to the changesets",
+      "proposals": "Go to the changesets to review",
+      "drafts": "Go to my drafts",
+      "vlans": "Go to the VLANs",
+      "admin": "Go to the administration"
+    },
+    "where": {
+      "everywhere": "Everywhere",
+      "outsideField": "Outside a field",
+      "present": "Present, right",
+      "editor": "Editor, draft",
+      "filter": "Filter of the view",
+      "gridHeader": "Header of a table",
+      "plugin": "View of the plugin"
+    }
   },
   "user": {
     "menu": "Account of {name}",
