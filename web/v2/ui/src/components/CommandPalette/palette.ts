@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import type { IconName } from "../../icons/index.ts";
+import type { Shortcut } from "../ShortcutHint/shortcutHint.ts";
 
 /** An entry of the palette: a command, a page or a recent object. */
 export interface PaletteItem {
@@ -11,7 +12,8 @@ export interface PaletteItem {
   icon?: IconName;
   /** A detail in fixed pitch (a prefix, a key), after the label. */
   detail?: string;
-  shortcut?: string[];
+  /** A combination (`["c"]`) or a sequence (`[["g"], ["p"]]`, « g puis p »). */
+  shortcut?: Shortcut;
 }
 
 /** A group of entries (Commands, Navigation, Recent). */

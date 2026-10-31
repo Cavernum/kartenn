@@ -4,8 +4,13 @@
 
 <script setup lang="ts">
 // A menu button and its menu (APG Menu Button, Menu; design « Inventaire », line 11):
-// Reka's DropdownMenu. Entries carry their icon and their shortcut at the end (`Kbd`,
-// `aria-keyshortcuts`). A disabled entry stays listed and reachable by the arrows
+// Reka's DropdownMenu, one component (the menu carries its button). Enter, Space and Down
+// open it on its first entry, Up on its last; the arrows go round, Home and End, typing
+// ahead; Escape closes it and gives the focus back to the button; Tab and Shift+Tab close
+// it and go on from the button (APG Menu: Reka, not modal, would leave the focus at the
+// end of the page). Entries carry their icon and their shortcut at the end
+// (`ShortcutHint`: a combination, also in `aria-keyshortcuts`; a sequence, « g puis p »,
+// in the entry's description). A disabled entry stays listed and reachable by the arrows
 // (`aria-disabled`; choosing it does nothing): its reason, or « Il faut <permission> »,
 // is its description and a tooltip beside it while it has the focus (024/M14). The
 // trigger is a `Button`, or an `IconButton` when `iconOnly`. A checkbox entry
@@ -25,17 +30,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "reka-ui";
-import { computed, shallowRef, useId, type Directive } from "vue";
+import {
+  computed,
+  ref,
+  shallowRef,
+  useId,
+  type ComponentPublicInstance,
+  type Directive,
+} from "vue";
 import { injectPortalTarget } from "../../context.ts";
 import type { IconName } from "../../icons/index.ts";
 import Button from "../Button/Button.vue";
 import type { ButtonVariant } from "../Button/button.ts";
-import { ariaKeyshortcuts } from "../Button/shortcut.ts";
 import Icon from "../Icon/Icon.vue";
 import IconButton from "../IconButton/IconButton.vue";
 import BlockedReason from "../internal/BlockedReason.vue";
-import Kbd from "../Kbd/Kbd.vue";
+import { besideInTabOrder } from "../internal/tabOrder.ts";
 import type { ControlSize } from "../layout.ts";
+import ShortcutHint from "../ShortcutHint/ShortcutHint.vue";
+import { shortcutAria, shortcutSteps } from "../ShortcutHint/shortcutHint.ts";
 import Tooltip from "../Tooltip/Tooltip.vue";
 import { useTooltip } from "../Tooltip/tooltip.ts";
 import { menuBlocks, type MenuEntry, type MenuItem } from "./menu.ts";
@@ -56,6 +69,13 @@ const props = withDefaults(
 const emit = defineEmits<{ select: [id: string]; open: [open: boolean] }>();
 const portal = injectPortalTarget();
 const base = useId();
+const open = ref(props.defaultOpen);
+const trigger = ref<ComponentPublicInstance | null>(null);
+
+function onOpen(now: boolean): void {
+  open.value = now;
+  emit("open", now);
+}
 
 const isEntry = (item: MenuItem): item is MenuEntry => !item.kind || item.kind === "item";
 /** The items, each run of radio entries in a group of its own. */
@@ -63,6 +83,49 @@ const blocks = computed(() => menuBlocks(props.items));
 const isBlocked = (entry: MenuEntry) => !!(entry.disabled || entry.forbidden);
 const hasReason = (entry: MenuEntry) => isBlocked(entry) && !!(entry.forbidden || entry.reason);
 const reasonId = (entry: MenuEntry) => `${base}-${entry.id}-why`;
+const isSequence = (entry: MenuEntry) =>
+  !!entry.shortcut && shortcutSteps(entry.shortcut).length > 1;
+const keysId = (entry: MenuEntry) => `${base}-${entry.id}-keys`;
+/** The description of an entry: its reason, then a sequence of keys said in words. */
+function describedBy(entry: MenuEntry): string | undefined {
+  const ids = [hasReason(entry) && reasonId(entry), isSequence(entry) && keysId(entry)];
+  return ids.filter(Boolean).join(" ") || undefined;
+}
+
+/** Up on the closed button opens the menu on its last entry (APG Menu Button). */
+let fromEnd = false;
+function onTriggerKey(event: KeyboardEvent): void {
+  if (event.key !== "ArrowUp" || open.value) return;
+  event.preventDefault();
+  fromEnd = true;
+  onOpen(true);
+}
+function onOpenFocus(event: Event): void {
+  if (!fromEnd) return;
+  fromEnd = false;
+  event.preventDefault();
+  const entries = (event.target as HTMLElement).querySelectorAll<HTMLElement>("[role^='menuitem']");
+  entries[entries.length - 1]?.focus();
+}
+
+/** Tab, Shift+Tab: the menu closes, the focus goes on from the button (APG Menu). */
+let tabbed: 1 | -1 | 0 = 0;
+let surface: HTMLElement | null = null;
+function onMenuKey(event: KeyboardEvent): void {
+  if (event.key !== "Tab" || event.ctrlKey || event.altKey || event.metaKey) return;
+  event.preventDefault();
+  tabbed = event.shiftKey ? -1 : 1;
+  surface = event.currentTarget as HTMLElement;
+  onOpen(false);
+}
+function onCloseFocus(event: Event): void {
+  const step = tabbed;
+  tabbed = 0;
+  const button = trigger.value?.$el as HTMLElement | undefined;
+  if (!step || !button) return;
+  event.preventDefault();
+  (besideInTabOrder(button, step, surface) ?? button).focus();
+}
 
 /** One tooltip for the menu: the reason of the disabled entry that has the focus. */
 const tip = useTooltip();
@@ -105,12 +168,8 @@ function onSelect(entry: MenuEntry, event: Event): void {
 </script>
 
 <template>
-  <DropdownMenuRoot
-    :default-open="props.defaultOpen"
-    :modal="false"
-    @update:open="(now: boolean) => emit('open', now)"
-  >
-    <DropdownMenuTrigger as-child>
+  <DropdownMenuRoot :open="open" :modal="false" @update:open="onOpen">
+    <DropdownMenuTrigger ref="trigger" as-child>
       <IconButton
         v-if="props.iconOnly"
         :icon="props.icon ?? 'ellipsis'"
@@ -118,13 +177,28 @@ function onSelect(entry: MenuEntry, event: Event): void {
         :variant="props.variant"
         :size="props.size"
         :data-chevron="props.icon === 'chevron-down' ? 'true' : undefined"
+        @keydown="onTriggerKey"
       />
-      <Button v-else :icon="props.icon" :variant="props.variant" :size="props.size">
+      <Button
+        v-else
+        :icon="props.icon"
+        :variant="props.variant"
+        :size="props.size"
+        @keydown="onTriggerKey"
+      >
         {{ props.label }}<Icon name="chevron-down" class="k-menu__chevron" />
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuPortal :to="portal">
-      <DropdownMenuContent class="k-menu" :align="props.align" :side-offset="4">
+      <DropdownMenuContent
+        class="k-popover k-menu"
+        :align="props.align"
+        :side-offset="4"
+        loop
+        @open-auto-focus="onOpenFocus"
+        @close-auto-focus="onCloseFocus"
+        @keydown="onMenuKey"
+      >
         <template v-for="block in blocks" :key="block.key">
           <DropdownMenuRadioGroup
             v-if="block.kind === 'radios'"
@@ -173,8 +247,8 @@ function onSelect(entry: MenuEntry, event: Event): void {
                 class="k-menu__item"
                 :data-danger="item.danger ? 'true' : undefined"
                 :data-blocked="isBlocked(item) ? 'true' : undefined"
-                :aria-describedby="hasReason(item) ? reasonId(item) : undefined"
-                :aria-keyshortcuts="item.shortcut ? ariaKeyshortcuts(item.shortcut) : undefined"
+                :aria-describedby="describedBy(item)"
+                :aria-keyshortcuts="item.shortcut ? shortcutAria(item.shortcut) : undefined"
                 @select="(event: Event) => onSelect(item, event)"
                 @focusin="(event: FocusEvent) => onFocus(item, event)"
                 @focusout="tip.hide()"
@@ -190,7 +264,13 @@ function onSelect(entry: MenuEntry, event: Event): void {
                   ><BlockedReason :forbidden="item.forbidden" :reason="item.reason"
                 /></span>
                 <Icon v-if="item.forbidden" name="lock" class="k-menu__icon" />
-                <Kbd v-if="item.shortcut" :keys="item.shortcut" aria-hidden="true" />
+                <!-- Hidden from the name; a sequence is the entry's description. -->
+                <ShortcutHint
+                  v-if="item.shortcut"
+                  :id="isSequence(item) ? keysId(item) : undefined"
+                  :keys="item.shortcut"
+                  aria-hidden="true"
+                />
               </DropdownMenuItem>
             </template>
           </template>
@@ -210,40 +290,12 @@ function onSelect(entry: MenuEntry, event: Event): void {
     color: var(--k-text-muted);
   }
 
+  /* The surface and its motion are the popover's (`k-popover`, Popover/surface.css). */
   .k-menu {
-    z-index: var(--k-z-overlay);
     display: grid;
     min-inline-size: var(--k-size-menu-min);
     max-inline-size: var(--k-size-panel-md);
     padding: var(--k-space-1);
-    background-color: var(--k-surface);
-    border: var(--k-border-width) solid var(--k-border-strong);
-    border-radius: var(--k-radius-lg);
-    box-shadow: var(--k-shadow-overlay);
-    transition-property: opacity, translate;
-    transition-duration: max(var(--k-duration-short), var(--k-duration-fade));
-    transition-timing-function: var(--k-ease-standard);
-  }
-
-  /* Motion (design « Mouvement »): the menu comes 4 px out of its anchor, then fades out.
-   * Interactive from its first frame; Reka focuses its first entry at once. */
-  @starting-style {
-    .k-menu {
-      opacity: 0;
-      translate: 0 calc(var(--k-motion-shift-sm) * -1);
-    }
-
-    .k-menu[data-side="top"] {
-      translate: 0 var(--k-motion-shift-sm);
-    }
-  }
-
-  .k-menu[data-state="closed"] {
-    pointer-events: none;
-    animation-name: k-fade-out;
-    animation-duration: var(--k-duration-fade);
-    animation-timing-function: var(--k-ease-exit);
-    animation-fill-mode: forwards;
   }
 
   /* The chevron of the trigger (a glyph of its own, or the icon of a chevron-only button)

@@ -6,13 +6,32 @@
 // A breadcrumb (APG Breadcrumb; design « Inventaire », line 17): a `navigation` landmark
 // with its name, an ordered list of links, the last one the current page
 // (`aria-current="page"`); separators are decorative. A crumb may be a key in fixed pitch
-// (an identifier, a prefix).
+// (an identifier, a prefix). Short of room, a crumb is cut by an ellipsis: its whole
+// label comes in a tooltip under the pointer and the keyboard focus (decorative: the link
+// keeps its whole name), never a text cut with no way to read it.
 import { t } from "../../i18n.ts";
 import Icon from "../Icon/Icon.vue";
 import LinkTo from "../internal/LinkTo.vue";
+import Tooltip from "../Tooltip/Tooltip.vue";
+import { useTooltip } from "../Tooltip/tooltip.ts";
 import type { Crumb } from "./breadcrumb.ts";
 
 const props = defineProps<{ items: Crumb[]; label?: string }>();
+
+const tip = useTooltip();
+/** Whether the crumb the pointer or the focus came to is cut, measured as it comes. */
+let cut = false;
+const shared = tip.listeners(() => cut, { pin: () => false, passEscape: () => true });
+const listeners = Object.fromEntries(
+  Object.entries(shared).map(([name, listener]) => [
+    name,
+    (event: Event) => {
+      const el = event.currentTarget as HTMLElement;
+      cut = el.scrollWidth > el.clientWidth;
+      listener(event);
+    },
+  ]),
+);
 </script>
 
 <template>
@@ -32,6 +51,7 @@ const props = defineProps<{ items: Crumb[]; label?: string }>();
           :to="item.to"
           class="k-breadcrumb__link"
           :class="{ 'k-mono': item.mono }"
+          v-on="listeners"
           >{{ item.label }}</LinkTo
         >
         <span v-else class="k-breadcrumb__text" :class="{ 'k-mono': item.mono }">{{
@@ -39,6 +59,9 @@ const props = defineProps<{ items: Crumb[]; label?: string }>();
         }}</span>
       </li>
     </ol>
+    <Tooltip v-if="tip.open.value" :control="tip" decorative>{{
+      tip.anchor.value?.textContent
+    }}</Tooltip>
   </nav>
 </template>
 

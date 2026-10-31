@@ -1,0 +1,19 @@
+- main:
+  - region "Breadcrumb":
+    - heading "Breadcrumb" [level=1]
+    - paragraph: "Motif : Breadcrumb (aria-current=page)"
+    - 'figure "cut — À l''étroit : la page courante garde son nom, les autres cèdent ; le libellé entier d''un lien coupé en infobulle au focus"':
+      - navigation "Fil d'Ariane":
+        - list:
+          - listitem:
+            - link "Référentiel":
+              - /url: /
+          - listitem:
+            - link "Centre de données nord":
+              - /url: /domains/dc-nord
+          - listitem:
+            - link /\d+\.\d+\.2\.0\/\d+/:
+              - /url: /prefixes/1
+          - listitem: /\d+\.\d+\.2\.0\/\d+/
+      - code: cut
+      - text: ""

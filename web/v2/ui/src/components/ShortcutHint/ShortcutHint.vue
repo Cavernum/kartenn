@@ -40,5 +40,13 @@ const steps = computed(() => shortcutSteps(props.keys));
     line-height: var(--k-text-xs-line);
     color: var(--k-text-muted);
   }
+
+  /* Beside a control (hidden from its name, as `Kbd`): gone where the only pointer is a
+   * finger and nothing hovers. */
+  @media (hover: none) and (pointer: coarse) {
+    .k-shortcut-hint[aria-hidden="true"] {
+      display: none;
+    }
+  }
 }
 </style>

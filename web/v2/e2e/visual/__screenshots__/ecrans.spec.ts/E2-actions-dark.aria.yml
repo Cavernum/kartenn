@@ -85,12 +85,14 @@
               - text: ""
               - 'button "Filtrer : Source"'
         - rowgroup:
-          - row /Propriétaire core\.owner Atelier Nord Héritée de \d+\.\d+\.2\.0\/\d+/:
+          - 'row /Propriétaire core\.owner Atelier Nord Héritée de \d+\.\d+\.2\.0\/\d+ Expliquer la valeur : Propriétaire/':
             - gridcell "Propriétaire core.owner":
               - text: ""
               - code: core.owner
             - gridcell "Atelier Nord"
-            - gridcell /Héritée de \d+\.\d+\.2\.0\/\d+/
+            - 'gridcell /Héritée de \d+\.\d+\.2\.0\/\d+ Expliquer la valeur : Propriétaire/':
+              - text: ""
+              - 'button "Expliquer la valeur : Propriétaire"'
           - row "Site core.site site-ouest Directe":
             - gridcell "Site core.site":
               - text: ""
@@ -115,20 +117,6 @@
               - code: core.contact
             - gridcell "••••••"
             - gridcell "Masquée droit de lecture manquant"
-      - paragraph:
-        - text: "À venir :"
-        - code: Popover
-        - text: /\(tâche \d+\)/
-      - status:
-        - paragraph: "Information : Propriétaire : valeur héritée"
-        - text: Héritée de
-        - code: /\d+\.\d+\.2\.0\/\d+/
-        - text: (Salle A), où elle est posée directement depuis la version v3 ; aucune règle ne la remplace ici. Posée par le changeset
-        - button "Copier 01JD4K8B2C3D4E5F6G7H8J9K0M":
-          - text: ""
-          - code: 01JD4K8B2C3D4E5F6G7H8J9K0M
-        - status
-        - text: .
       - status:
         - paragraph: "Avertissement : Une propriété attendue manque"
         - text: Le TTL DNS (
@@ -177,7 +165,7 @@
   - menuitem "Modifier"
   - menuitem "Copier l'identifiant"
   - menuitem "Lire à une autre date…"
-  - menuitem "Changer de domaine…"
+  - menuitem "Changer de domaine…" [disabled]
   - separator
   - text: Plugins
   - menuitem "Vérifier la conformité"

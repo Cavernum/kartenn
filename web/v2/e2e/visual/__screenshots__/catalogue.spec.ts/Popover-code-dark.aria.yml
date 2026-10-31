@@ -1,0 +1,14 @@
+- main:
+  - dialog "Chevauchement d'un voisin":
+    - heading "Chevauchement d'un voisin" [level=2]
+    - button "Fermer"
+    - paragraph: "Le préfixe recouvre un préfixe voisin du même parent : deux réseaux ne peuvent pas se partager des adresses."
+  - region "Popover":
+    - heading "Popover" [level=1]
+    - paragraph: "Motif : Dialog non modal"
+    - figure "code — Détail d'un code, ouvert d'un bouton-icône, largeur sm":
+      - paragraph:
+        - code: prefix.overlaps-sibling
+        - button "Détail du code" [expanded]
+      - code: code
+      - text: ""

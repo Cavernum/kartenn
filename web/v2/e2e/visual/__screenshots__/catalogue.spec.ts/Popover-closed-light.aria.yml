@@ -1,0 +1,8 @@
+- main:
+  - region "Popover":
+    - heading "Popover" [level=1]
+    - paragraph: "Motif : Dialog non modal"
+    - 'figure "closed — Fermé : le bouton dit qu''il ouvre un dialogue (aria-haspopup, aria-expanded)"':
+      - button "Héritée"
+      - code: closed
+      - text: ""
