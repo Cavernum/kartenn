@@ -12,14 +12,14 @@ const groups: PaletteGroup[] = [
     label: "Commandes",
     items: [
       { id: "create", label: "Créer un préfixe", icon: "plus", shortcut: ["c"] },
-      { id: "draft", label: "Ouvrir le brouillon", icon: "draft", shortcut: ["g", "b"] },
+      { id: "draft", label: "Ouvrir le brouillon", icon: "draft", shortcut: [["g"], ["b"]] },
     ],
   },
   {
     label: "Navigation",
     items: [
-      { id: "prefixes", label: "Préfixes", icon: "prefix", shortcut: ["g", "p"] },
-      { id: "changesets", label: "Changesets", icon: "changeset", shortcut: ["g", "c"] },
+      { id: "prefixes", label: "Préfixes", icon: "prefix", shortcut: [["g"], ["p"]] },
+      { id: "changesets", label: "Changesets", icon: "changeset", shortcut: [["g"], ["c"]] },
     ],
   },
   {

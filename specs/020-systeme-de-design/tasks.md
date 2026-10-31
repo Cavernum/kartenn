@@ -657,10 +657,73 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     la barre d'E6 et « Revenir au présent » ; largeur d'un champ qui grandit avec son
     erreur dans un conteneur ajusté au contenu ; la couche d'E6 recouvre la page à 390 px
     (focus caché derrière, tâche 23).
-- [ ] 21. `Menu`, `MenuButton`, `Popover`, `Tabs`, `Breadcrumb` — verify : scripts Menu
+- [x] 21. `Menu`, `MenuButton`, `Popover`, `Tabs`, `Breadcrumb` — verify : scripts Menu
   et Tabs (activation manuelle) ; raccourcis affichés dans le menu
   - où : design § « Inventaire »
   - dépend de : 16
+  - fait : `Menu` : Haut sur le bouton fermé ouvre sur la dernière entrée, Bas et Haut en
+    boucle, Tab et Maj+Tab ferment et passent au contrôle d'après ou d'avant le bouton
+    (`internal/tabOrder.ts` : Reka, non modal, laissait le focus à la fin de la page) ;
+    raccourci d'une entrée en `Shortcut` montré par `ShortcutHint` (une séquence « g puis
+    p » en deux touches, jamais une combinaison ; combinaison en `aria-keyshortcuts`,
+    séquence en description) ; états `shortcuts`, `checkbox`, `keyboard`. `Popover`
+    (nouveau) : Dialog non modal de Reka, déclencheur `trigger` (`aria-haspopup="dialog"`,
+    `aria-expanded`, marqué ouvert), nommé par son titre (`h2`, `aria-labelledby` posé à
+    l'ouverture : Reka écrit le sien), focus sur le dialogue, Échap et la croix rendent le
+    focus, Maj+Tab au début revient au déclencheur, Tab après la fin passe à ce qui le suit
+    (écouteur en capture avant la boucle du `FocusScope`), borné à la fenêtre
+    (`internal/room.ts`, partagé avec `FilterPicker`) ; états `closed`, `open`, `code`,
+    `keyboard`. Surface commune `k-popover` (`Popover/surface.css`, dans `style.css`) prise
+    par le menu et le `FilterPicker` (leur surface recopiée retirée). `Tabs` : état
+    `keyboard`. `Breadcrumb` : un lien coupé par l'ellipse donne son libellé entier en
+    infobulle (survol, focus) ; état `cut`. `CommandPalette` : raccourcis en `Shortcut`,
+    séquences par `ShortcutHint` (catalogue, E8). `ShortcutHint` caché sous un doigt seul
+    quand il l'est du nom. Maquettes : E2 prend `Popover` (bouton « Expliquer la valeur »
+    dans la cellule « Source » de la valeur héritée ; nouvelle vue `explication`, le repère
+    « À venir » et sa ligne de la revue retirés), « Changer de domaine… » désactivée avec son
+    motif (elle avait le motif sans l'être). Scripts `e2e/components/menu.spec.ts`,
+    `tabs.spec.ts`, `popover.spec.ts`. Revues `a11y-auditor` et `ui-reviewer` (code et
+    captures) ; corrigés : popover d'E2 ouvert dans sa propre vue (il couvrait la colonne
+    « Source » et les attributs), déclencheur d'E2 en bouton-icône après le texte (le
+    texte gardait son alignement et son ton), déclencheurs des démos clavier à leur
+    largeur, calcul de la place commun (`setRoom`), titre du popover en titre, sans
+    `aria-describedby` (corps lu deux fois), déclencheur ouvert marqué, `leaving` remis à
+    zéro à chaque ouverture ; popover gardé dans la fenêtre quand son déclencheur en sort
+    (`sticky`, E2 à 390 px). Seconde revue (après la fusion de main) ; corrigés : corps du
+    popover qui défile, arrêt de tabulation nommé par le titre tant qu'il déborde (2.1.1,
+    1.4.10 ; le corps en colonne flexible, une piste `1fr` débordait au lieu de défiler ;
+    état `long`) ; Tab qui sort d'un popover ou d'un menu borné au dialogue qui contient le
+    déclencheur et en boucle, comme son piège (état `in-dialog`) ; gardes de focus de Reka
+    hors de `tabbables()` (un Tab sans suite allait à la garde au lieu du déclencheur) ;
+    `Select` passe par `internal/tabOrder.ts` ; infobulle du fil d'Ariane mesurée par
+    miette ; scripts : Maj+Tab depuis « Fermer », repli sur le déclencheur, clic dehors,
+    corps défilant à 320 × 256, popover et menu dans un dialogue modal,
+    `e2e/components/breadcrumb.spec.ts` (lien entier sans infobulle, lien coupé).
+    Captures réécrites (voulues) : index (un composant de plus),
+    `Menu`, `Tabs`, `Breadcrumb` pages entières (états nouveaux), `CommandPalette` `open` et
+    E8-palette (séquences), E2 (bouton d'explication dans la cellule, repère retiré ;
+    menu d'actions avec « Changer de domaine… » désactivée) ; nouvelles : `Popover`, `Menu`
+    `shortcuts`, `checkbox`, `keyboard`, `Tabs` `keyboard`, `Breadcrumb` `cut`,
+    E2-explication.
+  - choix : `MenuButton` reste le menu qui porte son bouton (choix de la tâche 11) ; menu en
+    boucle (`loop`, comme l'exemple APG) ; Maj+Tab d'un menu va au contrôle avant le bouton
+    (le menu est une liste du bouton, comme celle de `Select` : la quitter, c'est quitter le
+    bouton), celui d'un popover au déclencheur (un dialogue qui se lit après lui, comme un
+    contenu dévoilé : en revenir, c'est revenir au déclencheur) ;
+    popover : focus sur le dialogue (son titre lu, ses contrôles ensuite), croix dans son
+    en-tête, tailles `sm` et `md` ; surface partagée par une classe (`k-popover`) plutôt
+    que `FilterPicker` réécrit sur `Popover` (ancre, ouverture tenue, focus propre). Restent
+    (à vérifier ou à arbitrer) : texte coupé d'une miette sans lien ou de la page courante
+    sans moyen de le lire (non focalisable ; la page courante est redite par le titre) ;
+    infobulle d'un lien coupé inaccessible au doigt (un toucher suit le lien) ; miettes
+    coupées toutes ensemble (« R… », « Cen… ») plutôt que repliées dans « … » ; liseré de
+    focus épais autour d'un popover ouvert sans clic ; libellé d'un groupe du menu
+    (« Aller à ») non lié à ses entrées (`group` nommé) ; raccourcis de la palette sans
+    `aria-keyshortcuts` ni description (reportés sur la ligne de la tâche 23) ; surface du
+    calendrier de `DateTimeField` (tâche 20) encore recopiée, hors `k-popover` ; ordre de lecture : la couche du
+    catalogue est en tête de `main` (le dialogue avant son déclencheur en mode lecture) ;
+    `.k-list` de `Select` garde sa surface recopiée ; lecture au lecteur d'écran (dialogue
+    nommé, séquence « g puis p » en description) à faire.
 - [ ] 22. `Dialog`, `AlertDialog`, `Drawer` (modal), `Toast` — le panneau non modal est
   `SidePanel` (024, tâche 10) — verify :
   focus piégé et rendu ; Échap ; toast d'erreur persistant, pause au survol (2.2.1)
@@ -668,7 +731,9 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
   - dépend de : 21
 - [ ] 23. `SidebarNav` (repliable, groupes), `CommandPalette`, `DatePill`,
   `DraftCounter`, `TimeBand` — verify : palette (Combobox dans Dialog) au clavier ;
-  barre latérale repliée : noms accessibles et infobulles
+  barre latérale repliée : noms accessibles et infobulles ; raccourci d'une entrée de la
+  palette dit comme dans `Menu` (combinaison en `aria-keyshortcuts`, séquence en
+  description, laissés par la tâche 21)
   - où : `web/shell/src/app/AppShell.vue`, `navigation.ts` (entrées actuelles) ; `DatePill`
     ouvre `PeriodPicker` (`web/v2/ui/src/components/PeriodPicker/PeriodPicker.vue`) et
     rend un 400 de l'API sur `valid_at` ou `as_of` sur son champ par la prop `errors`

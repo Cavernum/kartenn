@@ -1,0 +1,12 @@
+- main:
+  - region "Popover":
+    - heading "Popover" [level=1]
+    - paragraph: "Motif : Dialog non modal"
+    - 'figure "keyboard — Au clavier : ouvrir, parcourir, fermer, sortir par Tab ou Maj+Tab"':
+      - text: Préfixe
+      - textbox "Préfixe"
+      - button "Héritée"
+      - text: Description
+      - textbox "Description"
+      - code: keyboard
+      - text: ""

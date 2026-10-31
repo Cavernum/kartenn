@@ -36,8 +36,8 @@ const groups: PaletteGroup[] = [
   {
     label: "Navigation",
     items: [
-      { id: "prefixes", label: "Préfixes", icon: "prefix", shortcut: ["g", "p"] },
-      { id: "addresses", label: "Adresses", icon: "address", shortcut: ["g", "a"] },
+      { id: "prefixes", label: "Préfixes", icon: "prefix", shortcut: [["g"], ["p"]] },
+      { id: "addresses", label: "Adresses", icon: "address", shortcut: [["g"], ["a"]] },
     ],
   },
 ];

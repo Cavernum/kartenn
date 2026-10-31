@@ -1,0 +1,17 @@
+- main:
+  - region "Tabs":
+    - heading "Tabs" [level=1]
+    - paragraph: "Motif : Tabs (activation manuelle)"
+    - 'figure "keyboard — Au clavier : les flèches, Origine et Fin déplacent le focus, Entrée ou Espace active l''onglet (activation manuelle)"':
+      - text: Préfixe
+      - textbox "Préfixe"
+      - tablist "Fiche du préfixe":
+        - tab "Attributs" [selected]
+        - tab /Adresses \d+/
+        - tab "Historique"
+        - tab "VLAN (en chargement)"
+        - tab "Flux (en erreur)"
+      - tabpanel "Attributs":
+        - paragraph: Panneau « Attributs ».
+      - code: keyboard
+      - text: ""

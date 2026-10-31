@@ -1,0 +1,13 @@
+- main:
+  - region "Menu":
+    - heading "Menu" [level=1]
+    - paragraph: "Motif : Menu Button, Menu"
+    - 'figure "keyboard — Au clavier : ouvrir par Entrée, Espace, Bas ou Haut, parcourir, choisir, fermer, sortir par Tab"':
+      - text: Préfixe
+      - textbox "Préfixe"
+      - button "Actions"
+      - status: "Action choisie : aucune"
+      - text: Description
+      - textbox "Description"
+      - code: keyboard
+      - text: ""

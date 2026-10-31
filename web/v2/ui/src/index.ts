@@ -70,6 +70,7 @@ export type {
   MenuItem,
   MenuRadio,
 } from "./components/Menu/menu.ts";
+export { default as Popover } from "./components/Popover/Popover.vue";
 export { default as Dialog } from "./components/Dialog/Dialog.vue";
 export { default as AlertDialog } from "./components/AlertDialog/AlertDialog.vue";
 export { default as Drawer } from "./components/Drawer/Drawer.vue";

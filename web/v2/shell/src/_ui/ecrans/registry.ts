@@ -76,7 +76,13 @@ export const MOCKUPS: Mockup[] = [
       {
         id: "proprietes",
         label: "Propriétés",
-        description: "Onglet des propriétés résolues, explication d'une valeur héritée ouverte.",
+        description: "Onglet des propriétés résolues, sources et propriété attendue manquante.",
+      },
+      {
+        id: "explication",
+        label: "Explication",
+        description:
+          "Explication d'une valeur héritée ouverte (Popover) : d'où elle vient, le changeset qui l'a posée.",
       },
       {
         id: "historique",

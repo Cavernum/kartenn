@@ -9,9 +9,11 @@ import {
   CodeBadge,
   DataGrid,
   EnvChip,
+  IconButton,
   InlineAlert,
   KeyLabel,
   Menu,
+  Popover,
   Split,
   Stack,
   StatusBadge,
@@ -23,7 +25,6 @@ import {
 } from "@kartenn/ui";
 import { ref } from "vue";
 import { RouterLink, useRoute } from "vue-router";
-import AVenir from "./AVenir.vue";
 import Attributs from "./EcranAttributs.vue";
 import Cadre from "./EcranCadre.vue";
 import Panneau from "./EcranPanneau.vue";
@@ -146,6 +147,7 @@ const actions: MenuItem[] = [
     id: "domain",
     label: "Changer de domaine…",
     icon: "move",
+    disabled: true,
     reason: "Le domaine d'un objet ne change pas après sa création (core.domain.immutable).",
   },
   { kind: "separator" },
@@ -208,17 +210,30 @@ const actions: MenuItem[] = [
                   <StatusBadge v-else-if="row.source === 'none'" state="warn" label="Sans valeur" />
                   <template v-else
                     >{{ SOURCE[row.source] }}
-                    <span v-if="row.origin" class="k-ecran-muted">{{ row.origin }}</span></template
+                    <span v-if="row.origin" class="k-ecran-muted">{{ row.origin }}</span>
+                    <!-- The explanation of an inherited value, beside it (021, Fiche d'objet). -->
+                    <Popover
+                      v-if="row.source === 'inherited'"
+                      :title="`${row.label} : valeur héritée`"
+                      :default-open="props.vue === 'explication'"
+                    >
+                      <template #trigger>
+                        <IconButton
+                          icon="info"
+                          :label="`Expliquer la valeur : ${row.label}`"
+                          size="sm"
+                          variant="ghost"
+                        />
+                      </template>
+                      <p>
+                        Héritée de <code>192.0.2.0/24</code> (Salle A), où elle est posée
+                        directement depuis la version v3 ; aucune règle ne la remplace ici.
+                      </p>
+                      <p>Posée par le changeset <CodeBadge :code="ID.changeset" />.</p>
+                    </Popover></template
                   >
                 </template>
               </DataGrid>
-              <AVenir component="Popover" task="21">
-                <InlineAlert tone="info" title="Propriétaire : valeur héritée">
-                  Héritée de <code>192.0.2.0/24</code> (Salle A), où elle est posée directement
-                  depuis la version v3 ; aucune règle ne la remplace ici. Posée par le changeset
-                  <CodeBadge :code="ID.changeset" />.
-                </InlineAlert>
-              </AVenir>
               <InlineAlert tone="warn" title="Une propriété attendue manque">
                 Le TTL DNS (<code>dns.ttl</code>) est attendu sur les réseaux de production.
                 <CodeBadge code="prop.assignment.required" />

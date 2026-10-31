@@ -1,0 +1,29 @@
+- main:
+  - 'dialog "Propriétaire : historique de la valeur"':
+    - 'heading "Propriétaire : historique de la valeur" [level=2]'
+    - button "Fermer"
+    - paragraph:
+      - code: v1
+      - text: "/\\(\\d+-\\d+-\\d+\\) : import initial, sans propriétaire\\./"
+    - paragraph:
+      - code: v2
+      - text: "/\\(\\d+-\\d+-\\d+\\) : propriétaire posé sur \\d+\\.\\d+\\.2\\.0\\/\\d+ \\(Atelier Sud\\)\\./"
+    - paragraph:
+      - code: v3
+      - text: "/\\(\\d+-\\d+-\\d+\\) : propriétaire corrigé sur \\d+\\.\\d+\\.2\\.0\\/\\d+ \\(Atelier Nord\\)\\./"
+    - paragraph:
+      - code: v4
+      - text: "/\\(\\d+-\\d+-\\d+\\) : \\d+\\.\\d+\\.\\d+\\.\\d+\\/\\d+ découpé, la valeur héritée sans changement\\./"
+    - paragraph:
+      - code: v5
+      - text: "/\\(\\d+-\\d+-\\d+\\) : règle env-par-site ajoutée, elle ne touche pas au propriétaire\\./"
+    - paragraph:
+      - code: v6
+      - text: "/\\(\\d+-\\d+-\\d+\\) : \\d+\\.\\d+\\.2\\.0\\/\\d+ rattaché au site ouest\\./"
+  - region "Popover":
+    - heading "Popover" [level=1]
+    - paragraph: "Motif : Dialog non modal"
+    - 'figure /long — Corps long : dans une fenêtre basse \(zoom à \d+ %\), il défile, et devient alors un arrêt de tabulation nommé par le titre/':
+      - button "Historique" [expanded]
+      - code: long
+      - text: ""

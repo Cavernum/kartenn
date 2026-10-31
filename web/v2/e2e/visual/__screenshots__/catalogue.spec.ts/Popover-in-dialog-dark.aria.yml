@@ -1,0 +1,8 @@
+- main:
+  - dialog "Propriétés du préfixe":
+    - heading "Propriétés du préfixe" [level=2]
+    - button "Fermer"
+    - text: Nom
+    - textbox "Nom"
+    - button "Héritée"
+    - button "Actions"

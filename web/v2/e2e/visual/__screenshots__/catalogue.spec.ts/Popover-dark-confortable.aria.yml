@@ -1,0 +1,36 @@
+- main:
+  - region "Popover":
+    - heading "Popover" [level=1]
+    - paragraph: "Motif : Dialog non modal"
+    - 'figure "closed — Fermé : le bouton dit qu''il ouvre un dialogue (aria-haspopup, aria-expanded)"':
+      - button "Héritée"
+      - code: closed
+      - text: ""
+    - 'figure "open — Ouvert : explication d''une valeur héritée, nommée par son titre, le focus sur elle"':
+      - link "Voir l'état open seul":
+        - /url: /_ui/c/Popover?mode=dark&densite=confortable&etat=open
+      - code: open
+      - text: ""
+    - figure "code — Détail d'un code, ouvert d'un bouton-icône, largeur sm":
+      - link "Voir l'état code seul":
+        - /url: /_ui/c/Popover?mode=dark&densite=confortable&etat=code
+      - code: code
+      - text: ""
+    - 'figure /long — Corps long : dans une fenêtre basse \(zoom à \d+ %\), il défile, et devient alors un arrêt de tabulation nommé par le titre/':
+      - link "Voir l'état long seul":
+        - /url: /_ui/c/Popover?mode=dark&densite=confortable&etat=long
+      - code: long
+      - text: ""
+    - 'figure "keyboard — Au clavier : ouvrir, parcourir, fermer, sortir par Tab ou Maj+Tab"':
+      - text: Préfixe
+      - textbox "Préfixe"
+      - button "Héritée"
+      - text: Description
+      - textbox "Description"
+      - code: keyboard
+      - text: ""
+    - 'figure "in-dialog — Dans un dialogue modal, avec un menu en dernier contrôle : Tab qui en sort reste dans le dialogue"':
+      - link "Voir l'état in-dialog seul":
+        - /url: /_ui/c/Popover?mode=dark&densite=confortable&etat=in-dialog
+      - code: in-dialog
+      - text: ""
