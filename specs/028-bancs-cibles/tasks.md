@@ -1,12 +1,12 @@
 ---
-status: draft
+status: approved
 updated: 2026-10-31
 ---
 
 # 028 — Bancs ciblés : tâches
 
-Outillage décidé par l'[ADR 0041](../../docs/adr/0041-bancs-cibles.md) (proposée le
-2026-10-31), en complément de l'ADR 0032. Chaque tâche est un commit qui laisse le build
+Outillage décidé par l'[ADR 0041](../../docs/adr/0041-bancs-cibles.md) (acceptée le
+2026-10-31 ; historique dans l'arbre, exclu, au choix de l'utilisateur), en complément de l'ADR 0032. Chaque tâche est un commit qui laisse le build
 vert. « verify » = preuve de la tâche ; « dépend de » = tâches à finir avant.
 
 Commun à toutes les tâches : les budgets et leurs seuils ne changent pas. Une mesure
@@ -41,7 +41,9 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     `devenv.nix` (`bench`, `pgBench` et ses réglages) ; ADR 0032 (instance, verrou).
   - dépend de : 1
 - [ ] 3. Historique local : une ligne JSON par mesure et par passage dans
-  `$(git rev-parse --git-common-dir)/kartenn-bench/history.jsonl` (date, commit, arbre
+  `.bench/history.jsonl` à la racine de la copie principale (parent de
+  `git rev-parse --git-common-dir`), exclu par `.git/info/exclude` (`/.bench/`, ajouté
+  s'il manque) (date, commit, arbre
   modifié ou non, banc, mesure, échelle, graine, valeur, unité, seuil, verdict, charge
   au départ) ; script `bench-history <mesure> [--scale <échelle>]` (ADR 0041,
   décision 4).

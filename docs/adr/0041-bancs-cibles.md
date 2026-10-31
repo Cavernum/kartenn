@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-31
 ---
 
@@ -53,9 +53,11 @@ Conséquences constatées les 2026-10-30 et 31 :
      banc y figure.
 
 4. **Historique local des mesures.** Chaque passage ajoute une ligne JSON par mesure à
-   `$(git rev-parse --git-common-dir)/kartenn-bench/history.jsonl`. Ce fichier est sous
-   `.git`, donc jamais versionné, et commun à tous les worktrees : il n'a pas besoin
-   d'entrée dans `.git/info/exclude`.
+   `.bench/history.jsonl`, à la racine de la copie principale. Le chemin se déduit de
+   `git rev-parse --git-common-dir` : le parent de ce dossier. Tous les worktrees
+   écrivent donc dans le même fichier. Le fichier est exclu par `.git/info/exclude`,
+   commun aux worktrees (entrée `/.bench/` ajoutée par le script si elle manque), et
+   n'est jamais versionné.
    - Une ligne porte : date, commit, arbre modifié ou non, banc, mesure, échelle,
      graine, valeur, unité, seuil, verdict et charge de la machine au départ.
    - `bench-history <mesure>` affiche la série d'une mesure.
