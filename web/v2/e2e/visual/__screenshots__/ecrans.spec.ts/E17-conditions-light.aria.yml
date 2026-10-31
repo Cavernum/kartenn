@@ -1,0 +1,100 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem: Catalogue
+  - button "Présent"
+  - button "Brouillon 0 opération" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Catalogue de la politique" [level=1]
+  - region "Catalogue":
+    - heading "Catalogue" [level=2]
+    - text: ce qui change les verdicts, au présent
+    - paragraph:
+      - text: "Environnements, services, types de flux, axes et valeurs :"
+      - link "Paramètres de la politique":
+        - /url: /_ui/ecrans/E13?vue=politique&mode=light
+      - text: .
+    - tablist "Collections du catalogue":
+      - tab "Conditions d'admissibilité 3" [selected]
+      - tab "Signaux de risque 3"
+      - tab "Rôles exemptés 2"
+    - tabpanel "Conditions d'admissibilité 3":
+      - button "Colonnes"
+      - grid "Conditions d'admissibilité":
+        - rowgroup:
+          - row "Condition Exigence":
+            - columnheader "Condition"
+            - columnheader "Exigence"
+        - rowgroup:
+          - row "justification-requise dossier.justification présent":
+            - gridcell "justification-requise"
+            - gridcell "dossier.justification présent"
+          - row "donnees-personnelles dossier.owners non vide":
+            - gridcell "donnees-personnelles"
+            - gridcell "dossier.owners non vide"
+          - row "reference-externe dossier.external_refs non vide" [selected]:
+            - gridcell "reference-externe"
+            - gridcell "dossier.external_refs non vide"
+    - text: 3 conditions · 3 signaux · 2 rôles exemptés Au présent · politique r42
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Détail" [selected]
+    - tab "Brouillon 0"
+  - tabpanel "Détail":
+    - heading "reference-externe" [level=2]:
+      - code: reference-externe
+    - text: Clé
+    - textbox "Clé": reference-externe
+    - text: S'applique à
+    - combobox "S'applique à": Tout flux
+    - text: Exigence
+    - combobox "Exigence": Au moins une référence externe
+    - text: Texte pédagogique (fr) (obligatoire)
+    - textbox "Texte pédagogique (fr) (obligatoire)" [invalid]
+    - paragraph: "Texte exigé : le serveur refuserait la condition (policy.text.missing)."
+    - paragraph: Il s'affiche à qui ne remplit pas la condition.
+    - text: Texte pédagogique (en)
+    - textbox "Texte pédagogique (en)"
+    - paragraph: Facultatif.
+  - button "Largeur du panneau"
+  - button "Fermer le panneau"
+  - button "Annuler"
+  - button "Ajouter au brouillon" [disabled]
+  - button "Choisir l'action"

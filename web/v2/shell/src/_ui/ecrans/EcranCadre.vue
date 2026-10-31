@@ -46,6 +46,7 @@ import {
   type MotionSetting,
   type DraftSummary,
   type MenuItem,
+  type SidebarGroup,
   type TabItem,
   type ToastInput,
   type WidthClass,
@@ -86,6 +87,8 @@ const props = withDefaults(
     bottomLabel?: string;
     /** Toasts shown at first, held for the capture (a real one goes after its duration). */
     toasts?: ToastInput[] | undefined;
+    /** The spaces of the sidebar, when a mock-up adds entries (E14 to E27: views of the 017). */
+    spaces?: SidebarGroup[];
   }>(),
   {
     at: undefined,
@@ -94,6 +97,7 @@ const props = withDefaults(
     bottom: undefined,
     bottomLabel: "Panneau du bas",
     toasts: undefined,
+    spaces: () => SPACES,
   },
 );
 const slots = useSlots();
@@ -200,7 +204,7 @@ function toggleDraft(): void {
     <SidebarNav
       v-model:collapsed="collapsed"
       brand="kartenn"
-      :groups="SPACES"
+      :groups="props.spaces"
       :active="props.active"
       :closed="closedBut(props.space)"
     />
@@ -213,7 +217,7 @@ function toggleDraft(): void {
     >
       <SidebarNav
         brand="kartenn"
-        :groups="SPACES"
+        :groups="props.spaces"
         :active="props.active"
         :closed="closedBut(props.space)"
       />

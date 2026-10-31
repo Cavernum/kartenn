@@ -1,0 +1,54 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 3":
+        - /url: /x/flow/review
+    - listitem:
+      - link "Échéances 2":
+        - /url: /x/flow/expiring
+    - listitem:
+      - link "Non-conformités 4":
+        - /url: /x/flow/nonconformities
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem:
+        - link "Registre":
+          - /url: /x/flow/flows
+      - listitem: /flux-\d+/
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Flux introuvable" [level=1]
+  - region /flux-\d+/:
+    - heading /flux-\d+/ [level=2]
+    - alert: Ce flux est absent ou vous n'avez pas le droit de le lire.
+    - paragraph: Le lien peut viser un flux qui n'existe pas, ou un flux dont aucune extrémité ne vous est lisible. Les deux cas se lisent de la même façon.
+    - button "Copier urn:kartenn:problem:not-found":
+      - text: ""
+      - code: urn:kartenn:problem:not-found
+    - status
+    - button "Copier Request-Id req_7f3a9c2e5b1d4068":
+      - text: ""
+      - code: req_7f3a9c2e5b1d4068
+    - status
+- button "Ouvrir le panneau"

@@ -1,0 +1,83 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem: Conformité
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Conformité" [level=1]
+  - region "Vérifier une connexion":
+    - heading "Vérifier une connexion" [level=2]
+    - text: au présent · politique r42
+    - group "Source (obligatoire)":
+      - text: Source (obligatoire) Sorte de la source
+      - combobox "Sorte de la source": Préfixe
+      - text: "Source : recherche ou identifiant collé"
+      - 'textbox "Source : recherche ou identifiant collé" [invalid]': /\d+\.\d+\.2\.0\/\d+/
+      - paragraph: "/\\d+ adresses : \\d+ au plus par extrémité/"
+    - group "Destination (obligatoire)":
+      - text: Destination (obligatoire) Sorte de la destination
+      - combobox "Sorte de la destination": Interface
+      - text: "Destination : recherche ou identifiant collé"
+      - 'textbox "Destination : recherche ou identifiant collé"': /srv-db-\d+ · eth0/
+    - group "Objet (obligatoire)":
+      - text: ""
+      - button "Service" [pressed]
+      - button "Transport et port"
+      - button "Type de flux"
+      - text: Service
+      - combobox "Service": PostgreSQL
+    - text: Entité
+    - combobox "Entité": Aucune
+    - paragraph: Facultative avec policy.verdict.read.
+    - button "Ajouter un dossier"
+    - button "Copier le lien"
+    - button "Vérifier"
+  - heading "Réponse" [level=2]
+  - alert:
+    - paragraph: "Erreur : La requête est trop large : restreignez la source."
+    - text: Votre saisie est gardée. Choisissez un préfixe plus petit, une interface ou une adresse.
+    - list:
+      - listitem:
+        - text: /\d+ adresses dans \d+\.\d+\.2\.0\/\d+ ; une extrémité en porte \d+ au plus, et la requête \d+ \d+ évaluations au plus\./
+        - button "Copier policy-query-too-large":
+          - text: ""
+          - code: policy-query-too-large
+        - status
+- button "Ouvrir le panneau"

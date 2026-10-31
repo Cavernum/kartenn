@@ -1,0 +1,103 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 3":
+        - /url: /x/flow/review
+    - listitem:
+      - link "Échéances 2":
+        - /url: /x/flow/expiring
+    - listitem:
+      - link "Non-conformités 4":
+        - /url: /x/flow/nonconformities
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem:
+        - link "Registre":
+          - /url: /x/flow/flows
+      - listitem: /flux-\d+/
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading /Flux flux-\d+/ [level=1]
+  - region /flux-\d+/:
+    - heading /flux-\d+/ [level=2]
+    - text: flux · dérogé · Base de données
+    - button "Modifier" [disabled]
+    - button "Actions"
+    - tablist "Sections de la fiche":
+      - tab "Évaluations 1" [selected]
+      - tab "Historique 3"
+    - tabpanel "Évaluations 1":
+      - paragraph: "/Au présent : Non conforme Dérogé jusqu'au \\d+-\\d+-\\d+ politique r42/"
+      - button "Colonnes"
+      - grid "Évaluations courantes par paire":
+        - rowgroup:
+          - row "Points Verdict Élément décisif":
+            - columnheader "Points"
+            - columnheader "Verdict"
+            - columnheader "Élément décisif"
+        - rowgroup:
+          - row "point 1 → point 1 Non conforme non communiqué":
+            - gridcell "point 1 → point 1"
+            - gridcell "Non conforme"
+            - gridcell "non communiqué"
+      - paragraph: "Explication réduite : vous lisez ce flux comme demandeur (flow.request), sans flow.read ; les adresses et l'élément décisif ne sont pas communiqués."
+      - term: À l'enregistrement
+      - definition: "/\\d+-\\d+-\\d+ : non conforme, dérogé à l'instruction/"
+    - heading "Flux" [level=2]
+    - term: Source
+    - definition: /dev-web-\d+ · eth0/
+    - term: Destination
+    - definition: /srv-db-\d+ · eth0/
+    - term: Service
+    - definition:
+      - text: PostgreSQL
+      - code: postgres
+    - term: État
+    - definition: Dérogé
+    - term: Période
+    - definition: /\d+-\d+-\d+ → \d+-\d+-\d+/
+    - heading "Dossier" [level=2]
+    - term: Entité
+    - definition: Atelier Nord
+    - term: Demandeur
+    - definition: Camille Martin
+    - term: Référence
+    - definition: /ticketing:CHG-\d+/
+    - term: Justification
+    - definition: Reprise des données de test anonymisées
+    - term: Responsables
+    - definition: Lou Bernard
+    - term: Nature des données
+    - definition: Interne
+    - heading "Dérogation" [level=2]
+    - text: en cours
+    - term: Fin
+    - definition: /\d+-\d+-\d+/
+    - term: Motif
+    - definition: Migration des jeux de test, fin prévue en mars
+    - term: Risque accepté
+    - definition: Données anonymisées, accès en lecture
+    - term: Accordée par
+    - definition: Noa Petit
+- button "Ouvrir le panneau"

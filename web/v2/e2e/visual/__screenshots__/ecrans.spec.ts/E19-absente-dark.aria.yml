@@ -1,0 +1,75 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem: Conformité
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Conformité" [level=1]
+  - region "Vérifier une connexion":
+    - heading "Vérifier une connexion" [level=2]
+    - text: au présent · politique r42
+    - group "Source (obligatoire)":
+      - text: Source (obligatoire) Sorte de la source
+      - combobox "Sorte de la source": Adresse
+      - text: "Source : recherche ou identifiant collé"
+      - 'textbox "Source : recherche ou identifiant collé"': /\d+\.\d+\.\d+\.\d+/
+    - group "Destination (obligatoire)":
+      - text: Destination (obligatoire) Sorte de la destination
+      - combobox "Sorte de la destination": Adresse
+      - text: "Destination : recherche ou identifiant collé"
+      - 'textbox "Destination : recherche ou identifiant collé" [invalid]': 01JD9Z0Q1R2S3T4U5V6W7X8Y9Z
+      - paragraph: "Absente ou non autorisée : aucune adresse lisible ne porte cet identifiant"
+    - group "Objet (obligatoire)":
+      - text: ""
+      - button "Service" [pressed]
+      - button "Transport et port"
+      - button "Type de flux"
+      - text: Service
+      - combobox "Service": PostgreSQL
+    - text: Entité
+    - combobox "Entité": Aucune
+    - paragraph: Facultative avec policy.verdict.read.
+    - button "Ajouter un dossier"
+    - button "Copier le lien"
+    - button "Vérifier"
+  - heading "Réponse" [level=2]
+  - paragraph: "Pas de réponse : la destination est absente ou non autorisée"
+  - paragraph: Vérifiez l'identifiant collé, ou cherchez l'adresse par sa valeur.
+- button "Ouvrir le panneau"

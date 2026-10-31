@@ -1,0 +1,23 @@
+- complementary "Panneau droit":
+  - tabpanel "Détail":
+    - group "Fin du flux* (obligatoire)"
+    - region "Dérogation exigée":
+      - group "Fin de la dérogation* (obligatoire)"
+- dialog "Rejeter la demande de flux postgres":
+  - banner:
+    - heading "Rejeter la demande de flux postgres" [level=2]
+    - button "Fermer"
+  - paragraph: Le motif est envoyé à Alex Durand ; le rejet devient une non-conformité de sa demande.
+  - text: Motif du rejet (obligatoire)
+  - textbox "Motif du rejet (obligatoire)": "La recette dispose de ses propres jeux : passez par l'export anonymisé."
+  - paragraph: "Une phrase : ce qu'il faut faire à la place."
+  - term: Règle en cause
+  - definition:
+    - button "Copier Développement vers production deny-deve-prod":
+      - text: ""
+      - code: deny-deve-prod
+    - status
+  - paragraph: Reprise de l'évaluation du triage ; son texte accompagne la non-conformité.
+  - contentinfo:
+    - button "Annuler"
+    - button "Rejeter"

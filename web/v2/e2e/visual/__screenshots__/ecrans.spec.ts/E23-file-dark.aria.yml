@@ -1,0 +1,96 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique"
+  - button "Flux" [expanded]
+  - list:
+    - listitem:
+      - link "Flux":
+        - /url: /x/flow/flows
+    - listitem:
+      - link "Instruction 3":
+        - /url: /x/flow/review
+    - listitem:
+      - link "Échéances 2":
+        - /url: /x/flow/expiring
+    - listitem:
+      - link "Non-conformités 4":
+        - /url: /x/flow/nonconformities
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Flux":
+          - /url: /x/flow
+      - listitem: Instruction
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Instruction" [level=1]
+  - region "Instruction":
+    - heading "Instruction" [level=2]
+    - text: demandes et prolongations en attente
+    - group "Filtres de la file":
+      - button "Ajouter un filtre"
+      - status
+    - grid "Demandes et prolongations à instruire":
+      - rowgroup:
+        - row "Nature Demandeur, entité Extrémités, service Issue du triage Élément décisif Score Actions":
+          - columnheader "Nature":
+            - text: ""
+            - 'button "Filtrer : Nature"'
+          - columnheader "Demandeur, entité"
+          - columnheader "Extrémités, service"
+          - columnheader "Issue du triage":
+            - text: ""
+            - 'button "Filtrer : Issue du triage"'
+          - columnheader "Élément décisif"
+          - columnheader "Score"
+          - columnheader "Actions"
+      - rowgroup:
+        - row /Demande Alex Durand · Atelier Nord dev-web-\d+ · eth0 → srv-db-\d+ · eth0 · postgres Non conforme deny-deve-prod \d+ Instruire/:
+          - gridcell "Demande"
+          - gridcell "Alex Durand · Atelier Nord"
+          - gridcell /dev-web-\d+ · eth0 → srv-db-\d+ · eth0 · postgres/
+          - gridcell "Non conforme"
+          - gridcell "deny-deve-prod"
+          - gridcell /\d+/
+          - gridcell "Instruire":
+            - button "Instruire"
+        - row /Prolongation Camille Martin · Atelier Nord bastion-\d+ · eth0 → srv-app-\d+ · eth1 · ssh À instruire admin-par-bastion \d+ Votre demande/:
+          - gridcell "Prolongation"
+          - gridcell "Camille Martin · Atelier Nord"
+          - gridcell /bastion-\d+ · eth0 → srv-app-\d+ · eth1 · ssh/
+          - gridcell "À instruire"
+          - gridcell "admin-par-bastion"
+          - gridcell /\d+/
+          - gridcell "Votre demande"
+        - row /Demande Sacha Morel · Service Pilote srv-rec-\d+ · eth0 → srv-app-\d+ · eth0 · https À instruire rece-vers-prod 0 Instruire/:
+          - gridcell "Demande"
+          - gridcell "Sacha Morel · Service Pilote"
+          - gridcell /srv-rec-\d+ · eth0 → srv-app-\d+ · eth0 · https/
+          - gridcell "À instruire"
+          - gridcell "rece-vers-prod"
+          - gridcell "0"
+          - gridcell "Instruire":
+            - button "Instruire"
+        - row /Demande Lou Bernard · Atelier Sud \d+\.\d+\.\d+\.\d+ → srv-app-\d+ · eth0 · api À instruire unclassified \d+ Instruire/:
+          - gridcell "Demande"
+          - gridcell "Lou Bernard · Atelier Sud"
+          - gridcell /\d+\.\d+\.\d+\.\d+ → srv-app-\d+ · eth0 · api/
+          - gridcell "À instruire"
+          - gridcell "unclassified"
+          - gridcell /\d+/
+          - gridcell "Instruire":
+            - button "Instruire"
+    - text: /4 en attente · 3 demandes · 1 prolongation Évaluation du triage, telle qu'enregistrée · page de \d+/
+- button "Ouvrir le panneau"

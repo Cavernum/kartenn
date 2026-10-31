@@ -1,0 +1,104 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem:
+        - link "Inférence":
+          - /url: /x/policy/inference
+      - listitem: Écarts
+  - button "Présent"
+  - button "Brouillon 0 opération"
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Inférence" [level=1]
+  - region "Écarts d'inférence":
+    - heading "Écarts d'inférence" [level=2]
+    - text: ouverts · policy.inference.mismatch
+    - status:
+      - paragraph: "/Succès : Écart de \\d+\\.\\d+\\.\\d+\\.\\d+ acquitté : il quitte les écarts ouverts\\./"
+    - grid "Écarts d'inférence ouverts":
+      - rowgroup:
+        - row "Nœud d'origine Déclaré → attendu Héritiers en écart Règle Depuis Actions":
+          - columnheader "Nœud d'origine"
+          - columnheader "Déclaré → attendu"
+          - columnheader "Héritiers en écart"
+          - columnheader "Règle"
+          - columnheader "Depuis"
+          - columnheader "Actions"
+      - rowgroup:
+        - row /\d+\.\d+\.\d+\.\d+ Développement → Production 0 env-par-site \d+-\d+-\d+ Acquitter/:
+          - gridcell /\d+\.\d+\.\d+\.\d+/:
+            - link /\d+\.\d+\.\d+\.\d+/:
+              - /url: /prefixes/192.0.2.21
+          - gridcell "Développement → Production"
+          - gridcell "0"
+          - gridcell "env-par-site"
+          - gridcell /\d+-\d+-\d+/
+          - gridcell "Acquitter":
+            - button "Acquitter"
+        - row /\d+\.\d+\.\d+\.\d+\/\d+ Recette → Production \d+ env-par-site \d+-\d+-\d+ Acquitter/:
+          - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/:
+            - link /\d+\.\d+\.\d+\.\d+\/\d+/:
+              - /url: /prefixes/192.0.2.64/27
+          - gridcell "Recette → Production"
+          - gridcell /\d+/
+          - gridcell "env-par-site"
+          - gridcell /\d+-\d+-\d+/
+          - gridcell "Acquitter":
+            - button "Acquitter"
+        - row /\d+\.\d+\.\d+\.\d+\/\d+ Production → Recette \d+ env-par-vlan \d+-\d+-\d+ Acquitter/:
+          - gridcell /\d+\.\d+\.\d+\.\d+\/\d+/:
+            - link /\d+\.\d+\.\d+\.\d+\/\d+/:
+              - /url: /prefixes/198.51.100.0/27
+          - gridcell "Production → Recette"
+          - gridcell /\d+/
+          - gridcell "env-par-vlan"
+          - gridcell /\d+-\d+-\d+/
+          - gridcell "Acquitter":
+            - button "Acquitter"
+        - row /\d+:db8:\d+::\/\d+ Production → Recette 6 env-par-vlan \d+-\d+-\d+ Acquitter/:
+          - gridcell /\d+:db8:\d+::\/\d+/:
+            - link /\d+:db8:\d+::\/\d+/:
+              - /url: /prefixes/2001:db8:20::/64
+          - gridcell "Production → Recette"
+          - gridcell "6"
+          - gridcell "env-par-vlan"
+          - gridcell /\d+-\d+-\d+/
+          - gridcell "Acquitter":
+            - button "Acquitter"
+    - text: /4 écarts ouverts · \d+ héritiers en écart Un écart acquitté reste dans l'historique de l'anomalie/
+- button "Ouvrir le panneau"

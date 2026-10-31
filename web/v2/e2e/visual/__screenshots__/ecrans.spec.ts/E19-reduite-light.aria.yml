@@ -1,0 +1,150 @@
+- link "Aller au contenu":
+  - /url: "#k-ecran-surface"
+- navigation "Navigation principale":
+  - text: kartenn
+  - button "Rechercher"
+  - button "Référentiel"
+  - button "Changesets"
+  - button "Machines"
+  - button "Politique" [expanded]
+  - list:
+    - listitem:
+      - link "Matrice":
+        - /url: /x/policy/matrix
+    - listitem:
+      - link "Règles et motifs":
+        - /url: /x/policy/rules
+    - listitem:
+      - link "Catalogue":
+        - /url: /x/policy/catalogue
+    - listitem:
+      - link "Inférence":
+        - /url: /x/policy/inference
+    - listitem:
+      - link "Conformité":
+        - /url: /x/policy/compliance
+    - listitem:
+      - link "Rapports d'audit":
+        - /url: /x/policy/reports
+  - button "Flux"
+  - button "Administration"
+  - button "Barre latérale" [expanded]
+- banner:
+  - navigation "Fil d'Ariane":
+    - list:
+      - listitem:
+        - link "Politique":
+          - /url: /x/policy
+      - listitem: Conformité
+  - button "Présent"
+  - button "Brouillon 0 opération" [expanded]
+  - button "Liste des brouillons"
+  - button "Compte de Camille Martin"
+- main:
+  - heading "Conformité" [level=1]
+  - region "Vérifier une connexion":
+    - heading "Vérifier une connexion" [level=2]
+    - text: au présent · politique r42
+    - group "Source (obligatoire)":
+      - text: Source (obligatoire) Sorte de la source
+      - combobox "Sorte de la source": Adresse
+      - text: "Source : recherche ou identifiant collé"
+      - 'textbox "Source : recherche ou identifiant collé"': /\d+\.\d+\.\d+\.\d+/
+    - group "Destination (obligatoire)":
+      - text: Destination (obligatoire) Sorte de la destination
+      - combobox "Sorte de la destination": Interface
+      - text: "Destination : recherche ou identifiant collé"
+      - 'textbox "Destination : recherche ou identifiant collé"': /srv-db-\d+ · eth0/
+    - group "Objet (obligatoire)":
+      - text: ""
+      - button "Service" [pressed]
+      - button "Transport et port"
+      - button "Type de flux"
+      - text: Service
+      - combobox "Service": PostgreSQL
+    - text: Entité (obligatoire)
+    - combobox "Entité (obligatoire)": Atelier Nord
+    - paragraph: Exigée pour une réponse sous policy.flow.request.
+    - button "Ajouter un dossier"
+    - button "Copier le lien"
+    - button "Vérifier"
+  - heading "Réponse" [level=2]
+  - text: 3 évaluations
+  - paragraph: "En partie conforme Issue la plus défavorable : Non conforme 1 conforme · 2 non conformes · politique r42 · sans dossier"
+  - paragraph: "Explication réduite : 2 adresses non lisibles omises ; les points sont désignés par leur rang."
+  - button "Colonnes"
+  - grid "Évaluations de la requête":
+    - rowgroup:
+      - row "Points Verdict Issue Élément décisif":
+        - columnheader "Points"
+        - columnheader "Verdict":
+          - text: ""
+          - 'button "Filtrer : Verdict"'
+        - columnheader "Issue"
+        - columnheader "Élément décisif"
+    - rowgroup:
+      - row "point 1 → point 1 Conforme Automatique bdd-meme-env":
+        - gridcell "point 1 → point 1"
+        - gridcell "Conforme"
+        - gridcell "Automatique"
+        - gridcell "bdd-meme-env":
+          - code: bdd-meme-env
+      - row "point 1 → point 2 Non conforme Non conforme deny-prod-hors-prod" [selected]:
+        - gridcell "point 1 → point 2"
+        - gridcell "Non conforme"
+        - gridcell "Non conforme"
+        - gridcell "deny-prod-hors-prod":
+          - code: deny-prod-hors-prod
+      - row "point 1 → point 3 Non conforme À instruire unclassified":
+        - gridcell "point 1 → point 3"
+        - gridcell "Non conforme"
+        - gridcell "À instruire"
+        - gridcell "unclassified":
+          - code: unclassified
+  - text: "Entrée sur une ligne : son explication à droite Requête req_7f3a9c2e5b1d4068"
+- complementary "Panneau droit":
+  - separator "Redimensionner le panneau"
+  - tablist "Onglets du panneau":
+    - tab "Détail" [selected]
+    - tab "Brouillon 0"
+  - tabpanel "Détail":
+    - heading "point 1 → point 2" [level=2]
+    - term: Verdict
+    - definition: Non conforme
+    - term: Élément décisif
+    - definition:
+      - button "Copier Production vers hors production deny-prod-hors-prod":
+        - text: ""
+        - code: deny-prod-hors-prod
+      - status
+    - term: Combinaison
+    - definition: Production → Recette Base de données
+    - term: Score
+    - definition: /\d+ \(données restreintes\)/
+    - region "Pourquoi":
+      - heading "Pourquoi" [level=3]
+      - paragraph: La production ne pousse rien vers la recette ni le développement.
+    - region "Règles écartées":
+      - heading "Règles écartées" [level=3]
+      - list:
+        - listitem:
+          - code: bdd-meme-env
+          - text: destination d'un autre environnement
+    - region "Conditions":
+      - heading "Conditions" [level=3]
+      - list:
+        - listitem:
+          - text: Non évaluée
+          - code: justification-requise
+          - text: sans dossier
+        - listitem:
+          - text: Remplie
+          - code: reference-externe
+    - region "Valeurs des points":
+      - heading "Valeurs des points" [level=3]
+      - list:
+        - listitem: Point 1 Environnement Production
+        - listitem: Point 1 Sensibilité Interne
+        - listitem: Point 2 Environnement Recette
+  - button "Largeur du panneau"
+  - button "Fermer le panneau"
