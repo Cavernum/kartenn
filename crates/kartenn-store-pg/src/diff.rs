@@ -37,11 +37,14 @@ END"
 
 /// Parameters: `$1` property, `$2` objects, `$3` window start, `$4` heritable, `$5` closed
 /// list, `$6` objects created by the changeset.
+///
+/// The window is written out, never taken from a CTE: cited once here, it would be
+/// folded into the query all the same, but written out it stays so if a second
+/// citation comes (see `targets!` in `origins.rs`).
 fn record_sql() -> String {
     let value = value_json("$5");
     format!(
-        "WITH w AS (SELECT tstzrange($3, NULL) AS r),
-ob AS (
+        "WITH ob AS (
     SELECT object_id, origin_object_id AS origin, valid_period FROM property_origin
     WHERE $4 AND property_id = $1 AND object_id = ANY($2) AND sys_start < now()
     UNION ALL
@@ -75,8 +78,8 @@ va AS (
     FROM oa JOIN aa a ON a.object_id = oa.origin AND a.valid_period && oa.valid_period
 ),
 ex AS (
-    SELECT id, valid_period * w.r AS vp FROM carrier_object, w
-    WHERE id = ANY($2) AND NOT id = ANY($6) AND valid_period && w.r
+    SELECT id, valid_period * tstzrange($3, NULL) AS vp FROM carrier_object
+    WHERE id = ANY($2) AND NOT id = ANY($6) AND valid_period && tstzrange($3, NULL)
 ),
 pts AS (
     SELECT id AS o, lower(vp) AS p FROM ex
@@ -104,12 +107,13 @@ FROM cmp WHERE before IS DISTINCT FROM after"
 /// Differential of the heirs of origins whose value changed while no origin moved: the
 /// timeline of each origin's value before and after, then the heirs over each segment that
 /// changed, from the origin index. Parameters: `$1` property, `$2` origins, `$3` window
-/// start, `$4` excluded objects, `$5` closed list.
+/// start, `$4` excluded objects, `$5` closed list. The window is written out: as a CTE
+/// cited by both `vb` and `va` it was materialised, hidden from the plan made for the
+/// parameters (see `targets!` in `origins.rs`).
 fn value_sql() -> String {
     let value = value_json("$5");
     format!(
-        "WITH w AS (SELECT tstzrange($3, NULL) AS r),
-ab AS (
+        "WITH ab AS (
     SELECT * FROM property_assignment
     WHERE property_id = $1 AND object_id = ANY($2) AND sys_start < now()
     UNION ALL
@@ -121,12 +125,12 @@ ab AS (
 ),
 aa AS (SELECT * FROM property_assignment WHERE property_id = $1 AND object_id = ANY($2)),
 vb AS (
-    SELECT a.object_id AS origin, a.valid_period * w.r AS vp, {value} AS v
-    FROM ab a, w WHERE a.valid_period && w.r
+    SELECT a.object_id AS origin, a.valid_period * tstzrange($3, NULL) AS vp, {value} AS v
+    FROM ab a WHERE a.valid_period && tstzrange($3, NULL)
 ),
 va AS (
-    SELECT a.object_id AS origin, a.valid_period * w.r AS vp, {value} AS v
-    FROM aa a, w WHERE a.valid_period && w.r
+    SELECT a.object_id AS origin, a.valid_period * tstzrange($3, NULL) AS vp, {value} AS v
+    FROM aa a WHERE a.valid_period && tstzrange($3, NULL)
 ),
 pts AS (
     SELECT origin, lower(vp) AS p FROM vb
@@ -342,5 +346,22 @@ impl PgTx {
         .fetch_all(&mut *self.tx)
         .await
         .map_err(store_err)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_differentials_see_the_window() {
+        // A window named by a CTE, whatever its name, is `… AS (SELECT tstzrange(…`.
+        for sql in [record_sql(), value_sql()] {
+            assert!(
+                !sql.contains("SELECT tstzrange("),
+                "window behind a CTE in:\n{sql}"
+            );
+            assert!(sql.contains("&& tstzrange($3, NULL)"));
+        }
     }
 }

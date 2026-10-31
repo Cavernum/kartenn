@@ -29,14 +29,22 @@ fn store_err(e: impl std::fmt::Display) -> StoreError {
 type Segment = (Uuid, OffsetDateTime, Option<OffsetDateTime>);
 
 /// Targets of a refresh: `$1` objects, `$3` window start, `$4` carrier kinds.
+///
+/// The window is written out, never taken from a CTE: one cited twice, as it was in
+/// [`SEGMENTS_DOWN`] (here and in `a`), is materialised, so a plan made for the
+/// parameters does not see its value, estimates `valid_period &&` it at a default
+/// selectivity and plans 2·10⁵ targets as about 1 700. [`SEGMENTS_DOWN`] then tested
+/// each object below a carrier against every target: about 890 s for the query instead
+/// of 2.4 s when the roots of three domains of the reference dataset lose their value
+/// (task 003-20). [`SEGMENTS_UP`], which shares these targets, needs it only for
+/// uniformity: a CTE cited once is folded into the query.
 macro_rules! targets {
     () => {
         "
-WITH w AS (SELECT tstzrange($3, NULL) AS r),
-t AS (
-    SELECT o.id, o.domain_id, o.value, o.kind, o.valid_period * w.r AS vp
-    FROM addressing_object o, w
-    WHERE o.id = ANY($1) AND o.kind = ANY($4) AND o.valid_period && w.r
+WITH t AS (
+    SELECT o.id, o.domain_id, o.value, o.kind, o.valid_period * tstzrange($3, NULL) AS vp
+    FROM addressing_object o
+    WHERE o.id = ANY($1) AND o.kind = ANY($4) AND o.valid_period && tstzrange($3, NULL)
 ),"
     };
 }
@@ -111,8 +119,8 @@ const SEGMENTS_DOWN: &str = concat!(
     targets!(),
     "
 a AS (
-    SELECT a.object_id, a.valid_period * w.r AS vp FROM property_assignment a, w
-    WHERE a.property_id = $2 AND a.valid_period && w.r
+    SELECT a.object_id, a.valid_period * tstzrange($3, NULL) AS vp FROM property_assignment a
+    WHERE a.property_id = $2 AND a.valid_period && tstzrange($3, NULL)
 ),
 hit AS (
     SELECT target, cand, prio, vp FROM (
@@ -441,6 +449,18 @@ impl PgTx {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_queries_planned_for_their_arrays_see_the_window() {
+        // A window named by a CTE, whatever its name, is `… AS (SELECT tstzrange(…`.
+        for sql in [SEGMENTS_UP, SEGMENTS_DOWN] {
+            assert!(
+                !sql.contains("SELECT tstzrange("),
+                "window behind a CTE in:\n{sql}"
+            );
+            assert!(sql.contains("&& tstzrange($3, NULL)"));
+        }
+    }
 
     #[test]
     fn touching_segments_of_one_origin_merge() {
