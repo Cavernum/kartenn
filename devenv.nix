@@ -387,7 +387,7 @@
   # runs outside the devenv shell.
   clippyHook = pkgs.writers.writeDash "clippy-heavy" ''
     export PATH=${lib.makeBinPath [pkgs.cargo pkgs.clippy pkgs.rustc pkgs.stdenv.cc pkgs.pkg-config pkgs.coreutils]}:$PATH
-    export SQLX_OFFLINE=true RUSTC_WRAPPER=${pkgs.sccache}/bin/sccache
+    export SQLX_OFFLINE=true
     exec ${kHeavy}/bin/k-heavy cargo clippy --offline --workspace --all-targets --all-features
   '';
   # Every dash script of this file, as dash runs it, for `shellcheck -s dash`
@@ -428,7 +428,6 @@ in {
     pkgs.cargo-nextest
     kHeavy
     pgBench
-    pkgs.sccache
     # Frontend: language servers for Claude Code's LSP tool and the editor, and the
     # browser of Claude Code (claude.code.mcpServers.playwright).
     pkgs.vue-language-server
@@ -547,12 +546,11 @@ in {
   # (docs/practices/rust-build.md §2.3). Refresh it with `db-prepare`.
   env.SQLX_OFFLINE = "true";
 
-  # Load guards (see kHeavy): a cargo run outside k-heavy (rust-analyzer, an ad hoc
-  # command) takes 6 jobs, not every core; and one compilation cache shared by every
-  # worktree, so a new worktree does not rebuild all dependencies.
+  # Load guard (see kHeavy): a cargo run outside k-heavy (rust-analyzer, an ad hoc
+  # command) takes 6 jobs, not every core. No sccache: a new worktree clones a warm
+  # target instead (k-target-seed), where it gained nothing measurable
+  # (docs/practices/rust-build.md §1.5).
   env.CARGO_BUILD_JOBS = "6";
-  env.RUSTC_WRAPPER = "${pkgs.sccache}/bin/sccache";
-  env.SCCACHE_CACHE_SIZE = "40G";
 
   scripts.db-prepare = {
     description = "Migrate the development database and refresh the sqlx offline metadata";

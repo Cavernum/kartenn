@@ -114,7 +114,8 @@ reste.
 10. **Cache Nix : les caches binaires publics seulement.** cache.nixos.org et
     devenv.cachix.org (nixpkgs de devenv), en lecture, vérifiés par leur clé publique ;
     plus un cache `sccache` (actions/cache) pour les compilations de `k-check`, clé sur
-    `Cargo.lock` et `devenv.lock`, jamais restauré pour une étiquette. Rejetés : Cachix
+    `Cargo.lock` et `devenv.lock`, jamais restauré pour une étiquette (retiré par
+    l'amendement du 2026-10-31). Rejetés : Cachix
     en écriture (compte et secret à gérer), magic-nix-cache (dépend d'un service tiers
     dont les conditions ont déjà changé), cache-nix-action (gain faible : les dérivations du projet
     changent à chaque commit, et un cache du store restauré sans signature dans la
@@ -159,3 +160,12 @@ reste.
 - Rotation d'une clé de publication : ajouter la nouvelle clé publique, retirer
   l'ancienne, par commit sur `main` ; les étiquettes déjà publiées ne sont pas
   revérifiées.
+
+## Amendement (2026-10-31) — plus de cache sccache
+
+sccache est retiré de `devenv.nix`, donc de la CI qui en hérite : le cache `sccache`
+(actions/cache) de la décision 10 disparaît, il ne reste que les caches binaires publics
+de Nix. Mesuré en local (`docs/practices/rust-build.md` §1.5), il ne servait plus qu'aux
+`target` vides, ≈ 35 s sur ≈ 200 s ; un worktree neuf clone désormais un `target` chaud
+(`k-target-seed`), où il ne gagne rien. La CI compile donc ses dépendances à chaque
+exécution ; un cache du `target` pourra être réévalué, sur mesure, si sa durée gêne.

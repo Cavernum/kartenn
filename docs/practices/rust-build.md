@@ -108,7 +108,9 @@ que compile `k-check` ; chaque mesure lancée machine au repos, deux passages pa
 - **sccache** : il ne met en cache que les dépendances (les crates du workspace sont
   incrémentales : « non-cacheable: incremental ») ; ses échecs (62 à 81 compilations Rust)
   reviennent dans chaque chemin neuf, donc dépendent du chemin. Il gagne ≈ 35 s
-  sur un `target` vide, rien de mesurable sur un `target` cloné ou chaud.
+  sur un `target` vide, rien de mesurable sur un `target` cloné ou chaud : il est retiré
+  le 2026-10-31, en local comme en CI (ADR 0033, amendement), et son cache de 41 Go
+  supprimé.
 - `k-target-seed` prend le `target` du worktree `integration` de la copie principale,
   sinon celui de la copie principale, ou `K_TARGET_BASE` (racine d'un worktree, chemin
   absolu). Sans reflink, ou si un build de la source retire un fichier pendant la copie,
@@ -275,6 +277,6 @@ Source : [Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.htm
 | Sujet | Quand | Remarque |
 |---|---|---|
 | `cargo-nextest` | premiers tests d'intégration PostgreSQL | un processus par test : isolation, délais par test, rapports JUnit ; les doctests restent sur `cargo test --doc`. [nexte.st](https://nexte.st/docs/design/why-process-per-test/) |
-| Cache CI (rust-cache, sccache) | mise en place de la CI | en local, ≈ 35 s sur un `target` vide, rien sur un `target` cloné (§1.5) |
+| Cache CI du `target` (rust-cache) | si la durée de la CI gêne | sccache retiré (§1.5) ; la CI compile ses dépendances à chaque exécution |
 | Backend Cranelift, `-Zthreads` | si la boucle de dev devient lente | exige une chaîne nightly (rust-overlay) ; à réévaluer |
 | `chattr +C` sur `target/` (btrfs) | si les E/S dominent `--timings` | gain marginal attendu |
