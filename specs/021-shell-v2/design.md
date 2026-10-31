@@ -156,7 +156,8 @@ Les routes de la 007 sont gardées (liens existants valides) ; s'ajoutent :
 
 Chaque route déclare `meta.queries(params, time, query)` (requêtes à précharger : `time`
 est le contexte daté de la cible, `query` sa requête, filtres d'une liste compris),
-`meta.breadcrumb(params)` et, pour une vue de plugin, `meta.modules(params)` (`base` et
+`meta.breadcrumb(params, t)` (libellés dans la langue de `t` ; le cadre ôte le lien du
+dernier élément) et, pour une vue de plugin, `meta.modules(params)` (`base` et
 `integrity` du plugin, dont les `modulepreload` partent avec les lectures). Contexte daté
 de la cible : ses dates si elle en nomme ; sinon, au survol d'un lien, celles de la page
 (que la navigation reportera) ; dans la garde, qui suit celle du temps, le présent (retour
