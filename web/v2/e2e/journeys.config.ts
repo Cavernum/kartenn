@@ -10,6 +10,8 @@ const repository = fileURLToPath(new URL("../../..", import.meta.url));
 
 export default defineConfig({
   testDir: "journeys",
+  // The issuer attached and the bindings of the groups of users.toml (journeys/global-setup.ts).
+  globalSetup: "./journeys/global-setup.ts",
   forbidOnly: !!process.env.CI,
   // As web/e2e: one retry on the CI runners, reported as « flaky ».
   retries: process.env.CI ? 1 : 0,
