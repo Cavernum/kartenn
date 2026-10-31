@@ -854,6 +854,72 @@ in {
     '';
   };
 
+  # A new worktree starts from a warm target (docs/practices/rust-build.md §1.5): a
+  # copy-on-write clone (btrfs, XFS) of the integration worktree's target, else of the main
+  # checkout's, or of K_TARGET_BASE (a worktree root). Cargo then rebuilds only the
+  # workspace crates, whose fingerprints hold their path (91 to 98 s instead of 166 to
+  # 169 s cold, measured 2026-10-31). The build scripts' outputs still name the source's
+  # target, but cargo relocates them from `root-output`: the clone links from its own.
+  # Never a plain copy: without reflink it stops.
+  scripts.k-target-seed = {
+    description = "Clone a warm target into this worktree (reflink), so it rebuilds only the workspace crates";
+    exec = ''
+      set -euo pipefail
+      top=$(git rev-parse --show-toplevel)
+      dst="$top/target"
+      if [ -e "$dst" ]; then echo "k-target-seed : $dst existe déjà" >&2; exit 1; fi
+      src=''${K_TARGET_BASE:-}
+      if [ -z "$src" ]; then
+        main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+        for c in "$main/.claude/worktrees/integration" "$main"; do
+          if [ "$c" != "$top" ] && [ -d "$c/target/debug" ]; then src=$c; break; fi
+        done
+      fi
+      if [ -z "$src" ] || [ ! -d "$src/target/debug" ]; then
+        echo "k-target-seed : aucun target source (K_TARGET_BASE)" >&2; exit 1
+      fi
+      # cp fails without reflink, or when a build in the source removes a file meanwhile.
+      if ! cp -a --reflink=always "$src/target" "$dst"; then
+        rm -rf "$dst"
+        echo "k-target-seed : copie impossible (pas de reflink, ou build en cours dans $src) ; build à froid" >&2
+        exit 1
+      fi
+      echo "k-target-seed : $dst cloné de $src/target"
+    '';
+  };
+  # Drops the incremental sessions of crates not compiled for K_DAYS days (7 by default)
+  # from a target (this worktree's, or the given worktree roots'). rustc writes a new
+  # session at each compilation of a crate and removes the previous one, so a session's
+  # date is the last compilation of that variant; one dropped while still used costs one
+  # non-incremental rebuild of that crate. Run it while no build uses that target: a
+  # compilation starting from a session being dropped could fail. Not `cargo sweep
+  # --time`: it reads access times, which a `noatime` mount never updates, and drops
+  # dependencies still in use.
+  scripts.k-target-prune = {
+    description = "Drop incremental build sessions unused for K_DAYS (7) days from a target";
+    exec = ''
+      set -euo pipefail
+      minutes=$(( ''${K_DAYS:-7} * 1440 ))
+      [ $# -gt 0 ] || set -- "$(git rev-parse --show-toplevel)"
+      for root in "$@"; do
+        # target/<profile>/incremental, and rust-analyzer's target/rust-analyzer/<profile>/.
+        for inc in "$root"/target/*/incremental "$root"/target/*/*/incremental; do
+          [ -d "$inc" ] || continue
+          before=$(du -sh "$inc" 2>/dev/null | cut -f1) || true
+          find "$inc" -mindepth 2 -maxdepth 2 -type d -name 's-*' -mmin +"$minutes" -exec rm -rf {} +
+          # A crate left with only its session lock files has nothing to reuse. `-quit`, not
+          # `| grep -q`: under pipefail, find killed by SIGPIPE would fail the test.
+          find "$inc" -mindepth 1 -maxdepth 1 -type d | while read -r crate; do
+            [ -n "$(find "$crate" -mindepth 1 -maxdepth 1 -type d -name 's-*' -print -quit)" ] \
+              || rm -rf "$crate"
+          done
+          after=$(du -sh "$inc" 2>/dev/null | cut -f1) || true
+          echo "$inc : $before → $after"
+        done
+      done
+    '';
+  };
+
   # The benches (ADR 0032) recreate the kartenn_bench database of the bench instance
   # (k-pg-bench, port 5433; K_BENCH_DATABASE_URL to aim elsewhere) under `k-heavy --bench`,
   # at the scale K_BENCH_SCALE: reduced by default, `full` only for a budget measure, run
