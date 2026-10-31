@@ -89,3 +89,15 @@ test.describe("SidebarNav (Disclosure in navigation)", () => {
     await expect(page.locator("[data-palette]")).toHaveText("Palette demandée : 1");
   });
 });
+
+test.describe("SidebarNav, single keys off", () => {
+  test("the toggle neither shows nor declares `[`; Ctrl+K stays", async ({ page }) => {
+    await openState(page, "SidebarNav", "single-keys-off");
+    await expect(toggle(page)).not.toHaveAttribute("aria-keyshortcuts", /./);
+    await expect(toggle(page).locator("kbd")).toHaveCount(0);
+    await expect(nav(page).getByRole("button", { name: "Rechercher" })).toHaveAttribute(
+      "aria-keyshortcuts",
+      "Control+K",
+    );
+  });
+});

@@ -4,8 +4,8 @@
   - banner:
     - heading "Raccourcis clavier" [level=2]
     - button "Fermer"
-  - paragraph: "Lus au registre des raccourcis : ceux du shell, puis ceux des plugins chargés."
-  - grid "Raccourcis":
+  - paragraph: Les raccourcis à une touche sont actifs ; le menu du compte les désactive. Ctrl+K, Ctrl+Entrée et Échap restent.
+  - grid "Raccourcis clavier":
     - rowgroup:
       - row "Touches Action Portée":
         - columnheader "Touches"
@@ -16,60 +16,96 @@
         - 'gridcell "Touches : Ctrl K"'
         - gridcell "Palette de commandes"
         - gridcell "Partout"
-      - 'row "Touches : / Filtrer la vue Hors champ"':
+      - 'row "Touches : / Filtrer ou chercher dans la vue Hors champ"':
         - 'gridcell "Touches : /"'
-        - gridcell "Filtrer la vue"
+        - gridcell "Filtrer ou chercher dans la vue"
         - gridcell "Hors champ"
       - 'row "Touches : ? Cette aide Hors champ"':
         - 'gridcell "Touches : ?"'
         - gridcell "Cette aide"
         - gridcell "Hors champ"
+      - 'row "Touches : g puis h Aller à l''accueil Hors champ"':
+        - 'gridcell "Touches : g puis h"'
+        - gridcell "Aller à l'accueil"
+        - gridcell "Hors champ"
+      - 'row "Touches : g puis o Aller à la topographie Hors champ"':
+        - 'gridcell "Touches : g puis o"'
+        - gridcell "Aller à la topographie"
+        - gridcell "Hors champ"
+      - 'row "Touches : g puis d Aller aux domaines Hors champ"':
+        - 'gridcell "Touches : g puis d"'
+        - gridcell "Aller aux domaines"
+        - gridcell "Hors champ"
       - 'row "Touches : g puis p Aller aux préfixes Hors champ"':
         - 'gridcell "Touches : g puis p"'
         - gridcell "Aller aux préfixes"
+        - gridcell "Hors champ"
+      - 'row "Touches : g puis r Aller aux plages Hors champ"':
+        - 'gridcell "Touches : g puis r"'
+        - gridcell "Aller aux plages"
         - gridcell "Hors champ"
       - 'row "Touches : g puis a Aller aux adresses Hors champ"':
         - 'gridcell "Touches : g puis a"'
         - gridcell "Aller aux adresses"
         - gridcell "Hors champ"
+      - 'row "Touches : g puis e Aller aux entités Hors champ"':
+        - 'gridcell "Touches : g puis e"'
+        - gridcell "Aller aux entités"
+        - gridcell "Hors champ"
+      - 'row "Touches : g puis s Aller aux sites Hors champ"':
+        - 'gridcell "Touches : g puis s"'
+        - gridcell "Aller aux sites"
+        - gridcell "Hors champ"
       - 'row "Touches : g puis c Aller aux changesets Hors champ"':
         - 'gridcell "Touches : g puis c"'
         - gridcell "Aller aux changesets"
         - gridcell "Hors champ"
-      - 'row "Touches : g puis b Ouvrir le brouillon Hors champ"':
+      - 'row "Touches : g puis i Aller aux changesets à instruire Hors champ"':
+        - 'gridcell "Touches : g puis i"'
+        - gridcell "Aller aux changesets à instruire"
+        - gridcell "Hors champ"
+      - 'row "Touches : g puis b Aller à mes brouillons Hors champ"':
         - 'gridcell "Touches : g puis b"'
-        - gridcell "Ouvrir le brouillon"
+        - gridcell "Aller à mes brouillons"
         - gridcell "Hors champ"
       - 'row "Touches : g puis v Aller aux VLAN Hors champ"':
         - 'gridcell "Touches : g puis v"'
         - gridcell "Aller aux VLAN"
         - gridcell "Hors champ"
-      - 'row "Touches : c Créer dans la collection Présent, droit"':
+      - 'row "Touches : g puis x Aller à l''administration Hors champ"':
+        - 'gridcell "Touches : g puis x"'
+        - gridcell "Aller à l'administration"
+        - gridcell "Hors champ"
+      - 'row "Touches : c Créer dans la collection courante Présent, droit"':
         - 'gridcell "Touches : c"'
-        - gridcell "Créer dans la collection"
+        - gridcell "Créer dans la collection courante"
         - gridcell "Présent, droit"
       - 'row "Touches : e Modifier l''objet ou la cellule Présent, droit"':
         - 'gridcell "Touches : e"'
         - gridcell "Modifier l'objet ou la cellule"
         - gridcell "Présent, droit"
-      - 'row "Touches : Ctrl Entrée Action choisie du bouton scindé (Appliquer, Soumettre) Brouillon"':
+      - 'row "Touches : Ctrl Entrée Appliquer ; action du bouton scindé Éditeur, brouillon"':
         - 'gridcell "Touches : Ctrl Entrée"'
-        - gridcell "Action choisie du bouton scindé (Appliquer, Soumettre)"
-        - gridcell "Brouillon"
-      - 'row "Touches : Échap Fermer, annuler l''édition Partout"':
+        - gridcell "Appliquer ; action du bouton scindé"
+        - gridcell "Éditeur, brouillon"
+      - 'row "Touches : Échap Fermer la couche, annuler l''édition Partout"':
         - 'gridcell "Touches : Échap"'
-        - gridcell "Fermer, annuler l'édition"
+        - gridcell "Fermer la couche, annuler l'édition"
         - gridcell "Partout"
-      - 'row "Touches : [ Replier la barre latérale Hors champ"':
-        - 'gridcell "Touches : ["'
-        - gridcell "Replier la barre latérale"
-        - gridcell "Hors champ"
-      - 'row "Touches : ] Replier le panneau droit Hors champ"':
-        - 'gridcell "Touches : ]"'
-        - gridcell "Replier le panneau droit"
-        - gridcell "Hors champ"
+      - 'row "Touches : Échap puis Échap Filtre : fermer la liste, puis le panneau Filtre de la vue"':
+        - 'gridcell "Touches : Échap puis Échap"'
+        - 'gridcell "Filtre : fermer la liste, puis le panneau"'
+        - gridcell "Filtre de la vue"
       - 'row "Touches : Alt ↓ Filtrer la colonne En-tête de table"':
         - 'gridcell "Touches : Alt ↓"'
         - gridcell "Filtrer la colonne"
         - gridcell "En-tête de table"
-  - paragraph: Les raccourcis à une touche se désactivent dans le menu du compte ; Ctrl+K, Ctrl+Entrée et Échap restent.
+      - 'row "Touches : [ Replier ou déplier la barre latérale Hors champ"':
+        - 'gridcell "Touches : ["'
+        - gridcell "Replier ou déplier la barre latérale"
+        - gridcell "Hors champ"
+      - 'row "Touches : ] Ouvrir ou fermer le panneau droit Hors champ"':
+        - 'gridcell "Touches : ]"'
+        - gridcell "Ouvrir ou fermer le panneau droit"
+        - gridcell "Hors champ"
+  - alert

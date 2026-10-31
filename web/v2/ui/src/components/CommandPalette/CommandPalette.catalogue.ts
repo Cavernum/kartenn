@@ -109,6 +109,13 @@ export default {
       isolated: true,
     },
     {
+      name: "loading-entries",
+      description:
+        "Des entrées déjà là, les objets encore cherchés : « Chargement » dit tant que l'hôte cherche, le nombre une fois la réponse venue",
+      props: { groups, query: "pré", loading: true, open: true },
+      isolated: true,
+    },
+    {
       name: "keyboard",
       description:
         "Au clavier : ouverte par un bouton, filtrée à la saisie, la première entrée mise en avant, Entrée lance, Échap ferme",

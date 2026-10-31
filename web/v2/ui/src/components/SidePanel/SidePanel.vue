@@ -70,8 +70,13 @@ const props = withDefaults(
      * the cross, no handle, the focus moved to its active tab when it opens.
      */
     sheet?: boolean;
+    /**
+     * The host's shortcut that opens and closes it (`]`, spec 021), one combination: in
+     * the tooltip of the cross and of the strip's button, and their `aria-keyshortcuts`.
+     */
+    shortcut?: string[] | undefined;
   }>(),
-  { id: undefined, min: 320, max: 720, step: 16 },
+  { id: undefined, min: 320, max: 720, step: 16, shortcut: undefined },
 );
 const open = defineModel<boolean>("open", { default: true });
 /** The active tab. */
@@ -307,6 +312,7 @@ function onPointerup(event: PointerEvent): void {
           icon="x"
           size="sm"
           :label="t('panelClose')"
+          :shortcut="props.shortcut"
           @click="close"
         />
       </div>
@@ -324,6 +330,7 @@ function onPointerup(event: PointerEvent): void {
         size="sm"
         variant="secondary"
         :label="t('panelOpen')"
+        :shortcut="props.shortcut"
         @click="reopen"
       />
     </div>

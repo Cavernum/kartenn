@@ -14,15 +14,21 @@
 // the sidebar a rail, the panel covers the surface. Compact: one column, the sidebar in a
 // drawer opened from the bar, each panel a sheet over the window.
 //
-// Left to the next tasks: the shortcut registry, `[`, `]`, Ctrl+K and the full palette
-// (task 10; here « Rechercher » opens it on the navigation); the content of the draft tab
-// (task 14); the counters of the sidebar (tasks 11, 14), the entries of the plugins and the
-// session's login, about and logout (task 16).
+// The shortcuts (task 10; design « Raccourcis »): the registry of the shell and the plugins'
+// shortcuts, one `keydown` listener on the document, the help `?` in a dialog, the palette
+// Ctrl+K (objects by value and by name, recent ones, commands of the view and of the
+// plugins, pages).
+//
+// Left to the next tasks: the content of the draft tab (task 14); the counters of the
+// sidebar (tasks 11, 14), the entries and the `g` letters of the plugins and the session's
+// login, about and logout (task 16).
 import { drafts as draftStore, type DraftList } from "@kartenn/sdk";
+import { commandRegistry, shortcutRegistry } from "@kartenn/sdk/host";
 import {
   Breadcrumb,
   CommandPalette,
   DatePill,
+  Dialog,
   DraftCounter,
   Drawer,
   IconButton,
@@ -41,10 +47,11 @@ import {
   type DraftSummary,
   type MenuItem,
   type PaletteGroup,
+  type Shortcut,
   type TabItem,
   type WidthClass,
 } from "@kartenn/ui";
-import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { RouterView, useRoute, useRouter } from "vue-router";
 import { useQuery } from "../data/query.ts";
@@ -60,6 +67,19 @@ import {
   type Period,
   type PeriodRefusal,
 } from "../time/index.ts";
+import { provideShortcuts } from "../shortcuts/context.ts";
+import {
+  objectEntry,
+  paletteGroups as groupsOfPalette,
+  pluginEntries,
+  type PaletteEntry,
+} from "../shortcuts/palette.ts";
+import { recentObjects, rememberObject, type FoundObject } from "../shortcuts/recent.ts";
+import { createKeyListener, createShortcutRegistry } from "../shortcuts/registry.ts";
+import { readableType, searchObjects } from "../shortcuts/search.ts";
+import { NAVIGATION, pluginShortcut, shellShortcuts } from "../shortcuts/shell.ts";
+import ShortcutHelp from "../shortcuts/ShortcutHelp.vue";
+import { runnable } from "../shortcuts/view.ts";
 import { crumbsOf } from "./breadcrumb.ts";
 import { keepPanel, readPanel, useSettings, THEMES, DENSITIES } from "./settings.ts";
 import { EDITS, locate, sidebarGroups, SPACE_ORDER } from "./spaces.ts";
@@ -260,6 +280,7 @@ const userMenu = computed<MenuItem[]>(() => {
       label: t("user.singleKeys"),
       checked: settings.singleKeys.value,
     },
+    { id: "help", label: t("palette.help"), icon: "keyboard", ...hint(["?"]) },
   ];
 });
 function onUserMenu(id: string): void {
@@ -270,39 +291,291 @@ function onUserMenu(id: string): void {
   else if (kind === "motion")
     settings.motion.value = settings.motion.value === "reduce" ? "system" : "reduce";
   else if (kind === "single-keys") settings.singleKeys.value = !settings.singleKeys.value;
+  else if (kind === "help") helpOpen.value = true;
 }
 
-// The palette, opened by « Rechercher » of the sidebar (from the drawer of the compact class,
-// once it has closed and given the focus back to its button), on the navigation for now.
+/** The hint of a single-key shortcut, shown only while those are on (WCAG 2.1.4). */
+function hint(keys: Shortcut): { shortcut?: Shortcut } {
+  return settings.singleKeys.value ? { shortcut: keys } : {};
+}
+const atPresent = computed(() => time.value.validAt === null && time.value.asOf === null);
+
+// The palette (REQ-021-3), opened by Ctrl+K or « Rechercher » of the sidebar (from the
+// drawer of the compact class, once it has closed and given the focus back to its button).
+// A text searches the objects by value and by name, 150 ms after the last key; a new text
+// or the palette closed aborts the search under way. The objects found stay until the
+// next answer replaces them: Enter never changes its target with the network.
 const paletteOpen = ref(false);
 const paletteQuery = ref("");
-const paletteGroups = computed<PaletteGroup[]>(() => {
-  const wanted = paletteQuery.value.trim().toLowerCase();
-  const items = groups.value
-    .flatMap((group) => group.entries)
-    .filter((entry) => entry.label.toLowerCase().includes(wanted))
-    .map((entry) => ({ id: entry.id, label: entry.label, icon: entry.icon }));
-  return items.length === 0 ? [] : [{ label: t("palette.navigation"), items }];
+const found = shallowRef<FoundObject[]>([]);
+const searching = ref(false);
+const recent = shallowRef<FoundObject[]>([]);
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+let search: AbortController | null = null;
+const SEARCH_WAIT = 150;
+const has = (permission: string) => session.value.rights.has(permission);
+/** The identity of the user: the key of their recent objects (none signed out). */
+const owner = () => session.value.me?.identity ?? null;
+function stopSearch(): void {
+  clearTimeout(searchTimer);
+  search?.abort();
+  search = null;
+}
+watch(paletteQuery, (text) => {
+  stopSearch();
+  searching.value = text.trim() !== "";
+  if (!searching.value) return;
+  const controller = new AbortController();
+  search = controller;
+  searchTimer = setTimeout(async () => {
+    const result = await searchObjects(text, has, controller.signal);
+    if (controller.signal.aborted) return;
+    found.value = result;
+    searching.value = false;
+  }, SEARCH_WAIT);
 });
+watch(paletteOpen, (open) => {
+  if (open) return;
+  stopSearch();
+  searching.value = false;
+  found.value = [];
+});
+onBeforeUnmount(stopSearch);
+
+// The commands of the palette: those of the view (`c`, `e`), the draft, the present, the
+// frame, the help, then the plugins' (absent without their permission).
+const pluginCommands = shallowRef(commandRegistry.list());
+onBeforeUnmount(commandRegistry.subscribe(() => (pluginCommands.value = commandRegistry.list())));
+const commands = computed<PaletteEntry[]>(() => {
+  const list: PaletteEntry[] = [];
+  const create = runnable("create", atPresent.value);
+  if (create)
+    list.push({
+      id: "cmd:create",
+      label: create.label(),
+      icon: "plus",
+      ...hint(["c"]),
+      run: create.run,
+    });
+  const edit = runnable("edit", atPresent.value);
+  if (edit)
+    list.push({
+      id: "cmd:edit",
+      label: edit.label(),
+      icon: "pencil",
+      ...hint(["e"]),
+      run: edit.run,
+    });
+  if (drafting.value) {
+    list.push({ id: "cmd:draft", label: t("palette.openDraft"), icon: "draft", run: openDraft });
+  }
+  if (!atPresent.value) {
+    list.push({
+      id: "cmd:present",
+      label: t("palette.present"),
+      icon: "rotate-ccw-clock",
+      run: () => void backToPresent(),
+    });
+  }
+  if (width.value !== "narrow") {
+    const sidebarLabel =
+      width.value === "compact" || collapsed.value
+        ? "palette.expandSidebar"
+        : "palette.collapseSidebar";
+    list.push({
+      id: "cmd:sidebar",
+      label: t(sidebarLabel),
+      icon: "panel-left",
+      ...hint(["["]),
+      run: toggleSidebar,
+    });
+  }
+  list.push({
+    id: "cmd:panel",
+    label: t(panelOpen.value ? "palette.closePanel" : "palette.openPanel"),
+    icon: "move-horizontal",
+    ...hint(["]"]),
+    run: togglePanel,
+  });
+  list.push({
+    id: "cmd:help",
+    label: t("palette.help"),
+    icon: "keyboard",
+    ...hint(["?"]),
+    run: () => (helpOpen.value = true),
+  });
+  list.push(...pluginEntries(pluginCommands.value, (p) => session.value.rights.has(p)));
+  return list;
+});
+/** The `g` letter of each entry of the sidebar. */
+const LETTERS = new Map(NAVIGATION.map(({ letter, entry }) => [entry, letter]));
+const pages = computed<PaletteEntry[]>(() =>
+  groups.value.flatMap((group) =>
+    group.entries.map((entry) => {
+      const letter = LETTERS.get(entry.id);
+      return {
+        id: `page:${entry.id}`,
+        label: entry.label,
+        icon: entry.icon,
+        keywords: [group.label],
+        ...(letter ? hint([["g"], [letter]]) : {}),
+        run: () => void router.push(entry.to),
+      };
+    }),
+  ),
+);
+const paletteGroups = computed<PaletteGroup[]>(() =>
+  groupsOfPalette({
+    query: paletteQuery.value,
+    objects: found.value,
+    recent: recent.value,
+    commands: commands.value,
+    pages: pages.value,
+    labels: {
+      objects: t("palette.objects"),
+      recent: t("palette.recent"),
+      commands: t("palette.commands"),
+      navigation: t("palette.navigation"),
+    },
+    typeLabel: (type) => t(`palette.type.${type}`),
+  }),
+);
+/** What had the focus when the palette opened: where it goes back before a command runs. */
+let paletteOpener: HTMLElement | null = null;
+/**
+ * Ctrl+K, « Rechercher »: the palette, on the recent objects. Not over another modal layer
+ * (a dialog, a confirmation): two modal layers would fight for the focus, and the one
+ * below would lose its way back (2.4.3). The drawer of the compact class gives way to it.
+ */
 function openPalette(): void {
+  if (paletteOpen.value) return;
+  const at = document.activeElement;
+  // The palette itself, closing, may still hold the focus during its exit.
+  if (!navOpen.value && at?.closest("[aria-modal='true']:not(.k-palette)")) return;
+  dropPending();
   paletteQuery.value = "";
+  recent.value = recentObjects(owner(), (type) => readableType(type, has));
   if (!navOpen.value) {
+    paletteOpener =
+      at instanceof HTMLElement && at !== document.body && !at.closest(".k-palette") ? at : null;
     paletteOpen.value = true;
     return;
   }
   paletteAfterNav = true;
   navOpen.value = false;
 }
-function onNavFocus(): void {
+function onNavFocus(event: FocusEvent): void {
   if (!paletteAfterNav) return;
   paletteAfterNav = false;
+  paletteOpener = event.target instanceof HTMLElement ? event.target : null;
   paletteOpen.value = true;
 }
-function onPaletteSelect(id: string): void {
-  const entry = groups.value.flatMap((group) => group.entries).find((e) => e.id === id);
+/** The wait for the focus back on the opener, past the exit of the palette. */
+const FOCUS_BACK_WAIT = 1000;
+/** The command waiting for the focus back on the opener, and how to drop it. */
+let dropPending: () => void = () => {};
+/**
+ * Runs `run` once the palette has given the focus back to what opened it, so that a layer
+ * the command opens (the help) gives it back there in turn; at once without an opener. The
+ * command never runs on an unrelated focus: one elsewhere, the palette opened again, or no
+ * focus back in time drops it.
+ */
+function afterPalette(run: () => void): void {
+  dropPending();
+  const opener = paletteOpener;
+  paletteOpener = null;
+  if (!opener?.isConnected) {
+    paletteOpen.value = false;
+    void nextTick(run);
+    return;
+  }
+  const back = (event: FocusEvent) => {
+    if (event.target instanceof Element && event.target.closest(".k-palette")) return;
+    dropPending();
+    if (event.target === opener) run();
+  };
+  const timer = setTimeout(() => dropPending(), FOCUS_BACK_WAIT);
+  dropPending = () => {
+    clearTimeout(timer);
+    document.removeEventListener("focusin", back, true);
+    dropPending = () => {};
+  };
+  document.addEventListener("focusin", back, true);
   paletteOpen.value = false;
-  if (entry) void router.push(entry.to);
 }
+onBeforeUnmount(() => dropPending());
+function onPaletteSelect(id: string): void {
+  const object = [...found.value, ...recent.value].find((o) => objectEntry(o) === id);
+  if (object) {
+    rememberObject(owner(), object);
+    paletteOpen.value = false;
+    void router.push(object.to);
+    return;
+  }
+  const entry = [...commands.value, ...pages.value].find((e) => e.id === id);
+  if (entry) afterPalette(entry.run);
+  else paletteOpen.value = false;
+}
+
+/** The draft in front in the right panel. */
+function openDraft(): void {
+  panelOpen.value = true;
+  panelTab.value = "draft";
+}
+function togglePanel(): void {
+  panelOpen.value = !panelOpen.value;
+}
+/** `[`: the sidebar collapsed or expanded; its drawer in the compact class; a rail when narrow. */
+function toggleSidebar(): boolean {
+  if (width.value === "narrow") return false;
+  if (width.value === "compact") navOpen.value = !navOpen.value;
+  else collapsed.value = !collapsed.value;
+  return true;
+}
+
+// The help of the shortcuts `?` (and the page /help/shortcuts).
+const helpOpen = ref(false);
+
+// The shortcuts (REQ-021-7, 8): the shell's, then those of the plugin's view (the keys of
+// the shell refused to them since `main.ts`). One listener on the document.
+const registry = createShortcutRegistry();
+for (const shortcut of shellShortcuts({
+  t,
+  rights: () => session.value.rights,
+  navigate: (to) => void router.push(to),
+  palette: openPalette,
+  help: () => {
+    helpOpen.value = true;
+  },
+  filter: () => playView("filter"),
+  create: () => playView("create"),
+  edit: () => playView("edit"),
+  sidebar: toggleSidebar,
+  panel: togglePanel,
+})) {
+  registry.register(shortcut);
+}
+/** An action of the view behind `/`, `c`, `e`; `false` when it has none or cannot now. */
+function playView(id: "filter" | "create" | "edit"): boolean {
+  const action = runnable(id, atPresent.value);
+  action?.run();
+  return action !== null;
+}
+const pluginShortcuts = shallowRef(shortcutRegistry.list());
+onBeforeUnmount(
+  shortcutRegistry.subscribe(() => (pluginShortcuts.value = shortcutRegistry.list())),
+);
+const shortcuts = computed(() => [
+  ...registry.list(),
+  ...pluginShortcuts.value.map(pluginShortcut),
+]);
+provideShortcuts(shortcuts);
+const onKeydown = createKeyListener({
+  shortcuts: () => shortcuts.value,
+  singleKeys: () => settings.singleKeys.value,
+});
+onMounted(() => document.addEventListener("keydown", onKeydown));
+onBeforeUnmount(() => document.removeEventListener("keydown", onKeydown));
 
 // A navigation closes the drawer of the sidebar (the compact class).
 watch(
@@ -330,6 +603,7 @@ const userLabel = computed(() =>
       :groups="groups"
       :active="located?.entry.id"
       :closed="closed"
+      :single-keys="settings.singleKeys.value"
       @palette="openPalette"
     />
     <Drawer
@@ -358,6 +632,7 @@ const userLabel = computed(() =>
             :label="uiT('sidebar')"
             aria-haspopup="dialog"
             :aria-expanded="navOpen ? 'true' : 'false'"
+            :shortcut="settings.singleKeys.value ? ['['] : undefined"
             @click="navOpen = true"
             @focus="onNavFocus"
           />
@@ -411,6 +686,7 @@ const userLabel = computed(() =>
           :cover="width === 'narrow'"
           :sheet="width === 'compact'"
           :rail="width !== 'compact'"
+          :shortcut="settings.singleKeys.value ? [']'] : undefined"
         >
           <template #detail>
             <p class="k-frame__muted">{{ t("app.noSelection") }}</p>
@@ -427,8 +703,12 @@ const userLabel = computed(() =>
       v-model:open="paletteOpen"
       v-model:query="paletteQuery"
       :groups="paletteGroups"
+      :loading="searching"
       @select="onPaletteSelect"
     />
+    <Dialog v-model:open="helpOpen" size="lg" :title="t('shortcuts.title')">
+      <ShortcutHelp :shortcuts="shortcuts" :single-keys="settings.singleKeys.value" />
+    </Dialog>
     <ToastRegion />
     <!-- The page reached, said once its title is set (4.1.3): the focus stays where it is. -->
     <p class="k-visually-hidden" role="status">{{ announced }}</p>

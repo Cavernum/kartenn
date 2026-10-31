@@ -178,7 +178,8 @@ explicite au présent).
 | `g` `x` | administration | hors champ |
 | `g` `h` | accueil (tableau de bord) | hors champ |
 | `g` `o` | Topographie | hors champ |
-| `g` `v` / `m` / `t` / `q` / `f` | VLAN, machines, matrice, conformité, flux (lettres déclarées aux manifestes des plugins, refusées si prises) | hors champ |
+| `g` `v` | VLAN (écrans du cœur depuis la 026) | hors champ |
+| `g` `m` / `t` / `q` / `f` | machines, matrice, conformité, flux (lettres déclarées aux manifestes des plugins, refusées si prises) | hors champ |
 | `c` | créer dans la collection courante | hors champ, droit d'écriture, présent |
 | `e` | modifier l'objet courant ou la cellule active | idem |
 | Ctrl+Entrée | appliquer maintenant (édition en place) ; action choisie du bouton scindé | dans l'éditeur ; dans le pied du brouillon |
@@ -189,13 +190,20 @@ explicite au présent).
 - Un seul écouteur `keydown` sur `document` (phase de bouillonnement) : ignore
   `event.defaultPrevented`, `event.isComposing`, une cible éditable (`input`, `textarea`,
   `select`, `[contenteditable]`, rôle `textbox`, `combobox`, `searchbox`), une cible dans
-  un composant qui déclare consommer les caractères (`data-k-typeahead`), et toute
-  combinaison avec Ctrl, Alt ou Méta (sauf Ctrl+K et Ctrl+Entrée). Séquence `g` : 1,5 s.
-- Registre des raccourcis (SDK `shortcuts.register`) avec portée (`global`, `view`) ; le
-  registre refuse qu'un plugin redéfinisse une touche du shell ; l'aide `?` et les menus
-  lisent ce registre (une seule source).
+  un composant qui déclare consommer les caractères (`data-k-typeahead`) ou un widget à
+  recherche à la saisie (rôles `menu`, `menubar`, `listbox`, `tree`), une cible dans un
+  dialogue, et toute combinaison avec Ctrl, Alt (AltGr compris) ou Méta (sauf Ctrl+K et
+  Ctrl+Entrée). Une lettre tapée avec Verr. Maj compte comme sans. Séquence `g` : 1,5 s,
+  close par toute autre touche nommée (Tab, Échap, une flèche).
+- Registre des raccourcis dans le shell (`shell/src/shortcuts/registry.ts`) avec portée
+  (`global`, `view`) : il refuse les mêmes touches deux fois et une touche seule qui ouvre
+  une séquence ; les raccourcis de la vue d'un plugin passent par le SDK
+  (`shortcuts.register`), qui refuse les touches du shell (`reserveKeys`) ; l'aide `?`, la
+  palette et les menus lisent ce registre (une seule source). Une vue du shell donne `/`,
+  `c`, `e` par `useViewAction`.
 - Réglage « Raccourcis à une touche » (menu de l'utilisateur, `localStorage`) :
-  désactivés, seuls Ctrl+K, Ctrl+Entrée et Échap restent (WCAG 2.1.4).
+  désactivés, seuls Ctrl+K, Ctrl+Entrée et Échap restent (WCAG 2.1.4) ; l'aide le dit en
+  tête et marque « (désactivé) » chaque touche seule que l'écouteur joue.
 - Lettres choisies sur les mots français et anglais quand ils coïncident ; sinon sur
   l'anglais, la langue des identifiants (Q-021-6).
 

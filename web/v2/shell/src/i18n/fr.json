@@ -48,7 +48,71 @@
     "observability": "Observabilité"
   },
   "palette": {
-    "navigation": "Navigation"
+    "navigation": "Navigation",
+    "commands": "Commandes",
+    "objects": "Objets",
+    "recent": "Récents",
+    "type": {
+      "prefix": "Préfixe",
+      "address": "Adresse",
+      "domain": "Domaine",
+      "entity": "Entité",
+      "site": "Site",
+      "vlan": "VLAN",
+      "vlan-group": "Groupe de VLAN"
+    },
+    "openDraft": "Ouvrir le brouillon actif",
+    "present": "Revenir au présent",
+    "help": "Raccourcis clavier",
+    "collapseSidebar": "Replier la barre latérale",
+    "expandSidebar": "Déplier la barre latérale",
+    "openPanel": "Ouvrir le panneau droit",
+    "closePanel": "Fermer le panneau droit"
+  },
+  "shortcuts": {
+    "title": "Raccourcis clavier",
+    "keys": "Touches",
+    "keysSaid": "Touches : ",
+    "action": "Action",
+    "scope": "Portée",
+    "palette": "Palette de commandes",
+    "filter": "Filtrer ou chercher dans la vue",
+    "help": "Cette aide",
+    "create": "Créer dans la collection courante",
+    "edit": "Modifier l'objet ou la cellule",
+    "apply": "Appliquer ; action du bouton scindé",
+    "escape": "Fermer la couche, annuler l'édition",
+    "filterEscape": "Filtre : fermer la liste, puis le panneau",
+    "columnFilter": "Filtrer la colonne",
+    "sidebar": "Replier ou déplier la barre latérale",
+    "panel": "Ouvrir ou fermer le panneau droit",
+    "off": "{action} (désactivé)",
+    "singleOn": "Les raccourcis à une touche sont actifs ; le menu du compte les désactive. Ctrl+K, Ctrl+Entrée et Échap restent.",
+    "singleOff": "Les raccourcis à une touche sont désactivés : seuls Ctrl+K, Ctrl+Entrée et Échap agissent. Le menu du compte les réactive.",
+    "go": {
+      "home": "Aller à l'accueil",
+      "topology": "Aller à la topographie",
+      "domains": "Aller aux domaines",
+      "prefixes": "Aller aux préfixes",
+      "ranges": "Aller aux plages",
+      "addresses": "Aller aux adresses",
+      "entities": "Aller aux entités",
+      "sites": "Aller aux sites",
+      "changesets": "Aller aux changesets",
+      "proposals": "Aller aux changesets à instruire",
+      "drafts": "Aller à mes brouillons",
+      "vlans": "Aller aux VLAN",
+      "admin": "Aller à l'administration"
+    },
+    "where": {
+      "everywhere": "Partout",
+      "outsideField": "Hors champ",
+      "present": "Présent, droit",
+      "editor": "Éditeur, brouillon",
+      "filter": "Filtre de la vue",
+      "gridHeader": "En-tête de table",
+      "plugin": "Vue du plugin"
+    }
   },
   "user": {
     "menu": "Compte de {name}",
