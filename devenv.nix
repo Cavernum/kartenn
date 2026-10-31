@@ -87,7 +87,7 @@
         *) break ;;
       esac
     done
-    [ $# -gt 0 ] || { echo "usage: k-heavy [--bench] [--pg] [--all] <command> [args…]" >&2; exit 2; }
+    [ $# -gt 0 ] || { echo "usage: k-heavy [--bench] [--pg] [--all] <command> [args…] | --status" >&2; exit 2; }
     slots=''${K_HEAVY_SLOTS:-2}
     jobs=''${K_HEAVY_JOBS:-$(( $(${pkgs.coreutils}/bin/nproc) / slots ))}
     [ "$jobs" -ge 1 ] || jobs=1
@@ -109,6 +109,17 @@
         echo "tenu par un processus inconnu"
       fi
     }
+    # `k-heavy --status`: each lock and slot, free or held by whom and since when.
+    if [ "''${1:-}" = --status ]; then
+      for name in bench pg $(${pkgs.coreutils}/bin/seq -f 'slot.%g' 1 "$slots"); do
+        if [ ! -e "$dir/$name" ] || "$flock" -n "$dir/$name" true; then
+          echo "$name : libre"
+        else
+          echo "$name : $(holder "$name")"
+        fi
+      done
+      exit 0
+    fi
     # Waits for the lock <name> on <fd>, one line every 5 min, for <limit> minutes at most
     # (empty or 0: no limit), then exits with 75 (EX_TEMPFAIL).
     acquire() {
@@ -308,7 +319,33 @@
       bench=''${K_BENCH_DATABASE_URL:-${benchDatabase}}
       PGOPTIONS='-c client_min_messages=warning' psql "''${bench%/*}/postgres" -q -c "DROP DATABASE IF EXISTS \"''${bench##*/}\" WITH (FORCE)" \
         -c "CREATE DATABASE \"''${bench##*/}\""
-      cargo run --release -q -p kartenn-bench -- ${command} "$bench" "''${1:-42}" ''${2:+"$2"}
+      cargo build --release -q -p kartenn-bench
+      # Watchdog: a bench whose last step line is older than K_BENCH_STALL minutes (60 at
+      # full scale, 20 reduced; 0 for no limit) is stopped, so a stuck step never holds the
+      # bench lock and a slot for hours (2026-10-30: 9 h on one step of bench-core).
+      if [ "''${K_BENCH_SCALE:-}" = full ]; then stall=''${K_BENCH_STALL:-60}; else stall=''${K_BENCH_STALL:-20}; fi
+      log=$(mktemp)
+      trap 'rm -f "$log"' EXIT
+      cargo run --release -q -p kartenn-bench -- ${command} "$bench" "''${1:-42}" ''${2:+"$2"} 2>"$log" &
+      pid=$!
+      tail -n +1 -f --pid="$pid" "$log" >&2 &
+      follower=$!
+      while kill -0 "$pid" 2>/dev/null; do
+        sleep 10
+        quiet=$(( $(date +%s) - $(stat -c %Y "$log") ))
+        if [ "$stall" -gt 0 ] && [ "$quiet" -ge $(( stall * 60 )) ]; then
+          echo "bench : aucune étape terminée depuis $stall min (dernière : $(tail -n 1 "$log")) ;" \
+            "arrêt (K_BENCH_STALL=<minutes> pour attendre plus, 0 sans limite)" >&2
+          kill "$pid" 2>/dev/null || true
+          wait "$pid" 2>/dev/null || true
+          wait "$follower" || true
+          exit 124
+        fi
+      done
+      status=0
+      wait "$pid" || status=$?
+      wait "$follower" || true
+      exit "$status"
     '';
   };
   # The clippy hook under the machine-wide semaphore; absolute toolchain: pre-commit also

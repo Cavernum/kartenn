@@ -40,8 +40,13 @@
   dépendances compilées entre worktrees. Le goulot reste `k-heavy` et ses verrous
   (`--pg`, `--bench`) : en route, des vérifications ciblées (`k-check -p <crate>`, un
   fichier Vitest) ; la vérification complète une fois, avant le commit. Les bancs
-  pleine échelle se lancent par la session principale seulement, un à la fois, à la fin
-  d'une série.
+  pleine échelle se lancent par la session principale seulement, un à la fois, et
+  seulement quand aucun autre agent ne tourne (`k-heavy --status` tout libre) : un banc
+  garde un créneau des heures durant. Un banc dont l'étape en cours dépasse
+  `K_BENCH_STALL` minutes (60 en pleine échelle) s'arrête de lui-même. Une session qui
+  laisse des agents tourner sans surveillance programme un point horaire (`k-heavy
+  --status`, derniers commits des branches) et traite tout verrou tenu plus de deux
+  heures.
 
 ## Économie de contexte
 
