@@ -82,40 +82,12 @@ function run(): void {
 
 <style>
 @layer components {
+  /* The tone, the icon, the body and the title: `InlineAlert/tone.css`. */
   .k-toast {
-    --k-toast-fg: var(--k-state-info-fg);
-    --k-toast-bg: var(--k-state-info-bg);
-    --k-toast-border: var(--k-state-info-border);
-
-    display: flex;
-    gap: var(--k-space-2);
-    align-items: start;
     padding-block: var(--k-space-2);
     padding-inline: var(--k-space-3) var(--k-space-1);
-    color: var(--k-text);
-    background-color: var(--k-toast-bg);
-    border: var(--k-border-width) solid var(--k-toast-border);
-    border-radius: var(--k-radius-md);
     box-shadow: var(--k-shadow-overlay);
     pointer-events: auto;
-  }
-
-  .k-toast[data-tone="ok"] {
-    --k-toast-fg: var(--k-state-ok-fg);
-    --k-toast-bg: var(--k-state-ok-bg);
-    --k-toast-border: var(--k-state-ok-border);
-  }
-
-  .k-toast[data-tone="warn"] {
-    --k-toast-fg: var(--k-state-warn-fg);
-    --k-toast-bg: var(--k-state-warn-bg);
-    --k-toast-border: var(--k-state-warn-border);
-  }
-
-  .k-toast[data-tone="ko"] {
-    --k-toast-fg: var(--k-state-ko-fg);
-    --k-toast-bg: var(--k-state-ko-bg);
-    --k-toast-border: var(--k-state-ko-border);
   }
 
   /* Motion (design « Mouvement »): up 8 px from its place, with a fade; out, a fade (held
@@ -141,32 +113,10 @@ function run(): void {
     animation-fill-mode: forwards;
   }
 
-  .k-toast__icon {
-    margin-block-start: var(--k-space-0-5);
-    color: var(--k-toast-fg);
-  }
-
-  /* One elastic column: a long code shortens (its badge), a word breaks; a sentence goes
-   * to the line, never cut. */
-  .k-toast__body {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    flex: 1;
-    gap: var(--k-space-1);
-    min-inline-size: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .k-toast__title,
   .k-toast__text,
   .k-toast__codes,
   .k-toast__action {
     margin: 0;
-  }
-
-  .k-toast__title {
-    font-weight: var(--k-weight-semibold);
-    color: var(--k-toast-fg);
   }
 
   .k-toast__codes {

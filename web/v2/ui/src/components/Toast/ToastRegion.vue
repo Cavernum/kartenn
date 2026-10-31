@@ -4,14 +4,16 @@
 
 <script setup lang="ts">
 // The toasts of the application (design « Inventaire », line 14), one region in the frame,
-// at the bottom of the window, in its middle. Two live regions, present and empty before any toast
-// (a region inserted with its text is not announced): `alert` for the errors, said at once
-// and kept until dismissed, `status` for the others, said politely; each toast added to
-// one is said alone (`aria-atomic="false"`). No toast takes the focus. They are reached by
-// Tab, after the rest of the frame, and the region holding toasts is a landmark
-// (« Notifications »); while the pointer is over them or the focus in them, or the page is
-// hidden, no toast goes (WCAG 2.2.1). Escape in a toast dismisses it; the focus then goes
-// to the next toast, else the previous one, else back where it came from (WCAG 2.4.3).
+// at the bottom of the window, in its middle, under every modal layer. Two live regions,
+// present and empty before any toast (a region inserted with its text is not announced):
+// `alert` for the errors, said at once and kept until dismissed, `status` for the others,
+// said politely; each toast added to one is said alone (`aria-atomic="false"`). No toast
+// takes the focus. They are reached by Tab, after the rest of the frame, and the region
+// holding toasts is a landmark (« Notifications »); while the pointer is over them, the
+// focus in them, the page hidden or a modal layer over them (`aria-hidden`, `inert`), no
+// toast goes (WCAG 2.2.1). Escape in a toast dismisses it; dismissed from the keyboard,
+// the focus goes to the next toast, else the previous one, else back where it came from,
+// else to the main content (WCAG 2.4.3).
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { t } from "../../i18n.ts";
 import Toast from "./Toast.vue";
@@ -29,37 +31,59 @@ const root = ref<HTMLElement | null>(null);
 const hovered = ref(false);
 const focused = ref(false);
 const hidden = ref(false);
-const paused = computed(() => hovered.value || focused.value || hidden.value);
+const covered = ref(false);
+const paused = computed(() => hovered.value || focused.value || hidden.value || covered.value);
 
 const onVisibility = () => (hidden.value = document.hidden);
+// A modal layer hides the rest of the page (`aria-hidden` by Reka, `inert` by a sheet):
+// a toast under it would go unseen and unsaid.
+const onCover = () =>
+  (covered.value = root.value?.closest("[aria-hidden='true'], [inert]") != null);
+let cover: MutationObserver | undefined;
 onMounted(() => {
   onVisibility();
   document.addEventListener("visibilitychange", onVisibility);
+  onCover();
+  cover = new MutationObserver(onCover);
+  cover.observe(document.body, {
+    attributes: true,
+    attributeFilter: ["aria-hidden", "inert"],
+    subtree: true,
+  });
 });
-onBeforeUnmount(() => document.removeEventListener("visibilitychange", onVisibility));
+onBeforeUnmount(() => {
+  document.removeEventListener("visibilitychange", onVisibility);
+  cover?.disconnect();
+});
 
-/** What had the focus before it came into the toasts. */
+/** What had the focus before it came into the toasts; none from outside the page. */
 let returnTo: HTMLElement | null = null;
 function onFocusIn(event: FocusEvent): void {
   focused.value = true;
   const from = event.relatedTarget;
-  if (from instanceof HTMLElement && !root.value?.contains(from)) returnTo = from;
+  if (from instanceof Node && root.value?.contains(from)) return;
+  returnTo = from instanceof HTMLElement ? from : null;
 }
 function onFocusOut(event: FocusEvent): void {
   const to = event.relatedTarget;
   if (!(to instanceof Node && root.value?.contains(to))) focused.value = false;
 }
 
+/** The last dismissal came from the pointer: the focus is not handed on. */
+let byPointer = false;
 function onKey(event: KeyboardEvent): void {
-  if (event.key !== "Escape") return;
+  byPointer = false;
+  // Kept by a layer that owns Escape first (an open tooltip, `tooltip.ts`).
+  if (event.key !== "Escape" || event.defaultPrevented) return;
   const holder = (event.target as HTMLElement).closest<HTMLElement>("[data-toast-id]");
   if (!holder?.dataset.toastId) return;
   event.preventDefault();
   store.dismiss(holder.dataset.toastId);
 }
 
-// A toast that goes with the focus in it (its close button, Escape, the host): the focus
-// moves first, before it leaves the page.
+// A toast that goes with the focus in it: dismissed from the keyboard (its close button,
+// Escape) or by the host, the focus moves first, before it leaves the page; by a click,
+// it is let go (the button blurred, the toasts no longer held).
 watch(
   () => store.list.map((toast) => toast.id),
   (ids) => {
@@ -67,6 +91,11 @@ watch(
     if (!root.value || !(at instanceof HTMLElement) || !root.value.contains(at)) return;
     const holder = at.closest<HTMLElement>("[data-toast-id]");
     if (!holder || ids.includes(holder.dataset.toastId ?? "")) return;
+    if (byPointer) {
+      at.blur();
+      focused.value = false;
+      return;
+    }
     const items = [...root.value.querySelectorAll<HTMLElement>("[data-toast-id]")].filter(
       (item) => item === holder || ids.includes(item.dataset.toastId ?? ""),
     );
@@ -110,6 +139,7 @@ function onLeave(el: Element, done: () => void): void {
     :aria-label="store.list.length > 0 ? t('notifications') : undefined"
     @pointerenter="hovered = true"
     @pointerleave="hovered = false"
+    @pointerdown.capture="byPointer = true"
     @focusin="onFocusIn"
     @focusout="onFocusOut"
     @keydown="onKey"

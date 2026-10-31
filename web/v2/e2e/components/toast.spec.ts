@@ -64,6 +64,8 @@ test.describe("Toast (status, alert)", () => {
     const add = page.getByRole("button", { name: "Ajouter" });
     await add.focus();
     await page.keyboard.press("Enter");
+    // « Enregistrer », « Propriétés », then the toast.
+    await page.keyboard.press("Tab");
     await page.keyboard.press("Tab");
     await page.keyboard.press("Tab");
     const close = region(page).getByRole("button", { name: "Fermer la notification" });
@@ -73,7 +75,7 @@ test.describe("Toast (status, alert)", () => {
     await page.keyboard.press("Escape");
     await expect(page.locator(".k-toast")).toHaveCount(0);
     // Back where the focus came from into the toasts.
-    await expect(page.getByRole("button", { name: "Enregistrer" })).toBeFocused();
+    await expect(page.getByRole("button", { name: "Propriétés" })).toBeFocused();
     // The toasts that come next are not held by the focus that was in the last one.
     await page.mouse.move(0, 0);
     await add.click();
@@ -88,10 +90,8 @@ test.describe("Toast (status, alert)", () => {
     await page.keyboard.press("Enter");
     await page.keyboard.press("Enter");
     await expect(page.locator("[role='alert'] .k-toast")).toHaveCount(2);
-    // Its code, its Request-Id, then its close button.
-    await page.keyboard.press("Tab");
-    await page.keyboard.press("Tab");
-    await page.keyboard.press("Tab");
+    // « Propriétés », then its code, its Request-Id and its close button.
+    for (let i = 0; i < 4; i++) await page.keyboard.press("Tab");
     const closes = region(page).getByRole("button", { name: "Fermer la notification" });
     await expect(closes.first()).toBeFocused();
     await page.keyboard.press("Enter");
@@ -99,6 +99,100 @@ test.describe("Toast (status, alert)", () => {
     await expect(closes.first()).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.locator(".k-toast")).toHaveCount(0);
-    await expect(save).toBeFocused();
+    await expect(page.getByRole("button", { name: "Propriétés" })).toBeFocused();
+  });
+
+  test("dismissed last, a toast hands the focus to the previous one", async ({ page }) => {
+    const add = page.getByRole("button", { name: "Ajouter" });
+    await add.focus();
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Enter");
+    for (let i = 0; i < 4; i++) await page.keyboard.press("Tab");
+    const closes = region(page).getByRole("button", { name: "Fermer la notification" });
+    await expect(closes.nth(1)).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".k-toast")).toHaveCount(1);
+    await expect(closes.first()).toBeFocused();
+  });
+
+  test("dismissed by a click, a toast hands the focus to no one", async ({ page }) => {
+    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await page.getByRole("button", { name: "Enregistrer" }).click();
+    const closes = region(page).getByRole("button", { name: "Fermer la notification" });
+    await closes.first().click();
+    await expect(page.locator(".k-toast")).toHaveCount(1);
+    await expect(closes.first()).not.toBeFocused();
+    await expect(page.locator("body")).toBeFocused();
+  });
+
+  test("a hidden page holds the toasts", async ({ page }) => {
+    await page.getByRole("button", { name: "Ajouter" }).click();
+    await page.mouse.move(0, 0);
+    const setHidden = (hidden: boolean) =>
+      page.evaluate((value) => {
+        Object.defineProperty(document, "hidden", { value, configurable: true });
+        document.dispatchEvent(new Event("visibilitychange"));
+      }, hidden);
+    await setHidden(true);
+    await page.waitForTimeout(5000);
+    const toast = page.locator("[role='status'] .k-toast");
+    await expect(toast).toHaveCount(1);
+    await setHidden(false);
+    await expect(toast).toHaveCount(0, { timeout: 8000 });
+  });
+
+  test("toasts lie under a modal dialog, held while it covers them", async ({ page }) => {
+    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await page.getByRole("button", { name: "Ajouter" }).click();
+    const button = page.getByRole("button", { name: "Propriétés" });
+    await button.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("dialog", { name: "Propriétés du préfixe" })).toBeVisible();
+    // The middle of each toast is the dialog's scrim, not the toast.
+    for (const toast of await page.locator(".k-toast").all())
+      expect(await underPointer(toast)).toBe(false);
+    await page.waitForTimeout(5000);
+    await page.keyboard.press("Escape");
+    await expect(button).toBeFocused();
+    await page.mouse.move(0, 0);
+    const ok = page.locator("[role='status'] .k-toast");
+    await expect(ok).toHaveCount(1);
+    await expect(ok).toHaveCount(0, { timeout: 8000 });
+  });
+});
+
+/** Whether the middle of `locator` is itself (or inside it) for the pointer. */
+function underPointer(locator: import("@playwright/test").Locator): Promise<boolean> {
+  return locator.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+    return hit !== null && el.contains(hit);
+  });
+}
+
+test.describe("Toast in the frame", () => {
+  test("under the compact panel's sheet", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto("/_ui/ecrans/E9?vue=revue");
+    const toast = page.locator(".k-toast");
+    await expect(toast).toHaveCount(1);
+    expect(await underPointer(toast)).toBe(true);
+    await page.locator(".k-draft-counter__toggle").click();
+    await expect(page.getByRole("dialog", { name: "Panneau droit" })).toBeVisible();
+    expect(await underPointer(toast)).toBe(false);
+  });
+
+  test("come in from outside the page, dismissed, the focus goes to the main content", async ({
+    page,
+  }) => {
+    await page.goto("/_ui/ecrans/E9?vue=revue");
+    await page.locator(".k-toast").waitFor();
+    // From the end of the page backwards: the toast's close button is the last stop.
+    await page.keyboard.press("Shift+Tab");
+    const close = page.getByRole("button", { name: "Fermer la notification" });
+    await expect(close).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".k-toast")).toHaveCount(0);
+    await expect(page.locator("main#k-ecran-surface")).toBeFocused();
   });
 });

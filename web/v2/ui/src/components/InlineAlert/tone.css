@@ -1,0 +1,64 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+/* The four tones of a message, inline (`InlineAlert`) or toast (`Toast`) (design
+ * « Inventaire », lines 14 and 26), one rule: the colours of the tone (`data-tone`) on a
+ * tinted box, its icon beside a column of the title, in the tone's colour, and the rest.
+ * Each sets its own padding (and the toast its elevation). Shared, so in style.css (a sheet imported from a component
+ * would be a fragment the shell's build does not find). */
+@layer components {
+  :is(.k-inline-alert, .k-toast) {
+    --k-tone-fg: var(--k-state-info-fg);
+    --k-tone-bg: var(--k-state-info-bg);
+    --k-tone-border: var(--k-state-info-border);
+
+    display: flex;
+    gap: var(--k-space-2);
+    align-items: start;
+    color: var(--k-text);
+    background-color: var(--k-tone-bg);
+    border: var(--k-border-width) solid var(--k-tone-border);
+    border-radius: var(--k-radius-md);
+  }
+
+  :is(.k-inline-alert, .k-toast)[data-tone="ok"] {
+    --k-tone-fg: var(--k-state-ok-fg);
+    --k-tone-bg: var(--k-state-ok-bg);
+    --k-tone-border: var(--k-state-ok-border);
+  }
+
+  :is(.k-inline-alert, .k-toast)[data-tone="warn"] {
+    --k-tone-fg: var(--k-state-warn-fg);
+    --k-tone-bg: var(--k-state-warn-bg);
+    --k-tone-border: var(--k-state-warn-border);
+  }
+
+  :is(.k-inline-alert, .k-toast)[data-tone="ko"] {
+    --k-tone-fg: var(--k-state-ko-fg);
+    --k-tone-bg: var(--k-state-ko-bg);
+    --k-tone-border: var(--k-state-ko-border);
+  }
+
+  :is(.k-inline-alert__icon, .k-toast__icon) {
+    margin-block-start: var(--k-space-0-5);
+    color: var(--k-tone-fg);
+  }
+
+  /* One elastic column: a long code shortens (its badge), a word breaks; a sentence goes
+   * to the line, never cut. */
+  :is(.k-inline-alert__body, .k-toast__body) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    flex: 1;
+    gap: var(--k-space-1);
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+
+  :is(.k-inline-alert__title, .k-toast__title) {
+    margin: 0;
+    font-weight: var(--k-weight-semibold);
+    color: var(--k-tone-fg);
+  }
+}

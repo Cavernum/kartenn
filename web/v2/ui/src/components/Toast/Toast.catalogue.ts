@@ -2,11 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { defineComponent, h, type PropType } from "vue";
+import { defineComponent, h, type Component, type PropType } from "vue";
 import type { CatalogueEntry } from "../../catalogue.ts";
 import { ids, prefixes, problems } from "../../fixtures/index.ts";
 import Button from "../Button/Button.vue";
 import Cluster from "../Cluster/Cluster.vue";
+import Dialog from "../Dialog/Dialog.vue";
 import Stack from "../Stack/Stack.vue";
 import TextField from "../TextField/TextField.vue";
 import Toast from "./Toast.vue";
@@ -44,7 +45,8 @@ const Shown = defineComponent({
 
 /**
  * The toasts of the keyboard script (e2e/components/toast.spec.ts): a success that goes
- * after 4 s, an error that stays; a field before them to type in while they come.
+ * after 4 s, an error that stays; a field before them to type in while they come; a
+ * dialog, which the toasts lie under, held.
  */
 const Keyboard = defineComponent({
   setup() {
@@ -67,6 +69,14 @@ const Keyboard = defineComponent({
             () => "Ajouter",
           ),
           h(Button, { onClick: () => store.show(failed) }, () => "Enregistrer"),
+          h(
+            Dialog as Component,
+            { title: "Propriétés du préfixe", size: "sm" },
+            {
+              trigger: () => h(Button, () => "Propriétés"),
+              default: () => h(TextField, { label: "Nom" }),
+            },
+          ),
         ]),
         h(ToastRegion, { toasts: store }),
       ]);
