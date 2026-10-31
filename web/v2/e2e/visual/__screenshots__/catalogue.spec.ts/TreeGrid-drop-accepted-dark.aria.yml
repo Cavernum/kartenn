@@ -1,0 +1,45 @@
+- main:
+  - region "TreeGrid":
+    - heading "TreeGrid" [level=1]
+    - paragraph: "Motif : Treegrid"
+    - 'figure "drop-accepted — Glisser à parent déclaré : la cible acceptée par canMove, mise en évidence"':
+      - treegrid "Entités":
+        - rowgroup:
+          - row "Entité Responsable":
+            - columnheader "Entité"
+            - columnheader "Responsable"
+        - rowgroup:
+          - row "Infrastructure Équipe réseau" [expanded] [level=1]:
+            - gridcell "Infrastructure"
+            - gridcell "Équipe réseau"
+          - row "Réseaux Équipe réseau" [expanded] [level=2]:
+            - gridcell "Réseaux"
+            - gridcell "Équipe réseau"
+          - row "Cœur Équipe réseau" [level=3]:
+            - gridcell "Cœur"
+            - gridcell "Équipe réseau"
+          - row "Accès Équipe réseau" [level=3]:
+            - gridcell "Accès"
+            - gridcell "Équipe réseau"
+          - row "Serveurs Équipe système" [level=2]:
+            - gridcell "Serveurs"
+            - gridcell "Équipe système"
+          - row "Stockage Équipe système" [level=2]:
+            - gridcell "Stockage"
+            - gridcell "Équipe système"
+          - row "Postes de travail (cible acceptée) Support" [expanded] [level=1]:
+            - gridcell "Postes de travail (cible acceptée)"
+            - gridcell "Support"
+          - row "Assistance Support" [level=2]:
+            - gridcell "Assistance"
+            - gridcell "Support"
+          - row "Ateliers Support" [level=2]:
+            - gridcell "Ateliers"
+            - gridcell "Support"
+          - row "Archives Documentation" [level=1]:
+            - gridcell "Archives"
+            - gridcell "Documentation"
+      - status
+      - alert
+      - code: drop-accepted
+      - text: ""

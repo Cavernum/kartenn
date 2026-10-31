@@ -45,5 +45,7 @@
               - code: /\d+\.\d+\.\d+\.\d+\/\d+/
             - gridcell "Développement"
             - gridcell "3 %"
+      - status
+      - alert
       - code: draft
       - text: ""

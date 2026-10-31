@@ -1,0 +1,93 @@
+- main:
+  - region "TreeGrid":
+    - heading "TreeGrid" [level=1]
+    - paragraph: "Motif : Treegrid"
+    - 'figure "virtual — Cent mille nœuds : une fenêtre dans le document, la ligne du focus gardée, déplacement au clavier"':
+      - treegrid "Cent mille nœuds":
+        - rowgroup:
+          - row "Nœud Rang":
+            - columnheader "Nœud"
+            - columnheader "Rang"
+        - rowgroup:
+          - row "Domaine 1 1" [expanded] [level=1]:
+            - gridcell "Domaine 1"
+            - gridcell "1"
+          - row "Nœud 1.1 1" [level=2]:
+            - gridcell "Nœud 1.1"
+            - gridcell "1"
+          - row "Nœud 1.2 2" [level=2]:
+            - gridcell "Nœud 1.2"
+            - gridcell "2"
+          - row "Nœud 1.3 3" [level=2]:
+            - gridcell "Nœud 1.3"
+            - gridcell "3"
+          - row "Nœud 1.4 4" [level=2]:
+            - gridcell "Nœud 1.4"
+            - gridcell "4"
+          - row "Nœud 1.5 5" [level=2]:
+            - gridcell "Nœud 1.5"
+            - gridcell "5"
+          - row "Nœud 1.6 6" [level=2]:
+            - gridcell "Nœud 1.6"
+            - gridcell "6"
+          - row "Nœud 1.7 7" [level=2]:
+            - gridcell "Nœud 1.7"
+            - gridcell "7"
+          - row "Nœud 1.8 8" [level=2]:
+            - gridcell "Nœud 1.8"
+            - gridcell "8"
+          - row "Nœud 1.9 9" [level=2]:
+            - gridcell "Nœud 1.9"
+            - gridcell "9"
+          - row /Nœud \d+\.\d+ \d+/ [level=2]:
+            - gridcell /Nœud \d+\.\d+/
+            - gridcell /\d+/
+          - row /Nœud \d+\.\d+ \d+/ [level=2]:
+            - gridcell /Nœud \d+\.\d+/
+            - gridcell /\d+/
+          - row /Nœud \d+\.\d+ \d+/ [level=2]:
+            - gridcell /Nœud \d+\.\d+/
+            - gridcell /\d+/
+          - row /Nœud \d+\.\d+ \d+/ [level=2]:
+            - gridcell /Nœud \d+\.\d+/
+            - gridcell /\d+/
+          - row /Nœud \d+\.\d+ \d+/ [level=2]:
+            - gridcell /Nœud \d+\.\d+/
+            - gridcell /\d+/
+          - row /Nœud \d+\.\d+ \d+/ [level=2]:
+            - gridcell /Nœud \d+\.\d+/
+            - gridcell /\d+/
+          - row /Nœud \d+\.\d+ \d+/ [level=2]:
+            - gridcell /Nœud \d+\.\d+/
+            - gridcell /\d+/
+          - row /Nœud \d+\.\d+ \d+/ [level=2]:
+            - gridcell /Nœud \d+\.\d+/
+            - gridcell /\d+/
+          - row /Nœud \d+\.\d+ \d+/ [level=2]:
+            - gridcell /Nœud \d+\.\d+/
+            - gridcell /\d+/
+          - row /Nœud \d+\.\d+ \d+/ [level=2]:
+            - gridcell /Nœud \d+\.\d+/
+            - gridcell /\d+/
+          - row /Nœud \d+\.\d+ \d+/ [level=2]:
+            - gridcell /Nœud \d+\.\d+/
+            - gridcell /\d+/
+          - row /Nœud \d+\.\d+ \d+/ [level=2]:
+            - gridcell /Nœud \d+\.\d+/
+            - gridcell /\d+/
+          - row /Nœud \d+\.\d+ \d+/ [level=2]:
+            - gridcell /Nœud \d+\.\d+/
+            - gridcell /\d+/
+          - row /Nœud \d+\.\d+ \d+/ [level=2]:
+            - gridcell /Nœud \d+\.\d+/
+            - gridcell /\d+/
+          - row /Nœud \d+\.\d+ \d+/ [level=2]:
+            - gridcell /Nœud \d+\.\d+/
+            - gridcell /\d+/
+          - row /Nœud \d+\.\d+ \d+/ [level=2]:
+            - gridcell /Nœud \d+\.\d+/
+            - gridcell /\d+/
+      - status
+      - alert
+      - code: virtual
+      - text: ""

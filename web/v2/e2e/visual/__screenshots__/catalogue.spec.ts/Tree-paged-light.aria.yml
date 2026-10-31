@@ -1,0 +1,20 @@
+- main:
+  - region "Tree":
+    - heading "Tree" [level=1]
+    - paragraph: "Motif : Tree View"
+    - 'figure "paged — Enfants paginés : aria-setsize -1, la ligne de la suite lit la page suivante"':
+      - tree "Groupes de VLAN":
+        - treeitem "Site A" [expanded] [level=1]
+        - treeitem /VLAN \d+/ [level=2]
+        - treeitem /VLAN \d+/ [level=2]
+        - treeitem /VLAN \d+/ [level=2]
+        - treeitem /VLAN \d+/ [level=2]
+        - treeitem /VLAN \d+/ [level=2]
+        - treeitem "chargement des enfants" [level=2]
+        - treeitem "Site B" [level=1]
+      - status
+      - alert
+      - button "Envoyer les pages demandées"
+      - text: "Pages demandées : 1"
+      - code: paged
+      - text: ""

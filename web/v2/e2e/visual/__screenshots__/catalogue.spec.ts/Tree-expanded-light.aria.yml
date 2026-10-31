@@ -1,0 +1,18 @@
+- main:
+  - region "Tree":
+    - heading "Tree" [level=1]
+    - paragraph: "Motif : Tree View"
+    - figure "expanded — Site et salle dépliés, une salle sélectionnée":
+      - tree "Sites":
+        - treeitem "Site A" [expanded] [level=1]
+        - treeitem "Salle 1" [level=2]
+        - treeitem "Salle 2" [expanded] [level=2] [selected]
+        - treeitem /Baie 2-\d+/ [level=3]
+        - treeitem /Baie 2-\d+/ [level=3]
+        - treeitem "Salle 3" [level=2]
+        - treeitem "Site B" [level=1]
+        - treeitem "Site C" [level=1]
+      - status
+      - alert
+      - code: expanded
+      - text: ""

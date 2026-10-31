@@ -112,6 +112,9 @@ const nodes: TreeNode[] = [
 const treeColumns: GridColumn[] = [
   { id: "occupancy", label: "Occupation", width: "sm", align: "end" },
 ];
+/** The tree of the mock-up answers the keys and the pointer (020, task 26). */
+const treeOpen = ref(["p1", "p4"]);
+const treeChosen = ref<string | undefined>("p12");
 const addLabel = (node: TreeNode) =>
   node.objectKey ? `Ajouter dans ${node.objectKey}` : undefined;
 
@@ -251,12 +254,13 @@ const addAction = ref("draft");
       <template #side>
         <Panneau title="Préfixes" :detail="DOMAIN.label" flush>
           <TreeGrid
+            v-model:expanded="treeOpen"
+            v-model:selected="treeChosen"
             :label="`Arbre des préfixes du domaine ${DOMAIN.label}`"
             tree-label="Préfixe"
             :nodes="nodes"
             :columns="treeColumns"
-            :expanded="['p1', 'p4']"
-            selected="p12"
+            parent-mode="derived"
             :add-label="addLabel"
           />
         </Panneau>

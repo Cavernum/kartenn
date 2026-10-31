@@ -10,7 +10,7 @@
 // check keeps the editor open, its error said with the way out (Escape). After a commit,
 // the host renders the cell's state; an error it gives then is said once.
 
-import { nextTick, ref, watch, type Ref } from "vue";
+import { computed, nextTick, ref, watch, type Ref } from "vue";
 import type { CellRef, CellState, GridCommit } from "../DataGrid/grid.ts";
 
 /** What the grid gives the editor of its cells. */
@@ -28,12 +28,15 @@ export interface CellEditorHost {
   commit(commit: GridCommit): void;
   /** The alert of the grid: a refusal, said with the way out. */
   refuse(cell: CellRef, error: string): void;
+  /** The class of the box of the editor in a cell (`k-data-grid__editor` by default). */
+  editorClass?: string;
 }
 
 /** The controls an editor may hold, the first one taking the focus. */
 export const EDITOR_CONTROLS = "input, select, textarea, button, [tabindex]";
 
 export function useCellEditor(host: CellEditorHost) {
+  const box = `.${host.editorClass ?? "k-data-grid__editor"}`;
   /** The text of the open editor, and the one it opened with. */
   const draft = ref("");
   const original = ref("");
@@ -43,9 +46,7 @@ export function useCellEditor(host: CellEditorHost) {
   /** The focus into the editor of `cell` once it is rendered, its text chosen. */
   async function focusEditor(cell: CellRef): Promise<void> {
     await nextTick();
-    const el = host
-      .cellElement(cell)
-      ?.querySelector<HTMLElement>(`.k-data-grid__editor :is(${EDITOR_CONTROLS})`);
+    const el = host.cellElement(cell)?.querySelector<HTMLElement>(`${box} :is(${EDITOR_CONTROLS})`);
     if (!el || el === document.activeElement) return;
     el.focus();
     if (el instanceof HTMLInputElement) el.select();
@@ -124,7 +125,7 @@ export function useCellEditor(host: CellEditorHost) {
     const cell = host.editing.value;
     const to = event.relatedTarget as Node | null;
     if (!host.driven() || !cell || !to) return;
-    if (!(event.target as HTMLElement).closest(".k-data-grid__editor")) return;
+    if (!(event.target as HTMLElement).closest(box)) return;
     if (host.cellElement(cell)?.contains(to)) return;
     finish(null);
   }
@@ -166,4 +167,40 @@ export function useCommitWatch(
     ].slice(-AWAITED);
   }
   return { awaiting, follow };
+}
+
+/**
+ * The errors of the cells of a grid, as `CellError` shows them (`TreeGrid`): open while
+ * the cell is hovered or holds the focus, the pointer first; Escape closes it until the
+ * cell has neither (WCAG 1.4.13). Keys are the grid's own (`row\ncolumn`).
+ */
+export function useCellErrors(hasError: (key: string) => boolean) {
+  const hovered = ref<string | null>(null);
+  const focused = ref<string | null>(null);
+  const dismissed = ref<string | null>(null);
+  const shown = computed(
+    () =>
+      [hovered.value, focused.value].find(
+        (k) => k !== null && k !== dismissed.value && hasError(k),
+      ) ?? null,
+  );
+  watch([hovered, focused], ([h, f]) => {
+    if (dismissed.value !== null && h !== dismissed.value && f !== dismissed.value)
+      dismissed.value = null;
+  });
+  /** A touch pointer leaves its target when the finger lifts: the focus speaks for it. */
+  function enter(key: string, event: PointerEvent): void {
+    if (event.pointerType !== "touch" && hasError(key)) hovered.value = key;
+  }
+  /** The pointer leaves a cell, not for its message (adjacent): no longer hovered. */
+  function leave(event: PointerEvent, message: HTMLElement | null): void {
+    if (event.pointerType === "touch") return;
+    const to = event.relatedTarget as Node | null;
+    if (to && message?.contains(to)) return;
+    hovered.value = null;
+  }
+  function dismiss(): void {
+    dismissed.value = shown.value ?? dismissed.value;
+  }
+  return { hovered, focused, shown, enter, leave, dismiss };
 }

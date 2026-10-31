@@ -1,0 +1,171 @@
+- main:
+  - region "Tree":
+    - heading "Tree" [level=1]
+    - paragraph: "Motif : Tree View"
+    - figure "expanded — Site et salle dépliés, une salle sélectionnée":
+      - tree "Sites":
+        - treeitem "Site A" [expanded] [level=1]
+        - treeitem "Salle 1" [level=2]
+        - treeitem "Salle 2" [expanded] [level=2] [selected]
+        - treeitem /Baie 2-\d+/ [level=3]
+        - treeitem /Baie 2-\d+/ [level=3]
+        - treeitem "Salle 3" [level=2]
+        - treeitem "Site B" [level=1]
+        - treeitem "Site C" [level=1]
+      - status
+      - alert
+      - code: expanded
+      - text: ""
+    - 'figure "loading — Chargement : des lignes de squelettes, l''arbre occupé"':
+      - tree "Sites": Chargement
+      - status
+      - alert
+      - code: loading
+      - text: ""
+    - figure "loading-children — Chargement des enfants d'un nœud ouvert":
+      - tree "Sites":
+        - treeitem "Site A" [expanded] [level=1]
+        - treeitem "Salle 1" [level=2]
+        - treeitem "Salle 2" [level=2]
+        - treeitem "Salle 3" [expanded] [level=2]
+        - treeitem "chargement des enfants" [level=3]
+        - treeitem "Site B" [level=1]
+        - treeitem "Site C" [level=1]
+      - status
+      - alert
+      - code: loading-children
+      - text: ""
+    - 'figure "paged — Enfants paginés : aria-setsize -1, la ligne de la suite lit la page suivante"':
+      - tree "Groupes de VLAN":
+        - treeitem "Site A" [expanded] [level=1]
+        - treeitem /VLAN \d+/ [level=2]
+        - treeitem /VLAN \d+/ [level=2]
+        - treeitem /VLAN \d+/ [level=2]
+        - treeitem /VLAN \d+/ [level=2]
+        - treeitem /VLAN \d+/ [level=2]
+        - treeitem "chargement des enfants" [level=2]
+        - treeitem "Site B" [level=1]
+      - status
+      - alert
+      - button "Envoyer les pages demandées"
+      - text: "Pages demandées : 1"
+      - code: paged
+      - text: ""
+    - figure "draft — Nœud en brouillon":
+      - tree "Sites":
+        - treeitem "Site A" [expanded] [level=1]
+        - treeitem "Salle 1" [level=2]
+        - treeitem "Salle 2" [expanded] [level=2]
+        - treeitem /Baie 2-\d+/ [level=3]
+        - treeitem /Baie 2-\d+/ [level=3]
+        - treeitem "Salle 3" [level=2]
+        - treeitem "Site B" [level=1]
+        - treeitem "Site C" [level=1]
+      - status
+      - alert
+      - code: draft
+      - text: ""
+    - 'figure "editing — Renommer : le libellé dans un champ (Entrée ou F2)"':
+      - tree "Sites":
+        - treeitem "Site A" [expanded] [level=1]
+        - treeitem "Salle 1" [level=2] [selected]:
+          - textbox "Salle 1"
+        - treeitem "Salle 2" [expanded] [level=2]
+        - treeitem /Baie 2-\d+/ [level=3]
+        - treeitem /Baie 2-\d+/ [level=3]
+        - treeitem "Salle 3" [level=2]
+        - treeitem "Site B" [level=1]
+        - treeitem "Site C" [level=1]
+      - status
+      - alert
+      - code: editing
+      - text: ""
+    - 'figure "drop-accepted — Glisser à parent déclaré : la cible acceptée par canMove, mise en évidence"':
+      - tree "Entités":
+        - treeitem "Infrastructure" [expanded] [level=1]
+        - treeitem "Réseaux" [expanded] [level=2]
+        - treeitem "Cœur" [level=3]
+        - treeitem "Accès" [level=3]
+        - treeitem "Serveurs" [level=2]
+        - treeitem "Stockage" [level=2]
+        - treeitem "Postes de travail" [expanded] [level=1]
+        - treeitem "Assistance" [level=2]
+        - treeitem "Ateliers" [level=2]
+        - treeitem "Archives" [level=1]
+      - status
+      - alert
+      - code: drop-accepted
+      - text: ""
+    - 'figure "drop-refused — Glisser sur un descendant : cible refusée, jamais mise en évidence, motif et code"':
+      - tree "Entités":
+        - treeitem "Infrastructure" [expanded] [level=1]
+        - treeitem "Réseaux" [expanded] [level=2]
+        - treeitem "Cœur" [level=3]
+        - treeitem "Accès" [level=3]
+        - treeitem "Serveurs" [level=2]
+        - treeitem "Stockage" [level=2]
+        - treeitem "Postes de travail" [expanded] [level=1]
+        - treeitem "Assistance" [level=2]
+        - treeitem "Ateliers" [level=2]
+        - treeitem "Archives" [level=1]
+      - status: "Cible refusée : Un nœud ne peut pas aller sous l'un de ses descendants. (tree.cycle)"
+      - alert
+      - code: drop-refused
+      - text: ""
+    - figure "move-states — Déplacement en attente (à sa place), déplacement refusé avec code":
+      - tree "Entités":
+        - treeitem "Infrastructure" [expanded] [level=1]
+        - treeitem "Réseaux" [level=2]
+        - treeitem "Serveurs" [level=2]
+        - treeitem "Stockage" [level=2]
+        - treeitem "Postes de travail" [expanded] [level=1]
+        - treeitem "Assistance" [level=2]
+        - treeitem "Ateliers" [level=2]
+        - treeitem "Archives" [level=1]
+      - status
+      - alert
+      - code: move-states
+      - text: ""
+    - 'figure "virtual — Cent mille nœuds : une fenêtre dans le document, la ligne du focus gardée, déplacement au clavier"':
+      - tree "Cent mille nœuds":
+        - treeitem "Domaine 1" [expanded] [level=1]
+        - treeitem "Nœud 1.1" [level=2]
+        - treeitem "Nœud 1.2" [level=2]
+        - treeitem "Nœud 1.3" [level=2]
+        - treeitem "Nœud 1.4" [level=2]
+        - treeitem "Nœud 1.5" [level=2]
+        - treeitem "Nœud 1.6" [level=2]
+        - treeitem "Nœud 1.7" [level=2]
+        - treeitem "Nœud 1.8" [level=2]
+        - treeitem "Nœud 1.9" [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+        - treeitem /Nœud \d+\.\d+/ [level=2]
+      - status
+      - alert
+      - code: virtual
+      - text: ""
+    - 'figure "keyboard — Script du clavier : *, recherche à la saisie, renommer, Couper et Coller, « Déplacer vers… »"':
+      - button "Déplacer vers…" [disabled]
+      - tree "Entités":
+        - treeitem "Infrastructure" [expanded] [level=1]
+        - treeitem "Réseaux" [level=2]
+        - treeitem "Serveurs" [level=2]
+        - treeitem "Stockage" [level=2]
+        - treeitem "Postes de travail" [level=1]
+        - treeitem "Archives" [level=1]
+      - status
+      - alert
+      - code: keyboard
+      - text: ""
