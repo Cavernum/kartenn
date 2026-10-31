@@ -155,6 +155,32 @@ test.describe("DateTimeField (Spinbutton segments, Date Picker Dialog)", () => {
     await expect(value(page, "instant")).toHaveText("—");
   });
 
+  test("a pasted instant keeps its offset, shown in the zone; a spaced date reads", async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    const note = page.getByRole("textbox", { name: "Note" });
+    await note.focus();
+    // Copied from the field before by keys, pasted into the year by keys.
+    await page.keyboard.type("2026-01-15T09:00:00+05:00");
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.press("ControlOrMeta+C");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("ControlOrMeta+V");
+    // 09:00 at UTC+05:00 is 04:00 UTC, 05:00 in Paris.
+    await expect(value(page, "instant")).toHaveText("2026-01-15T04:00:00Z");
+    await expect(segment(page, "Valide au", "Heure")).toHaveText("05");
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.type("2025 - 11 - 03 09:30");
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.press("ControlOrMeta+C");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("ControlOrMeta+V");
+    await expect(value(page, "instant")).toHaveText("2025-11-03T08:30:00Z");
+  });
+
   test("an incomplete entry says what is missing; Backspace erases back to empty", async ({
     page,
   }) => {

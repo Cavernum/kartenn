@@ -46,7 +46,7 @@ test.describe("PeriodPicker", () => {
   }) => {
     await expect(page.getByRole("form", { name: "Lire à une date" })).toBeVisible();
     await expect(field(page, "Valide au")).toHaveAccessibleDescription(
-      "Ce qui était vrai à cette date ; vide : maintenant.",
+      "Ce qui est vrai à cette date, passée ou à venir ; vide : maintenant.",
     );
     await expect(field(page, "Connu au")).toContainText("Europe/Paris");
     await expect(page.getByRole("button", { name: "Revenir au présent" })).toHaveCount(0);
@@ -74,9 +74,10 @@ test.describe("PeriodPicker", () => {
     await expect(query(page)).toHaveText("valid_at=2025-11-03T08:30:00Z");
     const back = page.getByRole("button", { name: "Revenir au présent" });
     await expect(back).toBeVisible();
-    // Back to the present by keys: Shift+Tab from « Appliquer ».
-    await page.getByRole("button", { name: "Appliquer" }).focus();
-    await page.keyboard.press("Shift+Tab");
+    // Back to the present by keys: from the minutes of « Valide au », past its calendar,
+    // its shortcuts and the whole of « Connu au » (five segments, calendar, shortcuts).
+    await expect(segment(page, "Valide au", "Minutes")).toBeFocused();
+    for (let i = 0; i < 14; i++) await page.keyboard.press("Tab");
     await expect(back).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(query(page)).toHaveText("(présent)");
