@@ -689,7 +689,17 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     largeur, calcul de la place commun (`setRoom`), titre du popover en titre, sans
     `aria-describedby` (corps lu deux fois), déclencheur ouvert marqué, `leaving` remis à
     zéro à chaque ouverture ; popover gardé dans la fenêtre quand son déclencheur en sort
-    (`sticky`, E2 à 390 px). Captures réécrites (voulues) : index (un composant de plus),
+    (`sticky`, E2 à 390 px). Seconde revue (après la fusion de main) ; corrigés : corps du
+    popover qui défile, arrêt de tabulation nommé par le titre tant qu'il déborde (2.1.1,
+    1.4.10 ; le corps en colonne flexible, une piste `1fr` débordait au lieu de défiler ;
+    état `long`) ; Tab qui sort d'un popover ou d'un menu borné au dialogue qui contient le
+    déclencheur et en boucle, comme son piège (état `in-dialog`) ; gardes de focus de Reka
+    hors de `tabbables()` (un Tab sans suite allait à la garde au lieu du déclencheur) ;
+    `Select` passe par `internal/tabOrder.ts` ; infobulle du fil d'Ariane mesurée par
+    miette ; scripts : Maj+Tab depuis « Fermer », repli sur le déclencheur, clic dehors,
+    corps défilant à 320 × 256, popover et menu dans un dialogue modal,
+    `e2e/components/breadcrumb.spec.ts` (lien entier sans infobulle, lien coupé).
+    Captures réécrites (voulues) : index (un composant de plus),
     `Menu`, `Tabs`, `Breadcrumb` pages entières (états nouveaux), `CommandPalette` `open` et
     E8-palette (séquences), E2 (bouton d'explication dans la cellule, repère retiré ;
     menu d'actions avec « Changer de domaine… » désactivée) ; nouvelles : `Popover`, `Menu`
@@ -697,7 +707,9 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     E2-explication.
   - choix : `MenuButton` reste le menu qui porte son bouton (choix de la tâche 11) ; menu en
     boucle (`loop`, comme l'exemple APG) ; Maj+Tab d'un menu va au contrôle avant le bouton
-    (comme `Select`), celui d'un popover au déclencheur (le popover se lit après lui) ;
+    (le menu est une liste du bouton, comme celle de `Select` : la quitter, c'est quitter le
+    bouton), celui d'un popover au déclencheur (un dialogue qui se lit après lui, comme un
+    contenu dévoilé : en revenir, c'est revenir au déclencheur) ;
     popover : focus sur le dialogue (son titre lu, ses contrôles ensuite), croix dans son
     en-tête, tailles `sm` et `md` ; surface partagée par une classe (`k-popover`) plutôt
     que `FilterPicker` réécrit sur `Popover` (ancre, ouverture tenue, focus propre). Restent
@@ -707,7 +719,8 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     coupées toutes ensemble (« R… », « Cen… ») plutôt que repliées dans « … » ; liseré de
     focus épais autour d'un popover ouvert sans clic ; libellé d'un groupe du menu
     (« Aller à ») non lié à ses entrées (`group` nommé) ; raccourcis de la palette sans
-    `aria-keyshortcuts` ni description (tâche 23) ; ordre de lecture : la couche du
+    `aria-keyshortcuts` ni description (reportés sur la ligne de la tâche 23) ; surface du
+    calendrier de `DateTimeField` (tâche 20) encore recopiée, hors `k-popover` ; ordre de lecture : la couche du
     catalogue est en tête de `main` (le dialogue avant son déclencheur en mode lecture) ;
     `.k-list` de `Select` garde sa surface recopiée ; lecture au lecteur d'écran (dialogue
     nommé, séquence « g puis p » en description) à faire.
@@ -718,7 +731,9 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
   - dépend de : 21
 - [ ] 23. `SidebarNav` (repliable, groupes), `CommandPalette`, `DatePill`,
   `DraftCounter`, `TimeBand` — verify : palette (Combobox dans Dialog) au clavier ;
-  barre latérale repliée : noms accessibles et infobulles
+  barre latérale repliée : noms accessibles et infobulles ; raccourci d'une entrée de la
+  palette dit comme dans `Menu` (combinaison en `aria-keyshortcuts`, séquence en
+  description, laissés par la tâche 21)
   - où : `web/shell/src/app/AppShell.vue`, `navigation.ts` (entrées actuelles) ; `DatePill`
     ouvre `PeriodPicker` (`web/v2/ui/src/components/PeriodPicker/PeriodPicker.vue`) et
     rend un 400 de l'API sur `valid_at` ou `as_of` sur son champ par la prop `errors`
