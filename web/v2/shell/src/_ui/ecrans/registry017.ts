@@ -91,7 +91,7 @@ export const MOCKUPS_017: Mockup[] = [
         id: "passe",
         label: "Au passé",
         description:
-          "Lecture au 2025-11-03 : bande ambre, matrice et règles hors vue de cette date, aucune écriture (cellule en lecture, actions grisées avec leur motif).",
+          "État connu au 2025-11-03 (as_of, lecture seule) : bande ambre, matrice et règles hors vue de cette date, aucune écriture (cellule en lecture, actions grisées avec leur motif).",
       },
     ],
   },

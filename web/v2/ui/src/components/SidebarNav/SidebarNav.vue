@@ -51,6 +51,8 @@ const groups = computed(() => props.groups.filter((group) => group.entries.lengt
 
 /** The tooltip of the rail: one bubble, after the control under the pointer or the focus. */
 interface Tip {
+  /** The control it names: an entry's id, or `:palette`, `:collapse`. */
+  id: string;
   label: string;
   badge?: number | undefined;
   shortcut?: Shortcut | undefined;
@@ -70,10 +72,15 @@ watch(collapsed, (now) => {
   if (!now) tip.hide();
 });
 const paletteTip = computed<Tip>(() => ({
+  id: ":palette",
   label: props.paletteLabel ?? t("search"),
   shortcut: ["Mod", "k"],
 }));
-const collapseTip = computed<Tip>(() => ({ label: t("sidebarToggle"), shortcut: ["["] }));
+const collapseTip = computed<Tip>(() => ({
+  id: ":collapse",
+  label: t("sidebarToggle"),
+  shortcut: ["["],
+}));
 
 // The current entry is always in view (relecture du 2026-10-26): in a rail every space is
 // open, and the entries of the last ones fall under the fold of a short window. The list
@@ -165,7 +172,7 @@ watch(() => [props.active, collapsed.value], revealCurrent);
          again for each control, so that it is placed after the one it names. -->
     <Tooltip
       v-if="collapsed && tip.open.value && tipped"
-      :key="tipped.label"
+      :key="tipped.id"
       :control="tip"
       side="inline-end"
       decorative

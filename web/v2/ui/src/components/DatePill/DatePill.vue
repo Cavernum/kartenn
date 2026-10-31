@@ -78,17 +78,21 @@ const sameInstant = (a: string | null, b: string | null) =>
   a === b || (a !== null && b !== null && Date.parse(a) === Date.parse(b));
 
 /**
- * The host's refusal, shown while the layer that sent the period is open: closed, the
- * picker starts again from the period read, and the refusal of another entry goes.
+ * The host's refusal (a new object for each one), shown while the layer that sent the
+ * period is open: one that arrives with the layer closed is dropped, and opening or
+ * closing it clears the last one (the picker starts again from the period read).
  */
-const shownErrors = ref(props.errors);
+const shownErrors = ref(open.value ? props.errors : undefined);
 watch(
   () => props.errors,
-  (errors) => (shownErrors.value = errors),
+  (errors) => {
+    if (open.value) shownErrors.value = errors;
+  },
 );
-watch(open, (now) => {
-  if (!now) shownErrors.value = undefined;
-});
+watch(open, () => (shownErrors.value = undefined));
+
+/** The focus on the pill: for the host, when the control that had it goes (the band). */
+defineExpose({ focus: () => triggerEl()?.focus() });
 
 /** The period read changed: the host has read it, the layer has done its work. */
 watch(

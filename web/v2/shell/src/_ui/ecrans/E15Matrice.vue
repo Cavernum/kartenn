@@ -433,7 +433,7 @@ const effectLink = lien("E16", "combinaisons", route.query);
               { key: 'flowType', label: 'Type de flux', value: shown },
               { key: 'state', label: 'État' },
               { key: 'rule', label: 'Règle' },
-              { key: 'at', label: 'Lue au', value: '2025-11-03 09:30', mono: true },
+              { key: 'at', label: 'Connu au', value: '2025-11-03 09:30', mono: true },
             ]"
           >
             <template #state><StatusBadge state="neutral" label="Refus par défaut" /></template>

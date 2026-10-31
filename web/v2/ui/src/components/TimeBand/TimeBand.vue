@@ -10,6 +10,8 @@
 // never saying that writes are off (a dated draft stays allowed); a past system date
 // (`as_of`, alone or with `valid_at`) reads « État connu au <date> — lecture seule ».
 // Nothing is shown at the present (both dates unset): only its status region, empty.
+// « Revenir au présent » goes with the band: the host that reads `present` gives the
+// focus to the date pill (its `focus()`), as the picker's own button does (WCAG 2.4.3).
 import { computed } from "vue";
 import { t } from "../../i18n.ts";
 import { formatInstant } from "../../time.ts";

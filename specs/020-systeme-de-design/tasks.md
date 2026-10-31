@@ -853,7 +853,19 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     toutes les maquettes (nom de la pastille ; quelques arbres réécrits en entier) ;
     nouvelles : `SidebarNav` `collapsed-focus`, `collapsed-hover`, `keyboard`,
     `CommandPalette` `keyboard`, `DatePill` `known`, `both`, `open`, `host`, `keyboard`,
-    `TimeBand` `known`, `both`.
+    `TimeBand` `known`, `both`. `DraftCounter` : livré par la 024 (M8), sans changement
+    ici ; son script `e2e/components/draft-counter.spec.ts` (au clavier seul : bascule,
+    compteur à 0, liste des brouillons, flèches en boucle, Échap et choix rendent le focus
+    au chevron) remplace celui de `visual/clavier.spec.ts`. Relecture de la branche ;
+    corrigés : « Revenir au présent » de la bande, qui part avec elle, rend le focus à la
+    pastille (`focus()` exposé par `DatePill`, appelé par le cadre) ; un refus arrivé
+    couche fermée est ignoré, ouvrir ou fermer la couche efface le dernier (contrat de
+    `errors` dans le design : un objet neuf par refus) ; E15 dit « Connu au » (registre,
+    panneau) ; nombre de la palette dit aussi à l'ouverture (région remplie une image
+    après le montage) ; infobulle du rail remontée par contrôle (`id`), plus par libellé ;
+    règle morte `.k-ecran__body:nth-child(2)` retirée ; Ctrl+K de la maquette ignore un
+    défaut empêché et garde le texte d'une palette ouverte ; scripts du cadre au clavier
+    seul (plus de `focus()` interne, de clic ni d'attente fixe).
   - choix : couche de la pastille ancrée à elle (Reka) plutôt qu'au bord du cadre comme
     le repère d'E6 ; focus au premier champ (pas sur le dialogue, comme `Popover`) ; croix
     avant le formulaire dans l'ordre de tabulation ; la couche se ferme d'elle-même quand
@@ -867,7 +879,9 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     `DateTimeField` refusé qui cite deux fois l'erreur (tâche 20) ; `[` et Ctrl+K liés par
     le shell (021) : `[` quand un bouton d'espace a le focus le démonte ; état de
     chargement d'un `apply` de la pastille (rien n'indique l'attente de l'hôte) ;
-    calendrier de `DateTimeField` hors de la surface `k-popover`.
+    calendrier de `DateTimeField` hors de la surface `k-popover` ; à arbitrer : REQ-017-26
+    (les plugins Politique et Flux n'offrent d'écriture qu'au présent) contre REQ-021-5 (sous `valid_at` seule, un
+    brouillon daté est permis) — E15 lit un `as_of` pour rester d'accord avec les deux.
 - [x] 24. `CodeBadge` (copie annoncée), `KeyLabel`, `EnvChip`, `StatusBadge`,
   `Skeleton`, `EmptyState`, `ErrorState`, `DiffList` — REQ-020-21 à 23 — verify : copie
   au clavier ; repli sur la clé ; CLS 0 entre squelette et données

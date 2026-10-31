@@ -63,6 +63,20 @@ const said = computed(() => {
   if (empty.value) return t("noResults");
   return `${count.value} ${t(count.value === 1 ? "resultOne" : "resultMany")}`;
 });
+/**
+ * The region mounts empty with the dialog and is filled a frame later, so that the count
+ * at opening is said too (a region inserted with its text is often not read).
+ */
+const ready = ref(false);
+watch(
+  open,
+  (now) => {
+    ready.value = false;
+    if (now && typeof requestAnimationFrame !== "undefined")
+      requestAnimationFrame(() => (ready.value = open.value));
+  },
+  { immediate: true },
+);
 // Reka leaves `aria-controls` empty with an inline list: it is read from the list each
 // time the list is mounted (the dialog opens).
 const list = ref<ComponentPublicInstance | null>(null);
@@ -150,7 +164,9 @@ function onSelect(id: string): void {
             <Kbd :keys="['Escape']" aria-hidden="true" />
           </div>
           <!-- Present before the list, filled as it changes: its count, loading, nothing. -->
-          <span class="k-visually-hidden" role="status" aria-live="polite">{{ said }}</span>
+          <span class="k-visually-hidden" role="status" aria-live="polite">{{
+            ready ? said : ""
+          }}</span>
           <p v-if="empty" class="k-palette__empty" aria-hidden="true">{{ said }}</p>
           <ComboboxContent
             v-else

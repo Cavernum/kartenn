@@ -55,7 +55,7 @@ import {
   type ToastInput,
   type WidthClass,
 } from "@kartenn/ui";
-import { computed, onBeforeUnmount, onMounted, ref, useSlots, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useSlots, watch } from "vue";
 import Brouillon from "./EcranBrouillon.vue";
 import Soumission from "./EcranSoumission.vue";
 import { DRAFTS } from "./donnees.ts";
@@ -197,6 +197,13 @@ const besidePanel = computed(
  * the present (the real frame writes them in the URL, spec 021).
  */
 const period = ref<Period>({ validAt: props.at ?? null, asOf: props.asOf ?? null });
+/** « Revenir au présent » of the band goes with it: the focus to the date pill (2.4.3). */
+const pill = ref<{ focus(): void } | null>(null);
+async function backToPresent(): Promise<void> {
+  period.value = { validAt: null, asOf: null };
+  await nextTick();
+  pill.value?.focus();
+}
 
 /**
  * The palette: open at first on E8, opened by « Rechercher » of the sidebar (from the
@@ -225,9 +232,11 @@ function onNavFocus(): void {
   paletteOpen.value = true;
 }
 const onKey = (event: KeyboardEvent) => {
+  if (event.defaultPrevented) return;
   if (event.key.toLowerCase() !== "k" || !(event.ctrlKey || event.metaKey) || event.altKey) return;
   event.preventDefault();
-  openPalette();
+  // Pressed in the open palette, it keeps its text.
+  if (!paletteOpen.value) openPalette();
 };
 onMounted(() => document.addEventListener("keydown", onKey));
 onBeforeUnmount(() => document.removeEventListener("keydown", onKey));
@@ -289,6 +298,7 @@ function toggleDraft(): void {
         <Breadcrumb :items="props.crumbs" class="k-ecran__crumbs" />
         <div class="k-ecran__bar-end">
           <DatePill
+            ref="pill"
             :valid-at="period.validAt"
             :as-of="period.asOf"
             :time-zone="ZONE"
@@ -318,7 +328,7 @@ function toggleDraft(): void {
         :valid-at="period.validAt"
         :as-of="period.asOf"
         :time-zone="ZONE"
-        @present="period = { validAt: null, asOf: null }"
+        @present="backToPresent"
       />
       <div class="k-ecran__body">
         <!-- The surface and, under it, the bottom panel: it takes height, never width. -->
@@ -449,11 +459,6 @@ function toggleDraft(): void {
     grid-template-columns: minmax(0, 1fr);
     min-inline-size: 0;
     min-block-size: 0;
-  }
-
-  /* Without the band, the body takes its row. */
-  .k-ecran__column > .k-ecran__body:nth-child(2) {
-    grid-row: 2 / -1;
   }
 
   .k-ecran__bar {

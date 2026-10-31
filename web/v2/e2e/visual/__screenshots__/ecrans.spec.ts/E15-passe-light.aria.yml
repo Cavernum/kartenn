@@ -117,14 +117,19 @@
     - tab "Détail" [selected]
     - tab "Brouillon 0"
   - tabpanel "Détail":
-    - heading "Recette vers Production" [level=2]
+    - heading "Recette vers Production" [level=2]:
+      - button "Recette"
+      - status
+      - text: ""
+      - button "Production"
+      - status
     - term: Type de flux
     - definition: Applicatif
     - term: État
     - definition: Refus par défaut
     - term: Règle
     - definition: aucune à cette date
-    - term: Lue au
+    - term: Connu au
     - definition: /\d+-\d+-\d+ \d+:\d+/
     - paragraph: "Lecture au passé : la cellule se lit telle qu'elle était ; on ne l'écrit qu'au présent."
   - button "Largeur du panneau"
