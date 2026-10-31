@@ -1,0 +1,8 @@
+- main:
+  - region "KeyLabel":
+    - heading "KeyLabel" [level=1]
+    - paragraph: "Motif : Button (copier la clé) ; libellé, à défaut la clé"
+    - figure "plain — Texte seul (dans un contrôle, ou clé donnée ailleurs)":
+      - text: Centre de données nord
+      - code: plain
+      - text: ""

@@ -1,0 +1,11 @@
+- main:
+  - region "CodeBadge":
+    - heading "CodeBadge" [level=1]
+    - paragraph: "Motif : Button (copier), annonce role=status"
+    - 'figure "cut — Coupé par la largeur : entier dans la bulle, au survol et au focus"':
+      - button "Copier urn:kartenn:problem:precondition-failed":
+        - text: ""
+        - code: urn:kartenn:problem:precondition-failed
+      - status
+      - code: cut
+      - text: ""

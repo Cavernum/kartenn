@@ -1,0 +1,9 @@
+- main:
+  - region "ErrorState":
+    - heading "ErrorState" [level=1]
+    - paragraph: "Motif : role=alert, codes copiables"
+    - 'figure "network — Sans réponse de l''API : la phrase et Réessayer, aucun code inventé"':
+      - alert: Le serveur est injoignable.
+      - button "Réessayer"
+      - code: network
+      - text: ""

@@ -4,7 +4,7 @@
     - paragraph: "Motif : role=alert, codes copiables"
     - figure "retry — Phrase, code, identifiant de requête, Réessayer":
       - alert: Le service ne répond pas.
-      - button "Copier urn:kartenn:problem:unavailable":
+      - button "Copier type urn:kartenn:problem:unavailable":
         - text: ""
         - code: urn:kartenn:problem:unavailable
       - status
@@ -15,9 +15,47 @@
       - button "Réessayer"
       - code: retry
       - text: ""
+    - 'figure /precondition — Erreur \d+ : message, code et identifiant de requête copiables \(REQ-\d+-\d+\)/':
+      - alert: "Ce préfixe a changé depuis votre lecture : relisez-le avant de le modifier."
+      - button "Copier type urn:kartenn:problem:precondition-failed":
+        - text: ""
+        - code: urn:kartenn:problem:precondition-failed
+      - status
+      - button "Copier Request-Id req_7f3a9c2e5b1d4068":
+        - text: ""
+        - code: req_7f3a9c2e5b1d4068
+      - status
+      - button "Relire"
+      - code: precondition
+      - text: ""
+    - 'figure "violations — Violations : chaque message et son code"':
+      - alert: Le changeset est refusé.
+      - list:
+        - listitem:
+          - text: Le préfixe chevauche un voisin.
+          - button "Copier prefix.overlaps-sibling":
+            - text: ""
+            - code: prefix.overlaps-sibling
+          - status
+        - listitem:
+          - text: Le responsable est inconnu.
+          - button "Copier core.owner.unknown":
+            - text: ""
+            - code: core.owner.unknown
+          - status
+      - button "Copier type urn:kartenn:problem:changeset-refused":
+        - text: ""
+        - code: urn:kartenn:problem:changeset-refused
+      - status
+      - button "Copier Request-Id req_7f3a9c2e5b1d4068":
+        - text: ""
+        - code: req_7f3a9c2e5b1d4068
+      - status
+      - code: violations
+      - text: ""
     - figure "forbidden — Sans nouvelle tentative possible":
       - alert: Vous n'avez pas le droit de lire ce domaine.
-      - button "Copier urn:kartenn:problem:forbidden":
+      - button "Copier type urn:kartenn:problem:forbidden":
         - text: ""
         - code: urn:kartenn:problem:forbidden
       - status
@@ -26,4 +64,9 @@
         - code: req_7f3a9c2e5b1d4068
       - status
       - code: forbidden
+      - text: ""
+    - 'figure "network — Sans réponse de l''API : la phrase et Réessayer, aucun code inventé"':
+      - alert: Le serveur est injoignable.
+      - button "Réessayer"
+      - code: network
       - text: ""

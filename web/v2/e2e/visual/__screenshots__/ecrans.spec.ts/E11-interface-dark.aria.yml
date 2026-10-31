@@ -58,13 +58,17 @@
       - definition: Activée
       - term: Média
       - definition:
-        - text: SFP
-        - code: sfp
+        - button "SFP sfp":
+          - text: ""
+          - code: sfp
+        - status
         - button "Modifier le média"
       - term: Rôle
       - definition:
-        - text: Service
-        - code: service
+        - button "Service service":
+          - text: ""
+          - code: service
+        - status
         - button "Modifier le rôle"
       - term: VLAN
       - definition: /Accès · VLAN \d+/
@@ -74,10 +78,15 @@
         - list:
           - listitem:
             - code: /\d+\.\d+\.\d+\.\d+/
-            - text: /Principale Production Environnement héritée de \d+\.\d+\.2\.0\/\d+ · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
+            - text: Principale
+            - button "Production"
+            - status
+            - text: /Environnement héritée de \d+\.\d+\.2\.0\/\d+ · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
           - listitem:
             - code: /\d+\.\d+\.\d+\.\d+/
-            - text: /Production Environnement héritée de \d+\.\d+\.2\.0\/\d+ · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
+            - button "Production"
+            - status
+            - text: /Environnement héritée de \d+\.\d+\.2\.0\/\d+ · Sensibilité Interne héritée de \d+\.\d+\.2\.0\/\d+/
       - region "Flux de l'interface":
         - heading "Flux de l'interface" [level=3]
         - text: conformité à la matrice de flux du jour
@@ -87,36 +96,47 @@
             - text: par l'interface depuis
             - link /srv-web-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-web-02&iface=eth0&mode=dark
-            - text: API interne
-            - code: api
+            - button "API interne api":
+              - text: ""
+              - code: api
+            - status
             - text: Applicatif Conforme
           - listitem:
             - text: par l'interface depuis
             - link /\d+\.\d+\.\d+\.\d+\/\d+/:
               - /url: /_ui/ecrans/E2?mode=dark
-            - text: préfixe Web chiffré
-            - code: https
+            - text: préfixe
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
             - text: Applicatif Conforme
           - listitem:
             - text: par l'interface depuis
             - link /srv-rec-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-rec-03&iface=eth0&mode=dark
-            - text: Web chiffré
-            - code: https
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
             - text: Applicatif Sous réserve Demandé
           - listitem:
             - text: par l'interface depuis
             - link /srv-rec-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-rec-04&iface=eth0&mode=dark
-            - text: Web chiffré
-            - code: https
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
             - text: Applicatif Sous réserve Échu
           - listitem:
             - text: par l'interface depuis interface
             - code: /\d+\.\d+\.\d+\.\d+, \d+:db8::\d+/
             - button "Fiche non accessible"
-            - text: API interne
-            - code: api
+            - button "API interne api":
+              - text: ""
+              - code: api
+            - status
             - text: Applicatif Conforme
         - heading "Sortants 3" [level=4]
         - list "Sortants 3":
@@ -126,8 +146,10 @@
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-db-02&mode=dark
             - link /srv-db-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-db-02&iface=eth0&mode=dark
-            - text: PostgreSQL
-            - code: postgres
+            - button "PostgreSQL postgres":
+              - text: ""
+              - code: postgres
+            - status
             - text: Base de données Conforme
           - listitem:
             - text: par l'interface vers
@@ -135,14 +157,18 @@
               - /url: /_ui/ecrans/E11?vue=machine&machine=srv-sauv-01&mode=dark
             - link /srv-sauv-\d+ · eth0/:
               - /url: /_ui/ecrans/E11?vue=interface&machine=srv-sauv-01&iface=eth0&mode=dark
-            - text: Partage NFS
-            - code: nfs
+            - button "Partage NFS nfs":
+              - text: ""
+              - code: nfs
+            - status
             - text: Fichier Conforme
           - listitem:
             - text: par l'interface vers préfixe
             - code: /\d+\.\d+\.\d+\.\d+\/\d+/
             - button "Fiche non accessible"
-            - text: Web chiffré
-            - code: https
+            - button "Web chiffré https":
+              - text: ""
+              - code: https
+            - status
             - text: Applicatif Conforme
 - button "Ouvrir le panneau"

@@ -4,7 +4,7 @@
     - paragraph: "Motif : role=alert, codes copiables"
     - figure "forbidden — Sans nouvelle tentative possible":
       - alert: Vous n'avez pas le droit de lire ce domaine.
-      - button "Copier urn:kartenn:problem:forbidden":
+      - button "Copier type urn:kartenn:problem:forbidden":
         - text: ""
         - code: urn:kartenn:problem:forbidden
       - status

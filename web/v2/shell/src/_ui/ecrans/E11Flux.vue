@@ -1293,11 +1293,13 @@ const IFACE_HISTORY = [
         <template #cell="{ row, column, value }">
           <span v-if="!value && column.id !== 'verdict'" class="k-ecran-muted">—</span>
           <template v-else-if="column.id === 'object'">
+            <!-- Plain: Enter and a click on a row choose it (`activate`); the key is beside. -->
             <KeyLabel
               v-if="row.proposal.object?.kind === 'service'"
               :value="row.proposal.object.service"
               :label="SERVICES[row.proposal.object.service]!.label"
               show-key
+              plain
             />
             <span v-else class="k-e11-port"
               ><code>{{ row.proposal.object?.value }}</code

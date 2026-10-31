@@ -51,7 +51,9 @@
             - code: changeset.approval.self
           - status
     - term: Nature
-    - definition: Avec approbation
+    - definition:
+      - button "Avec approbation"
+      - status
     - term: Auteur
     - definition: Lou Bernard
     - term: Soumis

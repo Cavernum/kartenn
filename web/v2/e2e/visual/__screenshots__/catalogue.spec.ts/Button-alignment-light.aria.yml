@@ -11,7 +11,9 @@
       - text: Usage sm
       - combobox "Usage sm": Hôte
       - button "Actions sm"
-      - text: Production Conforme
+      - button "Production"
+      - status
+      - text: Conforme
       - button "Appliquer"
       - button "Ajouter"
       - text: Recherche md
@@ -20,7 +22,9 @@
       - text: Usage md
       - combobox "Usage md": Hôte
       - button "Actions md"
-      - text: Production Conforme
+      - button "Production"
+      - status
+      - text: Conforme
       - button "Appliquer"
       - button "Ajouter"
       - text: Recherche lg
@@ -29,6 +33,8 @@
       - text: Usage lg
       - combobox "Usage lg": Hôte
       - button "Actions lg"
-      - text: Production Conforme
+      - button "Production"
+      - status
+      - text: Conforme
       - code: alignment
       - text: ""

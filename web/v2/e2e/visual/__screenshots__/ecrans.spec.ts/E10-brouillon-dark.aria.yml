@@ -108,7 +108,12 @@
       - text: 2 cellules
       - list:
         - listitem:
-          - text: De Recette vers Production
+          - text: De
+          - button "Recette"
+          - status
+          - text: vers
+          - button "Production"
+          - status
           - button "Retirer la cellule Recette → Production de la matrice Applicatif"
           - term: Type de flux
           - definition: Applicatif
@@ -128,7 +133,12 @@
           - definition:
             - insertion: "ajouté : Lecture des API de production depuis la recette"
         - listitem:
-          - text: De Intégration vers Préproduction
+          - text: De
+          - button "Intégration"
+          - status
+          - text: vers
+          - button "Préproduction"
+          - status
           - button "Retirer la cellule Intégration → Préproduction de la matrice Administratif"
           - term: Type de flux
           - definition: Administratif
@@ -156,7 +166,7 @@
       - term: Conformes de nouveau
       - definition: "0"
       - status:
-        - paragraph: /\d+ flux deviennent non conformes à la matrice de leur type/
+        - paragraph: "/Avertissement : \\d+ flux deviennent non conformes à la matrice de leur type/"
         - text: Ils étaient conformes avant ce brouillon. Seuls les types de flux dont il change la matrice sont touchés ; la règle qui refuse chaque flux est dans sa liste.
       - region "Applicatif":
         - heading "Applicatif" [level=3]

@@ -1,0 +1,8 @@
+- main:
+  - region "EnvChip":
+    - heading "EnvChip" [level=1]
+    - paragraph: "Motif : Button (copier la clé) ; pastille et libellé"
+    - figure "plain — Texte seul (dans un contrôle)":
+      - text: Production
+      - code: plain
+      - text: ""
