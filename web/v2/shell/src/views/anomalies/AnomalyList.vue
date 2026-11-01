@@ -7,6 +7,7 @@ import { useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSettings } from "../../frame/settings.ts";
 import { useViewAction } from "../../shortcuts/view.ts";
+import NextPageAlert from "../../problems/NextPageAlert.vue";
 import ProblemState from "../../problems/ProblemState.vue";
 import { useFilteredList } from "../list.ts";
 import AnomalyGrid from "./AnomalyGrid.vue";
@@ -14,9 +15,8 @@ import type { Anomaly } from "./anomaly.ts";
 
 const { t } = useI18n();
 const settings = useSettings();
-const { model, filters, onFilters, list, rows, failed, onWindow } = useFilteredList<Anomaly>(
-  () => "/v1/anomalies",
-);
+const { model, filters, onFilters, list, rows, failed, nextFailed, onWindow } =
+  useFilteredList<Anomaly>(() => "/v1/anomalies");
 const picker = useTemplateRef<InstanceType<typeof FilterPicker>>("picker");
 useViewAction("filter", {
   label: () => t("views.list.filterAction", { name: t("nav.anomalies") }),
@@ -34,6 +34,7 @@ useViewAction("filter", {
       :shortcut="settings.singleKeys.value ? ['/'] : undefined"
       @update:model-value="onFilters"
     />
+    <NextPageAlert v-if="nextFailed" :error="list.error.value" :retry="list.fetchNextPage" />
     <ProblemState
       v-if="failed"
       :title="t('views.anomalies.error')"

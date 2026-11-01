@@ -12,6 +12,7 @@ import KLink from "../../prefetch/KLink.vue";
 import { useNextPage, type ListWindow } from "../../prefetch/nextPage.ts";
 import { useTime } from "../../time/index.ts";
 import { nameOf, type Item } from "../collections.ts";
+import NextPageAlert from "../../problems/NextPageAlert.vue";
 import ProblemState from "../../problems/ProblemState.vue";
 import { rowsOf } from "../data.ts";
 
@@ -60,6 +61,11 @@ const columns = computed<GridColumn[]>(() => [
 </script>
 
 <template>
+  <NextPageAlert
+    v-if="history.isFetchNextPageError.value"
+    :error="history.error.value"
+    :retry="history.fetchNextPage"
+  />
   <ProblemState
     v-if="history.isError.value && !history.isFetchNextPageError.value"
     :title="t('views.record.historyError')"

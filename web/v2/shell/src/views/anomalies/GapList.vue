@@ -7,6 +7,7 @@ import { computed, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSettings } from "../../frame/settings.ts";
 import { useViewAction } from "../../shortcuts/view.ts";
+import NextPageAlert from "../../problems/NextPageAlert.vue";
 import ProblemState from "../../problems/ProblemState.vue";
 import { useKeyLabel } from "../data.ts";
 import { useFilteredList } from "../list.ts";
@@ -17,9 +18,8 @@ type Gap = components["schemas"]["Gap"];
 const { t, locale } = useI18n();
 const settings = useSettings();
 const keyLabel = useKeyLabel();
-const { model, filters, onFilters, list, rows, failed, onWindow } = useFilteredList<Gap>(
-  () => "/v1/property-gaps",
-);
+const { model, filters, onFilters, list, rows, failed, nextFailed, onWindow } =
+  useFilteredList<Gap>(() => "/v1/property-gaps");
 const picker = useTemplateRef<InstanceType<typeof FilterPicker>>("picker");
 useViewAction("filter", {
   label: () => t("views.list.filterAction", { name: t("views.anomalies.gaps") }),
@@ -48,6 +48,7 @@ const gapOf = (row: Record<string, unknown>) => row as unknown as Gap;
       :shortcut="settings.singleKeys.value ? ['/'] : undefined"
       @update:model-value="onFilters"
     />
+    <NextPageAlert v-if="nextFailed" :error="list.error.value" :retry="list.fetchNextPage" />
     <ProblemState
       v-if="failed"
       :title="t('views.anomalies.gapsError')"

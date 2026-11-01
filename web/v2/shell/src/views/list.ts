@@ -35,6 +35,8 @@ export interface FilteredList<T> {
   rows: ComputedRef<T[]>;
   /** The list failed (not its next page, which only stops the prefetch). */
   failed: ComputedRef<boolean>;
+  /** A next page refused but for its cursor: the rows kept, the refusal said above them. */
+  nextFailed: ComputedRef<boolean>;
   /** Every page is read. */
   complete: ComputedRef<boolean>;
   /** Property filters of the URL left untyped: the list is not read (an error state). */
@@ -181,6 +183,9 @@ export function useFilteredList<T>(path: () => ListPath): FilteredList<T> {
     list: list as UseInfiniteQueryResult<unknown>,
     rows,
     failed: computed(() => list.isError.value && !list.isFetchNextPageError.value),
+    nextFailed: computed(
+      () => list.isFetchNextPageError.value && problemSlug(list.error.value) !== "invalid-cursor",
+    ),
     complete: computed(() => !list.hasNextPage.value && list.isSuccess.value),
     blocked,
     declarationsError: declared.error,

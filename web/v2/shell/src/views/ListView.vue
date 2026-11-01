@@ -44,6 +44,7 @@ import {
   type CollectionColumn,
   type Item,
 } from "./collections.ts";
+import NextPageAlert from "../problems/NextPageAlert.vue";
 import ProblemState from "../problems/ProblemState.vue";
 import { useProblems } from "../problems/index.ts";
 import { useFilteredList } from "./list.ts";
@@ -64,6 +65,7 @@ const {
   list,
   rows,
   failed,
+  nextFailed,
   complete,
   blocked,
   declarationsError,
@@ -234,6 +236,7 @@ function clearFilters(): void {
         @update:model-value="onFilters"
       />
     </template>
+    <NextPageAlert v-if="nextFailed" :error="list.error.value" :retry="list.fetchNextPage" />
     <!-- A property filter of the URL that no declaration types: no list read without it. -->
     <ProblemState
       v-if="blocked?.reason === 'failed'"

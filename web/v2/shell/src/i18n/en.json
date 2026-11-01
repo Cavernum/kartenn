@@ -162,7 +162,7 @@
     "endingFixed": "It reaches its longest lifetime: finish what you are typing, then log in again.",
     "stay": "Stay logged in",
     "stayFailed": "The session could not be extended.",
-    "stayFailedText": "The server did not answer; you stay logged in until the end said.",
+    "stayFailedText": "{why} You stay logged in until the end said.",
     "retry": "Retry"
   },
   "about": {
@@ -199,7 +199,7 @@
     }
   },
   "time": {
-    "refused": "kartenn refuses this date: {reason}",
+    "refused": "Date refused by kartenn. {why}",
     "asOfLater": "A date later than the time of kartenn: it has asserted nothing yet at that instant."
   }
 }

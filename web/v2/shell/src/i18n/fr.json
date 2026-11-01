@@ -162,7 +162,7 @@
     "endingFixed": "Elle atteint sa durée maximale : terminez votre saisie, puis reconnectez-vous.",
     "stay": "Rester connecté",
     "stayFailed": "La session n'a pas pu être prolongée.",
-    "stayFailedText": "Le serveur n'a pas répondu ; vous restez connecté jusqu'à l'échéance dite.",
+    "stayFailedText": "{why} Vous restez connecté jusqu'à l'échéance dite.",
     "retry": "Réessayer"
   },
   "about": {
@@ -199,7 +199,7 @@
     }
   },
   "time": {
-    "refused": "kartenn refuse cette date : {reason}",
+    "refused": "Date refusée par kartenn. {why}",
     "asOfLater": "Date postérieure à l'heure de kartenn : il n'a encore rien affirmé à cet instant."
   }
 }

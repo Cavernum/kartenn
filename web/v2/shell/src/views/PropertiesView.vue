@@ -56,6 +56,11 @@ const words = (group: string, value: string) => {
   const key = `views.properties.${group}.${value}`;
   return te(key) ? t(key) : value;
 };
+/** The words of a type, `null` for a type the catalogs lack: its key alone, then. */
+const typeWords = (type: string) => {
+  const said = words("types", type);
+  return said === type ? null : said;
+};
 const carriers = (row: Row) =>
   row.carriers.length === 0
     ? t("views.properties.everyKind")
@@ -101,9 +106,12 @@ const gaps = (key: string) =>
           :label="keyLabel('property', (row as Row).key)"
           show-key
         />
-        <template v-else-if="column.id === 'type'">{{
-          words("types", (row as Row).type)
-        }}</template>
+        <!-- The type in words (mock-up E13), its key at hand as in the key column. -->
+        <KeyLabel
+          v-else-if="column.id === 'type'"
+          :value="(row as Row).type"
+          :label="typeWords((row as Row).type)"
+        />
         <template v-else-if="column.id === 'cardinality'">{{
           words("cardinality", String((row as Row).cardinality ?? ""))
         }}</template>

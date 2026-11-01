@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { ApiProblem, queryClient } from "@kartenn/sdk";
+import { ApiProblem, NetworkError, queryClient } from "@kartenn/sdk";
 import { resetContext, setFetch } from "@kartenn/sdk/host";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, h, type App } from "vue";
@@ -68,8 +68,33 @@ describe("the words of a problem", () => {
     expect(words.sentence(problem("about:blank", { title: "" }))).toBe(
       "La requête n'a pas abouti.",
     );
-    expect(words.sentence(new TypeError("Failed to fetch"))).toBe(
+    // No answer is the network's; a bug of the client is never said to be.
+    expect(words.sentence(new NetworkError(new TypeError("Failed to fetch")))).toBe(
       "Le serveur n'a pas pu être joint.",
+    );
+    expect(words.sentence(new TypeError("x is undefined"))).toBe(
+      "Une erreur de l'interface a interrompu l'affichage ; rechargez la page.",
+    );
+  });
+
+  it("the space problem as the server serves it: its sentence shown as it is", async () => {
+    // The labels of `ProblemKind::labels()` (kartenn-rest, problem.rs): a sentence and its
+    // stop, in the language asked.
+    serve({
+      forbidden: "Vous n'avez pas le droit de faire cela.",
+      "precondition-failed": "L'objet a changé depuis votre lecture.",
+      "draft-limit": "Vous avez atteint le nombre maximal de brouillons.",
+    });
+    let words!: ReturnType<typeof useProblems>;
+    mount(() => {
+      words = useProblems();
+      return () => h("div");
+    });
+    await expect
+      .poll(() => words.sentence(problem("urn:kartenn:problem:draft-limit")))
+      .toBe("Vous avez atteint le nombre maximal de brouillons.");
+    expect(words.sentence(problem("urn:kartenn:problem:precondition-failed"))).toBe(
+      "L'objet a changé depuis votre lecture.",
     );
   });
 
@@ -123,6 +148,41 @@ describe("the renderings of a problem", () => {
     expect(copy).toContain("Copier Request-Id req-1");
     [...root.querySelectorAll("button")].find((b) => b.textContent?.includes("Réessayer"))!.click();
     expect(retried).toBe(1);
+    // In the alert, said with the title: why, then what to do with the codes.
+    const alert = root.querySelector("[role='alert']")!;
+    expect(alert.textContent).toContain("Vous n'avez pas le droit de faire cela.");
+    expect(alert.textContent).toContain("Si l'erreur persiste, transmettez ces codes.");
+  });
+
+  it("an error state says its why once: the dictionary arriving never rewrites it", async () => {
+    const seen = serve({ forbidden: "Libellé du dictionnaire." });
+    const root = mount(
+      () => () =>
+        h(ProblemState, {
+          title: "La liste n'a pas pu être lue.",
+          error: problem("urn:kartenn:problem:forbidden", { status: 403 }),
+        }),
+    );
+    const said = () => root.querySelector("[role='alert']")!.textContent;
+    const first = said();
+    expect(first).toContain("Vous n'avez pas le droit de faire cela.");
+    await expect.poll(() => seen.length).toBe(1);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(said()).toBe(first);
+  });
+
+  it("no answer: the network said, no code to pass on", () => {
+    serve({});
+    const root = mount(
+      () => () =>
+        h(ProblemState, {
+          title: "La liste n'a pas pu être lue.",
+          error: new NetworkError(new TypeError("Failed to fetch")),
+        }),
+    );
+    expect(root.textContent).toContain("Le serveur n'a pas pu être joint.");
+    expect(root.textContent).not.toContain("transmettez ces codes");
+    expect(root.querySelector(".k-code-badge")).toBeNull();
   });
 
   it("a 422 refused: each violation with its rule, the type and the Request-Id, copyable", () => {

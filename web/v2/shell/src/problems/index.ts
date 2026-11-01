@@ -1,4 +1,4 @@
-import { ApiProblem } from "@kartenn/sdk";
+import { ApiProblem, NetworkError } from "@kartenn/sdk";
 import type { ProblemFacts } from "@kartenn/ui";
 import { useI18n } from "vue-i18n";
 import { useLabel } from "../data/query.ts";
@@ -34,7 +34,19 @@ export function problemCode(error: unknown): string | undefined {
   return error instanceof ApiProblem && error.type !== "about:blank" ? error.type : undefined;
 }
 
-/** A sentence ends with its stop: the labels of the dictionary come without one. */
+/** The codes of a problem as a `Toast` takes them: its `type` and its `Request-Id`. */
+export function toastCodes(error: unknown): { code?: string; requestId?: string } {
+  const code = problemCode(error);
+  const id = error instanceof ApiProblem ? error.requestId : null;
+  return { ...(code ? { code } : {}), ...(id ? { requestId: id } : {}) };
+}
+
+/** Whether an error has a code to pass on: a `type` other than `about:blank`, a request. */
+export function hasCodes(error: unknown): boolean {
+  return problemCode(error) !== undefined || (error instanceof ApiProblem && !!error.requestId);
+}
+
+/** A sentence ends with its stop, whatever the label it comes from. */
 const ended = (text: string) => (/[.!?…]$/.test(text) ? text : `${text}.`);
 
 /**
@@ -49,9 +61,16 @@ export function useProblems(options: { dictionary?: boolean } = {}) {
           te(`labels.${space}.${key}`) ? t(`labels.${space}.${key}`) : key
       : useLabel();
 
-  /** What happened, in plain words; the server unreached when there is no answer. */
+  /**
+   * What happened, in plain words: the problem of an answer; no answer, the server
+   * unreached (`NetworkError`, or nothing known: a write that never left); anything else is
+   * a bug of the client, never said to be the network's.
+   */
   function sentence(error: unknown): string {
-    if (!(error instanceof ApiProblem)) return t("problem.network");
+    if (error instanceof NetworkError || error === null || error === undefined) {
+      return t("problem.network");
+    }
+    if (!(error instanceof ApiProblem)) return t("problem.client");
     const slug = problemSlug(error);
     const said = slug === null ? null : label("problem", slug);
     if (said !== null && said !== slug) return ended(said);

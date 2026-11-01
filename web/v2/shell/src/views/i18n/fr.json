@@ -45,6 +45,9 @@
   "problem": {
     "network": "Le serveur n'a pas pu être joint.",
     "failed": "La requête n'a pas abouti.",
+    "client": "Une erreur de l'interface a interrompu l'affichage ; rechargez la page.",
+    "passOn": "Si l'erreur persiste, transmettez ces codes.",
+    "nextPage": "La suite de la liste n'a pas pu être lue",
     "code": "Code du problème",
     "requestId": "Request-Id"
   },
@@ -53,7 +56,7 @@
     "cancel": "Annuler",
     "retry": "Réessayer",
     "loading": "Chargement",
-    "errorText": "Le reste de l'écran reste utilisable. Si l'erreur persiste, transmettez ces codes.",
+    "errorText": "Le reste de l'écran reste utilisable.",
     "field": {
       "id": "Identifiant",
       "slug": "Clé",

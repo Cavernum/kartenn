@@ -20,6 +20,7 @@ import KLink from "../../prefetch/KLink.vue";
 import { useNextPage, type ListWindow } from "../../prefetch/nextPage.ts";
 import { useTime } from "../../time/index.ts";
 import { pageOfHref, pageOfObject } from "../collections.ts";
+import NextPageAlert from "../../problems/NextPageAlert.vue";
 import ProblemState from "../../problems/ProblemState.vue";
 import { rowsOf, useKeyLabel } from "../data.ts";
 
@@ -79,6 +80,11 @@ const detailWords = (row: Row) => {
 </script>
 
 <template>
+  <NextPageAlert
+    v-if="content.isFetchNextPageError.value"
+    :error="content.error.value"
+    :retry="content.fetchNextPage"
+  />
   <ProblemState
     v-if="content.isError.value && !content.isFetchNextPageError.value"
     :title="t('views.record.contentError')"

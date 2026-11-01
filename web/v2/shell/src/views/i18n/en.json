@@ -45,6 +45,9 @@
   "problem": {
     "network": "The server could not be reached.",
     "failed": "The request did not go through.",
+    "client": "An error of the interface stopped the display; reload the page.",
+    "passOn": "If the error persists, pass these codes on.",
+    "nextPage": "The rest of the list could not be read",
     "code": "Code of the problem",
     "requestId": "Request-Id"
   },
@@ -53,7 +56,7 @@
     "cancel": "Cancel",
     "retry": "Retry",
     "loading": "Loading",
-    "errorText": "The rest of the screen stays usable. If the error persists, pass these codes on.",
+    "errorText": "The rest of the screen stays usable.",
     "field": {
       "id": "Identifier",
       "slug": "Key",
