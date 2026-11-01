@@ -89,9 +89,20 @@ export interface MoveModel {
   ancestors(id: string): readonly string[];
 }
 
-/** How a move ended: in the draft, applied, held, or refused at its place. */
+/**
+ * How a move ended: in the draft — its simulation holding it (`valid`), refusing it
+ * (`refused`: the operation kept in the draft, marked, until a new move of the node
+ * replaces it) or not done (`unknown`, the problem given) —, applied, held, or refused at
+ * its place.
+ */
 export type MoveOutcome =
-  | { kind: "drafted"; draft: Draft; valid: boolean }
+  | {
+      kind: "drafted";
+      draft: Draft;
+      verdict: "valid" | "refused" | "unknown";
+      /** Why the simulation could not be done (`unknown`): the network, a problem. */
+      failure?: Extract<WriteOutcome<unknown>, { kind: "failed" }>;
+    }
   | WriteOutcome<unknown>
   | { kind: "unchanged" }
   | { kind: "refused"; check: Refused };
@@ -102,14 +113,28 @@ export type Refused = Extract<MoveCheck, { ok: false }>;
 /** A node that does not move, or a target of no admitted type. */
 const INCOMPATIBLE = { ok: false, refusal: "incompatible" } as const;
 
-/** The violation of a simulation that refuses the operation `index` of node `id`. */
+/**
+ * The violation of a simulation that refuses the operation `index`: one of that operation
+ * (its index, or its pointer `/operations/<index>`), else a rule of the final state
+ * (`operation` null) about the node; never one of another operation of the draft.
+ */
 function violationOf(simulated: Simulated, index: number, id: string): Violation | undefined {
   const errors = simulated.violations.filter((v) => v.severity === "error");
+  const own = (v: Violation) =>
+    v.operation === index ||
+    v.pointer === `/operations/${index}` ||
+    (v.pointer ?? "").startsWith(`/operations/${index}/`);
   return (
-    errors.find((v) => v.operation === index) ??
-    errors.find((v) => v.subjects.includes(id)) ??
-    errors[0]
+    errors.find(own) ??
+    errors.find((v) => v.operation == null && v.pointer == null && v.subjects.includes(id))
   );
+}
+
+/** Whether `operation` is a change of parent of the node `id` (as `OPERATIONS` writes it). */
+function movesNode(operation: Operation, op: Operation, id: string): boolean {
+  const o = operation as Record<string, unknown>;
+  const target = (o.id as { id?: unknown } | undefined)?.id;
+  return o.op === op.op && target === id && ("parent" in o || "anchor" in o);
 }
 
 export function useMoves(model: MoveModel) {
@@ -154,9 +179,12 @@ export function useMoves(model: MoveModel) {
     return states.get(node.id);
   }
 
-  /** The version the operation expects: the host's, else the object read by identifier. */
+  /**
+   * The version the operation expects: the host's, else (none, or `null`) the object read by
+   * identifier; `null` when it cannot be read — the move is then not sent.
+   */
   async function versionOf(node: MoveNode): Promise<string | null> {
-    if (node.version !== undefined) return node.version;
+    if (node.version) return node.version;
     const entry = await queryClient
       .fetchQuery(reads.object<{ version?: string }>(node.type, node.id))
       .catch(() => undefined);
@@ -195,17 +223,22 @@ export function useMoves(model: MoveModel) {
     options: { now?: boolean; motive?: string; idempotencyKey?: string } = {},
   ): Promise<MoveOutcome> {
     const { node, target } = intent;
+    // A second intent while one is in flight: ignored, whatever the target.
+    if (states.get(node.id) === "pending") return { kind: "unchanged" };
     const subject = model.subject(node);
     const to = target ? model.subject(target) : null;
     const verdict = canMove(node, target);
     if (!verdict.ok) return refuse(node.id, verdict);
-    if (!subject || states.get(node.id) === "pending") return { kind: "unchanged" };
+    if (!subject) return { kind: "unchanged" };
     if ((subject.parent ?? null) === (to?.id ?? null)) return { kind: "unchanged" };
     const operation = OPERATIONS.get(subject.type);
     if (!operation) return refuse(node.id, refusedFor(INCOMPATIBLE, target));
     states.set(node.id, "pending");
     drafted.delete(node.id);
-    const op = operation(subject, await versionOf(subject), to ?? null);
+    const expected = await versionOf(subject);
+    // Never sent without the version it was read at (`expected`): said instead.
+    if (expected === null) return refuse(node.id, { ok: false, reason: t("edit.move.noVersion") });
+    const op = operation(subject, expected, to ?? null);
     if (options.now) {
       const outcome = await changesets.submit(
         { motive: options.motive ?? "", operations: [op] },
@@ -221,30 +254,56 @@ export function useMoves(model: MoveModel) {
       refuse(node.id, refusalOf(outcome));
       return outcome;
     }
-    const added = await draft.add(op);
+    // A node moved already in the active draft: its operation replaced, never doubled.
+    const active = drafts.active();
+    const current = active
+      ? ((await queryClient.fetchQuery(drafts.get(active)).catch(() => undefined)) as
+          Entry<Draft> | undefined)
+      : undefined;
+    const operations = current?.data.operations ?? [];
+    const earlier = operations.findIndex((o) => movesNode(o, op, subject.id));
+    const added =
+      earlier >= 0
+        ? await drafts.update(current!.data.id, {
+            operations: operations.map((o, i) => (i === earlier ? op : o)),
+          })
+        : await draft.add(op);
     if (added.kind !== "saved") {
-      refuse(node.id, refusalOf(added));
+      refuse(
+        node.id,
+        refusalOf(added as Exclude<WriteOutcome<unknown>, { kind: "applied" | "proposed" }>),
+      );
       return added as WriteOutcome<unknown>;
     }
+    const index = earlier >= 0 ? earlier : (added.draft.operations?.length ?? 1) - 1;
     // In the draft: its simulation says whether the move holds; the node stays at its place,
-    // marked as moved in the draft, the preview of the draft showing the new place.
+    // marked as moved in the draft. Refused, the operation stays in the draft, the node
+    // marked refused with the rule; a new move of the node replaces it.
     const simulated = await queryClient
       .fetchQuery(drafts.simulate(added.draft))
-      .catch(() => undefined);
-    if (!simulated) {
+      .then((answer) => ({ answer }))
+      .catch((error: unknown) => ({ error }));
+    if ("error" in simulated) {
       states.delete(node.id);
       drafted.add(node.id);
-      return { kind: "drafted", draft: added.draft, valid: true };
+      const problem = simulated.error instanceof ApiProblem ? simulated.error : null;
+      return {
+        kind: "drafted",
+        draft: added.draft,
+        verdict: "unknown",
+        failure: { kind: "failed", input: op, problem },
+      };
     }
-    const index = (added.draft.operations?.length ?? 1) - 1;
-    const refused = simulated.valid ? undefined : violationOf(simulated, index, node.id);
+    const refused = simulated.answer.valid
+      ? undefined
+      : violationOf(simulated.answer, index, node.id);
     if (refused) {
       refuse(node.id, { ok: false, reason: refused.detail, code: refused.rule });
-      return { kind: "drafted", draft: added.draft, valid: false };
+      return { kind: "drafted", draft: added.draft, verdict: "refused" };
     }
     states.delete(node.id);
     drafted.add(node.id);
-    return { kind: "drafted", draft: added.draft, valid: true };
+    return { kind: "drafted", draft: added.draft, verdict: "valid" };
   }
 
   /** Forgets the state of a node (its tree read again, the user moved on). */

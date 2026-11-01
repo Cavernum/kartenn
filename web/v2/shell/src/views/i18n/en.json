@@ -274,7 +274,11 @@
       "incompatible": "Target refused: {target} cannot be its parent.",
       "forbidden": "Right missing: it takes {permission}.",
       "dated": "Dated read: go back to the present to change parent.",
-      "root": "the root"
+      "root": "the root",
+      "choose": "Choose a target from the list: only the valid targets are in it.",
+      "noVersion": "Nothing sent: the version of the object could not be read. Try again.",
+      "unsimulated": "Added to the draft: {what}. Its simulation could not be done.",
+      "keptRefused": "Added to the draft: {what}. The simulation refuses it; the operation stays in the draft, another target chosen here replaces it."
     }
   }
 }

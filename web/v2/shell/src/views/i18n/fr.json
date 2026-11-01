@@ -274,7 +274,11 @@
       "incompatible": "Cible refusée : {target} ne peut pas en être le parent.",
       "forbidden": "Droit manquant : il faut {permission}.",
       "dated": "Lecture datée : revenez au présent pour changer de parent.",
-      "root": "la racine"
+      "root": "la racine",
+      "choose": "Choisissez une cible de la liste : seules les cibles valides y sont.",
+      "noVersion": "Rien n'est envoyé : la version de l'objet n'a pas pu être lue. Réessayez.",
+      "unsimulated": "Ajouté au brouillon : {what}. Sa simulation n'a pas pu être faite.",
+      "keptRefused": "Ajouté au brouillon : {what}. La simulation le refuse ; l'opération reste au brouillon, une autre cible choisie ici la remplace."
     }
   }
 }

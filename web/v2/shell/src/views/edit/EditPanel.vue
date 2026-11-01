@@ -26,6 +26,8 @@ import {
   Button,
   Checkbox,
   Cluster,
+  Combobox,
+  filterOptions,
   ErrorState,
   Select,
   Skeleton,
@@ -149,6 +151,15 @@ function optionsOf(field: EditField): ListOption[] {
     : [{ value: NONE, label: t("edit.none") }, ...options];
 }
 
+// « Changer de parent… »: a `Combobox` of the valid targets only (REQ-021-32), filtered by
+// the text typed; the target taken, or « Aucun » for a root, is the field's value.
+const moveText = ref("");
+const moveValue = ref<string | undefined>(undefined);
+const suggestTargets = async (query: string) => filterOptions(optionsOf(fields.value[0]!), query);
+watch(moveValue, (value) => {
+  if (moving.value && value !== undefined) setValue("parent", fromSelect(value));
+});
+
 // « Changer de parent… »: the node moved, its parent read, and the ancestors of each target
 // as the pages read show them (a cycle beyond them is the server's to refuse).
 const parentIds = computed(() => {
@@ -188,6 +199,12 @@ function fill(): void {
   values.value = { ...start };
   before.value = { ...start };
   version.value = typeof item.value?.version === "string" ? item.value.version : null;
+  if (moving.value) {
+    // The parent read, by its slug (the summary of the record), or « Aucun ».
+    const parent = item.value?.parent as { slug?: string | null } | null | undefined;
+    moveValue.value = start.parent ? String(start.parent) : NONE;
+    moveText.value = parent ? (parent.slug ?? String(start.parent)) : t("edit.none");
+  }
   filled.value = true;
 }
 let filledFor = "";
@@ -432,6 +449,12 @@ async function run(id: string = action.value): Promise<void> {
  * or the server, may still refuse it: the reason and its code on the field.
  */
 async function moveTo(parent: string, now: boolean, what: string): Promise<void> {
+  // A text typed and no target taken from the list: nothing is guessed.
+  if (moveValue.value === undefined) {
+    errors.value = { parent: t("edit.move.choose") };
+    void toFirstError();
+    return;
+  }
   if (parent === (before.value.parent ?? "")) {
     notice.value = t("edit.unchanged");
     return;
@@ -453,12 +476,17 @@ async function moveTo(parent: string, now: boolean, what: string): Promise<void>
   } else if (outcome.kind === "refused") refused(outcome.check);
   else if (outcome.kind === "drafted") {
     const state = moves.moveState(movedNode.value);
-    if (outcome.valid || typeof state !== "object" || state.refused.ok) {
+    if (outcome.verdict === "unknown") {
+      // In the draft, its simulation not done: the problem said, the panel kept.
+      busy.value = false;
+      notice.value = t("edit.move.unsimulated", { what });
+      refusal.value = outcome.failure ?? null;
+    } else if (outcome.verdict === "valid" || typeof state !== "object" || state.refused.ok) {
       settle({ kind: "saved" }, what);
     } else {
-      // In the draft, but its simulation refuses it: said here, the operation left in the
-      // draft for the user to take out.
-      say.status(t("edit.drafted", { what }));
+      // In the draft, but its simulation refuses it: its operation kept there, marked
+      // refused; another target chosen here replaces it.
+      notice.value = t("edit.move.keptRefused", { what });
       refused(state.refused);
     }
   } else settle(outcome, what);
@@ -536,6 +564,16 @@ watch(
           :model-value="values[field.name] === true"
           :label="labelOf(field)"
           @update:model-value="setValue(field.name, $event === true)"
+        />
+        <Combobox
+          v-else-if="moving && field.kind === 'reference'"
+          v-model="moveText"
+          v-model:value="moveValue"
+          class="k-edit-panel__field"
+          :label="labelOf(field)"
+          :suggest="suggestTargets"
+          :error="errors[field.name]"
+          mono
         />
         <Select
           v-else-if="field.kind === 'choice' || field.kind === 'reference'"

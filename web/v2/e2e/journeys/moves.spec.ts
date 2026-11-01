@@ -329,15 +329,27 @@ test.describe("a slowed answer", () => {
     const form = page.getByRole("form", { name: `Changer de parent : Entité ${slug}-a` });
     const parent = form.getByRole("combobox", { name: /^Parent/ });
     await expect(parent).toBeFocused();
-    await expect(parent).toContainText("Aucun");
+    await expect(parent).toHaveValue("Aucun");
     await expectAccessible(page);
-    await page.keyboard.press("Enter");
-    // Neither itself nor its child b (a cycle): only the valid targets, a root among them.
+    // Typed: the valid targets that match, neither itself nor its child b (a cycle).
+    await page.keyboard.press("Control+a");
+    await page.keyboard.type(slug);
     await expect(page.getByRole("option", { name: `${slug}-c` })).toBeVisible();
-    await expect(page.getByRole("option", { name: "Aucun" })).toBeVisible();
     await expect(page.getByRole("option", { name: `${slug}-a`, exact: true })).toHaveCount(0);
     await expect(page.getByRole("option", { name: `${slug}-b` })).toHaveCount(0);
-    await page.getByRole("option", { name: `${slug}-c` }).click();
+    // A root among them.
+    await page.keyboard.press("Control+a");
+    await page.keyboard.type("Auc");
+    await expect(page.getByRole("option", { name: "Aucun" })).toBeVisible();
+    await page.keyboard.press("Control+a");
+    await page.keyboard.type(`${slug}-c`);
+    const only = page.getByRole("option", { name: `${slug}-c` });
+    await expect(only).toBeVisible();
+    await page.keyboard.press("ArrowDown");
+    // The highlighted suggestion is the field's `aria-activedescendant`.
+    await expect(parent).toHaveAttribute("aria-activedescendant", (await only.getAttribute("id"))!);
+    await page.keyboard.press("Enter");
+    await expect(parent).toHaveValue(`${slug}-c`);
 
     // Applied now, its answer slowed: the record keeps its parent until it is read again.
     let release!: () => void;

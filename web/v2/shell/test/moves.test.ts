@@ -8,6 +8,7 @@ import { createMemoryHistory, createRouter, RouterView } from "vue-router";
 import { createShellI18n } from "../src/i18n/index.ts";
 import { loadSession, type Me } from "../src/rights/index.ts";
 import { useMoves, type Moves } from "../src/views/edit/moves.ts";
+import { nodesOf } from "../src/views/topology.ts";
 
 // The moves of the shell in a tree whose parent is declared (task 021-24; REQ-021-32, 33):
 // `canMove` in words, with the code of the server rule; a move to the draft, marked at its
@@ -20,6 +21,9 @@ const ID = (n: number) => `0b5e3c1a-0000-4000-8000-00000000000${n}`;
 const PARENT: Record<string, string> = { [ID(2)]: ID(1), [ID(3)]: ID(1), [ID(4)]: ID(3) };
 const node = (n: number): TreeNode => ({ id: ID(n), label: `e${n}` });
 const D1 = "0b5e3c1a-0000-4000-8000-0000000000d1";
+/** A node the host does not move; a node whose version the host did not read. */
+const FIXED = ID(7);
+const UNREAD = ID(8);
 const C1 = "0b5e3c1a-0000-4000-8000-0000000000c1";
 
 interface Seen {
@@ -97,12 +101,16 @@ describe("moves in a tree whose parent is declared", () => {
     const Host = defineComponent({
       setup() {
         moves = useMoves({
-          subject: (n) => ({
-            id: n.id,
-            type: "core.entity",
-            version: `v${n.id.at(-1)}`,
-            parent: PARENT[n.id] ?? null,
-          }),
+          // A node of the tree is an entity; `fixed` does not move (the host says so).
+          subject: (n) =>
+            n.id === FIXED
+              ? undefined
+              : {
+                  id: n.id,
+                  type: "core.entity",
+                  version: n.id === UNREAD ? null : `v${n.id.at(-1)}`,
+                  parent: PARENT[n.id] ?? null,
+                },
           ancestors(id) {
             const up: string[] = [];
             for (let at = PARENT[id]; at !== undefined; at = PARENT[at]) up.push(at);
@@ -141,7 +149,14 @@ describe("moves in a tree whose parent is declared", () => {
       code: "core.anchor.cycle",
     });
     expect(moves().canMove(node(3), node(3))).toMatchObject({ code: "core.anchor.cycle" });
-    // A node the host does not move, or a target of no admitted type.
+    // A node the host does not move, or a target it does not offer: no admitted parent.
+    const fixed: TreeNode = { id: FIXED, label: "f" };
+    expect(moves().canMove(fixed, node(3))).toEqual({
+      ok: false,
+      reason: "Cible refusée : e3 ne peut pas en être le parent.",
+    });
+    expect(moves().canMove(node(2), fixed)).toMatchObject({ ok: false });
+    // Without the right to write.
     const reader = await mounted(["core.entity.read"], () => ({ status: 200, body: {} }));
     expect(reader.moves().canMove(node(2), node(3))).toEqual({
       ok: false,
@@ -179,7 +194,7 @@ describe("moves in a tree whose parent is declared", () => {
     );
     const moving = moves().move({ node: node(4), target: node(2) });
     expect(moves().moveState(node(4))).toBe("pending");
-    expect(await moving).toMatchObject({ kind: "drafted", valid: true });
+    expect(await moving).toMatchObject({ kind: "drafted", verdict: "valid" });
     expect(moves().moveState(node(4))).toBeUndefined();
     expect(moves().inDraft(ID(4))).toBe(true);
     const post = writes(seen).find((s) => s.url === "/v1/drafts")!;
@@ -207,12 +222,120 @@ describe("moves in a tree whose parent is declared", () => {
     );
     expect(await moves().move({ node: node(4), target: node(2) })).toMatchObject({
       kind: "drafted",
-      valid: false,
+      verdict: "refused",
     });
     expect(moves().moveState(node(4))).toEqual({
       refused: { ok: false, reason: cycle.detail, code: "core.anchor.cycle" },
     });
     expect(moves().inDraft(ID(4))).toBe(false);
+  });
+
+  it("only its own operation's violation refuses a move; a new move replaces its operation", async () => {
+    // The active draft holds another operation (index 0) and, after it, the move of e4.
+    const other = { op: "rename", kind: "entity", id: { id: ID(1) }, slug: "taken" };
+    let operations: unknown[] = [other];
+    const theirs = {
+      rule: "core.slug.duplicate",
+      severity: "error",
+      detail: "slug taken",
+      subjects: [ID(1)],
+      operation: 0,
+      pointer: "/operations/0",
+    };
+    const { moves, seen } = await mounted(EDIT, (call) => {
+      if (call.url === `/v1/drafts/${D1}` && call.method === "GET") {
+        return { status: 200, body: draftBody(operations), etag: '"1"' };
+      }
+      if (call.url === `/v1/drafts/${D1}/operations`) {
+        operations = [...operations, ...(call.body as { operations: unknown[] }).operations];
+        return { status: 200, body: draftBody(operations), etag: '"2"' };
+      }
+      if (call.url === `/v1/drafts/${D1}` && call.method === "PATCH") {
+        operations = (call.body as { operations: unknown[] }).operations;
+        return { status: 200, body: draftBody(operations), etag: '"3"' };
+      }
+      if (call.url.endsWith("/simulation"))
+        return { status: 200, body: simulated(false, [theirs]) };
+      return { status: 200, body: {} };
+    });
+    sessionStorage.setItem("kartenn.draft.active", D1);
+    // Invalid because of the rename only: the move of e4 holds, marked in the draft.
+    expect(await moves().move({ node: node(4), target: node(2) })).toMatchObject({
+      verdict: "valid",
+    });
+    expect(moves().moveState(node(4))).toBeUndefined();
+    expect(moves().inDraft(ID(4))).toBe(true);
+    // Moved again: its operation replaced in place, never a second one.
+    await moves().move({ node: node(4), target: null });
+    expect(operations).toEqual([
+      other,
+      { op: "move_entity", id: { id: ID(4) }, parent: null, expected: "v4" },
+    ]);
+    expect(writes(seen).map((s) => `${s.method} ${s.url}`)).toEqual([
+      `POST /v1/drafts/${D1}/operations`,
+      `POST /v1/drafts/${D1}/simulation`,
+      `PATCH /v1/drafts/${D1}`,
+      `POST /v1/drafts/${D1}/simulation`,
+    ]);
+  });
+
+  it("a simulation that fails is no verdict: the move in the draft, the problem given", async () => {
+    const { moves } = await mounted(EDIT, (call) =>
+      call.method === "POST" && call.url === "/v1/drafts"
+        ? { status: 201, body: draftBody([{}]), etag: '"1"' }
+        : call.url.endsWith("/simulation")
+          ? {
+              status: 503,
+              body: { type: "urn:kartenn:problem:unavailable", title: "Unavailable", status: 503 },
+            }
+          : { status: 200, body: {} },
+    );
+    const outcome = await moves().move({ node: node(4), target: node(2) });
+    expect(outcome).toMatchObject({ kind: "drafted", verdict: "unknown" });
+    expect(
+      (outcome as { failure?: { problem?: { status?: number } } }).failure?.problem?.status,
+    ).toBe(503);
+  });
+
+  it("a version that cannot be read sends nothing, and says so", async () => {
+    const { moves, seen } = await mounted(EDIT, () => ({
+      status: 404,
+      body: { type: "urn:kartenn:problem:not-found", title: "Not found", status: 404 },
+    }));
+    const unread: TreeNode = { id: UNREAD, label: "u" };
+    expect(await moves().move({ node: unread, target: node(2) })).toEqual({
+      kind: "refused",
+      check: {
+        ok: false,
+        reason: "Rien n'est envoyé : la version de l'objet n'a pas pu être lue. Réessayez.",
+      },
+    });
+    // It was read again by identifier, then nothing was written.
+    expect(seen.some((s) => s.method === "GET" && s.url.startsWith(`/v1/entities/${UNREAD}`))).toBe(
+      true,
+    );
+    expect(writes(seen)).toEqual([]);
+  });
+
+  it("applied now: 403 and 412 leave the node at its place, refused with their codes", async () => {
+    for (const [status, type] of [
+      [403, "urn:kartenn:problem:forbidden"],
+      [412, "urn:kartenn:problem:precondition-failed"],
+    ] as const) {
+      const { moves } = await mounted(EDIT, (call) =>
+        call.method === "POST"
+          ? { status, body: { type, title: String(status), status } }
+          : { status: 200, body: {} },
+      );
+      await moves().move({ node: node(2), target: node(3) }, { now: true, motive: "m" });
+      const state = moves().moveState(node(2));
+      expect(state, String(status)).toMatchObject({ refused: { ok: false } });
+      expect((state as { refused: { code?: string } }).refused.code).toBe(type.split(":").pop());
+      expect(queryClient.getQueryData(LIST_KEY)).toEqual({ pages: [LISTED], pageParams: [null] });
+      app?.unmount();
+      app = undefined;
+      queryClient.clear();
+    }
   });
 
   it("applied now: « en attente » at its place through a slow answer, nothing written", async () => {
@@ -235,6 +358,9 @@ describe("moves in a tree whose parent is declared", () => {
     expect(queryClient.getQueryData(LIST_KEY)).toEqual({ pages: [LISTED], pageParams: [null] });
     // A second intent while one is in flight changes nothing.
     expect(await moves().move({ node: node(2), target: null })).toEqual({ kind: "unchanged" });
+    // Even towards a target refused: ignored, the move in flight neither refused nor replaced.
+    expect(await moves().move({ node: node(2), target: node(2) })).toEqual({ kind: "unchanged" });
+    expect(moves().moveState(node(2))).toBe("pending");
     release();
     expect(await moving).toMatchObject({ kind: "applied", changeset: C1 });
     expect(moves().moveState(node(2))).toBeUndefined();
@@ -297,5 +423,34 @@ describe("moves in a tree whose parent is declared", () => {
     expect(await moves().move({ node: node(2), target: node(1) })).toEqual({ kind: "unchanged" });
     expect(moves().moveState(node(2))).toBeUndefined();
     expect(writes(seen)).toEqual([]);
+  });
+});
+
+describe("the tree of the topography read again level by level (REQ-021-34)", () => {
+  type Item = { id: string; prefix: boolean };
+  const tree = (levels: Record<string, Item[]>) =>
+    nodesOf<Item>(
+      (parent) => {
+        const items = levels[parent ?? "root"];
+        return items ? { items, more: false } : undefined;
+      },
+      (item) => ({ id: item.id, label: item.id }),
+      (item) => item.prefix,
+    );
+  const ids = (nodes: readonly TreeNode[]): unknown[] =>
+    nodes.map((n) => (n.children ? [n.id, ids(n.children)] : n.id));
+
+  it("places each node once: a stale list never shows it twice, nor loops", () => {
+    // B was moved under the root (its list read again), A's list not read again yet.
+    const a = { id: "a", prefix: true };
+    const b = { id: "b", prefix: true };
+    expect(ids(tree({ root: [a, b], a: [b], b: [] }))).toEqual([
+      ["a", []],
+      ["b", []],
+    ]);
+    // A now under B (B's list read again), A's stale list still holding B: a cycle, cut.
+    expect(ids(tree({ root: [b], b: [a], a: [b] }))).toEqual([["b", [["a", []]]]]);
+    // A level not read: its node says it has children.
+    expect(tree({ root: [a] })[0]).toMatchObject({ id: "a", hasChildren: true });
   });
 });
