@@ -57,6 +57,7 @@ import { draftedValues, editRight } from "./edit/fields.ts";
 import { openEdit } from "./edit/panel.ts";
 import { problemOf, rowsOf, useKeyLabel } from "./data.ts";
 import ViewPanel from "./parts/ViewPanel.vue";
+import { nodesOf } from "./topology.ts";
 import ContentTab from "./record/ContentTab.vue";
 
 type Node = components["schemas"]["TreeNode"];
@@ -163,25 +164,20 @@ const detailOf = (node: Node) => {
 };
 const itemsOf = (parent: string | null) =>
   rowsOf(results.get(parent)?.data as never) as unknown as Node[];
-function nodesOf(parent: string | null): TreeNode[] {
-  return itemsOf(parent).map((item) => {
-    const node: TreeNode = {
-      id: item.id,
-      label: valueOf(item),
-      icon: ICONS[item.kind],
-      cells: { detail: detailOf(item) },
-      detail: keyLabel("kind", `core.${item.kind}`) ?? item.kind,
-    };
-    if (item.kind !== "prefix") return node;
-    const children = results.get(item.id);
-    if (children?.data) {
-      node.children = nodesOf(item.id);
-      if (children.hasNextPage) node.more = true;
-    } else node.hasChildren = true;
-    return node;
-  });
-}
-const nodes = computed(() => nodesOf(null));
+/** A level read, as the tree takes it: `undefined` until its first page is read. */
+const levelOf = (parent: string | null) => {
+  const result = results.get(parent);
+  return result?.data ? { items: itemsOf(parent), more: result.hasNextPage } : undefined;
+};
+const nodeOf = (item: Node): TreeNode => ({
+  id: item.id,
+  label: valueOf(item),
+  icon: ICONS[item.kind],
+  cells: { detail: detailOf(item) },
+  detail: keyLabel("kind", `core.${item.kind}`) ?? item.kind,
+});
+// Each node placed once, even while its levels are read again (`topology.ts`).
+const nodes = computed(() => nodesOf(levelOf, nodeOf, (item) => item.kind === "prefix"));
 const roots = computed(() => results.get(null));
 
 // Parents deduced (D34, REQ-021-17): no move is offered; a node whose value the active
