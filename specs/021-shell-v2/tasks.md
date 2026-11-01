@@ -1327,12 +1327,39 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
 
 ### Sous-tâches shell des arbitrages du 2026-11-01
 
-- [ ] 11b. Topographie : colonne d'occupation tirée de `TreeNode.occupancy`, « + » sur un
+- [x] 11b. Topographie : colonne d'occupation tirée de `TreeNode.occupancy`, « + » sur un
   nœud ouvrant le panneau d'édition de la sorte (tâche 12) — REQ-021-9, 18 — verify :
   Vitest de la colonne ; parcours `tree` (occupation affichée sans lecture par ligne)
   - où : `web/v2/shell/src/views/TopologyView.vue`, `topology.ts` ; `views/edit/` ;
     parcours `web/v2/e2e/journeys/tree.spec.ts`
   - dépend de : 11a
+  - fait le 2026-11-01 — `TopologyView.vue` : colonne « Occupation » (`sm`, alignée à la
+    fin) juste après le préfixe, comme la maquette E1, tirée de `TreeNode.occupancy` de
+    chaque page de `roots`/`children` (aucune lecture par ligne) ; vide pour une plage ou
+    une adresse. Le pourcentage sort de `record/OccupancyPanel.vue` vers
+    `views/occupancy.ts` (`shareOf`, `whole`), partagé par la fiche et l'arbre : même
+    texte des deux côtés. Le « + » d'un préfixe (livré par la 12) ouvre le panneau de la
+    sorte : adresses et plages pour un réseau, préfixes pour un conteneur, domaine
+    prérempli, « Ajouter dans <préfixe> » en titre. Tests : `views.test.ts` (arbre monté,
+    cellules d'occupation d'un réseau, d'un conteneur IPv6, d'une plage ; aucune requête
+    `…/occupancy` ni lecture d'un préfixe ; `shareOf`) ; parcours `tree` (nouveau cas,
+    alice : occupation de trois nœuds dont un enfant ouvert, aucune requête
+    `…/occupancy` ; « + » du conteneur au clavier → panneau « Préfixe », domaine, contrôle axe,
+    focus rendu au « + » par « Annuler ») vert, 6 passés.
+  - choix : un nœud ouvert seul par l'URL (`Shown`, préfixe lu par `GET /v1/prefixes/{id}`,
+    sans `occupancy`) n'affiche son occupation nulle part et ne la lit pas : il n'est dans
+    l'arbre qu'une fois son niveau lu, et le panneau du contenu (maquette E1) ne montre pas
+    d'occupation ; `…/ancestors` n'est pas lu pour elle. Colonne « Nature » de la 11
+    gardée, absente de la maquette E1, en priorité 2 (masquée sous un conteneur `md`,
+    sélecteur de colonnes). Format du pourcentage inchangé (« 71 % », arrondi vers le bas,
+    « < 1 % »), celui de la fiche.
+  - reste : Entrée sur un préfixe entre dans son « + » pour qui peut ajouter, la fiche
+    n'est alors plus à Entrée (lien « Ouvrir » du panneau du contenu) — compromis de la 12,
+    relevé par l'audit d'accessibilité, à trancher (autre touche pour la fiche ou pour le
+    « + ») ; « < 1 % » lu selon le lecteur d'écran (« moins de 1 % » plus sûr, à changer
+    avec la fiche) ; cellule vide d'une plage ou d'une adresse sans mot ; « + » refusé
+    visible (12a ; le `TreeGrid` n'a ni état refusé pour le « + » ni colonne d'élément,
+    non modifié).
 - [ ] 12a. Édition en place dans l'arbre de la Topographie et la grille du contenu d'un
   nœud, `expected` et `If-Match` tirés de `TreeNode.version` ; « + » refusé visible avec
   sa permission sur un nœud — REQ-021-15, 37 — verify : parcours `edit` (cellule de

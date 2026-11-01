@@ -32,6 +32,7 @@ import {
   type SuggestRead,
 } from "../src/views/filters.ts";
 import { keepRecordName } from "../src/views/names.ts";
+import { shareOf } from "../src/views/occupancy.ts";
 import { prefetchFilters } from "../src/views/routes.ts";
 
 // The screens of the referential (task 021-11; REQ-021-9, 18): the model of the filters of
@@ -514,6 +515,80 @@ describe("the routes of the referential", () => {
     await expect.poll(() => root.textContent).toContain("Lecture non disponible");
     expect(root.textContent).not.toContain("Aucune anomalie ouverte");
     expect(seen.some((url) => url.startsWith("/v1/anomalies"))).toBe(false);
+  });
+
+  it("shows the occupancy of each prefix of the tree from its page, no read for a row", async () => {
+    const domain = "0b5e3c1a-0000-4000-8000-0000000000d1";
+    const id = (n: number) => `0b5e3c1a-0000-4000-8000-00000000010${n}`;
+    const prefix = (n: number, value: string, nature: string, used: string, total: string) => ({
+      kind: "prefix",
+      id: id(n),
+      value,
+      nature,
+      version: "1",
+      href: `/v1/prefixes/${id(n)}`,
+      occupancy: { prefix: { id: id(n), value }, nature, used, total },
+    });
+    const { seen, root } = await mounted("/topology", (url) =>
+      url.startsWith("/v1/domains?") || url === "/v1/domains"
+        ? page([{ id: domain, slug: "production", links: { self: `/v1/domains/${domain}` } }])
+        : url.startsWith(`/v1/domains/${domain}/roots`)
+          ? page([
+              prefix(1, "192.0.2.0/24", "network", "184", "256"),
+              prefix(2, "198.51.100.0/24", "network", "1", "256"),
+              // An IPv6 container: whole numbers beyond those of JavaScript.
+              prefix(
+                3,
+                "2001:db8::/32",
+                "container",
+                "1208925819614629174706176",
+                "79228162514264337593543950336",
+              ),
+              prefix(4, "203.0.113.0/24", "network", "0", "256"),
+              {
+                kind: "range",
+                id: id(5),
+                first: "203.0.113.10",
+                last: "203.0.113.20",
+                usage: "dhcp",
+                version: "1",
+                href: `/v1/ranges/${id(5)}`,
+              },
+            ])
+          : page([]),
+    );
+    const cellsOf = (value: string) => {
+      const row = [...root.querySelectorAll("[role='row'][data-node]")].find((r) =>
+        r.textContent?.includes(value),
+      );
+      return [...(row?.querySelectorAll("[role='gridcell']") ?? [])].map((c) =>
+        c.textContent?.trim(),
+      );
+    };
+    await expect.poll(() => cellsOf("192.0.2.0/24")[1]).toBe("71 %");
+    expect(cellsOf("198.51.100.0/24")[1]).toBe("< 1 %");
+    expect(cellsOf("2001:db8::/32")[1]).toBe("< 1 %");
+    expect(cellsOf("203.0.113.0/24")[1]).toBe("0 %");
+    // A range holds no occupancy of its own: an empty cell.
+    expect(cellsOf("203.0.113.10")[1]).toBe("");
+    const header = [...root.querySelectorAll("[role='columnheader']")].map((h) =>
+      h.textContent?.trim(),
+    );
+    expect(header.slice(0, 2)).toEqual(["Préfixe", "Occupation"]);
+    expect(seen.some((url) => url.includes("/occupancy"))).toBe(false);
+    expect(seen.some((url) => /\/v1\/prefixes\/[^/?]+(\?|$)/.test(url))).toBe(false);
+  });
+});
+
+describe("the share of a prefix in use", () => {
+  it("is a whole percent rounded down, « < 1 % » under one, nothing without a total", () => {
+    expect(shareOf({ used: "184", total: "256" })).toBe("71 %");
+    expect(shareOf({ used: "256", total: "256" })).toBe("100 %");
+    expect(shareOf({ used: "0", total: "256" })).toBe("0 %");
+    expect(shareOf({ used: "1", total: "18446744073709551616" })).toBe("< 1 %");
+    expect(shareOf({ used: "0", total: "0" })).toBeUndefined();
+    expect(shareOf({ used: "x", total: "y" })).toBeUndefined();
+    expect(shareOf(undefined)).toBeUndefined();
   });
 });
 
