@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
+import { PREFIX_EXCEPTIONS } from "../stylelint/prefixes.js";
 import {
   buildGraph,
   closure,
@@ -50,7 +51,12 @@ const MAIN = "shell/src/main.ts";
 const ECRAN_PAGE = `${UI_PAGES}/ecrans/EcranPage.vue`;
 const CATALOGUE_MODULE = "ui/src/catalogue.ts";
 const COMPONENTS = "ui/src/components";
-const CATALOGUE_FILE = /^ui\/src\/components\/([^/]+)\/\1\.catalogue\.ts$/;
+/**
+ * A catalogue file, as `catalogue.ts` globs them (`./components/*\/*.catalogue.ts`): the
+ * component is named by the file, whatever its directory.
+ */
+export const CATALOGUE_FILE = /^ui\/src\/components\/[^/]+\/([^/]+)\.catalogue\.ts$/;
+const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** The pages of the catalogue that are not a component's. */
 export const CATALOGUE_PAGES = ["index", "jetons", "icones"];
 /** The directories whose modules make the graph. */
@@ -66,17 +72,18 @@ const SKIPPED = new Set([
 
 /**
  * Files whose change reaches every capture (ADR 0042, decision 1): manifests and lockfile,
- * compiler and bundler settings, the fixtures and settings of Playwright, the tokens, the
- * base sheet and its layers, the fonts, the page and public files of the shell, this
- * selection itself. Paths relative to the workspace.
+ * compiler and bundler settings, every file of configuration read by its name, the
+ * fixtures of Playwright, the tokens, the base sheet and its layers, the fonts, the page
+ * and public files of the shell, the sheets left out of kartenn/component-prefix, this
+ * selection itself and the prefixes it counts on. Paths relative to the workspace.
  */
 const TRANSVERSE: [RegExp, string][] = [
   [/(^|\/)package\.json$/, "a package manifest"],
   [/^pnpm-(lock|workspace)\.yaml$/, "the lockfile or the workspace"],
-  [/^\.npmrc$/, "the settings of pnpm"],
+  [/(^|\/)\.npmrc$/, "the settings of pnpm"],
   [/(^|\/)tsconfig[^/]*\.json$/, "TypeScript settings"],
-  [/(^|\/)vite\.config\.[cm]?[jt]s$/, "a Vite configuration"],
-  [/^e2e\/playwright\.config\.ts$/, "the Playwright configuration"],
+  [/(^|\/)[^/]+\.config\.[cm]?[jt]s$/, "a configuration (Vite, Playwright, lint, Vitest…)"],
+  [/(^|\/)\.(postcssrc|browserslistrc)[^/]*$/, "a configuration read by its name"],
   [/^e2e\/fixtures\//, "the fixtures of Playwright"],
   [/^ui\/src\/style\.css$/, "the sheet of @kartenn/ui"],
   [/^ui\/src\/styles\//, "the base sheet and its layers"],
@@ -85,6 +92,11 @@ const TRANSVERSE: [RegExp, string][] = [
   [/^shell\/index\.html$/, "the page of the shell"],
   [/^shell\/public\//, "the public files of the shell"],
   [/^tools\/impact\//, "the selection of the captures itself"],
+  [/^tools\/stylelint\/prefixes\.js$/, "the prefixes of the components' sheets"],
+  ...PREFIX_EXCEPTIONS.map((file): [RegExp, string] => [
+    new RegExp(`^${escape(file)}$`),
+    "a sheet that matches beyond its component (kartenn/component-prefix exception)",
+  ]),
 ];
 /** Outside the workspace (paths relative to the repository): Nix, the capture script. */
 const TRANSVERSE_OUTSIDE: [RegExp, string][] = [
@@ -97,8 +109,6 @@ const TRANSVERSE_OUTSIDE: [RegExp, string][] = [
 const INERT = [
   /\.(md|txt)$/i,
   /(^|\/)LICENSE[^/]*$/,
-  /^(eslint|prettier|stylelint)\.config\.js$/,
-  /(^|\/)vitest\.config\.ts$/,
   /^tools\//,
   /(^|\/)test\//,
   /\.test\.ts$/,
@@ -106,11 +116,8 @@ const INERT = [
   /^(sdk|shell)\/scripts\//,
   /^plugins\/[^/]+\/public\//,
   /^e2e\/(journeys|bench|plugins)\//,
-  /^e2e\/(journeys|bench)\.config\.ts$/,
   /^e2e\/(serve\.sh|kartenn\.toml)$/,
 ];
-
-const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const isScript = (file: string) =>
   MODULE_EXTENSIONS.some((ext) => file.endsWith(ext)) && !file.endsWith(".css");
 
@@ -133,6 +140,12 @@ export interface Project {
   pages: Page[];
   /** The sheets of the base sheet (`@import` of `ui/src/style.css`). */
   sheet: Set<string>;
+  /**
+   * What the entry of the shell loads statically, lazy edges aside: its modules run and
+   * their sheets join the entry's on every page. Those of @kartenn/ui aside (free of side
+   * effects, their sheets kept to their component by kartenn/component-prefix).
+   */
+  entry: Set<string>;
   /** Every file a module of the graph points to. */
   referenced: Set<string>;
   /** Spec (relative to `e2e/`) → the pages it opens, catalogue and mock-ups aside. */
@@ -211,10 +224,12 @@ export function diskSources(root = WORKSPACE): Sources {
 }
 
 /**
- * The lazy boundaries the pages are cut at, each page rooted on its own side: the route
+ * The boundaries the pages are cut at, each page rooted on its own side: the route
  * components of a route table (rendered on their route only; the captured ones are the
  * pages below), the screens of `EcranPage.vue` (one per mock-up), the catalogue files
- * `catalogue.ts` loads by name (one per component).
+ * `catalogue.ts` loads by name (one per component). A route component imported
+ * statically still loads with the entry: its module runs and its sheet joins the entry's
+ * on every page (`Project.entry`, everything).
  */
 const cut: Cut = (from, dep) => {
   if (/^shell\/src\/(router|(.*\/)?routes)\.ts$/.test(from) && dep.target?.endsWith(".vue"))
@@ -222,6 +237,8 @@ const cut: Cut = (from, dep) => {
   if (from === ECRAN_PAGE && dep.how === "dynamic") return true;
   return from === CATALOGUE_MODULE && dep.how === "glob";
 };
+/** The static load of the entry: lazy edges only are left out. */
+const lazy: Cut = (_, dep) => dep.how !== "static";
 /** For a mock-up whose screen is not found: every screen of EcranPage.vue. */
 const cutButScreens: Cut = (from, dep) => from !== ECRAN_PAGE && cut(from, dep);
 
@@ -279,9 +296,9 @@ function literalVariable(sf: ts.SourceFile, name: string): boolean {
  * The pages a spec opens, read from its literals: `/_ui/c/<Nom>`, `/_ui/ecrans/<Id>`, a
  * component name or a mock-up identifier alone (a helper called with it, a list looped
  * over), `MOCKUPS` (every mock-up), the directory of the components (every component).
- * A computed address of a kind of page beside literal names of that kind reads them;
- * alone, it may open any page of its kind. A navigation to an address it cannot read at
- * all, or no page found, reaches every page.
+ * A computed address of a kind of page (`/_ui/c/${x}`, `/_ui/ecrans/${y}`) may open any
+ * page of its kind, whatever literals stand beside it. A navigation to an address it
+ * cannot read at all, or no page found, reaches every page.
  */
 export function specPages(text: string, components: string[], mockups: string[]): Set<string> {
   const sf = ts.createSourceFile("spec.ts", text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
@@ -329,6 +346,9 @@ export function specPages(text: string, components: string[], mockups: string[])
     else if (ts.isTemplateExpression(node)) {
       literal(node.head.text);
       for (const span of node.templateSpans) literal(span.literal.text);
+      // A page computed anywhere (a helper, a variable): any of its kind.
+      if (node.head.text.endsWith("/_ui/c/")) anyComponent = true;
+      if (node.head.text.endsWith("/_ui/ecrans/")) anyMockup = true;
     } else if (ts.isIdentifier(node) && node.text === "MOCKUPS") everyMockup = true;
     if (ts.isCallExpression(node)) {
       const callee = node.expression;
@@ -348,30 +368,35 @@ export function specPages(text: string, components: string[], mockups: string[])
   };
   visit(sf);
 
-  const named = [...pages];
-  const hasComponent = named.some((page) => known.has(page.replace(/^catalogue:/, "")));
-  const hasMockup = named.some((page) => page.startsWith("ecran:"));
   const add = (keys: string[]) => keys.forEach((key) => pages.add(key));
   const everyComponentPage = components.map((c) => `catalogue:${c}`);
   const everyMockupPage = mockups.map((m) => `ecran:${m}`);
-  if (anything || named.length === 0) {
+  if (anything || pages.size === 0) {
     add(everyComponentPage);
     add(everyMockupPage);
     add([...CATALOGUE_PAGES.map((page) => `catalogue:${page}`), "revue"]);
   }
-  if (anyComponent && !hasComponent) add(everyComponentPage);
-  if (everyMockup || (anyMockup && !hasMockup)) add(everyMockupPage);
+  if (anyComponent) add(everyComponentPage);
+  if (everyMockup || anyMockup) add(everyMockupPage);
   return pages;
+}
+
+/** Component → its catalogue files (`CATALOGUE_FILE`; several only by mistake, all kept). */
+export function catalogueFiles(files: string[]): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const file of files) {
+    const name = CATALOGUE_FILE.exec(file)?.[1];
+    if (name !== undefined) out.set(name, [...(out.get(name) ?? []), file]);
+  }
+  return out;
 }
 
 /** Reads the workspace: graph, pages and their closures, specs and the pages they open. */
 export async function loadProject(root = WORKSPACE, sources = diskSources(root)): Promise<Project> {
   const graph = buildGraph(sources, GRAPH_ROOTS);
   const has = new Set(sources.files);
-  const components = sources.files
-    .map((file) => CATALOGUE_FILE.exec(file)?.[1])
-    .filter((name): name is string => name !== undefined)
-    .sort();
+  const catalogues = catalogueFiles(sources.files);
+  const components = [...catalogues.keys()].sort();
   const mockups = await mockupIds(root);
   const screenOf = screens(sources.read(ECRAN_PAGE));
 
@@ -393,7 +418,7 @@ export async function loadProject(root = WORKSPACE, sources = diskSources(root))
       page(`catalogue:${name}`, [
         ...layout,
         all(`${UI_PAGES}/ComponentPage.vue`),
-        all(`${COMPONENTS}/${name}/${name}.catalogue.ts`),
+        ...catalogues.get(name)!.map(all),
       ]),
     ),
     ...mockups.map((id) => {
@@ -427,6 +452,7 @@ export async function loadProject(root = WORKSPACE, sources = diskSources(root))
     mockups,
     pages,
     sheet: closure(graph, [all("ui/src/style.css")]).files,
+    entry: new Set([...closure(graph, common, lazy).files].filter((f) => !f.startsWith("ui/"))),
     referenced,
     specs,
   };
@@ -510,6 +536,8 @@ export function impact(changed: string[], project: Project): Impact {
     const transverse = TRANSVERSE.find(([re]) => re.test(file));
     if (transverse) return everything(`${path}: ${transverse[1]}`);
     if (project.sheet.has(file)) return everything(`${path}: a sheet of @kartenn/ui's base`);
+    if (project.entry.has(file))
+      return everything(`${path}: loaded by the entry of the shell, on every page`);
 
     if (file.startsWith("e2e/")) {
       // A reference: its page for the catalogue and the mock-ups, else its whole spec.

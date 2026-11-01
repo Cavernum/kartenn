@@ -46,14 +46,22 @@ regardée.
     les ré-exports, `export *` compris), `impact.ts` (pages : `main.ts` évalué, la mise en
     page du catalogue, index, jetons, icônes, revue, une par `<Nom>.catalogue.ts`, une par
     identifiant de `MOCKUPS` avec son écran de `SCREENS` ; specs lues pour les pages
-    qu'elles ouvrent ; règles « tout » et « rien »), `cli.ts` ; tests
-    `tools/test/impact.test.ts` (graphes écrits à la main, espace réel, sélection
-    comparée à `playwright test --list`). Vérifié par Vitest `tools`, tsc, eslint et
-    prettier ; le passage complet de `k-web2-check` est fait par la session principale à
-    la fusion (ADR 0042, décision 3 ; aucun créneau `k-heavy` libre en 2 × 30 min).
+    qu'elles ouvrent ; règles « tout » et « rien »), `cli.ts` ; règle stylelint
+    `kartenn/component-prefix` (`tools/stylelint/plugins.js`, `prefixes.js`) ; tests
+    `tools/test/impact.test.ts` (graphes écrits à la main, propriétés tirées du graphe de
+    l'espace réel, sélection comparée au `--grep` de `playwright test --list`) et
+    `stylelint.test.ts`. Vérifié par Vitest `tools`, tsc, eslint, prettier et stylelint
+    sur tout `web/v2` ; le passage complet de `k-web2-check` est fait par la session
+    principale à la fusion (ADR 0042, décision 3 ; aucun créneau `k-heavy` libre en
+    2 × 30 min). Relecture `kartenn-revue` : corrections 1 à 7 faites.
+  - hors périmètre, vu en relecture : `shell/src/_ui/ecrans/EcranCadre.vue` (l. 440-446)
+    recopie les règles globales `.k-drawer .k-sidebar` de `shell/src/frame/ShellFrame.vue`
+    (l. 44-52).
   - choix :
     - sortie : `node web/v2/tools/impact/cli.ts [--json] [fichier…]` (fichiers en
-      arguments ou sur l'entrée standard, chemins du dépôt comme `git diff --name-only`) :
+      arguments ou sur l'entrée standard, chemins du dépôt comme `git diff --name-only`,
+      lus depuis sa racine quel que soit le répertoire courant ; un chemin ni présent ni
+      supprimé selon git est signalé sur la sortie d'erreur) :
       une cible par ligne `<spec>\t<grep>` (spec relative à `e2e/`, expression pour
       `--grep` sur le titre que Playwright filtre, « projet fichier describe… titre »), ou
       `all` seul ; `--json` : `{all, reasons, targets: [{kind, name, spec, grep}]}`. Pour
@@ -64,34 +72,58 @@ regardée.
       référence (`__screenshots__`) rejoue sa page seule. Les autres specs, entières,
       partent quand une page qu'elles ouvrent est touchée, lue dans leurs littéraux
       (`/_ui/c/<Nom>`, `/_ui/ecrans/<Id>`, un nom de composant ou un identifiant seul,
-      `MOCKUPS` = toutes les maquettes, le dossier des composants = tous) ; une adresse
-      calculée illisible = toutes les pages. D'où : `csp.spec.ts` (il suit les liens de
-      l'index) pour toute page touchée ; `clavier.spec.ts` pour ses 16 pages nommées ;
-      `layout.spec.ts` pour 7 composants et toutes les maquettes ; `touch.spec.ts` pour 4
-      composants et toutes les maquettes ; chaque script clavier pour les composants
-      qu'il ouvre.
+      `MOCKUPS` = toutes les maquettes, le dossier des composants = tous, une variable
+      dont toutes les valeurs sont des littéraux = ces littéraux) ; une adresse calculée
+      d'un genre (`/_ui/c/${x}`, `/_ui/ecrans/${y}`) = toutes les pages de ce genre, même
+      à côté de littéraux ; une adresse illisible = toutes les pages. D'où : `csp.spec.ts`
+      (il suit les liens de l'index) pour toute page ; `clavier.spec.ts` pour tous les
+      composants et ses maquettes nommées ; `layout.spec.ts` pour tous les composants et
+      toutes les maquettes ; `touch.spec.ts` pour 4 composants et toutes les maquettes ;
+      chaque script clavier pour les composants qu'il ouvre (tous, s'il calcule
+      l'adresse).
     - types : `import type`, `export type` ne comptent pas ; `import { type X }` compte
       comme évaluation (`verbatimModuleSyntax`).
     - évaluer un module d'un paquet déclaré sans effet de bord (`sideEffects` de
       `@kartenn/ui`, `@kartenn/sdk`) ne charge rien : `shared/ui.ts` (`export * from
       "@kartenn/ui"`, importé par `main.ts`) n'étend pas chaque page à toute la
-      bibliothèque. Hypothèse : la feuille d'un composant ne touche que ce qu'il rend
-      (sélecteurs préfixés, skill `kartenn-ui`), bien que la feuille de `@kartenn/ui`
-      soit unique ; un écart ne se verrait qu'au passage complet.
-    - coupures : composants `.vue` des tables de routes du shell (`router.ts`,
-      `**/routes.ts`), rendus sur leur route seulement ; écrans de `EcranPage.vue` ; glob
-      de `catalogue.ts` ; chaque page est enracinée de son côté, et l'index part pour tout
-      `*.catalogue.ts` (il les liste).
+      bibliothèque.
+    - feuille unique de `@kartenn/ui` (morceau `ui` : composants, `internal/`, `demo/` ;
+      les `*.catalogue.ts` n'ont pas de feuille) : la sélection compte qu'une feuille de
+      composant ne touche que ce qu'il rend, ses emplacements compris ; la règle stylelint
+      `kartenn/component-prefix` le garde : chaque sélecteur d'une feuille de
+      `ui/src/components/<X>/` (`.vue`, `.css`), d'un fichier de `internal/` ou de
+      `demo/` porte une classe de son unité, chaque `@keyframes` en porte le nom ; une
+      classe appartient au plus long préfixe qu'elle prolonge (fin, `-` ou `_` : `k-tree-grid…`
+      est à TreeGrid). Préfixes : `k-<nom-du-dossier>` (`k-demo-<nom>` pour une démo),
+      plus ceux déjà pris (`prefixes.js`, `EXTRA_PREFIXES` : `k-palette`,
+      `k-cell-error`, `k-row-fresh`, `k-date-field`, `k-date-calendar`, `k-matrix`,
+      `k-sidebar`, `k-toasts`), sans toucher un composant. Exceptions, qui rendent
+      « tout » : `components/shared.css`, `Select/options.css` (listes de Select,
+      Combobox, FilterPicker), `Menu/Menu.vue` (le chevron d'IconButton). Ce que la règle
+      ne voit pas : un composant qui poserait dans son balisage une classe d'un autre.
+    - ce que l'entrée du shell charge statiquement (fermeture de `main.ts`, arêtes
+      paresseuses seules coupées : `ShellFrame.vue`, `LoginView.vue`, `HelpView.vue`,
+      `App.vue`… 76 fichiers) rend « tout » : ces modules s'exécutent et leurs feuilles
+      rejoignent celle de l'entrée sur chaque page. Ceux de `@kartenn/ui` à part : sans
+      effet de bord, leur feuille gardée par la règle ci-dessus.
+    - coupures des pages : composants `.vue` des tables de routes du shell (`router.ts`,
+      `**/routes.ts`), rendus sur leur route seulement (leur charge statique relève du
+      point précédent) ; écrans de `EcranPage.vue` ; glob de `catalogue.ts`
+      (`./components/*/*.catalogue.ts`, le composant nommé par le fichier) ; chaque page
+      est enracinée de son côté, et l'index part pour tout fichier de ce glob (il les
+      liste).
     - un nom ré-exporté compte aussi le baril : un changement de `ui/src/index.ts` (ou de
-      ce que `main.ts` charge : `i18n.ts`, `motion.ts`…) atteint toutes les pages, une
-      liste de fichiers ne disant pas quelle ligne a changé.
-    - « tout » : manifestes, lockfile, `tsconfig*`, configurations de Vite, configuration
-      et fixtures de Playwright, jetons, `style.css` et ses `@import`, polices,
-      `index.html` et `public/` du shell, l'outil lui-même, `devenv.*` (script de
-      capture), un fichier d'`e2e/` du projet `visual` autre qu'une spec ou une
-      référence, une feuille ou un fichier qu'aucun module ne cite. « Rien » :
-      documentation, tests unitaires, lint, `tools/`, parcours et bancs, scripts de
-      build, un module qu'aucune page capturée ne charge (vue du shell, fichier supprimé).
+      ce que `main.ts` charge de `@kartenn/ui` : `i18n.ts`, `motion.ts`…) atteint toutes
+      les pages, une liste de fichiers ne disant pas quelle ligne a changé.
+    - « tout » : manifestes, lockfile, `tsconfig*`, tout fichier de configuration lu par
+      son nom (`*.config.{js,ts,mjs,cjs}`, `.postcssrc`…), fixtures de Playwright,
+      jetons, `style.css` et ses `@import`, polices, `index.html` et `public/` du shell,
+      l'outil lui-même et `tools/stylelint/prefixes.js`, les exceptions de la règle de
+      préfixes, la charge statique de l'entrée, `devenv.*` (script de capture), un
+      fichier d'`e2e/` du projet `visual` autre qu'une spec ou une référence, une feuille
+      ou un fichier qu'aucun module ne cite. « Rien » : documentation, tests unitaires,
+      le reste de `tools/`, parcours et bancs, scripts de build, un module qu'aucune page
+      capturée ne charge (vue paresseuse du shell, fichier supprimé).
     - doute : une importation non résolue (import ou glob calculé, alias inconnu,
       fichier absent) ouvre la page à tout changement (aucune aujourd'hui, testé) ; un nom
       qu'un module n'exporte pas le prend entier.

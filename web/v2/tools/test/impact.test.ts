@@ -3,11 +3,13 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { buildGraph, closure, type Package, type Sources } from "../impact/graph.ts";
+import { PREFIX_EXCEPTIONS } from "../stylelint/prefixes.js";
 import {
   CATALOGUE_PAGES,
   CATALOGUE_SPEC,
   ECRANS_SPEC,
   WORKSPACE,
+  catalogueFiles,
   impact,
   loadProject,
   screens,
@@ -186,14 +188,33 @@ describe("pages a spec opens", () => {
   const mockups = ["E1", "E10"];
   const pages = (text: string) => [...specPages(text, components, mockups)].sort();
 
-  it("reads literal addresses, names given to helpers and lists looped over", () => {
+  it("reads literal addresses, names given to helpers and lists of literals looped over", () => {
     expect(
       pages(
         'await openState(page, "Button", "rest");\nawait page.goto("/_ui/ecrans/E10?vue=x");\n' +
-          'for (const c of ["DataGrid"]) await open(page, `/_ui/c/${c}`);\n' +
+          'await open(page, "/_ui/c/DataGrid");\n' +
           'for (const url of ["/_ui/jetons?mode=dark"]) await open(page, url);\n',
       ),
     ).toEqual(["catalogue:Button", "catalogue:DataGrid", "catalogue:jetons", "ecran:E10"]);
+  });
+
+  it("reads a computed address as any page of its kind, whatever literals stand beside it", () => {
+    expect(pages('for (const c of ["DataGrid"]) await open(page, `/_ui/c/${c}`);\n')).toEqual([
+      "catalogue:Button",
+      "catalogue:DataGrid",
+      "catalogue:Menu",
+    ]);
+    expect(
+      pages(
+        'const state = (page, name) => page.goto(`/_ui/c/${name}?etat=x`);\nawait state(page, "Menu");\n',
+      ),
+    ).toEqual(["catalogue:Button", "catalogue:DataGrid", "catalogue:Menu"]);
+    expect(pages('const id = pick("E1");\nconst url = `/_ui/ecrans/${id}`;\n')).toEqual([
+      "ecran:E1",
+      "ecran:E10",
+    ]);
+    // The view of a named mock-up computed: that mock-up alone.
+    expect(pages("await page.goto(`/_ui/ecrans/E10?vue=${view}`);\n")).toEqual(["ecran:E10"]);
   });
 
   it("reads MOCKUPS as every mock-up, the components' directory as every component", () => {
@@ -256,6 +277,11 @@ describe("impact on the workspace", () => {
         own.push(`ui/src/components/${name}/${name}.vue`);
       for (const file of own) {
         const result = run(file);
+        // A sheet left out of kartenn/component-prefix: everything.
+        if (PREFIX_EXCEPTIONS.includes(file)) {
+          expect(result.all, file).toBe(true);
+          continue;
+        }
         expect(result.all, file).toBe(false);
         expect(names(file), file).toContain(`catalogue:${name}`);
       }
@@ -279,7 +305,6 @@ describe("impact on the workspace", () => {
     const screenOf = screens(
       readFileSync(join(WORKSPACE, "shell/src/_ui/ecrans/EcranPage.vue"), "utf8"),
     );
-    let checked = 0;
     for (const id of project.mockups) {
       const source = readFileSync(join(WORKSPACE, screenOf.get(id)!), "utf8");
       const imported = [...source.matchAll(/import\s*\{([^}]*)\}\s*from\s*"@kartenn\/ui"/g)]
@@ -288,48 +313,50 @@ describe("impact on the workspace", () => {
         .filter((name) => /^[A-Z]\w*$/.test(name));
       for (const name of imported) {
         const file = `ui/src/components/${name}/${name}.vue`;
-        if (!existsSync(join(WORKSPACE, file))) continue;
-        expect(names(file), `${name} → ${id}`).toContain(`ecran:${id}`);
-        checked++;
+        if (existsSync(join(WORKSPACE, file)) && !PREFIX_EXCEPTIONS.includes(file))
+          expect(names(file), `${name} → ${id}`).toContain(`ecran:${id}`);
       }
     }
-    expect(checked).toBeGreaterThan(50);
   });
+
+  /** The single-file component of each component of its name, its sheet's exceptions aside. */
+  const componentFiles = () =>
+    project.components
+      .map((name) => `ui/src/components/${name}/${name}.vue`)
+      .filter((file) => existsSync(join(WORKSPACE, file)) && !PREFIX_EXCEPTIONS.includes(file));
 
   it("reaches through the entry of @kartenn/ui only the real importers of a symbol", () => {
-    const e3 = readFileSync(join(WORKSPACE, "shell/src/_ui/ecrans/E3Adresses.vue"), "utf8");
-    expect(e3).toContain('from "@kartenn/ui"');
-    expect(e3).not.toMatch(/\bMatrixGrid\b/);
-    const reached = names("ui/src/components/MatrixGrid/MatrixGrid.vue");
-    expect(reached).toContain("catalogue:MatrixGrid");
-    expect(reached).toContain("ecran:E10");
-    expect(reached).not.toContain("ecran:E3");
-    expect(reached).not.toContain("catalogue:Button");
-    // Tree: its page and its script, no mock-up (they use TreeGrid).
-    expect(names("ui/src/components/Tree/Tree.vue").filter((n) => n.startsWith("ecran:"))).toEqual(
-      [],
-    );
+    // A page is reached by a component exactly when its closure loads the component.
+    let pruned = 0;
+    for (const file of componentFiles()) {
+      const reached = new Set(names(file));
+      for (const page of project.pages) {
+        if (page.key === "revue") continue;
+        expect(reached.has(page.key), `${file} → ${page.key}`).toBe(page.closure.files.has(file));
+        // Pages that import from the entry without loading this component: pruned by symbol.
+        if (page.closure.files.has("ui/src/index.ts") && !page.closure.files.has(file)) pruned++;
+      }
+    }
+    expect(pruned).toBeGreaterThan(0);
   });
 
-  it("reaches the keyboard script of a component, and the transverse specs that open it", () => {
-    for (const file of readdirSync(join(WORKSPACE, "e2e/components")).filter((f) =>
-      f.endsWith(".spec.ts"),
-    )) {
-      const name = file
-        .replace(/\.spec\.ts$/, "")
-        .replace(/(^|-)([a-z])/g, (_, __, c: string) => c.toUpperCase());
-      const component = project.components.includes(name) ? name : "EnvChip";
-      expect(names(`ui/src/components/${component}/${component}.vue`), file).toContain(
-        `spec:components/${file}`,
-      );
+  it("reaches each spec from the components of the pages it opens", () => {
+    for (const file of componentFiles()) {
+      const reached = new Set(names(file));
+      for (const [spec, pages] of project.specs) {
+        const opens = [...pages].some((key) =>
+          project.pages.find((page) => page.key === key)?.closure.files.has(file),
+        );
+        expect(reached.has(`spec:${spec}`), `${file} → ${spec}`).toBe(opens);
+      }
     }
-    const reached = names("ui/src/components/SidePanel/SidePanel.vue");
-    for (const spec of ["clavier", "layout", "touch", "csp"])
-      expect(reached).toContain(`spec:visual/${spec}.spec.ts`);
-    // A component no transverse spec names, in no mock-up: csp alone (it opens every page).
-    const tree = names("ui/src/components/Tree/Tree.vue");
-    expect(tree).toContain("spec:visual/csp.spec.ts");
-    expect(tree).not.toContain("spec:visual/clavier.spec.ts");
+    // Every keyboard script opens a page of the catalogue, hence is reached by its component.
+    for (const [spec, pages] of project.specs)
+      if (spec.startsWith("components/"))
+        expect(
+          [...pages].some((key) => key.startsWith("catalogue:")),
+          spec,
+        ).toBe(true);
   });
 
   it("reaches everything from a transverse file", () => {
@@ -349,18 +376,41 @@ describe("impact on the workspace", () => {
       "shell/index.html",
       "tsconfig.base.json",
       "tools/impact/graph.ts",
+      "tools/stylelint/prefixes.js",
+      // Files of configuration, read by their name.
+      "eslint.config.js",
+      "stylelint.config.js",
+      "vitest.config.ts",
+      "e2e/journeys.config.ts",
+      "postcss.config.js",
+      // The sheets left out of kartenn/component-prefix.
+      ...PREFIX_EXCEPTIONS,
     ])
       expect(run(file).all, file).toBe(true);
     expect(impact(["devenv.nix"], project).all).toBe(true);
     // A file no module points to may be read by what the graph cannot see.
     expect(run("ui/src/components/Button/unknown.svg").all).toBe(true);
-    // What every page loads (the entry of the shell, the strings of @kartenn/ui): every page.
-    for (const file of ["shell/src/main.ts", "ui/src/i18n.ts"]) {
-      const reached = names(file);
-      expect(reached.filter((name) => !name.startsWith("spec:"))).toHaveLength(
-        CATALOGUE_PAGES.length + project.components.length + project.mockups.length,
-      );
-    }
+    // What every page loads (the strings of @kartenn/ui): every page, one by one.
+    expect(names("ui/src/i18n.ts").filter((name) => !name.startsWith("spec:"))).toHaveLength(
+      CATALOGUE_PAGES.length + project.components.length + project.mockups.length,
+    );
+  });
+
+  it("reaches everything from what the entry of the shell loads statically", () => {
+    // Its modules run and its sheets join the entry's on every page, route components
+    // imported statically included (ShellFrame.vue, from router.ts).
+    expect(project.entry.has("shell/src/frame/ShellFrame.vue")).toBe(true);
+    for (const file of project.entry) expect(run(file).all, file).toBe(true);
+    for (const file of [
+      "shell/src/main.ts",
+      "shell/src/frame/ShellFrame.vue",
+      "shell/src/router.ts",
+    ])
+      expect(project.entry.has(file), file).toBe(true);
+    // Not a lazy route component, nor a component of @kartenn/ui the frame renders (its JS
+    // is free of side effects, its sheet kept to it by kartenn/component-prefix).
+    expect(project.entry.has("shell/src/views/ListView.vue")).toBe(false);
+    expect(run("ui/src/components/SidebarNav/SidebarNav.vue").all).toBe(false);
   });
 
   it("reaches nothing from a file no capture reads", () => {
@@ -368,9 +418,7 @@ describe("impact on the workspace", () => {
       "ui/test/package.test.ts",
       "ui/src/components/Button/button.test.ts",
       "e2e/journeys/shell.spec.ts",
-      "e2e/journeys.config.ts",
       "shell/scripts/size.ts",
-      "eslint.config.js",
       "tools/test/eslint.test.ts",
       "shell/src/views/ListView.vue",
     ]) {
@@ -412,8 +460,29 @@ describe("impact on the workspace", () => {
     expect(names("e2e/components/__screenshots__/forced-colors.spec.ts/skeleton.png")).toEqual([
       "spec:components/forced-colors.spec.ts",
     ]);
-    // A new catalogue file is listed by the index.
+    // A new catalogue file is listed by the index, wherever it lies under components/*/.
     expect(names("ui/src/components/Nouveau/Nouveau.catalogue.ts")).toContain("catalogue:index");
+    expect(names("ui/src/components/X/Y.catalogue.ts")).toContain("catalogue:index");
+  });
+
+  it("reads the catalogue files as catalogue.ts globs them", () => {
+    const glob = /import\.meta\.glob<[^>]*>\("([^"]+)"\)/.exec(
+      readFileSync(join(WORKSPACE, "ui/src/catalogue.ts"), "utf8"),
+    )?.[1];
+    expect(glob).toBe("./components/*/*.catalogue.ts");
+    expect(
+      catalogueFiles([
+        "ui/src/components/X/Y.catalogue.ts",
+        "ui/src/components/Z/Z.catalogue.ts",
+        "ui/src/components/Z/deep/W.catalogue.ts",
+        "ui/src/Q.catalogue.ts",
+      ]),
+    ).toEqual(
+      new Map([
+        ["Y", ["ui/src/components/X/Y.catalogue.ts"]],
+        ["Z", ["ui/src/components/Z/Z.catalogue.ts"]],
+      ]),
+    );
   });
 });
 
@@ -466,8 +535,8 @@ describe("selection by Playwright", () => {
   }, 120_000);
 
   it("selects each test of the catalogue and the mock-ups by exactly one page", () => {
-    // The entry of the shell is loaded by every page: all of them, page by page.
-    const { targets } = impact([`${project.prefix}/shell/src/main.ts`], project);
+    // The strings of @kartenn/ui are loaded by every page: all of them, page by page.
+    const { targets } = impact([`${project.prefix}/ui/src/i18n.ts`], project);
     const pages = targets.filter((t) => t.kind !== "spec");
     expect(pages.length).toBe(
       CATALOGUE_PAGES.length + project.components.length + project.mockups.length,
@@ -488,13 +557,29 @@ describe("selection by Playwright", () => {
   });
 
   it("builds the titles as Playwright greps them", () => {
-    const greps = [
-      ...impact([`${project.prefix}/ui/src/components/MatrixGrid/MatrixGrid.vue`], project).targets,
-    ].map((target) => target.grep);
-    const combined = greps.join("|");
-    const ours = tests.filter((test) => new RegExp(combined).test(test.title)).map((t) => t.title);
-    const theirs = list("--grep", combined).map((t) => t.title);
-    expect(theirs.length).toBeGreaterThan(0);
-    expect(theirs.sort()).toEqual(ours.sort());
+    const { targets } = impact([`${project.prefix}/ui/src/i18n.ts`], project);
+    const transverse = [...project.specs.keys()].filter((spec) => spec.startsWith("visual/"));
+    const script = [...project.specs.keys()].find((spec) => spec.startsWith("components/"))!;
+    expect(transverse.length).toBeGreaterThan(0);
+    // Each transverse spec, a keyboard script, a page of the catalogue and a mock-up, alone
+    // then together: the same tests on both sides.
+    const chosen = [
+      ...[...transverse, script].map((spec) => targets.find((t) => t.spec === spec)!),
+      targets.find((t) => t.kind === "catalogue" && !CATALOGUE_PAGES.includes(t.name))!,
+      targets.find((t) => t.kind === "ecran")!,
+    ];
+    const ours = (grep: string) =>
+      tests.filter((test) => new RegExp(grep).test(test.title)).map((t) => t.title);
+    const theirs = (grep: string) => list("--grep", grep).map((t) => t.title);
+    for (const target of chosen) {
+      const mine = ours(target.grep);
+      expect(mine.length, target.grep).toBeGreaterThan(0);
+      expect(
+        mine.every((title) => title.includes(` ${target.spec} `)),
+        target.grep,
+      ).toBe(true);
+    }
+    const combined = chosen.map((target) => target.grep).join("|");
+    expect(theirs(combined).sort()).toEqual(ours(combined).sort());
   });
 });
