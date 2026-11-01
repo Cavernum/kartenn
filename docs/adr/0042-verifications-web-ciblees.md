@@ -49,7 +49,8 @@ horloge simulée. Les agents relancent alors des suites entières.
    touchés ; vue-tsc reste complet (une vérification de types partielle ne prouve
    rien) ; Vitest aussi (amendé le 2026-11-01, tâche 029-3) : des tests lisent jetons,
    feuilles et `.vue` sur le disque, que `vitest --changed` ne suit pas (il ne voit que
-   le graphe de modules) ; 13 s mesurées.
+   le graphe de modules) ; 13 s mesurées. Choix de la session principale, réversible, à
+   confirmer par l'utilisateur.
 3. **Qui lance le passage complet** (choix de l'utilisateur, 2026-11-01). Les agents ne
    lancent que le passage ciblé, en route et avant leur commit. La session principale
    lance `k-web2-check --all` sur le résultat fusionné, avant chaque push.

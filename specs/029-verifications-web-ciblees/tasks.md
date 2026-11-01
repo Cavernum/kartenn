@@ -140,10 +140,14 @@ regardée.
   - fait le 2026-11-01 : `devenv.nix`, `scripts.k-web-check` : `k-web-check [--all |
     --base <ref>] [args vitest…]`, voie ciblée là où l'espace a `tools/impact/cli.ts`
     (`web/v2` ; `web/` garde son passage complet, `--all` y est sans effet) ; changement =
-    `git diff --name-only --no-renames <base>...HEAD`, `git diff … HEAD` (indexé et non
-    indexé, suppressions comprises), `git ls-files --others --exclude-standard` ; base
-    introuvable ou sans base commune : `KO`, code 2 ; `scripts/ci.sh` passe
-    `k-web2-check --all`. Essais (`--base HEAD`, un commentaire jeté ; durée dans le
+    `git diff --name-only --no-renames $(git merge-base <base> HEAD)` (de la base commune
+    à l'arbre de travail : commits, indexé, non indexé, suppressions) et `git ls-files
+    --others --exclude-standard`, chemins non échappés (`core.quotePath=false`) ; base
+    introuvable ou sans ancêtre commun : même `KO base`, code 2 (essayés) ; une spec
+    supprimée (ou la référence d'une spec supprimée) ne donne aucune cible
+    (`impact.ts`, `specFiles` ; test « runs nothing for a deleted spec ») ; la raison de
+    « tout » arrive en `impact: all: …` ; `scripts/ci.sh` passe `k-web2-check --all`.
+    Essais (`--base HEAD`, un commentaire jeté ; durée dans le
     créneau, attente exclue) : vue du shell `views/TopologyView.vue` → « ciblé : 0
     captures sur 2706 (aucune touchée) », 43 s, ni build ni projet `visual` ; composant
     `Switch.vue` (et un fichier non suivi) → 881 sur 2706 (catalogue `Switch` et
@@ -155,7 +159,11 @@ regardée.
     complets, 48 s ; `--all`, arbre propre → « OK — Tests 640 passed (640) ; captures
     2706 passed (15.3m) », la forme d'avant, 15 min 56 s. Après le passage à Vitest
     complet : composant `Switch.vue` → « OK — Tests 640 passed (640) ; ciblé : 881 captures sur
-    2706 (881 passed (4.0m)) », 4 min 32 s. `k-ci-lint` sans constat.
+    2706 (881 passed (4.0m)) », 4 min 32 s. Après la relecture : spec supprimée seule
+    (`components/switch.spec.ts`) → « ciblé : 0 captures sur 2699 (aucune touchée) »,
+    42 s ; nouveau dossier de composant (`ui/src/components/Essai/`, non suivi) → 0
+    captures, stylelint sur toutes les feuilles (seule différence des unités :
+    `components/Essai`, donc rien sans lui), 40 s. `k-ci-lint` sans constat.
   - choix :
     - verdict : `OK — <Tests de Vitest> ; ciblé : N captures
       sur M (<passed>[ ; tout, <raison>]) ; K fichiers de <espace> changés depuis <base>` ;
@@ -166,7 +174,10 @@ regardée.
       eslint `--no-warn-ignored` sur `.js/.ts/.vue`, stylelint sur `.css/.vue`) ; sur
       tout l'espace quand le graphe rend « tout » (manifeste, configuration de prettier,
       eslint, stylelint…) ou qu'un fichier de `tools/` (règles de lint) ou un fichier
-      caché de l'espace (`.prettierignore`) change.
+      caché de l'espace (`.prettierignore`) change ; stylelint sur toutes les feuilles
+      quand une unité de `kartenn/component-prefix` (dossier de composant, fichier de
+      `internal/` ou de `demo/`) apparaît ou disparaît entre la base commune et l'arbre
+      de travail : l'attribution des préfixes bouge.
     - Vitest complet, ciblé ou non (choix de la session principale, ADR 0042,
       décision 2 amendée) : `vitest --changed` ne suit que le graphe de modules, et
       `ui/test/tokens.test.ts`, `fonts.test.ts`, `package.test.ts`, `sheets.test.ts`,
