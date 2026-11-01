@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { request, type APIRequestContext, type APIResponse } from "@playwright/test";
 import { BASE_URL, ISSUER, STATE } from "../fixtures/env.ts";
-import { DATA, GROUPS } from "../fixtures/journeys.ts";
+import { bulkAddresses, DATA, GROUPS, widePrefixes } from "../fixtures/journeys.ts";
 import { totp } from "../fixtures/totp.ts";
 
 /**
@@ -68,6 +68,36 @@ export default async function globalSetup(): Promise<void> {
         },
         { op: "create_prefix", domain, prefix: DATA.prefix, nature: "network" },
         { op: "create_address", domain, address: DATA.address, usage: "host" },
+      ],
+    });
+    // The referential of the lists and the tree (task 11): a network of 1 000 addresses, a
+    // container of 1 000 networks, in documentation space (RFC 3849).
+    const domains = (await (await api.get(`/v1/domains?slug=${DATA.domain}`)).json()) as {
+      items: { id: string }[];
+    };
+    const production = { id: domains.items[0]!.id };
+    await expectOk(api, "/v1/changesets?approval=self", {
+      motive: "end-to-end long list",
+      operations: [
+        { op: "create_prefix", domain: production, prefix: DATA.bulk.prefix, nature: "network" },
+        ...bulkAddresses().map((address) => ({
+          op: "create_address",
+          domain: production,
+          address,
+          usage: "host",
+        })),
+      ],
+    });
+    await expectOk(api, "/v1/changesets?approval=self", {
+      motive: "end-to-end wide container",
+      operations: [
+        { op: "create_prefix", domain: production, prefix: DATA.wide.prefix, nature: "container" },
+        ...widePrefixes().map((prefix) => ({
+          op: "create_prefix",
+          domain: production,
+          prefix,
+          nature: "network",
+        })),
       ],
     });
   } finally {

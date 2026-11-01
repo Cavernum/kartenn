@@ -567,6 +567,63 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `PluginAction`) ; parcours `plugins` étendu avec le plugin de test `notes`
     (`web/v2/e2e/plugins/notes`, onglet sur `prefix` et `vlan`, panneau, colonne, tuile)
   - dépend de : 10 ; 020-19, 020-25, 020-26
+  - en cours : fait le 2026-11-01 — `web/v2/shell/src/views/` : `routes.ts` (écran et
+    `meta.queries` de chaque entrée du référentiel et de chaque fiche, chacun dans son
+    morceau ; `frame/routes.ts` les prend, fiches aussi pour les plages et `/changesets/:id`
+    en attente, nom de l'objet dans le fil d'Ariane par `names.ts`), `collections.ts`
+    (colonnes, filtre de chaque colonne, nom d'une ligne), `filters.ts` (modèle de
+    `FilterPicker` tiré de `filterModel` du SDK — `filters.ts` généré par la 28 — et des
+    déclarations : `within` opérateur de la valeur, listes fermées du contrat, slug d'une
+    collection, identifiant pour une référence ou pour `domain`/`entity` des anomalies et
+    lacunes, propriétés typées par leur déclaration ; URL ⇄ pastilles, filtres envoyés =
+    ceux que `checkFilter` accepte), `list.ts` (`useFilteredList` : filtres de l'URL,
+    brouillons à part, liste lue après les déclarations quand l'URL porte un `prop.`,
+    `useNextPage` sur la fenêtre de la `DataGrid`, curseur refusé → liste relue du début et
+    dite), `ListView.vue` (E3 : `FilterPicker` + `DataGrid`, filtre de colonne =
+    `openFor` de la barre, A7 ; `/` par `useViewAction` ; colonnes des plugins par
+    `gridColumns`), `RecordView.vue` et `record/` (E2 : onglets dans l'URL — propriétés
+    résolues et `Popover` d'explication, contenu d'un domaine ou d'un préfixe, historique,
+    anomalies de l'objet et leur acquittement —, attributs, occupation et prochain libre,
+    onglets, panneaux et actions des plugins), `HomeView.vue` (E0 : tuiles de
+    `GET /v1/stats`, histogramme, tuiles `widget` des plugins), `TopologyView.vue` (E1 :
+    domaine dans l'URL, `TreeGrid` des racines et enfants paginés par la cache,
+    `childrenIntent`, contenu du nœud `?node=`, Entrée → fiche), `AnomaliesView.vue`
+    (anomalies et lacunes, `?tab=gaps`, acquittement avec motif), `PropertiesView.vue`
+    (déclarations, valeurs d'une liste fermée, lien aux lacunes) ; `parts/ViewPanel.vue`,
+    `parts/AttributeList.vue` (repris d'`EcranPanneau`, `EcranAttributs`, qui les
+    enveloppent) ; catalogues `views/i18n/{fr,en}.json`. `@kartenn/ui` : `FilterPicker`
+    expose `openFor(clé, origine)` et `openAdd()`, état de catalogue `columns`. Vitest
+    `shell/test/views.test.ts` (modèle, URL aller-retour, valeur hors type gardée et non
+    envoyée, lien copié = même clé de cache, colonnes filtrables seulement si servies,
+    routes et lectures, fil d'Ariane nommé, liste lue avec ses filtres) ; script
+    `e2e/components/filter-picker.spec.ts` (filtres de colonne) ; parcours
+    `e2e/journeys/records.spec.ts` (domaine → préfixe → adresse, explication, historique ;
+    liste longue virtualisée et lue d'avance, ligne ouverte au clavier ; curseur refusé ;
+    filtre de colonne puis lien copié rouvert à l'identique dans une autre session ; fiche
+    survolée puis ouverte sans squelette), `tree.spec.ts`, `plugins.spec.ts` étendu (tuile,
+    colonne, onglet, panneau de `notes`) ; jeu de données en RFC 3849 (`global-setup.ts`).
+  - choix : panneau et liste d'attributs du shell, non de la bibliothèque (pièces des
+    maquettes laissées « à trancher » par la 020-15) ; `q` hors de la barre (recherche de la
+    palette) ; liste et fiche lisent les filtres de l'URL, la barre en garde une copie avec
+    ses brouillons ; propriétés lues au plus 10 pages ; anomalies d'un objet d'un domaine
+    lues dans celles du domaine, 10 pages au plus, « liste peut-être incomplète » au-delà ;
+    nœud de `?node=` non encore lu relu comme préfixe ; vue de plugin `/x/…` passée en
+    morceau paresseux (son hôte `ExtensionElement`, partagé avec les écrans, n'a plus sa
+    feuille liée par la page) ; `c` et `e` laissés à la 12 (panneau d'édition) ; titre de
+    fiche = sorte (dictionnaire) puis nom ; comptes au format de la langue.
+  - reste : Topographie — colonne d'occupation (`TreeNode` de `roots`/`children` ne la sert
+    pas : l'ajouter au contrat 006, ou une lecture par ligne rendue), colonnes des plugins
+    sur le `TreeGrid` (il n'a pas de colonne d'élément, comme la `DataGrid`), « + » sur un
+    nœud (panneau d'édition, tâche 12) ; fiche — colonne « Source » des propriétés et
+    encart « propriété attendue manque » (`Resolved` ne sert ni la source ni les lacunes de
+    l'objet), motif et auteur de l'historique (absents de `Version`), comptes des onglets ;
+    tri des listes (aucun paramètre de tri au contrat) ; tuile VLAN sans l'occupation des
+    groupes (`BarList`) ; acceptation de REQ-021-18 sur `site = <site>` (le jeu de données
+    n'a ni site ni `core.site`) ; actions du type `changeset` (tâche 14). À arbitrer avec
+    la 16 : sous Firefox, le parcours `session` « fin de session dite avant qu'elle vienne »
+    ne voit plus l'avis depuis que l'accueil lit ses compteurs — une relecture de
+    `GET /v1/stats` (événement `stats`, cache périmé) compte comme activité
+    (`activityFetch`) et repousse la fin ; Chromium passe.
 - [ ] 12. Édition en place et modification rapide : éditabilité (droits, présent,
   contrat), cellule → brouillon, Ctrl+Entrée → `write.quick` (`?approval=self`) avec motif
   en ligne, rendu de 202, 412 (fusion), 422, 403 ; création (`c`) et modification (`e`)
