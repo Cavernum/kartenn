@@ -4,11 +4,11 @@
 // home page are read again. A refusal is said in the dialog with its codes (a dialog says
 // its outcomes in itself, never by a toast); success closes it and says so by a toast.
 import { api, queryClient } from "@kartenn/sdk";
-import { Button, ErrorState, Dialog, TextField, injectToasts } from "@kartenn/ui";
+import { Button, Dialog, TextField, injectToasts } from "@kartenn/ui";
 import { ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useMutation } from "../../data/query.ts";
-import { problemOf } from "../data.ts";
+import ProblemState from "../../problems/ProblemState.vue";
 
 const props = defineProps<{ id: string | null; rule: string }>();
 const open = defineModel<boolean>("open", { default: false });
@@ -62,10 +62,10 @@ async function submit(): Promise<void> {
     <form class="k-acknowledge" novalidate @submit.prevent="submit">
       <p>{{ t("views.anomalies.acknowledgeText", { rule: props.rule }) }}</p>
       <TextField v-model="motive" :label="t('views.anomalies.motive')" :error="missing" required />
-      <ErrorState
+      <ProblemState
         v-if="acknowledge.isError.value"
         :title="t('views.anomalies.acknowledgeError')"
-        :problem="problemOf(acknowledge.error.value)"
+        :error="acknowledge.error.value"
       />
     </form>
     <template #actions>

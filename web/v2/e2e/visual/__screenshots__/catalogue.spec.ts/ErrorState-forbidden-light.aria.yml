@@ -3,7 +3,8 @@
     - heading "ErrorState" [level=1]
     - paragraph: "Motif : role=alert, codes copiables"
     - figure "forbidden — Sans nouvelle tentative possible":
-      - alert: Vous n'avez pas le droit de lire ce domaine.
+      - alert:
+        - paragraph: Vous n'avez pas le droit de lire ce domaine.
       - button "Copier type urn:kartenn:problem:forbidden":
         - text: ""
         - code: urn:kartenn:problem:forbidden

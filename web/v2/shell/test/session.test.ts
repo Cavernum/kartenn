@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiProblem } from "@kartenn/sdk";
 import { createToasts } from "@kartenn/ui";
 import { ref } from "vue";
 import { createMemoryHistory, createRouter } from "vue-router";
@@ -397,7 +398,8 @@ describe("« Rester connecté » in the frame (watchSessionEnd)", () => {
     const read = vi.fn(reading);
     const stop = watchSessionEnd({
       toasts,
-      t: (key) => key,
+      t: (key, params) => (params && "why" in params ? `${key}:${String(params.why)}` : key),
+      sentence: (error) => (error instanceof ApiProblem ? `said:${error.code}` : "said:network"),
       locale: () => "fr",
       end,
       readEnd: read,
@@ -445,8 +447,30 @@ describe("« Rester connecté » in the frame (watchSessionEnd)", () => {
     const down = frame(async () => ({ kind: "failed", problem: null }));
     await down.stay();
     expect(expired.value).toBe(false);
-    expect(down.toasts.list.some((toast) => toast.title === "session.stayFailed")).toBe(true);
+    const failed = () => down.toasts.list.find((toast) => toast.title === "session.stayFailed");
+    // No answer: the network said, no code to pass on.
+    expect(failed()).toMatchObject({ description: "session.stayFailedText:said:network" });
+    expect(failed()?.code).toBeUndefined();
     down.stop();
+
+    // An answer: by problems/, the sentence of its type, its type and Request-Id.
+    const busy = frame(async () => ({
+      kind: "failed",
+      problem: new ApiProblem({
+        status: 503,
+        type: "urn:kartenn:problem:unavailable",
+        title: "",
+        requestId: "r-9",
+      }),
+    }));
+    await busy.stay();
+    expect(busy.toasts.list.find((toast) => toast.title === "session.stayFailed")).toMatchObject({
+      tone: "ko",
+      description: "session.stayFailedText:said:unavailable",
+      code: "urn:kartenn:problem:unavailable",
+      requestId: "r-9",
+    });
+    busy.stop();
   });
 
   it("reads the end outside the SDK's client: no activity that would clear the warning", async () => {

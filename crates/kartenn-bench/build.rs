@@ -1,6 +1,7 @@
 //! The fingerprint of the templates of the benches (ADR 0041, decision 2) covers the
 //! workspace crates their preparation goes through: here, the hash of the sources of each
-//! workspace crate `kartenn-bench` depends on (its `Cargo.toml`, `src/`, `migrations/`),
+//! workspace crate `kartenn-bench` depends on (its `Cargo.toml`, `build.rs`, `src/`,
+//! `migrations/`, `data/` — the files its sources include),
 //! its own workspace dependencies, and the hash of `Cargo.lock`, written to
 //! `$OUT_DIR/crates.rs`. Rebuilt when one of them changes.
 
@@ -90,7 +91,12 @@ fn main() {
         let dependencies = workspace_dependencies(&manifest);
         println!("cargo:rerun-if-changed={}", manifest_path.display());
         let mut paths = vec![manifest_path];
-        for sub in ["src", "migrations"] {
+        let script = dir.join("build.rs");
+        println!("cargo:rerun-if-changed={}", script.display());
+        if script.is_file() {
+            paths.push(script);
+        }
+        for sub in ["src", "migrations", "data"] {
             let sub = dir.join(sub);
             println!("cargo:rerun-if-changed={}", sub.display());
             files(&sub, &mut paths);

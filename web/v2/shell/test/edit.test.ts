@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { queryClient } from "@kartenn/sdk";
+import { ApiProblem, queryClient } from "@kartenn/sdk";
 import { resetContext, setFetch } from "@kartenn/sdk/host";
 import type { GridColumn } from "@kartenn/ui";
 import { afterEach, describe, expect, it } from "vitest";
@@ -213,6 +213,8 @@ describe("a list edited in place", () => {
           collection: () => PREFIXES,
           rows: () => rows.value,
           t: (key, values) => `${key}${values ? JSON.stringify(values) : ""}`,
+          sentence: (error) =>
+            error instanceof ApiProblem ? `said:${error.code}` : "said:network",
           say,
         });
         return () => h("div");
@@ -500,6 +502,11 @@ describe("a list edited in place", () => {
     );
     edit().onCommit({ row: P1, column: "value", value: "192.0.2.0/25" });
     await expect.poll(() => typeof edit().cellState(ROW, column("value"))).toBe("object");
+    // No violation: the problem in plain words, its type as served for the code.
+    expect(edit().cellState(ROW, column("value"))).toEqual({
+      error: "said:invalid",
+      code: "urn:kartenn:problem:invalid",
+    });
     rows.value = [{ ...ROW, version: V2 }];
     await nextTick();
     expect(edit().cellState(rows.value[0]!, column("value"))).toBeUndefined();

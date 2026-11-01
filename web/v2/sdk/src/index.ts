@@ -30,7 +30,7 @@ export type {
   PostOptions,
   PutOptions,
 } from "./api/client.ts";
-export { ApiProblem } from "./api/problem.ts";
+export { ApiProblem, NetworkError } from "./api/problem.ts";
 export type { Violation } from "./api/problem.ts";
 export type { components, paths, queries } from "./api/schema";
 export { context } from "./context.ts";

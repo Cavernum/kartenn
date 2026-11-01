@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { DATED, FILTERS, PARENTS, SCHEMA, generate, readContract } from "../scripts/gen.mjs";
 import { createClient } from "../src/api/client.ts";
-import { ApiProblem } from "../src/api/problem.ts";
+import { ApiProblem, NetworkError } from "../src/api/problem.ts";
 
 interface Call {
   url: string;
@@ -156,6 +156,23 @@ describe("client of the API (REQ-007-15, 24)", () => {
       status: 401,
     });
     expect(onUnauthorized).toHaveBeenCalledOnce();
+  });
+
+  it("no answer: a NetworkError, its cause kept; a read given up stays an abort", async () => {
+    const offline = new TypeError("Failed to fetch");
+    const failing = (() => Promise.reject(offline)) as unknown as typeof fetch;
+    const error = await createClient({ fetch: failing })
+      .get("/v1/me")
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(NetworkError);
+    expect((error as Error).cause).toBe(offline);
+    const controller = new AbortController();
+    controller.abort();
+    const aborted = (() =>
+      Promise.reject(new DOMException("aborted", "AbortError"))) as unknown as typeof fetch;
+    await expect(
+      createClient({ fetch: aborted }).request("GET", "/v1/me", { signal: controller.signal }),
+    ).rejects.toMatchObject({ name: "AbortError" });
   });
 
   it("follows the pages to the last one", async () => {

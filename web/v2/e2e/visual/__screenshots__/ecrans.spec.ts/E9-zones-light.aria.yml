@@ -52,6 +52,7 @@
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
+- status
 - main:
   - heading "Domaine Bureaux" [level=1]
   - region "Adresses":
@@ -96,14 +97,16 @@
           - gridcell
           - gridcell
           - gridcell
+    - alert
   - heading "Préfixes" [level=2]
   - text: Bureaux
   - paragraph: Aucun préfixe racine
   - paragraph: Le domaine « bureaux » n'a aucun préfixe au présent. Créez-en un ou lancez un import.
   - button "Créer un préfixe"
   - heading "Anomalies ouvertes" [level=2]
-  - alert: "Les anomalies n'ont pas pu être lues : le service est momentanément indisponible."
-  - paragraph: Le reste de l'écran reste utilisable. Si l'erreur persiste, transmettez ces deux codes.
+  - alert:
+    - paragraph: "Les anomalies n'ont pas pu être lues : le service est momentanément indisponible."
+    - paragraph: Le reste de l'écran reste utilisable. Si l'erreur persiste, transmettez ces deux codes.
   - button "Copier type urn:kartenn:problem:unavailable":
     - text: ""
     - code: urn:kartenn:problem:unavailable

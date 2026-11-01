@@ -2,20 +2,14 @@
 // The gaps (REQ-021-9; 016): the properties an object should carry and lacks, filtered by
 // property, domain and entity in the URL, page by page. Three states.
 import type { components } from "@kartenn/sdk";
-import {
-  DataGrid,
-  EmptyState,
-  ErrorState,
-  FilterPicker,
-  KeyLabel,
-  Stack,
-  type GridColumn,
-} from "@kartenn/ui";
+import { DataGrid, EmptyState, FilterPicker, KeyLabel, Stack, type GridColumn } from "@kartenn/ui";
 import { computed, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSettings } from "../../frame/settings.ts";
 import { useViewAction } from "../../shortcuts/view.ts";
-import { problemOf, useKeyLabel } from "../data.ts";
+import NextPageAlert from "../../problems/NextPageAlert.vue";
+import ProblemState from "../../problems/ProblemState.vue";
+import { useKeyLabel } from "../data.ts";
 import { useFilteredList } from "../list.ts";
 import ObjectName from "../record/ObjectName.vue";
 
@@ -24,9 +18,8 @@ type Gap = components["schemas"]["Gap"];
 const { t, locale } = useI18n();
 const settings = useSettings();
 const keyLabel = useKeyLabel();
-const { model, filters, onFilters, list, rows, failed, onWindow } = useFilteredList<Gap>(
-  () => "/v1/property-gaps",
-);
+const { model, filters, onFilters, list, rows, failed, nextFailed, onWindow } =
+  useFilteredList<Gap>(() => "/v1/property-gaps");
 const picker = useTemplateRef<InstanceType<typeof FilterPicker>>("picker");
 useViewAction("filter", {
   label: () => t("views.list.filterAction", { name: t("views.anomalies.gaps") }),
@@ -55,12 +48,12 @@ const gapOf = (row: Record<string, unknown>) => row as unknown as Gap;
       :shortcut="settings.singleKeys.value ? ['/'] : undefined"
       @update:model-value="onFilters"
     />
-    <ErrorState
+    <NextPageAlert v-if="nextFailed" :error="list.error.value" :retry="list.fetchNextPage" />
+    <ProblemState
       v-if="failed"
       :title="t('views.anomalies.gapsError')"
-      :problem="problemOf(list.error.value)"
-      :retry-label="t('views.retry')"
-      @retry="list.refetch()"
+      :error="list.error.value"
+      :retry="list.refetch"
     />
     <EmptyState
       v-else-if="list.isSuccess.value && rows.length === 0"

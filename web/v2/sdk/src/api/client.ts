@@ -7,7 +7,7 @@
 // problems, cursors, dated reads).
 
 import { DATED_PATHS } from "./dated.ts";
-import { ApiProblem } from "./problem.ts";
+import { ApiProblem, NetworkError } from "./problem.ts";
 import type { paths, queries } from "./schema";
 
 type Method = "get" | "post" | "put" | "patch" | "delete";
@@ -189,13 +189,20 @@ export function createClient(options: ClientOptions = {}): Client {
     if (method === "POST")
       headers.set("Idempotency-Key", raw.idempotencyKey ?? crypto.randomUUID());
     const call = options.fetch ?? globalThis.fetch;
-    const response = await call(base + url, {
-      method,
-      headers,
-      credentials: "same-origin",
-      ...(body === undefined ? {} : { body }),
-      ...(raw.signal ? { signal: raw.signal } : {}),
-    });
+    let response: Response;
+    try {
+      response = await call(base + url, {
+        method,
+        headers,
+        credentials: "same-origin",
+        ...(body === undefined ? {} : { body }),
+        ...(raw.signal ? { signal: raw.signal } : {}),
+      });
+    } catch (error) {
+      // A read given up is not a failure of the network.
+      if (raw.signal?.aborted) throw error;
+      throw new NetworkError(error);
+    }
     if (response.status === 304) {
       return { data: undefined, etag: response.headers.get("ETag"), status: 304 };
     }

@@ -82,11 +82,12 @@ import {
   checkPeriod,
   goToPeriod,
   probePath,
+  refusalOnField,
   toPresent,
   useTime,
   type Period,
-  type PeriodRefusal,
 } from "../time/index.ts";
+import { problemOf, useProblems } from "../problems/index.ts";
 import { provideShortcuts } from "../shortcuts/context.ts";
 import {
   objectEntry,
@@ -245,7 +246,8 @@ function toggleDraft(): void {
 // back on the field, a new object each time), the band goes back to the present and gives
 // the focus to the pill (2.4.3).
 const pill = ref<{ focus(): void } | null>(null);
-const refusal = ref<PeriodRefusal>();
+const refusal = shallowRef<{ errors: Partial<Record<keyof Period, string>>; problem: unknown }>();
+const { sentence } = useProblems();
 /** The period asked last: the answer to an earlier one is dropped. */
 let asked = 0;
 async function applyPeriod(period: Period): Promise<void> {
@@ -256,14 +258,7 @@ async function applyPeriod(period: Period): Promise<void> {
   const refused = await checkPeriod(period, path);
   if (ask !== asked) return;
   if (refused) {
-    refusal.value = Object.fromEntries(
-      Object.entries(refused).map(([field, reason]) => [
-        field,
-        field === "asOf" && /later than the time/.test(reason)
-          ? t("time.asOfLater")
-          : t("time.refused", { reason }),
-      ]),
-    );
+    refusal.value = { errors: refusalOnField(refused, t, sentence), problem: refused.problem };
     return;
   }
   refusal.value = undefined;
@@ -669,6 +664,7 @@ onBeforeUnmount(
     t,
     locale: () => i18n.locale.value,
     end: () => session.value.me?.session?.expires_at,
+    sentence,
   }),
 );
 </script>
@@ -728,7 +724,8 @@ onBeforeUnmount(
               :valid-at="time.validAt"
               :as-of="time.asOf"
               :time-zone="ZONE"
-              :errors="refusal"
+              :errors="refusal?.errors"
+              :problem="problemOf(refusal?.problem)"
               @apply="applyPeriod"
             />
             <DraftCounter

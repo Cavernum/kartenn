@@ -4,6 +4,17 @@
 
 import type { components } from "./schema";
 
+/**
+ * No answer: `fetch` failed (the network, the server unreached, a refused CORS), its cause
+ * kept. Apart from a bug of the client, which is neither this nor an `ApiProblem`.
+ */
+export class NetworkError extends Error {
+  constructor(cause: unknown) {
+    super("the server could not be reached", { cause });
+    this.name = "NetworkError";
+  }
+}
+
 /** A violation of a rule, as served in a problem (REQ-006-21). */
 export type Violation = components["schemas"]["ViolationDto"];
 
