@@ -375,6 +375,52 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
 - Dépendance serveur hors de la 021 : `GET /v1/labels` et l'événement `labels` (spec 018,
   validée) avant la tâche 13.
 
+### Sous-tâches serveur des arbitrages du 2026-11-01 (A11 à A14)
+
+- [ ] 11a. `TreeNode` porte `version` et, pour un préfixe, `occupancy` (A11) dans
+  `GET /v1/domains/{id}/roots` et `GET /v1/prefixes/{id}/children`, lus en lot au même
+  instant que la page (aucune requête par ligne) ; contrat OpenAPI régénéré — verify :
+  `k-check -p kartenn-rest` (test d'intégration : `version` égale à l'ETag de l'objet,
+  `occupancy` égale à `…/occupancy` au même `valid_at`) ; `bench-affected` réduit si un
+  banc lit l'arbre
+  - où : `crates/kartenn-rest/src/tree.rs` (`NodeDto`, `roots`, `children`, `occupancy`) ;
+    la lecture d'occupation du store qu'appelle `occupancy` ; test voisin
+    `crates/kartenn-rest/tests/it/objects.rs` (arbre) ; 006 design § tableau « Arbre »
+  - dépend de : —
+- [ ] 16a. `SessionState.absolute_expires_at` et en-tête `Kartenn-Background: ?1` traité
+  en `NotActivity` (A14) : ni `seen` prolongé ni cookie réémis ; valeur autre que `?1` ou
+  `?0` ignorée (requête ordinaire) — verify : `k-check -p kartenn-rest` (sessions : une
+  requête de fond ne repousse pas `expires_at`, une requête ordinaire le repousse ;
+  `absolute_expires_at` constant sur toute la session)
+  - où : `crates/kartenn-rest/src/auth.rs` (`SessionState`, `Me`),
+    `crates/kartenn-rest/src/authn.rs` (`NotActivity`, comme
+    `crates/kartenn-rest/src/events/mod.rs`) ; test voisin
+    `crates/kartenn-rest/tests/it/sessions.rs` ; 005 design § « Cookie de session »,
+    006 design § « Cookies »
+  - dépend de : —
+- [ ] 24a. `placements` dans `ChangesetSimulated` (A12) : `[{object, kind, before,
+  after}]` pour chaque objet dont le parent change (déduit : préfixes, plages, adresses ;
+  déclaré : modules), au présent, sur la simulation d'un changeset et d'un brouillon —
+  verify : `k-check -p kartenn-rest` (préfixe inséré entre un parent et ses enfants : les
+  enfants changent de parent ; préfixe retiré : ses enfants remontent ; rien pour un
+  changeset sans effet sur l'arbre)
+  - où : `crates/kartenn-rest/src/changesets.rs` (`ChangesetSimulated`, `simulate`) ;
+    la simulation du service qui produit `diff` et `cascaded` ; test voisin
+    `crates/kartenn-rest/tests/it/simulated.rs` ; 006 design § « `?simulate=true` »
+  - dépend de : —
+- [ ] 17a. Référence locale dans une valeur de propriété (A13) : `RawValue`
+  `{"local": n}` (`RawDto`, `RawInput`), résolue à l'application comme les `Ref` des
+  opérations, prise dans le tri topologique ; référence vers un indice absent ou vers un
+  objet d'un autre type que la déclaration → violation codée ; brouillon et simulation
+  compris — verify : `k-check -p kartenn-rest -p kartenn-service` (VLAN créé et posé en
+  `core.vlan` sur un réseau dans un seul changeset, appliqué puis au brouillon ; indice
+  absent → 422 codé) ; revue attentive du contrat du noyau
+  - où : `crates/kartenn-rest/src/operation.rs` (`RawDto`),
+    `crates/kartenn-service/src/operations.rs` (`Ref`, résolution des références
+    locales), lecture des valeurs de référence dans `kartenn-core` (`RawInput`) ; test
+    voisin `crates/kartenn-rest/tests/it/vlan/` ; 004 design § « Références internes »
+  - dépend de : —
+
 ## P2 — Écrans du nouveau shell (phase 4)
 
 Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien portés dans
@@ -1077,6 +1123,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `web/v2/shell/src/_ui/ecrans/E7Administration.vue` (vues `groupes`,
     `groupe-edition`, `groupe-refus`, `secours`, `identite`), design 021 § Administration.
   - dépend de : 13
+  - découpée le 2026-11-01 en 15a, 15b et 15c (fin de P2)
 - [ ] 16. Hôte des plugins et session : emplacements dans le nouveau cadre, point `widget`
   de l'Accueil, actions sur le type `changeset`, onglets sur les types de module, frontière
   d'erreur avec code, entrées par espace, « À propos » ; session (reconnexion, échéance
@@ -1181,6 +1228,66 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     principal, les autres et le compte de secours en secondaire ; « Réessayer » rend le
     focus au titre de sa section.
 
+### Sous-tâches shell des arbitrages du 2026-11-01
+
+- [ ] 11b. Topographie : colonne d'occupation tirée de `TreeNode.occupancy`, « + » sur un
+  nœud ouvrant le panneau d'édition de la sorte (tâche 12) — REQ-021-9, 18 — verify :
+  Vitest de la colonne ; parcours `tree` (occupation affichée sans lecture par ligne)
+  - où : `web/v2/shell/src/views/TopologyView.vue`, `topology.ts` ; `views/edit/` ;
+    parcours `web/v2/e2e/journeys/tree.spec.ts`
+  - dépend de : 11a
+- [ ] 12a. Édition en place dans l'arbre de la Topographie et la grille du contenu d'un
+  nœud, `expected` et `If-Match` tirés de `TreeNode.version` ; « + » refusé visible avec
+  sa permission sur un nœud — REQ-021-15, 37 — verify : parcours `edit` (cellule de
+  l'arbre → brouillon, Ctrl+Entrée → 201 ; deux onglets → 412 sans perte)
+  - où : `web/v2/shell/src/views/TopologyView.vue`, `views/edit/` (`fields.ts`) ;
+    parcours `web/v2/e2e/journeys/edit.spec.ts`
+  - dépend de : 11a, 11b
+- [ ] 15a. Administration : groupes (membres, liaisons) et rôles ; permissions en nom servi
+  et libellé — REQ-021-12, REQ-025-12 — verify : parcours `admin` (groupes, rôles)
+  - où : `web/shell/src/admin/{BindingsView,RolesView}.vue`, `admin.ts`, `write.ts`,
+    `WriteOutcome.vue` (comportement) ; maquette
+    `web/v2/shell/src/_ui/ecrans/E7Administration.vue` (vues `groupes`,
+    `groupe-edition`, `groupe-refus`) ; parcours `web/e2e/journeys/admin.spec.ts` porté
+    sous `web/v2/e2e/journeys/admin.spec.ts` ; design 021 § Administration
+  - dépend de : 13
+- [ ] 15b. Administration : émetteurs, comptes de service et secret (montré une fois),
+  identités (groupes et droits effectifs en lecture), secours — REQ-021-12 — verify :
+  parcours `admin` étendu (secret montré une fois, identité en lecture)
+  - où : `web/shell/src/admin/{IssuersView,ServiceAccountsView,ServiceAccountView,
+    SecretDialog,IdentitiesView,IdentityView}.vue` ; maquette E7 (vues `secours`,
+    `identite`) ; parcours de la 15a
+  - dépend de : 15a
+- [ ] 15c. Administration : journal d'audit et export, imports ; capture E7 —
+  REQ-021-12 — verify : parcours `admin` étendu (filtre du journal, export, import
+  suivi) ; capture E7
+  - où : `web/shell/src/admin/{AuditView,ImportsView,ImportView,PagedTable}.vue` ;
+    maquette E7 ; parcours de la 15a
+  - dépend de : 15a
+- [ ] 16b. Fin de session annoncée et requêtes de fond : avis deux minutes avant
+  `absolute_expires_at` (sans « Rester connecté », qui ne la repousse pas) ; en-tête
+  `Kartenn-Background: ?1` posé par le SDK sur les relectures sans geste (événements,
+  revalidation au focus et à la reconnexion, préchargement) — REQ-021-14 — verify :
+  Vitest (en-tête présent seulement hors geste ; avis à l'heure) ; parcours `session`
+  - où : `web/v2/shell/src/session/{expiry,warning}.ts`, `SessionDialog.vue` ;
+    `activityFetch` et `installGestures` du SDK (`web/v2/sdk/src/`) ; parcours
+    `web/v2/e2e/journeys/session.spec.ts`
+  - dépend de : 16a
+- [ ] 17b. « Créer un VLAN pour ce réseau » (maquette E12) : création du VLAN et pose de
+  `core.vlan` par une référence locale, au brouillon ou en Ctrl+Entrée ; poser un VLAN
+  existant depuis l'onglet du réseau — REQ-026-6 — verify : parcours `vlan` (création
+  pour un réseau au brouillon puis appliquée, un seul changeset)
+  - où : écrans VLAN de la tâche 17 (`web/v2/shell/src/views/`, onglet Réseaux) ;
+    parcours `web/v2/e2e/journeys/vlan.spec.ts`
+  - dépend de : 17a
+- [ ] 24b. Aperçu du brouillon dans l'arbre des préfixes, tiré de
+  `ChangesetSimulated.placements` : nœuds déplacés montrés sous leur parent d'après,
+  marqués « en brouillon » — REQ-021-17 — verify : Vitest de l'aperçu ; parcours `moves`
+  (préfixe inséré au brouillon : ses futurs enfants montrés dessous avant application)
+  - où : `web/v2/shell/src/views/TopologyView.vue`, `topology.ts` ; parcours
+    `web/v2/e2e/journeys/moves.spec.ts`
+  - dépend de : 24a
+
 ## P3 — Plugins (phase 5)
 
 - [ ] 17. Écrans VLAN du cœur (amendée par la 026 : plus un plugin, des écrans du shell)
@@ -1268,6 +1375,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   `machines.host.*`), sans optimisme — verify : parcours `machines` vert
   - où : `web/plugins/machines/`
   - dépend de : 17
+  - découpée le 2026-11-01 en 18a et 18b (fin de P3)
 - [x] 19. Plugin d'exemple passé au SDK 1.0, **toujours sans framework**, en racine
   d'ombre avec `handle.styles()` sur `@kartenn/ui/style.css`, lecture par le
   `QueryClient` — REQ-021-25, 27 — verify : parcours `example` vert ; invalidation reçue
@@ -1332,6 +1440,25 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     021 »
   - dépend de : —
   - fait le 2026-10-23 (arbitrage de l'utilisateur)
+
+- [ ] 18a. Plugin Machines porté au SDK 1.0 sous `web/v2/plugins/machines` : listes et
+  fiches des machines, clusters et interfaces, onglet Interfaces sur préfixe, adresse et
+  VLAN, espace `hosts`, `@kartenn/ui` en racine d'ombre comme le plugin d'exemple —
+  verify : parcours `machines` (lecture, création au brouillon) vert dans les deux
+  navigateurs
+  - où : `web/plugins/machines/src/index.ts` (comportement), `public/` ; à l'image de
+    `web/v2/plugins/example/` (manifeste, `handle.styles()`, lectures par le
+    `QueryClient`) ; parcours `web/e2e/journeys/machines.spec.ts` porté sous
+    `web/v2/e2e/journeys/`
+  - dépend de : 16, 19
+- [ ] 18b. Déplacement d'une machine vers un cluster par `canMove` du SDK (Q-021-2) :
+  cycle refusé (`machines.host.invalid`), autre site refusé par le serveur
+  (`machines.host.site_mismatch`, vérifier qu'il refuse), sans optimisme ; reste
+  « machines » de la tâche 24 (arbre `declared`, réponse ralentie) — REQ-021-17, 32 à
+  34 — verify : Vitest de `canMove` sur les codes `machines.host.*` ; parcours
+  `machines` et `moves` étendus (glisser au clavier)
+  - où : `canMove` et `useMoves` (tâche 24, `web/v2/shell/src/`, SDK) ; plugin de la 18a
+  - dépend de : 18a
 
 ## P4 — Budgets et clôture
 

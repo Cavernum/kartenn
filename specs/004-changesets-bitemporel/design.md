@@ -143,7 +143,10 @@ flowchart TD
   le passé est rétroactif. (Écart trouvé et comblé le 2026-10-15 : la tâche 7 était
   cochée sans cette exigence.)
 - **Références internes** (REQ-004-4) : une opération peut désigner un objet par une
-  référence locale (`$1`, `$2`…) résolue en UUID v7 généré à l'application.
+  référence locale (`$1`, `$2`…) résolue en UUID v7 généré à l'application. Une valeur
+  de propriété de type référence peut aussi être une référence locale (`{"local": n}`
+  au contrat), résolue de même ; elle compte dans le tri topologique des créations
+  (*amendé par la 021*, A13).
 - **Concurrence optimiste** (REQ-004-11) : une opération peut porter
   `expected` (dernier changeset ayant modifié l'objet, exposé comme ETag par
   la 006) ; différence → conflit.

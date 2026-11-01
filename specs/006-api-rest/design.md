@@ -86,9 +86,9 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 | Domaine | Routes |
 |---|---|
 | Objets du noyau | `entities`, `sites`, `domains`, `prefixes`, `ranges`, `addresses` : `GET`/`QUERY` collection, `POST` collection, `GET`/`PATCH`/`DELETE` objet, `GET …/{id}/history` |
-| Arbre | `GET /v1/prefixes/{id}/children`, `…/ancestors`, `…/occupancy`, `…/next-free?kind=prefix&length=26` ou `kind=address` |
+| Arbre | `GET /v1/prefixes/{id}/children`, `…/ancestors`, `…/occupancy`, `…/next-free?kind=prefix&length=26` ou `kind=address` ; chaque `TreeNode` de `children` et de `domains/{id}/roots` porte `version` et, pour un préfixe, `occupancy` (*amendé par la 021*, A11) |
 | Anomalies | `GET /v1/anomalies` ; `POST /v1/anomalies/{id}/acknowledgement` |
-| Propriétés | `property-declarations`, `property-declarations/{key}/values` ; `GET /v1/<collection>/{id}/properties` (valeurs résolues), `…/properties/{key}/explanation`, `…/properties/{key}/suggestion` ; `GET /v1/property-gaps` (écarts) |
+| Propriétés | `property-declarations`, `property-declarations/{key}/values` ; `GET /v1/<collection>/{id}/properties` (valeurs résolues), `…/properties/{key}/explanation`, `…/properties/{key}/suggestion` ; `GET /v1/property-gaps` (écarts) ; dans un changeset, une valeur de type référence accepte `{"local": n}` comme les `Ref` des opérations (*amendé par la 021*, A13) |
 | Changesets | `POST /v1/changesets` (`?simulate=true` → 200 sans écriture) ; `GET` collection et objet ; `GET …/{id}/diff` (décompte, détail paginé) ; `POST …/{id}/validation`, `…/rejection`, `…/withdrawal`, `…/undo` ; `GET /v1/proposals` |
 | Imports | `POST /v1/imports` ; `PUT /v1/imports/{id}/chunks/{n}` ; `POST …/start`, `…/resume`, `…/cancel` ; `GET …/{id}` |
 | Droits | `roles`, `groups`, `groups/{id}/members` (025), `bindings` (sujet : un groupe kartenn), `issuer-attachments`, `service-accounts`, `service-accounts/{id}/secrets`, `identities` (état, groupes, droits effectifs), `GET /v1/me` (session, groupes, droits effectifs résumés) |
@@ -249,7 +249,8 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     l'émetteur qui la donne ; 025), `bindings` (`[{group, role, scope}]`, les liaisons
     effectives, par le groupe qui les donne), `global_permissions` (celles des liaisons
     globales) et `session.expires_at` (fin de session, par inactivité ou durée absolue ;
-    `session` reste `null` hors session cookie). La 025 a renommé `groups` (groupes de
+    `session` reste `null` hors session cookie) ; `session.absolute_expires_at` donne la
+    fin par durée absolue seule (*amendé par la 021*, A14). La 025 a renommé `groups` (groupes de
     l'émetteur) en `idp_groups` : pas de compatibilité avant la première version.
 - **Audit et exploitation (arbitrage du 2026-10-19, 006-19)** :
   - journal : `GET /v1/audit-events?from=…&to=…&name=…&actor=…&object=…` et `QUERY
@@ -496,7 +497,9 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     deux absents : `[instant de la transaction, ∞)`. Les opérations gardent la forme du
     service (discriminant `op`, `Ref` `{"id": …}` ou `{"local": n}`, période de
     `within` en microsecondes) jusqu'au DTO du contrat (006-22) ;
-  - `?simulate=true` → 200 `{valid, violations, diff, sample, cascaded}`, rien de
+  - `?simulate=true` → 200 `{valid, violations, diff, sample, cascaded, placements}`
+    (`placements` : `[{object, kind, before, after}]`, parent avant et après de chaque
+    objet dont le parent change ; *amendé par la 021*, A12), rien de
     journalisé, donc sans lien ; appliqué → 201, `Location` et `Link` vers le
     changeset ; en attente → 202 et `Link` ; corps `{changeset: {id, href}, state, …}` ;
   - indice d'opération : la violation du noyau porte `operation: Option<usize>`,
@@ -551,7 +554,9 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   événement ; `logged_in` reste pour la connexion OIDC.
 - **Cookies** : un module `cookies` construit les `Set-Cookie` (`__Host-`, `Secure`,
   `HttpOnly`, `SameSite=Strict`, `Path=/`, pas de `Domain`) ; la session est réémise si
-  sa dernière activité date de plus d'une minute ; suppression par `Max-Age=0`.
+  sa dernière activité date de plus d'une minute ; suppression par `Max-Age=0`. Une
+  requête qui porte `Kartenn-Background: ?1` n'est pas une activité (`NotActivity`) :
+  ni `seen` prolongé ni cookie réémis (*amendé par la 021*, A14).
 - **Secours** : `POST /v1/auth/breakglass` (`name`, `passphrase`, `code`) →
   `authn::authenticate_breakglass` ; session marquée « secours », absolue 1 h.
 - **TLS** : `Transport { client, tls }` calculé en couche 4 ; sans TLS, Basic → 401 et

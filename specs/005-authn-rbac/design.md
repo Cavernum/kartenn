@@ -223,7 +223,9 @@ livrés ([025](../025-droits-par-groupes/design.md)).*
   clé ; contenu : identité, émetteur, `sub`, groupes, début, dernière activité, jeton de
   rafraîchissement, jeton d'identité (pour la déconnexion). Réémis au plus une fois par
   minute (inactivité glissante, à la charge de la 006). Au-delà de 4 Kio, découpage en au plus trois cookies
-  `__Host-kartenn-N`.
+  `__Host-kartenn-N`. Une requête marquée `Kartenn-Background: ?1` n'est pas une activité
+  (`NotActivity`, comme le flux d'événements) : elle ne prolonge pas l'inactivité
+  (*amendé par la 021*, A14).
 - **Rafraîchissement des groupes** : à l'expiration du jeton d'accès de l'IdP (au plus
   15 min), le jeton de rafraîchissement est échangé ; un échec ferme la session.
 - **Jetons Bearer** : validation RFC 9068 par `jsonwebtoken`, clés JWKS en cache par

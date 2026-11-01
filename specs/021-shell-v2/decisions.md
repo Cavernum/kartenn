@@ -226,6 +226,36 @@ fusionnée).
   la pile retenue du design est amendée. Le test du build interdit `eval` et
   `new Function`.
 
+Tranchés le 2026-11-01 par l'utilisateur (manques de contrat relevés par les tâches 11,
+12, 16, 17 et 24) ; chaque amendement est additif et marqué « *amendé par la 021* » dans
+la spec qu'il touche :
+
+- **A11 — `TreeNode` (006)** : chaque nœud servi par `GET /v1/domains/{id}/roots` et
+  `GET /v1/prefixes/{id}/children` porte `version` (dernier changeset qui a modifié
+  l'objet, la valeur de son ETag) et, pour un préfixe, `occupancy` (même forme que
+  `…/occupancy`, au même instant). Débloque l'édition en place dans l'arbre (12a) et la
+  colonne d'occupation de la Topographie (11b), sans relire chaque objet.
+- **A12 — `placements` dans la simulation (006)** : `ChangesetSimulated` gagne
+  `placements: [{object, kind, before, after}]` (parent avant et après le changeset, au
+  présent, pour chaque objet dont le parent change, déduit ou déclaré). Le shell en tire
+  l'aperçu du brouillon dans l'arbre (REQ-021-17, 24b). Retenu contre une lecture de
+  l'arbre sous brouillon (plus lourde) et contre l'abandon de l'aperçu.
+- **A13 — Référence locale dans une valeur (004, 006)** : une valeur de propriété de
+  type référence (`RawValue`) peut être `{"local": n}`, la référence locale d'un objet créé
+  plus tôt dans le même changeset (REQ-004-4), résolue à l'application comme celles des
+  opérations. « Créer un VLAN pour ce réseau » (E12) tient alors en un changeset atomique,
+  au brouillon ou appliqué (17a, 17b). Retenu contre deux changesets successifs (non
+  atomique).
+- **A14 — Fin de session et requêtes de fond (005, 006)** : `SessionState` gagne
+  `absolute_expires_at` (fin par durée absolue, RFC 3339 ; `expires_at` reste la plus
+  proche des deux) ; le shell annonce la fin absolue deux minutes avant. Une requête qui
+  porte l'en-tête `Kartenn-Background: ?1` (booléen de champ structuré, RFC 9651 § 3.3.6)
+  n'est pas une activité : `authn` la traite comme les réponses du flux (`NotActivity`),
+  elle ne prolonge pas `seen` et ne réémet pas le cookie. Le client le pose sur ses
+  relectures de fond (événements, revalidation au focus). L'en-tête ne peut que priver une
+  requête de son effet d'activité, jamais prolonger une session : aucun gain pour un
+  attaquant qui le pose ou le retire (16a, 16b).
+
 ## Questions (closes le 2026-10-23)
 
 - **Q-021-1** — Édition en place : brouillon par défaut, en lot avec un motif ;
