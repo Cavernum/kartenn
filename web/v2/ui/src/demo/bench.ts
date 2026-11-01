@@ -6,7 +6,7 @@
 // alone on `/_ui/bancs/<Nom>` of the catalogue build, driven by the Playwright project
 // `components-bench` (web/v2/e2e/bench/). Never captured, never in a production build.
 
-import { computed, defineComponent, h, ref, shallowRef, type Component } from "vue";
+import { computed, defineComponent, h, nextTick, ref, shallowRef, type Component } from "vue";
 import Button from "../components/Button/Button.vue";
 import Cluster from "../components/Cluster/Cluster.vue";
 import DataGrid from "../components/DataGrid/DataGrid.vue";
@@ -14,35 +14,65 @@ import type { GridColumn, GridCommit, GridSort } from "../components/DataGrid/gr
 import Stack from "../components/Stack/Stack.vue";
 import TextField from "../components/TextField/TextField.vue";
 import Tree from "../components/Tree/Tree.vue";
-import type { MoveIntent, MoveState, TreeNode } from "../components/TreeGrid/tree.ts";
+import type { MoveCheck, MoveIntent, MoveState, TreeNode } from "../components/TreeGrid/tree.ts";
 import TreeGrid from "../components/TreeGrid/TreeGrid.vue";
 import { environments } from "../fixtures/index.ts";
+import { ANSWER_EVENT, fullTarget, lockedTarget, STATE_MEASURE } from "./benchNames.ts";
 import { moveNode, noCycle } from "./treeHost.ts";
 import { virtualTree } from "./trees.ts";
 
 /**
- * The event the host of a tree sends on `window` as its answer to a move comes, before it
- * applies it: the bench times the rendering of the answer from it.
+ * The host of the catalogue (`moveHost`), its answer after `delay` ms said to the bench
+ * (`ANSWER_EVENT`). It refuses a part of the targets, so that the trees render refusals:
+ * the check of the tree (`canMove`, with its reason) under a `lockedTarget`, the
+ * « server » (`moveState` refused, with its code) under a `fullTarget`.
  */
-export const ANSWER_EVENT = "k-bench-answer";
-
-/** The host of the catalogue (`moveHost`), its answer after `delay` ms said to the bench. */
 function benchHost(start: TreeNode[], delay = 300) {
   const nodes = shallowRef(start);
   const states = shallowRef(new Map<string, MoveState>());
+  const setState = (id: string, state: MoveState | undefined) => {
+    const next = new Map(states.value);
+    if (state) next.set(id, state);
+    else next.delete(id);
+    states.value = next;
+  };
   return {
     nodes,
-    canMove: noCycle,
+    canMove(node: TreeNode, target: TreeNode | null): MoveCheck {
+      return lockedTarget(target?.id)
+        ? { ok: false, reason: `${target!.label} est verrouillé.`, code: "entity.locked" }
+        : noCycle(node, target);
+    },
     moveState: (node: TreeNode) => states.value.get(node.id),
     onMove({ node, target }: MoveIntent) {
-      states.value = new Map(states.value).set(node.id, "pending");
+      setState(node.id, "pending");
       setTimeout(() => {
+        // The answer ready (the new model built: the host's work, not the tree's), then
+        // said to the bench, then given to the tree.
+        const refused = fullTarget(target?.id);
+        const next = refused ? nodes.value : moveNode(nodes.value, node.id, target?.id ?? null);
         window.dispatchEvent(new Event(ANSWER_EVENT));
-        nodes.value = moveNode(nodes.value, node.id, target?.id ?? null);
-        const next = new Map(states.value);
-        next.delete(node.id);
-        states.value = next;
+        if (refused) {
+          const reason = `${target!.label} est plein.`;
+          setState(node.id, { refused: { ok: false, reason, code: "entity.full" } });
+          return;
+        }
+        nodes.value = next;
+        setState(node.id, undefined);
       }, delay);
+    },
+    /** A refusal given, then taken back, on the last node: a change of `moveState` alone. */
+    async toggleState(): Promise<void> {
+      const id = "v100-1000";
+      const start = performance.now();
+      setState(
+        id,
+        states.value.has(id)
+          ? undefined
+          : { refused: { ok: false, reason: "Refus du banc.", code: "bench.refused" } },
+      );
+      await nextTick();
+      performance.measure(STATE_MEASURE, { start, end: performance.now() });
     },
   };
 }
@@ -50,7 +80,8 @@ function benchHost(start: TreeNode[], delay = 300) {
 /**
  * A tree of a hundred thousand nodes (`virtualTree`), its model built before the tree is
  * shown: « Afficher l'arbre » mounts it, all closed; then five domains (5 100 rows) or
- * all of them (100 100 rows) open by a button, and moves by the keyboard.
+ * all of them (100 100 rows) open by a button, and moves by the keyboard; « Changer
+ * l'état d'un nœud » changes `moveState` alone (`STATE_MEASURE`).
  */
 function treeBench(tree: Component, more: Record<string, unknown> = {}): Component {
   return defineComponent({
@@ -88,6 +119,7 @@ function treeBench(tree: Component, more: Record<string, unknown> = {}): Compone
               { onClick: () => (expanded.value = domains(host.nodes.value.length)) },
               () => "Tout ouvrir",
             ),
+            h(Button, { onClick: host.toggleState }, () => "Changer l'état d'un nœud"),
           ]),
         ]);
     },
