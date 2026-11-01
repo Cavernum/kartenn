@@ -91,14 +91,18 @@ fn main() {
         let dependencies = workspace_dependencies(&manifest);
         println!("cargo:rerun-if-changed={}", manifest_path.display());
         let mut paths = vec![manifest_path];
+        // Only paths that exist: cargo reruns a build script that names a missing one at
+        // every build, and recompiles this crate each time (three builds per bench run).
         let script = dir.join("build.rs");
-        println!("cargo:rerun-if-changed={}", script.display());
         if script.is_file() {
+            println!("cargo:rerun-if-changed={}", script.display());
             paths.push(script);
         }
         for sub in ["src", "migrations", "data"] {
             let sub = dir.join(sub);
-            println!("cargo:rerun-if-changed={}", sub.display());
+            if sub.exists() {
+                println!("cargo:rerun-if-changed={}", sub.display());
+            }
             files(&sub, &mut paths);
         }
         let mut h = Fnv(0xcbf2_9ce4_8422_2325);
