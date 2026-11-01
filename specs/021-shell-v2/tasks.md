@@ -504,6 +504,28 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
   - reste : `contract::breaches` compare les paramètres par nom et emplacement sans suivre
     les `$ref` : un changement du composant `Kartenn-Background` (le rendre requis) ne
     serait pas vu comme une rupture.
+- [ ] 16d. Jeton tourné jamais perdu (A15, relevé par la revue de la 16c) : les retours
+  anticipés de la couche 6 (refus `on_behalf`, `approval` ou `simulate` invalides)
+  partent après un rafraîchissement réussi sans aucun cookie : ils réémettent le cookie
+  qui convient (ordinaire, ou de fond `seen` inchangé) ; deux requêtes concurrentes dont
+  le rafraîchissement est dû ne présentent pas deux fois le même jeton à l'émetteur
+  (rafraîchissement unique par session en cours, RFC 9700 § 4.14.2) ; tests : l'émetteur
+  de test refuse `r1` après la rotation, et une fin absolue comparée au `started` du
+  cookie d'entrée — verify : `k-check -p kartenn-rest` (sessions : refus anticipé après
+  rafraîchissement → cookie réémis ; deux requêtes concurrentes → un seul appel à
+  l'émetteur ; cookie resté sur `r1` → `refresh_failed`)
+  - où : `crates/kartenn-rest/src/authn.rs` (couche 6, retours anticipés vers les lignes
+    966-989, `reissue`, `quiet_cookie`) ; test voisin
+    `crates/kartenn-rest/tests/it/sessions.rs` (`a_refresh_in_the_background_keeps_the_new_tokens`)
+  - dépend de : 16c
+- [ ] 16e. Comparaison du contrat à travers les `$ref` : `contract::breaches` résout les
+  références locales vers `components.parameters` avant de comparer (aujourd'hui une
+  `$ref` reçoit la clé `("", "")` : rendre `Kartenn-Background` requis passerait
+  inaperçu) ; l'en-tête déclaré aussi sur les opérations `x-query` — verify :
+  `k-check -p kartenn-rest` (test : composant rendu requis → rupture signalée)
+  - où : `crates/kartenn-rest/src/contract.rs` (`breaches`, vers les lignes 145-195),
+    `crates/kartenn-rest/src/openapi.rs` (`finish`, vers les lignes 339-385)
+  - dépend de : 16c ; avant le gel du contrat
 - [ ] 14a. `PATCH /v1/drafts/{id}` en `application/merge-patch+json` seulement (A17,
   REQ-006-13), 415 pour `application/json` ; client du SDK en `merge: true` ; contrat
   régénéré — verify : `k-check -p kartenn-rest` (drafts : 415 en `application/json`,
