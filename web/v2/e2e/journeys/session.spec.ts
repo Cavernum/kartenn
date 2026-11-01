@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { ISSUER } from "../fixtures/env.ts";
-import { expect, expectAccessible, test, USERS } from "../fixtures/journeys.ts";
+import { atRest, expect, expectAccessible, test, USERS } from "../fixtures/journeys.ts";
 
 // The session of the new shell (spec 021, task 16; REQ-021-14, REQ-007-28): the login page,
 // back to the same URL and dates after a login, a 401 in use that offers to log in again,
@@ -27,6 +27,9 @@ test("without a session, the login page, then back to the same page and dates", 
   await login("alice");
   await page.goto(TARGET);
   await expect(page.getByRole("heading", { level: 1, name: "Préfixes" })).toBeVisible();
+  // Its plugins loaded before the reload (task 029-4: Firefox reports a load the reload
+  // cuts short as an integrity error).
+  await atRest(page);
 
   // The session is gone (expired, or its cookie dropped): the page asks for a login.
   await context.clearCookies();

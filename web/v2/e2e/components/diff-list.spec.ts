@@ -43,20 +43,26 @@ test("420 lines: a few changes in the document, all the headings, Tab to the las
     });
   // The keys scroll smoothly: the list has moved, and stopped, before the measure.
   await expect.poll(() => list.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
-  let settled = -1;
-  await expect
-    .poll(async () => {
-      const now = await list.evaluate((el) => el.scrollTop);
-      const still = now === settled;
-      settled = now;
-      return still;
-    })
-    .toBe(true);
+  const stopped = async () => {
+    let settled = -1;
+    await expect
+      .poll(async () => {
+        const now = await list.evaluate((el) => el.scrollTop);
+        const still = now === settled;
+        settled = now;
+        return still;
+      })
+      .toBe(true);
+  };
+  await stopped();
   const before = await top();
   await page.evaluate(() => new Promise((done) => setTimeout(done, 300)));
   expect(await top()).toEqual(before);
   await page.keyboard.press("End");
   await expect(list.getByText("Sous-réseau 60")).toBeInViewport();
+  // Stopped before the next key: a key pressed while the scroll of End still runs may be
+  // lost in it under load (Home left at the bottom; task 029-5).
+  await stopped();
   const last = list
     .locator("section")
     .last()
