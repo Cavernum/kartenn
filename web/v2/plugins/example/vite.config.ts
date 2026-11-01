@@ -34,5 +34,11 @@ export default defineConfig({
   test: {
     name: "plugin-example",
     environment: "node",
+    // The DOM of test/example.test.ts: style sheets are never fetched, said loaded.
+    environmentOptions: {
+      happyDOM: {
+        settings: { disableCSSFileLoading: true, handleDisabledFileLoadingAsSuccess: true },
+      },
+    },
   },
 });

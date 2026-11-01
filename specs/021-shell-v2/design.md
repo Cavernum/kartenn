@@ -567,6 +567,11 @@ export const write: { quick(req: QuickWrite): Promise<WriteOutcome> };
 export const commands: { register(c: Command): () => void };      // palette
 export const shortcuts: { register(s: Shortcut): () => void };    // portée `view`
 export function label(kind: string, key: string): string;
+// Sans framework (tâche 19) : un observateur tient sa requête dans le cache partagé, la relit
+// quand elle est invalidée (écriture, événement du flux) et en signale chaque état.
+export { QueryObserver, InfiniteQueryObserver };      // @tanstack/query-core, même instance
+// handle.styles(root, path) : un fichier du plugin, ou la feuille partagée du shell
+// nommée par son spécifieur (`@kartenn/ui/style.css`), dans l'ordre des appels.
 ```
 
 Manifeste (ajouts) :
@@ -581,7 +586,8 @@ Manifeste (ajouts) :
 ```
 
 - `framework` : plage de `vue` (`^3.5.0`) ; un plugin sans framework
-  ne déclare ni `ui` ni `framework` s'il n'importe pas `@kartenn/ui`.
+  ne déclare pas `framework`, ni `ui` s'il n'importe pas `@kartenn/ui` et n'en lie pas la
+  feuille (le plugin d'exemple la lie : `ui` le protège d'un changement de ses classes).
 - `go` : lettre de navigation `g` + lettre proposée, refusée si elle est prise.
 - Import map servie (exemple, empreintes omises) :
 
@@ -594,7 +600,10 @@ Manifeste (ajouts) :
 ```
 
   La feuille `@kartenn/ui/style.css` est liée par `index.html` (`<link rel=stylesheet
-  integrity>`) ; les plugins tiers en racine d'ombre la lient par `handle.styles()`.
+  integrity data-kartenn-sheet="@kartenn/ui/style.css">`) ; les plugins tiers en racine
+  d'ombre la lient par `handle.styles(root, "@kartenn/ui/style.css")`, qui reprend l'URL et
+  l'empreinte de ce lien (feuille déjà en cache), puis leur propre feuille. Un `<link>` ne
+  se déplace pas dans la racine : déplacé, il serait relu, ses règles absentes entre-temps.
 - Hôte d'un plugin de première partie : l'élément personnalisé monte une application du
   framework dans son DOM léger, avec le `QueryClient` du SDK et le contexte ; il la démonte
   à `disconnectedCallback`.

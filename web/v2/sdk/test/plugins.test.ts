@@ -122,6 +122,66 @@ describe("definePlugin (REQ-007-13)", () => {
   });
 });
 
+describe("handle.styles (REQ-021-27)", () => {
+  /** The `<link>` elements of a shadow root out of the document (nothing is fetched). */
+  const linksOf = (root: ShadowRoot) =>
+    [...root.querySelectorAll("link")].map((link) => ({
+      href: link.getAttribute("href"),
+      integrity: link.integrity,
+      crossOrigin: link.getAttribute("crossorigin"),
+    }));
+  /** Settles the last link of `root` as the browser would. */
+  const settle = (root: ShadowRoot, event: "load" | "error") =>
+    root.querySelector("link:last-of-type")?.dispatchEvent(new Event(event));
+
+  afterEach(() => document.head.querySelector("link[data-kartenn-sheet]")?.remove());
+
+  it("links the shell's sheet of @kartenn/ui, then a sheet of the plugin, with their digests", async () => {
+    const loaded = announcePlugin({
+      name: "p-styles",
+      extensions: [],
+      integrity: { "styles.css": "sha384-own" },
+    });
+    sdk.definePlugin({ name: "p-styles", elements: {} });
+    const handle = await loaded;
+    // The shell's link, as its build writes it (web/v2/shell/vite.config.ts).
+    const shell = document.createElement("link");
+    shell.href = "/assets/ui-abc.css";
+    shell.integrity = "sha384-ui";
+    shell.crossOrigin = "";
+    shell.dataset["kartennSheet"] = "@kartenn/ui/style.css";
+    document.head.append(shell);
+
+    const root = document.createElement("div").attachShadow({ mode: "open" });
+    const ui = handle.styles(root, "@kartenn/ui/style.css");
+    settle(root, "load");
+    await expect(ui).resolves.toBeUndefined();
+    const own = handle.styles(root, "styles.css");
+    settle(root, "load");
+    await expect(own).resolves.toBeUndefined();
+    expect(linksOf(root)).toEqual([
+      { href: shell.href, integrity: "sha384-ui", crossOrigin: "" },
+      { href: "/plugins/p-styles/0.0.0/styles.css", integrity: "sha384-own", crossOrigin: null },
+    ]);
+
+    const failed = handle.styles(root, "styles.css");
+    settle(root, "error");
+    await expect(failed).rejects.toThrow(/styles\.css: not loaded/);
+  });
+
+  it("refuses a file without a digest, and a shared sheet the shell does not link", async () => {
+    const loaded = announcePlugin({ name: "p-unstyled", extensions: [] });
+    sdk.definePlugin({ name: "p-unstyled", elements: {} });
+    const handle = await loaded;
+    const root = document.createElement("div").attachShadow({ mode: "open" });
+    await expect(handle.styles(root, "other.css")).rejects.toThrow(/no digest/);
+    await expect(handle.styles(root, "@kartenn/ui/style.css")).rejects.toThrow(
+      /not linked by the shell/,
+    );
+    expect(linksOf(root)).toEqual([]);
+  });
+});
+
 describe("sandbox (REQ-007-16)", () => {
   it("mounts an element with a context and a simulated fetch typed by the contract", async () => {
     void announcePlugin({ name: "p-box", extensions: [extension("p-box-notes")] });

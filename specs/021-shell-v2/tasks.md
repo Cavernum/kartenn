@@ -823,12 +823,63 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   `machines.host.*`), sans optimisme — verify : parcours `machines` vert
   - où : `web/plugins/machines/`
   - dépend de : 17
-- [ ] 19. Plugin d'exemple passé au SDK 1.0, **toujours sans framework**, en racine
+- [x] 19. Plugin d'exemple passé au SDK 1.0, **toujours sans framework**, en racine
   d'ombre avec `handle.styles()` sur `@kartenn/ui/style.css`, lecture par le
   `QueryClient` — REQ-021-25, 27 — verify : parcours `example` vert ; invalidation reçue
   par le plugin
-  - où : `web/plugins/example/src/index.ts`
+  - où : `web/v2/plugins/example/` (`src/index.ts`, `public/{manifest.json,styles.css,i18n}`,
+    `test/example.test.ts`), à l'image de l'ancien `web/plugins/example/` (laissé tel quel) ;
+    `handle.styles()` de `web/v2/sdk/src/extensions.ts` ; lien de la feuille dans
+    `web/v2/shell/vite.config.ts` (`sharedModules`) ; parcours
+    `web/v2/e2e/journeys/example.spec.ts` ; design 021 § « API des plugins »
   - dépend de : 16
+  - fait le 2026-11-01 — plugin `web/v2/plugins/example` : une extension de chaque point
+    (vue `overview` sous le référentiel, onglet et panneau du préfixe, colonne des adresses,
+    action « Ajouter une adresse au brouillon » par `draft.add`, tuile `counts` de l'accueil
+    par `stats.query()`), chaque élément en racine d'ombre, feuille de `@kartenn/ui` puis la
+    sienne (`@layer plugins`, classes `k-example-…`) par `handle.styles()`, balisage des
+    composants de la bibliothèque (`k-stack`, `k-skeleton`, `k-inline-alert`,
+    `k-empty-state`, `k-button`, `k-form-field`) ; lectures par `QueryObserver` et
+    `InfiniteQueryObserver` sur `queryClient` et `reads` (la vue : les préfixes IPv4,
+    `within=0.0.0.0/0`, première page — les listes suivent l'ordre de création et le jeu des
+    parcours compte plus de 1 000 préfixes IPv6), relues à l'invalidation ; la page de la
+    vue reste, seule la place de la liste est redessinée quand ce qu'elle dit change ; le
+    formulaire de l'action est relibellé en place dans une autre langue (saisie gardée).
+    Premier dessin après une microtâche (un élément déjà dans la page, promu pendant
+    `customElements.define`, reçoit ses feuilles et ses textes) ; une feuille refusée est
+    dite par `console.warn`. SDK : `handle.styles(root, "@kartenn/ui/style.css")` reprend
+    le lien du shell (`data-kartenn-sheet`, écrit par `sharedModules`) ; `QueryObserver`,
+    `InfiniteQueryObserver` réexportés. Vitest : `plugins/example/test/example.test.ts`
+    (15 : définitions, catalogues, feuilles, élément promu, feuille refusée, vue relue à
+    l'invalidation et page gardée, date changée sur l'élément connecté, désabonnement à la
+    déconnexion et avant les feuilles, erreurs de la vue, de l'onglet, de l'action — brouillon
+    refusé, lecture en échec : alerte, `aria-invalid`, `aria-describedby`, code et
+    Request-Id — et de la tuile, langue de l'action), `sdk/test/plugins.test.ts` (2 de
+    `handle.styles`), `shell/test/build.test.ts` (lien nommé). Parcours `example` réécrit
+    (3 : chargé, éléments définis, vue depuis la barre, feuilles dans l'ordre et
+    appliquées, thème sombre, axe ; préfixe IPv4 créé par l'API → visible sans recharger
+    dans le même élément, `h1` gardé ; tuile de l'accueil, colonne des adresses, panneau et
+    onglet du préfixe, action dans le dialogue de la fiche → opération au brouillon, aucun
+    changeset envoyé, fermée par son bouton), placés par les écrans de la tâche 11
+    (fusionnée) : vert avec `plugins` (20, Chromium et Firefox) ; `k-web2-check` vert
+    (579 tests, 2704 captures).
+  - choix : observateurs de query-core (`QueryObserver`, `InfiniteQueryObserver`)
+    réexportés par le SDK 1.0 plutôt qu'un abonnement au cache (`getQueryCache().subscribe`)
+    — sans observateur, une requête sort du cache au bout de `gcTime` et le plugin ne suit
+    plus rien ; export accepté par l'utilisateur le 2026-11-01, réversible avant le gel ;
+    feuille partagée désignée par son
+    spécifieur et trouvée par l'attribut `data-kartenn-sheet` du lien du shell (pas de crochet
+    d'hôte) ; `ui: "^0.1"` déclaré dans le manifeste parce que le plugin lie la feuille (design
+    amendé) ; contenu dans un conteneur à côté des `<link>` (un lien déplacé serait relu) ;
+    rien n'est dessiné avant que les feuilles aient répondu ; `happy-dom` en dépendance de
+    développement du plugin (déjà celle du SDK, du shell et de `@kartenn/ui`).
+  - reste — ouverts après relecture : pas d'icône (données de `Icon` côté Vue) ni de bouton de copie du code (le
+    code est un `<code>` sélectionnable) ; `data-motion="reduce"` du shell n'atteint pas le
+    reflet du squelette en racine d'ombre (`:root[data-motion]` de `shared.css`, seule la
+    préférence du système s'applique) ; `aria-busy` autour des squelettes de
+    `ExtensionElement.vue` et `PluginView.vue`, dont le texte caché n'a pas de rôle
+    `status` (hôte de la 16) ; niveau fixe `h2` du panneau, à confronter aux titres de la
+    fiche qui le place.
 - [x] 20. Amendement de la 017 : U2 et U14 remplacées (020/A1, 021/A1 closes), tâches web
   de la 017 en attente du socle de la 020 et de la 021, sous `web/v2/plugins/` — verify :
   amendement accepté consigné dans la 017 (decisions, requirements, tasks, design)

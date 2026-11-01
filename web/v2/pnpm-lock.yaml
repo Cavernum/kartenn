@@ -232,6 +232,10 @@ importers:
       '@kartenn/sdk':
         specifier: workspace:*
         version: link:../../sdk
+    devDependencies:
+      happy-dom:
+        specifier: ^21.0.3
+        version: 21.0.4
 
   sdk:
     dependencies:
