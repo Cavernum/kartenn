@@ -52,6 +52,8 @@ const domain = { name: "domain", kind: "reference", target: "domains", required:
 export interface CollectionEdit {
   creation: readonly EditField[];
   modification: readonly EditField[];
+  /** The field of « Changer de parent… » (REQ-021-32), for a kind whose parent is declared. */
+  move?: readonly EditField[];
   /**
    * The read fields a cell shows that never change by an edit, and why: the domain
    * (`core.domain.immutable`), a value computed or fixed at creation, a parent moved by the
@@ -109,6 +111,7 @@ export const EDITS: Readonly<Record<CollectionId, CollectionEdit>> = {
       { name: "parent", kind: "reference", target: "entities" },
     ]),
     modification: of<Schemas["NodePatch"]>()([slug]),
+    move: of<Schemas["NodePatch"]>()([{ name: "parent", kind: "reference", target: "entities" }]),
     fixed: NODE_FIXED,
     create: (values) => ({
       op: "create_entity",
@@ -123,6 +126,7 @@ export const EDITS: Readonly<Record<CollectionId, CollectionEdit>> = {
       { name: "parent", kind: "reference", target: "sites" },
     ]),
     modification: of<Schemas["NodePatch"]>()([slug]),
+    move: of<Schemas["NodePatch"]>()([{ name: "parent", kind: "reference", target: "sites" }]),
     fixed: NODE_FIXED,
     create: (values) => ({
       op: "create_site",

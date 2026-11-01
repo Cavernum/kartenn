@@ -16,6 +16,7 @@ use axum::{Json, Router};
 use http_body_util::BodyExt;
 use kartenn_rest::compression::Secret;
 use kartenn_rest::health::Readiness;
+use kartenn_rest::problem::{Problem, ProblemKind};
 use kartenn_rest::quota::{Quotas, Rates};
 use kartenn_rest::transport::Settings;
 use serde_json::{Value, json};
@@ -42,7 +43,11 @@ fn app() -> Router {
     let api = Router::new()
         .route("/list", get(|| async { Json(list()) }))
         .route("/small", get(|| async { Json(json!({ "id": 1 })) }))
-        .route("/secret", get(|| async { (Secret, Json(list())) }));
+        .route("/secret", get(|| async { (Secret, Json(list())) }))
+        .route(
+            "/refused",
+            get(|| async { Problem::new(ProblemKind::BadRequest).detail("x".repeat(2000)) }),
+        );
     kartenn_rest::router(
         api,
         Arc::new(Ready),
@@ -102,6 +107,45 @@ async fn a_list_is_compressed_after_accept_encoding() {
         } else {
             assert_eq!(length(response).await, plain, "{accept}");
         }
+    }
+}
+
+/// A problem over 1 KiB gets its `instance` inside the compression: compressed after
+/// `Accept-Encoding` like any answer, and decodable as its coding says (task 021-24: written
+/// again outside it, its body went plain under a coding no browser could decode).
+#[tokio::test]
+async fn a_problem_over_1_kib_is_compressed_with_its_instance() {
+    for accept in ["zstd", "br", "gzip"] {
+        let raw = get_with("/v1/refused", accept).await;
+        assert_eq!(raw.headers()[header::CONTENT_ENCODING], accept);
+        let mut request = common::bearer(
+            Request::get("/v1/refused")
+                .header(header::ACCEPT_ENCODING, accept)
+                .body(Body::empty())
+                .unwrap(),
+        );
+        let peer = SocketAddr::from(([192, 0, 2, 1], 40000));
+        request.extensions_mut().insert(ConnectInfo(peer));
+        // Decoded as a client would, after the coding the answer states.
+        let response = tower_http::decompression::Decompression::new(app())
+            .oneshot(request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            response.headers()[header::VARY],
+            "accept-encoding",
+            "{accept}"
+        );
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let problem: Value = serde_json::from_slice(&body).unwrap();
+        assert!(
+            problem["instance"]
+                .as_str()
+                .unwrap()
+                .starts_with("urn:uuid:")
+        );
+        assert_eq!(problem["detail"].as_str().unwrap().len(), 2000);
     }
 }
 
