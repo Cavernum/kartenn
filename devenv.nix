@@ -681,19 +681,23 @@ in {
       targeted=
       # Lints: on everything, or on the files of the change only.
       scope=all
+      units=
       if [ -z "$all" ] && [ -f tools/impact/cli.ts ]; then
         targeted=1
         root=$(git rev-parse --show-toplevel) || exit 1
         prefix=$(git rev-parse --show-prefix) || exit 1
-        if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
-          echo "KO base : « $base » introuvable — git fetch origin, --base <commit> ou --all"
+        # The merge base, as `git diff <base>...HEAD` takes it: a base unknown or without a
+        # common ancestor stops here.
+        if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null ||
+          ! mb=$(git merge-base "$base" HEAD 2>/dev/null); then
+          echo "KO base : « $base » introuvable ou sans ancêtre commun avec HEAD — git fetch origin, --base <commit> ou --all"
           exit 2
         fi
-        # Committed since the merge base, then staged, unstaged and untracked: paths of the
-        # repository, as the graph reads them.
-        { git -C "$root" diff --name-only --no-renames "$base...HEAD" &&
-          git -C "$root" diff --name-only --no-renames HEAD &&
-          git -C "$root" ls-files --others --exclude-standard; } >"$log/changed.git" 2>"$log/git" ||
+        # Since the merge base, to the working tree (commits, staged, unstaged, deletions),
+        # then the untracked files: paths of the repository, unquoted, as the graph reads
+        # them.
+        { git -C "$root" -c core.quotePath=false diff --name-only --no-renames "$mb" &&
+          git -C "$root" -c core.quotePath=false ls-files --others --exclude-standard; } >"$log/changed.git" 2>"$log/git" ||
           ko git "$log/git" '^(fatal|error)' "--base <commit> ou --all"
         sort -u "$log/changed.git" >"$log/changed"
         node tools/impact/cli.ts <"$log/changed" >"$log/impact" 2>"$log/impact.err" ||
@@ -704,6 +708,18 @@ in {
           if [ -f "$f" ]; then echo "$f"; fi
         done <"$log/workspace" >"$log/files"
         if [ "$(cat "$log/impact")" != all ] && ! grep -qE '^(tools/|\.)' "$log/workspace"; then scope=change; fi
+        # The units of kartenn/component-prefix (tools/stylelint/prefixes.js: the directories
+        # of the components, the files of internal/ and demo/), at the merge base and now:
+        # one added or removed moves the prefixes, and every sheet is linted again.
+        {
+          git ls-tree --name-only -d "$mb:''${prefix}ui/src/components" | sed 's#^#components/#'
+          git ls-tree --name-only "$mb:''${prefix}ui/src/components/internal" | grep '\.vue$' | sed 's#^#components/internal/#'
+          git ls-tree --name-only "$mb:''${prefix}ui/src/demo" | grep '\.vue$' | sed 's#^#demo/#'
+        } 2>/dev/null | sort >"$log/units.base"
+        for u in ui/src/components/*/ ui/src/components/internal/*.vue ui/src/demo/*.vue; do
+          if [ -e "$u" ]; then u=''${u%/}; echo "''${u#ui/src/}"; fi
+        done | sort >"$log/units"
+        cmp -s "$log/units.base" "$log/units" || units=moved
       fi
       if [ "$scope" = all ]; then
         pnpm exec prettier --check . >"$log/prettier" 2>&1 ||
@@ -723,6 +739,7 @@ in {
         xargs -r -d '\n' pnpm exec eslint --no-warn-ignored <"$log/files.eslint" >"$log/eslint" 2>&1 ||
           ko eslint "$log/eslint" '^/|^ +[0-9]+:[0-9]+ +(error|warning)'
         grep -E '\.(css|vue)$' "$log/files" >"$log/files.stylelint"
+        if [ -n "$units" ]; then echo '**/*.{css,vue}' >"$log/files.stylelint"; fi
         xargs -r -d '\n' pnpm exec stylelint --allow-empty-input <"$log/files.stylelint" >"$log/stylelint" 2>&1 ||
           ko stylelint "$log/stylelint" '^[^ ]|^ +[0-9]+:[0-9]+ +✖'
       fi
@@ -759,7 +776,7 @@ in {
         if [ "$(cat "$log/impact")" = all ]; then
           pnpm -C e2e exec playwright test --project=visual --reporter=line >"$log/visual" 2>&1 ||
             ko visual "$log/visual" "$visual" "$hint"
-          why=$(sed -n 's/^impact: //p' "$log/impact.err" | head -1)
+          why=$(sed -n 's/^impact: all: //p' "$log/impact.err" | head -1)
           selection="$total captures sur $total ($(grep -E '^ *[0-9]+ passed' "$log/visual" | tail -1 | sed 's/^ *//') ; tout, $why)"
         elif [ ! -s "$log/impact" ]; then
           selection="0 captures sur $total (aucune touchée)"
