@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { DATA, expect, expectAccessible, test } from "../fixtures/journeys.ts";
+import { apiCall, DATA, expect, expectAccessible, test } from "../fixtures/journeys.ts";
 
 // The plugins in the new shell (spec 021, task 16; REQ-021-13, 26; REQ-007-9, 10, 13), with
 // the test plugins of web/v2/e2e/plugins: `notes` fills every point (its views under the
@@ -8,7 +8,7 @@ import { DATA, expect, expectAccessible, test } from "../fixtures/journeys.ts";
 // definePlugin) are set aside; the digest of `forged` is forged here. Ported from
 // web/e2e/journeys/plugins.spec.ts. The tile of the home page, the tab and the panel of a
 // prefix and the column of the addresses are placed by the screens of task 11; the actions
-// on the type `changeset` wait for its screen (task 14).
+// on the type `changeset` by its record (task 14).
 
 const navigation = (page: Page) => page.getByRole("navigation", { name: "Navigation principale" });
 const about = (page: Page, name: string) =>
@@ -184,4 +184,28 @@ test("the screens of the referential place the tile, the tab, the panel and the 
     .click();
   await expect(page.locator("notes-tab")).toHaveText(`Notes de prefix ${id}`);
   await expectAccessible(page);
+});
+
+test("an action on the type changeset: in « … » of its record, its dialog closed by kartenn-close", async ({
+  page,
+  login,
+}) => {
+  await login("alice");
+  const listed = (await apiCall(page, "GET", "/v1/changesets?page_size=1")).body as {
+    items: { id: string }[];
+  };
+  const id = listed.items[0]!.id;
+  await page.goto(`/changesets/${id}`);
+  const more = page
+    .getByRole("toolbar", { name: "Actions de revue" })
+    .getByRole("button", { name: "Plus d'actions" });
+  await more.click();
+  await page.getByRole("menuitem", { name: "Relire les notes" }).click();
+  const dialog = page.getByRole("dialog", { name: "Relire les notes" });
+  await expect(dialog.locator("notes-review")).toContainText(`Notes du changeset ${id}`);
+  await expectAccessible(page);
+  // The element closes its dialog (`kartenn-close`); the focus goes back to « … ».
+  await dialog.locator("notes-review").getByRole("button", { name: "Fermer" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(more).toBeFocused();
 });

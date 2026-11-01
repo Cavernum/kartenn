@@ -1,0 +1,170 @@
+{
+  "views": {
+    "field": {
+      "state": "State",
+      "author": "Author",
+      "object": "Object",
+      "from": "Submitted from",
+      "to": "Submitted until",
+      "retroactive": "Retroactive"
+    },
+    "value": {
+      "state": {
+        "pending": "Pending",
+        "applied": "Applied",
+        "rejected": "Rejected",
+        "withdrawn": "Withdrawn",
+        "expired": "Expired",
+        "refused": "Refused",
+        "failed_revalidation": "Revalidation failed"
+      },
+      "kind": {
+        "direct": "Direct",
+        "approval": "Subject to approval",
+        "proposal": "Proposal"
+      }
+    }
+  },
+  "changesets": {
+    "mine": "My changesets",
+    "none": "No changeset",
+    "noneText": "A change applied or proposed takes its place here.",
+    "you": "you",
+    "field": {
+      "motive": "Motive",
+      "kind": "Kind",
+      "submitted": "Submitted",
+      "required": "Rights the author lacks",
+      "validator": "Validated by",
+      "effect": "Effective",
+      "applied": "Applied",
+      "expires": "Waits until",
+      "rejection": "Motive of the rejection",
+      "policy": "Policy that holds it"
+    },
+    "proposalsNone": "Nothing to review",
+    "proposalsNoneText": "No pending proposal you may validate.",
+    "masked": "masked",
+    "action": {
+      "validation": "Validate",
+      "rejection": "Reject…",
+      "withdrawal": "Withdraw",
+      "undo": "Undo this changeset"
+    },
+    "why": {
+      "author": "Only its author withdraws a changeset.",
+      "notAuthor": "Only its author withdraws a changeset.",
+      "past": "Nothing is decided out of the present: go back to the present.",
+      "held": "A policy holds this changeset: another reviewer must validate it.",
+      "own": "You are its author: another reviewer must validate it (changeset.approval.self)."
+    },
+    "copyId": "Copy the identifier",
+    "copied": "Identifier copied.",
+    "copyFailed": "The browser refused to copy: copy the identifier below with Ctrl+C.",
+    "reject": "Reject",
+    "anomalies": "{n} attached anomaly | {n} attached anomalies",
+    "countedText": "Not applied yet: the counted differential, property by property.",
+    "operationsNoneText": "This changeset writes nothing.",
+    "violationsNoneText": "No rule reports this changeset.",
+    "sectionsNoneText": "No module adds a section to the differential.",
+    "done": {
+      "validation": "Validated and applied: {motive}",
+      "rejection": "Rejected: {motive}",
+      "withdrawal": "Withdrawn: {motive}"
+    },
+    "undoOf": "Undo of “{motive}”",
+    "motiveMissing": "The motive of the rejection is required.",
+    "tab": {
+      "diff": "Differential",
+      "operations": "Operations",
+      "violations": "Violations",
+      "sections": "Sections of modules"
+    },
+    "objects": "{n} object | {n} objects",
+    "recordTitle": "Changeset {motive}",
+    "recordError": "This changeset could not be read",
+    "actions": "Review actions",
+    "authorNotice": "You are the author of this changeset: another reviewer must validate it.",
+    "authorNoticeText": "Nobody validates their own changeset.",
+    "sections": "Content of the changeset",
+    "diffError": "The differential could not be read",
+    "diffNone": "No object changed",
+    "diffNoneText": "This changeset writes no property you may read.",
+    "diffPending": "Differential to come",
+    "diffPendingText": "The differential is read once the changeset is applied; its operations say what it will write.",
+    "diffMore": "Show more of the differential",
+    "operationsNone": "No operation",
+    "violationsNone": "No violation",
+    "errors": "{n} error | {n} errors",
+    "warnings": "{n} warning | {n} warnings",
+    "sectionsNone": "No section of a module",
+    "rows": "{n} row | {n} rows",
+    "rejectTitle": "Reject “{motive}”",
+    "rejectText": "The motive is sent to the author and keeps the trace of the rejection.",
+    "rejectMotive": "Motive of the rejection",
+    "rejectHint": "One sentence: what is missing or what to change.",
+    "undoTitle": "Undo “{motive}”?",
+    "undoText": "A new changeset writes the inverse of this one; it applies, or waits for a review."
+  },
+  "drafts": {
+    "remove": "Remove operation {n}: {op} {subject}",
+    "none": "No active draft in this tab: an edit in place or an addition creates one.",
+    "page": "My drafts",
+    "onPage": "The active draft is open in the page: its operations and its submission are there.",
+    "readError": "The draft could not be read",
+    "expires": "This draft will be deleted on {when}",
+    "expiresText": "A draft left unmodified for 90 days is deleted: modify it or submit it before then.",
+    "empty": "The draft is empty: an edit in place or an addition goes there.",
+    "operations": "Operations of the draft “{title}”",
+    "refusedBySimulation": "Operation {n}: refused by the simulation",
+    "resultViolations": "{n} violation of the result | {n} violations of the result",
+    "effect": "Simulated effect",
+    "objects": "{n} object | {n} objects",
+    "cascaded": "{n} object closed by cascade | {n} objects closed by cascade",
+    "why": {
+      "past": "Nothing is written out of the present: go back to the present.",
+      "empty": "The draft is empty.",
+      "simulating": "The simulation is not finished.",
+      "simulationFailed": "The simulation failed.",
+      "violations": "The simulation reports errors ({n}): correct them or remove their operations.",
+      "active": "It is already the active draft."
+    },
+    "action": {
+      "apply": "Apply",
+      "review": "Submit for review",
+      "save": "Save the draft"
+    },
+    "defaultSummary": "Maintenance of the referential",
+    "saved": "Draft saved: {title}",
+    "simulating": "Simulating…",
+    "simulationFailed": "Simulation impossible",
+    "violations": "{n} violation | {n} violations",
+    "violationsText": "Correct or remove the operations at fault to apply or submit; the draft saves as it is, violations included.",
+    "valid": "Valid simulation",
+    "validText": "{n} warning · effective now | {n} warnings · effective now",
+    "field": {
+      "title": "Title",
+      "operations": "Operations",
+      "updated": "Modified",
+      "expires": "Deletion"
+    },
+    "resume": "Resume",
+    "delete": "Delete “{title}”…",
+    "resumed": "Active draft: {title}",
+    "deleted": "Draft deleted: {title}",
+    "newTitle": "Draft of {when}",
+    "count": "{n} of 50",
+    "new": "New draft",
+    "listError": "Your drafts could not be read",
+    "noneYet": "No draft",
+    "noneYetText": "An edit in place, an addition or “New draft” creates one.",
+    "activeMark": "(active)",
+    "expiresOn": "on {when}",
+    "actionsOf": "Actions on “{title}”",
+    "retention": "A draft left unmodified for 90 days is deleted; the date is announced a week before.",
+    "deleteTitle": "Delete “{title}”?",
+    "deleteText": "Its operations are lost; nothing is applied.",
+    "deleteConfirm": "Delete",
+    "gone": "The active draft no longer exists: deleted, submitted or taken over elsewhere."
+  }
+}

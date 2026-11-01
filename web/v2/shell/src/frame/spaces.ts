@@ -247,12 +247,14 @@ export function spaceEntry(space: Space, rights: Rights): SpaceEntry {
 
 /**
  * The groups of the sidebar for `rights`, labels in the language of `t`, in the order of
- * the spaces; a space left without entries is dropped.
+ * the spaces; a space left without entries is dropped. `badges`: the counters of entries,
+ * by id (« À instruire »), shown when above zero.
  */
 export function sidebarGroups(
   rights: Rights,
   t: (key: string) => string,
   spaces: readonly Space[] = CORE_SPACES,
+  badges: Readonly<Record<string, number>> = {},
 ): SidebarGroup[] {
   return [...spaces]
     .sort((a, b) => SPACE_ORDER.indexOf(a.id) - SPACE_ORDER.indexOf(b.id))
@@ -261,7 +263,13 @@ export function sidebarGroups(
       label: t(space.label),
       entries: space.entries
         .filter((entry) => visible(entry, rights))
-        .map((entry) => ({ id: entry.id, label: t(entry.label), icon: entry.icon, to: entry.to })),
+        .map((entry) => ({
+          id: entry.id,
+          label: t(entry.label),
+          icon: entry.icon,
+          to: entry.to,
+          ...((badges[entry.id] ?? 0) > 0 ? { badge: badges[entry.id] } : {}),
+        })),
     }))
     .filter((group) => group.entries.length > 0);
 }

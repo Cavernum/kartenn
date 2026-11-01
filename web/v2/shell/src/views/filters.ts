@@ -23,6 +23,7 @@ import {
   type Suggest,
 } from "@kartenn/ui";
 import type { LocationQuery, LocationQueryRaw } from "vue-router";
+import { STATES } from "../changesets/model.ts";
 
 // The typed filters of a list (REQ-021-18; design « Filtres, libellés, codes »; 020
 // decision A7): one model per list, for the bar (`FilterPicker`) and the filters of the
@@ -92,6 +93,13 @@ const BY_ID: Readonly<Record<string, Readonly<Record<string, string>>>> = {
 };
 /** The parameters that name a declared property (`property` of the gaps). */
 const PROPERTY_KEYS: Readonly<Record<string, string>> = { "/v1/property-gaps": "property" };
+/**
+ * The parameters a closed list types though the contract says a string: the states of the
+ * journal (spec 004) on the changesets.
+ */
+const CLOSED: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>> = {
+  "/v1/changesets": { state: STATES },
+};
 /** The parameters a list keeps out of its bar: `q` is the search of the palette. */
 const LEFT_OUT = new Set(["q"]);
 /** The declared types whose values the model types (003, `TypeSpec::id`). */
@@ -253,9 +261,11 @@ export function listFilterModel(
         label: words.property(d.key) ?? d.key,
         ...(words.property(d.key) ? { detail: d.key } : { mono: true }),
       }));
-    } else if (field.enum) {
+    } else if (field.enum ?? CLOSED[path]?.[field.name]) {
       property.type = "enum";
-      property.options = options(field.enum, (value) => words.value(field.name, value));
+      property.options = options(field.enum ?? CLOSED[path]![field.name]!, (value) =>
+        words.value(field.name, value),
+      );
     } else if (field.type === "boolean") {
       property.type = "enum";
       property.options = options(["true", "false"], (value) => words.value("boolean", value));

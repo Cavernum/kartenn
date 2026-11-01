@@ -9,9 +9,6 @@
     "pendingTitle": "Screen to come",
     "pending": "This screen comes with the rest of the new shell.",
     "noSelection": "No selection: choose a row or a node to show its detail here.",
-    "draftEmpty": "No operation in the active draft.",
-    "draftCount": "The active draft holds {n} operation. | The active draft holds {n} operations.",
-    "draftsPage": "Open the page of the drafts",
     "detail": "Detail",
     "draft": "Draft"
   },
