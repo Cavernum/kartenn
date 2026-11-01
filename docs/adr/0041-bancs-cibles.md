@@ -42,14 +42,32 @@ Conséquences constatées les 2026-10-30 et 31 :
      cloner les fichiers sur btrfs (`file_copy_method = clone`, à vérifier à la tâche
      2). Sinon, il prépare puis enregistre le modèle.
    - Trois modèles au plus sont gardés par banc ; le plus ancien est supprimé.
+   - Précisé à la tâche 2 (session principale) : l'exactitude prime sur la réutilisation,
+     la bissection (décision 5) en dépend. L'empreinte couvre donc aussi les sources
+     (`Cargo.toml`, `src/`, `migrations/`) des crates du workspace par lesquels passe la
+     préparation du banc, avec leurs dépendances du workspace (`kartenn-core`,
+     `kartenn-service`, `kartenn-store-pg` pour tous ; `kartenn-auth`, `kartenn-rest`,
+     `kartenn-server` pour `http` ; les modules machines, politique et flux pour
+     `policy` et `flow`), et `Cargo.lock`. Un test vérifie que chaque crate que nomment
+     les sources d'une préparation y figure. Coût : un modèle est refait dès qu'un de ces
+     crates change, même sans effet sur la base préparée ; une bissection sur un
+     intervalle qui touche le cœur reprépare donc à presque chaque étape.
+   - La préparation finit par `VACUUM (ANALYZE)` : carte de visibilité et statistiques
+     sont dans le modèle. La copie est lue avant les mesures (`pg_prewarm` si la base a
+     l'extension, sinon lecture séquentielle de ses tables), pour qu'elles partent à
+     chaud comme sur la base préparée. Les lignes du rapport écrites par la préparation
+     sont gardées dans le commentaire du modèle et rendues par chaque copie : deux
+     passages de même empreinte rendent les mêmes lignes.
    - Vérifié à la tâche 2 : `file_copy_method` est un réglage de contexte `user`. Le
      programme le pose par session (`SET file_copy_method = clone`) avant la copie, sans
      toucher à la configuration de l'instance ni la redémarrer. Les données de
      l'instance des bancs sont sur btrfs : la copie clone les fichiers
      (`copy_file_range`), et un modèle ne partage que ses blocs avec ses copies.
-   - Un modèle n'accepte aucune connexion (`ALLOW_CONNECTIONS false`). Le programme
-     vérifie avant de renommer ou de copier qu'aucune connexion n'est ouverte sur la
-     base, et l'erreur nomme les connexions trouvées. Ce qu'une mesure tire de la
+   - Un modèle n'accepte aucune connexion (`ALLOW_CONNECTIONS false`). Avant de
+     renommer ou de copier, le programme attend jusqu'à 10 s qu'aucun client
+     (`client backend`) ne reste connecté à la base ; les processus du serveur
+     (autovacuum…) sont laissés au serveur. L'erreur nomme les clients restés. Le
+     programme refuse `--template` hors d'une base `kartenn_bench…`. Ce qu'une mesure tire de la
      préparation (identifiants…) est relu dans la copie, au premier passage comme aux
      suivants : les deux mesurent sur une copie, de la même façon.
    - Le nettoyage ne supprime que les bases nommées comme les modèles du banc
@@ -124,6 +142,8 @@ part exclusive donnée par `btrfs filesystem du`, le reste étant partagé avec 
 | -------- | ----------- | ---------------------- | ------------------------ | ------- | ----------------------- |
 | réduite  | 10,6 s      | 2,1 s                  | 0,35 à 0,84 s            | 201 Mio | 0 o (201 Mio partagés)  |
 | complète | à mesurer   | à mesurer              | à mesurer                | à mesurer | à mesurer             |
+| disque total : 3 modèles × 8 bancs, pleine échelle | — | — | — | à mesurer | à mesurer |
 
-La ligne pleine échelle revient à la session principale (aucun banc pleine échelle par un
-agent).
+La ligne pleine échelle et le disque total reviennent à la session principale (aucun
+banc pleine échelle par un agent). Les chiffres réduits ci-dessus précèdent le
+`VACUUM (ANALYZE)` final et le réchauffement de la copie.

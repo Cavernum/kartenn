@@ -69,7 +69,7 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     `random()` : les mêmes d'un passage à l'autre, sans tirage du générateur du banc ;
     `bench-http` envoie `approval=self` sur ses écritures (sans lui, tout changeset passait
     en proposition et le banc échouait dès la première écriture, depuis la 024-11).
-- [x] 2. Base préparée réutilisée : empreinte (migrations, sources du générateur et de la
+- [ ] 2. Base préparée réutilisée : empreinte (migrations, sources du générateur et de la
   préparation du banc, graine, échelle) ; modèle
   `kartenn_bench_tpl_<banc>_<empreinte>` enregistré après la préparation ; passage
   suivant repartant de `CREATE DATABASE … TEMPLATE … STRATEGY FILE_COPY` ; essai de
@@ -82,6 +82,9 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
   - où : `crates/kartenn-bench/src/main.rs`, `lib.rs` (connexion, création de la base) ;
     `devenv.nix` (`bench`, `pgBench` et ses réglages) ; ADR 0032 (instance, verrou).
   - dépend de : 1
+  - en cours : la ligne pleine échelle du tableau de l'ADR 0041 (préparation, copie,
+    disque d'un modèle) et le disque total (3 modèles × 8 bancs), à mesurer par la session
+    principale.
   - fait : `kartenn_bench::template` (`Reuse`, `prepared` : sans modèle de l'empreinte, ou
     sous une mesure « de préparation », la préparation écrit dans la base vide, puis la
     base est renommée en modèle `ALLOW_CONNECTIONS false`, commentée (banc, graine,
@@ -107,6 +110,28 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     copie 0,35 s, mesures dans le bruit ; une migration ajoutée (sonde jetable) a donné une
     autre empreinte et une nouvelle préparation, retirée la copie du premier modèle ;
     tableau de l'ADR 0041 (ligne pleine échelle à mesurer par la session principale).
+    Après relecture : clients seuls comptés (`backend_type = 'client backend'`), jusqu'à
+    10 s d'attente avant l'erreur ; empreinte étendue aux crates du workspace traversés
+    (`build.rs` : sources, `Cargo.toml`, `migrations/` de chaque dépendance du workspace
+    hors développement, et `Cargo.lock` ; `template::crates`, `crate_hashes`, `Inputs`) ;
+    `VACUUM (ANALYZE)` à la fin de chaque préparation, copie lue avant les mesures
+    (`warm` : `pg_prewarm` si la base l'a, sinon lecture des tables) ; `--template` refusé
+    hors d'une base `kartenn_bench…` ; lignes du rapport de la préparation gardées dans le
+    commentaire du modèle et rendues par la copie ; `kartenn_testing::dropped_by_clean`
+    (`BENCH_PREFIXES` : `kartenn_bench_it_`, `kartenn_bench_tpl_`), bases des tests des
+    bancs nommées `kartenn_bench_it_…`. Tests : `template` (crates nommés par chaque
+    préparation couverts, crate ou verrou changés, commentaire), `kartenn-testing`
+    (`dropped_by_clean`), `tests/it/template.rs` (rapports `INFO` identiques entre passage
+    préparé et copié, quatrième modèle élagué, client sur la base préparée refusé,
+    `--template` hors `kartenn_bench…` refusé). Passages réduits sur copie, machine chargée
+    (charge 4 à 6) : `bench-properties --only props.origins-3-domains` changeset 0,65 à
+    0,86 s, valeur de toutes les racines 0,99 à 1,05 s, retrait de 3 domaines 3,14 à
+    3,59 s, contre 0,31 à 0,36 s, 0,90 s et 2,91 à 3,11 s sur la base préparée sans
+    modèle au même moment (design 003, code final, machine chargée : 0,53 s, 1,29 s,
+    1,79 s) ; `bench-core --only core.read-object` 0,55 à 0,64 ms et 0,99 à 1,83 ms
+    (passé), comme avant la relecture. `pg_prewarm` est absent des bases (extension non
+    approuvée, `CREATE EXTENSION` demande un superutilisateur) : la lecture des tables ne
+    réchauffe pas les index.
   - choix : la copie aussi au premier passage (la base préparée est renommée en modèle,
     puis copiée) : premier passage et suivants mesurent de la même façon ; l'état tiré de
     la préparation (identifiants, abonnés, paires de machines…) est relu ou recalculé dans
@@ -115,7 +140,11 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     `http` garde ses jetons et cookies hors du modèle (ils suivent les clés du serveur
     lancé à chaque passage), ses personnes et liaisons y sont ; sources à la granularité
     du fichier (une mesure modifiée dans le fichier d'une préparation invalide le
-    modèle) ; ordre d'ancienneté par oid ; sans `--template` (`bench-web`, autre instance que
+    modèle) ; empreinte exacte plutôt que réutilisation (session principale) : les
+    sources des crates du workspace traversés et `Cargo.lock` y entrent, un modèle est
+    refait dès qu'un d'eux change ; le module `template.rs` nomme les modules pour leurs
+    migrations seulement (hors du test des crates nommés) ; réchauffement des relations
+    les plus grandes d'abord ; ordre d'ancienneté par oid ; sans `--template` (`bench-web`, autre instance que
     celle des bancs), même chemin sans copie.
 - [ ] 3. Historique local : une ligne JSON par mesure et par passage dans
   `.bench/history.jsonl` à la racine de la copie principale (parent de

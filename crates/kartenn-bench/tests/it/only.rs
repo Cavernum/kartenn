@@ -21,7 +21,7 @@ const CAVEAT: &str = "échelle de test : ne vaut pas mesure de budget";
 const SERIAL: i64 = 0x006b_625f_6f6e_6c79;
 
 /// `DATABASE_URL` aimed at the database `name`.
-fn url_of(name: &str) -> String {
+pub(crate) fn url_of(name: &str) -> String {
     let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let (url, query) = url
         .split_once('?')
@@ -31,6 +31,22 @@ fn url_of(name: &str) -> String {
         Some(query) => format!("{server}/{name}?{query}"),
         None => format!("{server}/{name}"),
     }
+}
+
+/// The database of a run of `bench` (`only`), named `kartenn_bench_it_…` as `--template`
+/// requires (`kartenn_bench…`) and as `kartenn-testing-clean` drops when a test fails.
+pub(crate) fn database(bench: &str, only: Option<&str>) -> String {
+    let unique = kartenn_testing::database_name(&format!(
+        "kartenn_bench::only::{bench}::{}",
+        only.unwrap_or("*")
+    ));
+    let mut name = format!(
+        "{}{}",
+        kartenn_testing::BENCH_PREFIXES[0],
+        &unique[kartenn_testing::TEST_PREFIX.len()..]
+    );
+    name.truncate(63);
+    name
 }
 
 /// A connection to the cluster that holds [`SERIAL`] until it is dropped.
@@ -102,10 +118,7 @@ impl Serial {
     /// The output of `kartenn-bench <bench> <url> 42 small [--only <only>] <extra>` on an
     /// empty database, dropped after the run.
     pub(crate) fn output(&mut self, bench: &str, only: Option<&str>, extra: &[&str]) -> Output {
-        let name = kartenn_testing::database_name(&format!(
-            "kartenn_bench::only::{bench}::{}",
-            only.unwrap_or("*")
-        ));
+        let name = database(bench, only);
         self.runtime
             .block_on(kartenn_testing::create_empty(&mut self.conn, &name))
             .expect("creating the database of the bench");
