@@ -403,6 +403,19 @@ describe("the end of the session, said before it comes (REQ-021-14, 022/A6)", ()
     expiry.stop();
   });
 
+  it("says the warning once for an end moved by less than its minute", () => {
+    const { expiry, said, cleared } = watch();
+    expiry.read("2026-01-15T09:30:00Z");
+    vi.advanceTimersByTime(29 * 60_000);
+    expect(said).toHaveLength(1);
+    // A read asked just after the reading, answered during the warning: the end moves by
+    // half a second, the time written does not.
+    markActivity(Date.parse("2026-01-15T09:00:00.500Z"));
+    expect(said).toHaveLength(1);
+    expect(cleared()).toBe(0);
+    expiry.stop();
+  });
+
   it("keeps the newer activity of another tab over an older one of this tab", () => {
     const { expiry } = watch();
     localStorage.setItem(ACTIVITY_KEY, String(Date.now()));

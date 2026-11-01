@@ -216,8 +216,10 @@ export function createExpiry(view: ExpiryView, deps: ExpiryDeps = {}): Expiry {
       timer = setTimer(schedule, wait);
       return;
     }
-    // Said once for an end and a way: a fixed end stays said through the activity.
-    const said = `${at}:${extendable}`;
+    // Said once for an end as written (to the minute) and a way: a fixed end stays said
+    // through the activity, and an end moved by less (an activity dated from its request,
+    // its answer come during the warning) is no new warning (task 029-5).
+    const said = `${Math.floor(at / 60_000)}:${extendable}`;
     if (warned === said) return;
     warned = said;
     view.warn(at, extendable);
