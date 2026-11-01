@@ -1,6 +1,6 @@
 ---
 name: bench-runner
-description: Runs a kartenn benchmark (bench-core, bench-properties, bench-rbac, bench-http, bench-flow, bench-telemetry, bench-web; reduced scale unless the full one is explicitly asked), a psql query or an EXPLAIN, and returns a compact table of figures against the budgets. Use to keep benchmark and query output out of the main context. Never edits files.
+description: Runs a kartenn benchmark (bench-core, bench-properties, bench-rbac, bench-http, bench-flow, bench-telemetry, bench-web, bench-ui; reduced scale unless the full one is explicitly asked), a psql query or an EXPLAIN, and returns a compact table of figures against the budgets. Use to keep benchmark and query output out of the main context. Never edits files.
 tools: Bash, Read
 model: haiku
 ---
@@ -19,6 +19,13 @@ les bancs recréent eux-mêmes la base `kartenn_bench`.
   écran, INP, navigation en cache, CLS, trames perdues de l'arbre, mémoire). Chaque mesure
   sort en une ligne `PASS|FAIL <budget>: <mesure> (limit <seuil>)` : c'est elle que tu
   reportes, sans les traces ni le détail de Playwright. `small` est l'échelle réduite.
+- Bibliothèque `@kartenn/ui` : `devenv shell -- bench-ui` (sans PostgreSQL ni échelle ;
+  poids par `web/v2/shell/scripts/size.ts`, puis le projet Playwright `components-bench` :
+  arbres de 10⁵ nœuds, grille de 10⁴ lignes, couches ; spec 020, REQ-020-29). Chaque
+  mesure sort en une ligne `PASS|FAIL <budget>: <valeur> (limit <seuil>) [5 passes]` ou
+  `INFO <mesure>: <valeur> [5 passes]` (chiffre sans budget) ; reporte-les toutes, sans
+  la liste des passes ni le détail de Playwright. Il prend le verrou des bancs, comme les
+  autres (`K_HEAVY_WAIT`).
 - Échelle : réduite par défaut (`K_BENCH_SCALE=reduced`, quelques minutes). Lance
   `K_BENCH_SCALE=full <script>` seulement si la demande le dit explicitement ; sinon,
   rappelle dans ta réponse qu'un banc réduit ne vaut pas mesure de budget.
@@ -29,9 +36,10 @@ les bancs recréent eux-mêmes la base `kartenn_bench`.
   (`psql "$K_BENCH_DATABASE_URL"`).
 - PostgreSQL arrêté (`pg_isready -h 127.0.0.1`) : dis-le et arrête-toi.
 
-Réponse, 30 lignes au plus :
+Réponse, 30 lignes au plus (70 pour `bench-ui`, une ligne par mesure) :
 1. Un tableau `mesure | p50 | p95 | budget | écart`, avec les budgets tels que la sortie
-   du banc les donne. Pour `bench-web` : `mesure | valeur | seuil | PASS/FAIL`. Pour un `EXPLAIN` : les nœuds coûteux (type, relation, temps,
+   du banc les donne. Pour `bench-web` et `bench-ui` : `mesure | valeur | seuil |
+   PASS/FAIL/INFO` (seuil « — » pour une ligne `INFO`). Pour un `EXPLAIN` : les nœuds coûteux (type, relation, temps,
    lignes estimées/réelles, buffers), pas le plan entier.
 2. Les budgets dépassés, en premier.
 3. Le chemin de la sortie complète.

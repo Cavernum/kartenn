@@ -9,6 +9,8 @@
     "fixtures",
     "visual",
     "components",
-    "journeys"
+    "journeys",
+    "bench.config.ts",
+    "bench"
   ]
 }

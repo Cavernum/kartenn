@@ -1173,12 +1173,82 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
 
 ## P5 — Budgets et clôture
 
-- [ ] 27. Bancs de composants (`components-bench`, protocole du prototype D-1) et poids
-  (`size.mjs`) : tableau du design § « Budgets » — REQ-020-29 — verify : tableau rendu par
+- [x] 27. Bancs de composants (`components-bench`, protocole du prototype D-1) et poids
+  (`size.ts`) : tableau du design § « Budgets » — REQ-020-29 — verify : tableau rendu par
   `bench-runner` ; un plafond dépassé → sortie non nulle
-  - où : `web/e2e/budgets/budgets.spec.ts`, `web/shell/scripts/size.mjs` ;
-    `devenv.nix` `scripts.bench-web` (vers la ligne 641)
+  - où : à imiter, `web/e2e/budgets/budgets.spec.ts`, `web/shell/scripts/size.mjs`,
+    `devenv.nix` `scripts.bench-web` (ancien shell) ; livrés, `web/v2/shell/scripts/size.ts`,
+    `web/v2/e2e/bench.config.ts`, `web/v2/e2e/bench/`, `web/v2/ui/src/demo/bench.ts`,
+    `web/v2/shell/src/_ui/BenchPage.vue`, `devenv.nix` `scripts.bench-ui`
   - dépend de : 26
+  - fait : `devenv shell -- bench-ui` (verrou des bancs, sans PostgreSQL) : build de
+    production du shell, `size.ts`, puis le projet Playwright `components-bench` sur le
+    build du catalogue (1440 × 900, sans ralenti, 5 passes, médiane ; une ligne
+    `PASS|FAIL|INFO` par mesure avec les 5 passes ; `expect.soft` par budget ; sortie 1 si
+    un poids ou un banc dépasse). `bench/measure.ts` : latence du `timeStamp` de
+    l'événement au premier `requestAnimationFrame` après l'état (observateur de
+    mutations, `focusin`, sondage par trame), trames perdues, tâches longues
+    (`PerformanceObserver`), tas par CDP après `collectGarbage`, défilement suivant
+    l'horloge. Hôtes `benches` (`@kartenn/ui/catalogue`) sur `/_ui/bancs/<Nom>` : `Tree`
+    et `TreeGrid` de 10⁵ nœuds montés par un bouton, cinq domaines ou tous ouverts,
+    hôte de déplacement qui signale sa réponse (`k-bench-answer`) ; `DataGrid` de 10⁴
+    lignes filtrée, triée et éditée par l'hôte. Couches : Dialog, Drawer, Popover, Menu,
+    Select, Combobox, CommandPalette sur leur état `keyboard`. L'hôte des arbres refuse
+    une part des cibles (rang 7k par `canMove` avec motif, rang 3k par sa réponse avec
+    code : `watch(refusedKeys)` exercé), signale sa réponse une fois le modèle construit
+    (écoute armée avant le Ctrl+V), et mesure un changement de `moveState` seul jusqu'à la
+    fin du `flush` (`k-bench-move-state`) ; noms partagés avec le banc dans
+    `demo/benchNames.ts`. Vitest `shell/test/size.test.ts` (mesures sur un manifeste,
+    dépassement d'un octet → échec ; `size.ts` lancé par `node` sur un build factice :
+    0 sous les budgets, 1 au-dessus) et `ui/test/bench.test.ts` (hôtes montés, happy-dom :
+    commandes, rôles, noms, sélecteurs et mesure que le banc lit). `bench-runner` connaît
+    `bench-ui` et rend son tableau.
+    Passage du 2026-11-01 (rendu par `bench-runner`, machine partagée : l'autre créneau de
+    `k-heavy` pris par d'autres agents), sortie 1 : poids JS **dépassés** (`@kartenn/ui`
+    125,3 Ko pour 90, avec `vue` 170,5 Ko pour 120 ; feuille 16,1 Ko, police 29,4 Ko).
+    `Tree` / `TreeGrid` : première ligne 72,5 / 55,7 ms (300), dépliage 50,2 / 30,0 ms
+    (90), Bas p75 5,3 / 2,0 ms (32), défilement 0,12 / 0,06 % (1 %), tâches longues au
+    défilement, pire passe, **2** / 0 (0 : une seule passe de `Tree`, à 12,4 % de trames
+    perdues, sous la charge de la machine ; 0 dans les trois passages précédents), tas
+    23,9 / 21,2 Mo chargé (40) et 24,8 / 22,3 Mo après défilement (50) ; dix déplacements
+    dans 100 100 lignes ouvertes, trames perdues là où l'arbre travaille 1,66 / 0,00 %
+    (B29 : 5 % ; passes de `Tree` de 0 à 9,5 %, un passage précédent à 11,6 % de
+    médiane), sur toute la suite 2,20 / 0,79 % (`INFO`). Grille : tas 7,9 Mo (45), Bas
+    3,0 ms (32), édition 14,9 ms (30), tri 11,5 ms (30), filtre 9,9 ms (60). Couches :
+    aucune tâche longue sur aucune passe, ouverture 9,8 à 18,6 ms (`INFO`). `INFO` :
+    Ctrl+V jusqu'à la ligne en attente 15,7 / 14,0 ms p75 ; réponse rendue 41,8 /
+    34,0 ms p75 (travail de l'arbre seul) ; refus local dit 9,2 / 14,2 ms ; changement de
+    `moveState` seul (`refusedKeys` sur toutes les lignes, fenêtre redessinée) 3,9 /
+    1,6 ms p75 à 5 100 lignes, 9,7 / 8,7 ms à 100 100 lignes : `refusedKeys` coûte
+    ≈ 6 à 7 ms pour 95 000 lignes, sous une trame. Revues `ui-reviewer` et
+    `a11y-auditor` (code) ; corrigés : hauteur de ligne du titre, banc inconnu par
+    `Object.hasOwn`, colonne `used` non triable (tri textuel trompeur), nombre de lignes
+    filtrées dit (`role="status"`). Revue `kartenn-revue` de la branche ; corrigés :
+    `bench-runner`, statut non bloquant, « aucune tâche longue » sur chaque passe,
+    course sur la réponse, dénominateur des trames perdues, dépassement écrit au design,
+    refus exercés, lancement de `size.ts`, hôtes testés, banc qui n'en saute plus
+    d'autres après un échec.
+  - choix : poids de `@kartenn/ui` mesuré tel que servi (son morceau avec Reka UI,
+    TanStack Virtual et Lucide), 1 Ko = 1 000 octets, 1 Mo = 10⁶ octets ; `size.ts`
+    plutôt que `.mjs` (typé et testé ; Node 24 retire les types, `import.meta.main`) ;
+    script `bench-ui` à part de `bench-web` (pas de PostgreSQL ni de serveur kartenn) ;
+    décision de la session principale : `bench-ui`, poids compris, **non bloquant**,
+    manuel, à brancher dans `k-web2-check` une fois le budget du poids arbitré ; hôtes de
+    banc hors captures, sur une route du catalogue hors cadre ; modèle de l'arbre
+    construit avant le clic (première ligne = coût du composant) ; défilement de 5 000
+    lignes en 5 s ; « ≤ 5 % » de B29 appliqué aux déplacements, sur les fenêtres où
+    l'arbre travaille (du Ctrl+V à la ligne en attente dessinée, de la réponse prête à
+    son rendu ; somme des durées ÷ 16,67 ms), « ≤ 1 % » de REQ-020-29 au défilement ;
+    médiane des 5 passes, sauf « aucune tâche longue » jugée sur la pire ; latences des
+    couches et des déplacements en `INFO` (aucun budget écrit).
+  - restent : **poids JS au-dessus du budget** (REQ-020-29) : la bibliothèque seule,
+    dépendances externes, fait ≈ 84 Ko gzip, Reka UI et TanStack Virtual ≈ 41 Ko de plus
+    dans le morceau servi ; options (a) découpage ou chargement paresseux, (b) budget
+    relevé, (c) code propre seulement — à arbitrer par l'utilisateur (design § « Budgets
+    ») ; sur une machine partagée, les trames perdues des déplacements de `Tree` et les
+    tâches longues de son défilement varient d'une passe à l'autre (une passe chargée
+    suffit à faire échouer « aucune tâche longue ») : à relire sur une machine libre
+    (`k-heavy --status` tout libre) avant d'y voir un défaut du composant.
 - [ ] 28. Synchronisation : `docs/spec/` (architecture web : `@kartenn/ui`, couches,
   catalogue) ; ADR 0036, 0038, 0039 acceptées ;
   `specs/README.md` ; audit `spec-keeper` — verify : liens croisés ; aucun écart

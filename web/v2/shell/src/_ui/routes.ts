@@ -30,4 +30,11 @@ export const catalogueRoutes: RouteRecordRaw[] = [
     component: () => import("./ecrans/EcranPage.vue"),
     props: true,
   },
+  // The component benches (design « Budgets »), alone on the page as well.
+  {
+    path: "/_ui/bancs/:banc",
+    name: "ui-bench",
+    component: () => import("./BenchPage.vue"),
+    props: true,
+  },
 ];
