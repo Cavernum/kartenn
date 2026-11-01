@@ -582,9 +582,7 @@ fn bisection(rest: &[String]) -> anyhow::Result<()> {
                     )
                 })?
             };
-            if good == *bad || !bisect::is_ancestor(&here, &good, bad) {
-                bail!("the good commit {good} is not an ancestor of the bad one {bad}");
-            }
+            bisect::check_good(&good, bad, |a, b| bisect::is_ancestor(&here, a, b))?;
             println!("{script} {good}");
             Ok(())
         }

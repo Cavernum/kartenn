@@ -36,6 +36,25 @@ pub fn is_ancestor(dir: &Path, ancestor: &str, of: &str) -> bool {
         .is_ok_and(|o| o.status.success())
 }
 
+/// The good commit given or found must be a strict ancestor of the bad one.
+///
+/// # Errors
+///
+/// `good` is `bad`, or not one of its ancestors.
+pub fn check_good(
+    good: &str,
+    bad: &str,
+    is_ancestor: impl Fn(&str, &str) -> bool,
+) -> anyhow::Result<()> {
+    if good == bad {
+        bail!("the good commit {good} is the bad one");
+    }
+    if !is_ancestor(good, bad) {
+        bail!("the good commit {good} is not an ancestor of the bad one {bad}");
+    }
+    Ok(())
+}
+
 /// The good commit by default: that of the newest run of `entries` where `measure` held at
 /// `scale`, on a clean tree, an ancestor of `bad` other than `bad`. A run held when none of
 /// its lines for the measure failed, or that of `budget` only when it is given.
@@ -371,6 +390,25 @@ mod tests {
         entries.drain(2..4);
         assert_eq!(good(&entries, None).as_deref(), Some(old));
         assert_eq!(good(&entries, Some("past")).as_deref(), Some(old));
+    }
+
+    #[test]
+    fn a_good_commit_equal_to_the_bad_one_is_refused() {
+        let e = check_good(BAD, BAD, |_, _| true).unwrap_err().to_string();
+        assert!(e.contains("is the bad one"), "{e}");
+    }
+
+    #[test]
+    fn a_good_commit_that_is_no_ancestor_is_refused() {
+        let e = check_good(GOOD, BAD, |_, _| false).unwrap_err().to_string();
+        assert!(e.contains("not an ancestor"), "{e}");
+        let asked = std::cell::RefCell::new(Vec::new());
+        check_good(GOOD, BAD, |a, b| {
+            asked.borrow_mut().push((a.to_owned(), b.to_owned()));
+            true
+        })
+        .unwrap();
+        assert_eq!(asked.into_inner(), [(GOOD.to_owned(), BAD.to_owned())]);
     }
 
     #[test]

@@ -337,9 +337,17 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     « read an object as known in the past, p95 » (dépassé) : bon 736 µs, mauvais
     13,25 ms, seuil 6,99 ms ; deux étapes (12,71 ms → mauvais, 756 µs → bon), premier
     mauvais commit : celui de la pause ; worktree, journal et historique de la bissection
-    supprimés, copie principale propre. Un premier essai interrompu (signal) a nettoyé de
-    même (code 130). Pour la borne `--good` donnée, même chemin sans l'historique (tests
-    de `bisect` et `start`).
+    supprimés, copie principale propre. Pour la borne `--good` donnée, même chemin sans
+    l'historique (tests de `bisect`, dont `check_good` : bon commit égal au mauvais ou
+    non ancêtre refusé). Après revue : chaque commande longue (build du juge, passages
+    d'une borne en mode `--runs`, `git bisect run`) tourne en arrière-plan dans son
+    groupe de processus (`setsid`), le script l'attend (`wait`) ; HUP, INT et TERM
+    arrêtent le groupe (TERM, KILL après 30 s), puis nettoyage (codes 129, 130, 143) ;
+    une panne du passage (instance des bancs, `k-pg-bench`) ne laisse aucune ligne et
+    saute le commit (125), seul l'échec d'écriture de l'historique, dit par
+    `kartenn-bench`, arrête la bissection. Essai réduit : TERM au seul pid principal
+    pendant le build d'une borne, sortie en 6 s (code 143), groupe vide, worktree
+    supprimé, verrou des bancs libre.
   - choix : bornes mesurées toutes deux avant la bissection (trois passages chacun),
     plutôt que la valeur de l'historique pour le bon commit (autre charge, autre modèle) ;
     les passages de la bissection hors de l'historique de la copie (le leur, supprimé) ;
@@ -355,8 +363,12 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     ou un `data/` créé plus tard dans un crate qui n'en avait pas ne relance pas le script
     de build (le manifeste et `src/` le font).
   - reste : la mesure inconnue n'est refusée qu'une fois le verrou des bancs et un
-    créneau obtenus ; un signal pendant un passage n'est traité qu'à la fin de ce passage
-    (dash attend l'enfant au premier plan).
+    créneau obtenus ; un signal pendant une commande courte au premier plan (`git
+    worktree add`, `k-target-seed`, `bisect track`) n'est traité qu'à sa fin ; `build.rs` :
+    un `build.rs` ou un `data/` créé plus tard dans un crate qui n'en avait pas ne relance
+    pas le script de build ; `bisect.rs` (`gap`) : une bonne médiane proche de zéro sans
+    l'être donne un écart relatif démesuré (seul zéro exact est traité) ; le premier
+    commit de la tâche n'est pas atomique (code et ADR ensemble), noté sans réécriture.
 - [ ] 6. Règles et synchronisation : `.claude/agents/kartenn-tache.md` (`bench-affected`
   réduit permis à une tâche Rust exercée par un banc) ; `CLAUDE.md` (« Charge de la
   machine ») ; `docs/practices/rust-build.md` et ADR 0032 (renvoi) ; ADR 0041 →

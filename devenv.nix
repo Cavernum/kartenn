@@ -1179,8 +1179,10 @@ in {
       }
       # Three runs of the measure at the commit checked out in the worktree of the
       # bisection, into its history: 125 when the commit does not compile, 255 when a run
-      # cannot write that history (kartenn-bench exits with 3). The exit code of a run is
-      # not its verdict: the judge reads the lines.
+      # cannot write that history (kartenn-bench exits with 3 and says so). The exit code
+      # of a run is not its verdict: the judge reads the lines. Any other failure of a run
+      # (the bench instance down, k-pg-bench failing) leaves no line: the judge skips the
+      # commit (125), the bisection goes on.
       runs() {
         if ! cargo build --release -q -p kartenn-bench >>"$BISECT_DIR/log" 2>&1; then
           echo "bench-bisect : $(git rev-parse --short HEAD) ne compile pas, sauté" >&2
@@ -1189,13 +1191,20 @@ in {
         for _ in 1 2 3; do
           status=0
           K_BENCH_HISTORY="$BISECT_DIR/history.jsonl" "$BISECT_SCRIPT" --only "$BISECT_MEASURE" \
-            </dev/null >>"$BISECT_DIR/log" 2>&1 || status=$?
-          if [ "$status" -eq 3 ]; then
+            </dev/null >"$BISECT_DIR/run" 2>&1 || status=$?
+          cat "$BISECT_DIR/run" >>"$BISECT_DIR/log"
+          if [ "$status" -eq 3 ] && grep -q '^Error: the history could not be written' "$BISECT_DIR/run"; then
             echo "bench-bisect : l'historique de la bissection ne s'écrit pas" >&2
             return 255
           fi
         done
       }
+      # The runs of a bound, in a process group of their own (see `group`).
+      if [ "''${1:-}" = --runs ]; then
+        code=0
+        runs || code=$?
+        exit "$code"
+      fi
       # A step of `git bisect run`, in the worktree of the bisection: 0 good, 1 bad, 125
       # skipped, 255 to abort.
       if [ "''${1:-}" = --step ]; then
@@ -1258,8 +1267,39 @@ in {
         fi
         exec k-heavy --bench ${dash} "$0" "$@"
       fi
+      # Each long command runs in the background in a process group of its own (setsid,
+      # without a fork: a background child is no group leader), and the script waits for
+      # it. dash takes a trap only once the command in the foreground ends, but a signal
+      # interrupts `wait`: HUP, INT or TERM stop the group of the command under way (TERM,
+      # KILL after 30 s), then the cleanup runs and the locks of k-heavy are released.
+      child=""
+      group() {
+        ${pkgs.util-linux}/bin/setsid "$@" &
+        child=$!
+        status=0
+        wait "$child" || status=$?
+        child=""
+        return "$status"
+      }
+      stop() {
+        # The group by its negative id (dash's kill takes no `--`).
+        if [ -n "$child" ]; then
+          kill -TERM "-$child" 2>/dev/null || true
+          waited=0
+          while kill -0 "-$child" 2>/dev/null && [ "$waited" -lt 30 ]; do
+            sleep 1
+            waited=$(( waited + 1 ))
+          done
+          kill -KILL "-$child" 2>/dev/null || true
+        fi
+        echo "bench-bisect : arrêt sur signal" >&2
+        exit "$1"
+      }
+      trap 'stop 129' HUP
+      trap 'stop 130' INT
+      trap 'stop 143' TERM
       # The judge: kartenn-bench of this checkout, built once; each commit builds its own.
-      cargo build --release -q -p kartenn-bench
+      group cargo build --release -q -p kartenn-bench
       judge=''${CARGO_TARGET_DIR:-$top/target}/release/kartenn-bench
       start=$("$judge" bisect start "$measure" "$bad" ''${good:+--good "$good"} ''${budget:+--budget "$budget"})
       script=''${start%% *}
@@ -1280,7 +1320,6 @@ in {
         git -C "$top" worktree prune
       }
       trap cleanup EXIT
-      trap 'exit 130' INT TERM
       cp "$judge" "$work/judge"
       git worktree add -q --detach "$tree" "$bad"
       (cd "$tree" && K_TARGET_BASE=$top k-target-seed >/dev/null) \
@@ -1293,7 +1332,7 @@ in {
       for end in "$good" "$bad"; do
         git checkout -q --detach "$end"
         code=0
-        runs || code=$?
+        group ${dash} "$0" --runs || code=$?
         [ "$code" -eq 0 ] || { echo "bench-bisect : la borne $(git rev-parse --short "$end") ne se mesure pas" >&2; exit 1; }
       done
       BISECT_BUDGET=$("$work/judge" bisect track "$work/history.jsonl" "$measure" "$good" "$bad" ''${budget:+--budget "$budget"})
@@ -1301,7 +1340,7 @@ in {
       export BISECT_BUDGET BISECT_GOOD BISECT_BAD
       git bisect start "$bad" "$good" >/dev/null
       code=0
-      git bisect run ${dash} "$0" --step >&2 || code=$?
+      group git bisect run ${dash} "$0" --step >&2 || code=$?
       # `# first bad commit: [<hash>]`, or `# first 'bad' commit:` for recent versions of git.
       first=$(git bisect log | sed -n 's/^# first [^[]*\[\([0-9a-f]*\)\].*/\1/p')
       if [ "$code" -ne 0 ] || [ -z "$first" ]; then
