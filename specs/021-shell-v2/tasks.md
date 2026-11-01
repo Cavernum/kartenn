@@ -461,6 +461,18 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     `refresh_failed`). Recommandation : réémettre le cookie après un rafraîchissement,
     `seen` laissé à sa valeur lue (ne prolonge rien) ; à trancher (A14 dit « ne réémet
     pas »).
+- [ ] 11c. Pages d'objets lues dans un seul instantané : `kit::versioned` lit la page et
+  ses versions dans la même transaction `REPEATABLE READ, READ ONLY` (`read::consistent`
+  de la 11a), comme l'arbre ; sans cela, une écriture validée entre les deux lectures sert
+  une valeur ancienne sous une `version` nouvelle, et un `If-Match` de l'édition en place
+  (12, 12a) écraserait sans 412 un changement non vu (relevé par la revue de la 11a) —
+  verify : `k-check -p kartenn-rest` (test : chaque objet d'une page porte la `version`
+  de la valeur servie) ; `bench-affected` réduit sur `bench-http` (pages filtrées) par la
+  session principale
+  - où : `crates/kartenn-rest/src/kit.rs` (`versioned`, vers la ligne 170) et ses
+    appelants ; `read::consistent` et `children` de `crates/kartenn-rest/src/tree.rs`
+    (forme) ; test voisin `crates/kartenn-rest/tests/it/objects.rs`
+  - dépend de : 11a
 - [ ] 16c. Rafraîchissement pendant une requête de fond (A15) : après un rafraîchissement
   des groupes sur une requête `Kartenn-Background: ?1` ou à l'ouverture du flux
   d'événements, cookie réémis avec `seen` remis à la valeur lue (ni fin par inactivité
@@ -1327,7 +1339,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   l'arbre → brouillon, Ctrl+Entrée → 201 ; deux onglets → 412 sans perte)
   - où : `web/v2/shell/src/views/TopologyView.vue`, `views/edit/` (`fields.ts`) ;
     parcours `web/v2/e2e/journeys/edit.spec.ts`
-  - dépend de : 11a, 11b
+  - dépend de : 11a, 11b, 11c
 - [x] 15a. Administration : groupes (membres, liaisons) et rôles ; permissions en nom servi
   et libellé — REQ-021-12, REQ-025-12 — verify : parcours `admin` (groupes, rôles)
   - où : `web/shell/src/admin/{BindingsView,RolesView}.vue`, `admin.ts`, `write.ts`,
