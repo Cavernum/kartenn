@@ -6078,8 +6078,18 @@ export interface components {
             kind: "prefix";
             /** @description Container or network. */
             nature: components["schemas"]["Nature"];
+            /**
+             * @description Its occupancy, as `GET /v1/prefixes/{id}/occupancy` serves it at the moment of
+             *     the page.
+             */
+            occupancy: components["schemas"]["Occupancy"];
             /** @description Canonical CIDR. */
             value: string;
+            /**
+             * Format: uuid
+             * @description The changeset that last modified it, the version its `ETag` names (006/H19).
+             */
+            version: string;
           }
         | {
             /** @description First address. */
@@ -6097,6 +6107,11 @@ export interface components {
             last: string;
             /** @description Usage. */
             usage: components["schemas"]["RangeUsage"];
+            /**
+             * Format: uuid
+             * @description The changeset that last modified it, the version its `ETag` names (006/H19).
+             */
+            version: string;
           }
         | {
             /** @description Its URL. */
@@ -6110,6 +6125,11 @@ export interface components {
             kind: "address";
             /** @description Canonical address. */
             value: string;
+            /**
+             * Format: uuid
+             * @description The changeset that last modified it, the version its `ETag` names (006/H19).
+             */
+            version: string;
           }
       )[];
       /** @description The links of the page. */
@@ -8101,7 +8121,10 @@ export interface components {
       | "policy.exempt_role"
       | "policy.inference_rule"
       | "flow.flow";
-    /** @description A node of the tree, as listed. */
+    /**
+     * @description A node of the tree, as listed, with its version and, for a prefix, its occupancy, read
+     *     at the moment of the page (021/A11).
+     */
     TreeNode:
       | {
           /** @description Its URL. */
@@ -8115,8 +8138,18 @@ export interface components {
           kind: "prefix";
           /** @description Container or network. */
           nature: components["schemas"]["Nature"];
+          /**
+           * @description Its occupancy, as `GET /v1/prefixes/{id}/occupancy` serves it at the moment of
+           *     the page.
+           */
+          occupancy: components["schemas"]["Occupancy"];
           /** @description Canonical CIDR. */
           value: string;
+          /**
+           * Format: uuid
+           * @description The changeset that last modified it, the version its `ETag` names (006/H19).
+           */
+          version: string;
         }
       | {
           /** @description First address. */
@@ -8134,6 +8167,11 @@ export interface components {
           last: string;
           /** @description Usage. */
           usage: components["schemas"]["RangeUsage"];
+          /**
+           * Format: uuid
+           * @description The changeset that last modified it, the version its `ETag` names (006/H19).
+           */
+          version: string;
         }
       | {
           /** @description Its URL. */
@@ -8147,6 +8185,11 @@ export interface components {
           kind: "address";
           /** @description Canonical address. */
           value: string;
+          /**
+           * Format: uuid
+           * @description The changeset that last modified it, the version its `ETag` names (006/H19).
+           */
+          version: string;
         };
     /** @description A point of extension a plugin fills. */
     UiExtension: {

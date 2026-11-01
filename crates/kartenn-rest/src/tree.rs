@@ -4,15 +4,18 @@
 //! address, proposed, not assigned. A prefix the caller may not read answers 404, as an
 //! absent one. The occupancy and the next free value count the whole content, readable or
 //! not: the first is a measure of the prefix, the second must not propose what is taken.
+//! Each listed node carries its version and a prefix its occupancy, read for the whole
+//! page at its moment (021/A11).
 
 use axum::Extension;
 use axum::extract::{Path, RawQuery, State};
 use axum::http::HeaderMap;
 use axum::response::Response;
-use kartenn_core::addr::Addr;
+use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::audit::rfc3339;
 use kartenn_core::family::ALL;
 use kartenn_core::objects::{Nature, PrefixObject, RangeUsage};
+use kartenn_core::occupancy::Occupancy as Measure;
 use kartenn_service::RequestError;
 use kartenn_service::audit::{AuditJournal, RequestContext};
 use kartenn_service::authn::Principal;
@@ -43,7 +46,8 @@ pub fn routes() -> OpenApiRouter<Api> {
         .routes(routes!(next_free))
 }
 
-/// A node of the tree, as listed.
+/// A node of the tree, as listed, with its version and, for a prefix, its occupancy, read
+/// at the moment of the page (021/A11).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[schema(as = TreeNode)]
@@ -59,6 +63,11 @@ pub enum NodeDto {
         nature: Nature,
         /// Its URL.
         href: String,
+        /// The changeset that last modified it, the version its `ETag` names (006/H19).
+        version: Uuid,
+        /// Its occupancy, as `GET /v1/prefixes/{id}/occupancy` serves it at the moment of
+        /// the page.
+        occupancy: Occupancy,
     },
     /// A range.
     Range {
@@ -73,6 +82,8 @@ pub enum NodeDto {
         usage: RangeUsage,
         /// Its URL.
         href: String,
+        /// The changeset that last modified it, the version its `ETag` names (006/H19).
+        version: Uuid,
     },
     /// An address.
     Address {
@@ -82,37 +93,45 @@ pub enum NodeDto {
         value: String,
         /// Its URL.
         href: String,
+        /// The changeset that last modified it, the version its `ETag` names (006/H19).
+        version: Uuid,
     },
 }
 
-impl From<&Node> for NodeDto {
-    fn from(node: &Node) -> Self {
-        match *node {
-            Node::Prefix { id, value, nature } => Self::Prefix {
+/// `node` as listed, of version `version` and, for a prefix, of occupancy `measure`.
+fn node_dto(node: &Node, version: Uuid, measure: Option<&Measure>) -> Option<NodeDto> {
+    Some(match *node {
+        Node::Prefix { id, value, nature } => {
+            let measure = measure?;
+            NodeDto::Prefix {
                 id,
                 value: value.to_string(),
                 nature,
                 href: href(Kind::Prefix, id),
-            },
-            Node::Range {
-                id,
-                first,
-                last,
-                usage,
-            } => Self::Range {
-                id,
-                first: first.to_string(),
-                last: last.to_string(),
-                usage,
-                href: href(Kind::Range, id),
-            },
-            Node::Address { id, value } => Self::Address {
-                id,
-                value: value.to_string(),
-                href: href(Kind::Address, id),
-            },
+                version,
+                occupancy: Occupancy::of(id, &value, nature, measure),
+            }
         }
-    }
+        Node::Range {
+            id,
+            first,
+            last,
+            usage,
+        } => NodeDto::Range {
+            id,
+            first: first.to_string(),
+            last: last.to_string(),
+            usage,
+            href: href(Kind::Range, id),
+            version,
+        },
+        Node::Address { id, value } => NodeDto::Address {
+            id,
+            value: value.to_string(),
+            href: href(Kind::Address, id),
+            version,
+        },
+    })
 }
 
 /// The moment of the read and the prefix `id` then, or 404 if the caller may not read it
@@ -156,12 +175,45 @@ async fn record(
     Ok(())
 }
 
-/// The nodes as listed, and their identifiers.
-fn listed(nodes: &[Node]) -> (Vec<NodeDto>, Vec<Uuid>) {
-    (
-        nodes.iter().map(NodeDto::from).collect(),
-        nodes.iter().map(Node::id).collect(),
-    )
+/// The nodes as listed at `moment`, and their identifiers: their versions, then the
+/// occupancy of their prefixes, each read for the whole page in one go (021/A11). A node
+/// gone between the read of the page and these (a write of the present in between) is
+/// left out, as a later read would leave it.
+async fn listed(
+    api: &Api,
+    moment: &Moment,
+    nodes: &[Node],
+) -> Result<(Vec<NodeDto>, Vec<Uuid>), Problem> {
+    let ids: Vec<Uuid> = nodes.iter().map(Node::id).collect();
+    let versions = read::versions(&api.pool, &ids, moment.valid_at, moment.as_of)
+        .await
+        .map_err(|e| store(&e))?;
+    let prefixes: Vec<Uuid> = nodes
+        .iter()
+        .filter(|node| matches!(node, Node::Prefix { .. }))
+        .map(Node::id)
+        .collect();
+    let measures = tree::occupancies_as_of(&api.pool, &prefixes, moment.valid_at, moment.as_of)
+        .await
+        .map_err(|e| store(&e))?;
+    let items: Vec<NodeDto> = nodes
+        .iter()
+        .filter_map(|node| {
+            let id = node.id();
+            node_dto(node, *versions.get(&id)?, measures.get(&id))
+        })
+        .collect();
+    let ids = items.iter().map(NodeDto::id).collect();
+    Ok((items, ids))
+}
+
+impl NodeDto {
+    /// Its identifier.
+    const fn id(&self) -> Uuid {
+        match self {
+            Self::Prefix { id, .. } | Self::Range { id, .. } | Self::Address { id, .. } => *id,
+        }
+    }
 }
 
 /// A document as served, its weak `ETag` that of its bytes.
@@ -180,7 +232,7 @@ fn document<T: Serialize>(headers: &HeaderMap, moment: &Moment, body: &T) -> Res
 }
 
 /// A prefix, as the tree names it.
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 struct PrefixRef {
     /// Identifier.
     id: Uuid,
@@ -201,8 +253,8 @@ impl PrefixRef {
 }
 
 /// The occupancy of a prefix.
-#[derive(Debug, Serialize, ToSchema)]
-struct Occupancy {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct Occupancy {
     /// The prefix.
     prefix: PrefixRef,
     /// Its nature.
@@ -212,6 +264,22 @@ struct Occupancy {
     used: String,
     /// The addresses of the prefix, a decimal string.
     total: String,
+}
+
+impl Occupancy {
+    /// The occupancy `measure` of the prefix `id` of value `value` and of nature `nature`.
+    fn of(id: Uuid, value: &Prefix, nature: Nature, measure: &Measure) -> Self {
+        Self {
+            prefix: PrefixRef {
+                id,
+                value: value.to_string(),
+                href: href(Kind::Prefix, id),
+            },
+            nature,
+            used: measure.used.to_string(),
+            total: measure.total.to_string(),
+        }
+    }
 }
 
 /// The first free value of a prefix.
@@ -285,7 +353,7 @@ async fn children(
         );
         next_href(&format!("/v1/{name}"), &cursor)
     });
-    let (items, ids) = listed(&nodes);
+    let (items, ids) = listed(&api, &moment, &nodes).await?;
     record(&api, &context, &moment, "children", id, &ids).await?;
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
@@ -349,7 +417,7 @@ async fn roots(
         );
         next_href(&format!("/v1/{name}"), &cursor)
     });
-    let (items, ids) = listed(&nodes);
+    let (items, ids) = listed(&api, &moment, &nodes).await?;
     let criteria = json!({
         "domain": id,
         "tree": "roots",
@@ -390,7 +458,7 @@ async fn ancestors(
     let nodes = tree::ancestors_of(&api.pool, &found, moment.valid_at, moment.as_of, &scope)
         .await
         .map_err(|e| store(&e))?;
-    let (items, ids) = listed(&nodes);
+    let (items, ids) = listed(&api, &moment, &nodes).await?;
     record(&api, &context, &moment, "ancestors", id, &ids).await?;
     Ok(respond_page(&headers, &moment, &items, None))
 }
@@ -418,12 +486,7 @@ async fn occupancy(
         .map_err(|e| store(&e))?
         .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
     record(&api, &context, &moment, "occupancy", id, &[id]).await?;
-    let body = Occupancy {
-        prefix: PrefixRef::of(&found, id),
-        nature: found.nature,
-        used: measure.used.to_string(),
-        total: measure.total.to_string(),
-    };
+    let body = Occupancy::of(id, &found.value, found.nature, &measure);
     Ok(document(&headers, &moment, &body))
 }
 

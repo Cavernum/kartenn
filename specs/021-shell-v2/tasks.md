@@ -377,7 +377,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
 
 ### Sous-tâches serveur des arbitrages du 2026-11-01 (A11 à A14)
 
-- [ ] 11a. `TreeNode` porte `version` et, pour un préfixe, `occupancy` (A11) dans
+- [x] 11a. `TreeNode` porte `version` et, pour un préfixe, `occupancy` (A11) dans
   `GET /v1/domains/{id}/roots` et `GET /v1/prefixes/{id}/children`, lus en lot au même
   instant que la page (aucune requête par ligne) ; contrat OpenAPI régénéré — verify :
   `k-check -p kartenn-rest` (test d'intégration : `version` égale à l'ETag de l'objet,
@@ -387,6 +387,35 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     la lecture d'occupation du store qu'appelle `occupancy` ; test voisin
     `crates/kartenn-rest/tests/it/objects.rs` (arbre) ; 006 design § tableau « Arbre »
   - dépend de : —
+  - fait le 2026-11-01 — REST (`crates/kartenn-rest/src/tree.rs`) : `NodeDto` (schéma
+    `TreeNode`) gagne `version` (requis, les trois genres) et `occupancy` (requis pour un
+    préfixe, schéma `Occupancy` de `…/occupancy`, construit par le même `Occupancy::of`) ;
+    `listed` lit la page entière en deux lectures au `Moment` de la page :
+    `read::versions` (celle des pages d'objets, 006/H19) puis
+    `tree::occupancies_as_of`. Store (`crates/kartenn-store-pg/src/tree.rs`) :
+    `occupancies_as_of(ids, valid_at, as_of)` en deux requêtes quel que soit le nombre de
+    préfixes (les préfixes, puis leur contenu : marche des enfants directs d'un conteneur,
+    une sonde d'index chacun comme `tops`, plages et adresses d'un réseau, présent ou
+    passé par `probe`) ; `recent` extrait de `tops` et partagé. Contrat
+    `specs/006-api-rest/openapi-v1.json` et `web/v2/sdk/src/api/schema.d.ts` régénérés.
+    Test : `objects::tree_nodes_carry_their_version_and_occupancy` (racines, enfants de
+    deux préfixes, ancêtres ; présent, `valid_at` passé, `as_of` : `version` = membre
+    `version` de l'objet et tête de son ETag, `occupancy` = `…/occupancy` ; mesures d'un
+    réseau avec plage DHCP, d'un conteneur, d'un /32 IPv6 ; adresse ajoutée après `as_of`
+    comptée au présent seulement) ; `k-check` vert (1214 tests). Shell : seul le typage de
+    `web/v2/shell/src/views/TopologyView.vue` suit (`Shown`, un nœud sans `version` ni
+    `occupancy` pour le préfixe lu seul par l'URL), sans changement de rendu ;
+    `k-web2-check` vert (711 tests, 2706 captures, aucune réécrite).
+  - choix : `…/ancestors` sert aussi `version` et `occupancy` (même schéma `TreeNode`,
+    champs requis) ; `occupancy` reprend tout l'objet de `…/occupancy` (`prefix`,
+    `nature`, `used`, `total`), à la lettre de A11 ; l'occupation d'un réseau compte ses
+    plages et adresses sans chercher de sous-préfixe (`core.prefix.network_not_leaf`) ; un
+    nœud disparu entre la page et ses lectures en lot (écriture du présent entre les
+    requêtes) est omis de la page plutôt que servi sans version.
+  - reste : `bench-affected` (échelle réduite) non lancé par l'agent : le store de l'arbre
+    est dans l'empreinte de tous les bancs, il en choisit huit entiers (props, core, rbac,
+    http, policy, flow, events, telemetry) ; `bench-http` (« subtree and occupancy »,
+    enfants par HTTP) est celui que le changement touche.
 - [ ] 16a. `SessionState.absolute_expires_at` et en-tête `Kartenn-Background: ?1` traité
   en `NotActivity` (A14) : ni `seen` prolongé ni cookie réémis ; valeur autre que `?1` ou
   `?0` ignorée (requête ordinaire) — verify : `k-check -p kartenn-rest` (sessions : une
