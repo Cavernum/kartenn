@@ -739,7 +739,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   `machines.host.*`), sans optimisme — verify : parcours `machines` vert
   - où : `web/plugins/machines/`
   - dépend de : 17
-- [ ] 19. Plugin d'exemple passé au SDK 1.0, **toujours sans framework**, en racine
+- [x] 19. Plugin d'exemple passé au SDK 1.0, **toujours sans framework**, en racine
   d'ombre avec `handle.styles()` sur `@kartenn/ui/style.css`, lecture par le
   `QueryClient` — REQ-021-25, 27 — verify : parcours `example` vert ; invalidation reçue
   par le plugin
@@ -763,13 +763,16 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `plugins/example/test/example.test.ts` (10), `sdk/test/plugins.test.ts` (2 de
     `handle.styles`), `shell/test/build.test.ts` (lien nommé). Parcours `example` réécrit
     (chargé, éléments définis, vue depuis la barre, feuilles dans l'ordre et appliquées,
-    thème sombre, axe ; préfixe créé par l'API → visible sans recharger) : vert avec
-    `plugins` (16, Chromium et Firefox) avant les corrections de relecture ; à repasser
-    après elles (ports 9443/9444 tenus par des serveurs orphelins d'un autre worktree au
-    moment du commit). `k-web2-check` vert après elles (551 tests, 2702 captures).
-  - choix : observateurs de query-core réexportés par le SDK plutôt qu'un abonnement au
-    cache (`getQueryCache().subscribe`) — sans observateur, une requête sort du cache au
-    bout de `gcTime` et le plugin ne suit plus rien ; feuille partagée désignée par son
+    thème sombre, axe ; préfixe créé par l'API → visible sans recharger, l'invalidation
+    reçue par le plugin) : vert avec `plugins` après les corrections de relecture (16,
+    Chromium et Firefox) ; `k-web2-check` vert (551 tests, 2702 captures). Le parcours ne
+    couvre que la vue : onglet, panneau, colonne, action et tuile attendent les écrans qui
+    les placent (tâches 11, 14, 17), vérifiés d'ici là par Vitest.
+  - choix : observateurs de query-core (`QueryObserver`, `InfiniteQueryObserver`)
+    réexportés par le SDK 1.0 plutôt qu'un abonnement au cache (`getQueryCache().subscribe`)
+    — sans observateur, une requête sort du cache au bout de `gcTime` et le plugin ne suit
+    plus rien ; export accepté par l'utilisateur le 2026-11-01, réversible avant le gel ;
+    feuille partagée désignée par son
     spécifieur et trouvée par l'attribut `data-kartenn-sheet` du lien du shell (pas de crochet
     d'hôte) ; `ui: "^0.1"` déclaré dans le manifeste parce que le plugin lie la feuille (design
     amendé) ; contenu dans un conteneur à côté des `<link>` (un lien déplacé serait relu) ;
