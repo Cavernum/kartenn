@@ -67,6 +67,11 @@ export interface Gone {
   id: string;
   /** Whether it was the active draft of this tab (the shell leaves it with a notice). */
   active: boolean;
+  /**
+   * How the tab learnt it: the event `draft` of the stream, or a write of the tab refused
+   * 404 — said then where it was asked, with its codes.
+   */
+  cause: "event" | "refused";
 }
 
 export interface DraftDeps {
@@ -172,9 +177,9 @@ export function createDrafts(deps: DraftDeps) {
     return wasActive;
   }
 
-  async function gone(id: string): Promise<void> {
+  async function gone(id: string, cause: Gone["cause"]): Promise<void> {
     const wasActive = await forget(id);
-    for (const listener of [...goneListeners]) listener({ id, active: wasActive });
+    for (const listener of [...goneListeners]) listener({ id, active: wasActive, cause });
   }
 
   /** The outcome of a write that threw. */
@@ -184,7 +189,7 @@ export function createDrafts(deps: DraftDeps) {
       return { kind: "conflict", current: await reread(id), input, problem: error };
     }
     // Absent or someone else's (024 « Erreurs »): it left this tab.
-    if (error.status === 404 && id !== null) await gone(id);
+    if (error.status === 404 && id !== null) await gone(id, "refused");
     return refused(error, input);
   }
 
@@ -200,7 +205,13 @@ export function createDrafts(deps: DraftDeps) {
   const update = async (id: string, change: DraftChange): Promise<DraftOutcome<DraftChange>> => {
     try {
       const ifMatch = await etagOf(id);
-      const answer = await client.request("PATCH", path(id), { body: change, ifMatch });
+      // The contract takes the change as `application/json` (each member replaces its own),
+      // not as a merge patch.
+      const answer = await client.request("PATCH", path(id), {
+        body: change,
+        ifMatch,
+        merge: false,
+      });
       return await saved(answer.data as Draft, answer.etag);
     } catch (error) {
       return failure(id, error, change);
@@ -336,7 +347,7 @@ export function createDrafts(deps: DraftDeps) {
     if (typeof id !== "string") return;
     if (data["deleted"] === true) {
       if (ending.has(id)) await forget(id);
-      else await gone(id);
+      else await gone(id, "event");
       return;
     }
     const version = data["version"];

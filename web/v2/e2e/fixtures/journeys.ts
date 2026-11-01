@@ -24,12 +24,14 @@ export const GROUPS: Record<string, readonly string[]> = {
 
 /**
  * A role of the journeys (global-setup.ts): the reads and the edition of the referential,
- * without `approval.self` — what Carol may propose, never apply herself (REQ-021-37).
+ * without `approval.self` — what Carol may propose, never apply herself (REQ-021-37) —, and
+ * the read of the changesets, where she follows her proposals (journey `changesets`).
  */
 export const EDITOR_WITHOUT_APPLY = {
   key: "redacteur",
   labels: { fr: "Rédacteur sans application" },
   entries: [
+    "core.changeset.read",
     "core.entity.read",
     "core.site.read",
     "core.domain.read",
@@ -55,6 +57,8 @@ export const DATA = {
   bulk: { prefix: "2001:db8:2::/64", count: 1000 },
   /** A container with 1 000 direct children: the virtualised tree, its pages. */
   wide: { prefix: "2001:db8:3::/48", count: 1000 },
+  /** A group of VLAN anchored on the domain, and one VLAN in it (026). */
+  vlan: { group: "campus", vid: 10, name: "serveurs" },
 } as const;
 
 /** The addresses of the long list: 2001:db8:2::1 onwards. */
@@ -211,4 +215,70 @@ export async function loginIn(page: Page, user: keyof typeof USERS): Promise<voi
   // The callback sends the browser back to the shell (`/`).
   await page.waitForURL(`${BASE_URL}/`);
   await atRest(page);
+}
+
+/** A call of the API by the page itself, under its session (same origin: CSRF). */
+export async function apiCall(
+  page: Page,
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<{ status: number; body: unknown }> {
+  return page.evaluate(
+    async ({ method, path, body }) => {
+      const response = await fetch(path, {
+        method,
+        headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      const text = await response.text();
+      return { status: response.status, body: text ? JSON.parse(text) : null };
+    },
+    { method, path, body },
+  );
+}
+
+/**
+ * A domain owned by the entity of the data set, created by `page` (who may apply it),
+ * holding the networks `prefixes`: its slug and the ids of its prefixes, in that order.
+ */
+export async function ownedDomain(
+  page: Page,
+  slug: string,
+  prefixes: readonly string[] = ["198.51.100.0/24"],
+): Promise<{ slug: string; prefixes: string[] }> {
+  const declarations = (await apiCall(page, "GET", "/v1/property-declarations")).body as {
+    items: { id: string; key: string }[];
+  };
+  const owner = declarations.items.find((d) => d.key === "core.owner")!.id;
+  const entities = (await apiCall(page, "GET", `/v1/entities?slug=${DATA.entity}`)).body as {
+    items: { id: string }[];
+  };
+  const created = await apiCall(page, "POST", "/v1/changesets?approval=self", {
+    motive: "end-to-end journey",
+    operations: [
+      { op: "create_domain", local: 0, slug },
+      {
+        op: "assign_property",
+        object: { local: 0 },
+        kind: "domain",
+        property: { id: owner },
+        values: [entities.items[0]!.id],
+      },
+      ...prefixes.map((prefix) => ({
+        op: "create_prefix",
+        domain: { local: 0 },
+        prefix,
+        nature: "network",
+      })),
+    ],
+  });
+  expect(created.status, JSON.stringify(created.body)).toBe(201);
+  const listed = (await apiCall(page, "GET", `/v1/prefixes?domain=${slug}`)).body as {
+    items: { id: string; value: string }[];
+  };
+  return {
+    slug,
+    prefixes: prefixes.map((p) => listed.items.find((item) => item.value === p)!.id),
+  };
 }

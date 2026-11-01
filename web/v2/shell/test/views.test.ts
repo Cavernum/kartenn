@@ -8,7 +8,20 @@ import { createMemoryHistory, createRouter, RouterView, type Router } from "vue-
 import { crumbsOf } from "../src/frame/breadcrumb.ts";
 import { frameRoutes } from "../src/frame/routes.ts";
 import { createShellI18n } from "../src/i18n/index.ts";
-import { COLLECTIONS, nameOf, pageOfHref } from "../src/views/collections.ts";
+import {
+  anchorOf,
+  COLLECTIONS,
+  nameOf,
+  pageOfHref,
+  referenceOf,
+} from "../src/views/collections.ts";
+import {
+  COLUMN_READS,
+  isNetworkVlanRemoval,
+  limited,
+  networkVlanOperation,
+  vlanOfProperties,
+} from "../src/views/parts/vlan.ts";
 import {
   filtersOfQuery,
   listFilterModel,
@@ -179,6 +192,92 @@ describe("the collections", () => {
     expect(nameOf({ value: "192.0.2.0/24" })).toBe("192.0.2.0/24");
     expect(nameOf({ first: "192.0.2.10", last: "192.0.2.20" })).toBe("192.0.2.10 – 192.0.2.20");
     expect(nameOf({ slug: "production" })).toBe("production");
+    // A VLAN by its VID and name (026).
+    expect(nameOf({ vid: 100, name: "serveurs" })).toBe("100 · serveurs");
+  });
+
+  it("read the objects a VLAN names by their identifier only (026)", () => {
+    const columns = Object.fromEntries(
+      COLLECTIONS.flatMap((c) => c.columns.map((column) => [`${c.id}.${column.id}`, column])),
+    );
+    expect(referenceOf(columns["vlans.group"]!, { id: ENTITY })).toEqual({
+      kind: "vlan_group",
+      id: ENTITY,
+    });
+    expect(referenceOf(columns["vlan-groups.anchor"]!, { site: { id: ENTITY } })).toEqual({
+      kind: "site",
+      id: ENTITY,
+    });
+    expect(anchorOf({ site: { id: ENTITY }, domain: { id: ENTITY } })).toBeNull();
+    expect(referenceOf(columns["prefixes.domain"]!, { id: ENTITY })).toBeNull();
+  });
+
+  it("read and write the VLAN of a network by its property `core.vlan`", () => {
+    const vlan = { kind: "vlan", id: ENTITY };
+    expect(vlanOfProperties({ properties: { "core.vlan": ENTITY }, masked: [] } as never)).toEqual(
+      vlan,
+    );
+    expect(
+      vlanOfProperties({ properties: { "core.vlan": { id: ENTITY } }, masked: [] } as never),
+    ).toEqual(vlan);
+    expect(vlanOfProperties({ properties: {}, masked: [] } as never)).toEqual({ kind: "none" });
+    // Masked: the reader may not read it, never « no VLAN ».
+    expect(vlanOfProperties({ properties: {}, masked: ["core.vlan"] } as never)).toEqual({
+      kind: "masked",
+    });
+    // A removal already in the draft, by its network and declaration.
+    const removal = networkVlanOperation("p", "d", null);
+    expect(isNetworkVlanRemoval(removal, "p", "d")).toBe(true);
+    expect(isNetworkVlanRemoval(removal, "q", "d")).toBe(false);
+    expect(isNetworkVlanRemoval(removal, "p", undefined)).toBe(false);
+    expect(isNetworkVlanRemoval(networkVlanOperation("p", "d", ENTITY), "p", "d")).toBe(false);
+    expect(networkVlanOperation("p", "d", ENTITY)).toEqual({
+      op: "assign_property",
+      kind: "prefix",
+      object: { id: "p" },
+      property: { id: "d" },
+      values: [ENTITY],
+    });
+    expect(networkVlanOperation("p", "d", null)).toEqual({
+      op: "unassign_property",
+      kind: "prefix",
+      object: { id: "p" },
+      property: { id: "d" },
+    });
+  });
+
+  it("read the VLAN of the rows a few at a time, never a row gone meanwhile", async () => {
+    let running = 0;
+    let most = 0;
+    const releases: (() => void)[] = [];
+    const read = () =>
+      new Promise<string>((resolve) => {
+        running++;
+        most = Math.max(most, running);
+        releases.push(() => {
+          running--;
+          resolve("read");
+        });
+      });
+    const gone = new AbortController();
+    const outcome = (signal?: AbortSignal) =>
+      limited(signal, read).then(
+        () => "read",
+        () => "dropped",
+      );
+    const reads = [
+      ...Array.from({ length: COLUMN_READS + 2 }, () => outcome()),
+      outcome(gone.signal),
+    ];
+    gone.abort();
+    for (let i = 0; i < 20 && releases.length > 0; i++) {
+      releases.shift()!();
+      await new Promise((resolve) => setTimeout(resolve));
+    }
+    const settled = await Promise.all(reads);
+    expect(most).toBe(COLUMN_READS);
+    expect(settled.filter((s) => s === "read")).toHaveLength(COLUMN_READS + 2);
+    expect(settled.at(-1)).toBe("dropped");
   });
 
   it("open the record a URL of the API names, of a collection of the shell only", () => {

@@ -1,9 +1,9 @@
+import { addToActiveDraft } from "@kartenn/sdk/host";
 import {
   ApiProblem,
   NetworkError,
   canMove as check,
   changesets,
-  draft,
   drafts,
   FORBIDDEN_RULE,
   queryClient,
@@ -272,7 +272,8 @@ export function useMoves(model: MoveModel) {
         ? await drafts.update(current!.data.id, {
             operations: operations.map((o, i) => (i === earlier ? op : o)),
           })
-        : await draft.add(op);
+        : // The shell's own addition: said here, the draft not opened (`draft.add` is the plugins').
+          await addToActiveDraft([op]);
     if (added.kind !== "saved") {
       refuse(
         node.id,

@@ -52,14 +52,20 @@ export async function snap(page: Page, state: string): Promise<void> {
 export async function expectAccessible(page: Page, disabled: string[] = []): Promise<void> {
   // A layer fades in, even under reduced motion (spec 020, « Mouvement »): the finite
   // animations and transitions end first, so that axe reads the colours of an opaque layer.
-  await page.evaluate(() =>
-    Promise.all(
+  // A layer inserted just now (the right panel a plugin's `draft.add` opens) starts its
+  // transition only at the next frame (Vue's `<Transition>`: `-enter-from`, then
+  // `-enter-to`): two frames pass first, so that it is among the animations awaited.
+  await page.evaluate(async () => {
+    for (let frame = 0; frame < 2; frame += 1) {
+      await new Promise<void>((done) => requestAnimationFrame(() => done()));
+    }
+    await Promise.all(
       document
         .getAnimations()
         .filter((a) => Number.isFinite(Number(a.effect?.getComputedTiming().endTime)))
         .map((a) => a.finished.catch(() => undefined)),
-    ),
-  );
+    );
+  });
   const results = await new AxeBuilder({ page })
     .options({ preload: false })
     .disableRules(disabled)

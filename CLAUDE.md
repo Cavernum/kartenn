@@ -10,6 +10,11 @@
 - **Tâches ciblées.** Chaque tâche de `tasks.md` porte une ligne `où :` : fichiers et
   symboles à toucher ou à imiter, sections du design (titre ou numéro de ligne), test
   voisin à copier. Elle s'écrit avec la tâche et se corrige quand le code bouge.
+  Une tâche tient dans un seul contexte d'agent : un écran, un composant, une route ou
+  une brique d'outillage, une dizaine de fichiers au plus, une seule famille de
+  vérification. Plus large (plusieurs écrans, serveur et shell à la fois, « reste »
+  d'une tâche en cours), elle se découpe avant d'être lancée en sous-tâches `NNN-Ma`,
+  `NNN-Mb`… dans `tasks.md`, chacune avec ses `où :` et `verify`.
 - **Décisions de référence** : `specs/001-cadrage/decisions.md` (D1…D37). Toute
   proposition qui contredit une décision le signale et demande un arbitrage.
 - **Sources primaires** : les notes de `docs/reference/` s'appuient sur les RFC
@@ -78,4 +83,8 @@ Le coût d'une session croît avec la taille du contexte × le nombre de requêt
   déléguer la lecture d'un fichier qu'on va modifier. Exception : une session qui
   orchestre plusieurs tâches confie chacune, entière, à `kartenn-tache` (son worktree, sa
   branche, un rapport ; ni push ni fusion), puis fait relire la branche par
-  `kartenn-revue` (qualité et conformité à la spec) avant de la fusionner.
+  `kartenn-revue` (qualité et conformité à la spec) avant de la fusionner. La demande de
+  revue tient en dix lignes (branche, commit de départ, tâche, deux ou trois points
+  d'attention), sans recopier le rapport de l'agent. Une seule passe de corrections par
+  branche, pour les constats bloquants et importants ; les mineurs vont au reste de la
+  tâche.

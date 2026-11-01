@@ -306,6 +306,100 @@ describe("draft submission and simulation (W10, ADR 0037)", () => {
   });
 });
 
+describe("decisions on a changeset (REQ-021-10)", () => {
+  const changeset = (state: string) => ({
+    id: C1,
+    state,
+    operations: [{ op: "update_prefix", id: { id: P1 }, nature: "container" }],
+  });
+
+  /** A server whose changeset is `pending` until a decision answers `decide`. */
+  function server(decide: (request: Seen) => Response) {
+    let state = "pending";
+    const cache = fakeCache((request) => {
+      if (request.method === "POST") {
+        const answer = decide(request);
+        if (answer.ok) state = request.url.includes("rejection") ? "rejected" : "applied";
+        return answer;
+      }
+      if (request.url.startsWith(`/v1/changesets/${C1}`)) {
+        return json(changeset(state), { etag: `"${state}"` });
+      }
+      return json({ items: [], links: {} });
+    });
+    const invalidation = createInvalidation(cache.queryClient, cache.reads);
+    const writes = createWrites({ ...cache, invalidation, pause: async () => undefined });
+    return { ...cache, writes, options: cache.reads.object("changeset", C1, null) };
+  }
+
+  it("sends the state read as If-Match, a rejection with its motive, then reads it again", async () => {
+    const cache = server(() => json({ changeset: { id: C1, href: "h" }, state: "rejected" }));
+    await cache.queryClient.fetchQuery(cache.options);
+    const proposals = cache.reads.list("/v1/proposals");
+    await cache.queryClient.fetchInfiniteQuery(proposals);
+    const result = await cache.writes.decide(C1, "rejection", { motive: "pas maintenant" });
+    expect(result).toEqual({ kind: "decided", state: "rejected" });
+    const post = cache.seen.find((r) => r.method === "POST")!;
+    expect(post.url).toBe(`/v1/changesets/${C1}/rejection`);
+    expect(post.headers.get("If-Match")).toBe('"pending"');
+    expect(post.body).toEqual({ motive: "pas maintenant" });
+    expect(cache.queryClient.getQueryState(cache.options.queryKey)?.isInvalidated).toBe(true);
+    expect(cache.queryClient.getQueryState(proposals.queryKey)?.isInvalidated).toBe(true);
+  });
+
+  it("a validation applied invalidates what its operations name", async () => {
+    const cache = server(() =>
+      json({
+        changeset: { id: C1, href: "h" },
+        state: "applied",
+        warnings: [],
+        diff: [],
+        cascaded: [],
+      }),
+    );
+    const prefix = cache.reads.object("core.prefix", P1, null);
+    cache.queryClient.setQueryData(prefix.queryKey, { data: { id: P1 }, etag: '"1"' });
+    await cache.queryClient.fetchQuery(cache.options);
+    const result = await cache.writes.decide(C1, "validation");
+    expect(result).toMatchObject({ kind: "applied", changeset: C1 });
+    expect(cache.seen.find((r) => r.method === "POST")?.body).toBeUndefined();
+    expect(cache.queryClient.getQueryState(prefix.queryKey)?.isInvalidated).toBe(true);
+  });
+
+  it("an undo asks ?approval=self when told, a 202 held for a decision", async () => {
+    const cache = server(() =>
+      json(
+        { changeset: { id: P2, href: "h" }, state: "pending", kind: "approval", diff: [] },
+        { status: 202 },
+      ),
+    );
+    await cache.queryClient.fetchQuery(cache.options);
+    const result = await cache.writes.decide(C1, "undo", { approvalSelf: true });
+    expect(result).toMatchObject({ kind: "proposed", changeset: P2 });
+    expect(cache.seen.find((r) => r.method === "POST")?.url).toBe(
+      `/v1/changesets/${C1}/undo?approval=self`,
+    );
+  });
+
+  it("412: decided meanwhile, the changeset read again; 403: forbidden", async () => {
+    let status = 412;
+    const cache = server(() =>
+      problem(status, status === 412 ? "precondition-failed" : "forbidden"),
+    );
+    await cache.queryClient.fetchQuery(cache.options);
+    const conflict = await cache.writes.decide(C1, "validation");
+    expect(conflict).toMatchObject({ kind: "conflict", input: "validation" });
+    expect(cache.seen.filter((r) => r.method === "GET").length).toBe(2);
+    status = 403;
+    expect(await cache.writes.decide(C1, "withdrawal")).toMatchObject({ kind: "forbidden" });
+  });
+
+  it("refuses to decide without the changeset read (no If-Match)", async () => {
+    const cache = server(() => json({}));
+    await expect(cache.writes.decide(C1, "validation")).rejects.toThrow(/If-Match/);
+  });
+});
+
 describe("helpers", () => {
   it("apply a merge patch (RFC 7396)", () => {
     expect(mergePatch({ a: 1, b: { c: 2, d: 3 } }, { a: null, b: { c: 4 }, e: [1] })).toEqual({

@@ -18,6 +18,12 @@ propre à la tâche.
   `no_old_permission`) : `devenv shell -- k-target-seed`, qui clone un `target` chaud
   (≈ 95 s de build au lieu de 170 s ; `docs/practices/rust-build.md` §1.5). S'il échoue,
   le build part à froid : dis-le dans le rapport.
+- Taille : avant d'écrire du code, estime si la tâche tient dans un seul contexte
+  (`CLAUDE.md`, « Tâches ciblées » : un écran, un composant, une route ou une brique,
+  une dizaine de fichiers). Si elle est plus large, n'en fais pas une partie au hasard :
+  arrête-toi et rends un découpage en sous-tâches (`NNN-Ma`, `NNN-Mb`…, chacune avec ses
+  `où :` et `verify`), sans code ni commit. Lis ciblé (`k-ctx`, plages de 80 lignes,
+  LSP) : ton contexte doit finir la tâche, vérifications et rapport compris.
 - Suis `.claude/commands/tache.md`, étapes 1 à 5, en mode autonome : tu tranches les choix
   peu coûteux à défaire et invisibles de l'extérieur, et tu les notes dans la ligne
   `choix :` de la tâche. Devant un choix structurant (contrat REST ou OpenAPI, schéma,

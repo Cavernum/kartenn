@@ -137,6 +137,72 @@ describe("the fields of an edit", () => {
     });
     expect(patchOf(EDITS.prefixes.creation, { domain: D1 })).toEqual({ domain: { id: D1 } });
   });
+
+  it("write the VLAN and their groups as the contract does (026): numbers, anchors", () => {
+    const VLANS = collectionById("vlans")!;
+    const GROUPS = collectionById("vlan-groups")!;
+    expect(
+      EDITS.vlans.create({ group: D1, vid: "105", name: "impression", status: "active" }),
+    ).toEqual({
+      op: "create_vlan",
+      group: { id: D1 },
+      vid: 105,
+      name: "impression",
+      status: "active",
+    });
+    // No `expected`: the contract has none for the operations of the VLAN.
+    expect(EDITS.vlans.update(P1, V1, { vid: "106" })).toEqual({
+      op: "update_vlan",
+      id: { id: P1 },
+      vid: 106,
+    });
+    // An anchor of the form (`<kind>:<id>`); a range left empty is the contract's default.
+    expect(
+      EDITS["vlan-groups"].create({
+        slug: "campus",
+        anchor: `site:${D1}`,
+        vid_min: "100",
+        vid_max: "",
+      }),
+    ).toEqual({
+      op: "create_vlan_group",
+      slug: "campus",
+      anchor: { site: { id: D1 } },
+      vid_min: 100,
+    });
+    // Read back: an anchor and a VID as the form holds them; a cell of a reference is chosen
+    // in the panel, never typed.
+    const group = { slug: "campus", anchor: { domain: { id: D1 } }, vid_min: 100, vid_max: 199 };
+    expect(initialValues(EDITS["vlan-groups"].modification, group)).toEqual({
+      slug: "campus",
+      anchor: `domain:${D1}`,
+      vid_min: "100",
+      vid_max: "199",
+    });
+    expect(
+      patchOf(EDITS["vlan-groups"].modification, { anchor: `entity:${D1}`, vid_max: "150" }),
+    ).toEqual({ anchor: { entity: { id: D1 } }, vid_max: 150 });
+    const author = new Rights(["core.vlan.edit", "core.vlan_group.edit"]);
+    expect(editability(author, true, VLANS, "vid")).toEqual({ editable: true });
+    expect(editability(author, true, VLANS, "group")).toMatchObject({
+      why: { kind: "fixed", reason: "reference" },
+    });
+    expect(editability(author, true, GROUPS, "anchor")).toMatchObject({
+      why: { kind: "fixed", reason: "reference" },
+    });
+    const [, vid] = EDITS.vlans.creation;
+    expect(checkValue(vid!, "10a")).toBe("edit.check.integer");
+    expect(checkValue(vid!, "100")).toBeUndefined();
+    // A draft's VID, as the grid reads it.
+    expect(
+      draftedValues(
+        [{ op: "update_vlan", id: { id: P1 }, vid: 107, name: "voix" }] as never,
+        "vlans",
+      ),
+    ).toEqual(new Map([[P1, { vid: "107", name: "voix" }]]));
+    // A violation of the creation applied at once, on the field that names the VLAN.
+    expect(fieldOfPointer("vlans", "/operations/0")).toBe("vid");
+  });
 });
 
 describe("a list edited in place", () => {

@@ -21,7 +21,7 @@ import ShortcutHint from "../ShortcutHint/ShortcutHint.vue";
 import type { Shortcut } from "../ShortcutHint/shortcutHint.ts";
 import Tooltip from "../Tooltip/Tooltip.vue";
 import { useTooltip } from "../Tooltip/tooltip.ts";
-import type { SidebarGroup } from "./sidebar.ts";
+import type { SidebarEntry, SidebarGroup } from "./sidebar.ts";
 
 const props = withDefaults(
   defineProps<{
@@ -59,7 +59,7 @@ interface Tip {
   /** The control it names: an entry's id, or `:palette`, `:collapse`. */
   id: string;
   label: string;
-  badge?: number | undefined;
+  badge?: SidebarEntry["badge"] | undefined;
   shortcut?: Shortcut | undefined;
 }
 const tip = useTooltip();

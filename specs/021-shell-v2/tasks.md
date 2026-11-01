@@ -940,6 +940,135 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `web/v2/shell/src/plugins/`), parcours `plugins` étendu (action `review` du plugin de
     test `notes`, son dialogue fermé par `kartenn-close`)
   - dépend de : 12
+  - en cours : fait le 2026-11-01 — SDK : `writes.decide` (validation, rejet avec motif,
+    retrait, annulation `?approval=self`, sous `If-Match` = l'`ETag` du changeset lu ;
+    décidé : changeset, listes et `/v1/proposals` relus, une validation ou une annulation
+    appliquée invalide ce qu'elle écrit ; 412 : changeset relu, rien à rejouer), offert au
+    shell seul par `@kartenn/sdk/host` (`review.decide`, hors contrat semver des plugins) ;
+    `sdk/test/write.test.ts` ; correction : `drafts.update` envoie `application/json` (le
+    client mettait tout `PATCH` en `merge-patch+json`, refusé 415 par `PATCH
+    /v1/drafts/{id}` ; option `merge: false` du client), `sdk/test/drafts.test.ts`. Shell (`web/v2/shell/src/`) : `changesets/` — `model.ts`
+    (états et leur badge, type d'une opération, permissions `<type>.apply`,
+    `.approval.self`, `.edit` des opérations, actions de revue selon les droits : en
+    attente, Valider et Rejeter par un autre (sans `<type>.apply`, refusés avec la
+    permission), Valider par l'auteur (REQ-024-11, 12, comme `self_applicable` de
+    `kartenn-service/src/review.rs` : avec `<type>.approval.self` sur tout ce qu'il touche
+    et sans politique — `kind = approval` ou `policy` — ; sinon refusé avec la permission
+    manquante ou `held`, l'avis `changeset.approval.self` et la politique ; pas de
+    Rejeter pour lui), Retirer (l'auteur seul) ; appliqué, Annuler (`<type>.edit`) ; hors présent, toutes refusées avec leur
+    motif ; différentiel groupé par objet pour `DiffList`, différentiel compté groupé par
+    propriété pour un changeset pas encore appliqué), `words.ts` (état et nature par le
+    dictionnaire, espace `state`, sinon les catalogues ; « vous »), `ChangesetsView.vue`
+    (`/changesets` : `DataGrid` filtrée par l'URL — état en liste fermée, auteur, objet,
+    dates de soumission, rétroactif —, « Mes changesets » = filtre de l'auteur),
+    `ProposalsView.vue` (`/proposals`, droits qui manquent à l'auteur en `CodeBadge`),
+    `ChangesetView.vue` (`/changesets/:id` : une barre, l'état en `StatusBadge` puis la
+    `Toolbar` des actions de revue, refusées visibles avec leur permission ou leur motif,
+    « … » avec « Copier l'identifiant » (issue dite, `copy.ts` partagé avec `/drafts`) et
+    les actions des plugins sur le type `changeset` (`PluginAction`) ; avis à l'auteur
+    d'un changeset retenu par une politique (`changeset.approval.self`, la politique) ;
+    une décision refusée 412 dite comme telle (« a changé depuis votre lecture ; relu »,
+    les actions de l'état relu, rien de « gardé ») ; attributs comme E4 (rétroactif compris) ; onglets
+    Différentiel (anomalies rattachées en tête, `DiffList`, pages de `/diff` par
+    « Afficher la suite », compte montré une fois tout lu ; avant application, le
+    différentiel compté), Opérations, Violations (codes), Sections de modules (nom,
+    lignes) ; rejet par un `Dialog` à motif obligatoire (focus au champ en erreur),
+    annulation confirmée par un `AlertDialog` ; après une décision, focus à la première
+    action restante ; refus dit par `RefusalAlert`), `routes.ts` (écrans de l'espace `changes`, `meta.queries`),
+    `i18n/{fr,en}.json` (fusionnés en profondeur) ; `draft/` — `state.ts` (brouillon du
+    serveur et sa simulation, requêtes partagées par la liste et le pied ; violations
+    par opération ; actions du bouton scindé selon les droits et la simulation, refusées
+    avec motif ou permission ; action par défaut), `DraftOperations.vue` (opérations avec
+    la marque du brouillon, retrait sous `If-Match`, focus rendu au bouton suivant ; retrait
+    refusé dit sur place par `problems/` — 404 « ce brouillon n'existe plus » avec code et
+    `Request-Id`, puis « aucun brouillon » (le SDK distingue `Gone.cause` : `event` ou
+    `refused`, le toast du cadre ne dit que le premier), 412 « a changé ; relu » — ;
+    soumissions sans réponse dont le brouillon est parti (`LostSubmissions.vue`) ; violations par opération
+    avec leur code, du résultat ; effet simulé, cascades ; suppression annoncée
+    `expires_at`), `DraftSubmit.vue` (résultat de la simulation, `CommitForm` gardé dans
+    le brouillon, `SplitButton` « Appliquer » / « Soumettre en revue » / « Enregistrer le
+    brouillon », Ctrl+Entrée, résumé générique prérempli pour « Appliquer », clé
+    d'idempotence d'une soumission sans réponse gardée pour la page au-delà du pied
+    (`lostSubmissions`, `submitDraft`), « Réessayer » la rejoue, même si l'événement
+    `draft` a fait partir le brouillon ; issue dite par un
+    toast, refus sur place ; région d'état présente avant le brouillon lu),
+    `DraftsView.vue` (`/drafts` : reprendre, nouveau, supprimer confirmé (focus rendu à
+    la grille), actif marqué, suppression annoncée, tri, lignes empilées en conteneur
+    étroit), `DraftView.vue` (`/drafts/:id`), `OperationText.vue` + `operations.ts` (une
+    opération en ligne). `frame/ShellFrame.vue` (onglet Brouillon et pied du panneau,
+    morceaux paresseux, renvoi à la page quand le brouillon actif y est ouvert ; titre
+    des brouillons créés par `setDraftTitle` ; brouillon parti par l'événement dit par un
+    toast ; `draftHost.onAdd` câblé : le `draft.add` d'un plugin ouvre le brouillon, le
+    shell passant lui-même par `addToActiveDraft` de `@kartenn/sdk/host` (édition en
+    place, panneau d'édition) ; compteur « À instruire », « n+ » quand une page suit,
+    `pageCount`), `frame/spaces.ts` (`badges` de `sidebarGroups`),
+    `frame/routes.ts` (fiche `/drafts/:id`), `views/routes.ts` (écrans de l'espace),
+    `views/filters.ts` (état des changesets en liste fermée ; `from`, `to` en jours,
+    envoyés comme premier et dernier instant du jour, `instantOfDay`), `i18n/index.ts` ;
+    `@kartenn/ui` : `SidebarEntry.badge` prend aussi un texte (« 100+ »). Vitest
+    `shell/test/changesets.test.ts` (23 : types et permissions, actions de revue selon les
+    droits et le présent, l'auteur sous `approval.self`, sans, retenu par une politique,
+    différentiel groupé, différentiel compté, opération en ligne, badge, « n+ », dates
+    typées ; écrans montés contre une API simulée : validation sous `If-Match`, Valider
+    refusé avec sa permission, 412 d'une décision, « Appliquer » ou « Soumettre en
+    revue » selon `approval.self`, résumé prérempli, soumission `?approval=self` après le
+    motif enregistré, réponse perdue puis même clé, et encore après le départ du
+    brouillon, violation sur son opération, retrait, retrait 404 et 412, `draft.add`
+    d'un plugin qui ouvre le brouillon et pas `addToActiveDraft`), `sdk/test/drafts.test.ts`
+    (404 d'une écriture : `Gone.cause` `refused`). Parcours réécrits
+    `web/v2/e2e/journeys/changesets.spec.ts` (proposition de Carol suivie dans « Mes
+    changesets », Valider refusé à l'auteur avec `core.address.approval.self` qui lui
+    manque, validée par Alice depuis « À instruire »
+    comptée dans la barre, annulée ; rejet à motif obligatoire) et `draft.spec.ts`
+    (modification en place → compteur → panneau, simulation valide, Ctrl+Entrée avec le
+    résumé prérempli ; Carol sans `approval.self` : « Appliquer » refusé avec
+    `core.prefix.approval.self`, soumis en revue ; violation `core.prefix.duplicate` sur
+    son opération, retirée, valide ; brouillon repris depuis la page, repris dans un autre
+    navigateur de la même identité avec ce qui a été écrit dans le premier, supprimé
+    là) ; parcours `plugins` étendu
+    (action `review` de `notes` dans « … » de la fiche, fermée par `kartenn-close`, focus
+    rendu à « … ») ; rôle `redacteur` des parcours avec `core.changeset.read`.
+  - choix : actions de revue dans la `Toolbar` de la fiche (Valider principal), « … »
+    toujours présent (« Copier l'identifiant », puis les plugins) ; Retirer montré refusé
+    à qui n'est pas l'auteur (« Seul l'auteur retire son changeset », maquette E4) ;
+    décisions sans optimisme, l'état relu ; Valider et Retirer sans confirmation, Annuler
+    confirmé (un nouveau changeset) ; droits d'un relecteur tirés des types que nomment
+    les opérations (une opération sans type dit, droits ou module, laissée au serveur) ;
+    titre d'un groupe du différentiel : le nom de l'objet si le cache le tient, sinon son
+    identifiant (le contrat ne sert que `id`) ; « À instruire » compte la première page de
+    `/v1/proposals`, « n+ » au-delà ; dates de soumission (`from`, `to`) choisies en jours
+    dans la zone du navigateur ; une revue qu'un module exige n'est pas servie au client :
+    le serveur seul la refuse alors à l'auteur ;
+    action par défaut gardée pendant la simulation (« Appliquer » attend, maquette E5),
+    puis selon droits et résultat, jusqu'au choix de l'utilisateur ; le motif est gardé
+    dans le brouillon avant la soumission (le serveur le soumet) ; titre d'un brouillon
+    créé : « Brouillon du <date> » ; page `/drafts` sans « Renommer » (non demandé par le
+    design) ; état « en revue » : `StatusBadge` `review`, l'œil des maquettes E4/E5.
+  - reste : « Instruire dans Flux » à la place de « Valider » sur une demande de flux
+    (plugin Flux pas encore porté sur le SDK 1.0), et « Effet sur la politique » de E4
+    (plugin Politique) ; « Revue requise » avec le nom de la politique avant la
+    soumission (maquette E5) : la simulation (`ChangesetSimulated`) ne dit pas qu'une
+    politique retient, seul le 202 le dit (manque de contrat, à arbitrer) ; « Renommer »
+    un brouillon (menu de E5) ; résultat de simulation et ligne d'opération recopiés des
+    maquettes (`EcranSoumission`, `EcranBrouillon`) : composants de `@kartenn/ui` à
+    décider, comme une classe de texte atténué ; badge « À instruire » de `SidebarNav`
+    sans unité dite (composant) ; un brouillon supprimé dans un autre navigateur dit dans
+    l'onglet qui l'avait actif : par l'événement `draft` (SDK, Vitest) ou par le 404 de
+    l'écriture suivante (Vitest), pas tenu par un parcours — sous Chromium l'événement
+    n'est pas venu en 20 s (flux : tâche 5), et les parcours des deux navigateurs écrivent
+    les brouillons d'Alice côte à côte ; dates d'effet de la soumission
+    (période `valid_from`/`valid_to` du brouillon, pied) ; modifier une opération du
+    brouillon (seul le retrait est là) ; « Tout afficher » d'une `DiffList` virtualisée
+    (question ouverte : le différentiel se lit par « Afficher la suite ») ; captures des
+    vrais écrans (comme les 11 et 12 : sans API dans le projet `visual` ; E4 et E5 restent
+    les maquettes).
+  - à arbitrer par l'utilisateur : l'icône de l'état « en revue » — œil des maquettes
+    validées (gardé ici, `StatusBadge`) ou `git-pull-request` du design (« À instruire »
+    de la barre latérale le porte déjà) ; `PATCH /v1/drafts/{id}` prend
+    `application/json` alors que REQ-006-13 veut `merge-patch+json` « uniquement » pour un
+    `PATCH` (amender la 006 ou aligner la route ; le client suit la route, `merge:
+    false`) ; le contrat de `GET /v1/changesets` n'énumère pas `state` et ne dit pas le
+    format `date-time` de `from`/`to` (le shell les type lui-même, `views/filters.ts`).
 - [ ] 15. Administration : groupes (membres, liaisons), rôles, émetteurs, comptes de
   service et secret, identités (groupes et droits effectifs en lecture), audit et
   export, imports ; permissions en nom servi et libellé — REQ-021-12, 025/REQ-025-12 —
@@ -1064,6 +1193,76 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `web/v2/shell/src/plugins/slots.ts`), parcours `plugins` étendu (onglet `notes` du
     plugin de test sur `vlan`)
   - dépend de : 11, 12, 16
+  - en cours : fait le 2026-11-01 — le VLAN dans les vues génériques de la 11 : deux
+    collections de plus (`vlan-groups`, `vlans`, `web/v2/shell/src/views/collections.ts`),
+    donc listes filtrées par l'URL (modèle de `/v1/vlan-groups` et `/v1/vlans` : clé, VID,
+    nom, statut, groupe), fiches, routes et préchargement, emplacements des plugins
+    (`useExtensions` par la sorte `vlan`/`vlan_group`) sans code propre ; colonnes de
+    références nommées (`reference` : groupe d'un VLAN, ancre d'un groupe, lus par
+    `ObjectName`), statut en `StatusBadge` (`states`), colonne VLAN de la liste des
+    préfixes (`networkVlan`, `views/parts/NetworkVlan.vue` : propriétés de la ligne lues
+    une fois la cellule en vue, lecture abandonnée si elle en sort, quatre lectures à la fois
+    avec le nom du VLAN, `views/parts/vlan.ts` ; valeur masquée dite « Masquée »). Fiche d'un groupe : ancre,
+    plage, panneau Occupation (`record/VlanOccupancyPanel.vue` : utilisés, réservés, libres
+    en `BarList`, prochain VID libre, à partir d'un VID saisi, tranches en `ExpandableGrid`),
+    onglet VLAN (`record/GroupVlansTab.vue`, « Créer un VLAN » sur le groupe) ; fiche d'un
+    VLAN : onglet Réseaux (`record/VlanNetworksTab.vue`, réseaux lisibles seulement) ;
+    onglet VLAN d'un préfixe (`record/NetworkVlanTab.vue` : VLAN porté, groupe, statut ;
+    valeur masquée dite avec `prop.core.vlan.read`, sans écriture ; « Retirer le VLAN » au
+    brouillon, refusé avec sa raison tant que la déclaration `core.vlan` n'est pas lue ou
+    si le retrait y est déjà ; un conteneur n'en porte pas, `core.vlan.prefix_not_network`).
+    Édition (12) : `EDITS` des deux sortes (`views/edit/fields.ts`, sortes de champ
+    `integer` et `anchor`, raison `reference` d'une cellule qui nomme un objet), panneau
+    d'édition (cibles `vlan-groups` et ancres ; VID proposé = prochain libre du groupe
+    choisi, son échec dit par `problems/`, `views/edit/vlan.ts`). Vitest `test/edit.test.ts`,
+    `test/views.test.ts` (état masqué, retrait déjà au brouillon) ; parcours
+    `e2e/journeys/vlan.spec.ts`, `plugins.spec.ts` (onglet `notes` sur un VLAN) ; jeu des
+    parcours : un groupe `campus` et le VLAN 10 `serveurs` (`global-setup.ts`).
+  - choix : un VLAN se nomme « VID · nom » (`nameOf`) ; statut d'un VLAN et état d'une
+    tranche en `StatusBadge` (maquette E12), non en `KeyLabel` ; groupe d'un VLAN et ancre
+    d'un groupe choisis dans le panneau d'édition seulement (raison `reference` sur la
+    cellule), l'ancre par un seul `Select` (entités, sites puis domaines, sorte en détail,
+    valeur `<sorte>:<id>`) ; plages de VID laissées vides à la création = celles du contrat ;
+    colonne VLAN
+    montrée avec `core.vlan.read` seulement, à toute largeur (maquette) ; lien de la liste
+    des VLAN sur le VID seul (`ownValue`), le nom dans sa colonne ; « Retirer le VLAN » au
+    brouillon ; VID proposé dit aussi par le statut du panneau, prochain libre « à partir
+    de » dit par une région `status`, VID saisi hors type refusé sur le champ ; une cellule
+    VLAN vide, en lecture ou illisible dite en mots (texte caché), illisible en court avec
+    son code (relectures a11y et UI du 2026-11-01).
+  - à arbitrer : « Créer un VLAN pour ce réseau » (maquette E12 : « deux opérations au
+    brouillon », création du VLAN puis pose de `core.vlan`) — une valeur de propriété
+    (`RawValue`) ne nomme pas un objet créé plus tôt dans le même changeset. Options :
+    (a) une référence locale dans `RawValue` (`{local: n}`, contrat 004/006) : un seul
+    changeset, au brouillon ou appliqué, atomique ; (b) deux changesets appliqués (VLAN
+    créé, relu par groupe et VID, puis posé) : non atomique (VLAN orphelin si la pose est
+    refusée, un nouvel essai recrée le VLAN), `approval=self` imposé (aucun brouillon),
+    deux motifs ou un motif répété. Retirée en attendant (revue du 2026-11-01) ; la
+    création d'un VLAN dans son groupe et le retrait au brouillon restent. Aussi
+    (contrat) : filtres `group` de `/v1/vlans` et `anchor` de `/v1/vlan-groups` typés texte
+    (pas de `collection` au contrat : un identifiant à saisir, la pastille montrerait
+    l'UUID ; `anchor` non offert sur sa colonne) ; `update_vlan` et `update_vlan_group`
+    sans `expected` (un brouillon ne voit pas un VLAN changé depuis sa lecture). Place des
+    VLAN : espace `network` (REQ-021-2, cette ligne), la maquette E12 les met sous
+    Référentiel — écart signalé, non tranché.
+  - reste : tuile de l'accueil « groupes les plus remplis » (design § « VLAN, écrans du
+    cœur ») ; poser un VLAN existant sur un réseau depuis son onglet (retrait seulement) ;
+    créer un VLAN pour un réseau (arbitrage ci-dessus) ; ancre d'un groupe par glisser
+    (panneau seulement) ; cohérence d'un réseau avec l'ancre du groupe
+    (`core.vlan.site_mismatch`) dans l'onglet Réseaux ; onglet Interfaces (plugin
+    Machines, tâche 18) ; filtre de la colonne VLAN des préfixes ; colonne d'un plugin sur
+    les listes `vlan` et `vlan_group` prouvée par un parcours (le plugin `notes` n'en
+    déclare que sur `address` ; l'onglet sur `vlan` l'est) ; refus `core.vlan.vid_duplicate`
+    et `core.vlan.vid_out_of_range` montrés sur leur cellule ou champ, à tester au parcours
+    (la règle `fieldOfPointer` l'est en Vitest) ; captures des vrais écrans (comme la 11 :
+    sans API dans le projet `visual`). Hors périmètre, pour l'utilisateur : `prepare_group`
+    (`crates/kartenn-store-pg/src/vlan.rs`, vers les lignes 697-707) ne complète pas
+    `core.owner` d'un groupe ancré sur un domaine créé dans le même changeset (V3) : le
+    serveur le refuse.
+    Constaté : deux passages complets de `k-web2-e2e` ont échoué sous Firefox seulement
+    (`session`, `time`, `edit`), des modules refusés par `integrity` dont le contenu reçu
+    est vide (empreinte SHA-384 de la chaîne vide) ; les mêmes parcours passent seuls
+    (14/14) ; `vlan` et `plugins` verts dans les deux navigateurs.
 - [ ] 18. Plugin Machines, même traitement, espace `hosts`, déplacement d'une machine vers
   un cluster (si Q-021-2 le retient) par le `canMove` de la tâche 24 (codes
   `machines.host.*`), sans optimisme — verify : parcours `machines` vert

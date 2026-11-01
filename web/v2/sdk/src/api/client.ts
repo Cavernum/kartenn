@@ -131,7 +131,10 @@ export interface Client {
 /** What {@link Client.request} sends. */
 export interface RequestOptions {
   body?: unknown;
-  /** `merge` sends the body as `application/merge-patch+json` (RFC 7396). */
+  /**
+   * `merge` sends the body as `application/merge-patch+json` (RFC 7396), the default of a
+   * `PATCH`; `false` sends a `PATCH` whose contract takes `application/json` (a draft).
+   */
   merge?: boolean;
   ifMatch?: string;
   ifNoneMatch?: string | null;
@@ -180,7 +183,7 @@ export function createClient(options: ClientOptions = {}): Client {
     if (raw.body !== undefined) {
       headers.set(
         "Content-Type",
-        method === "PATCH" || raw.merge ? "application/merge-patch+json" : "application/json",
+        (raw.merge ?? method === "PATCH") ? "application/merge-patch+json" : "application/json",
       );
       body = JSON.stringify(raw.body);
     }

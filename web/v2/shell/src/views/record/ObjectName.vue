@@ -10,6 +10,7 @@ import KLink from "../../prefetch/KLink.vue";
 import { useTime } from "../../time/index.ts";
 import { collectionById, collectionOfKind, nameOf, pageOfHref, type Item } from "../collections.ts";
 import { useKeyLabel } from "../data.ts";
+import { limited } from "../parts/vlan.ts";
 
 const props = defineProps<{
   id: string;
@@ -17,6 +18,8 @@ const props = defineProps<{
   href?: string | null | undefined;
   /** The kind in words before the name (« Préfixe 192.0.2.0/24 »). */
   withKind?: boolean;
+  /** Read within the cap of a column read row by row (`parts/vlan.ts`, `limited`). */
+  capped?: boolean;
 }>();
 const time = useTime();
 const keyLabel = useKeyLabel();
@@ -26,13 +29,22 @@ const collection = computed(
   () =>
     collectionOfKind(props.kind) ?? collectionById(/\/v1\/([a-z-]+)\//.exec(props.href ?? "")?.[1]),
 );
-const record = useQuery(() => ({
-  ...reads.object(collection.value?.kind ?? "prefix", props.id, {
+const record = useQuery(() => {
+  const read = reads.object(collection.value?.kind ?? "prefix", props.id, {
     validAt: time.value.validAt,
     asOf: time.value.asOf,
-  }),
-  enabled: collection.value !== undefined,
-}));
+  });
+  return {
+    ...read,
+    ...(props.capped
+      ? {
+          queryFn: (context: Parameters<typeof read.queryFn>[0]) =>
+            limited(context.signal, () => read.queryFn(context)),
+        }
+      : {}),
+    enabled: collection.value !== undefined,
+  };
+});
 const name = computed(() => {
   const data = record.data.value?.data as Item | undefined;
   return data ? nameOf(data) : null;
@@ -47,7 +59,8 @@ const kindWords = computed(() =>
 
 <template>
   <span class="k-object-name">
-    <template v-if="props.withKind && kindWords">{{ kindWords }} </template>
+    <!-- The space in the expression: the compiler trims one left at the end of a template. -->
+    <template v-if="props.withKind && kindWords">{{ `${kindWords} ` }}</template>
     <KLink v-if="to" :to="to" :class="{ 'k-mono': name === null }">{{ name ?? props.id }}</KLink>
     <span v-else class="k-mono">{{ name ?? props.id }}</span>
   </span>
