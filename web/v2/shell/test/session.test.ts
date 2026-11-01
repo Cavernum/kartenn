@@ -12,8 +12,11 @@ import {
   ACTIVITY_KEY,
   activityFetch,
   createExpiry,
+  GESTURE_WINDOW_MS,
+  installGestures,
   isActivity,
   markActivity,
+  markGesture,
   readEnd,
   serverSkew,
   WARN_BEFORE_MS,
@@ -341,10 +344,40 @@ describe("the end of the session, said before it comes (REQ-021-14, 022/A6)", ()
       String(input).endsWith("/me") ? new Response(null, { status: 401 }) : new Response("{}"),
     );
     const fetcher = activityFetch(inner as unknown as typeof fetch);
+    markGesture();
     await fetcher("/v1/me");
     expect(localStorage.getItem(ACTIVITY_KEY)).toBeNull();
     await fetcher("/v1/prefixes");
     expect(Number(localStorage.getItem(ACTIVITY_KEY))).toBeGreaterThan(0);
+  });
+
+  it("counts only the reads the user asked for: a gesture just before, not the background", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-15T09:00:00Z"));
+    localStorage.removeItem(ACTIVITY_KEY);
+    const fetcher = activityFetch((async () => new Response("{}")) as unknown as typeof fetch);
+    const target = new EventTarget();
+    const stop = installGestures(target as unknown as Document);
+    // A key pressed: the reads of the next seconds are the user's.
+    target.dispatchEvent(new Event("keydown"));
+    vi.advanceTimersByTime(GESTURE_WINDOW_MS - 1_000);
+    await fetcher("/v1/prefixes");
+    const asked = Number(localStorage.getItem(ACTIVITY_KEY));
+    expect(asked).toBe(Date.now());
+    // Long after: a read of the background (an event of the stream, a revalidation).
+    vi.advanceTimersByTime(30 * 60_000);
+    await fetcher("/v1/stats");
+    expect(Number(localStorage.getItem(ACTIVITY_KEY))).toBe(asked);
+    // A navigation is a gesture.
+    markGesture();
+    await fetcher("/v1/stats");
+    expect(Number(localStorage.getItem(ACTIVITY_KEY))).toBe(Date.now());
+    stop();
+    target.dispatchEvent(new Event("pointerdown"));
+    vi.advanceTimersByTime(GESTURE_WINDOW_MS + 1_000);
+    await fetcher("/v1/prefixes");
+    expect(Number(localStorage.getItem(ACTIVITY_KEY))).toBe(Date.now() - GESTURE_WINDOW_MS - 1_000);
+    vi.useRealTimers();
   });
 });
 

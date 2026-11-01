@@ -445,7 +445,7 @@ const EFFECT = [
 <style>
 @layer components {
   /* The matrix in a flush panel: the panel draws the outer border, as for a DataGrid. */
-  .k-ecran-panel__body[data-flush] > .k-matrix {
+  .k-view-panel__body[data-flush] > .k-matrix {
     border: 0;
     border-radius: 0;
   }

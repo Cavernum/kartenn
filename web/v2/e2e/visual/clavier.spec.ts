@@ -342,7 +342,7 @@ async function addressesBesidePanel(page: Page): Promise<void> {
   const box = (await grid.boundingBox())!;
   expect(box.x + box.width).toBeLessThan(edge);
   // The toolbar within the panel of the grid, the panel within the surface.
-  const main = (await page.locator(".k-ecran-panel[data-main]").boundingBox())!;
+  const main = (await page.locator(".k-view-panel[data-main]").boundingBox())!;
   const bar = (await actions.boundingBox())!;
   expect(bar.x + bar.width).toBeLessThanOrEqual(main.x + main.width + 0.5);
   expect(main.x + main.width).toBeLessThanOrEqual(surface.x + surface.width + 0.5);

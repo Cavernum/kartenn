@@ -1,0 +1,34 @@
+- main:
+  - region "FilterPicker":
+    - heading "FilterPicker" [level=1]
+    - paragraph: "Motif : Button puis Combobox en séquence (propriété, opérateur, valeur) dans un popover"
+    - 'figure "columns — Filtres de colonne : le même modèle que la barre, Alt+Bas sur l''en-tête (A7)"':
+      - group "Filtres des adresses":
+        - button "Ajouter un filtre"
+        - status
+      - grid "Adresses":
+        - rowgroup:
+          - row "Adresse Usage Machine":
+            - columnheader "Adresse":
+              - text: ""
+              - 'button "Filtrer : Adresse"'
+            - columnheader "Usage":
+              - text: ""
+              - 'button "Filtrer : Usage"'
+            - columnheader "Machine"
+        - rowgroup:
+          - row /\d+\.\d+\.\d+\.\d+ host srv-app-\d+/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "host"
+            - gridcell /srv-app-\d+/
+          - row /\d+\.\d+\.\d+\.\d+ vip —/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "vip"
+            - gridcell "—"
+          - row /\d+\.\d+\.\d+\.\d+ host srv-rec-\d+/:
+            - gridcell /\d+\.\d+\.\d+\.\d+/
+            - gridcell "host"
+            - gridcell /srv-rec-\d+/
+      - alert
+      - code: columns
+      - text: ""

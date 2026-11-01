@@ -179,6 +179,9 @@ test.describe("skeleton", () => {
       }) => {
         await page.setViewportSize({ width, height: 900 });
         await login("bob");
+        // The home page read whole first: its lazy screen cut short by the next load would
+        // report its sheet as failed (Firefox).
+        await expect(page.getByRole("heading", { level: 1, name: "Accueil" })).toBeVisible();
         await page.evaluate((entries) => {
           for (const [key, value] of Object.entries(entries)) localStorage.setItem(key, value);
         }, kept);

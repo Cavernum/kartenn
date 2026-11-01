@@ -586,7 +586,7 @@ const effectLink = lien("E16", "combinaisons", route.query);
 
 <style>
 @layer components {
-  .k-ecran-panel__body[data-flush] > .k-matrix {
+  .k-view-panel__body[data-flush] > .k-matrix {
     border: 0;
     border-radius: 0;
   }

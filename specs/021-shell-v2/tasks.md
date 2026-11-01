@@ -567,6 +567,81 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `PluginAction`) ; parcours `plugins` étendu avec le plugin de test `notes`
     (`web/v2/e2e/plugins/notes`, onglet sur `prefix` et `vlan`, panneau, colonne, tuile)
   - dépend de : 10 ; 020-19, 020-25, 020-26
+  - en cours : fait le 2026-11-01 — `web/v2/shell/src/views/` : `routes.ts` (écran et
+    `meta.queries` de chaque entrée du référentiel et de chaque fiche, chacun dans son
+    morceau ; `frame/routes.ts` les prend, fiches aussi pour les plages et `/changesets/:id`
+    en attente, nom de l'objet dans le fil d'Ariane par `names.ts`), `collections.ts`
+    (colonnes, filtre de chaque colonne, nom d'une ligne), `filters.ts` (modèle de
+    `FilterPicker` tiré de `filterModel` du SDK — `filters.ts` généré par la 28 — et des
+    déclarations : `within` opérateur de la valeur, listes fermées du contrat, slug d'une
+    collection, identifiant pour une référence ou pour `domain`/`entity` des anomalies et
+    lacunes, propriétés typées par leur déclaration ; URL ⇄ pastilles, filtres envoyés =
+    ceux que `checkFilter` accepte), `list.ts` (`useFilteredList` : filtres de l'URL,
+    brouillons à part, liste lue après les déclarations quand l'URL porte un `prop.`,
+    `useNextPage` sur la fenêtre de la `DataGrid`, curseur refusé → liste relue du début et
+    dite), `ListView.vue` (E3 : `FilterPicker` + `DataGrid`, filtre de colonne =
+    `openFor` de la barre, A7 ; `/` par `useViewAction` ; colonnes des plugins par
+    `gridColumns`), `RecordView.vue` et `record/` (E2 : onglets dans l'URL — propriétés
+    résolues et `Popover` d'explication, contenu d'un domaine ou d'un préfixe, historique,
+    anomalies de l'objet et leur acquittement —, attributs, occupation et prochain libre,
+    onglets, panneaux et actions des plugins), `HomeView.vue` (E0 : tuiles de
+    `GET /v1/stats`, histogramme, tuiles `widget` des plugins), `TopologyView.vue` (E1 :
+    domaine dans l'URL, `TreeGrid` des racines et enfants paginés par la cache,
+    `childrenIntent`, contenu du nœud `?node=`, Entrée → fiche), `AnomaliesView.vue`
+    (anomalies et lacunes, `?tab=gaps`, acquittement avec motif), `PropertiesView.vue`
+    (déclarations, valeurs d'une liste fermée, lien aux lacunes) ; `parts/ViewPanel.vue`,
+    `parts/AttributeList.vue` (repris d'`EcranPanneau`, `EcranAttributs`, qui les
+    enveloppent) ; catalogues `views/i18n/{fr,en}.json`. `@kartenn/ui` : `FilterPicker`
+    expose `openFor(clé, origine)` et `openAdd()`, état de catalogue `columns`. Vitest
+    `shell/test/views.test.ts` (modèle, URL aller-retour, valeur hors type gardée et non
+    envoyée, lien copié = même clé de cache, colonnes filtrables seulement si servies,
+    routes et lectures, fil d'Ariane nommé, liste lue avec ses filtres) ; script
+    `e2e/components/filter-picker.spec.ts` (filtres de colonne) ; parcours
+    `e2e/journeys/records.spec.ts` (domaine → préfixe → adresse, explication, historique ;
+    liste longue virtualisée et lue d'avance, ligne ouverte au clavier ; curseur refusé ;
+    filtre de colonne puis lien copié rouvert à l'identique dans une autre session ; fiche
+    survolée puis ouverte sans squelette), `tree.spec.ts`, `plugins.spec.ts` étendu (tuile,
+    colonne, onglet, panneau de `notes`) ; jeu de données en RFC 3849 (`global-setup.ts`).
+  - choix : panneau et liste d'attributs du shell, non de la bibliothèque (pièces des
+    maquettes laissées « à trancher » par la 020-15) ; `q` hors de la barre (recherche de la
+    palette) ; liste et fiche lisent les filtres de l'URL, la barre en garde une copie avec
+    ses brouillons ; propriétés déclarées lues au plus 10 pages, compte dit partiel en
+    lecture et au plafond ; un filtre `prop.` de l'URL attend toutes les pages utiles des
+    déclarations, et resté sans type (plafond, clé inconnue, lecture refusée) il est une
+    pastille « non reconnue » et un état d'erreur, jamais une liste lue sans lui (ni
+    préchargée sous une autre clé) ; `q` envoyé aux seules listes qui le déclarent, sinon la
+    première page filtrée par le texte ; anomalies d'un domaine ou d'une entité lues page à
+    page à l'approche de la fin de la grille, celles d'un objet d'un domaine dans celles du
+    domaine, 10 pages au plus, « liste peut-être incomplète » au-delà, celles d'un objet
+    hors domaine (site) « lecture non disponible » ; nœud de `?node=` non encore lu relu
+    comme préfixe ; domaine de `?domain=` cherché dans les pages suivantes (10 au plus),
+    sinon le premier et un avis ; vue de plugin `/x/…` en morceau paresseux (son hôte
+    `ExtensionElement`, partagé avec les écrans, n'a plus sa feuille liée par la page) ;
+    `c` et `e` laissés à la 12 (panneau d'édition) ; titre de fiche = sorte (dictionnaire)
+    puis nom ; comptes au format de la langue ; « il y a … » de l'accueil sur l'horloge du
+    serveur. Session (décision de la session principale, option b, côté client) : seules
+    les lectures nées d'un geste de l'utilisateur (touche, pointeur, molette, navigation,
+    dans les 10 s avant la requête) sont une activité (`session/expiry.ts`,
+    `installGestures`, `markGesture`) ; les relectures sur événement du flux, à la
+    revalidation ou au chargement des plugins ne le sont plus.
+  - reste : Topographie — colonne d'occupation (`TreeNode` de `roots`/`children` ne la sert
+    pas : l'ajouter au contrat 006, ou une lecture par ligne rendue), colonnes des plugins
+    sur le `TreeGrid` (il n'a pas de colonne d'élément, comme la `DataGrid`), « + » sur un
+    nœud (panneau d'édition, tâche 12) ; fiche — colonne « Source » des propriétés et
+    encart « propriété attendue manque » (`Resolved` ne sert ni la source ni les lacunes de
+    l'objet), motif et auteur de l'historique (absents de `Version`), comptes des onglets ;
+    tri des listes (aucun paramètre de tri au contrat) ; tuile VLAN sans l'occupation des
+    groupes (`BarList`) ; acceptation de REQ-021-18 sur `site = <site>` (le jeu de données
+    n'a ni site ni `core.site`) ; actions du type `changeset` (tâche 14) ; onglet `notes`
+    sur `vlan` (écrans VLAN, tâche 17) ; captures E0 à E3 des vrais écrans : non prises —
+    ils ne s'affichent qu'avec kartenn-server (projet `visual` sans API ; les parcours
+    tournent sur deux navigateurs avec des identifiants et des instants qui changent), il
+    faudrait un banc de captures à API simulée, tâche à part ; les captures des maquettes
+    E0 à E3 restent les mêmes. Manques du contrat 006, à arbitrer (contournés ici) : pas de
+    filtre `object` sur `GET /v1/anomalies` (l'onglet lit les anomalies du domaine et les
+    trie, plafonné ; rien pour un objet hors domaine), pas de filtre par porteur ni de
+    recherche par clé sur `GET /v1/property-declarations` (toutes les pages lues pour
+    typer un filtre).
 - [ ] 12. Édition en place et modification rapide : éditabilité (droits, présent,
   contrat), cellule → brouillon, Ctrl+Entrée → `write.quick` (`?approval=self`) avec motif
   en ligne, rendu de 202, 412 (fusion), 422, 403 ; création (`c`) et modification (`e`)
@@ -693,6 +768,15 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     annulerait la durée d'inactivité (refusé). Option : exposer la fin absolue dans
     `SessionState` (champ additif, par exemple `absolute_expires_at`, changement de contrat
     de la 005/006) ; le shell l'annoncerait alors 2 min avant, sans l'action.
+  - à arbitrer par l'utilisateur (relevé par la 11, 2026-11-01) : côté client, seules les
+    lectures nées d'un geste de l'utilisateur comptent comme activité (`activityFetch`,
+    `installGestures`) ; côté serveur, toute requête sauf le flux prolonge encore `seen`
+    (`oidc.rs`, seules les réponses du flux portent `NotActivity`) : un écran qui relit en
+    fond (événement `stats`, `changes`, `labels`, revalidation au focus) garde la session
+    ouverte sans geste, et la fin dite par le shell peut ne pas venir. Rejoint 022 R17/A6
+    (le flux n'est pas une activité). Option : un marqueur de requête de fond posé par le
+    client (en-tête), que `authn` traite comme `NotActivity` — changement de contrat et de
+    sécurité de la 005/006.
   - choix : codes du shell `plugin.<motif>` (`incompatible`, `load-failed`, `exception`,
     `timeout`, `element`), jamais de l'API ; catalogues des plugins sous `plugin.<nom>`
     (un plugin nommé `app` ne réécrit pas les mots du shell), clés du `t` des plugins

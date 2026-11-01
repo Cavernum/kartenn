@@ -29,7 +29,21 @@ export const DATA = {
   domain: "production",
   prefix: "192.0.2.0/24",
   address: "192.0.2.10",
+  /** A network with 1 000 addresses: a long list (REQ-021-22), in RFC 3849 space. */
+  bulk: { prefix: "2001:db8:2::/64", count: 1000 },
+  /** A container with 1 000 direct children: the virtualised tree, its pages. */
+  wide: { prefix: "2001:db8:3::/48", count: 1000 },
 } as const;
+
+/** The addresses of the long list: 2001:db8:2::1 onwards. */
+export function bulkAddresses(): string[] {
+  return Array.from({ length: DATA.bulk.count }, (_, i) => `2001:db8:2::${(i + 1).toString(16)}`);
+}
+
+/** The children of the wide container: /64 networks, 2001:db8:3::/64 onwards. */
+export function widePrefixes(): string[] {
+  return Array.from({ length: DATA.wide.count }, (_, i) => `2001:db8:3:${i.toString(16)}::/64`);
+}
 
 type Guarded = {
   /** Logs `user` in through the page of the development issuer, back on the shell. */

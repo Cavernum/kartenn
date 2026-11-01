@@ -216,7 +216,7 @@ const flowSort = ref<GridSort | undefined>({ column: "type", direction: "ascendi
           <StatusBadge state="review" label="En revue" />
         </Barre>
       </template>
-      <Grid columns="auto" gap="3" class="k-ecran-attrs-tiles">
+      <Grid columns="auto" gap="3" class="k-attrs-tiles">
         <Attributs
           :items="[
             { key: 'author', label: 'Auteur', value: PEOPLE.sacha },

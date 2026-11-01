@@ -2258,7 +2258,7 @@ const IFACE_HISTORY = [
     align-items: start;
   }
 
-  .k-e11-matrix > .k-ecran-attrs {
+  .k-e11-matrix > .k-attrs {
     grid-area: attrs;
   }
 
