@@ -32,9 +32,10 @@ const changed = given.map((file) => (isAbsolute(file) ? relative(repository, fil
 for (const path of changed) {
   if (existsSync(join(repository, path))) continue;
   // Deleted: from the working tree (still in the index) or by a commit.
+  // `:(top)`: the path is the repository's, whatever the directory git runs in.
   const known =
-    git("ls-files", "--", path) !== "" ||
-    git("log", "--all", "--diff-filter=D", "--format=%h", "-1", "--", path) !== "";
+    git("ls-files", "--", `:(top)${path}`) !== "" ||
+    git("log", "--all", "--diff-filter=D", "--format=%h", "-1", "--", `:(top)${path}`) !== "";
   if (!known) process.stderr.write(`impact: ${path}: no such file, nor a deleted one\n`);
 }
 const result = impact(changed, project);
