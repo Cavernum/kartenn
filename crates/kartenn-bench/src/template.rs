@@ -692,6 +692,26 @@ async fn prune(admin: &mut PgConnection, reuse: &Reuse) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// The workspace crates a text names (`kartenn_<crate>::`), `kartenn-bench` aside.
+#[cfg(test)]
+pub(crate) fn named_crates(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut rest = text;
+    while let Some(at) = rest.find("kartenn_") {
+        let tail = &rest[at..];
+        let end = tail
+            .find(|c: char| !(c.is_ascii_lowercase() || c == '_'))
+            .unwrap_or(tail.len());
+        if tail[end..].starts_with("::") && &tail[..end] != "kartenn_bench" {
+            out.push(tail[..end].replace('_', "-"));
+        }
+        rest = &tail[end..];
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -714,25 +734,6 @@ mod tests {
                 bench.name
             );
         }
-    }
-
-    /// The workspace crates a text names (`kartenn_<crate>::`), `kartenn-bench` aside.
-    fn named_crates(text: &str) -> Vec<String> {
-        let mut out = Vec::new();
-        let mut rest = text;
-        while let Some(at) = rest.find("kartenn_") {
-            let tail = &rest[at..];
-            let end = tail
-                .find(|c: char| !(c.is_ascii_lowercase() || c == '_'))
-                .unwrap_or(tail.len());
-            if tail[end..].starts_with("::") && &tail[..end] != "kartenn_bench" {
-                out.push(tail[..end].replace('_', "-"));
-            }
-            rest = &tail[end..];
-        }
-        out.sort();
-        out.dedup();
-        out
     }
 
     #[test]

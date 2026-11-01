@@ -1,6 +1,6 @@
 ---
 status: approved
-updated: 2026-10-31
+updated: 2026-11-01
 ---
 
 # 028 — Bancs ciblés : tâches
@@ -212,7 +212,7 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     rapport) ; `dirty` compte aussi les fichiers non suivis ; un passage sur une autre
     instance que celle des bancs (`K_BENCH_DATABASE_URL`) écrit aussi, `template` nul ;
     `bench-history` passe par `k-heavy` comme `--list` (il peut compiler).
-- [ ] 4. Mesures touchées : table mesure → chemins dans `kartenn-bench` ; script
+- [x] 4. Mesures touchées : table mesure → chemins dans `kartenn-bench` ; script
   `bench-affected [base]` (`git diff --name-only <base>...HEAD` et fichiers modifiés,
   base main par défaut), en échelle réduite. Un chemin non couvert d'un crate exercé
   déclenche le banc de ce crate (ADR 0041, décision 3).
@@ -221,6 +221,48 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     fichier de `web/` seul) avec la sélection attendue.
   - où : `crates/kartenn-bench/src/` (nouvelle table) ; `devenv.nix` (scripts).
   - dépend de : 1, 2
+  - fait : `kartenn_bench::affected` (`PATHS` : chaque mesure, le fichier de
+    `kartenn-bench` qui la chronomètre et les fichiers propres de ce qu'elle mesure, par
+    groupes partagés (`ROUTER`, `VERDICT`, `EVENTS`, `TELEMETRY`…), un dossier finissant
+    par `/` ; `exercised` : crates de la préparation (`template::crates`) et des chemins
+    des mesures, fermés par `template::crate_hashes`, et `kartenn-bench` ; `touched` : un
+    chemin listé → ses mesures ; une source de la préparation (`template::sources`) → le
+    banc entier, et les mesures qu'il chronomètre ailleurs ; un autre chemin de code
+    (`src/`, `migrations/`, `Cargo.toml`, `build.rs`) d'un crate exercé → les bancs
+    entiers qui l'exercent ; `Cargo.lock`, `Cargo.toml` du workspace → tous ; `web/v2/`,
+    `web/`, `clients/python/` → `bench-ui`, `bench-web`, `bench-cli` proposés, non lancés ;
+    le reste, rien ; `affected` : bancs dans l'ordre des catalogues, un banc entier
+    l'emporte sur ses mesures, `plan` (`<script> [<m1,m2>]`)) ; `template::named_crates`
+    sorti des tests pour être partagé ; `main.rs` (`affected`, chemins sur l'entrée,
+    plan sur la sortie, explication par chemin et scripts à proposer sur l'erreur) ;
+    `devenv.nix` (`bench-affected [base] [--list]` : diff `<base>...HEAD` sans renommages,
+    plus `git diff HEAD` et fichiers non suivis, base `origin/main` par défaut, dite dans
+    l'aide ; `--list` n'en lance rien ; `K_BENCH_SCALE=full` refusé ; bancs l'un après
+    l'autre, chacun sous son verrou, échecs comptés) ; ADR 0041 (décision 3 précisée).
+    Tests : `affected` (chaque mesure a ses chemins et son fichier de `kartenn-bench`,
+    chaque chemin existe et est du code hors migrations, crates nommés par le code d'un
+    banc exercés et chemins de ses mesures atteints par lui, chaque crate exercé listé
+    sauf `kartenn-workspace-hack`, fichier de `kartenn-flow` listé ou non, migrations du
+    cœur et d'un module, banc entier qui l'emporte, fichiers de `kartenn-bench`, web et
+    documentation, `Cargo.lock`, scripts de `devenv.nix`). Essais sur des diffs jetables
+    (`bench-affected HEAD`) : `crates/kartenn-flow/src/read.rs` → `bench-flow --only
+    flow.flows-page,flow.nonconformities-page,flow.endpoints-flows-page,
+    flow.endpoints-nonconformities-page`, lancé en réduit (nouvelle préparation, l'empreinte
+    couvrant le crate ; 8 PASS, préalables compris) ; migration ajoutée
+    `crates/kartenn-store-pg/migrations/0074_….sql` (non suivie) → les huit bancs entiers ;
+    `web/v2/ui/…` seul → aucune mesure, `bench-ui` proposé ; `web/shell/…` seul → aucune
+    mesure, `bench-web` proposé.
+  - choix : règle globale (un chemin listé par une mesure, quel que soit son banc, ne lance
+    que les mesures qui le listent) plutôt que par banc, qui relancerait presque tout ;
+    plomberie commune et migrations jamais listées : elles relancent les bancs entiers ;
+    crates exercés fermés par les dépendances du workspace (prudent : `kartenn-server`
+    tire les modules, un fichier non listé de `kartenn-flow` relance aussi `http` et
+    `telemetry`) ; `affected.rs`, `history.rs`, `measures.rs` et les `tests/` d'un crate
+    ne lancent rien, le reste de `kartenn-bench` (`main.rs`, `Cargo.toml`) tous les bancs ;
+    `devenv.nix` ne lance rien ; `bench-ui`, `bench-web` et `bench-cli` proposés et non
+    lancés (Playwright ou Python, sans échelle réduite, `bench-web` avec le verrou `--pg`) ;
+    `core.history-index` n'a que son fichier (SQL seul, dans les migrations) ; `--list`
+    ajouté pour voir la sélection ; la sélection passe par `k-heavy` (elle peut compiler).
 - [ ] 5. Bissection : script `bench-bisect <mesure> [--good <rev>] [--bad <rev>]` dans un
   worktree dédié, supprimé à la fin. Sans `--good`, le bon commit est le dernier de
   l'historique où la mesure tenait à la même échelle. Le critère est la médiane de

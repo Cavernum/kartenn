@@ -103,6 +103,17 @@ Conséquences constatées les 2026-10-30 et 31 :
    - Un chemin de code qu'aucune mesure ne couvre déclenche tout le banc de son crate.
    - Un test vérifie que chaque mesure a ses chemins et que chaque crate exercé par un
      banc y figure.
+   - Précisé à la tâche 4 : la base par défaut est `origin/main`, la `main` locale d'un
+     worktree étant souvent en retard ; `--list` donne la sélection sans rien lancer. La
+     table (`kartenn_bench::affected`) ne liste que les fichiers propres à quelques
+     mesures, jamais la plomberie commune (pipeline, écriture d'un changeset, modèles,
+     modules) ni les migrations. Les crates exercés par un banc sont ceux de sa
+     préparation (la liste de l'empreinte, décision 2) et ceux des chemins de ses
+     mesures, avec leurs dépendances du workspace. Une source de la préparation d'un banc
+     relance ce banc entier ; une migration, `Cargo.lock` ou le manifeste du workspace,
+     tous les bancs qui passent par le crate (tous pour les deux derniers). Un diff de
+     `web/v2/`, `web/` ou `clients/python/` propose `bench-ui`, `bench-web` ou
+     `bench-cli` (Playwright, Python, sans échelle réduite), sans les lancer.
 
 4. **Historique local des mesures.** Chaque passage ajoute une ligne JSON par mesure à
    `.bench/history.jsonl`, à la racine de la copie principale. Le chemin se déduit de

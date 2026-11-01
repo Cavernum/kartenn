@@ -58,9 +58,13 @@
 //! root of the main checkout of the current directory; `--history=<file>` writes to `file`
 //! instead. `kartenn-bench history <measure> [--scale full|reduced|small]` prints the series
 //! of a measure ([`kartenn_bench::history`]).
+//!
+//! Measures touched (ADR 0041, decision 3): `kartenn-bench affected` reads changed paths,
+//! one per line, and prints the benches and measures they call for, one line per bench
+//! (`<script> [<m1,m2>]`), for the script `bench-affected` ([`kartenn_bench::affected`]).
 
 use std::fs::File;
-use std::io::BufWriter;
+use std::io::{BufWriter, Read as _};
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -301,6 +305,7 @@ fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.as_slice() {
         [command, rest @ ..] if command == "history" => series(rest),
+        [command] if command == "affected" => affected(),
         [command, seed, dir, rest @ ..] if command == "gen" => generate_files(seed, dir, rest),
         [command, flag, rest @ ..] if flag == "--list" => list(command, rest),
         [command, database, seed, rest @ ..]
@@ -414,6 +419,7 @@ fn main() -> anyhow::Result<()> {
              | props|core|rbac|http|policy|flow|events|telemetry <database-url> <seed> [small] [--only <m1,m2>] [--template] [--history[=<file>]] \
              | props|core|rbac|http|policy|flow|events|telemetry --list [--only <m1,m2>] \
              | history <measure> [--scale full|reduced|small] \
+             | affected < <paths> \
              | seed <database-url> <seed> [small]"
         ),
     }
@@ -452,6 +458,35 @@ fn series(rest: &[String]) -> anyhow::Result<()> {
     if unread > 0 {
         eprintln!("{unread} lignes illisibles de l'historique ignorées");
     }
+    Ok(())
+}
+
+/// `affected`: the changed paths on the standard input, one per line; on the standard
+/// output, one line per bench to run (its script, then the measures for `--only` when not
+/// all of them run); on the error output, what each path calls for, and the scripts
+/// outside `kartenn-bench` to propose.
+fn affected() -> anyhow::Result<()> {
+    let mut input = String::new();
+    std::io::stdin()
+        .read_to_string(&mut input)
+        .context("reading the changed paths")?;
+    let affected = kartenn_bench::affected::affected(input.lines());
+    eprint!("{}", affected.explained);
+    if affected.unconcerned > 0 {
+        eprintln!(
+            "{} chemins sans mesure (documentation, tests, web, crates qu'aucun banc n'exerce…)",
+            affected.unconcerned
+        );
+    }
+    if affected.runs.is_empty() {
+        eprintln!("aucune mesure de kartenn-bench touchée");
+    }
+    for script in &affected.proposed {
+        eprintln!(
+            "à proposer : {script} (banc hors kartenn-bench, que bench-affected ne lance pas)"
+        );
+    }
+    print!("{}", affected.plan());
     Ok(())
 }
 
