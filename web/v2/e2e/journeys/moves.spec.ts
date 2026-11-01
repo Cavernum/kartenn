@@ -375,6 +375,173 @@ test.describe("a slowed answer", () => {
   });
 });
 
+// The hosting of a machine (task 18b; plugin Machines, without framework): its host changed
+// from its record, each host offered checked by `canMove` of the SDK, the move to the draft
+// by `draft.move` and its simulation. No tree of the hosting is drawn (the `TreeGrid` is a
+// component of Vue): the list of the hosts is the alternative of a drop, at the keyboard.
+test.describe("the host of a machine", () => {
+  /** Two sites; a physical host on the first with its virtual guest; a virtual machine on the second. */
+  async function hosting(page: Page, tag: string) {
+    const entity = (
+      (await call(page, "GET", `/v1/entities?slug=${DATA.entity}`)).body as {
+        items: { id: string }[];
+      }
+    ).items[0]!.id;
+    const created = await call(page, "POST", "/v1/changesets?approval=self", {
+      motive: "end-to-end hosting",
+      operations: [
+        { op: "create_site", local: 0, slug: `${tag}-a` },
+        { op: "create_site", local: 1, slug: `${tag}-b` },
+        {
+          op: "machines.create_machine",
+          local: 2,
+          name: `${tag}-host`,
+          kind: "physical",
+          owner: { id: entity },
+          site: { local: 0 },
+        },
+        {
+          op: "machines.create_machine",
+          name: `${tag}-guest`,
+          kind: "virtual",
+          owner: { id: entity },
+          site: { local: 0 },
+          host: { machine: { local: 2 } },
+        },
+        {
+          op: "machines.create_machine",
+          name: `${tag}-away`,
+          kind: "virtual",
+          owner: { id: entity },
+          site: { local: 1 },
+        },
+      ],
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const id = async (name: string) =>
+      (
+        (await call(page, "GET", `/v1/machines?name=${name}`)).body as {
+          items: { id: string }[];
+        }
+      ).items[0]!.id;
+    return {
+      host: await id(`${tag}-host`),
+      guest: await id(`${tag}-guest`),
+      away: await id(`${tag}-away`),
+    };
+  }
+
+  test("a host cannot go under itself nor its guest: refused by the client, with the rule", async ({
+    page,
+    login,
+    browserName,
+  }) => {
+    await login("alice");
+    const tag = unique("hosting", browserName);
+    const { host } = await hosting(page, tag);
+    await page.goto(`/x/machines/machines/${host}`);
+    const record = page.locator("machines-machines");
+    const form = record.getByRole("region", { name: "Hébergement" });
+    const select = form.getByRole("combobox", { name: /^Nouvel hébergeur/ });
+    // Each refused host said in its name, with its reason and the code of the server rule.
+    const refused = (name: string) =>
+      select.locator("option", { hasText: `${name} — refusé : elle l'héberge, ou c'est elle` });
+    await expect(refused(`${tag}-host`)).toContainText("(machines.host.invalid)");
+    await expect(refused(`${tag}-guest`)).toContainText("(machines.host.invalid)");
+    await expect(select.locator("option", { hasText: "hébergeur actuel" })).toHaveCount(1);
+    await expect(select.locator("option", { hasText: `${tag}-away` })).toHaveText(`${tag}-away`);
+    await expectAccessible(page);
+    // Sent at the keyboard all the same: refused on the field, nothing in the draft.
+    const writes: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() !== "GET" && request.url().includes("/v1/")) writes.push(request.url());
+    });
+    const guest = await refused(`${tag}-guest`).getAttribute("value");
+    await select.selectOption(guest!);
+    await select.press("Tab");
+    await page.keyboard.press("Enter");
+    await expect(select).toHaveAttribute("aria-invalid", "true");
+    await expect(select).toBeFocused();
+    await expect(form).toContainText(
+      "refusé : elle l'héberge, ou c'est elle (machines.host.invalid)",
+    );
+    expect(writes).toEqual([]);
+  });
+
+  test("to a host on another site: accepted by the client, « en attente » at its place, the server warns", async ({
+    page,
+    login,
+    browserName,
+  }) => {
+    await login("alice");
+    const tag = unique("site", browserName);
+    const { host, away } = await hosting(page, tag);
+    const changesets: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && request.url().includes("/v1/changesets")) {
+        changesets.push(request.url());
+      }
+    });
+    await page.goto(`/x/machines/machines/${away}`);
+    const record = page.locator("machines-machines");
+    await expect(record.getByRole("heading", { level: 1, name: `${tag}-away` })).toBeVisible();
+    const hostedBy = record.locator("dt:has-text('Hébergée par') + dd");
+    await expect(hostedBy).toHaveText("—aucun");
+    const form = record.getByRole("region", { name: "Hébergement" });
+    const select = form.getByRole("combobox", { name: /^Nouvel hébergeur/ });
+    await expect(select.locator(`option[value="machine:${host}"]`)).toBeEnabled();
+
+    // Its simulation held: the move waits at its place, the host read unchanged.
+    let release!: () => void;
+    const held = new Promise<void>((done) => (release = done));
+    const simulation = (url: URL) => /^\/v1\/drafts\/[0-9a-f-]+\/simulation$/.test(url.pathname);
+    await page.route(simulation, async (route) => {
+      await held;
+      await route.continue();
+    });
+    // At the keyboard: the host chosen in the list, then the button after it.
+    await select.selectOption(`machine:${host}`);
+    await select.press("Tab");
+    const submit = form.getByRole("button", { name: "Déplacer au brouillon" });
+    await expect(submit).toBeFocused();
+    const sent = page.waitForRequest((r) => simulation(new URL(r.url())));
+    await page.keyboard.press("Enter");
+    await sent;
+    await expect(
+      form
+        .getByRole("status")
+        .filter({ hasText: `Déplacement vers ${tag}-host en attente du serveur` }),
+    ).toHaveCount(1);
+    await expect(hostedBy).toHaveText("—aucun");
+    release();
+    // Held by its simulation; the other site warned of, not refused (the rule is a warning).
+    await expect(
+      form
+        .getByRole("status")
+        .filter({ hasText: `Déplacement vers ${tag}-host au brouillon, tenu` }),
+    ).toHaveCount(1);
+    await expect(form.locator("[data-tone=warn]")).toContainText("machines.host.site_mismatch");
+    await expect(hostedBy).toHaveText("—aucun");
+    await expectAccessible(page);
+    await page.unroute(simulation);
+    // In the draft, no changeset sent.
+    expect(changesets).toEqual([]);
+    const drafts = (await call(page, "GET", "/v1/drafts")).body as { items: { id: string }[] };
+    const operations = await Promise.all(
+      drafts.items.map(
+        async (d) =>
+          ((await call(page, "GET", `/v1/drafts/${d.id}`)).body as { operations: unknown[] })
+            .operations,
+      ),
+    );
+    expect(operations.flat()).toContainEqual({
+      op: "machines.update_machine",
+      id: { id: away },
+      host: { machine: { id: host } },
+    });
+  });
+});
+
 test("property: 200 changes of values, accepted or refused, and every row within its parent", async ({
   page,
   login,

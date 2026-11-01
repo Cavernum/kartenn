@@ -580,6 +580,12 @@ export function label(kind: string, key: string): string;
 // Sans framework (tâche 19) : un observateur tient sa requête dans le cache partagé, la relit
 // quand elle est invalidée (écriture, événement du flux) et en signale chaque état.
 export { QueryObserver, InfiniteQueryObserver };      // @tanstack/query-core, même instance
+// Déplacements (tâches 24, 18b) : `canMove` (table des parents tirée du contrat, codes des
+// règles) ; `draft.move` met le changement de parent au brouillon actif (remplace celui du
+// même nœud), simule le brouillon et rend le verdict de sa propre opération (`valid` avec
+// ses avertissements, `refused` avec sa règle, `unknown`) — le même que `useMoves` du shell.
+export function canMove(node: MoveSubject, target: MoveSubject | null, env: MoveEnv): MoveVerdict;
+export const draft: { add(op: Operation): Promise<DraftOutcome>; move(op: Operation, node: MoveSubject): Promise<DraftMove> };
 // handle.styles(root, path) : un fichier du plugin, ou la feuille partagée du shell
 // nommée par son spécifieur (`@kartenn/ui/style.css`), dans l'ordre des appels.
 ```

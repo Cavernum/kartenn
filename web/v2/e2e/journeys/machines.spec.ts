@@ -236,6 +236,35 @@ test("the views of the machines, their links, the tabs and the column of the cor
   await expect(dialog).toHaveCount(0);
 });
 
+test("a physical machine to a cluster: offered by the client, refused by the server at its place", async ({
+  page,
+  login,
+}, info) => {
+  await login("alice");
+  const firefox = info.project.name === "firefox";
+  const tag = `zz-host-${info.project.name}-${Date.now() % 1_000_000}`;
+  const written = await write(page, tag, firefox ? "00:00:5e:00:53:23" : "00:00:5e:00:53:22");
+  await page.goto(`/x/machines/machines/${written.machine}`);
+  const record = page.locator("machines-machines");
+  await expect(record.getByRole("heading", { level: 1, name: tag })).toBeVisible();
+  const form = record.getByRole("region", { name: "Hébergement" });
+  const select = form.getByRole("combobox", { name: /^Nouvel hébergeur/ });
+  // The kinds of the pair are not in the contract: the cluster is offered.
+  const cluster = select.locator(`option[value="cluster:${written.cluster}"]`);
+  await expect(cluster).toBeEnabled();
+  await select.selectOption(`cluster:${written.cluster}`);
+  await select.press("Tab");
+  await expect(form.getByRole("button", { name: "Déplacer au brouillon" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  // The simulation of the draft refuses it with the rule of the module; the host read stays.
+  const alert = form.getByRole("alert");
+  await expect(alert).toContainText(`Déplacement vers ${tag} refusé par le serveur`);
+  await expect(alert).toContainText("machines.host.invalid");
+  await expect(form).toContainText("L'opération reste au brouillon");
+  await expect(record.locator("dt:has-text('Hébergée par') + dd")).toHaveText("—aucun");
+  await expectAccessible(page);
+});
+
 test("a machine created in the draft from its list, no changeset sent", async ({
   page,
   login,

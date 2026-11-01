@@ -1703,6 +1703,49 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   `machines` et `moves` étendus (glisser au clavier)
   - où : `canMove` et `useMoves` (tâche 24, `web/v2/shell/src/`, SDK) ; plugin de la 18a
   - dépend de : 18a
+  - en cours : fait le 2026-11-02 — SDK : `canMove` demande `machines.edit` pour une
+    machine (018 R2 : la ressource qui porte le nom du module s'omet ; il demandait
+    `machines.machine.edit`, qui n'existe pas, et refusait tout déplacement) ; `draft.move`
+    (`src/draft.ts`, `moveInDraft`) : le changement de parent au brouillon actif, celui du
+    même nœud remplacé (membre tiré de `PARENTS[type].via`), le brouillon simulé, verdict
+    de sa seule opération (`valid` et ses avertissements, `refused` et sa règle, `unknown`
+    et son problème) ; `useMoves` du shell le reprend par `moveInActiveDraft` de
+    `@kartenn/sdk/host` (sans ouvrir le brouillon). Plugin : section « Hébergement » de la
+    fiche d'une machine (`src/hosting.ts`, `HostMove`) — liste native des hébergeurs
+    (aucun, clusters, machines, dix pages au plus), chacun jugé par `canMove` (ancêtres
+    tirés des hôtes de la liste), refusés dits dans leur nom avec la raison et le code
+    (`machines.host.invalid`), refusés de nouveau sur le champ s'ils sont envoyés ;
+    `machines.update_machine` `host` au brouillon par `draft.move`, « en attente » jusqu'à
+    la réponse, hébergeur lu gardé ; refus du serveur (alerte, règle, opération gardée),
+    avertissements dans une région `status` présente dès le départ ; lecture des
+    hébergeurs dite, échec par `failure`. Vitest `sdk/test/moves.test.ts` (codes
+    `machines.host.*` : soi-même, hôte direct et indirect, type non admis, cluster, autre
+    machine, racine, `machines.edit`), `plugins/machines/test/machines.test.ts` (4 :
+    hébergeurs jugés et refus au champ, droit absent, attente puis avertissement
+    `site_mismatch`, refus de la simulation et opération remplacée), `shell/test/moves*`
+    inchangés et verts. Parcours `moves` (« the host of a machine » : hôte sous lui-même
+    et sous son invité refusé par le client, rien envoyé ; vers un hôte d'un autre site,
+    simulation retenue → « en attente », hébergeur inchangé, puis avertissement
+    `machines.host.site_mismatch`, aucun changeset), `machines` (machine physique vers un
+    cluster : offert par le client, refusé par la simulation `machines.host.invalid`, à sa
+    place) ; verts dans les deux navigateurs.
+  - choix : pas d'arbre de l'hébergement ni de glisser — le `TreeGrid` est un composant
+    Vue et le plugin n'a pas de framework : la liste des hébergeurs est l'alternative au
+    dépôt (2.5.7), au clavier ; brouillon seulement (W10 : un plugin n'envoie pas de
+    changeset), donc ni « Appliquer » ni Ctrl+Entrée ; hébergeur actuel et hébergeurs
+    refusés gardés dans la liste, actifs (une option désactivée est sautée au clavier et
+    tue sa raison), refusés au champ à l'envoi ; liste non redessinée sous le focus ;
+    section placée après les attributs ; `as Operation` sur l'opération (le type du
+    contrat ne décrit pas les opérations des modules).
+  - reste — à arbitrer : `machines.host.site_mismatch` est de sévérité `warning` côté
+    serveur (`crates/kartenn-machines/src/rules.rs`) : le serveur ne refuse pas, il
+    applique et ouvre une anomalie ; il ne compare d'ailleurs que les machines hôtes, pas
+    les clusters (`pg::site_mismatches`) — « machine vers un cluster d'un autre site
+    refusée par le serveur » (verify de la 24) n'est pas tenable sans changer la règle ;
+    ouverts : pas de glisser (un arbre sans framework dans `@kartenn/ui` à décider) ; les
+    hébergeurs au-delà de dix pages ne sont pas offerts ; sous Firefox, le parcours de la
+    24 « an entity changes parent by its menu » a perdu une fois le focus du champ
+    pendant le parcours complet (vert relancé seul, deux fois).
 
 ## P4 — Budgets et clôture
 
