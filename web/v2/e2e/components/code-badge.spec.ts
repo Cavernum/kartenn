@@ -134,7 +134,7 @@ test("an error 412: its sentence said, its code and request identifier copied by
   const state = page.locator("[data-state-name='precondition']");
   // The sentence is the alert, shown once its region is in the tree.
   await expect(state.getByRole("alert")).toHaveText(/Ce préfixe a changé depuis votre lecture/);
-  await expect(state.locator(".k-error-state__title")).not.toHaveAttribute("data-state");
+  await expect(state.locator(".k-error-state__said")).not.toHaveAttribute("data-state");
   const code = state.getByRole("button", { name: `Copier type ${CODE}` });
   const request = state.getByRole("button", { name: `Copier Request-Id ${REQUEST}` });
   await expect(code).toBeVisible();

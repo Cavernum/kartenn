@@ -3,7 +3,8 @@
     - heading "ErrorState" [level=1]
     - paragraph: "Motif : role=alert, codes copiables"
     - figure "retry — Phrase, code, identifiant de requête, Réessayer":
-      - alert: Le service ne répond pas.
+      - alert:
+        - paragraph: Le service ne répond pas.
       - button "Copier type urn:kartenn:problem:unavailable":
         - text: ""
         - code: urn:kartenn:problem:unavailable
@@ -16,7 +17,8 @@
       - code: retry
       - text: ""
     - 'figure /precondition — Erreur \d+ : message, code et identifiant de requête copiables \(REQ-\d+-\d+\)/':
-      - alert: "Ce préfixe a changé depuis votre lecture : relisez-le avant de le modifier."
+      - alert:
+        - paragraph: "Ce préfixe a changé depuis votre lecture : relisez-le avant de le modifier."
       - button "Copier type urn:kartenn:problem:precondition-failed":
         - text: ""
         - code: urn:kartenn:problem:precondition-failed
@@ -29,7 +31,8 @@
       - code: precondition
       - text: ""
     - 'figure "violations — Violations : chaque gravité, message et code (un avertissement le dit)"':
-      - alert: Le changeset est refusé.
+      - alert:
+        - paragraph: Le changeset est refusé.
       - list:
         - listitem:
           - text: Erreur Le préfixe chevauche un voisin.
@@ -60,7 +63,8 @@
       - code: violations
       - text: ""
     - figure "forbidden — Sans nouvelle tentative possible":
-      - alert: Vous n'avez pas le droit de lire ce domaine.
+      - alert:
+        - paragraph: Vous n'avez pas le droit de lire ce domaine.
       - button "Copier type urn:kartenn:problem:forbidden":
         - text: ""
         - code: urn:kartenn:problem:forbidden
@@ -72,7 +76,8 @@
       - code: forbidden
       - text: ""
     - 'figure "network — Sans réponse de l''API : la phrase et Réessayer, aucun code inventé"':
-      - alert: Le serveur est injoignable.
+      - alert:
+        - paragraph: Le serveur est injoignable.
       - button "Réessayer"
       - code: network
       - text: ""

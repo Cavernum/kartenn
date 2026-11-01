@@ -9,8 +9,10 @@
 // request identifier (`Request-Id`), each copyable (`CodeBadge`); « Réessayer » when the
 // host can retry. `problem` takes an `ApiProblem` of the SDK as it is (its `type`,
 // `requestId`, `violations`), the library knowing nothing of the SDK.
-// The sentence is said: its `alert` region is there, its text hidden (out of the tree),
-// shown a frame later, which the region announces (as `InlineAlert`); no shift meanwhile.
+// The sentence and the text that says why are said: their `alert` region is there, its
+// content hidden (out of the tree), shown a frame later, which the region announces (as
+// `InlineAlert`); no shift meanwhile. The codes stay out of the region: they are read on
+// demand, never announced.
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import Button from "../Button/Button.vue";
@@ -39,10 +41,11 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
 <template>
   <div class="k-error-state">
     <Icon name="circle-x" :size="20" class="k-error-state__icon" />
-    <p class="k-error-state__title" role="alert" :data-state="said ? undefined : 'waiting'">
-      <span class="k-error-state__sentence">{{ props.title }}</span>
-    </p>
-    <p v-if="$slots.default" class="k-error-state__text"><slot /></p>
+    <!-- The sentence and why: both said, the codes after them are not. -->
+    <div class="k-error-state__said" role="alert" :data-state="said ? undefined : 'waiting'">
+      <p class="k-error-state__title">{{ props.title }}</p>
+      <p v-if="$slots.default" class="k-error-state__text"><slot /></p>
+    </div>
     <ul v-if="props.problem?.violations?.length" class="k-error-state__violations">
       <li
         v-for="(violation, i) in props.problem.violations"
@@ -88,13 +91,22 @@ onBeforeUnmount(() => cancelAnimationFrame(frame));
     color: var(--k-state-ko-fg);
   }
 
+  /* The region said: the sentence, then why, spaced as the rest. */
+  .k-error-state__said {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--k-space-2);
+    justify-items: center;
+    max-inline-size: 100%;
+  }
+
   .k-error-state__title {
     margin: 0;
     font-weight: var(--k-weight-medium);
   }
 
   /* Hidden until its region is in the tree, its place kept. */
-  .k-error-state__title[data-state="waiting"] .k-error-state__sentence {
+  .k-error-state__said[data-state="waiting"] > * {
     visibility: hidden;
   }
 
