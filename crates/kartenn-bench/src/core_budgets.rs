@@ -389,7 +389,7 @@ pub(crate) async fn prepare_with<T>(
     more: impl AsyncFnOnce(&PgPool, Ids, &mut String) -> anyhow::Result<T>,
 ) -> anyhow::Result<(Prepared, Option<T>)> {
     let (pool, report, more) = template::prepared(database, reuse, async |pool, report| {
-        let ids = write(pool, data, seed, report).await?;
+        let ids = write(pool, data, seed).await?;
         more(pool, ids, report).await
     })
     .await?;
@@ -432,12 +432,7 @@ async fn ids(pool: &PgPool) -> anyhow::Result<Ids> {
 }
 
 /// Loads `data` into the empty database `pool` and prepares it for the measures.
-async fn write(
-    pool: &PgPool,
-    data: &Dataset,
-    seed: u64,
-    report: &mut String,
-) -> anyhow::Result<Ids> {
+async fn write(pool: &PgPool, data: &Dataset, seed: u64) -> anyhow::Result<Ids> {
     kartenn_store_pg::MIGRATOR.run(pool).await?;
     let started = Instant::now();
     load(pool, data).await?;
@@ -497,11 +492,8 @@ async fn write(
         rows,
     )
     .await?;
-    // Measured in a steady state: no checkpoint of the bulk writes under way.
-    // CHECKPOINT needs the role pg_checkpoint; without it, VACUUM has written most pages.
-    sqlx::raw_sql("VACUUM ANALYZE").execute(pool).await?;
-    let checkpoint = sqlx::raw_sql("CHECKPOINT").execute(pool).await.is_ok();
-    writeln!(report, "INFO checkpoint before the measures: {checkpoint}")?;
+    // The vacuum and the checkpoint before the measures: `template::prepared`, for every
+    // bench.
     progress(&format!("assignments: {:?}", started.elapsed()));
     Ok(Ids { author, rack })
 }

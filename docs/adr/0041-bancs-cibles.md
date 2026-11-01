@@ -68,7 +68,15 @@ Conséquences constatées les 2026-10-30 et 31 :
      touche. Un `CHECKPOINT` ajouté avant les mesures de la base préparée sans modèle la
      porte à 0,38 à 0,45 s. La mesure dépend donc du dernier point de contrôle, avec ou
      sans modèle. La version de forme de l'empreinte (2) fait refaire les modèles
-     d'avant. Les lignes du rapport écrites par la préparation
+     d'avant.
+   - Les mesures partent donc d'un point de contrôle frais, des deux côtés : le
+     programme lance `CHECKPOINT` après la préparation (base préparée sans modèle) ou
+     après la copie et son réchauffement, avant la première mesure. C'est le pire cas
+     des images de page complètes, le même pour une copie et pour une base préparée.
+     Le script `bench` donne `pg_checkpoint` à `kartenn` sur l'instance des bancs
+     (superutilisateur par le socket, idempotent) ; ailleurs, sans ce droit, le programme
+     le dit sur sa sortie d'erreur et mesure depuis le dernier point de contrôle du
+     serveur. La ligne `INFO checkpoint before the measures` du rapport dit lequel. Les lignes du rapport écrites par la préparation
      sont gardées dans le commentaire du modèle et rendues par chaque copie : deux
      passages de même empreinte rendent les mêmes lignes.
    - Vérifié à la tâche 2 : `file_copy_method` est un réglage de contexte `user`. Le

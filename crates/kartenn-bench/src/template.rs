@@ -367,6 +367,7 @@ pub(crate) async fn prepared<T>(
         let pool = connect(database).await?;
         let written = write(&pool, &mut report).await?;
         vacuum(&pool).await?;
+        checkpoint(&pool, &mut report).await?;
         return Ok((pool, report, Some(written)));
     }
     let target = Target::of(database)?;
@@ -402,7 +403,29 @@ pub(crate) async fn prepared<T>(
     let warmed = warm(&pool).await?;
     progress(&format!("prepared database: {copied}; {warmed}"));
     writeln!(report, "INFO prepared database: {copied}; {warmed}")?;
+    checkpoint(&pool, &mut report).await?;
     Ok((pool, report, written))
+}
+
+/// The measures start from a fresh checkpoint, the database prepared as its copy: each
+/// first write of a page after it pays its full-page image, on both sides alike (the copy
+/// of a template follows the checkpoint of `CREATE DATABASE … FILE_COPY`). `CHECKPOINT`
+/// needs the role `pg_checkpoint`, which the `bench-*` scripts grant on the bench
+/// instance; without it, said on the standard error, the measures start from the last
+/// checkpoint of the server.
+async fn checkpoint(pool: &PgPool, report: &mut String) -> anyhow::Result<()> {
+    let done = match sqlx::raw_sql("CHECKPOINT").execute(pool).await {
+        Ok(_) => true,
+        Err(e) => {
+            progress(&format!(
+                "CHECKPOINT refused ({e}): the measures start from the last checkpoint of \
+                 the server"
+            ));
+            false
+        }
+    };
+    writeln!(report, "INFO checkpoint before the measures: {done}")?;
+    Ok(())
 }
 
 /// A pool on the database at `database`.

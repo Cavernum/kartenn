@@ -140,7 +140,10 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     contre 2,93 à 3,00 s. Reste du changeset : ni le cache ni le clonage (vraie copie
     0,40 à 0,42 s) ; le point de contrôle de `CREATE DATABASE … FILE_COPY` (images de page
     complètes à la première écriture) — un `CHECKPOINT` avant les mesures de la base
-    préparée la porte à 0,38 à 0,45 s.
+    préparée la porte à 0,38 à 0,45 s. Avec le `CHECKPOINT` des deux côtés (entrelacés,
+    charge 3 à 4) : changeset 0,38 à 0,43 s sur copie contre 0,41 à 0,54 s sur base
+    préparée, valeur de toutes les racines 0,84 à 0,91 s contre 0,82 à 1,01 s, retrait de
+    3 domaines 3,01 à 3,19 s contre 2,96 à 3,05 s (4,61 s au premier passage, isolé).
   - choix : la copie aussi au premier passage (la base préparée est renommée en modèle,
     puis copiée) : premier passage et suivants mesurent de la même façon ; l'état tiré de
     la préparation (identifiants, abonnés, paires de machines…) est relu ou recalculé dans
@@ -156,7 +159,11 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     les plus grandes d'abord ; `pg_prewarm` installé dans `template1` de l'instance des
     bancs par le script `bench` (session principale, option a), les modèles d'avant
     refaits par la version de forme de l'empreinte plutôt que par une extension ajoutée
-    à la copie (que `kartenn` ne peut créer) ; ordre d'ancienneté par oid ; sans `--template` (`bench-web`, autre instance que
+    à la copie (que `kartenn` ne peut créer) ; mesures depuis un point de contrôle frais
+    des deux côtés (session principale) : `template::checkpoint` après la préparation ou
+    la copie réchauffée, `pg_checkpoint` donné à `kartenn` par le script `bench` sur 5433
+    seulement, sans ce droit un avertissement et la suite (le `CHECKPOINT` propre à `core`
+    retiré, sa ligne `INFO` désormais pour tous les bancs) ; ordre d'ancienneté par oid ; sans `--template` (`bench-web`, autre instance que
     celle des bancs), même chemin sans copie.
 - [ ] 3. Historique local : une ligne JSON par mesure et par passage dans
   `.bench/history.jsonl` à la racine de la copie principale (parent de

@@ -358,13 +358,15 @@
       # on the bench instance only: its templates are the only databases a run drops.
       # pg_prewarm in template1 (superuser over the socket of k-pg-bench, idempotent):
       # each prepared database, so each template, has it, and a copy is read back,
-      # indexes included, before the measures.
+      # indexes included, before the measures; pg_checkpoint to kartenn, so that the
+      # measures start from a fresh checkpoint on both sides.
       template=""
       case $bench in
         *@127.0.0.1:5433/*)
           template=--template
           PGOPTIONS='-c client_min_messages=warning' psql -h "''${XDG_STATE_HOME:-$HOME/.local/state}/kartenn/pg-bench" \
-            -p 5433 -d template1 -q -c "CREATE EXTENSION IF NOT EXISTS pg_prewarm" ;;
+            -p 5433 -d template1 -q -c "CREATE EXTENSION IF NOT EXISTS pg_prewarm" \
+            -c "GRANT pg_checkpoint TO kartenn" ;;
       esac
       PGOPTIONS='-c client_min_messages=warning' psql "''${bench%/*}/postgres" -q -c "DROP DATABASE IF EXISTS \"''${bench##*/}\" WITH (FORCE)" \
         -c "CREATE DATABASE \"''${bench##*/}\""
