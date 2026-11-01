@@ -47,7 +47,10 @@
   commande cargo ad hoc garde les options de `k-check` (`--all-features`, profil dev),
   sans quoi elle compile une autre variante. Le goulot reste `k-heavy` et ses verrous
   (`--pg`, `--bench`) : en route, des vérifications ciblées (`k-check -p <crate>`, un
-  fichier Vitest) ; la vérification complète une fois, avant le commit. Les bancs
+  fichier Vitest) ; la vérification complète une fois, avant le commit. Sur `web/v2`,
+  `k-web2-check` ne lance que les captures du changement (ADR 0042) : c'est le passage
+  des agents, en route et avant leur commit ; `k-web2-check --all`, le passage complet,
+  revient à la session principale, sur le résultat fusionné, avant chaque push. Les bancs
   pleine échelle se lancent par la session principale seulement, un à la fois, et
   seulement quand aucun autre agent ne tourne (`k-heavy --status` tout libre) : un banc
   garde un créneau des heures durant. Un banc dont l'étape en cours dépasse
@@ -65,7 +68,10 @@ Le coût d'une session croît avec la taille du contexte × le nombre de requêt
   autonome long, `scripts/claude-taches.sh`.
 - **Sorties courtes.** Vérifier avec `k-check [args nextest]` (verdict sur une ligne, détail
   seulement en échec) plutôt que `cargo test` brut ; côté web, `k-web-check [args vitest]`
-  (prettier, eslint, vue-tsc, vitest) et `k-web-e2e [args playwright]`. Builds et commandes bavardes passent
+  (prettier, eslint, stylelint, vue-tsc, vitest) et `k-web-e2e [args playwright]` ;
+  `k-web2-check [--all | --base <ref>]` y ajoute les captures du changement depuis
+  `origin/main` (ou `<ref>`), et son verdict dit la sélection (« ciblé : N captures sur
+  M »). Builds et commandes bavardes passent
   par `| tail`/`head` ou une redirection vers le scratchpad.
 - **Lire ciblé.** Pour trouver un symbole, l'outil `LSP` (rust-analyzer : `workspaceSymbol`,
   `goToDefinition`, `findReferences`, `hover`) plutôt qu'une lecture. Pas de `cat` ni de
