@@ -5,8 +5,9 @@
 // The contract of in-place editing (spec 020, design « Contrat d'édition »; REQ-020-19),
 // shared by the grids (`DataGrid`; `TreeGrid`, task 26): the host says which cells are
 // editable and checks the text; Enter or F2 opens the editor, Escape cancels, Enter or Tab
-// commits; the focus leaving for elsewhere in the page commits a changed text, leaving the
-// window keeps the editor open; an unchanged text never commits. A text refused by the
+// commits, Ctrl+Enter (⌘+Enter) too, marked `now` (apply now, spec 021); the focus
+// leaving for elsewhere in the page commits a changed text, leaving the window keeps the
+// editor open; an unchanged text never commits. A text refused by the
 // check keeps the editor open, its error said with the way out (Escape). After a commit,
 // the host renders the cell's state; an error it gives then is said once.
 
@@ -80,9 +81,10 @@ export function useCellEditor(host: CellEditorHost) {
   /**
    * Leaves the editor with its text: refused by the check, it stays open with its error,
    * said; unchanged, it closes without a commit; else committed. `move`: the column the
-   * focus goes on to (Tab: 1, Shift+Tab: -1, Enter: 0), or none (the focus left).
+   * focus goes on to (Tab: 1, Shift+Tab: -1, Enter: 0), or none (the focus left); `now`:
+   * Ctrl+Enter, the commit marked so.
    */
-  function finish(move: number | null): boolean {
+  function finish(move: number | null, now = false): boolean {
     const cell = host.editing.value;
     if (!cell) return false;
     if (draft.value !== original.value) {
@@ -92,7 +94,12 @@ export function useCellEditor(host: CellEditorHost) {
         host.refuse(cell, refused);
         return false;
       }
-      host.commit({ row: cell.row, column: cell.column, value: draft.value });
+      host.commit({
+        row: cell.row,
+        column: cell.column,
+        value: draft.value,
+        ...(now ? { now: true } : {}),
+      });
     }
     host.editing.value = undefined;
     if (move !== null) host.moveFocus(cell, move);
@@ -105,15 +112,18 @@ export function useCellEditor(host: CellEditorHost) {
     if (cell) host.moveFocus(cell, 0);
   }
 
-  /** Escape, Enter and Tab of the editor (the others are its own). */
+  /** Escape, Enter (Ctrl+Enter: `now`) and Tab of the editor (the others are its own). */
   function onKeydown(event: KeyboardEvent): void {
     if (event.defaultPrevented || !host.driven()) return;
     if (event.key === "Escape") {
       event.preventDefault();
       cancel();
-    } else if (event.key === "Enter" || event.key === "Tab") {
+    } else if (event.key === "Enter") {
       event.preventDefault();
-      finish(event.key === "Enter" ? 0 : event.shiftKey ? -1 : 1);
+      finish(0, event.ctrlKey || event.metaKey);
+    } else if (event.key === "Tab") {
+      event.preventDefault();
+      finish(event.shiftKey ? -1 : 1);
     }
   }
 

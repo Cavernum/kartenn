@@ -21,7 +21,9 @@
 // is emitted (`window`: `end` among the loaded rows, as the shell's `useNextPage` reads it).
 // In-place editing (design « Contrat d'édition »): the host says which cells are editable
 // and checks the text (`editable`, `validate`); Enter or F2 opens the editor, Escape
-// cancels, Enter or Tab commits (`commit`), and the host renders the cell's state then
+// cancels, Enter or Tab commits (`commit`; Ctrl+Enter commits marked `now`: apply now
+// rather than add to the draft, the host's to decide; a cell without an editor described
+// by why, `readonlyReason`), and the host renders the cell's state then
 // (pending, draft, review, error with its code, its message in a floating layer that
 // never resizes the cell: `CellError`; an error that follows a commit is said by an alert).
 // Columns resizable by the keyboard (`resizable`: F2 on a header reaches its handle, a
@@ -118,6 +120,11 @@ const props = withDefaults(
      * host opens (`editing`) keeps all its keys: the host drives it.
      */
     editable?: ((row: R, column: GridColumn) => boolean) | undefined;
+    /**
+     * Why a cell of an editable grid offers no editor (a right, the past, a field fixed):
+     * a sentence, the description of the cell (REQ-021-15: it says why).
+     */
+    readonlyReason?: ((row: R, column: GridColumn) => string | undefined) | undefined;
     /** The local check of the text of an editor: its error, or nothing (contract types). */
     validate?: ((row: R, column: GridColumn, value: string) => string | undefined) | undefined;
     /**
@@ -143,6 +150,7 @@ const props = withDefaults(
     filtered: () => [],
     loadingRows: 5,
     editable: undefined,
+    readonlyReason: undefined,
     validate: undefined,
     rowCount: undefined,
     rowOffset: 0,
@@ -363,6 +371,32 @@ watch(
 // `aria-describedby` (of the cell, and of its editor).
 const uid = useId();
 const errorId = (r: number, c: number) => `k-data-grid-${uid}-error-${r}-${c}`;
+
+// Why a cell of an editable grid offers no editor (`readonlyReason`): each distinct
+// sentence of the rows in the document once, hidden, the description of its cells
+// (`aria-describedby`), never in their name.
+const readonlyText = (row: R, column: GridColumn) =>
+  props.editable && props.readonlyReason && !canEdit(row, column)
+    ? props.readonlyReason(row, column)
+    : undefined;
+const reasons = computed<string[]>(() => {
+  if (!props.editable || !props.readonlyReason) return [];
+  const found = new Set<string>();
+  for (const part of parts.value) {
+    if (!("index" in part)) continue;
+    for (const column of shown.value) {
+      const text = readonlyText(part.row, column);
+      if (text) found.add(text);
+    }
+  }
+  return [...found];
+});
+const reasonId = (i: number) => `k-data-grid-${uid}-reason-${i}`;
+function reasonOf(row: R, column: GridColumn): string | undefined {
+  const text = readonlyText(row, column);
+  const at = text ? reasons.value.indexOf(text) : -1;
+  return at >= 0 ? reasonId(at) : undefined;
+}
 const cellKey = (row: string, column: string) => `${row}\n${column}`;
 /** Whether the cell of key `k` has an error now (it may come after the focus, by a commit). */
 function errorAt(k: string): boolean {
@@ -1147,7 +1181,9 @@ onBeforeUnmount(() => observer?.disconnect());
               :aria-readonly="props.editable && !canEdit(part.row, column) ? 'true' : undefined"
               :aria-busy="stateOf(part.row, column) === 'pending' ? 'true' : undefined"
               :aria-invalid="messageOf(part.row, column) ? 'true' : undefined"
-              :aria-describedby="hasError(part.row, column) ? errorId(part.index, c) : undefined"
+              :aria-describedby="
+                hasError(part.row, column) ? errorId(part.index, c) : reasonOf(part.row, column)
+              "
               :data-error-open="errorShown(part.row, column) ? 'true' : undefined"
               :tabindex="isEditing(part.row, column) ? undefined : tabindex(part.key, column.id)"
               @pointerenter="onCellEnter(part.row, column, $event)"
@@ -1241,6 +1277,9 @@ onBeforeUnmount(() => observer?.disconnect());
       </div>
     </div>
     <div class="k-visually-hidden" role="alert">{{ announcement }}</div>
+    <div v-if="reasons.length" hidden>
+      <span v-for="(text, i) in reasons" :id="reasonId(i)" :key="text">{{ text }}</span>
+    </div>
   </div>
 </template>
 

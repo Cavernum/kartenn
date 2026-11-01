@@ -153,8 +153,21 @@ describe("DataGrid", () => {
   }
   const cell: CellRef = { row: "192.0.2.0/24", column: "label" };
   // Events as the editor reads them (the tests run without a DOM).
-  const key = (k: string, shiftKey = false) =>
-    ({ key: k, shiftKey, defaultPrevented: false, preventDefault() {} }) as KeyboardEvent;
+  const key = (k: string, shiftKey = false, ctrlKey = false) =>
+    ({ key: k, shiftKey, ctrlKey, defaultPrevented: false, preventDefault() {} }) as KeyboardEvent;
+
+  it("editing: Ctrl+Enter commits marked now, an unchanged text still never commits", async () => {
+    const { editing, editor, commits, moves } = editorOf();
+    await editor.start(cell);
+    editor.onKeydown(key("Enter", false, true));
+    expect(commits).toEqual([]);
+    expect(editing.value).toBeUndefined();
+    await editor.start(cell);
+    editor.draft.value = "Serveurs du sud";
+    editor.onKeydown(key("Enter", false, true));
+    expect(commits).toEqual([{ ...cell, value: "Serveurs du sud", now: true }]);
+    expect(moves).toEqual([0, 0]);
+  });
 
   it("editing: an unchanged text never commits; Tab moves on, Escape cancels", async () => {
     const { editing, editor, commits, moves } = editorOf();
