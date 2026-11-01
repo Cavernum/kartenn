@@ -465,6 +465,20 @@ describe("impact on the workspace", () => {
     expect(names("ui/src/components/X/Y.catalogue.ts")).toContain("catalogue:index");
   });
 
+  it("runs nothing for a deleted spec, nor for a reference of one", () => {
+    const deleted = "components/disparu.spec.ts";
+    const result = run(`e2e/${deleted}`, `e2e/components/__screenshots__/disparu.spec.ts/vide.png`);
+    expect(result).toEqual({
+      all: false,
+      reasons: [`${deleted}: deleted, nothing to run`],
+      targets: [],
+    });
+    // Beside a spec that is still there, that one alone.
+    expect(names(`e2e/${deleted}`, "e2e/components/button.spec.ts")).toEqual([
+      "spec:components/button.spec.ts",
+    ]);
+  });
+
   it("reads the catalogue files as catalogue.ts globs them", () => {
     const glob = /import\.meta\.glob<[^>]*>\("([^"]+)"\)/.exec(
       readFileSync(join(WORKSPACE, "ui/src/catalogue.ts"), "utf8"),
