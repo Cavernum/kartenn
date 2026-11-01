@@ -254,7 +254,7 @@ export function sidebarGroups(
   rights: Rights,
   t: (key: string) => string,
   spaces: readonly Space[] = CORE_SPACES,
-  badges: Readonly<Record<string, number>> = {},
+  badges: Readonly<Record<string, number | string>> = {},
 ): SidebarGroup[] {
   return [...spaces]
     .sort((a, b) => SPACE_ORDER.indexOf(a.id) - SPACE_ORDER.indexOf(b.id))
@@ -268,10 +268,18 @@ export function sidebarGroups(
           label: t(entry.label),
           icon: entry.icon,
           to: entry.to,
-          ...((badges[entry.id] ?? 0) > 0 ? { badge: badges[entry.id] } : {}),
+          ...(badges[entry.id] && badges[entry.id] !== "0" ? { badge: badges[entry.id] } : {}),
         })),
     }))
     .filter((group) => group.entries.length > 0);
+}
+
+/**
+ * The counter of a list read by its first page: its rows, or the bound only (« 100+ ») when
+ * a next page exists — never a total that is not one.
+ */
+export function pageCount(rows: number, more: boolean): number | string {
+  return more ? `${rows}+` : rows;
 }
 
 /** The space and the entry of a path: the entry whose `to` is the longest prefix of it. */

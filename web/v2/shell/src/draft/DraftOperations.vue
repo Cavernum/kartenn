@@ -8,7 +8,7 @@
 // (`problems/`), the focus kept in the list.
 import { drafts } from "@kartenn/sdk";
 import { DiffValue, Icon, IconButton, InlineAlert, Skeleton, Stack } from "@kartenn/ui";
-import { computed, nextTick, ref, shallowRef } from "vue";
+import { computed, nextTick, ref, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useChangesetWords } from "../changesets/words.ts";
 import KLink from "../prefetch/KLink.vue";
@@ -17,6 +17,7 @@ import { useTime } from "../time/index.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import type { Refusal } from "../views/edit/inline.ts";
 import { useKeyLabel } from "../views/data.ts";
+import LostSubmissions from "./LostSubmissions.vue";
 import OperationText from "./OperationText.vue";
 import { operationLine } from "./operations.ts";
 import { useDraftQueries } from "./state.ts";
@@ -42,8 +43,29 @@ function removeLabel(index: number): string {
 
 const list = ref<HTMLElement | null>(null);
 const empty = ref<HTMLElement | null>(null);
+const none = ref<HTMLElement | null>(null);
 const refusal = shallowRef<Refusal>();
 const removing = ref<number | null>(null);
+// The refusal of a removal stays said when the draft is gone with it (404), until another
+// draft is shown.
+watch(
+  () => props.id,
+  (id) => {
+    if (id !== null) refusal.value = undefined;
+  },
+);
+/** The draft is no longer the server's (deleted, submitted or taken over elsewhere). */
+const refusedGone = computed(
+  () => refusal.value?.kind === "failed" && refusal.value.problem?.status === 404,
+);
+/** What the refusal of a removal says: nothing typed is kept there. */
+const refusalWords = computed(() =>
+  refusedGone.value
+    ? { title: t("drafts.goneRefused"), note: t("drafts.goneRefusedText") }
+    : refusal.value?.kind === "conflict"
+      ? { title: t("drafts.changed"), note: t("drafts.changedText") }
+      : { note: null },
+);
 /**
  * Removes an operation (`PATCH /v1/drafts/{id}`, the others kept in order, under
  * `If-Match`); the focus goes to the button of the operation that takes its place, else the
@@ -58,6 +80,11 @@ async function remove(index: number): Promise<void> {
   removing.value = null;
   if (outcome.kind !== "saved") {
     refusal.value = outcome;
+    // Gone (404): the tab has no draft now, its button with it; the focus to what says so.
+    if (refusedGone.value) {
+      await nextTick();
+      none.value?.focus();
+    }
     return;
   }
   await nextTick();
@@ -71,8 +98,10 @@ const value = (text: string | null | undefined) =>
 
 <template>
   <Stack gap="3" class="k-draft-ops">
+    <RefusalAlert v-if="refusal" :refusal="refusal" v-bind="refusalWords" />
     <template v-if="props.id === null">
-      <p class="k-draft-ops__muted">{{ t("drafts.none") }}</p>
+      <LostSubmissions />
+      <p ref="none" class="k-draft-ops__muted" tabindex="-1">{{ t("drafts.none") }}</p>
       <p>
         <KLink to="/drafts">{{ t("drafts.page") }}</KLink>
       </p>
@@ -92,7 +121,6 @@ const value = (text: string | null | undefined) =>
       >
         {{ t("drafts.expiresText") }}
       </InlineAlert>
-      <RefusalAlert v-if="refusal" :refusal="refusal" />
       <p v-if="operations.length === 0" ref="empty" class="k-draft-ops__muted" tabindex="-1">
         {{ t("drafts.empty") }}
       </p>

@@ -53,13 +53,13 @@
     },
     "why": {
       "author": "Seul l'auteur retire son changeset.",
-      "notAuthor": "Seul l'auteur retire son changeset.",
       "past": "Hors du présent, rien ne se décide : revenez au présent.",
-      "held": "Une politique retient ce changeset : un autre relecteur doit le valider.",
-      "own": "Vous êtes l'auteur : un autre relecteur doit le valider (changeset.approval.self)."
+      "held": "Une politique d'approbation retient ce changeset : un autre relecteur doit le valider (changeset.approval.self)."
     },
     "copyId": "Copier l'identifiant",
     "copied": "Identifiant copié.",
+    "changed": "Ce changeset a changé depuis votre lecture ; relu",
+    "changedText": "Rien n'est décidé : les actions offertes sont celles de son état actuel.",
     "copyFailed": "Copie refusée par le navigateur : copiez l'identifiant ci-dessous avec Ctrl+C.",
     "reject": "Rejeter",
     "anomalies": "{n} anomalie rattachée | {n} anomalies rattachées",
@@ -85,7 +85,8 @@
     "recordError": "Ce changeset n'a pas pu être lu",
     "actions": "Actions de revue",
     "authorNotice": "Vous êtes l'auteur de ce changeset : un autre relecteur doit le valider.",
-    "authorNoticeText": "Personne ne valide son propre changeset.",
+    "authorNoticeText": "Une politique d'approbation retient ce changeset : son auteur ne l'applique pas lui-même.",
+    "policy": "Politique qui le retient",
     "sections": "Contenu du changeset",
     "diffError": "Le différentiel n'a pas pu être lu",
     "diffNone": "Aucun objet modifié",
@@ -165,6 +166,12 @@
     "deleteTitle": "Supprimer « {title} » ?",
     "deleteText": "Ses opérations sont perdues ; rien n'est appliqué.",
     "deleteConfirm": "Supprimer",
-    "gone": "Le brouillon actif n'existe plus : supprimé, soumis ou repris ailleurs."
+    "gone": "Le brouillon actif n'existe plus : supprimé, soumis ou repris ailleurs.",
+    "lost": "La soumission de « {title} » n'a pas eu de réponse",
+    "lostText": "Le serveur l'a peut-être appliquée, et le brouillon a quitté l'onglet : « Réessayer » la rejoue sous la même clé, le serveur dit ce qu'il a fait.",
+    "goneRefused": "Ce brouillon n'existe plus",
+    "goneRefusedText": "Supprimé, soumis ou repris ailleurs : il quitte cet onglet, qui n'a plus de brouillon actif.",
+    "changed": "Le brouillon a changé depuis votre lecture ; relu",
+    "changedText": "Rien n'est retiré : recommencez si l'opération y est encore."
   }
 }

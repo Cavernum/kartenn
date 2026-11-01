@@ -1,8 +1,12 @@
 // @vitest-environment happy-dom
-import { queryClient } from "@kartenn/sdk";
-import { resetContext, setFetch } from "@kartenn/sdk/host";
+import { draft as pluginDraft, drafts, queryClient } from "@kartenn/sdk";
+import { addToActiveDraft, draftHost, resetContext, setFetch } from "@kartenn/sdk/host";
 import { afterEach, describe, expect, it } from "vitest";
-import { createApp, h, nextTick, type App } from "vue";
+import { createApp, defineComponent, h, nextTick, onScopeDispose, ref, type App } from "vue";
+import DraftOperations from "../src/draft/DraftOperations.vue";
+import { lostSubmissions } from "../src/draft/state.ts";
+import { pageCount } from "../src/frame/spaces.ts";
+import { instantOfDay, listFilterModel } from "../src/views/filters.ts";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
 import {
   countedGroups,
@@ -84,11 +88,33 @@ describe("the review of a changeset", () => {
     ]);
   });
 
-  it("lets its author withdraw only; nothing out of the present; an applied one undone", () => {
-    expect(reviewActions(changeset(), { me: "bob", rights: reviewer, present: true })).toEqual([
-      { id: "validation", reason: "own" },
+  it("lets its author validate under approval.self when no policy holds it (REQ-024-11, 12)", () => {
+    const self = new Rights(["core.prefix.approval.self", "core.vlan.approval.self"]);
+    // All of it under `approval.self`, no policy: the author applies it.
+    const proposal = changeset({ kind: "proposal" });
+    expect(reviewActions(proposal, { me: "bob", rights: self, present: true })).toEqual([
+      { id: "validation" },
       { id: "withdrawal" },
     ]);
+    // A part without `approval.self`: refused, the permission lacking named.
+    const partial = new Rights(["core.prefix.approval.self"]);
+    expect(reviewActions(proposal, { me: "bob", rights: partial, present: true })).toEqual([
+      { id: "validation", forbidden: "core.vlan.approval.self" },
+      { id: "withdrawal" },
+    ]);
+    // Held by a policy: refused whatever the rights, the policy said.
+    for (const policy of [
+      changeset({ kind: "approval" }),
+      changeset({ kind: "proposal", policy: "p1" }),
+    ]) {
+      expect(reviewActions(policy, { me: "bob", rights: self, present: true })).toEqual([
+        { id: "validation", reason: "held" },
+        { id: "withdrawal" },
+      ]);
+    }
+  });
+
+  it("nothing out of the present; an applied one undone; a closed one decided no more", () => {
     expect(
       reviewActions(changeset(), { me: "alice", rights: reviewer, present: false }).every(
         (a) => a.reason === "past",
@@ -201,6 +227,8 @@ describe("the screens of the changesets and the drafts", () => {
     resetContext();
     sessionStorage.clear();
     setFetch(null);
+    for (const lost of lostSubmissions.all()) lostSubmissions.drop(lost.id);
+    draftHost.onAdd(null);
   });
 
   interface Seen {
@@ -210,6 +238,14 @@ describe("the screens of the changesets and the drafts", () => {
     ifMatch: string | null;
     key: string | null;
   }
+  /** The draft tab as the frame fills it: the active draft of the tab, followed. */
+  const PanelHost = defineComponent({
+    setup() {
+      const active = ref(drafts.active());
+      onScopeDispose(drafts.onActive((id) => (active.value = id)));
+      return () => h(DraftOperations, { id: active.value });
+    },
+  });
   type Answer = { status?: number; body: unknown; etag?: string } | "lost";
 
   async function mounted(at: string, permissions: string[], answer: (seen: Seen) => Answer) {
@@ -253,7 +289,11 @@ describe("the screens of the changesets and the drafts", () => {
     );
     const router = createRouter({
       history: createMemoryHistory(),
-      routes: [{ path: "/", component: RouterView, children: frameRoutes }],
+      routes: [
+        // The draft tab of the right panel: the operations of the active draft of the tab.
+        { path: "/panel", component: PanelHost },
+        { path: "/", component: RouterView, children: frameRoutes },
+      ],
     });
     await router.push(at);
     const root = document.createElement("div");
@@ -398,11 +438,8 @@ describe("the screens of the changesets and the drafts", () => {
     expect(patch.body).toEqual({
       reason: { summary: "Maintenance du référentiel", description: null },
     });
-    // The motive saved is a new version: « Réessayer » waits for its simulation.
-    const retry = () => button(root, "Réessayer")!;
-    expect(retry().getAttribute("aria-disabled")).toBe("true");
-    await expect.poll(() => retry().getAttribute("aria-disabled"), { timeout: 3000 }).toBeNull();
-    retry().click();
+    // A replay of what was sent: it waits for no simulation.
+    button(root, "Réessayer")!.click();
     await expect.poll(() => seen.filter((s) => s.url.includes("/submission")).length).toBe(2);
     const [first, again] = seen.filter((s) => s.url.includes("/submission"));
     expect(first!.url).toBe(`/v1/drafts/${D1}/submission?approval=self`);
@@ -458,5 +495,163 @@ describe("the screens of the changesets and the drafts", () => {
     expect(patch.ifMatch).toBe('"1"');
     expect(patch.body).toEqual({ operations: [two[1]] });
     await expect.poll(() => root.querySelectorAll("[data-k-remove]").length).toBe(1);
+  });
+
+  it("a removal refused 404 (deleted elsewhere): said where asked, with its codes; then no draft", async () => {
+    sessionStorage.setItem("kartenn.draft.active", D1);
+    const { root } = await mounted("/panel", ["core.prefix.edit"], (call) => {
+      if (call.url.endsWith("/simulation")) return { body: valid };
+      if (call.method === "PATCH") {
+        return {
+          status: 404,
+          body: { type: "urn:kartenn:problem:not-found", title: "Not Found", status: 404 },
+        };
+      }
+      return { body: draft(OPS), etag: '"1"' };
+    });
+    await expect.poll(() => root.querySelectorAll("[data-k-remove]").length).toBe(1);
+    root.querySelector<HTMLButtonElement>("[data-k-remove]")!.click();
+    await expect.poll(() => root.textContent).toContain("Ce brouillon n'existe plus");
+    expect(root.textContent).toContain("urn:kartenn:problem:not-found");
+    // Nothing typed is kept by a removal: not said.
+    expect(root.textContent).not.toContain("Votre saisie est gardée");
+    expect(root.textContent).toContain("Aucun brouillon actif dans cet onglet");
+    expect(drafts.active()).toBeNull();
+    expect(document.activeElement?.textContent).toContain("Aucun brouillon actif");
+  });
+
+  it("a removal refused 412: the draft read again, its own words, nothing typed kept", async () => {
+    sessionStorage.setItem("kartenn.draft.active", D1);
+    const { root } = await mounted("/panel", ["core.prefix.edit"], (call) => {
+      if (call.url.endsWith("/simulation")) return { body: valid };
+      if (call.method === "PATCH") {
+        return {
+          status: 412,
+          body: { type: "urn:kartenn:problem:precondition-failed", title: "", status: 412 },
+        };
+      }
+      return { body: draft(OPS), etag: '"1"' };
+    });
+    await expect.poll(() => root.querySelectorAll("[data-k-remove]").length).toBe(1);
+    root.querySelector<HTMLButtonElement>("[data-k-remove]")!.click();
+    await expect
+      .poll(() => root.textContent)
+      .toContain("Le brouillon a changé depuis votre lecture ; relu");
+    expect(root.textContent).toContain("Rien n'est retiré");
+    expect(root.textContent).not.toContain("Votre saisie est gardée");
+  });
+
+  it("a decision refused 412: the changeset read again, said so, the actions of its state", async () => {
+    let state = "pending";
+    const { root } = await mounted(
+      `/changesets/${C1}`,
+      ["core.changeset.read", "core.prefix.apply", "core.vlan.apply"],
+      (call) => {
+        if (call.method === "POST") {
+          state = "rejected";
+          return {
+            status: 412,
+            body: { type: "urn:kartenn:problem:precondition-failed", title: "", status: 412 },
+          };
+        }
+        if (call.url === `/v1/changesets/${C1}`) {
+          return { body: changeset({ state }), etag: `"${state}"` };
+        }
+        return { body: { counts: [], items: [], links: {}, sections: [] } };
+      },
+    );
+    await expect.poll(() => button(root, "Valider")).toBeDefined();
+    button(root, "Valider")!.click();
+    await expect
+      .poll(() => root.textContent)
+      .toContain("Ce changeset a changé depuis votre lecture ; relu");
+    expect(root.textContent).toContain("les actions offertes sont celles de son état actuel");
+    // Rejected meanwhile: nothing more to decide.
+    await expect.poll(() => button(root, "Valider")).toBeUndefined();
+  });
+
+  it("a lost answer keeps its key past the foot, the draft gone: « Réessayer » replays it", async () => {
+    let submissions = 0;
+    const { seen, root, router } = await mounted(
+      `/drafts/${D1}`,
+      ["core.prefix.edit", "core.prefix.approval.self"],
+      (call) => {
+        if (call.url.endsWith("/simulation")) return { body: valid };
+        if (call.url.includes("/submission")) {
+          submissions += 1;
+          if (submissions === 1) return "lost";
+          return {
+            status: 201,
+            body: {
+              changeset: { id: C1, href: "h" },
+              state: "applied",
+              warnings: [],
+              diff: [],
+              cascaded: [],
+            },
+          };
+        }
+        if (call.method === "PATCH") {
+          return { body: draft(OPS, 2, (call.body as { reason: object }).reason), etag: '"2"' };
+        }
+        return { body: draft(OPS), etag: '"1"' };
+      },
+    );
+    await expect
+      .poll(() => main(root)?.getAttribute("aria-disabled"), { timeout: 3000 })
+      .toBeNull();
+    main(root).click();
+    await expect.poll(() => button(root, "Réessayer")).toBeDefined();
+    // The draft leaves the tab (applied by the server, its event come first): the foot goes.
+    drafts.setActive(null);
+    await router.push("/panel");
+    await expect.poll(() => root.textContent).toContain("n'a pas eu de réponse");
+    button(root, "Réessayer")!.click();
+    await expect.poll(() => submissions).toBe(2);
+    const [first, again] = seen.filter((s) => s.url.includes("/submission"));
+    expect(again!.key).toBe(first!.key);
+    expect(again!.url).toBe(first!.url);
+    await expect.poll(() => lostSubmissions.all().length).toBe(0);
+  });
+
+  it("a plugin's draft.add opens the draft; the shell's own additions do not", async () => {
+    await mounted("/panel", ["core.prefix.edit"], (call) =>
+      call.method === "POST"
+        ? { status: 201, body: draft(OPS), etag: '"1"' }
+        : { body: draft(OPS), etag: '"1"' },
+    );
+    let opened = 0;
+    draftHost.onAdd(() => (opened += 1));
+    await addToActiveDraft(OPS as never);
+    expect(opened).toBe(0);
+    await pluginDraft.add(OPS[0] as never);
+    expect(opened).toBe(1);
+  });
+});
+
+describe("the counters and the filters of the changesets", () => {
+  it("says a bound, not a total, when a next page exists", () => {
+    expect(pageCount(3, false)).toBe(3);
+    expect(pageCount(100, true)).toBe("100+");
+  });
+
+  it("types the submission dates as days, sent as the instants that bound them", () => {
+    const words = {
+      field: () => undefined,
+      value: () => undefined,
+      property: () => undefined,
+      propertyValue: () => undefined,
+    };
+    const model = listFilterModel("/v1/changesets", [], words);
+    expect(model.find((p) => p.key === "from")?.type).toBe("date");
+    expect(model.find((p) => p.key === "to")?.type).toBe("date");
+    expect(model.find((p) => p.key === "state")?.type).toBe("enum");
+    const start = new Date(instantOfDay("2026-11-01", "start"));
+    const end = new Date(instantOfDay("2026-11-01", "end"));
+    expect([start.getFullYear(), start.getMonth(), start.getDate(), start.getHours()]).toEqual([
+      2026, 10, 1, 0,
+    ]);
+    expect([end.getDate(), end.getHours(), end.getMinutes()]).toEqual([1, 23, 59]);
+    expect(instantOfDay("2026-11-01", "start")).toMatch(/Z$/);
   });
 });

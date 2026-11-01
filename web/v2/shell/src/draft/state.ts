@@ -1,6 +1,12 @@
-import { drafts, type Draft, type Simulated, type Violation } from "@kartenn/sdk";
+import {
+  drafts,
+  type Draft,
+  type DraftSubmitOutcome,
+  type Simulated,
+  type Violation,
+} from "@kartenn/sdk";
 import type { SplitAction } from "@kartenn/ui";
-import { computed, toValue, type MaybeRefOrGetter } from "vue";
+import { computed, shallowReactive, toValue, type MaybeRefOrGetter } from "vue";
 import { lacking } from "../changesets/model.ts";
 import { useQuery } from "../data/query.ts";
 import { useSession } from "../rights/index.ts";
@@ -15,6 +21,45 @@ import { useTime } from "../time/index.ts";
 // stays, disabled, with its reason or its permission (REQ-021-37).
 
 export type DraftAction = "apply" | "review" | "save";
+
+/**
+ * A submission that got no answer (REQ-006-15): its key, kept for the page's life beyond
+ * the foot that sent it — the draft may leave the tab meanwhile (the server applied it and
+ * deleted it, its event `draft` come first) — so that « Réessayer » replays it, the same
+ * URL, the same key, and the server answers what it did.
+ */
+export interface LostSubmission {
+  id: string;
+  key: string;
+  approvalSelf: boolean;
+  title: string;
+}
+const lost = shallowReactive(new Map<string, LostSubmission>());
+export const lostSubmissions = {
+  get: (id: string): LostSubmission | undefined => lost.get(id),
+  keep: (submission: LostSubmission): void => void lost.set(submission.id, submission),
+  drop: (id: string): void => void lost.delete(id),
+  all: (): LostSubmission[] => [...lost.values()],
+};
+
+/**
+ * Sends a submission, or replays the one that got no answer under its key: kept lost
+ * again without an answer, forgotten on any answer.
+ */
+export async function submitDraft(
+  id: string,
+  approvalSelf: boolean,
+  title: string,
+): Promise<DraftSubmitOutcome> {
+  const replay = lostSubmissions.get(id);
+  const key = replay?.key ?? crypto.randomUUID();
+  const self = replay?.approvalSelf ?? approvalSelf;
+  const outcome = await drafts.submit(id, { approvalSelf: self, idempotencyKey: key });
+  if (outcome.kind === "failed" && outcome.problem === null) {
+    lostSubmissions.keep({ id, key, approvalSelf: self, title: replay?.title ?? title });
+  } else lostSubmissions.drop(id);
+  return outcome;
+}
 
 export function useDraftQueries(id: MaybeRefOrGetter<string | null>) {
   const session = useSession();

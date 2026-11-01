@@ -9,9 +9,9 @@
 // names the permission. Ctrl+Enter runs the chosen action. Answers as in place: 202 held
 // (never « appliqué »), 412 the input kept beside the values read again, 422 the
 // violations on their fields with their codes, 403 a refusal.
+import { addToActiveDraft } from "@kartenn/sdk/host";
 import {
   changesets,
-  draft,
   keys,
   reads,
   write,
@@ -327,7 +327,7 @@ async function run(id: string = action.value): Promise<void> {
     const op = creating.value
       ? edit.create(values.value)
       : edit.update(objectId.value!, version.value, changes);
-    const outcome = await draft.add(op);
+    const outcome = await addToActiveDraft([op]);
     settle(outcome as WriteOutcome<unknown> | { kind: "saved" }, what);
     return;
   }

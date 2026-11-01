@@ -13,7 +13,6 @@ import {
   EmptyState,
   Menu,
   StatusBadge,
-  copyText,
   injectToasts,
   type CellRef,
   type GridColumn,
@@ -24,6 +23,7 @@ import {
 import { computed, nextTick, onScopeDispose, ref, shallowRef, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
+import { useCopyId } from "../changesets/copy.ts";
 import { useChangesetWords } from "../changesets/words.ts";
 import { useQuery } from "../data/query.ts";
 import KLink from "../prefetch/KLink.vue";
@@ -40,6 +40,7 @@ const router = useRouter();
 const time = useTime();
 const words = useChangesetWords();
 const toasts = injectToasts();
+const copyId = useCopyId();
 
 const list = useQuery(() => drafts.list());
 /** At most 50, all read: sorted here, the most recently modified first by default. */
@@ -119,14 +120,8 @@ async function onMenu(row: Row, id: string): Promise<void> {
   if (id === "resume" && row.id !== active.value) {
     drafts.setActive(row.id);
     toasts?.show({ tone: "ok", title: t("drafts.resumed", { title: row.title }) });
-  } else if (id === "copy") {
-    const outcome = await copyText(row.id);
-    toasts?.show(
-      outcome === "copied"
-        ? { tone: "ok", title: t("changesets.copied") }
-        : { tone: "warn", title: t("changesets.copyFailed"), code: row.id },
-    );
-  } else if (id === "delete" && writable.value) {
+  } else if (id === "copy") await copyId(row.id);
+  else if (id === "delete" && writable.value) {
     deleting.value = row;
     confirmOpen.value = true;
   }

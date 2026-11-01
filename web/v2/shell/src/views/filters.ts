@@ -100,6 +100,20 @@ const PROPERTY_KEYS: Readonly<Record<string, string>> = { "/v1/property-gaps": "
 const CLOSED: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>> = {
   "/v1/changesets": { state: STATES },
 };
+/**
+ * The parameters that are instants though typed as days in the bar (`date`, AAAA-MM-JJ):
+ * sent as the first instant of the day (`start`) or its last (`end`), in the browser's
+ * zone, RFC 3339.
+ */
+const INSTANTS: Readonly<Record<string, Readonly<Record<string, "start" | "end">>>> = {
+  "/v1/changesets": { from: "start", to: "end" },
+};
+
+/** A day of the bar (AAAA-MM-JJ) as the instant a list takes (RFC 3339, UTC). */
+export function instantOfDay(day: string, bound: "start" | "end"): string {
+  const local = new Date(`${day}T${bound === "start" ? "00:00:00.000" : "23:59:59.999"}`);
+  return Number.isNaN(local.getTime()) ? day : local.toISOString();
+}
 /** The parameters a list keeps out of its bar: `q` is the search of the palette. */
 const LEFT_OUT = new Set(["q"]);
 /** The declared types whose values the model types (003, `TypeSpec::id`). */
@@ -250,6 +264,7 @@ export function listFilterModel(
         property.params = { within: "within" };
       }
     } else if (field.name === "within") property.type = "prefix";
+    else if (INSTANTS[path]?.[field.name]) property.type = "date";
     else if (BY_ID[path]?.[field.name]) {
       property.type = "enum";
       property.suggest = referenceSuggest(BY_ID[path][field.name] as ListPath, read, names);
@@ -333,5 +348,10 @@ export function sentFilters(
   declarations: readonly Declaration[],
 ): Filters {
   const accepted = filters.filter((filter) => !filter.draft && !checkFilter(model, filter));
-  return parseFilters(filterModel(path, declarations), filtersToParams(model, accepted)).filters;
+  const params = filtersToParams(model, accepted);
+  for (const [name, bound] of Object.entries(INSTANTS[path] ?? {})) {
+    const day = params.get(name);
+    if (day !== null) params.set(name, instantOfDay(day, bound));
+  }
+  return parseFilters(filterModel(path, declarations), params).filters;
 }

@@ -33,7 +33,7 @@
 //
 // Left to the next tasks: the other counters of the sidebar (anomalies, inference).
 import { drafts as draftStore, reads, type DraftList } from "@kartenn/sdk";
-import { commandRegistry, setDraftTitle, shortcutRegistry } from "@kartenn/sdk/host";
+import { commandRegistry, draftHost, setDraftTitle, shortcutRegistry } from "@kartenn/sdk/host";
 import {
   Breadcrumb,
   CommandPalette,
@@ -108,7 +108,7 @@ import { runnable } from "../shortcuts/view.ts";
 import { closeEditWithPage, editRequest } from "../views/edit/panel.ts";
 import { crumbsOf } from "./breadcrumb.ts";
 import { keepPanel, readPanel, useSettings, THEMES, DENSITIES } from "./settings.ts";
-import { EDITS, locate, sidebarGroups, SPACE_ORDER } from "./spaces.ts";
+import { EDITS, locate, pageCount, sidebarGroups, SPACE_ORDER } from "./spaces.ts";
 
 provideLink(KLink);
 providePortalTarget("#k-layers");
@@ -137,9 +137,10 @@ const proposals = useInfiniteQuery(() => ({
   ...reads.list("/v1/proposals"),
   enabled: session.value.me !== null && session.value.rights.has("core.changeset.read"),
 }));
-const badges = computed(() => ({
-  proposals: proposals.data.value?.pages[0]?.data.items.length ?? 0,
-}));
+const badges = computed(() => {
+  const first = proposals.data.value?.pages[0]?.data;
+  return { proposals: pageCount(first?.items.length ?? 0, !!first?.links?.next) };
+});
 const groups = computed(() => sidebarGroups(session.value.rights, t, spaces.value, badges.value));
 const located = computed(() => locate(route.path, spaces.value));
 /** Every space but the current one starts closed: the sidebar stays short. */
@@ -269,10 +270,19 @@ const stamp = computed(
   () => new Intl.DateTimeFormat(i18n.locale.value, { dateStyle: "short", timeStyle: "short" }),
 );
 setDraftTitle(() => t("drafts.newTitle", { when: stamp.value.format(new Date()) }));
-onBeforeUnmount(() => setDraftTitle(null));
+// A plugin's `draft.add` opens the draft, as its contract promises (the shell's own edits
+// go through `addToActiveDraft` and say themselves where they were made).
+draftHost.onAdd(() => openDraft());
+onBeforeUnmount(() => {
+  setDraftTitle(null);
+  draftHost.onAdd(null);
+});
 onBeforeUnmount(
   draftStore.onGone((gone) => {
-    if (gone.active) toasts.show({ tone: "info", title: t("drafts.gone") });
+    // A write refused 404 says it where it was asked (its codes there); the stream, here.
+    if (gone.active && gone.cause === "event") {
+      toasts.show({ tone: "info", title: t("drafts.gone") });
+    }
   }),
 );
 

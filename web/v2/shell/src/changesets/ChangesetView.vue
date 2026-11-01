@@ -25,7 +25,6 @@ import {
   Tabs,
   TextField,
   Toolbar,
-  copyText,
   injectToasts,
   type MenuItem,
   type TabItem,
@@ -53,12 +52,14 @@ import ViewPanel from "../views/parts/ViewPanel.vue";
 import {
   countedGroups,
   diffGroups,
+  held,
   reviewActions,
   stateBadge,
   type Changeset,
   type DiffEntry,
   type ReviewAction,
 } from "./model.ts";
+import { useCopyId } from "./copy.ts";
 import { useChangesetWords } from "./words.ts";
 
 const props = defineProps<{ id: string }>();
@@ -188,6 +189,16 @@ function settle(outcome: DecisionOutcome, action: Decision): boolean {
   return false;
 }
 
+/**
+ * What a refused decision says: nothing typed is kept; a 412, that the changeset was
+ * decided or changed meanwhile and read again — the bar offers what its state allows now.
+ */
+const refusalWords = computed(() =>
+  refusal.value?.kind === "conflict"
+    ? { title: t("changesets.changed"), note: t("changesets.changedText") }
+    : { note: null },
+);
+
 /** The bar of the record: the state, then the review actions. */
 const bar = ref<HTMLElement | null>(null);
 /**
@@ -220,14 +231,7 @@ async function decide(action: Decision, options: { motive?: string } = {}): Prom
 }
 
 /** The identifier copied, said; refused by the browser, how to copy it by hand. */
-async function copyId(): Promise<void> {
-  const outcome = await copyText(props.id);
-  toasts?.show(
-    outcome === "copied"
-      ? { tone: "ok", title: t("changesets.copied") }
-      : { tone: "warn", title: t("changesets.copyFailed"), code: props.id },
-  );
-}
+const copyId = useCopyId();
 
 // The rejection asks for its motive in a dialog (maquette E4, vue « rejet »); the undo is
 // confirmed (it writes a new changeset).
@@ -250,7 +254,7 @@ async function onAction(id: string): Promise<void> {
     return;
   }
   if (id === "copy") {
-    await copyId();
+    await copyId(props.id);
     return;
   }
   acting.value = placed(pluginActions.value, id) ?? null;
@@ -429,12 +433,18 @@ const counted = computed(() =>
     </template>
     <Skeleton v-if="record.isPending.value" variant="rows" :rows="6" />
     <template v-else-if="changeset">
-      <RefusalAlert v-if="refusal && !rejecting" :refusal="refusal" />
+      <RefusalAlert v-if="refusal && !rejecting" :refusal="refusal" v-bind="refusalWords" />
+      <!-- Held by a policy, its author does not apply it (REQ-024-12): said once, here. -->
       <InlineAlert
-        v-if="author && changeset.state === 'pending'"
+        v-if="author && changeset.state === 'pending' && held(changeset)"
         tone="info"
         :title="t('changesets.authorNotice')"
-        :items="[{ message: t('changesets.authorNoticeText'), code: 'changeset.approval.self' }]"
+        :items="[
+          { message: t('changesets.authorNoticeText'), code: 'changeset.approval.self' },
+          ...(changeset.policy
+            ? [{ message: t('changesets.policy'), code: changeset.policy }]
+            : []),
+        ]"
       />
       <Grid columns="auto" gap="3" class="k-attrs-tiles">
         <AttributeList :items="attributes.who">

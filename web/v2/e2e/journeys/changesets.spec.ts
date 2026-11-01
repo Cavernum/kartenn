@@ -10,8 +10,8 @@ import {
 
 // The changesets and their review in the new shell (spec 021, task 14; REQ-021-10, 37;
 // maquette E4), rewritten from web/e2e/journeys/changesets.spec.ts: a proposal of Carol
-// (an editor without `approval.self`) is pending; she reads it among hers, why another must
-// validate it, « Valider » refused with its reason, « Retirer » offered; Alice finds it in
+// (an editor without `approval.self`) is pending; she reads it among hers, « Valider »
+// refused with the permission she lacks (REQ-024-11), « Retirer » offered; Alice finds it in
 // « À instruire », counted in the sidebar, validates it, then undoes it — a new changeset;
 // another proposal rejected with its motive, asked in a dialog. Each test writes in a
 // domain of its own (RFC 5737, TEST-NET-2).
@@ -55,7 +55,7 @@ test("a proposal of Carol, validated by Alice from « À instruire », then undo
   const motive = `proposition ${browserName} ${Date.now()}`;
   const { carol, context, id } = await propose(browser, slug, "198.51.100.20", motive);
   try {
-    // Carol reads hers: pending, why another must validate it, « Retirer » offered.
+    // Carol reads hers: pending, the permission she lacks to apply it, « Retirer » offered.
     await carol.goto("/changesets");
     await carol.getByRole("button", { name: "Mes changesets" }).click();
     await expect(carol).toHaveURL(/author=/);
@@ -67,10 +67,9 @@ test("a proposal of Carol, validated by Alice from « À instruire », then undo
     await row.getByRole("link", { name: motive }).click();
     await expect(carol).toHaveURL(new RegExp(`/changesets/${id}$`));
     await expect(state(carol, "En attente")).toBeVisible();
-    await expect(carol.getByText(/un autre relecteur doit le valider/).first()).toBeVisible();
     const validate = actions(carol).getByRole("button", { name: /^Valider/ });
     await expect(validate).toHaveAttribute("aria-disabled", "true");
-    await expect(validate).toHaveAccessibleDescription(/Vous êtes l'auteur/);
+    await expect(validate).toHaveAccessibleDescription(/Il faut core\.address\.approval\.self/);
     await expect(actions(carol).getByRole("button", { name: "Retirer" })).not.toHaveAttribute(
       "aria-disabled",
     );

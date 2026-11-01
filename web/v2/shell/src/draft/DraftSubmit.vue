@@ -25,7 +25,7 @@ import { useProblems } from "../problems/index.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import type { Refusal } from "../views/edit/inline.ts";
 import { useSay } from "../views/edit/say.ts";
-import { useDraftQueries, type DraftAction } from "./state.ts";
+import { lostSubmissions, submitDraft, useDraftQueries, type DraftAction } from "./state.ts";
 
 const props = defineProps<{ id: string | null }>();
 const { t } = useI18n();
@@ -79,14 +79,9 @@ watch(
 
 const busy = ref(false);
 const refusal = shallowRef<Refusal>();
-/** The key of the submission in flight, kept until an answer (REQ-006-15). */
-let key: string | null = null;
 watch(
   () => props.id,
-  () => {
-    refusal.value = undefined;
-    key = null;
-  },
+  () => (refusal.value = undefined),
 );
 
 const reasonChanged = () =>
@@ -123,14 +118,21 @@ async function run(): Promise<void> {
       toasts?.show({ tone: "ok", title: t("drafts.saved", { title: draft.value?.title ?? "" }) });
       return;
     }
-    key ??= crypto.randomUUID();
-    const outcome = await drafts.submit(id, {
-      approvalSelf: action.id === "apply",
-      idempotencyKey: key,
-    });
-    // Any answer ends the key; a request that got none keeps it for a retry.
-    if (!(outcome.kind === "failed" && outcome.problem === null)) key = null;
-    settle(outcome);
+    settle(await submitDraft(id, action.id === "apply", draft.value?.title ?? ""));
+  } finally {
+    busy.value = false;
+  }
+}
+
+/** The submission that got no answer, if one: « Réessayer » replays it as it was. */
+const lostOne = computed(() => (props.id ? lostSubmissions.get(props.id) : undefined));
+async function retry(): Promise<void> {
+  const replay = lostOne.value;
+  if (!replay || busy.value) return;
+  busy.value = true;
+  refusal.value = undefined;
+  try {
+    settle(await submitDraft(replay.id, replay.approvalSelf, replay.title));
   } finally {
     busy.value = false;
   }
@@ -143,13 +145,6 @@ function onRun(id: string): void {
   if (chosen.value === "save" || summary.value.trim() !== "") void run();
   else form.value?.submit();
 }
-
-/** Why the chosen action cannot run now, for « Réessayer » which runs it again. */
-const blockedNow = computed(() => {
-  const action = choices.value.find((a) => a.id === chosen.value);
-  if (!action?.disabled) return {};
-  return action.forbidden ? { forbidden: action.forbidden } : { reason: action.reason ?? "" };
-});
 
 const failedSimulation = computed(() =>
   simulation.isError.value ? lines(simulation.error.value) : [],
@@ -199,15 +194,9 @@ const failedSimulation = computed(() =>
         @submit="run"
       />
       <Cluster justify="end" gap="2">
-        <Button
-          v-if="refusal?.kind === 'failed' && refusal.problem === null"
-          variant="ghost"
-          icon="refresh-cw"
-          :loading="busy"
-          v-bind="blockedNow"
-          @click="run"
-          >{{ t("views.retry") }}</Button
-        >
+        <Button v-if="lostOne" variant="ghost" icon="refresh-cw" :loading="busy" @click="retry">{{
+          t("views.retry")
+        }}</Button>
         <SplitButton
           :action="chosen"
           :actions="choices"

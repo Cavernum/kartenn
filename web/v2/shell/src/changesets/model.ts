@@ -100,7 +100,17 @@ export interface ReviewAction {
   /** The permission lacking (REQ-021-37), named as served. */
   forbidden?: string;
   /** Why it is refused otherwise: its key in the catalogs. */
-  reason?: "author" | "notAuthor" | "past" | "held" | "own";
+  reason?: "author" | "past" | "held";
+}
+
+/**
+ * Whether a policy holds a pending changeset (`kind = approval`, its `policy`): its author
+ * may not apply it, whatever their rights (spec 024, REQ-024-12; `self_applicable` of
+ * `kartenn-service/src/review.rs`). A review a module requires is not served: the server
+ * alone refuses it then.
+ */
+export function held(changeset: Pick<Changeset, "kind" | "policy">): boolean {
+  return changeset.kind === "approval" || !!changeset.policy;
 }
 
 export interface ReviewContext {
@@ -112,26 +122,27 @@ export interface ReviewContext {
 }
 
 /**
- * The review actions of a changeset for its reader (REQ-021-10, maquette E4): pending, its
- * validation and its rejection (not by its author, who sees the validation refused,
- * `changeset.approval.self`; with
- * `<type>.apply` on what it writes) and its withdrawal (by its author only); applied, its
- * undo (`<type>.edit`). Every action refused stays, with its permission or its reason.
+ * The review actions of a changeset for its reader (REQ-021-10, maquette E4; spec 024,
+ * REQ-024-11, 12): pending, its validation — by someone else with `<type>.apply` on what it
+ * writes; by its author with `<type>.approval.self` on all of it when no policy holds it
+ * (else refused, `held`) — its rejection (by someone else) and its withdrawal (by its
+ * author only); applied, its undo (`<type>.edit`). Every action refused stays, with the
+ * permission lacking or its reason (REQ-021-37).
  */
 export function reviewActions(changeset: Changeset, context: ReviewContext): ReviewAction[] {
   const { me, rights, present } = context;
   const author = me !== null && changeset.author === me;
   const past = present ? {} : { reason: "past" as const };
   if (changeset.state === "pending") {
-    const apply = lacking(rights, changeset.operations, "apply");
+    const lack = lacking(rights, changeset.operations, author ? "approval.self" : "apply");
     const decide = !present
       ? past
-      : author
-        ? { reason: "own" as const }
-        : apply
-          ? { forbidden: apply }
+      : author && held(changeset)
+        ? { reason: "held" as const }
+        : lack
+          ? { forbidden: lack }
           : {};
-    // Its author: « Valider » refused with its reason, no « Rejeter », « Retirer » (E4).
+    // Its author: « Valider » (or its refusal), no « Rejeter », « Retirer » (E4).
     return [
       { id: "validation", ...decide },
       ...(author ? [] : [{ id: "rejection" as const, ...decide }]),
