@@ -75,6 +75,11 @@ export interface GridCommit {
   row: string;
   column: string;
   value: string;
+  /**
+   * Committed by Ctrl+Enter (⌘+Enter): the user asks to apply the text now rather than to
+   * add it to the draft (spec 021, REQ-021-15); the host decides what that means.
+   */
+  now?: boolean;
 }
 
 /**

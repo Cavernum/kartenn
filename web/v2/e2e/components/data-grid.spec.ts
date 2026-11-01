@@ -224,6 +224,36 @@ test.describe("DataGrid (APG Grid)", () => {
     );
   });
 
+  test("editing: Ctrl+Enter commits marked « apply now », the focus back on the cell", async ({
+    page,
+  }) => {
+    await openState(page, "DataGrid", "keyboard");
+    const grid = page.getByRole("grid");
+    await tabIn(page);
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowRight");
+    const cell = grid.locator(`[data-row="${first}"][data-column="label"]`);
+    await page.keyboard.press("Enter");
+    await page.keyboard.type(" sud");
+    await page.keyboard.press("Control+Enter");
+    await expect(cell).toBeFocused();
+    await expect(page.locator("[data-demo='commit']")).toHaveText(
+      /^label de .+ \(appliquer maintenant\)$/,
+    );
+    // A cell without an editor says why, as its description (`readonlyReason`).
+    await page.keyboard.press("ArrowRight");
+    const env = grid.locator(`[data-row="${first}"][data-column="env"]`);
+    await expect(env).toBeFocused();
+    await expect(env).toHaveAttribute("aria-readonly", "true");
+    await expect(env).toHaveAccessibleDescription("L'environnement vient du site du préfixe.");
+    // Under the pointer too, in a tooltip; Escape closes it.
+    await env.hover();
+    const tip = page.locator(".k-tooltip").filter({ hasText: "vient du site du préfixe" });
+    await expect(tip).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(tip).toBeHidden();
+  });
+
   test("leaving the editor: unchanged, no commit; another window, still open; elsewhere, committed", async ({
     page,
   }) => {

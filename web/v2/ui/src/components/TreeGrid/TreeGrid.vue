@@ -18,7 +18,8 @@
 // goes to the parent. On another cell, the arrows move by one cell (Left from the first
 // one back to the node cell), Home and End to the ends of the row, Ctrl+Home and Ctrl+End
 // to the first and last rows (APG Treegrid). Space selects the row. Enter or F2 edits an
-// editable cell (`editable`; Escape cancels, Enter or Tab commits), else moves into the
+// editable cell (`editable`; Escape cancels, Enter or Tab commits, Ctrl+Enter commits
+// marked `now`), else moves into the
 // « + » of the node (Escape or F2 back), else Enter activates the row (`activate`).
 // Direct addition (024/M10): the « + » of a node (`addLabel`) emits `add`.
 // Moves (`parentMode`): `derived`, none; `declared`, drag and drop, Ctrl+X then Ctrl+V,

@@ -114,6 +114,21 @@ test.describe("TreeGrid (APG Treegrid)", () => {
     expect(await focusedCell(page)).toBe("p5|used");
   });
 
+  test("editing: Ctrl+Enter commits marked « apply now », the focus back on the cell", async ({
+    page,
+  }) => {
+    await openState(page, "TreeGrid", "keyboard");
+    const tree = page.getByRole("treegrid", { name: "Entités" });
+    await tabIn(page, 2);
+    expect(await focusedCell(page)).toBe("n12|");
+    const label = tree.locator('[data-row="n12"][data-column=""]');
+    await page.keyboard.press("F2");
+    await page.keyboard.type(" sud");
+    await page.keyboard.press("Control+Enter");
+    await expect(label).toBeFocused();
+    await expect(page.locator("[data-demo='commit']")).toHaveText(/sud \(appliquer maintenant\)$/);
+  });
+
   test("editing: Enter or F2 opens, Escape cancels, Enter or Tab commits; the host's states", async ({
     page,
   }) => {

@@ -160,7 +160,7 @@ const keyboard = defineComponent({
       );
       const key = `${commit.row}:${commit.column}`;
       states.value = { ...states.value, [key]: "pending" };
-      last.value = `${commit.column} de ${commit.row} : ${commit.value}`;
+      last.value = `${commit.column} de ${commit.row} : ${commit.value}${commit.now ? " (appliquer maintenant)" : ""}`;
       setTimeout(() => {
         states.value = {
           ...states.value,
@@ -190,6 +190,8 @@ const keyboard = defineComponent({
           columnWidths: widths.value,
           "onUpdate:columnWidths": (next: ColumnWidths) => (widths.value = next),
           editable: (_: Row, column: GridColumn) => column.id === "label" || column.id === "owner",
+          readonlyReason: (_: Row, column: GridColumn) =>
+            column.id === "env" ? "L'environnement vient du site du préfixe." : undefined,
           validate: (_: Row, column: GridColumn, value: string) =>
             column.id === "label" && value.trim() === ""
               ? "Le libellé est obligatoire."

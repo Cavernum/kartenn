@@ -12,13 +12,35 @@ export { expectAccessible } from "./index.ts";
 export const USERS = {
   alice: "Alice Exemple",
   bob: "Bob Exemple",
+  carol: "Carol Exemple",
 } as const;
 
 /** Roles bound to the groups of users.toml, on the whole organisation (global-setup.ts). */
 export const GROUPS: Record<string, readonly string[]> = {
   "kartenn-admins": ["administrator"],
   lecteurs: ["reader"],
+  redacteurs: ["redacteur"],
 };
+
+/**
+ * A role of the journeys (global-setup.ts): the reads and the edition of the referential,
+ * without `approval.self` — what Carol may propose, never apply herself (REQ-021-37).
+ */
+export const EDITOR_WITHOUT_APPLY = {
+  key: "redacteur",
+  labels: { fr: "Rédacteur sans application" },
+  entries: [
+    "core.entity.read",
+    "core.site.read",
+    "core.domain.read",
+    "core.prefix.read",
+    "core.range.read",
+    "core.address.read",
+    "core.prefix.edit",
+    "core.range.edit",
+    "core.address.edit",
+  ],
+} as const;
 
 /**
  * The objects of the referential the journeys read (global-setup.ts), in documentation
