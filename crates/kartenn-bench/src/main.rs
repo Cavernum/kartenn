@@ -481,6 +481,12 @@ fn affected() -> anyhow::Result<()> {
     if affected.runs.is_empty() {
         eprintln!("aucune mesure de kartenn-bench touchée");
     }
+    if affected.config {
+        eprintln!(
+            "avertissement : {}",
+            kartenn_bench::affected::CONFIG_WARNING
+        );
+    }
     for script in &affected.proposed {
         eprintln!(
             "à proposer : {script} (banc hors kartenn-bench, que bench-affected ne lance pas)"

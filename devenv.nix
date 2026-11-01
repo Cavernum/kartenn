@@ -991,9 +991,10 @@ in {
   # The change: `git diff --name-only <base>...HEAD`, plus the modified and untracked
   # files of the tree. The base is origin/main by default: the local main of a worktree is
   # often stale (`git fetch origin` first). `--list` prints the selection and runs
-  # nothing. The table (kartenn-bench, `affected`) names the measures of each path; a path
-  # of code no measure lists runs every bench that exercises its crate; a diff of web/v2/,
-  # web/ or clients/python/ proposes bench-ui, bench-web or bench-cli, not run.
+  # nothing. In doubt it runs more (kartenn-bench, `affected`): a path in the fingerprint
+  # of a bench runs it whole, otherwise the measures whose paths cover it; devenv.nix and
+  # devenv.lock run nothing but call for a full run; a diff of web/v2/, web/ or
+  # clients/python/ proposes bench-ui, bench-web or bench-cli, not run.
   scripts.bench-affected = {
     description = "Run at the reduced scale the bench measures a change touches";
     exec = ''

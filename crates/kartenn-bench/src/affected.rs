@@ -1,29 +1,26 @@
 //! The measures a change touches (ADR 0041, decision 3; task 028-4).
 //!
-//! [`PATHS`] associates each measure of the catalogues with the paths of the repository
-//! it exercises: the file of `kartenn-bench` that times it, and the files of the workspace
-//! crates that do the work it times (a directory ends with `/`). Only the files proper to
-//! a few measures are listed; the plumbing every write or read goes through (the
-//! pipeline, the writing of a changeset, the models, the modules) is not, nor are the
-//! migrations, which every preparation runs.
+//! In doubt, a change runs more, never less. [`PATHS`] associates each measure of the
+//! catalogues with the paths it exercises outside the fingerprint of its bench: the
+//! modules of `kartenn-bench` its code goes through, from the file that times it, and the
+//! workspace crates they name, whole (`crates/<crate>/`), with their own workspace
+//! dependencies. No single file of another crate is listed: the plumbing of a crate (its
+//! pipeline, its models, its router) is reached by every measure that goes through the
+//! crate. A test derives the table again from the sources and checks it is the same.
 //!
-//! A changed path ([`touched`]):
-//! - listed for some measures: those measures;
-//! - a source of the preparation of a bench ([`template::sources`]): that whole bench,
-//!   whose template it makes again;
-//! - any other code (`src/`, `migrations/`, `Cargo.toml`, `build.rs`) of a crate a bench
-//!   exercises ([`exercised`]): every bench that exercises it, whole;
-//! - `Cargo.lock` or the manifest of the workspace: every bench, whole;
-//! - under `web/v2/`, `web/` or `clients/python/`: the bench script outside
-//!   `kartenn-bench` it concerns, proposed, not run ([`PROPOSED`]);
-//! - anything else (documentation, specs, tests, crates no bench exercises): nothing.
+//! For a changed path ([`touched`]), each bench runs:
+//! - whole, when the path is in its fingerprint (ADR 0041, decision 2: the sources of its
+//!   preparation, the crates its preparation goes through, every migration, `Cargo.lock`),
+//!   since its template is made again;
+//! - otherwise the measures whose paths cover it (whole when all of them do);
+//! - otherwise nothing.
 //!
-//! The crates a bench exercises are those its preparation goes through
-//! ([`template::crates`], the list of its fingerprint) and those of the paths of its
-//! measures, with their workspace dependencies ([`template::crate_hashes`]), and
-//! `kartenn-bench` itself. The tests check that every measure has its paths, that every
-//! path exists, and that the paths and the crates of a bench agree with the crates its
-//! code names.
+//! A path in no fingerprint nor in the table: the crate root, the manifest and the build
+//! script of `kartenn-bench` and the manifest of the workspace run every bench; the
+//! configuration of the benches (`devenv.nix`, `devenv.lock`) runs nothing but calls for a
+//! full run; under `web/v2/`, `web/` or `clients/python/`, the bench script outside
+//! `kartenn-bench` it concerns is proposed, not run ([`PROPOSED`]); anything else
+//! (documentation, specs, tests, crates no bench exercises) runs nothing.
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -42,9 +39,25 @@ const UNMEASURED: &[&str] = &[
     "crates/kartenn-bench/src/measures.rs",
 ];
 
+/// The files of `kartenn-bench` every bench goes through: its crate root (the generator,
+/// the modules), the commands, its manifest and its build script.
+const CRATE_ROOT: &[&str] = &[
+    "crates/kartenn-bench/src/lib.rs",
+    "crates/kartenn-bench/src/main.rs",
+    "crates/kartenn-bench/Cargo.toml",
+    "crates/kartenn-bench/build.rs",
+];
+
 /// The files of the workspace whose change concerns every bench: the versions of the
-/// dependencies, the profiles.
+/// dependencies (in every fingerprint), the profiles.
 const WORKSPACE: &[&str] = &["Cargo.lock", "Cargo.toml"];
+
+/// The configuration of the benches: the scripts, the instance and its settings.
+const CONFIG: &[&str] = &["devenv.nix", "devenv.lock"];
+
+/// What a change of the configuration of the benches calls for.
+pub const CONFIG_WARNING: &str = "configuration des bancs touchée : un passage complet est \
+     conseillé, après redémarrage de `k-pg-bench` si `pgBench` a changé";
 
 /// The bench scripts outside `kartenn-bench` (Playwright, Python): the start of the paths
 /// that concern them, and the script. The first match wins.
@@ -54,587 +67,149 @@ pub const PROPOSED: &[(&str, &str)] = &[
     ("clients/python/", "bench-cli"),
 ];
 
-/// The layers of the router every request goes through: the measures that send requests
-/// to it list them.
-const ROUTER: &[&str] = &[
-    "crates/kartenn-rest/src/authn.rs",
-    "crates/kartenn-rest/src/quota.rs",
-    "crates/kartenn-rest/src/transport.rs",
-    "crates/kartenn-auth/src/tokens.rs",
-];
-/// What the server started by `bench-http` adds.
-const SERVED: &[&str] = &["crates/kartenn-server/src/http.rs"];
-/// The writing of the origins and the resolution of the properties.
-const PROPS_WRITE: &[&str] = &[
-    "crates/kartenn-bench/src/props.rs",
-    "crates/kartenn-store-pg/src/origins.rs",
-    "crates/kartenn-store-pg/src/properties.rs",
-    "crates/kartenn-service/src/resolution.rs",
-];
-/// A unitary write of the core.
-const CORE_WRITE: &[&str] = &[
-    "crates/kartenn-bench/src/core_budgets.rs",
-    "crates/kartenn-store-pg/src/tree.rs",
-    "crates/kartenn-core/src/addr.rs",
+/// Files of plumbing, shared by the measures of several benches, that the table must never
+/// name on their own (a test): a change of them runs every bench that goes through their
+/// crate.
+pub const PLUMBING: &[&str] = &[
     "crates/kartenn-core/src/objects.rs",
-    "crates/kartenn-service/src/operations.rs",
     "crates/kartenn-service/src/authz.rs",
-];
-const VLAN: &[&str] = &[
-    "crates/kartenn-bench/src/vlan_budgets.rs",
-    "crates/kartenn-store-pg/src/vlan.rs",
-    "crates/kartenn-core/src/vlan.rs",
-];
-/// The reads of the machines.
-const MACHINES_READ: &[&str] = &[
-    "crates/kartenn-bench/src/machine_budgets.rs",
-    "crates/kartenn-bench/src/vlan_budgets.rs",
-    "crates/kartenn-machines/src/rest.rs",
-    "crates/kartenn-machines/src/read.rs",
-    "crates/kartenn-machines/src/pg.rs",
-];
-/// A page through the router.
-const PAGE: &[&str] = &[
-    "crates/kartenn-rest/src/filter.rs",
-    "crates/kartenn-rest/src/cursor.rs",
-];
-/// The writing of a machine.
-const MACHINES_WRITE: &[&str] = &[
-    "crates/kartenn-bench/src/machine_budgets.rs",
-    "crates/kartenn-machines/src/handler.rs",
-    "crates/kartenn-machines/src/pg.rs",
-    "crates/kartenn-machines/src/hosting.rs",
-];
-const IMPORT: &[&str] = &[
-    "crates/kartenn-service/src/import.rs",
-    "crates/kartenn-store-pg/src/imports.rs",
-];
-/// A read under access control.
-const RBAC: &[&str] = &[
-    "crates/kartenn-bench/src/rbac.rs",
-    "crates/kartenn-store-pg/src/rbac.rs",
-];
-const HTTP_READ: &[&str] = &[
-    "crates/kartenn-bench/src/http.rs",
-    "crates/kartenn-rest/src/objects.rs",
-    "crates/kartenn-rest/src/dated.rs",
-    "crates/kartenn-service/src/reads.rs",
-    "crates/kartenn-store-pg/src/read.rs",
-    "crates/kartenn-store-pg/src/rbac.rs",
+    "crates/kartenn-service/src/operations.rs",
+    "crates/kartenn-service/src/pipeline.rs",
     "crates/kartenn-store-pg/src/audit_journal.rs",
-];
-const HTTP_PAGE: &[&str] = &[
-    "crates/kartenn-bench/src/http.rs",
-    "crates/kartenn-rest/src/objects.rs",
-    "crates/kartenn-store-pg/src/filter.rs",
-    "crates/kartenn-store-pg/src/rbac.rs",
-];
-const HTTP_SUBTREE: &[&str] = &[
-    "crates/kartenn-bench/src/http.rs",
-    "crates/kartenn-rest/src/tree.rs",
-    "crates/kartenn-store-pg/src/tree.rs",
-    "crates/kartenn-store-pg/src/rbac.rs",
-];
-const HTTP_WRITE: &[&str] = &[
-    "crates/kartenn-bench/src/http.rs",
-    "crates/kartenn-rest/src/changesets.rs",
-    "crates/kartenn-rest/src/resources.rs",
-    "crates/kartenn-rest/src/simulation.rs",
-    "crates/kartenn-rest/src/csrf.rs",
-];
-/// The verdict of a pair of the policy, and its snapshot.
-const VERDICT: &[&str] = &[
-    "crates/kartenn-bench/src/policy_budgets.rs",
-    "crates/kartenn-bench/src/vlan_budgets.rs",
-    "crates/kartenn-policy/src/verdict.rs",
-    "crates/kartenn-policy/src/evaluate.rs",
-    "crates/kartenn-policy/src/rest.rs",
-    "crates/kartenn-policy/src/cache.rs",
-    "crates/kartenn-policy/src/snapshot.rs",
-    "crates/kartenn-policy/src/load.rs",
-    "crates/kartenn-policy/src/read.rs",
-    "crates/kartenn-machines/src/read.rs",
-];
-/// The inference of the policy.
-const INFERENCE: &[&str] = &[
-    "crates/kartenn-bench/src/policy_budgets.rs",
-    "crates/kartenn-policy/src/infer.rs",
-    "crates/kartenn-policy/src/inference.rs",
-];
-/// The evaluation of the flows on the policy.
-const EVALUATION: &[&str] = &[
-    "crates/kartenn-bench/src/flow_budgets.rs",
-    "crates/kartenn-flow/src/evaluation.rs",
-    "crates/kartenn-policy/src/evaluate.rs",
-    "crates/kartenn-policy/src/read.rs",
-    "crates/kartenn-policy/src/snapshot.rs",
-];
-/// The re-evaluation of the flows after a write of the policy.
-const REEVALUATION: &[&str] = &[
-    "crates/kartenn-flow/src/reevaluation.rs",
-    "crates/kartenn-policy/src/handler.rs",
-];
-/// A page of the flows.
-const FLOWS_PAGE: &[&str] = &[
-    "crates/kartenn-bench/src/flow_budgets.rs",
-    "crates/kartenn-bench/src/vlan_budgets.rs",
-    "crates/kartenn-flow/src/rest.rs",
-    "crates/kartenn-flow/src/read.rs",
-];
-/// The event stream.
-const EVENTS: &[&str] = &[
-    "crates/kartenn-bench/src/events_budgets.rs",
-    "crates/kartenn-rest/src/events/",
-    "crates/kartenn-service/src/events.rs",
-    "crates/kartenn-store-pg/src/events.rs",
+    "crates/kartenn-store-pg/src/changesets.rs",
+    "crates/kartenn-store-pg/src/modules.rs",
     "crates/kartenn-store-pg/src/outbox.rs",
-];
-/// The server started under each configuration of the telemetry, and its outputs.
-const TELEMETRY: &[&str] = &[
-    "crates/kartenn-bench/src/telemetry.rs",
+    "crates/kartenn-store-pg/src/rbac.rs",
+    "crates/kartenn-store-pg/src/write.rs",
+    "crates/kartenn-rest/src/cursor.rs",
+    "crates/kartenn-rest/src/dated.rs",
+    "crates/kartenn-rest/src/filter.rs",
+    "crates/kartenn-rest/src/objects.rs",
     "crates/kartenn-server/src/app.rs",
-    "crates/kartenn-server/src/config.rs",
-    "crates/kartenn-telemetry/src/",
-    "crates/syslog-sender/src/",
-];
-/// The audit of the reads.
-const READ_AUDIT: &[&str] = &[
-    "crates/kartenn-service/src/reads.rs",
-    "crates/kartenn-service/src/audit.rs",
-    "crates/kartenn-store-pg/src/audit_journal.rs",
 ];
 
-/// Each measure of the catalogues and the paths it exercises, beyond the plumbing and the
-/// preparation of its bench.
+/// The modules of the dataset of `bench-core` and of its preparation, through which every
+/// measure goes.
+const CORE: &[&str] = &[
+    "crates/kartenn-bench/src/core_budgets.rs",
+    "crates/kartenn-bench/src/props.rs",
+    "crates/kartenn-bench/src/template.rs",
+];
+/// The person, its groups and its bindings.
+const RBAC: &[&str] = &["crates/kartenn-bench/src/rbac.rs"];
+/// The router and what it goes through, outside the fingerprint of `core`.
+const ROUTER: &[&str] = &[
+    "crates/kartenn-bench/src/vlan_budgets.rs",
+    "crates/kartenn-auth/",
+    "crates/kartenn-rest/",
+    "crates/kartenn-telemetry/",
+    "crates/syslog-sender/",
+];
+const MACHINES: &[&str] = &[
+    "crates/kartenn-bench/src/machine_budgets.rs",
+    "crates/kartenn-machines/",
+];
+const STATS: &[&str] = &[
+    "crates/kartenn-bench/src/stats_budgets.rs",
+    "crates/kartenn-machines/",
+];
+const HTTP: &[&str] = &["crates/kartenn-bench/src/http.rs"];
+const POLICY: &[&str] = &[
+    "crates/kartenn-bench/src/policy_budgets.rs",
+    "crates/kartenn-bench/src/vlan_budgets.rs",
+];
+const FLOW: &[&str] = &[
+    "crates/kartenn-bench/src/flow_budgets.rs",
+    "crates/kartenn-bench/src/vlan_budgets.rs",
+];
+const EVENTS: &[&str] = &["crates/kartenn-bench/src/events_budgets.rs"];
+/// The server started under each configuration of the telemetry, with its modules.
+const TELEMETRY: &[&str] = &[
+    "crates/kartenn-bench/src/telemetry.rs",
+    "crates/kartenn-auth/",
+    "crates/kartenn-flow/",
+    "crates/kartenn-machines/",
+    "crates/kartenn-policy/",
+    "crates/kartenn-rest/",
+    "crates/kartenn-server/",
+    "crates/kartenn-telemetry/",
+    "crates/syslog-sender/",
+];
+
+/// Each measure of the catalogues and the paths it exercises outside the fingerprint of
+/// its bench (derived again from the sources by a test).
 pub static PATHS: &[(&str, &[&[&str]])] = &[
-    ("props.origins-every-root", &[PROPS_WRITE]),
-    (
-        "props.explained-resolution",
-        &[&[
-            "crates/kartenn-bench/src/props.rs",
-            "crates/kartenn-store-pg/src/explain.rs",
-            "crates/kartenn-store-pg/src/property_read.rs",
-            "crates/kartenn-core/src/inheritance.rs",
-            "crates/kartenn-core/src/properties.rs",
-        ]],
-    ),
-    (
-        "props.grouped-resolution",
-        &[&[
-            "crates/kartenn-bench/src/props.rs",
-            "crates/kartenn-store-pg/src/explain.rs",
-            "crates/kartenn-store-pg/src/property_read.rs",
-        ]],
-    ),
-    (
-        "props.filtered-pages",
-        &[&[
-            "crates/kartenn-bench/src/props.rs",
-            "crates/kartenn-store-pg/src/filter.rs",
-            "crates/kartenn-store-pg/src/property_read.rs",
-        ]],
-    ),
-    (
-        "props.changeset-10k",
-        &[PROPS_WRITE, &["crates/kartenn-service/src/cascade.rs"]],
-    ),
-    (
-        "props.value-every-root",
-        &[PROPS_WRITE, &["crates/kartenn-service/src/cascade.rs"]],
-    ),
-    (
-        "props.origins-3-domains",
-        &[PROPS_WRITE, &["crates/kartenn-service/src/cascade.rs"]],
-    ),
-    (
-        "core.read-object",
-        &[&[
-            "crates/kartenn-bench/src/core_budgets.rs",
-            "crates/kartenn-store-pg/src/read.rs",
-            "crates/kartenn-store-pg/src/temporal.rs",
-            "crates/kartenn-store-pg/src/property_read.rs",
-        ]],
-    ),
-    // An `EXPLAIN` of the history: its indexes are in the migrations.
-    (
-        "core.history-index",
-        &[&["crates/kartenn-bench/src/core_budgets.rs"]],
-    ),
-    (
-        "core.filtered-page",
-        &[&[
-            "crates/kartenn-bench/src/core_budgets.rs",
-            "crates/kartenn-store-pg/src/filter.rs",
-            "crates/kartenn-store-pg/src/list.rs",
-            "crates/kartenn-store-pg/src/property_read.rs",
-        ]],
-    ),
-    (
-        "core.subtree",
-        &[&[
-            "crates/kartenn-bench/src/core_budgets.rs",
-            "crates/kartenn-store-pg/src/tree.rs",
-            "crates/kartenn-core/src/occupancy.rs",
-        ]],
-    ),
-    (
-        "core.roots-page",
-        &[&[
-            "crates/kartenn-bench/src/core_budgets.rs",
-            "crates/kartenn-store-pg/src/tree.rs",
-            "crates/kartenn-store-pg/src/rbac.rs",
-            "crates/kartenn-store-pg/src/list.rs",
-        ]],
-    ),
-    (
-        "core.wide-children",
-        &[&[
-            "crates/kartenn-bench/src/core_budgets.rs",
-            "crates/kartenn-store-pg/src/tree.rs",
-            "crates/kartenn-store-pg/src/rbac.rs",
-            "crates/kartenn-store-pg/src/list.rs",
-            "crates/kartenn-store-pg/src/temporal.rs",
-        ]],
-    ),
-    (
-        "core.subtree-past",
-        &[&[
-            "crates/kartenn-bench/src/core_budgets.rs",
-            "crates/kartenn-store-pg/src/tree.rs",
-            "crates/kartenn-store-pg/src/temporal.rs",
-            "crates/kartenn-core/src/occupancy.rs",
-        ]],
-    ),
-    ("core.unitary-changeset", &[CORE_WRITE]),
-    ("core.sustained", &[CORE_WRITE]),
-    (
-        "core.import",
-        &[&["crates/kartenn-bench/src/core_budgets.rs"], IMPORT],
-    ),
-    (
-        "core.vlan-read",
-        &[
-            VLAN,
-            ROUTER,
-            &[
-                "crates/kartenn-rest/src/vlan.rs",
-                "crates/kartenn-service/src/vlan.rs",
-            ],
-        ],
-    ),
-    (
-        "core.vlan-filtered-page",
-        &[
-            VLAN,
-            ROUTER,
-            PAGE,
-            &[
-                "crates/kartenn-rest/src/vlan.rs",
-                "crates/kartenn-store-pg/src/list.rs",
-            ],
-        ],
-    ),
-    (
-        "core.vlan-occupancy",
-        &[VLAN, ROUTER, &["crates/kartenn-rest/src/vlan.rs"]],
-    ),
-    (
-        "core.vlan-create",
-        &[VLAN, &["crates/kartenn-service/src/vlan.rs"]],
-    ),
-    ("core.machines-read", &[MACHINES_READ, ROUTER]),
-    ("core.machines-owner-page", &[MACHINES_READ, ROUTER, PAGE]),
-    ("core.machines-site-page", &[MACHINES_READ, ROUTER, PAGE]),
-    ("core.machines-network", &[MACHINES_READ, ROUTER, PAGE]),
-    (
-        "core.machines-create",
-        &[
-            MACHINES_WRITE,
-            &[
-                "crates/kartenn-machines/src/rules.rs",
-                "crates/kartenn-machines/src/name.rs",
-            ],
-        ],
-    ),
-    (
-        "core.machines-suggestions",
-        &[
-            MACHINES_READ,
-            ROUTER,
-            &[
-                "crates/kartenn-rest/src/objects.rs",
-                "crates/kartenn-rest/src/vlan.rs",
-                "crates/kartenn-store-pg/src/list.rs",
-            ],
-        ],
-    ),
-    (
-        "core.machines-import",
-        &[
-            MACHINES_WRITE,
-            IMPORT,
-            &["crates/kartenn-machines/src/mac.rs"],
-        ],
-    ),
-    (
-        "core.stats",
-        &[
-            ROUTER,
-            &[
-                "crates/kartenn-bench/src/stats_budgets.rs",
-                "crates/kartenn-rest/src/stats.rs",
-                "crates/kartenn-machines/src/stats.rs",
-                "crates/kartenn-store-pg/src/anomalies.rs",
-                "crates/kartenn-store-pg/src/changesets.rs",
-                "crates/kartenn-store-pg/src/outbox.rs",
-                "crates/kartenn-store-pg/src/modules.rs",
-                "crates/kartenn-service/src/review.rs",
-            ],
-        ],
-    ),
-    (
-        "rbac.read-object",
-        &[
-            RBAC,
-            &[
-                "crates/kartenn-store-pg/src/read.rs",
-                "crates/kartenn-service/src/authz.rs",
-            ],
-        ],
-    ),
-    (
-        "rbac.read-past",
-        &[
-            RBAC,
-            &[
-                "crates/kartenn-store-pg/src/read.rs",
-                "crates/kartenn-store-pg/src/temporal.rs",
-                "crates/kartenn-service/src/authz.rs",
-            ],
-        ],
-    ),
-    (
-        "rbac.filtered-page",
-        &[RBAC, &["crates/kartenn-store-pg/src/filter.rs"]],
-    ),
-    (
-        "rbac.subtree",
-        &[RBAC, &["crates/kartenn-store-pg/src/tree.rs"]],
-    ),
-    (
-        "rbac.unitary-changeset",
-        &[
-            RBAC,
-            &[
-                "crates/kartenn-service/src/authz.rs",
-                "crates/kartenn-service/src/rbac.rs",
-            ],
-        ],
-    ),
-    (
-        "rbac.resolution",
-        &[RBAC, &["crates/kartenn-service/src/authz.rs"]],
-    ),
-    ("http.read-object", &[HTTP_READ, ROUTER, SERVED]),
-    (
-        "http.read-past",
-        &[
-            HTTP_READ,
-            ROUTER,
-            SERVED,
-            &["crates/kartenn-store-pg/src/temporal.rs"],
-        ],
-    ),
-    ("http.filtered-page", &[HTTP_PAGE, PAGE, ROUTER, SERVED]),
-    ("http.subtree", &[HTTP_SUBTREE, ROUTER, SERVED]),
-    ("http.unitary-changeset", &[HTTP_WRITE, ROUTER, SERVED]),
-    (
-        "http.labels",
-        &[
-            ROUTER,
-            SERVED,
-            &[
-                "crates/kartenn-bench/src/http.rs",
-                "crates/kartenn-rest/src/labels.rs",
-                "crates/kartenn-store-pg/src/labels_read.rs",
-                "crates/kartenn-core/src/labels.rs",
-                "crates/kartenn-core/src/code_labels.rs",
-            ],
-        ],
-    ),
-    // The reads and the writes above, together.
-    (
-        "http.load",
-        &[
-            HTTP_READ,
-            HTTP_PAGE,
-            PAGE,
-            HTTP_SUBTREE,
-            HTTP_WRITE,
-            ROUTER,
-            SERVED,
-        ],
-    ),
-    (
-        "policy.snapshot-cold",
-        &[&[
-            "crates/kartenn-bench/src/policy_budgets.rs",
-            "crates/kartenn-policy/src/cache.rs",
-            "crates/kartenn-policy/src/read.rs",
-            "crates/kartenn-policy/src/load.rs",
-            "crates/kartenn-policy/src/snapshot.rs",
-        ]],
-    ),
-    ("policy.verdict-pair", &[VERDICT, ROUTER]),
-    ("policy.interface-pair", &[VERDICT, ROUTER]),
-    ("policy.raw-port", &[VERDICT, ROUTER]),
-    (
-        "policy.rules-differential",
-        &[&[
-            "crates/kartenn-bench/src/policy_budgets.rs",
-            "crates/kartenn-policy/src/handler.rs",
-            "crates/kartenn-policy/src/checks.rs",
-            "crates/kartenn-policy/src/coherence.rs",
-            "crates/kartenn-policy/src/diff.rs",
-            "crates/kartenn-policy/src/contribution.rs",
-            "crates/kartenn-policy/src/rules.rs",
-            "crates/kartenn-policy/src/evaluate.rs",
-        ]],
-    ),
-    (
-        "policy.audit-report",
-        &[&[
-            "crates/kartenn-bench/src/policy_budgets.rs",
-            "crates/kartenn-policy/src/report.rs",
-        ]],
-    ),
-    (
-        "policy.inference-suggestion",
-        &[
-            INFERENCE,
-            ROUTER,
-            &["crates/kartenn-service/src/expected.rs"],
-        ],
-    ),
-    (
-        "policy.inference-control",
-        &[
-            INFERENCE,
-            &[
-                "crates/kartenn-policy/src/mismatch.rs",
-                "crates/kartenn-service/src/expected.rs",
-            ],
-        ],
-    ),
-    (
-        "policy.inference-preview",
-        &[
-            INFERENCE,
-            &[
-                "crates/kartenn-policy/src/preview.rs",
-                "crates/kartenn-policy/src/handler.rs",
-            ],
-        ],
-    ),
-    (
-        "policy.inference-check",
-        &[INFERENCE, &["crates/kartenn-policy/src/mismatch.rs"]],
-    ),
-    (
-        "flow.request-interfaces",
-        &[
-            EVALUATION,
-            &[
-                "crates/kartenn-flow/src/handler.rs",
-                "crates/kartenn-flow/src/state.rs",
-                "crates/kartenn-flow/src/approval.rs",
-                "crates/kartenn-machines/src/read.rs",
-            ],
-        ],
-    ),
-    (
-        "flow.reclassify",
-        &[
-            EVALUATION,
-            &[
-                "crates/kartenn-flow/src/reevaluation.rs",
-                "crates/kartenn-flow/src/handler.rs",
-            ],
-        ],
-    ),
-    (
-        "flow.rule-written",
-        &[
-            EVALUATION,
-            REEVALUATION,
-            &["crates/kartenn-policy/src/diff.rs"],
-        ],
-    ),
-    ("flow.policy-written", &[EVALUATION, REEVALUATION]),
-    ("flow.flows-page", &[FLOWS_PAGE, ROUTER]),
-    ("flow.nonconformities-page", &[FLOWS_PAGE, ROUTER]),
-    ("flow.endpoints-flows-page", &[FLOWS_PAGE, ROUTER]),
-    ("flow.endpoints-nonconformities-page", &[FLOWS_PAGE, ROUTER]),
-    ("events.reader-overhead", &[EVENTS]),
-    ("events.latency", &[EVENTS]),
-    ("events.memory", &[EVENTS]),
-    ("events.storm", &[EVENTS]),
-    (
-        "events.visibility",
-        &[&[
-            "crates/kartenn-bench/src/events_budgets.rs",
-            "crates/kartenn-store-pg/src/events.rs",
-            "crates/kartenn-store-pg/src/rbac.rs",
-            "crates/kartenn-rest/src/events/hub.rs",
-        ]],
-    ),
-    (
-        "telemetry.read-object",
-        &[
-            TELEMETRY,
-            READ_AUDIT,
-            &["crates/kartenn-store-pg/src/read.rs"],
-        ],
-    ),
-    (
-        "telemetry.filtered-page",
-        &[
-            TELEMETRY,
-            READ_AUDIT,
-            &["crates/kartenn-store-pg/src/filter.rs"],
-        ],
-    ),
-    (
-        "telemetry.subtree",
-        &[TELEMETRY, &["crates/kartenn-store-pg/src/tree.rs"]],
-    ),
-    (
-        "telemetry.unitary-changeset",
-        &[TELEMETRY, &["crates/kartenn-service/src/audit.rs"]],
-    ),
-    (
-        "telemetry.sustained",
-        &[
-            TELEMETRY,
-            &[
-                "crates/kartenn-store-pg/src/audit_relay.rs",
-                "crates/kartenn-store-pg/src/audit_seal.rs",
-                "crates/kartenn-store-pg/src/audit_journal.rs",
-            ],
-        ],
-    ),
-    (
-        "telemetry.audit-volume",
-        &[
-            READ_AUDIT,
-            &[
-                "crates/kartenn-bench/src/telemetry.rs",
-                "crates/kartenn-store-pg/src/audit_seal.rs",
-                "crates/kartenn-store-pg/src/audit.rs",
-                "crates/kartenn-core/src/audit/",
-            ],
-        ],
-    ),
+    ("props.origins-every-root", &[CORE]),
+    ("props.explained-resolution", &[CORE]),
+    ("props.grouped-resolution", &[CORE]),
+    ("props.filtered-pages", &[CORE]),
+    ("props.changeset-10k", &[CORE]),
+    ("props.value-every-root", &[CORE]),
+    ("props.origins-3-domains", &[CORE]),
+    ("core.read-object", &[CORE]),
+    ("core.history-index", &[CORE]),
+    ("core.filtered-page", &[CORE]),
+    ("core.subtree", &[CORE]),
+    ("core.roots-page", &[CORE]),
+    ("core.wide-children", &[CORE]),
+    ("core.subtree-past", &[CORE]),
+    ("core.unitary-changeset", &[CORE]),
+    ("core.sustained", &[CORE]),
+    ("core.import", &[CORE]),
+    ("core.vlan-read", &[CORE, RBAC, ROUTER]),
+    ("core.vlan-filtered-page", &[CORE, RBAC, ROUTER]),
+    ("core.vlan-occupancy", &[CORE, RBAC, ROUTER]),
+    ("core.vlan-create", &[CORE, RBAC, ROUTER]),
+    ("core.machines-read", &[CORE, RBAC, ROUTER, MACHINES]),
+    ("core.machines-owner-page", &[CORE, RBAC, ROUTER, MACHINES]),
+    ("core.machines-site-page", &[CORE, RBAC, ROUTER, MACHINES]),
+    ("core.machines-network", &[CORE, RBAC, ROUTER, MACHINES]),
+    ("core.machines-create", &[CORE, RBAC, ROUTER, MACHINES]),
+    ("core.machines-suggestions", &[CORE, RBAC, ROUTER, MACHINES]),
+    ("core.machines-import", &[CORE, RBAC, ROUTER, MACHINES]),
+    ("core.stats", &[CORE, RBAC, ROUTER, STATS]),
+    ("rbac.read-object", &[CORE, RBAC]),
+    ("rbac.read-past", &[CORE, RBAC]),
+    ("rbac.filtered-page", &[CORE, RBAC]),
+    ("rbac.subtree", &[CORE, RBAC]),
+    ("rbac.unitary-changeset", &[CORE, RBAC]),
+    ("rbac.resolution", &[CORE, RBAC]),
+    ("http.read-object", &[CORE, RBAC, HTTP]),
+    ("http.read-past", &[CORE, RBAC, HTTP]),
+    ("http.filtered-page", &[CORE, RBAC, HTTP]),
+    ("http.subtree", &[CORE, RBAC, HTTP]),
+    ("http.unitary-changeset", &[CORE, RBAC, HTTP]),
+    ("http.labels", &[CORE, RBAC, HTTP]),
+    ("http.load", &[CORE, RBAC, HTTP]),
+    ("policy.snapshot-cold", &[CORE, RBAC, POLICY]),
+    ("policy.verdict-pair", &[CORE, RBAC, POLICY]),
+    ("policy.interface-pair", &[CORE, RBAC, POLICY]),
+    ("policy.raw-port", &[CORE, RBAC, POLICY]),
+    ("policy.rules-differential", &[CORE, RBAC, POLICY]),
+    ("policy.audit-report", &[CORE, RBAC, POLICY]),
+    ("policy.inference-suggestion", &[CORE, RBAC, POLICY]),
+    ("policy.inference-control", &[CORE, RBAC, POLICY]),
+    ("policy.inference-preview", &[CORE, RBAC, POLICY]),
+    ("policy.inference-check", &[CORE, RBAC, POLICY]),
+    ("flow.request-interfaces", &[CORE, RBAC, FLOW]),
+    ("flow.reclassify", &[CORE, RBAC, FLOW]),
+    ("flow.rule-written", &[CORE, RBAC, FLOW]),
+    ("flow.policy-written", &[CORE, RBAC, FLOW]),
+    ("flow.flows-page", &[CORE, RBAC, FLOW]),
+    ("flow.nonconformities-page", &[CORE, RBAC, FLOW]),
+    ("flow.endpoints-flows-page", &[CORE, RBAC, FLOW]),
+    ("flow.endpoints-nonconformities-page", &[CORE, RBAC, FLOW]),
+    ("events.reader-overhead", &[CORE, RBAC, EVENTS]),
+    ("events.latency", &[CORE, RBAC, EVENTS]),
+    ("events.memory", &[CORE, RBAC, EVENTS]),
+    ("events.storm", &[CORE, RBAC, EVENTS]),
+    ("events.visibility", &[CORE, RBAC, EVENTS]),
+    ("telemetry.read-object", &[CORE, TELEMETRY]),
+    ("telemetry.filtered-page", &[CORE, TELEMETRY]),
+    ("telemetry.subtree", &[CORE, TELEMETRY]),
+    ("telemetry.unitary-changeset", &[CORE, TELEMETRY]),
+    ("telemetry.sustained", &[CORE, TELEMETRY]),
+    ("telemetry.audit-volume", &[CORE, TELEMETRY]),
 ];
 
 /// The paths of `measure`, in the order of the table, without repetition; none for a
@@ -666,110 +241,66 @@ fn crate_of(path: &str) -> Option<(&str, &str)> {
     path.strip_prefix("crates/")?.split_once('/')
 }
 
-/// Whether `rest`, a path in a crate, is what its library is built from: what the
-/// fingerprint of the templates covers (`build.rs` of this crate), and its build script.
+/// Whether `rest`, a path in a crate, is what it is built from: what the fingerprint of
+/// the templates covers (`build.rs` of this crate).
 fn is_code(rest: &str) -> bool {
     rest == "Cargo.toml"
         || rest == "build.rs"
         || rest.starts_with("src/")
         || rest.starts_with("migrations/")
+        || rest.starts_with("data/")
 }
 
-/// The crates `bench` exercises, sorted: those of its preparation and of the paths of its
-/// measures, with their workspace dependencies, and `kartenn-bench`.
+/// The crates in the fingerprint of `bench`: those its preparation goes through, with
+/// their workspace dependencies.
+pub fn fingerprinted(bench: &str) -> Vec<&'static str> {
+    template::crate_hashes(template::crates(bench))
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect()
+}
+
+/// Whether `path`, code of a crate (`name`, `rest`), is in the fingerprint of `bench`.
+fn in_fingerprint(bench: &str, name: &str, rest: &str) -> bool {
+    if name == BENCH_CRATE {
+        return rest
+            .strip_prefix("src/")
+            .is_some_and(|file| template::sources(bench).iter().any(|(f, _)| *f == file));
+    }
+    // Every fingerprint covers the migrations of the core and of the modules.
+    (rest.starts_with("migrations/") && template::is_dependency(name))
+        || fingerprinted(bench).contains(&name)
+}
+
+/// The crates `bench` exercises, sorted: those of its fingerprint, those its measures go
+/// through, and `kartenn-bench`.
 ///
 /// # Panics
 ///
-/// On a bench that has no preparation listed in [`template`], or a path of the table in
-/// a crate `kartenn-bench` does not depend on (tested).
+/// On a bench that has no preparation listed in [`template`].
 pub fn exercised(bench: &Bench) -> Vec<&'static str> {
-    let mut direct: Vec<&'static str> = template::crates(bench.name).to_vec();
+    let mut out = fingerprinted(bench.name);
     for measure in bench.measures {
         for path in paths(measure.name) {
             if let Some((name, _)) = crate_of(path)
-                && name != BENCH_CRATE
+                && !out.contains(&name)
             {
-                direct.push(name);
+                out.push(name);
             }
         }
     }
-    let mut out: Vec<&'static str> = template::crate_hashes(&direct)
-        .into_iter()
-        .map(|(name, _)| name)
-        .collect();
-    out.push(BENCH_CRATE);
+    if !out.contains(&BENCH_CRATE) {
+        out.push(BENCH_CRATE);
+    }
     out.sort_unstable();
     out
-}
-
-/// Why a path calls for what it does.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Reason {
-    /// Listed for these measures.
-    Measures(Vec<&'static str>),
-    /// A source of the preparation of these benches, and listed for these measures of
-    /// others.
-    Preparation(Vec<&'static str>, Vec<&'static str>),
-    /// Code of a crate that no measure lists, exercised by these benches.
-    Uncovered(String, Vec<&'static str>),
-    /// A file of the workspace that concerns every bench.
-    Workspace,
-    /// A bench script outside `kartenn-bench`.
-    Proposed(&'static str),
-    /// Nothing a bench measures.
-    Nothing,
-}
-
-/// What a change of `path` (relative to the root of the repository) calls for.
-pub fn touched(path: &str) -> Reason {
-    let path = path.trim().trim_start_matches("./");
-    if WORKSPACE.contains(&path) {
-        return Reason::Workspace;
-    }
-    if let Some((_, script)) = PROPOSED.iter().find(|(start, _)| path.starts_with(start)) {
-        return Reason::Proposed(script);
-    }
-    let Some((name, rest)) = crate_of(path) else {
-        return Reason::Nothing;
-    };
-    if !is_code(rest) || UNMEASURED.contains(&path) {
-        return Reason::Nothing;
-    }
-    let measures: Vec<&'static str> = BENCHES
-        .iter()
-        .flat_map(|b| b.measures.iter())
-        .map(|m| m.name)
-        .filter(|m| paths(m).iter().any(|listed| covers(listed, path)))
-        .collect();
-    let prepared: Vec<&'static str> = match rest.strip_prefix("src/") {
-        Some(file) if name == BENCH_CRATE => BENCHES
-            .iter()
-            .filter(|b| template::sources(b.name).iter().any(|(f, _)| *f == file))
-            .map(|b| b.name)
-            .collect(),
-        _ => Vec::new(),
-    };
-    if !prepared.is_empty() {
-        return Reason::Preparation(prepared, measures);
-    }
-    if !measures.is_empty() {
-        return Reason::Measures(measures);
-    }
-    let benches: Vec<&'static str> = BENCHES
-        .iter()
-        .filter(|b| exercised(b).contains(&name))
-        .map(|b| b.name)
-        .collect();
-    if benches.is_empty() {
-        Reason::Nothing
-    } else {
-        Reason::Uncovered(name.to_owned(), benches)
-    }
 }
 
 /// What a bench runs for a change.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Run {
+    /// Every measure, its template made again: the path is in its fingerprint.
+    Prepared,
     /// Every measure.
     Whole,
     /// These measures, in the order of the catalogue; their prerequisites come with them
@@ -777,15 +308,120 @@ pub enum Run {
     Only(Vec<&'static str>),
 }
 
+/// What a change of one path calls for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Touch {
+    /// These benches, in the order of the catalogues.
+    Benches(Vec<(&'static str, Run)>),
+    /// Every bench, whole: the crate root of `kartenn-bench`, the manifest of the
+    /// workspace.
+    Every,
+    /// The configuration of the benches: nothing run, a full run advised.
+    Config,
+    /// A bench script outside `kartenn-bench`.
+    Proposed(&'static str),
+    /// Nothing a bench measures.
+    Nothing,
+}
+
+/// What a change of `path` (relative to the root of the repository) calls for.
+pub fn touched(path: &str) -> Touch {
+    let path = path.trim().trim_start_matches("./");
+    if WORKSPACE.contains(&path) || CRATE_ROOT.contains(&path) {
+        return Touch::Every;
+    }
+    if CONFIG.contains(&path) {
+        return Touch::Config;
+    }
+    if let Some((_, script)) = PROPOSED.iter().find(|(start, _)| path.starts_with(start)) {
+        return Touch::Proposed(script);
+    }
+    let Some((name, rest)) = crate_of(path) else {
+        return Touch::Nothing;
+    };
+    if !is_code(rest) || UNMEASURED.contains(&path) {
+        return Touch::Nothing;
+    }
+    let mut runs = Vec::new();
+    for bench in BENCHES {
+        if in_fingerprint(bench.name, name, rest) {
+            runs.push((bench.name, Run::Prepared));
+            continue;
+        }
+        // The measures that list the path, and those that start from the state they leave
+        // (prerequisites come before their measures in a catalogue: one pass).
+        let mut only: Vec<&'static str> = Vec::new();
+        for m in bench.measures {
+            if paths(m.name).iter().any(|listed| covers(listed, path))
+                || m.after.iter().any(|a| only.contains(a))
+            {
+                only.push(m.name);
+            }
+        }
+        if only.len() == bench.measures.len() {
+            runs.push((bench.name, Run::Whole));
+        } else if !only.is_empty() {
+            runs.push((bench.name, Run::Only(only)));
+        }
+    }
+    if !runs.is_empty() {
+        Touch::Benches(runs)
+    } else if name == BENCH_CRATE {
+        // A module of the benches the table does not know: every bench, in doubt.
+        Touch::Every
+    } else {
+        Touch::Nothing
+    }
+}
+
 /// What a change calls for: the benches of `kartenn-bench` to run, in the order of the
-/// catalogues, the scripts to propose, and one line per path that calls for something.
+/// catalogues, the scripts to propose, whether the configuration of the benches changed,
+/// and one line per path that calls for something.
 #[derive(Debug, Default)]
 pub struct Affected {
     pub runs: Vec<(&'static str, Run)>,
     pub proposed: Vec<&'static str>,
+    pub config: bool,
     pub explained: String,
     /// The paths that call for nothing.
     pub unconcerned: usize,
+}
+
+/// The line that explains what a path calls for.
+fn explain(runs: &[(&'static str, Run)]) -> String {
+    let named = |which: fn(&Run) -> bool| -> Vec<&str> {
+        runs.iter()
+            .filter(|(_, r)| which(r))
+            .map(|(b, _)| *b)
+            .collect()
+    };
+    let mut parts = Vec::new();
+    let prepared = named(|r| *r == Run::Prepared);
+    if !prepared.is_empty() {
+        parts.push(format!(
+            "bancs entiers (empreinte) : {}",
+            prepared.join(", ")
+        ));
+    }
+    let whole = named(|r| *r == Run::Whole);
+    if !whole.is_empty() {
+        parts.push(format!(
+            "bancs entiers (toutes leurs mesures) : {}",
+            whole.join(", ")
+        ));
+    }
+    let only: Vec<&str> = runs
+        .iter()
+        .filter_map(|(_, r)| match r {
+            Run::Only(m) => Some(m.iter().copied()),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    if !only.is_empty() {
+        parts.push(format!("mesures : {}", only.join(", ")));
+    }
+    parts.join(" ; ")
 }
 
 /// What the change of `paths` calls for.
@@ -800,39 +436,32 @@ pub fn affected<'a>(paths: impl IntoIterator<Item = &'a str>) -> Affected {
             continue;
         }
         let line = match touched(path) {
-            Reason::Measures(m) => {
-                let line = format!("mesures : {}", m.join(", "));
-                measures.extend(m);
-                line
-            }
-            Reason::Preparation(b, m) => {
-                let mut line = format!("bancs entiers : {} (préparation)", b.join(", "));
-                if !m.is_empty() {
-                    let _ = write!(line, " ; mesures : {}", m.join(", "));
+            Touch::Benches(runs) => {
+                for (bench, run) in &runs {
+                    match run {
+                        Run::Prepared | Run::Whole => {
+                            whole.insert(bench);
+                        }
+                        Run::Only(m) => measures.extend(m.iter().copied()),
+                    }
                 }
-                whole.extend(b);
-                measures.extend(m);
-                line
+                explain(&runs)
             }
-            Reason::Uncovered(name, b) => {
-                let line = format!(
-                    "bancs entiers : {} (code de {name} qu'aucune mesure ne liste)",
-                    b.join(", ")
-                );
-                whole.extend(b);
-                line
-            }
-            Reason::Workspace => {
+            Touch::Every => {
                 whole.extend(BENCHES.iter().map(|b| b.name));
-                "bancs entiers : tous (dépendances ou profils du workspace)".to_owned()
+                "bancs entiers : tous".to_owned()
             }
-            Reason::Proposed(script) => {
+            Touch::Config => {
+                out.config = true;
+                CONFIG_WARNING.to_owned()
+            }
+            Touch::Proposed(script) => {
                 if !out.proposed.contains(&script) {
                     out.proposed.push(script);
                 }
                 format!("proposé : {script} (hors kartenn-bench, non lancé)")
             }
-            Reason::Nothing => {
+            Touch::Nothing => {
                 out.unconcerned += 1;
                 continue;
             }
@@ -872,11 +501,11 @@ impl Affected {
         let mut out = String::new();
         for (bench, run) in &self.runs {
             match run {
-                Run::Whole => {
-                    let _ = writeln!(out, "{}", script(bench));
-                }
                 Run::Only(m) => {
                     let _ = writeln!(out, "{} {}", script(bench), m.join(","));
+                }
+                Run::Prepared | Run::Whole => {
+                    let _ = writeln!(out, "{}", script(bench));
                 }
             }
         }
@@ -886,6 +515,7 @@ impl Affected {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use std::path::Path;
 
     use super::*;
@@ -898,8 +528,148 @@ mod tests {
             .expect("the root of the repository")
     }
 
+    /// The modules of `kartenn-bench` and their text.
+    fn modules() -> BTreeMap<String, String> {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .filter(|p| p.extension().is_some_and(|x| x == "rs"))
+            .map(|p| {
+                let file = p.file_name().unwrap().to_string_lossy().into_owned();
+                (file, std::fs::read_to_string(&p).unwrap())
+            })
+            .collect()
+    }
+
+    /// The modules a text refers to: `crate::<module>`, `crate::{<module>, …}`.
+    fn refers_to(text: &str, modules: &BTreeMap<String, String>) -> BTreeSet<String> {
+        let ident = |s: &str| -> String {
+            s.trim()
+                .chars()
+                .take_while(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == '_')
+                .collect()
+        };
+        let mut out = BTreeSet::new();
+        let mut rest = text;
+        while let Some(at) = rest.find("crate::") {
+            rest = &rest[at + "crate::".len()..];
+            let names: Vec<String> = match rest.strip_prefix('{') {
+                Some(group) => group
+                    .split('}')
+                    .next()
+                    .unwrap_or("")
+                    .split(',')
+                    .map(ident)
+                    .collect(),
+                None => vec![ident(rest)],
+            };
+            for name in names {
+                let file = format!("{name}.rs");
+                if modules.contains_key(&file) {
+                    out.insert(file);
+                }
+            }
+        }
+        out
+    }
+
+    /// The modules neither the measures nor the derivation go through.
+    const OUTSIDE: &[&str] = &[
+        "affected.rs",
+        "history.rs",
+        "measures.rs",
+        "lib.rs",
+        "main.rs",
+    ];
+
+    /// The module that times `measure`: the one that names it.
+    fn file_of(measure: &str, modules: &BTreeMap<String, String>) -> String {
+        let quoted = format!("\"{measure}\"");
+        let files: Vec<&String> = modules
+            .iter()
+            .filter(|(f, t)| !OUTSIDE.contains(&f.as_str()) && t.contains(&quoted))
+            .map(|(f, _)| f)
+            .collect();
+        assert_eq!(files.len(), 1, "{measure}: named by {files:?}");
+        files[0].clone()
+    }
+
+    /// The module of the catalogue of `bench`.
+    fn home(bench: &Bench, modules: &BTreeMap<String, String>) -> String {
+        let name = format!("name: \"{}\",", bench.name);
+        let files: Vec<&String> = modules
+            .iter()
+            .filter(|(f, t)| {
+                !OUTSIDE.contains(&f.as_str()) && t.contains("static BENCH") && t.contains(&name)
+            })
+            .map(|(f, _)| f)
+            .collect();
+        assert_eq!(files.len(), 1, "{}: catalogue in {files:?}", bench.name);
+        files[0].clone()
+    }
+
+    /// The modules the code of `measure` goes through, from the module that times it. The
+    /// module of a catalogue runs the measures of the other modules of its bench (`run`):
+    /// those edges are followed only for their own measures.
+    fn reach(measure: &str, modules: &BTreeMap<String, String>) -> BTreeSet<String> {
+        let start = file_of(measure, modules);
+        let mut dispatch: Vec<(String, String)> = Vec::new();
+        for bench in BENCHES {
+            let home = home(bench, modules);
+            for m in bench.measures {
+                let file = file_of(m.name, modules);
+                if file != home {
+                    dispatch.push((home.clone(), file));
+                }
+            }
+        }
+        let mut seen = BTreeSet::new();
+        let mut todo = vec![start.clone()];
+        while let Some(file) = todo.pop() {
+            if OUTSIDE.contains(&file.as_str()) || !seen.insert(file.clone()) {
+                continue;
+            }
+            for next in refers_to(&modules[&file], modules) {
+                if next != start && dispatch.contains(&(file.clone(), next.clone())) {
+                    continue;
+                }
+                todo.push(next);
+            }
+        }
+        seen
+    }
+
+    /// The paths of `measure` of `bench`, derived from the sources: the modules it goes
+    /// through, and the crates they name (but `template.rs`, which names the modules for
+    /// their migrations, in every fingerprint), with their workspace dependencies, outside
+    /// the fingerprint of the bench.
+    fn derived(bench: &Bench, measure: &str, modules: &BTreeMap<String, String>) -> Vec<String> {
+        let reached = reach(measure, modules);
+        let mut named: Vec<String> = Vec::new();
+        for file in reached.iter().filter(|f| *f != "template.rs") {
+            named.extend(named_crates(&modules[file]));
+        }
+        let named: Vec<&str> = named.iter().map(String::as_str).collect();
+        let fingerprint = fingerprinted(bench.name);
+        let mut out: Vec<String> = reached
+            .iter()
+            .map(|f| format!("crates/kartenn-bench/src/{f}"))
+            .collect();
+        out.extend(
+            template::crate_hashes(&named)
+                .into_iter()
+                .map(|(name, _)| name)
+                .filter(|name| !fingerprint.contains(name))
+                .map(|name| format!("crates/{name}/")),
+        );
+        out.sort();
+        out
+    }
+
     #[test]
     fn every_measure_has_its_paths_and_its_file() {
+        let modules = modules();
         let names: Vec<&str> = BENCHES
             .iter()
             .flat_map(|b| b.measures.iter())
@@ -917,247 +687,280 @@ mod tests {
             );
         }
         for name in names {
-            let paths = paths(name);
-            assert!(
-                paths
-                    .iter()
-                    .any(|p| p.starts_with("crates/kartenn-bench/src/")),
-                "{name}: no file of kartenn-bench times it"
-            );
-            // A measure of SQL alone: its code is in the migrations, which are not listed.
-            assert!(
-                name == "core.history-index"
-                    || paths
-                        .iter()
-                        .any(|p| !p.starts_with("crates/kartenn-bench/")),
-                "{name}: no path of the code it measures"
-            );
+            let file = format!("crates/kartenn-bench/src/{}", file_of(name, &modules));
+            assert!(paths(name).contains(&file.as_str()), "{name}: not {file}");
+        }
+    }
+
+    /// The table is the one the sources give: a module or a crate a measure goes through,
+    /// and missing from its paths, would leave a change of it unmeasured.
+    #[test]
+    fn the_table_is_derived_from_the_sources() {
+        let modules = modules();
+        for bench in BENCHES {
+            for m in bench.measures {
+                let mut listed: Vec<String> =
+                    paths(m.name).into_iter().map(str::to_owned).collect();
+                listed.sort();
+                assert_eq!(listed, derived(bench, m.name, &modules), "{}", m.name);
+            }
         }
     }
 
     #[test]
-    fn every_path_is_code_of_the_repository() {
+    fn the_derivation_follows_the_imports() {
+        let modules = modules();
+        assert_eq!(
+            refers_to(
+                "use crate::{props, Dataset}; crate::rbac::x; crate::nope; crate::Scale",
+                &modules
+            ),
+            BTreeSet::from(["props.rs".to_owned(), "rbac.rs".to_owned()])
+        );
+        // The helpers of `core_budgets` used elsewhere do not run the measures of `core`
+        // in other modules; its own `run` does, for them only.
+        let props = reach("props.changeset-10k", &modules);
+        assert!(props.contains("core_budgets.rs"), "{props:?}");
+        assert!(!props.contains("machine_budgets.rs"), "{props:?}");
+        let read = reach("core.read-object", &modules);
+        assert!(!read.contains("vlan_budgets.rs"), "{read:?}");
+        let stats = reach("core.stats", &modules);
+        assert!(
+            stats.contains("vlan_budgets.rs") && stats.contains("rbac.rs"),
+            "{stats:?}"
+        );
+        // Every module is gone through by a measure, or is outside the measures.
+        let reached: BTreeSet<String> = BENCHES
+            .iter()
+            .flat_map(|b| b.measures.iter())
+            .flat_map(|m| reach(m.name, &modules))
+            .collect();
+        for file in modules.keys() {
+            assert!(
+                reached.contains(file) || OUTSIDE.contains(&file.as_str()),
+                "{file}: no measure goes through it"
+            );
+        }
+        for file in OUTSIDE {
+            let path = format!("crates/kartenn-bench/src/{file}");
+            assert!(
+                UNMEASURED.contains(&path.as_str()) || CRATE_ROOT.contains(&path.as_str()),
+                "{path}"
+            );
+        }
+    }
+
+    /// Outside `kartenn-bench`, the table lists whole crates only: no file of plumbing on
+    /// its own.
+    #[test]
+    fn the_table_lists_modules_and_whole_crates() {
         for (measure, _) in PATHS {
             for path in paths(measure) {
-                let (_, rest) =
+                let (name, rest) =
                     crate_of(path).unwrap_or_else(|| panic!("{measure}: {path} is in no crate"));
-                assert!(is_code(rest), "{measure}: {path} is no code");
-                assert!(
-                    !rest.starts_with("migrations/"),
-                    "{measure}: {path}: a migration changes every template, it is not listed"
-                );
-                assert!(
-                    !UNMEASURED.contains(&path),
-                    "{measure}: {path} measures nothing"
-                );
-                let on_disk = root().join(path);
-                if path.ends_with('/') {
-                    assert!(on_disk.is_dir(), "{measure}: no directory {path}");
+                if name == BENCH_CRATE {
+                    assert!(
+                        rest.starts_with("src/") && root().join(path).is_file(),
+                        "{measure}: {path}"
+                    );
                 } else {
-                    assert!(on_disk.is_file(), "{measure}: no file {path}");
-                }
-            }
-        }
-    }
-
-    /// The files of `kartenn-bench` that time the measures of `bench`, and their text.
-    fn bench_files(bench: &Bench) -> Vec<(&'static str, String)> {
-        let mut files: Vec<&'static str> = bench
-            .measures
-            .iter()
-            .flat_map(|m| paths(m.name))
-            .filter(|p| p.starts_with("crates/kartenn-bench/"))
-            .collect();
-        files.sort_unstable();
-        files.dedup();
-        files
-            .into_iter()
-            .map(|f| (f, std::fs::read_to_string(root().join(f)).unwrap()))
-            .collect()
-    }
-
-    /// The paths and the crates of a bench agree with the crates its code names: every
-    /// crate the files timing its measures name is exercised, and every path of its
-    /// measures is in a crate its preparation or those files go through.
-    #[test]
-    fn the_paths_of_a_bench_agree_with_the_crates_its_code_names() {
-        for bench in BENCHES {
-            let exercised = exercised(bench);
-            let mut named: Vec<String> = template::crates(bench.name)
-                .iter()
-                .map(|c| (*c).to_owned())
-                .collect();
-            for (file, text) in bench_files(bench) {
-                for name in named_crates(&text) {
                     assert!(
-                        exercised.contains(&name.as_str()),
-                        "{}: {file} names {name}, which the bench does not exercise",
-                        bench.name
-                    );
-                    named.push(name);
-                }
-            }
-            let named: Vec<&str> = named.iter().map(String::as_str).collect();
-            let reached: Vec<&str> = template::crate_hashes(&named)
-                .into_iter()
-                .map(|(name, _)| name)
-                .collect();
-            for measure in bench.measures {
-                for path in paths(measure.name) {
-                    let (name, _) = crate_of(path).unwrap();
-                    assert!(
-                        name == BENCH_CRATE || reached.contains(&name),
-                        "{}: {path} is in {name}, which the code of {} does not reach",
-                        measure.name,
-                        bench.name
+                        rest.is_empty() && root().join(path).is_dir(),
+                        "{measure}: {path} is no whole crate"
                     );
                 }
             }
         }
+        for file in PLUMBING {
+            assert!(root().join(file).is_file(), "{file}");
+            assert!(
+                PATHS.iter().all(|(m, _)| !paths(m).contains(file)),
+                "{file}: plumbing, listed on its own"
+            );
+        }
     }
 
-    /// Every crate a bench exercises has paths in the table, but the crate that only
-    /// unifies the features of the workspace, which has no code of its own.
+    /// Every crate a bench exercises is in its fingerprint or listed by one of its
+    /// measures, and every workspace crate the benches build is exercised by one.
     #[test]
     fn every_crate_a_bench_exercises_is_covered() {
-        let listed: BTreeSet<&str> = PATHS
-            .iter()
-            .flat_map(|(m, _)| paths(m))
-            .filter_map(|p| crate_of(p).map(|(name, _)| name))
-            .collect();
+        let mut all: BTreeSet<&str> = BTreeSet::new();
         for bench in BENCHES {
+            let fingerprint = fingerprinted(bench.name);
             for name in exercised(bench) {
+                let dir = format!("crates/{name}/");
                 assert!(
-                    name == "kartenn-workspace-hack" || listed.contains(name),
-                    "{}: exercises {name}, which no measure lists",
+                    name == BENCH_CRATE
+                        || fingerprint.contains(&name)
+                        || bench
+                            .measures
+                            .iter()
+                            .any(|m| paths(m.name).contains(&dir.as_str())),
+                    "{}: exercises {name}, uncovered",
                     bench.name
                 );
+                all.insert(name);
             }
+        }
+        for (name, _) in template::crate_hashes(&["kartenn-server"]) {
+            assert!(all.contains(name), "{name}: no bench exercises it");
         }
         let core = exercised(crate::measures::bench("core").unwrap());
         assert!(
             core.contains(&"kartenn-machines"),
             "by its measures: {core:?}"
         );
-        assert!(core.contains(&"kartenn-bench"), "{core:?}");
     }
 
+    fn every(run: &Run) -> Vec<(&'static str, Run)> {
+        BENCHES.iter().map(|b| (b.name, run.clone())).collect()
+    }
+
+    fn only(names: &[&'static str]) -> Run {
+        Run::Only(names.to_vec())
+    }
+
+    const VLAN_MACHINES_STATS: &[&str] = &[
+        "core.vlan-read",
+        "core.vlan-filtered-page",
+        "core.vlan-occupancy",
+        "core.vlan-create",
+        "core.machines-read",
+        "core.machines-owner-page",
+        "core.machines-site-page",
+        "core.machines-network",
+        "core.machines-create",
+        "core.machines-suggestions",
+        "core.machines-import",
+        "core.stats",
+    ];
+
     #[test]
-    fn a_file_of_kartenn_flow_runs_its_measures() {
+    fn a_file_of_kartenn_flow_runs_the_benches_it_reaches() {
+        // In the fingerprints of `http` (kartenn-server builds every module in), `policy`
+        // and `flow`; gone through by every measure of `telemetry`.
+        let expected = Touch::Benches(vec![
+            ("http", Run::Prepared),
+            ("policy", Run::Prepared),
+            ("flow", Run::Prepared),
+            ("telemetry", Run::Whole),
+        ]);
+        assert_eq!(touched("crates/kartenn-flow/src/read.rs"), expected);
+        assert_eq!(touched("crates/kartenn-flow/src/model.rs"), expected);
         let a = affected(["crates/kartenn-flow/src/read.rs"]);
         assert_eq!(
-            a.runs,
-            [(
-                "flow",
-                Run::Only(vec![
-                    "flow.flows-page",
-                    "flow.nonconformities-page",
-                    "flow.endpoints-flows-page",
-                    "flow.endpoints-nonconformities-page",
-                ])
-            )]
-        );
-        assert_eq!(
             a.plan(),
-            "bench-flow flow.flows-page,flow.nonconformities-page,\
-             flow.endpoints-flows-page,flow.endpoints-nonconformities-page\n"
+            "bench-http\nbench-policy\nbench-flow\nbench-telemetry\n"
         );
-        assert!(a.proposed.is_empty());
-    }
-
-    #[test]
-    fn an_uncovered_file_runs_the_benches_of_its_crate() {
-        // The model of the flows: no measure lists it. The benches whose crates reach
-        // kartenn-flow: those of the modules, and those that go through kartenn-server,
-        // which builds every module in.
-        let flow = [
-            ("http", Run::Whole),
-            ("policy", Run::Whole),
-            ("flow", Run::Whole),
-            ("telemetry", Run::Whole),
-        ];
-        let a = affected(["crates/kartenn-flow/src/model.rs"]);
-        assert_eq!(a.runs, flow, "{}", a.explained);
         assert_eq!(
             a.explained,
-            "crates/kartenn-flow/src/model.rs → bancs entiers : http, policy, flow, telemetry \
-             (code de kartenn-flow qu'aucune mesure ne liste)\n"
+            "crates/kartenn-flow/src/read.rs → bancs entiers (empreinte) : http, policy, flow \
+             ; bancs entiers (toutes leurs mesures) : telemetry\n"
         );
-        // A migration of the core: every bench goes through the store.
-        let a = affected(["crates/kartenn-store-pg/migrations/0999_probe.sql"]);
-        let every: Vec<(&str, Run)> = BENCHES.iter().map(|b| (b.name, Run::Whole)).collect();
-        assert_eq!(a.runs, every);
-        // A migration of a module: the benches that reach it.
-        let a = affected(["crates/kartenn-flow/migrations/0999_probe.sql"]);
-        assert_eq!(a.runs, flow);
     }
 
     #[test]
-    fn a_whole_bench_takes_over_its_measures() {
-        let a = affected([
-            "crates/kartenn-flow/src/read.rs",
-            "crates/kartenn-flow/src/model.rs",
-            "crates/kartenn-store-pg/src/explain.rs",
+    fn the_core_its_data_and_the_migrations_run_every_bench() {
+        for path in [
+            "crates/kartenn-core/src/objects.rs",
+            "crates/kartenn-core/data/iana/iana-ipv4-special-registry.csv",
+            "crates/kartenn-service/src/pipeline.rs",
+            "crates/kartenn-store-pg/src/rbac.rs",
+            "crates/kartenn-store-pg/migrations/0999_probe.sql",
+            "crates/kartenn-flow/migrations/0999_probe.sql",
+        ] {
+            assert_eq!(
+                touched(path),
+                Touch::Benches(every(&Run::Prepared)),
+                "{path}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_file_of_the_router_runs_what_goes_through_it() {
+        let expected = Touch::Benches(vec![
+            ("core", only(VLAN_MACHINES_STATS)),
+            ("http", Run::Prepared),
+            ("policy", Run::Prepared),
+            ("flow", Run::Prepared),
+            ("events", Run::Prepared),
+            ("telemetry", Run::Whole),
         ]);
+        assert_eq!(touched("crates/kartenn-rest/src/cursor.rs"), expected);
+        assert_eq!(touched("crates/kartenn-auth/src/tokens.rs"), expected);
+        // The machines: their measures, the statistics, and what starts after them.
         assert_eq!(
-            a.runs,
-            [
-                (
-                    "props",
-                    Run::Only(vec![
-                        "props.explained-resolution",
-                        "props.grouped-resolution"
-                    ])
-                ),
-                ("http", Run::Whole),
-                ("policy", Run::Whole),
-                ("flow", Run::Whole),
+            touched("crates/kartenn-machines/src/read.rs"),
+            Touch::Benches(vec![
+                ("core", only(&VLAN_MACHINES_STATS[4..])),
+                ("http", Run::Prepared),
+                ("policy", Run::Prepared),
+                ("flow", Run::Prepared),
                 ("telemetry", Run::Whole),
-            ]
+            ])
         );
+        // The server: `http` prepares through it, `telemetry` measures through it.
         assert_eq!(
-            a.plan(),
-            "bench-properties props.explained-resolution,props.grouped-resolution\n\
-             bench-http\nbench-policy\nbench-flow\nbench-telemetry\n"
+            touched("crates/kartenn-server/src/config.rs"),
+            Touch::Benches(vec![("http", Run::Prepared), ("telemetry", Run::Whole)])
         );
     }
 
     #[test]
-    fn the_files_of_kartenn_bench() {
-        // A source of a preparation: the whole bench; and the measures it times elsewhere.
+    fn the_modules_of_kartenn_bench() {
+        // A source of a preparation: the whole benches it prepares; elsewhere, the measures
+        // that go through it.
         assert_eq!(
             touched("crates/kartenn-bench/src/vlan_budgets.rs"),
-            Reason::Preparation(
-                vec!["policy", "flow"],
-                vec![
-                    "core.vlan-read",
-                    "core.vlan-filtered-page",
-                    "core.vlan-occupancy",
-                    "core.vlan-create",
-                    "core.machines-read",
-                    "core.machines-owner-page",
-                    "core.machines-site-page",
-                    "core.machines-network",
-                    "core.machines-suggestions",
-                    "policy.verdict-pair",
-                    "policy.interface-pair",
-                    "policy.raw-port",
-                    "flow.flows-page",
-                    "flow.nonconformities-page",
-                    "flow.endpoints-flows-page",
-                    "flow.endpoints-nonconformities-page",
-                ]
-            )
+            Touch::Benches(vec![
+                ("core", only(VLAN_MACHINES_STATS)),
+                ("policy", Run::Prepared),
+                ("flow", Run::Prepared),
+            ])
         );
-        // A file that times measures and prepares nothing.
+        // A module of measures alone: its measures, and those that start after them.
+        assert_eq!(
+            touched("crates/kartenn-bench/src/machine_budgets.rs"),
+            Touch::Benches(vec![("core", only(&VLAN_MACHINES_STATS[4..]))])
+        );
         assert_eq!(
             touched("crates/kartenn-bench/src/stats_budgets.rs"),
-            Reason::Measures(vec!["core.stats"])
+            Touch::Benches(vec![("core", only(&["core.stats"]))])
         );
-        // The rest of its code: every bench.
-        let a = affected(["crates/kartenn-bench/src/main.rs"]);
-        assert_eq!(a.runs.len(), BENCHES.len());
-        assert!(a.runs.iter().all(|(_, r)| *r == Run::Whole));
+        // Shared helpers: every bench that imports them.
+        assert_eq!(
+            touched("crates/kartenn-bench/src/core_budgets.rs"),
+            Touch::Benches(vec![
+                ("props", Run::Whole),
+                ("core", Run::Prepared),
+                ("rbac", Run::Prepared),
+                ("http", Run::Prepared),
+                ("policy", Run::Prepared),
+                ("flow", Run::Prepared),
+                ("events", Run::Whole),
+                ("telemetry", Run::Prepared),
+            ])
+        );
+        assert_eq!(
+            touched("crates/kartenn-bench/src/rbac.rs"),
+            Touch::Benches(vec![
+                ("core", only(VLAN_MACHINES_STATS)),
+                ("rbac", Run::Prepared),
+                ("http", Run::Prepared),
+                ("policy", Run::Whole),
+                ("flow", Run::Prepared),
+                ("events", Run::Prepared),
+            ])
+        );
+        // The crate root, the commands, the manifest: every bench.
+        for path in [
+            "crates/kartenn-bench/src/main.rs",
+            "crates/kartenn-bench/src/lib.rs",
+            "crates/kartenn-bench/Cargo.toml",
+        ] {
+            assert_eq!(touched(path), Touch::Every, "{path}");
+        }
         // Its tests, the selection, the history and this table: nothing.
         for path in [
             "crates/kartenn-bench/tests/it/only.rs",
@@ -1165,12 +968,39 @@ mod tests {
             "crates/kartenn-bench/src/history.rs",
             "crates/kartenn-bench/src/affected.rs",
         ] {
-            assert_eq!(touched(path), Reason::Nothing, "{path}");
+            assert_eq!(touched(path), Touch::Nothing, "{path}");
         }
     }
 
     #[test]
-    fn web_and_documentation_run_nothing() {
+    fn a_whole_bench_takes_over_its_measures() {
+        let a = affected([
+            "crates/kartenn-bench/src/stats_budgets.rs",
+            "crates/kartenn-machines/src/read.rs",
+        ]);
+        assert_eq!(
+            a.runs,
+            [
+                ("core", only(&VLAN_MACHINES_STATS[4..])),
+                ("http", Run::Whole),
+                ("policy", Run::Whole),
+                ("flow", Run::Whole),
+                ("telemetry", Run::Whole),
+            ]
+        );
+        assert_eq!(
+            a.plan().lines().next().unwrap(),
+            format!("bench-core {}", VLAN_MACHINES_STATS[4..].join(","))
+        );
+        let a = affected([
+            "crates/kartenn-core/src/objects.rs",
+            "crates/kartenn-bench/src/stats_budgets.rs",
+        ]);
+        assert_eq!(a.runs, every(&Run::Whole));
+    }
+
+    #[test]
+    fn web_documentation_and_configuration_run_nothing() {
         let a = affected([
             "web/v2/ui/src/components/Button.vue",
             "web/shell/src/main.ts",
@@ -1180,18 +1010,23 @@ mod tests {
             "crates/kartenn-store-pg/tests/it/main.rs",
             "crates/kartenn-dev-idp/src/main.rs",
             "devenv.nix",
+            "devenv.lock",
         ]);
         assert!(a.runs.is_empty(), "{:?}", a.runs);
         assert_eq!(a.proposed, ["bench-ui", "bench-web", "bench-cli"]);
-        assert_eq!(a.unconcerned, 5);
+        assert!(a.config);
+        assert_eq!(a.unconcerned, 4);
         assert_eq!(a.plan(), "");
+        assert!(
+            a.explained
+                .contains(&format!("devenv.nix → {CONFIG_WARNING}"))
+        );
     }
 
     #[test]
     fn the_lock_runs_every_bench_and_paths_are_read_once() {
         let a = affected(["Cargo.lock", "./Cargo.lock", "", "Cargo.toml"]);
-        assert_eq!(a.runs.len(), BENCHES.len());
-        assert!(a.runs.iter().all(|(_, r)| *r == Run::Whole));
+        assert_eq!(a.runs, every(&Run::Whole));
         assert_eq!(a.explained.lines().count(), 2, "{}", a.explained);
     }
 

@@ -160,6 +160,11 @@ pub fn crate_hashes(direct: &[&str]) -> Vec<(&'static str, u64)> {
     out.into_iter().collect()
 }
 
+/// Whether `name` is a workspace crate `kartenn-bench` depends on, directly or not.
+pub fn is_dependency(name: &str) -> bool {
+    built::CRATES.iter().any(|(n, _, _)| *n == name)
+}
+
 /// A migration the fingerprint covers: the core or a module, its version, its checksum
 /// (core) or its SQL (module).
 pub type Migration = (&'static str, i64, &'static [u8]);
