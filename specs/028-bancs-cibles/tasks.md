@@ -131,7 +131,16 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     1,79 s) ; `bench-core --only core.read-object` 0,55 à 0,64 ms et 0,99 à 1,83 ms
     (passé), comme avant la relecture. `pg_prewarm` est absent des bases (extension non
     approuvée, `CREATE EXTENSION` demande un superutilisateur) : la lecture des tables ne
-    réchauffe pas les index.
+    réchauffe pas les index. Puis : `pg_prewarm` créé dans `template1` par le script `bench`
+    (5433 seulement, superutilisateur par le socket), réchauffement des seules relations
+    de l'utilisateur (`pg_has_role`), version de forme 2 dans l'empreinte. Mesures
+    réduites entrelacées, copie réchauffée par `pg_prewarm` contre base préparée sans
+    modèle, par le script : changeset 0,44 à 0,45 s contre 0,31 à 0,38 s, valeur de toutes
+    les racines 0,89 à 0,96 s contre 0,82 à 0,90 s, retrait de 3 domaines 3,09 à 3,17 s
+    contre 2,93 à 3,00 s. Reste du changeset : ni le cache ni le clonage (vraie copie
+    0,40 à 0,42 s) ; le point de contrôle de `CREATE DATABASE … FILE_COPY` (images de page
+    complètes à la première écriture) — un `CHECKPOINT` avant les mesures de la base
+    préparée la porte à 0,38 à 0,45 s.
   - choix : la copie aussi au premier passage (la base préparée est renommée en modèle,
     puis copiée) : premier passage et suivants mesurent de la même façon ; l'état tiré de
     la préparation (identifiants, abonnés, paires de machines…) est relu ou recalculé dans
@@ -144,7 +153,10 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     sources des crates du workspace traversés et `Cargo.lock` y entrent, un modèle est
     refait dès qu'un d'eux change ; le module `template.rs` nomme les modules pour leurs
     migrations seulement (hors du test des crates nommés) ; réchauffement des relations
-    les plus grandes d'abord ; ordre d'ancienneté par oid ; sans `--template` (`bench-web`, autre instance que
+    les plus grandes d'abord ; `pg_prewarm` installé dans `template1` de l'instance des
+    bancs par le script `bench` (session principale, option a), les modèles d'avant
+    refaits par la version de forme de l'empreinte plutôt que par une extension ajoutée
+    à la copie (que `kartenn` ne peut créer) ; ordre d'ancienneté par oid ; sans `--template` (`bench-web`, autre instance que
     celle des bancs), même chemin sans copie.
 - [ ] 3. Historique local : une ligne JSON par mesure et par passage dans
   `.bench/history.jsonl` à la racine de la copie principale (parent de

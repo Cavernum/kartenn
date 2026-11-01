@@ -55,7 +55,20 @@ Conséquences constatées les 2026-10-30 et 31 :
    - La préparation finit par `VACUUM (ANALYZE)` : carte de visibilité et statistiques
      sont dans le modèle. La copie est lue avant les mesures (`pg_prewarm` si la base a
      l'extension, sinon lecture séquentielle de ses tables), pour qu'elles partent à
-     chaud comme sur la base préparée. Les lignes du rapport écrites par la préparation
+     chaud comme sur la base préparée. Sur l'instance des bancs, le script `bench` crée
+     `pg_prewarm` dans `template1` (superutilisateur par le socket, idempotent, sans
+     redémarrage) : chaque base préparée, donc chaque modèle, l'a, et la copie relit
+     tables et index. Sans index réchauffés, le changeset ≤ 10⁴ de `props` doublait sur
+     copie en réduit (0,65 à 0,86 s contre 0,31 à 0,36 s) ; avec, il reste 0,44 à 0,45 s
+     contre 0,31 à 0,38 s, les deux autres mesures sont égales à 5 % près. Le reste ne
+     tient ni au cache (copie réchauffée) ni au clonage btrfs (une vraie copie,
+     `file_copy_method = copy`, donne 0,40 à 0,42 s) : `CREATE DATABASE … FILE_COPY`
+     fait un point de contrôle juste avant la copie, et la première mesure qui écrit
+     paie les images de page complètes (`full_page_writes`) de chaque page qu'elle
+     touche. Un `CHECKPOINT` ajouté avant les mesures de la base préparée sans modèle la
+     porte à 0,38 à 0,45 s. La mesure dépend donc du dernier point de contrôle, avec ou
+     sans modèle. La version de forme de l'empreinte (2) fait refaire les modèles
+     d'avant. Les lignes du rapport écrites par la préparation
      sont gardées dans le commentaire du modèle et rendues par chaque copie : deux
      passages de même empreinte rendent les mêmes lignes.
    - Vérifié à la tâche 2 : `file_copy_method` est un réglage de contexte `user`. Le

@@ -354,12 +354,20 @@
       # The measures named, checked before the database is touched.
       [ -z "$only" ] || cargo run --release -q -p kartenn-bench -- ${command} --list --only "$only" >/dev/null
       bench=''${K_BENCH_DATABASE_URL:-${benchDatabase}}
-      PGOPTIONS='-c client_min_messages=warning' psql "''${bench%/*}/postgres" -q -c "DROP DATABASE IF EXISTS \"''${bench##*/}\" WITH (FORCE)" \
-        -c "CREATE DATABASE \"''${bench##*/}\""
       # The prepared database kept as a template and copied by the next runs (ADR 0041),
       # on the bench instance only: its templates are the only databases a run drops.
+      # pg_prewarm in template1 (superuser over the socket of k-pg-bench, idempotent):
+      # each prepared database, so each template, has it, and a copy is read back,
+      # indexes included, before the measures.
       template=""
-      case $bench in *@127.0.0.1:5433/*) template=--template ;; esac
+      case $bench in
+        *@127.0.0.1:5433/*)
+          template=--template
+          PGOPTIONS='-c client_min_messages=warning' psql -h "''${XDG_STATE_HOME:-$HOME/.local/state}/kartenn/pg-bench" \
+            -p 5433 -d template1 -q -c "CREATE EXTENSION IF NOT EXISTS pg_prewarm" ;;
+      esac
+      PGOPTIONS='-c client_min_messages=warning' psql "''${bench%/*}/postgres" -q -c "DROP DATABASE IF EXISTS \"''${bench##*/}\" WITH (FORCE)" \
+        -c "CREATE DATABASE \"''${bench##*/}\""
       # Watchdog: a bench whose last step line is older than K_BENCH_STALL minutes (60 at
       # full scale, 20 reduced; 0 for no limit) is stopped, so a stuck step never holds the
       # bench lock and a slot for hours (2026-10-30: 9 h on one step of bench-core).

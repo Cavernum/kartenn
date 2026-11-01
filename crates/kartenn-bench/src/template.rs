@@ -47,6 +47,9 @@ pub const PREFIX: &str = "kartenn_bench_tpl_";
 pub const KEPT: usize = 3;
 /// The start of the name of a database a run may copy a template into.
 pub const TARGET_PREFIX: &str = "kartenn_bench";
+/// The form of a template, in its fingerprint: raised when the templates already made no
+/// longer fit (2: `pg_prewarm` in the prepared database, from `template1`).
+const FORMAT: u64 = 2;
 /// How long the connections of a closed pool may take to end.
 const LINGER: Duration = Duration::from_secs(10);
 
@@ -235,6 +238,7 @@ impl Fnv {
 /// made from.
 pub fn fingerprint(bench: &str, seed: u64, scale: &str, inputs: &Inputs) -> u64 {
     let mut h = Fnv::new();
+    h.field(&FORMAT.to_le_bytes());
     h.field(bench.as_bytes());
     h.field(&seed.to_le_bytes());
     h.field(scale.as_bytes());
@@ -436,6 +440,7 @@ async fn warm(pool: &PgPool) -> anyhow::Result<String> {
                JOIN pg_namespace n ON n.oid = c.relnamespace
               WHERE c.relkind IN ('r', 'i', 't', 'm') AND c.relpersistence = 'p'
                 AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+                AND pg_has_role(c.relowner, 'USAGE')
               ORDER BY pg_relation_size(c.oid) DESC",
         )
         .execute(pool)
