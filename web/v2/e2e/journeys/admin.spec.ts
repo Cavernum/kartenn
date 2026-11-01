@@ -8,11 +8,18 @@ import { apiCall, DATA, expect, expectAccessible, loginIn, test } from "../fixtu
 // marked on their rows, the removal cancelled from its row, the draft applied; the
 // delivered group `secours` says at its top why it is read only; a role lists its
 // permissions under their served name, and the groups bound to it; a reader reaches no
-// screen of the administration. The services accounts, the identities (15b), the audit and
-// the imports (15c) extend this journey.
+// screen of the administration. Task 15b: a service account created, its secret shown once
+// then nowhere (neither in the page, nor stored, nor in the draft), a new secret, one
+// revoked in the draft; the break-glass account, member of `secours`, read with its
+// rights; an issuer detached in the draft; Dana, administrator of one entity, reads her
+// identity (groups, effective rights, groups of her IdP) and may manage no account. The
+// audit and the imports (15c) extend this journey.
 
 const panel = (page: Page) => page.getByRole("complementary", { name: "Panneau droit" });
 const counter = (page: Page) => page.getByRole("button", { name: /^Brouillon \d+ opération/ });
+/** The draft holds no operation: its counter gone, or at zero. */
+const noOperation = (page: Page) =>
+  expect(page.getByRole("button", { name: /^Brouillon [1-9]\d* opération/ })).toHaveCount(0);
 const navigation = (page: Page) => page.getByRole("navigation", { name: "Navigation principale" });
 
 /** A group of its own for the journey, with a group of the IdP and the role `reader`. */
@@ -207,6 +214,195 @@ test("an administrator of one entity: a group of that entity written, one wider 
   } finally {
     await context.close();
   }
+});
+
+/** The secret a write answered (the creation of an account, a new secret). */
+const madeSecret = (page: Page, path: RegExp) =>
+  page
+    .waitForResponse((r) => r.request().method() === "POST" && path.test(new URL(r.url()).pathname))
+    .then(async (r) => ((await r.json()) as { secret: { value: string } }).secret.value);
+
+/** Whether `value` is kept by the browser: its storages (the draft is kept server side). */
+const stored = (page: Page, value: string) =>
+  page.evaluate((v) => JSON.stringify({ ...localStorage, ...sessionStorage }).includes(v), value);
+
+test("a service account: its secret shown once, a new one, one revoked in the draft", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const name = `zz-sync-${browserName}-${Date.now().toString(36)}`;
+  await navigation(page).getByRole("button", { name: "Administration" }).click();
+  await navigation(page).getByRole("link", { name: "Comptes de service" }).click();
+  await expect(page).toHaveURL(/\/admin\/accounts$/);
+  await page
+    .getByRole("toolbar", { name: "Actions des comptes de service" })
+    .getByRole("button", { name: /^Créer/ })
+    .click();
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toHaveAccessibleName("Créer un compte de service");
+  await dialog.getByRole("textbox", { name: /^Nom/ }).fill(name);
+  await dialog.getByRole("textbox", { name: /^Motif/ }).fill("end-to-end administration");
+  const first = madeSecret(page, /^\/v1\/service-accounts$/);
+  await dialog.getByRole("button", { name: "Créer" }).click();
+  const value = await first;
+
+  // Shown once, the focus on its copy, never on the cross.
+  await expect(dialog).toHaveAccessibleName(`Nouveau secret pour ${name}`);
+  await expect(dialog).toContainText("Copiez-le maintenant : il ne sera plus jamais affiché");
+  await expect(dialog.getByRole("button", { name: new RegExp(value) })).toBeFocused();
+  await expectAccessible(page);
+  await dialog.getByRole("button", { name: "J'ai copié le secret" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(value);
+  expect(await stored(page, value)).toBe(false);
+  await noOperation(page);
+
+  // The account and its secret, never its value.
+  const grid = page.getByRole("grid", { name: "Comptes de service" });
+  await grid.getByRole("gridcell", { name, exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/accounts\/[0-9a-f-]+$/);
+  const detail = panel(page);
+  await expect(detail.getByRole("heading", { level: 2 })).toHaveText(name);
+  const secrets = detail.getByRole("list", { name: `Secrets de ${name}` });
+  await expect(secrets.getByRole("listitem")).toHaveCount(1);
+  await expect(page.locator("body")).not.toContainText(value);
+
+  // A new secret: shown once too, then the account has two.
+  await detail.getByRole("button", { name: "Nouveau secret" }).click();
+  await expect(dialog).toHaveAccessibleName(`Nouveau secret pour ${name}`);
+  await dialog.getByRole("textbox", { name: /^Motif/ }).fill("end-to-end rotation");
+  const second = madeSecret(page, /^\/v1\/service-accounts\/[^/]+\/secrets$/);
+  await dialog.getByRole("button", { name: "Générer le secret" }).click();
+  const renewed = await second;
+  expect(renewed).not.toBe(value);
+  await expect(dialog.getByRole("button", { name: new RegExp(renewed) })).toBeFocused();
+  // Escape asks first: the secret is lost with the dialog.
+  await page.keyboard.press("Escape");
+  const leave = page.getByRole("alertdialog", { name: "Fermer sans avoir copié le secret ?" });
+  await leave.getByRole("button", { name: "Fermer et l'oublier" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(renewed);
+  expect(await stored(page, renewed)).toBe(false);
+  await expect(secrets.getByRole("listitem")).toHaveCount(2);
+  await expect(detail.getByRole("heading", { name: /^Secrets actifs · 2/ })).toBeVisible();
+
+  // One revoked in the draft, marked in place; its revocation cancelled from its row.
+  await secrets
+    .getByRole("button", { name: /^Révoquer le secret créé le/ })
+    .last()
+    .click();
+  await expect(secrets.getByRole("listitem").last()).toHaveAttribute("data-pending", "removed");
+  await expect(counter(page)).toHaveAccessibleName(/^Brouillon 1 opération/);
+  await secrets.getByRole("button", { name: /^Annuler la révocation/ }).click();
+  await expect(secrets.getByRole("listitem").last()).not.toHaveAttribute("data-pending");
+  await noOperation(page);
+});
+
+test("the break-glass account: member of `secours`, its rights in read", async ({
+  page,
+  login,
+}) => {
+  await login("alice");
+  await page.goto("/admin/identities");
+  await page
+    .getByRole("grid", { name: "Identités" })
+    .getByRole("row", { name: /compte de secours/ })
+    .first()
+    .getByRole("gridcell")
+    .first()
+    .click();
+  await expect(page).toHaveURL(/\/admin\/identities\/[0-9a-f-]+$/);
+  const detail = panel(page);
+  await expect(detail.getByRole("heading", { level: 2 })).toContainText("compte de secours");
+  const name = (await detail.getByRole("heading", { level: 2 }).textContent())!
+    .replace("compte de secours", "")
+    .trim();
+  await expect(
+    detail.getByRole("list", { name: `Groupes de ${name}` }).getByRole("listitem"),
+  ).toHaveText([/secours.*direct/]);
+  await expect(
+    detail.getByRole("list", { name: `Droits effectifs de ${name}` }).getByRole("listitem"),
+  ).toHaveText([/administrator.*Toute l'organisation.*via le groupe secours/]);
+  await expect(detail).toContainText(
+    "Aucun : cette identité ne s'est jamais connectée par un IdP.",
+  );
+  // Its state is an administrator's; never pseudonymised (not a person).
+  const actions = detail.getByRole("toolbar", { name: "Actions de l'identité" });
+  await expect(actions.getByRole("button", { name: "Désactiver" })).not.toHaveAttribute(
+    "aria-disabled",
+  );
+  await expect(actions.getByRole("button", { name: /^Pseudonymiser/ })).toHaveCount(0);
+  await expectAccessible(page);
+});
+
+test("an issuer: detached in the draft, marked in place, then kept", async ({ page, login }) => {
+  await login("alice");
+  await page.goto("/admin/issuers");
+  const grid = page.getByRole("grid", { name: "Émetteurs" });
+  const actions = page.getByRole("toolbar", { name: "Actions des émetteurs" });
+  // Nothing chosen: « Détacher » says why.
+  await expect(actions.getByRole("button", { name: "Détacher" })).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+  const row = grid.getByRole("row").filter({ hasText: "Toute l'organisation" }).first();
+  await row.getByRole("gridcell", { name: "Toute l'organisation" }).click();
+  await actions.getByRole("button", { name: "Détacher" }).click();
+  await expect(counter(page)).toHaveAccessibleName(/^Brouillon 1 opération/);
+  await expect(row).toHaveAttribute("data-row-state", "removed");
+  await actions.getByRole("button", { name: "Annuler le détachement" }).click();
+  await noOperation(page);
+  await expectAccessible(page);
+});
+
+test.describe("an administrator of one entity", () => {
+  test("reads her identity, its groups and rights, and may manage no account", async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({ ignoreHTTPSErrors: true, locale: "fr-FR" });
+    const dana = await context.newPage();
+    try {
+      await loginIn(dana, "dana");
+      await dana.goto("/admin/identities");
+      await dana
+        .getByRole("grid", { name: "Identités" })
+        .getByRole("gridcell", { name: "Dana Exemple" })
+        .click();
+      const detail = panel(dana);
+      await expect(detail.getByRole("heading", { level: 2 })).toContainText("Dana Exemple");
+      await expect(
+        detail.getByRole("list", { name: "Groupes de Dana Exemple" }).getByRole("listitem"),
+      ).toHaveText([/admins-entite.*via .*admins-entite/]);
+      const rights = detail.getByRole("list", { name: "Droits effectifs de Dana Exemple" });
+      await expect(rights.getByRole("listitem")).toHaveCount(2);
+      await expect(rights).toContainText("Toute l'organisation");
+      await expect(rights).toContainText(/Entité .*via le groupe admins-entite/);
+      await expect(
+        detail
+          .getByRole("list", { name: /^Groupes de l'IdP de Dana Exemple/ })
+          .getByRole("listitem"),
+      ).toHaveText([/admins-entite.*admins-entite/]);
+      // The state of an identity is a global administrator's (core.account.admin).
+      await expect(
+        detail
+          .getByRole("toolbar", { name: "Actions de l'identité" })
+          .getByRole("button", { name: "Désactiver" }),
+      ).toHaveAttribute("aria-disabled", "true");
+      await expectAccessible(dana);
+
+      await dana.goto("/admin/accounts");
+      await expect(
+        dana
+          .getByRole("toolbar", { name: "Actions des comptes de service" })
+          .getByRole("button", { name: /^Créer/ }),
+      ).toHaveAttribute("aria-disabled", "true");
+    } finally {
+      await context.close();
+    }
+  });
 });
 
 test.describe("a reader", () => {
