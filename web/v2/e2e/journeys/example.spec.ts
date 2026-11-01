@@ -72,6 +72,17 @@ test("its view opens from the sidebar, in a shadow root styled by the sheet of @
   expect(styles).toMatchObject({ stack: "flex", title: "600" });
   await expectAccessible(page);
 
+  // Taller than the window (the prefixes of every journey, a window 256 px high: 1.4.10),
+  // the surface scrolls: a tab stop, scrolled by the arrows, whatever its page holds
+  // (2.1.1; task 029-5).
+  const size = page.viewportSize()!;
+  await page.setViewportSize({ width: size.width, height: 256 });
+  const main = page.locator("#k-surface");
+  await expect.poll(() => main.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  await expect(main).toHaveAttribute("tabindex", "0");
+  await expectAccessible(page);
+  await page.setViewportSize(size);
+
   // The tokens cross the shadow root: the dark theme reaches the plugin's surfaces.
   const surface = () =>
     view.evaluate(

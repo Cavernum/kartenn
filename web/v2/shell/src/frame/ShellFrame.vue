@@ -154,6 +154,36 @@ function toSurface(): void {
   document.getElementById("k-surface")?.focus();
 }
 
+/**
+ * A surface that scrolls is reached by Tab and scrolled by the arrows (2.1.1), as the body
+ * of a `Popover`: a tab stop while it overflows, in height or in width, whatever its page
+ * holds (a view of text alone, a plugin's long list; task 029-5). Measured on the surface
+ * and the pages it holds, the ones the router puts in it watched for.
+ */
+const surface = ref<HTMLElement | null>(null);
+const surfaceScrolls = ref(false);
+let surfaceSizes: ResizeObserver | undefined;
+let surfacePages: MutationObserver | undefined;
+onMounted(() => {
+  const el = surface.value;
+  if (!el || typeof ResizeObserver === "undefined") return;
+  const measure = () =>
+    (surfaceScrolls.value = el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth);
+  surfaceSizes = new ResizeObserver(measure);
+  const observe = () => {
+    surfaceSizes?.disconnect();
+    for (const part of [el, ...el.children]) surfaceSizes?.observe(part);
+    measure();
+  };
+  observe();
+  surfacePages = new MutationObserver(observe);
+  surfacePages.observe(el, { childList: true });
+});
+onBeforeUnmount(() => {
+  surfaceSizes?.disconnect();
+  surfacePages?.disconnect();
+});
+
 // The width class of the window, from the same queries as the sheet.
 const queries =
   typeof window === "undefined"
@@ -755,7 +785,12 @@ onBeforeUnmount(
         />
       </header>
       <div class="k-frame__body">
-        <main id="k-surface" class="k-frame__surface" tabindex="-1">
+        <main
+          id="k-surface"
+          ref="surface"
+          class="k-frame__surface"
+          :tabindex="surfaceScrolls ? 0 : -1"
+        >
           <RouterView />
         </main>
         <SidePanel
@@ -835,6 +870,12 @@ onBeforeUnmount(
 
   .k-frame__surface:focus {
     outline: none;
+  }
+
+  /* A tab stop while it scrolls: its ring, inside its edge (the body clips what passes it). */
+  .k-frame__surface[tabindex="0"]:focus-visible {
+    outline: var(--k-focus-width) solid var(--k-focus-ring);
+    outline-offset: calc(-1 * var(--k-focus-width));
   }
 
   /* The button of the drawer of the sidebar: the compact class only. */
