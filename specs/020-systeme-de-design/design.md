@@ -1101,14 +1101,21 @@ Les budgets du shell entier, sous ralenti ×4, sont dans la 021.
 Mise en œuvre (tâche 27) : `devenv shell -- bench-ui` (verrou des bancs, sans PostgreSQL)
 construit le shell en production, lance `size.ts`, puis `components-bench`
 (`web/v2/e2e/bench.config.ts`, `web/v2/e2e/bench/`) sur le build du catalogue ; chaque
-mesure sort en `PASS|FAIL|INFO <mesure> : <médiane> (limit <seuil>) [les 5 passes]`, et un
+mesure sort en `PASS|FAIL|INFO <mesure> : <valeur> (limit <seuil>) [les 5 passes]`, et un
 seuil dépassé, d'un côté ou de l'autre, fait sortir le banc en erreur.
 
 - **Poids** : le module que la carte d'import nomme pour `@kartenn/ui` et ses imports
   statiques, tel que servi, donc avec Reka UI, TanStack Virtual et Lucide qui vont dans
   son morceau ; puis le même avec `vue` ; chaque fichier en gzip -9 ; la feuille de
   `@kartenn/ui` en gzip -9 ; les polices que `index.html` précharge, telles que servies.
-  1 Ko = 1 000 octets.
+  1 Ko = 1 000 octets. Périmètre changé : la tâche 9 mesurait la bibliothèque seule
+  (build en bibliothèque, `vue` et `reka-ui` externes : 18,6 Ko) ; mesurée telle que
+  servie au premier passage (2026-11-01), elle **dépasse** : 125,3 Ko pour 90, et avec
+  `vue` 170,5 Ko pour 120 (son code propre, dépendances externes, ≈ 84 Ko). À arbitrer
+  par l'utilisateur : (a) découpage du morceau ou chargement paresseux des composants
+  lourds (grilles, arbres, palette ; touche la carte d'import de l'ADR 0038 et l'ordre
+  de la feuille) ; (b) budget relevé par décision ; (c) budget sur le code propre
+  seulement.
 - **Hôtes des bancs** : `ui/src/demo/bench.ts` (`benches` de `@kartenn/ui/catalogue`),
   seuls sur `/_ui/bancs/<Nom>` (`Tree`, `TreeGrid`, `DataGrid`), hors captures. Arbre :
   le modèle de 10⁵ nœuds (`virtualTree`) construit avant le clic qui monte l'arbre
@@ -1118,12 +1125,21 @@ seuil dépassé, d'un côté ou de l'autre, fait sortir le banc en erreur.
   reçoit l'édition dans ses données ; filtre = du `input` à `aria-rowcount` attendu ; tri =
   d'Entrée sur l'en-tête à `aria-sort` ; édition = d'Entrée à la valeur dans la cellule.
 - **Déplacements** (B29, « ≤ 5 % de trames perdues ») : les 100 100 lignes ouvertes, dix
-  fois Ctrl+X, Bas, Ctrl+V, l'hôte répondant en 300 ms ; trames perdues sur toute la
-  suite ; latences de la marque « en attente » et du rendu de la réponse données pour
-  lecture (`INFO`), comme le coût de `refusedKeys` qu'elles contiennent.
+  fois Ctrl+X, Bas, Ctrl+V, l'hôte répondant en 300 ms ; il refuse une part des cibles
+  (rang 7k par `canMove`, avec motif ; rang 3k par sa réponse, `moveState` refusé avec
+  code), si bien que les refus et `watch(refusedKeys)` sont exercés. Dénominateur des
+  trames perdues : les fenêtres où le composant travaille, du Ctrl+V à la ligne en
+  attente dessinée et de la réponse de l'hôte (son nouveau modèle déjà construit : le
+  travail de l'hôte n'y compte pas) à son rendu (somme des durées ÷ 16,67 ms) ;
+  le chiffre sur toute la suite, latences et nombre de tâches longues en `INFO`. Coût
+  isolé d'un changement de `moveState` seul (`refusedKeys` sur toutes les lignes et
+  fenêtre redessinée), mesuré par l'hôte jusqu'à la fin du `flush` de Vue, à 5 100 et à
+  100 100 lignes ouvertes (`INFO`).
 - **Couches** : Dialog, Drawer, Popover, Menu, Select, Combobox, CommandPalette ouverts au
   clavier sur leur état `keyboard` du catalogue ; aucune tâche longue de l'événement au
   rendu.
+- **« Aucune tâche longue »** (défilement, couches) : jugé sur chacune des 5 passes (la
+  pire), les autres budgets sur la médiane.
 
 ## Arborescence
 
@@ -1212,7 +1228,7 @@ en CSS (Q-020-3).
 | Stylelint, lint du code | REQ-020-12 à 14 | oui |
 | Playwright `visual` | captures et instantanés ARIA du catalogue et des maquettes | oui |
 | Playwright `components` | scripts clavier APG, axe `wcag22aa`, violations CSP | oui |
-| `bench-ui` : `size.ts`, `components-bench` | budgets REQ-020-29 (lancé à la main, verrou des bancs) | oui |
+| `bench-ui` : `size.ts`, `components-bench` | budgets REQ-020-29 ; manuel (verrou des bancs), à brancher dans `k-web2-check` une fois le budget du poids arbitré | non |
 | Revues | `ui-reviewer`, `a11y-auditor` à la fin de chaque composant et maquette | revue |
 
 ## ADR
