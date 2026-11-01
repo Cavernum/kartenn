@@ -200,8 +200,11 @@
       "notNetworkText": "Seul un réseau porte un VLAN, par sa propriété core.vlan.",
       "vlanError": "Le VLAN de ce réseau n'a pas pu être lu.",
       "noVlan": "Ce réseau ne porte aucun VLAN",
-      "noVlanText": "Créez-en un dans un groupe : il est posé sur ce réseau une fois créé.",
-      "createFor": "Créer un VLAN pour ce réseau",
+      "noVlanText": "Sa propriété core.vlan n'a pas de valeur à ces dates.",
+      "masked": "Le VLAN de ce réseau est masqué",
+      "declarationPending": "La déclaration de {property} est en cours de lecture.",
+      "declarationFailed": "La déclaration de {property} n'a pas pu être lue.",
+      "removalDrafted": "Le retrait de ce VLAN est déjà dans votre brouillon.",
       "carries": "Ce réseau porte le VLAN {vlan}.",
       "property": "Propriété posée",
       "remove": "Retirer le VLAN",
@@ -375,13 +378,9 @@
       "reference": "Un objet se choisit dans le panneau d'édition (Modifier), non en place."
     },
     "vlan": {
-      "createFor": "Créer un VLAN pour {network}",
       "vidProposed": "Prochain VID libre du groupe {group}.",
       "vidSaid": "VID proposé : {vid}, le prochain libre du groupe.",
-      "applyOnly": "Un VLAN posé sur un réseau doit exister : il est appliqué, puis posé.",
-      "noProperty": "La propriété {property} n'est pas déclarée : le VLAN ne peut pas être posé.",
-      "setOn": "VLAN {vlan} créé et posé sur {network}",
-      "createdNotSet": "Le VLAN {vlan} est créé, mais il n'est pas posé sur le réseau : ne le créez pas de nouveau."
+      "vidUnread": "Aucun VID proposé : {why}"
     }
   }
 }

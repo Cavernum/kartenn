@@ -17,6 +17,7 @@ import {
 } from "../src/views/collections.ts";
 import {
   COLUMN_READS,
+  isNetworkVlanRemoval,
   limited,
   networkVlanOperation,
   vlanOfProperties,
@@ -212,13 +213,24 @@ describe("the collections", () => {
   });
 
   it("read and write the VLAN of a network by its property `core.vlan`", () => {
-    expect(vlanOfProperties({ properties: { "core.vlan": ENTITY }, masked: [] } as never)).toBe(
-      ENTITY,
+    const vlan = { kind: "vlan", id: ENTITY };
+    expect(vlanOfProperties({ properties: { "core.vlan": ENTITY }, masked: [] } as never)).toEqual(
+      vlan,
     );
     expect(
       vlanOfProperties({ properties: { "core.vlan": { id: ENTITY } }, masked: [] } as never),
-    ).toBe(ENTITY);
-    expect(vlanOfProperties({ properties: {}, masked: ["core.vlan"] } as never)).toBeNull();
+    ).toEqual(vlan);
+    expect(vlanOfProperties({ properties: {}, masked: [] } as never)).toEqual({ kind: "none" });
+    // Masked: the reader may not read it, never « no VLAN ».
+    expect(vlanOfProperties({ properties: {}, masked: ["core.vlan"] } as never)).toEqual({
+      kind: "masked",
+    });
+    // A removal already in the draft, by its network and declaration.
+    const removal = networkVlanOperation("p", "d", null);
+    expect(isNetworkVlanRemoval(removal, "p", "d")).toBe(true);
+    expect(isNetworkVlanRemoval(removal, "q", "d")).toBe(false);
+    expect(isNetworkVlanRemoval(removal, "p", undefined)).toBe(false);
+    expect(isNetworkVlanRemoval(networkVlanOperation("p", "d", ENTITY), "p", "d")).toBe(false);
     expect(networkVlanOperation("p", "d", ENTITY)).toEqual({
       op: "assign_property",
       kind: "prefix",

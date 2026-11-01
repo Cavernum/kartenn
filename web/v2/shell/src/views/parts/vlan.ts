@@ -35,10 +35,18 @@ export function vlanOfValue(value: unknown): string | null {
   return null;
 }
 
-/** The VLAN the resolved properties of a network name, `null` if none. */
-export function vlanOfProperties(resolved: Resolved | undefined): string | null {
-  const properties = resolved?.properties as Record<string, unknown> | undefined;
-  return vlanOfValue(properties?.[VLAN_PROPERTY]);
+/**
+ * What the resolved properties of a network say of its VLAN: one by its identifier, none,
+ * or masked — the reader may not read the property (003), which is never « no VLAN » and
+ * never offers a write that would overwrite it.
+ */
+export type NetworkVlanState = { kind: "vlan"; id: string } | { kind: "none" } | { kind: "masked" };
+
+export function vlanOfProperties(resolved: Resolved): NetworkVlanState {
+  if (resolved.masked.includes(VLAN_PROPERTY)) return { kind: "masked" };
+  const properties = resolved.properties as Record<string, unknown>;
+  const id = vlanOfValue(properties[VLAN_PROPERTY]);
+  return id ? { kind: "vlan", id } : { kind: "none" };
 }
 
 /**
@@ -54,6 +62,21 @@ export function networkVlanOperation(
   return vlan === null
     ? { op: "unassign_property", kind: "prefix", object, property: { id: property } }
     : { op: "assign_property", kind: "prefix", object, property: { id: property }, values: [vlan] };
+}
+
+/** Whether `operation` (of a draft) removes the VLAN of the network `prefix`. */
+export function isNetworkVlanRemoval(
+  operation: Operation,
+  prefix: string,
+  property: string | undefined,
+): boolean {
+  const op = operation as { op?: unknown; object?: { id?: unknown }; property?: { id?: unknown } };
+  return (
+    property !== undefined &&
+    op.op === "unassign_property" &&
+    op.object?.id === prefix &&
+    op.property?.id === property
+  );
 }
 
 /**

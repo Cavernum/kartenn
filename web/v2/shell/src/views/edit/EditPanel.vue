@@ -23,7 +23,6 @@ import {
   Button,
   Checkbox,
   Cluster,
-  InlineAlert,
   Select,
   Skeleton,
   SplitButton,
@@ -46,12 +45,11 @@ import {
   type Item,
 } from "../collections.ts";
 import ProblemState from "../../problems/ProblemState.vue";
-import { rowsOf, useDeclarations, useKeyLabel } from "../data.ts";
-import { VLAN_PROPERTY } from "../parts/vlan.ts";
+import { problemCode, useProblems } from "../../problems/index.ts";
+import { rowsOf, useKeyLabel } from "../data.ts";
 import {
   ANCHOR_KINDS,
   applyRight,
-  propertyRight,
   changesOf,
   checkValue,
   editRight,
@@ -67,7 +65,7 @@ import type { Refusal } from "./inline.ts";
 import { closeEdit, type ShownRequest } from "./panel.ts";
 import RefusalAlert from "./RefusalAlert.vue";
 import { useSay } from "./say.ts";
-import { createForNetwork, nextFreeVid } from "./vlan.ts";
+import { nextFreeVid } from "./vlan.ts";
 
 const props = defineProps<{ request: ShownRequest }>();
 const { t, te } = useI18n();
@@ -182,16 +180,26 @@ function setValue(name: string, value: string | boolean): void {
 }
 
 // A VLAN created (026, REQ-008-20): the VID proposed is the next free one of the group
-// chosen, until the user types one; for a network, it is set on it once created.
-const network = computed(() =>
-  props.request.mode === "create" && chosenKind.value === "vlans" ? props.request.network : null,
-);
+// chosen, until the user types one.
 const vidProposed = ref<string | null>(null);
+const { sentence } = useProblems();
 watch(
   () => (creating.value && chosenKind.value === "vlans" ? String(values.value.group ?? "") : ""),
   async (group) => {
     if (group === "" || (values.value.vid !== "" && vidProposed.value === null)) return;
-    const vid = await nextFreeVid(group);
+    let vid: number | null;
+    try {
+      vid = await nextFreeVid(group);
+    } catch (error) {
+      // No VID proposed: why, said by the status of the panel (`problems/`).
+      if (values.value.group === group) {
+        const code = problemCode(error);
+        notice.value = t("edit.vlan.vidUnread", {
+          why: code ? `${sentence(error)} (${code})` : sentence(error),
+        });
+      }
+      return;
+    }
     if (vid === null || values.value.group !== group) return;
     if (values.value.vid !== "" && vidProposed.value === null) return;
     values.value = { ...values.value, vid: String(vid) };
@@ -210,11 +218,6 @@ const hintOf = (field: EditField) =>
         )?.label,
       })
     : undefined;
-const { declarations } = useDeclarations();
-const vlanProperty = computed(
-  () =>
-    (declarations.value.find((d) => d.key === VLAN_PROPERTY) as { id?: string } | undefined)?.id,
-);
 
 // The action of the split button: to the draft by default; « Appliquer » with the right.
 const action = ref("draft");
@@ -222,34 +225,22 @@ const canEdit = computed(() => session.value.rights.has(editRight(collection.val
 const canApply = computed(
   () => canEdit.value && session.value.rights.has(applyRight(collection.value.type)),
 );
-/**
- * The permission an action lacks: `X.edit` for both, `X.approval.self` to apply; for a VLAN
- * set on a network, the edition of its property too.
- */
+/** The permission an action lacks: `X.edit` for both, `X.approval.self` to apply. */
 const lacking = (id: string) =>
   !canEdit.value
     ? editRight(collection.value.type)
     : id === "apply" && !canApply.value
       ? applyRight(collection.value.type)
-      : network.value && !session.value.rights.has(propertyRight(VLAN_PROPERTY))
-        ? propertyRight(VLAN_PROPERTY)
-        : null;
+      : null;
 const actions = computed<SplitAction[]>(() =>
   [
     { id: "draft", label: t("edit.toDraft"), icon: "draft" as const },
     { id: "apply", label: t("edit.apply"), icon: "circle-check" as const },
   ].map((a) => {
     const permission = lacking(a.id);
-    if (permission) return { ...a, forbidden: permission };
-    // A VLAN set on a network exists first: no draft (`vlan.ts`).
-    if (a.id === "draft" && network.value) {
-      return { ...a, disabled: true, reason: t("edit.vlan.applyOnly") };
-    }
-    return a;
+    return permission ? { ...a, forbidden: permission } : a;
   }),
 );
-// For a network, the one action is to apply.
-watch(network, (on) => on && (action.value = "apply"), { immediate: true });
 const applying = computed(() => action.value === "apply" && canApply.value);
 // The generic motive, prefilled until the user writes one of their own.
 const motive = ref("");
@@ -273,7 +264,6 @@ function setMotive(text: string): void {
 const title = computed(() => {
   const request = props.request;
   if (request.mode === "edit") return t("edit.modify", { kind: kindWords.value, name: name.value });
-  if (network.value) return t("edit.vlan.createFor", { network: network.value.value });
   return request.within
     ? t("edit.addIn", { within: request.within })
     : t("edit.create", { kind: kindWords.value });
@@ -413,27 +403,6 @@ async function run(id: string = action.value): Promise<void> {
     settle(outcome as WriteOutcome<unknown> | { kind: "saved" }, what);
     return;
   }
-  if (network.value) {
-    if (!vlanProperty.value) {
-      busy.value = false;
-      notice.value = t("edit.vlan.noProperty", { property: VLAN_PROPERTY });
-      return;
-    }
-    const { outcome, created } = await createForNetwork({
-      values: values.value,
-      motive: motive.value.trim(),
-      network: network.value.id,
-      property: vlanProperty.value,
-      idempotencyKey,
-    });
-    const vlan = nameOf(values.value as Item);
-    settle(outcome, created ? t("edit.vlan.setOn", { vlan, network: network.value.value }) : what);
-    // Created, not set: said beside the refusal; applying again would create it twice.
-    if (created && outcome.kind !== "applied" && outcome.kind !== "proposed") {
-      notice.value = t("edit.vlan.createdNotSet", { vlan });
-    }
-    return;
-  }
   if (creating.value) {
     const submission: Submission = {
       motive: motive.value.trim(),
@@ -564,8 +533,6 @@ watch(
         :refusal="refusal"
         :changed="changed"
       />
-      <!-- Why there is no draft here, written, not in the menu's tooltip only. -->
-      <InlineAlert v-if="network" tone="info" :title="t('edit.vlan.applyOnly')" />
       <!-- Present before its sentence, so that the sentence is said. -->
       <p class="k-edit-panel__notice" role="status">{{ notice ?? "" }}</p>
       <Cluster justify="end" gap="2">

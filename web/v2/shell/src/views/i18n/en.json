@@ -200,8 +200,11 @@
       "notNetworkText": "Only a network carries a VLAN, by its property core.vlan.",
       "vlanError": "The VLAN of this network could not be read.",
       "noVlan": "This network carries no VLAN",
-      "noVlanText": "Create one in a group: it is set on this network once created.",
-      "createFor": "Create a VLAN for this network",
+      "noVlanText": "Its property core.vlan has no value at these dates.",
+      "masked": "The VLAN of this network is masked",
+      "declarationPending": "The declaration of {property} is being read.",
+      "declarationFailed": "The declaration of {property} could not be read.",
+      "removalDrafted": "The removal of this VLAN is already in your draft.",
       "carries": "This network carries the VLAN {vlan}.",
       "property": "Property set",
       "remove": "Remove the VLAN",
@@ -375,13 +378,9 @@
       "reference": "An object is chosen in the edit panel (Modify), not in place."
     },
     "vlan": {
-      "createFor": "Create a VLAN for {network}",
       "vidProposed": "Next free VID of the group {group}.",
       "vidSaid": "VID proposed: {vid}, the next free one of the group.",
-      "applyOnly": "A VLAN set on a network must exist: it is applied, then set.",
-      "noProperty": "The property {property} is not declared: the VLAN cannot be set.",
-      "setOn": "VLAN {vlan} created and set on {network}",
-      "createdNotSet": "The VLAN {vlan} is created, but it is not set on the network: do not create it again."
+      "vidUnread": "No VID proposed: {why}"
     }
   }
 }
