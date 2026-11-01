@@ -1,0 +1,149 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+/*
+ * The sheet of the machines plugin, linked in each shadow root by `handle.styles()` after
+ * the sheet of @kartenn/ui (spec 021, REQ-021-27): the order of the layers, the base (links,
+ * focus ring, fixed pitch) and the components come with that one; this one lays out the
+ * plugin's pages, tables and pairs, with the tokens of the shell, which cross the shadow
+ * root.
+ */
+@layer plugins {
+  :host {
+    display: block;
+    min-inline-size: 0;
+  }
+
+  :host(machines-column) {
+    display: inline;
+  }
+
+  /* What the element draws, beside its sheets: no box of its own. */
+  .k-machines-content,
+  .k-machines-area {
+    display: contents;
+  }
+
+  .k-machines-title {
+    font-size: var(--k-text-lg);
+    line-height: var(--k-text-lg-line);
+    font-weight: var(--k-weight-semibold);
+    overflow-wrap: anywhere;
+  }
+
+  .k-machines-heading {
+    font-size: var(--k-text-md);
+    line-height: var(--k-text-md-line);
+    font-weight: var(--k-weight-semibold);
+  }
+
+  .k-machines-prose {
+    max-inline-size: var(--k-measure-prose);
+  }
+
+  .k-machines-muted {
+    color: var(--k-text-muted);
+  }
+
+  .k-machines-section {
+    min-inline-size: 0;
+  }
+
+  .k-machines-section[hidden],
+  .k-machines-fields > [hidden] {
+    display: none;
+  }
+
+  /* The outcome of a form, empty until it says something: no box, no gap in its stack, still
+     in the tree (a live region stays where it was). */
+  .k-machines-outcome:empty {
+    display: contents;
+  }
+
+  .k-machines-link {
+    overflow-wrap: anywhere;
+  }
+
+  /* A table scrolls in its place, never the page; its header stays on top. */
+  .k-machines-scroll {
+    max-inline-size: 100%;
+    max-block-size: var(--k-size-list-max);
+    overflow: auto;
+    /* A link reached by Tab is never under the sticky header (2.4.11). */
+    scroll-padding-block-start: var(--k-row-height);
+    border: var(--k-border-width) solid var(--k-border);
+    border-radius: var(--k-radius-md);
+  }
+
+  .k-machines-table {
+    inline-size: 100%;
+    border-collapse: collapse;
+    font-size: var(--k-text-sm);
+    line-height: var(--k-text-sm-line);
+  }
+
+  .k-machines-table th,
+  .k-machines-table td {
+    block-size: var(--k-row-height);
+    padding-block: 0;
+    padding-inline: var(--k-space-3);
+    text-align: start;
+    vertical-align: middle;
+    border-block-end: var(--k-border-width) solid var(--k-border);
+  }
+
+  .k-machines-table thead th {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: var(--k-z-sticky);
+    font-weight: var(--k-weight-semibold);
+    color: var(--k-text-muted);
+    white-space: nowrap;
+    background-color: var(--k-surface-raised);
+  }
+
+  .k-machines-rows th {
+    font-weight: var(--k-weight-regular);
+  }
+
+  .k-machines-rows > tr:last-child > * {
+    border-block-end: 0;
+  }
+
+  .k-machines-rows > tr:hover {
+    background-color: var(--k-hover);
+  }
+
+  /* Terms and their values, the values lined up whatever the terms. */
+  .k-machines-pairs {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: var(--k-space-2) var(--k-space-4);
+    margin: 0;
+  }
+
+  .k-machines-pairs dd {
+    min-inline-size: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .k-machines-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--k-size-field)), 1fr));
+    gap: var(--k-space-3) var(--k-space-4);
+    align-items: start;
+  }
+
+  .k-machines-search {
+    display: grid;
+    gap: var(--k-space-3);
+  }
+
+  .k-machines-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--k-space-2);
+  }
+}

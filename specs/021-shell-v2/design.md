@@ -326,7 +326,7 @@ par la maquette de la 026 (tâche 6). Les codes sont ceux du cœur.
 | Écran | Route | But | Édition | Codes notables |
 |---|---|---|---|---|
 | Machines | `/x/machines/machines`, `…/<id>` | inventaire, hébergement, propriétaire, adresses principales | place, form | `machines.name.duplicate`, `machines.host.invalid` |
-| Fiche et interfaces | `…/machines/<id>?tab=interfaces` | interfaces, VLAN, adresses rattachées | place, form | `machines.mac.duplicate`, `machines.address.vlan_mismatch` |
+| Fiche et interfaces | `…/machines/<id>` (fiche en sections : attributs, interfaces, hébergées, ajout ; tâche 18a) | interfaces, VLAN, adresses rattachées | place, form | `machines.mac.duplicate`, `machines.address.vlan_mismatch` |
 | Hébergement et clusters | `/x/machines/clusters`, `…/<id>` | qui héberge quoi ; déplacer une machine | glisser, menu | `machines.host.site_mismatch` |
 | Interfaces | `/x/machines/interfaces` | recherche par MAC, adresse, VLAN (réponse à incident) | lecture | `machines.mac.invalid` |
 
@@ -613,6 +613,19 @@ Manifeste (ajouts) :
 - Hôte d'un plugin de première partie : l'élément personnalisé monte une application du
   framework dans son DOM léger, avec le `QueryClient` du SDK et le contexte ; il la démonte
   à `disconnectedCallback`.
+- **Liens d'un plugin** (tâche 18a) : un plugin écrit des `<a href>` ordinaires ; l'hôte
+  d'une extension (`ExtensionElement`, tous les points) suit par le routeur du shell, sans
+  recharger la page, le clic gauche sans modificateur sur un lien de même origine dont le
+  chemin est une route du shell (le contexte daté reporté comme pour tout lien) ; l'hôte
+  d'une action ferme alors son dialogue. Restent au navigateur : un clic avec Ctrl, Méta,
+  Maj ou Alt, ou d'un autre bouton ; un lien `target` autre que `_self` ou `download` ;
+  une autre origine ; un chemin qu'aucune route ne sert (`/v1/…`, `/plugins/…`) ; un pur
+  ancrage de la page (`#x`, même chemin et même requête) ; un clic déjà annulé par le
+  plugin. La vue d'un plugin recrée son élément à chaque chemin sous `/x/<plugin>/<id>/`
+  (ses fiches), et le garde quand seule la requête change : l'élément relit la requête au
+  retour arrière (`popstate`). Le SDK n'offre pas encore de navigation ni de requête de la
+  vue : un plugin change la requête en suivant un lien (à trancher : `navigate`,
+  `context.route` au SDK).
 
 ## Budgets (REQ-021-30)
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // A full-page view of a plugin, `/x/<plugin>/<id>/*` (point `view`, REQ-007-13, 021-13),
-// under its space: the element of the plugin, which writes its own heading. Before the
+// under its space: the element of the plugin, which writes its own heading, created again
+// for another path under the view (its records), kept when only the query changes. Before the
 // capabilities are read, or while the plugin loads, a skeleton; set aside, the encart of
 // its reason with its code; unknown, or its permission not held, nothing at this address.
 import { EmptyState, Skeleton, Stack } from "@kartenn/ui";
@@ -37,8 +38,10 @@ const failed = ref(false);
     <h1 v-if="found.entry.status.state !== 'loaded' || failed" class="k-plugin-view__title">
       {{ title }}
     </h1>
+    <!-- One element per address of the view (`/x/<plugin>/<id>/<rest>`): a record of the
+         plugin reads its page at its creation, as a screen of the shell. -->
     <ExtensionElement
-      :key="found.view.element"
+      :key="`${found.view.element} ${route.path}`"
       :tag="found.view.element"
       :plugin="found.entry.plugin.name"
       :label="title"
