@@ -1,0 +1,90 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+/*
+ * The sheet of the example plugin, linked in each shadow root by `handle.styles()` after
+ * the sheet of @kartenn/ui (spec 021, REQ-021-27): the order of the layers comes with that
+ * one, the components with their classes (`k-button`, `k-skeleton`, `k-inline-alert`…);
+ * this one only lays out the plugin's elements, with the tokens of the shell, which cross
+ * the shadow root (light and dark themes followed without knowing them).
+ */
+@layer plugins {
+  :host {
+    display: block;
+    min-inline-size: 0;
+  }
+
+  :host(example-usage) {
+    display: inline;
+  }
+
+  /* What the element draws, beside its sheets: no box of its own. */
+  .k-example-content {
+    display: contents;
+  }
+
+  .k-example-title {
+    font-size: var(--k-text-lg);
+    line-height: var(--k-text-lg-line);
+    font-weight: var(--k-weight-semibold);
+  }
+
+  .k-example-heading {
+    font-size: var(--k-text-md);
+    line-height: var(--k-text-md-line);
+    font-weight: var(--k-weight-semibold);
+  }
+
+  .k-example-prose {
+    max-inline-size: var(--k-measure-prose);
+  }
+
+  .k-example-muted {
+    color: var(--k-text-muted);
+  }
+
+  .k-example-section {
+    padding: var(--k-space-4);
+    background-color: var(--k-surface);
+    border: var(--k-border-width) solid var(--k-border);
+    border-radius: var(--k-radius-md);
+  }
+
+  /* The rows in one grid (`subgrid`): the second column lines up whatever the first. */
+  .k-example-list {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: var(--k-space-1) var(--k-space-4);
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .k-example-row {
+    display: grid;
+    grid-template-columns: subgrid;
+    grid-column: 1 / -1;
+  }
+
+  .k-example-row > * {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .k-example-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--k-space-2);
+  }
+
+  .k-example-counts {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: var(--k-space-1) var(--k-space-4);
+  }
+
+  .k-example-counts dd {
+    margin: 0;
+  }
+}
