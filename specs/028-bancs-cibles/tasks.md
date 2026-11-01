@@ -272,7 +272,7 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     (Playwright ou Python, sans échelle réduite, `bench-web` avec le verrou `--pg`) ;
     `--list` ajouté ; la sélection passe par `k-heavy` (elle compile `kartenn-bench` en
     release).
-- [ ] 5. Bissection : script `bench-bisect <mesure> [--good <rev>] [--bad <rev>]` dans un
+- [x] 5. Bissection : script `bench-bisect <mesure> [--good <rev>] [--bad <rev>]` dans un
   worktree dédié, supprimé à la fin. Sans `--good`, le bon commit est le dernier de
   l'historique où la mesure tenait à la même échelle. Le critère est la médiane de
   trois exécutions de la seule mesure, avec pour seuil le milieu entre la bonne et la
@@ -301,6 +301,62 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
       ADR 0041 l. 111 (« ajoutée par le script ») contredit l. 124 (« c'est le programme
       qui écrit »).
   - dépend de : 2, 3
+  - fait : `kartenn_bench::bisect` (`last_good` : dernier passage, à l'échelle, arbre non
+    modifié, sans budget dépassé (ou celui de `--budget`), ancêtre du mauvais commit et
+    autre que lui ; `samples` : médiane des trois derniers chiffres de chaque budget d'une
+    mesure à un commit, valeurs non numériques écartées, dépassements comptés ; `track` :
+    budget suivi, `--budget`, sinon parmi ceux que le mauvais commit dépasse (majorité de
+    ses passages), ou tous (dérive), le plus grand écart relatif à la bonne médiane ;
+    écart sous `LEAST_GAP` (10 %) refusé ; `Tracked::threshold`, `is_bad` (côté de la
+    mauvaise médiane, milieu compris, plafond comme plancher) ; `judge` : `good`, `bad`,
+    `skip` sans chiffre du budget) ; `main.rs` : `bisect start|track|judge`, `known`
+    (mesure des catalogues, partagé avec `history`), `main` → `ExitCode` : 3
+    (`HISTORY_UNWRITTEN`) quand l'historique ne s'écrit pas, « a budget is exceeded » dit
+    avant ; `history.rs` : `append` lit sous le verrou le dernier octet et commence par une
+    fin de ligne après un fragment, `load` lit `K_BENCH_LOAD` (sinon `/proc/loadavg`),
+    `flock(2)` commun documenté, `limit` inclus (plafond, plancher pour `/s`) et verdict
+    sans `limit` documentés ; `http.rs` : `limit` du dictionnaire des libellés à 999 999
+    octets (budget strict < 1 Mo) ; `affected.rs` : `bisect.rs` hors mesure ; `devenv.nix` :
+    `bench` lit la charge avant la compilation (`K_BENCH_LOAD`) et écrit dans
+    `K_BENCH_HISTORY` s'il est donné, script `bench-bisect` ; ADR 0041 (décisions 4 et 5
+    précisées, l. 141 corrigée : « ajoutée par le programme »). Tests : `bisect` (bon
+    commit : arbre modifié, budget dépassé, non-ancêtre, mauvais commit, autre échelle ou
+    mesure écartés, budget nommé ; médiane des trois derniers ; budget dépassé préféré au
+    plus grand écart, dérive, budget demandé, inconnu listé, écart dans le bruit ; seuil
+    pour un plafond et un débit), `history` (fragment sans fin de ligne, charge),
+    `main` (code 3, budget dépassé dit, `known`), `affected` (`bisect.rs` ne lance rien).
+    En route : `build.rs` ne nomme plus que des chemins existants (un `rerun-if-changed`
+    sur le `build.rs` ou le `data/` absent d'un crate relançait le script de build et
+    recompilait `kartenn-bench` à chaque build : trois compilations release par passage
+    d'un banc, une dizaine de minutes par passage de bissection ; second build 0,16 s) ;
+    `git bisect log` lu sous ses deux formes (`# first 'bad' commit:` des git récents).
+    Essai réduit (machine chargée, `K_BISECT_BUSY=1`), sans `--good` : branche jetable de
+    quatre commits sur le correctif du build (deux de documentation autour d'une pause
+    `pg_sleep(0.008)` avant la lecture passée de `core.read-object`) ; bon commit tiré de
+    l'historique (dernier passage propre, à l'échelle réduite, ancêtre) ; budget suivi
+    « read an object as known in the past, p95 » (dépassé) : bon 736 µs, mauvais
+    13,25 ms, seuil 6,99 ms ; deux étapes (12,71 ms → mauvais, 756 µs → bon), premier
+    mauvais commit : celui de la pause ; worktree, journal et historique de la bissection
+    supprimés, copie principale propre. Un premier essai interrompu (signal) a nettoyé de
+    même (code 130). Pour la borne `--good` donnée, même chemin sans l'historique (tests
+    de `bisect` et `start`).
+  - choix : bornes mesurées toutes deux avant la bissection (trois passages chacun),
+    plutôt que la valeur de l'historique pour le bon commit (autre charge, autre modèle) ;
+    les passages de la bissection hors de l'historique de la copie (le leur, supprimé) ;
+    passage d'un banc par son script (`K_BENCH_HISTORY`, nouveau) pour garder modèle,
+    verrou et chien de garde ; juge = `kartenn-bench` de la copie qui lance, construit une
+    fois et copié, chaque commit construisant le sien pour mesurer ; worktree sous
+    `.bench/` (déjà exclu) ; machine occupée : refus en 75, `K_BISECT_BUSY=1` pour passer
+    outre (attendre une machine libre peut ne jamais finir) ; seuil d'écart minimal 10 %
+    (la dérive de la décision 6 est à 20 %) ; un passage sans chiffre du budget est sauté
+    (125) ; code 3 pour l'historique plutôt que `--history` hors bissection ; budget strict
+    écrit avec sa plus grande valeur permise plutôt qu'un champ de plus ; mesure vérifiée
+    après le verrou (la vérifier avant demande de compiler) ; `build.rs` : un `build.rs`
+    ou un `data/` créé plus tard dans un crate qui n'en avait pas ne relance pas le script
+    de build (le manifeste et `src/` le font).
+  - reste : la mesure inconnue n'est refusée qu'une fois le verrou des bancs et un
+    créneau obtenus ; un signal pendant un passage n'est traité qu'à la fin de ce passage
+    (dash attend l'enfant au premier plan).
 - [ ] 6. Règles et synchronisation : `.claude/agents/kartenn-tache.md` (`bench-affected`
   réduit permis à une tâche Rust exercée par un banc) ; `CLAUDE.md` (« Charge de la
   machine ») ; `docs/practices/rust-build.md` et ADR 0032 (renvoi) ; ADR 0041 →
