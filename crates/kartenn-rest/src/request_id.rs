@@ -114,8 +114,11 @@ pub async fn layer(
         }
     });
     if let Some(problem) = response.extensions_mut().remove::<Problem>() {
+        // The body written again, plain: the coding the compression layer (inside this one)
+        // gave the body it replaces no longer applies (REQ-006-32).
         *response.body_mut() = Body::from(problem.instance(id.urn()).body());
         response.headers_mut().remove(header::CONTENT_LENGTH);
+        response.headers_mut().remove(header::CONTENT_ENCODING);
     }
     if let Ok(value) = HeaderValue::from_str(&id.to_string()) {
         response.headers_mut().insert(REQUEST_ID.clone(), value);

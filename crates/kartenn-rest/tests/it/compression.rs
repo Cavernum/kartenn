@@ -16,6 +16,7 @@ use axum::{Json, Router};
 use http_body_util::BodyExt;
 use kartenn_rest::compression::Secret;
 use kartenn_rest::health::Readiness;
+use kartenn_rest::problem::{Problem, ProblemKind};
 use kartenn_rest::quota::{Quotas, Rates};
 use kartenn_rest::transport::Settings;
 use serde_json::{Value, json};
@@ -42,7 +43,11 @@ fn app() -> Router {
     let api = Router::new()
         .route("/list", get(|| async { Json(list()) }))
         .route("/small", get(|| async { Json(json!({ "id": 1 })) }))
-        .route("/secret", get(|| async { (Secret, Json(list())) }));
+        .route("/secret", get(|| async { (Secret, Json(list())) }))
+        .route(
+            "/refused",
+            get(|| async { Problem::new(ProblemKind::BadRequest).detail("x".repeat(2000)) }),
+        );
     kartenn_rest::router(
         api,
         Arc::new(Ready),
@@ -102,6 +107,29 @@ async fn a_list_is_compressed_after_accept_encoding() {
         } else {
             assert_eq!(length(response).await, plain, "{accept}");
         }
+    }
+}
+
+/// A problem over 1 KiB is written again with its `instance` outside the compression: sent
+/// plain, it says no coding (a browser would fail to decode it, task 021-24).
+#[tokio::test]
+async fn a_problem_written_again_says_no_coding() {
+    for accept in ["zstd", "br", "gzip"] {
+        let response = get_with("/v1/refused", accept).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert!(
+            !response.headers().contains_key(header::CONTENT_ENCODING),
+            "{accept}"
+        );
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let problem: Value = serde_json::from_slice(&body).unwrap();
+        assert!(
+            problem["instance"]
+                .as_str()
+                .unwrap()
+                .starts_with("urn:uuid:")
+        );
+        assert_eq!(problem["detail"].as_str().unwrap().len(), 2000);
     }
 }
 
