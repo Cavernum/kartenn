@@ -11,11 +11,11 @@
     "body": "Ce plugin éprouve le SDK 1.0 sans framework, dans sa racine d'ombre avec la feuille de style des composants du shell : une vue, un onglet, un panneau, une colonne, une action et une tuile de l'accueil.",
     "present": "Vous regardez le référentiel au présent.",
     "dated": "Vous regardez le référentiel à une autre date que le présent.",
-    "prefixes": "Préfixes",
+    "prefixes": "Préfixes IPv4",
     "how": "Lus par le cache partagé du SDK, relus dès qu'un changement les invalide.",
     "readAt": "Liste lue le {date}.",
     "more": "Première page de la liste seulement.",
-    "empty": "Aucun préfixe",
+    "empty": "Aucun préfixe IPv4",
     "emptyText": "Le référentiel n'en compte aucun à cette date."
   },
   "error": "Erreur : ",

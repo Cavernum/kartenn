@@ -11,11 +11,11 @@
     "body": "This plugin exercises the SDK 1.0 without a framework, in its shadow root with the style sheet of the shell's components: a view, a tab, a panel, a column, an action and a tile of the home page.",
     "present": "You are looking at the repository in the present.",
     "dated": "You are looking at the repository at another date than the present.",
-    "prefixes": "Prefixes",
+    "prefixes": "IPv4 prefixes",
     "how": "Read through the shared cache of the SDK, read again as soon as a change invalidates them.",
     "readAt": "List read on {date}.",
     "more": "First page of the list only.",
-    "empty": "No prefix",
+    "empty": "No IPv4 prefix",
     "emptyText": "The repository holds none at this date."
   },
   "error": "Error: ",

@@ -840,18 +840,29 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     sienne (`@layer plugins`, classes `k-example-…`) par `handle.styles()`, balisage des
     composants de la bibliothèque (`k-stack`, `k-skeleton`, `k-inline-alert`,
     `k-empty-state`, `k-button`, `k-form-field`) ; lectures par `QueryObserver` et
-    `InfiniteQueryObserver` sur `queryClient` et `reads`, relues à l'invalidation, contenu
-    redessiné seulement quand ce qu'il dit change. SDK : `handle.styles(root,
-    "@kartenn/ui/style.css")` reprend le lien du shell (`data-kartenn-sheet`, écrit par
-    `sharedModules`) ; `QueryObserver`, `InfiniteQueryObserver` réexportés. Vitest :
-    `plugins/example/test/example.test.ts` (10), `sdk/test/plugins.test.ts` (2 de
+    `InfiniteQueryObserver` sur `queryClient` et `reads` (la vue : les préfixes IPv4,
+    `within=0.0.0.0/0`, première page — les listes suivent l'ordre de création et le jeu des
+    parcours compte plus de 1 000 préfixes IPv6), relues à l'invalidation ; la page de la
+    vue reste, seule la place de la liste est redessinée quand ce qu'elle dit change ; le
+    formulaire de l'action est relibellé en place dans une autre langue (saisie gardée).
+    Premier dessin après une microtâche (un élément déjà dans la page, promu pendant
+    `customElements.define`, reçoit ses feuilles et ses textes) ; une feuille refusée est
+    dite par `console.warn`. SDK : `handle.styles(root, "@kartenn/ui/style.css")` reprend
+    le lien du shell (`data-kartenn-sheet`, écrit par `sharedModules`) ; `QueryObserver`,
+    `InfiniteQueryObserver` réexportés. Vitest : `plugins/example/test/example.test.ts`
+    (15 : définitions, catalogues, feuilles, élément promu, feuille refusée, vue relue à
+    l'invalidation et page gardée, date changée sur l'élément connecté, désabonnement à la
+    déconnexion et avant les feuilles, erreurs de la vue, de l'onglet, de l'action — brouillon
+    refusé, lecture en échec : alerte, `aria-invalid`, `aria-describedby`, code et
+    Request-Id — et de la tuile, langue de l'action), `sdk/test/plugins.test.ts` (2 de
     `handle.styles`), `shell/test/build.test.ts` (lien nommé). Parcours `example` réécrit
-    (chargé, éléments définis, vue depuis la barre, feuilles dans l'ordre et appliquées,
-    thème sombre, axe ; préfixe créé par l'API → visible sans recharger, l'invalidation
-    reçue par le plugin) : vert avec `plugins` après les corrections de relecture (16,
-    Chromium et Firefox) ; `k-web2-check` vert (551 tests, 2702 captures). Le parcours ne
-    couvre que la vue : onglet, panneau, colonne, action et tuile attendent les écrans qui
-    les placent (tâches 11, 14, 17), vérifiés d'ici là par Vitest.
+    (3 : chargé, éléments définis, vue depuis la barre, feuilles dans l'ordre et
+    appliquées, thème sombre, axe ; préfixe IPv4 créé par l'API → visible sans recharger
+    dans le même élément, `h1` gardé ; tuile de l'accueil, colonne des adresses, panneau et
+    onglet du préfixe, action dans le dialogue de la fiche → opération au brouillon, aucun
+    changeset envoyé, fermée par son bouton), placés par les écrans de la tâche 11
+    (fusionnée) : vert avec `plugins` (20, Chromium et Firefox) ; `k-web2-check` vert
+    (579 tests, 2704 captures).
   - choix : observateurs de query-core (`QueryObserver`, `InfiniteQueryObserver`)
     réexportés par le SDK 1.0 plutôt qu'un abonnement au cache (`getQueryCache().subscribe`)
     — sans observateur, une requête sort du cache au bout de `gcTime` et le plugin ne suit
@@ -862,14 +873,13 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     amendé) ; contenu dans un conteneur à côté des `<link>` (un lien déplacé serait relu) ;
     rien n'est dessiné avant que les feuilles aient répondu ; `happy-dom` en dépendance de
     développement du plugin (déjà celle du SDK, du shell et de `@kartenn/ui`).
-  - reste, faute d'écran : onglet, panneau, colonne, action et tuile ne sont vérifiés que
-    par Vitest, jusqu'aux écrans qui les placent (tâches 11, 14, 17). Ouverts après
-    relecture : pas d'icône (données de `Icon` côté Vue) ni de bouton de copie du code (le
+  - reste — ouverts après relecture : pas d'icône (données de `Icon` côté Vue) ni de bouton de copie du code (le
     code est un `<code>` sélectionnable) ; `data-motion="reduce"` du shell n'atteint pas le
     reflet du squelette en racine d'ombre (`:root[data-motion]` de `shared.css`, seule la
     préférence du système s'applique) ; `aria-busy` autour des squelettes de
     `ExtensionElement.vue` et `PluginView.vue`, dont le texte caché n'a pas de rôle
-    `status` (hôte de la 16) ; niveau fixe `h2` du panneau à revoir quand il sera placé.
+    `status` (hôte de la 16) ; niveau fixe `h2` du panneau, à confronter aux titres de la
+    fiche qui le place.
 - [x] 20. Amendement de la 017 : U2 et U14 remplacées (020/A1, 021/A1 closes), tâches web
   de la 017 en attente du socle de la 020 et de la 021, sous `web/v2/plugins/` — verify :
   amendement accepté consigné dans la 017 (decisions, requirements, tasks, design)

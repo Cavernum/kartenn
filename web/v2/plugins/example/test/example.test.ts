@@ -4,7 +4,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { queryClient, type components, type Extension, type PluginHandle } from "@kartenn/sdk";
-import { resetContext } from "@kartenn/sdk/host";
+import { resetContext, setContext } from "@kartenn/sdk/host";
 import { announcePlugin, fakeFetch, mount, type Mounted } from "@kartenn/sdk/testing";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import en from "../public/i18n/en.json";
@@ -43,8 +43,28 @@ const problem = (status: number, slug: string) =>
     headers: { "Content-Type": "application/problem+json", "Request-Id": "req-42" },
   });
 
+/** A draft of the server, as `POST /v1/drafts` answers it. */
+const created = () =>
+  new Response(
+    JSON.stringify({
+      id: DRAFT,
+      href: `/v1/drafts/${DRAFT}`,
+      author: DRAFT,
+      title: "t",
+      operation_count: 1,
+      version: 1,
+      created_at: "2026-10-24T00:00:00Z",
+      updated_at: "2026-10-24T00:00:00Z",
+      reason: {},
+      operations: [],
+    }),
+    { status: 201, headers: { "Content-Type": "application/json", ETag: '"1"' } },
+  );
+
 let handle: PluginHandle;
 let mounted: Mounted<HTMLElement> | null = null;
+/** An element in the page before the module defines it: upgraded by `definePlugin`. */
+let early: HTMLElement;
 
 beforeAll(async () => {
   const defined = announcePlugin({
@@ -59,6 +79,8 @@ beforeAll(async () => {
   sheet.integrity = "sha384-ui";
   sheet.dataset["kartennSheet"] = "@kartenn/ui/style.css";
   document.head.append(sheet);
+  early = document.createElement("example-summary");
+  document.body.append(early);
   await import("../src/index.ts");
   handle = await defined;
 });
@@ -68,6 +90,7 @@ afterEach(() => {
   mounted = null;
   queryClient.clear();
   resetContext();
+  sessionStorage.clear();
 });
 
 /** The text of the shadow root of `element`, once it holds `expected`. */
@@ -79,6 +102,17 @@ async function shadowText(element: HTMLElement, expected: string | RegExp): Prom
   });
   return text;
 }
+
+/** The observers the cache holds, all queries together. */
+const observers = () =>
+  queryClient
+    .getQueryCache()
+    .findAll()
+    .reduce((count, query) => count + query.getObserversCount(), 0);
+
+/** The codes of the alert of `element`: that of the problem, then its `Request-Id`. */
+const alertCodes = (element: HTMLElement) =>
+  [...element.shadowRoot!.querySelectorAll("[role=alert] code")].map((code) => code.textContent);
 
 describe("the example plugin", () => {
   it("defines every element its manifest declares, one of each point", () => {
@@ -108,16 +142,38 @@ describe("the example plugin", () => {
     ]);
   });
 
-  it("view: reads the prefixes through the shared cache, again once they are invalidated", async () => {
+  it("gives an element already in the page its sheets and its texts once defined", async () => {
+    await shadowText(early, "Example summary");
+    expect(early.shadowRoot!.querySelectorAll("link")).toHaveLength(2);
+    early.remove();
+  });
+
+  it("says why a sheet is refused, and draws the element anyway", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const styles = vi.spyOn(handle, "styles").mockRejectedValueOnce(new Error("no digest"));
+    try {
+      mounted = mount("example-usage", { properties: { row: { usage: "reserved" } } });
+      await shadowText(mounted.element, /^reserved$/);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("example-usage: sheet refused"),
+        expect.objectContaining({ message: "no digest" }),
+      );
+    } finally {
+      styles.mockRestore();
+      warn.mockRestore();
+    }
+  });
+
+  it("view: reads the IPv4 prefixes through the shared cache, again once invalidated", async () => {
     let value = "192.0.2.0/24";
-    let reads = 0;
+    const asked: URLSearchParams[] = [];
     let answer: () => void = () => {};
     const answered = new Promise<void>((resolve) => (answer = resolve));
     mounted = mount("example-overview", {
       context: { locale: "fr" },
       fetch: fakeFetch({
-        "GET /v1/prefixes": async () => {
-          reads++;
+        "GET /v1/prefixes": async ({ query }) => {
+          asked.push(query);
           await answered;
           return { items: [prefix(value)], links: {} } as never;
         },
@@ -129,31 +185,67 @@ describe("the example plugin", () => {
     expect(element.shadowRoot!.querySelector(".k-skeleton")).not.toBeNull();
     answer();
     await shadowText(element, "192.0.2.0/24");
-    expect(element.shadowRoot!.querySelector("h1")?.textContent).toBe("Plugin d'exemple");
+    expect(asked[0]?.get("within")).toBe("0.0.0.0/0");
+    const heading = element.shadowRoot!.querySelector("h1");
+    expect(heading?.textContent).toBe("Plugin d'exemple");
     expect(element.shadowRoot!.textContent).toContain("au présent");
 
     // What an event of the stream does (`changes` on a prefix): the list is invalidated, the
-    // cache reads it again, the element draws the new page.
+    // cache reads it again, the element draws the new page in the place of the list — the
+    // page around it stays.
     value = "198.51.100.0/24";
     await queryClient.invalidateQueries({ queryKey: ["v1", "/v1/prefixes"], exact: false });
     await shadowText(element, "198.51.100.0/24");
-    expect(reads).toBe(2);
-
-    // Read again to the same page: nothing redrawn (a reader's place is kept), only the time
-    // of the read.
-    const heading = element.shadowRoot!.querySelector("h1");
-    await queryClient.invalidateQueries({ queryKey: ["v1", "/v1/prefixes"], exact: false });
-    await vi.waitFor(() => expect(reads).toBe(3));
+    expect(asked).toHaveLength(2);
     expect(element.shadowRoot!.querySelector("h1")).toBe(heading);
 
-    // Another date of the shell: another query, said in the view.
-    mounted.unmount();
+    // Read again to the same page: the list itself is not drawn again.
+    const list = element.shadowRoot!.querySelector("ul");
+    await queryClient.invalidateQueries({ queryKey: ["v1", "/v1/prefixes"], exact: false });
+    await vi.waitFor(() => expect(asked).toHaveLength(3));
+    expect(element.shadowRoot!.querySelector("ul")).toBe(list);
+  });
+
+  it("view: another date of the shell, once connected, moves its observer to another query", async () => {
+    const asked: (string | null)[] = [];
     mounted = mount("example-overview", {
-      context: { locale: "fr", time: { validAt: "2026-03-01T00:00:00Z", asOf: null } },
-      fetch: fakeFetch({ "GET /v1/prefixes": () => ({ items: [], links: {} }) as never }),
+      context: { locale: "fr" },
+      fetch: fakeFetch({
+        "GET /v1/prefixes": ({ query }) => {
+          asked.push(query.get("valid_at"));
+          return { items: query.get("valid_at") ? [] : [prefix()], links: {} } as never;
+        },
+      }),
     });
-    await shadowText(mounted.element, "Aucun préfixe");
+    await shadowText(mounted.element, "192.0.2.0/24");
+    setContext({ time: { validAt: "2026-03-01T00:00:00Z", asOf: null } });
+    await shadowText(mounted.element, "Aucun préfixe IPv4");
     expect(mounted.element.shadowRoot!.textContent).toContain("à une autre date");
+    expect(asked).toEqual([null, "2026-03-01T00:00:00Z"]);
+    // One observer, on the dated query.
+    expect(observers()).toBe(1);
+  });
+
+  it("lets go of its queries once disconnected, and holds none if it leaves before its sheets", async () => {
+    mounted = mount("example-overview", {
+      fetch: fakeFetch({ "GET /v1/prefixes": () => ({ items: [prefix()], links: {} }) as never }),
+    });
+    await shadowText(mounted.element, "192.0.2.0/24");
+    expect(observers()).toBe(1);
+    mounted.unmount();
+    expect(observers()).toBe(0);
+
+    // Gone before its sheets settled: it never follows anything, never draws.
+    mounted = mount("example-overview", {
+      fetch: fakeFetch({ "GET /v1/prefixes": () => ({ items: [prefix()], links: {} }) as never }),
+    });
+    const { element } = mounted;
+    mounted.unmount();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(observers()).toBe(0);
+    expect(element.shadowRoot!.querySelector(".k-example-content")?.childNodes).toHaveLength(0);
+    setContext({ locale: "fr" });
+    expect(element.shadowRoot!.querySelector(".k-example-content")?.childNodes).toHaveLength(0);
   });
 
   it("view: a failed read shows its code and its Request-Id", async () => {
@@ -161,19 +253,28 @@ describe("the example plugin", () => {
       fetch: fakeFetch({ "GET /v1/prefixes": () => problem(403, "forbidden") }),
     });
     const text = await shadowText(mounted.element, "forbidden");
-    expect(mounted.element.shadowRoot!.querySelector("[role=alert]")).not.toBeNull();
-    const codes = [...mounted.element.shadowRoot!.querySelectorAll("[role=alert] code")];
-    expect(codes.map((code) => code.textContent)).toEqual(["forbidden", "req-42"]);
-    expect(text).toContain("Request");
+    expect(alertCodes(mounted.element)).toEqual(["forbidden", "req-42"]);
+    // A space between the word and the value: the name read is « Code forbidden ».
+    expect(text).toContain("Code forbidden");
+    expect(text).toContain("Request req-42");
   });
 
-  it("tab: reads its prefix through the shared cache", async () => {
+  it("tab: reads its prefix through the shared cache, or says why it cannot", async () => {
     mounted = mount("example-details", {
       object,
       fetch: fakeFetch({ "GET /v1/prefixes/{id}": () => prefix() }),
     });
     const text = await shadowText(mounted.element, "192.0.2.0/24");
     expect(text).toContain("lan");
+    mounted.unmount();
+    queryClient.clear();
+
+    mounted = mount("example-details", {
+      object,
+      fetch: fakeFetch({ "GET /v1/prefixes/{id}": () => problem(404, "not_found") }),
+    });
+    await shadowText(mounted.element, "Cannot read");
+    expect(alertCodes(mounted.element)).toEqual(["not_found", "req-42"]);
   });
 
   it("panel and column: the object and the row they are given", async () => {
@@ -193,25 +294,10 @@ describe("the example plugin", () => {
         "GET /v1/drafts": () => ({ items: [] }) as never,
         "POST /v1/drafts": ({ body }) => {
           posted.push(JSON.stringify(body));
-          return new Response(
-            JSON.stringify({
-              id: DRAFT,
-              href: `/v1/drafts/${DRAFT}`,
-              author: DRAFT,
-              title: "t",
-              operation_count: 1,
-              version: 1,
-              created_at: "2026-10-24T00:00:00Z",
-              updated_at: "2026-10-24T00:00:00Z",
-              reason: {},
-              operations: [],
-            }),
-            { status: 201, headers: { "Content-Type": "application/json", ETag: '"1"' } },
-          );
+          return created();
         },
       }),
     });
-    sessionStorage.clear();
     const root = mounted.element.shadowRoot!;
     await shadowText(mounted.element, "Add to the draft");
     const input = root.querySelector("input")!;
@@ -228,15 +314,58 @@ describe("the example plugin", () => {
         { op: "create_address", address: "192.0.2.20", domain: { id: DOMAIN }, usage: "reserved" },
       ],
     });
+    expect(input.hasAttribute("aria-invalid")).toBe(false);
 
     const closed = vi.fn();
     mounted.element.addEventListener("kartenn-close", closed);
     root.querySelector<HTMLButtonElement>("button[type=button]")!.click();
     expect(closed).toHaveBeenCalledOnce();
-    sessionStorage.clear();
   });
 
-  it("widget: the counters of the home page, read through the shared cache", async () => {
+  it("action: follows the language without losing what is typed", async () => {
+    mounted = mount("example-draft-address", { object });
+    const root = mounted.element.shadowRoot!;
+    await shadowText(mounted.element, "Add to the draft");
+    const input = root.querySelector("input")!;
+    input.value = "192.0.2.21";
+    setContext({ locale: "fr" });
+    expect(root.querySelector("label")?.textContent).toBe("Adresse *(requis)");
+    expect(root.querySelector("button[type=submit]")?.textContent).toBe("Ajouter au brouillon");
+    expect(root.querySelector("input")).toBe(input);
+    expect(input.value).toBe("192.0.2.21");
+  });
+
+  it("action: a refused draft or a failed read is an alert tied to the field", async () => {
+    for (const handlers of [
+      // The draft refused by the server.
+      {
+        "GET /v1/prefixes/{id}": () => prefix(),
+        "GET /v1/drafts": () => ({ items: [] }) as never,
+        "POST /v1/drafts": () => problem(422, "validation"),
+      },
+      // The prefix cannot be read.
+      { "GET /v1/prefixes/{id}": () => problem(403, "forbidden") },
+    ] as const) {
+      mounted = mount("example-draft-address", { object, fetch: fakeFetch(handlers) });
+      const root = mounted.element.shadowRoot!;
+      await shadowText(mounted.element, "Add to the draft");
+      const input = root.querySelector("input")!;
+      input.value = "192.0.2.22";
+      root.querySelector("form")!.requestSubmit();
+      await shadowText(mounted.element, "Cannot add");
+      const alert = root.querySelector("[role=alert]")!;
+      expect(input.getAttribute("aria-invalid")).toBe("true");
+      expect(input.getAttribute("aria-describedby")?.split(" ")).toContain(alert.parentElement!.id);
+      expect(alertCodes(mounted.element)).toHaveLength(2);
+      expect(alertCodes(mounted.element)[1]).toBe("req-42");
+      mounted.unmount();
+      queryClient.clear();
+      sessionStorage.clear();
+    }
+    mounted = null;
+  });
+
+  it("widget: the counters of the home page, or why they cannot be read", async () => {
     mounted = mount("example-counts", {
       fetch: fakeFetch({
         "GET /v1/stats": () =>
@@ -250,5 +379,13 @@ describe("the example plugin", () => {
     const text = await shadowText(mounted.element, "Prefixes");
     expect(text).toMatch(/1[,  ]?200/);
     expect(handle.t("widget.counts")).toBe("Objects of the repository");
+    mounted.unmount();
+    queryClient.clear();
+
+    mounted = mount("example-counts", {
+      fetch: fakeFetch({ "GET /v1/stats": () => problem(403, "forbidden") }),
+    });
+    await shadowText(mounted.element, "Cannot read");
+    expect(alertCodes(mounted.element)).toEqual(["forbidden", "req-42"]);
   });
 });

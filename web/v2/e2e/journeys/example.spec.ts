@@ -5,10 +5,10 @@ import { DATA, expect, expectAccessible, test } from "../fixtures/journeys.ts";
 // The example plugin of web/v2/plugins in the new shell (spec 021, task 19; REQ-021-25, 27;
 // REQ-007-21), built and installed as an operator would (serve.sh): written without a
 // framework on the SDK 1.0, its elements in their shadow root with the sheet of
-// @kartenn/ui linked by `handle.styles()`, then its own; its view reads the prefixes
+// @kartenn/ui linked by `handle.styles()`, then its own; its view reads the IPv4 prefixes
 // through the shared cache and follows its invalidations — a prefix created elsewhere shows
-// up without a reload. Its tab, panel, column, action and tile wait for the screens that
-// place them (tasks 11, 14): defined here, drawn by plugins/example/test/example.test.ts.
+// up without a reload, in the same element. The screens of the referential (task 11) place
+// its tile, column, tab, panel and action.
 
 const navigation = (page: Page) => page.getByRole("navigation", { name: "Navigation principale" });
 
@@ -92,26 +92,104 @@ test("its view follows the shared cache: a prefix created elsewhere shows up wit
   await page.goto("/x/example/overview");
   const view = page.locator("example-overview");
   await expect(row(view, DATA.prefix)).toBeVisible();
+  // The element and its heading, kept to be found again after the write.
+  await view.evaluate((element) => {
+    const kept = window as unknown as { __example?: unknown[] };
+    kept.__example = [element, element.shadowRoot!.querySelector("h1")];
+  });
 
-  // A prefix of documentation (RFC 3849) that no other run has created, in the domain of
-  // the data set, written by the API beside the page (the session of the same browser).
-  const group = () => (0x1000 + Math.floor(Math.random() * 0xefff)).toString(16);
-  const value = `2001:db8:${group()}:${group()}::/64`;
+  // An IPv4 prefix of documentation (RFC 5737) in the domain of the data set, a range per
+  // browser (the projects run side by side), written by the API beside the page (the
+  // session of the same browser); another value if one is already taken.
+  const range = test.info().project.name === "firefox" ? "203.0.113" : "198.51.100";
   const listed = await page.request.get(`/v1/prefixes?value=${encodeURIComponent(DATA.prefix)}`);
   const domain = ((await listed.json()) as { items: { domain: { id: string } }[] }).items[0]!.domain
     .id;
-  const written = await page.request.post("/v1/changesets?approval=self", {
-    headers: { Origin: BASE_URL },
-    data: {
-      motive: "example plugin journey",
-      operations: [
-        { op: "create_prefix", domain: { id: domain }, prefix: value, nature: "network" },
-      ],
-    },
-  });
-  expect([200, 201], await written.text()).toContain(written.status());
+  let value = "";
+  let status = 0;
+  for (let attempt = 0; attempt < 5 && ![200, 201].includes(status); attempt++) {
+    value = `${range}.${4 * Math.floor(Math.random() * 64)}/30`;
+    const written = await page.request.post("/v1/changesets?approval=self", {
+      headers: { Origin: BASE_URL },
+      data: {
+        motive: "example plugin journey",
+        operations: [
+          { op: "create_prefix", domain: { id: domain }, prefix: value, nature: "network" },
+        ],
+      },
+    });
+    status = written.status();
+  }
+  expect([200, 201]).toContain(status);
 
-  // The event of the stream invalidates the list; the observer of the plugin reads it again.
+  // The event of the stream invalidates the list; the observer of the plugin reads it again,
+  // in the same element, its page kept around the list.
   await expect(row(view, value)).toBeVisible();
   await expect(row(view, DATA.prefix)).toBeVisible();
+  const same = await view.evaluate((element) => {
+    const [kept, heading] = (window as unknown as { __example: unknown[] }).__example;
+    return element === kept && element.shadowRoot!.querySelector("h1") === heading;
+  });
+  expect(same).toBe(true);
+});
+
+test("the screens of the referential place its tile, column, tab, panel and action", async ({
+  page,
+  login,
+}) => {
+  // Alice may edit addresses: the action shows in the menu of the record.
+  await login("alice");
+
+  // The tile of the home page: the counters of the referential, read by the shared cache.
+  await expect(page.locator("example-counts")).toContainText("Préfixes");
+
+  // The column of the addresses: an element of the plugin in each row, given the row.
+  await page.goto("/addresses");
+  const grid = page.getByRole("grid", { name: "Adresses" });
+  await expect(grid.getByRole("columnheader", { name: /Usage \(exemple\)/ })).toBeAttached();
+  await expect(grid.locator("example-usage").first()).toHaveText(/^(réservée|autre)$/);
+
+  // The panel and the tab of a prefix, each given the object.
+  await page.goto("/prefixes");
+  await page
+    .getByRole("grid", { name: "Préfixes" })
+    .getByRole("link", { name: DATA.prefix })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: new RegExp(`\\s${DATA.prefix.replaceAll(".", "\\.")}$`),
+    }),
+  ).toBeVisible();
+  const id = page.url().split("/").pop()!;
+  await expect(page.locator("example-summary")).toContainText(id);
+  await page
+    .getByRole("tablist", { name: "Sections de la fiche" })
+    .getByRole("tab", { name: "Exemple" })
+    .click();
+  const details = page.locator("example-details");
+  await expect(details).toContainText(DATA.prefix);
+  await expect(details).toContainText(DATA.domain);
+  await expectAccessible(page);
+
+  // The action: its form in the dialog of the shell, an operation added to a draft of the
+  // server, no changeset sent.
+  const changesets: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.url().includes("/v1/changesets")) {
+      changesets.push(request.url());
+    }
+  });
+  await page.getByRole("button", { name: "Actions" }).click();
+  await page.getByRole("menuitem", { name: "Ajouter une adresse au brouillon" }).click();
+  const dialog = page.getByRole("dialog", { name: "Ajouter une adresse au brouillon" });
+  const form = dialog.locator("example-draft-address");
+  await form.getByRole("textbox", { name: /^Adresse/ }).fill("192.0.2.77");
+  await form.getByRole("button", { name: "Ajouter au brouillon" }).click();
+  await expect(form.getByText("Opération ajoutée ; le brouillon en compte 1.")).toBeVisible();
+  await expectAccessible(page);
+  expect(changesets).toEqual([]);
+  // Its own button closes it (`kartenn-close`), beside the cross of the dialog.
+  await form.getByRole("button", { name: "Fermer" }).click();
+  await expect(dialog).toHaveCount(0);
 });

@@ -99,8 +99,9 @@ function failure(title: string, error: unknown): HTMLDivElement {
   };
   if (error instanceof ApiProblem) {
     line(error.detail ?? error.title);
-    line(t("code"), el("code", error.code));
-    if (error.requestId) line(t("request"), el("code", error.requestId));
+    // A space in the text between the word and its value: the name read is « Code forbidden ».
+    line(t("code"), " ", el("code", error.code));
+    if (error.requestId) line(t("request"), " ", el("code", error.requestId));
   } else {
     line(t("network"));
   }
@@ -137,14 +138,10 @@ abstract class ExampleElement extends HTMLElement {
   private connection = 0;
 
   connectedCallback(): void {
-    const handle = defined.handle;
-    // Without its sheets the element stays readable: the tokens are inherited anyway.
-    this.sheets ??= handle
-      ? Promise.allSettled([
-          handle.styles(this.root, "@kartenn/ui/style.css"),
-          handle.styles(this.root, "styles.css"),
-        ])
-      : Promise.resolve();
+    // After a microtask: an element already in the page is upgraded within
+    // `customElements.define`, before `definePlugin` has given back the handle (its sheets,
+    // its texts); the module has set it by then.
+    this.sheets ??= Promise.resolve().then(() => this.link());
     const connection = ++this.connection;
     void this.sheets.then(() => {
       if (connection !== this.connection) return;
@@ -160,6 +157,27 @@ abstract class ExampleElement extends HTMLElement {
   disconnectedCallback(): void {
     this.connection++;
     for (const stop of this.stops.splice(0)) stop();
+  }
+
+  /**
+   * The sheet of @kartenn/ui then the plugin's, settled either way: without them the element
+   * stays readable (the tokens are inherited anyway), and the console says why.
+   */
+  private async link(): Promise<void> {
+    const handle = defined.handle;
+    if (!handle) {
+      console.warn("kartenn: example: no handle, the elements are drawn without their sheets");
+      return;
+    }
+    const linked = await Promise.allSettled([
+      handle.styles(this.root, "@kartenn/ui/style.css"),
+      handle.styles(this.root, "styles.css"),
+    ]);
+    for (const outcome of linked) {
+      if (outcome.status === "rejected") {
+        console.warn(`kartenn: example: ${this.localName}: sheet refused:`, outcome.reason);
+      }
+    }
   }
 
   /** The queries the element follows while connected: the functions that let them go. */
@@ -192,19 +210,29 @@ abstract class ExampleElement extends HTMLElement {
 }
 
 /**
- * The view: what the plugin is, the dates of the context, and the first page of the
+ * The IPv4 prefixes, the first page: a short list in any referential (lists are in the
+ * order of creation), where a prefix just created shows up.
+ */
+const PREFIXES = () => reads.list("/v1/prefixes", { within: "0.0.0.0/0" });
+
+/**
+ * The view: what the plugin is, the dates of the context, and the first page of the IPv4
  * prefixes, followed in the shared cache — a prefix created elsewhere (this tab, another,
- * another user) shows up here once the stream has invalidated the list.
+ * another user) shows up here once the stream has invalidated the list. The page stays; only
+ * the place of the list is drawn again, when what it says changes.
  */
 class Overview extends ExampleElement {
-  private readonly list = new InfiniteQueryObserver(queryClient, reads.list("/v1/prefixes"));
+  private readonly list = new InfiniteQueryObserver(queryClient, PREFIXES());
+  /** The place of the list in the page, and what it was last drawn with. */
+  private area: HTMLDivElement | null = null;
+  private areaShown: string | null = null;
 
   protected override follow(): (() => void)[] {
     return [this.list.subscribe(() => this.render())];
   }
 
   protected override retime(): void {
-    this.list.setOptions(reads.list("/v1/prefixes"));
+    this.list.setOptions(PREFIXES());
   }
 
   /** When the list was read, the one text that changes at each read: set in place. */
@@ -212,44 +240,47 @@ class Overview extends ExampleElement {
 
   protected render(): void {
     const { time, locale } = context.get();
+    // The page: drawn again only for another language or another date.
+    this.show(JSON.stringify([locale, time.present]), () => {
+      const heading = el("h2", t("view.prefixes"), "k-example-heading");
+      heading.id = "k-example-prefixes";
+      const section = el("section", undefined, "k-example-section");
+      section.setAttribute("aria-labelledby", heading.id);
+      this.area = el("div");
+      this.areaShown = null;
+      section.append(
+        stack(
+          "3",
+          stack("1", heading, el("p", t("view.how"), "k-example-muted k-example-prose")),
+          this.area,
+        ),
+      );
+      return [
+        stack(
+          "6",
+          stack(
+            "2",
+            el("h1", t("view.title"), "k-example-title"),
+            el("p", t("view.body"), "k-example-prose"),
+            el("p", t(time.present ? "view.present" : "view.dated"), "k-example-muted"),
+          ),
+          section,
+        ),
+      ];
+    });
     const result = this.list.getCurrentResult();
     const page = result.data?.pages[0]?.data;
     const items = (page?.items ?? []) as Prefix[];
-    this.show(
-      JSON.stringify([
-        locale,
-        time.present,
-        page === undefined,
-        result.isError ? problemOf(result.error) : null,
-        items.map((prefix) => [prefix.value, domainOf(prefix)]),
-        Boolean(page?.links.next),
-      ]),
-      () => {
-        const heading = el("h2", t("view.prefixes"), "k-example-heading");
-        heading.id = "k-example-prefixes";
-        const section = el("section", undefined, "k-example-section");
-        section.setAttribute("aria-labelledby", heading.id);
-        section.append(
-          stack(
-            "3",
-            stack("1", heading, el("p", t("view.how"), "k-example-muted k-example-prose")),
-            this.prefixes(),
-          ),
-        );
-        return [
-          stack(
-            "6",
-            stack(
-              "2",
-              el("h1", t("view.title"), "k-example-title"),
-              el("p", t("view.body"), "k-example-prose"),
-              el("p", t(time.present ? "view.present" : "view.dated"), "k-example-muted"),
-            ),
-            section,
-          ),
-        ];
-      },
-    );
+    const shown = JSON.stringify([
+      page === undefined,
+      result.isError ? problemOf(result.error) : null,
+      items.map((prefix) => [prefix.value, domainOf(prefix)]),
+      Boolean(page?.links.next),
+    ]);
+    if (this.area && shown !== this.areaShown) {
+      this.areaShown = shown;
+      this.area.replaceChildren(this.prefixes());
+    }
     if (this.readAt && result.dataUpdatedAt > 0) {
       const read = new Date(result.dataUpdatedAt).toISOString();
       this.readAt.textContent = t("view.readAt", { date: defined.handle?.format.dateTime(read) });
@@ -365,53 +396,67 @@ class Usage extends ExampleElement {
 
 /** The action of a prefix: an address to create, added to the draft and not sent. */
 class DraftAddress extends ExampleElement {
+  /** The texts of the form and their keys: set again in another language, in place. */
+  private readonly texts: [Node, string][] = [];
+
   protected render(): void {
-    // Drawn once: a change of language leaves what is typed alone.
-    this.show("form", () => {
-      // The markup of `TextField` in its `FormField`: label, required mark, hint.
-      const field = el("div", undefined, "k-form-field k-text-field");
-      const label = el("label", t("action.address"), "k-form-field__label");
-      label.htmlFor = "k-example-address";
-      const required = el("span", undefined, "k-form-field__required");
-      const star = el("span", "*");
-      star.setAttribute("aria-hidden", "true");
-      required.append(" ", star, el("span", t("required"), "k-visually-hidden"));
-      label.append(required);
-      const frame = el("div", undefined, "k-field-frame");
-      const input = el("input", undefined, "k-field-frame__input k-mono");
-      input.id = label.htmlFor;
-      input.name = "address";
-      input.required = true;
-      input.autocomplete = "off";
-      input.spellcheck = false;
-      const hint = el("p", t("action.hint"), "k-form-field__hint");
-      hint.id = "k-example-address-hint";
-      input.setAttribute("aria-describedby", hint.id);
-      frame.append(input);
-      field.append(label, frame, hint);
-      // The outcome: said by a live region there from the start; a failure as an alert, tied
-      // to the field.
-      const said = el("p");
-      said.setAttribute("role", "status");
-      const failed = el("div");
-      failed.id = "k-example-address-failed";
-      const submit = button(t("action.submit"), "primary");
-      submit.type = "submit";
-      const close = button(t("action.close"), "secondary");
-      close.addEventListener("click", () =>
-        this.dispatchEvent(new Event("kartenn-close", { bubbles: true, composed: true })),
-      );
-      const actions = el("div", undefined, "k-example-actions");
-      actions.append(submit, close);
-      const form = el("form", undefined, "k-stack");
-      form.dataset["kGap"] = "4";
-      form.append(field, said, failed, actions);
-      form.addEventListener("submit", (event) => {
-        event.preventDefault();
-        void this.add(input, submit, said, failed);
-      });
-      return [form];
+    // Drawn once, then relabelled: a change of language leaves what is typed alone.
+    this.show("form", () => this.form());
+    for (const [node, key] of this.texts) node.textContent = t(key);
+  }
+
+  private form(): Node[] {
+    const text = (key: string) => {
+      const node = document.createTextNode("");
+      this.texts.push([node, key]);
+      return node;
+    };
+    // The markup of `TextField` in its `FormField`: label, required mark, hint.
+    const field = el("div", undefined, "k-form-field k-text-field");
+    const label = el("label", undefined, "k-form-field__label");
+    label.htmlFor = "k-example-address";
+    const required = el("span", undefined, "k-form-field__required");
+    const star = el("span", "*");
+    star.setAttribute("aria-hidden", "true");
+    const spoken = el("span", undefined, "k-visually-hidden");
+    spoken.append(text("required"));
+    required.append(" ", star, spoken);
+    label.append(text("action.address"), required);
+    const frame = el("div", undefined, "k-field-frame");
+    const input = el("input", undefined, "k-field-frame__input k-mono");
+    input.id = label.htmlFor;
+    input.name = "address";
+    input.required = true;
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    const hint = el("p", undefined, "k-form-field__hint");
+    hint.append(text("action.hint"));
+    hint.id = "k-example-address-hint";
+    input.setAttribute("aria-describedby", hint.id);
+    frame.append(input);
+    field.append(label, frame, hint);
+    // The outcome: said by a live region there from the start; a failure as an alert, tied
+    // to the field.
+    const said = el("p");
+    said.setAttribute("role", "status");
+    const failed = el("div");
+    failed.id = "k-example-address-failed";
+    const submit = button(text("action.submit"), "primary");
+    submit.type = "submit";
+    const close = button(text("action.close"), "secondary");
+    close.addEventListener("click", () =>
+      this.dispatchEvent(new Event("kartenn-close", { bubbles: true, composed: true })),
+    );
+    const actions = el("div", undefined, "k-example-actions");
+    actions.append(submit, close);
+    const form = el("form", undefined, "k-stack");
+    form.dataset["kGap"] = "4";
+    form.append(field, said, failed, actions);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void this.add(input, submit, said, failed);
     });
+    return [form];
   }
 
   private async add(
@@ -456,12 +501,14 @@ class DraftAddress extends ExampleElement {
 }
 
 /** A button in the markup of `Button` (@kartenn/ui). */
-function button(label: string, variant: "primary" | "secondary"): HTMLButtonElement {
+function button(label: Node, variant: "primary" | "secondary"): HTMLButtonElement {
   const element = el("button", undefined, "k-button");
   element.type = "button";
   element.dataset["variant"] = variant;
   element.dataset["size"] = "md";
-  element.append(el("span", label, "k-button__label"));
+  const span = el("span", undefined, "k-button__label");
+  span.append(label);
+  element.append(span);
   return element;
 }
 
