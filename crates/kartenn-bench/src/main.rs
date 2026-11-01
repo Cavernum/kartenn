@@ -52,6 +52,12 @@
 //! pass on the bench instance, the prepared database becomes the template
 //! `kartenn_bench_tpl_<bench>_<fingerprint>` and the run measures on a copy of it; the next
 //! run with the same fingerprint copies it instead of preparing ([`kartenn_bench::template`]).
+//!
+//! History (ADR 0041, decision 4): with `--history`, which the `bench-*` scripts pass, the
+//! run adds one JSON line per figure (budget of a measure) to `.bench/history.jsonl` at the
+//! root of the main checkout of the current directory; `--history=<file>` writes to `file`
+//! instead. `kartenn-bench history <measure> [--scale full|reduced|small]` prints the series
+//! of a measure ([`kartenn_bench::history`]).
 
 use std::fs::File;
 use std::io::BufWriter;
@@ -59,6 +65,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use anyhow::{Context, bail};
+use kartenn_bench::history::{self, Entry, Figure, Run};
 use kartenn_bench::measures::{Bench, Selection, bench};
 use kartenn_bench::template::Reuse;
 use kartenn_bench::{Scale, generate};
@@ -71,6 +78,31 @@ struct Options {
     only: Option<String>,
     /// Keep the prepared database as a template and measure on a copy (ADR 0041).
     template: bool,
+    /// Add the figures of the run to a history (`--history[=<file>]`).
+    history: Option<HistoryFile>,
+}
+
+/// The history a run writes to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum HistoryFile {
+    /// `.bench/history.jsonl` at the root of the main checkout (`--history`).
+    Checkout,
+    /// Another file (`--history=<file>`: tests, a bisection).
+    At(PathBuf),
+}
+
+/// Where a run adds its lines of history, and what they share.
+struct Journal {
+    file: PathBuf,
+    run: Run,
+}
+
+impl Journal {
+    fn write(&self, figures: &[Figure]) -> anyhow::Result<()> {
+        let entries: Vec<Entry> = figures.iter().map(|f| Entry::of(&self.run, f)).collect();
+        history::append(&self.file, &entries)
+            .with_context(|| format!("writing the history {}", self.file.display()))
+    }
 }
 
 impl Options {
@@ -87,13 +119,27 @@ impl Options {
                     options.template = true;
                     continue;
                 }
+                "--history" => {
+                    options.set_history(HistoryFile::Checkout)?;
+                    continue;
+                }
                 "--only" => args.next().context("--only <m1,m2>")?.clone(),
-                other => match other.strip_prefix("--only=") {
-                    Some(names) => names.to_owned(),
-                    None => bail!(
-                        "unexpected argument `{other}`: [small] [--only <m1,m2>] [--template]"
-                    ),
-                },
+                other => {
+                    if let Some(file) = other.strip_prefix("--history=") {
+                        if file.is_empty() {
+                            bail!("--history= without a file");
+                        }
+                        options.set_history(HistoryFile::At(PathBuf::from(file)))?;
+                        continue;
+                    }
+                    match other.strip_prefix("--only=") {
+                        Some(names) => names.to_owned(),
+                        None => bail!(
+                            "unexpected argument `{other}`: [small] [--only <m1,m2>] [--template] \
+                             [--history[=<file>]]"
+                        ),
+                    }
+                }
             };
             if options.only.replace(only).is_some() {
                 bail!("--only twice");
@@ -124,6 +170,35 @@ impl Options {
             seed,
             &format!("{level:?} {volumes:?}"),
         )
+    }
+
+    fn set_history(&mut self, file: HistoryFile) -> anyhow::Result<()> {
+        if self.history.replace(file).is_some() {
+            bail!("--history twice");
+        }
+        Ok(())
+    }
+
+    /// The history of the run under `--history`: the exclusion of `.bench/` checked, the
+    /// commit and the state of the tree of the current directory read now, at the start.
+    fn journal(
+        &self,
+        bench: &str,
+        level: Level,
+        seed: u64,
+        reuse: &Reuse,
+        load: Option<f64>,
+    ) -> anyhow::Result<Option<Journal>> {
+        let Some(target) = &self.history else {
+            return Ok(None);
+        };
+        let here = std::env::current_dir()?;
+        let file = match target {
+            HistoryFile::Checkout => history::prepare(&here)?,
+            HistoryFile::At(file) => file.clone(),
+        };
+        let run = Run::start(&here, bench, level.name(), seed, load, reuse.fingerprint())?;
+        Ok(Some(Journal { file, run }))
     }
 }
 
@@ -187,12 +262,32 @@ impl Level {
         }
     }
 
-    fn verdict(self, report: &str, ok: bool, failure: &str) -> anyhow::Result<()> {
+    /// Its name in the history.
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Full => "full",
+            Self::Reduced => "reduced",
+            Self::Small => "small",
+        }
+    }
+
+    /// The report, the caveat of the scale, the figures added to the history; fails when a
+    /// budget is exceeded.
+    fn verdict(
+        self,
+        report: &str,
+        figures: &[Figure],
+        journal: Option<&Journal>,
+        failure: &str,
+    ) -> anyhow::Result<()> {
         print!("{report}");
         if let Some(caveat) = self.caveat() {
             println!("{caveat}");
         }
-        if !ok {
+        if let Some(journal) = journal {
+            journal.write(figures)?;
+        }
+        if figures.iter().any(Figure::fails) {
             bail!("{failure}");
         }
         Ok(())
@@ -201,8 +296,11 @@ impl Level {
 
 #[allow(clippy::too_many_lines)] // one arm per command
 fn main() -> anyhow::Result<()> {
+    // The load of the machine when the run starts, for the history.
+    let load = history::load();
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.as_slice() {
+        [command, rest @ ..] if command == "history" => series(rest),
         [command, seed, dir, rest @ ..] if command == "gen" => generate_files(seed, dir, rest),
         [command, flag, rest @ ..] if flag == "--list" => list(command, rest),
         [command, database, seed, rest @ ..]
@@ -215,9 +313,10 @@ fn main() -> anyhow::Result<()> {
             level.announce(&selection);
             let data = generate(seed, level.scale());
             let reuse = options.reuse(&selection, seed, level, &level.scale());
+            let journal = options.journal(command, level, seed, &reuse, load)?;
             let runtime = tokio::runtime::Runtime::new()?;
             let (s, r) = (&selection, &reuse);
-            let (report, ok) = match command.as_str() {
+            let (report, figures) = match command.as_str() {
                 "props" => {
                     runtime.block_on(kartenn_bench::props::run(database, &data, seed, s, r))?
                 }
@@ -237,7 +336,7 @@ fn main() -> anyhow::Result<()> {
                     database, &data, seed, s, r,
                 ))?,
             };
-            level.verdict(&report, ok, "a budget is exceeded")
+            level.verdict(&report, &figures, journal.as_ref(), "a budget is exceeded")
         }
         [command, database, seed, rest @ ..] if command == "events" => {
             // The seed draws nothing here; it is checked as elsewhere.
@@ -252,10 +351,11 @@ fn main() -> anyhow::Result<()> {
                 Level::Small => kartenn_bench::events_budgets::Sizes::SMALL,
             };
             let reuse = options.reuse(&selection, seed, level, &sizes);
-            let (report, ok) = tokio::runtime::Runtime::new()?.block_on(
+            let journal = options.journal(command, level, seed, &reuse, load)?;
+            let (report, figures) = tokio::runtime::Runtime::new()?.block_on(
                 kartenn_bench::events_budgets::run(database, sizes, &selection, &reuse),
             )?;
-            level.verdict(&report, ok, "a budget is exceeded")
+            level.verdict(&report, &figures, journal.as_ref(), "a budget is exceeded")
         }
         [command, database, seed, rest @ ..] if command == "seed" => {
             let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
@@ -276,8 +376,9 @@ fn main() -> anyhow::Result<()> {
             level.announce(&selection);
             let data = generate(seed, level.scale());
             let reuse = options.reuse(&selection, seed, level, &level.scale());
+            let journal = options.journal(command, level, seed, &reuse, load)?;
             let runtime = tokio::runtime::Runtime::new()?;
-            let (report, ok) = runtime.block_on(kartenn_bench::telemetry::run(
+            let (report, figures) = runtime.block_on(kartenn_bench::telemetry::run(
                 database,
                 &data,
                 seed,
@@ -285,7 +386,12 @@ fn main() -> anyhow::Result<()> {
                 &selection,
                 &reuse,
             ))?;
-            level.verdict(&report, ok, "an overhead is exceeded")
+            level.verdict(
+                &report,
+                &figures,
+                journal.as_ref(),
+                "an overhead is exceeded",
+            )
         }
         // A child of `telemetry`: the same scale and measures, through the same arguments or
         // environment.
@@ -305,8 +411,9 @@ fn main() -> anyhow::Result<()> {
         }
         _ => bail!(
             "usage: kartenn-bench gen <seed> <output-dir> [small] \
-             | props|core|rbac|http|policy|flow|events|telemetry <database-url> <seed> [small] [--only <m1,m2>] [--template] \
+             | props|core|rbac|http|policy|flow|events|telemetry <database-url> <seed> [small] [--only <m1,m2>] [--template] [--history[=<file>]] \
              | props|core|rbac|http|policy|flow|events|telemetry --list [--only <m1,m2>] \
+             | history <measure> [--scale full|reduced|small] \
              | seed <database-url> <seed> [small]"
         ),
     }
@@ -319,6 +426,31 @@ fn list(command: &str, rest: &[String]) -> anyhow::Result<()> {
     match selection.announce() {
         Some(line) => println!("{line}"),
         None => print!("{}", bench(command).map(Bench::list).unwrap_or_default()),
+    }
+    Ok(())
+}
+
+/// `history <measure> [--scale <scale>]`: the series of a measure of the catalogues in the
+/// history of the main checkout of the current directory, oldest first.
+fn series(rest: &[String]) -> anyhow::Result<()> {
+    const USAGE: &str = "usage: kartenn-bench history <measure> [--scale full|reduced|small]";
+    let (measure, scale) = match rest {
+        [measure] => (measure, None),
+        [measure, flag, scale] if flag == "--scale" => (measure, Some(scale.as_str())),
+        _ => bail!("{USAGE}"),
+    };
+    if scale.is_some_and(|s| !["full", "reduced", "small"].contains(&s)) {
+        bail!("{USAGE}");
+    }
+    let name = measure.split_once('.').map_or(measure.as_str(), |(b, _)| b);
+    bench(name)
+        .with_context(|| format!("`{measure}` names no bench"))?
+        .select(Some(measure))?;
+    let (_, file) = history::location(&std::env::current_dir()?)?;
+    let (entries, unread) = history::read(&file)?;
+    print!("{}", history::series(&entries, measure, scale));
+    if unread > 0 {
+        eprintln!("{unread} lignes illisibles de l'historique ignorées");
     }
     Ok(())
 }
@@ -386,7 +518,7 @@ mod tests {
                 Options {
                     small,
                     only: names,
-                    template: false
+                    ..Options::default()
                 },
                 "{args:?}"
             );
@@ -396,12 +528,32 @@ mod tests {
             Options {
                 small: true,
                 only: only("a"),
-                template: true
+                template: true,
+                history: None,
             }
         );
         for args in [&["--only"][..], &["large"], &["--only", "a", "--only=b"]] {
             assert!(parse(args).is_err(), "{args:?}");
         }
+    }
+
+    #[test]
+    fn history_to_the_checkout_or_to_a_file() {
+        assert_eq!(
+            parse(&["--history", "small"]).unwrap().history,
+            Some(HistoryFile::Checkout)
+        );
+        assert_eq!(
+            parse(&["--template", "--history=runs.jsonl"])
+                .unwrap()
+                .history,
+            Some(HistoryFile::At(PathBuf::from("runs.jsonl")))
+        );
+        for args in [&["--history="][..], &["--history", "--history=a"]] {
+            assert!(parse(args).is_err(), "{args:?}");
+        }
+        assert_eq!(Level::Reduced.name(), "reduced");
+        assert_eq!(Level::Full.name(), "full");
     }
 
     #[test]

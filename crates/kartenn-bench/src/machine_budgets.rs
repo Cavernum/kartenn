@@ -33,6 +33,7 @@ use sqlx::types::Uuid;
 
 use crate::Dataset;
 use crate::core_budgets::unitary;
+use crate::history::{Figure, Unit};
 use crate::measures::Selection;
 use crate::props::{Budget, p95, progress};
 use crate::vlan_budgets::{app, get, import, reader, reader_on, sync};
@@ -202,7 +203,7 @@ fn acceptance_items(owner: Uuid, domain: Uuid, count: usize) -> anyhow::Result<V
 /// # Errors
 ///
 /// Database, pipeline or router failures.
-#[allow(clippy::too_many_lines)] // one linear scenario, step by step
+#[allow(clippy::too_many_lines, clippy::too_many_arguments)] // one linear scenario, step by step
 pub(crate) async fn run(
     pool: &PgPool,
     author: Uuid,
@@ -211,6 +212,7 @@ pub(crate) async fn run(
     rng: &mut ChaCha8Rng,
     selection: &Selection,
     report: &mut String,
+    figures: &mut Vec<Figure>,
 ) -> anyhow::Result<Vec<Budget>> {
     let started = Instant::now();
     // The deployment of a build with both modules: the schema of the new one, then the
@@ -355,15 +357,20 @@ pub(crate) async fn run(
         if interfaces == 0 {
             bail!("the machine cards carry no interface");
         }
-        budgets.push(Budget {
-            name: "read a machine with its interfaces and addresses, p95",
-            limit: Duration::from_millis(50),
-            measured: p95(samples),
-            note: format!(
-                "200 draws, through the router, {} interfaces a card on average",
-                interfaces / 200
+        budgets.push(
+            Budget::of(
+                READ,
+                "read a machine with its interfaces and addresses, p95",
+                Duration::from_millis(50),
+            )
+            .measured(
+                p95(samples),
+                format!(
+                    "200 draws, through the router, {} interfaces a card on average",
+                    interfaces / 200
+                ),
             ),
-        });
+        );
     }
 
     // Filtered pages of 100: the virtual machines of an owner.
@@ -377,15 +384,20 @@ pub(crate) async fn run(
             rows += page["items"].as_array().map_or(0, Vec::len);
             samples.push(elapsed);
         }
-        budgets.push(Budget {
-            name: "filtered page of 100 machines, p95",
-            limit: Duration::from_millis(150),
-            measured: p95(samples),
-            note: format!(
-                "100 draws of the virtual machines of an owner, {} rows a page on average",
-                rows / 100
+        budgets.push(
+            Budget::of(
+                OWNER_PAGE,
+                "filtered page of 100 machines, p95",
+                Duration::from_millis(150),
+            )
+            .measured(
+                p95(samples),
+                format!(
+                    "100 draws of the virtual machines of an owner, {} rows a page on average",
+                    rows / 100
+                ),
             ),
-        });
+        );
     }
 
     // Filtered pages of 100: the physical machines of a site.
@@ -402,15 +414,20 @@ pub(crate) async fn run(
         if rows == 0 {
             bail!("no machine found on the drawn sites");
         }
-        budgets.push(Budget {
-            name: "page of 100 machines of a site, p95",
-            limit: Duration::from_millis(150),
-            measured: p95(samples),
-            note: format!(
-                "100 draws of the physical machines of a site, {} rows a page on average",
-                rows / 100
+        budgets.push(
+            Budget::of(
+                SITE_PAGE,
+                "page of 100 machines of a site, p95",
+                Duration::from_millis(150),
+            )
+            .measured(
+                p95(samples),
+                format!(
+                    "100 draws of the physical machines of a site, {} rows a page on average",
+                    rows / 100
+                ),
             ),
-        });
+        );
     }
 
     // The machines of a /24.
@@ -426,12 +443,17 @@ pub(crate) async fn run(
         if rows == 0 {
             bail!("no machine found in the drawn networks");
         }
-        budgets.push(Budget {
-            name: "machines of a /24, p95",
-            limit: Duration::from_millis(150),
-            measured: p95(samples),
-            note: format!("200 draws, {} machines a network on average", rows / 200),
-        });
+        budgets.push(
+            Budget::of(
+                NETWORK,
+                "machines of a /24, p95",
+                Duration::from_millis(150),
+            )
+            .measured(
+                p95(samples),
+                format!("200 draws, {} machines a network on average", rows / 200),
+            ),
+        );
     }
 
     // Unitary changesets: a new machine for a random owner.
@@ -445,12 +467,12 @@ pub(crate) async fn run(
             )?;
             samples.push(unitary(&store, author, operation).await?);
         }
-        budgets.push(Budget {
-            name: "create a machine, p95",
-            limit: Duration::from_millis(200),
-            measured: p95(samples),
-            note: "100 unitary changesets, validated and applied".into(),
-        });
+        budgets.push(
+            Budget::of(CREATE, "create a machine, p95", Duration::from_millis(200)).measured(
+                p95(samples),
+                "100 unitary changesets, validated and applied",
+            ),
+        );
     }
     progress(&format!("machines measures: {:?}", started.elapsed()));
 
@@ -459,7 +481,13 @@ pub(crate) async fn run(
         progress(&format!("suggestions: {:?}", started.elapsed()));
     }
     if selection.runs(IMPORT) {
-        acceptance(pool, &store, author, entities[0], machines, report).await?;
+        let elapsed = acceptance(pool, &store, author, entities[0], machines, report).await?;
+        figures.push(Figure::info(
+            IMPORT,
+            "machines import",
+            elapsed.as_secs_f64(),
+            Unit::Seconds,
+        ));
         progress(&format!("machines import: {:?}", started.elapsed()));
     }
     Ok(budgets)
@@ -499,7 +527,8 @@ async fn all_suggestions(
     suggestions(pool, &everyone, &one_owner, seed, rng).await
 }
 
-/// The import of the acceptance of REQ-009-19, in a domain of its own, owned by `entity`.
+/// The import of the acceptance of REQ-009-19, in a domain of its own, owned by `entity`;
+/// how long it took.
 async fn acceptance(
     pool: &PgPool,
     store: &PgStore,
@@ -507,7 +536,7 @@ async fn acceptance(
     entity: Uuid,
     machines: usize,
     report: &mut String,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Duration> {
     let imported = (machines * IMPORTED / MACHINES).max(1);
     let owner: Uuid =
         sqlx::query_scalar("SELECT id FROM property_declaration WHERE key = 'core.owner'")
@@ -576,7 +605,7 @@ async fn acceptance(
          by local names, in {elapsed:?}",
         imported * 2
     )?;
-    Ok(())
+    Ok(elapsed)
 }
 
 /// A suggestion route measured: its budget's name, its path, and the query of the keys
@@ -737,15 +766,15 @@ async fn suggestions(
         if rows == 0 {
             bail!("{}: no suggestion", route.name);
         }
-        budgets.push(Budget {
-            name: route.name,
-            limit: Duration::from_millis(50),
-            measured: p95(samples),
-            note: format!(
-                "200 prefixes of 1 to 6 characters, {} suggestions a page on average",
-                rows / 200
+        budgets.push(
+            Budget::of(SUGGESTIONS, route.name, Duration::from_millis(50)).measured(
+                p95(samples),
+                format!(
+                    "200 prefixes of 1 to 6 characters, {} suggestions a page on average",
+                    rows / 200
+                ),
             ),
-        });
+        );
     }
     Ok(budgets)
 }

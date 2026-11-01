@@ -188,12 +188,25 @@ pub(crate) fn budgets(report: &str) -> BTreeMap<String, Vec<String>> {
 ///
 /// Both run through a template (ADR 0041, decision 2): the whole bench prepares and keeps
 /// it, the measure alone runs on its copy, without preparing.
+///
+/// Both write their figures to a history of their own (ADR 0041, decision 4): every
+/// measure of the catalogue has its lines in the whole bench, alone only the measures that
+/// ran, each budget under the same measure as in the whole bench.
 fn alone_as_in_the_whole(bench: &str, only: &str, same: &[&str], present: &[&str]) {
     let mut serial = Serial::take();
     serial.drop_templates(bench);
-    let whole = serial.run_with(bench, None, &["--template"]);
-    let alone = serial.run_with(bench, Some(only), &["--template"]);
+    let file = |which: &str| {
+        std::env::temp_dir().join(format!(
+            "kartenn-bench-it-history-{bench}-{which}-{}.jsonl",
+            std::process::id()
+        ))
+    };
+    let (whole_history, alone_history) = (file("whole"), file("alone"));
+    let flag = |path: &std::path::Path| format!("--history={}", path.display());
+    let whole = serial.run_with(bench, None, &["--template", &flag(&whole_history)]);
+    let alone = serial.run_with(bench, Some(only), &["--template", &flag(&alone_history)]);
     serial.drop_templates(bench);
+    history_by_measure(bench, only, &whole_history, &alone_history);
     assert!(
         alone.contains("INFO prepared database: copy of kartenn_bench_tpl_"),
         "{alone}"
@@ -228,6 +241,59 @@ fn alone_as_in_the_whole(bench: &str, only: &str, same: &[&str], present: &[&str
             mine.contains_key(*budget) && all.contains_key(*budget),
             "{budget}: alone\n{alone}\nin the whole bench\n{whole}"
         );
+    }
+}
+
+/// The histories of the whole bench and of `only` alone, read back and removed.
+fn history_by_measure(bench: &str, only: &str, whole: &std::path::Path, alone: &std::path::Path) {
+    use kartenn_bench::history::{Entry, read};
+    let entries = |path: &std::path::Path| -> Vec<Entry> {
+        let (entries, unread) = read(path).expect("reading a history");
+        std::fs::remove_file(path).expect("removing a history");
+        assert_eq!(unread, 0, "{}", path.display());
+        entries
+    };
+    let (whole, alone) = (entries(whole), entries(alone));
+    let catalogue = kartenn_bench::measures::bench(bench).expect("a bench");
+    for measure in catalogue.measures {
+        assert!(
+            whole.iter().any(|e| e.measure == measure.name),
+            "{}: no figure in the whole bench",
+            measure.name
+        );
+    }
+    let selection = catalogue.select(Some(only)).expect("the measures");
+    let of = |entries: &[Entry], budget: &str| -> Vec<String> {
+        entries
+            .iter()
+            .filter(|e| e.budget == budget)
+            .map(|e| e.measure.clone())
+            .collect()
+    };
+    for entry in &alone {
+        assert!(
+            selection.runs(&entry.measure),
+            "{}: did not run",
+            entry.measure
+        );
+        assert!(
+            of(&whole, &entry.budget).contains(&entry.measure),
+            "{}: under {} alone, not in the whole bench",
+            entry.budget,
+            entry.measure
+        );
+    }
+    for entry in whole.iter().chain(&alone) {
+        let run = &entry.run;
+        assert_eq!(
+            (run.bench.as_str(), run.scale.as_str(), run.seed),
+            (bench, "small", 42)
+        );
+        assert!(
+            run.template.as_ref().is_some_and(|t| t.len() == 16),
+            "{run:?}"
+        );
+        assert_eq!(run.commit.len(), 40, "{run:?}");
     }
 }
 

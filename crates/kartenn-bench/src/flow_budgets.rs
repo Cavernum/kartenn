@@ -33,6 +33,7 @@ use sqlx::PgPool;
 use sqlx::types::Uuid;
 
 use crate::core_budgets::{Ids, Prepared, prepare_with, unitary};
+use crate::history::Figure;
 use crate::measures::{Bench, Measure, Selection};
 use crate::props::{Budget, p95, progress, verdict};
 use crate::template::Reuse;
@@ -689,7 +690,7 @@ pub async fn run(
     seed: u64,
     selection: &Selection,
     reuse: &Reuse,
-) -> anyhow::Result<(String, bool)> {
+) -> anyhow::Result<(String, Vec<Figure>)> {
     let started = Instant::now();
     let (
         Prepared {
@@ -766,15 +767,20 @@ pub async fn run(
             }
             samples.push(elapsed);
         }
-        budgets.push(Budget {
-            name: "request a flow interface x interface 16 x 16, triage included, p95",
-            limit: Duration::from_millis(300),
-            measured: p95(samples),
-            note: format!(
-                "{} requests of 256 pairs, {applied} applied, the others held for review",
-                pairs.len()
+        budgets.push(
+            Budget::of(
+                REQUEST,
+                "request a flow interface x interface 16 x 16, triage included, p95",
+                Duration::from_millis(300),
+            )
+            .measured(
+                p95(samples),
+                format!(
+                    "{} requests of 256 pairs, {applied} applied, the others held for review",
+                    pairs.len()
+                ),
             ),
-        });
+        );
         progress(&format!("requests: {:?}", started.elapsed()));
     }
 
@@ -794,16 +800,21 @@ pub async fn run(
             }
         }
         let (warm, idle) = (median(warm), median(idle));
-        budgets.push(Budget {
-            name: "re-evaluate the flows of a reclassified container, added",
-            limit: Duration::from_secs(3),
-            measured: warm.saturating_sub(idle),
-            note: format!(
-                "{hot_flows} flows: {warm:?} against {idle:?} for a container of {} addresses \
-             no flow touches (medians of {ROUNDS})",
-                zones[cold].addresses.len()
+        budgets.push(
+            Budget::of(
+                RECLASSIFY,
+                "re-evaluate the flows of a reclassified container, added",
+                Duration::from_secs(3),
+            )
+            .measured(
+                warm.saturating_sub(idle),
+                format!(
+                    "{hot_flows} flows: {warm:?} against {idle:?} for a container of {} addresses \
+                     no flow touches (medians of {ROUNDS})",
+                    zones[cold].addresses.len()
+                ),
             ),
-        });
+        );
         progress(&format!("reclassification: {:?}", started.elapsed()));
     }
 
@@ -846,12 +857,7 @@ pub async fn run(
         if !matches!(outcome, Outcome::Applied { .. }) {
             bail!("a write of the policy not applied: {outcome:?}");
         }
-        budgets.push(Budget {
-            name,
-            limit: Duration::from_mins(1),
-            measured: elapsed,
-            note,
-        });
+        budgets.push(Budget::of(measure, name, Duration::from_mins(1)).measured(elapsed, note));
     }
     progress(&format!("policy write: {:?}", started.elapsed()));
 
@@ -896,15 +902,16 @@ pub async fn run(
             if rows == 0 {
                 bail!("the filtered pages of flows are empty");
             }
-            budgets.push(Budget {
-                name: "filtered page of 100 flows, p95",
-                limit: Duration::from_millis(150),
-                measured: p95(samples),
-                note: format!(
-                    "100 draws of the flows of an entity for a service, {} rows a page on average",
-                    rows / 100
-                ),
-            });
+            budgets.push(
+                Budget::of(FLOWS_PAGE, "filtered page of 100 flows, p95", Duration::from_millis(150))
+                    .measured(
+                        p95(samples),
+                        format!(
+                            "100 draws of the flows of an entity for a service, {} rows a page on average",
+                            rows / 100
+                        ),
+                    ),
+            );
         }
         if selection.runs(NONCONFORMITIES) {
             let mut samples = Vec::new();
@@ -916,15 +923,20 @@ pub async fn run(
                 rows += page["items"].as_array().map_or(0, Vec::len);
                 samples.push(elapsed);
             }
-            budgets.push(Budget {
-                name: "page of non-conformities, p95",
-                limit: Duration::from_millis(150),
-                measured: p95(samples),
-                note: format!(
-                    "100 draws of an entity, {} rows a page on average",
-                    rows / 100
+            budgets.push(
+                Budget::of(
+                    NONCONFORMITIES,
+                    "page of non-conformities, p95",
+                    Duration::from_millis(150),
+                )
+                .measured(
+                    p95(samples),
+                    format!(
+                        "100 draws of an entity, {} rows a page on average",
+                        rows / 100
+                    ),
                 ),
-            });
+            );
         }
         progress(&format!("pages: {:?}", started.elapsed()));
     }
@@ -978,16 +990,21 @@ pub async fn run(
             if rows == 0 {
                 bail!("the pages of flows read through the endpoints are empty");
             }
-            budgets.push(Budget {
-                name: "filtered page of flows, reader by endpoints, p95",
-                limit: Duration::from_millis(150),
-                measured: p95(samples),
-                note: format!(
-                    "100 draws of the flows of the hot container for a service, `flow.read` \
-             elsewhere, {} rows a page on average",
-                    rows / 100
+            budgets.push(
+                Budget::of(
+                    ENDPOINTS_FLOWS,
+                    "filtered page of flows, reader by endpoints, p95",
+                    Duration::from_millis(150),
+                )
+                .measured(
+                    p95(samples),
+                    format!(
+                        "100 draws of the flows of the hot container for a service, `flow.read` \
+                         elsewhere, {} rows a page on average",
+                        rows / 100
+                    ),
                 ),
-            });
+            );
         }
         if selection.runs(ENDPOINTS_NONCONFORMITIES) {
             let mut samples = Vec::new();
@@ -999,20 +1016,25 @@ pub async fn run(
                 rows += page["items"].as_array().map_or(0, Vec::len);
                 samples.push(elapsed);
             }
-            budgets.push(Budget {
-                name: "page of non-conformities, reader by endpoints, p95",
-                limit: Duration::from_millis(150),
-                measured: p95(samples),
-                note: format!(
-                    "100 draws of an entity, {} rows a page on average",
-                    rows / 100
+            budgets.push(
+                Budget::of(
+                    ENDPOINTS_NONCONFORMITIES,
+                    "page of non-conformities, reader by endpoints, p95",
+                    Duration::from_millis(150),
+                )
+                .measured(
+                    p95(samples),
+                    format!(
+                        "100 draws of an entity, {} rows a page on average",
+                        rows / 100
+                    ),
                 ),
-            });
+            );
         }
         progress(&format!("pages by endpoints: {:?}", started.elapsed()));
     }
 
-    let (lines, ok) = verdict(&budgets)?;
+    let (lines, figures) = verdict(&budgets)?;
     report.push_str(&lines);
-    Ok((report, ok))
+    Ok((report, figures))
 }
