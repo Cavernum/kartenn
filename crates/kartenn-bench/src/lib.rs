@@ -15,6 +15,7 @@ use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use uuid::Uuid;
 
+pub mod affected;
 pub mod core_budgets;
 pub mod events_budgets;
 pub mod flow_budgets;
