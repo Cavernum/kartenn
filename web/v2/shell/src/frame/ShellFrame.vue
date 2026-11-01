@@ -246,6 +246,21 @@ watch(editing, (request) => {
   panelOpen.value = true;
   panelTab.value = "detail";
 });
+// The object a route of the administration chose in its list (`meta.detail`, task 15a): in
+// the Détail tab, the panel opened on it when another object is chosen.
+const routeDetail = computed(() => route.meta.detail ?? null);
+const detailId = computed(() =>
+  routeDetail.value && route.params.id ? String(route.params.id) : null,
+);
+watch(
+  detailId,
+  (id) => {
+    if (id === null) return;
+    panelOpen.value = true;
+    panelTab.value = "detail";
+  },
+  { immediate: true },
+);
 // Another page, or a date off the present: the edit asked by the page left goes with it.
 closeEditWithPage(
   () => route.path,
@@ -851,6 +866,12 @@ onBeforeUnmount(
         >
           <template #detail>
             <EditPanel v-if="editing" :key="editing.serial" :request="editing" />
+            <component
+              :is="routeDetail"
+              v-else-if="routeDetail && detailId"
+              :id="detailId"
+              :key="detailId"
+            />
             <p v-else class="k-frame__muted">{{ t("app.noSelection") }}</p>
           </template>
           <template #draft>

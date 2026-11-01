@@ -11,12 +11,14 @@ import {
   type Prefetchable,
   type TimeArg,
 } from "@kartenn/sdk";
+import type { Component } from "vue";
 import type {
   LocationQuery,
   RouteComponent,
   RouteLocationNormalized,
   RouteParams,
 } from "vue-router";
+import { adminRecord, adminScreen } from "../admin/routes.ts";
 import { changesRecord, changesScreen } from "../changesets/routes.ts";
 import { collectionById, type Collection } from "./collections.ts";
 import { rowsOf } from "./data.ts";
@@ -36,6 +38,11 @@ export interface ScreenRoute {
   /** Its properties: fixed, or of the route (vue-router gives the function the route). */
   props?: Record<string, unknown> | ((route: RouteLocationNormalized) => Record<string, unknown>);
   queries?: (params: RouteParams, time: TimeArg, query: LocationQuery) => readonly Prefetchable[];
+  /**
+   * What the Détail tab of the right panel shows for the route (an object of the
+   * administration chosen in its list), given the same properties as the screen.
+   */
+  detail?: Component;
 }
 
 /** The declarations already in the cache (the filters of the properties type by them). */
@@ -94,14 +101,14 @@ export function entryScreen(id: string): ScreenRoute | undefined {
         queries: () => [reads.list("/v1/property-declarations", null, null)],
       };
     default:
-      return changesScreen(id);
+      return changesScreen(id) ?? adminScreen(id);
   }
 }
 
 /** The record of an object of a collection of the referential (`/prefixes/:id`). */
 export function recordScreen(id: string): ScreenRoute | undefined {
   const collection = collectionById(id);
-  if (!collection) return changesRecord(id);
+  if (!collection) return changesRecord(id) ?? adminRecord(id);
   return {
     component: RecordView,
     props: (route) => ({ collection, id: String(route.params.id) }),
