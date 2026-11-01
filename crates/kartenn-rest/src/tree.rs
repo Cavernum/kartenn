@@ -25,6 +25,7 @@ use kartenn_store_pg::read;
 use kartenn_store_pg::tree::{self, ChildKey, Node};
 use serde::Serialize;
 use serde_json::{Value, json};
+use sqlx::PgConnection;
 use utoipa::ToSchema;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
@@ -175,17 +176,19 @@ async fn record(
     Ok(())
 }
 
-/// The nodes as listed at `moment`, and their identifiers: their versions, then the
-/// occupancy of their prefixes, each read for the whole page in one go (021/A11). A node
-/// gone between the read of the page and these (a write of the present in between) is
-/// left out, as a later read would leave it.
+/// The nodes of the domain `domain` read at `moment` in the snapshot `snapshot` as listed,
+/// and their identifiers: their versions, then the occupancy of their prefixes, each read
+/// for the whole page in one query, in the snapshot of the page (021/A11), so that a
+/// version names the values served. A node without one there cannot be; it would be left
+/// out, said at the `debug` level.
 async fn listed(
-    api: &Api,
+    snapshot: &mut PgConnection,
+    domain: Uuid,
     moment: &Moment,
     nodes: &[Node],
 ) -> Result<(Vec<NodeDto>, Vec<Uuid>), Problem> {
     let ids: Vec<Uuid> = nodes.iter().map(Node::id).collect();
-    let versions = read::versions(&api.pool, &ids, moment.valid_at, moment.as_of)
+    let versions = read::versions(&mut *snapshot, &ids, moment.valid_at, moment.as_of)
         .await
         .map_err(|e| store(&e))?;
     let prefixes: Vec<Uuid> = nodes
@@ -193,18 +196,103 @@ async fn listed(
         .filter(|node| matches!(node, Node::Prefix { .. }))
         .map(Node::id)
         .collect();
-    let measures = tree::occupancies_as_of(&api.pool, &prefixes, moment.valid_at, moment.as_of)
-        .await
-        .map_err(|e| store(&e))?;
+    let measures = tree::occupancies_as_of(
+        &mut *snapshot,
+        domain,
+        &prefixes,
+        moment.valid_at,
+        moment.as_of,
+    )
+    .await
+    .map_err(|e| store(&e))?;
     let items: Vec<NodeDto> = nodes
         .iter()
         .filter_map(|node| {
             let id = node.id();
-            node_dto(node, *versions.get(&id)?, measures.get(&id))
+            let item = versions
+                .get(&id)
+                .and_then(|version| node_dto(node, *version, measures.get(&id)));
+            if item.is_none() {
+                tracing::debug!(node = %id, "a node of the page without its version or occupancy");
+            }
+            item
         })
         .collect();
     let ids = items.iter().map(NodeDto::id).collect();
     Ok((items, ids))
+}
+
+/// A node as listed by `…/ancestors`: the form of a node of the tree before A11, neither
+/// version nor occupancy, which A11 gives to the nodes of `roots` and `children` only.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+#[schema(as = AncestorNode)]
+pub enum AncestorDto {
+    /// A prefix.
+    Prefix {
+        /// Identifier.
+        id: Uuid,
+        /// Canonical CIDR.
+        value: String,
+        /// Container or network.
+        #[schema(value_type = NatureSchema)]
+        nature: Nature,
+        /// Its URL.
+        href: String,
+    },
+    /// A range.
+    Range {
+        /// Identifier.
+        id: Uuid,
+        /// First address.
+        first: String,
+        /// Last address, included.
+        last: String,
+        /// Usage.
+        #[schema(value_type = crate::openapi::enums::RangeUsageSchema)]
+        usage: RangeUsage,
+        /// Its URL.
+        href: String,
+    },
+    /// An address.
+    Address {
+        /// Identifier.
+        id: Uuid,
+        /// Canonical address.
+        value: String,
+        /// Its URL.
+        href: String,
+    },
+}
+
+impl From<&Node> for AncestorDto {
+    fn from(node: &Node) -> Self {
+        match *node {
+            Node::Prefix { id, value, nature } => Self::Prefix {
+                id,
+                value: value.to_string(),
+                nature,
+                href: href(Kind::Prefix, id),
+            },
+            Node::Range {
+                id,
+                first,
+                last,
+                usage,
+            } => Self::Range {
+                id,
+                first: first.to_string(),
+                last: last.to_string(),
+                usage,
+                href: href(Kind::Range, id),
+            },
+            Node::Address { id, value } => Self::Address {
+                id,
+                value: value.to_string(),
+                href: href(Kind::Address, id),
+            },
+        }
+    }
 }
 
 impl NodeDto {
@@ -331,8 +419,9 @@ async fn children(
         .read_scope(&principal.subject(), moment.now)
         .await?;
     let size = usize::from(page.size);
+    let mut snapshot = read::consistent(&api.pool).await.map_err(|e| store(&e))?;
     let mut nodes = tree::children_of(
-        &api.pool,
+        &mut *snapshot,
         &parent,
         moment.valid_at,
         moment.as_of,
@@ -353,7 +442,8 @@ async fn children(
         );
         next_href(&format!("/v1/{name}"), &cursor)
     });
-    let (items, ids) = listed(&api, &moment, &nodes).await?;
+    let (items, ids) = listed(&mut snapshot, parent.domain, &moment, &nodes).await?;
+    snapshot.commit().await.map_err(|e| store(&e))?;
     record(&api, &context, &moment, "children", id, &ids).await?;
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
@@ -395,8 +485,9 @@ async fn roots(
         .read_scope(&principal.subject(), moment.now)
         .await?;
     let size = usize::from(page.size);
+    let mut snapshot = read::consistent(&api.pool).await.map_err(|e| store(&e))?;
     let mut nodes = tree::roots_of(
-        &api.pool,
+        &mut *snapshot,
         id,
         moment.valid_at,
         moment.as_of,
@@ -417,7 +508,8 @@ async fn roots(
         );
         next_href(&format!("/v1/{name}"), &cursor)
     });
-    let (items, ids) = listed(&api, &moment, &nodes).await?;
+    let (items, ids) = listed(&mut snapshot, id, &moment, &nodes).await?;
+    snapshot.commit().await.map_err(|e| store(&e))?;
     let criteria = json!({
         "domain": id,
         "tree": "roots",
@@ -440,7 +532,7 @@ async fn roots(
     operation_id = "prefix_ancestors",
     tag = "core",
     params(("id" = Uuid, Path, description = "The prefix."), DatesParams),
-    responses((status = 200, description = "The ancestors, nearest first.", body = Listing<NodeDto>))
+    responses((status = 200, description = "The ancestors, nearest first.", body = Listing<AncestorDto>))
 )]
 async fn ancestors(
     State(api): State<Api>,
@@ -458,7 +550,8 @@ async fn ancestors(
     let nodes = tree::ancestors_of(&api.pool, &found, moment.valid_at, moment.as_of, &scope)
         .await
         .map_err(|e| store(&e))?;
-    let (items, ids) = listed(&api, &moment, &nodes).await?;
+    let items: Vec<AncestorDto> = nodes.iter().map(AncestorDto::from).collect();
+    let ids: Vec<Uuid> = nodes.iter().map(Node::id).collect();
     record(&api, &context, &moment, "ancestors", id, &ids).await?;
     Ok(respond_page(&headers, &moment, &items, None))
 }

@@ -189,6 +189,119 @@
         ],
         "type": "string"
       },
+      "AncestorNode": {
+        "description": "A node as listed by `…/ancestors`: the form of a node of the tree before A11, neither\nversion nor occupancy, which A11 gives to the nodes of `roots` and `children` only.",
+        "oneOf": [
+          {
+            "description": "A prefix.",
+            "properties": {
+              "href": {
+                "description": "Its URL.",
+                "type": "string"
+              },
+              "id": {
+                "description": "Identifier.",
+                "format": "uuid",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "prefix"
+                ],
+                "type": "string"
+              },
+              "nature": {
+                "$ref": "#/components/schemas/Nature",
+                "description": "Container or network."
+              },
+              "value": {
+                "description": "Canonical CIDR.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "value",
+              "nature",
+              "href",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A range.",
+            "properties": {
+              "first": {
+                "description": "First address.",
+                "type": "string"
+              },
+              "href": {
+                "description": "Its URL.",
+                "type": "string"
+              },
+              "id": {
+                "description": "Identifier.",
+                "format": "uuid",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "range"
+                ],
+                "type": "string"
+              },
+              "last": {
+                "description": "Last address, included.",
+                "type": "string"
+              },
+              "usage": {
+                "$ref": "#/components/schemas/RangeUsage",
+                "description": "Usage."
+              }
+            },
+            "required": [
+              "id",
+              "first",
+              "last",
+              "usage",
+              "href",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "An address.",
+            "properties": {
+              "href": {
+                "description": "Its URL.",
+                "type": "string"
+              },
+              "id": {
+                "description": "Identifier.",
+                "format": "uuid",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "address"
+                ],
+                "type": "string"
+              },
+              "value": {
+                "description": "Canonical address.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "value",
+              "href",
+              "kind"
+            ],
+            "type": "object"
+          }
+        ]
+      },
       "AnomalyDto": {
         "description": "An open anomaly.",
         "properties": {
@@ -4152,6 +4265,137 @@
             "description": "The elements of the page.",
             "items": {
               "$ref": "#/components/schemas/Address"
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
+      "Listing_AncestorNode": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "description": "A node as listed by `…/ancestors`: the form of a node of the tree before A11, neither\nversion nor occupancy, which A11 gives to the nodes of `roots` and `children` only.",
+              "oneOf": [
+                {
+                  "description": "A prefix.",
+                  "properties": {
+                    "href": {
+                      "description": "Its URL.",
+                      "type": "string"
+                    },
+                    "id": {
+                      "description": "Identifier.",
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "prefix"
+                      ],
+                      "type": "string"
+                    },
+                    "nature": {
+                      "$ref": "#/components/schemas/Nature",
+                      "description": "Container or network."
+                    },
+                    "value": {
+                      "description": "Canonical CIDR.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "value",
+                    "nature",
+                    "href",
+                    "kind"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "description": "A range.",
+                  "properties": {
+                    "first": {
+                      "description": "First address.",
+                      "type": "string"
+                    },
+                    "href": {
+                      "description": "Its URL.",
+                      "type": "string"
+                    },
+                    "id": {
+                      "description": "Identifier.",
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "range"
+                      ],
+                      "type": "string"
+                    },
+                    "last": {
+                      "description": "Last address, included.",
+                      "type": "string"
+                    },
+                    "usage": {
+                      "$ref": "#/components/schemas/RangeUsage",
+                      "description": "Usage."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "first",
+                    "last",
+                    "usage",
+                    "href",
+                    "kind"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "description": "An address.",
+                  "properties": {
+                    "href": {
+                      "description": "Its URL.",
+                      "type": "string"
+                    },
+                    "id": {
+                      "description": "Identifier.",
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "address"
+                      ],
+                      "type": "string"
+                    },
+                    "value": {
+                      "description": "Canonical address.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "value",
+                    "href",
+                    "kind"
+                  ],
+                  "type": "object"
+                }
+              ]
             },
             "type": "array"
           },
@@ -30423,7 +30667,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Listing_TreeNode"
+                  "$ref": "#/components/schemas/Listing_AncestorNode"
                 }
               }
             },

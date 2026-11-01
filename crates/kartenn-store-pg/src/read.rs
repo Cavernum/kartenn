@@ -4,7 +4,7 @@
 
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
-use sqlx::{AssertSqlSafe, PgPool};
+use sqlx::{AssertSqlSafe, PgExecutor, PgPool};
 
 use kartenn_service::StoreError;
 use kartenn_service::port::{AuditQuery, Reader, Resolved};
@@ -248,7 +248,7 @@ pub async fn version(
     db.query.summary = "SELECT versions",
 ))]
 pub async fn versions(
-    pool: &PgPool,
+    executor: impl PgExecutor<'_>,
     ids: &[Uuid],
     valid_at: OffsetDateTime,
     as_of: Option<OffsetDateTime>,
@@ -277,9 +277,21 @@ pub async fn versions(
         .bind(valid_at)
         .bind(as_of)
         .bind(ids)
-        .fetch_all(pool)
+        .fetch_all(executor)
         .await?;
     Ok(rows.into_iter().collect())
+}
+
+/// A read-only `REPEATABLE READ` transaction: the reads made in it see one snapshot of
+/// the database, those of the present included (the rows of a page and their versions,
+/// task 021-11a). It writes nothing: dropping it ends it.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn consistent(pool: &PgPool) -> sqlx::Result<sqlx::Transaction<'static, sqlx::Postgres>> {
+    pool.begin_with("BEGIN ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+        .await
 }
 
 /// The time of the database (`now()`), against which the dates of a read are checked.

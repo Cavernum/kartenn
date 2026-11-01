@@ -809,14 +809,14 @@ async fn the_roots_of_a_domain_list_as_the_children_of_a_prefix(pool: PgPool) {
 
 /// Each node of a page of the tree carries its version, the one of its `ETag`, and a
 /// prefix its occupancy, as `…/occupancy` serves it at the same moment (021/A11): for
-/// the roots of a domain, the children and the ancestors of a prefix, now and dated.
+/// the roots of a domain and the children of a prefix, now and dated; not the ancestors.
 #[kartenn_testing::pg_test]
 async fn tree_nodes_carry_their_version_and_occupancy(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
     address(&pool, lab, "10.0.0.1").await;
     let block = prefix_of(&pool, lab, "10.1.0.0/16", "container").await;
     let net = prefix(&pool, lab, "10.1.2.0/24").await;
-    address(&pool, lab, "10.1.2.1").await;
+    let gone = address(&pool, lab, "10.1.2.1").await;
     address(&pool, lab, "10.1.2.15").await;
     let range = format!(
         "INSERT INTO ip_range (id, domain_id, range, usage, public, registry_version,
@@ -833,17 +833,29 @@ async fn tree_nodes_carry_their_version_and_occupancy(pool: PgPool) {
     prefix(&pool, lab, "2001:db8:1::/48").await;
     let reader = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
 
-    // Known as of now: the read of the past, history included; an address added since
-    // counts in the present only.
+    // Known as of now: the read of the past, history included. The addresses added since
+    // count in the present only; the one deleted since, kept in the history, still counts
+    // as of then.
     let known = format!("?as_of={}", query_date(time::OffsetDateTime::now_utc()));
     address(&pool, lab, "10.1.2.2").await;
+    address(&pool, lab, "10.1.2.3").await;
+    sqlx::query("DELETE FROM address WHERE id = $1")
+        .bind(gone)
+        .execute(&pool)
+        .await
+        .unwrap();
     let mut prefixes = 0;
     for dates in ["", "?valid_at=2021-01-01T00:00:00Z", &known] {
+        // The ancestors keep their form: neither version nor occupancy (A11 names the
+        // roots and the children only).
+        let body = ok(&reader, &format!("/v1/prefixes/{inner}/ancestors{dates}")).await;
+        assert_eq!(ids_of(&body), [block.to_string()]);
+        assert!(body["items"][0].get("version").is_none());
+        assert!(body["items"][0].get("occupancy").is_none());
         for uri in [
             format!("/v1/domains/{lab}/roots{dates}"),
             format!("/v1/prefixes/{block}/children{dates}"),
             format!("/v1/prefixes/{inner}/children{dates}"),
-            format!("/v1/prefixes/{inner}/ancestors{dates}"),
         ] {
             let body = ok(&reader, &uri).await;
             let items = body["items"].as_array().unwrap();
@@ -867,9 +879,10 @@ async fn tree_nodes_carry_their_version_and_occupancy(pool: PgPool) {
             }
         }
     }
-    assert!(prefixes >= 24, "{prefixes}");
-    // The measures themselves: two addresses, one inside the DHCP range of 11 addresses,
-    // in a /24 of 254; two /24 in a /22; two /24 and the /22 in the /16.
+    assert_eq!(prefixes, 21);
+    // The measures themselves: as of then, two addresses (one since deleted), one inside
+    // the DHCP range of 11 addresses, in a /24 of 254; two /24 in a /22; two /24 and the
+    // /22 in the /16. Now: the two added, outside the range.
     let children = ok(&reader, &format!("/v1/prefixes/{block}/children{known}")).await;
     let of = |value: &str| {
         children["items"]

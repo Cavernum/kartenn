@@ -4057,6 +4057,56 @@ export interface components {
      * @enum {string}
      */
     AddressUsage: "host" | "gateway" | "vip" | "anycast" | "reserved";
+    /**
+     * @description A node as listed by `…/ancestors`: the form of a node of the tree before A11, neither
+     *     version nor occupancy, which A11 gives to the nodes of `roots` and `children` only.
+     */
+    AncestorNode:
+      | {
+          /** @description Its URL. */
+          href: string;
+          /**
+           * Format: uuid
+           * @description Identifier.
+           */
+          id: string;
+          /** @enum {string} */
+          kind: "prefix";
+          /** @description Container or network. */
+          nature: components["schemas"]["Nature"];
+          /** @description Canonical CIDR. */
+          value: string;
+        }
+      | {
+          /** @description First address. */
+          first: string;
+          /** @description Its URL. */
+          href: string;
+          /**
+           * Format: uuid
+           * @description Identifier.
+           */
+          id: string;
+          /** @enum {string} */
+          kind: "range";
+          /** @description Last address, included. */
+          last: string;
+          /** @description Usage. */
+          usage: components["schemas"]["RangeUsage"];
+        }
+      | {
+          /** @description Its URL. */
+          href: string;
+          /**
+           * Format: uuid
+           * @description Identifier.
+           */
+          id: string;
+          /** @enum {string} */
+          kind: "address";
+          /** @description Canonical address. */
+          value: string;
+        };
     /** @description An open anomaly. */
     AnomalyDto: {
       /**
@@ -5617,6 +5667,59 @@ export interface components {
     Listing_Address: {
       /** @description The elements of the page. */
       items: components["schemas"]["Address"][];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
+    Listing_AncestorNode: {
+      /** @description The elements of the page. */
+      items: (
+        | {
+            /** @description Its URL. */
+            href: string;
+            /**
+             * Format: uuid
+             * @description Identifier.
+             */
+            id: string;
+            /** @enum {string} */
+            kind: "prefix";
+            /** @description Container or network. */
+            nature: components["schemas"]["Nature"];
+            /** @description Canonical CIDR. */
+            value: string;
+          }
+        | {
+            /** @description First address. */
+            first: string;
+            /** @description Its URL. */
+            href: string;
+            /**
+             * Format: uuid
+             * @description Identifier.
+             */
+            id: string;
+            /** @enum {string} */
+            kind: "range";
+            /** @description Last address, included. */
+            last: string;
+            /** @description Usage. */
+            usage: components["schemas"]["RangeUsage"];
+          }
+        | {
+            /** @description Its URL. */
+            href: string;
+            /**
+             * Format: uuid
+             * @description Identifier.
+             */
+            id: string;
+            /** @enum {string} */
+            kind: "address";
+            /** @description Canonical address. */
+            value: string;
+          }
+      )[];
       /** @description The links of the page. */
       links: components["schemas"]["ListingLinks"];
     };
@@ -18578,7 +18681,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["Listing_TreeNode"];
+          "application/json": components["schemas"]["Listing_AncestorNode"];
         };
       };
       /** @description A problem (RFC 9457). */
