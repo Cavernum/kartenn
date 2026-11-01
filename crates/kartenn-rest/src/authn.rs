@@ -160,6 +160,11 @@ pub struct Authenticated {
     pub session: Option<Session>,
     /// The chunks of the session cookie to send again, if due.
     pub cookie: Option<Vec<String>>,
+    /// The chunks of the session cookie to send again if this request is no activity of
+    /// it (the event stream, a request in the background): only when its groups were
+    /// refreshed, its last activity left as it was read, so that the refresh token the
+    /// issuer turned is kept and nothing is pushed back (021/A15).
+    pub quiet_cookie: Option<Vec<String>>,
     /// When the session ends unless seen again (Unix seconds), for a session cookie.
     pub ends_at: Option<i64>,
     /// When the session ends if this request is no activity of it (Unix seconds): the
@@ -180,6 +185,7 @@ impl From<Principal> for Authenticated {
             principal,
             session: None,
             cookie: None,
+            quiet_cookie: None,
             ends_at: None,
             quiet_end: None,
             absolute_end: None,
@@ -479,12 +485,14 @@ impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
             Err(e) => return Err(refusal(&e, Refusal::Unauthenticated)),
         }
         let mut reissue = at - last >= cookies::REISSUE_AFTER;
+        let mut refreshed = false;
         // REQ-005-7: the groups refreshed at the issuer when its access token expires.
         if !session.breakglass && session.refresh_due(at) {
             match self.oidc.refresh(&mut session).await {
                 Ok(()) => {
                     principal.groups.clone_from(&session.groups);
                     reissue = true;
+                    refreshed = true;
                 }
                 Err(LoginError::Unavailable(e)) => {
                     tracing::error!(name: "authn.issuer_unavailable", error = %e, "the groups cannot be refreshed");
@@ -503,12 +511,23 @@ impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
         } else {
             None
         };
+        // 021/A15: the new tokens of the issuer kept by a request that is no activity, its
+        // last activity as read (neither its end by inactivity nor by lifetime pushed back).
+        let quiet_cookie = if refreshed {
+            Some(self.sealed(&Session {
+                seen: last,
+                ..session.clone()
+            })?)
+        } else {
+            None
+        };
         let ends_at = Some(session.ends_at(seconds(self.idle), seconds(self.absolute)));
         let absolute_end = Some(session.absolute_end(seconds(self.absolute)));
         Ok(Authenticated {
             principal,
             session: Some(session),
             cookie,
+            quiet_cookie,
             ends_at,
             quiet_end: Some(quiet_end),
             absolute_end,
@@ -923,6 +942,7 @@ pub async fn layer(
         principal,
         session,
         cookie,
+        quiet_cookie,
         ends_at,
         quiet_end,
         absolute_end,
@@ -939,8 +959,7 @@ pub async fn layer(
         }
     };
     // 021/A14: a request in the background is no activity of its session, as the event
-    // stream: its end stays where the cookie put it, the cookie is not sent again.
-    let cookie = cookie.filter(|_| !background);
+    // stream: its end stays where the cookie put it.
     let ends_at = if background { quiet_end } else { ends_at };
     let mut context = principal.context(source.clone());
     if let Some(before) = request.extensions().get::<RequestContext>() {
@@ -998,19 +1017,27 @@ pub async fn layer(
             .insert(crate::events::CredentialsEnd(end));
     }
     let mut response = next.run(request).await;
-    if let Some(cookie) = cookie
-        && response.extensions().get::<cookies::Ended>().is_none()
-        && response
+    let quiet = background
+        || response
             .extensions()
             .get::<crate::events::NotActivity>()
-            .is_none()
+            .is_some();
+    reissue(&mut response, if quiet { quiet_cookie } else { cookie });
+    response
+}
+
+/// The session cookie `chunks` sent again on `response`, unless it ended the session. A
+/// request that is no activity of its session (in the background, the event stream) gives
+/// the chunks of its quiet cookie: none but after a refresh of its groups (021/A14, A15).
+fn reissue(response: &mut Response, chunks: Option<Vec<String>>) {
+    if let Some(chunks) = chunks
+        && response.extensions().get::<cookies::Ended>().is_none()
     {
         cookies::append(
             response.headers_mut(),
-            cookies::set(SESSION_COOKIE, &cookie, None),
+            cookies::set(SESSION_COOKIE, &chunks, None),
         );
     }
-    response
 }
 
 #[cfg(test)]

@@ -1,5 +1,16 @@
 {
   "components": {
+    "parameters": {
+      "Kartenn-Background": {
+        "description": "`?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15).",
+        "in": "header",
+        "name": "Kartenn-Background",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
     "schemas": {
       "AccountItem": {
         "description": "A service account.",
@@ -12438,6 +12449,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -12478,6 +12492,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -12634,6 +12651,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -12739,6 +12759,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -12789,6 +12812,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -12918,6 +12944,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -12999,6 +13028,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -13060,6 +13092,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -13130,6 +13165,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -13200,6 +13238,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -13289,6 +13330,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -13329,6 +13373,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -13482,6 +13529,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -13577,6 +13627,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -13627,6 +13680,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -13756,6 +13812,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -13817,6 +13876,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -13887,6 +13949,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -13957,6 +14022,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -14039,6 +14107,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -14091,6 +14162,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "requestBody": {
@@ -14197,6 +14271,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -14451,6 +14528,11 @@
     "/v1/auth/logout": {
       "post": {
         "operationId": "logout",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "responses": {
           "303": {
             "description": "To the end-session endpoint of the issuer, or `/`."
@@ -14542,6 +14624,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -14585,6 +14670,9 @@
                 "null"
               ]
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -14681,6 +14769,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -14775,6 +14866,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -14808,6 +14902,11 @@
     "/v1/capabilities": {
       "get": {
         "operationId": "capabilities",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -14915,6 +15014,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -14976,6 +15078,9 @@
                 "null"
               ]
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "requestBody": {
@@ -15052,6 +15157,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -15133,6 +15241,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -15185,6 +15296,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "requestBody": {
@@ -15259,6 +15373,9 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -15343,6 +15460,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "requestBody": {
@@ -15414,6 +15534,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -15506,6 +15629,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -15546,6 +15672,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -15700,6 +15829,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -15805,6 +15937,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -15855,6 +15990,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -15984,6 +16122,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -16065,6 +16206,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -16126,6 +16270,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -16196,6 +16343,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -16266,6 +16416,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -16355,6 +16508,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -16395,6 +16551,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -16547,6 +16706,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -16652,6 +16814,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -16702,6 +16867,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -16831,6 +16999,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -16892,6 +17063,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -16962,6 +17136,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -17032,6 +17209,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -17113,6 +17293,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -17146,6 +17329,11 @@
     "/v1/drafts": {
       "get": {
         "operationId": "list_drafts",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -17175,6 +17363,11 @@
       },
       "post": {
         "operationId": "create_draft",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -17248,6 +17441,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -17315,6 +17511,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -17375,6 +17574,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "requestBody": {
@@ -17470,6 +17672,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "requestBody": {
@@ -17566,6 +17771,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "requestBody": {
@@ -17663,6 +17871,9 @@
                 "null"
               ]
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -17813,6 +18024,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -17967,6 +18181,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -18007,6 +18224,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -18160,6 +18380,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -18265,6 +18488,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -18315,6 +18541,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -18444,6 +18673,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -18505,6 +18737,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -18575,6 +18810,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -18645,6 +18883,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -18725,6 +18966,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -18765,6 +19009,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -18919,6 +19166,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -19014,6 +19264,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -19115,6 +19368,9 @@
                 "null"
               ]
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -19307,6 +19563,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -19470,6 +19729,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -19561,6 +19823,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -19601,6 +19866,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -19754,6 +20022,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -19849,6 +20120,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -19899,6 +20173,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -20028,6 +20305,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -20089,6 +20369,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -20159,6 +20442,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -20229,6 +20515,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -20462,6 +20751,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -20502,6 +20794,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -20657,6 +20952,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -20752,6 +21050,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -20802,6 +21103,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -20911,6 +21215,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -20992,6 +21299,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -21053,6 +21363,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -21123,6 +21436,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -21193,6 +21509,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -21245,6 +21564,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -21354,6 +21676,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -21407,6 +21732,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -21439,6 +21767,9 @@
       "post": {
         "operationId": "create_group",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
@@ -21544,6 +21875,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -21638,6 +21972,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -21679,6 +22016,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -21790,6 +22130,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -21843,6 +22186,9 @@
                 "null"
               ]
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -21949,6 +22295,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -22053,6 +22402,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -22106,6 +22458,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -22149,6 +22504,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -22190,6 +22548,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -22281,6 +22642,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -22334,6 +22698,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "requestBody": {
@@ -22400,6 +22767,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -22431,6 +22801,11 @@
       },
       "post": {
         "operationId": "create_import",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -22485,6 +22860,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -22528,6 +22906,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -22584,6 +22965,9 @@
               "format": "int32",
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "requestBody": {
@@ -22652,6 +23036,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -22705,6 +23092,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -22824,6 +23214,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -22864,6 +23257,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -23019,6 +23415,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -23114,6 +23513,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -23164,6 +23566,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -23293,6 +23698,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -23354,6 +23762,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -23424,6 +23835,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -23494,6 +23908,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -23628,6 +24045,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -23668,6 +24088,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -23825,6 +24248,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -23930,6 +24356,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -23980,6 +24409,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -24080,6 +24512,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -24190,6 +24625,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -24319,6 +24757,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -24400,6 +24841,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -24461,6 +24905,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -24531,6 +24978,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -24601,6 +25051,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -24653,6 +25106,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -24759,6 +25215,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -24802,6 +25261,9 @@
                 "null"
               ]
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -24922,6 +25384,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -24977,6 +25442,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "requestBody": {
@@ -25142,6 +25610,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -25182,6 +25653,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -25336,6 +25810,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -25441,6 +25918,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -25491,6 +25971,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -25600,6 +26083,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -25681,6 +26167,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -25762,6 +26251,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -25843,6 +26335,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -25904,6 +26399,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -25974,6 +26472,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -26044,6 +26545,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -26077,6 +26581,11 @@
     "/v1/me": {
       "get": {
         "operationId": "me",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -26108,6 +26617,11 @@
     "/v1/openapi.json": {
       "get": {
         "operationId": "openapi",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -26189,6 +26703,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -26229,6 +26746,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -26383,6 +26903,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -26478,6 +27001,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -26528,6 +27054,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -26657,6 +27186,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -26718,6 +27250,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -26788,6 +27323,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -26858,6 +27396,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -26938,6 +27479,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -26978,6 +27522,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -27130,6 +27677,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -27225,6 +27775,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -27306,6 +27859,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -27367,6 +27923,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -27437,6 +27996,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -27507,6 +28069,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -27567,6 +28132,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -27637,6 +28205,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -27765,6 +28336,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -27805,6 +28379,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -27958,6 +28535,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -28053,6 +28633,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -28103,6 +28686,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -28232,6 +28818,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -28293,6 +28882,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -28363,6 +28955,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -28433,6 +29028,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -28522,6 +29120,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -28554,6 +29155,9 @@
       "post": {
         "operationId": "request_policy_report",
         "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
@@ -28628,6 +29232,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -28689,6 +29296,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -28805,6 +29415,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -28845,6 +29458,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -28999,6 +29615,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -29094,6 +29713,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -29144,6 +29766,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -29273,6 +29898,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -29334,6 +29962,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -29404,6 +30035,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -29474,6 +30108,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -29554,6 +30191,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -29594,6 +30234,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -29754,6 +30397,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -29835,6 +30481,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -29896,6 +30545,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -29966,6 +30618,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -30036,6 +30691,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -30207,6 +30865,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -30247,6 +30908,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -30403,6 +31067,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -30508,6 +31175,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -30558,6 +31228,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -30667,6 +31340,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -30748,6 +31424,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -30829,6 +31508,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -30910,6 +31592,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -30991,6 +31676,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -31052,6 +31740,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -31113,6 +31804,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -31183,6 +31877,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -31253,6 +31950,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -31324,6 +32024,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -31413,6 +32116,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -31495,6 +32201,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -31548,6 +32257,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -31710,6 +32422,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -31750,6 +32465,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -31907,6 +32625,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -32012,6 +32733,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -32062,6 +32786,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -32191,6 +32918,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -32252,6 +32982,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -32322,6 +33055,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -32392,6 +33128,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -32481,6 +33220,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -32521,6 +33263,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -32675,6 +33420,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -32770,6 +33518,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -32820,6 +33571,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -32949,6 +33703,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -33010,6 +33767,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -33080,6 +33840,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -33150,6 +33913,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -33203,6 +33969,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -33245,6 +34014,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -33340,6 +34112,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -33380,6 +34155,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -33480,6 +34258,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -33533,6 +34314,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -33576,6 +34360,9 @@
                 "null"
               ]
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -33670,6 +34457,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -33725,6 +34515,9 @@
                 "null"
               ]
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -33835,6 +34628,9 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -33979,6 +34775,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -34019,6 +34818,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -34173,6 +34975,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -34268,6 +35073,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -34318,6 +35126,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -34447,6 +35258,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -34508,6 +35322,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -34578,6 +35395,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -34648,6 +35468,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -34749,6 +35572,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -34789,6 +35615,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -34942,6 +35771,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -35047,6 +35879,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -35097,6 +35932,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -35226,6 +36064,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -35287,6 +36128,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -35357,6 +36201,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -35427,6 +36274,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -35460,6 +36310,11 @@
     "/v1/stats": {
       "get": {
         "operationId": "stats",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -35575,6 +36430,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -35705,6 +36563,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -35745,6 +36606,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -35900,6 +36764,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -36005,6 +36872,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -36055,6 +36925,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -36184,6 +37057,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -36254,6 +37130,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -36315,6 +37194,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -36376,6 +37258,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -36446,6 +37331,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -36516,6 +37404,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -36641,6 +37532,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -36681,6 +37575,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -36837,6 +37734,9 @@
             }
           },
           {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          },
+          {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
             "in": "query",
             "name": "approval",
@@ -36942,6 +37842,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -36992,6 +37895,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           },
           {
             "description": "`self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13).",
@@ -37121,6 +38027,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -37202,6 +38111,9 @@
               "minimum": 0,
               "type": "integer"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -37263,6 +38175,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -37333,6 +38248,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {
@@ -37403,6 +38321,9 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
           }
         ],
         "responses": {

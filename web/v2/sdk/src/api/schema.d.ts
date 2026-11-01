@@ -8722,7 +8722,10 @@ export interface components {
     };
   };
   responses: never;
-  parameters: never;
+  parameters: {
+    /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+    "Kartenn-Background": string;
+  };
   requestBodies: never;
   headers: never;
   pathItems: never;
@@ -8818,7 +8821,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -8855,6 +8861,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -8911,7 +8919,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The address. */
         id: string;
@@ -8951,6 +8962,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The address. */
@@ -9005,6 +9018,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The address. */
@@ -9060,7 +9075,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The address. */
         id: string;
@@ -9101,7 +9119,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The address. */
         id: string;
@@ -9138,7 +9159,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The address. */
         id: string;
@@ -9175,7 +9199,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The address. */
         id: string;
@@ -9214,7 +9241,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The address. */
         id: string;
@@ -9261,7 +9291,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -9298,6 +9331,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -9354,7 +9389,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The object. */
         id: string;
@@ -9394,6 +9432,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -9444,6 +9484,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -9499,7 +9541,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.condition. */
         id: string;
@@ -9536,7 +9581,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.condition. */
         id: string;
@@ -9573,7 +9621,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.condition. */
         id: string;
@@ -9612,7 +9663,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.condition. */
         id: string;
@@ -9657,7 +9711,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -9686,7 +9743,10 @@ export interface operations {
   acknowledge_anomaly: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The anomaly. */
         id: string;
@@ -9735,7 +9795,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -9891,7 +9954,10 @@ export interface operations {
   logout: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -9954,7 +10020,10 @@ export interface operations {
         /** @description The bindings of this group of kartenn only, by key (spec 025, REQ-025-11). */
         group?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -9991,6 +10060,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string | null;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -10042,7 +10113,10 @@ export interface operations {
   show_binding: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The binding. */
         id: string;
@@ -10079,7 +10153,10 @@ export interface operations {
         /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
         simulate?: boolean;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The binding. */
         id: string;
@@ -10126,7 +10203,10 @@ export interface operations {
   capabilities: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -10172,7 +10252,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -10209,6 +10292,8 @@ export interface operations {
       header?: {
         /** @description Makes the submission idempotent for 24 h. */
         "Idempotency-Key"?: string | null;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -10260,7 +10345,10 @@ export interface operations {
   show_changeset: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The changeset. */
         id: string;
@@ -10301,7 +10389,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The changeset. */
         id: string;
@@ -10336,6 +10427,8 @@ export interface operations {
       header: {
         /** @description Its state, as its ETag. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The changeset. */
@@ -10380,6 +10473,8 @@ export interface operations {
       header: {
         /** @description Its state, as its ETag. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The changeset. */
@@ -10433,6 +10528,8 @@ export interface operations {
       header: {
         /** @description Its state, as its ETag. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The changeset. */
@@ -10472,6 +10569,8 @@ export interface operations {
       header: {
         /** @description Its state, as its ETag. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The changeset. */
@@ -10517,7 +10616,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -10554,6 +10656,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -10610,7 +10714,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The cluster. */
         id: string;
@@ -10650,6 +10757,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The cluster. */
@@ -10704,6 +10813,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The cluster. */
@@ -10759,7 +10870,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The machines.cluster. */
         id: string;
@@ -10800,7 +10914,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The cluster. */
         id: string;
@@ -10837,7 +10954,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The machines.cluster. */
         id: string;
@@ -10874,7 +10994,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The machines.cluster. */
         id: string;
@@ -10913,7 +11036,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The machines.cluster. */
         id: string;
@@ -10960,7 +11086,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -10997,6 +11126,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -11053,7 +11184,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The domain. */
         id: string;
@@ -11093,6 +11227,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The domain. */
@@ -11147,6 +11283,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The domain. */
@@ -11202,7 +11340,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The domain. */
         id: string;
@@ -11239,7 +11380,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The domain. */
         id: string;
@@ -11276,7 +11420,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The domain. */
         id: string;
@@ -11315,7 +11462,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The domain. */
         id: string;
@@ -11358,7 +11508,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The addressing domain. */
         id: string;
@@ -11390,7 +11543,10 @@ export interface operations {
   list_drafts: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -11419,7 +11575,10 @@ export interface operations {
   create_draft: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -11461,7 +11620,10 @@ export interface operations {
   get_draft: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The draft. */
         id: string;
@@ -11505,6 +11667,8 @@ export interface operations {
       header: {
         /** @description The ETag of the draft read. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The draft. */
@@ -11565,6 +11729,8 @@ export interface operations {
       header: {
         /** @description The ETag of the draft read. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The draft. */
@@ -11631,6 +11797,8 @@ export interface operations {
       header: {
         /** @description The ETag of the draft read. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The draft. */
@@ -11703,7 +11871,10 @@ export interface operations {
   simulate_draft: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The draft. */
         id: string;
@@ -11759,6 +11930,8 @@ export interface operations {
         "If-Match"?: string | null;
         /** @description Makes the submission idempotent for 24 h. */
         "Idempotency-Key"?: string | null;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The draft. */
@@ -11853,6 +12026,8 @@ export interface operations {
       header: {
         /** @description The ETag of the draft read. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The draft. */
@@ -11945,7 +12120,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -11982,6 +12160,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -12038,7 +12218,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The entity. */
         id: string;
@@ -12078,6 +12261,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The entity. */
@@ -12132,6 +12317,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The entity. */
@@ -12187,7 +12374,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The entity. */
         id: string;
@@ -12224,7 +12414,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The entity. */
         id: string;
@@ -12261,7 +12454,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The entity. */
         id: string;
@@ -12300,7 +12496,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The entity. */
         id: string;
@@ -12345,7 +12544,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -12382,6 +12584,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -12438,7 +12642,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The object. */
         id: string;
@@ -12478,6 +12685,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -12548,6 +12757,8 @@ export interface operations {
       header?: {
         /** @description The cursor to resume after. */
         "Last-Event-ID"?: string | null;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -12642,7 +12853,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -12694,7 +12908,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -12734,7 +12951,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -12771,6 +12991,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -12827,7 +13049,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The object. */
         id: string;
@@ -12867,6 +13092,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -12917,6 +13144,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -12972,7 +13201,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.flow_type. */
         id: string;
@@ -13009,7 +13241,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.flow_type. */
         id: string;
@@ -13046,7 +13281,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.flow_type. */
         id: string;
@@ -13085,7 +13323,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.flow_type. */
         id: string;
@@ -13164,7 +13405,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -13201,6 +13445,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -13257,7 +13503,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The flow. */
         id: string;
@@ -13297,6 +13546,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The flow. */
@@ -13347,6 +13598,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The flow. */
@@ -13398,7 +13651,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The flow. */
         id: string;
@@ -13439,7 +13695,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The flow.flow. */
         id: string;
@@ -13476,7 +13735,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The flow.flow. */
         id: string;
@@ -13513,7 +13775,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The flow.flow. */
         id: string;
@@ -13552,7 +13817,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The flow.flow. */
         id: string;
@@ -13594,6 +13862,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The flow. */
@@ -13647,7 +13917,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -13681,7 +13954,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -13715,7 +13991,10 @@ export interface operations {
         /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
         simulate?: boolean;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -13775,7 +14054,10 @@ export interface operations {
   show_group: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The group. */
         id: string;
@@ -13812,7 +14094,10 @@ export interface operations {
         /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
         simulate?: boolean;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The group. */
         id: string;
@@ -13864,7 +14149,10 @@ export interface operations {
         /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
         simulate?: boolean;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The group. */
         id: string;
@@ -13915,7 +14203,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The group. */
         id: string;
@@ -13955,6 +14246,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string | null;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The group. */
@@ -14009,7 +14302,10 @@ export interface operations {
   show_member: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The group. */
         id: string;
@@ -14048,7 +14344,10 @@ export interface operations {
         /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
         simulate?: boolean;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The group. */
         id: string;
@@ -14102,7 +14401,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -14131,7 +14433,10 @@ export interface operations {
   show_identity: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The identity. */
         id: string;
@@ -14168,7 +14473,10 @@ export interface operations {
         /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
         simulate?: boolean;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The identity. */
         id: string;
@@ -14214,7 +14522,10 @@ export interface operations {
   list_identity_drafts: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The identity. */
         id: string;
@@ -14255,7 +14566,10 @@ export interface operations {
   pseudonymise_identity: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The person. */
         id: string;
@@ -14296,7 +14610,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -14325,7 +14642,10 @@ export interface operations {
   create_import: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -14358,7 +14678,10 @@ export interface operations {
   show_import: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The import. */
         id: string;
@@ -14390,7 +14713,10 @@ export interface operations {
   cancel_import: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The import. */
         id: string;
@@ -14422,7 +14748,10 @@ export interface operations {
   deposit_import_chunk: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The import. */
         id: string;
@@ -14472,7 +14801,10 @@ export interface operations {
         /** @description `self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         approval?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The import. */
         id: string;
@@ -14507,7 +14839,10 @@ export interface operations {
         /** @description `self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         approval?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The import. */
         id: string;
@@ -14556,7 +14891,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -14593,6 +14931,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -14649,7 +14989,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The object. */
         id: string;
@@ -14689,6 +15032,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -14739,6 +15084,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -14794,7 +15141,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.inference_rule. */
         id: string;
@@ -14831,7 +15181,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.inference_rule. */
         id: string;
@@ -14868,7 +15221,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.inference_rule. */
         id: string;
@@ -14907,7 +15263,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.inference_rule. */
         id: string;
@@ -14964,7 +15323,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -15001,6 +15363,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -15057,7 +15421,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The interface. */
         id: string;
@@ -15097,6 +15464,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The interface. */
@@ -15151,6 +15520,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The interface. */
@@ -15205,6 +15576,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The interface. */
@@ -15259,6 +15632,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The interface. */
@@ -15316,7 +15691,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The interface. */
         id: string;
@@ -15357,7 +15735,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The machines.interface. */
         id: string;
@@ -15394,7 +15775,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The machines.interface. */
         id: string;
@@ -15431,7 +15815,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The machines.interface. */
         id: string;
@@ -15470,7 +15857,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The machines.interface. */
         id: string;
@@ -15509,7 +15899,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -15546,6 +15939,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string | null;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -15606,7 +16001,10 @@ export interface operations {
         /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
         simulate?: boolean;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -15659,7 +16057,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -15704,7 +16105,10 @@ export interface operations {
   set_log_filter: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description A configured technical output. */
         output: string;
@@ -15767,7 +16171,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -15804,6 +16211,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -15860,7 +16269,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The machine. */
         id: string;
@@ -15900,6 +16312,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The machine. */
@@ -15954,6 +16368,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The machine. */
@@ -16005,7 +16421,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The machine. */
         id: string;
@@ -16046,7 +16465,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The machine. */
         id: string;
@@ -16087,7 +16509,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The machines.machine. */
         id: string;
@@ -16128,7 +16553,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The machine. */
         id: string;
@@ -16165,7 +16593,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The machines.machine. */
         id: string;
@@ -16202,7 +16633,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The machines.machine. */
         id: string;
@@ -16241,7 +16675,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The machines.machine. */
         id: string;
@@ -16275,7 +16712,10 @@ export interface operations {
   me: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -16304,7 +16744,10 @@ export interface operations {
   openapi: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -16351,7 +16794,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -16388,6 +16834,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -16444,7 +16892,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The object. */
         id: string;
@@ -16484,6 +16935,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -16534,6 +16987,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -16589,7 +17044,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.axis. */
         id: string;
@@ -16626,7 +17084,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.axis. */
         id: string;
@@ -16663,7 +17124,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.axis. */
         id: string;
@@ -16702,7 +17166,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.axis. */
         id: string;
@@ -16747,7 +17214,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -16784,6 +17254,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -16840,7 +17312,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The object. */
         id: string;
@@ -16880,6 +17355,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -16931,7 +17408,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.exempt_role. */
         id: string;
@@ -16968,7 +17448,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.exempt_role. */
         id: string;
@@ -17005,7 +17488,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.exempt_role. */
         id: string;
@@ -17044,7 +17530,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.exempt_role. */
         id: string;
@@ -17085,7 +17574,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -17122,6 +17614,8 @@ export interface operations {
       header: {
         /** @description The ETag of the matrix of the flow type, read at present. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The environment of the source. */
@@ -17183,7 +17677,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -17220,6 +17717,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -17276,7 +17775,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The object. */
         id: string;
@@ -17316,6 +17818,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -17366,6 +17870,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -17421,7 +17927,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.pattern. */
         id: string;
@@ -17458,7 +17967,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.pattern. */
         id: string;
@@ -17495,7 +18007,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.pattern. */
         id: string;
@@ -17534,7 +18049,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.pattern. */
         id: string;
@@ -17581,7 +18099,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -17613,7 +18134,10 @@ export interface operations {
         /** @description `self`: apply the changeset in the same transaction when its author holds `approval.self` on everything it touches and no policy holds it; pending otherwise, with the reason (spec 024, REQ-024-13). */
         approval?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -17646,7 +18170,10 @@ export interface operations {
   show_policy_report: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The report. */
         id: string;
@@ -17683,7 +18210,10 @@ export interface operations {
         /** @description The rank to start after. */
         after?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The report. */
         id: string;
@@ -17734,7 +18264,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -17771,6 +18304,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -17827,7 +18362,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The object. */
         id: string;
@@ -17867,6 +18405,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -17917,6 +18457,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -17972,7 +18514,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.rule. */
         id: string;
@@ -18009,7 +18554,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.rule. */
         id: string;
@@ -18046,7 +18594,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.rule. */
         id: string;
@@ -18085,7 +18636,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.rule. */
         id: string;
@@ -18130,7 +18684,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -18167,6 +18724,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -18223,7 +18782,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The object. */
         id: string;
@@ -18264,7 +18826,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.value. */
         id: string;
@@ -18301,7 +18866,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.value. */
         id: string;
@@ -18338,7 +18906,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.value. */
         id: string;
@@ -18377,7 +18948,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.value. */
         id: string;
@@ -18436,7 +19010,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -18473,6 +19050,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -18529,7 +19108,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The prefix. */
         id: string;
@@ -18569,6 +19151,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The prefix. */
@@ -18623,6 +19207,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The prefix. */
@@ -18674,7 +19260,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The prefix. */
         id: string;
@@ -18715,7 +19304,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The prefix. */
         id: string;
@@ -18756,7 +19348,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The prefix. */
         id: string;
@@ -18797,7 +19392,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The prefix. */
         id: string;
@@ -18838,7 +19436,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The prefix. */
         id: string;
@@ -18875,7 +19476,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The prefix. */
         id: string;
@@ -18912,7 +19516,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The prefix. */
         id: string;
@@ -18949,7 +19556,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The prefix. */
         id: string;
@@ -18988,7 +19598,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The prefix. */
         id: string;
@@ -19031,7 +19644,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -19071,7 +19687,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The property. */
         key: string;
@@ -19114,7 +19733,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -19148,7 +19770,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -19200,7 +19825,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -19237,6 +19865,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -19293,7 +19923,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The range. */
         id: string;
@@ -19333,6 +19966,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The range. */
@@ -19387,6 +20022,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The range. */
@@ -19442,7 +20079,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The range. */
         id: string;
@@ -19479,7 +20119,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The range. */
         id: string;
@@ -19516,7 +20159,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The range. */
         id: string;
@@ -19555,7 +20201,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The range. */
         id: string;
@@ -19602,7 +20251,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -19639,6 +20291,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -19695,7 +20349,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The object. */
         id: string;
@@ -19735,6 +20392,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -19785,6 +20444,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -19840,7 +20501,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.signal. */
         id: string;
@@ -19877,7 +20541,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.signal. */
         id: string;
@@ -19914,7 +20581,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.signal. */
         id: string;
@@ -19953,7 +20623,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.signal. */
         id: string;
@@ -19992,7 +20665,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -20021,7 +20697,10 @@ export interface operations {
   show_role: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The role. */
         key: string;
@@ -20058,7 +20737,10 @@ export interface operations {
         /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
         simulate?: boolean;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The role. */
         key: string;
@@ -20118,7 +20800,10 @@ export interface operations {
         /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
         simulate?: boolean;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The role. */
         key: string;
@@ -20168,7 +20853,10 @@ export interface operations {
         /** @description Prefix of the identifier, ignoring case, 100 characters at most. */
         q?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -20202,7 +20890,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -20239,6 +20930,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string | null;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -20290,7 +20983,10 @@ export interface operations {
   show_service_account: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The service account. */
         id: string;
@@ -20330,6 +21026,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string | null;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The service account. */
@@ -20389,7 +21087,10 @@ export interface operations {
         /** @description `true`: validate and report without writing (200 `ChangesetSimulated`, as `POST /v1/changesets?simulate=true`; spec 024, REQ-024-17). */
         simulate?: boolean;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The service account. */
         id: string;
@@ -20451,7 +21152,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -20488,6 +21192,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -20544,7 +21250,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The object. */
         id: string;
@@ -20584,6 +21293,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -20634,6 +21345,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The object. */
@@ -20689,7 +21402,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.service. */
         id: string;
@@ -20726,7 +21442,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.service. */
         id: string;
@@ -20763,7 +21482,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.service. */
         id: string;
@@ -20802,7 +21524,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The policy.service. */
         id: string;
@@ -20851,7 +21576,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -20888,6 +21616,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -20944,7 +21674,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The site. */
         id: string;
@@ -20984,6 +21717,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The site. */
@@ -21038,6 +21773,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The site. */
@@ -21093,7 +21830,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The site. */
         id: string;
@@ -21130,7 +21870,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The site. */
         id: string;
@@ -21167,7 +21910,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The site. */
         id: string;
@@ -21206,7 +21952,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The site. */
         id: string;
@@ -21240,7 +21989,10 @@ export interface operations {
   stats: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -21295,7 +22047,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -21339,7 +22094,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -21376,6 +22134,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -21432,7 +22192,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The vlan_group. */
         id: string;
@@ -21472,6 +22235,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The vlan_group. */
@@ -21526,6 +22291,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The vlan_group. */
@@ -21581,7 +22348,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The vlan_group. */
         id: string;
@@ -21620,7 +22390,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The group. */
         id: string;
@@ -21657,7 +22430,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The group. */
         id: string;
@@ -21694,7 +22470,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The vlan_group. */
         id: string;
@@ -21731,7 +22510,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The vlan_group. */
         id: string;
@@ -21770,7 +22552,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The vlan_group. */
         id: string;
@@ -21825,7 +22610,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path?: never;
       cookie?: never;
     };
@@ -21862,6 +22650,8 @@ export interface operations {
       header?: {
         /** @description Makes the write idempotent for 24 h. */
         "Idempotency-Key"?: string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path?: never;
       cookie?: never;
@@ -21918,7 +22708,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The vlan. */
         id: string;
@@ -21958,6 +22751,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The vlan. */
@@ -22012,6 +22807,8 @@ export interface operations {
       header: {
         /** @description The ETag of the object read. Only its version is compared: a change of a linked object since the read does not refuse the write; the bare version ("<version>") is accepted too. */
         "If-Match": string;
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
       };
       path: {
         /** @description The vlan. */
@@ -22067,7 +22864,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The vlan. */
         id: string;
@@ -22108,7 +22908,10 @@ export interface operations {
         /** @description The size of a page, 1 to 1 000; 100 by default. */
         page_size?: number;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The VLAN. */
         id: string;
@@ -22145,7 +22948,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The vlan. */
         id: string;
@@ -22182,7 +22988,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The vlan. */
         id: string;
@@ -22221,7 +23030,10 @@ export interface operations {
         /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
         as_of?: string;
       };
-      header?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
       path: {
         /** @description The vlan. */
         id: string;

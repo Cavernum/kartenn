@@ -473,7 +473,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     appelants ; `read::consistent` et `children` de `crates/kartenn-rest/src/tree.rs`
     (forme) ; test voisin `crates/kartenn-rest/tests/it/objects.rs`
   - dépend de : 11a
-- [ ] 16c. Rafraîchissement pendant une requête de fond (A15) : après un rafraîchissement
+- [x] 16c. Rafraîchissement pendant une requête de fond (A15) : après un rafraîchissement
   des groupes sur une requête `Kartenn-Background: ?1` ou à l'ouverture du flux
   d'événements, cookie réémis avec `seen` remis à la valeur lue (ni fin par inactivité
   ni fin absolue repoussée) ; sans rafraîchissement, aucun cookie (A14) ; l'en-tête
@@ -487,6 +487,23 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     (`NotActivity`) ; test voisin `crates/kartenn-rest/tests/it/sessions.rs`
     (`a_request_in_the_background_is_no_activity`) ; 005 design § « Cookie de session »
   - dépend de : 16a
+  - fait le 2026-11-01 : `Authenticated.quiet_cookie` (`authn.rs`), scellé seulement
+    après un rafraîchissement, avec `seen` remis à la valeur lue ; la couche 6 l'envoie
+    pour une requête de fond ou une réponse `NotActivity` (flux et rattrapage), le cookie
+    ordinaire sinon (`reissue`) ; contrat : paramètre d'en-tête commun
+    `components.parameters.Kartenn-Background`, référencé par toute opération non
+    publique ; contrat et `schema.d.ts` (`web/sdk`, `web/v2/sdk`) régénérés ; tests
+    `a_refresh_in_the_background_keeps_the_new_tokens` et
+    `a_refresh_at_the_opening_of_the_stream_keeps_the_new_tokens` (`sessions.rs`, issuer
+    de test qui tourne son jeton de rafraîchissement, `Fixture::streamed` sur un hub sans
+    lecteur) ; `docs/spec/interfaces.md` (Authentification).
+  - choix : composant commun plutôt que paramètre recopié sur 298 opérations ; les
+    opérations `QUERY` de l'extension `x-query` ne le déclarent pas (construites à part,
+    comme `approval` et `simulate`) ; la réponse paginée du rattrapage, `NotActivity`
+    elle aussi, suit la même règle que l'ouverture du flux.
+  - reste : `contract::breaches` compare les paramètres par nom et emplacement sans suivre
+    les `$ref` : un changement du composant `Kartenn-Background` (le rendre requis) ne
+    serait pas vu comme une rupture.
 - [ ] 14a. `PATCH /v1/drafts/{id}` en `application/merge-patch+json` seulement (A17,
   REQ-006-13), 415 pour `application/json` ; client du SDK en `merge: true` ; contrat
   régénéré — verify : `k-check -p kartenn-rest` (drafts : 415 en `application/json`,

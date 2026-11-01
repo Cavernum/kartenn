@@ -336,6 +336,9 @@ fn finish(document: &mut OpenApi) {
             .map(|scheme| SecurityRequirement::new(*scheme, Vec::<String>::new()))
             .collect(),
     );
+    components
+        .parameters
+        .insert(BACKGROUND.to_owned(), RefOr::T(background()));
     for (path, item) in &mut document.paths.paths {
         let public = PUBLIC.contains(&path.as_str());
         for operation in operations(item) {
@@ -346,11 +349,39 @@ fn finish(document: &mut OpenApi) {
                 .or_insert_with(|| problem().into());
             if public {
                 operation.security = Some(Vec::new());
+            } else {
+                operation
+                    .parameters
+                    .get_or_insert_default()
+                    .push(RefOr::Ref(Ref::new(format!(
+                        "#/components/parameters/{BACKGROUND}"
+                    ))));
             }
             approval_self(operation);
         }
     }
     crate::simulation::declare(document);
+}
+
+/// The name of the common parameter [`background`] among the components.
+const BACKGROUND: &str = "Kartenn-Background";
+
+/// The header `Kartenn-Background`, read by the authentication for every route behind it
+/// (021/A14, A15; `crate::authn::BACKGROUND`).
+fn background() -> utoipa::openapi::path::Parameter {
+    ParameterBuilder::new()
+        .name(BACKGROUND)
+        .parameter_in(ParameterIn::Header)
+        .required(Required::False)
+        .description(Some(
+            "`?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on \
+             one field line): a request the client makes in the background, not at the \
+             person's request, no activity of its session. Its end is not pushed back; its \
+             session cookie is sent again only after a refresh of its groups, with its last \
+             activity as it was. Any other value: an ordinary request (021/A14, A15).",
+        ))
+        .schema(Some(String::schema()))
+        .build()
 }
 
 /// A write that submits a changeset (it may answer 202) takes `approval=self` (spec 024,
