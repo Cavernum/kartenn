@@ -36,6 +36,8 @@ pub enum Point {
     Column,
     /// An action of the menu of an object.
     Action,
+    /// A read-only tile of the home page, at most one per plugin (spec 021, REQ-021-13).
+    Widget,
 }
 
 /// The spaces of the sidebar, in their order (spec 021, REQ-021-2): a closed list, extended
@@ -468,9 +470,22 @@ fn check(
         }
         catalogs.push((language, catalog));
     }
+    check_extensions(&manifest.extensions, name, &catalogs)?;
+    Ok(manifest.catalogs.clone())
+}
+
+/// The checks of the extensions of the plugin `name`: ids and letters unique, elements
+/// prefixed by its name, the types of objects of each point, one widget at most, labels in
+/// every catalogue.
+fn check_extensions(
+    extensions: &[Extension],
+    name: &str,
+    catalogs: &[(&String, serde_json::Value)],
+) -> Result<(), String> {
     let mut ids = BTreeSet::new();
     let mut letters = BTreeSet::new();
-    for extension in &manifest.extensions {
+    let mut widgets = 0_usize;
+    for extension in extensions {
         if !ids.insert(extension.id.as_str()) {
             return Err(format!("extension {}: id used twice", extension.id));
         }
@@ -494,11 +509,28 @@ fn check(
                 extension.id, extension.element
             ));
         }
-        if extension.point != Point::View && extension.object_types.is_empty() {
-            return Err(format!("extension {}: no object_types", extension.id));
+        // A view and a widget stand on no object; every other point needs its types.
+        match extension.point {
+            Point::View => {}
+            Point::Widget => {
+                if !extension.object_types.is_empty() {
+                    return Err(format!(
+                        "extension {}: object_types on a widget",
+                        extension.id
+                    ));
+                }
+                widgets += 1;
+                if widgets > 1 {
+                    return Err(format!("extension {}: a second widget", extension.id));
+                }
+            }
+            _ if extension.object_types.is_empty() => {
+                return Err(format!("extension {}: no object_types", extension.id));
+            }
+            _ => {}
         }
         for key in [&extension.label, &extension.nav].into_iter().flatten() {
-            for (language, catalog) in &catalogs {
+            for (language, catalog) in catalogs {
                 if !has_key(catalog, key) {
                     return Err(format!(
                         "extension {}: {key} missing from the catalog {language}",
@@ -508,7 +540,7 @@ fn check(
             }
         }
     }
-    Ok(manifest.catalogs.clone())
+    Ok(())
 }
 
 /// The extension of a path, compared exactly: the browser asks for the file by its name.

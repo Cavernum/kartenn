@@ -190,6 +190,9 @@ Règles de validation (REQ-007-5) :
   `policy`, `flows`, `admin`} ; `go` facultatif sur une extension `view` seulement, une
   lettre `[a-z]`, unique dans le plugin (le shell refuse une lettre déjà prise). Tous
   publiés tels quels dans `ui_plugins`, absents s'ils ne sont pas déclarés.
+- *Amendé par la 021 (REQ-021-13, X38 ; tâche 16)* : `point` admet aussi `widget`, la tuile
+  en lecture seule de l'Accueil : sans `object_types` (comme `view`), sans `go`, une au
+  plus par plugin ; montrée selon sa `permission` (celle de la vue liée, 017 design).
 
 Registre : `Plugins` (dans `kartenn-rest::web`) garde un `ArcSwap<Snapshot>` : versions
 valides par nom, fichiers `(nom, version, chemin) → (chemin disque, SRI, type)`. La
