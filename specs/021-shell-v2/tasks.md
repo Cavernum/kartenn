@@ -418,6 +418,28 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     `refresh_failed`). Recommandation : réémettre le cookie après un rafraîchissement,
     `seen` laissé à sa valeur lue (ne prolonge rien) ; à trancher (A14 dit « ne réémet
     pas »).
+- [ ] 16c. Rafraîchissement pendant une requête de fond (A15) : après un rafraîchissement
+  des groupes sur une requête `Kartenn-Background: ?1` ou à l'ouverture du flux
+  d'événements, cookie réémis avec `seen` remis à la valeur lue (ni fin par inactivité
+  ni fin absolue repoussée) ; sans rafraîchissement, aucun cookie (A14) ; l'en-tête
+  `Kartenn-Background` déclaré au contrat OpenAPI (paramètre d'en-tête des routes
+  authentifiées, ou composant commun) — verify : `k-check -p kartenn-rest` (sessions :
+  requête de fond avec rafraîchissement dû → cookie réémis, nouveau jeton de
+  rafraîchissement, `expires_at` inchangé ; même cas à l'ouverture du flux ; sans
+  rafraîchissement, pas de cookie)
+  - où : `crates/kartenn-rest/src/authn.rs` (couche 6, rafraîchissement vers la ligne
+    487, filtre du cookie vers la ligne 943), `crates/kartenn-rest/src/events/mod.rs`
+    (`NotActivity`) ; test voisin `crates/kartenn-rest/tests/it/sessions.rs`
+    (`a_request_in_the_background_is_no_activity`) ; 005 design § « Cookie de session »
+  - dépend de : 16a
+- [ ] 14a. `PATCH /v1/drafts/{id}` en `application/merge-patch+json` seulement (A17,
+  REQ-006-13), 415 pour `application/json` ; client du SDK en `merge: true` ; contrat
+  régénéré — verify : `k-check -p kartenn-rest` (drafts : 415 en `application/json`,
+  200 en `merge-patch+json`) ; Vitest du SDK des brouillons ; parcours `draft`
+  - où : `crates/kartenn-rest/src/drafts.rs` (le `PATCH`), forme des autres `PATCH`
+    du contrat ; `web/v2/sdk/src/data/drafts.ts` (vers la ligne 213, `merge: false`) ;
+    test voisin `crates/kartenn-rest/tests/it/drafts.rs`
+  - dépend de : —
 - [ ] 24a. `placements` dans `ChangesetSimulated` (A12) : `[{object, kind, before,
   after}]` pour chaque objet dont le parent change (déduit : préfixes, plages, adresses ;
   déclaré : modules), au présent, sur la simulation d'un changeset et d'un brouillon —
@@ -1338,7 +1360,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/v2/shell/src/session/{expiry,warning}.ts`, `SessionDialog.vue` ;
     `activityFetch` et `installGestures` du SDK (`web/v2/sdk/src/`) ; parcours
     `web/v2/e2e/journeys/session.spec.ts`
-  - dépend de : 16a
+  - dépend de : 16a, 16c
 - [ ] 17b. « Créer un VLAN pour ce réseau » (maquette E12) : création du VLAN et pose de
   `core.vlan` par une référence locale, au brouillon ou en Ctrl+Entrée ; poser un VLAN
   existant depuis l'onglet du réseau — REQ-026-6 — verify : parcours `vlan` (création

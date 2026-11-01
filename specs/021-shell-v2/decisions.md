@@ -256,6 +256,23 @@ la spec qu'il touche :
   requête de son effet d'activité, jamais prolonger une session : aucun gain pour un
   attaquant qui le pose ou le retire (16a, 16b).
 
+Tranchés le 2026-11-01 par l'utilisateur, après les tâches 14, 16a et 17 :
+
+- **A15 — Rafraîchissement pendant une requête de fond (005, 006 ; complète A14)** :
+  quand une requête de fond (`Kartenn-Background: ?1`) ou l'ouverture du flux
+  d'événements rafraîchit les groupes, le cookie est réémis avec la dernière activité lue
+  (`seen` inchangé) : le jeton de rafraîchissement tourné (RFC 9700 § 4.14.2) est gardé,
+  rien n'est prolongé (ni la fin par inactivité ni la fin absolue). Sans rafraîchissement,
+  A14 tient : pas de cookie. Une requête ordinaire concurrente peut voir son cookie
+  remplacé par un `seen` plus ancien : la session raccourcit, sens sûr (16c).
+- **A16 — Icône de l'état « en revue »** : l'œil des maquettes validées (`StatusBadge`),
+  pas `git-pull-request` ; « À instruire » de la barre latérale garde la sienne.
+- **A17 — `PATCH /v1/drafts/{id}`** : la route s'aligne sur REQ-006-13 et prend
+  `application/merge-patch+json` uniquement ; le client passe en `merge: true`. Pas de
+  compatibilité avant la première version (14a).
+- **A18 — Place des VLAN** : espace `network` (REQ-021-2, design) ; la maquette E12, qui
+  les met sous Référentiel, est corrigée à sa prochaine retouche.
+
 ## Questions (closes le 2026-10-23)
 
 - **Q-021-1** — Édition en place : brouillon par défaut, en lot avec un motif ;

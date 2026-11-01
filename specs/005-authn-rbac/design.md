@@ -225,7 +225,9 @@ livrés ([025](../025-droits-par-groupes/design.md)).*
   minute (inactivité glissante, à la charge de la 006). Au-delà de 4 Kio, découpage en au plus trois cookies
   `__Host-kartenn-N`. Une requête marquée `Kartenn-Background: ?1` n'est pas une activité
   (`NotActivity`, comme le flux d'événements) : elle ne prolonge pas l'inactivité
-  (*amendé par la 021*, A14).
+  (*amendé par la 021*, A14). Si cette requête, ou l'ouverture du flux, rafraîchit les
+  groupes, le cookie est réémis avec `seen` inchangé, pour garder le jeton de
+  rafraîchissement tourné sans rien prolonger (*amendé par la 021*, A15).
 - **Rafraîchissement des groupes** : à l'expiration du jeton d'accès de l'IdP (au plus
   15 min), le jeton de rafraîchissement est échangé ; un échec ferme la session.
 - **Jetons Bearer** : validation RFC 9068 par `jsonwebtoken`, clés JWKS en cache par
