@@ -756,6 +756,79 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `crates/kartenn-machines/src` (règles `machines.host.*`) ; 020 design § « Contrat de
     déplacement »
   - dépend de : 12 ; 020-26 ; le cas machines après 18
+  - en cours : fait le 2026-11-01 — SDK : `scripts/gen.mjs` génère `src/api/parents.ts`
+    (`PARENTS` : pour chaque type à parent déclaré, l'écriture qui change son parent —
+    `move_entity.parent`, `move_site.parent`, `update_vlan_group.anchor`,
+    `MachinePatch.host` —, les types admis, lus des variantes du membre (`TargetKind`) ou du
+    filtre `parent` de sa liste, et la racine permise si la création ne l'exige pas ; build
+    en échec si l'écriture disparaît du contrat ; test de fraîcheur) ; `data/moves.ts`
+    (`canMove(nœud, cible, { ancestors, can, present })` : cycle, parent incompatible, droit
+    `X.edit` du nœud puis de la cible, lecture datée, dans cet ordre ; `MOVE_CODES` :
+    `core.anchor.cycle`, `core.vlan.group_anchor`, `machines.host.invalid` ; exportés avec
+    `parentRule`) ; `data/invalidate.ts` : un préfixe, une plage, une adresse changés
+    invalident toutes les lectures d'enfants de l'arbre (`core.domain/roots`,
+    `core.prefix/children` ; `machines.machine/hosted`, type de la clé qualifié : la
+    Topographie lit par `prefix`), et `lists()` aussi (la liste du nouveau parent ne montre
+    pas encore l'objet). Serveur (trouvé par le test de propriété) : `kartenn-rest`
+    `request_id.rs` réécrit le corps d'un problème après la compression sans retirer
+    `Content-Encoding` — tout refus de plus de 1 Kio était illisible pour un navigateur
+    (`ERR_CONTENT_DECODING_FAILED`) ; en-tête retiré, test
+    `tests/it/compression.rs::a_problem_written_again_says_no_coding`. Shell : `views/edit/moves.ts` (`useMoves` :
+    `canMove` en mots avec code, `moveState`, `move` → `draft.add` puis simulation du
+    brouillon — valide : nœud marqué à sa place ; invalide : refusé avec la règle — ou
+    `changesets.submit` `?approval=self` avec motif ; « en attente » jusqu'à la réponse,
+    aucun `setQueryData`, refus 422/403/412 avec code, version lue sinon relue par
+    identifiant) ; « Changer de parent… » d'une entité ou d'un site (menu de la fiche,
+    `RecordView.vue` ; `EditPanel.vue` mode `move`, cibles valides seules, « Aucun » pour
+    la racine) ; Topographie : nœud dont le brouillon actif change la valeur marqué « en
+    brouillon » à sa place. Vitest `sdk/test/moves.test.ts` (table, contrat changé, chaque
+    refus et leur ordre), `sdk/test/dependents.test.ts` (arbre relu),
+    `shell/test/moves.test.ts` (mots et codes, hors présent, brouillon simulé valide et
+    invalide, réponse ralentie « en attente » sans écriture du cache, refus serveur après
+    acceptation du client, déplacement sur son parent) ; parcours
+    `e2e/journeys/moves.spec.ts` (arbre des préfixes : ni glisser, ni Ctrl+X/Ctrl+V, ni
+    « Déplacer vers… » ; valeur changée au brouillon, arbre inchangé et nœud marqué, puis
+    brouillon soumis, arbre relu à la nouvelle place ; entité : cibles valides seules,
+    réponse ralentie sans nouveau parent affiché, puis appliqué ; propriété : graine
+    `0x2124`, 200 étapes de valeurs de préfixes et de remplacements de plages, au brouillon
+    ou directement, acceptées et refusées, l'arbre rendu égal à celui de l'API et chaque
+    ligne contenue par sa ligne parente).
+  - choix : `canMove` et la table dans le SDK (un plugin de première partie ne peut pas
+    importer le shell ; `context.user.has` et `context.time.present` lui suffisent), le
+    déplacement et ses mots dans le shell ; une plage change de valeur par son
+    remplacement (`close` puis `create_range` : le contrat n'a pas de bornes dans
+    `update_range`) ; un déplacement sur le parent actuel n'écrit rien ; une seconde
+    intention pendant qu'une est en vol est ignorée ; un brouillon dont la simulation
+    refuse le déplacement garde l'opération (retrait par la page des brouillons, tâche 14) ;
+    `expected` de l'opération : version de la ligne, sinon objet relu par identifiant (une
+    lecture, du cache s'il est frais) ; cibles et ancêtres d'une entité lus dans les dix
+    premières pages de sa collection (un cycle au-delà : `core.anchor.cycle` du serveur) ;
+    motif prérempli avec la destination (« … → <parent> ») ; panneau ouvert après la
+    fermeture du menu, focus rendu au bouton du menu (l'entrée choisie disparaît avec
+    lui, `openEdit`) ; option « Aucun »
+    d'une référence facultative à valeur propre (`none`) : la chaîne vide est le « sans
+    valeur » du `Select` (Reka refuse une option vide) ; test de propriété en Chromium
+    seul, arbre comparé toutes les 10 étapes, 400 ms entre deux étapes et 429 attendu
+    selon `Retry-After` (quotas d'écriture de l'instance, partagés avec les parcours
+    voisins) ; sous Firefox, corps vide des modules préchargés pendant un `page.route`
+    toléré dans le seul parcours de la réponse ralentie (empreinte SHA-384 du vide).
+  - reste : le cas machines (tâche 18) — cluster sur sa propre machine refusé (cycle,
+    `machines.host.invalid`, prêt dans `canMove`), machine vers un cluster d'un autre site
+    refusée par le serveur (`machines.host.site_mismatch`, règle de sévérité
+    `warning` côté serveur : à vérifier qu'elle refuse), réponse ralentie dans un
+    `TreeGrid` `declared` (`useMoves` est prêt pour un arbre du shell ; une vue de plugin
+    reprend `canMove` du SDK et ses écritures, ou `useMoves` passe au SDK) ; Ctrl+Entrée
+    sur un dépôt (l'intention du `TreeGrid` n'a pas de `now`) ; **aperçu du brouillon** :
+    à arbitrer, le contrat ne le permet pas — la simulation (`ChangesetSimulated`) ne rend
+    que le différentiel des propriétés, ni valeur ni parent d'un préfixe ; options : (a)
+    lecture de l'arbre sous un brouillon (`roots`/`children` `?draft=<id>`), (b)
+    `placements` dans la simulation (objet, parent avant, après), (c) REQ-021-17 amendée
+    sans aperçu ; états transitoires d'une relecture (parent relu avant ses enfants) non
+    couverts par le test de propriété, qui compare l'arbre une fois stable ; erreur d'un
+    champ du panneau gardée jusqu'au prochain envoi quand la valeur change (commun à tous
+    les champs du panneau) ; Ctrl+Entrée sur le chevron du `SplitButton`, juste après le
+    choix « Appliquer », n'applique rien (le focus doit être dans un champ : composant
+    020, à vérifier).
 - [ ] 13. Libellés et codes : `label` (dictionnaire `GET /v1/labels` de la 018 en cache par
   langue et révision, invalidé par l'événement `labels` ; catalogues ; clé),
   `KeyLabel` partout ; toute erreur par `ErrorState`, `InlineAlert`, `Toast` avec codes et

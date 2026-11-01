@@ -1,0 +1,510 @@
+import type { Locator, Page } from "@playwright/test";
+import { DATA, expect, expectAccessible, test } from "../fixtures/journeys.ts";
+
+// Moves and the invariant of the trees of the new shell (spec 021, task 24; REQ-021-17, 32,
+// 33, 34): the tree of the prefixes offers no move, a prefix changes place by its value —
+// in the draft, the tree at the present unchanged and the node marked; once applied, the
+// tree read again shows its new place; an entity changes parent by « Changer de parent… »,
+// the valid targets only, never shown at its new place before the answer; and a property
+// test: a fixed seed, 200 steps of changes of the values of prefixes and ranges, through
+// the draft or applied at once, accepted or refused — each row of the tree rendered within
+// the row of its parent, its parent the one the API gives. Each test writes in a domain of
+// its own (RFC 5737, TEST-NET-2 and TEST-NET-3).
+
+/**
+ * A call of the API by the page itself, under its session (same origin: CSRF); a 429 (the
+ * quota of writes, 10 a second) waits as `Retry-After` says, then tries again.
+ */
+async function call(
+  page: Page,
+  method: string,
+  path: string,
+  body?: unknown,
+  headers: Record<string, string> = {},
+): Promise<{ status: number; body: unknown; etag: string | null }> {
+  return page.evaluate(
+    async ({ method, path, body, headers }) => {
+      // The same idempotency key on each try: a write replayed is not written twice.
+      const key = crypto.randomUUID();
+      for (let attempt = 0; attempt <= 10; attempt++) {
+        let response: Response;
+        let text: string;
+        try {
+          response = await fetch(path, {
+            method,
+            headers: { "Content-Type": "application/json", "Idempotency-Key": key, ...headers },
+            ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+          });
+          text = await response.text();
+        } catch (error) {
+          // Said with what was asked: an answer the browser cannot read is a failure.
+          throw new Error(`${method} ${path} ${JSON.stringify(body)}: ${String(error)}`);
+        }
+        if (response.status === 429) {
+          const wait = Number(response.headers.get("Retry-After") ?? "1") || 1;
+          await new Promise((done) => setTimeout(done, wait * 1000));
+          continue;
+        }
+        return {
+          status: response.status,
+          body: text ? JSON.parse(text) : null,
+          etag: response.headers.get("ETag"),
+        };
+      }
+      throw new Error(`${method} ${path}: still 429 after ten tries`);
+    },
+    { method, path, body, headers },
+  );
+}
+
+/** A slug unique to this run and this browser, after `production` (the journey `tree`). */
+const unique = (what: string, browser: string) =>
+  `zz-${what}-${browser}-${Date.now().toString(36)}`;
+
+/** A domain owned by the entity of the data set, holding `operations`' objects: its id. */
+async function newDomain(page: Page, slug: string, operations: object[]): Promise<string> {
+  const declarations = (await call(page, "GET", "/v1/property-declarations")).body as {
+    items: { id: string; key: string }[];
+  };
+  const owner = declarations.items.find((d) => d.key === "core.owner")!.id;
+  const entities = (await call(page, "GET", `/v1/entities?slug=${DATA.entity}`)).body as {
+    items: { id: string }[];
+  };
+  const domain = { local: 0 };
+  const created = await call(page, "POST", "/v1/changesets?approval=self", {
+    motive: "end-to-end moves",
+    operations: [
+      { op: "create_domain", local: 0, slug },
+      {
+        op: "assign_property",
+        object: domain,
+        kind: "domain",
+        property: { id: owner },
+        values: [entities.items[0]!.id],
+      },
+      ...operations.map((op) => ({ ...op, domain })),
+    ],
+  });
+  expect(created.status, JSON.stringify(created.body)).toBe(201);
+  const domains = (await call(page, "GET", `/v1/domains?slug=${slug}`)).body as {
+    items: { id: string }[];
+  };
+  return domains.items[0]!.id;
+}
+
+const prefix = (value: string, nature: "network" | "container") => ({
+  op: "create_prefix",
+  prefix: value,
+  nature,
+});
+const range = (first: string, last: string) => ({
+  op: "create_range",
+  first,
+  last,
+  usage: "static",
+});
+
+/** The tree of the topography of the domain `slug`. */
+const treeOf = (page: Page, slug: string) =>
+  page.getByRole("treegrid", { name: `Arbre des préfixes du domaine ${slug}` });
+const rowOf = (tree: Locator, label: string) =>
+  tree.locator("[role='row'][data-node]").filter({
+    has: tree.page().locator(".k-tree-grid__label", {
+      hasText: new RegExp(`^${label.replaceAll(".", "\\.")}$`),
+    }),
+  });
+
+/** Opens every node of the tree, one chevron at a time, each level read before the next. */
+async function expandAll(tree: Locator): Promise<void> {
+  for (let i = 0; i < 100; i++) {
+    // The children of a node opened are read: no row that reads a page, no node busy.
+    await expect(tree.locator("[data-more], [aria-busy='true']")).toHaveCount(0);
+    const closed = tree.locator("[role='row'][aria-expanded='false']").first();
+    if ((await closed.count()) === 0) return;
+    await closed.locator(".k-tree-grid__twisty").click();
+  }
+}
+
+/** A row as rendered, or as the API lists it: its level, its label, its parent's label. */
+interface Line {
+  level: number;
+  label: string;
+  parent: string | null;
+}
+
+/** The rows rendered, depth first, each with its visual parent (the row of level − 1 above). */
+async function rendered(tree: Locator): Promise<Line[]> {
+  const rows = await tree.locator("[role='row'][data-node]:not([data-more])").evaluateAll((all) =>
+    all.map((row) => ({
+      level: Number(row.getAttribute("aria-level")),
+      label: row.querySelector(".k-tree-grid__label")?.textContent?.trim() ?? "",
+    })),
+  );
+  const stack: string[] = [];
+  return rows.map(({ level, label }) => {
+    stack.length = level - 1;
+    const parent = level === 1 ? null : (stack[level - 2] ?? null);
+    stack[level - 1] = label;
+    return { level, label, parent };
+  });
+}
+
+type TreeNode =
+  | { kind: "prefix"; id: string; value: string }
+  | { kind: "range"; id: string; first: string; last: string }
+  | { kind: "address"; id: string; value: string };
+const labelOf = (node: TreeNode) =>
+  node.kind === "range" ? `${node.first} – ${node.last}` : node.value;
+
+/** The tree as the API gives it, depth first: the first level, then each prefix's children. */
+async function served(page: Page, domain: string): Promise<Line[]> {
+  const lines: Line[] = [];
+  const walk = async (url: string, level: number, parent: string | null) => {
+    for (let next: string | null = url; next;) {
+      const page_ = (await call(page, "GET", next)).body as {
+        items: TreeNode[];
+        links: { next?: string | null };
+      };
+      for (const node of page_.items) {
+        lines.push({ level, label: labelOf(node), parent });
+        if (node.kind === "prefix") {
+          await walk(`/v1/prefixes/${node.id}/children`, level + 1, labelOf(node));
+        }
+      }
+      next = page_.links.next ?? null;
+    }
+  };
+  await walk(`/v1/domains/${domain}/roots`, 1, null);
+  return lines;
+}
+
+/** The first and last addresses of a label: a CIDR, a range « a – b », an address (IPv4). */
+function bounds(label: string): [bigint, bigint] {
+  const ip = (text: string) =>
+    text.split(".").reduce((n, part) => (n << 8n) + BigInt(Number(part)), 0n);
+  if (label.includes(" – ")) {
+    const [first, last] = label.split(" – ");
+    return [ip(first!), ip(last!)];
+  }
+  const [address, length] = label.split("/");
+  const start = ip(address!);
+  const size = length === undefined ? 1n : 1n << BigInt(32 - Number(length));
+  return [start, start + size - 1n];
+}
+
+/** REQ-021-34: each row within the row of its parent (comparison of the values shown). */
+function expectContained(lines: readonly Line[]): void {
+  for (const line of lines) {
+    if (line.parent === null) continue;
+    const [first, last] = bounds(line.label);
+    const [low, high] = bounds(line.parent);
+    expect(
+      low <= first && last <= high,
+      `${line.label} shown under ${line.parent}, which does not contain it`,
+    ).toBe(true);
+  }
+}
+
+/** A generator of numbers in [0, 1), from a fixed seed (mulberry32). */
+function seeded(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+test("the tree of the prefixes offers no move: a prefix changes place by its value", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const slug = unique("derived", browserName);
+  const domain = await newDomain(page, slug, [
+    prefix("198.51.100.0/24", "container"),
+    prefix("198.51.100.0/25", "container"),
+    prefix("198.51.100.64/26", "network"),
+  ]);
+  await page.goto(`/topology?domain=${domain}`);
+  const tree = treeOf(page, slug);
+  await expect(rowOf(tree, "198.51.100.0/24")).toBeVisible();
+  await expandAll(tree);
+  const moved = rowOf(tree, "198.51.100.64/26");
+  await expect(moved).toHaveAttribute("aria-level", "3");
+
+  // No drag, no cut and paste, no « Déplacer vers… » (REQ-021-17).
+  await expect(tree.locator("[draggable='true']")).toHaveCount(0);
+  await moved.locator(".k-tree-grid__label").click();
+  await page.keyboard.press("Control+x");
+  await rowOf(tree, "198.51.100.0/24").locator(".k-tree-grid__label").click();
+  await page.keyboard.press("Control+v");
+  await expect(tree.locator("[data-move]")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Déplacer vers/ })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: /Déplacer vers/ })).toHaveCount(0);
+  expect(await rendered(tree)).toEqual(await served(page, domain));
+
+  // Its value changed in the draft: the tree at the present unchanged, the node marked.
+  await moved.locator(".k-tree-grid__label").click();
+  await page.keyboard.press("e");
+  const form = page.getByRole("form", { name: /^Modifier : Préfixe 198\.51\.100\.64\/26$/ });
+  await form.getByRole("textbox", { name: "Valeur" }).fill("198.51.100.128/26");
+  await form.getByRole("button", { name: "Ajouter au brouillon" }).click();
+  await expect(page.getByRole("button", { name: /^Brouillon 1 opération$/ })).toBeVisible();
+  await expect(moved).toHaveAttribute("data-state", "draft");
+  await expect(moved).toHaveAttribute("aria-level", "3");
+  expect(await rendered(tree)).toEqual(await served(page, domain));
+  await expectAccessible(page);
+
+  // Applied (the draft submitted): the tree read again shows its new place, under the /24.
+  const active = await page.evaluate(() => sessionStorage.getItem("kartenn.draft.active"));
+  const read = await call(page, "GET", `/v1/drafts/${active}`);
+  const draft = await call(
+    page,
+    "PATCH",
+    `/v1/drafts/${active}`,
+    { reason: { summary: "end-to-end moves" } },
+    { "If-Match": read.etag! },
+  );
+  const submitted = await call(
+    page,
+    "POST",
+    `/v1/drafts/${active}/submission?approval=self`,
+    {},
+    { "If-Match": draft.etag! },
+  );
+  expect(submitted.status, JSON.stringify(submitted.body)).toBe(201);
+  // Read again on the event of the stream that names the prefix (022).
+  const now = rowOf(tree, "198.51.100.128/26");
+  await expect(now).toHaveAttribute("aria-level", "2", { timeout: 15_000 });
+  await expect(rowOf(tree, "198.51.100.64/26")).toHaveCount(0);
+  await expandAll(tree);
+  const lines = await rendered(tree);
+  expect(lines).toEqual(await served(page, domain));
+  expectContained(lines);
+});
+
+test.describe("a slowed answer", () => {
+  // The answer slowed by `page.route`: under Firefox, Playwright's interception hands the
+  // modules preloaded meanwhile an empty body, which their digest refuses (the SHA-384 of
+  // nothing, below); a digest really forged computes another hash and stays an error.
+  test.use({
+    toleratedErrors: [
+      /The computed hash is “OLBgp1GsljhM2TJ\+sbHjaiH9txEUvgdDTAzHv2P24donTt6\/529l\+9Ua0vFImLlb”/,
+    ],
+  });
+
+  test("an entity changes parent by its menu, the valid targets only, never before the answer", async ({
+    page,
+    login,
+    browserName,
+  }) => {
+    await login("alice");
+    const slug = unique("node", browserName);
+    const created = await call(page, "POST", "/v1/changesets?approval=self", {
+      motive: "end-to-end moves",
+      operations: [
+        { op: "create_entity", local: 0, slug: `${slug}-a` },
+        { op: "create_entity", local: 1, slug: `${slug}-b`, parent: { local: 0 } },
+        { op: "create_entity", local: 2, slug: `${slug}-c` },
+      ],
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const a = (
+      (await call(page, "GET", `/v1/entities?slug=${slug}-a`)).body as {
+        items: { id: string }[];
+      }
+    ).items[0]!.id;
+
+    await page.goto(`/entities/${a}`);
+    // At the keyboard: the menu, its first entry, the panel's first field.
+    const actions = page.getByRole("button", { name: "Actions" });
+    await actions.press("Enter");
+    const entry = page.getByRole("menuitem", { name: "Changer de parent…" });
+    await expect(entry).toBeFocused();
+    await page.keyboard.press("Enter");
+    const form = page.getByRole("form", { name: `Changer de parent : Entité ${slug}-a` });
+    const parent = form.getByRole("combobox", { name: /^Parent/ });
+    await expect(parent).toBeFocused();
+    await expect(parent).toContainText("Aucun");
+    await expectAccessible(page);
+    await page.keyboard.press("Enter");
+    // Neither itself nor its child b (a cycle): only the valid targets, a root among them.
+    await expect(page.getByRole("option", { name: `${slug}-c` })).toBeVisible();
+    await expect(page.getByRole("option", { name: "Aucun" })).toBeVisible();
+    await expect(page.getByRole("option", { name: `${slug}-a`, exact: true })).toHaveCount(0);
+    await expect(page.getByRole("option", { name: `${slug}-b` })).toHaveCount(0);
+    await page.getByRole("option", { name: `${slug}-c` }).click();
+
+    // Applied now, its answer slowed: the record keeps its parent until it is read again.
+    let release!: () => void;
+    const held = new Promise<void>((done) => (release = done));
+    const submission = (url: URL) =>
+      url.pathname === "/v1/changesets" && url.search === "?approval=self";
+    await page.route(submission, async (route) => {
+      await held;
+      await route.continue();
+    });
+    await form.getByRole("button", { name: "Choisir l'action" }).click();
+    await page.getByRole("menuitem", { name: "Appliquer" }).click();
+    const motive = form.getByRole("textbox", { name: "Motif" });
+    await expect(motive).toHaveValue(`Changement de parent : Entité ${slug}-a → ${slug}-c`);
+    const sent = page.waitForRequest((r) => submission(new URL(r.url())));
+    await motive.press("Control+Enter");
+    await sent;
+    const attributes = page.locator(".k-attrs").first();
+    await expect(attributes).not.toContainText(`${slug}-c`);
+    release();
+    await expect(
+      page
+        .getByRole("status")
+        .filter({ hasText: new RegExp(`Appliqué : Entité ${slug}-a`) })
+        .first(),
+    ).toBeVisible();
+    await expect(attributes).toContainText(`${slug}-c`);
+    // The panel closed, the focus back on the button of the menu that opened it.
+    await expect(form).toHaveCount(0);
+    await expect(actions).toBeFocused();
+    await page.unroute(submission);
+  });
+});
+
+test("property: 200 changes of values, accepted or refused, and every row within its parent", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  // One browser is enough: the server's answers, not the engine's, make the trees.
+  test.skip(browserName !== "chromium", "property test: one browser");
+  test.setTimeout(600_000);
+  await login("alice");
+  const slug = unique("property", browserName);
+  const domain = await newDomain(page, slug, [
+    prefix("198.51.100.0/24", "container"),
+    prefix("198.51.100.0/25", "container"),
+    prefix("198.51.100.128/25", "container"),
+    prefix("198.51.100.0/26", "network"),
+    prefix("198.51.100.64/27", "network"),
+    prefix("198.51.100.128/26", "network"),
+    prefix("198.51.100.192/26", "network"),
+    prefix("203.0.113.0/24", "network"),
+    range("198.51.100.10", "198.51.100.20"),
+    range("198.51.100.130", "198.51.100.140"),
+    range("203.0.113.5", "203.0.113.9"),
+  ]);
+  const random = seeded(0x2124);
+  const pick = <T>(list: readonly T[]): T => list[Math.floor(random() * list.length)]!;
+
+  // The values offered: the aligned blocks of both networks, and a few with host bits set.
+  const blocks: string[] = [];
+  for (const base of ["198.51.100", "203.0.113"]) {
+    for (let length = 24; length <= 28; length++) {
+      const size = 2 ** (32 - length);
+      for (let start = 0; start < 256; start += size) blocks.push(`${base}.${start}/${length}`);
+    }
+  }
+  const values = [...blocks, "198.51.100.5/26", "203.0.113.17/25"];
+
+  const objects = async () => {
+    const [prefixes, ranges] = await Promise.all([
+      call(page, "GET", `/v1/prefixes?domain=${slug}`),
+      call(page, "GET", `/v1/ranges?domain=${slug}`),
+    ]);
+    return {
+      prefixes: (prefixes.body as { items: { id: string }[] }).items,
+      ranges: (ranges.body as { items: { id: string; usage: string }[] }).items,
+    };
+  };
+
+  /** One changeset of `operations`, at once or through a draft: whether it was applied. */
+  async function submit(operations: object[], viaDraft: boolean): Promise<boolean> {
+    if (!viaDraft) {
+      const direct = await call(page, "POST", "/v1/changesets?approval=self", {
+        motive: "property test",
+        operations,
+      });
+      expect([201, 422]).toContain(direct.status);
+      return direct.status === 201;
+    }
+    const draft = await call(page, "POST", "/v1/drafts", {
+      title: "property test",
+      reason: { summary: "property test" },
+      operations,
+    });
+    expect(draft.status, JSON.stringify(draft.body)).toBe(201);
+    const id = (draft.body as { id: string }).id;
+    const submitted = await call(
+      page,
+      "POST",
+      `/v1/drafts/${id}/submission?approval=self`,
+      {},
+      { "If-Match": draft.etag! },
+    );
+    expect([201, 422]).toContain(submitted.status);
+    if (submitted.status === 201) return true;
+    // Refused, the draft stays: taken out, so that none accumulates.
+    const left = await call(page, "GET", `/v1/drafts/${id}`);
+    await call(page, "DELETE", `/v1/drafts/${id}`, undefined, { "If-Match": left.etag! });
+    return false;
+  }
+
+  await page.goto(`/topology?domain=${domain}`);
+  const tree = treeOf(page, slug);
+  await expect(rowOf(tree, "198.51.100.0/24")).toBeVisible();
+  const outcomes = { applied: 0, refused: 0 };
+  for (let step = 1; step <= 200; step++) {
+    const { prefixes, ranges } = await objects();
+    const viaDraft = random() < 0.5;
+    let operations: object[];
+    if (random() < 0.6 || ranges.length === 0) {
+      operations = [{ op: "update_prefix", id: { id: pick(prefixes).id }, prefix: pick(values) }];
+    } else {
+      // A range changes value by its replacement: closed, then created with new bounds.
+      const old = pick(ranges);
+      const base = random() < 0.8 ? "198.51.100" : "203.0.113";
+      const [low, high] = [Math.floor(random() * 256), Math.floor(random() * 256)].sort(
+        (x, y) => x - y,
+      );
+      const reversed = random() < 0.1;
+      const [first, last] = reversed ? [high, low] : [low, high];
+      operations = [
+        { op: "close", kind: "range", id: { id: old.id } },
+        {
+          op: "create_range",
+          domain: { id: domain },
+          first: `${base}.${first}`,
+          last: `${base}.${last}`,
+          usage: old.usage,
+        },
+      ];
+    }
+    if (await submit(operations, viaDraft)) outcomes.applied += 1;
+    else outcomes.refused += 1;
+    // Within the quotas of the instance (writes 10 a second; the journeys beside this one
+    // share them), the tree's own reads included.
+    await page.waitForTimeout(400);
+
+    if (step % 10 === 0) {
+      // The tree rendered, read again from the stream of events, becomes the API's: each
+      // row under the parent the API gives it, and within it.
+      const expected = await served(page, domain);
+      expectContained(expected);
+      await expect
+        .poll(
+          async () => {
+            await expandAll(tree);
+            return rendered(tree);
+          },
+          { message: `step ${step}: the tree rendered is the API's`, timeout: 20_000 },
+        )
+        .toEqual(expected);
+      expectContained(await rendered(tree));
+    }
+  }
+  // Both kinds of outcome were exercised.
+  expect(outcomes.applied).toBeGreaterThan(20);
+  expect(outcomes.refused).toBeGreaterThan(20);
+});
