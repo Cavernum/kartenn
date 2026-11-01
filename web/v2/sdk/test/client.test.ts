@@ -4,7 +4,7 @@
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { DATED, FILTERS, SCHEMA, generate, readContract } from "../scripts/gen.mjs";
+import { DATED, FILTERS, PARENTS, SCHEMA, generate, readContract } from "../scripts/gen.mjs";
 import { createClient } from "../src/api/client.ts";
 import { ApiProblem } from "../src/api/problem.ts";
 
@@ -200,6 +200,7 @@ describe("types drawn from the contract (REQ-007-15)", { timeout: 60_000 }, () =
     expect(fresh.schema).toBe(readFileSync(SCHEMA, "utf8"));
     expect(fresh.dated).toBe(readFileSync(DATED, "utf8"));
     expect(fresh.filters).toBe(readFileSync(FILTERS, "utf8"));
+    expect(fresh.parents).toBe(readFileSync(PARENTS, "utf8"));
   });
 
   it("the filters of a list are those of its parameters, property filters included", async () => {

@@ -5,9 +5,10 @@
 // Types of the API client, drawn from the reference contract (REQ-007-15, W8):
 // `src/api/schema.d.ts` (openapi-typescript, plus the `QUERY` routes, which OpenAPI 3.1
 // carries as the `x-query` extension) and `src/api/dated.ts` (the paths whose read takes
-// `valid_at`) and `src/api/filters.ts` (the filters of each list, 021/X41). No code at
-// run time comes from the contract.
-// `node scripts/gen.mjs` writes the three; `generate()` is what the freshness test compares.
+// `valid_at`), `src/api/filters.ts` (the filters of each list, 021/X41) and
+// `src/api/parents.ts` (the admitted parents of the trees with a declared parent,
+// REQ-021-32). No code at run time comes from the contract.
+// `node scripts/gen.mjs` writes the four; `generate()` is what the freshness test compares.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -20,6 +21,7 @@ export const CONTRACT = fileURLToPath(
 export const SCHEMA = fileURLToPath(new URL("../src/api/schema.d.ts", import.meta.url));
 export const DATED = fileURLToPath(new URL("../src/api/dated.ts", import.meta.url));
 export const FILTERS = fileURLToPath(new URL("../src/api/filters.ts", import.meta.url));
+export const PARENTS = fileURLToPath(new URL("../src/api/parents.ts", import.meta.url));
 
 const NOTICE = `// This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -124,6 +126,127 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = ${JSON.strin
 `;
 }
 
+/**
+ * The trees whose parent is declared (021, REQ-021-32; design « Déplacements dans les
+ * arbres »): for each type, the write of the contract that changes its parent (an operation
+ * of changesets, or the schema of a merge patch) and its creation, by the member that names
+ * the parent. The kinds of parent are read from that member: its variants when it names a
+ * kind by each (`{ machine } | { cluster }`), else — a reference without kind (`Ref`) — the
+ * collection its list filters `parent` by, which must be its own (a tree of one kind).
+ */
+const MOVES = [
+  {
+    type: "core.entity",
+    move: { operation: "move_entity" },
+    creation: { operation: "create_entity" },
+    member: "parent",
+    list: "/v1/entities",
+  },
+  {
+    type: "core.site",
+    move: { operation: "move_site" },
+    creation: { operation: "create_site" },
+    member: "parent",
+    list: "/v1/sites",
+  },
+  {
+    type: "core.vlan_group",
+    move: { operation: "update_vlan_group" },
+    creation: { operation: "create_vlan_group" },
+    member: "anchor",
+  },
+  {
+    type: "machines.machine",
+    move: { schema: "MachinePatch" },
+    creation: { schema: "MachineCreation" },
+    member: "host",
+  },
+];
+
+/** The variant of `Operation` named `op`, or the schema named `schema`. */
+function writeSchema(spec, { operation, schema }) {
+  if (schema) {
+    const found = spec.components.schemas[schema];
+    if (!found) throw new Error(`parents: no schema ${schema} in the contract`);
+    return found;
+  }
+  const found = spec.components.schemas.Operation.oneOf.find(
+    (variant) => variant.properties?.op?.enum?.[0] === operation,
+  );
+  if (!found) throw new Error(`parents: no operation ${operation} in the contract`);
+  return found;
+}
+
+/** A schema with its `$ref` followed and its `null` alternative set aside. */
+function nonNull(spec, schema) {
+  const own = resolved(spec, schema);
+  const alternatives = own.oneOf?.filter((s) => s.type !== "null");
+  return alternatives && alternatives.length === 1 && alternatives.length < own.oneOf.length
+    ? nonNull(spec, alternatives[0])
+    : own;
+}
+
+/**
+ * The qualified type of a kind the contract names (`TargetKind`): `entity` → `core.entity`,
+ * `machine` → `machines.machine`; `null` for a name that is no kind (`id`, `local`).
+ */
+function kindOf(spec, name) {
+  const kinds = spec.components.schemas.TargetKind.enum;
+  const found = kinds.filter((kind) => kind === name || kind.endsWith(`.${name}`));
+  if (found.length > 1) throw new Error(`parents: kind ${name} is ambiguous in TargetKind`);
+  if (found.length === 0) return null;
+  return found[0].includes(".") ? found[0] : `core.${found[0]}`;
+}
+
+/** The kinds of parent the member `member` of `write` admits. */
+function parentKinds(spec, write, { type, member, list }) {
+  const schema = nonNull(spec, write.properties?.[member]);
+  const variants = (schema.oneOf ?? []).map((v) => resolved(spec, v));
+  const named = variants.map((v) =>
+    v.required?.length === 1 && Object.keys(v.properties ?? {}).length === 1
+      ? kindOf(spec, v.required[0])
+      : null,
+  );
+  if (named.length > 0 && named.every((kind) => kind !== null)) return named.sort();
+  const filter = (spec.paths[list]?.get?.parameters ?? [])
+    .map((p) => parameter(spec, p))
+    .find((p) => p.in === "query" && p.name === "parent");
+  const collection = filter?.["x-kartenn"]?.collection;
+  if (!list || collection !== list) {
+    throw new Error(`parents: the parent of ${type} names no kind (${member})`);
+  }
+  return [type];
+}
+
+/** The admitted parents of each type of a tree with a declared parent. */
+function parents(spec) {
+  const rules = MOVES.map((move) => {
+    const write = writeSchema(spec, move.move);
+    const creation = writeSchema(spec, move.creation);
+    return [
+      move.type,
+      {
+        via: `${move.move.operation ?? move.move.schema}.${move.member}`,
+        parents: parentKinds(spec, write, move),
+        root: !(creation.required ?? []).includes(move.member),
+      },
+    ];
+  });
+  return `/** How a node of a tree with a declared parent changes parent (REQ-021-32). */
+export interface ParentRule {
+  /** The member of the contract that writes its parent: \`<operation or schema>.<member>\`. */
+  readonly via: string;
+  /** The qualified types of the parents it admits. */
+  readonly parents: readonly string[];
+  /** Whether it may have none: a root of its tree. */
+  readonly root: boolean;
+}
+
+/** The admitted parents of each type of a tree with a declared parent, by qualified type. */
+export const PARENTS: Readonly<Record<string, ParentRule>> = ${JSON.stringify(Object.fromEntries(rules))};
+`;
+}
+
 /** The generated files, formatted, from a parsed contract. */
 export async function generate(spec) {
   const schema = astToString(await openapiTS(structuredClone(spec))) + queries(spec);
@@ -134,6 +257,7 @@ export const DATED_PATHS: ReadonlySet<string> = new Set(${JSON.stringify(datedPa
     schema: await format(NOTICE + schema, PRETTIER),
     dated: await format(NOTICE + dated, PRETTIER),
     filters: await format(NOTICE + filters(spec), PRETTIER),
+    parents: await format(NOTICE + parents(spec), PRETTIER),
   };
 }
 
@@ -142,8 +266,9 @@ export function readContract() {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const { schema, dated, filters: lists } = await generate(readContract());
+  const { schema, dated, filters: lists, parents: trees } = await generate(readContract());
   writeFileSync(SCHEMA, schema);
   writeFileSync(DATED, dated);
   writeFileSync(FILTERS, lists);
+  writeFileSync(PARENTS, trees);
 }

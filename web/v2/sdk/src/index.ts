@@ -66,6 +66,13 @@ export type {
 export { collectionOf, qualify, registerType } from "./data/types.ts";
 export { filterModel, filterSearch, parseFilters } from "./data/filters.ts";
 export type { Declaration, FilterField, Rejected } from "./data/filters.ts";
+/**
+ * The check of a move in a tree with a declared parent (REQ-021-32): the admitted parents
+ * drawn from the contract, the order of the refusals, the codes of the server rules.
+ */
+export { MOVE_CODES, canMove, parentRule } from "./data/moves.ts";
+export type { MoveEnv, MoveRefusal, MoveSubject, MoveVerdict } from "./data/moves.ts";
+export type { ParentRule } from "./api/parents.ts";
 export type { QueryClient } from "@tanstack/query-core";
 /**
  * The observers of the cache, for a plugin without a framework (REQ-021-25): one holds its

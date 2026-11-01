@@ -97,6 +97,42 @@ describe("invalidation by object (REQ-021-23, 24)", () => {
     expect(stale(past.queryKey)).toBe(false);
   });
 
+  it("reads the whole tree again when one of its objects changes: it may have moved", async () => {
+    const page = { items: [], links: {} };
+    const { queryClient, reads, invalidation, stale } = setup({
+      [`/v1/domains/${D1}/roots`]: page,
+      [`/v1/prefixes/${P1}/children`]: page,
+      [`/v1/prefixes/${P2}/children`]: page,
+      [`/v1/prefixes/${P1}/history`]: page,
+    });
+    // Read by the bare kinds, as the topography reads them, or qualified.
+    const roots = reads.subPages("domain", D1, "roots", null, null);
+    // The list of the new parent does not show the prefix yet: it is read again all the same.
+    const children = reads.subPages("prefix", P2, "children", null, null);
+    const past = reads.subPages("core.prefix", P2, "children", null, PAST);
+    const history = reads.subPages("core.prefix", P1, "history", null, null);
+    await Promise.all(
+      [roots, children, past, history].map((q) => queryClient.fetchInfiniteQuery(q)),
+    );
+
+    // A value changed (D34): every read of children of the prefix tree, never the past.
+    await invalidation.objects(
+      [{ type: "range", id: "00000000-0000-4000-8000-0000000000f1" }],
+      "c1",
+    );
+    expect(stale(roots.queryKey)).toBe(true);
+    expect(stale(children.queryKey)).toBe(true);
+    expect(stale(past.queryKey)).toBe(false);
+    expect(stale(history.queryKey)).toBe(false);
+
+    // A changeset of operations (by identifiers only): every list and every tree.
+    await queryClient.refetchQueries();
+    expect(stale(children.queryKey)).toBe(false);
+    await invalidation.lists();
+    expect(stale(children.queryKey)).toBe(true);
+    expect(stale(history.queryKey)).toBe(false);
+  });
+
   it("leaves an object whose version is already the revision", async () => {
     const { queryClient, reads, invalidation, stale } = setup({
       [`/v1/prefixes/${P1}`]: prefix(P1, "c1"),
