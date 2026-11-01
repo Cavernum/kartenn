@@ -62,7 +62,7 @@ const expected = new Map<string, Expected>();
 
 function handleOf(manifest: PluginManifest): PluginHandle {
   return {
-    t: (key, params) => translate(`${manifest.name}.${key}`, params),
+    t: (key, params) => translate(`${manifest.name}.${key}`, params, manifest.name),
     format,
     styles(root, path) {
       const integrity = manifest.integrity[path];

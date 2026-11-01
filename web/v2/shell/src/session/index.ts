@@ -70,6 +70,16 @@ export function takeReturn(): string | null {
   return value;
 }
 
+/**
+ * Where the login page goes once logged in: the `return` of its URL, which wins over a URL
+ * kept from an older login, else that one, else the home page. The one kept is read and
+ * dropped either way: it never sends a later navigation elsewhere.
+ */
+export function returnAfterLogin(explicit: unknown): string {
+  const kept = takeReturn();
+  return internalPath(explicit) ?? kept ?? "/";
+}
+
 /** The issuer chosen last, if any. */
 export function lastIssuer(): string | null {
   return store("localStorage")?.getItem(ISSUER_KEY) ?? null;

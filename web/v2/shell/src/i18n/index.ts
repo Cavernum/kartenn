@@ -46,10 +46,15 @@ function spread(locale: Locale): void {
  */
 const namespaces = new Set<string>();
 
-/** The key the shell looks up for a key of the SDK: `<plugin>.<key>` under `plugin.`. */
-export function shellKey(key: string): string {
-  const head = key.slice(0, key.indexOf("."));
-  return namespaces.has(head) ? `plugin.${key}` : key;
+/**
+ * The key the shell looks up for a key of the SDK: under `plugin.` only a key translated
+ * for a plugin whose catalogs it holds (the `t` of its handle, `plugin` given); the SDK's
+ * own keys (`labels.<space>.<key>`) never, whatever plugin bears that name.
+ */
+export function shellKey(key: string, plugin?: string): string {
+  return plugin !== undefined && namespaces.has(plugin) && key.startsWith(`${plugin}.`)
+    ? `plugin.${key}`
+    : key;
 }
 
 /**
@@ -81,8 +86,8 @@ export function createShellI18n(
     missingWarn: false,
     fallbackWarn: false,
   });
-  setTranslator((key, params) => {
-    const full = shellKey(key);
+  setTranslator((key, params, plugin) => {
+    const full = shellKey(key, plugin);
     const text = i18n.global.t(full, params ?? {});
     // A key the catalogs lack comes back as the plugin wrote it, never under `plugin.`.
     return text === full ? key : text;

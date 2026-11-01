@@ -1,6 +1,9 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createToasts } from "@kartenn/ui";
+import { ref } from "vue";
 import { createMemoryHistory, createRouter } from "vue-router";
+import { watchSessionEnd } from "../src/session/warning.ts";
 import { installSession } from "../src/frame/session.ts";
 import { THEME_KEY, MOTION_KEY } from "../src/frame/settings.ts";
 import { LOCALE_KEY } from "../src/i18n/index.ts";
@@ -11,12 +14,15 @@ import {
   createExpiry,
   isActivity,
   markActivity,
+  readEnd,
   serverSkew,
   WARN_BEFORE_MS,
+  type EndReading,
 } from "../src/session/expiry.ts";
 import {
   breakglassLogin,
   clearSensitive,
+  expired,
   internalPath,
   ISSUER_KEY,
   lastIssuer,
@@ -25,6 +31,7 @@ import {
   readIssuers,
   rememberReturn,
   RETURN_KEY,
+  returnAfterLogin,
   takeReturn,
 } from "../src/session/index.ts";
 import { RECENT_KEY, recentObjects, rememberObject } from "../src/shortcuts/recent.ts";
@@ -120,6 +127,20 @@ describe("the guard of the session", () => {
     await r.push("/");
     expect(r.currentRoute.value.fullPath).toBe("/");
     expect(starts.n).toBe(1);
+  });
+
+  it("goes, after a login in place, to the return of its URL over an older one kept", async () => {
+    // `/sites` kept by an older login; the login page asked with `?return=/about`.
+    rememberReturn("/sites?old=1");
+    const r = router(ME);
+    await r.push(returnAfterLogin("/about"));
+    expect(r.currentRoute.value.fullPath).toBe("/about");
+    await r.push("/");
+    expect(r.currentRoute.value.fullPath).toBe("/");
+    // Without a return in its URL, the one kept.
+    rememberReturn("/sites?old=1");
+    expect(returnAfterLogin(undefined)).toBe("/sites?old=1");
+    expect(returnAfterLogin("//evil.example")).toBe("/");
   });
 });
 
@@ -254,6 +275,22 @@ describe("the end of the session, said before it comes (REQ-021-14, 022/A6)", ()
     expiry.stop();
   });
 
+  it("clears a warning said once another tab is active (its storage event)", () => {
+    const { expiry, said, cleared } = watch();
+    expiry.read("2026-01-15T09:30:00Z");
+    vi.advanceTimersByTime(28 * 60_000);
+    expect(said).toHaveLength(1);
+    localStorage.setItem(ACTIVITY_KEY, String(Date.now()));
+    window.dispatchEvent(new StorageEvent("storage", { key: ACTIVITY_KEY }));
+    expect(cleared()).toBe(1);
+    // Another key of the storage is no activity.
+    vi.advanceTimersByTime(28 * 60_000);
+    expect(said).toHaveLength(2);
+    window.dispatchEvent(new StorageEvent("storage", { key: "kartenn.theme" }));
+    expect(cleared()).toBe(1);
+    expiry.stop();
+  });
+
   it("says a fixed end without the way to push it back", () => {
     const { expiry, said } = watch();
     expiry.read("2026-01-15T09:10:00Z");
@@ -308,5 +345,90 @@ describe("the end of the session, said before it comes (REQ-021-14, 022/A6)", ()
     expect(localStorage.getItem(ACTIVITY_KEY)).toBeNull();
     await fetcher("/v1/prefixes");
     expect(Number(localStorage.getItem(ACTIVITY_KEY))).toBeGreaterThan(0);
+  });
+});
+
+describe("« Rester connecté » in the frame (watchSessionEnd)", () => {
+  const END = "2026-01-15T09:30:00Z";
+  afterEach(() => {
+    vi.useRealTimers();
+    expired.value = false;
+  });
+
+  /** The frame's wiring, on a store of toasts and an end of the session as `/v1/me` gave it. */
+  function frame(reading: () => Promise<EndReading>) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-15T09:00:00Z"));
+    const toasts = createToasts();
+    const end = ref<string | null>(END);
+    const read = vi.fn(reading);
+    const stop = watchSessionEnd({
+      toasts,
+      t: (key) => key,
+      locale: () => "fr",
+      end,
+      readEnd: read,
+    });
+    vi.advanceTimersByTime(28 * 60_000);
+    const warning = () => toasts.list.find((toast) => toast.title === "session.ending");
+    /** Plays « Rester connecté » as the region does: the action, then the toast dismissed. */
+    async function stay() {
+      const shown = warning()!;
+      shown.action!.run();
+      toasts.dismiss(shown.id);
+      await vi.waitFor(() => expect(read).toHaveBeenCalled());
+      await Promise.resolve();
+    }
+    return { toasts, warning, stay, stop };
+  }
+
+  it("says a fixed end again, without the action, when the end did not move", async () => {
+    const { warning, stay, stop } = frame(async () => ({ kind: "end", expiresAt: END }));
+    expect(warning()?.action?.label).toBe("session.stay");
+    await stay();
+    await vi.waitFor(() => expect(warning()).toBeDefined());
+    expect(warning()!.description).toBe("session.endingFixed");
+    expect(warning()!.action).toBeUndefined();
+    stop();
+  });
+
+  it("clears the warning when the end moved", async () => {
+    const { warning, stay, stop } = frame(async () => ({
+      kind: "end",
+      expiresAt: "2026-01-15T09:58:00Z",
+    }));
+    await stay();
+    expect(warning()).toBeUndefined();
+    stop();
+  });
+
+  it("opens « Session expirée » on a 401, and keeps the session on another failure", async () => {
+    const gone = frame(async () => ({ kind: "expired" }));
+    await gone.stay();
+    expect(expired.value).toBe(true);
+    gone.stop();
+    expired.value = false;
+
+    const down = frame(async () => ({ kind: "failed", problem: null }));
+    await down.stay();
+    expect(expired.value).toBe(false);
+    expect(down.toasts.list.some((toast) => toast.title === "session.stayFailed")).toBe(true);
+    down.stop();
+  });
+
+  it("reads the end outside the SDK's client: no activity that would clear the warning", async () => {
+    const answer = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ session: { expires_at: END } }), {
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    expect(await readEnd(answer as unknown as typeof fetch)).toEqual({
+      kind: "end",
+      expiresAt: END,
+    });
+    expect(localStorage.getItem(ACTIVITY_KEY)).toBeNull();
+    const refused = vi.fn(async () => new Response(null, { status: 401 }));
+    expect(await readEnd(refused as unknown as typeof fetch)).toEqual({ kind: "expired" });
   });
 });

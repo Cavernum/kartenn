@@ -161,7 +161,10 @@
     "ending": "Votre session prend fin à {time} faute d'activité.",
     "endingText": "Rester connecté la prolonge ; vos brouillons restent au serveur.",
     "endingFixed": "Elle atteint sa durée maximale : terminez votre saisie, puis reconnectez-vous.",
-    "stay": "Rester connecté"
+    "stay": "Rester connecté",
+    "stayFailed": "La session n'a pas pu être prolongée.",
+    "stayFailedText": "Le serveur n'a pas répondu ; vous restez connecté jusqu'à l'échéance dite.",
+    "retry": "Réessayer"
   },
   "about": {
     "title": "À propos",

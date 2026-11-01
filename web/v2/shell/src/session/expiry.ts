@@ -7,6 +7,12 @@
 // instant, read on its clock (the `Date` of its answers): a browser's clock off by minutes
 // is no early nor late warning. A session whose end did not move when seen again ends at a
 // fixed instant (its absolute lifetime): said, without the way to stay.
+//
+// Limit (task 16, to arbitrate): `expires_at` is the nearer of the idle end and the
+// absolute one, and every request pushes the idle end; the absolute end of a user who
+// stays active is only known when it becomes the nearer one at a reading. Probing would
+// cancel the idle lifetime; knowing it needs the absolute end in `SessionState`.
+import { ApiProblem } from "@kartenn/sdk";
 
 /** How long before the expected end the warning comes. */
 export const WARN_BEFORE_MS = 2 * 60_000;
@@ -61,11 +67,42 @@ export function activityFetch(inner: typeof fetch = globalThis.fetch): typeof fe
     const response = await inner(input, init);
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     if (!isActivity(url)) return response;
-    const date = Date.parse(response.headers.get("date") ?? "");
-    if (!Number.isNaN(date)) skew = date - Date.now();
+    noteServerClock(response);
     if (response.status !== 401) markActivity();
     return response;
   };
+}
+
+/** Takes the clock of the server from the `Date` of one of its answers. */
+export function noteServerClock(response: Response): void {
+  const date = Date.parse(response.headers.get("date") ?? "");
+  if (!Number.isNaN(date)) skew = date - Date.now();
+}
+
+/** What a reading of the end says: the end, a session gone (401), or no answer. */
+export type EndReading =
+  | { kind: "end"; expiresAt: string | null }
+  | { kind: "expired" }
+  /** The problem of the answer (its type and `Request-Id`), `null` without an answer. */
+  | { kind: "failed"; problem: ApiProblem | null };
+
+/**
+ * Reads `session.expires_at` of `GET /v1/me` for « Rester connecté », outside the client of
+ * the SDK: the answer is the check of the end, not an activity that would clear the warning
+ * or push the expected end before the end is known (the server sees the session again all
+ * the same).
+ */
+export async function readEnd(fetcher: typeof fetch = (i, o) => fetch(i, o)): Promise<EndReading> {
+  const response = await fetcher("/v1/me", { credentials: "same-origin" }).catch(() => null);
+  if (!response) return { kind: "failed", problem: null };
+  noteServerClock(response);
+  if (response.status === 401) return { kind: "expired" };
+  if (!response.ok) return { kind: "failed", problem: await ApiProblem.from(response) };
+  const me = (await response.json().catch(() => null)) as {
+    session?: { expires_at?: string | null } | null;
+  } | null;
+  if (!me) return { kind: "failed", problem: null };
+  return { kind: "end", expiresAt: me.session?.expires_at ?? null };
 }
 
 function lastActivity(): number | null {
@@ -113,7 +150,8 @@ export function createExpiry(view: ExpiryView, deps: ExpiryDeps = {}): Expiry {
   let lastRead = 0;
   let extendable = true;
   let timer: unknown = null;
-  let warned = false;
+  /** The warning said, by its end and its way (`<end>:<extendable>`); `null` if none. */
+  let warned: string | null = null;
 
   /** The end expected now: the last activity plus the window, or the fixed end. */
   const end = () => {
@@ -129,11 +167,14 @@ export function createExpiry(view: ExpiryView, deps: ExpiryDeps = {}): Expiry {
     const wait = at - WARN_BEFORE_MS - now();
     if (wait > 0) {
       if (warned) view.clear();
-      warned = false;
+      warned = null;
       timer = setTimer(schedule, wait);
       return;
     }
-    warned = true;
+    // Said once for an end and a way: a fixed end stays said through the activity.
+    const said = `${at}:${extendable}`;
+    if (warned === said) return;
+    warned = said;
     view.warn(at, extendable);
   }
 
@@ -142,6 +183,12 @@ export function createExpiry(view: ExpiryView, deps: ExpiryDeps = {}): Expiry {
     schedule();
   };
   listeners.add(onActivity);
+  // The activity of another tab of the browser, kept under ACTIVITY_KEY: the expected end
+  // follows it, a warning already said goes.
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === ACTIVITY_KEY) schedule();
+  };
+  globalThis.addEventListener?.("storage", onStorage);
 
   return {
     read(expiresAt) {
@@ -152,7 +199,7 @@ export function createExpiry(view: ExpiryView, deps: ExpiryDeps = {}): Expiry {
         if (timer !== null) clearTimer(timer);
         timer = null;
         if (warned) view.clear();
-        warned = false;
+        warned = null;
         return;
       }
       // Seen again a while later (the server counts in seconds), an end that did not move
@@ -169,6 +216,7 @@ export function createExpiry(view: ExpiryView, deps: ExpiryDeps = {}): Expiry {
     },
     stop() {
       listeners.delete(onActivity);
+      globalThis.removeEventListener?.("storage", onStorage);
       if (timer !== null) clearTimer(timer);
       timer = null;
     },

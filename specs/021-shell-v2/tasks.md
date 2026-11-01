@@ -667,7 +667,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     appelle `forgetRecent`, `logout` ; `expiry.ts` ; `LoginView.vue` ; `SessionDialog.vue`),
     garde de session (`/login?return=`, `meta.public`), menu du compte (À propos, Se
     déconnecter), avis de fin de session ; `i18n/index.ts` (`mergePluginCatalog`,
-    `shellKey`). Vitest : `shell/test/plugins.test.ts` (20), `session.test.ts` (15),
+    `shellKey`). Vitest : `shell/test/plugins.test.ts` (21), `session.test.ts` (21),
     `frame.test.ts` adapté ; parcours `plugins`, `session`, `example` verts (22, Chromium
     et Firefox). Parcours `plugins`, `session`, `example` réécrits sous
     `web/v2/e2e/journeys/` ; plugins de test sous `web/v2/e2e/plugins/` (`notes` : une
@@ -675,8 +675,9 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     d'administrateur ; `incompatible` en `ui ^3`, `throws`, `silent`, `forged`), réunis par
     `serve.sh` dans `web/e2e/.state/plugins-v2`.
   - reste, faute d'écran : tuiles sur l'Accueil, onglets, panneaux et colonnes (tâche 11),
-    actions sur le type `changeset` (tâche 14), avec leurs parcours (pointeurs écrits dans
-    leurs lignes `où :`) ; parcours `example` complet avec le plugin d'exemple au SDK 1.0
+    actions sur le type `changeset` (tâche 14), onglets et colonnes sur les types de module
+    (écrans VLAN, tâche 17), avec leurs parcours (pointeurs écrits dans leurs lignes
+    `où :`) ; parcours `example` complet avec le plugin d'exemple au SDK 1.0
     (tâche 19 : il ne déclare encore aucune extension, le parcours vérifie qu'il charge).
     Ouverts après relecture : connexion et « À propos » hors session gardent tout le cadre
     (barre latérale vide, pastille de date, compteur du brouillon) faute de maquette ; le
@@ -684,6 +685,14 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `k-about__title`, `k-plugin-view__title`, `k-pending__title`, aide), une pièce de
     `@kartenn/ui` à décider ; focus rendu par `PluginAction` à vérifier au clavier quand la
     tâche 14 l'aura branché.
+  - à arbitrer par l'utilisateur (limite, non corrigée) : la fin absolue d'une session
+    active n'est pas annoncée d'avance. `SessionState` ne sert que `expires_at` = la plus
+    proche des fins d'inactivité et absolue, et chaque requête repousse la première : la
+    fin absolue n'apparaît qu'à une lecture où elle est devenue la plus proche (« Rester
+    connecté », ou la lecture de `/v1/me` au chargement). Sonder `/v1/me` périodiquement
+    annulerait la durée d'inactivité (refusé). Option : exposer la fin absolue dans
+    `SessionState` (champ additif, par exemple `absolute_expires_at`, changement de contrat
+    de la 005/006) ; le shell l'annoncerait alors 2 min avant, sans l'action.
   - choix : codes du shell `plugin.<motif>` (`incompatible`, `load-failed`, `exception`,
     `timeout`, `element`), jamais de l'API ; catalogues des plugins sous `plugin.<nom>`
     (un plugin nommé `app` ne réécrit pas les mots du shell), clés du `t` des plugins
@@ -699,7 +708,15 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     et dernier émetteur, efface le reste de `kartenn.*` ; fin de session dite 2 min avant
     par un toast `warn` avec « Rester connecté » (relit `/v1/me`), activité = réponses de
     `/v1/*` hors `/v1/events`, partagée entre onglets (`kartenn.session.activity`), fin lue
-    sur l'horloge du serveur (`Date`), fin fixe (durée absolue) dite sans l'action ; aucune
+    sur l'horloge du serveur (`Date`) ; « Rester connecté » relit la fin hors du client du
+    SDK (sa réponse n'est pas une activité qui effacerait l'avertissement) et la donne au
+    suivi : une fin qui a bougé efface l'avertissement, une fin inchangée est fixe et reste
+    dite sans l'action (seulement quand une lecture la montre : voir la limite ci-dessus),
+    une 401 ouvre « Session expirée », un autre échec garde la session et le dit avec son
+    code ; activité d'un autre onglet suivie par l'événement `storage` ; le `return` de
+    l'URL de connexion l'emporte sur un retour gardé plus ancien (`returnAfterLogin`) ;
+    `shellKey` ne route vers `plugin.<nom>` que les clés traduites pour ce plugin (le
+    traducteur du SDK reçoit le plugin), jamais `labels.*` ; aucune
     touche réservée aux toasts ; un libellé d'extension non encore traduit (plugin en
     chargement ou écarté) dit « plugin · id », jamais la clé ; premier émetteur en bouton
     principal, les autres et le compte de secours en secondaire ; « Réessayer » rend le
@@ -711,7 +728,11 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   avec `@kartenn/ui`, espace `network`, filtres typés, édition en place — REQ-021-27,
   REQ-026-6 — verify : parcours `vlan` vert
   - où : `web/plugins/vlan/src/index.ts` (comportement actuel), `public/manifest.json`,
-    `test/`
+    `test/` ; repris de la tâche 16 : onglets et colonnes des plugins sur les types de
+    module (`vlan`, `vlan_group`) dans la fiche et les listes VLAN
+    (`useExtensions("tab" | "column", type)`, `tabItems`, `gridColumns`,
+    `web/v2/shell/src/plugins/slots.ts`), parcours `plugins` étendu (onglet `notes` du
+    plugin de test sur `vlan`)
   - dépend de : 11, 12, 16
 - [ ] 18. Plugin Machines, même traitement, espace `hosts`, déplacement d'une machine vers
   un cluster (si Q-021-2 le retient) par le `canMove` de la tâche 24 (codes

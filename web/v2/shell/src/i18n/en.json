@@ -161,7 +161,10 @@
     "ending": "Your session ends at {time} for lack of activity.",
     "endingText": "Staying logged in extends it; your drafts stay at the server.",
     "endingFixed": "It reaches its longest lifetime: finish what you are typing, then log in again.",
-    "stay": "Stay logged in"
+    "stay": "Stay logged in",
+    "stayFailed": "The session could not be extended.",
+    "stayFailedText": "The server did not answer; you stay logged in until the end said.",
+    "retry": "Retry"
   },
   "about": {
     "title": "About",

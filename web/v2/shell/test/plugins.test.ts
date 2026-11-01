@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { definePlugin, type ObjectRef } from "@kartenn/sdk";
+import { definePlugin, label, type ObjectRef } from "@kartenn/sdk";
 import { announcePlugin } from "@kartenn/sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApp, h, nextTick, type App } from "vue";
@@ -409,14 +409,29 @@ describe("catalogs of the plugins (W11)", () => {
     const i18n = createShellI18n("fr");
     mergePluginCatalog(i18n, "fr", "app", { name: "Usurpé", nav: { home: "Maison" } });
     expect(i18n.global.t("app.name")).toBe("kartenn");
-    expect(shellKey("app.nav.home")).toBe("plugin.app.nav.home");
-    expect(shellKey("labels.state.ok")).toBe("labels.state.ok");
+    // Routed for the plugin only, never for a key of the shell or of the SDK.
+    expect(shellKey("app.nav.home", "app")).toBe("plugin.app.nav.home");
+    expect(shellKey("app.nav.home")).toBe("app.nav.home");
+    expect(shellKey("labels.state.ok", "app")).toBe("labels.state.ok");
     // The `t` of the plugin `app` reads its own catalog; a key it lacks stays as written.
     const announced = announcePlugin({ name: "app", extensions: [] });
     definePlugin({ name: "app", elements: {} });
     const handle = await announced;
     expect(handle.t("nav.home")).toBe("Maison");
     expect(handle.t("absent")).toBe("app.absent");
+  });
+
+  it("lets a plugin named labels give nothing to the labels of the shell", async () => {
+    const i18n = createShellI18n("fr");
+    mergePluginCatalog(i18n, "fr", "labels", { state: { ok: "Usurpé" } });
+    // The SDK's fallback of a label (`labels.<space>.<key>`, no plugin) is not routed.
+    expect(shellKey("labels.state.ok")).toBe("labels.state.ok");
+    expect(i18n.global.t("labels.state.ok")).toBe("labels.state.ok");
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("offline"));
+    expect(label("state", "ok")).toBe("ok");
+    const announced = announcePlugin({ name: "labels", extensions: [] });
+    definePlugin({ name: "labels", elements: {} });
+    expect((await announced).t("state.ok")).toBe("Usurpé");
   });
 });
 

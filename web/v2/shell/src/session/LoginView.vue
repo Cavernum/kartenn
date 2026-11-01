@@ -17,7 +17,7 @@ import { computed, onMounted, ref, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { loadSession } from "../rights/index.ts";
-import { breakglassLogin, internalPath, loginAt, readIssuers } from "./index.ts";
+import { breakglassLogin, loginAt, readIssuers, returnAfterLogin } from "./index.ts";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -42,7 +42,8 @@ const refusal = computed(() => {
 });
 const busy = ref(false);
 
-const back = (): string => internalPath(route.query.return) ?? "/";
+/** The page to come back to: the `return` of the URL first (`returnAfterLogin`). */
+const back = (): string => returnAfterLogin(route.query.return);
 
 async function read(): Promise<void> {
   issuers.value = undefined;

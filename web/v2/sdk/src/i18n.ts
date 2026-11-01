@@ -10,7 +10,11 @@ import { context } from "./context.ts";
 
 /** A catalog: nested keys, `{param}` placeholders. */
 export type Messages = { [key: string]: string | Messages };
-type Translator = (key: string, params?: Record<string, unknown>) => string;
+/**
+ * A translator: the full key, its parameters, and the plugin it is translated for (the
+ * `t` of a plugin's handle), absent for the SDK's own keys (`labels.<space>.<key>`).
+ */
+type Translator = (key: string, params?: Record<string, unknown>, plugin?: string) => string;
 
 const catalogs = new Map<string, Messages>();
 
@@ -38,8 +42,8 @@ const plain: Translator = (key, params) => {
 let translator: Translator = plain;
 
 /** The full key (`<plugin>.<key>`) in the language of the context. */
-export function translate(key: string, params?: Record<string, unknown>): string {
-  return translator(key, params);
+export function translate(key: string, params?: Record<string, unknown>, plugin?: string): string {
+  return translator(key, params, plugin);
 }
 
 /** The shell's translator, or `null` for the plain lookup. */

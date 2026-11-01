@@ -63,8 +63,8 @@ import { changeLocale, LOCALE_NAMES, LOCALES, type Locale } from "../i18n/index.
 import { pluginLetters, pluginSpaces, registerLetters } from "../plugins/navigation.ts";
 import { refuseLetters, usePlugins } from "../plugins/registry.ts";
 import KLink from "../prefetch/KLink.vue";
-import { loadSession, useSession } from "../rights/index.ts";
-import { createExpiry } from "../session/expiry.ts";
+import { useSession } from "../rights/index.ts";
+import { watchSessionEnd } from "../session/warning.ts";
 import { logout } from "../session/index.ts";
 import SessionDialog from "../session/SessionDialog.vue";
 import {
@@ -635,34 +635,15 @@ const userLabel = computed(() =>
 );
 
 // The end of the session, said before it comes (REQ-021-14): a warning that stays until
-// the next activity, with « Rester connecté » (a reading of `/v1/me`, which sees the
-// session again) unless the end is a fixed one.
-let ending: string | null = null;
-const timeOf = (at: number) =>
-  new Intl.DateTimeFormat(i18n.locale.value, { timeStyle: "short" }).format(new Date(at));
-const expiry = createExpiry({
-  warn(end, extendable) {
-    if (ending) toasts.dismiss(ending);
-    ending = toasts.show({
-      tone: "warn",
-      title: t("session.ending", { time: timeOf(end) }),
-      description: t(extendable ? "session.endingText" : "session.endingFixed"),
-      ...(extendable
-        ? { action: { label: t("session.stay"), run: () => void loadSession() } }
-        : {}),
-    });
-  },
-  clear() {
-    if (ending) toasts.dismiss(ending);
-    ending = null;
-  },
-});
-watch(
-  () => session.value.me?.session?.expires_at,
-  (end) => expiry.read(end),
-  { immediate: true },
+// the next activity, with « Rester connecté » unless the end is a fixed one.
+onBeforeUnmount(
+  watchSessionEnd({
+    toasts,
+    t,
+    locale: () => i18n.locale.value,
+    end: () => session.value.me?.session?.expires_at,
+  }),
 );
-onBeforeUnmount(() => expiry.stop());
 </script>
 
 <template>
