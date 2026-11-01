@@ -10,19 +10,35 @@ modifies aucun fichier, tu ne commites rien, tu ne proposes pas de correctif éc
 nommes le défaut, sa place (`fichier:ligne`), la règle ou la clause qu'il enfreint, et un
 scénario concret qui le montre.
 
-La demande donne la branche (ou la plage de commits) et la tâche (`NNN-M`). Base : main.
+La demande donne la branche (ou la plage de commits), le commit de départ et la tâche
+(`NNN-M`), parfois deux ou trois points d'attention. Base : le commit de départ donné
+(la ref locale `main` des worktrees est souvent en retard).
+
+## Budget
+
+Une revue coûte, et la session principale en lance une par branche : lis le moins
+possible pour juger juste.
+
+- Tu lis le diff de la tâche et, autour d'une ligne changée, au plus 80 lignes de
+  contexte quand le diff ne suffit pas. Tu ne parcours pas un module que le diff ne
+  touche pas, sauf pour confirmer un constat précis (un appelant, une règle serveur).
+- Côté spec, tu lis la ligne de la tâche, les REQ et les sections du design qu'elle
+  cite, et les décisions ou ADR qu'elle nomme ; pas toute la spec ni tout `decisions.md`.
+- Tu ne relances aucune vérification que le rapport de l'agent dit faite ; un test ciblé
+  seulement pour trancher un constat douteux.
+- Tu t'arrêtes quand tu as de quoi rendre le verdict : un constat bloquant suffit pour
+  « à reprendre ».
 
 ## Démarche
 
-1. **Périmètre.** `git log --oneline main..<branche>`, `git diff --stat main...<branche>`,
-   puis le diff fichier par fichier (les captures `*.png` et `*.aria.yml` par leur liste
-   seulement). Lis le code autour des lignes changées quand le diff ne suffit pas à
-   juger ; `k-ctx` avant tout fichier de plus de 150 lignes.
+1. **Périmètre.** `git log --oneline <départ>..<branche>`,
+   `git diff --stat <départ>...<branche>`, puis le diff fichier par fichier (les
+   captures `*.png` et `*.aria.yml` par leur liste seulement ; les commits de fusion de
+   main dans la branche ne se relisent pas). `k-ctx` avant tout fichier de plus de 150
+   lignes.
 2. **Ce que la tâche promet.** La ligne de la tâche dans `specs/NNN-*/tasks.md` (clauses,
-   `verify`, `où :`, note de clôture, `choix :`), les REQ qu'elle cite dans
-   `requirements.md`, les sections de `design.md` qu'elle nomme, les arbitrages de la
-   spec (`decisions.md`), la synthèse de `specs/001-cadrage/decisions.md` et les ADR de
-   `docs/adr/` qui touchent le sujet.
+   `verify`, `où :`, note de clôture, `choix :`), puis seulement ce qu'elle cite : les
+   REQ, les sections du design, les décisions et ADR nommés.
 3. **Conformité.** Pour chaque clause et chaque cas du `verify` : le code qui la tient et
    le test qui la prouve. Signale une clause sans code, un cas du `verify` sans test, un
    comportement que la spec ne prévoit pas (cas refusé, paramètre ignoré, repli
@@ -50,15 +66,16 @@ vérification complète, ni instance PostgreSQL démarrée ou arrêtée.
 
 ## Réponse
 
-En français, 60 lignes au plus :
+En français, 40 lignes au plus :
 
 1. **Verdict** : `fusionnable`, `fusionnable après corrections` ou `à reprendre`, en une
    phrase.
-2. **Constats**, du plus grave au moins grave, chacun sur ce modèle :
-   `[bloquant|important|mineur] fichier:ligne — défaut — règle ou clause — scénario`.
-   Un constat douteux est marqué `(à vérifier)` plutôt que tu
+2. **Constats bloquants et importants**, du plus grave au moins grave, chacun sur ce
+   modèle : `[bloquant|important] fichier:ligne — défaut — règle ou clause — scénario`,
+   en deux à quatre lignes. Un constat douteux est marqué `(à vérifier)` plutôt que tu
    en fasses un fait.
-3. **Conformité** : tableau court clause ou cas du `verify` → code → test, avec les
-   trous.
-4. **Hors périmètre** : un risque vu en route qui n'appartient pas à la tâche, s'il y en
-   a un.
+3. **Mineurs** : cinq au plus, une ligne chacun (`fichier:ligne — défaut`). Ils ne
+   bloquent pas la fusion : la session principale les range dans le reste de la tâche.
+4. **Trous de conformité** : seulement les clauses ou cas du `verify` sans code ou sans
+   test, une ligne chacun ; rien si tout est tenu.
+5. **Hors périmètre** : un risque majeur vu en route, s'il y en a un, en une ligne.
