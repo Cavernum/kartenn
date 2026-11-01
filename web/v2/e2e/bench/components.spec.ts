@@ -34,7 +34,8 @@ const STATE_CHANGES = 20;
 /** The status region of the trees, where a refusal is said. */
 const STATUS = ".k-tree-frame > [role='status'], .k-tree-grid-frame > [role='status']";
 
-test.describe.configure({ mode: "serial" });
+// One worker runs the tests one after the other (bench.config.ts); a bench that fails
+// never skips the next ones (no serial mode): every budget gets its verdict.
 
 /** Presses `key` (Tab, Shift+Tab) until the focus is inside `target`, six times at most. */
 async function tabTo(page: Page, target: Locator, key = "Tab"): Promise<void> {
