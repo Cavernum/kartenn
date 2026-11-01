@@ -10,7 +10,8 @@ export interface SidebarEntry {
   label: string;
   icon: IconName;
   to: string;
-  badge?: number;
+  /** A count, or its text when only a bound is known (« 100+ »). */
+  badge?: number | string;
 }
 
 /** A space of the sidebar (spec 021, « Cadre »): a disclosure of entries. */

@@ -1,6 +1,8 @@
 import { setContext, setTranslator } from "@kartenn/sdk/host";
 import { setLocale as setLibraryLocale } from "@kartenn/ui";
 import { createI18n } from "vue-i18n";
+import changesetsEn from "../changesets/i18n/en.json";
+import changesetsFr from "../changesets/i18n/fr.json";
 import viewsEn from "../views/i18n/en.json";
 import viewsFr from "../views/i18n/fr.json";
 import en from "./en.json";
@@ -89,6 +91,9 @@ export function createShellI18n(
     missingWarn: false,
     fallbackWarn: false,
   });
+  // The changesets and the drafts (task 14), merged deep: they add words under `views` too.
+  i18n.global.mergeLocaleMessage("fr", changesetsFr);
+  i18n.global.mergeLocaleMessage("en", changesetsEn);
   setTranslator((key, params, plugin) => {
     const full = shellKey(key, plugin);
     const text = i18n.global.t(full, params ?? {});

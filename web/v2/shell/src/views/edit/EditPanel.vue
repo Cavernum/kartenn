@@ -12,9 +12,9 @@
 // entity or a site (REQ-021-32, 33) lists the valid targets only (`canMove`, `moves.ts`) and
 // moves by the same split button: to the draft, or a changeset applied now; the record and
 // the lists show the new parent once read again, never before.
+import { addToActiveDraft } from "@kartenn/sdk/host";
 import {
   changesets,
-  draft,
   keys,
   reads,
   write,
@@ -420,7 +420,7 @@ async function run(id: string = action.value): Promise<void> {
     const op = creating.value
       ? edit.create(values.value)
       : edit.update(objectId.value!, version.value, changes);
-    const outcome = await draft.add(op);
+    const outcome = await addToActiveDraft([op]);
     settle(outcome as WriteOutcome<unknown> | { kind: "saved" }, what);
     return;
   }

@@ -1,5 +1,5 @@
+import { addToActiveDraft } from "@kartenn/sdk/host";
 import {
-  draft,
   drafts,
   keys,
   queryClient,
@@ -212,7 +212,7 @@ export function useInlineEdit({ collection, rows, t, sentence, say }: InlineDeps
     const version = versionOf(row);
     shown.set(key, { state: "pending", value, version });
     const op = EDITS[collection().id].update(id, version, { [field.name]: value });
-    const outcome = await draft.add(op);
+    const outcome = await addToActiveDraft([op]);
     if (outcome.kind === "saved") {
       shown.delete(key);
       const drafted = t("edit.drafted", { what: what(field.name, nameOf(row)) });

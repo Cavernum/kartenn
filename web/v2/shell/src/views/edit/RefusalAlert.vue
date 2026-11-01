@@ -16,6 +16,10 @@ const props = defineProps<{
   refusal: Refusal;
   /** After a 412: the changed fields, their value now and the one typed. */
   changed?: readonly { label: string; current: string; input: string }[];
+  /** What the refusal is called where nothing typed is kept (a decision, a removal). */
+  title?: string | undefined;
+  /** The sentence under it; `null` for none (nothing typed to keep). */
+  note?: string | null | undefined;
 }>();
 const { t } = useI18n();
 const { lines } = useProblems();
@@ -43,6 +47,7 @@ const said = computed(() => props.refusal.kind !== "failed" || !props.refusal.pr
 const shown = computed(() => lines(props.refusal.problem, lead.value, { said: said.value }));
 const tone = computed(() => (props.refusal.kind === "conflict" ? "warn" : "ko"));
 const title = computed(() => {
+  if (props.title) return props.title;
   switch (props.refusal.kind) {
     case "conflict":
       return t("edit.conflict");
@@ -58,7 +63,8 @@ const title = computed(() => {
 
 <template>
   <InlineAlert :tone="tone" :title="title" :items="shown">
-    <template v-if="props.refusal.kind === 'conflict'">{{ t("edit.conflictText") }}</template>
+    <template v-if="props.note !== undefined">{{ props.note ?? "" }}</template>
+    <template v-else-if="props.refusal.kind === 'conflict'">{{ t("edit.conflictText") }}</template>
     <template v-else>{{ t("edit.kept") }}</template>
   </InlineAlert>
 </template>
