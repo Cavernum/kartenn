@@ -419,7 +419,7 @@ async fn children(
         .read_scope(&principal.subject(), moment.now)
         .await?;
     let size = usize::from(page.size);
-    let mut snapshot = read::consistent(&api.pool).await.map_err(|e| store(&e))?;
+    let mut snapshot = crate::kit::snapshot(&api).await?;
     let mut nodes = tree::children_of(
         &mut *snapshot,
         &parent,
@@ -443,7 +443,7 @@ async fn children(
         next_href(&format!("/v1/{name}"), &cursor)
     });
     let (items, ids) = listed(&mut snapshot, parent.domain, &moment, &nodes).await?;
-    snapshot.commit().await.map_err(|e| store(&e))?;
+    crate::kit::release(snapshot);
     record(&api, &context, &moment, "children", id, &ids).await?;
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
@@ -485,7 +485,7 @@ async fn roots(
         .read_scope(&principal.subject(), moment.now)
         .await?;
     let size = usize::from(page.size);
-    let mut snapshot = read::consistent(&api.pool).await.map_err(|e| store(&e))?;
+    let mut snapshot = crate::kit::snapshot(&api).await?;
     let mut nodes = tree::roots_of(
         &mut *snapshot,
         id,
@@ -509,7 +509,7 @@ async fn roots(
         next_href(&format!("/v1/{name}"), &cursor)
     });
     let (items, ids) = listed(&mut snapshot, id, &moment, &nodes).await?;
-    snapshot.commit().await.map_err(|e| store(&e))?;
+    crate::kit::release(snapshot);
     let criteria = json!({
         "domain": id,
         "tree": "roots",

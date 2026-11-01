@@ -503,11 +503,13 @@ async fn list(
     for value in values {
         statement = statement.bind(value);
     }
+    // The rows of the page and their versions are read in one snapshot (task 021-11c).
+    let mut snapshot = kit::snapshot(api).await?;
     let mut rows = statement
         .bind(after.as_ref().map(|(sort, _)| sort.clone()))
         .bind(after.as_ref().map(|(_, id)| *id))
         .bind(i64::from(page.size) + 1)
-        .fetch_all(&api.pool)
+        .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
     let size = usize::from(page.size);
@@ -518,6 +520,8 @@ async fn list(
         next_href(&format!("/v1/{}", c.name), &cursor)
     });
     let ids: Vec<Uuid> = rows.iter().map(|r| r.0).collect();
+    let versions = kit::versions(&mut *snapshot, &moment, &ids).await?;
+    kit::release(snapshot);
     kit::record_read(
         api,
         context,
@@ -532,7 +536,7 @@ async fn list(
     )
     .await?;
     let items: Vec<Value> = rows.into_iter().map(|r| object_of(r.2)).collect();
-    let items = kit::versioned(api, &moment, &items).await?;
+    let items = kit::versioned(&items, &versions);
     Ok(respond_page(headers, &moment, &items, next.as_deref()))
 }
 

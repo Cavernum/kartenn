@@ -901,15 +901,26 @@ async fn page_of<F, Fut>(
     fetch: F,
 ) -> Result<Response, Problem>
 where
-    F: FnOnce(Dates, Option<Cursor>, i64, Page) -> Fut,
-    Fut: std::future::Future<Output = Result<(Vec<FlowView>, Page, Vec<Endpoint>), Problem>>,
+    F: FnOnce(Dates, Option<Cursor>, i64, Page, kit::Snapshot) -> Fut,
+    Fut: std::future::Future<
+            Output = Result<(Vec<FlowView>, Page, Vec<Endpoint>, kit::Snapshot), Problem>,
+        >,
 {
     let page = Page::from_query(query, &api.ring, collection)?;
     let after = page.after().map(cursor_of).transpose()?;
     let (moment, scope) = reading(api, principal, &page).await?;
     let size = usize::from(page.size);
-    let (mut rows, page, objects) =
-        fetch(dates(&moment), after, i64::from(page.size) + 1, page).await?;
+    // The rows of the page and the versions of its flows in force are read in one
+    // snapshot, which `fetch` reads in and gives back (task 021-11c).
+    let snapshot = kit::snapshot(api).await?;
+    let (mut rows, page, objects, mut snapshot) = fetch(
+        dates(&moment),
+        after,
+        i64::from(page.size) + 1,
+        page,
+        snapshot,
+    )
+    .await?;
     let next = (rows.len() > size).then(|| {
         rows.truncate(size);
         let cursor = page.next(
@@ -925,6 +936,9 @@ where
         .filter(|r| r.review.is_none())
         .filter_map(|r| Some((r.id?, endpoints_of(&r.flow))))
         .collect();
+    let current: Vec<Uuid> = flows.iter().map(|(id, _)| *id).collect();
+    let versions = kit::versions(&mut *snapshot, &moment, &current).await?;
+    kit::release(snapshot);
     let seen = flows_seen(api, &scope, principal, moment.valid_at, &flows, &objects).await?;
     let reviews = reviews_seen(api, &scope, principal, moment.valid_at, &rows).await?;
     // A flow under review shows the state proposed, not its own version: only the flows
@@ -968,7 +982,7 @@ where
     )
     .await?;
     let in_force: Vec<&FlowDto> = items.iter().filter(|i| i.1).map(|i| &i.0).collect();
-    let mut versioned = kit::versioned(api, &moment, &in_force).await?.into_iter();
+    let mut versioned = kit::versioned(&in_force, &versions).into_iter();
     let items: Vec<Value> = items
         .iter()
         .map(|(flow, in_force)| {
@@ -1051,7 +1065,6 @@ async fn list(
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
     let names: Vec<&str> = FILTERS.iter().map(|(n, _)| *n).collect();
-    let pool = api.pool.clone();
     page_of(
         &api,
         &principal,
@@ -1060,7 +1073,7 @@ async fn list(
         &query,
         COLLECTION,
         "/v1/flows",
-        |dates, after, limit, page| async move {
+        |dates, after, limit, page, mut snapshot| async move {
             let filter = filter_of(&wanted(&page, &names)?)?;
             let objects: Vec<Endpoint> = filter
                 .endpoint
@@ -1069,9 +1082,8 @@ async fn list(
                 .chain(filter.within_prefix.map(|id| ("prefix".to_owned(), id)))
                 .chain(filter.machine.map(|id| ("machine".to_owned(), id)))
                 .collect();
-            let mut conn = pool.acquire().await.map_err(|e| kit::store(&e))?;
-            let rows = read::flows(&mut conn, dates, &filter, after, limit).await?;
-            Ok((rows, page, objects))
+            let rows = read::flows(&mut snapshot, dates, &filter, after, limit).await?;
+            Ok((rows, page, objects, snapshot))
         },
     )
     .await
@@ -1089,7 +1101,6 @@ async fn of_object(
     collection: &'static str,
     id: Uuid,
 ) -> Result<Response, Problem> {
-    let pool = api.pool.clone();
     let path = format!("/v1/{collection}/{id}/flows");
     let name = format!("{collection}-flows");
     page_of(
@@ -1100,7 +1111,7 @@ async fn of_object(
         query.as_deref().unwrap_or_default(),
         &name,
         &path,
-        |dates, after, limit, page| async move {
+        |dates, after, limit, page, mut snapshot| async move {
             wanted(&page, &[])?;
             let after = match after {
                 None => None,
@@ -1109,12 +1120,12 @@ async fn of_object(
                     return Err(Problem::new(ProblemKind::InvalidCursor));
                 }
             };
-            let mut conn = pool.acquire().await.map_err(|e| kit::store(&e))?;
-            let rows = read::of_object(&mut conn, dates, kind, id, after, limit).await?;
+            let rows = read::of_object(&mut snapshot, dates, kind, id, after, limit).await?;
             Ok((
                 rows,
                 page,
                 vec![(crate::pg::kind_name(kind).to_owned(), id)],
+                snapshot,
             ))
         },
     )

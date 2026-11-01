@@ -461,7 +461,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     `refresh_failed`). Recommandation : réémettre le cookie après un rafraîchissement,
     `seen` laissé à sa valeur lue (ne prolonge rien) ; à trancher (A14 dit « ne réémet
     pas »).
-- [ ] 11c. Pages d'objets lues dans un seul instantané : `kit::versioned` lit la page et
+- [x] 11c. Pages d'objets lues dans un seul instantané : `kit::versioned` lit la page et
   ses versions dans la même transaction `REPEATABLE READ, READ ONLY` (`read::consistent`
   de la 11a), comme l'arbre ; sans cela, une écriture validée entre les deux lectures sert
   une valeur ancienne sous une `version` nouvelle, et un `If-Match` de l'édition en place
@@ -473,6 +473,34 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     appelants ; `read::consistent` et `children` de `crates/kartenn-rest/src/tree.rs`
     (forme) ; test voisin `crates/kartenn-rest/tests/it/objects.rs`
   - dépend de : 11a
+  - fait le 2026-11-01 — `kit` (`crates/kartenn-rest/src/kit.rs`) : `snapshot` (la
+    transaction de `read::consistent`, type `Snapshot`), `versions(executor, moment, ids)`
+    qui lit les versions dans l'instantané, `versioned(items, &versions)` qui les pose
+    (sans lecture), `release` qui finit l'instantané avant l'événement d'audit. Chaque
+    page d'objets lit ses lignes et leurs versions dans un instantané : objets du cœur
+    par clé naturelle et par propriétés (`objects::list`, l'instantané ouvert après la
+    sélection des identifiants par le moteur de filtres, aucun s'il n'y en a pas),
+    groupes de VLAN et VLAN (`vlan.rs`), grappes, machines et interfaces
+    (`kartenn-machines`), collections de politique (`kartenn-policy`), flux et flux d'un
+    objet (`kartenn-flow`, `page_of` passe l'instantané à `fetch`, qui le rend ; versions
+    des flux en vigueur lues avant les lectures de visibilité et de valeurs des
+    extrémités, une seule connexion tenue à la fois) ; l'arbre (`tree.rs`) passe aux
+    mêmes `snapshot`/`release`. `list::objects` prend un exécuteur. Coût : un aller-retour
+    de plus par page (le `BEGIN`) ; la fin de l'instantané n'en coûte aucun à la réponse.
+    Tests : `resources::a_page_carries_the_version_of_the_value_served` (lignes lues dans
+    l'instantané, `PATCH` validé par une autre connexion, versions lues ensuite dans
+    l'instantané : celle de la valeur lue ; `If-Match` de cette version → 412 ; hors de
+    l'instantané, pages sans filtre et par domaine : valeur écrite sous sa version) ;
+    `objects::properties_filter_the_objects_of_one_domain` (page filtrée : `version` de
+    chaque objet = celle de sa lecture et tête de son ETag) ; `k-check` vert (1227
+    tests). Banc
+    `bench-http` (pages filtrées) laissé à la session principale.
+  - choix : l'instantané se finit en le lâchant (`ROLLBACK` mis en file, envoyé avec le
+    ping de retour au pool, après la réponse) plutôt que par un `COMMIT` attendu, qui
+    coûtait un second aller-retour ; pour une transaction en lecture seule les deux se
+    valent (seul `pg_stat_database.xact_rollback` les distingue) ; l'arbre de la 11a
+    suit, pour une forme unique. `versioned` séparé en `versions` (lecture) et
+    `versioned` (pose), pour que les flux lisent leurs versions avec leurs lignes.
 - [ ] 16c. Rafraîchissement pendant une requête de fond (A15) : après un rafraîchissement
   des groupes sur une requête `Kartenn-Background: ?1` ou à l'ouverture du flux
   d'événements, cookie réémis avec `seen` remis à la valeur lue (ni fin par inactivité

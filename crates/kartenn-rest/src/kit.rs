@@ -4,6 +4,8 @@
 //! Patch under `If-Match`, answered as the routes of the core; the pieces of the contract
 //! built by hand.
 
+use std::collections::HashMap;
+
 use axum::body::Bytes;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
@@ -145,38 +147,67 @@ pub async fn version(api: &Api, id: Uuid, moment: &Moment) -> Result<Option<Uuid
         .map_err(|e| store(&e))
 }
 
-/// `items`, the objects of a page, each with its own version as `version` (REQ-006-14,
-/// 006/H19), the one its read by identifier states: one read for the page. An item
-/// without an `id`, or absent at `moment`, is left as it is.
+/// A read-only snapshot of the database ([`read::consistent`]): a page and the versions of
+/// its objects read in it are of the same instant, so that a `version` names the value
+/// served and an `If-Match` taken from the page cannot pass on a change it did not show
+/// (tasks 021-11a, 11c).
+pub type Snapshot = sqlx::Transaction<'static, sqlx::Postgres>;
+
+/// A new [`Snapshot`], begun before the reads of a page: the round trip of its `BEGIN`.
 ///
 /// # Errors
 ///
 /// The database unavailable.
+pub async fn snapshot(api: &Api) -> Result<Snapshot, Problem> {
+    read::consistent(&api.pool).await.map_err(|e| store(&e))
+}
+
+/// Ends `snapshot` once its reads are done, before the audit event of the page. It wrote
+/// nothing: it is dropped, its `ROLLBACK` sent with the ping that gives its connection back
+/// to the pool, after the answer, where a `COMMIT` would cost the answer one more round
+/// trip.
+pub fn release(snapshot: Snapshot) {
+    drop(snapshot);
+}
+
+/// The own versions of the objects `ids` at `moment` (REQ-006-14, 006/H19), those their
+/// reads by identifier state, in one read for a page; read in the [`Snapshot`] of the
+/// page, they are those of the values it serves. An object absent at `moment` has none.
+///
+/// # Errors
+///
+/// The database unavailable.
+pub async fn versions(
+    executor: impl sqlx::PgExecutor<'_>,
+    moment: &Moment,
+    ids: &[Uuid],
+) -> Result<HashMap<Uuid, Uuid>, Problem> {
+    read::versions(executor, ids, moment.valid_at, moment.as_of)
+        .await
+        .map_err(|e| store(&e))
+}
+
+/// `items`, the objects of a page, each with its own version among `versions` (read by
+/// [`versions`]) as `version`. An item without an `id`, or without a version, is left as
+/// it is.
 ///
 /// # Panics
 ///
 /// Never: a value made of serialisable JSON members serialises.
-pub async fn versioned<T: serde::Serialize>(
-    api: &Api,
-    moment: &Moment,
+#[must_use]
+pub fn versioned<T: serde::Serialize, S: std::hash::BuildHasher>(
     items: &[T],
-) -> Result<Vec<Value>, Problem> {
-    let items: Vec<Value> = items
+    versions: &HashMap<Uuid, Uuid, S>,
+) -> Vec<Value> {
+    let id = |item: &Value| item.get("id").and_then(Value::as_str)?.parse::<Uuid>().ok();
+    items
         .iter()
         .map(|item| serde_json::to_value(item).expect("JSON values serialise"))
-        .collect();
-    let id = |item: &Value| item.get("id").and_then(Value::as_str)?.parse::<Uuid>().ok();
-    let ids: Vec<Uuid> = items.iter().filter_map(id).collect();
-    let versions = read::versions(&api.pool, &ids, moment.valid_at, moment.as_of)
-        .await
-        .map_err(|e| store(&e))?;
-    Ok(items
-        .into_iter()
         .map(|item| match id(&item).and_then(|id| versions.get(&id)) {
             Some(version) => crate::dated::with_version(&item, *version),
             None => item,
         })
-        .collect())
+        .collect()
 }
 
 /// The kind of the pipeline of `ty`.
