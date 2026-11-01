@@ -13,6 +13,32 @@ import { Dependents, versionOf } from "./dependents.ts";
 import { isImmutable, isObjectKey } from "./keys.ts";
 import { collectionOf, qualify } from "./types.ts";
 
+/** The reads of the tree of the prefixes of a domain: its first level, a node's children. */
+const PREFIX_TREE = ["core.domain/roots", "core.prefix/children"] as const;
+
+/**
+ * The reads of the children in the trees an object of a type shows in (`<type>/<sub>` of
+ * `keys.sub`): a changed object may have changed place — its value under D34, its host —
+ * and the list of its new parent does not show it yet, so none of them is spared (design
+ * « Déplacements dans les arbres »: the tree is read again after application, X24).
+ */
+const TREES: Readonly<Record<string, readonly string[]>> = {
+  "core.prefix": PREFIX_TREE,
+  "core.range": PREFIX_TREE,
+  "core.address": PREFIX_TREE,
+  "machines.machine": ["machines.machine/hosted"],
+};
+const ALL_TREES = new Set(Object.values(TREES).flat());
+
+/**
+ * The tree read a key is, `<type>/<sub>` (a sub-resource key), else `null`; its type
+ * qualified, a key keeping the type it was read by (`prefix` or `core.prefix`).
+ */
+function treeOf(key: readonly unknown[]): string | null {
+  const [, type, , sub] = key;
+  return typeof type === "string" && typeof sub === "string" ? `${qualify(type)}/${sub}` : null;
+}
+
 /** An object a change names. */
 export interface Changed {
   readonly type: string;
@@ -41,23 +67,27 @@ export function createInvalidation(queryClient: QueryClient, reads: Queries) {
     /**
      * Objects changed by a changeset of revision `revision` (`null`: a background task,
      * read again without condition): themselves, their sub-resources, the lists of their
-     * types, the queries that show them.
+     * types, the queries that show them, the children read in the trees they show in.
      */
     objects(changed: readonly Changed[], revision: string | null): Promise<void> {
       const ids = new Map<string, string>();
       const lists = new Set<string>();
       const showing = new Set<string>();
+      const trees = new Set<string>();
       for (const { type, id } of changed) {
         const qualified = qualify(type);
         ids.set(id, qualified);
         const collection = collectionOf(qualified);
         if (collection) lists.add(collection);
         for (const hash of dependents.showing(id)) showing.add(hash);
+        for (const tree of TREES[qualified] ?? []) trees.add(tree);
       }
       return invalidate((query) => {
         const [, resource, id] = query.queryKey as readonly unknown[];
         if (typeof id === "string" && ids.get(id) === resource) return !upToDate(query, revision);
         if (typeof resource === "string" && lists.has(resource)) return true;
+        const tree = treeOf(query.queryKey);
+        if (tree !== null && trees.has(tree)) return true;
         return showing.has(query.queryHash);
       });
     },
@@ -92,10 +122,15 @@ export function createInvalidation(queryClient: QueryClient, reads: Queries) {
       );
     },
 
-    /** Every list (a key by path): a changeset may have created objects anywhere. */
+    /**
+     * Every list (a key by path) and the children read in every tree: a changeset may have
+     * created objects anywhere, or moved them.
+     */
     lists(): Promise<void> {
       return invalidate((query) => {
         const [, resource, params] = query.queryKey as readonly unknown[];
+        const tree = treeOf(query.queryKey);
+        if (tree !== null && ALL_TREES.has(tree)) return true;
         return (
           typeof resource === "string" && resource.startsWith("/v1/") && typeof params !== "string"
         );

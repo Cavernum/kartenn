@@ -76,12 +76,13 @@ function recordRoute(space: Space, entry: SpaceEntry): RouteRecordRaw {
 
 /**
  * The collections whose objects have a record: those the palette searches, those of the
- * referential, and the changesets a history links to (their screen comes with task 14).
+ * referential, the changesets and the drafts of the user (task 14).
  */
 const RECORDS = new Set([
   ...SEARCHED.map((searched) => searched.path.slice(3)),
   ...COLLECTIONS.map((collection) => `/${collection.id}`),
   "/changesets",
+  "/drafts",
 ]);
 
 const admin = CORE_SPACES.find((space) => space.id === "admin")!;

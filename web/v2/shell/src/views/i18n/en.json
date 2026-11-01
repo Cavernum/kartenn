@@ -374,13 +374,27 @@
       "immutable": "The domain of an object never changes after its creation (core.domain.immutable).",
       "computed": "A computed value: it does not change.",
       "creation": "Fixed at creation: it does not change.",
-      "moved": "The parent changes by a move, not in place.",
+      "moved": "The parent changes by “Change parent…”, not in place.",
       "reference": "An object is chosen in the edit panel (Modify), not in place."
     },
     "vlan": {
       "vidProposed": "Next free VID of the group {group}.",
       "vidSaid": "VID proposed: {vid}, the next free one of the group.",
       "vidUnread": "No VID proposed: {why}"
+    },
+    "move": {
+      "action": "Change parent…",
+      "title": "Change parent: {kind} {name}",
+      "motive": "Change of parent: {kind} {name} → {to}",
+      "cycle": "Target refused: {target} is the object moved or one of its descendants.",
+      "incompatible": "Target refused: {target} cannot be its parent.",
+      "forbidden": "Right missing: it takes {permission}.",
+      "dated": "Dated read: go back to the present to change parent.",
+      "root": "the root",
+      "choose": "Choose a target from the list: only the valid targets are in it.",
+      "noVersion": "Nothing sent: the version of the object could not be read. Try again.",
+      "unsimulated": "Added to the draft: {what}. Its simulation could not be done.",
+      "keptRefused": "Added to the draft: {what}. The simulation refuses it; the operation stays in the draft, another target chosen here replaces it."
     }
   }
 }

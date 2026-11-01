@@ -113,12 +113,34 @@ pub async fn layer(
             tracing::debug!(name: "http.request", request_id = %id, method = %method, status = status.as_u16(), "request served");
         }
     });
+    // A problem of a layer outside the compression (authentication, quotas, transport):
+    // never compressed, its body written again here. Those of the routes were written by
+    // [`instance`], inside the compression, and carry no `Problem` any more.
     if let Some(problem) = response.extensions_mut().remove::<Problem>() {
-        *response.body_mut() = Body::from(problem.instance(id.urn()).body());
-        response.headers_mut().remove(header::CONTENT_LENGTH);
+        with_instance(&mut response, problem, id);
     }
     if let Ok(value) = HeaderValue::from_str(&id.to_string()) {
         response.headers_mut().insert(REQUEST_ID.clone(), value);
+    }
+    response
+}
+
+/// The body of a problem written again with its `instance`, its length to be computed.
+fn with_instance(response: &mut Response, problem: Problem, id: RequestId) {
+    *response.body_mut() = Body::from(problem.instance(id.urn()).body());
+    response.headers_mut().remove(header::CONTENT_LENGTH);
+}
+
+/// The `instance` of the problem of a route (RFC 9457 §3.1.5), set inside the compression
+/// layer: the body written again is then compressed after `Accept-Encoding` like any other
+/// (REQ-006-32). The identifier is the one [`layer`] put in the request extensions.
+pub async fn instance(request: Request, next: Next) -> Response {
+    let id = request.extensions().get::<RequestId>().copied();
+    let mut response = next.run(request).await;
+    if let Some(id) = id
+        && let Some(problem) = response.extensions_mut().remove::<Problem>()
+    {
+        with_instance(&mut response, problem, id);
     }
     response
 }

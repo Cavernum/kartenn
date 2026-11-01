@@ -63,6 +63,7 @@ export default {
     "kartenn/token-reference": true,
     "kartenn/raw-length": true,
     "kartenn/floating-shadow": [true, { floating: FLOATING }],
+    "kartenn/component-prefix": true,
     "scale-unlimited/declaration-strict-value": [
       STRICT,
       {

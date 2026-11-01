@@ -756,6 +756,112 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `crates/kartenn-machines/src` (règles `machines.host.*`) ; 020 design § « Contrat de
     déplacement »
   - dépend de : 12 ; 020-26 ; le cas machines après 18
+  - en cours : fait le 2026-11-01 — SDK : `scripts/gen.mjs` génère `src/api/parents.ts`
+    (`PARENTS` : pour chaque type à parent déclaré, l'écriture qui change son parent —
+    `move_entity.parent`, `move_site.parent`, `update_vlan_group.anchor`,
+    `MachinePatch.host` —, les types admis, lus des variantes du membre (`TargetKind`) ou du
+    filtre `parent` de sa liste, et la racine permise si le membre du déplacement prend
+    `null` et que la création ne l'exige pas ; build en échec si l'écriture ou son membre
+    disparaît du contrat ; test de fraîcheur) ; `data/moves.ts`
+    (`canMove(nœud, cible, { ancestors, can, present })` : cycle, parent incompatible, droit
+    `X.edit` du nœud puis de la cible, lecture datée, dans cet ordre ; `MOVE_CODES` :
+    `core.anchor.cycle`, `core.vlan.group_anchor`, `machines.host.invalid` ; exportés avec
+    `parentRule`) ; `data/invalidate.ts` : un préfixe, une plage, une adresse changés
+    invalident toutes les lectures d'enfants de l'arbre (`core.domain/roots`,
+    `core.prefix/children` ; `machines.machine/hosted`, type de la clé qualifié : la
+    Topographie lit par `prefix`), et `lists()` aussi (la liste du nouveau parent ne montre
+    pas encore l'objet). Serveur (trouvé par le test de propriété) : `kartenn-rest`
+    `request_id.rs` réécrivait le corps d'un problème (son `instance`) après la compression
+    en gardant `Content-Encoding` — tout refus de plus de 1 Kio était illisible pour un
+    navigateur (`ERR_CONTENT_DECODING_FAILED`) ; `instance` maintenant posée à l'intérieur
+    de la compression (`request_id::instance`, `lib.rs`), le corps réécrit compressé selon
+    `Accept-Encoding` (REQ-006-32), test
+    `tests/it/compression.rs::a_problem_over_1_kib_is_compressed_with_its_instance`
+    (zstd, br, gzip, décodé, `instance` présente). Shell : `views/edit/moves.ts` (`useMoves` :
+    `canMove` en mots avec code, `moveState`, `move` → `draft.add` puis simulation du
+    brouillon — valide : nœud marqué à sa place ; refusé par une violation de **son**
+    opération (indice ou pointeur `/operations/<i>`, ou règle de l'état final sur le nœud),
+    jamais par celle d'une autre opération ; simulation en échec : verdict inconnu, le
+    problème rendu par `problems/` (`RefusalAlert`, `NetworkError` sans réponse) — ou
+    `changesets.submit` `?approval=self` avec motif ; « en attente » jusqu'à la réponse,
+    aucun `setQueryData`, refus 422/403/412 avec code (une violation : sa règle ; sinon la
+    phrase du `type` par `problems/` et le `type` servi) ; un nouveau
+    déplacement d'un nœud déjà déplacé au brouillon actif remplace son opération
+    (`drafts.update`), jamais deux ; seconde intention en vol ignorée avant tout contrôle ;
+    version lue, sinon (absente ou `null`) relue par identifiant, et sans elle rien n'est
+    envoyé, refus dit) ; « Changer de parent… » d'une entité ou d'un site (menu de la fiche,
+    `RecordView.vue` ; `EditPanel.vue` mode `move`, `Combobox` des seules cibles valides,
+    « Aucun » pour la racine, simulation en échec rendue par `RefusalAlert`, panneau
+    gardé) ; Topographie : nœud dont le brouillon actif change la valeur marqué « en
+    brouillon » à sa place, et chaque nœud placé une fois pendant la relecture des niveaux
+    (`views/topology.ts`, `nodesOf` : une liste encore périmée montrait un nœud sous son
+    ancien enfant, un cycle, débordement de pile au rendu — trouvé par le test de
+    propriété). Vitest `sdk/test/moves.test.ts` (table, contrat changé, membre
+    disparu, racine par nullabilité, chaque refus et leur ordre), `sdk/test/dependents.test.ts`
+    (arbre relu), `shell/test/moves.test.ts` (mots et codes, nœud que l'hôte ne déplace pas,
+    hors présent, brouillon simulé valide et invalide, violation d'une autre opération,
+    opération remplacée, simulation en échec, version illisible, réponse ralentie « en
+    attente » sans écriture du cache, seconde intention, refus serveur après acceptation
+    du client, 403, 412, déplacement sur son parent), `shell/test/moves-property.test.ts`
+    (test de propriété monté : `TreeGrid` `declared` et `useMoves` contre un serveur simulé
+    d'entités, graine `0x2124`, 200 dépôts au brouillon ou appliqués, refusés par le
+    contrôle du client (cycle) ou par le serveur, nœud à sa place « en attente » tant que la
+    réponse est retenue, puis chaque ligne rendue sous le parent du serveur) ; parcours
+    `e2e/journeys/moves.spec.ts` (arbre des préfixes : ni glisser, ni Ctrl+X/Ctrl+V, ni
+    « Déplacer vers… » ; valeur changée au brouillon, arbre inchangé et nœud marqué, puis
+    brouillon soumis, arbre relu à la nouvelle place ; entité : cibles valides seules,
+    réponse ralentie sans nouveau parent affiché, puis appliqué ; propriété : graine
+    `0x2124`, 200 étapes de valeurs de préfixes et de remplacements de plages, au brouillon
+    ou directement, acceptées et refusées, l'arbre rendu égal à celui de l'API et chaque
+    ligne contenue par sa ligne parente).
+  - choix : `canMove` et la table dans le SDK (un plugin de première partie ne peut pas
+    importer le shell ; `context.user.has` et `context.time.present` lui suffisent), le
+    déplacement et ses mots dans le shell ; une plage change de valeur par son
+    remplacement (`close` puis `create_range` : le contrat n'a pas de bornes dans
+    `update_range`) dans le test de propriété seulement ; un déplacement sur le parent
+    actuel n'écrit rien ; une seconde intention pendant qu'une est en vol est ignorée ; un
+    brouillon dont la simulation refuse le déplacement garde l'opération, le nœud marqué
+    refusé avec la règle, le panneau le dit, et un nouveau choix de cible la remplace
+    (retrait par la page des brouillons, tâche 14) ; `root` = membre du déplacement
+    nullable **et** non exigé à la création (`update_vlan_group.anchor` prend `null` pour
+    « inchangé » : un groupe n'est pas une racine) ; `expected` de l'opération : version de
+    la ligne, sinon objet relu par identifiant (une lecture, du cache s'il est frais) ;
+    `Combobox` des cibles valides (filtrées par la saisie), un texte sans cible choisie
+    refusé au champ ; cibles et ancêtres d'une entité lus dans les dix
+    premières pages de sa collection (un cycle au-delà : `core.anchor.cycle` du serveur) ;
+    motif prérempli avec la destination (« … → <parent> ») ; panneau ouvert après la
+    fermeture du menu, focus rendu au bouton du menu (l'entrée choisie disparaît avec
+    lui, `openEdit`) ; option « Aucun »
+    d'une référence facultative à valeur propre (`none`) : la chaîne vide est le « sans
+    valeur » du `Select` (Reka refuse une option vide) ; test de propriété en Chromium
+    seul, arbre comparé toutes les 10 étapes, 400 ms entre deux étapes et 429 attendu
+    selon `Retry-After` (quotas d'écriture de l'instance, partagés avec les parcours
+    voisins) ; sous Firefox, corps vide des modules préchargés pendant un `page.route`
+    toléré dans le seul parcours de la réponse ralentie (empreinte SHA-384 du vide).
+  - reste : le cas machines (tâche 18) — cluster sur sa propre machine refusé (cycle,
+    `machines.host.invalid`, prêt dans `canMove`), machine vers un cluster d'un autre site
+    refusée par le serveur (`machines.host.site_mismatch`, règle de sévérité
+    `warning` côté serveur : à vérifier qu'elle refuse), réponse ralentie dans un
+    `TreeGrid` `declared` (`useMoves` est prêt pour un arbre du shell ; une vue de plugin
+    reprend `canMove` du SDK et ses écritures, ou `useMoves` passe au SDK) ; Ctrl+Entrée
+    sur un dépôt (l'intention du `TreeGrid` n'a pas de `now`) ; **aperçu du brouillon** :
+    à arbitrer, le contrat ne le permet pas — la simulation (`ChangesetSimulated`) ne rend
+    que le différentiel des propriétés, ni valeur ni parent d'un préfixe ; options : (a)
+    lecture de l'arbre sous un brouillon (`roots`/`children` `?draft=<id>`), (b)
+    `placements` dans la simulation (objet, parent avant, après), (c) REQ-021-17 amendée
+    sans aperçu ; états transitoires d'une relecture (parent relu avant ses enfants : nœud
+    montré une fois, mais un instant sous un parent qui ne le contient plus) non couverts
+    par le test de propriété, qui compare l'arbre une fois stable ; erreur d'un
+    champ du panneau gardée jusqu'au prochain envoi quand la valeur change (commun à tous
+    les champs du panneau) ; Ctrl+Entrée sur le chevron du `SplitButton`, juste après le
+    choix « Appliquer », n'applique rien (le focus doit être dans un champ : composant
+    020, à vérifier) ; déplacements à parent déclaré dans le test de propriété de bout en
+    bout : aucun arbre à parent déclaré n'est encore à l'écran (tâche 18), le parcours ne
+    peut en glisser — couverts par le test de propriété monté, le parcours à étendre avec
+    l'arbre de l'hébergement ; le shell n'offre pas de changement des bornes d'une plage
+    (le contrat n'en a pas : remplacement seulement, fait par le test), et la Topographie
+    ne marque pas « en brouillon » une plage remplacée au brouillon (seules les opérations
+    `update_*` le sont).
 - [ ] 13. Libellés et codes : `label` (dictionnaire `GET /v1/labels` de la 018 en cache par
   langue et révision, invalidé par l'événement `labels` ; catalogues ; clé),
   `KeyLabel` partout ; toute erreur par `ErrorState`, `InlineAlert`, `Toast` avec codes et
@@ -834,6 +940,135 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `web/v2/shell/src/plugins/`), parcours `plugins` étendu (action `review` du plugin de
     test `notes`, son dialogue fermé par `kartenn-close`)
   - dépend de : 12
+  - en cours : fait le 2026-11-01 — SDK : `writes.decide` (validation, rejet avec motif,
+    retrait, annulation `?approval=self`, sous `If-Match` = l'`ETag` du changeset lu ;
+    décidé : changeset, listes et `/v1/proposals` relus, une validation ou une annulation
+    appliquée invalide ce qu'elle écrit ; 412 : changeset relu, rien à rejouer), offert au
+    shell seul par `@kartenn/sdk/host` (`review.decide`, hors contrat semver des plugins) ;
+    `sdk/test/write.test.ts` ; correction : `drafts.update` envoie `application/json` (le
+    client mettait tout `PATCH` en `merge-patch+json`, refusé 415 par `PATCH
+    /v1/drafts/{id}` ; option `merge: false` du client), `sdk/test/drafts.test.ts`. Shell (`web/v2/shell/src/`) : `changesets/` — `model.ts`
+    (états et leur badge, type d'une opération, permissions `<type>.apply`,
+    `.approval.self`, `.edit` des opérations, actions de revue selon les droits : en
+    attente, Valider et Rejeter par un autre (sans `<type>.apply`, refusés avec la
+    permission), Valider par l'auteur (REQ-024-11, 12, comme `self_applicable` de
+    `kartenn-service/src/review.rs` : avec `<type>.approval.self` sur tout ce qu'il touche
+    et sans politique — `kind = approval` ou `policy` — ; sinon refusé avec la permission
+    manquante ou `held`, l'avis `changeset.approval.self` et la politique ; pas de
+    Rejeter pour lui), Retirer (l'auteur seul) ; appliqué, Annuler (`<type>.edit`) ; hors présent, toutes refusées avec leur
+    motif ; différentiel groupé par objet pour `DiffList`, différentiel compté groupé par
+    propriété pour un changeset pas encore appliqué), `words.ts` (état et nature par le
+    dictionnaire, espace `state`, sinon les catalogues ; « vous »), `ChangesetsView.vue`
+    (`/changesets` : `DataGrid` filtrée par l'URL — état en liste fermée, auteur, objet,
+    dates de soumission, rétroactif —, « Mes changesets » = filtre de l'auteur),
+    `ProposalsView.vue` (`/proposals`, droits qui manquent à l'auteur en `CodeBadge`),
+    `ChangesetView.vue` (`/changesets/:id` : une barre, l'état en `StatusBadge` puis la
+    `Toolbar` des actions de revue, refusées visibles avec leur permission ou leur motif,
+    « … » avec « Copier l'identifiant » (issue dite, `copy.ts` partagé avec `/drafts`) et
+    les actions des plugins sur le type `changeset` (`PluginAction`) ; avis à l'auteur
+    d'un changeset retenu par une politique (`changeset.approval.self`, la politique) ;
+    une décision refusée 412 dite comme telle (« a changé depuis votre lecture ; relu »,
+    les actions de l'état relu, rien de « gardé ») ; attributs comme E4 (rétroactif compris) ; onglets
+    Différentiel (anomalies rattachées en tête, `DiffList`, pages de `/diff` par
+    « Afficher la suite », compte montré une fois tout lu ; avant application, le
+    différentiel compté), Opérations, Violations (codes), Sections de modules (nom,
+    lignes) ; rejet par un `Dialog` à motif obligatoire (focus au champ en erreur),
+    annulation confirmée par un `AlertDialog` ; après une décision, focus à la première
+    action restante ; refus dit par `RefusalAlert`), `routes.ts` (écrans de l'espace `changes`, `meta.queries`),
+    `i18n/{fr,en}.json` (fusionnés en profondeur) ; `draft/` — `state.ts` (brouillon du
+    serveur et sa simulation, requêtes partagées par la liste et le pied ; violations
+    par opération ; actions du bouton scindé selon les droits et la simulation, refusées
+    avec motif ou permission ; action par défaut), `DraftOperations.vue` (opérations avec
+    la marque du brouillon, retrait sous `If-Match`, focus rendu au bouton suivant ; retrait
+    refusé dit sur place par `problems/` — 404 « ce brouillon n'existe plus » avec code et
+    `Request-Id`, puis « aucun brouillon » (le SDK distingue `Gone.cause` : `event` ou
+    `refused`, le toast du cadre ne dit que le premier), 412 « a changé ; relu » — ;
+    soumissions sans réponse dont le brouillon est parti (`LostSubmissions.vue`) ; violations par opération
+    avec leur code, du résultat ; effet simulé, cascades ; suppression annoncée
+    `expires_at`), `DraftSubmit.vue` (résultat de la simulation, `CommitForm` gardé dans
+    le brouillon, `SplitButton` « Appliquer » / « Soumettre en revue » / « Enregistrer le
+    brouillon », Ctrl+Entrée, résumé générique prérempli pour « Appliquer », clé
+    d'idempotence d'une soumission sans réponse gardée pour la page au-delà du pied
+    (`lostSubmissions`, `submitDraft`), « Réessayer » la rejoue, même si l'événement
+    `draft` a fait partir le brouillon ; issue dite par un
+    toast, refus sur place ; région d'état présente avant le brouillon lu),
+    `DraftsView.vue` (`/drafts` : reprendre, nouveau, supprimer confirmé (focus rendu à
+    la grille), actif marqué, suppression annoncée, tri, lignes empilées en conteneur
+    étroit), `DraftView.vue` (`/drafts/:id`), `OperationText.vue` + `operations.ts` (une
+    opération en ligne). `frame/ShellFrame.vue` (onglet Brouillon et pied du panneau,
+    morceaux paresseux, renvoi à la page quand le brouillon actif y est ouvert ; titre
+    des brouillons créés par `setDraftTitle` ; brouillon parti par l'événement dit par un
+    toast ; `draftHost.onAdd` câblé : le `draft.add` d'un plugin ouvre le brouillon, le
+    shell passant lui-même par `addToActiveDraft` de `@kartenn/sdk/host` (édition en
+    place, panneau d'édition) ; compteur « À instruire », « n+ » quand une page suit,
+    `pageCount`), `frame/spaces.ts` (`badges` de `sidebarGroups`),
+    `frame/routes.ts` (fiche `/drafts/:id`), `views/routes.ts` (écrans de l'espace),
+    `views/filters.ts` (état des changesets en liste fermée ; `from`, `to` en jours,
+    envoyés comme premier et dernier instant du jour, `instantOfDay`), `i18n/index.ts` ;
+    `@kartenn/ui` : `SidebarEntry.badge` prend aussi un texte (« 100+ »). Vitest
+    `shell/test/changesets.test.ts` (23 : types et permissions, actions de revue selon les
+    droits et le présent, l'auteur sous `approval.self`, sans, retenu par une politique,
+    différentiel groupé, différentiel compté, opération en ligne, badge, « n+ », dates
+    typées ; écrans montés contre une API simulée : validation sous `If-Match`, Valider
+    refusé avec sa permission, 412 d'une décision, « Appliquer » ou « Soumettre en
+    revue » selon `approval.self`, résumé prérempli, soumission `?approval=self` après le
+    motif enregistré, réponse perdue puis même clé, et encore après le départ du
+    brouillon, violation sur son opération, retrait, retrait 404 et 412, `draft.add`
+    d'un plugin qui ouvre le brouillon et pas `addToActiveDraft`), `sdk/test/drafts.test.ts`
+    (404 d'une écriture : `Gone.cause` `refused`). Parcours réécrits
+    `web/v2/e2e/journeys/changesets.spec.ts` (proposition de Carol suivie dans « Mes
+    changesets », Valider refusé à l'auteur avec `core.address.approval.self` qui lui
+    manque, validée par Alice depuis « À instruire »
+    comptée dans la barre, annulée ; rejet à motif obligatoire) et `draft.spec.ts`
+    (modification en place → compteur → panneau, simulation valide, Ctrl+Entrée avec le
+    résumé prérempli ; Carol sans `approval.self` : « Appliquer » refusé avec
+    `core.prefix.approval.self`, soumis en revue ; violation `core.prefix.duplicate` sur
+    son opération, retirée, valide ; brouillon repris depuis la page, repris dans un autre
+    navigateur de la même identité avec ce qui a été écrit dans le premier, supprimé
+    là) ; parcours `plugins` étendu
+    (action `review` de `notes` dans « … » de la fiche, fermée par `kartenn-close`, focus
+    rendu à « … ») ; rôle `redacteur` des parcours avec `core.changeset.read`.
+  - choix : actions de revue dans la `Toolbar` de la fiche (Valider principal), « … »
+    toujours présent (« Copier l'identifiant », puis les plugins) ; Retirer montré refusé
+    à qui n'est pas l'auteur (« Seul l'auteur retire son changeset », maquette E4) ;
+    décisions sans optimisme, l'état relu ; Valider et Retirer sans confirmation, Annuler
+    confirmé (un nouveau changeset) ; droits d'un relecteur tirés des types que nomment
+    les opérations (une opération sans type dit, droits ou module, laissée au serveur) ;
+    titre d'un groupe du différentiel : le nom de l'objet si le cache le tient, sinon son
+    identifiant (le contrat ne sert que `id`) ; « À instruire » compte la première page de
+    `/v1/proposals`, « n+ » au-delà ; dates de soumission (`from`, `to`) choisies en jours
+    dans la zone du navigateur ; une revue qu'un module exige n'est pas servie au client :
+    le serveur seul la refuse alors à l'auteur ;
+    action par défaut gardée pendant la simulation (« Appliquer » attend, maquette E5),
+    puis selon droits et résultat, jusqu'au choix de l'utilisateur ; le motif est gardé
+    dans le brouillon avant la soumission (le serveur le soumet) ; titre d'un brouillon
+    créé : « Brouillon du <date> » ; page `/drafts` sans « Renommer » (non demandé par le
+    design) ; état « en revue » : `StatusBadge` `review`, l'œil des maquettes E4/E5.
+  - reste : « Instruire dans Flux » à la place de « Valider » sur une demande de flux
+    (plugin Flux pas encore porté sur le SDK 1.0), et « Effet sur la politique » de E4
+    (plugin Politique) ; « Revue requise » avec le nom de la politique avant la
+    soumission (maquette E5) : la simulation (`ChangesetSimulated`) ne dit pas qu'une
+    politique retient, seul le 202 le dit (manque de contrat, à arbitrer) ; « Renommer »
+    un brouillon (menu de E5) ; résultat de simulation et ligne d'opération recopiés des
+    maquettes (`EcranSoumission`, `EcranBrouillon`) : composants de `@kartenn/ui` à
+    décider, comme une classe de texte atténué ; badge « À instruire » de `SidebarNav`
+    sans unité dite (composant) ; un brouillon supprimé dans un autre navigateur dit dans
+    l'onglet qui l'avait actif : par l'événement `draft` (SDK, Vitest) ou par le 404 de
+    l'écriture suivante (Vitest), pas tenu par un parcours — sous Chromium l'événement
+    n'est pas venu en 20 s (flux : tâche 5), et les parcours des deux navigateurs écrivent
+    les brouillons d'Alice côte à côte ; dates d'effet de la soumission
+    (période `valid_from`/`valid_to` du brouillon, pied) ; modifier une opération du
+    brouillon (seul le retrait est là) ; « Tout afficher » d'une `DiffList` virtualisée
+    (question ouverte : le différentiel se lit par « Afficher la suite ») ; captures des
+    vrais écrans (comme les 11 et 12 : sans API dans le projet `visual` ; E4 et E5 restent
+    les maquettes).
+  - à arbitrer par l'utilisateur : l'icône de l'état « en revue » — œil des maquettes
+    validées (gardé ici, `StatusBadge`) ou `git-pull-request` du design (« À instruire »
+    de la barre latérale le porte déjà) ; `PATCH /v1/drafts/{id}` prend
+    `application/json` alors que REQ-006-13 veut `merge-patch+json` « uniquement » pour un
+    `PATCH` (amender la 006 ou aligner la route ; le client suit la route, `merge:
+    false`) ; le contrat de `GET /v1/changesets` n'énumère pas `state` et ne dit pas le
+    format `date-time` de `from`/`to` (le shell les type lui-même, `views/filters.ts`).
 - [ ] 15. Administration : groupes (membres, liaisons), rôles, émetteurs, comptes de
   service et secret, identités (groupes et droits effectifs en lecture), audit et
   export, imports ; permissions en nom servi et libellé — REQ-021-12, 025/REQ-025-12 —

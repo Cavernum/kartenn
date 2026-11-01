@@ -1,6 +1,8 @@
 // Rules of kartenn for Stylelint (spec 020, design « Architecture CSS »; REQ-020-12, 13):
 // written with the plugin API of Stylelint, cheap to replace.
+import { fileURLToPath } from "node:url";
 import stylelint from "stylelint";
+import { owners, ownerOf, unitOf } from "./prefixes.js";
 
 const {
   createPlugin,
@@ -159,4 +161,56 @@ const floatingShadow = createPlugin(floatingShadowName, (primary, options) => (r
   });
 });
 
-export default [knownLayer, tokenReference, rawLength, floatingShadow];
+// kartenn/component-prefix: in a sheet of @kartenn/ui (a component, a file of internal/
+// or demo/), each selector carries a class its unit owns, each @keyframes is named by one
+// (prefixes.js): the one sheet of the library matches only what the unit renders, its
+// slots included. What the impact graph of the captures counts on (spec 029, task 2).
+const componentPrefixName = "kartenn/component-prefix";
+const componentPrefixMessages = ruleMessages(componentPrefixName, {
+  selector: (selector, prefixes) =>
+    `selector « ${selector} » matches beyond its component: give it a class ${prefixes}`,
+  keyframes: (name, prefixes) => `@keyframes ${name}: name it ${prefixes}…`,
+});
+const WORKSPACE = new URL("../../", import.meta.url);
+let table;
+const componentPrefix = createPlugin(componentPrefixName, (primary) => (root, result) => {
+  if (!validateOptions(result, componentPrefixName, { actual: primary, possible: [true] })) {
+    return;
+  }
+  const absolute = root.source?.input.file ?? "";
+  const base = fileURLToPath(WORKSPACE);
+  if (!absolute.startsWith(base)) return;
+  const unit = unitOf(absolute.slice(base.length));
+  if (unit === null) return;
+  table ??= owners(WORKSPACE);
+  const prefixes = [...table].filter(([, u]) => u === unit).map(([prefix]) => `.${prefix}`);
+  const own = (name) => ownerOf(table, name) === unit;
+  root.walkRules((rule) => {
+    for (let parent = rule.parent; parent; parent = parent.parent)
+      if (parent.type === "atrule" && /keyframes$/i.test(parent.name)) return;
+    for (const selector of rule.selectors) {
+      // A nested selector extends its parent's, checked on its own.
+      if (selector.includes("&")) continue;
+      const classes = [...selector.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((m) => m[1]);
+      if (classes.some(own)) continue;
+      report({
+        ruleName: componentPrefixName,
+        result,
+        node: rule,
+        message: componentPrefixMessages.selector(selector, prefixes.join(" | ")),
+      });
+    }
+  });
+  root.walkAtRules(/keyframes$/i, (atRule) => {
+    const name = atRule.params.trim();
+    if (own(name)) return;
+    report({
+      ruleName: componentPrefixName,
+      result,
+      node: atRule,
+      message: componentPrefixMessages.keyframes(name, prefixes.join(" | ")),
+    });
+  });
+});
+
+export default [knownLayer, tokenReference, rawLength, floatingShadow, componentPrefix];

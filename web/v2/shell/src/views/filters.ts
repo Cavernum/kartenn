@@ -23,6 +23,7 @@ import {
   type Suggest,
 } from "@kartenn/ui";
 import type { LocationQuery, LocationQueryRaw } from "vue-router";
+import { STATES } from "../changesets/model.ts";
 
 // The typed filters of a list (REQ-021-18; design « Filtres, libellés, codes »; 020
 // decision A7): one model per list, for the bar (`FilterPicker`) and the filters of the
@@ -92,6 +93,27 @@ const BY_ID: Readonly<Record<string, Readonly<Record<string, string>>>> = {
 };
 /** The parameters that name a declared property (`property` of the gaps). */
 const PROPERTY_KEYS: Readonly<Record<string, string>> = { "/v1/property-gaps": "property" };
+/**
+ * The parameters a closed list types though the contract says a string: the states of the
+ * journal (spec 004) on the changesets.
+ */
+const CLOSED: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>> = {
+  "/v1/changesets": { state: STATES },
+};
+/**
+ * The parameters that are instants though typed as days in the bar (`date`, AAAA-MM-JJ):
+ * sent as the first instant of the day (`start`) or its last (`end`), in the browser's
+ * zone, RFC 3339.
+ */
+const INSTANTS: Readonly<Record<string, Readonly<Record<string, "start" | "end">>>> = {
+  "/v1/changesets": { from: "start", to: "end" },
+};
+
+/** A day of the bar (AAAA-MM-JJ) as the instant a list takes (RFC 3339, UTC). */
+export function instantOfDay(day: string, bound: "start" | "end"): string {
+  const local = new Date(`${day}T${bound === "start" ? "00:00:00.000" : "23:59:59.999"}`);
+  return Number.isNaN(local.getTime()) ? day : local.toISOString();
+}
 /** The parameters a list keeps out of its bar: `q` is the search of the palette. */
 const LEFT_OUT = new Set(["q"]);
 /** The declared types whose values the model types (003, `TypeSpec::id`). */
@@ -242,6 +264,7 @@ export function listFilterModel(
         property.params = { within: "within" };
       }
     } else if (field.name === "within") property.type = "prefix";
+    else if (INSTANTS[path]?.[field.name]) property.type = "date";
     else if (BY_ID[path]?.[field.name]) {
       property.type = "enum";
       property.suggest = referenceSuggest(BY_ID[path][field.name] as ListPath, read, names);
@@ -253,9 +276,11 @@ export function listFilterModel(
         label: words.property(d.key) ?? d.key,
         ...(words.property(d.key) ? { detail: d.key } : { mono: true }),
       }));
-    } else if (field.enum) {
+    } else if (field.enum ?? CLOSED[path]?.[field.name]) {
       property.type = "enum";
-      property.options = options(field.enum, (value) => words.value(field.name, value));
+      property.options = options(field.enum ?? CLOSED[path]![field.name]!, (value) =>
+        words.value(field.name, value),
+      );
     } else if (field.type === "boolean") {
       property.type = "enum";
       property.options = options(["true", "false"], (value) => words.value("boolean", value));
@@ -323,5 +348,10 @@ export function sentFilters(
   declarations: readonly Declaration[],
 ): Filters {
   const accepted = filters.filter((filter) => !filter.draft && !checkFilter(model, filter));
-  return parseFilters(filterModel(path, declarations), filtersToParams(model, accepted)).filters;
+  const params = filtersToParams(model, accepted);
+  for (const [name, bound] of Object.entries(INSTANTS[path] ?? {})) {
+    const day = params.get(name);
+    if (day !== null) params.set(name, instantOfDay(day, bound));
+  }
+  return parseFilters(filterModel(path, declarations), params).filters;
 }

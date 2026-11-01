@@ -17,6 +17,7 @@ import type {
   RouteLocationNormalized,
   RouteParams,
 } from "vue-router";
+import { changesRecord, changesScreen } from "../changesets/routes.ts";
 import { collectionById, type Collection } from "./collections.ts";
 import { rowsOf } from "./data.ts";
 import { paramsOf } from "./filters.ts";
@@ -93,14 +94,14 @@ export function entryScreen(id: string): ScreenRoute | undefined {
         queries: () => [reads.list("/v1/property-declarations", null, null)],
       };
     default:
-      return undefined;
+      return changesScreen(id);
   }
 }
 
 /** The record of an object of a collection of the referential (`/prefixes/:id`). */
 export function recordScreen(id: string): ScreenRoute | undefined {
   const collection = collectionById(id);
-  if (!collection) return undefined;
+  if (!collection) return changesRecord(id);
   return {
     component: RecordView,
     props: (route) => ({ collection, id: String(route.params.id) }),

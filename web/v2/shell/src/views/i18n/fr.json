@@ -374,13 +374,27 @@
       "immutable": "Le domaine d'un objet ne change pas après sa création (core.domain.immutable).",
       "computed": "Valeur calculée : elle ne se modifie pas.",
       "creation": "Fixée à la création : elle ne se modifie pas.",
-      "moved": "Le parent se change par un déplacement, non en place.",
+      "moved": "Le parent se change par « Changer de parent… », non en place.",
       "reference": "Un objet se choisit dans le panneau d'édition (Modifier), non en place."
     },
     "vlan": {
       "vidProposed": "Prochain VID libre du groupe {group}.",
       "vidSaid": "VID proposé : {vid}, le prochain libre du groupe.",
       "vidUnread": "Aucun VID proposé : {why}"
+    },
+    "move": {
+      "action": "Changer de parent…",
+      "title": "Changer de parent : {kind} {name}",
+      "motive": "Changement de parent : {kind} {name} → {to}",
+      "cycle": "Cible refusée : {target} est l'objet déplacé ou l'un de ses descendants.",
+      "incompatible": "Cible refusée : {target} ne peut pas en être le parent.",
+      "forbidden": "Droit manquant : il faut {permission}.",
+      "dated": "Lecture datée : revenez au présent pour changer de parent.",
+      "root": "la racine",
+      "choose": "Choisissez une cible de la liste : seules les cibles valides y sont.",
+      "noVersion": "Rien n'est envoyé : la version de l'objet n'a pas pu être lue. Réessayez.",
+      "unsimulated": "Ajouté au brouillon : {what}. Sa simulation n'a pas pu être faite.",
+      "keptRefused": "Ajouté au brouillon : {what}. La simulation le refuse ; l'opération reste au brouillon, une autre cible choisie ici la remplace."
     }
   }
 }

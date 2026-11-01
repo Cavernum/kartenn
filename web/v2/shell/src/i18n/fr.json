@@ -9,9 +9,6 @@
     "pendingTitle": "Écran à venir",
     "pending": "Cet écran arrive avec la suite du nouveau shell.",
     "noSelection": "Aucune sélection : choisir une ligne ou un nœud en montre ici le détail.",
-    "draftEmpty": "Aucune opération dans le brouillon actif.",
-    "draftCount": "Le brouillon actif compte {n} opération. | Le brouillon actif compte {n} opérations.",
-    "draftsPage": "Ouvrir la page des brouillons",
     "detail": "Détail",
     "draft": "Brouillon"
   },

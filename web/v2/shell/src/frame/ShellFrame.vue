@@ -26,10 +26,14 @@
 //
 // The edit panel of a kind (task 12) in the Détail tab, when a view asks for it.
 //
-// Left to the next tasks: the content of the draft tab (task 14); the counters of the
-// sidebar (tasks 11, 14).
-import { drafts as draftStore, type DraftList } from "@kartenn/sdk";
-import { commandRegistry, shortcutRegistry } from "@kartenn/sdk/host";
+// The draft (task 14): the active draft of the tab in the Brouillon tab, its operations and
+// simulation, its foot (motive, split button) in the foot of the panel, each in a chunk of
+// its own; a draft that left the tab said by a toast; the counter of « À instruire » in the
+// sidebar, read again on the event `changeset`.
+//
+// Left to the next tasks: the other counters of the sidebar (anomalies, inference).
+import { drafts as draftStore, reads, type DraftList } from "@kartenn/sdk";
+import { commandRegistry, draftHost, setDraftTitle, shortcutRegistry } from "@kartenn/sdk/host";
 import {
   Breadcrumb,
   CommandPalette,
@@ -69,7 +73,7 @@ import {
 } from "vue";
 import { useI18n } from "vue-i18n";
 import { RouterView, useRoute, useRouter } from "vue-router";
-import { useQuery } from "../data/query.ts";
+import { useInfiniteQuery, useQuery } from "../data/query.ts";
 import { changeLocale, LOCALE_NAMES, LOCALES, type Locale } from "../i18n/index.ts";
 import { pluginLetters, pluginSpaces, registerLetters } from "../plugins/navigation.ts";
 import { refuseLetters, usePlugins } from "../plugins/registry.ts";
@@ -104,7 +108,7 @@ import { runnable } from "../shortcuts/view.ts";
 import { closeEditWithPage, editRequest } from "../views/edit/panel.ts";
 import { crumbsOf } from "./breadcrumb.ts";
 import { keepPanel, readPanel, useSettings, THEMES, DENSITIES } from "./settings.ts";
-import { EDITS, locate, sidebarGroups, SPACE_ORDER } from "./spaces.ts";
+import { EDITS, locate, pageCount, sidebarGroups, SPACE_ORDER } from "./spaces.ts";
 
 provideLink(KLink);
 providePortalTarget("#k-layers");
@@ -127,7 +131,17 @@ const PANEL = "k-panel";
 // of each (task 16), the entry and space of the current page.
 const plugins = usePlugins();
 const spaces = computed(() => pluginSpaces(plugins.value));
-const groups = computed(() => sidebarGroups(session.value.rights, t, spaces.value));
+// « À instruire » counts the proposals of its first page (REQ-021-10), read again on the
+// event `changeset`, never by polling.
+const proposals = useInfiniteQuery(() => ({
+  ...reads.list("/v1/proposals"),
+  enabled: session.value.me !== null && session.value.rights.has("core.changeset.read"),
+}));
+const badges = computed(() => {
+  const first = proposals.data.value?.pages[0]?.data;
+  return { proposals: pageCount(first?.items.length ?? 0, !!first?.links?.next) };
+});
+const groups = computed(() => sidebarGroups(session.value.rights, t, spaces.value, badges.value));
 const located = computed(() => locate(route.path, spaces.value));
 /** Every space but the current one starts closed: the sidebar stays short. */
 const closed = computed(() => SPACE_ORDER.filter((id) => id !== located.value?.space.id));
@@ -241,6 +255,36 @@ function toggleDraft(): void {
     panelTab.value = "draft";
   }
 }
+
+// The draft tab (task 14, REQ-021-6, 11): its operations and its foot, each read when the
+// tab first shows them; the title of a draft the edits create, in the language of the
+// shell; a draft that left the tab (deleted, submitted, taken over elsewhere) said once.
+// The draft on its page (`/drafts/:id`) is not shown a second time in the panel.
+const DraftOperations = defineAsyncComponent(() => import("../draft/DraftOperations.vue"));
+const DraftSubmit = defineAsyncComponent(() => import("../draft/DraftSubmit.vue"));
+const draftOnPage = computed(
+  () =>
+    activeDraft.value !== null && route.path === `/drafts/${encodeURIComponent(activeDraft.value)}`,
+);
+const stamp = computed(
+  () => new Intl.DateTimeFormat(i18n.locale.value, { dateStyle: "short", timeStyle: "short" }),
+);
+setDraftTitle(() => t("drafts.newTitle", { when: stamp.value.format(new Date()) }));
+// A plugin's `draft.add` opens the draft, as its contract promises (the shell's own edits
+// go through `addToActiveDraft` and say themselves where they were made).
+draftHost.onAdd(() => openDraft());
+onBeforeUnmount(() => {
+  setDraftTitle(null);
+  draftHost.onAdd(null);
+});
+onBeforeUnmount(
+  draftStore.onGone((gone) => {
+    // A write refused 404 says it where it was asked (its codes there); the stream, here.
+    if (gone.active && gone.cause === "event") {
+      toasts.show({ tone: "info", title: t("drafts.gone") });
+    }
+  }),
+);
 
 // The dated context: the date pill applies a period once the API reads at it (its refusal
 // back on the field, a new object each time), the band goes back to the present and gives
@@ -775,9 +819,14 @@ onBeforeUnmount(
             <p v-else class="k-frame__muted">{{ t("app.noSelection") }}</p>
           </template>
           <template #draft>
-            <p class="k-frame__muted">
-              {{ draftCount === 0 ? t("app.draftEmpty") : t("app.draftCount", draftCount) }}
-            </p>
+            <p v-if="draftOnPage" class="k-frame__muted">{{ t("drafts.onPage") }}</p>
+            <DraftOperations v-else :id="activeDraft" />
+          </template>
+          <template #footer="{ tab: shown }">
+            <DraftSubmit
+              v-if="shown === 'draft' && activeDraft && !draftOnPage"
+              :id="activeDraft"
+            />
           </template>
         </SidePanel>
       </div>
