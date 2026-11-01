@@ -157,8 +157,36 @@ describe("canMove (REQ-021-32)", () => {
       canMove(machine("m"), cluster("c"), env({}, { lacking: ["machines.cluster.edit"] })),
     ).toEqual({ ok: false, refusal: "forbidden", permission: "machines.cluster.edit" });
     expect(
-      canMove(machine("m"), cluster("c"), env({}, { lacking: ["machines.machine.edit"] })),
-    ).toMatchObject({ refusal: "forbidden", permission: "machines.machine.edit" });
+      canMove(machine("m"), cluster("c"), env({}, { lacking: ["machines.edit"] })),
+    ).toMatchObject({ refusal: "forbidden", permission: "machines.edit" });
+  });
+
+  it("moves a machine under the codes of its module, its right named as the 018 names it", () => {
+    // A container on a virtual machine on a physical one (M5).
+    const chain = env({ container: "vm", vm: "physical", physical: "c" });
+    const invalid = { ok: false, refusal: "cycle", code: "machines.host.invalid" };
+    // Onto itself, onto a machine it hosts directly or through another.
+    expect(canMove(machine("vm"), machine("vm"), chain)).toEqual(invalid);
+    expect(canMove(machine("physical"), machine("vm"), chain)).toEqual(invalid);
+    expect(canMove(machine("physical"), machine("container"), chain)).toEqual(invalid);
+    // Not a host of a type the contract admits: the same rule.
+    expect(canMove(machine("vm"), { id: "s", type: "core.site" }, chain)).toEqual({
+      ok: false,
+      refusal: "incompatible",
+      code: "machines.host.invalid",
+    });
+    // A cluster, another machine, none: accepted here; the kinds of the pair and the site
+    // of the host (`machines.host.site_mismatch`) are the server's to judge.
+    expect(canMove(machine("container"), cluster("other"), chain)).toEqual({ ok: true });
+    expect(canMove(machine("vm"), machine("elsewhere"), chain)).toEqual({ ok: true });
+    expect(canMove(machine("vm"), null, chain)).toEqual({ ok: true });
+    // The resource bears the name of its module: `machines.edit`, not `machines.machine.edit`.
+    const asked: string[] = [];
+    canMove(machine("vm"), cluster("c"), {
+      ...chain,
+      can: (permission) => (asked.push(permission), true),
+    });
+    expect(asked).toEqual(["machines.edit", "machines.cluster.edit"]);
   });
 
   it("refuses every move off the present", () => {
@@ -169,7 +197,7 @@ describe("canMove (REQ-021-32)", () => {
   });
 
   it("gives the first refusal: cycle, then type, then rights, then the date", () => {
-    const all = { lacking: ["core.entity.edit", "machines.machine.edit"], present: false };
+    const all = { lacking: ["core.entity.edit", "machines.edit"], present: false };
     // Everything wrong at once: the cycle first.
     expect(canMove(machine("h"), machine("g"), env({ g: "h" }, all))).toMatchObject({
       refusal: "cycle",
@@ -180,10 +208,10 @@ describe("canMove (REQ-021-32)", () => {
     });
     // An admitted type: the rights, the node's before the target's — both lacking, the
     // node's named; the node's held, the target's.
-    const neither = { lacking: ["machines.machine.edit", "machines.cluster.edit"] };
+    const neither = { lacking: ["machines.edit", "machines.cluster.edit"] };
     expect(canMove(machine("h"), cluster("c"), env({}, neither))).toMatchObject({
       refusal: "forbidden",
-      permission: "machines.machine.edit",
+      permission: "machines.edit",
     });
     expect(
       canMove(machine("h"), cluster("c"), env({}, { lacking: ["machines.cluster.edit"] })),

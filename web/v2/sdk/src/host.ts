@@ -7,6 +7,8 @@
  * contract: plugins never import it.
  */
 
+import type { MoveSubject } from "./data/moves.ts";
+import { moveInDraft, type DraftMove } from "./draft.ts";
 import { hooks } from "./hooks.ts";
 import { drafts, stream, writes } from "./instance.ts";
 
@@ -46,6 +48,17 @@ export function addToActiveDraft(
   operations: Parameters<typeof drafts.addToActive>[0],
 ): ReturnType<typeof drafts.addToActive> {
   return drafts.addToActive(operations);
+}
+
+/**
+ * The shell's own change of parent in the active draft, then its simulation: as a plugin's
+ * `draft.move`, without its promise to open the draft (REQ-021-33).
+ */
+export function moveInActiveDraft(
+  op: Parameters<typeof drafts.addToActive>[0][number],
+  node: MoveSubject,
+): Promise<DraftMove> {
+  return moveInDraft(op, node, drafts.addToActive);
 }
 
 /** The title of the drafts a plugin's `draft.add` creates, in the shell's language. */

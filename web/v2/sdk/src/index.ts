@@ -38,7 +38,7 @@ export type { Context, Locale, ObjectRef, ObjectType, TimeContext, User } from "
 export { definePlugin } from "./extensions.ts";
 export type { Extension, ExtensionPoint, PluginDefinition, PluginHandle } from "./extensions.ts";
 export { draft } from "./draft.ts";
-export type { Operation } from "./draft.ts";
+export type { DraftMove, Operation } from "./draft.ts";
 export { keys, normalize, timeKey } from "./data/keys.ts";
 export type {
   FilterValue,
