@@ -288,13 +288,16 @@ export function createQueries({ client, queryClient }: CacheDeps) {
     /**
      * A read of the contract under a key of the caller, apart from the keys by path that a
      * changeset invalidates (`lists()`): the label dictionary, read again on the event
-     * `labels` only (design 021 « Filtres, libellés, codes »). Never dated.
+     * `labels` only (design 021 « Filtres, libellés, codes »). Never dated. A path with
+     * parameters or a list is refused, as by `read()`: its key would not say what it reads.
      */
-    keyed<P extends PathsOf<"get">, K extends QueryKey>(
+    keyed<P extends Exclude<PathsOf<"get">, `${string}{${string}`>, K extends QueryKey>(
       key: K,
       path: P,
       options: { query?: QueryOf<P>; family: Family },
     ): ReadOptions<Success<NonNullable<paths[P]["get"]>>, K> {
+      if (path.includes("{")) throw new TypeError(`${path} has parameters: reads.read()`);
+      if (FILTERS[path]) throw new TypeError(`${path} is a list: reads.list()`);
       return read(key, path + search({ ...options.query }), options.family);
     },
 

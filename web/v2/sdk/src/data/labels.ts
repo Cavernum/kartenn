@@ -13,14 +13,34 @@ import type { components } from "../api/schema";
 import { translate } from "../i18n.ts";
 import type { Entry, Queries, ReadOptions } from "./cache.ts";
 
+/** The labels of a space: a label by key, or (closed lists) by property then by value. */
+export type Space = Record<string, string | Record<string, string>>;
+
 /**
  * A dictionary of labels, as `GET /v1/labels` serves it (018, « Dictionnaire »; schema
- * `Labels`), its spaces typed: the contract leaves them an open map.
+ * `Labels`), its spaces typed: the contract leaves them an open map, which `isDictionary`
+ * checks on every answer.
  */
 export type Dictionary = Omit<components["schemas"]["Labels"], "spaces"> & {
-  /** By space: a label by key, or (closed lists) by property then by value. */
-  spaces: Record<string, Record<string, string | Record<string, string>>>;
+  spaces: Record<string, Space>;
 };
+
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+const isLabels = (value: unknown) =>
+  isObject(value) && Object.values(value).every((label) => typeof label === "string");
+
+/** Whether a body is a dictionary: its revision, and spaces of labels or lists of labels. */
+export function isDictionary(body: unknown): body is Dictionary {
+  if (!isObject(body) || typeof body["revision"] !== "string" || !isObject(body["spaces"])) {
+    return false;
+  }
+  return Object.values(body["spaces"]).every(
+    (space) =>
+      isObject(space) &&
+      Object.values(space).every((entry) => typeof entry === "string" || isLabels(entry)),
+  );
+}
 
 /** The key of the dictionary of a language: by language only, its revision in its body. */
 export type DictionaryKey = readonly ["v1", "labels", string];
@@ -52,11 +72,21 @@ export interface LabelsDeps {
 export function createLabels({ queryClient, reads, locale }: LabelsDeps) {
   // `lang` prevails over `Accept-Language` (018); the present, whatever the dates of the
   // context: the key is the language alone (design 021).
-  const query = (lang: string): ReadOptions<Dictionary, DictionaryKey> =>
-    reads.keyed(["v1", "labels", lang] as const, "/v1/labels", {
+  // The body checked, the entry kept as it is (a 304 gives back the same object).
+  const query = (lang: string): ReadOptions<Dictionary, DictionaryKey> => {
+    const read = reads.keyed(["v1", "labels", lang] as const, "/v1/labels", {
       query: { lang },
       family: "labels",
     });
+    return {
+      ...read,
+      queryFn: async (context) => {
+        const entry: Entry<unknown> = await read.queryFn(context);
+        if (!isDictionary(entry.data)) throw new TypeError("GET /v1/labels: not a dictionary");
+        return entry as Entry<Dictionary>;
+      },
+    };
+  };
 
   return {
     /** The query of the dictionary of a language. */

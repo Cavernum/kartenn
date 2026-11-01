@@ -4,7 +4,7 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { createInvalidation } from "../src/data/invalidate.ts";
-import { createLabels, lookup, type Dictionary } from "../src/data/labels.ts";
+import { createLabels, isDictionary, lookup, type Dictionary } from "../src/data/labels.ts";
 import { addCatalog } from "../src/i18n.ts";
 import { resetContext, setContext } from "../src/context.ts";
 import { P1, fakeCache, json, notModified } from "./helpers.ts";
@@ -76,6 +76,24 @@ describe("labels (REQ-021-19, spec 018)", () => {
     expect(s.labels.label("value", "policy.environment/prod")).toBe("Prod.");
     expect(s.queryClient.getQueryState(object.queryKey)?.isInvalidated).toBe(false);
     expect(s.seen.filter((r) => r.url.startsWith("/v1/prefixes"))).toHaveLength(1);
+  });
+
+  it("checks the body: an answer that is not a dictionary fails, the catalogs then", async () => {
+    const cache = fakeCache(() => json({ revision: "r1", spaces: { kind: ["Préfixe"] } }));
+    const labels = createLabels({ ...cache, locale: () => "fr" });
+    await expect(
+      cache.queryClient.fetchQuery({ ...labels.query("fr"), retry: false }),
+    ).rejects.toThrow(/not a dictionary/);
+    expect(isDictionary(dictionary("r1", "Production"))).toBe(true);
+    expect(isDictionary({ revision: "r1", spaces: { value: { p: { v: 1 } } } })).toBe(false);
+    expect(isDictionary({ spaces: {} })).toBe(false);
+  });
+
+  it("a keyed read refuses a path with parameters and a list, as read() does", () => {
+    const { reads } = setup();
+    const keyed = reads.keyed as (key: unknown[], path: string, o: object) => unknown;
+    expect(() => keyed(["k"], "/v1/prefixes/{id}", { family: "object" })).toThrow(/parameters/);
+    expect(() => keyed(["k"], "/v1/prefixes", { family: "list" })).toThrow(/is a list/);
   });
 
   it("a changeset reads every list again, never the dictionary: its key is not a path", async () => {
