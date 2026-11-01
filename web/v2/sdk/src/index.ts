@@ -67,6 +67,13 @@ export { collectionOf, qualify, registerType } from "./data/types.ts";
 export { filterModel, filterSearch, parseFilters } from "./data/filters.ts";
 export type { Declaration, FilterField, Rejected } from "./data/filters.ts";
 export type { QueryClient } from "@tanstack/query-core";
+/**
+ * The observers of the cache, for a plugin without a framework (REQ-021-25): one holds its
+ * query in the shared cache, reads it again when it is invalidated (a write, an event of
+ * the stream) and tells its listener each new state.
+ */
+export { InfiniteQueryObserver, QueryObserver } from "@tanstack/query-core";
+export type { InfiniteQueryObserverResult, QueryObserverResult } from "@tanstack/query-core";
 export { mergePatch } from "./data/write.ts";
 export { lookup } from "./data/labels.ts";
 export type { Dictionary } from "./data/labels.ts";

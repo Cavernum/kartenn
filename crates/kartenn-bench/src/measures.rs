@@ -192,6 +192,21 @@ impl Selection {
             .any(|(m, runs)| *runs && m.name.starts_with(prefix))
     }
 
+    /// The name of the bench.
+    pub fn bench(&self) -> &'static str {
+        self.bench.name
+    }
+
+    /// Whether a measure « de préparation » runs: the run prepares its database rather
+    /// than copy a template (ADR 0041, decision 2).
+    pub fn prepares(&self) -> bool {
+        self.bench
+            .measures
+            .iter()
+            .zip(&self.runs)
+            .any(|(m, runs)| *runs && m.preparation)
+    }
+
     /// Whether every measure runs.
     pub fn is_all(&self) -> bool {
         self.chosen.iter().all(|c| *c)
@@ -403,6 +418,26 @@ telemetry.audit-volume
             .select(Some("core.vlan-read"))
             .unwrap();
         assert!(core.any("core.vlan-") && !core.any("core.machines-"));
+    }
+
+    #[test]
+    fn a_measure_of_preparation_forces_the_preparation() {
+        let props = bench("props").unwrap();
+        assert_eq!(props.select(None).unwrap().bench(), "props");
+        assert!(props.select(None).unwrap().prepares(), "the whole bench");
+        assert!(
+            props
+                .select(Some("props.origins-every-root"))
+                .unwrap()
+                .prepares()
+        );
+        assert!(
+            !props
+                .select(Some("props.origins-3-domains"))
+                .unwrap()
+                .prepares()
+        );
+        assert!(!bench("core").unwrap().select(None).unwrap().prepares());
     }
 
     #[test]

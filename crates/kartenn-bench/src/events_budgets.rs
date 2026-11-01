@@ -15,7 +15,7 @@ use std::fmt::Write as _;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, bail};
+use anyhow::bail;
 use kartenn_auth::keys::KeyRing;
 use kartenn_core::objects::{AddressUsage, Nature};
 use kartenn_rest::events::cursor::Position;
@@ -32,8 +32,10 @@ use sqlx::PgPool;
 use sqlx::types::Uuid;
 use tokio::sync::watch;
 
+use crate::core_budgets::author;
 use crate::measures::{Bench, Measure, Selection};
 use crate::props::{Budget, p95, progress, verdict};
+use crate::template::{self, Reuse};
 
 const READER_OVERHEAD: &str = "events.reader-overhead";
 const LATENCY: &str = "events.latency";
@@ -119,10 +121,12 @@ fn rss_kib() -> u64 {
         .map_or(0, |pages| pages * 4)
 }
 
-async fn person(pool: &PgPool, scope: (&str, Option<Uuid>)) -> anyhow::Result<Uuid> {
+/// The subscriber `r<i>`, a reader of `scope`.
+async fn person(pool: &PgPool, i: usize, scope: (&str, Option<Uuid>)) -> anyhow::Result<Uuid> {
     let identity: Uuid = sqlx::query_scalar(
-        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'r') RETURNING id",
+        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'r' || $1) RETURNING id",
     )
+    .bind(i64::try_from(i)?)
     .fetch_one(pool)
     .await?;
     let role = Uuid::now_v7();
@@ -266,26 +270,15 @@ fn percentile(mut samples: Vec<Duration>, per: usize) -> Duration {
     samples.get(i).copied().unwrap_or_default()
 }
 
-/// Measures the budgets `selection` runs; returns the report and whether every one holds.
-///
-/// # Errors
-///
-/// Database or pipeline failures.
-#[allow(clippy::too_many_lines)] // one linear scenario, step by step
-pub async fn run(
-    database: &str,
-    sizes: Sizes,
-    selection: &Selection,
-) -> anyhow::Result<(String, bool)> {
-    let pool = PgPool::connect(database)
-        .await
-        .with_context(|| format!("connecting to {database}"))?;
-    kartenn_store_pg::MIGRATOR.run(&pool).await?;
+/// The preparation: an author, a domain, a container, a network for the addresses written,
+/// the subscribers and their bindings.
+async fn write(pool: &PgPool, sizes: Sizes) -> anyhow::Result<()> {
+    kartenn_store_pg::MIGRATOR.run(pool).await?;
     let store = PgStore::new(pool.clone());
     let author: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'bench') RETURNING id",
     )
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await?;
     apply(
         &store,
@@ -297,7 +290,7 @@ pub async fn run(
     )
     .await?;
     let domain: Uuid = sqlx::query_scalar("SELECT id FROM addressing_domain WHERE slug = 'bench'")
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await?;
     apply(
         &store,
@@ -313,7 +306,7 @@ pub async fn run(
     )
     .await?;
     let container: Uuid = sqlx::query_scalar("SELECT id FROM prefix WHERE prefix = '10.0.0.0/8'")
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await?;
     // The network of the addresses written.
     apply(
@@ -330,16 +323,47 @@ pub async fn run(
     )
     .await?;
     // The subscribers: a third read everywhere, a third the domain, a third the subtree.
-    let mut identities = Vec::new();
     for i in 0..sizes.identities.max(sizes.subjects) {
         let scope = match i % 3 {
             0 => ("global", None),
             1 => ("domain", Some(domain)),
             _ => ("prefix", Some(container)),
         };
-        identities.push(person(&pool, scope).await?);
+        person(pool, i, scope).await?;
     }
-    let mut report = String::new();
+    Ok(())
+}
+
+/// Prepares the database, or copies its template, and measures the budgets `selection`
+/// runs; returns the report and whether every one holds.
+///
+/// # Errors
+///
+/// Database or pipeline failures.
+#[allow(clippy::too_many_lines)] // one linear scenario, step by step
+pub async fn run(
+    database: &str,
+    sizes: Sizes,
+    selection: &Selection,
+    reuse: &Reuse,
+) -> anyhow::Result<(String, bool)> {
+    let (pool, mut report, _) =
+        template::prepared(database, reuse, async |pool, _| write(pool, sizes).await).await?;
+    let store = PgStore::new(pool.clone());
+    let author = author(&pool).await?;
+    let domain: Uuid = sqlx::query_scalar("SELECT id FROM addressing_domain WHERE slug = 'bench'")
+        .fetch_one(&pool)
+        .await?;
+    // The subscribers, in the order of their scopes.
+    let identities: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM person WHERE display_name ~ '^r[0-9]+$'
+          ORDER BY substr(display_name, 2)::int",
+    )
+    .fetch_all(&pool)
+    .await?;
+    if identities.len() != sizes.identities.max(sizes.subjects) {
+        bail!("{} subscribers prepared", identities.len());
+    }
     let mut budgets = Vec::new();
     let mut n: u32 = 0;
     let mut next = || {

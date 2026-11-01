@@ -88,8 +88,9 @@ describe("builds of the shell", () => {
         expect(digest, url).toBe(sri(join(outDir, url)));
       for (const url of Object.values(map.imports)) expect(map.integrity[url]).toBeDefined();
 
+      // Named by its specifier, for the shadow roots of the plugins (`handle.styles()`).
       const sheet =
-        /<link rel="stylesheet" crossorigin href="(\/assets\/ui-[^"]+\.css)" integrity="([^"]+)"/.exec(
+        /<link rel="stylesheet" crossorigin href="(\/assets\/ui-[^"]+\.css)" integrity="([^"]+)" data-kartenn-sheet="@kartenn\/ui\/style\.css"/.exec(
           html,
         );
       expect(sheet, "sheet of @kartenn/ui linked with its digest").not.toBeNull();

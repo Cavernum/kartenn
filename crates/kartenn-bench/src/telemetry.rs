@@ -58,6 +58,7 @@ use crate::Dataset;
 use crate::core_budgets::{new_address, prepare, unitary};
 use crate::measures::{Bench, Measure, Selection};
 use crate::props::{p95, progress};
+use crate::template::Reuse;
 
 const READ: &str = "telemetry.read-object";
 const FILTERED_PAGE: &str = "telemetry.filtered-page";
@@ -203,8 +204,9 @@ pub async fn run(
     seed: u64,
     small: bool,
     selection: &Selection,
+    reuse: &Reuse,
 ) -> anyhow::Result<(String, bool)> {
-    let prepared = prepare(database, data, seed).await?;
+    let prepared = prepare(database, data, seed, reuse).await?;
     let mut report = prepared.report;
     let mut ok = true;
     if workload_runs(selection) {

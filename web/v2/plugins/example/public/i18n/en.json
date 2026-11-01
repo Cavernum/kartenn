@@ -1,1 +1,39 @@
-{}
+{
+  "nav": { "overview": "Example" },
+  "loading": "Loading…",
+  "failed": "Cannot read",
+  "code": "Code",
+  "request": "Request",
+  "required": "(required)",
+  "network": "The server does not answer.",
+  "view": {
+    "title": "Example plugin",
+    "body": "This plugin exercises the SDK 1.0 without a framework, in its shadow root with the style sheet of the shell's components: a view, a tab, a panel, a column, an action and a tile of the home page.",
+    "present": "You are looking at the repository in the present.",
+    "dated": "You are looking at the repository at another date than the present.",
+    "prefixes": "IPv4 prefixes",
+    "how": "Read through the shared cache of the SDK, read again as soon as a change invalidates them.",
+    "readAt": "List read on {date}.",
+    "more": "First page of the list only.",
+    "empty": "No IPv4 prefix",
+    "emptyText": "The repository holds none at this date."
+  },
+  "error": "Error: ",
+  "tab": { "details": "Example", "prefix": "Prefix", "domain": "Domain" },
+  "panel": { "title": "Example summary", "type": "Type", "id": "Identifier" },
+  "column": { "usage": "Usage (example)", "reserved": "reserved", "other": "other" },
+  "action": {
+    "label": "Add an address to the draft",
+    "address": "Address",
+    "hint": "An IPv4 or IPv6 address of the prefix, for example 192.0.2.20.",
+    "submit": "Add to the draft",
+    "added": "Operation added; the draft holds {n}.",
+    "failed": "Cannot add",
+    "close": "Close"
+  },
+  "widget": {
+    "counts": "Objects of the repository",
+    "prefixes": "Prefixes",
+    "addresses": "Addresses"
+  }
+}

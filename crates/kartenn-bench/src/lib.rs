@@ -26,6 +26,7 @@ pub mod props;
 pub mod rbac;
 mod stats_budgets;
 pub mod telemetry;
+pub mod template;
 pub mod vlan_budgets;
 
 /// Address family of a generated value.

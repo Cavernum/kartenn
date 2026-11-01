@@ -47,6 +47,11 @@
 //! (`<bench>.<measure>`, those « de préparation », their prerequisites);
 //! `kartenn-bench <bench> <database-url> <seed> [small] --only <m1,m2>` runs the preparation,
 //! then those measures and their prerequisites only.
+//!
+//! Prepared database (ADR 0041, decision 2): with `--template`, which the `bench-*` scripts
+//! pass on the bench instance, the prepared database becomes the template
+//! `kartenn_bench_tpl_<bench>_<fingerprint>` and the run measures on a copy of it; the next
+//! run with the same fingerprint copies it instead of preparing ([`kartenn_bench::template`]).
 
 use std::fs::File;
 use std::io::BufWriter;
@@ -55,13 +60,17 @@ use std::time::Instant;
 
 use anyhow::{Context, bail};
 use kartenn_bench::measures::{Bench, Selection, bench};
+use kartenn_bench::template::Reuse;
 use kartenn_bench::{Scale, generate};
 
-/// What follows the seed: `small`, and `--only <m1,m2>` (or `--only=<m1,m2>`), in any order.
+/// What follows the seed: `small`, `--only <m1,m2>` (or `--only=<m1,m2>`) and `--template`,
+/// in any order.
 #[derive(Debug, Default, PartialEq, Eq)]
 struct Options {
     small: bool,
     only: Option<String>,
+    /// Keep the prepared database as a template and measure on a copy (ADR 0041).
+    template: bool,
 }
 
 impl Options {
@@ -74,10 +83,16 @@ impl Options {
                     options.small = true;
                     continue;
                 }
+                "--template" => {
+                    options.template = true;
+                    continue;
+                }
                 "--only" => args.next().context("--only <m1,m2>")?.clone(),
                 other => match other.strip_prefix("--only=") {
                     Some(names) => names.to_owned(),
-                    None => bail!("unexpected argument `{other}`: [small] [--only <m1,m2>]"),
+                    None => bail!(
+                        "unexpected argument `{other}`: [small] [--only <m1,m2>] [--template]"
+                    ),
                 },
             };
             if options.only.replace(only).is_some() {
@@ -92,6 +107,23 @@ impl Options {
         bench(name)
             .with_context(|| format!("no bench `{name}`"))?
             .select(self.only.as_deref())
+    }
+
+    /// How the run gets its prepared database: the template of `selection` for `seed` and
+    /// the `volumes` of `level`, used under `--template`.
+    fn reuse(
+        &self,
+        selection: &Selection,
+        seed: u64,
+        level: Level,
+        volumes: &impl std::fmt::Debug,
+    ) -> Reuse {
+        Reuse::new(
+            self.template,
+            selection,
+            seed,
+            &format!("{level:?} {volumes:?}"),
+        )
     }
 }
 
@@ -167,6 +199,7 @@ impl Level {
     }
 }
 
+#[allow(clippy::too_many_lines)] // one arm per command
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.as_slice() {
@@ -181,26 +214,34 @@ fn main() -> anyhow::Result<()> {
             let level = Level::of(options.small)?;
             level.announce(&selection);
             let data = generate(seed, level.scale());
+            let reuse = options.reuse(&selection, seed, level, &level.scale());
             let runtime = tokio::runtime::Runtime::new()?;
-            let s = &selection;
+            let (s, r) = (&selection, &reuse);
             let (report, ok) = match command.as_str() {
-                "props" => runtime.block_on(kartenn_bench::props::run(database, &data, seed, s))?,
-                "rbac" => runtime.block_on(kartenn_bench::rbac::run(database, &data, seed, s))?,
-                "http" => runtime.block_on(kartenn_bench::http::run(database, &data, seed, s))?,
-                "policy" => runtime
-                    .block_on(kartenn_bench::policy_budgets::run(database, &data, seed, s))?,
-                "flow" => {
-                    runtime.block_on(kartenn_bench::flow_budgets::run(database, &data, seed, s))?
+                "props" => {
+                    runtime.block_on(kartenn_bench::props::run(database, &data, seed, s, r))?
                 }
-                _ => {
-                    runtime.block_on(kartenn_bench::core_budgets::run(database, &data, seed, s))?
+                "rbac" => {
+                    runtime.block_on(kartenn_bench::rbac::run(database, &data, seed, s, r))?
                 }
+                "http" => {
+                    runtime.block_on(kartenn_bench::http::run(database, &data, seed, s, r))?
+                }
+                "policy" => runtime.block_on(kartenn_bench::policy_budgets::run(
+                    database, &data, seed, s, r,
+                ))?,
+                "flow" => runtime.block_on(kartenn_bench::flow_budgets::run(
+                    database, &data, seed, s, r,
+                ))?,
+                _ => runtime.block_on(kartenn_bench::core_budgets::run(
+                    database, &data, seed, s, r,
+                ))?,
             };
             level.verdict(&report, ok, "a budget is exceeded")
         }
         [command, database, seed, rest @ ..] if command == "events" => {
             // The seed draws nothing here; it is checked as elsewhere.
-            let _: u64 = seed.parse().context("seed must be an unsigned integer")?;
+            let seed: u64 = seed.parse().context("seed must be an unsigned integer")?;
             let options = Options::parse(rest)?;
             let selection = options.selection(command)?;
             let level = Level::of(options.small)?;
@@ -210,8 +251,9 @@ fn main() -> anyhow::Result<()> {
                 Level::Reduced => kartenn_bench::events_budgets::Sizes::REDUCED,
                 Level::Small => kartenn_bench::events_budgets::Sizes::SMALL,
             };
+            let reuse = options.reuse(&selection, seed, level, &sizes);
             let (report, ok) = tokio::runtime::Runtime::new()?.block_on(
-                kartenn_bench::events_budgets::run(database, sizes, &selection),
+                kartenn_bench::events_budgets::run(database, sizes, &selection, &reuse),
             )?;
             level.verdict(&report, ok, "a budget is exceeded")
         }
@@ -233,6 +275,7 @@ fn main() -> anyhow::Result<()> {
             let level = Level::of(options.small)?;
             level.announce(&selection);
             let data = generate(seed, level.scale());
+            let reuse = options.reuse(&selection, seed, level, &level.scale());
             let runtime = tokio::runtime::Runtime::new()?;
             let (report, ok) = runtime.block_on(kartenn_bench::telemetry::run(
                 database,
@@ -240,6 +283,7 @@ fn main() -> anyhow::Result<()> {
                 seed,
                 options.small,
                 &selection,
+                &reuse,
             ))?;
             level.verdict(&report, ok, "an overhead is exceeded")
         }
@@ -261,7 +305,7 @@ fn main() -> anyhow::Result<()> {
         }
         _ => bail!(
             "usage: kartenn-bench gen <seed> <output-dir> [small] \
-             | props|core|rbac|http|policy|flow|events|telemetry <database-url> <seed> [small] [--only <m1,m2>] \
+             | props|core|rbac|http|policy|flow|events|telemetry <database-url> <seed> [small] [--only <m1,m2>] [--template] \
              | props|core|rbac|http|policy|flow|events|telemetry --list [--only <m1,m2>] \
              | seed <database-url> <seed> [small]"
         ),
@@ -339,10 +383,22 @@ mod tests {
         ] {
             assert_eq!(
                 parse(args).unwrap(),
-                Options { small, only: names },
+                Options {
+                    small,
+                    only: names,
+                    template: false
+                },
                 "{args:?}"
             );
         }
+        assert_eq!(
+            parse(&["small", "--template", "--only", "a"]).unwrap(),
+            Options {
+                small: true,
+                only: only("a"),
+                template: true
+            }
+        );
         for args in [&["--only"][..], &["large"], &["--only", "a", "--only=b"]] {
             assert!(parse(args).is_err(), "{args:?}");
         }

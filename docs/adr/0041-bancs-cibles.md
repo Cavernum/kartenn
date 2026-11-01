@@ -42,6 +42,58 @@ Conséquences constatées les 2026-10-30 et 31 :
      cloner les fichiers sur btrfs (`file_copy_method = clone`, à vérifier à la tâche
      2). Sinon, il prépare puis enregistre le modèle.
    - Trois modèles au plus sont gardés par banc ; le plus ancien est supprimé.
+   - Précisé à la tâche 2 (session principale) : l'exactitude prime sur la réutilisation,
+     la bissection (décision 5) en dépend. L'empreinte couvre donc aussi les sources
+     (`Cargo.toml`, `src/`, `migrations/`) des crates du workspace par lesquels passe la
+     préparation du banc, avec leurs dépendances du workspace (`kartenn-core`,
+     `kartenn-service`, `kartenn-store-pg` pour tous ; `kartenn-auth`, `kartenn-rest`,
+     `kartenn-server` pour `http` ; les modules machines, politique et flux pour
+     `policy` et `flow`), et `Cargo.lock`. Un test vérifie que chaque crate que nomment
+     les sources d'une préparation y figure. Coût : un modèle est refait dès qu'un de ces
+     crates change, même sans effet sur la base préparée ; une bissection sur un
+     intervalle qui touche le cœur reprépare donc à presque chaque étape.
+   - La préparation finit par `VACUUM (ANALYZE)` : carte de visibilité et statistiques
+     sont dans le modèle. La copie est lue avant les mesures (`pg_prewarm` si la base a
+     l'extension, sinon lecture séquentielle de ses tables), pour qu'elles partent à
+     chaud comme sur la base préparée. Sur l'instance des bancs, le script `bench` crée
+     `pg_prewarm` dans `template1` (superutilisateur par le socket, idempotent, sans
+     redémarrage) : chaque base préparée, donc chaque modèle, l'a, et la copie relit
+     tables et index. Sans index réchauffés, le changeset ≤ 10⁴ de `props` doublait sur
+     copie en réduit (0,65 à 0,86 s contre 0,31 à 0,36 s) ; avec, il reste 0,44 à 0,45 s
+     contre 0,31 à 0,38 s, les deux autres mesures sont égales à 5 % près. Le reste ne
+     tient ni au cache (copie réchauffée) ni au clonage btrfs (une vraie copie,
+     `file_copy_method = copy`, donne 0,40 à 0,42 s) : `CREATE DATABASE … FILE_COPY`
+     fait un point de contrôle juste avant la copie, et la première mesure qui écrit
+     paie les images de page complètes (`full_page_writes`) de chaque page qu'elle
+     touche. Un `CHECKPOINT` ajouté avant les mesures de la base préparée sans modèle la
+     porte à 0,38 à 0,45 s. La mesure dépend donc du dernier point de contrôle, avec ou
+     sans modèle. La version de forme de l'empreinte (2) fait refaire les modèles
+     d'avant.
+   - Les mesures partent donc d'un point de contrôle frais, des deux côtés : le
+     programme lance `CHECKPOINT` après la préparation (base préparée sans modèle) ou
+     après la copie et son réchauffement, avant la première mesure. C'est le pire cas
+     des images de page complètes, le même pour une copie et pour une base préparée.
+     Le script `bench` donne `pg_checkpoint` à `kartenn` sur l'instance des bancs
+     (superutilisateur par le socket, idempotent) ; ailleurs, sans ce droit, le programme
+     le dit sur sa sortie d'erreur et mesure depuis le dernier point de contrôle du
+     serveur. La ligne `INFO checkpoint before the measures` du rapport dit lequel. Les lignes du rapport écrites par la préparation
+     sont gardées dans le commentaire du modèle et rendues par chaque copie : deux
+     passages de même empreinte rendent les mêmes lignes.
+   - Vérifié à la tâche 2 : `file_copy_method` est un réglage de contexte `user`. Le
+     programme le pose par session (`SET file_copy_method = clone`) avant la copie, sans
+     toucher à la configuration de l'instance ni la redémarrer. Les données de
+     l'instance des bancs sont sur btrfs : la copie clone les fichiers
+     (`copy_file_range`), et un modèle ne partage que ses blocs avec ses copies.
+   - Un modèle n'accepte aucune connexion (`ALLOW_CONNECTIONS false`). Avant de
+     renommer ou de copier, le programme attend jusqu'à 10 s qu'aucun client
+     (`client backend`) ne reste connecté à la base ; les processus du serveur
+     (autovacuum…) sont laissés au serveur. L'erreur nomme les clients restés. Le
+     programme refuse `--template` hors d'une base `kartenn_bench…`. Ce qu'une mesure tire de la
+     préparation (identifiants…) est relu dans la copie, au premier passage comme aux
+     suivants : les deux mesurent sur une copie, de la même façon.
+   - Le nettoyage ne supprime que les bases nommées comme les modèles du banc
+     (`kartenn_bench_tpl_<banc>_` suivi de 16 chiffres hexadécimaux). Les scripts
+     `bench-*` ne gardent de modèles que sur l'instance des bancs (port 5433).
 
 3. **Mesures touchées par une modification.** Une table du crate `kartenn-bench` associe
    chaque mesure aux chemins du dépôt qu'elle exerce.
@@ -99,3 +151,20 @@ Conséquences constatées les 2026-10-30 et 31 :
 - L'historique est propre à la machine. Il ne vaut pas mesure de budget pour une
   validation : seul compte le passage pleine échelle consigné dans le design de la spec.
 - Complète l'ADR 0032 sans le remplacer : même instance, même verrou, mêmes scripts.
+
+### Coût d'un modèle (tâche 2)
+
+`bench-core 42 --only core.read-object` sur l'instance des bancs (btrfs, PostgreSQL 18.6),
+mesuré le 2026-10-31. La copie du premier passage suit la préparation ; celle des
+passages suivants la remplace. La taille est `pg_database_size` ; le disque propre est la
+part exclusive donnée par `btrfs filesystem du`, le reste étant partagé avec la copie.
+
+| Échelle  | Préparation | Copie, premier passage | Copie, passages suivants | Taille  | Disque propre du modèle |
+| -------- | ----------- | ---------------------- | ------------------------ | ------- | ----------------------- |
+| réduite  | 10,6 s      | 2,1 s                  | 0,35 à 0,84 s            | 201 Mio | 0 o (201 Mio partagés)  |
+| complète | à mesurer   | à mesurer              | à mesurer                | à mesurer | à mesurer             |
+| disque total : 3 modèles × 8 bancs, pleine échelle | — | — | — | à mesurer | à mesurer |
+
+La ligne pleine échelle et le disque total reviennent à la session principale (aucun
+banc pleine échelle par un agent). Les chiffres réduits ci-dessus précèdent le
+`VACUUM (ANALYZE)` final et le réchauffement de la copie.

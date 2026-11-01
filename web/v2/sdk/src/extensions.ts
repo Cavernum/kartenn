@@ -43,8 +43,37 @@ export interface PluginHandle {
   /** The key under the namespace of the plugin (`<name>.<key>`). */
   t(key: string, params?: Record<string, unknown>): string;
   format: { dateTime(iso: string): string; number(n: number): string; timeZone: string };
-  /** Adds a style sheet of the plugin to a shadow root, with its digest. */
+  /**
+   * Adds a style sheet to a shadow root, with its digest: a file of the plugin (`path`
+   * relative to its directory), or a sheet the shell shares, named by its specifier
+   * (`@kartenn/ui/style.css`, REQ-021-27). Sheets apply in the order of the calls.
+   */
   styles(root: ShadowRoot, path: string): Promise<void>;
+}
+
+/**
+ * The sheets the shell shares with the shadow roots of the plugins: the `<link>` of its
+ * page that carries the specifier in `data-kartenn-sheet` (written by its build, with the
+ * digest of the file).
+ */
+export const SHARED_SHEETS: readonly string[] = ["@kartenn/ui/style.css"];
+
+/** The `href`, `integrity` and `crossorigin` of a sheet: the plugin's, or the shell's. */
+function sheetOf(
+  manifest: PluginManifest,
+  document: Document,
+  path: string,
+): Pick<HTMLLinkElement, "href" | "integrity" | "crossOrigin"> {
+  if (SHARED_SHEETS.includes(path)) {
+    const shared = [...document.querySelectorAll<HTMLLinkElement>("link[data-kartenn-sheet]")].find(
+      (link) => link.dataset["kartennSheet"] === path,
+    );
+    if (!shared?.integrity) throw new Error(`${path}: not linked by the shell`);
+    return { href: shared.href, integrity: shared.integrity, crossOrigin: shared.crossOrigin };
+  }
+  const integrity = manifest.integrity[path];
+  if (!integrity) throw new Error(`${path}: no digest in the manifest`);
+  return { href: manifest.base + path, integrity, crossOrigin: null };
 }
 
 export interface PluginDefinition {
@@ -65,12 +94,18 @@ function handleOf(manifest: PluginManifest): PluginHandle {
     t: (key, params) => translate(`${manifest.name}.${key}`, params, manifest.name),
     format,
     styles(root, path) {
-      const integrity = manifest.integrity[path];
-      if (!integrity) return Promise.reject(new Error(`${path}: no digest in the manifest`));
+      let sheet: ReturnType<typeof sheetOf>;
+      try {
+        sheet = sheetOf(manifest, root.ownerDocument, path);
+      } catch (error) {
+        return Promise.reject(error as Error);
+      }
       const link = root.ownerDocument.createElement("link");
       link.rel = "stylesheet";
-      link.href = manifest.base + path;
-      link.integrity = integrity;
+      // The same request mode as the shell's link: the sheet comes from the cache.
+      if (sheet.crossOrigin !== null) link.crossOrigin = sheet.crossOrigin;
+      link.href = sheet.href;
+      link.integrity = sheet.integrity;
       return new Promise((resolve, reject) => {
         link.addEventListener("load", () => resolve(), { once: true });
         link.addEventListener("error", () => reject(new Error(`${path}: not loaded`)), {

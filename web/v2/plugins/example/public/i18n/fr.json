@@ -1,1 +1,39 @@
-{}
+{
+  "nav": { "overview": "Exemple" },
+  "loading": "Chargement…",
+  "failed": "Lecture impossible",
+  "code": "Code",
+  "request": "Requête",
+  "required": "(requis)",
+  "network": "Le serveur ne répond pas.",
+  "view": {
+    "title": "Plugin d'exemple",
+    "body": "Ce plugin éprouve le SDK 1.0 sans framework, dans sa racine d'ombre avec la feuille de style des composants du shell : une vue, un onglet, un panneau, une colonne, une action et une tuile de l'accueil.",
+    "present": "Vous regardez le référentiel au présent.",
+    "dated": "Vous regardez le référentiel à une autre date que le présent.",
+    "prefixes": "Préfixes IPv4",
+    "how": "Lus par le cache partagé du SDK, relus dès qu'un changement les invalide.",
+    "readAt": "Liste lue le {date}.",
+    "more": "Première page de la liste seulement.",
+    "empty": "Aucun préfixe IPv4",
+    "emptyText": "Le référentiel n'en compte aucun à cette date."
+  },
+  "error": "Erreur : ",
+  "tab": { "details": "Exemple", "prefix": "Préfixe", "domain": "Domaine" },
+  "panel": { "title": "Résumé de l'exemple", "type": "Type", "id": "Identifiant" },
+  "column": { "usage": "Usage (exemple)", "reserved": "réservée", "other": "autre" },
+  "action": {
+    "label": "Ajouter une adresse au brouillon",
+    "address": "Adresse",
+    "hint": "Une adresse IPv4 ou IPv6 du préfixe, par exemple 192.0.2.20.",
+    "submit": "Ajouter au brouillon",
+    "added": "Opération ajoutée ; le brouillon en compte {n}.",
+    "failed": "Ajout impossible",
+    "close": "Fermer"
+  },
+  "widget": {
+    "counts": "Objets du référentiel",
+    "prefixes": "Préfixes",
+    "addresses": "Adresses"
+  }
+}
