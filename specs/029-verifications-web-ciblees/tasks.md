@@ -235,7 +235,7 @@ regardée.
     style ni arbre d'accessibilité touché) ; `atRest` sans minuterie (un
     `PerformanceObserver`) ; tolérance du `describe("skeleton")` gardée : la requête du
     module y est refusée exprès (`route.abort`), même mécanisme de Firefox.
-- [ ] 5. Firefox, fin de session dans le parcours `session` : reproduire sous charge
+- [x] 5. Firefox, fin de session dans le parcours `session` : reproduire sous charge
   l'avertissement absent (`session.spec.ts`, « the end of the session is said before it
   comes ») ; écrire la cause (horloge simulée, relecture de `/v1/me`, activité née d'un
   geste) ; corriger (ADR 0042, décision 5). Même traitement pour deux autres
@@ -248,6 +248,81 @@ regardée.
   - où : `web/v2/e2e/journeys/{session,example}.spec.ts` ; `web/v2/shell/src/session/` ;
     `web/v2/e2e/components/diff-list.spec.ts`.
   - dépend de : —
+  - cause, fin de session (2026-11-01) : une lecture partie avant le saut de l'horloge et
+    revenue après. Après le premier écran, les plugins chargent et lisent (`/v1/domains`
+    pour l'exemple) moins de 10 s après l'ouverture de la page, donc lectures de
+    l'utilisateur ; sous charge, la réponse arrive après `fastForward`, et `activityFetch`
+    datait l'activité de l'arrivée de la réponse : fin attendue repoussée d'une demi-heure,
+    avertissement jamais dit (traces : 3 échecs sur 4 avec `/v1/domains` en vol au saut).
+    Défaut du shell, pas seulement du parcours : un appareil mis en veille pendant une
+    requête, ou une réponse lente, repousse de même la fin attendue au-delà de celle du
+    serveur, et l'avertissement vient trop tard ou jamais (2.2.1). Correction : l'activité
+    est datée du départ de la requête (`markActivity(sent)`), le plus récent des onglets
+    gardé ; l'avertissement est dit une fois par fin écrite (à la minute) et par manière,
+    sans quoi la fin déplacée de quelques millisecondes par une telle lecture le redisait
+    (2 toasts sur 30 au premier essai). Avant : Firefox 7 échecs sur 40 ; une sonde qui
+    retient `/v1/domains` jusqu'après le saut échoue à chaque fois, passe avec la
+    correction.
+  - cause, `example.spec.ts:28` : les données, pas le moment. Les autres parcours (deux
+    navigateurs) créent des préfixes IPv4 dans la même base ; en passage complet, la liste
+    de la vue de l'exemple dépasse la surface, qui défile alors sans rien de focalisable
+    (texte, liste, aucun lien ni bouton) avec `tabindex="-1"` : pas d'arrêt de tabulation,
+    défaut réel (2.1.1). Firefox seulement, parce qu'il passe après Chromium et voit plus
+    de préfixes ; vert seul, la liste n'a qu'une ligne. Avant : 0 sur 20 seul, 1 sur 1 en
+    passage complet (capture : une trentaine de préfixes). Correction : `#k-surface` est
+    un arrêt de tabulation tant qu'elle déborde, en hauteur ou en largeur (comme le corps
+    d'un `Popover`), son anneau dans son bord ; le parcours le prouve à 256 px de haut.
+  - cause, `diff-list.spec.ts` : le script appuie sur Début pendant que le défilement
+    doux de Fin court encore. Il attend « Sous-réseau 60 » dans la vue, vrai dès que le
+    titre y entre, pas l'arrêt de la liste (qu'il attend pourtant après Page suivante).
+    Sous charge, Début arrive dans les dernières images de ce défilement et reste sans
+    effet : la trace montre `scrollTop` 11243 puis 11341 dans les 12 ms qui précèdent
+    Début, puis 11341 jusqu'à l'échec, 5 s plus tard. Pas le virtualiseur : une sonde
+    qui journalise ses `scrollTo` n'en voit aucun (lignes à leur hauteur estimée), et
+    Début 60 ms après Fin revient en haut 10 fois sur 10 sans charge. Où Chromium perd
+    la touche n'est pas établi (défilement animé du compositeur). Pas un défaut du
+    composant : un utilisateur voit la liste et rappuie. Avant : seul et sans autre
+    charge, 0 sur 60, 0 sur 1120 (scripts clavier `--repeat-each=5`), passage complet des
+    captures vert ; à côté d'un `k-web2-check`, 1 sur 60, 0 sur 60, puis 4 sur 80,
+    toujours sur Début (ligne 69). Correction : le script attend l'arrêt de la liste après Fin, comme
+    après Page suivante.
+  - fait le 2026-11-01 : `shell/src/session/expiry.ts` (`activityFetch`, `markActivity`,
+    clé de l'avertissement à la minute) ; `shell/src/frame/ShellFrame.vue` (surface
+    défilante = arrêt de tabulation) ; `e2e/journeys/example.spec.ts` (surface débordante
+    à 256 px : `tabindex` 0, axe) ; `e2e/journeys/session.spec.ts` (`atRest` avant le
+    rechargement du premier parcours : erreur d'intégrité de la 029-4 vue une fois en
+    passage complet) ; `e2e/components/diff-list.spec.ts` (arrêt attendu après Fin).
+    Tests : `test/session.test.ts` (activité datée de la requête, réponse tardive ;
+    avertissement non redit pour moins d'une minute ; activité plus récente d'un autre
+    onglet gardée). Après : `session.spec.ts` et `example.spec.ts:28`
+    `--repeat-each=30`, Firefox et Chromium, 300 passés ; `diff-list.spec.ts:8`
+    `--repeat-each=80`, 80 passés (l'autre créneau tenu par un autre agent) ;
+    `k-web2-check` vert (672 tests, 2706 captures) ; `k-web2-e2e` complet, 116 passés.
+  - choix : clé de l'avertissement à la minute (l'heure écrite par le toast), plutôt
+    qu'un seuil ; logique de débordement de la surface dans le cadre, pas un composable
+    commun avec `Popover` (le cadre suit aussi les pages du routeur et la largeur) ;
+    anneau seulement en arrêt de tabulation (`[tabindex="0"]:focus-visible`), le lien
+    d'évitement garde son focus sans anneau sur une surface qui ne défile pas.
+  - revue (`kartenn-revue`) : une activité gardée dans le futur (horloge reculée) est
+    ramenée à l'heure présente (`lastActivity`) ; `ACTIVITY_KEY` est oubliée à une
+    nouvelle connexion (`loginAt`, compte de secours accepté ; `forgetActivity`), la
+    déconnexion l'effaçait déjà (`clearSensitive`). Test : horloge reculée d'une heure.
+  - reste (mineurs de la revue, non traités) :
+    - frontière de minute : une fin déplacée de quelques millisecondes qui franchit la
+      minute redit l'avertissement, deux toasts le temps de la sortie du premier.
+    - commentaires : celui de `warned` dit maintenant la clé à la minute ; celui
+      d'`activityFetch` reste à reprendre selon la remarque de la revue.
+    - fenêtre entre un changement de taille et le rappel du `ResizeObserver` : axe peut
+      lire la surface débordante avant que `tabindex` passe à 0 (parcours : `toHaveAttribute`
+      attendu avant axe).
+    - anneau sur `[tabindex="0"]` seulement : une surface focalisée qui cesse de déborder
+      perd son anneau tant qu'elle garde le focus.
+    - test au clavier de la surface (Tab l'atteint, les flèches la font défiler) : seul
+      l'attribut et axe sont vérifiés.
+    - `stopped()` de `diff-list.spec.ts` : une attente par sondage, pas un événement
+      `scrollend`.
+    - la note dit « sous charge » pour des mesures à côté d'un `k-web2-check` ou d'un
+      autre agent : charge réelle, non mesurée.
 - [ ] 6. Règles et synchronisation : `.claude/agents/kartenn-tache.md` (passage ciblé
   seulement, `--all` réservé à la session principale) ; `CLAUDE.md` (« Charge de la
   machine », « Sorties courtes ») ; skill `kartenn-ui` (vérification) ;

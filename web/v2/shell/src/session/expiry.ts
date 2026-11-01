@@ -43,16 +43,22 @@ function storage(): Storage | null {
   }
 }
 
-const listeners = new Set<() => void>();
+const listeners = new Set<(at: number) => void>();
 
-/** Records an activity of the session now, for every tab of the browser. */
-export function markActivity(now: number = Date.now()): void {
-  try {
-    storage()?.setItem(ACTIVITY_KEY, String(now));
-  } catch {
-    // A full or refused storage: this tab still knows.
+/**
+ * Records an activity of the session at `at` (now by default), for every tab of the
+ * browser; an activity older than the one kept (another tab's) leaves it as it is.
+ */
+export function markActivity(at: number = Date.now()): void {
+  const kept = lastActivity();
+  if (kept === null || at > kept) {
+    try {
+      storage()?.setItem(ACTIVITY_KEY, String(at));
+    } catch {
+      // A full or refused storage: this tab still knows.
+    }
   }
-  for (const listener of listeners) listener();
+  for (const listener of listeners) listener(at);
 }
 
 /**
@@ -69,16 +75,22 @@ export function serverSkew(): number {
 /**
  * The `fetch` of the SDK's client, which records each answer of the API as an activity,
  * and the clock of the server from its `Date`.
+ *
+ * The activity is the instant the request left, not the one its answer came (task 029-5):
+ * the server pushes the end from when it sees the request, never before it left. An answer
+ * that comes late (a slow server, a device suspended, a clock moved on meanwhile) must not
+ * push the expected end past the server's, which would say the warning too late, or never.
  */
 export function activityFetch(inner: typeof fetch = globalThis.fetch): typeof fetch {
   return async (input, init) => {
+    const sent = Date.now();
     // Asked by the user if a gesture came just before the request left.
-    const asked = Date.now() - lastGesture <= GESTURE_WINDOW_MS;
+    const asked = sent - lastGesture <= GESTURE_WINDOW_MS;
     const response = await inner(input, init);
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     if (!isActivity(url)) return response;
     noteServerClock(response);
-    if (asked && response.status !== 401) markActivity();
+    if (asked && response.status !== 401) markActivity(sent);
     return response;
   };
 }
@@ -138,9 +150,31 @@ export async function readEnd(fetcher: typeof fetch = (i, o) => fetch(i, o)): Pr
   return { kind: "end", expiresAt: me.session?.expires_at ?? null };
 }
 
+/**
+ * The last activity kept by the browser. One kept in the future (the clock set back since,
+ * by hand or by NTP) is brought back to now, kept so: it would push the expected end, and
+ * keep every activity of the tabs from replacing it, for as long as the clock was moved.
+ */
 function lastActivity(): number | null {
   const value = Number(storage()?.getItem(ACTIVITY_KEY));
-  return Number.isFinite(value) && value > 0 ? value : null;
+  if (!Number.isFinite(value) || value <= 0) return null;
+  const now = Date.now();
+  if (value <= now) return value;
+  try {
+    storage()?.setItem(ACTIVITY_KEY, String(now));
+  } catch {
+    // A full or refused storage: now all the same.
+  }
+  return now;
+}
+
+/** Forgets the last activity of the browser: a logout, a new login (another session). */
+export function forgetActivity(): void {
+  try {
+    storage()?.removeItem(ACTIVITY_KEY);
+  } catch {
+    // A refused storage keeps nothing either.
+  }
 }
 
 /** What the frame shows: the warning, with its end and whether it can be pushed back. */
@@ -183,7 +217,7 @@ export function createExpiry(view: ExpiryView, deps: ExpiryDeps = {}): Expiry {
   let lastRead = 0;
   let extendable = true;
   let timer: unknown = null;
-  /** The warning said, by its end and its way (`<end>:<extendable>`); `null` if none. */
+  /** The warning said, by the minute of its end and its way; `null` if none. */
   let warned: string | null = null;
 
   /** The end expected now: the last activity plus the window, or the fixed end. */
@@ -204,15 +238,17 @@ export function createExpiry(view: ExpiryView, deps: ExpiryDeps = {}): Expiry {
       timer = setTimer(schedule, wait);
       return;
     }
-    // Said once for an end and a way: a fixed end stays said through the activity.
-    const said = `${at}:${extendable}`;
+    // Said once for an end as written (to the minute) and a way: a fixed end stays said
+    // through the activity, and an end moved by less (an activity dated from its request,
+    // its answer come during the warning) is no new warning (task 029-5).
+    const said = `${Math.floor(at / 60_000)}:${extendable}`;
     if (warned === said) return;
     warned = said;
     view.warn(at, extendable);
   }
 
-  const onActivity = () => {
-    seen = now();
+  const onActivity = (at: number) => {
+    seen = Math.max(seen, at);
     schedule();
   };
   listeners.add(onActivity);
