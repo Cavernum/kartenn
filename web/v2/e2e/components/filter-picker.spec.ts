@@ -352,8 +352,13 @@ test.describe("FilterPicker, the filters of the columns", () => {
     await page.keyboard.press("Alt+ArrowDown");
     await expect(popover(page)).toHaveAccessibleName("Modifier le filtre");
     await expect(value(page)).toBeFocused();
+    // Escape in two steps (020, A8): the list of the values, then the picker.
+    await page.keyboard.press("Alt+ArrowDown");
+    await expect(page.getByRole("listbox")).toBeVisible();
     await page.keyboard.press("Escape");
-    if ((await popover(page).count()) > 0) await page.keyboard.press("Escape");
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+    await expect(popover(page)).toBeVisible();
+    await page.keyboard.press("Escape");
     await expect(popover(page)).toHaveCount(0);
     await expect(usage).toBeFocused();
     await expect(chips(page)).toHaveCount(1);

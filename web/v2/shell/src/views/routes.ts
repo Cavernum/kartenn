@@ -43,14 +43,25 @@ function cachedDeclarations(): Declaration[] {
   return rowsOf(queryClient.getQueryData<ListData<Declaration>>(key));
 }
 
-/** The filters a list of `query` sends, as far as the cache knows the declarations. */
-export function prefetchFilters(path: ListPath, query: LocationQuery): Filters {
-  return parseFilters(filterModel(path, cachedDeclarations()), paramsOf(query)).filters;
+/**
+ * The filters a list of `query` sends, as far as the cache knows the declarations; `null`
+ * when a property filter of the query is not typed by them: the list would be read under
+ * another key, without that filter — nothing is prefetched.
+ */
+export function prefetchFilters(path: ListPath, query: LocationQuery): Filters | null {
+  const { filters, rejected } = parseFilters(
+    filterModel(path, cachedDeclarations()),
+    paramsOf(query),
+  );
+  return rejected.some((r) => r.name.startsWith("prop.") && r.reason === "unknown")
+    ? null
+    : filters;
 }
 
-const listOf = (path: ListPath) => (_: RouteParams, time: TimeArg, query: LocationQuery) => [
-  reads.list(path, prefetchFilters(path, query) as never, time),
-];
+const listOf = (path: ListPath) => (_: RouteParams, time: TimeArg, query: LocationQuery) => {
+  const filters = prefetchFilters(path, query);
+  return filters === null ? [] : [reads.list(path, filters as never, time)];
+};
 
 function collectionScreen(collection: Collection): ScreenRoute {
   return { component: ListView, props: { collection }, queries: listOf(collection.path) };

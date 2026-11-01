@@ -16,6 +16,7 @@ import ExtensionElement from "../plugins/ExtensionElement.vue";
 import { labelOf } from "../plugins/registry.ts";
 import { placeId, useWidgets } from "../plugins/slots.ts";
 import KLink from "../prefetch/KLink.vue";
+import { serverSkew } from "../session/expiry.ts";
 import { useSession } from "../rights/index.ts";
 import { COLLECTIONS } from "./collections.ts";
 import { problemOf, useKeyLabel } from "./data.ts";
@@ -69,7 +70,10 @@ const tick = setInterval(() => (now.value = Date.now()), 30_000);
 onBeforeUnmount(() => clearInterval(tick));
 const computedAgo = computed(() => {
   if (!data.value) return "";
-  const seconds = Math.round((Date.parse(data.value.computed_at) - now.value) / 1000);
+  // `computed_at` is the server's instant: read on its clock (the `Date` of its answers).
+  const seconds = Math.round(
+    (Date.parse(data.value.computed_at) - (now.value + serverSkew())) / 1000,
+  );
   const words = new Intl.RelativeTimeFormat(locale.value, { numeric: "auto" });
   return Math.abs(seconds) < 60
     ? words.format(Math.min(0, seconds), "second")

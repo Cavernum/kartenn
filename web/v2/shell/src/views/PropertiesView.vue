@@ -9,6 +9,7 @@ import {
   EmptyState,
   ErrorState,
   IconButton,
+  InlineAlert,
   KeyLabel,
   Popover,
   type GridColumn,
@@ -32,7 +33,14 @@ type Row = DeclarationOfModel & {
 const { t, te, locale } = useI18n();
 const router = useRouter();
 const keyLabel = useKeyLabel();
-const { declarations, loading, error, refetch } = useDeclarations();
+const { declarations, loading, settled, partial, failed, error, refetch } = useDeclarations();
+/** Whole once every page is read; while they come, or past the cap, said partial. */
+const count = computed(() => {
+  if (loading.value || failed.value) return undefined;
+  const n = new Intl.NumberFormat(locale.value).format(rows.value.length);
+  if (partial.value) return t("views.properties.countPartial", { n }, rows.value.length);
+  return settled.value ? n : t("views.list.loaded", { n }, rows.value.length);
+});
 const rows = computed(() => declarations.value as unknown as Row[]);
 
 const columns = computed<GridColumn[]>(() => [
@@ -65,20 +73,19 @@ const gaps = (key: string) =>
 
 <template>
   <h1 class="k-visually-hidden">{{ t("nav.properties") }}</h1>
-  <ViewPanel
-    :title="t('nav.properties')"
-    :detail="loading ? undefined : new Intl.NumberFormat(locale).format(rows.length)"
-    main
-    flush
-  >
+  <ViewPanel :title="t('nav.properties')" :detail="count" main flush>
+    <!-- Pages left unread (the cap, or a page refused): the ones read stay shown. -->
+    <InlineAlert v-if="partial" tone="warn" :title="t('views.properties.partialTitle')">
+      {{ t("views.properties.partial") }}
+    </InlineAlert>
     <ErrorState
-      v-if="error"
+      v-if="failed"
       :title="t('views.properties.error')"
       :problem="problemOf(error)"
       :retry-label="t('views.retry')"
       @retry="refetch()"
     />
-    <EmptyState v-else-if="!loading && rows.length === 0" :title="t('views.properties.none')" />
+    <EmptyState v-else-if="settled && rows.length === 0" :title="t('views.properties.none')" />
     <DataGrid
       v-else
       :label="t('nav.properties')"

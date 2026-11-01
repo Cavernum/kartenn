@@ -59,6 +59,9 @@
       "noneFiltered": "Aucun objet ne répond à ces filtres",
       "noneFilteredText": "Retirez ou changez un filtre pour élargir la liste.",
       "clearFilters": "Retirer les filtres",
+      "untyped": "Filtre non reconnu : {names}",
+      "declarationsFailed": "Les propriétés déclarées n'ont pas pu être lues : {names} reste sans type",
+      "notRead": "La liste n'est pas lue sans ce filtre. Retirez sa pastille, ou corrigez l'adresse.",
       "restarted": "Le curseur de la liste a été refusé : la liste repart du début."
     },
     "record": {
@@ -145,6 +148,8 @@
       "empty": "Aucun préfixe dans ce domaine",
       "treeError": "L'arbre des préfixes n'a pas pu être lu.",
       "domainsError": "Les domaines n'ont pas pu être lus.",
+      "domainMissing": "Domaine introuvable",
+      "domainMissingText": "Le domaine de l'adresse n'est pas parmi ceux que vous lisez : l'arbre montre {name}.",
       "noDomain": "Aucun domaine",
       "noDomainText": "Aucun domaine que vous puissiez lire : l'arbre des préfixes en a besoin."
     },
@@ -161,6 +166,8 @@
       "none": "Aucune anomalie ouverte",
       "noneText": "Aucune règle ne signale d'écart sur les objets que vous lisez.",
       "noneOf": "Aucune anomalie ouverte sur cet objet",
+      "unreadable": "Lecture non disponible",
+      "unreadableText": "Les anomalies se lisent par domaine ou par entité : celles d'un objet hors de tout domaine ne sont pas servies. La liste des anomalies montre toutes celles que vous lisez.",
       "partialTitle": "Liste peut-être incomplète",
       "partial": "Seules les {n} premières pages des anomalies du domaine ont été lues pour cet objet ; la liste des anomalies, filtrée par domaine, en dit le reste.",
       "noGaps": "Aucune lacune",
@@ -189,6 +196,9 @@
       "valuesError": "Les valeurs n'ont pas pu être lues.",
       "noValues": "Aucune valeur dans la liste.",
       "none": "Aucune propriété déclarée",
+      "countPartial": "{n} lue, d'autres restent | {n} lues, d'autres restent",
+      "partialTitle": "Liste incomplète",
+      "partial": "Une partie des propriétés déclarées n'a pas été lue (plafond de pages atteint, ou page refusée) ; les filtres des listes ne connaissent que celles-ci.",
       "error": "Les propriétés déclarées n'ont pas pu être lues."
     }
   }

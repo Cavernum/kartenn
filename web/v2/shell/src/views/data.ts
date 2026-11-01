@@ -32,23 +32,41 @@ export function problemSlug(error: unknown): string | null {
  */
 export function useDeclarations(): {
   declarations: ComputedRef<DeclarationOfModel[]>;
+  /** The first page is coming. */
   loading: Readonly<Ref<boolean>>;
+  /** No more page will be read: all of them, or the cap, or a next page refused. */
+  settled: ComputedRef<boolean>;
+  /** Pages remain beyond those read (the cap, or a next page refused). */
+  partial: ComputedRef<boolean>;
+  /** The first page failed: nothing is known of the declarations. */
+  failed: ComputedRef<boolean>;
   error: Readonly<Ref<unknown>>;
   refetch: () => void;
 } {
   const list = useInfiniteQuery(() => reads.list("/v1/property-declarations", null, null));
+  const pages = computed(() => list.data.value?.pages.length ?? 0);
   watchEffect(() => {
-    const pages = list.data.value?.pages.length ?? 0;
-    if (list.hasNextPage.value && !list.isFetching.value && pages < DECLARATION_PAGES) {
-      void list.fetchNextPage();
+    if (list.hasNextPage.value && !list.isFetching.value && pages.value < DECLARATION_PAGES) {
+      if (!list.isFetchNextPageError.value) void list.fetchNextPage();
     }
   });
   const declarations = computed(() => rowsOf(list.data.value) as unknown as DeclarationOfModel[]);
+  // By the data itself: an observer's result is set field by field, and a list waiting for
+  // the declarations must see them as soon as it may read.
+  const partial = computed(
+    () =>
+      list.data.value !== undefined &&
+      list.hasNextPage.value &&
+      (pages.value >= DECLARATION_PAGES || list.isFetchNextPageError.value),
+  );
   return {
     declarations,
-    // By the data itself: an observer's result is set field by field, and a list waiting
-    // for the declarations must see them as soon as it may read.
     loading: computed(() => list.data.value === undefined && !list.isError.value),
+    settled: computed(
+      () => list.data.value !== undefined && (!list.hasNextPage.value || partial.value),
+    ),
+    partial,
+    failed: computed(() => list.data.value === undefined && list.isError.value),
     error: list.error,
     refetch: () => void list.refetch(),
   };

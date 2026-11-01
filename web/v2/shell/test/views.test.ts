@@ -27,6 +27,8 @@ import { prefetchFilters } from "../src/views/routes.ts";
 // list, and the routes of the frame with their screens and reads.
 
 const ENTITY = "0b5e3c1a-0000-4000-8000-0000000000e1";
+/** The application of the mounted tests: the route's screen alone. */
+const Root = { render: () => h(RouterView) };
 const DECLARATIONS: DeclarationOfModel[] = [
   { key: "core.owner", type: "ref", carriers: [], params: { target: "entity" } },
   { key: "core.site", type: "enum", carriers: ["prefix", "address"] },
@@ -253,7 +255,7 @@ describe("the routes of the referential", () => {
     }) as typeof fetch);
     const link = `/addresses?within=192.0.2.0%2F24&prop.core.owner=${ENTITY}`;
     await router.push(link);
-    app = createApp({ render: () => h(RouterView) });
+    app = createApp(Root);
     app.use(createShellI18n("fr")).use(router);
     app.mount(document.createElement("div"));
     await router.isReady();
@@ -268,5 +270,122 @@ describe("the routes of the referential", () => {
     expect(seen.filter((url) => url.startsWith("/v1/addresses"))).toHaveLength(1);
     await nextTick();
     expect(router.currentRoute.value.fullPath).toBe(link);
+  });
+
+  /** The shell mounted at `link`, the API answered by `answer` (a body, or a status). */
+  async function mounted(link: string, answer: (url: string) => object | number) {
+    const seen: string[] = [];
+    setFetch((async (input: RequestInfo | URL) => {
+      const url = String(input);
+      seen.push(url);
+      const body = url.startsWith("/v1/labels")
+        ? { lang: "fr", default_lang: "fr", revision: "1", spaces: {} }
+        : answer(url);
+      if (typeof body === "number") {
+        return new Response(
+          JSON.stringify({ type: "urn:kartenn:problem:forbidden", title: "", status: body }),
+          { status: body, headers: { "Content-Type": "application/problem+json" } },
+        );
+      }
+      return new Response(JSON.stringify(body), {
+        headers: { "Content-Type": "application/json", ETag: '"v1"' },
+      });
+    }) as typeof fetch);
+    await router.push(link);
+    const root = document.createElement("div");
+    app = createApp(Root);
+    app.use(createShellI18n("fr")).use(router);
+    app.mount(root);
+    await router.isReady();
+    return { seen, root };
+  }
+  const page = (items: object[], next?: string) => ({ items, links: next ? { next } : {} });
+  const OTHER = (i: number): DeclarationOfModel => ({
+    key: `custom.p${i}`,
+    type: "text",
+    carriers: [],
+  });
+  const addresses = (seen: string[]) => seen.filter((url) => url.startsWith("/v1/addresses"));
+
+  it("reads every page of the declarations a property filter needs before the list", async () => {
+    const { seen } = await mounted(`/addresses?prop.core.owner=${ENTITY}`, (url) => {
+      if (url === "/v1/property-declarations") {
+        return page([OTHER(1)], "/v1/property-declarations?cursor=2");
+      }
+      if (url.startsWith("/v1/property-declarations?cursor=2")) return page([DECLARATIONS[0]!]);
+      return page([]);
+    });
+    await expect.poll(() => addresses(seen).length).toBe(1);
+    // Read once, after the second page, with its filter.
+    expect(new URL(addresses(seen)[0]!, "https://k").searchParams.get("prop.core.owner")).toBe(
+      ENTITY,
+    );
+    const second = seen.findIndex((url) => url.includes("cursor=2"));
+    expect(seen.indexOf(addresses(seen)[0]!)).toBeGreaterThan(second);
+  });
+
+  it("past the cap of pages, a key still unknown is a chip not recognised, no list read", async () => {
+    const { seen, root } = await mounted("/addresses?prop.custom.absent=x", (url) => {
+      if (url.startsWith("/v1/property-declarations")) {
+        const at = Number(new URL(url, "https://k").searchParams.get("cursor") ?? "1");
+        return page([OTHER(at)], `/v1/property-declarations?cursor=${at + 1}`);
+      }
+      return page([]);
+    });
+    await expect.poll(() => root.textContent).toContain("Filtre non reconnu : prop.custom.absent");
+    expect(seen.filter((url) => url.startsWith("/v1/property-declarations"))).toHaveLength(10);
+    expect(root.querySelector(".k-filter-chip__pill[data-state='invalid']")).not.toBeNull();
+    expect(addresses(seen)).toEqual([]);
+    expect(router.currentRoute.value.query["prop.custom.absent"]).toBe("x");
+  });
+
+  for (const status of [403, 500]) {
+    it(`the declarations refused (${status}): an error state, no list read`, async () => {
+      const { seen, root } = await mounted(`/addresses?prop.core.owner=${ENTITY}`, (url) =>
+        url.startsWith("/v1/property-declarations") ? status : page([]),
+      );
+      await expect
+        .poll(() => root.textContent, { timeout: 8_000 })
+        .toContain("Les propriétés déclarées n'ont pas pu être lues");
+      expect(addresses(seen)).toEqual([]);
+    }, 10_000);
+  }
+
+  it("says why the anomalies of a site cannot be read, not that it has none", async () => {
+    const site = "0b5e3c1a-0000-4000-8000-0000000000f1";
+    const { seen, root } = await mounted(`/sites/${site}?tab=anomalies`, (url) =>
+      url.startsWith(`/v1/sites/${site}`) && !url.includes("/properties")
+        ? { id: site, slug: "nord", links: { self: `/v1/sites/${site}` } }
+        : page([]),
+    );
+    await expect.poll(() => root.textContent).toContain("Lecture non disponible");
+    expect(root.textContent).not.toContain("Aucune anomalie ouverte");
+    expect(seen.some((url) => url.startsWith("/v1/anomalies"))).toBe(false);
+  });
+});
+
+describe("prefetch and suggestions without what they need", () => {
+  afterEach(() => queryClient.clear());
+
+  it("prefetches no list whose property filter the cache cannot type", () => {
+    expect(prefetchFilters("/v1/addresses", { "prop.core.owner": ENTITY })).toBeNull();
+    expect(prefetchFilters("/v1/addresses", { usage: "host" })).toEqual({ usage: "host" });
+  });
+
+  it("sends `q` only to the lists that take it, else keeps what the text matches", async () => {
+    const { read, asked } = suggestions([
+      { id: "r1", first: "192.0.2.10", last: "192.0.2.20", value: "192.0.2.10" },
+      { id: "r2", first: "198.51.100.1", last: "198.51.100.9", value: "198.51.100.1" },
+    ]);
+    const ranged: DeclarationOfModel[] = [
+      { key: "custom.plage", type: "ref", carriers: [], params: { target: "range" } },
+    ];
+    const model = listFilterModel("/v1/addresses", ranged, WORDS, read);
+    const found = await model.find((p) => p.key === "prop.custom.plage")!.suggest!(
+      "198",
+      new AbortController().signal,
+    );
+    expect(asked[0]).toEqual({ path: "/v1/ranges", filters: {} });
+    expect(found.map((o) => o.value)).toEqual(["r2"]);
   });
 });

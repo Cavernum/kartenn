@@ -59,6 +59,9 @@
       "noneFiltered": "No object matches these filters",
       "noneFilteredText": "Remove or change a filter to widen the list.",
       "clearFilters": "Remove the filters",
+      "untyped": "Filter not recognised: {names}",
+      "declarationsFailed": "The declared properties could not be read: {names} stays untyped",
+      "notRead": "The list is not read without this filter. Remove its chip, or correct the address.",
       "restarted": "The cursor of the list was refused: the list starts again from the top."
     },
     "record": {
@@ -145,6 +148,8 @@
       "empty": "No prefix in this domain",
       "treeError": "The tree of the prefixes could not be read.",
       "domainsError": "The domains could not be read.",
+      "domainMissing": "Domain not found",
+      "domainMissingText": "The domain of the address is not among those you read: the tree shows {name}.",
       "noDomain": "No domain",
       "noDomainText": "No domain you may read: the tree of the prefixes needs one."
     },
@@ -161,6 +166,8 @@
       "none": "No open anomaly",
       "noneText": "No rule reports a deviation on the objects you read.",
       "noneOf": "No open anomaly on this object",
+      "unreadable": "Reading not available",
+      "unreadableText": "Anomalies are read by domain or by entity: those of an object outside any domain are not served. The list of the anomalies shows all those you read.",
       "partialTitle": "List perhaps incomplete",
       "partial": "Only the first {n} pages of the anomalies of the domain were read for this object; the list of the anomalies, filtered by domain, tells the rest.",
       "noGaps": "No gap",
@@ -189,6 +196,9 @@
       "valuesError": "The values could not be read.",
       "noValues": "No value in the list.",
       "none": "No declared property",
+      "countPartial": "{n} read, others remain | {n} read, others remain",
+      "partialTitle": "Incomplete list",
+      "partial": "Part of the declared properties was not read (cap of pages reached, or a page refused); the filters of the lists know only these.",
       "error": "The declared properties could not be read."
     }
   }

@@ -11,6 +11,7 @@ import {
 } from "@kartenn/sdk";
 import {
   checkFilter,
+  filterOptions,
   filtersFromParams,
   filtersToParams,
   type Filter,
@@ -106,12 +107,41 @@ const text = (value: unknown) => (typeof value === "string" ? value : String(val
 const options = (values: readonly string[], label: (value: string) => string | undefined) =>
   values.map((value): ListOption => ({ value, label: label(value) ?? value }));
 
+/** Whether a list of the contract takes `q` (the start of a value, a slug or a name). */
+function searchable(path: ListPath): boolean {
+  try {
+    return filterModel(path).some((field) => field.name === "q");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The suggestions of a list for a text: `q` to the lists whose contract declares it; the
+ * others read their first page and keep what the text matches.
+ */
+async function suggestFrom(
+  path: ListPath,
+  query: string,
+  read: SuggestRead,
+  signal: AbortSignal,
+  option: (item: Record<string, unknown>) => ListOption,
+): Promise<ListOption[]> {
+  const q = query.trim();
+  const asked = searchable(path);
+  const items = await read(path, q !== "" && asked ? { q } : {}, signal);
+  const found = items.map(option);
+  return q === "" || asked ? found : filterOptions(found, q);
+}
+
 /** The suggestions of a collection whose filter takes a slug (`domain`, `parent`). */
 function slugSuggest(path: ListPath, read: SuggestRead): Suggest {
-  return async (query, signal) => {
-    const items = await read(path, query.trim() === "" ? {} : { q: query.trim() }, signal);
-    return items.map((item) => ({ value: text(item.slug), label: text(item.slug), mono: true }));
-  };
+  return (query, signal) =>
+    suggestFrom(path, query, read, signal, (item) => ({
+      value: text(item.slug),
+      label: text(item.slug),
+      mono: true,
+    }));
 }
 
 /**
@@ -119,14 +149,12 @@ function slugSuggest(path: ListPath, read: SuggestRead): Suggest {
  * is the identifier of the object, its label the slug (or value) the list shows of it.
  */
 function referenceSuggest(path: ListPath, read: SuggestRead, names: Map<string, string>): Suggest {
-  return async (query, signal) => {
-    const items = await read(path, query.trim() === "" ? {} : { q: query.trim() }, signal);
-    return items.map((item) => {
+  return (query, signal) =>
+    suggestFrom(path, query, read, signal, (item) => {
       const label = text(item.slug ?? item.value ?? item.id);
       names.set(text(item.id), label);
       return { value: text(item.id), label, detail: text(item.id), mono: true };
     });
-  };
 }
 
 /** The values of a closed list of a declared property (`/values`, 016). */
@@ -270,8 +298,11 @@ export function queryOfFilters(
   model: FilterModel,
   filters: readonly Filter[],
   query: LocationQuery,
+  /** Parameters outside the model that chips stand for (written back from the chips). */
+  replaced: ReadonlySet<string> = new Set(),
 ): LocationQueryRaw {
   const { rest } = filtersFromParams(model, paramsOf(query));
+  for (const name of replaced) rest.delete(name);
   const params = filtersToParams(model, filters, rest);
   const out: Record<string, string | string[]> = {};
   for (const [name, value] of params) {

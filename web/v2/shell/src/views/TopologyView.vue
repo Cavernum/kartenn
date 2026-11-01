@@ -9,6 +9,7 @@ import { queryClient, reads, type components, type TimeArg } from "@kartenn/sdk"
 import {
   EmptyState,
   ErrorState,
+  InlineAlert,
   Select,
   Split,
   TreeGrid,
@@ -31,6 +32,7 @@ import {
   shallowReactive,
   useTemplateRef,
   watch,
+  watchEffect,
 } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
@@ -54,7 +56,10 @@ const time = useTime();
 const keyLabel = useKeyLabel();
 const dated = (): TimeArg => ({ validAt: time.value.validAt, asOf: time.value.asOf });
 
-// The domains, for the selector: the first page of their list (a few, in practice).
+// The domains, for the selector: their first page (a few, in practice); the domain of the
+// URL is looked for in the pages after it (ten at most) before the tree falls back to the
+// first one, which it then says.
+const DOMAIN_PAGES = 10;
 const domains = useInfiniteQuery(() => reads.list("/v1/domains", null, dated()));
 const domainItems = computed(
   () => rowsOf(domains.data.value) as unknown as { id: string; slug: string }[],
@@ -62,12 +67,30 @@ const domainItems = computed(
 const domainOptions = computed<ListOption[]>(() =>
   domainItems.value.map((d) => ({ value: d.id, label: d.slug, mono: true })),
 );
-const domain = computed(() => {
-  const asked = route.query.domain;
-  return typeof asked === "string" && domainItems.value.some((d) => d.id === asked)
-    ? asked
-    : domainItems.value[0]?.id;
+const asked = computed(() =>
+  typeof route.query.domain === "string" ? route.query.domain : undefined,
+);
+const found = computed(
+  () => asked.value !== undefined && domainItems.value.some((d) => d.id === asked.value),
+);
+const searching = computed(
+  () =>
+    asked.value !== undefined &&
+    !found.value &&
+    domains.hasNextPage.value &&
+    !domains.isFetchNextPageError.value &&
+    (domains.data.value?.pages.length ?? 0) < DOMAIN_PAGES,
+);
+watchEffect(() => {
+  if (searching.value && !domains.isFetching.value) void domains.fetchNextPage();
 });
+const domain = computed(() =>
+  found.value ? asked.value : searching.value ? undefined : domainItems.value[0]?.id,
+);
+/** The domain of the URL was not found: the tree shows the first one, and says so. */
+const fellBack = computed(
+  () => asked.value !== undefined && !found.value && !searching.value && domains.isSuccess.value,
+);
 const domainSlug = computed(() => domainItems.value.find((d) => d.id === domain.value)?.slug ?? "");
 function chooseDomain(id: string | undefined): void {
   if (!id || id === domain.value) return;
@@ -221,6 +244,9 @@ onBeforeUnmount(() => stopIntent());
 
 <template>
   <h1 class="k-visually-hidden">{{ t("nav.topology") }}</h1>
+  <InlineAlert v-if="fellBack" tone="warn" :title="t('views.topology.domainMissing')">
+    {{ t("views.topology.domainMissingText", { name: domainSlug }) }}
+  </InlineAlert>
   <ErrorState
     v-if="domains.isError.value"
     :title="t('views.topology.domainsError')"

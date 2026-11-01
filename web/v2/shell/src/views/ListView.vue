@@ -52,6 +52,8 @@ const {
   rows,
   failed,
   complete,
+  blocked,
+  declarationsError,
   restarted,
   onWindow,
 } = useFilteredList<Item>(() => props.collection.path);
@@ -145,8 +147,20 @@ function clearFilters(): void {
         @update:model-value="onFilters"
       />
     </template>
+    <!-- A property filter of the URL that no declaration types: no list read without it. -->
     <ErrorState
-      v-if="failed"
+      v-if="blocked"
+      :title="
+        t(blocked.reason === 'failed' ? 'views.list.declarationsFailed' : 'views.list.untyped', {
+          names: blocked.names.join(', '),
+        })
+      "
+      :problem="blocked.reason === 'failed' ? problemOf(declarationsError) : undefined"
+    >
+      {{ t("views.list.notRead") }}
+    </ErrorState>
+    <ErrorState
+      v-else-if="failed"
       :title="t('views.list.error', { name: title })"
       :problem="problemOf(list.error.value)"
       :retry-label="t('views.retry')"
