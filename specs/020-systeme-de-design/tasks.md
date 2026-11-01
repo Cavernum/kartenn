@@ -1173,12 +1173,55 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
 
 ## P5 — Budgets et clôture
 
-- [ ] 27. Bancs de composants (`components-bench`, protocole du prototype D-1) et poids
-  (`size.mjs`) : tableau du design § « Budgets » — REQ-020-29 — verify : tableau rendu par
+- [x] 27. Bancs de composants (`components-bench`, protocole du prototype D-1) et poids
+  (`size.ts`) : tableau du design § « Budgets » — REQ-020-29 — verify : tableau rendu par
   `bench-runner` ; un plafond dépassé → sortie non nulle
-  - où : `web/e2e/budgets/budgets.spec.ts`, `web/shell/scripts/size.mjs` ;
-    `devenv.nix` `scripts.bench-web` (vers la ligne 641)
+  - où : à imiter, `web/e2e/budgets/budgets.spec.ts`, `web/shell/scripts/size.mjs`,
+    `devenv.nix` `scripts.bench-web` (ancien shell) ; livrés, `web/v2/shell/scripts/size.ts`,
+    `web/v2/e2e/bench.config.ts`, `web/v2/e2e/bench/`, `web/v2/ui/src/demo/bench.ts`,
+    `web/v2/shell/src/_ui/BenchPage.vue`, `devenv.nix` `scripts.bench-ui`
   - dépend de : 26
+  - fait : `devenv shell -- bench-ui` (verrou des bancs, sans PostgreSQL) : build de
+    production du shell, `size.ts`, puis le projet Playwright `components-bench` sur le
+    build du catalogue (1440 × 900, sans ralenti, 5 passes, médiane ; une ligne
+    `PASS|FAIL|INFO` par mesure avec les 5 passes ; `expect.soft` par budget ; sortie 1 si
+    un poids ou un banc dépasse). `bench/measure.ts` : latence du `timeStamp` de
+    l'événement au premier `requestAnimationFrame` après l'état (observateur de
+    mutations, `focusin`, sondage par trame), trames perdues, tâches longues
+    (`PerformanceObserver`), tas par CDP après `collectGarbage`, défilement suivant
+    l'horloge. Hôtes `benches` (`@kartenn/ui/catalogue`) sur `/_ui/bancs/<Nom>` : `Tree`
+    et `TreeGrid` de 10⁵ nœuds montés par un bouton, cinq domaines ou tous ouverts,
+    hôte de déplacement qui signale sa réponse (`k-bench-answer`) ; `DataGrid` de 10⁴
+    lignes filtrée, triée et éditée par l'hôte. Couches : Dialog, Drawer, Popover, Menu,
+    Select, Combobox, CommandPalette sur leur état `keyboard`. Vitest
+    `shell/test/size.test.ts` (mesures sur un manifeste, dépassement d'un octet → échec).
+    Premier passage (2026-11-01, machine partagée) : poids JS **dépassés** (`@kartenn/ui`
+    125,3 Ko pour 90, avec `vue` 170,5 Ko pour 120 ; feuille 16,1 Ko, police 29,4 Ko) ;
+    tous les bancs tenus — `Tree` / `TreeGrid` : première ligne 55 / 38 ms, dépliage 49 /
+    21 ms, Bas p75 5,6 / 2,6 ms, défilement 0,13 / 0,07 % et 0 tâche longue, tas 23,9 /
+    21,2 Mo chargé et 24,8 / 22,3 Mo après défilement, dix déplacements dans 10⁵ lignes
+    ouvertes 1,37 / 0,12 % de trames perdues (B29 : ≤ 5 %) ; grille : tas 7,9 Mo, Bas
+    3,4 ms, édition 8,4 ms, tri 13,5 ms, filtre 10,9 ms ; couches sans tâche longue (5 à
+    14 ms). `refusedKeys` : Ctrl+V jusqu'à la ligne en attente 11,8 / 11,1 ms p75 dans
+    10⁵ lignes, réponse de l'hôte rendue 42 / 35 ms p75 (dont le `moveNode` de l'hôte sur
+    tout l'arbre). Revues `ui-reviewer` et `a11y-auditor` (code) ; corrigés : hauteur de
+    ligne du titre, banc inconnu par `Object.hasOwn`, colonne `used` non triable (tri
+    textuel trompeur), nombre de lignes filtrées dit (`role="status"`).
+  - choix : poids de `@kartenn/ui` mesuré tel que servi (son morceau avec Reka UI,
+    TanStack Virtual et Lucide), 1 Ko = 1 000 octets, 1 Mo = 10⁶ octets ; `size.ts`
+    plutôt que `.mjs` (typé et testé ; Node 24 retire les types) ; script `bench-ui` à
+    part de `bench-web` (pas de PostgreSQL ni de serveur kartenn), hors `k-web2-check`
+    (le poids y casserait toutes les vérifications) ; hôtes de banc hors captures, sur
+    une route du catalogue hors cadre ; modèle de l'arbre construit avant le clic
+    (première ligne = coût du composant) ; défilement de 5 000 lignes en 5 s ;
+    « ≤ 5 % » de B29 appliqué aux déplacements, « ≤ 1 % » de REQ-020-29 au défilement ;
+    médiane des 5 passes pour chaque mesure, tâches longues comprises ; latences des
+    couches et des déplacements en `INFO` (aucun budget écrit).
+  - restent : **poids JS au-dessus du budget** (REQ-020-29) : la bibliothèque seule,
+    dépendances externes, fait ≈ 84 Ko gzip (build de bibliothèque), Reka UI et TanStack
+    Virtual ≈ 41 Ko de plus dans le morceau servi ; réduire (découpage, imports
+    paresseux) ou relâcher par décision — à trancher ; `bench-runner` ne nomme pas encore
+    `bench-ui` (`.claude/agents/bench-runner.md`).
 - [ ] 28. Synchronisation : `docs/spec/` (architecture web : `@kartenn/ui`, couches,
   catalogue) ; ADR 0036, 0038, 0039 acceptées ;
   `specs/README.md` ; audit `spec-keeper` — verify : liens croisés ; aucun écart

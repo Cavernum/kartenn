@@ -1077,12 +1077,12 @@ l'utilisateur sur captures, en clair et en sombre, aux quatre largeurs ; la revu
 
 ## Budgets (REQ-020-29)
 
-Poids par `size.mjs` ; bancs de composants par un projet Playwright `components-bench`
-qui reprend le protocole du prototype D-1 (build de production, `vite preview`, Chromium
-sans ralenti, 1440 × 900, 5 passes, médiane ; latence = du `timeStamp` de l'événement au
-premier `requestAnimationFrame` après l'état attendu ; trames perdues = 1 − trames
-observées / (durée ÷ 16,67 ms) ; tas par CDP après `collectGarbage`). Seuils = 2 × la
-mesure du prototype :
+Poids par `web/v2/shell/scripts/size.ts` ; bancs de composants par un projet Playwright
+`components-bench` qui reprend le protocole du prototype D-1 (build de production, `vite
+preview`, Chromium sans ralenti, 1440 × 900, 5 passes, médiane ; latence = du `timeStamp`
+de l'événement au premier `requestAnimationFrame` après l'état attendu ; trames perdues =
+1 − trames observées / (durée ÷ 16,67 ms) ; tas par CDP après `collectGarbage`). Seuils =
+2 × la mesure du prototype :
 
 | Mesure | Prototype (médiane) | Budget |
 |---|---|---|
@@ -1097,6 +1097,33 @@ mesure du prototype :
 
 La machine du prototype était partagée (charge 1,4 à 4,8) : les médianes sont prudentes.
 Les budgets du shell entier, sous ralenti ×4, sont dans la 021.
+
+Mise en œuvre (tâche 27) : `devenv shell -- bench-ui` (verrou des bancs, sans PostgreSQL)
+construit le shell en production, lance `size.ts`, puis `components-bench`
+(`web/v2/e2e/bench.config.ts`, `web/v2/e2e/bench/`) sur le build du catalogue ; chaque
+mesure sort en `PASS|FAIL|INFO <mesure> : <médiane> (limit <seuil>) [les 5 passes]`, et un
+seuil dépassé, d'un côté ou de l'autre, fait sortir le banc en erreur.
+
+- **Poids** : le module que la carte d'import nomme pour `@kartenn/ui` et ses imports
+  statiques, tel que servi, donc avec Reka UI, TanStack Virtual et Lucide qui vont dans
+  son morceau ; puis le même avec `vue` ; chaque fichier en gzip -9 ; la feuille de
+  `@kartenn/ui` en gzip -9 ; les polices que `index.html` précharge, telles que servies.
+  1 Ko = 1 000 octets.
+- **Hôtes des bancs** : `ui/src/demo/bench.ts` (`benches` de `@kartenn/ui/catalogue`),
+  seuls sur `/_ui/bancs/<Nom>` (`Tree`, `TreeGrid`, `DataGrid`), hors captures. Arbre :
+  le modèle de 10⁵ nœuds (`virtualTree`) construit avant le clic qui monte l'arbre
+  (première ligne = du clic à la première ligne) ; dépliage = Droite sur `v1` ; Flèche bas
+  = p75 de 100 appuis ; défilement = 5 000 lignes de 5 100 ouvertes en 5 s, la position
+  suivant l'horloge. Grille : l'hôte filtre (champ sur les libellés), trie (en-têtes) et
+  reçoit l'édition dans ses données ; filtre = du `input` à `aria-rowcount` attendu ; tri =
+  d'Entrée sur l'en-tête à `aria-sort` ; édition = d'Entrée à la valeur dans la cellule.
+- **Déplacements** (B29, « ≤ 5 % de trames perdues ») : les 100 100 lignes ouvertes, dix
+  fois Ctrl+X, Bas, Ctrl+V, l'hôte répondant en 300 ms ; trames perdues sur toute la
+  suite ; latences de la marque « en attente » et du rendu de la réponse données pour
+  lecture (`INFO`), comme le coût de `refusedKeys` qu'elles contiennent.
+- **Couches** : Dialog, Drawer, Popover, Menu, Select, Combobox, CommandPalette ouverts au
+  clavier sur leur état `keyboard` du catalogue ; aucune tâche longue de l'événement au
+  rendu.
 
 ## Arborescence
 
@@ -1175,7 +1202,7 @@ en CSS (Q-020-3).
 - **Grille maison** : la part la plus risquée en accessibilité est du code kartenn ;
   script APG Grid complet et revue `a11y-auditor` avec un lecteur d'écran.
 - **Poids de la police** : sous-ensembles et préchargement unique ; mesuré par
-  `size.mjs`.
+  `size.ts`.
 
 ## Stratégie de test
 
@@ -1185,7 +1212,7 @@ en CSS (Q-020-3).
 | Stylelint, lint du code | REQ-020-12 à 14 | oui |
 | Playwright `visual` | captures et instantanés ARIA du catalogue et des maquettes | oui |
 | Playwright `components` | scripts clavier APG, axe `wcag22aa`, violations CSP | oui |
-| `components-bench`, `size.mjs` | budgets REQ-020-29 | oui |
+| `bench-ui` : `size.ts`, `components-bench` | budgets REQ-020-29 (lancé à la main, verrou des bancs) | oui |
 | Revues | `ui-reviewer`, `a11y-auditor` à la fin de chaque composant et maquette | revue |
 
 ## ADR
