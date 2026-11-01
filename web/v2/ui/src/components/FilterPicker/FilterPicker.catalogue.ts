@@ -6,6 +6,7 @@ import { computed, defineComponent, h, ref } from "vue";
 import type { CatalogueEntry } from "../../catalogue.ts";
 import { domains, environments } from "../../fixtures/index.ts";
 import { filterOptions, type Suggest } from "../Combobox/combobox.ts";
+import FilterColumns from "../../demo/FilterColumns.vue";
 import type { ListOption } from "../Select/select.ts";
 import Stack from "../Stack/Stack.vue";
 import TextField from "../TextField/TextField.vue";
@@ -219,6 +220,13 @@ export default {
       description: "Au clavier : ajout, modification, retrait ; l'URL écrite à chaque filtre",
       props: {},
       demo: Keyboard,
+      wide: true,
+    },
+    {
+      name: "columns",
+      description: "Filtres de colonne : le même modèle que la barre, Alt+Bas sur l'en-tête (A7)",
+      props: { model: addressFilters },
+      demo: FilterColumns,
       wide: true,
     },
   ],

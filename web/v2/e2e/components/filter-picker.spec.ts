@@ -316,3 +316,53 @@ test.describe("FilterPicker (typed filters)", () => {
     await expect(page.getByRole("textbox", { name: "Note" })).toBeFocused();
   });
 });
+
+// The filters of a column (020 decision A7; 021 task 11): one model for the bar and the
+// headers of the grid; Alt+Down on a header opens the bar's picker on that column's
+// property, its applied filter to edit; the focus comes back to the header.
+test.describe("FilterPicker, the filters of the columns", () => {
+  test.beforeEach(async ({ page }) => {
+    await openState(page, "FilterPicker", "columns");
+  });
+
+  test("Alt+Down on a header: the bar's picker on its property, the focus back to it", async ({
+    page,
+  }) => {
+    const grid = page.getByRole("grid", { name: "Adresses" });
+    await add(page).focus();
+    await page.keyboard.press("Tab");
+    await expect(grid.getByRole("columnheader", { name: /^Adresse/ })).toBeFocused();
+    await page.keyboard.press("ArrowRight");
+    const usage = grid.getByRole("columnheader", { name: /^Usage/ });
+    await expect(usage).toBeFocused();
+
+    await page.keyboard.press("Alt+ArrowDown");
+    await expect(popover(page)).toHaveAccessibleName("Ajouter un filtre");
+    // The property is the column's: one operator, on to the value.
+    await expect(value(page)).toBeFocused();
+    await expect(operator(page)).toHaveText(/est/);
+    await choose(page, "hô", /^Hôte/);
+    await page.keyboard.press("Enter");
+    await expect(popover(page)).toHaveCount(0);
+    await expect(usage).toBeFocused();
+    await expect(chip(page, "Usage est Hôte")).toBeVisible();
+    await expect(usage).toHaveAccessibleName("Usage (filtrée)");
+
+    // Again on the same header: its applied filter, to edit; Escape gives the focus back.
+    await page.keyboard.press("Alt+ArrowDown");
+    await expect(popover(page)).toHaveAccessibleName("Modifier le filtre");
+    await expect(value(page)).toBeFocused();
+    await page.keyboard.press("Escape");
+    if ((await popover(page).count()) > 0) await page.keyboard.press("Escape");
+    await expect(popover(page)).toHaveCount(0);
+    await expect(usage).toBeFocused();
+    await expect(chips(page)).toHaveCount(1);
+  });
+
+  test("only the columns whose parameter the model serves have a funnel", async ({ page }) => {
+    const grid = page.getByRole("grid", { name: "Adresses" });
+    await expect(grid.getByRole("button", { name: /Adresse$/ })).toHaveCount(1);
+    await expect(grid.getByRole("button", { name: /Usage$/ })).toHaveCount(1);
+    await expect(grid.getByRole("button", { name: /Machine$/ })).toHaveCount(0);
+  });
+});

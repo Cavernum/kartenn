@@ -273,6 +273,31 @@ function openEdit(index: number): void {
   });
 }
 
+/** What the focus goes back to once a picker opened by `openFor` closes (a header). */
+let returnTo: HTMLElement | null = null;
+
+/**
+ * Opens the picker on one property (the filter of a column, 020 decision A7: one model for
+ * the bar and the columns): its applied filter to edit, else a new one of that property,
+ * the focus on its value; once closed, the focus goes back to `from`.
+ */
+function openFor(key: string, from: HTMLElement | null = null): void {
+  const p = propertyOf(props.model, key);
+  if (!p) return;
+  const index = filters.value.findIndex((f) => f.key === key && !f.draft);
+  if (index >= 0) openEdit(index);
+  else
+    openFrom(-1, () => {
+      reset();
+      target.value = { kind: "new" };
+      draft.propertyText = p.label ?? p.key;
+      onProperty({ value: p.key, label: p.label ?? p.key });
+    });
+  returnTo = open.value ? from : null;
+}
+/** « Ajouter un filtre », from the host: the filter key of its view (`/`, REQ-021-8). */
+defineExpose({ openAdd, openFor });
+
 /**
  * Reka's focus scopes say their auto focus by an event that bubbles: the lists of the
  * operator and of the value, inside the popover, are theirs to handle.
@@ -322,6 +347,7 @@ function onCloseFocus(event: Event): void {
   restored = true;
   if (outside) {
     outside = false;
+    returnTo = null;
     return;
   }
   focusAfterClose();
@@ -329,7 +355,9 @@ function onCloseFocus(event: Event): void {
 
 let focusNext: (() => HTMLElement | null | undefined) | undefined;
 function focusAfterClose(): void {
-  const next = focusNext?.() ?? anchor.value ?? addButton();
+  const back = returnTo?.isConnected ? returnTo : null;
+  returnTo = null;
+  const next = back ?? focusNext?.() ?? anchor.value ?? addButton();
   focusNext = undefined;
   next?.focus();
 }
