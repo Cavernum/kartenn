@@ -10599,12 +10599,19 @@
       "SessionState": {
         "description": "The session of the caller.",
         "properties": {
+          "absolute_expires_at": {
+            "description": "The end of its lifetime alone, RFC 3339: the same over the whole session\n(021/A14).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "breakglass": {
             "description": "A break-glass session.",
             "type": "boolean"
           },
           "expires_at": {
-            "description": "Its end, RFC 3339.",
+            "description": "Its end, RFC 3339: by inactivity or by its lifetime, whichever comes first; a\nrequest marked `Kartenn-Background: ?1` does not push it back.",
             "type": [
               "string",
               "null"

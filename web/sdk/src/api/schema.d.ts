@@ -8003,9 +8003,17 @@ export interface components {
     };
     /** @description The session of the caller. */
     SessionState: {
+      /**
+       * @description The end of its lifetime alone, RFC 3339: the same over the whole session
+       *     (021/A14).
+       */
+      absolute_expires_at?: string | null;
       /** @description A break-glass session. */
       breakglass: boolean;
-      /** @description Its end, RFC 3339. */
+      /**
+       * @description Its end, RFC 3339: by inactivity or by its lifetime, whichever comes first; a
+       *     request marked `Kartenn-Background: ?1` does not push it back.
+       */
       expires_at?: string | null;
     };
     /** @description The body of `GET /v1/stats`. */

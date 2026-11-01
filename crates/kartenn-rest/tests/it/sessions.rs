@@ -519,6 +519,97 @@ async fn an_oidc_login_opens_a_session_that_lives_and_closes(pool: PgPool) {
     assert_eq!(cause, "logout");
 }
 
+/// An instant of RFC 3339 of a body, in Unix seconds.
+fn unix(instant: &Value) -> i64 {
+    time::OffsetDateTime::parse(
+        instant.as_str().unwrap(),
+        &time::format_description::well_known::Rfc3339,
+    )
+    .unwrap()
+    .unix_timestamp()
+}
+
+/// `request` marked with `Kartenn-Background` field lines `values`.
+fn marked(mut request: Request<Body>, values: &[&str]) -> Request<Body> {
+    for &value in values {
+        request
+            .headers_mut()
+            .append("kartenn-background", value.parse().unwrap());
+    }
+    request
+}
+
+/// 021/A14: a request in the background is no activity of its session: neither its end
+/// pushed back nor its cookie sent again; any other mark is an ordinary request. The end
+/// of its lifetime stays the same over the whole session.
+#[kartenn_testing::pg_test]
+async fn a_request_in_the_background_is_no_activity(pool: PgPool) {
+    let idp = idp().await;
+    let f = Fixture::new(&pool, &idp);
+    let session = f.login(&idp).await;
+    let started = Session::unseal(&f.ring, &[&session]).unwrap().started;
+    let lifetime = started + 8 * 3_600;
+
+    // Seen two minutes ago, in the background: neither seen again nor sent again.
+    let older = f.forged(&session, |s| s.seen -= 120);
+    let seen = Session::unseal(&f.ring, &[older.split_once('=').unwrap().1])
+        .unwrap()
+        .seen;
+    let me = f
+        .call(marked(
+            request("GET", "/v1/me", Some(&older), true),
+            &["?1"],
+        ))
+        .await;
+    assert_eq!(me.status(), StatusCode::OK);
+    assert!(set_cookies(&me).is_empty(), "{:?}", set_cookies(&me));
+    let body = json(me).await;
+    assert_eq!(unix(&body["session"]["expires_at"]), seen + 1_800);
+    assert_eq!(unix(&body["session"]["absolute_expires_at"]), lifetime);
+
+    // Any other mark is an ordinary request: seen now, sent again.
+    for values in [&[][..], &["?0"], &["?1", "?1"], &["?1;by=focus"], &["1"]] {
+        let me = f
+            .call(marked(request("GET", "/v1/me", Some(&older), true), values))
+            .await;
+        assert_eq!(me.status(), StatusCode::OK, "{values:?}");
+        let again = value(&me, SESSION).unwrap_or_else(|| panic!("{values:?}: sent again"));
+        let again = Session::unseal(&f.ring, &[&again]).unwrap();
+        assert!(unix_now() - again.seen <= 1, "{values:?}");
+        let body = json(me).await;
+        let ends = unix(&body["session"]["expires_at"]);
+        assert!((ends - unix_now() - 1_800).abs() <= 2, "{values:?}: {ends}");
+        assert_eq!(
+            unix(&body["session"]["absolute_expires_at"]),
+            lifetime,
+            "{values:?}"
+        );
+    }
+
+    // Near the end of its lifetime, the end of the session is that of its lifetime.
+    let late = f.forged(&session, |s| s.started -= 8 * 3_600 - 600);
+    let me = f
+        .call(marked(request("GET", "/v1/me", Some(&late), true), &["?1"]))
+        .await;
+    let body = json(me).await;
+    assert_eq!(
+        body["session"]["expires_at"],
+        body["session"]["absolute_expires_at"]
+    );
+    assert_eq!(
+        unix(&body["session"]["expires_at"]),
+        lifetime - 8 * 3_600 + 600
+    );
+
+    // Idle for longer than its inactivity, the background does not keep it alive.
+    let idle = f.forged(&session, |s| s.seen -= 1_800);
+    let me = f
+        .call(marked(request("GET", "/v1/me", Some(&idle), true), &["?1"]))
+        .await;
+    assert_eq!(me.status(), StatusCode::UNAUTHORIZED);
+    assert!(removes(&me, SESSION));
+}
+
 #[kartenn_testing::pg_test]
 async fn a_callback_is_played_once(pool: PgPool) {
     let idp = idp().await;
@@ -682,6 +773,12 @@ async fn a_breakglass_session_is_refused_after_one_hour(pool: PgPool) {
     assert_eq!(body["kind"], "breakglass");
     assert_eq!(body["method"], "breakglass");
     assert_eq!(body["session"]["breakglass"], true);
+    // 021/A14: its lifetime ends one hour after it opened.
+    let opened = Session::unseal(&f.ring, &[&session]).unwrap().started;
+    assert_eq!(
+        unix(&body["session"]["absolute_expires_at"]),
+        opened + 3_600
+    );
 
     let almost = f.forged(&session, |s| s.started -= 3_500);
     let me = f.call(request("GET", "/v1/me", Some(&almost), true)).await;
