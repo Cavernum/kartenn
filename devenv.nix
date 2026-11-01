@@ -711,11 +711,13 @@ in {
         # The units of kartenn/component-prefix (tools/stylelint/prefixes.js: the directories
         # of the components, the files of internal/ and demo/), at the merge base and now:
         # one added or removed moves the prefixes, and every sheet is linted again.
+        # --full-tree: from a subdirectory, ls-tree would keep only the entries under it.
+        tree() { git -c core.quotePath=false ls-tree --full-tree --name-only "$@" 2>/dev/null; }
         {
-          git ls-tree --name-only -d "$mb:''${prefix}ui/src/components" | sed 's#^#components/#'
-          git ls-tree --name-only "$mb:''${prefix}ui/src/components/internal" | grep '\.vue$' | sed 's#^#components/internal/#'
-          git ls-tree --name-only "$mb:''${prefix}ui/src/demo" | grep '\.vue$' | sed 's#^#demo/#'
-        } 2>/dev/null | sort >"$log/units.base"
+          tree -d "$mb:''${prefix}ui/src/components" | sed 's#^#components/#'
+          tree "$mb:''${prefix}ui/src/components/internal" | grep '\.vue$' | sed 's#^#components/internal/#'
+          tree "$mb:''${prefix}ui/src/demo" | grep '\.vue$' | sed 's#^#demo/#'
+        } | sort >"$log/units.base"
         for u in ui/src/components/*/ ui/src/components/internal/*.vue ui/src/demo/*.vue; do
           if [ -e "$u" ]; then u=''${u%/}; echo "''${u#ui/src/}"; fi
         done | sort >"$log/units"
