@@ -8,6 +8,14 @@
 // is no early nor late warning. A session whose end did not move when seen again ends at a
 // fixed instant (its absolute lifetime): said, without the way to stay.
 //
+// Activity is the user's (decision of the main session, 2026-11-01, during task 11): a read
+// born of a gesture — a navigation, a key, the pointer, the wheel (a grid scrolled), within
+// `GESTURE_WINDOW_MS` before the request — is activity; a read nobody asked for (an
+// invalidation by an event of the stream, a revalidation on focus, the plugins loaded when
+// idle) is not, so that a screen that reads in the background does not keep the warning
+// away. The server still counts every request but the stream (`seen`, to arbitrate:
+// task 16).
+//
 // Limit (task 16, to arbitrate): `expires_at` is the nearer of the idle end and the
 // absolute one, and every request pushes the idle end; the absolute end of a user who
 // stays active is only known when it becomes the nearer one at a reading. Probing would
@@ -64,12 +72,37 @@ export function serverSkew(): number {
  */
 export function activityFetch(inner: typeof fetch = globalThis.fetch): typeof fetch {
   return async (input, init) => {
+    // Asked by the user if a gesture came just before the request left.
+    const asked = Date.now() - lastGesture <= GESTURE_WINDOW_MS;
     const response = await inner(input, init);
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     if (!isActivity(url)) return response;
     noteServerClock(response);
-    if (response.status !== 401) markActivity();
+    if (asked && response.status !== 401) markActivity();
     return response;
+  };
+}
+
+/** How long after a gesture of the user a request of the shell is still of his doing. */
+export const GESTURE_WINDOW_MS = 10_000;
+/** The gestures of the user that make the reads after them his (keys, pointer, wheel). */
+const GESTURES = ["keydown", "pointerdown", "wheel", "touchstart"] as const;
+/** The last gesture of the user in this tab (opening the page is one). */
+let lastGesture = Date.now();
+
+/** Records a gesture of the user now (a navigation of the router, an event of the page). */
+export function markGesture(now: number = Date.now()): void {
+  lastGesture = now;
+}
+
+/** Follows the gestures of the user on `target`; the returned function stops. */
+export function installGestures(
+  target: Pick<Document, "addEventListener" | "removeEventListener"> = document,
+): () => void {
+  const on = () => markGesture();
+  for (const type of GESTURES) target.addEventListener(type, on, { capture: true, passive: true });
+  return () => {
+    for (const type of GESTURES) target.removeEventListener(type, on, { capture: true });
   };
 }
 
