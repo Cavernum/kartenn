@@ -150,9 +150,31 @@ export async function readEnd(fetcher: typeof fetch = (i, o) => fetch(i, o)): Pr
   return { kind: "end", expiresAt: me.session?.expires_at ?? null };
 }
 
+/**
+ * The last activity kept by the browser. One kept in the future (the clock set back since,
+ * by hand or by NTP) is brought back to now, kept so: it would push the expected end, and
+ * keep every activity of the tabs from replacing it, for as long as the clock was moved.
+ */
 function lastActivity(): number | null {
   const value = Number(storage()?.getItem(ACTIVITY_KEY));
-  return Number.isFinite(value) && value > 0 ? value : null;
+  if (!Number.isFinite(value) || value <= 0) return null;
+  const now = Date.now();
+  if (value <= now) return value;
+  try {
+    storage()?.setItem(ACTIVITY_KEY, String(now));
+  } catch {
+    // A full or refused storage: now all the same.
+  }
+  return now;
+}
+
+/** Forgets the last activity of the browser: a logout, a new login (another session). */
+export function forgetActivity(): void {
+  try {
+    storage()?.removeItem(ACTIVITY_KEY);
+  } catch {
+    // A refused storage keeps nothing either.
+  }
 }
 
 /** What the frame shows: the warning, with its end and whether it can be pushed back. */
@@ -195,7 +217,7 @@ export function createExpiry(view: ExpiryView, deps: ExpiryDeps = {}): Expiry {
   let lastRead = 0;
   let extendable = true;
   let timer: unknown = null;
-  /** The warning said, by its end and its way (`<end>:<extendable>`); `null` if none. */
+  /** The warning said, by the minute of its end and its way; `null` if none. */
   let warned: string | null = null;
 
   /** The end expected now: the last activity plus the window, or the fixed end. */

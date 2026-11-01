@@ -10,6 +10,7 @@ import {
 } from "../frame/settings.ts";
 import { LOCALE_KEY } from "../i18n/index.ts";
 import { forgetRecent } from "../shortcuts/recent.ts";
+import { forgetActivity } from "./expiry.ts";
 
 // The session of the new shell (REQ-021-14, REQ-007-28; design 007 « Session »): login by
 // an issuer or a break-glass account, back to the same URL — dates and filters of its query
@@ -98,6 +99,8 @@ export function loginAt(
 ): void {
   rememberReturn(back);
   store("localStorage")?.setItem(ISSUER_KEY, issuer);
+  // Another session: the activity of the one before says nothing of its end.
+  forgetActivity();
   go(loginUrl(issuer));
 }
 
@@ -180,7 +183,10 @@ export async function breakglassLogin(
     credentials: "same-origin",
     body: JSON.stringify(proofs),
   }).catch(() => null);
-  if (response?.ok) return null;
+  if (response?.ok) {
+    forgetActivity();
+    return null;
+  }
   return response
     ? ApiProblem.from(response)
     : new ApiProblem({ status: 0, type: "about:blank", title: "network" });
