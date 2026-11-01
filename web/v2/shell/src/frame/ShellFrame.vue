@@ -19,9 +19,13 @@
 // Ctrl+K (objects by value and by name, recent ones, commands of the view and of the
 // plugins, pages).
 //
+// The plugins and the session (task 16): the views of the loaded plugins under their
+// spaces and their `g` letters (a letter taken refused, said in « À propos »); « À propos »,
+// login and logout in the user menu; « Session expirée » on a 401 in use, and the end of
+// the session said before it comes, in a toast.
+//
 // Left to the next tasks: the content of the draft tab (task 14); the counters of the
-// sidebar (tasks 11, 14), the entries and the `g` letters of the plugins and the session's
-// login, about and logout (task 16).
+// sidebar (tasks 11, 14).
 import { drafts as draftStore, type DraftList } from "@kartenn/sdk";
 import { commandRegistry, shortcutRegistry } from "@kartenn/sdk/host";
 import {
@@ -56,8 +60,13 @@ import { useI18n } from "vue-i18n";
 import { RouterView, useRoute, useRouter } from "vue-router";
 import { useQuery } from "../data/query.ts";
 import { changeLocale, LOCALE_NAMES, LOCALES, type Locale } from "../i18n/index.ts";
+import { pluginLetters, pluginSpaces, registerLetters } from "../plugins/navigation.ts";
+import { refuseLetters, usePlugins } from "../plugins/registry.ts";
 import KLink from "../prefetch/KLink.vue";
-import { useSession } from "../rights/index.ts";
+import { loadSession, useSession } from "../rights/index.ts";
+import { createExpiry } from "../session/expiry.ts";
+import { logout } from "../session/index.ts";
+import SessionDialog from "../session/SessionDialog.vue";
 import {
   checkPeriod,
   goToPeriod,
@@ -101,9 +110,12 @@ const time = useTime();
 const ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const PANEL = "k-panel";
 
-// The sidebar: the spaces the rights show, the entry and space of the current page.
-const groups = computed(() => sidebarGroups(session.value.rights, t));
-const located = computed(() => locate(route.path));
+// The sidebar: the spaces the rights show, the views of the loaded plugins under the space
+// of each (task 16), the entry and space of the current page.
+const plugins = usePlugins();
+const spaces = computed(() => pluginSpaces(plugins.value));
+const groups = computed(() => sidebarGroups(session.value.rights, t, spaces.value));
+const located = computed(() => locate(route.path, spaces.value));
 /** Every space but the current one starts closed: the sidebar stays short. */
 const closed = computed(() => SPACE_ORDER.filter((id) => id !== located.value?.space.id));
 
@@ -281,6 +293,11 @@ const userMenu = computed<MenuItem[]>(() => {
       checked: settings.singleKeys.value,
     },
     { id: "help", label: t("palette.help"), icon: "keyboard", ...hint(["?"]) },
+    { id: "about", label: t("about.title"), icon: "info" },
+    { kind: "separator" },
+    session.value.me
+      ? { id: "logout", label: t("user.logout"), icon: "log-out" }
+      : { id: "login", label: t("user.login"), icon: "user" },
   ];
 });
 function onUserMenu(id: string): void {
@@ -292,6 +309,10 @@ function onUserMenu(id: string): void {
     settings.motion.value = settings.motion.value === "reduce" ? "system" : "reduce";
   else if (kind === "single-keys") settings.singleKeys.value = !settings.singleKeys.value;
   else if (kind === "help") helpOpen.value = true;
+  else if (kind === "about") void router.push("/about");
+  else if (kind === "login")
+    void router.push({ path: "/login", query: { return: route.fullPath } });
+  else if (kind === "logout") logout();
 }
 
 /** The hint of a single-key shortcut, shown only while those are on (WCAG 2.1.4). */
@@ -407,12 +428,13 @@ const commands = computed<PaletteEntry[]>(() => {
   list.push(...pluginEntries(pluginCommands.value, (p) => session.value.rights.has(p)));
   return list;
 });
-/** The `g` letter of each entry of the sidebar. */
+/** The `g` letter of each entry of the sidebar: the shell's, and those granted to plugins. */
 const LETTERS = new Map(NAVIGATION.map(({ letter, entry }) => [entry, letter]));
+const grantedLetters = shallowRef<ReadonlyMap<string, string>>(new Map());
 const pages = computed<PaletteEntry[]>(() =>
   groups.value.flatMap((group) =>
     group.entries.map((entry) => {
-      const letter = LETTERS.get(entry.id);
+      const letter = LETTERS.get(entry.id) ?? grantedLetters.value.get(entry.id);
       return {
         id: `page:${entry.id}`,
         label: entry.label,
@@ -561,12 +583,37 @@ function playView(id: "filter" | "create" | "edit"): boolean {
   action?.run();
   return action !== null;
 }
+const shellList = shallowRef(registry.list());
+onBeforeUnmount(registry.subscribe(() => (shellList.value = registry.list())));
+
+// The `g` letters of the views of the loaded plugins (design « API des plugins »), in the
+// order of `ui_plugins`, registered again at each change of the plugins: a letter taken (by
+// the shell or a plugin before) is refused, said in the console and in « À propos », and
+// the plugin stays loaded.
+let dropLetters = () => {};
+watch(
+  plugins,
+  (loaded) => {
+    dropLetters();
+    const letters = registerLetters(registry, pluginLetters(loaded), {
+      t,
+      rights: () => session.value.rights,
+      navigate: (to) => void router.push(to),
+    });
+    dropLetters = letters.drop;
+    grantedLetters.value = letters.granted;
+    refuseLetters(letters.refused);
+  },
+  { immediate: true },
+);
+onBeforeUnmount(() => dropLetters());
+
 const pluginShortcuts = shallowRef(shortcutRegistry.list());
 onBeforeUnmount(
   shortcutRegistry.subscribe(() => (pluginShortcuts.value = shortcutRegistry.list())),
 );
 const shortcuts = computed(() => [
-  ...registry.list(),
+  ...shellList.value,
   ...pluginShortcuts.value.map(pluginShortcut),
 ]);
 provideShortcuts(shortcuts);
@@ -586,6 +633,36 @@ watch(
 const userLabel = computed(() =>
   userName.value ? t("user.menu", { name: userName.value }) : t("user.anonymousMenu"),
 );
+
+// The end of the session, said before it comes (REQ-021-14): a warning that stays until
+// the next activity, with « Rester connecté » (a reading of `/v1/me`, which sees the
+// session again) unless the end is a fixed one.
+let ending: string | null = null;
+const timeOf = (at: number) =>
+  new Intl.DateTimeFormat(i18n.locale.value, { timeStyle: "short" }).format(new Date(at));
+const expiry = createExpiry({
+  warn(end, extendable) {
+    if (ending) toasts.dismiss(ending);
+    ending = toasts.show({
+      tone: "warn",
+      title: t("session.ending", { time: timeOf(end) }),
+      description: t(extendable ? "session.endingText" : "session.endingFixed"),
+      ...(extendable
+        ? { action: { label: t("session.stay"), run: () => void loadSession() } }
+        : {}),
+    });
+  },
+  clear() {
+    if (ending) toasts.dismiss(ending);
+    ending = null;
+  },
+});
+watch(
+  () => session.value.me?.session?.expires_at,
+  (end) => expiry.read(end),
+  { immediate: true },
+);
+onBeforeUnmount(() => expiry.stop());
 </script>
 
 <template>
@@ -709,6 +786,7 @@ const userLabel = computed(() =>
     <Dialog v-model:open="helpOpen" size="lg" :title="t('shortcuts.title')">
       <ShortcutHelp :shortcuts="shortcuts" :single-keys="settings.singleKeys.value" />
     </Dialog>
+    <SessionDialog />
     <ToastRegion />
     <!-- The page reached, said once its title is set (4.1.3): the focus stays where it is. -->
     <p class="k-visually-hidden" role="status">{{ announced }}</p>

@@ -17,8 +17,9 @@ key_file = "web/e2e/.state/key.pem"
 [web]
 # `vite build` of web/v2/shell (production mode, without the catalogue).
 root = "web/v2/dist/shell"
-# The builds of web/v2/plugins/*, at web/v2/dist/plugins/<name>/<version>/.
-plugins_dir = "web/v2/dist/plugins"
+# The builds of web/v2/plugins/* (web/v2/dist/plugins/<name>/<version>/) and the test
+# plugins of web/v2/e2e/plugins, gathered by serve.sh (task 16).
+plugins_dir = "web/e2e/.state/plugins-v2"
 
 [auth]
 key_file = "web/e2e/.state/kartenn-keys"

@@ -36,7 +36,15 @@ type Guarded = {
   login: (user: keyof typeof USERS) => Promise<void>;
   /** Errors a journey provokes on purpose: exceptions and console errors that match. */
   toleratedErrors: RegExp[];
+  /** CSP violations a journey provokes on purpose (`<directive> <blocked URI>`). */
+  toleratedCsp: RegExp[];
 };
+
+/**
+ * The test plugin `throws` (web/v2/e2e/plugins) throws while its module loads, in every
+ * session: set aside by the shell, its exception is the subject of the journey `plugins`.
+ */
+const PLUGIN_THROWS = /e2e plugin throws while loading/;
 
 declare global {
   interface Window {
@@ -51,7 +59,8 @@ declare global {
  */
 export const test = base.extend<Guarded>({
   toleratedErrors: [[], { option: true }],
-  page: async ({ page, toleratedErrors }, use) => {
+  toleratedCsp: [[], { option: true }],
+  page: async ({ page, toleratedErrors, toleratedCsp }, use) => {
     await page.addInitScript(() => {
       window.__kartennCsp = [];
       document.addEventListener("securitypolicyviolation", (event) => {
@@ -74,10 +83,14 @@ export const test = base.extend<Guarded>({
     await use(page);
     if (!page.isClosed()) {
       const violations = await page.evaluate(() => window.__kartennCsp ?? []).catch(() => []);
-      expect(violations, "CSP violations").toEqual([]);
+      expect(
+        violations.filter((v) => !toleratedCsp.some((pattern) => pattern.test(v))),
+        "CSP violations",
+      ).toEqual([]);
     }
+    const tolerated = [PLUGIN_THROWS, ...toleratedErrors];
     expect(
-      errors.filter((error) => !toleratedErrors.some((pattern) => pattern.test(error))),
+      errors.filter((error) => !tolerated.some((pattern) => pattern.test(error))),
       "uncaught exceptions and console errors",
     ).toEqual([]);
   },

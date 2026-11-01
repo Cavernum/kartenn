@@ -1,0 +1,18 @@
+{
+  "nav": { "overview": "Notes", "broken": "Broken notes", "admin": "Administration notes" },
+  "view": {
+    "title": "Overview of the notes",
+    "trying": "Calling a third party…",
+    "reached": "Third party reached",
+    "blocked": "Call to a third party blocked"
+  },
+  "tab": { "notes": "Notes", "body": "Notes of {type} {id}" },
+  "panel": { "title": "Summary of the notes" },
+  "column": { "flag": "Flag" },
+  "action": {
+    "review": "Review the notes",
+    "body": "Notes of the changeset {id}",
+    "close": "Close"
+  },
+  "widget": { "home": "Notes", "body": "Three open notes" }
+}

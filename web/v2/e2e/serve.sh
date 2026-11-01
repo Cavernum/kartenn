@@ -4,7 +4,8 @@
 # - `serve.sh idp`: the issuer of the old journeys (web/e2e/serve.sh idp: binaries,
 #   material of web/e2e/.state, issuer on 9444);
 # - `serve.sh kartenn`: builds the new shell and the plugins of web/v2/plugins (into
-#   web/v2/dist), recreates the kartenn_e2e_v2 database, migrates it, creates the
+#   web/v2/dist), gathers them with the test plugins of web/v2/e2e/plugins under
+#   web/e2e/.state/plugins-v2, recreates the kartenn_e2e_v2 database, migrates it, creates the
 #   break-glass account `e2e` (its proofs in web/e2e/.state/breakglass-v2.txt), then
 #   serves kartenn-server on 9443 with web/v2/e2e/kartenn.toml.
 # Same ports as web/e2e: k-web-e2e and k-web2-e2e hold every slot of k-heavy, never side
@@ -20,6 +21,12 @@ idp)
   ;;
 kartenn)
   pnpm -C web/v2 --filter @kartenn/shell --filter "./plugins/*" build >/dev/null
+  # The plugins directory of the instance: the builds of web/v2/plugins and the test
+  # plugins of web/v2/e2e/plugins (one of each point, and those set aside), as an operator
+  # would install them.
+  rm -rf "$state/plugins-v2"
+  mkdir -p "$state/plugins-v2"
+  cp -R web/v2/e2e/plugins/. web/v2/dist/plugins/. "$state/plugins-v2/"
   database="${DATABASE_URL%/*}/kartenn_e2e_v2"
   psql "$DATABASE_URL" -q -c 'DROP DATABASE IF EXISTS kartenn_e2e_v2 WITH (FORCE)' \
     -c 'CREATE DATABASE kartenn_e2e_v2'

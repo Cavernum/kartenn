@@ -15,8 +15,9 @@ test("kartenn-server serves the new shell under its CSP", async ({ page }) => {
 
   const response = await page.goto("/");
   expect(response?.headers()["content-security-policy"]).toContain("script-src 'self' 'sha256-");
-  // Signed out, the frame shows what needs no right (the login page is task 16's).
-  await expect(page.getByRole("heading", { level: 1, name: "Accueil" })).toBeVisible();
+  // Signed out, the frame shows its login page (task 16).
+  await expect(page).toHaveURL(/\/login\?return=(%2F|\/)$/);
+  await expect(page.getByRole("heading", { level: 1, name: "Connexion" })).toBeVisible();
   await expect(page.getByRole("banner")).toBeVisible();
   // The import map of the new shell shares @kartenn/ui with the plugins (ADR 0038).
   const map = JSON.parse(

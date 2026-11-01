@@ -558,7 +558,14 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (génération de `dated.ts`, à étendre) ; repris de la tâche 7
     (`web/v2/shell/src/prefetch/`) : `meta.queries` des routes, `useNextPage` sur la
     fenêtre de la `DataGrid`, `childrenIntent` sur la Topographie, parcours « fiche
-    survolée puis ouverte sans squelette »
+    survolée puis ouverte sans squelette » ; repris de la tâche 16
+    (`web/v2/shell/src/plugins/slots.ts`, `ExtensionElement.vue`) : tuiles des plugins
+    après celles du cœur (`useWidgets`, une `ExtensionElement` par tuile avec son
+    `status`), onglets et panneaux de la fiche (`useExtensions("tab" | "panel", type)`,
+    `tabItems`, `object` par `objectRef`), colonnes des listes (`gridColumns`,
+    `elementProps` de la `DataGrid`), menu d'actions de l'objet (`actionItems`,
+    `PluginAction`) ; parcours `plugins` étendu avec le plugin de test `notes`
+    (`web/v2/e2e/plugins/notes`, onglet sur `prefix` et `vlan`, panneau, colonne, tuile)
   - dépend de : 10 ; 020-19, 020-25, 020-26
 - [ ] 12. Édition en place et modification rapide : éditabilité (droits, présent,
   contrat), cellule → brouillon, Ctrl+Entrée → `write.quick` (`?approval=self`) avec motif
@@ -606,7 +613,11 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   `changesets`, `draft` réécrits ; captures E4, E5
   - où : `web/shell/src/changesets/*`, `draft/{DraftDrawer.vue,store.ts,index.ts}`
     (le stockage IndexedDB disparaît) ; design 021 « Cadre » (panneau droit, pied du
-    brouillon) ; `web/v2/sdk/src/draft.ts`
+    brouillon) ; `web/v2/sdk/src/draft.ts` ; repris de la tâche 16 : actions des plugins
+    sur le type `changeset` dans le menu de la fiche du changeset
+    (`useExtensions("action", "changeset")`, `actionItems`, `PluginAction`,
+    `web/v2/shell/src/plugins/`), parcours `plugins` étendu (action `review` du plugin de
+    test `notes`, son dialogue fermé par `kartenn-close`)
   - dépend de : 12
 - [ ] 15. Administration : groupes (membres, liaisons), rôles, émetteurs, comptes de
   service et secret, identités (groupes et droits effectifs en lecture), audit et
@@ -634,6 +645,65 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (`SHELL_KEYS`, posé dans `main.ts` avant le montage) reste avant tout chargement de
     plugin
   - dépend de : 9
+  - en cours : fait le 2026-11-01 — serveur : point `widget` (`Point::Widget`,
+    `crates/kartenn-rest/src/web/plugins.rs` : sans `object_types` ni `go`, un au plus
+    par plugin ; contrôles des extensions dans `check_extensions`), contrat et
+    `schema.d.ts` (web/sdk, web/v2/sdk) régénérés, 007 (design, règles de validation) et
+    `docs/spec/interfaces.md` amendés ; `tests/it/plugins.rs` (trois manifestes fautifs,
+    tuile publiée). SDK : `ExtensionPoint` admet `widget`. Shell (`web/v2/shell/src/`) :
+    `plugins/registry.ts` (état des plugins, `extensionsOf` par point, type — `changeset`
+    et types de modules compris — et permission, `widgetsOf`, codes `plugin.<motif>`,
+    version du serveur, lettres refusées), `plugins/loader.ts` (capacités relues sur
+    429/503, `unmetRange` sur SDK, `@kartenn/ui` et `vue`, catalogues, modules par les
+    `preloadModules` du préchargement, entrée, `definePlugin` en 5 s ; `beginPlugins` une
+    fois par session, au repos par `requestIdleCallback`), `plugins/navigation.ts` (vues
+    sous l'espace de leur manifeste, espaces `hosts`, `policy`, `flows` ajoutés à leur
+    place ; lettres `g` au registre du cadre, une lettre prise refusée, le plugin signalé
+    dans « À propos » et chargé), `plugins/{ExtensionElement,PluginView,PluginAction}.vue`
+    (élément dans sa place, erreur confinée en encart avec code, squelette au
+    chargement), `plugins/slots.ts` (onglets, panneaux, colonnes, actions, tuiles pour les
+    écrans), route `/x/:plugin/:view/*` (`meta.modules`, fil d'Ariane sous l'espace),
+    `frame/AboutView.vue`, `session/` (`index.ts` : retour, émetteur, `clearSensitive` qui
+    appelle `forgetRecent`, `logout` ; `expiry.ts` ; `LoginView.vue` ; `SessionDialog.vue`),
+    garde de session (`/login?return=`, `meta.public`), menu du compte (À propos, Se
+    déconnecter), avis de fin de session ; `i18n/index.ts` (`mergePluginCatalog`,
+    `shellKey`). Vitest : `shell/test/plugins.test.ts` (20), `session.test.ts` (15),
+    `frame.test.ts` adapté ; parcours `plugins`, `session`, `example` verts (22, Chromium
+    et Firefox). Parcours `plugins`, `session`, `example` réécrits sous
+    `web/v2/e2e/journeys/` ; plugins de test sous `web/v2/e2e/plugins/` (`notes` : une
+    extension de chaque point, `g m`, `g p` refusée, une vue qui lève, une vue
+    d'administrateur ; `incompatible` en `ui ^3`, `throws`, `silent`, `forged`), réunis par
+    `serve.sh` dans `web/e2e/.state/plugins-v2`.
+  - reste, faute d'écran : tuiles sur l'Accueil, onglets, panneaux et colonnes (tâche 11),
+    actions sur le type `changeset` (tâche 14), avec leurs parcours (pointeurs écrits dans
+    leurs lignes `où :`) ; parcours `example` complet avec le plugin d'exemple au SDK 1.0
+    (tâche 19 : il ne déclare encore aucune extension, le parcours vérifie qu'il charge).
+    Ouverts après relecture : connexion et « À propos » hors session gardent tout le cadre
+    (barre latérale vide, pastille de date, compteur du brouillon) faute de maquette ; le
+    style du titre de page est recopié dans cinq classes locales (`k-login__title`,
+    `k-about__title`, `k-plugin-view__title`, `k-pending__title`, aide), une pièce de
+    `@kartenn/ui` à décider ; focus rendu par `PluginAction` à vérifier au clavier quand la
+    tâche 14 l'aura branché.
+  - choix : codes du shell `plugin.<motif>` (`incompatible`, `load-failed`, `exception`,
+    `timeout`, `element`), jamais de l'API ; catalogues des plugins sous `plugin.<nom>`
+    (un plugin nommé `app` ne réécrit pas les mots du shell), clés du `t` des plugins
+    routées par `shellKey` ; vues d'un plugin sans `space` dans le référentiel, après
+    celles du cœur, icône `plug` ; un plugin écarté ou en chargement ne place ni entrée ni
+    lettre, une tuile oui (squelette, encart) ; lettres enregistrées dans l'ordre de
+    `ui_plugins`, de nouveau à chaque changement ; plugins chargés une fois connecté
+    (les capacités demandent une session) ; une erreur de la fenêtre pendant la création
+    d'un élément est la sienne ; connexion et « À propos » dans le cadre, ouvertes sans
+    session ; émetteurs et compte de secours lus hors du client du SDK, un 401 hors
+    session n'ouvrant pas « Session expirée » ; la déconnexion garde langue, réglages
+    d'affichage et de clavier (thème, densité, mouvement, touches seules, barre, panneau)
+    et dernier émetteur, efface le reste de `kartenn.*` ; fin de session dite 2 min avant
+    par un toast `warn` avec « Rester connecté » (relit `/v1/me`), activité = réponses de
+    `/v1/*` hors `/v1/events`, partagée entre onglets (`kartenn.session.activity`), fin lue
+    sur l'horloge du serveur (`Date`), fin fixe (durée absolue) dite sans l'action ; aucune
+    touche réservée aux toasts ; un libellé d'extension non encore traduit (plugin en
+    chargement ou écarté) dit « plugin · id », jamais la clé ; premier émetteur en bouton
+    principal, les autres et le compte de secours en secondaire ; « Réessayer » rend le
+    focus au titre de sa section.
 
 ## P3 — Plugins (phase 5)
 

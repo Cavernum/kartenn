@@ -1,0 +1,91 @@
+import type { ExtensionPoint, ObjectRef } from "@kartenn/sdk";
+import type { GridColumn, MenuItem, TabItem } from "@kartenn/ui";
+import { computed, toValue, type ComputedRef, type MaybeRefOrGetter } from "vue";
+import { useSession } from "../rights/index.ts";
+import {
+  extensionsOf,
+  labelOf,
+  usePlugins,
+  widgetsOf,
+  type Placed,
+  type Widget,
+} from "./registry.ts";
+
+// The places of the plugins in the screens of the new shell (REQ-021-13; design 007
+// « Hôtes d'extension », 021 « Écrans »): what a screen asks for the type of the object it
+// shows — the tabs and panels of a record, the columns of a list, the actions of the menu
+// of an object (the type `changeset` included), the tiles of the home page — read from the
+// loaded plugins and the rights, reactive. The screen places them with `ExtensionElement`
+// (an element in its place, an error confined to it) and `PluginAction` (an action in its
+// dialog). A type of a module (`vlan`, `machines.machine`) is a type like another.
+
+/** The id of a place of an extension, apart from the screen's own (`x.<plugin>.<id>`). */
+export function placeId(extension: Pick<Placed, "plugin" | "id">): string {
+  return `x.${extension.plugin}.${extension.id}`;
+}
+
+/** The extensions of `point` for the type `type` (none without a type), reactive. */
+export function useExtensions(
+  point: Exclude<ExtensionPoint, "view" | "widget">,
+  type: MaybeRefOrGetter<string | null | undefined>,
+): ComputedRef<Placed[]> {
+  const plugins = usePlugins();
+  const session = useSession();
+  return computed(() => {
+    const of = toValue(type);
+    return of ? extensionsOf(plugins.value, point, session.value.rights, of) : [];
+  });
+}
+
+/** The tabs the plugins add to the record of `type`, after the screen's (`Tabs`). */
+export function tabItems(extensions: readonly Placed[], t: (key: string) => string): TabItem[] {
+  return extensions.map((e) => ({ value: placeId(e), label: labelOf(t, e) }));
+}
+
+/**
+ * The columns the plugins add to the lists of `type` (`DataGrid`, `element`): each cell an
+ * element of the plugin, its `row` the representation of the row; `elementProps` of the
+ * grid gives it its `object` (`objectOf`).
+ */
+export function gridColumns(
+  extensions: readonly Placed[],
+  t: (key: string) => string,
+): GridColumn[] {
+  return extensions.map((e) => ({
+    id: placeId(e),
+    label: labelOf(t, e),
+    element: e.element,
+    priority: 3,
+  }));
+}
+
+/** The entries the plugins add to the menu of actions of an object (`Menu`), after its own. */
+export function actionItems(extensions: readonly Placed[], t: (key: string) => string): MenuItem[] {
+  return extensions.length === 0
+    ? []
+    : [
+        { kind: "separator" },
+        ...extensions.map((e) => ({
+          id: placeId(e),
+          label: labelOf(t, e),
+          icon: "plug" as const,
+        })),
+      ];
+}
+
+/** The extension of a place id among `extensions`, if it is one of theirs. */
+export function placed(extensions: readonly Placed[], id: string): Placed | undefined {
+  return extensions.find((e) => placeId(e) === id);
+}
+
+/** The tiles of the plugins on the home page, after the core's (REQ-021-9, 13). */
+export function useWidgets(): ComputedRef<Widget[]> {
+  const plugins = usePlugins();
+  const session = useSession();
+  return computed(() => widgetsOf(plugins.value, session.value.rights));
+}
+
+/** The `object` an element of a plugin receives for an object of the API. */
+export function objectRef(type: string, id: string, href: string): ObjectRef {
+  return { type, id, href };
+}

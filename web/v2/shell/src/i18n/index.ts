@@ -40,6 +40,32 @@ function spread(locale: Locale): void {
   document.documentElement.lang = locale;
 }
 
+/**
+ * The plugins whose catalogs the shell holds, under `plugin.<name>` (task 16): apart from
+ * the shell's own keys, so that a plugin named `app` never rewrites the shell's words.
+ */
+const namespaces = new Set<string>();
+
+/** The key the shell looks up for a key of the SDK: `<plugin>.<key>` under `plugin.`. */
+export function shellKey(key: string): string {
+  const head = key.slice(0, key.indexOf("."));
+  return namespaces.has(head) ? `plugin.${key}` : key;
+}
+
+/**
+ * Merges a catalog of a plugin into `i18n` under `plugin.<name>`, and sends the keys of
+ * that plugin's `t` there.
+ */
+export function mergePluginCatalog(
+  i18n: { global: { mergeLocaleMessage(locale: string, messages: object): void } },
+  locale: string,
+  name: string,
+  messages: object,
+): void {
+  i18n.global.mergeLocaleMessage(locale, { plugin: { [name]: messages } });
+  namespaces.add(name);
+}
+
 /** The i18n instance of the shell, plugged into the SDK (`t` of plugins, context). */
 export function createShellI18n(
   locale: Locale = chooseLocale(
@@ -55,7 +81,12 @@ export function createShellI18n(
     missingWarn: false,
     fallbackWarn: false,
   });
-  setTranslator((key, params) => i18n.global.t(key, params ?? {}));
+  setTranslator((key, params) => {
+    const full = shellKey(key);
+    const text = i18n.global.t(full, params ?? {});
+    // A key the catalogs lack comes back as the plugin wrote it, never under `plugin.`.
+    return text === full ? key : text;
+  });
   spread(locale);
   return i18n;
 }

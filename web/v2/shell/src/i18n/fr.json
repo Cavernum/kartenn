@@ -19,6 +19,9 @@
     "referential": "Référentiel",
     "changes": "Changesets",
     "network": "Réseau",
+    "hosts": "Machines",
+    "policy": "Politique",
+    "flows": "Flux",
     "admin": "Administration"
   },
   "nav": {
@@ -104,6 +107,7 @@
       "vlans": "Aller aux VLAN",
       "admin": "Aller à l'administration"
     },
+    "goTo": "Aller à : {name}",
     "where": {
       "everywhere": "Partout",
       "outsideField": "Hors champ",
@@ -127,7 +131,70 @@
     "densityCompact": "Compacte",
     "densityComfortable": "Confortable",
     "reducedMotion": "Toujours réduire le mouvement",
-    "singleKeys": "Raccourcis à une touche"
+    "singleKeys": "Raccourcis à une touche",
+    "login": "Se connecter",
+    "logout": "Se déconnecter"
+  },
+  "login": {
+    "title": "Connexion",
+    "issuers": "Par votre fournisseur d'identité",
+    "issuer": "Se connecter par {id}",
+    "loading": "Chargement des fournisseurs d'identité",
+    "issuersFailed": "Les fournisseurs d'identité n'ont pas pu être lus.",
+    "retry": "Réessayer",
+    "none": "Aucun fournisseur d'identité",
+    "noneText": "L'instance n'en configure aucun : seul un compte de secours peut se connecter.",
+    "breakglass": "Compte de secours",
+    "breakglassHint": "Réservé aux pannes du fournisseur d'identité ; chaque usage est audité.",
+    "name": "Nom du compte",
+    "passphrase": "Phrase de passe",
+    "code": "Code à usage unique",
+    "codeHint": "Les six chiffres de votre application d'authentification.",
+    "submit": "Se connecter",
+    "failed": "La connexion a été refusée."
+  },
+  "session": {
+    "expired": "Session expirée",
+    "text": "Reconnectez-vous pour continuer : vous reviendrez sur cette page, aux mêmes dates. Vos brouillons restent au serveur.",
+    "reconnect": "Se reconnecter",
+    "later": "Plus tard",
+    "ending": "Votre session prend fin à {time} faute d'activité.",
+    "endingText": "Rester connecté la prolonge ; vos brouillons restent au serveur.",
+    "endingFixed": "Elle atteint sa durée maximale : terminez votre saisie, puis reconnectez-vous.",
+    "stay": "Rester connecté"
+  },
+  "about": {
+    "title": "À propos",
+    "versions": "Versions",
+    "shell": "Shell",
+    "sdk": "SDK des plugins",
+    "ui": "Bibliothèque de composants",
+    "framework": "Vue",
+    "server": "Serveur",
+    "timeZone": "Fuseau horaire des dates",
+    "plugins": "Plugins",
+    "pluginsUnavailable": "La liste des plugins n'a pas pu être lue : ils sont inconnus, pas absents.",
+    "retry": "Réessayer",
+    "rejected": "Écarté",
+    "signedOut": "Les plugins se lisent une fois connecté.",
+    "loading": "Chargement de la liste des plugins",
+    "noPlugins": "Aucun plugin",
+    "noPluginsText": "Le serveur n'en publie aucun pour vous.",
+    "letterRefused": "Raccourci refusé",
+    "letterTaken": "Lettre déjà prise, demandée par la vue {view} ; le plugin reste chargé."
+  },
+  "plugins": {
+    "loading": "Chargement",
+    "loaded": "Chargé",
+    "loadingOf": "Chargement de {name}",
+    "failedIn": "« {name} » n'a pas pu s'afficher ; le reste de l'écran reste utilisable.",
+    "reason": {
+      "incompatible": "version du SDK, des composants ou de Vue incompatible",
+      "load-failed": "fichier introuvable ou empreinte invalide",
+      "exception": "erreur pendant le chargement",
+      "timeout": "aucune extension définie dans le délai",
+      "element": "son élément a levé une erreur à sa création"
+    }
   },
   "time": {
     "refused": "kartenn refuse cette date : {reason}",
