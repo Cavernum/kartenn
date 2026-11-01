@@ -16,7 +16,7 @@ import type { components } from "../api/schema";
 import { FRESHNESS, type Entry } from "./cache.ts";
 import { refsOf } from "./dependents.ts";
 import type { Invalidation } from "./invalidate.ts";
-import { isImmutable, isPresent, type ObjectKey } from "./keys.ts";
+import { isImmutable, isPresent, keys, type ObjectKey } from "./keys.ts";
 import { collectionOf, qualify } from "./types.ts";
 
 type Applied = components["schemas"]["ChangesetApplied"];
@@ -285,7 +285,77 @@ export function createWrites({ client, queryClient, invalidation, pause }: Write
     }
   };
 
-  return { quick, simulate, submit, submitted };
+  /**
+   * A decision on a changeset (REQ-021-10, REQ-004-23): its validation, rejection (with a
+   * motive), withdrawal or undo, sent under `If-Match` = the `ETag` of the changeset read
+   * (its state). Decided: the changeset read again, the lists of changesets and the
+   * proposals too; a validation or an undo applied also invalidates what it wrote. 412:
+   * the changeset read again (someone decided meanwhile), nothing given back to retry.
+   */
+  const decide = async (
+    id: string,
+    action: Decision,
+    options: { motive?: string; approvalSelf?: boolean } = {},
+  ): Promise<DecisionOutcome> => {
+    const key = keys.object("changeset", id, null);
+    const read = queryClient.getQueryData<Entry<{ operations?: unknown }>>(key);
+    const ifMatch = read?.etag;
+    if (!ifMatch) throw new TypeError(`no ETag read for the changeset ${id}: If-Match`);
+    const self = action === "undo" && options.approvalSelf ? "?approval=self" : "";
+    const url = `/v1/changesets/${encodeURIComponent(id)}/${action}${self}`;
+    const reread = () =>
+      Promise.all([
+        invalidation.objects([{ type: "changeset", id }], null),
+        invalidation.path("/v1/proposals"),
+      ]);
+    try {
+      const answer = await client.request("POST", url, {
+        ...(action === "rejection" ? { body: { motive: options.motive ?? "" } } : {}),
+        ifMatch,
+      });
+      await reread();
+      if (answer.status === 202) return proposedOf(answer.data as Pending | undefined);
+      if (action === "validation" || action === "undo") {
+        const applied = answer.data as Applied | undefined;
+        await submitted(action === "validation" ? (read?.data.operations ?? []) : [], applied);
+        return {
+          kind: "applied",
+          changeset: applied?.changeset.id ?? null,
+          warnings: applied?.warnings ?? [],
+        };
+      }
+      const decided = answer.data as { state?: string } | undefined;
+      return { kind: "decided", state: decided?.state ?? null };
+    } catch (error) {
+      if (!(error instanceof ApiProblem)) return { kind: "failed", input: action, problem: null };
+      if (error.status === 412) {
+        await queryClient.refetchQueries({ queryKey: key, exact: true }).catch(() => undefined);
+        await invalidation.path("/v1/proposals");
+        return {
+          kind: "conflict",
+          current: queryClient.getQueryData<Entry>(key),
+          input: action,
+          problem: error,
+        };
+      }
+      return refused(error, action);
+    }
+  };
+
+  return { quick, simulate, submit, submitted, decide };
 }
+
+/** A decision on a changeset, as its route names it (`POST …/{id}/<action>`). */
+export type Decision = "validation" | "rejection" | "withdrawal" | "undo";
+
+/**
+ * The outcome of a decision: `decided` (rejected, withdrawn: its state now), `applied` (a
+ * validation, or an undo applied: the changeset that wrote), `proposed` (an undo held for
+ * a decision), or refused.
+ */
+export type DecisionOutcome =
+  | { kind: "decided"; state: string | null }
+  | Extract<WriteOutcome<Decision>, { kind: "applied" | "proposed" }>
+  | Refusal<Decision>;
 
 export type Writes = ReturnType<typeof createWrites>;
