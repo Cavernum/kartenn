@@ -4,8 +4,8 @@
 // then the same with `vue`, each file gzipped at level 9; its sheet, gzipped; the fonts
 // `index.html` preloads, as served (woff2). 1 Ko = 1 000 bytes. Prints one line per budget,
 // `PASS|FAIL <budget>: <measured> (limit <limit>)`; exits 1 if one is exceeded.
-// `node web/v2/shell/scripts/size.ts` (Node strips the types) after
-// `pnpm -C web/v2 --filter @kartenn/shell build`.
+// `node web/v2/shell/scripts/size.ts [dist]` (Node strips the types) after
+// `pnpm -C web/v2 --filter @kartenn/shell build`; `dist` defaults to web/v2/dist/shell.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -102,8 +102,9 @@ export function report(measures: Measure[]): { lines: string[]; ok: boolean } {
   return { lines, ok: measures.every(({ bytes, limit }) => bytes <= limit) };
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const dist = fileURLToPath(new URL("../../dist/shell/", import.meta.url));
+// Run as a script (Node 24: `import.meta.main`), never a silent exit 0 when imported.
+if (import.meta.main) {
+  const dist = process.argv[2] ?? fileURLToPath(new URL("../../dist/shell/", import.meta.url));
   const manifest = JSON.parse(readFileSync(join(dist, ".vite/manifest.json"), "utf8")) as Manifest;
   const html = readFileSync(join(dist, "index.html"), "utf8");
   const size = (file: string, gzip: boolean) => {

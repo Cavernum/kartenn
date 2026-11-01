@@ -2,9 +2,10 @@ import { expect, type CDPSession, type Page } from "@playwright/test";
 
 // The protocol of the component benches (spec 020, design « Budgets », from the prototype
 // D-1): a latency runs from the `timeStamp` of its event to the first animation frame after
-// the expected state; dropped frames are 1 − frames observed ÷ (duration ÷ 16.67 ms); a
-// long task is one the browser reports (> 50 ms); the heap is read through CDP after a
-// garbage collection. Each measure is the median of five passes.
+// the expected state; dropped frames are 1 − frames observed ÷ (duration ÷ 16.67 ms),
+// over a run or over the windows where a component works; a long task is one the browser
+// reports (> 50 ms); the heap is read through CDP after a garbage collection. Each
+// measure is the median of five passes, or their worst for a budget of « none ».
 
 /** The state a measure waits for after its event. */
 export type Until =
@@ -25,9 +26,11 @@ export interface Timing {
   until: Until;
 }
 
-/** A latency and the long tasks that started during it. */
+/** A latency, its bounds (clock of the page) and the long tasks that started during it. */
 export interface Timed {
   latency: number;
+  start: number;
+  end: number;
   longTasks: number;
 }
 
@@ -36,15 +39,17 @@ export interface Frames {
   dropped: number;
   longTasks: number;
   longest: number;
+  /** The part dropped within the windows given to `framesStop` only. */
+  windowDropped?: number;
   /** For a scroll: the rows it went through. */
   rows?: number;
 }
 
 interface Runtime {
-  arm(timing: Timing): void;
-  result(): Promise<Timed>;
+  arm(timing: Timing, slot?: string): void;
+  result(slot?: string): Promise<Timed>;
   framesStart(): void;
-  framesStop(): Promise<Frames>;
+  framesStop(windows?: [start: number, end: number][]): Promise<Frames>;
   scroll(selector: string, rows: number, duration: number): Promise<Frames>;
 }
 
@@ -91,7 +96,8 @@ function runtime(): void {
     }
     return focusKey() !== from;
   }
-  let pending: Promise<Timed> | undefined;
+  /** The measures armed, by slot: two can wait at once (a move asked, then answered). */
+  const pending = new Map<string, Promise<Timed>>();
   /** The element that scrolls `el`: itself or its first ancestor that scrolls. */
   function scroller(el: Element | null): HTMLElement {
     for (let at = el as HTMLElement | null; at; at = at.parentElement)
@@ -100,12 +106,12 @@ function runtime(): void {
     throw new Error("nothing scrolls");
   }
   let started = 0;
-  let count = 0;
+  const times: number[] = [];
   let running = false;
   window.__kBench = {
-    arm(timing) {
+    arm(timing, slot = "") {
       const from = focusKey();
-      pending = new Promise<Timed>((resolve, reject) => {
+      const measure = new Promise<Timed>((resolve, reject) => {
         let t0: number | undefined;
         let done = false;
         const observer = new MutationObserver(() => check());
@@ -127,7 +133,7 @@ function runtime(): void {
           requestAnimationFrame(() => {
             const end = performance.now();
             void tasksBetween(start, end).then(({ longTasks }) =>
-              resolve({ latency: end - start, longTasks }),
+              resolve({ latency: end - start, start, end, longTasks }),
             );
           });
         }
@@ -151,27 +157,43 @@ function runtime(): void {
           characterData: true,
         });
       });
+      // Read later: never an unhandled rejection meanwhile.
+      measure.catch(() => undefined);
+      pending.set(slot, measure);
     },
-    result() {
-      if (!pending) throw new Error("not armed");
-      return pending;
+    result(slot = "") {
+      const measure = pending.get(slot);
+      if (!measure) throw new Error(`nothing armed in ${slot || "the default slot"}`);
+      pending.delete(slot);
+      return measure;
     },
     framesStart() {
-      count = 0;
+      times.length = 0;
       running = true;
       started = performance.now();
       const tick = () => {
         if (!running) return;
-        count++;
+        times.push(performance.now());
         requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
     },
-    async framesStop() {
+    async framesStop(windows = []) {
       running = false;
       const end = performance.now();
-      const dropped = Math.max(0, 1 - count / ((end - started) / FRAME));
-      return { dropped, ...(await tasksBetween(started, end)) };
+      const dropped = Math.max(0, 1 - times.length / ((end - started) / FRAME));
+      // Within the windows: the frames drawn there (a window ends on a frame, its own
+      // callback a moment before or after this one's), against their summed duration.
+      const inside = windows.reduce(
+        (sum, [from, to]) => sum + times.filter((t) => t > from && t <= to + 1).length,
+        0,
+      );
+      const span = windows.reduce((sum, [from, to]) => sum + (to - from), 0);
+      return {
+        dropped,
+        ...(span > 0 ? { windowDropped: Math.max(0, 1 - inside / (span / FRAME)) } : {}),
+        ...(await tasksBetween(started, end)),
+      };
     },
     async scroll(selector, rows, duration) {
       const list = document.querySelector(selector);
@@ -229,18 +251,35 @@ export async function settle(page: Page): Promise<void> {
   );
 }
 
-/** The latency of what `act` does, by `timing`. */
-export async function timed(page: Page, timing: Timing, act: () => Promise<unknown>) {
-  await page.evaluate((t) => window.__kBench.arm(t), timing);
-  await act();
-  return page.evaluate(() => window.__kBench.result());
+/** Arms `timing` in `slot`, before what will set it off; `measured` reads it. */
+export async function arm(page: Page, timing: Timing, slot = ""): Promise<void> {
+  await page.evaluate(([t, s]) => window.__kBench.arm(t, s), [timing, slot] as const);
 }
 
-/** Frames counted while `act` runs. */
-export async function framed(page: Page, act: () => Promise<unknown>): Promise<Frames> {
-  await page.evaluate(() => window.__kBench.framesStart());
+/** The measure armed in `slot`, once its state is reached. */
+export function measured(page: Page, slot = ""): Promise<Timed> {
+  return page.evaluate((s) => window.__kBench.result(s), slot);
+}
+
+/** The latency of what `act` does, by `timing`. */
+export async function timed(
+  page: Page,
+  timing: Timing,
+  act: () => Promise<unknown>,
+): Promise<Timed> {
+  await arm(page, timing);
   await act();
-  return page.evaluate(() => window.__kBench.framesStop());
+  return measured(page);
+}
+
+/**
+ * Frames counted while `act` runs; `act` gives the windows (clock of the page) to count
+ * apart as well.
+ */
+export async function framed(page: Page, act: () => Promise<[number, number][]>): Promise<Frames> {
+  await page.evaluate(() => window.__kBench.framesStart());
+  const windows = await act();
+  return page.evaluate((w) => window.__kBench.framesStop(w), windows);
 }
 
 /** A scroll of `rows` rows of the list `selector` in `duration` ms. */
@@ -265,11 +304,16 @@ export function quantile(samples: number[], q: number): number {
   return sorted[Math.max(0, Math.ceil(sorted.length * q) - 1)]!;
 }
 
-/** One measure of a bench: its budget (`limit`, none for a figure given for reading). */
+/**
+ * One measure of a bench: its budget (`limit`, none for a figure given for reading),
+ * checked on the median of the passes, or on the worst of them (`worst`: a budget of
+ * « none », such as long tasks, holds on every pass).
+ */
 export interface Budget {
   name: string;
   unit: "ms" | "%" | "MB" | "";
   limit?: number;
+  worst?: boolean;
 }
 
 /** The samples of the passes, measure by measure; the median of each, checked at the end. */
@@ -283,15 +327,15 @@ export class Passes {
   }
 
   /**
-   * One line per measure, `PASS|FAIL <budget>: <median> (limit <limit>)` or
+   * One line per measure, `PASS|FAIL <budget>: <median or worst> (limit <limit>)` or
    * `INFO <figure>: <median>`, and a soft expectation for each budget: the bench goes on
    * and fails at the end if one is exceeded.
    */
   check(): void {
-    for (const [key, { name, unit, limit }] of Object.entries(this.budgets)) {
+    for (const [key, { name, unit, limit, worst }] of Object.entries(this.budgets)) {
       const values = this.samples.get(key) ?? [];
       expect(values.length, `${name}: no sample`).toBeGreaterThan(0);
-      const median = quantile(values, 0.5);
+      const median = worst ? Math.max(...values) : quantile(values, 0.5);
       const shown = (v: number) =>
         unit === "%"
           ? `${(v * 100).toFixed(2)} %`

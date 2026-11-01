@@ -1,4 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterAll, describe, expect, it } from "vitest";
 import { BUDGETS, measure, report, type Manifest } from "../scripts/size.ts";
 
 // The weight of @kartenn/ui (spec 020, REQ-020-29; scripts/size.ts), on a manifest shaped as
@@ -66,5 +72,39 @@ describe("weight of @kartenn/ui", () => {
     expect(lines.filter((line) => line.startsWith("FAIL"))).toEqual([
       "FAIL @kartenn/ui sheet, gzip -9: 20.1 Ko (limit 20 Ko)",
     ]);
+  });
+});
+
+describe("size.ts run by node", () => {
+  const script = fileURLToPath(new URL("../scripts/size.ts", import.meta.url));
+  const out = mkdtempSync(join(tmpdir(), "kartenn-size-"));
+  afterAll(() => rmSync(out, { recursive: true, force: true }));
+
+  /** A build on disk with this manifest; the sheet of `sheet` random (incompressible) bytes. */
+  function build(name: string, sheet: number): string {
+    const dist = join(out, name);
+    mkdirSync(join(dist, ".vite"), { recursive: true });
+    mkdirSync(join(dist, "assets"));
+    writeFileSync(join(dist, ".vite/manifest.json"), JSON.stringify(manifest));
+    writeFileSync(join(dist, "index.html"), html);
+    for (const file of Object.values(manifest).map((chunk) => chunk.file))
+      writeFileSync(join(dist, file), "export {};\n");
+    writeFileSync(join(dist, "assets/ui.css"), randomBytes(sheet));
+    writeFileSync(join(dist, "assets/geist.woff2"), randomBytes(1_000));
+    return dist;
+  }
+  const run = (dist: string) =>
+    spawnSync(process.execPath, [script, dist], { encoding: "utf8", timeout: 30_000 });
+
+  it("prints a line per budget and exits 0 when they hold", () => {
+    const { status, stdout } = run(build("ok", 1_000));
+    expect(stdout.match(/^PASS /gm)).toHaveLength(4);
+    expect(status).toBe(0);
+  });
+
+  it("exits 1 when one is exceeded", () => {
+    const { status, stdout } = run(build("heavy", BUDGETS.sheet + 5_000));
+    expect(stdout).toMatch(/^FAIL @kartenn\/ui sheet, gzip -9: /m);
+    expect(status).toBe(1);
   });
 });
