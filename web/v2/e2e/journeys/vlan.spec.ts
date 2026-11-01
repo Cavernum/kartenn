@@ -4,10 +4,10 @@ import { DATA, expect, expectAccessible, test } from "../fixtures/journeys.ts";
 // The VLAN, screens of the core in the new shell (spec 021, task 17; spec 026, REQ-026-6;
 // REQ-008-12 to 21), rewritten from web/e2e/journeys/vlan.spec.ts (the plugin of the old
 // shell): a group created from its list under « Réseau » by the edit panel, its record with
-// its occupancy and its next free VID; a VLAN created for a network from the VLAN tab of its
-// record, its VID proposed as the next free one of the group, then seen in that tab, in the
-// column of the list of prefixes and in the networks of its record; the list of the VLAN
-// filtered by the URL. Each run writes in a domain of its own (RFC 5737, TEST-NET-3);
+// its occupancy and its next free VID; a VLAN created from the group, its VID proposed as
+// the next free one; set on a network by the API, then seen in the VLAN tab of the network
+// (its removal to the draft, once), in the column of the list of prefixes and in the
+// networks of its record; the list of the VLAN filtered by the URL. Each run writes in a domain of its own (RFC 5737, TEST-NET-3);
 // axe-core without violation at each step.
 
 const navigation = (page: Page) => page.getByRole("navigation", { name: "Navigation principale" });
@@ -52,6 +52,32 @@ async function newDomain(page: Page, slug: string): Promise<void> {
         values: [entities.items[0]!.id],
       },
       { op: "create_prefix", domain: { local: 0 }, prefix: NETWORK, nature: "network" },
+    ],
+  });
+}
+
+/** Sets the VLAN 100 of `group` on the network `prefix` (property `core.vlan`), at once. */
+async function setVlan(page: Page, prefix: string, group: string): Promise<void> {
+  const declarations = (await call(page, "GET", "/v1/property-declarations")) as {
+    items: { id: string; key: string }[];
+  };
+  const property = declarations.items.find((d) => d.key === "core.vlan")!.id;
+  const groups = (await call(page, "GET", `/v1/vlan-groups?slug=${group}`)) as {
+    items: { id: string }[];
+  };
+  const vlans = (await call(page, "GET", `/v1/vlans?group=${groups.items[0]!.id}&vid=100`)) as {
+    items: { id: string }[];
+  };
+  await call(page, "POST", "/v1/changesets?approval=self", {
+    motive: "end-to-end VLAN of a network",
+    operations: [
+      {
+        op: "assign_property",
+        kind: "prefix",
+        object: { id: prefix },
+        property: { id: property },
+        values: [vlans.items[0]!.id],
+      },
     ],
   });
 }
@@ -109,32 +135,37 @@ test("a group, then a VLAN created for a network, seen in its tab, the prefix li
   await expect(page.getByText("Aucun VLAN dans ce groupe")).toBeVisible();
   await expectAccessible(page);
 
-  // The network: its VLAN tab says it carries none; « Créer un VLAN pour ce réseau » opens
-  // the edit panel, the VID proposed once the group is chosen, applied then set.
+  // « Créer un VLAN » of the group: the edit panel on the group, the VID proposed the next
+  // free one, applied at once.
+  await page.getByRole("button", { name: "Créer un VLAN" }).click();
+  const create = page.getByRole("form", { name: "Créer : VLAN" });
+  const vid = create.getByRole("textbox", { name: "VID" });
+  await expect(vid).toHaveValue("100");
+  await expect(vid).toHaveAccessibleDescription(`Prochain VID libre du groupe ${group}.`);
+  await create.getByRole("textbox", { name: "Nom" }).fill("impression");
+  await create.getByRole("button", { name: "Choisir l'action" }).click();
+  await page.getByRole("menuitem", { name: "Appliquer" }).click();
+  await expectAccessible(page);
+  await create.getByRole("textbox", { name: "Nom" }).press("Control+Enter");
+  await expect(toast(page, /Appliqué : VLAN 100 · impression/)).toBeVisible();
+  await expect(create).toHaveCount(0);
+
+  // The network: its VLAN tab says it carries none; set by the API (setting it from the
+  // shell waits for an arbitration), it says the VLAN, and its removal goes to the draft
+  // once.
   await page.goto(`/prefixes?domain=${domain}`);
   await page.getByRole("grid", { name: "Préfixes" }).getByRole("link", { name: NETWORK }).click();
   const tabs = page.getByRole("tablist", { name: "Sections de la fiche" });
   await tabs.getByRole("tab", { name: "VLAN" }).click();
   await expect(page.getByText("Ce réseau ne porte aucun VLAN")).toBeVisible();
-  await page.getByRole("button", { name: "Créer un VLAN pour ce réseau" }).click();
-  const create = page.getByRole("form", { name: `Créer un VLAN pour ${NETWORK}` });
-  await create.getByRole("combobox", { name: /^Groupe/ }).click();
-  await page.getByRole("option", { name: group }).click();
-  const vid = create.getByRole("textbox", { name: "VID" });
-  await expect(vid).toHaveValue("100");
-  await expect(vid).toHaveAccessibleDescription(`Prochain VID libre du groupe ${group}.`);
-  await create.getByRole("textbox", { name: "Nom" }).fill("impression");
-  await expectAccessible(page);
-  await create.getByRole("textbox", { name: "Nom" }).press("Control+Enter");
-  await expect(
-    toast(
-      page,
-      new RegExp(`VLAN 100 · impression créé et posé sur ${NETWORK.replaceAll(".", "\\.")}`),
-    ),
-  ).toBeVisible();
-  await expect(create).toHaveCount(0);
+  await setVlan(page, page.url().split("/").pop()!.split("?")[0]!, group);
+  await page.reload();
   await expect(page.getByText("Ce réseau porte le VLAN 100 · impression.")).toBeVisible();
   await expectAccessible(page);
+  const remove = page.getByRole("button", { name: "Retirer le VLAN" });
+  await remove.click();
+  await expect(toast(page, /Ajouté au brouillon : retrait du VLAN 100 · impression/)).toBeVisible();
+  await expect(remove).toHaveAccessibleDescription(/déjà dans votre brouillon/);
 
   // The column of the list of prefixes: the VLAN of the network, a link to its record.
   await page.goto(`/prefixes?domain=${domain}`);
