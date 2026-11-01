@@ -172,6 +172,19 @@ test("the views of the machines, their links, the tabs and the column of the cor
   ).toContainText(tag);
   await expect(page).toHaveURL(/[?&]mac=/);
   await expectAccessible(page);
+  // A result opened, then back: the search as it was, its criteria in the field.
+  const searched = page.url();
+  await search
+    .getByRole("table", { name: "Interfaces trouvées" })
+    .getByRole("link", { name: "eth0" })
+    .click();
+  await expect(page).toHaveURL(/\/x\/machines\/interfaces\/[0-9a-f-]+$/);
+  await page.goBack();
+  await expect(page).toHaveURL(searched);
+  await expect(search.getByRole("textbox", { name: "MAC" })).toHaveValue(mac);
+  await expect(
+    search.getByRole("table", { name: "Interfaces trouvées" }).getByRole("row", { name: /eth0/ }),
+  ).toContainText(tag);
 
   // The « Interfaces » tab of the address, of its network and of the VLAN.
   const tab = async (path: string, expected: string[]) => {

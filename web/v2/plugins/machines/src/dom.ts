@@ -327,6 +327,20 @@ export function link(text: string, path: string, mono = false): HTMLAnchorElemen
   return anchor;
 }
 
+/**
+ * Goes to `href` as a link of the plugin would: a click on a link in the shadow root of the
+ * element, which the shell follows with its router (design 021 « API des plugins », the SDK
+ * has no navigation of its own). Without the shell, the browser follows it.
+ */
+export function followLink(place: Node, href: string): void {
+  const anchor = el("a");
+  anchor.href = href;
+  anchor.hidden = true;
+  place.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+}
+
 /** The pages of the plugin, under `/x/machines/<view>`. */
 export const PAGES = {
   machine: (id: string) => `/x/machines/machines/${encodeURIComponent(id)}`,

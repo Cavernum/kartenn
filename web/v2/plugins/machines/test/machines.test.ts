@@ -360,22 +360,42 @@ describe("the machines plugin", () => {
       }),
     });
     const { element } = mounted;
-    await vi.waitFor(() =>
-      expect(rows(element)[0]?.slice(0, 3)).toEqual(["eth0", "srv-a", "00:00:5e:00:53:01"]),
-    );
-    const root = element.shadowRoot!;
-    root.querySelector<HTMLInputElement>("input[name=address]")!.value = "192.0.2.10";
-    root.querySelector("form")!.requestSubmit();
-    await vi.waitFor(() => expect(asked).toContain(`address=${ADDRESS}`));
-    expect(location.search).toBe("?address=192.0.2.10");
-    await shadowText(element, "Interfaces found: 1.");
-    // Said by the live region there from the start, the visible count hidden from it.
-    expect(element.shadowRoot!.querySelector("[role=status].k-visually-hidden")?.textContent).toBe(
-      "Interfaces found: 1.",
-    );
-    root.querySelector<HTMLInputElement>("input[name=address]")!.value = "192.0.2.99";
-    root.querySelector("form")!.requestSubmit();
-    await shadowText(element, "No address 192.0.2.99");
+    // What the shell does of a link of the plugin: followed by its router, a new entry.
+    const followed: string[] = [];
+    const router = (event: Event) => {
+      const anchor = event.composedPath().find((n) => n instanceof HTMLAnchorElement);
+      if (!(anchor instanceof HTMLAnchorElement)) return;
+      event.preventDefault();
+      const url = new URL(anchor.href);
+      followed.push(url.pathname + url.search);
+      history.pushState({ shell: true }, "", url.pathname + url.search);
+    };
+    document.addEventListener("click", router);
+    try {
+      await vi.waitFor(() =>
+        expect(rows(element)[0]?.slice(0, 3)).toEqual(["eth0", "srv-a", "00:00:5e:00:53:01"]),
+      );
+      const root = element.shadowRoot!;
+      const field = root.querySelector<HTMLInputElement>("input[name=address]")!;
+      field.value = "192.0.2.10";
+      root.querySelector("form")!.requestSubmit();
+      await vi.waitFor(() => expect(asked).toContain(`address=${ADDRESS}`));
+      expect(followed).toEqual(["/x/machines/interfaces?address=192.0.2.10"]);
+      await shadowText(element, "Interfaces found: 1.");
+      // Said by the live region there from the start, the visible count hidden from it.
+      expect(root.querySelector("[role=status].k-visually-hidden")?.textContent).toBe(
+        "Interfaces found: 1.",
+      );
+      field.value = "192.0.2.99";
+      root.querySelector("form")!.requestSubmit();
+      await shadowText(element, "No address 192.0.2.99");
+      // Back: the criteria of the former entry, in the field and searched again.
+      history.back();
+      await vi.waitFor(() => expect(field.value).toBe("192.0.2.10"));
+      await shadowText(element, "Interfaces found: 1.");
+    } finally {
+      document.removeEventListener("click", router);
+    }
   });
 
   it("tab of a network: the interfaces of its machines that hold one of its addresses", async () => {

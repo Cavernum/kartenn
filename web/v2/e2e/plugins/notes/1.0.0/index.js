@@ -1,7 +1,7 @@
 // Test plugin of the journeys of the new shell (spec 021, task 16): one extension of each
 // point, the tile of the home page included, written without a framework against the SDK
 // the shell maps (@kartenn/sdk 1.0). Its view `broken` throws when connected: its error
-// stays in its place. Its views propose `g m` (free) and `g p` (the shell's, refused).
+// stays in its place. Its views propose `g n` (free) and `g p` (the shell's, refused).
 import { definePlugin } from "@kartenn/sdk";
 
 let plugin;

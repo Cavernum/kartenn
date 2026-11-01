@@ -3,7 +3,7 @@ import { apiCall, DATA, expect, expectAccessible, test } from "../fixtures/journ
 
 // The plugins in the new shell (spec 021, task 16; REQ-021-13, 26; REQ-007-9, 10, 13), with
 // the test plugins of web/v2/e2e/plugins: `notes` fills every point (its views under the
-// referential, `g m` free and `g p` the shell's, a view that throws, one for administrators);
+// referential, `g n` free and `g p` the shell's, a view that throws, one for administrators);
 // `incompatible` (ui ^3), `throws` (exception while loading) and `silent` (no
 // definePlugin) are set aside; the digest of `forged` is forged here. Ported from
 // web/e2e/journeys/plugins.spec.ts. The tile of the home page, the tab and the panel of a

@@ -1575,7 +1575,9 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     bouton refusé écrite à côté de lui (pas d'infobulle sans framework) ; fiche en sections
     (attributs, interfaces, hébergées, ajout), sans onglets ni `?tab=interfaces` ; recherche
     des interfaces : adresse et VID résolus en objets (une liste par adresse et VLAN trouvés,
-    fusionnées) ; critères posés par `history.replaceState` (état du routeur gardé) ; mode
+    fusionnées) ; critères posés par un lien suivi par le routeur du shell
+    (`followLink`, nouvelle entrée de l'historique ; le retour arrière les rend par
+    `popstate`, revue du 2026-11-01 : le SDK n'a ni navigation ni requête de la vue) ; mode
     802.1Q aucun ou accès comme l'ancien plugin ; machines, entités et VLAN proposés : la
     première page ; relectures a11y et UI du 2026-11-01 : focus sur le `h1` de la page atteinte
     par un lien du plugin, gardé sur « Afficher la suite » (sinon la dernière ligne), résultat

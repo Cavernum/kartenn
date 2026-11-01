@@ -19,6 +19,7 @@ import {
   mono,
   none,
   fill,
+  followLink,
   option,
   pageId,
   PAGES,
@@ -705,6 +706,29 @@ export class InterfacesView extends MachinesElement {
   private access: HTMLSelectElement | null = null;
   private modeSelect: HTMLSelectElement | null = null;
 
+  /** The fields of the criteria, filled again from the query at a step back. */
+  private criteriaFields: Record<keyof Criteria, HTMLInputElement> | null = null;
+
+  /** Back or forward to another query of the same page: its criteria, searched again. */
+  private readonly onPop = () => {
+    const fields = this.criteriaFields;
+    if (!fields) return;
+    const criteria = criteriaOfPage();
+    const shown = this.searched?.criteria;
+    for (const key of ["mac", "address", "vid"] as const) fields[key].value = criteria[key];
+    if (!shown || JSON.stringify(shown) !== JSON.stringify(criteria)) void this.search(criteria);
+  };
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    window.addEventListener("popstate", this.onPop);
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    window.removeEventListener("popstate", this.onPop);
+  }
+
   protected build(): Node[] {
     this.objectId = pageId("interfaces");
     return this.objectId ? this.buildRecord(this.objectId) : this.buildSearch();
@@ -734,21 +758,23 @@ export class InterfacesView extends MachinesElement {
     const clear = button(texts.text("search.clear"), "secondary");
     actions.append(submit, clear);
     form.append(fields, actions);
+    this.criteriaFields = { mac: mac.control, address: address.control, vid: vid.control };
     const run = () => {
       const next = {
         mac: mac.control.value.trim(),
         address: address.control.value.trim(),
         vid: vid.control.value.trim(),
       };
-      // The criteria in the address of the page, which a link shares; the shell's state of
-      // the entry is kept as it is.
+      // The criteria in the query of the page, by a link the shell follows with its router: a
+      // new entry of the history, which the back button returns to (`popstate`), and a
+      // query the shell knows when it moves the dates. The dates of the page are kept.
       const search = new URLSearchParams(location.search);
       for (const [key, value] of Object.entries(next)) {
         if (value) search.set(key, value);
         else search.delete(key);
       }
       const query = search.toString();
-      history.replaceState(history.state, "", `${location.pathname}${query ? `?${query}` : ""}`);
+      followLink(form, `${location.pathname}${query ? `?${query}` : ""}`);
       void this.search(next);
     };
     form.addEventListener("submit", (event) => {
