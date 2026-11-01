@@ -1,5 +1,6 @@
 import {
   ApiProblem,
+  NetworkError,
   canMove as check,
   changesets,
   draft,
@@ -19,6 +20,7 @@ import {
 import type { MoveCheck, MoveIntent, MoveState, TreeNode } from "@kartenn/ui";
 import { shallowReactive } from "vue";
 import { useI18n } from "vue-i18n";
+import { problemCode, useProblems } from "../../problems/index.ts";
 import { useSession } from "../../rights/index.ts";
 import { useTime } from "../../time/index.ts";
 
@@ -139,6 +141,7 @@ function movesNode(operation: Operation, op: Operation, id: string): boolean {
 
 export function useMoves(model: MoveModel) {
   const { t } = useI18n();
+  const problems = useProblems();
   const session = useSession();
   const time = useTime();
   /** The moves in flight or refused, by node; the nodes moved in the draft. */
@@ -209,9 +212,11 @@ export function useMoves(model: MoveModel) {
       outcome.kind === "forbidden"
         ? (violations.find((v) => FORBIDDEN_RULE.test(v.rule)) ?? violations[0])
         : violations[0];
-    const reason = first?.detail ?? problem?.title ?? t("edit.network");
-    const code = first?.rule ?? problem?.code;
-    return { ok: false, reason, ...(code ? { code } : {}) };
+    // A violation says itself with its rule; else the problem, as `problems/` says it: the
+    // sentence of its `type`, its code as served (the network without one).
+    if (first) return { ok: false, reason: first.detail, code: first.rule };
+    const code = problemCode(problem);
+    return { ok: false, reason: problems.sentence(problem), ...(code ? { code } : {}) };
   }
 
   /**
@@ -284,9 +289,13 @@ export function useMoves(model: MoveModel) {
       .then((answer) => ({ answer }))
       .catch((error: unknown) => ({ error }));
     if ("error" in simulated) {
+      // No answer (`NetworkError`) or a problem: said by `problems/`; anything else is a
+      // bug of the client, never passed off as the network's.
+      const { error } = simulated;
+      if (!(error instanceof ApiProblem) && !(error instanceof NetworkError)) throw error;
       states.delete(node.id);
       drafted.add(node.id);
-      const problem = simulated.error instanceof ApiProblem ? simulated.error : null;
+      const problem = error instanceof ApiProblem ? error : null;
       return {
         kind: "drafted",
         draft: added.draft,

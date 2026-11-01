@@ -782,8 +782,10 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     brouillon — valide : nœud marqué à sa place ; refusé par une violation de **son**
     opération (indice ou pointeur `/operations/<i>`, ou règle de l'état final sur le nœud),
     jamais par celle d'une autre opération ; simulation en échec : verdict inconnu, le
-    problème rendu — ou `changesets.submit` `?approval=self` avec motif ; « en attente »
-    jusqu'à la réponse, aucun `setQueryData`, refus 422/403/412 avec code ; un nouveau
+    problème rendu par `problems/` (`RefusalAlert`, `NetworkError` sans réponse) — ou
+    `changesets.submit` `?approval=self` avec motif ; « en attente » jusqu'à la réponse,
+    aucun `setQueryData`, refus 422/403/412 avec code (une violation : sa règle ; sinon la
+    phrase du `type` par `problems/` et le `type` servi) ; un nouveau
     déplacement d'un nœud déjà déplacé au brouillon actif remplace son opération
     (`drafts.update`), jamais deux ; seconde intention en vol ignorée avant tout contrôle ;
     version lue, sinon (absente ou `null`) relue par identifiant, et sans elle rien n'est

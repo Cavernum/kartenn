@@ -297,6 +297,21 @@ describe("moves in a tree whose parent is declared", () => {
     ).toBe(503);
   });
 
+  it("a simulation never answered is the network's (`NetworkError`): no problem given", async () => {
+    const { moves } = await mounted(EDIT, (call) =>
+      call.method === "POST" && call.url === "/v1/drafts"
+        ? { status: 201, body: draftBody([{}]), etag: '"1"' }
+        : call.url.endsWith("/simulation")
+          ? Promise.reject(new TypeError("Failed to fetch"))
+          : { status: 200, body: {} },
+    );
+    expect(await moves().move({ node: node(4), target: node(2) })).toMatchObject({
+      kind: "drafted",
+      verdict: "unknown",
+      failure: { kind: "failed", problem: null },
+    });
+  });
+
   it("a version that cannot be read sends nothing, and says so", async () => {
     const { moves, seen } = await mounted(EDIT, () => ({
       status: 404,
@@ -330,7 +345,8 @@ describe("moves in a tree whose parent is declared", () => {
       await moves().move({ node: node(2), target: node(3) }, { now: true, motive: "m" });
       const state = moves().moveState(node(2));
       expect(state, String(status)).toMatchObject({ refused: { ok: false } });
-      expect((state as { refused: { code?: string } }).refused.code).toBe(type.split(":").pop());
+      // Said as `problems/` says a problem: the sentence of its type, its `type` as served.
+      expect((state as { refused: { code?: string } }).refused.code).toBe(type);
       expect(queryClient.getQueryData(LIST_KEY)).toEqual({ pages: [LISTED], pageParams: [null] });
       app?.unmount();
       app = undefined;
