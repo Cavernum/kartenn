@@ -5,6 +5,7 @@ import {
   bulkAddresses,
   DATA,
   EDITOR_WITHOUT_APPLY,
+  ENTITY_ADMIN,
   GROUPS,
   widePrefixes,
 } from "../fixtures/journeys.ts";
@@ -82,6 +83,32 @@ export default async function globalSetup(): Promise<void> {
         },
         { op: "create_prefix", domain, prefix: DATA.prefix, nature: "network" },
         { op: "create_address", domain, address: DATA.address, usage: "host" },
+      ],
+    });
+    // The administrator of one entity (journey `admin`, task 15a): the rights read on the
+    // whole organisation, administered on the entity of the data set only.
+    await expectOk(api, "/v1/changesets?approval=self", {
+      motive: "end-to-end administrator of one entity",
+      operations: [
+        { op: "set_role", ...ENTITY_ADMIN.reads },
+        { op: "set_group", key: ENTITY_ADMIN.group, labels: { fr: ENTITY_ADMIN.group } },
+        {
+          op: "add_member",
+          group: ENTITY_ADMIN.group,
+          member: { kind: "idp_group", issuer: ISSUER, group: ENTITY_ADMIN.group },
+        },
+        {
+          op: "bind",
+          group: ENTITY_ADMIN.group,
+          role: ENTITY_ADMIN.reads.key,
+          scope: { kind: "global" },
+        },
+        {
+          op: "bind",
+          group: ENTITY_ADMIN.group,
+          role: "administrator",
+          scope: { kind: "entity", id: { id: entity } },
+        },
       ],
     });
     // The referential of the lists and the tree (task 11): a network of 1 000 addresses, a

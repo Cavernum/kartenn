@@ -1243,7 +1243,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/v2/shell/src/views/TopologyView.vue`, `views/edit/` (`fields.ts`) ;
     parcours `web/v2/e2e/journeys/edit.spec.ts`
   - dépend de : 11a, 11b
-- [ ] 15a. Administration : groupes (membres, liaisons) et rôles ; permissions en nom servi
+- [x] 15a. Administration : groupes (membres, liaisons) et rôles ; permissions en nom servi
   et libellé — REQ-021-12, REQ-025-12 — verify : parcours `admin` (groupes, rôles)
   - où : `web/shell/src/admin/{BindingsView,RolesView}.vue`, `admin.ts`, `write.ts`,
     `WriteOutcome.vue` (comportement) ; maquette
@@ -1251,6 +1251,52 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `groupe-edition`, `groupe-refus`) ; parcours `web/e2e/journeys/admin.spec.ts` porté
     sous `web/v2/e2e/journeys/admin.spec.ts` ; design 021 § Administration
   - dépend de : 13
+  - fait le 2026-11-01 : `web/v2/shell/src/admin/` — `routes.ts` (`adminScreen`,
+    `adminRecord`, `ADMIN_RECORDS` : la structure que reprennent 15b et 15c), `GroupsView`,
+    `GroupDetail`, `MemberDialog`, `BindingDialog`, `GroupForm`, `RolesView`,
+    `RoleDetail`, `RoleForm`, `AdminLines` (lignes alignées du panneau, marques du
+    brouillon), `model.ts` (lignes marquées, refus, opérations), `draft.ts` (ajout,
+    retrait, remplacement dans le brouillon actif), `reads.ts`, `i18n/` ; cadre :
+    `meta.detail` d'une route (`views/routes.ts`, `frame/routes.ts`) montré dans l'onglet
+    Détail (`ShellFrame.vue`), le panneau ouvert sur l'objet choisi ;
+    `web/v2/PARITE.md` créée (section Administration) ; Vitest `test/admin.test.ts` ;
+    parcours `web/v2/e2e/journeys/admin.spec.ts` (groupe : membre retiré puis rétabli,
+    rôle ajouté, brouillon appliqué ; `secours` en lecture seule annoncée ; rôle et ses
+    permissions servies ; lecteur refusé).
+  - choix : l'objet choisi s'ouvre par l'URL (`/admin/groups/:id` par UUID,
+    `/admin/roles/:key`), même écran que la liste, son détail dans le panneau droit ; le
+    périmètre plus large que celui de l'utilisateur se lit dans des simulations
+    (`?simulate=true`) séparées, qui ne se gênent pas : `close_group` seul
+    (`core.group.escalation`), puis une par liaison, liée de nouveau telle quelle (`bind` ;
+    `core.binding.escalation`, ou `core.rbac.forbidden` hors du périmètre administré :
+    seuls ces codes comptent ; une par liaison parce que les règles des droits jugent
+    l'état final et ne nomment aucune opération) ; une sonde par ouverture de groupe, en
+    parallèle, gardée cinq minutes, jamais relue au focus ni à la reconnexion ; demandée
+    seulement à qui n'a pas `core.rbac.admin` global : le
+    client ne devine aucune inclusion de périmètres ; « Ajouter un rôle » refusé avec le
+    groupe, comme la maquette ; les membres de `secours` à un administrateur global
+    seulement ; « Modifier » une liaison = `unbind` puis `bind` ; une permission ajoutée
+    ou retirée réécrit le `set_role` du brouillon (remplacé, ou retiré s'il revient à
+    l'état servi) ; permissions proposées d'après l'espace `permission` du dictionnaire
+    des libellés, un motif s'écrit tel quel ; objet d'un périmètre choisi parmi la
+    première page de sa liste ; pas de colonne Description (le contrat n'en sert pas) ;
+    clés validées comme le serveur (groupe `[a-z][a-z0-9_-]*`, rôle `[a-z][a-z0-9_]*`).
+  - reste : un champ de texte multiligne manque à `@kartenn/ui` (permissions d'un rôle
+    saisies séparées par des virgules) ; `AdminLines` candidat à la bibliothèque (lignes
+    alignées avec actions et marques du brouillon) ; l'objet d'un périmètre se cherche
+    dans la première page seulement (une recherche par le serveur viendra avec un filtre
+    de nom) ; la portée affichée d'un rôle dans « Groupes liés » montre l'identifiant de
+    l'objet, pas son nom ; `writeRole` (`draft.ts`) compare les permissions sans
+    l'ordre mais les libellés par `JSON.stringify` (ordre des langues) ; classes de
+    `AdminLines` (`__label`, `__value`…) posées par les vues, sans gabarit ; `id` fixes des
+    titres de section (`k-admin-members`…), uniques tant qu'un seul détail est monté.
+  - correctifs de revue (2026-11-01) : sonde de portée en simulations séparées (la première
+    version, `close_group` puis `unbind`, finissait en `changeset.operation.no_version`
+    avant les règles des droits) ; parcours `admin` : Dana, administratrice de la seule
+    entité du jeu (`web/e2e/users.toml`, groupe `admins-entite` de `global-setup.ts` :
+    `core.rbac.read` global, `administrator` sur l'entité), un groupe de son entité
+    modifiable, un groupe lié au-delà en lecture seule annoncée ; même objet choisi de
+    nouveau : le panneau se rouvre (`frame/detail.ts`, `revealDetail`).
 - [ ] 15b. Administration : émetteurs, comptes de service et secret (montré une fois),
   identités (groupes et droits effectifs en lecture), secours — REQ-021-12 — verify :
   parcours `admin` étendu (secret montré une fois, identité en lecture)
