@@ -2,7 +2,7 @@
   - region "PeriodPicker":
     - heading "PeriodPicker" [level=1]
     - paragraph: "Motif : Formulaire de deux DateTimeField (valid_at, as_of) et raccourcis"
-    - 'figure "host — Refus de l''hôte (l''API compare à l''heure de la base) : sur son champ"':
+    - 'figure "host — Refus de l''hôte (l''API compare à l''heure de la base) : sur son champ, son type et Request-Id copiables"':
       - form "Lire à une date":
         - heading "Lire à une date" [level=2]
         - group "Valide au":
@@ -34,6 +34,14 @@
           - button "Maintenant"
           - button "Hier"
           - button "Début du mois"
+        - button "Copier type urn:kartenn:problem:bad-request":
+          - text: ""
+          - code: urn:kartenn:problem:bad-request
+        - status
+        - button "Copier Request-Id req_7f3a9c2e5b1d4068":
+          - text: ""
+          - code: req_7f3a9c2e5b1d4068
+        - status
         - status
         - button "Revenir au présent"
         - button "Appliquer"

@@ -17,11 +17,12 @@
 // closes once the period read changes (`validAt`, `asOf`), and stays open on a refusal of
 // the API (a 400 on a date), which comes back on its field by `errors`, the focus on it.
 import { PopoverClose, PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from "reka-ui";
-import { computed, ref, useId, watch, type ComponentPublicInstance } from "vue";
+import { computed, ref, shallowRef, useId, watch, type ComponentPublicInstance } from "vue";
 import { injectPortalTarget } from "../../context.ts";
 import { t } from "../../i18n.ts";
 import { formatInstant } from "../../time.ts";
 import type { Period } from "../DateTimeField/dates.ts";
+import type { ProblemFacts } from "../ErrorState/problem.ts";
 import Icon from "../Icon/Icon.vue";
 import IconButton from "../IconButton/IconButton.vue";
 import { setRoom } from "../internal/room.ts";
@@ -38,10 +39,12 @@ const props = withDefaults(
     timeZone: string;
     /** The host's refusal of a date (the API's 400, with its reason), on its field. */
     errors?: Partial<Record<keyof Period, string>> | undefined;
+    /** The problem of that refusal, its codes copyable (`PeriodPicker` `problem`). */
+    problem?: ProblemFacts | undefined;
     /** Open at first (the catalogue, a mock-up). */
     defaultOpen?: boolean;
   }>(),
-  { validAt: null, asOf: null, errors: undefined },
+  { validAt: null, asOf: null, errors: undefined, problem: undefined },
 );
 const open = defineModel<boolean>("open", { default: false });
 if (props.defaultOpen) open.value = true;
@@ -83,13 +86,19 @@ const sameInstant = (a: string | null, b: string | null) =>
  * closing it clears the last one (the picker starts again from the period read).
  */
 const shownErrors = ref(open.value ? props.errors : undefined);
+const shownProblem = shallowRef(open.value ? props.problem : undefined);
 watch(
-  () => props.errors,
-  (errors) => {
-    if (open.value) shownErrors.value = errors;
+  () => [props.errors, props.problem] as const,
+  ([errors, problem]) => {
+    if (!open.value) return;
+    shownErrors.value = errors;
+    shownProblem.value = errors ? problem : undefined;
   },
 );
-watch(open, () => (shownErrors.value = undefined));
+watch(open, () => {
+  shownErrors.value = undefined;
+  shownProblem.value = undefined;
+});
 
 /** The focus on the pill: for the host, when the control that had it goes (the band). */
 defineExpose({ focus: () => triggerEl()?.focus() });
@@ -185,6 +194,7 @@ function onKey(event: KeyboardEvent): void {
           :as-of="props.asOf"
           :time-zone="props.timeZone"
           :errors="shownErrors"
+          :problem="shownProblem"
           @apply="onApply"
         />
       </PopoverContent>
