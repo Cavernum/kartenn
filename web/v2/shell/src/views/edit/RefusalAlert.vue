@@ -4,7 +4,7 @@
 // value read again given beside it; 422, the violations with their codes; 403 (or
 // `core.object.forbidden`), a refusal; another problem or the network. The input stays in
 // its fields whatever the answer.
-import { ApiProblem } from "@kartenn/sdk";
+import { ApiProblem, FORBIDDEN_RULE } from "@kartenn/sdk";
 import { InlineAlert } from "@kartenn/ui";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
@@ -35,7 +35,7 @@ const items = computed(() => {
   }
   const p = problem.value;
   if (!p) return [];
-  const denied = p.violations.filter((v) => /\.forbidden(_effect)?$/.test(v.rule));
+  const denied = p.violations.filter((v) => FORBIDDEN_RULE.test(v.rule));
   return denied.length > 0
     ? denied.map((v) => ({ message: v.detail, code: v.rule }))
     : [{ message: p.detail ?? p.title, code: p.code }];

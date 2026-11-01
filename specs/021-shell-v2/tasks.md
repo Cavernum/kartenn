@@ -648,7 +648,12 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   par le panneau d'édition de la sorte (`EditPanel`, 024) ; droits manquants au survol —
   REQ-021-15, 16, 36, 37 — verify : parcours `edit` réécrit : lecteur sans éditeur ; brouillon à 1 ; 202 →
   « en revue » ; deux onglets → 412 sans perte
-  - où : `web/shell/src/edit/{QuickEdit.vue,fields.ts,submit.ts}`, `rights/index.ts`,
+  - où : `web/v2/shell/src/views/edit/` (`fields.ts`, `inline.ts`, `QuickApply.vue`,
+    `EditPanel.vue`, `panel.ts`), `views/{ListView,RecordView,TopologyView}.vue`,
+    `frame/ShellFrame.vue` ; `web/v2/ui/src/components/DataGrid/DataGrid.vue`,
+    `internal/cellEditor.ts` ; tests `shell/test/edit.test.ts`,
+    `e2e/journeys/edit.spec.ts` ; référence de l'ancien shell
+    `web/shell/src/edit/{QuickEdit.vue,fields.ts,submit.ts}`, `rights/index.ts`,
     `views/NewView.vue`
   - dépend de : 11 ; 4
   - en cours : fait le 2026-11-01 — `web/v2/shell/src/views/edit/` : `fields.ts` (champs de
@@ -679,20 +684,36 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     Détail, morceau paresseux). `@kartenn/ui` : Ctrl+Entrée (⌘+Entrée) dans l'éditeur d'une
     cellule émet `commit` marqué `now` (`GridCommit.now`, `internal/cellEditor.ts`, les
     deux grilles) ; `DataGrid` prend `readonlyReason` (la raison d'une cellule sans
-    éditeur, sa description `aria-describedby`, une phrase cachée par raison distincte) ;
-    020 design « Contrat d'édition », inventaire, skill. SDK :
-    `changesets.submit(soumission, clé, { approvalSelf })`. Vitest `shell/test/edit.test.ts`
-    (éditabilité et raisons, opérations, valeurs du brouillon, vérification locale ; liste
-    montée contre une API simulée : brouillon, lecteur, Ctrl+Entrée sans droit, 202, 412 puis
-    nouvelle version, 422), `ui/test/components-data.test.ts`, `sdk/test/write.test.ts` ;
-    script `e2e/components/data-grid.spec.ts` (Ctrl+Entrée) ; parcours
-    `e2e/journeys/edit.spec.ts` (lecteur sans éditeur et raison ; préfixe modifié au clavier,
-    brouillon à 1 ; politique d'approbation → « en revue » ; deux onglets → 412 sans perte,
-    puis appliqué ; domaines nommés après `production`, que la Topographie ouvre d'abord).
+    éditeur, sa description `aria-describedby`, une phrase cachée par raison distincte, et
+    son infobulle au survol) ; 020 design « Contrat d'édition », inventaire, skill. SDK :
+    `changesets.submit(soumission, clé, { approvalSelf })`, `FORBIDDEN_RULE` exporté. Relu
+    (`kartenn-revue`) : présent et droits revérifiés à l'écriture (ligne du motif et panneau),
+    ligne du motif et panneau fermés hors présent ; 202 laisse la valeur lue, « en revue » ;
+    violation d'une création (`/operations/0[/<membre>]`) sur son champ, focalisé ; un
+    Ctrl+Entrée ne remplace jamais une ligne en vol ou un 412 ouvert (refus dit avec la
+    saisie) ; entrées d'état purgées à la relecture de la ligne ; valeur de la ligne du
+    motif vérifiée avant envoi. Vitest `shell/test/edit.test.ts` (éditabilité et raisons,
+    opérations, valeurs du brouillon, vérification locale, champ d'une violation ; liste
+    montée contre une API simulée : brouillon, lecteur, Ctrl+Entrée sans droit, 200 et son
+    lien, 202 valeur lue gardée, 403, 412 puis nouvelle version, 422, hors présent, 412
+    ouvert non remplacé, erreur purgée ; panneau fermé avec sa page et hors présent),
+    `ui/test/components-data.test.ts`, `sdk/test/write.test.ts` ; scripts
+    `e2e/components/data-grid.spec.ts` (Ctrl+Entrée, raison en description et au survol),
+    `tree-grid.spec.ts` (Ctrl+Entrée) ; parcours `e2e/journeys/edit.spec.ts` (lecteur sans
+    éditeur et raison ; préfixe modifié au clavier, brouillon à 1 ; politique d'approbation
+    → « en revue », valeur lue gardée ; deux onglets → 412 sans perte, puis appliqué ; même
+    panneau depuis un nœud et depuis la liste ; « Appliquer » refusé, « Il faut
+    `core.address.approval.self` » atteint au clavier (Carol, rôle `redacteur` sans
+    `approval.self`, `global-setup.ts`) ; création appliquée `?approval=self`, violation
+    sur « Valeur », puis appliquée ; domaines nommés après `production`, que la Topographie
+    ouvre d'abord ; base des parcours recréée à chaque passage, rien ne s'accumule).
   - choix : motif en ligne au pied de la liste (formulaire, Entrée applique, Échap annule,
     focus rendu à la cellule), non dans la cellule ; raison d'une cellule non éditable en
-    description de la cellule, et touches ou raison montrées au pied pour la cellule
-    active (pas d'encart permanent) ; « + » d'un nœud montré à qui peut ajouter seulement
+    description de la cellule et en infobulle au survol (décision de la session
+    principale : REQ-021-37, « au survol et au focus »), touches ou raison montrées au pied
+    pour la cellule active (pas d'encart permanent) ; violation `/operations/0` d'une
+    création (le serveur ne nomme pas le membre) sur le champ qui nomme l'objet (valeur,
+    première adresse, clé) ; « + » d'un nœud montré à qui peut ajouter seulement
     (le `TreeGrid` n'a pas de « + » refusé, et Entrée sur un nœud irait dans le « + » au
     lieu d'ouvrir sa fiche) ; colonne de propriété sans éditeur tant que la liste n'écrit
     pas de propriété ; panneau d'édition fermé au changement de page, focus rendu à
@@ -715,8 +736,9 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     liste (`Select`) dans une cellule de grille (composant) ; motif de la réponse 202 dit
     par le toast, pas sur la cellule (la `DataGrid` n'a qu'un état « en revue ») ; « + »
     refusé visible avec sa permission sur un nœud du `TreeGrid` (REQ-021-37 ; le composant
-    n'a ni `forbidden` ni `reason` pour lui) ; captures des vrais écrans (comme la 11 : sans
-    API dans le projet `visual`).
+    n'a ni `forbidden` ni `reason` pour lui) ; référence (domaine, parent) choisie dans la
+    première page de sa collection seulement (au-delà, introuvable dans le panneau) ;
+    captures des vrais écrans (comme la 11 : sans API dans le projet `visual`).
 - [ ] 24. Déplacements et invariant des arbres : arbre des préfixes en `derived` (aucun
   déplacement ; valeur modifiée par le brouillon, aperçu tiré de la simulation, arbre
   relu après application) ; `canMove` du shell (cycle, types tirés du contrat, droits sur

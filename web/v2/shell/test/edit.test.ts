@@ -3,7 +3,17 @@ import { queryClient } from "@kartenn/sdk";
 import { resetContext, setFetch } from "@kartenn/sdk/host";
 import type { GridColumn } from "@kartenn/ui";
 import { afterEach, describe, expect, it } from "vitest";
-import { createApp, defineComponent, h, nextTick, type App } from "vue";
+import {
+  createApp,
+  defineComponent,
+  effectScope,
+  h,
+  nextTick,
+  ref,
+  shallowRef,
+  type App,
+} from "vue";
+import { closeEditWithPage, editRequest, openEdit } from "../src/views/edit/panel.ts";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
 import { createShellI18n } from "../src/i18n/index.ts";
 import { loadSession, Rights, type Me } from "../src/rights/index.ts";
@@ -14,6 +24,7 @@ import {
   draftedValues,
   editability,
   EDITS,
+  fieldOfPointer,
   initialValues,
   patchOf,
 } from "../src/views/edit/fields.ts";
@@ -152,8 +163,10 @@ describe("a list edited in place", () => {
   async function mounted(
     permissions: string[],
     answer: (seen: Seen) => { status: number; body: unknown; etag?: string },
+    at = "/",
   ) {
     const seen: Seen[] = [];
+    const rows = shallowRef<Item[]>([ROW]);
     setFetch((async (input: RequestInfo | URL, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
       const call = {
@@ -198,7 +211,7 @@ describe("a list edited in place", () => {
       setup() {
         edit = useInlineEdit({
           collection: () => PREFIXES,
-          rows: () => [ROW],
+          rows: () => rows.value,
           t: (key, values) => `${key}${values ? JSON.stringify(values) : ""}`,
           say,
         });
@@ -209,13 +222,13 @@ describe("a list edited in place", () => {
       history: createMemoryHistory(),
       routes: [{ path: "/", component: Host }],
     });
-    await router.push("/");
+    await router.push(at);
     app = createApp({ render: () => h(RouterView) });
     app.use(createShellI18n("fr")).use(router);
     app.mount(document.createElement("div"));
     await router.isReady();
     await nextTick();
-    return { edit: () => edit, seen, said };
+    return { edit: () => edit, seen, said, router, rows };
   }
 
   const draftBody = (operations: unknown[]) => ({
@@ -296,6 +309,8 @@ describe("a list edited in place", () => {
     expect(patch.body).toEqual({ nature: "container", motive: "bout en bout" });
     expect(edit().cellState(ROW, column("nature"))).toBe("review");
     expect(edit().rowState(ROW)).toBe("review");
+    // The value read stays: the one proposed is not the object's.
+    expect(edit().shownRows.value[0]!.nature).toBe("network");
     expect(said.applied).toEqual([]);
     expect(said.proposed).toMatchObject([
       { changeset: "cs-1", reason: { code: "changeset.approval.self" } },
@@ -386,5 +401,145 @@ describe("a list edited in place", () => {
     });
     edit().cancel();
     expect(edit().cellState(ROW, column("value"))).toBeUndefined();
+  });
+
+  const lists = { status: 200, body: { items: [], links: {} } };
+  const APPLY = ["core.prefix.edit", "core.prefix.approval.self"];
+
+  it("200: the value applied shown until the list is read again, its changeset linked", async () => {
+    const { edit, said, rows } = await mounted(APPLY, (call) =>
+      call.method === "PATCH"
+        ? {
+            status: 200,
+            body: {
+              changeset: { id: "cs-3", href: "h" },
+              state: "applied",
+              warnings: [],
+              diff: [],
+              cascaded: [],
+            },
+          }
+        : lists,
+    );
+    edit().onCommit({ row: P1, column: "nature", value: "container", now: true });
+    expect(await edit().confirm("essai", "container")).toBe(true);
+    expect(said.applied).toEqual(['edit.what{"field":"views.field.nature","name":"192.0.2.0/24"}']);
+    expect(edit().shownRows.value[0]!.nature).toBe("container");
+    expect(edit().cellState(ROW, column("nature"))).toBeUndefined();
+    // Read again at its new version: the entry gives way to the row.
+    rows.value = [{ ...ROW, nature: "container", version: V2 }];
+    await nextTick();
+    expect(edit().shownRows.value[0]).toBe(rows.value[0]);
+  });
+
+  it("403: a refusal, the input kept in the line, nothing shown as written", async () => {
+    const { edit } = await mounted(APPLY, (call) =>
+      call.method === "PATCH"
+        ? {
+            status: 403,
+            body: { type: "urn:kartenn:problem:forbidden", title: "Refusé", status: 403 },
+          }
+        : lists,
+    );
+    edit().onCommit({ row: P1, column: "value", value: "192.0.2.0/25", now: true });
+    expect(await edit().confirm("essai", "192.0.2.0/25")).toBe(false);
+    expect(edit().asking.value).toMatchObject({
+      value: "192.0.2.0/25",
+      refusal: { kind: "forbidden" },
+    });
+    expect(edit().cellState(ROW, column("value"))).toBeUndefined();
+    expect(edit().shownRows.value[0]!.value).toBe("192.0.2.0/24");
+  });
+
+  it("off the present: no editor, no draft, and the line of the motive closes unwritten", async () => {
+    const past = await mounted(APPLY, () => lists, "/?valid_at=2026-01-01T00:00:00Z");
+    expect(past.edit().why("value")).toEqual({ kind: "past" });
+    past.edit().onCommit({ row: P1, column: "value", value: "192.0.2.0/25" });
+    await nextTick();
+    expect(past.seen.filter((s) => s.method !== "GET")).toEqual([]);
+    app?.unmount();
+    const now = await mounted(APPLY, () => lists);
+    now.edit().onCommit({ row: P1, column: "value", value: "192.0.2.0/25", now: true });
+    expect(now.edit().asking.value).not.toBeNull();
+    await now.router.push("/?as_of=2026-01-01T00:00:00Z");
+    await nextTick();
+    expect(now.edit().asking.value).toBeNull();
+    expect(await now.edit().confirm("essai", "192.0.2.0/25")).toBe(false);
+    expect(now.seen.filter((s) => s.method !== "GET")).toEqual([]);
+  });
+
+  it("a 412 left open is never replaced by Ctrl+Enter on another cell, said with its input", async () => {
+    const { edit, said } = await mounted(APPLY, (call) =>
+      call.method === "PATCH"
+        ? {
+            status: 412,
+            body: { type: "urn:kartenn:problem:precondition-failed", title: "", status: 412 },
+          }
+        : call.url.startsWith(`/v1/prefixes/${P1}`)
+          ? { status: 200, body: { ...ROW, version: V2 }, etag: `"${V2}.0"` }
+          : lists,
+    );
+    edit().onCommit({ row: P1, column: "value", value: "192.0.2.0/25", now: true });
+    await edit().confirm("essai", "192.0.2.0/25");
+    edit().onCommit({ row: P1, column: "nature", value: "container", now: true });
+    expect(edit().asking.value).toMatchObject({ column: "value", value: "192.0.2.0/25" });
+    expect(said.status.at(-1)).toContain('"value":"container"');
+    expect(edit().cellState(ROW, column("nature"))).toMatchObject({
+      error: expect.stringContaining("edit.askOpen"),
+    });
+  });
+
+  it("an error of a cell goes once its row is read again at another version", async () => {
+    const { edit, rows } = await mounted(["core.prefix.edit"], (call) =>
+      call.method === "POST"
+        ? {
+            status: 422,
+            body: { type: "urn:kartenn:problem:invalid", title: "", status: 422, violations: [] },
+          }
+        : lists,
+    );
+    edit().onCommit({ row: P1, column: "value", value: "192.0.2.0/25" });
+    await expect.poll(() => typeof edit().cellState(ROW, column("value"))).toBe("object");
+    rows.value = [{ ...ROW, version: V2 }];
+    await nextTick();
+    expect(edit().cellState(rows.value[0]!, column("value"))).toBeUndefined();
+  });
+});
+
+describe("the edit panel of a kind", () => {
+  it("closes with its page, and off the present (nothing written there)", async () => {
+    const path = ref("/addresses");
+    const present = ref(true);
+    const scope = effectScope();
+    scope.run(() =>
+      closeEditWithPage(
+        () => path.value,
+        () => present.value,
+      ),
+    );
+    openEdit({ mode: "create", collection: "addresses" });
+    expect(editRequest().value).toMatchObject({ mode: "create", collection: "addresses" });
+    present.value = false;
+    await nextTick();
+    expect(editRequest().value).toBeNull();
+    present.value = true;
+    openEdit({ mode: "edit", collection: "prefixes", id: P1 });
+    path.value = `/prefixes/${P1}`;
+    await nextTick();
+    expect(editRequest().value).toBeNull();
+    scope.stop();
+  });
+});
+
+describe("a violation of a creation applied at once", () => {
+  it("lands on the field its operation's member stands for", () => {
+    expect(fieldOfPointer("prefixes", "/operations/0/prefix")).toBe("value");
+    expect(fieldOfPointer("addresses", "/operations/0/address")).toBe("value");
+    expect(fieldOfPointer("ranges", "/operations/0/first")).toBe("first");
+    // The server names the operation only: the field that names the object created.
+    expect(fieldOfPointer("prefixes", "/operations/0")).toBe("value");
+    expect(fieldOfPointer("domains", "/operations/0")).toBe("slug");
+    expect(fieldOfPointer("prefixes", "/value")).toBe("value");
+    expect(fieldOfPointer("prefixes", null)).toBeNull();
   });
 });

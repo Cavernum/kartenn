@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { DATA, expect, expectAccessible, loginIn, test } from "../fixtures/journeys.ts";
 
 // In-place editing and quick edit of the new shell (spec 021, task 12; REQ-021-15, 16, 36,
@@ -154,6 +154,8 @@ test("under an approval policy, Ctrl+Enter with its motive: « en revue », neve
   const proposed = page.getByRole("status").filter({ hasText: "Proposé, en revue" }).first();
   await expect(proposed).toBeVisible();
   await expect(cellOf(page, "nature")).toHaveAttribute("data-state", "review");
+  // The value read stays in the cell: the one proposed is not the object's yet.
+  await expect(cellOf(page, "nature")).toContainText("Réseau");
   await expect(page.getByText(/Appliqué :/)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Voir la proposition" })).toBeVisible();
 });
@@ -213,4 +215,113 @@ test("two tabs on the same prefix: the second gets 412 and keeps its input, then
   ).toBeVisible();
   await expect(cellOf(second, "value")).toContainText("198.51.100.0/26");
   await second.close();
+});
+
+/** The identifier of a domain, by its slug. */
+async function domainId(page: Page, slug: string): Promise<string> {
+  const domains = (await call(page, "GET", `/v1/domains?slug=${slug}`)).body as {
+    items: { id: string }[];
+  };
+  return domains.items[0]!.id;
+}
+/** The names of the fields of an edit panel, in order. */
+const fieldsOf = (form: Locator) =>
+  form
+    .locator(".k-edit-panel__field")
+    .evaluateAll((fields) =>
+      fields.map((f) => f.querySelector("label")?.textContent?.trim() ?? f.textContent?.trim()),
+    );
+
+test("the same edit panel from a node of the topography and from the list of addresses", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const slug = await newDomain(page, unique(browserName));
+  await page.goto(`/topology?domain=${await domainId(page, slug)}`);
+  const tree = page.getByRole("treegrid", { name: `Arbre des préfixes du domaine ${slug}` });
+  // The keyboard: Enter on the node goes into its « + », Enter on it opens the panel.
+  await tree.getByText("198.51.100.0/24", { exact: true }).click();
+  await page.keyboard.press("Enter");
+  await expect(tree.getByRole("button", { name: "Ajouter dans 198.51.100.0/24" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  const fromNode = page.getByRole("form", { name: "Ajouter dans 198.51.100.0/24" });
+  await expect(fromNode.getByRole("button", { name: "Adresse", pressed: true })).toBeVisible();
+  await expect(fromNode.getByRole("combobox", { name: /^Domaine/ })).toContainText(slug);
+  const nodeFields = await fieldsOf(fromNode);
+  await expectAccessible(page);
+  await fromNode.getByRole("button", { name: "Annuler" }).click();
+
+  await page.goto("/addresses");
+  await expect(page.getByRole("grid", { name: "Adresses" })).toBeVisible();
+  await page.keyboard.press("c");
+  const fromList = page.getByRole("form", { name: "Créer : Adresse" });
+  await expect(fromList).toBeVisible();
+  expect(await fieldsOf(fromList)).toEqual(nodeFields);
+});
+
+test("without approval.self, « Appliquer » stays visible, refused, its permission said at the keyboard", async ({
+  page,
+  login,
+}) => {
+  await login("carol");
+  await page.goto("/addresses");
+  await expect(page.getByRole("grid", { name: "Adresses" })).toBeVisible();
+  await page.keyboard.press("c");
+  const form = page.getByRole("form", { name: "Créer : Adresse" });
+  await expect(form).toBeVisible();
+  const chevron = form.getByRole("button", { name: "Choisir l'action" });
+  for (let i = 0; i < 12 && !(await chevron.evaluate((el) => el === document.activeElement)); i++) {
+    await page.keyboard.press("Tab");
+  }
+  await expect(chevron).toBeFocused();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("ArrowDown");
+  const apply = page.getByRole("menuitem", { name: /^Appliquer/ });
+  await expect(apply).toBeFocused();
+  await expect(apply).toHaveAttribute("aria-disabled", "true");
+  await expect(apply).toHaveAccessibleDescription(/Il faut core\.address\.approval\.self/);
+  // Its tooltip beside it (decorative: the description says it).
+  await expect(
+    page.locator(".k-tooltip").filter({ hasText: "core.address.approval.self" }),
+  ).toBeVisible();
+});
+
+test("a creation applied at once: ?approval=self, its violation on its field, then applied", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const slug = await newDomain(page, unique(browserName));
+  await page.goto(`/prefixes?domain=${slug}`);
+  await expect(cellOf(page, "value")).toContainText("198.51.100.0/24");
+  await page.keyboard.press("c");
+  const form = page.getByRole("form", { name: "Créer : Préfixe" });
+  await form.getByRole("combobox", { name: /^Domaine/ }).click();
+  await page.getByRole("option", { name: slug }).click();
+  await form.getByRole("button", { name: "Choisir l'action" }).click();
+  await page.getByRole("menuitem", { name: "Appliquer" }).click();
+  await expect(form.getByRole("textbox", { name: "Motif" })).toHaveValue(/^Création : Préfixe$/);
+  const value = form.getByRole("textbox", { name: "Valeur" });
+  // Host bits set: refused (core.prefix.unaligned), on the field the operation stands for.
+  await value.fill("203.0.113.1/24");
+  const sent = page.waitForRequest(
+    (r) => r.method() === "POST" && r.url().endsWith("/v1/changesets?approval=self"),
+  );
+  await page.keyboard.press("Control+Enter");
+  await sent;
+  await expect(value).toHaveAttribute("aria-invalid", "true");
+  await expect(value).toBeFocused();
+  await expect(value).toHaveAccessibleDescription(/core\.prefix\.unaligned/);
+  await value.fill("203.0.113.0/24");
+  await page.keyboard.press("Control+Enter");
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: /Appliqué : Préfixe 203\.0\.113\.0\/24/ })
+      .first(),
+  ).toBeVisible();
+  await expect(form).toHaveCount(0);
 });

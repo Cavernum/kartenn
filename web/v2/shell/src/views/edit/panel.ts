@@ -1,4 +1,4 @@
-import { shallowRef, type Ref } from "vue";
+import { shallowRef, watch, type Ref } from "vue";
 import type { CollectionId } from "../collections.ts";
 
 // The edit panel of a kind (REQ-021-36; design 021 « Panneau d'édition par sorte »): a view
@@ -41,6 +41,16 @@ export function closeEdit(back = true): void {
   if (!back) return;
   if (opener?.isConnected) opener.focus();
   else document.getElementById("k-surface")?.focus();
+}
+
+/**
+ * In the frame's `setup`: another page, or a date off the present (nothing is written
+ * there, REQ-021-5), closes the edit the page left had asked for.
+ */
+export function closeEditWithPage(path: () => string, present: () => boolean): void {
+  watch([path, present], ([now, isPresent], [before]) => {
+    if (current.value && (now !== before || !isPresent)) closeEdit(false);
+  });
 }
 
 /** The request the panel shows now, `null` when none. */

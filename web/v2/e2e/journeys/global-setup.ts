@@ -1,7 +1,13 @@
 import { readFileSync } from "node:fs";
 import { request, type APIRequestContext, type APIResponse } from "@playwright/test";
 import { BASE_URL, ISSUER, STATE } from "../fixtures/env.ts";
-import { bulkAddresses, DATA, GROUPS, widePrefixes } from "../fixtures/journeys.ts";
+import {
+  bulkAddresses,
+  DATA,
+  EDITOR_WITHOUT_APPLY,
+  GROUPS,
+  widePrefixes,
+} from "../fixtures/journeys.ts";
 import { totp } from "../fixtures/totp.ts";
 
 /**
@@ -37,11 +43,19 @@ export default async function globalSetup(): Promise<void> {
     // holds the roles (spec 025: a binding serves a group of kartenn).
     await expectOk(api, "/v1/changesets?approval=self", {
       motive: "end-to-end journeys",
-      operations: Object.entries(GROUPS).flatMap(([key, roles]) => [
-        { op: "set_group", key, labels: { fr: key } },
-        { op: "add_member", group: key, member: { kind: "idp_group", issuer: ISSUER, group: key } },
-        ...roles.map((role) => ({ op: "bind", group: key, role, scope: { kind: "global" } })),
-      ]),
+      operations: [
+        // The role of the editor who may not apply (journey `edit`, REQ-021-37).
+        { op: "set_role", ...EDITOR_WITHOUT_APPLY },
+        ...Object.entries(GROUPS).flatMap(([key, roles]) => [
+          { op: "set_group", key, labels: { fr: key } },
+          {
+            op: "add_member",
+            group: key,
+            member: { kind: "idp_group", issuer: ISSUER, group: key },
+          },
+          ...roles.map((role) => ({ op: "bind", group: key, role, scope: { kind: "global" } })),
+        ]),
+      ],
     });
     // The referential the palette searches (REQ-021-3): an entity, a domain that it owns
     // (`core.owner` from its creation, REQ-002-11), a prefix and an address in it.

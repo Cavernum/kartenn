@@ -37,6 +37,7 @@ import { computed, nextTick, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useInfiniteQuery, useQuery } from "../../data/query.ts";
 import { useSession } from "../../rights/index.ts";
+import { useTime } from "../../time/index.ts";
 import { collectionById, nameOf, type CollectionId, type Item } from "../collections.ts";
 import { problemOf, rowsOf, useKeyLabel } from "../data.ts";
 import {
@@ -45,6 +46,7 @@ import {
   checkValue,
   editRight,
   EDITS,
+  fieldOfPointer,
   initialValues,
   patchOf,
   textOf,
@@ -59,6 +61,7 @@ import { useSay } from "./say.ts";
 const props = defineProps<{ request: ShownRequest }>();
 const { t, te } = useI18n();
 const session = useSession();
+const time = useTime();
 const keyLabel = useKeyLabel();
 // The panel closes once the write went through: « ajouté au brouillon » said by a toast too.
 const toasts = injectToasts();
@@ -267,9 +270,15 @@ function settle(outcome: WriteOutcome<unknown> | { kind: "saved" }, what: string
   const refused = outcome as Refusal;
   refusal.value = refused;
   if (refused.kind === "invalid") {
+    // Each violation on the field its pointer names: a member of the patch, or of the one
+    // operation of a creation (`/operations/0/prefix` → « Valeur »).
+    const names = new Set(fields.value.map((field) => field.name));
     const byField: Record<string, string> = {};
-    for (const [member, violations] of Object.entries(refused.byField)) {
-      byField[member] = violations.map((v) => `${v.detail} (${v.rule})`).join(" ");
+    for (const violation of [...Object.values(refused.byField).flat(), ...refused.general]) {
+      const name = fieldOfPointer(collection.value.id, violation.pointer);
+      if (!name || !names.has(name)) continue;
+      const said = `${violation.detail} (${violation.rule})`;
+      byField[name] = byField[name] ? `${byField[name]} ${said}` : said;
     }
     errors.value = byField;
     void toFirstError();
@@ -288,6 +297,11 @@ async function run(id: string = action.value): Promise<void> {
   if (busy.value || lacking(id) !== null) return;
   notice.value = null;
   refusal.value = null;
+  // Checked again when it is written: nothing off the present, the draft included.
+  if (!time.value.present) {
+    notice.value = t("edit.why.past");
+    return;
+  }
   if (!checked()) {
     void toFirstError();
     return;

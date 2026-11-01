@@ -207,6 +207,8 @@
     "whatCreated": "{kind} {name}",
     "whatModified": "{kind} {name}",
     "drafted": "Added to the draft: {what}.",
+    "askOpen": "Not applied: finish or cancel {what} first; your input “{value}” is not kept.",
+    "notNow": "Not written: off the present, or without the right, nothing is written here.",
     "applyForbidden": "Applying now takes {permission}: the change goes to the draft.",
     "network": "The server could not be reached.",
     "check": {

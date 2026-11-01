@@ -9,7 +9,7 @@ import {
   type Draft,
   type Entry,
   type PendingReason,
-  type WriteOutcome,
+  type Refusal as SdkRefusal,
 } from "@kartenn/sdk";
 import type { CellRef, CellState, GridColumn, GridCommit, RowState } from "@kartenn/ui";
 import { computed, onScopeDispose, ref, shallowReactive, shallowRef, watch } from "vue";
@@ -40,8 +40,8 @@ import {
 // the violations on the cell with their codes, 403 a refusal, the input kept. Without
 // `X.approval.self`, Ctrl+Enter goes to the draft and says why.
 
-/** A refused try, as the line of the motive shows it. */
-export type Refusal = Exclude<WriteOutcome<unknown>, { kind: "applied" | "proposed" }>;
+/** A refused try, as the line of the motive shows it (the SDK's, whatever its input). */
+export type Refusal = SdkRefusal<unknown>;
 
 /** The motive asked in line for an edit applied now (Ctrl+Enter). */
 export interface QuickAsk {
@@ -129,16 +129,20 @@ export function useInlineEdit({ collection, rows, t, say }: InlineDeps) {
   // The edits of this session not yet in the rows read: under way, applied, in review, refused.
   const shown = shallowReactive(new Map<string, Shown>());
   const rowById = computed(() => new Map(rows().map((row) => [String(row.id), row])));
-  // An entry goes once its row is read at another version (applied, or the review decided).
+  // An entry goes once its row is read at another version: applied, the review decided, or
+  // what a refusal or a write under way was about is no longer the object read.
   watch(rowById, (byId) => {
     for (const [key, entry] of [...shown]) {
-      if (entry.state !== undefined && entry.state !== "review") continue;
       const row = byId.get(key.split("\n")[0]!);
       if (!row || versionOf(row) !== entry.version) shown.delete(key);
     }
   });
 
-  /** The rows as the grid shows them: the values of the draft, then those of this session. */
+  /**
+   * The rows as the grid shows them: the values of the draft, then those of this session
+   * under way or applied; a value in review (202) is not the object's: the cell keeps the
+   * value read, marked « en revue » (design « Édition en place »).
+   */
   const shownRows = computed<Item[]>(() =>
     rows().map((row) => {
       const id = String(row.id);
@@ -146,7 +150,7 @@ export function useInlineEdit({ collection, rows, t, say }: InlineDeps) {
       let out: Item | null = fromDraft ? { ...row, ...fromDraft } : null;
       for (const column of EDITS[collection().id].modification) {
         const entry = shown.get(keyOf(id, column.name));
-        if (entry && typeof entry.state !== "object") {
+        if (entry && (entry.state === undefined || entry.state === "pending")) {
           out ??= { ...row };
           out[column.name] = entry.value;
         }
@@ -197,6 +201,8 @@ export function useInlineEdit({ collection, rows, t, say }: InlineDeps) {
 
   /** Enter: an operation added to the active draft, the cell under way until it is saved. */
   async function toDraft(row: Item, field: EditField, text: string, note = ""): Promise<void> {
+    // Nothing written off the present, the draft included (REQ-021-5, 15).
+    if (!present.value) return;
     const id = String(row.id);
     const key = keyOf(id, field.name);
     const value = valueOf(field, text);
@@ -221,6 +227,26 @@ export function useInlineEdit({ collection, rows, t, say }: InlineDeps) {
     const field = modificationField(collection().id, commit.column);
     if (!row || !field || why(commit.column) !== null) return;
     if (commit.now && canApply.value) {
+      // A write under way, or a refusal still open (a 412 and its input), is never replaced:
+      // the new input is said refused, with its value, on its cell and in the status.
+      const open = asking.value;
+      if (
+        open &&
+        (open.busy || open.refusal) &&
+        (open.row !== commit.row || open.column !== commit.column)
+      ) {
+        const refused = t("edit.askOpen", {
+          what: what(open.column, open.name),
+          value: commit.value,
+        });
+        shown.set(keyOf(commit.row, commit.column), {
+          state: { error: refused },
+          value: commit.value,
+          version: versionOf(row),
+        });
+        say.status(refused);
+        return;
+      }
       asking.value = {
         row: commit.row,
         column: commit.column,
@@ -254,6 +280,12 @@ export function useInlineEdit({ collection, rows, t, say }: InlineDeps) {
   async function confirm(motive: string, text: string): Promise<boolean> {
     const ask = asking.value;
     if (!ask || ask.busy) return false;
+    // Checked again when it is written: still at the present, still with the rights.
+    if (why(ask.column) !== null || !canApply.value) {
+      cancel();
+      say.status(t("edit.notNow"));
+      return false;
+    }
     const field = ask.field;
     const value = valueOf(field, text);
     const key = keyOf(ask.row, ask.column);
@@ -270,7 +302,10 @@ export function useInlineEdit({ collection, rows, t, say }: InlineDeps) {
       .catch(() => ({ kind: "failed", input: {}, problem: null }) as Refusal);
     const words = what(ask.column, ask.name);
     if (outcome.kind === "applied") {
-      shown.set(key, { state: undefined, value, version: ask.version });
+      // Shown until the list is read again, unless it already is.
+      if (versionOf(rowById.value.get(ask.row)) === ask.version) {
+        shown.set(key, { state: undefined, value, version: ask.version });
+      } else shown.delete(key);
       asking.value = null;
       say.applied(words, outcome.changeset);
       return true;
@@ -311,6 +346,11 @@ export function useInlineEdit({ collection, rows, t, say }: InlineDeps) {
     if (typeof shown.get(key)?.state === "object") shown.delete(key);
     asking.value = null;
   }
+
+  // Off the present (the date pill), the line of the motive closes: nothing is written there.
+  watch(present, (now) => {
+    if (!now && asking.value) cancel();
+  });
 
   /** The row and the column of a cell, as the grid keys it. */
   const cellOf = (ask: QuickAsk): CellRef => ({ row: ask.row, column: ask.column });

@@ -100,7 +100,7 @@ import { readableType, searchObjects } from "../shortcuts/search.ts";
 import { NAVIGATION, pluginShortcut, shellShortcuts } from "../shortcuts/shell.ts";
 import ShortcutHelp from "../shortcuts/ShortcutHelp.vue";
 import { runnable } from "../shortcuts/view.ts";
-import { closeEdit, editRequest } from "../views/edit/panel.ts";
+import { closeEditWithPage, editRequest } from "../views/edit/panel.ts";
 import { crumbsOf } from "./breadcrumb.ts";
 import { keepPanel, readPanel, useSettings, THEMES, DENSITIES } from "./settings.ts";
 import { EDITS, locate, sidebarGroups, SPACE_ORDER } from "./spaces.ts";
@@ -201,12 +201,10 @@ watch(editing, (request) => {
   panelOpen.value = true;
   panelTab.value = "detail";
 });
-// Another page: the edit asked by the one left goes with it.
-watch(
+// Another page, or a date off the present: the edit asked by the page left goes with it.
+closeEditWithPage(
   () => route.path,
-  () => {
-    if (editing.value) closeEdit(false);
-  },
+  () => time.value.present,
 );
 
 // The drafts of the user (spec 024 § A): the list for the menu of the counter, the active

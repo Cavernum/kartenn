@@ -8,6 +8,7 @@
 import { Button, Cluster, Select, TextField, type ListOption } from "@kartenn/ui";
 import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { checkValue, valueOf } from "./fields.ts";
 import type { QuickAsk } from "./inline.ts";
 import RefusalAlert from "./RefusalAlert.vue";
 
@@ -40,13 +41,19 @@ const changed = computed(() =>
     : [{ label: fieldLabel.value, current: props.ask.current, input: value.value }],
 );
 
+/** The value changed here, checked again by the types of the contract before it is sent. */
+const invalid = ref<string | undefined>();
 function submit(): void {
   if (props.ask.busy) return;
-  if (motive.value.trim() === "") {
-    missing.value = t("edit.motiveMissing");
+  const refused = checkValue(props.ask.field, valueOf(props.ask.field, value.value));
+  invalid.value = refused
+    ? t(refused, { values: (props.ask.field.options ?? []).join(", "), field: fieldLabel.value })
+    : undefined;
+  missing.value = motive.value.trim() === "" ? t("edit.motiveMissing") : undefined;
+  if (invalid.value || missing.value) {
+    void nextTick(() => root.value?.querySelector<HTMLElement>("[aria-invalid='true']")?.focus());
     return;
   }
-  missing.value = undefined;
   emit("confirm", motive.value.trim(), value.value);
 }
 function onKeydown(event: KeyboardEvent): void {
@@ -91,6 +98,7 @@ onMounted(async () => {
         v-model="value"
         :label="fieldLabel"
         :options="options"
+        :error="invalid"
         size="sm"
       />
       <TextField
@@ -98,6 +106,7 @@ onMounted(async () => {
         v-model="value"
         :label="fieldLabel"
         :mono="props.ask.field.mono === true"
+        :error="invalid"
         size="sm"
         :hint="
           props.ask.current !== null

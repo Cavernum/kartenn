@@ -267,6 +267,45 @@ export function draftedValues(
   return out;
 }
 
+/** The members of the creation operations named otherwise than their field. */
+const CREATION_MEMBERS: Partial<Record<CollectionId, Readonly<Record<string, string>>>> = {
+  prefixes: { prefix: "value" },
+  addresses: { address: "value" },
+};
+
+/**
+ * The field that names the object being created: what the rules of a creation are about
+ * (duplicate, alignment, inside the network, overlap, slug taken).
+ */
+const KEY_FIELD: Readonly<Record<CollectionId, string>> = {
+  domains: "slug",
+  entities: "slug",
+  sites: "slug",
+  prefixes: "value",
+  ranges: "first",
+  addresses: "value",
+};
+
+/**
+ * The field a violation names by its JSON Pointer: a member of the patch (`/value`); for
+ * the one operation of a creation applied at once, its member (`/operations/0/prefix` →
+ * `value`), or, the server naming the operation only (`/operations/0`), the field that
+ * names the object.
+ */
+export function fieldOfPointer(
+  collection: CollectionId,
+  pointer: string | null | undefined,
+): string | null {
+  const operation = /^\/operations\/0(?:\/([^/]+))?$|^\/operations\/0\/([^/]+)\//.exec(
+    pointer ?? "",
+  );
+  if (operation) {
+    const member = operation[1] ?? operation[2];
+    return member ? (CREATION_MEMBERS[collection]?.[member] ?? member) : KEY_FIELD[collection];
+  }
+  return /^\/([^/]+)/.exec(pointer ?? "")?.[1] ?? null;
+}
+
 /** The permission that writes the objects of a collection (`core.prefix.edit`, 024). */
 export const editRight = (type: string) => `${type}.edit`;
 /** The permission that applies one's own changeset at once (`core.prefix.approval.self`). */
