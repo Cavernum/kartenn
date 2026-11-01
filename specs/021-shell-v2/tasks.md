@@ -958,6 +958,61 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `web/v2/shell/src/plugins/slots.ts`), parcours `plugins` étendu (onglet `notes` du
     plugin de test sur `vlan`)
   - dépend de : 11, 12, 16
+  - en cours : fait le 2026-11-01 — le VLAN dans les vues génériques de la 11 : deux
+    collections de plus (`vlan-groups`, `vlans`, `web/v2/shell/src/views/collections.ts`),
+    donc listes filtrées par l'URL (modèle de `/v1/vlan-groups` et `/v1/vlans` : clé, VID,
+    nom, statut, groupe), fiches, routes et préchargement, emplacements des plugins
+    (`useExtensions` par la sorte `vlan`/`vlan_group`) sans code propre ; colonnes de
+    références nommées (`reference` : groupe d'un VLAN, ancre d'un groupe, lus par
+    `ObjectName`), statut en `StatusBadge` (`states`), colonne VLAN de la liste des
+    préfixes (`networkVlan`, `views/parts/NetworkVlan.vue` : propriétés de chaque ligne
+    montrée, quatre lectures à la fois, `views/parts/vlan.ts`). Fiche d'un groupe : ancre,
+    plage, panneau Occupation (`record/VlanOccupancyPanel.vue` : utilisés, réservés, libres
+    en `BarList`, prochain VID libre, à partir d'un VID saisi, tranches en `ExpandableGrid`),
+    onglet VLAN (`record/GroupVlansTab.vue`, « Créer un VLAN » sur le groupe) ; fiche d'un
+    VLAN : onglet Réseaux (`record/VlanNetworksTab.vue`, réseaux lisibles seulement) ;
+    onglet VLAN d'un préfixe (`record/NetworkVlanTab.vue` : VLAN porté, groupe, statut ;
+    « Créer un VLAN pour ce réseau » ; « Retirer le VLAN » au brouillon ; un conteneur n'en
+    porte pas, `core.vlan.prefix_not_network`). Édition (12) : `EDITS` des deux sortes
+    (`views/edit/fields.ts`, sortes de champ `integer` et `anchor`, raison `reference` d'une
+    cellule qui nomme un objet), panneau d'édition (cibles `vlan-groups` et ancres ; VID
+    proposé = prochain libre du groupe choisi ; création pour un réseau,
+    `views/edit/vlan.ts`). Vitest `test/edit.test.ts`, `test/views.test.ts` ; parcours
+    `e2e/journeys/vlan.spec.ts`, `plugins.spec.ts` (onglet `notes` sur un VLAN) ; jeu des
+    parcours : un groupe `campus` et le VLAN 10 `serveurs` (`global-setup.ts`).
+  - choix : un VLAN se nomme « VID · nom » (`nameOf`) ; statut d'un VLAN et état d'une
+    tranche en `StatusBadge` (maquette E12), non en `KeyLabel` ; groupe d'un VLAN et ancre
+    d'un groupe choisis dans le panneau d'édition seulement (raison `reference` sur la
+    cellule), l'ancre par un seul `Select` (entités, sites puis domaines, sorte en détail,
+    valeur `<sorte>:<id>`) ; plages de VID laissées vides à la création = celles du contrat ;
+    « Créer un VLAN pour ce réseau » appliqué en deux changesets (VLAN créé, relu par groupe
+    et VID, puis posé), sans brouillon (action refusée avec sa raison) : une valeur de
+    propriété ne nomme pas un objet créé plus tôt dans le même changeset ; colonne VLAN
+    montrée avec `core.vlan.read` seulement, à toute largeur (maquette) ; lien de la liste
+    des VLAN sur le VID seul (`ownValue`), le nom dans sa colonne ; « Retirer le VLAN » au
+    brouillon ; VID proposé dit aussi par le statut du panneau, prochain libre « à partir
+    de » dit par une région `status`, VID saisi hors type refusé sur le champ ; une cellule
+    VLAN vide, en lecture ou illisible dite en mots (texte caché), illisible en court avec
+    son code (relectures a11y et UI du 2026-11-01).
+  - reste : tuile de l'accueil « groupes les plus remplis » (design § « VLAN, écrans du
+    cœur ») ; poser un VLAN existant sur un réseau depuis son onglet (création et retrait
+    seulement) ; ancre d'un groupe par glisser (panneau seulement) ; cohérence d'un réseau
+    avec l'ancre du groupe (`core.vlan.site_mismatch`) dans l'onglet Réseaux ; onglet
+    Interfaces (plugin Machines, tâche 18) ; filtre de la colonne VLAN des préfixes ;
+    captures des vrais écrans (comme la 11 : sans API dans le projet `visual`). À
+    arbitrer (contrat) : filtre `group` de `/v1/vlans` typé texte (pas de `collection`
+    au contrat : un identifiant à saisir, la pastille montre l'UUID) ; « deux opérations au brouillon » de la
+    maquette E12 impossible tant qu'un `RawValue` ne nomme pas un objet local ;
+    `update_vlan` et `update_vlan_group` sans `expected` (un brouillon ne voit pas un
+    VLAN changé depuis sa lecture). Place des VLAN : espace `network` (REQ-021-2, cette
+    ligne), la maquette E12 les met sous Référentiel — écart signalé, non tranché.
+    Constaté : deux passages complets de `k-web2-e2e` ont échoué sous Firefox seulement
+    (`session`, `time`, `edit`), des modules refusés par `integrity` dont le contenu reçu
+    est vide (empreinte SHA-384 de la chaîne vide) ; les mêmes parcours passent seuls
+    (14/14) ; `vlan` et `plugins` verts dans les deux navigateurs. Un changeset qui crée
+    un groupe ancré sur un domaine créé plus tôt dans le même changeset
+    (`anchor: {domain: {local: 0}}`) a coupé la connexion (`Failed to fetch`) : non
+    analysé, contourné par l'identifiant.
 - [ ] 18. Plugin Machines, même traitement, espace `hosts`, déplacement d'une machine vers
   un cluster (si Q-021-2 le retient) par le `canMove` de la tâche 24 (codes
   `machines.host.*`), sans optimisme — verify : parcours `machines` vert
