@@ -2,12 +2,13 @@
 import { definePlugin, label, type ObjectRef } from "@kartenn/sdk";
 import { announcePlugin } from "@kartenn/sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createApp, h, nextTick, type App } from "vue";
+import { createApp, h, nextTick, ref, type App } from "vue";
 import { createMemoryHistory, createRouter } from "vue-router";
 import { frameRoutes } from "../src/frame/routes.ts";
 import { CORE_SPACES, locate, sidebarGroups } from "../src/frame/spaces.ts";
 import { createShellI18n, mergePluginCatalog, shellKey } from "../src/i18n/index.ts";
 import ExtensionElement from "../src/plugins/ExtensionElement.vue";
+import PluginAction from "../src/plugins/PluginAction.vue";
 import {
   beginPlugins,
   CAPABILITY_ATTEMPTS,
@@ -557,16 +558,114 @@ describe("an extension in its place (REQ-021-13)", () => {
   function mount(
     props: { tag: string; object?: ObjectRef; status?: Status },
     onClose = () => {},
+    router?: ReturnType<typeof createRouter>,
+    listeners: Record<string, () => void> = {},
   ): HTMLElement {
     const root = document.createElement("div");
     document.body.append(root);
     app = createApp({
-      render: () => h(ExtensionElement, { plugin: "notes", label: "Notes", onClose, ...props }),
+      render: () =>
+        h(ExtensionElement, { plugin: "notes", label: "Notes", onClose, ...listeners, ...props }),
     });
     app.use(createShellI18n("fr"));
+    if (router) app.use(router);
     app.mount(root);
     return root;
   }
+
+  /** An element whose shadow root holds links: to a page, the API, elsewhere, an anchor. */
+  class Linked extends HTMLElement {
+    connectedCallback() {
+      const root = this.attachShadow({ mode: "open" });
+      for (const [text, href] of [
+        ["fiche", "/x/notes/notes/n1?valid_at=2026-01-01T00%3A00%3A00Z"],
+        ["api", "/v1/notes/n1"],
+        ["ailleurs", "https://example.org/x/notes/notes/n2"],
+        ["ancre", "#partie"],
+      ]) {
+        const anchor = document.createElement("a");
+        anchor.textContent = text!;
+        anchor.href = href!;
+        root.append(anchor);
+      }
+    }
+  }
+  customElements.define("notes-linked", Linked);
+
+  /** A router of the frame, its `push` spied and answering at once. */
+  function frameRouter() {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/", component: { render: () => null }, children: frameRoutes }],
+    });
+    return { router, push: vi.spyOn(router, "push").mockResolvedValue(undefined) };
+  }
+
+  /**
+   * Clicks `anchor` as a user would; whether the host took the click (the browser's own
+   * navigation is held back here, after the host).
+   */
+  function click(anchor: HTMLAnchorElement, init: MouseEventInit = {}): boolean {
+    let taken = false;
+    const last = (event: Event) => {
+      taken = event.defaultPrevented;
+      event.preventDefault();
+    };
+    document.addEventListener("click", last);
+    try {
+      const event = { bubbles: true, cancelable: true, composed: true, ...init };
+      anchor.dispatchEvent(new MouseEvent("click", event));
+    } finally {
+      document.removeEventListener("click", last);
+    }
+    return taken;
+  }
+
+  it("follows a link of the element's shadow root by the router, without a reload", async () => {
+    const { router, push } = frameRouter();
+    const followed = vi.fn();
+    const root = mount({ tag: "notes-linked" }, () => {}, router, { onFollowed: followed });
+    await nextTick();
+    const anchors = [...root.querySelector("notes-linked")!.shadowRoot!.querySelectorAll("a")];
+    // A page of the shell: followed by the router, its query kept, said to the host.
+    expect(click(anchors[0]!)).toBe(true);
+    expect(push).toHaveBeenCalledExactlyOnceWith(
+      "/x/notes/notes/n1?valid_at=2026-01-01T00%3A00%3A00Z",
+    );
+    expect(followed).toHaveBeenCalledOnce();
+    // With a modifier (a new tab), to the API, to another origin, an anchor of the page:
+    // left to the browser.
+    expect(click(anchors[0]!, { ctrlKey: true })).toBe(false);
+    expect(click(anchors[1]!)).toBe(false);
+    expect(click(anchors[2]!)).toBe(false);
+    expect(click(anchors[3]!)).toBe(false);
+    expect(push).toHaveBeenCalledOnce();
+    expect(followed).toHaveBeenCalledOnce();
+  });
+
+  it("closes the dialog of an action when a link of its element is followed", async () => {
+    const { router, push } = frameRouter();
+    const open = ref(true);
+    const root = document.createElement("div");
+    document.body.append(root);
+    app = createApp({
+      render: () =>
+        h(PluginAction, {
+          extension: { point: "action", id: "a", element: "notes-linked", plugin: "notes" },
+          object: { type: "prefix", id: "p1", href: "/v1/prefixes/p1" },
+          open: open.value,
+          "onUpdate:open": (now: boolean) => (open.value = now),
+        }),
+    });
+    app.use(createShellI18n("fr"));
+    app.use(router);
+    app.mount(root);
+    await vi.waitFor(() => expect(document.querySelector("notes-linked")).not.toBeNull());
+    const anchor = document.querySelector("notes-linked")!.shadowRoot!.querySelector("a")!;
+    expect(click(anchor)).toBe(true);
+    expect(push).toHaveBeenCalledOnce();
+    expect(open.value).toBe(false);
+  });
 
   it("creates the element of the plugin with its object, and passes its close on", async () => {
     class Tab extends HTMLElement {

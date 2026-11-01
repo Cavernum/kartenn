@@ -501,7 +501,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     valent (seul `pg_stat_database.xact_rollback` les distingue) ; l'arbre de la 11a
     suit, pour une forme unique. `versioned` séparé en `versions` (lecture) et
     `versioned` (pose), pour que les flux lisent leurs versions avec leurs lignes.
-- [ ] 16c. Rafraîchissement pendant une requête de fond (A15) : après un rafraîchissement
+- [x] 16c. Rafraîchissement pendant une requête de fond (A15) : après un rafraîchissement
   des groupes sur une requête `Kartenn-Background: ?1` ou à l'ouverture du flux
   d'événements, cookie réémis avec `seen` remis à la valeur lue (ni fin par inactivité
   ni fin absolue repoussée) ; sans rafraîchissement, aucun cookie (A14) ; l'en-tête
@@ -515,6 +515,45 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     (`NotActivity`) ; test voisin `crates/kartenn-rest/tests/it/sessions.rs`
     (`a_request_in_the_background_is_no_activity`) ; 005 design § « Cookie de session »
   - dépend de : 16a
+  - fait le 2026-11-01 : `Authenticated.quiet_cookie` (`authn.rs`), scellé seulement
+    après un rafraîchissement, avec `seen` remis à la valeur lue ; la couche 6 l'envoie
+    pour une requête de fond ou une réponse `NotActivity` (flux et rattrapage), le cookie
+    ordinaire sinon (`reissue`) ; contrat : paramètre d'en-tête commun
+    `components.parameters.Kartenn-Background`, référencé par toute opération non
+    publique ; contrat et `schema.d.ts` (`web/sdk`, `web/v2/sdk`) régénérés ; tests
+    `a_refresh_in_the_background_keeps_the_new_tokens` et
+    `a_refresh_at_the_opening_of_the_stream_keeps_the_new_tokens` (`sessions.rs`, issuer
+    de test qui tourne son jeton de rafraîchissement, `Fixture::streamed` sur un hub sans
+    lecteur) ; `docs/spec/interfaces.md` (Authentification).
+  - choix : composant commun plutôt que paramètre recopié sur 298 opérations ; les
+    opérations `QUERY` de l'extension `x-query` ne le déclarent pas (construites à part,
+    comme `approval` et `simulate`) ; la réponse paginée du rattrapage, `NotActivity`
+    elle aussi, suit la même règle que l'ouverture du flux.
+  - reste : `contract::breaches` compare les paramètres par nom et emplacement sans suivre
+    les `$ref` : un changement du composant `Kartenn-Background` (le rendre requis) ne
+    serait pas vu comme une rupture.
+- [ ] 16d. Jeton tourné jamais perdu (A15, relevé par la revue de la 16c) : les retours
+  anticipés de la couche 6 (refus `on_behalf`, `approval` ou `simulate` invalides)
+  partent après un rafraîchissement réussi sans aucun cookie : ils réémettent le cookie
+  qui convient (ordinaire, ou de fond `seen` inchangé) ; deux requêtes concurrentes dont
+  le rafraîchissement est dû ne présentent pas deux fois le même jeton à l'émetteur
+  (rafraîchissement unique par session en cours, RFC 9700 § 4.14.2) ; tests : l'émetteur
+  de test refuse `r1` après la rotation, et une fin absolue comparée au `started` du
+  cookie d'entrée — verify : `k-check -p kartenn-rest` (sessions : refus anticipé après
+  rafraîchissement → cookie réémis ; deux requêtes concurrentes → un seul appel à
+  l'émetteur ; cookie resté sur `r1` → `refresh_failed`)
+  - où : `crates/kartenn-rest/src/authn.rs` (couche 6, retours anticipés vers les lignes
+    966-989, `reissue`, `quiet_cookie`) ; test voisin
+    `crates/kartenn-rest/tests/it/sessions.rs` (`a_refresh_in_the_background_keeps_the_new_tokens`)
+  - dépend de : 16c
+- [ ] 16e. Comparaison du contrat à travers les `$ref` : `contract::breaches` résout les
+  références locales vers `components.parameters` avant de comparer (aujourd'hui une
+  `$ref` reçoit la clé `("", "")` : rendre `Kartenn-Background` requis passerait
+  inaperçu) ; l'en-tête déclaré aussi sur les opérations `x-query` — verify :
+  `k-check -p kartenn-rest` (test : composant rendu requis → rupture signalée)
+  - où : `crates/kartenn-rest/src/contract.rs` (`breaches`, vers les lignes 145-195),
+    `crates/kartenn-rest/src/openapi.rs` (`finish`, vers les lignes 339-385)
+  - dépend de : 16c ; avant le gel du contrat
 - [ ] 14a. `PATCH /v1/drafts/{id}` en `application/merge-patch+json` seulement (A17,
   REQ-006-13), 415 pour `application/json` ; client du SDK en `merge: true` ; contrat
   régénéré — verify : `k-check -p kartenn-rest` (drafts : 415 en `application/json`,
@@ -1422,13 +1461,54 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `core.rbac.read` global, `administrator` sur l'entité), un groupe de son entité
     modifiable, un groupe lié au-delà en lecture seule annoncée ; même objet choisi de
     nouveau : le panneau se rouvre (`frame/detail.ts`, `revealDetail`).
-- [ ] 15b. Administration : émetteurs, comptes de service et secret (montré une fois),
+- [x] 15b. Administration : émetteurs, comptes de service et secret (montré une fois),
   identités (groupes et droits effectifs en lecture), secours — REQ-021-12 — verify :
   parcours `admin` étendu (secret montré une fois, identité en lecture)
   - où : `web/shell/src/admin/{IssuersView,ServiceAccountsView,ServiceAccountView,
     SecretDialog,IdentitiesView,IdentityView}.vue` ; maquette E7 (vues `secours`,
     `identite`) ; parcours de la 15a
   - dépend de : 15a
+  - fait le 2026-11-01 : `web/v2/shell/src/admin/` — `IdentitiesView`, `IdentityDetail`,
+    `AccountsView`, `AccountDetail`, `SecretDialog`, `IssuersView`, `access.ts` (permissions
+    globales, lignes marquées par le brouillon : état d'une identité, secrets, rattachements ;
+    groupes de l'IdP de la dernière connexion ; refus du serveur), `secret.ts`
+    (`useSecretWrite`), `reads.ts` (`useScopeNames`, repris par `GroupDetail`), `routes.ts`
+    (`/admin/identities/:id`, `/admin/accounts/:id`, `/admin/issuers`), `i18n/` ;
+    `web/v2/PARITE.md` ; Vitest `test/access.test.ts` ; parcours `admin` étendu (compte
+    créé, secret montré une fois puis nulle part — page, stockages, brouillon —, nouveau
+    secret, Échap demande avant de l'oublier, secret révoqué au brouillon puis rétabli ;
+    compte de secours `e2e` membre direct de `secours`, ses droits en lecture ; émetteur
+    détaché au brouillon puis gardé ; Dana lit son identité, ses groupes et droits, ne gère
+    aucun compte).
+  - choix : création d'un compte et nouveau secret écrits aussitôt (`POST` dédiés,
+    `?approval=self`), hors brouillon : le serveur seul fait le secret, l'opération
+    `create_service_account` porte son empreinte ; la réponse n'entre pas dans le cache
+    (pas une requête : les listes sont relues sans elle), le secret vit dans le dialogue et
+    s'oublie à sa fermeture ; Échap, la croix ou un clic dehors demandent confirmation ;
+    le reste au brouillon (`set_identity_state`, `revoke_service_secret`, `attach_issuer`,
+    `detach_issuer`) ; pseudonymisation aussitôt, confirmée, avec motif ; permissions de
+    l'accès tenues globales (`me.global_permissions`, comme 005 les déclare) ; « secours »
+    lu comme le compte de secours (sorte `breakglass`) et son groupe, le groupe livré
+    étant fait par la 15a ; émetteurs en liste seule, « Détacher » agit sur la ligne
+    choisie ; secret nommé par sa création à la minute (la clé de l'anneau est commune) ;
+    l'état d'un compte se gère depuis son identité (même identifiant).
+  - correctif de revue (2026-11-01) : pendant l'écriture d'un secret, son dialogue ne se
+    ferme pas (Annuler inactif, Échap et la croix retenus : le secret serait venu à un
+    dialogue fermé) ; le composant parti quand même (route quittée), la réponse est
+    oubliée à son arrivée et un avis dit qu'un secret a été créé sans être montré
+    (`createSecretWrite`, Vitest `test/access.test.ts`) ; exceptions au brouillon écrites
+    au design ; `useQueryClient` du shell plutôt que celui du SDK.
+  - reste : la pseudonymisation n'a ni parcours (elle consommerait une personne du jeu)
+    ni Vitest ; `taken` (noms de comptes, émetteurs déjà rattachés) limité aux pages
+    lues ; `useScopeNames` relit un nom dont la lecture a échoué à chaque changement des
+    périmètres ; `@kartenn/ui` : `Dialog` sans mode qui retienne sa fermeture (garde faite par
+    le shell, `AlertDialog` imbriqué), `CodeBadge` sans `aria-describedby` (l'avis « plus
+    jamais affiché » n'est pas lu au focus : le nom du code le dit), `DataGrid` sans
+    actions de ligne (d'où « Détacher » dans la barre, son nom ne dit pas l'émetteur
+    choisi) ; `AdminLines` sans `role="list"` explicite (VoiceOver) ; l'objet d'un
+    périmètre (entité d'un rattachement) choisi parmi les premières pages. Vérifié : la
+    table d'idempotence ne garde aucun corps, un rejeu rend `shown: None`
+    (`crates/kartenn-rest/src/changesets.rs`).
 - [ ] 15c. Administration : journal d'audit et export, imports ; capture E7 —
   REQ-021-12 — verify : parcours `admin` étendu (filtre du journal, export, import
   suivi) ; capture E7
@@ -1612,7 +1692,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - dépend de : —
   - fait le 2026-10-23 (arbitrage de l'utilisateur)
 
-- [ ] 18a. Plugin Machines porté au SDK 1.0 sous `web/v2/plugins/machines` : listes et
+- [x] 18a. Plugin Machines porté au SDK 1.0 sous `web/v2/plugins/machines` : listes et
   fiches des machines, clusters et interfaces, onglet Interfaces sur préfixe, adresse et
   VLAN, espace `hosts`, `@kartenn/ui` en racine d'ombre comme le plugin d'exemple —
   verify : parcours `machines` (lecture, création au brouillon) vert dans les deux
@@ -1622,6 +1702,66 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `QueryClient`) ; parcours `web/e2e/journeys/machines.spec.ts` porté sous
     `web/v2/e2e/journeys/`
   - dépend de : 16, 19
+  - fait le 2026-11-01 — plugin `web/v2/plugins/machines` (espace `hosts`, lettre `g m`),
+    sans framework, chaque élément en racine d'ombre (feuille de `@kartenn/ui` puis la sienne,
+    `@layer plugins`, classes `k-machines-…`), lectures par `QueryObserver` et
+    `InfiniteQueryObserver` (`src/element.ts` : `follow`, `followList`, lectures suivies
+    après coup et lâchées par `drop`), noms des objets cités lus une fois par le cache, quatre
+    à la fois (`src/reads.ts`, `Names`). Vues : machines (liste : nature, propriétaire, site,
+    hébergement ; fiche `/x/machines/machines/<id>` : attributs, interfaces avec MAC, mode
+    802.1Q par VID et adresses, machines hébergées), clusters (liste ; fiche : membres et
+    hébergées), interfaces (recherche par MAC, adresse et VID, critères dans l'adresse de la
+    page ; fiche : machine, MAC, mode, adresses rattachées). Onglet `interfaces-of` sur
+    adresse, réseau (adresses du réseau tenues par ses machines, `within`) et VLAN ; colonne
+    `machine` des adresses ; action `attach` d'une adresse. Écritures au brouillon par
+    `draft.add` (`src/forms.ts`) : `machines.create_machine`, `machines.create_interface`,
+    `machines.update_interface` (mode aucun ou accès), `machines.attach_address` ; au présent
+    seulement, bouton refusé avec la permission écrite sans elle, champs requis refusés avant
+    envoi, violation du serveur dite sur son champ. Shell : un lien d'un élément de plugin
+    vers une page du shell est suivi par le routeur (`ExtensionElement.vue`, clic composé ;
+    modificateur, autre cible, autre origine, `/v1/…` laissés au navigateur) ; la vue d'un
+    plugin recrée son élément à chaque chemin (`PluginView.vue`). Vitest
+    `plugins/machines/test/machines.test.ts` (12 : éléments et ids uniques, catalogues,
+    liste relue à l'invalidation, échec avec code et Request-Id, vide, création au brouillon
+    et champ requis, droit absent et autre date, fiche de machine et ajout d'interface,
+    recherche par adresse, onglets réseau et VLAN, action, `within`), `package.test.ts`,
+    `shell/test/plugins.test.ts` (lien suivi par le routeur). Parcours
+    `e2e/journeys/machines.spec.ts` (2 : lecture par la navigation, fiches de la machine, de
+    l'interface et du cluster sans recharger la page, recherche par MAC, trois onglets,
+    colonne, action au brouillon ; machine créée au brouillon, aucun changeset envoyé).
+    `web/v2/PARITE.md` créée avec la section du plugin.
+  - choix : identifiant de l'onglet `interfaces-of` (le serveur refuse deux extensions de
+    même id, la vue s'appelle `interfaces`) ; lettre `g m` au plugin Machines (design
+    « Raccourcis »), le plugin de test `notes` passé à `n` (parcours `plugins`) ; tables natives (`<table>`, `k-machines-table`,
+    en-tête collant dans son conteneur de défilement) et listes fermées natives (`<select>`
+    dans `k-field-frame`) : `DataGrid` et `Select` sont des composants Vue ; raison d'un
+    bouton refusé écrite à côté de lui (pas d'infobulle sans framework) ; fiche en sections
+    (attributs, interfaces, hébergées, ajout), sans onglets ni `?tab=interfaces` ; recherche
+    des interfaces : adresse et VID résolus en objets (une liste par adresse et VLAN trouvés,
+    fusionnées) ; critères posés par un lien suivi par le routeur du shell
+    (`followLink`, nouvelle entrée de l'historique ; le retour arrière les rend par
+    `popstate`, revue du 2026-11-01 : le SDK n'a ni navigation ni requête de la vue) ; mode
+    802.1Q aucun ou accès comme l'ancien plugin ; machines, entités et VLAN proposés : la
+    première page ; relectures a11y et UI du 2026-11-01 : focus sur le `h1` de la page atteinte
+    par un lien du plugin, gardé sur « Afficher la suite » (sinon la dernière ligne), résultat
+    de la recherche dit par une région `status` présente dès le départ (compte visible caché
+    d'elle, sans « (s) »), « Ajout au brouillon… » dit pendant l'envoi, issue effacée à la
+    saisie suivante, refus du serveur : focus sur le premier champ refusé, VLAN d'accès requis
+    en mode accès seulement, VID en texte numérique (`inputmode`), `scroll-padding` sous
+    l'en-tête collant, onglet sans `h2` (son panneau est nommé par l'onglet du shell).
+  - reste : mode trunk à poser (lu seulement) ; déplacement vers un cluster (18b) ; listes
+    sans tri ni filtre de colonne (pas de `DataGrid` sans framework) ; listes de choix
+    (propriétaire, machine, VLAN) limitées à la première page, sans recherche ; codes
+    `machines.name.duplicate`, `machines.mac.duplicate`, `machines.address.vlan_mismatch`
+    montrés sur leur champ par la règle du pointeur, non prouvés au parcours (le brouillon ne
+    les dit qu'à la simulation) ; captures des vues (projet `visual` sans API) ; ouverts après
+    relecture : code et Request-Id d'un échec non copiables (`CodeBadge` est un composant
+    Vue ; un `<code>` sélectionnable), état d'une interface en texte (pas de `StatusBadge`
+    sans ses icônes), classes de titre, d'intertitre et de paires recopiées du plugin
+    d'exemple (`k-machines-…` ≈ `k-example-…`) : une classe partagée de `@kartenn/ui` pour les
+    plugins sans framework à décider, de même qu'une table et une liste fermée sans
+    framework ; nombre de machines non dit dans la liste ; une seule cellule de nom en lecture
+    dit « Chargement » par ligne.
 - [ ] 18b. Déplacement d'une machine vers un cluster par `canMove` du SDK (Q-021-2) :
   cycle refusé (`machines.host.invalid`), autre site refusé par le serveur
   (`machines.host.site_mismatch`, vérifier qu'il refuse), sans optimisme ; reste
