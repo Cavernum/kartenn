@@ -35,6 +35,7 @@ use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
 
 use crate::Dataset;
+use crate::history::{Figure, Unit};
 use crate::machine_budgets as machines;
 use crate::measures::{Bench, Measure, Selection};
 use crate::props::{Budget, SINCE, copy, load, p95, progress, verdict};
@@ -511,7 +512,7 @@ pub async fn run(
     seed: u64,
     selection: &Selection,
     reuse: &Reuse,
-) -> anyhow::Result<(String, bool)> {
+) -> anyhow::Result<(String, Vec<Figure>)> {
     let started = Instant::now();
     let Prepared {
         pool,
@@ -523,7 +524,7 @@ pub async fn run(
     // Draws distinct from those of the preparation, in the order of the measures that run.
     let mut rng = ChaCha8Rng::seed_from_u64(seed.wrapping_add(1));
     let mut budgets = Vec::new();
-    let mut ok = true;
+    let mut figures = Vec::new();
 
     // Reading an object, now and as known at a past date (REQ-004-38: at most twice).
     let now = OffsetDateTime::now_utc();
@@ -560,18 +561,22 @@ pub async fn run(
         }
         let current = p95(current);
         let past = p95(past);
-        budgets.push(Budget {
-            name: "read an object, p95",
-            limit: Duration::from_millis(50),
-            measured: current,
-            note: "200 draws, with its properties".into(),
-        });
-        budgets.push(Budget {
-            name: "read an object as known in the past, p95",
-            limit: (current * 2).max(Duration::from_millis(5)),
-            measured: past,
-            note: "limit: twice the current read (floor 5 ms)".into(),
-        });
+        budgets.push(
+            Budget::of(
+                READ_OBJECT,
+                "read an object, p95",
+                Duration::from_millis(50),
+            )
+            .measured(current, "200 draws, with its properties"),
+        );
+        budgets.push(
+            Budget::of(
+                READ_OBJECT,
+                "read an object as known in the past, p95",
+                (current * 2).max(Duration::from_millis(5)),
+            )
+            .measured(past, "limit: twice the current read (floor 5 ms)"),
+        );
     }
 
     // The versions asserted over a day, from the system period index (004-25): usable
@@ -588,13 +593,21 @@ pub async fn run(
             .bind(day)
             .fetch_one(&pool)
             .await?;
+        let elapsed = t.elapsed();
         writeln!(
             report,
-            "{} system period index of the history: usable {usable}, chosen {chosen} ({:?} for a day)",
+            "{} system period index of the history: usable {usable}, chosen {chosen} ({elapsed:?} for a day)",
             if usable { "PASS" } else { "FAIL" },
-            t.elapsed()
         )?;
-        ok &= usable;
+        // Its verdict is the index usable; its value, the read of a day.
+        figures.push(Figure::check(
+            HISTORY_INDEX,
+            "system period index of the history",
+            elapsed.as_secs_f64(),
+            Unit::Seconds,
+            None,
+            usable,
+        ));
     }
 
     // Filtered pages of 100.
@@ -609,12 +622,14 @@ pub async fn run(
             filter(&pool, rack, domain, &condition, now, None, 100).await?;
             samples.push(t.elapsed());
         }
-        budgets.push(Budget {
-            name: "filtered page of 100, p95",
-            limit: Duration::from_millis(150),
-            measured: p95(samples),
-            note: "100 draws".into(),
-        });
+        budgets.push(
+            Budget::of(
+                FILTERED_PAGE,
+                "filtered page of 100, p95",
+                Duration::from_millis(150),
+            )
+            .measured(p95(samples), "100 draws"),
+        );
     }
 
     // Subtree (direct content) and occupancy of a prefix.
@@ -629,12 +644,14 @@ pub async fn run(
                 .context("a loaded prefix is missing")?;
             samples.push(t.elapsed());
         }
-        budgets.push(Budget {
-            name: "subtree and occupancy, p95",
-            limit: Duration::from_millis(200),
-            measured: p95(samples),
-            note: "200 draws, containers and networks".into(),
-        });
+        budgets.push(
+            Budget::of(
+                SUBTREE,
+                "subtree and occupancy, p95",
+                Duration::from_millis(200),
+            )
+            .measured(p95(samples), "200 draws, containers and networks"),
+        );
     }
 
     // The first page of 100 roots of a domain (spec 007, REQ-007-39).
@@ -646,12 +663,14 @@ pub async fn run(
             roots_of(&pool, domain, now, None, &ReadScope::all(), None, Some(101)).await?;
             samples.push(t.elapsed());
         }
-        budgets.push(Budget {
-            name: "roots of a domain, page of 100, p95",
-            limit: Duration::from_millis(150),
-            measured: p95(samples),
-            note: "100 draws".into(),
-        });
+        budgets.push(
+            Budget::of(
+                ROOTS_PAGE,
+                "roots of a domain, page of 100, p95",
+                Duration::from_millis(150),
+            )
+            .measured(p95(samples), "100 draws"),
+        );
     }
 
     // A page of 100 children of a container with 10⁴ of them, after a cursor and as known
@@ -678,12 +697,17 @@ pub async fn run(
             .await?;
             samples.push(t.elapsed());
         }
-        budgets.push(Budget {
-            name: "children of a container of 10^4, page of 100, p95",
-            limit: Duration::from_millis(150),
-            measured: p95(samples),
-            note: format!("100 draws among {} children, after a cursor", all.len()),
-        });
+        budgets.push(
+            Budget::of(
+                WIDE_CHILDREN,
+                "children of a container of 10^4, page of 100, p95",
+                Duration::from_millis(150),
+            )
+            .measured(
+                p95(samples),
+                format!("100 draws among {} children, after a cursor", all.len()),
+            ),
+        );
     }
 
     // The same as known in the past (task 006-12d): the prefix read first, its domain and
@@ -700,12 +724,14 @@ pub async fn run(
                 .context("a past prefix is missing")?;
             samples.push(t.elapsed());
         }
-        budgets.push(Budget {
-            name: "subtree and occupancy in the past, p95",
-            limit: Duration::from_millis(200),
-            measured: p95(samples),
-            note: "200 draws over two years of history".into(),
-        });
+        budgets.push(
+            Budget::of(
+                SUBTREE_PAST,
+                "subtree and occupancy in the past, p95",
+                Duration::from_millis(200),
+            )
+            .measured(p95(samples), "200 draws over two years of history"),
+        );
     }
 
     // Unitary changesets: a new address in a random network.
@@ -722,12 +748,14 @@ pub async fn run(
             let operation = new_address(&pool, network).await?;
             samples.push(unitary(&store, author, operation).await?);
         }
-        budgets.push(Budget {
-            name: "unitary changeset, p95",
-            limit: Duration::from_millis(200),
-            measured: p95(samples),
-            note: "100 new addresses, validated and applied".into(),
-        });
+        budgets.push(
+            Budget::of(
+                UNITARY,
+                "unitary changeset, p95",
+                Duration::from_millis(200),
+            )
+            .measured(p95(samples), "100 new addresses, validated and applied"),
+        );
     }
     progress(&format!(
         "reads and unitary changesets: {:?}",
@@ -752,12 +780,12 @@ pub async fn run(
         if status.state != "done" {
             bail!("import not done: {status:?}");
         }
-        budgets.push(Budget {
-            name: "import",
-            limit: Duration::from_mins(15),
-            measured: elapsed,
-            note: format!("{count} addresses, {} batches", status.applied),
-        });
+        budgets.push(
+            Budget::of(IMPORT, "import", Duration::from_mins(15)).measured(
+                elapsed,
+                format!("{count} addresses, {} batches", status.applied),
+            ),
+        );
         progress(&format!("import: {:?}", started.elapsed()));
     }
 
@@ -770,16 +798,18 @@ pub async fn run(
         budgets.extend(run.await?);
     }
     if selection.any("core.machines-") || statistics {
-        let run = machines::run(&pool, author, data, seed, &mut rng, selection, &mut report);
+        let (rng, report, figures) = (&mut rng, &mut report, &mut figures);
+        let run = machines::run(&pool, author, data, seed, rng, selection, report, figures);
         budgets.extend(run.await?);
     }
     if statistics {
         budgets.extend(crate::stats_budgets::run(&pool, data, seed, &mut report).await?);
     }
 
-    let (lines, all) = verdict(&budgets)?;
+    let (lines, verdicts) = verdict(&budgets)?;
     report.push_str(&lines);
-    Ok((report, ok && all))
+    figures.extend(verdicts);
+    Ok((report, figures))
 }
 
 /// Sustained rate: writers on disjoint networks for a while.
@@ -816,11 +846,14 @@ async fn sustained(
     }
     let count = done.load(Ordering::Relaxed);
     let rate = f64::from(u32::try_from(count)?) / begun.elapsed().as_secs_f64();
-    Ok(Budget {
-        name: "sustained unitary changesets",
-        // As a time per changeset: 50 per second at least.
-        limit: Duration::from_millis(20),
-        measured: begun.elapsed() / u32::try_from(count.max(1))?,
-        note: format!("{rate:.1} changesets/s, {WRITERS} writers, {count} in {SUSTAINED:?}"),
-    })
+    // As a time per changeset: 50 per second at least.
+    Ok(Budget::of(
+        SUSTAINED_RATE,
+        "sustained unitary changesets",
+        Duration::from_millis(20),
+    )
+    .measured(
+        begun.elapsed() / u32::try_from(count.max(1))?,
+        format!("{rate:.1} changesets/s, {WRITERS} writers, {count} in {SUSTAINED:?}"),
+    ))
 }

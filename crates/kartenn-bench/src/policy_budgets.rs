@@ -36,6 +36,7 @@ use sqlx::{PgConnection, PgPool};
 
 use crate::Dataset;
 use crate::core_budgets::{Ids, Prepared, prepare_with, unitary};
+use crate::history::{Figure, Unit};
 use crate::measures::{Bench, Measure, Selection};
 use crate::props::{Budget, p95, progress, verdict};
 use crate::template::Reuse;
@@ -362,7 +363,7 @@ pub async fn run(
     seed: u64,
     selection: &Selection,
     reuse: &Reuse,
-) -> anyhow::Result<(String, bool)> {
+) -> anyhow::Result<(String, Vec<Figure>)> {
     let (
         Prepared {
             pool,
@@ -381,10 +382,20 @@ pub async fn run(
     .await?;
     // The generator of the preparation: the measures draw what follows its draws.
     let mut rng = ChaCha8Rng::seed_from_u64(seed.wrapping_add(2));
-    let budgets = measure(&pool, author, data, &mut rng, selection, &mut report).await?;
-    let (lines, ok) = verdict(&budgets)?;
+    let mut figures = Vec::new();
+    let budgets = measure(
+        &pool,
+        author,
+        data,
+        &mut rng,
+        selection,
+        &mut report,
+        &mut figures,
+    );
+    let (lines, verdicts) = verdict(&budgets.await?)?;
     report.push_str(&lines);
-    Ok((report, ok))
+    figures.extend(verdicts);
+    Ok((report, figures))
 }
 
 /// The modules the bench deploys.
@@ -646,6 +657,7 @@ async fn measure(
     rng: &mut ChaCha8Rng,
     selection: &Selection,
     report: &mut String,
+    figures: &mut Vec<Figure>,
 ) -> anyhow::Result<Vec<Budget>> {
     let started = Instant::now();
     let load = |what: &str| format!("{what}: {:?}, {}", started.elapsed(), load_now());
@@ -684,13 +696,19 @@ async fn measure(
             samples.push(t.elapsed());
         }
         drop(conn);
+        let cold = p95(samples);
         writeln!(
             report,
-            "INFO policy snapshot of {} rules read cold: p95 {:?} (10 reads; {})",
+            "INFO policy snapshot of {} rules read cold: p95 {cold:?} (10 reads; {})",
             RULES + 1,
-            p95(samples),
             load_now()
         )?;
+        figures.push(Figure::info(
+            SNAPSHOT,
+            "policy snapshot read cold, p95",
+            cold.as_secs_f64(),
+            Unit::Seconds,
+        ));
     }
 
     let identity = reader(
@@ -743,16 +761,21 @@ async fn measure(
             );
             samples.push(get(&app, &uri).await?.0);
         }
-        budgets.push(Budget {
-            name: "verdict of a pair of addresses for a service, p95",
-            limit: Duration::from_millis(50),
-            measured: p95(samples),
-            note: format!(
-                "200 draws through the router, {} rules; {}",
-                RULES + 1,
-                load_now()
+        budgets.push(
+            Budget::of(
+                VERDICT,
+                "verdict of a pair of addresses for a service, p95",
+                Duration::from_millis(50),
+            )
+            .measured(
+                p95(samples),
+                format!(
+                    "200 draws through the router, {} rules; {}",
+                    RULES + 1,
+                    load_now()
+                ),
             ),
-        });
+        );
     }
 
     // Interface × interface, 16 × 16 addresses, a flow type of 10 services.
@@ -772,16 +795,21 @@ async fn measure(
         if verdicts == 0 {
             bail!("interface × interface answers no verdict");
         }
-        budgets.push(Budget {
-            name: "interface × interface 16 × 16, flow type of 10 services, p95",
-            limit: Duration::from_millis(300),
-            measured: p95(samples),
-            note: format!(
-                "100 draws, {} evaluations an answer on average; {}",
-                verdicts / 100,
-                load_now()
+        budgets.push(
+            Budget::of(
+                INTERFACES,
+                "interface × interface 16 × 16, flow type of 10 services, p95",
+                Duration::from_millis(300),
+            )
+            .measured(
+                p95(samples),
+                format!(
+                    "100 draws, {} evaluations an answer on average; {}",
+                    verdicts / 100,
+                    load_now()
+                ),
             ),
-        });
+        );
     }
 
     // A raw port covered by 20 services.
@@ -795,12 +823,14 @@ async fn measure(
             );
             samples.push(get(&app, &uri).await?.0);
         }
-        budgets.push(Budget {
-            name: "raw port covered by 20 services, p95",
-            limit: Duration::from_millis(100),
-            measured: p95(samples),
-            note: format!("200 draws, tcp/443; {}", load_now()),
-        });
+        budgets.push(
+            Budget::of(
+                RAW_PORT,
+                "raw port covered by 20 services, p95",
+                Duration::from_millis(100),
+            )
+            .measured(p95(samples), format!("200 draws, tcp/443; {}", load_now())),
+        );
     }
     progress(&load("policy verdicts"));
 
@@ -818,15 +848,20 @@ async fn measure(
             )?;
             samples.push(unitary(&store, author, operation).await?);
         }
-        budgets.push(Budget {
-            name: "policy differential of a changeset of rules, p95",
-            limit: Duration::from_secs(1),
-            measured: p95(samples),
-            note: format!(
-                "20 unitary changesets of a deny without end, validated and applied; {}",
-                load_now()
+        budgets.push(
+            Budget::of(
+                DIFFERENTIAL,
+                "policy differential of a changeset of rules, p95",
+                Duration::from_secs(1),
+            )
+            .measured(
+                p95(samples),
+                format!(
+                    "20 unitary changesets of a deny without end, validated and applied; {}",
+                    load_now()
+                ),
             ),
-        });
+        );
         progress(&load("policy differential"));
     }
 
@@ -902,16 +937,21 @@ async fn measure(
                 .0,
             );
         }
-        budgets.push(Budget {
-            name: "suggestion of the inference for an object, p95",
-            limit: Duration::from_millis(50),
-            measured: p95(samples),
-            note: format!(
-                "200 draws among {} addresses under a rule; {}",
-                inferred.len(),
-                load_now()
+        budgets.push(
+            Budget::of(
+                SUGGESTION,
+                "suggestion of the inference for an object, p95",
+                Duration::from_millis(50),
+            )
+            .measured(
+                p95(samples),
+                format!(
+                    "200 draws among {} addresses under a rule; {}",
+                    inferred.len(),
+                    load_now()
+                ),
             ),
-        });
+        );
     }
 
     // The control of the inference on a changeset of 10⁴ objects: the same changeset
@@ -944,16 +984,21 @@ async fn measure(
             }
         }
         let (with, without) = (median(with), median(without));
-        budgets.push(Budget {
-            name: "control of the inference on a changeset of 10⁴ objects, added",
-            limit: Duration::from_secs(1),
-            measured: with.saturating_sub(without),
-            note: format!(
-                "medians of {CONTROL_ROUNDS} rounds in turn: {with:?} with the source, \
-                 {without:?} without; {}",
-                load_now()
+        budgets.push(
+            Budget::of(
+                CONTROL,
+                "control of the inference on a changeset of 10⁴ objects, added",
+                Duration::from_secs(1),
+            )
+            .measured(
+                with.saturating_sub(without),
+                format!(
+                    "medians of {CONTROL_ROUNDS} rounds in turn: {with:?} with the source, \
+                     {without:?} without; {}",
+                    load_now()
+                ),
             ),
-        });
+        );
         progress(&load("policy inference control"));
     }
 
@@ -1000,16 +1045,21 @@ async fn measure(
             }
         }
         let (wide, empty) = (median(wide), median(empty));
-        budgets.push(Budget {
-            name: "preview of a rule of inference in its simulation, added",
-            limit: Duration::from_secs(scope.div_ceil(10_000).max(1)),
-            measured: wide.saturating_sub(empty),
-            note: format!(
-                "{scope} nodes in scope; medians of {CONTROL_ROUNDS} rounds: {wide:?}, {empty:?} \
-             over an empty prefix; {}",
-                load_now()
+        budgets.push(
+            Budget::of(
+                PREVIEW,
+                "preview of a rule of inference in its simulation, added",
+                Duration::from_secs(scope.div_ceil(10_000).max(1)),
+            )
+            .measured(
+                wide.saturating_sub(empty),
+                format!(
+                    "{scope} nodes in scope; medians of {CONTROL_ROUNDS} rounds: {wide:?}, \
+                     {empty:?} over an empty prefix; {}",
+                    load_now()
+                ),
             ),
-        });
+        );
         progress(&load("policy inference preview"));
     }
 
@@ -1031,15 +1081,20 @@ async fn measure(
             sqlx::query_scalar("SELECT count(*) FROM address WHERE upper_inf(valid_period)")
                 .fetch_one(pool)
                 .await?;
-        budgets.push(Budget {
-            name: "full re-evaluation of the inference",
-            limit: Duration::from_mins(10),
-            measured: t.elapsed(),
-            note: format!(
-                "{runs} runs of the task, {heirs} addresses in the referential; {}",
-                load_now()
+        budgets.push(
+            Budget::of(
+                CHECK,
+                "full re-evaluation of the inference",
+                Duration::from_mins(10),
+            )
+            .measured(
+                t.elapsed(),
+                format!(
+                    "{runs} runs of the task, {heirs} addresses in the referential; {}",
+                    load_now()
+                ),
             ),
-        });
+        );
         progress(&load("policy inference check"));
     }
     Ok(budgets)
@@ -1073,12 +1128,10 @@ async fn audit_report(pool: &PgPool, report: &mut String) -> anyhow::Result<Budg
             break;
         }
     }
-    let budget = Budget {
-        name: "audit report",
-        limit: Duration::from_mins(10),
-        measured: t.elapsed(),
-        note: format!("{runs} runs of the task; {}", load_now()),
-    };
+    let budget = Budget::of(REPORT, "audit report", Duration::from_mins(10)).measured(
+        t.elapsed(),
+        format!("{runs} runs of the task; {}", load_now()),
+    );
     transverse_windows(&mut conn, report).await?;
     Ok(budget)
 }

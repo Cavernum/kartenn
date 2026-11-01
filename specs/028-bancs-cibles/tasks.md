@@ -165,7 +165,7 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     seulement, sans ce droit un avertissement et la suite (le `CHECKPOINT` propre à `core`
     retiré, sa ligne `INFO` désormais pour tous les bancs) ; ordre d'ancienneté par oid ; sans `--template` (`bench-web`, autre instance que
     celle des bancs), même chemin sans copie.
-- [ ] 3. Historique local : une ligne JSON par mesure et par passage dans
+- [x] 3. Historique local : une ligne JSON par mesure et par passage dans
   `.bench/history.jsonl` à la racine de la copie principale (parent de
   `git rev-parse --git-common-dir`), exclu par `.git/info/exclude` (`/.bench/`, ajouté
   s'il manque) (date, commit, arbre
@@ -176,6 +176,42 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     fichier ; `git status` reste propre.
   - où : `crates/kartenn-bench/src/main.rs` (rapport final) ; `devenv.nix` (scripts).
   - dépend de : 1
+  - fait : `kartenn_bench::history` (`Figure` : mesure, budget, valeur, `Unit`, seuil,
+    `Verdict` ; `Run` : date, commit, arbre modifié, banc, échelle, graine, charge,
+    empreinte du modèle ; `Entry::line`/`parse`, champs en ordre fixe ; `location`
+    (`git rev-parse --path-format=absolute --git-common-dir`, son parent), `exclude`
+    (`/.bench/` ajouté à `info/exclude` s'il manque, sous verrou, le reste intact),
+    `revision` (`HEAD`, `git status --porcelain`), `append` (une écriture en ajout sous
+    `flock` exclusif), `read`, `series`) ; chaque chiffre d'un rapport porte sa mesure :
+    `props::Budget::of(mesure, nom, seuil).measured(valeur, note)` (et `standing_for` pour
+    les comptes et octets de `events` écrits en millisecondes), `Pair` de `rbac` et `http`
+    avec leur mesure, chiffres hors `Budget` en `Figure` (index d'historique, dictionnaire,
+    débit et erreurs de la charge HTTP, surcoûts modélisés de `telemetry` par sortie,
+    `measure_of`) et chiffres seulement rapportés en `info` (instantané de la politique,
+    import des machines, résolution des groupes, volume d'audit) ; les `run` rendent
+    `(rapport, chiffres)`, le verdict du passage en découle ; `main.rs` (`--history`,
+    `--history=<fichier>`, charge lue au lancement, commit et arbre lus avant la mesure,
+    lignes écrites après le rapport ; `history <mesure> [--scale …]`, mesure vérifiée dans
+    les catalogues) ; `template::Reuse::fingerprint` ; `devenv.nix` (`bench` passe
+    `--history`, script `bench-history`) ; ADR 0041 (décision 4 précisée). Tests :
+    `history` (ligne écrite et relue, unités et verdicts, série par échelle, deux worktrees
+    × 4 fils qui écrivent des lignes de 10 ko dans le même fichier : aucune ligne entrelacée
+    ni tronquée, `git status` propre des deux côtés, exclusion complétée une fois en gardant
+    le fichier, lignes illisibles comptées), `main` (`--history`), `telemetry`
+    (`measure_of`) ; `tests/it/only.rs` : chaque mesure du catalogue a ses lignes dans le
+    banc entier, seule elle n'en a que pour les mesures lancées, sous la même mesure.
+    Passage réduit `bench-core 42 --only core.read-object` : deux lignes dans
+    `.bench/history.jsonl` de la copie principale, `/.bench/` ajouté en fin d'exclusion,
+    `bench-history core.read-object` rend la série, `--scale full` aucune, `core.nope`
+    refusé avec la liste.
+  - choix : une ligne par chiffre (budget) d'une mesure plutôt qu'une par mesure, le nom du
+    budget en champ `budget` (une mesure en donne parfois plusieurs) ; valeurs en unités de
+    base (`s`, `B`) ; chiffre sans budget en `verdict: info` et `limit: null` ; l'écriture et
+    l'exclusion faites par le programme (`--history`) plutôt que par le script, pour être
+    testées ; un échec d'écriture de l'historique fait échouer le passage (après le
+    rapport) ; `dirty` compte aussi les fichiers non suivis ; un passage sur une autre
+    instance que celle des bancs (`K_BENCH_DATABASE_URL`) écrit aussi, `template` nul ;
+    `bench-history` passe par `k-heavy` comme `--list` (il peut compiler).
 - [ ] 4. Mesures touchées : table mesure → chemins dans `kartenn-bench` ; script
   `bench-affected [base]` (`git diff --name-only <base>...HEAD` et fichiers modifiés,
   base main par défaut), en échelle réduite. Un chemin non couvert d'un crate exercé
@@ -196,6 +232,23 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     pause dans une requête d'une mesure réduite), trouvée au bon commit ; essai sans
     `--good` : bornes tirées de l'historique.
   - où : `devenv.nix` (scripts, `k-heavy`) ; historique de la tâche 3.
+  - repris de la revue de la tâche 3 (2026-11-01), à régler ici :
+    - une mesure peut rendre plusieurs budgets (une ligne d'historique par budget,
+      champ `budget`) : la bissection dit lequel elle suit (par défaut celui qui a
+      dépassé) ;
+    - un échec d'écriture de l'historique sort aussi en 1 (`main.rs:288-291`) et masque
+      « a budget is exceeded » : la bissection doit lire le verdict des budgets, pas le
+      seul code de sortie (code distinct pour l'historique, ou `--history` hors
+      bissection) ;
+    - `append` (`history.rs:464-485`) ne vérifie pas que le fichier finit par un saut
+      de ligne : une écriture interrompue colle la ligne suivante au fragment ;
+    - la charge est lue au démarrage du binaire, après la compilation du script : elle
+      inclut la compilation du passage, à corriger avant d'en tirer « machine libre » ;
+    - tout écrivain de l'historique, script compris, prend le même `flock` ;
+    - `http.rs:947-953` : budget strict (`<`) mais `limit` écrit comme un seuil ≤ ;
+      `core_budgets.rs:604` : `pass`/`fail` avec `limit: null`, cas à écrire dans l'ADR ;
+      ADR 0041 l. 111 (« ajoutée par le script ») contredit l. 124 (« c'est le programme
+      qui écrit »).
   - dépend de : 2, 3
 - [ ] 6. Règles et synchronisation : `.claude/agents/kartenn-tache.md` (`bench-affected`
   réduit permis à une tâche Rust exercée par un banc) ; `CLAUDE.md` (« Charge de la
