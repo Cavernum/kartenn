@@ -303,6 +303,26 @@ regardée.
     commun avec `Popover` (le cadre suit aussi les pages du routeur et la largeur) ;
     anneau seulement en arrêt de tabulation (`[tabindex="0"]:focus-visible`), le lien
     d'évitement garde son focus sans anneau sur une surface qui ne défile pas.
+  - revue (`kartenn-revue`) : une activité gardée dans le futur (horloge reculée) est
+    ramenée à l'heure présente (`lastActivity`) ; `ACTIVITY_KEY` est oubliée à une
+    nouvelle connexion (`loginAt`, compte de secours accepté ; `forgetActivity`), la
+    déconnexion l'effaçait déjà (`clearSensitive`). Test : horloge reculée d'une heure.
+  - reste (mineurs de la revue, non traités) :
+    - frontière de minute : une fin déplacée de quelques millisecondes qui franchit la
+      minute redit l'avertissement, deux toasts le temps de la sortie du premier.
+    - commentaires : celui de `warned` dit maintenant la clé à la minute ; celui
+      d'`activityFetch` reste à reprendre selon la remarque de la revue.
+    - fenêtre entre un changement de taille et le rappel du `ResizeObserver` : axe peut
+      lire la surface débordante avant que `tabindex` passe à 0 (parcours : `toHaveAttribute`
+      attendu avant axe).
+    - anneau sur `[tabindex="0"]` seulement : une surface focalisée qui cesse de déborder
+      perd son anneau tant qu'elle garde le focus.
+    - test au clavier de la surface (Tab l'atteint, les flèches la font défiler) : seul
+      l'attribut et axe sont vérifiés.
+    - `stopped()` de `diff-list.spec.ts` : une attente par sondage, pas un événement
+      `scrollend`.
+    - la note dit « sous charge » pour des mesures à côté d'un `k-web2-check` ou d'un
+      autre agent : charge réelle, non mesurée.
 - [ ] 6. Règles et synchronisation : `.claude/agents/kartenn-tache.md` (passage ciblé
   seulement, `--all` réservé à la session principale) ; `CLAUDE.md` (« Charge de la
   machine », « Sorties courtes ») ; skill `kartenn-ui` (vérification) ;
