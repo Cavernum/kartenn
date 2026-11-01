@@ -23,6 +23,7 @@ import {
   Button,
   Checkbox,
   Cluster,
+  InlineAlert,
   Select,
   Skeleton,
   SplitButton,
@@ -37,11 +38,20 @@ import { useI18n } from "vue-i18n";
 import { useInfiniteQuery, useQuery } from "../../data/query.ts";
 import { useSession } from "../../rights/index.ts";
 import { useTime } from "../../time/index.ts";
-import { collectionById, nameOf, type CollectionId, type Item } from "../collections.ts";
-import ProblemState from "../../problems/ProblemState.vue";
-import { rowsOf, useKeyLabel } from "../data.ts";
 import {
+  collectionById,
+  collectionOfKind,
+  nameOf,
+  type CollectionId,
+  type Item,
+} from "../collections.ts";
+import ProblemState from "../../problems/ProblemState.vue";
+import { rowsOf, useDeclarations, useKeyLabel } from "../data.ts";
+import { VLAN_PROPERTY } from "../parts/vlan.ts";
+import {
+  ANCHOR_KINDS,
   applyRight,
+  propertyRight,
   changesOf,
   checkValue,
   editRight,
@@ -57,6 +67,7 @@ import type { Refusal } from "./inline.ts";
 import { closeEdit, type ShownRequest } from "./panel.ts";
 import RefusalAlert from "./RefusalAlert.vue";
 import { useSay } from "./say.ts";
+import { createForNetwork, nextFreeVid } from "./vlan.ts";
 
 const props = defineProps<{ request: ShownRequest }>();
 const { t, te } = useI18n();
@@ -84,21 +95,32 @@ const record = useQuery(() => ({
 const item = computed(() => (record.data.value as Entry<Item> | undefined)?.data ?? null);
 const name = computed(() => (item.value ? nameOf(item.value) : ""));
 
-// The objects a reference may name: the domains, the parents of an entity or a site.
-const targets = computed(() => [
-  ...new Set(fields.value.flatMap((field) => (field.target ? [field.target] : []))),
-]);
-const domainsRead = useInfiniteQuery(() => ({
-  ...reads.list("/v1/domains"),
-  enabled: targets.value.includes("domains"),
-}));
-const nodesPath = computed(() =>
-  targets.value.includes("entities") ? "/v1/entities" : "/v1/sites",
+// The objects a reference may name: the domains, the parents of an entity or a site, the
+// group of a VLAN; an anchor, an entity, a site or a domain (026 V3).
+const targets = computed(
+  () =>
+    new Set(
+      fields.value.flatMap((field): CollectionId[] =>
+        field.kind === "anchor"
+          ? ["entities", "sites", "domains"]
+          : field.target
+            ? [field.target]
+            : [],
+      ),
+    ),
 );
-const nodesRead = useInfiniteQuery(() => ({
-  ...reads.list(nodesPath.value as "/v1/entities"),
-  enabled: targets.value.includes("entities") || targets.value.includes("sites"),
-}));
+const targetRead = (id: CollectionId) =>
+  useInfiniteQuery(() => ({
+    ...reads.list(collectionById(id)!.path as "/v1/domains"),
+    enabled: targets.value.has(id),
+  }));
+const READS: Partial<Record<CollectionId, ReturnType<typeof targetRead>>> = {
+  domains: targetRead("domains"),
+  entities: targetRead("entities"),
+  sites: targetRead("sites"),
+  "vlan-groups": targetRead("vlan-groups"),
+};
+const itemsOf = (id: CollectionId) => rowsOf(READS[id]?.data.value as never) as unknown as Item[];
 function optionsOf(field: EditField): ListOption[] {
   if (field.kind === "choice") {
     return (field.options ?? []).map((key) => {
@@ -106,8 +128,19 @@ function optionsOf(field: EditField): ListOption[] {
       return { value: key, label: te(words) ? t(words) : key, detail: key };
     });
   }
-  const read = field.target === "domains" ? domainsRead : nodesRead;
-  const items = rowsOf(read.data.value as never) as unknown as Item[];
+  if (field.kind === "anchor") {
+    return ANCHOR_KINDS.flatMap((kind) => {
+      const of = collectionOfKind(kind)!;
+      const words = keyLabel("kind", of.type) ?? kind;
+      return itemsOf(of.id).map((i) => ({
+        value: `${kind}:${String(i.id)}`,
+        label: nameOf(i),
+        detail: words,
+        mono: true,
+      }));
+    });
+  }
+  const items = field.target ? itemsOf(field.target) : [];
   const options = items.map((i) => ({ value: String(i.id), label: nameOf(i), mono: true }));
   return field.required ? options : [{ value: "", label: t("edit.none") }, ...options];
 }
@@ -145,7 +178,43 @@ watch(
 function setValue(name: string, value: string | boolean): void {
   values.value = { ...values.value, [name]: value };
   idempotencyKey = crypto.randomUUID();
+  if (name === "vid") vidProposed.value = null;
 }
+
+// A VLAN created (026, REQ-008-20): the VID proposed is the next free one of the group
+// chosen, until the user types one; for a network, it is set on it once created.
+const network = computed(() =>
+  props.request.mode === "create" && chosenKind.value === "vlans" ? props.request.network : null,
+);
+const vidProposed = ref<string | null>(null);
+watch(
+  () => (creating.value && chosenKind.value === "vlans" ? String(values.value.group ?? "") : ""),
+  async (group) => {
+    if (group === "" || (values.value.vid !== "" && vidProposed.value === null)) return;
+    const vid = await nextFreeVid(group);
+    if (vid === null || values.value.group !== group) return;
+    if (values.value.vid !== "" && vidProposed.value === null) return;
+    values.value = { ...values.value, vid: String(vid) };
+    vidProposed.value = group;
+    // The value changed under the user: said by the status of the panel (4.1.3).
+    notice.value = t("edit.vlan.vidSaid", { vid });
+  },
+  // A group given beforehand (« Créer un VLAN » of a group) proposes its VID at once.
+  { immediate: true },
+);
+const hintOf = (field: EditField) =>
+  field.name === "vid" && vidProposed.value !== null
+    ? t("edit.vlan.vidProposed", {
+        group: optionsOf(fields.value.find((f) => f.name === "group")!).find(
+          (o) => o.value === vidProposed.value,
+        )?.label,
+      })
+    : undefined;
+const { declarations } = useDeclarations();
+const vlanProperty = computed(
+  () =>
+    (declarations.value.find((d) => d.key === VLAN_PROPERTY) as { id?: string } | undefined)?.id,
+);
 
 // The action of the split button: to the draft by default; « Appliquer » with the right.
 const action = ref("draft");
@@ -153,22 +222,34 @@ const canEdit = computed(() => session.value.rights.has(editRight(collection.val
 const canApply = computed(
   () => canEdit.value && session.value.rights.has(applyRight(collection.value.type)),
 );
-/** The permission an action lacks: `X.edit` for both, `X.approval.self` to apply. */
+/**
+ * The permission an action lacks: `X.edit` for both, `X.approval.self` to apply; for a VLAN
+ * set on a network, the edition of its property too.
+ */
 const lacking = (id: string) =>
   !canEdit.value
     ? editRight(collection.value.type)
     : id === "apply" && !canApply.value
       ? applyRight(collection.value.type)
-      : null;
+      : network.value && !session.value.rights.has(propertyRight(VLAN_PROPERTY))
+        ? propertyRight(VLAN_PROPERTY)
+        : null;
 const actions = computed<SplitAction[]>(() =>
   [
     { id: "draft", label: t("edit.toDraft"), icon: "draft" as const },
     { id: "apply", label: t("edit.apply"), icon: "circle-check" as const },
   ].map((a) => {
     const permission = lacking(a.id);
-    return permission ? { ...a, forbidden: permission } : a;
+    if (permission) return { ...a, forbidden: permission };
+    // A VLAN set on a network exists first: no draft (`vlan.ts`).
+    if (a.id === "draft" && network.value) {
+      return { ...a, disabled: true, reason: t("edit.vlan.applyOnly") };
+    }
+    return a;
   }),
 );
+// For a network, the one action is to apply.
+watch(network, (on) => on && (action.value = "apply"), { immediate: true });
 const applying = computed(() => action.value === "apply" && canApply.value);
 // The generic motive, prefilled until the user writes one of their own.
 const motive = ref("");
@@ -192,6 +273,7 @@ function setMotive(text: string): void {
 const title = computed(() => {
   const request = props.request;
   if (request.mode === "edit") return t("edit.modify", { kind: kindWords.value, name: name.value });
+  if (network.value) return t("edit.vlan.createFor", { network: network.value.value });
   return request.within
     ? t("edit.addIn", { within: request.within })
     : t("edit.create", { kind: kindWords.value });
@@ -217,7 +299,7 @@ const labelOf = (field: EditField) => t(`views.field.${field.name}`);
 const shownText = (field: EditField, value: unknown) => {
   const text = textOf(value);
   if (field.kind === "flag") return t(`views.value.boolean.${value === true}`);
-  if (field.kind === "reference") {
+  if (field.kind === "reference" || field.kind === "anchor") {
     return optionsOf(field).find((o) => o.value === text)?.label ?? text;
   }
   return text || "—";
@@ -331,6 +413,27 @@ async function run(id: string = action.value): Promise<void> {
     settle(outcome as WriteOutcome<unknown> | { kind: "saved" }, what);
     return;
   }
+  if (network.value) {
+    if (!vlanProperty.value) {
+      busy.value = false;
+      notice.value = t("edit.vlan.noProperty", { property: VLAN_PROPERTY });
+      return;
+    }
+    const { outcome, created } = await createForNetwork({
+      values: values.value,
+      motive: motive.value.trim(),
+      network: network.value.id,
+      property: vlanProperty.value,
+      idempotencyKey,
+    });
+    const vlan = nameOf(values.value as Item);
+    settle(outcome, created ? t("edit.vlan.setOn", { vlan, network: network.value.value }) : what);
+    // Created, not set: said beside the refusal; applying again would create it twice.
+    if (created && outcome.kind !== "applied" && outcome.kind !== "proposed") {
+      notice.value = t("edit.vlan.createdNotSet", { vlan });
+    }
+    return;
+  }
   if (creating.value) {
     const submission: Submission = {
       motive: motive.value.trim(),
@@ -423,12 +526,14 @@ watch(
           @update:model-value="setValue(field.name, $event === true)"
         />
         <Select
-          v-else-if="field.kind === 'choice' || field.kind === 'reference'"
+          v-else-if="
+            field.kind === 'choice' || field.kind === 'reference' || field.kind === 'anchor'
+          "
           class="k-edit-panel__field"
           :model-value="String(values[field.name] ?? '')"
           :label="labelOf(field)"
           :options="optionsOf(field)"
-          :mono="field.kind === 'reference'"
+          :mono="field.kind !== 'choice'"
           :required="field.required === true"
           :error="errors[field.name]"
           @update:model-value="setValue(field.name, $event ?? '')"
@@ -441,6 +546,7 @@ watch(
           :mono="field.mono === true"
           :required="field.required === true"
           :error="errors[field.name]"
+          :hint="hintOf(field)"
           @update:model-value="setValue(field.name, $event)"
         />
       </template>
@@ -458,6 +564,8 @@ watch(
         :refusal="refusal"
         :changed="changed"
       />
+      <!-- Why there is no draft here, written, not in the menu's tooltip only. -->
+      <InlineAlert v-if="network" tone="info" :title="t('edit.vlan.applyOnly')" />
       <!-- Present before its sentence, so that the sentence is said. -->
       <p class="k-edit-panel__notice" role="status">{{ notice ?? "" }}</p>
       <Cluster justify="end" gap="2">

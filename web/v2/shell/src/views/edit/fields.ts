@@ -1,6 +1,6 @@
 import type { components, Operation } from "@kartenn/sdk";
 import type { Rights } from "../../rights/permissions.ts";
-import type { CollectionId, Item } from "../collections.ts";
+import { anchorOf, type CollectionId, type Item } from "../collections.ts";
 
 // What an edit of an object of the referential writes (REQ-021-15, 36; design 021 « Édition
 // en place », « Panneau d'édition par sorte »): by collection, the fields of its creation
@@ -14,7 +14,11 @@ type Schemas = components["schemas"];
 /** A field of the edit panel or a cell of a grid: its member, its kind, its choices. */
 export interface EditField {
   name: string;
-  kind: "text" | "choice" | "flag" | "reference";
+  /**
+   * `integer`: a whole number (a VID), written as one; `anchor`: one object among the
+   * entities, sites and domains, written `{<kind>: {id}}` (a group of VLAN, 026 V3).
+   */
+  kind: "text" | "integer" | "choice" | "flag" | "reference" | "anchor";
   /** The keys of a closed list of the contract, in the order offered. */
   options?: readonly string[];
   /** The collection a reference names (`{ id }`). */
@@ -38,6 +42,10 @@ const ADDRESS_USAGES = closed<Schemas["AddressUsage"]>()([
   "reserved",
 ]);
 const RANGE_USAGES = closed<Schemas["RangeUsage"]>()(["static", "dhcp", "reserved"]);
+const VLAN_STATUSES = closed<Schemas["VlanStatus"]>()(["active", "reserved", "deprecated"]);
+/** The kinds an anchor of a group of VLAN names (026 V3), in the order offered. */
+export const ANCHOR_KINDS = ["entity", "site", "domain"] as const;
+type AnchorKind = (typeof ANCHOR_KINDS)[number];
 
 /** Fields whose names are members of the schema `T`. */
 function of<T>() {
@@ -64,14 +72,35 @@ export interface CollectionEdit {
   update(id: string, expected: string | null, changes: Values): Operation;
 }
 
-/** Why a field never changes by an edit. */
-export type FixedReason = "immutable" | "computed" | "creation" | "moved";
+/**
+ * Why a field never changes by an edit in place: `reference`, an object chosen in the edit
+ * panel (`e`), never typed in a cell.
+ */
+export type FixedReason = "immutable" | "computed" | "creation" | "moved" | "reference";
 
-/** The values of a form: a text, a key of a closed list, a flag, an identifier. */
+/**
+ * The values of a form: a text, a whole number as its digits, a key of a closed list, a
+ * flag, an identifier, an anchor as `<kind>:<id>`.
+ */
 export type Values = Record<string, string | boolean>;
 
 const text = (values: Values, name: string) => String(values[name] ?? "");
 const ref = (id: string) => ({ id });
+/** A whole number of the form (`"105"` → 105). */
+const integer = (values: Values, name: string) => Number(text(values, name));
+/** The anchor of the form (`entity:<id>`) as the contract writes it (`{entity: {id}}`). */
+function anchor(value: string): Schemas["VlanAnchor"] {
+  const [kind, id = ""] = value.split(":") as [AnchorKind, string?];
+  if (kind === "site") return { site: ref(id) };
+  if (kind === "domain") return { domain: ref(id) };
+  return { entity: ref(id) };
+}
+/** The members of `changes` for an integer field among `names`, as numbers. */
+function integers(changes: Values, names: readonly string[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const name of names) if (changes[name] !== undefined) out[name] = integer(changes, name);
+  return out;
+}
 /** The members of `changes` among `names`, renamed for the operation (`value` → `prefix`). */
 function members(changes: Values, names: Record<string, string>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -214,6 +243,68 @@ export const EDITS: Readonly<Record<CollectionId, CollectionEdit>> = {
       ...versioned(expected),
     }),
   },
+  // The VLAN (026): their operations carry no `expected` (the contract has none for them).
+  "vlan-groups": {
+    creation: of<Schemas["VlanGroupCreation"]>()([
+      slug,
+      { name: "anchor", kind: "anchor", required: true },
+      { name: "vid_min", kind: "integer", mono: true },
+      { name: "vid_max", kind: "integer", mono: true },
+    ]),
+    modification: of<Schemas["VlanGroupPatch"]>()([
+      slug,
+      { name: "anchor", kind: "anchor", required: true },
+      { name: "vid_min", kind: "integer", required: true, mono: true },
+      { name: "vid_max", kind: "integer", required: true, mono: true },
+    ]),
+    fixed: { anchor: "reference" },
+    create: (values) => ({
+      op: "create_vlan_group",
+      slug: text(values, "slug"),
+      anchor: anchor(text(values, "anchor")),
+      // Unset, the range of the contract (1 to 4094).
+      ...integers(
+        values,
+        ["vid_min", "vid_max"].filter((name) => text(values, name) !== ""),
+      ),
+    }),
+    update: (id, _expected, changes) => ({
+      op: "update_vlan_group",
+      id: ref(id),
+      ...members(changes, { slug: "slug" }),
+      ...(changes.anchor !== undefined ? { anchor: anchor(text(changes, "anchor")) } : {}),
+      ...integers(changes, ["vid_min", "vid_max"]),
+    }),
+  },
+  vlans: {
+    creation: of<Schemas["VlanCreation"]>()([
+      { name: "group", kind: "reference", target: "vlan-groups", required: true },
+      { name: "vid", kind: "integer", required: true, mono: true },
+      { name: "name", kind: "text", required: true, mono: true },
+      { name: "status", kind: "choice", options: VLAN_STATUSES, required: true },
+    ]),
+    modification: of<Schemas["VlanPatch"]>()([
+      { name: "vid", kind: "integer", required: true, mono: true },
+      { name: "name", kind: "text", required: true, mono: true },
+      { name: "status", kind: "choice", options: VLAN_STATUSES, required: true },
+      { name: "group", kind: "reference", target: "vlan-groups", required: true },
+    ]),
+    fixed: { group: "reference" },
+    create: (values) => ({
+      op: "create_vlan",
+      group: ref(text(values, "group")),
+      vid: integer(values, "vid"),
+      name: text(values, "name"),
+      status: text(values, "status") as Schemas["VlanStatus"],
+    }),
+    update: (id, _expected, changes) => ({
+      op: "update_vlan",
+      id: ref(id),
+      ...members(changes, { name: "name", status: "status" }),
+      ...(changes.group !== undefined ? { group: ref(text(changes, "group")) } : {}),
+      ...integers(changes, ["vid"]),
+    }),
+  },
 };
 
 /** The members of a read object that the operations of the draft name otherwise. */
@@ -227,6 +318,8 @@ const OPERATION_MEMBERS: Readonly<Record<string, Readonly<Record<string, string>
   update_range: { usage: "usage" },
   update_address: { usage: "usage" },
   rename: { slug: "slug" },
+  update_vlan_group: { slug: "slug", vid_min: "vid_min", vid_max: "vid_max" },
+  update_vlan: { vid: "vid", name: "name", status: "status" },
 };
 const UPDATE_OF: Readonly<Record<CollectionId, string>> = {
   domains: "rename",
@@ -235,6 +328,8 @@ const UPDATE_OF: Readonly<Record<CollectionId, string>> = {
   prefixes: "update_prefix",
   ranges: "update_range",
   addresses: "update_address",
+  "vlan-groups": "update_vlan_group",
+  vlans: "update_vlan",
 };
 const NAMED: Partial<Record<CollectionId, string>> = {
   domains: "domain",
@@ -261,6 +356,8 @@ export function draftedValues(
     for (const [member, field] of Object.entries(OPERATION_MEMBERS[op.op as string] ?? {})) {
       const value = op[member];
       if (typeof value === "string" || typeof value === "boolean") values[field] = value;
+      // A whole number (a VID) as the form holds it.
+      if (typeof value === "number") values[field] = String(value);
     }
     out.set(id, values);
   }
@@ -284,6 +381,8 @@ const KEY_FIELD: Readonly<Record<CollectionId, string>> = {
   prefixes: "value",
   ranges: "first",
   addresses: "value",
+  "vlan-groups": "slug",
+  vlans: "vid",
 };
 
 /**
@@ -362,14 +461,18 @@ export function modificationField(collection: CollectionId, name: string): EditF
   return EDITS[collection].modification.find((field) => field.name === name);
 }
 
-/** The text a cell or a field holds for a value read (a flag as `true`/`false`). */
+/**
+ * The text a cell or a field holds for a value read: a flag as `true`/`false`, a number
+ * by its digits, a reference by its identifier, an anchor as `<kind>:<id>`.
+ */
 export function textOf(value: unknown): string {
   if (typeof value === "string") return value;
-  if (typeof value === "boolean") return String(value);
+  if (typeof value === "boolean" || typeof value === "number") return String(value);
   if (typeof value === "object" && value !== null && typeof (value as Item).id === "string") {
     return String((value as Item).id);
   }
-  return "";
+  const anchored = anchorOf(value);
+  return anchored ? `${anchored.kind}:${anchored.id}` : "";
 }
 
 /**
@@ -383,6 +486,9 @@ export function checkValue(field: EditField, value: string | boolean): string | 
   if (field.required && text === "") return "edit.check.required";
   if (field.kind === "choice" && text !== "" && !field.options?.includes(text)) {
     return "edit.check.choice";
+  }
+  if (field.kind === "integer" && text !== "" && !/^\d{1,9}$/.test(text)) {
+    return "edit.check.integer";
   }
   return undefined;
 }
@@ -423,13 +529,23 @@ export function changesOf(fields: readonly EditField[], before: Values, values: 
   return out;
 }
 
-/** The members of the merge patch of `changes` (RFC 7396): a reference as `{ id }`. */
+/**
+ * The members of the merge patch of `changes` (RFC 7396): a reference as `{ id }`, a whole
+ * number as a number, an anchor as `{<kind>: {id}}`.
+ */
 export function patchOf(fields: readonly EditField[], changes: Values): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const field of fields) {
     const value = changes[field.name];
     if (value === undefined) continue;
-    out[field.name] = field.kind === "reference" ? ref(String(value)) : value;
+    out[field.name] =
+      field.kind === "reference"
+        ? ref(String(value))
+        : field.kind === "integer"
+          ? Number(value)
+          : field.kind === "anchor"
+            ? anchor(String(value))
+            : value;
   }
   return out;
 }

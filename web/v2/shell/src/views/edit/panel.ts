@@ -16,6 +16,11 @@ export type EditRequest =
       preset?: Readonly<Record<string, string>>;
       /** Where the object goes, said in the title (« Ajouter dans 192.0.2.64/26 »). */
       within?: string;
+      /**
+       * A VLAN created for a network (026; maquette E12): set on it once created, by its
+       * property `core.vlan` — the prefix by its identifier and its value.
+       */
+      network?: { id: string; value: string };
     }
   | { mode: "edit"; collection: CollectionId; id: string };
 

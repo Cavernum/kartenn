@@ -18,7 +18,7 @@ import { placeId, useWidgets } from "../plugins/slots.ts";
 import KLink from "../prefetch/KLink.vue";
 import { serverSkew } from "../session/expiry.ts";
 import { useSession } from "../rights/index.ts";
-import { COLLECTIONS } from "./collections.ts";
+import { COLLECTIONS, navOf } from "./collections.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { useKeyLabel } from "./data.ts";
 import AttributeList from "./parts/AttributeList.vue";
@@ -33,16 +33,14 @@ const data = computed(() => stats.data.value?.data as Stats | undefined);
 
 const number = (value: number) => new Intl.NumberFormat(locale.value).format(value);
 /** The entries of the navigation that name each kind of the core (`core.prefix` → Préfixes). */
-const KIND_ENTRIES: Record<string, string> = {
-  ...Object.fromEntries(COLLECTIONS.map((c) => [c.type, c.id])),
-  "core.vlan": "vlans",
-  "core.vlan_group": "vlanGroups",
-};
+const KIND_ENTRIES: Record<string, string> = Object.fromEntries(
+  COLLECTIONS.map((c) => [c.type, navOf(c)]),
+);
 const kinds = computed(() =>
   Object.entries(data.value?.objects ?? {}).map(([kind, count]) => ({
     key: kind,
     // A kind the navigation does not name: its label of the dictionary, else its key.
-    label: KIND_ENTRIES[kind] ? t(`nav.${KIND_ENTRIES[kind]}`) : (keyLabel("kind", kind) ?? kind),
+    label: KIND_ENTRIES[kind] ? t(KIND_ENTRIES[kind]) : (keyLabel("kind", kind) ?? kind),
     value: number(count),
     mono: true,
   })),

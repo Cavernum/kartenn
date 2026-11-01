@@ -47,7 +47,8 @@ const kindWords = computed(() =>
 
 <template>
   <span class="k-object-name">
-    <template v-if="props.withKind && kindWords">{{ kindWords }} </template>
+    <!-- The space in the expression: the compiler trims one left at the end of a template. -->
+    <template v-if="props.withKind && kindWords">{{ `${kindWords} ` }}</template>
     <KLink v-if="to" :to="to" :class="{ 'k-mono': name === null }">{{ name ?? props.id }}</KLink>
     <span v-else class="k-mono">{{ name ?? props.id }}</span>
   </span>

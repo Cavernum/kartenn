@@ -7,7 +7,9 @@
         "range": "Range",
         "address": "Address",
         "entity": "Entity",
-        "site": "Site"
+        "site": "Site",
+        "vlan_group": "VLAN group",
+        "vlan": "VLAN"
       }
     },
     "problem": {
@@ -73,11 +75,21 @@
       "anycast": "Anycast",
       "rule": "Rule",
       "entity": "Entity",
-      "property": "Property"
+      "property": "Property",
+      "vid": "VID",
+      "name": "Name",
+      "status": "Status",
+      "group": "Group",
+      "anchor": "Anchor",
+      "range": "VID range",
+      "vid_min": "First VID",
+      "vid_max": "Last VID",
+      "vlan": "VLAN"
     },
     "value": {
       "boolean": { "true": "yes", "false": "no" },
       "nature": { "container": "Container", "network": "Network" },
+      "status": { "active": "Active", "reserved": "Reserved", "deprecated": "Deprecated" },
       "usage": {
         "host": "Host",
         "gateway": "Gateway",
@@ -148,6 +160,52 @@
       "usedOf": "{used} of {total}",
       "nextFree": "Next free",
       "noneFree": "none"
+    },
+    "vlan": {
+      "networks": "Networks",
+      "network": "Network",
+      "networksOf": "Networks that carry the VLAN {name}",
+      "networksError": "The networks of this VLAN could not be read.",
+      "noNetworks": "No network carries this VLAN",
+      "noNetworksText": "Set it on a network from the VLAN tab of its record.",
+      "readableOnly": "Only the networks you may read are listed and counted.",
+      "vlansOf": "VLANs of the group {name}",
+      "vlansError": "The VLANs of this group could not be read.",
+      "noVlans": "No VLAN in this group",
+      "noVlansText": "Create the first one: the VID proposed is the next free one of the group.",
+      "createVlan": "Create a VLAN",
+      "occupancyOf": "Occupancy of the group {name}",
+      "occupancyError": "The occupancy of the group could not be read.",
+      "slicesOf": "Runs of VIDs of the group {name}",
+      "state": "State",
+      "vids": "VIDs",
+      "slice": { "used": "Used", "reserved": "Reserved", "free": "Free" },
+      "sliceCount": {
+        "used": "{n} used | {n} used",
+        "reserved": "{n} reserved | {n} reserved",
+        "free": "{n} free | {n} free"
+      },
+      "nextFree": "Next free VID",
+      "nextFreeFrom": "Next free VID from {from}: {vid}",
+      "taken": "{share} of the VIDs taken",
+      "fromInvalid": "A VID is a whole number from 1 to 4094.",
+      "noVlanCell": "No VLAN",
+      "notNetworkCell": "Not applicable: a container",
+      "reading": "Reading",
+      "unreadable": "VLAN unreadable",
+      "noneFree": "none",
+      "fromLabel": "Next free from the VID",
+      "fromHint": "In the range {range}.",
+      "notNetwork": "A container carries no VLAN",
+      "notNetworkText": "Only a network carries a VLAN, by its property core.vlan.",
+      "vlanError": "The VLAN of this network could not be read.",
+      "noVlan": "This network carries no VLAN",
+      "noVlanText": "Create one in a group: it is set on this network once created.",
+      "createFor": "Create a VLAN for this network",
+      "carries": "This network carries the VLAN {vlan}.",
+      "property": "Property set",
+      "remove": "Remove the VLAN",
+      "removal": "removal of the VLAN {vlan} from {network}"
     },
     "home": {
       "error": "The counters of the dashboard could not be read.",
@@ -263,7 +321,8 @@
     "check": {
       "required": "{field} is required.",
       "choice": "Choose a value of the list: {values}.",
-      "flag": "Choose yes or no."
+      "flag": "Choose yes or no.",
+      "integer": "{field} is a whole number."
     },
     "conflict": "The object changed since you read it",
     "conflictText": "Your input is kept; apply it again to write it on the new version.",
@@ -312,7 +371,17 @@
       "immutable": "The domain of an object never changes after its creation (core.domain.immutable).",
       "computed": "A computed value: it does not change.",
       "creation": "Fixed at creation: it does not change.",
-      "moved": "The parent changes by a move, not in place."
+      "moved": "The parent changes by a move, not in place.",
+      "reference": "An object is chosen in the edit panel (Modify), not in place."
+    },
+    "vlan": {
+      "createFor": "Create a VLAN for {network}",
+      "vidProposed": "Next free VID of the group {group}.",
+      "vidSaid": "VID proposed: {vid}, the next free one of the group.",
+      "applyOnly": "A VLAN set on a network must exist: it is applied, then set.",
+      "noProperty": "The property {property} is not declared: the VLAN cannot be set.",
+      "setOn": "VLAN {vlan} created and set on {network}",
+      "createdNotSet": "The VLAN {vlan} is created, but it is not set on the network: do not create it again."
     }
   }
 }
