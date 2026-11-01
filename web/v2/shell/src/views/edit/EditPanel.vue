@@ -8,7 +8,10 @@
 // motive prefilled): « Appliquer » without `X.approval.self` stays visible, refused, and
 // names the permission. Ctrl+Enter runs the chosen action. Answers as in place: 202 held
 // (never « appliqué »), 412 the input kept beside the values read again, 422 the
-// violations on their fields with their codes, 403 a refusal.
+// violations on their fields with their codes, 403 a refusal. « Changer de parent… » of an
+// entity or a site (REQ-021-32, 33) lists the valid targets only (`canMove`, `moves.ts`) and
+// moves by the same split button: to the draft, or a changeset applied now; the record and
+// the lists show the new parent once read again, never before.
 import {
   changesets,
   draft,
@@ -33,7 +36,7 @@ import {
   type ListOption,
   type SplitAction,
 } from "@kartenn/ui";
-import { computed, nextTick, ref, useTemplateRef, watch } from "vue";
+import { computed, nextTick, ref, useTemplateRef, watch, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 import { useInfiniteQuery, useQuery } from "../../data/query.ts";
 import { useSession } from "../../rights/index.ts";
@@ -54,6 +57,7 @@ import {
   type Values,
 } from "./fields.ts";
 import type { Refusal } from "./inline.ts";
+import { useMoves, type MoveOutcome } from "./moves.ts";
 import { closeEdit, type ShownRequest } from "./panel.ts";
 import RefusalAlert from "./RefusalAlert.vue";
 import { useSay } from "./say.ts";
@@ -71,10 +75,12 @@ const chosenKind = ref<CollectionId>(props.request.collection);
 const collection = computed(() => collectionById(chosenKind.value)!);
 const kindWords = computed(() => keyLabel("kind", collection.value.type) ?? collection.value.kind);
 const creating = computed(() => props.request.mode === "create");
-const objectId = computed(() => (props.request.mode === "edit" ? props.request.id : null));
-const fields = computed<readonly EditField[]>(() =>
-  creating.value ? EDITS[collection.value.id].creation : EDITS[collection.value.id].modification,
-);
+const moving = computed(() => props.request.mode === "move");
+const objectId = computed(() => (props.request.mode === "create" ? null : props.request.id));
+const fields = computed<readonly EditField[]>(() => {
+  const edit = EDITS[collection.value.id];
+  return creating.value ? edit.creation : moving.value ? (edit.move ?? []) : edit.modification;
+});
 
 // The object modified, read at the present (the same entry as its record).
 const record = useQuery(() => ({
@@ -99,6 +105,30 @@ const nodesRead = useInfiniteQuery(() => ({
   ...reads.list(nodesPath.value as "/v1/entities"),
   enabled: targets.value.includes("entities") || targets.value.includes("sites"),
 }));
+// A move reads the pages after the first (ten at most): every valid target offered, and the
+// ancestors of each known for the check of a cycle.
+const MOVE_PAGES = 10;
+watchEffect(() => {
+  if (
+    moving.value &&
+    nodesRead.hasNextPage.value &&
+    !nodesRead.isFetching.value &&
+    !nodesRead.isFetchNextPageError.value &&
+    (nodesRead.data.value?.pages.length ?? 0) < MOVE_PAGES
+  ) {
+    void nodesRead.fetchNextPage();
+  }
+});
+/**
+ * The option « Aucun » of an optional reference (a root): the empty string is the Select's
+ * « no value », its placeholder, so the option has a value of its own, read back as `""`.
+ */
+const NONE = "none";
+const selectValue = (field: EditField) => {
+  const text = String(values.value[field.name] ?? "");
+  return text === "" && field.kind === "reference" && !field.required ? NONE : text;
+};
+const fromSelect = (value: string | undefined) => (value === NONE ? "" : (value ?? ""));
 function optionsOf(field: EditField): ListOption[] {
   if (field.kind === "choice") {
     return (field.options ?? []).map((key) => {
@@ -108,9 +138,40 @@ function optionsOf(field: EditField): ListOption[] {
   }
   const read = field.target === "domains" ? domainsRead : nodesRead;
   const items = rowsOf(read.data.value as never) as unknown as Item[];
-  const options = items.map((i) => ({ value: String(i.id), label: nameOf(i), mono: true }));
-  return field.required ? options : [{ value: "", label: t("edit.none") }, ...options];
+  // A move lists the valid targets only (REQ-021-32): the others are not offered at all.
+  const valid = (id: string | null, label: string) =>
+    !moving.value || moves.canMove(movedNode.value, id === null ? null : { id, label }).ok;
+  const options = items
+    .filter((i) => valid(String(i.id), nameOf(i)))
+    .map((i) => ({ value: String(i.id), label: nameOf(i), mono: true }));
+  return field.required || !valid(null, t("edit.none"))
+    ? options
+    : [{ value: NONE, label: t("edit.none") }, ...options];
 }
+
+// « Changer de parent… »: the node moved, its parent read, and the ancestors of each target
+// as the pages read show them (a cycle beyond them is the server's to refuse).
+const parentIds = computed(() => {
+  const items = rowsOf(nodesRead.data.value as never) as unknown as Item[];
+  return new Map(items.map((i) => [String(i.id), textOf(i.parent) || null]));
+});
+const movedNode = computed(() => ({ id: objectId.value ?? "", label: name.value }));
+const moves = useMoves({
+  subject: (node) => ({
+    id: node.id,
+    type: collection.value.type,
+    ...(node.id === objectId.value
+      ? { version: version.value, parent: textOf(item.value?.parent) || null }
+      : {}),
+  }),
+  ancestors(id) {
+    const up: string[] = [];
+    for (let at = parentIds.value.get(id); at && !up.includes(at); at = parentIds.value.get(at)) {
+      up.push(at);
+    }
+    return up;
+  },
+});
 
 // The form: filled once, from the object read or the values given; the input is never
 // replaced by a read that comes later (a 412 reads the object again).
@@ -173,13 +234,21 @@ const applying = computed(() => action.value === "apply" && canApply.value);
 // The generic motive, prefilled until the user writes one of their own.
 const motive = ref("");
 let motiveTyped = false;
+/** A move's destination, in its words: the target chosen, or the root. */
+const destination = computed(() => {
+  if (!moving.value) return "";
+  const parent = String(values.value.parent ?? "");
+  if (parent === "") return t("edit.move.root");
+  return optionsOf(fields.value[0]!).find((o) => o.value === parent)?.label ?? parent;
+});
 watch(
-  [name, kindWords],
+  [name, kindWords, destination],
   () => {
     if (motiveTyped) return;
+    const words = { kind: kindWords.value, name: name.value, to: destination.value };
     motive.value = creating.value
-      ? t("edit.motiveCreate", { kind: kindWords.value })
-      : t("edit.motiveModify", { kind: kindWords.value, name: name.value });
+      ? t("edit.motiveCreate", words)
+      : t(moving.value ? "edit.move.motive" : "edit.motiveModify", words);
   },
   { immediate: true },
 );
@@ -192,6 +261,9 @@ function setMotive(text: string): void {
 const title = computed(() => {
   const request = props.request;
   if (request.mode === "edit") return t("edit.modify", { kind: kindWords.value, name: name.value });
+  if (request.mode === "move") {
+    return t("edit.move.title", { kind: kindWords.value, name: name.value });
+  }
   return request.within
     ? t("edit.addIn", { within: request.within })
     : t("edit.create", { kind: kindWords.value });
@@ -315,6 +387,10 @@ async function run(id: string = action.value): Promise<void> {
     void toFirstError();
     return;
   }
+  if (moving.value) {
+    await moveTo(String(values.value.parent ?? ""), id === "apply", what);
+    return;
+  }
   const changes = creating.value
     ? values.value
     : changesOf(fields.value, before.value, values.value);
@@ -348,6 +424,44 @@ async function run(id: string = action.value): Promise<void> {
     })
     .catch(() => ({ kind: "failed", input: {}, problem: null }) as Refusal);
   settle(outcome, what);
+}
+
+/**
+ * « Changer de parent… »: the node under `parent` (`""`: a root), to the draft or applied now;
+ * nothing is shown at its new place before the answer (X33). The simulation of the draft,
+ * or the server, may still refuse it: the reason and its code on the field.
+ */
+async function moveTo(parent: string, now: boolean, what: string): Promise<void> {
+  if (parent === (before.value.parent ?? "")) {
+    notice.value = t("edit.unchanged");
+    return;
+  }
+  busy.value = true;
+  const label = optionsOf(fields.value[0]!).find((o) => o.value === parent)?.label ?? parent;
+  const outcome: MoveOutcome = await moves.move(
+    { node: movedNode.value, target: parent ? { id: parent, label } : null },
+    { now, motive: motive.value.trim(), idempotencyKey },
+  );
+  const refused = (check: { reason: string; code?: string }) => {
+    busy.value = false;
+    errors.value = { parent: check.code ? `${check.reason} (${check.code})` : check.reason };
+    void toFirstError();
+  };
+  if (outcome.kind === "unchanged") {
+    busy.value = false;
+    notice.value = t("edit.unchanged");
+  } else if (outcome.kind === "refused") refused(outcome.check);
+  else if (outcome.kind === "drafted") {
+    const state = moves.moveState(movedNode.value);
+    if (outcome.valid || typeof state !== "object" || state.refused.ok) {
+      settle({ kind: "saved" }, what);
+    } else {
+      // In the draft, but its simulation refuses it: said here, the operation left in the
+      // draft for the user to take out.
+      say.status(t("edit.drafted", { what }));
+      refused(state.refused);
+    }
+  } else settle(outcome, what);
 }
 
 function onKeydown(event: KeyboardEvent): void {
@@ -426,13 +540,13 @@ watch(
         <Select
           v-else-if="field.kind === 'choice' || field.kind === 'reference'"
           class="k-edit-panel__field"
-          :model-value="String(values[field.name] ?? '')"
+          :model-value="selectValue(field)"
           :label="labelOf(field)"
           :options="optionsOf(field)"
           :mono="field.kind === 'reference'"
           :required="field.required === true"
           :error="errors[field.name]"
-          @update:model-value="setValue(field.name, $event ?? '')"
+          @update:model-value="setValue(field.name, fromSelect($event))"
         />
         <TextField
           v-else

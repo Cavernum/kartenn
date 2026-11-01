@@ -264,7 +264,17 @@
       "immutable": "The domain of an object never changes after its creation (core.domain.immutable).",
       "computed": "A computed value: it does not change.",
       "creation": "Fixed at creation: it does not change.",
-      "moved": "The parent changes by a move, not in place."
+      "moved": "The parent changes by “Change parent…”, not in place."
+    },
+    "move": {
+      "action": "Change parent…",
+      "title": "Change parent: {kind} {name}",
+      "motive": "Change of parent: {kind} {name} → {to}",
+      "cycle": "Target refused: {target} is the object moved or one of its descendants.",
+      "incompatible": "Target refused: {target} cannot be its parent.",
+      "forbidden": "Right missing: it takes {permission}.",
+      "dated": "Dated read: go back to the present to change parent.",
+      "root": "the root"
     }
   }
 }

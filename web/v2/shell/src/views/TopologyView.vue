@@ -5,8 +5,17 @@
 // the children of a closed node read on intent (REQ-021-22, `childrenIntent`); beside it,
 // the content of the chosen node (`?node=<id>`), its record one link away. The domain is
 // chosen in the URL (`?domain=<id>`), the first one by default. The « + » of a prefix, `c`
-// and `e` open the edit panel of the kind (task 12).
-import { queryClient, reads, type components, type TimeArg } from "@kartenn/sdk";
+// and `e` open the edit panel of the kind (task 12). No move (task 24, REQ-021-17): a
+// prefix changes place by its value, through the draft, and the tree is read again.
+import {
+  drafts,
+  queryClient,
+  reads,
+  type components,
+  type Draft,
+  type Entry,
+  type TimeArg,
+} from "@kartenn/sdk";
 import {
   EmptyState,
   ErrorState,
@@ -44,7 +53,7 @@ import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
 import { useTime } from "../time/index.ts";
 import { pageOfObject, type CollectionId } from "./collections.ts";
-import { editRight } from "./edit/fields.ts";
+import { draftedValues, editRight } from "./edit/fields.ts";
 import { openEdit } from "./edit/panel.ts";
 import { problemOf, rowsOf, useKeyLabel } from "./data.ts";
 import ViewPanel from "./parts/ViewPanel.vue";
@@ -174,8 +183,31 @@ function nodesOf(parent: string | null): TreeNode[] {
 }
 const nodes = computed(() => nodesOf(null));
 const roots = computed(() => results.get(null));
+
+// Parents deduced (D34, REQ-021-17): no move is offered; a node whose value the active
+// draft changes stays where the present has it, marked « en brouillon » — the tree is never
+// retouched by the client, only read again once a change is applied (X24).
+const active = ref<string | null>(drafts.active());
+const stopActive = drafts.onActive((id) => (active.value = id));
+onBeforeUnmount(stopActive);
+const activeDraft = useQuery(() => ({
+  ...drafts.get(active.value ?? "-"),
+  enabled: active.value !== null,
+}));
+const inDraft = computed(() => {
+  const operations = (activeDraft.data.value as Entry<Draft> | undefined)?.data.operations;
+  return new Set(
+    (["prefixes", "ranges", "addresses"] as const).flatMap((c) => [
+      ...draftedValues(operations, c).keys(),
+    ]),
+  );
+});
 const nodeState = (node: TreeNode): TreeNodeState | undefined =>
-  results.get(node.id)?.isFetching ? "loading-children" : undefined;
+  results.get(node.id)?.isFetching
+    ? "loading-children"
+    : time.value.present && inDraft.value.has(node.id)
+      ? "draft"
+      : undefined;
 const columns = computed<GridColumn[]>(() => [
   { id: "detail", label: t("views.record.nature"), width: "sm" },
 ]);

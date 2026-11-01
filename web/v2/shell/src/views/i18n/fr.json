@@ -264,7 +264,17 @@
       "immutable": "Le domaine d'un objet ne change pas après sa création (core.domain.immutable).",
       "computed": "Valeur calculée : elle ne se modifie pas.",
       "creation": "Fixée à la création : elle ne se modifie pas.",
-      "moved": "Le parent se change par un déplacement, non en place."
+      "moved": "Le parent se change par « Changer de parent… », non en place."
+    },
+    "move": {
+      "action": "Changer de parent…",
+      "title": "Changer de parent : {kind} {name}",
+      "motive": "Changement de parent : {kind} {name} → {to}",
+      "cycle": "Cible refusée : {target} est l'objet déplacé ou l'un de ses descendants.",
+      "incompatible": "Cible refusée : {target} ne peut pas en être le parent.",
+      "forbidden": "Droit manquant : il faut {permission}.",
+      "dated": "Lecture datée : revenez au présent pour changer de parent.",
+      "root": "la racine"
     }
   }
 }
