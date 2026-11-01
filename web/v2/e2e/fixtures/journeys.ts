@@ -97,6 +97,12 @@ export const test = base.extend<Guarded>({
   toleratedErrors: [[], { option: true }],
   toleratedCsp: [[], { option: true }],
   page: async ({ page, toleratedErrors, toleratedCsp }, use) => {
+    // Known to `atRest`, which does not wait on a time the journey drives.
+    const install = page.clock.install.bind(page.clock);
+    page.clock.install = (options) => {
+      clocked.add(page);
+      return install(options);
+    };
     await page.addInitScript(() => {
       window.__kartennCsp = [];
       document.addEventListener("securitypolicyviolation", (event) => {
@@ -135,10 +141,48 @@ export const test = base.extend<Guarded>({
   },
 });
 
-/** Logs `user` in on `page`, of any browser context (a second one, to share a link). */
+/** The mark of the shell once its plugins fetch nothing more (shell/src/plugins/loader.ts). */
+const PLUGINS_FETCHED = "kartenn:plugins-fetched";
+
+/** The pages whose journey installed a clock (`page.clock.install`). */
+const clocked = new WeakSet<Page>();
+
+/**
+ * Waits until the first screen of the shell loads no more modules: its view drawn, then the
+ * plugins, loaded in an idle moment after it, past their fetches (`PLUGINS_FETCHED`). A
+ * journey that leaves the page before (`goto`, `reload`) cuts their loads short, which
+ * Firefox reports as integrity errors of the page left: it checks the digest of a module
+ * load cancelled by the navigation against the bytes it got, none (the SHA-384 of the empty
+ * string; dom/script/ScriptLoader.cpp, `OnStreamComplete` calls `VerifySRI` before reading
+ * the status of the channel). Task 029-4.
+ */
+export async function atRest(page: Page): Promise<void> {
+  // A clock installed, the shell's idle moment waits on it: nothing loads before the
+  // journey moves it on, and the mark would never come.
+  if (clocked.has(page)) return;
+  await page.evaluate(
+    (name) =>
+      new Promise<void>((done) => {
+        if (performance.getEntriesByName(name, "mark").length > 0) return done();
+        const observer = new PerformanceObserver((entries) => {
+          if (entries.getEntriesByName(name, "mark").length === 0) return;
+          observer.disconnect();
+          done();
+        });
+        observer.observe({ type: "mark" });
+      }),
+    PLUGINS_FETCHED,
+  );
+}
+
+/**
+ * Logs `user` in on `page`, of any browser context (a second one, to share a link), and
+ * returns once the shell is at rest (`atRest`).
+ */
 export async function loginIn(page: Page, user: keyof typeof USERS): Promise<void> {
   await page.goto(`${BASE_URL}/v1/auth/login?issuer=dev`);
   await page.getByRole("button", { name: USERS[user] }).click();
   // The callback sends the browser back to the shell (`/`).
   await page.waitForURL(`${BASE_URL}/`);
+  await atRest(page);
 }

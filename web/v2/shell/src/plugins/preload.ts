@@ -37,11 +37,14 @@ function preload(href: string, integrity: string): Promise<void> {
 
 /**
  * Inserts a `modulepreload` with its digest for each module of the plugin not yet inserted;
- * resolves once all are loaded, rejects if one fails.
+ * resolves once all are loaded; once all have settled, rejects with the first that failed,
+ * so that nothing of the plugin is still fetched when it is set aside.
  */
-export function preloadModules(plugin: PluginModules): Promise<void> {
+export async function preloadModules(plugin: PluginModules): Promise<void> {
   const modules = Object.entries(plugin.integrity).filter(([path]) => path.endsWith(".js"));
-  return Promise.all(
+  const settled = await Promise.allSettled(
     modules.map(([path, integrity]) => preload(plugin.base + path, integrity)),
-  ).then(() => undefined);
+  );
+  const failed = settled.find((result) => result.status === "rejected");
+  if (failed) throw failed.reason;
 }

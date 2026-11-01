@@ -48,7 +48,7 @@ regardée.
     rend le même verdict qu'avant la tâche.
   - où : `devenv.nix` (`scripts.k-web-check`, `scripts.k-web2-check`).
   - dépend de : 2
-- [ ] 4. Firefox, intégrité après un rechargement : reproduire sous charge l'erreur
+- [x] 4. Firefox, intégrité après un rechargement : reproduire sous charge l'erreur
   SRI dont l'empreinte est celle d'un corps vide (`shell.spec.ts`, « sidebar collapsed
   stays collapsed after a reload », et la tolérance de `moves.spec.ts`) ; écrire la
   cause ; corriger dans le shell si c'est un défaut au rechargement, sinon dans le
@@ -58,6 +58,35 @@ regardée.
   - où : `web/v2/e2e/journeys/{shell,moves}.spec.ts` ; `web/v2/shell/vite.config.ts`
     (`modulepreload`, intégrité) ; `web/v2/shell/src/plugins/loader.ts`.
   - dépend de : —
+  - cause (2026-11-01) : un parcours quitte la page (`goto`, `reload`) pendant qu'elle
+    charge encore des modules : les plugins, chargés dans un moment d'inactivité après
+    le premier écran, ou les vues paresseuses de l'accueil. Firefox annule ces chargements
+    et vérifie l'empreinte de chacun sur les octets reçus, aucun :
+    `ScriptLoader::OnStreamComplete` appelle `VerifySRI` avant de lire le statut du canal
+    (`PrepareLoadedRequest`), d'où une « erreur d'intégrité » de la page quittée, dont
+    l'empreinte calculée est le SHA-384 du vide (`dom/script/ScriptLoader.cpp`,
+    searchfox.org/firefox-main ; aucun bogue Bugzilla trouvé qui le décrive). Pas un
+    défaut du shell : la page rechargée est entière (plugins chargés, modules repris du
+    cache) ; Chromium ne dit rien. Le cas `moves.spec.ts` (branche de la 021-24) est le
+    même (`goto` juste après `login`), pas l'interception de Playwright.
+  - fait le 2026-11-01 (la tolérance de `moves.spec.ts`, absente de main, est retirée par
+    la branche de la 021-24 après intégration de ce correctif, par la session principale) :
+    marque `kartenn:plugins-fetched` (`PLUGINS_FETCHED`, `loader.ts`) quand chaque plugin
+    a chargé son entrée ou est écarté, ou que les capacités sont illisibles ;
+    `preloadModules` (`preload.ts`) n'écarte un plugin qu'une fois tous ses
+    préchargements réglés ; `atRest` (`e2e/fixtures/journeys.ts`), attendu par `loginIn` :
+    la page de l'accueil quittée au repos, sauf horloge installée par le parcours (le
+    moment d'inactivité attend alors sur elle). Tests : `test/plugins.test.ts` (marque
+    après le dernier plugin, liste vide, capacités illisibles ; écart après tous les
+    préchargements). Avant : `shell.spec.ts` Firefox `--repeat-each=10`, 4 échecs sur 150
+    (3 « neither the bar nor the band hides the focus », 1 « sidebar collapsed stays
+    collapsed after a reload ») ; une sonde (rechargement ou `goto` dès la première
+    requête d'un module de plugin) le reproduit 10 fois sur 10. Après :
+    `shell.spec.ts` `--repeat-each=30`, Firefox et Chromium, 930 passés.
+  - choix : une marque User Timing plutôt qu'un attribut du DOM (rien de visible, aucun
+    style ni arbre d'accessibilité touché) ; `atRest` sans minuterie (un
+    `PerformanceObserver`) ; tolérance du `describe("skeleton")` gardée : la requête du
+    module y est refusée exprès (`route.abort`), même mécanisme de Firefox.
 - [ ] 5. Firefox, fin de session dans le parcours `session` : reproduire sous charge
   l'avertissement absent (`session.spec.ts`, « the end of the session is said before it
   comes ») ; écrire la cause (horloge simulée, relecture de `/v1/me`, activité née d'un

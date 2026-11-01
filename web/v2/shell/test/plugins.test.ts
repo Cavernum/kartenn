@@ -13,10 +13,12 @@ import {
   CAPABILITY_ATTEMPTS,
   configurePlugins,
   loadPlugins,
+  PLUGINS_FETCHED,
   readPlugins,
   SHARED,
   startPlugins,
 } from "../src/plugins/loader.ts";
+import { preloadModules } from "../src/plugins/preload.ts";
 import {
   pluginLetters,
   pluginSpaces,
@@ -335,7 +337,10 @@ const json = (status: number, body: unknown, headers: Record<string, string> = {
 const noWait = () => Promise.resolve();
 
 describe("the loader (REQ-007-9, 10; REQ-021-26)", () => {
-  afterEach(() => resetPlugins());
+  afterEach(() => {
+    resetPlugins();
+    vi.restoreAllMocks();
+  });
 
   it("reads the capabilities again after a refusal for load, honouring Retry-After", async () => {
     const waits: number[] = [];
@@ -391,6 +396,54 @@ describe("the loader (REQ-007-9, 10; REQ-021-26)", () => {
     expect(merged).toEqual([]);
     expect(fetching).not.toHaveBeenCalled();
     expect(SHARED.sdk).toBe("1.0.0");
+  });
+
+  it("marks the plugins fetched once each is past its fetches, or the capabilities unread", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    performance.clearMarks(PLUGINS_FETCHED);
+    const marks = () => performance.getEntriesByName(PLUGINS_FETCHED, "mark").length;
+    let answer!: (response: Response) => void;
+    vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise((done) => (answer = done)));
+    const loading = loadPlugins(
+      [
+        plugin("ui3", [], { ui: "^3.0.0" }),
+        plugin("words", [], { catalogs: { fr: "i18n/fr.json" } }),
+      ],
+      ["fr"],
+      () => {},
+    );
+    // `ui3` set aside at once; `words` still fetches its catalog.
+    await nextTick();
+    expect(marks()).toBe(0);
+    answer(json(404, {}));
+    await loading;
+    expect(usePlugins().value.map((p) => p.status)).toEqual([
+      { state: "rejected", reason: "incompatible", detail: "ui" },
+      { state: "rejected", reason: "load-failed", detail: "i18n/fr.json" },
+    ]);
+    expect(marks()).toBe(1);
+    await loadPlugins([], ["fr"], () => {});
+    expect(marks()).toBe(2);
+    await startPlugins(["fr"], () => {}, answering(json(500, {})).fetcher);
+    expect(marks()).toBe(3);
+  });
+
+  it("sets a plugin aside once every module it preloads has settled", async () => {
+    const preloading = preloadModules({
+      base: "/plugins/pair/1.0.0/",
+      integrity: { "a.js": "sha384-a", "b.js": "sha384-b" },
+    });
+    let rejected = false;
+    preloading.catch(() => (rejected = true));
+    const [a, b] = document.head.querySelectorAll<HTMLLinkElement>(
+      'link[rel="modulepreload"][href^="/plugins/pair/"]',
+    );
+    a!.dispatchEvent(new Event("error"));
+    await nextTick();
+    // `b` still loads: the plugin is not set aside before it is done.
+    expect(rejected).toBe(false);
+    b!.dispatchEvent(new Event("load"));
+    await expect(preloading).rejects.toThrow("/plugins/pair/1.0.0/a.js");
   });
 
   it("loads once a session is there, in an idle moment, never twice", () => {

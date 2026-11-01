@@ -68,7 +68,21 @@ function inserted(script: HTMLScriptElement): Promise<void> {
   });
 }
 
-async function load(plugin: UiPlugin, locales: readonly string[], merge: MergeCatalog) {
+/**
+ * The mark (User Timing) set once every plugin of the capabilities has nothing more to fetch
+ * to load: its entry and modules loaded, or the plugin set aside; or the capabilities could
+ * not be read. The journeys wait for it before leaving the first screen (task 029-4):
+ * Firefox checks the digest of a module load cut short by leaving the page against the
+ * bytes it got, none, and reports an integrity error of the old page.
+ */
+export const PLUGINS_FETCHED = "kartenn:plugins-fetched";
+
+async function load(
+  plugin: UiPlugin,
+  locales: readonly string[],
+  merge: MergeCatalog,
+  fetched: () => void,
+) {
   // 1. The ranges of the SDK, of @kartenn/ui and of the framework (REQ-021-26).
   const unmet = unmetRange(plugin, SHARED);
   if (unmet) throw new SetAside("incompatible", unmet);
@@ -115,6 +129,7 @@ async function load(plugin: UiPlugin, locales: readonly string[], merge: MergeCa
     script.src = plugin.entry;
     script.integrity = plugin.integrity[entry] ?? "";
     await Promise.race([inserted(script), thrown]);
+    fetched();
     const late = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new SetAside("timeout")), DEFINE_TIMEOUT_MS);
     });
@@ -132,10 +147,18 @@ export async function loadPlugins(
   merge: MergeCatalog,
 ): Promise<void> {
   announce(list);
+  let fetching = list.length;
+  if (fetching === 0) performance.mark(PLUGINS_FETCHED);
   await Promise.all(
     list.map(async (plugin) => {
+      let counted = false;
+      const fetched = () => {
+        if (counted) return;
+        counted = true;
+        if (--fetching === 0) performance.mark(PLUGINS_FETCHED);
+      };
       try {
-        await load(plugin, locales, merge);
+        await load(plugin, locales, merge, fetched);
         settle(plugin.name, { state: "loaded" });
       } catch (error) {
         abandonPlugin(plugin.name);
@@ -143,6 +166,8 @@ export async function loadPlugins(
         const detail = error instanceof SetAside ? error.detail : undefined;
         console.warn(`kartenn: plugin ${plugin.name} ${plugin.version} set aside (${reason})`);
         settle(plugin.name, { state: "rejected", reason, ...(detail ? { detail } : {}) });
+      } finally {
+        fetched();
       }
     }),
   );
@@ -206,6 +231,7 @@ export async function startPlugins(
   if (list === null) {
     console.warn("kartenn: the capabilities could not be read; plugins not loaded");
     unavailable(true);
+    performance.mark(PLUGINS_FETCHED);
     return;
   }
   await loadPlugins(list, locales, merge);
