@@ -84,7 +84,11 @@ son corps.
 - Couche HTTP (spec 006) : `GET /v1/auth/login?issuer=…`, `GET /v1/auth/callback`,
   `POST /v1/auth/logout`, `POST /v1/auth/breakglass` (session de secours d'une heure
   au plus) ; cookies `__Host-kartenn-N`, `Secure`, `HttpOnly`, `SameSite=Strict`,
-  `Path=/`, sans `Domain`, réémis après une minute d'activité ; `Authorization: Bearer`
+  `Path=/`, sans `Domain`, réémis après une minute d'activité ; une requête marquée
+  `Kartenn-Background: ?1` (booléen RFC 9651, une seule ligne, sans paramètre ; toute
+  autre valeur → requête ordinaire) n'est pas une activité : ni inactivité repoussée ni
+  cookie réémis ; `GET /v1/me` donne `session.expires_at` et
+  `session.absolute_expires_at` (021/A14) ; `Authorization: Bearer`
   (jeton d'accès, identité juste-à-temps sans événement) ou `Basic` (compte de
   service) ; deux preuves à la fois → 400 ; sans TLS, Basic → 401 et aucun cookie émis ;
   jeton refusé → 401 `WWW-Authenticate: Bearer error="invalid_token"` (RFC 6750 §3.1) ;

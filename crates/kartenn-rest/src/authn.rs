@@ -163,8 +163,11 @@ pub struct Authenticated {
     /// When the session ends unless seen again (Unix seconds), for a session cookie.
     pub ends_at: Option<i64>,
     /// When the session ends if this request is no activity of it (Unix seconds): the
-    /// event stream (spec 022, REQ-022-18).
+    /// event stream (spec 022, REQ-022-18), a request in the background (021/A14).
     pub quiet_end: Option<i64>,
+    /// When the lifetime of the session ends, whatever its activity (Unix seconds), for a
+    /// session cookie (021/A14).
+    pub absolute_end: Option<i64>,
     /// When the credentials expire (Unix seconds): the `exp` of an access token.
     pub credentials_end: Option<i64>,
     /// The secret of a service account presented by `Basic`.
@@ -179,16 +182,41 @@ impl From<Principal> for Authenticated {
             cookie: None,
             ends_at: None,
             quiet_end: None,
+            absolute_end: None,
             credentials_end: None,
             secret: None,
         }
     }
 }
 
-/// When the session of the request ends unless seen again (Unix seconds); a request
-/// extension beside its [`Session`] (`GET /v1/me`).
+/// When the session of the request ends (Unix seconds); a request extension beside its
+/// [`Session`] (`GET /v1/me`).
 #[derive(Debug, Clone, Copy)]
-pub struct SessionEnds(pub i64);
+pub struct SessionEnds {
+    /// Unless seen again: by inactivity or by its lifetime, whichever comes first. A
+    /// request that is no activity of the session leaves it where it was.
+    pub at: i64,
+    /// By its lifetime alone, whatever its activity (021/A14).
+    pub absolute: i64,
+}
+
+/// The field that marks a request the client makes in the background, not at the
+/// person's request (021/A14).
+pub const BACKGROUND: &str = "kartenn-background";
+
+/// Whether the request is marked in the background: one `Kartenn-Background` field line
+/// whose value is the Boolean `?1` of a structured field (RFC 9651 §3.3.6), an Item
+/// without parameters. `?0`, several field lines, parameters or a value that does not
+/// parse leave it an ordinary request: a field that fails to parse is ignored (RFC 9651
+/// §4.2), and the mark can only deprive a request of its effect of activity.
+fn background(headers: &HeaderMap) -> bool {
+    let mut lines = headers.get_all(BACKGROUND).iter();
+    match (lines.next(), lines.next()) {
+        // RFC 9651 §4.2: the spaces around the Item are discarded.
+        (Some(value), None) => value.as_bytes().trim_ascii() == b"?1",
+        _ => false,
+    }
+}
 
 /// What the [`Authenticator`] answers, later.
 pub type Answer<'a, T> = Pin<Box<dyn Future<Output = Result<T, Refusal>> + Send + 'a>>;
@@ -476,12 +504,14 @@ impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
             None
         };
         let ends_at = Some(session.ends_at(seconds(self.idle), seconds(self.absolute)));
+        let absolute_end = Some(session.absolute_end(seconds(self.absolute)));
         Ok(Authenticated {
             principal,
             session: Some(session),
             cookie,
             ends_at,
             quiet_end: Some(quiet_end),
+            absolute_end,
             credentials_end: None,
             secret: None,
         })
@@ -887,6 +917,7 @@ pub async fn layer(
         Err(refusal) => return refusal.into_response(),
     };
     let by_session = matches!(proof, Proof::Session(_));
+    let background = background(request.headers());
     let source = source(client, request.headers());
     let Authenticated {
         principal,
@@ -894,6 +925,7 @@ pub async fn layer(
         cookie,
         ends_at,
         quiet_end,
+        absolute_end,
         credentials_end,
         secret,
     } = match authenticator.authenticate(proof, source.clone()).await {
@@ -906,6 +938,10 @@ pub async fn layer(
             return response;
         }
     };
+    // 021/A14: a request in the background is no activity of its session, as the event
+    // stream: its end stays where the cookie put it, the cookie is not sent again.
+    let cookie = cookie.filter(|_| !background);
+    let ends_at = if background { quiet_end } else { ends_at };
     let mut context = principal.context(source.clone());
     if let Some(before) = request.extensions().get::<RequestContext>() {
         context.correlation = before.correlation.clone();
@@ -941,8 +977,10 @@ pub async fn layer(
     if let Some(session) = session {
         request.extensions_mut().insert(session);
     }
-    if let Some(ends_at) = ends_at {
-        request.extensions_mut().insert(SessionEnds(ends_at));
+    if let (Some(at), Some(absolute)) = (ends_at, absolute_end) {
+        request
+            .extensions_mut()
+            .insert(SessionEnds { at, absolute });
     }
     if let Some(end) = quiet_end {
         request
@@ -1030,6 +1068,34 @@ mod tests {
             ),
             Err(axum::http::StatusCode::BAD_REQUEST)
         );
+    }
+
+    /// 021/A14: only one field line `?1` marks a request in the background; anything
+    /// else leaves it ordinary (RFC 9651 §4.2).
+    #[test]
+    fn only_the_boolean_true_marks_a_request_in_the_background() {
+        let marked = |lines: &[&str]| {
+            let pairs: Vec<_> = lines.iter().map(|&v| (BACKGROUND, v)).collect();
+            background(&headers(&pairs))
+        };
+        assert!(marked(&["?1"]));
+        assert!(marked(&[" ?1 "]));
+        assert!(background(&headers(&[("Kartenn-Background", "?1")])));
+        for ordinary in [
+            &[][..],
+            &["?0"],
+            &["?1", "?1"],
+            &["?1, ?0"],
+            &["?1;by=focus"],
+            &["1"],
+            &["true"],
+            &["?"],
+            &["?10"],
+            &["\"?1\""],
+            &[""],
+        ] {
+            assert!(!marked(ordinary), "{ordinary:?}");
+        }
     }
 
     #[test]

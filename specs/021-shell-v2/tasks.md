@@ -387,7 +387,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     la lecture d'occupation du store qu'appelle `occupancy` ; test voisin
     `crates/kartenn-rest/tests/it/objects.rs` (arbre) ; 006 design § tableau « Arbre »
   - dépend de : —
-- [ ] 16a. `SessionState.absolute_expires_at` et en-tête `Kartenn-Background: ?1` traité
+- [x] 16a. `SessionState.absolute_expires_at` et en-tête `Kartenn-Background: ?1` traité
   en `NotActivity` (A14) : ni `seen` prolongé ni cookie réémis ; valeur autre que `?1` ou
   `?0` ignorée (requête ordinaire) — verify : `k-check -p kartenn-rest` (sessions : une
   requête de fond ne repousse pas `expires_at`, une requête ordinaire le repousse ;
@@ -398,6 +398,26 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     `crates/kartenn-rest/tests/it/sessions.rs` ; 005 design § « Cookie de session »,
     006 design § « Cookies »
   - dépend de : —
+  - fait le 2026-11-01 : `Session::absolute_end` (`kartenn-auth`), `SessionEnds { at,
+    absolute }`, `Authenticated.absolute_end` et `authn::background` ; la couche 6 retire
+    le cookie réémis et donne `quiet_end` à `GET /v1/me` pour une requête de fond ;
+    contrat et `schema.d.ts` (`web/sdk`, `web/v2/sdk`) régénérés ; tests
+    `only_the_boolean_true_marks_a_request_in_the_background` (unitaire),
+    `a_request_in_the_background_is_no_activity` et la fin absolue d'une heure du secours
+    (`sessions.rs`) ; `docs/spec/interfaces.md` (Authentification).
+  - choix : analyse stricte du champ structuré (RFC 9651 §4.2) : une seule ligne, valeur
+    `?1` à espaces près, sans paramètre ; `?0`, plusieurs lignes (même `?1, ?1`), des
+    paramètres (`?1;a=b`) ou une valeur qui ne s'analyse pas → requête ordinaire, sans
+    400 (l'en-tête ne peut que priver une requête de son effet d'activité). Les
+    paramètres, que RFC 9651 permettrait d'ignorer, sont refusés : l'en-tête n'en définit
+    aucun. Une requête de fond refusée (session close) retire le cookie comme une autre.
+  - reste : une requête de fond qui rafraîchit les groupes (jeton d'accès de l'émetteur
+    expiré) ne réémet pas le cookie, comme le flux d'événements déjà : si l'émetteur fait
+    tourner ses jetons de rafraîchissement (RFC 9700 §4.14.2), le jeton gardé par le
+    cookie est périmé et le rafraîchissement suivant échoue (fermeture
+    `refresh_failed`). Recommandation : réémettre le cookie après un rafraîchissement,
+    `seen` laissé à sa valeur lue (ne prolonge rien) ; à trancher (A14 dit « ne réémet
+    pas »).
 - [ ] 24a. `placements` dans `ChangesetSimulated` (A12) : `[{object, kind, before,
   after}]` pour chaque objet dont le parent change (déduit : préfixes, plages, adresses ;
   déclaré : modules), au présent, sur la simulation d'un changeset et d'un brouillon —
