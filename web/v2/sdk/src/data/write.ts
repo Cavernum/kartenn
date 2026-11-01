@@ -76,7 +76,7 @@ export function mergePatch(target: unknown, patch: unknown): unknown {
 }
 
 /** Rules that refuse for lack of rights rather than for the content (REQ-005-22). */
-const FORBIDDEN_RULE = /\.forbidden(_effect)?$/;
+export const FORBIDDEN_RULE = /\.forbidden(_effect)?$/;
 
 /** The member a JSON Pointer of the request names (`/slug` → `slug`), if one. */
 export function fieldOf(pointer: string | null | undefined): string | null {

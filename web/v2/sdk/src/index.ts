@@ -74,7 +74,7 @@ export type { QueryClient } from "@tanstack/query-core";
  */
 export { InfiniteQueryObserver, QueryObserver } from "@tanstack/query-core";
 export type { InfiniteQueryObserverResult, QueryObserverResult } from "@tanstack/query-core";
-export { mergePatch } from "./data/write.ts";
+export { FORBIDDEN_RULE, mergePatch } from "./data/write.ts";
 export { lookup } from "./data/labels.ts";
 export type { Dictionary } from "./data/labels.ts";
 export type {
