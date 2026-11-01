@@ -27,8 +27,11 @@ const props = withDefaults(
   }>(),
   { object: undefined, row: undefined, status: undefined },
 );
-/** `close`: the element asked it (`kartenn-close`); `failed`: an encart stands in its place. */
-const emit = defineEmits<{ close: []; failed: [failed: boolean] }>();
+/**
+ * `close`: the element asked it (`kartenn-close`); `followed`: a link of the element was
+ * followed by the router; `failed`: an encart stands in its place.
+ */
+const emit = defineEmits<{ close: []; followed: []; failed: [failed: boolean] }>();
 
 const { t } = useI18n();
 const container = ref<HTMLElement | null>(null);
@@ -66,10 +69,14 @@ function onClick(event: MouseEvent): void {
   if (anchor.target && anchor.target !== "_self") return;
   const url = new URL(anchor.href, location.href);
   if (url.origin !== location.origin) return;
+  // An anchor in the page itself (`#x`): the browser scrolls to it, nothing is pushed.
+  if (url.hash && url.pathname === location.pathname && url.search === location.search) return;
   const to = `${url.pathname}${url.search}${url.hash}`;
   if (router.resolve(to).name === "missing") return;
   event.preventDefault();
   void router.push(to);
+  // The host of an action closes its dialog: the page it stood on is left.
+  emit("followed");
 }
 
 function unmount(): void {

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // An action of a plugin on an object (point `action`, REQ-007-13, 021-13; the type
 // `changeset` among others): its element in a dialog named by the action's label, given the
-// object; `kartenn-close` from the element closes it, Échap and the cross too, and the focus
+// object; `kartenn-close` from the element closes it, a link of the element followed by the
+// router too (its page is left), Échap and the cross as well, and the focus
 // goes back to what opened it (the entry of the menu, by the dialog of @kartenn/ui).
 import type { ObjectRef } from "@kartenn/sdk";
 import { Dialog } from "@kartenn/ui";
@@ -26,6 +27,7 @@ const title = computed(() => (props.extension ? labelOf(t, props.extension) : ""
       :label="title"
       :object="props.object"
       @close="open = false"
+      @followed="open = false"
     />
   </Dialog>
 </template>
