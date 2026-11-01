@@ -7,8 +7,9 @@
 // passed on as `close` (an action in its dialog).
 import type { ObjectRef } from "@kartenn/sdk";
 import { InlineAlert, Skeleton, Stack } from "@kartenn/ui";
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, inject, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { routerKey } from "vue-router";
 import { reasonCode, type Status } from "./registry.ts";
 
 const props = withDefaults(
@@ -44,6 +45,31 @@ const reason = computed(() => {
 
 function onClose(): void {
   emit("close");
+}
+
+// The router of the shell, absent when the host is mounted alone (tests).
+const router = inject(routerKey, null);
+
+/**
+ * A link of the element to a page of the shell (`<a href>` in its shadow root, the click
+ * composed): followed by the router, the dates carried as by any link of the shell, rather
+ * than by a reload of the page. A click with a modifier, another target, a download or an
+ * address the shell does not route is left to the browser.
+ */
+function onClick(event: MouseEvent): void {
+  if (!router || event.defaultPrevented || event.button !== 0) return;
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const anchor = event
+    .composedPath()
+    .find((node): node is HTMLAnchorElement => node instanceof HTMLAnchorElement);
+  if (!anchor?.href || anchor.hasAttribute("download")) return;
+  if (anchor.target && anchor.target !== "_self") return;
+  const url = new URL(anchor.href, location.href);
+  if (url.origin !== location.origin) return;
+  const to = `${url.pathname}${url.search}${url.hash}`;
+  if (router.resolve(to).name === "missing") return;
+  event.preventDefault();
+  void router.push(to);
 }
 
 function unmount(): void {
@@ -118,6 +144,7 @@ onBeforeUnmount(unmount);
     v-show="reason === null && state.state === 'loaded'"
     ref="container"
     class="k-extension"
+    @click="onClick"
   ></div>
 </template>
 

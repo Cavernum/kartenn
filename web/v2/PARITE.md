@@ -1,0 +1,25 @@
+# Liste de parité — ancien shell et nouveau shell
+
+Liste de la spec 021 (design § « Migration », REQ-021-31, tâche 26) : chaque route, écran,
+action, point d'extension et parcours de l'ancien shell (`web/`) et de ses plugins, avec son
+équivalent sous `web/v2/`, son parcours porté et son état. La bascule (tâche 27) exige
+qu'elle soit entièrement cochée.
+
+Tenue à jour à chaque tâche de P2 et P3 ; la tâche 26 la complète pour le cœur et les
+autres plugins. Sections présentes : plugin Machines (tâche 18a).
+
+## Plugin Machines (`web/plugins/machines` → `web/v2/plugins/machines`)
+
+Parcours : `web/e2e/journeys/machines.spec.ts` → `web/v2/e2e/journeys/machines.spec.ts`.
+
+| Ancien                                                                                                               | Nouveau                                                                                                                                                                                                     | Parcours porté                                   | État              |
+| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ----------------- |
+| Vue `machines` (`/x/machines/machines`) : liste, interfaces d'une machine en place, création par `POST /v1/machines` | même route, espace `hosts` (lettre `g m`) : liste ; fiche `/x/machines/machines/<id>` (attributs, interfaces avec VLAN et adresses, machines hébergées) ; création au brouillon (`machines.create_machine`) | `machines` (liste, fiche, création au brouillon) | [x]               |
+| Ajout d'une interface (`POST /v1/interfaces`)                                                                        | formulaire de la fiche de la machine, au brouillon (`machines.create_interface`)                                                                                                                            | Vitest (`plugins/machines/test`)                 | [x]               |
+| Mode 802.1Q d'une interface (`PATCH /v1/interfaces/{id}`, aucun ou accès)                                            | fiche `/x/machines/interfaces/<id>`, au brouillon (`machines.update_interface`) ; trunk lu, pas encore posé                                                                                                 | —                                                | [ ] trunk à poser |
+| Vue `clusters` (`/x/machines/clusters`) : liste des identifiants                                                     | liste (propriétaire, site) et fiche `/x/machines/clusters/<id>` (membres et hébergées)                                                                                                                      | `machines` (fiche du cluster)                    | [x]               |
+| Vue `interfaces` (`/x/machines/interfaces`) : toutes les interfaces                                                  | recherche par MAC, adresse et VID (critères dans l'adresse de la page), fiche de l'interface                                                                                                                | `machines` (recherche par MAC, fiche)            | [x]               |
+| Onglet `held-by` « Machines » d'une adresse et d'un préfixe                                                          | onglet `interfaces` « Interfaces » d'une adresse, d'un réseau (adresses du réseau) et d'un VLAN                                                                                                             | `machines` (trois onglets)                       | [x]               |
+| Colonne `machine` des adresses                                                                                       | même colonne (machines liées à leur fiche)                                                                                                                                                                  | `machines` (liste des adresses)                  | [x]               |
+| Action `attach` d'une adresse (`POST /v1/interfaces/{id}/attachments`)                                               | même action, au brouillon (`machines.attach_address`)                                                                                                                                                       | `machines` (action au brouillon)                 | [x]               |
+| Déplacement d'une machine vers un cluster                                                                            | —                                                                                                                                                                                                           | —                                                | [ ] tâche 18b     |

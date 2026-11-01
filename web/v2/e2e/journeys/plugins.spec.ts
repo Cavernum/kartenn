@@ -109,8 +109,9 @@ test.describe("a view of a plugin", () => {
   }) => {
     await login("bob");
     await expect(navigation(page).getByRole("link", { name: "Notes", exact: true })).toBeVisible();
+    // `n`, free: `m` is the machines plugin's (design « Raccourcis »).
     await page.keyboard.press("g");
-    await page.keyboard.press("m");
+    await page.keyboard.press("n");
     await expect(page).toHaveURL(/\/x\/notes\/overview$/);
     await page.keyboard.press("g");
     await page.keyboard.press("p");

@@ -1441,7 +1441,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - dépend de : —
   - fait le 2026-10-23 (arbitrage de l'utilisateur)
 
-- [ ] 18a. Plugin Machines porté au SDK 1.0 sous `web/v2/plugins/machines` : listes et
+- [x] 18a. Plugin Machines porté au SDK 1.0 sous `web/v2/plugins/machines` : listes et
   fiches des machines, clusters et interfaces, onglet Interfaces sur préfixe, adresse et
   VLAN, espace `hosts`, `@kartenn/ui` en racine d'ombre comme le plugin d'exemple —
   verify : parcours `machines` (lecture, création au brouillon) vert dans les deux
@@ -1451,6 +1451,64 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `QueryClient`) ; parcours `web/e2e/journeys/machines.spec.ts` porté sous
     `web/v2/e2e/journeys/`
   - dépend de : 16, 19
+  - fait le 2026-11-01 — plugin `web/v2/plugins/machines` (espace `hosts`, lettre `g m`),
+    sans framework, chaque élément en racine d'ombre (feuille de `@kartenn/ui` puis la sienne,
+    `@layer plugins`, classes `k-machines-…`), lectures par `QueryObserver` et
+    `InfiniteQueryObserver` (`src/element.ts` : `follow`, `followList`, lectures suivies
+    après coup et lâchées par `drop`), noms des objets cités lus une fois par le cache, quatre
+    à la fois (`src/reads.ts`, `Names`). Vues : machines (liste : nature, propriétaire, site,
+    hébergement ; fiche `/x/machines/machines/<id>` : attributs, interfaces avec MAC, mode
+    802.1Q par VID et adresses, machines hébergées), clusters (liste ; fiche : membres et
+    hébergées), interfaces (recherche par MAC, adresse et VID, critères dans l'adresse de la
+    page ; fiche : machine, MAC, mode, adresses rattachées). Onglet `interfaces-of` sur
+    adresse, réseau (adresses du réseau tenues par ses machines, `within`) et VLAN ; colonne
+    `machine` des adresses ; action `attach` d'une adresse. Écritures au brouillon par
+    `draft.add` (`src/forms.ts`) : `machines.create_machine`, `machines.create_interface`,
+    `machines.update_interface` (mode aucun ou accès), `machines.attach_address` ; au présent
+    seulement, bouton refusé avec la permission écrite sans elle, champs requis refusés avant
+    envoi, violation du serveur dite sur son champ. Shell : un lien d'un élément de plugin
+    vers une page du shell est suivi par le routeur (`ExtensionElement.vue`, clic composé ;
+    modificateur, autre cible, autre origine, `/v1/…` laissés au navigateur) ; la vue d'un
+    plugin recrée son élément à chaque chemin (`PluginView.vue`). Vitest
+    `plugins/machines/test/machines.test.ts` (12 : éléments et ids uniques, catalogues,
+    liste relue à l'invalidation, échec avec code et Request-Id, vide, création au brouillon
+    et champ requis, droit absent et autre date, fiche de machine et ajout d'interface,
+    recherche par adresse, onglets réseau et VLAN, action, `within`), `package.test.ts`,
+    `shell/test/plugins.test.ts` (lien suivi par le routeur). Parcours
+    `e2e/journeys/machines.spec.ts` (2 : lecture par la navigation, fiches de la machine, de
+    l'interface et du cluster sans recharger la page, recherche par MAC, trois onglets,
+    colonne, action au brouillon ; machine créée au brouillon, aucun changeset envoyé).
+    `web/v2/PARITE.md` créée avec la section du plugin.
+  - choix : identifiant de l'onglet `interfaces-of` (le serveur refuse deux extensions de
+    même id, la vue s'appelle `interfaces`) ; lettre `g m` au plugin Machines (design
+    « Raccourcis »), le plugin de test `notes` passé à `n` (parcours `plugins`) ; tables natives (`<table>`, `k-machines-table`,
+    en-tête collant dans son conteneur de défilement) et listes fermées natives (`<select>`
+    dans `k-field-frame`) : `DataGrid` et `Select` sont des composants Vue ; raison d'un
+    bouton refusé écrite à côté de lui (pas d'infobulle sans framework) ; fiche en sections
+    (attributs, interfaces, hébergées, ajout), sans onglets ni `?tab=interfaces` ; recherche
+    des interfaces : adresse et VID résolus en objets (une liste par adresse et VLAN trouvés,
+    fusionnées) ; critères posés par `history.replaceState` (état du routeur gardé) ; mode
+    802.1Q aucun ou accès comme l'ancien plugin ; machines, entités et VLAN proposés : la
+    première page ; relectures a11y et UI du 2026-11-01 : focus sur le `h1` de la page atteinte
+    par un lien du plugin, gardé sur « Afficher la suite » (sinon la dernière ligne), résultat
+    de la recherche dit par une région `status` présente dès le départ (compte visible caché
+    d'elle, sans « (s) »), « Ajout au brouillon… » dit pendant l'envoi, issue effacée à la
+    saisie suivante, refus du serveur : focus sur le premier champ refusé, VLAN d'accès requis
+    en mode accès seulement, VID en texte numérique (`inputmode`), `scroll-padding` sous
+    l'en-tête collant, onglet sans `h2` (son panneau est nommé par l'onglet du shell).
+  - reste : mode trunk à poser (lu seulement) ; déplacement vers un cluster (18b) ; listes
+    sans tri ni filtre de colonne (pas de `DataGrid` sans framework) ; listes de choix
+    (propriétaire, machine, VLAN) limitées à la première page, sans recherche ; codes
+    `machines.name.duplicate`, `machines.mac.duplicate`, `machines.address.vlan_mismatch`
+    montrés sur leur champ par la règle du pointeur, non prouvés au parcours (le brouillon ne
+    les dit qu'à la simulation) ; captures des vues (projet `visual` sans API) ; ouverts après
+    relecture : code et Request-Id d'un échec non copiables (`CodeBadge` est un composant
+    Vue ; un `<code>` sélectionnable), état d'une interface en texte (pas de `StatusBadge`
+    sans ses icônes), classes de titre, d'intertitre et de paires recopiées du plugin
+    d'exemple (`k-machines-…` ≈ `k-example-…`) : une classe partagée de `@kartenn/ui` pour les
+    plugins sans framework à décider, de même qu'une table et une liste fermée sans
+    framework ; nombre de machines non dit dans la liste ; une seule cellule de nom en lecture
+    dit « Chargement » par ligne.
 - [ ] 18b. Déplacement d'une machine vers un cluster par `canMove` du SDK (Q-021-2) :
   cycle refusé (`machines.host.invalid`), autre site refusé par le serveur
   (`machines.host.site_mismatch`, vérifier qu'il refuse), sans optimisme ; reste

@@ -557,6 +557,7 @@ describe("an extension in its place (REQ-021-13)", () => {
   function mount(
     props: { tag: string; object?: ObjectRef; status?: Status },
     onClose = () => {},
+    router?: ReturnType<typeof createRouter>,
   ): HTMLElement {
     const root = document.createElement("div");
     document.body.append(root);
@@ -564,9 +565,63 @@ describe("an extension in its place (REQ-021-13)", () => {
       render: () => h(ExtensionElement, { plugin: "notes", label: "Notes", onClose, ...props }),
     });
     app.use(createShellI18n("fr"));
+    if (router) app.use(router);
     app.mount(root);
     return root;
   }
+
+  it("follows a link of the element's shadow root by the router, without a reload", async () => {
+    class Linked extends HTMLElement {
+      connectedCallback() {
+        const root = this.attachShadow({ mode: "open" });
+        for (const [text, href] of [
+          ["fiche", "/x/notes/notes/n1?valid_at=2026-01-01T00%3A00%3A00Z"],
+          ["api", "/v1/notes/n1"],
+          ["ailleurs", "https://example.org/x/notes/notes/n2"],
+        ]) {
+          const anchor = document.createElement("a");
+          anchor.textContent = text!;
+          anchor.href = href!;
+          root.append(anchor);
+        }
+      }
+    }
+    customElements.define("notes-linked", Linked);
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/", component: { render: () => null }, children: frameRoutes }],
+    });
+    const push = vi.spyOn(router, "push").mockResolvedValue(undefined);
+    const root = mount({ tag: "notes-linked" }, () => {}, router);
+    await nextTick();
+    const anchors = [...root.querySelector("notes-linked")!.shadowRoot!.querySelectorAll("a")];
+    // Whether the host took the click; the browser's own navigation is held back here.
+    let taken = false;
+    const last = (event: Event) => {
+      taken = event.defaultPrevented;
+      event.preventDefault();
+    };
+    document.addEventListener("click", last);
+    const click = (anchor: HTMLAnchorElement, init: MouseEventInit = {}) => {
+      const event = { bubbles: true, cancelable: true, composed: true, ...init };
+      anchor.dispatchEvent(new MouseEvent("click", event));
+      return taken;
+    };
+    try {
+      // A page of the shell: followed by the router, its query kept.
+      expect(click(anchors[0]!)).toBe(true);
+      expect(push).toHaveBeenCalledExactlyOnceWith(
+        "/x/notes/notes/n1?valid_at=2026-01-01T00%3A00%3A00Z",
+      );
+      // With a modifier (a new tab), to the API, to another origin: left to the browser.
+      expect(click(anchors[0]!, { ctrlKey: true })).toBe(false);
+      expect(click(anchors[1]!)).toBe(false);
+      expect(click(anchors[2]!)).toBe(false);
+      expect(push).toHaveBeenCalledOnce();
+    } finally {
+      document.removeEventListener("click", last);
+    }
+  });
 
   it("creates the element of the plugin with its object, and passes its close on", async () => {
     class Tab extends HTMLElement {
