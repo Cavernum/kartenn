@@ -192,7 +192,7 @@ describe("writes of the drafts under If-Match (024 § A)", () => {
     expect(s.queryClient.getQueryData(s.drafts.get(D1).queryKey)).toBeUndefined();
     expect(s.drafts.active()).toBeNull();
     await s.drafts.changed({ id: D1, deleted: true });
-    expect(gone).toEqual([{ id: D1, active: false }]);
+    expect(gone).toEqual([{ id: D1, active: false, cause: "event" }]);
   });
 });
 
@@ -326,8 +326,21 @@ describe("the event draft (021 « Flux d'événements », 024 § A)", () => {
     await s.drafts.create({ title: "t" });
     s.drafts.setActive(D1);
     await s.drafts.changed({ id: D1, deleted: true });
-    expect(gone).toEqual([{ id: D1, active: true }]);
+    expect(gone).toEqual([{ id: D1, active: true, cause: "event" }]);
     expect(s.drafts.active()).toBeNull();
     expect(s.queryClient.getQueryData(s.drafts.get(D1).queryKey)).toBeUndefined();
+  });
+
+  it("a write refused 404 (deleted elsewhere, no event yet): its refusal, then gone", async () => {
+    const s = setup();
+    const gone: Gone[] = [];
+    s.drafts.onGone((g) => gone.push(g));
+    await s.drafts.create({ title: "t" });
+    s.drafts.setActive(D1);
+    s.held.delete(D1);
+    const outcome = await s.drafts.update(D1, { operations: [] });
+    expect(outcome).toMatchObject({ kind: "failed", problem: { status: 404 } });
+    expect(gone).toEqual([{ id: D1, active: true, cause: "refused" }]);
+    expect(s.drafts.active()).toBeNull();
   });
 });
