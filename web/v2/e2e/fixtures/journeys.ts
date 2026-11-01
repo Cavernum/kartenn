@@ -1,4 +1,4 @@
-import { test as base, expect, type Page } from "@playwright/test";
+import { test as base, expect, type BrowserContext, type Page } from "@playwright/test";
 import { BASE_URL } from "./env.ts";
 
 export { expect };
@@ -97,6 +97,16 @@ export const test = base.extend<Guarded>({
   toleratedErrors: [[], { option: true }],
   toleratedCsp: [[], { option: true }],
   page: async ({ page, toleratedErrors, toleratedCsp }, use) => {
+    // Known to `atRest`, which does not wait on a time the journey drives: the clock is the
+    // context's, whichever of its pages installs it.
+    const context = page.context();
+    for (const clock of new Set([context.clock, page.clock])) {
+      const install = clock.install.bind(clock);
+      clock.install = (options) => {
+        clocked.add(context);
+        return install(options);
+      };
+    }
     await page.addInitScript(() => {
       window.__kartennCsp = [];
       document.addEventListener("securitypolicyviolation", (event) => {
@@ -135,10 +145,70 @@ export const test = base.extend<Guarded>({
   },
 });
 
-/** Logs `user` in on `page`, of any browser context (a second one, to share a link). */
+/** The mark of the shell once its plugins fetch nothing more (shell/src/plugins/loader.ts). */
+const PLUGINS_FETCHED = "kartenn:plugins-fetched";
+
+/** How long `atRest` waits for the mark. */
+const AT_REST_MS = 15_000;
+
+/** The contexts whose journey installed a clock (`clock.install`), for all their pages. */
+const clocked = new WeakSet<BrowserContext>();
+
+/**
+ * Waits until the first screen of the shell loads no more modules: its view drawn, then the
+ * plugins, loaded in an idle moment after it, past their fetches (`PLUGINS_FETCHED`). A
+ * journey that leaves the page before (`goto`, `reload`) cuts their loads short, which
+ * Firefox reports as integrity errors of the page left: it checks the digest of a module
+ * load cancelled by the navigation against the bytes it got, none (the SHA-384 of the empty
+ * string; dom/script/ScriptLoader.cpp, `OnStreamComplete` calls `VerifySRI` before reading
+ * the status of the channel). Task 029-4.
+ */
+export async function atRest(page: Page): Promise<void> {
+  // A clock installed, the shell's idle moment waits on it: nothing loads before the
+  // journey moves it on, and the mark would never come.
+  if (clocked.has(page.context())) return;
+  const marked = page.evaluate(
+    (name) =>
+      new Promise<void>((done) => {
+        if (performance.getEntriesByName(name, "mark").length > 0) return done();
+        const observer = new PerformanceObserver((entries) => {
+          if (entries.getEntriesByName(name, "mark").length === 0) return;
+          observer.disconnect();
+          done();
+        });
+        observer.observe({ type: "mark" });
+      }),
+    PLUGINS_FETCHED,
+  );
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<"late">((done) => (timer = setTimeout(() => done("late"), AT_REST_MS)));
+  const first = await Promise.race([marked, late]).finally(() => clearTimeout(timer));
+  if (first !== "late") return;
+  marked.catch(() => {});
+  // The modules of plugins inserted whose fetch has not ended (no resource timing yet).
+  const pending = await page.evaluate(() =>
+    [
+      ...document.querySelectorAll<HTMLLinkElement | HTMLScriptElement>(
+        'link[rel="modulepreload"], script[type="module"][src]',
+      ),
+    ]
+      .map((node) => (node instanceof HTMLLinkElement ? node.href : node.src))
+      .filter((url) => url.includes("/plugins/") && performance.getEntriesByName(url).length === 0),
+  );
+  throw new Error(
+    `atRest: no « ${PLUGINS_FETCHED} » mark after ${AT_REST_MS / 1000} s; ` +
+      `plugin modules still in flight: ${pending.join(", ") || "none inserted"}`,
+  );
+}
+
+/**
+ * Logs `user` in on `page`, of any browser context (a second one, to share a link), and
+ * returns once the shell is at rest (`atRest`).
+ */
 export async function loginIn(page: Page, user: keyof typeof USERS): Promise<void> {
   await page.goto(`${BASE_URL}/v1/auth/login?issuer=dev`);
   await page.getByRole("button", { name: USERS[user] }).click();
   // The callback sends the browser back to the shell (`/`).
   await page.waitForURL(`${BASE_URL}/`);
+  await atRest(page);
 }
