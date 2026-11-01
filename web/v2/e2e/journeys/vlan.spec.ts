@@ -120,7 +120,7 @@ test("a group, then a VLAN created for a network, seen in its tab, the prefix li
   await page.goto(`/vlan-groups?slug=${group}`);
   await page
     .getByRole("grid", { name: "Groupes de VLAN" })
-    .getByRole("link", { name: group })
+    .getByRole("link", { name: group, exact: true })
     .click();
   await expect(
     page.getByRole("heading", { level: 1, name: `Groupe de VLAN ${group}` }),
@@ -177,7 +177,7 @@ test("a group, then a VLAN created for a network, seen in its tab, the prefix li
   await expect(
     page.getByRole("heading", { level: 1, name: "VLAN 100 · impression" }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: group })).toBeVisible();
+  await expect(page.getByRole("link", { name: group, exact: true })).toBeVisible();
   await tabs.getByRole("tab", { name: "Réseaux" }).click();
   await expect(
     page
