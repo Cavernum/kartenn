@@ -977,6 +977,27 @@ in {
     '';
   };
 
+  # The budgets of @kartenn/ui (spec 020, REQ-020-29, design « Budgets »): its weight in the
+  # production build of the new shell (web/v2/shell/scripts/size.ts), then the component
+  # benches, the Playwright project `components-bench` (web/v2/e2e/bench.config.ts) over
+  # the catalogue build, Chromium without slowdown, median of five passes:
+  # `bench-ui [playwright args…]`. No PostgreSQL, but the bench lock all the same. Both
+  # parts run and print their lines; a budget exceeded in either exits 1.
+  scripts.bench-ui = {
+    description = "Check the budgets of @kartenn/ui: weight, then the component benches";
+    exec = ''
+      set -uo pipefail
+      [ -n "''${K_BENCH_HELD:-}" ] || exec k-heavy --bench ${dash} "$0" "$@"
+      export NO_COLOR=1 FORCE_COLOR=0
+      cd "$(git rev-parse --show-toplevel)" || exit 1
+      pnpm -C web/v2 --filter @kartenn/shell build >/dev/null || exit 1
+      status=0
+      node web/v2/shell/scripts/size.ts || status=1
+      pnpm -C web/v2/e2e exec playwright test -c bench.config.ts --reporter=line "$@" || status=1
+      exit "$status"
+    '';
+  };
+
   # Cost of the telemetry (REQ-012-23) on the budgets of the core, and volume of the
   # audit of reads (REQ-012-18): `bench-telemetry [seed] [small]`.
   scripts.bench-telemetry =
