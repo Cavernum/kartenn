@@ -65,6 +65,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::task::JoinHandle;
 
 use crate::core_budgets::{Prepared, prepare_with};
+use crate::history::{Figure, Unit};
 use crate::measures::{Bench, Measure, Selection};
 use crate::props::{p95, progress};
 use crate::rbac::{GROUPS, ISSUER, bind};
@@ -427,8 +428,9 @@ async fn users(served: &Served, store: &PgStore) -> anyhow::Result<Vec<User>> {
     Ok(users)
 }
 
-/// One budget measured both ways.
+/// One budget of a measure, measured both ways.
 struct Pair {
+    measure: &'static str,
     name: &'static str,
     limit: Duration,
     service: Vec<Duration>,
@@ -436,8 +438,9 @@ struct Pair {
 }
 
 impl Pair {
-    const fn new(name: &'static str, limit: Duration) -> Self {
+    const fn new(measure: &'static str, name: &'static str, limit: Duration) -> Self {
         Self {
+            measure,
             name,
             limit,
             service: Vec::new(),
@@ -571,7 +574,7 @@ pub async fn run(
     seed: u64,
     selection: &Selection,
     reuse: &Reuse,
-) -> anyhow::Result<(String, bool)> {
+) -> anyhow::Result<(String, Vec<Figure>)> {
     let started = Instant::now();
     // The persons of the users and the bindings of the first, part of the preparation (and
     // of the template); their proofs follow the keys of the server.
@@ -659,7 +662,7 @@ pub async fn run(
     // Reading an object.
     let mut current = None;
     if selection.runs(READ) {
-        let mut read = Pair::new("read an object", Duration::from_millis(50));
+        let mut read = Pair::new(READ, "read an object", Duration::from_millis(50));
         for i in 0..200 {
             let (collection, id) = draw(&mut rng);
             let user = &mut users[next()];
@@ -693,6 +696,7 @@ pub async fn run(
     if selection.runs(READ_PAST) {
         let current = current.context("the current read is a prerequisite")?;
         let mut dated = Pair::new(
+            READ_PAST,
             "read an object as known in the past",
             (current * 2).max(Duration::from_millis(5)),
         );
@@ -728,7 +732,11 @@ pub async fn run(
 
     // Filtered pages of 100.
     if selection.runs(FILTERED_PAGE) {
-        let mut page = Pair::new("filtered page of 100", Duration::from_millis(150));
+        let mut page = Pair::new(
+            FILTERED_PAGE,
+            "filtered page of 100",
+            Duration::from_millis(150),
+        );
         for i in 0..100 {
             let domain = &data.domains[rng.random_range(0..data.domains.len())];
             let low: i64 = rng.random_range(0..900_000);
@@ -764,8 +772,9 @@ pub async fn run(
 
     // Subtree (a page of the direct content) and occupancy, now and in the past.
     if selection.runs(SUBTREE) {
-        let mut subtree = Pair::new("subtree and occupancy", Duration::from_millis(200));
+        let mut subtree = Pair::new(SUBTREE, "subtree and occupancy", Duration::from_millis(200));
         let mut dated_subtree = Pair::new(
+            SUBTREE,
             "subtree and occupancy in the past",
             Duration::from_millis(200),
         );
@@ -830,7 +839,7 @@ pub async fn run(
         .map(|p| (p.id, data.domains[p.domain].id))
         .collect();
     if selection.runs(UNITARY) {
-        let mut changeset = Pair::new("unitary changeset", Duration::from_millis(200));
+        let mut changeset = Pair::new(UNITARY, "unitary changeset", Duration::from_millis(200));
         for i in 0..100 {
             let (operation, _) =
                 new_address(&pool, networks[rng.random_range(0..networks.len())]).await?;
@@ -879,10 +888,15 @@ pub async fn run(
     let mut largest = None;
     if selection.runs(LABELS) {
         let mut dictionary = Pair::new(
+            LABELS,
             "dictionary of labels, one language",
             Duration::from_millis(50),
         );
-        let mut unchanged = Pair::new("dictionary of labels, 304", Duration::from_millis(10));
+        let mut unchanged = Pair::new(
+            LABELS,
+            "dictionary of labels, 304",
+            Duration::from_millis(10),
+        );
         let mut size = 0;
         for i in 0..200 {
             let lang = if i % 2 == 0 { "fr" } else { "en" };
@@ -927,11 +941,18 @@ pub async fn run(
     }
     progress(&format!("scenarios: {:?}", started.elapsed()));
 
-    let mut ok = true;
+    let mut figures = Vec::new();
     // REQ-018-20: less than 1 MB uncompressed.
     if let Some(largest) = largest {
         let small = largest < 1_000_000;
-        ok &= small;
+        figures.push(Figure::check(
+            LABELS,
+            "dictionary of labels, one language, uncompressed",
+            f64::from(u32::try_from(largest)?),
+            Unit::Bytes,
+            Some(1_000_000.0),
+            small,
+        ));
         writeln!(
             report,
             "{} dictionary of labels, one language: {largest} bytes uncompressed, budget < 1 MB",
@@ -942,8 +963,9 @@ pub async fn run(
         let service = p95(pair.service);
         let http = p95(pair.http);
         let overhead = http.saturating_sub(service);
-        let pass = http <= pair.limit;
-        ok &= pass;
+        let figure = Figure::time(pair.measure, pair.name, http, pair.limit);
+        let pass = !figure.fails();
+        figures.push(figure);
         writeln!(
             report,
             "{} {}, p95: {http:?} through HTTP, budget {:?} ({service:?} through the service, +{overhead:?}, target < {TARGET:?}: {})",
@@ -1050,7 +1072,25 @@ pub async fn run(
         let rate = f64::from(u32::try_from(writes)?) / elapsed.as_secs_f64();
         let sustained = rate >= 50.0;
         let clean = errors == 0 && refused == 0;
-        ok &= sustained && clean;
+        let failed = u32::try_from(errors + refused)?;
+        figures.extend([
+            Figure::check(
+                LOAD_TEST,
+                "sustained writes through HTTP",
+                rate,
+                Unit::PerSecond,
+                Some(50.0),
+                sustained,
+            ),
+            Figure::check(
+                LOAD_TEST,
+                format!("{USERS} concurrent users, 5xx but the shedding and refused"),
+                f64::from(failed),
+                Unit::Count,
+                Some(0.0),
+                clean,
+            ),
+        ]);
         writeln!(
             report,
             "{} sustained writes through HTTP: {rate:.1}/s ({writes} in {elapsed:?}, {WRITERS} writers at 1/s, at least 50/s)",
@@ -1065,5 +1105,5 @@ pub async fn run(
             p95(total.writes),
         )?;
     }
-    Ok((report, ok))
+    Ok((report, figures))
 }

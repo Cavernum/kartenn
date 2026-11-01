@@ -343,6 +343,12 @@ impl Reuse {
     pub fn name(&self) -> &str {
         &self.name
     }
+
+    /// The fingerprint of the template the run measures on, under `--template`.
+    pub fn fingerprint(&self) -> Option<&str> {
+        self.enabled
+            .then(|| self.name.rsplit_once('_').map_or("", |(_, f)| f))
+    }
 }
 
 /// The database of a run, prepared. `write` prepares the empty database at `database`,

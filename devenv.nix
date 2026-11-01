@@ -376,7 +376,9 @@
       if [ "''${K_BENCH_SCALE:-}" = full ]; then stall=''${K_BENCH_STALL:-60}; else stall=''${K_BENCH_STALL:-20}; fi
       log=$(mktemp)
       trap 'rm -f "$log"' EXIT
-      cargo run --release -q -p kartenn-bench -- ${command} "$bench" "''${seed:-42}" ''${small:+"$small"} ''${only:+--only "$only"} ''${template:+"$template"} 2>"$log" &
+      # Its figures added to the history of the main checkout (ADR 0041, decision 4),
+      # .bench/history.jsonl, kept out of git by /.bench/ in .git/info/exclude.
+      cargo run --release -q -p kartenn-bench -- ${command} "$bench" "''${seed:-42}" ''${small:+"$small"} ''${only:+--only "$only"} ''${template:+"$template"} --history 2>"$log" &
       pid=$!
       tail -n +1 -f --pid="$pid" "$log" >&2 &
       follower=$!
@@ -973,6 +975,16 @@ in {
   # second, memory per stream, a storm of resumptions: `bench-events [seed] [small]`.
   scripts.bench-events =
     bench "events" "Measure the budgets of the event stream on a fresh kartenn_bench database";
+
+  # The series of a measure in the local history of the benches (ADR 0041, decision 4),
+  # oldest first, every worktree's runs together: `bench-history <measure> [--scale
+  # full|reduced|small]`. It reads the history only: neither the bench lock nor a database.
+  scripts.bench-history = {
+    description = "Print the series of a measure from the local history of the benches";
+    exec = ''
+      exec k-heavy cargo run --release -q -p kartenn-bench -- history "$@"
+    '';
+  };
 
   # The budgets of the browser (spec 007, REQ-007-32): the size of the initial shell, then
   # the Playwright project `budgets` against kartenn-server in release on the dataset of

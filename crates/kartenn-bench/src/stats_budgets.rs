@@ -279,29 +279,35 @@ pub(crate) async fn run(
     ] = <[(Spread, Spread); 2]>::try_from(measured)
         .map_err(|_| anyhow!("two subjects measured"))?;
     Ok(vec![
-        Budget {
-            name: "stats, reader of everything, route from the snapshot, p95",
-            limit: ROUTE,
-            measured: global_served.p95,
-            note: format!("{READS} reads"),
-        },
-        Budget {
-            name: "stats, 1 000 bindings, route from the snapshot, p95",
-            limit: ROUTE,
-            measured: bound_served.p95,
-            note: format!("{READS} reads, 50 groups"),
-        },
-        Budget {
-            name: "stats, reader of everything, computation, p95",
-            limit: COMPUTATION,
-            measured: global_computed.p95,
-            note: format!("{COMPUTATIONS} computations, core and modules"),
-        },
-        Budget {
-            name: "stats, 1 000 bindings, computation, p95",
-            limit: COMPUTATION,
-            measured: bound_computed.p95,
-            note: format!("{COMPUTATIONS} computations, 50 groups"),
-        },
+        Budget::of(
+            STATS,
+            "stats, reader of everything, route from the snapshot, p95",
+            ROUTE,
+        )
+        .measured(global_served.p95, format!("{READS} reads")),
+        Budget::of(
+            STATS,
+            "stats, 1 000 bindings, route from the snapshot, p95",
+            ROUTE,
+        )
+        .measured(bound_served.p95, format!("{READS} reads, 50 groups")),
+        Budget::of(
+            STATS,
+            "stats, reader of everything, computation, p95",
+            COMPUTATION,
+        )
+        .measured(
+            global_computed.p95,
+            format!("{COMPUTATIONS} computations, core and modules"),
+        ),
+        Budget::of(
+            STATS,
+            "stats, 1 000 bindings, computation, p95",
+            COMPUTATION,
+        )
+        .measured(
+            bound_computed.p95,
+            format!("{COMPUTATIONS} computations, 50 groups"),
+        ),
     ])
 }

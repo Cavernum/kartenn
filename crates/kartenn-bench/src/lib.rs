@@ -18,6 +18,7 @@ use uuid::Uuid;
 pub mod core_budgets;
 pub mod events_budgets;
 pub mod flow_budgets;
+pub mod history;
 pub mod http;
 pub mod machine_budgets;
 pub mod measures;
