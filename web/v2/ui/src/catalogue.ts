@@ -52,6 +52,9 @@ const nameOf = (path: string) => path.split("/").at(-1)!.replace(".catalogue.ts"
 /** Names of the components that declare their states, sorted. */
 export const catalogueNames: string[] = Object.keys(modules).map(nameOf).sort();
 
+/** The hosts of the component benches (`/_ui/bancs/<Nom>`, design « Budgets »). */
+export { benches } from "./demo/bench.ts";
+
 /** The declaration of a component, or null if it has none. */
 export async function loadCatalogue(name: string): Promise<CatalogueEntry | null> {
   const path = Object.keys(modules).find((key) => nameOf(key) === name);
