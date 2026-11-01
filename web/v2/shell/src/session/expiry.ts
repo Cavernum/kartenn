@@ -43,16 +43,22 @@ function storage(): Storage | null {
   }
 }
 
-const listeners = new Set<() => void>();
+const listeners = new Set<(at: number) => void>();
 
-/** Records an activity of the session now, for every tab of the browser. */
-export function markActivity(now: number = Date.now()): void {
-  try {
-    storage()?.setItem(ACTIVITY_KEY, String(now));
-  } catch {
-    // A full or refused storage: this tab still knows.
+/**
+ * Records an activity of the session at `at` (now by default), for every tab of the
+ * browser; an activity older than the one kept (another tab's) leaves it as it is.
+ */
+export function markActivity(at: number = Date.now()): void {
+  const kept = lastActivity();
+  if (kept === null || at > kept) {
+    try {
+      storage()?.setItem(ACTIVITY_KEY, String(at));
+    } catch {
+      // A full or refused storage: this tab still knows.
+    }
   }
-  for (const listener of listeners) listener();
+  for (const listener of listeners) listener(at);
 }
 
 /**
@@ -69,16 +75,22 @@ export function serverSkew(): number {
 /**
  * The `fetch` of the SDK's client, which records each answer of the API as an activity,
  * and the clock of the server from its `Date`.
+ *
+ * The activity is the instant the request left, not the one its answer came (task 029-5):
+ * the server pushes the end from when it sees the request, never before it left. An answer
+ * that comes late (a slow server, a device suspended, a clock moved on meanwhile) must not
+ * push the expected end past the server's, which would say the warning too late, or never.
  */
 export function activityFetch(inner: typeof fetch = globalThis.fetch): typeof fetch {
   return async (input, init) => {
+    const sent = Date.now();
     // Asked by the user if a gesture came just before the request left.
-    const asked = Date.now() - lastGesture <= GESTURE_WINDOW_MS;
+    const asked = sent - lastGesture <= GESTURE_WINDOW_MS;
     const response = await inner(input, init);
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     if (!isActivity(url)) return response;
     noteServerClock(response);
-    if (asked && response.status !== 401) markActivity();
+    if (asked && response.status !== 401) markActivity(sent);
     return response;
   };
 }
@@ -211,8 +223,8 @@ export function createExpiry(view: ExpiryView, deps: ExpiryDeps = {}): Expiry {
     view.warn(at, extendable);
   }
 
-  const onActivity = () => {
-    seen = now();
+  const onActivity = (at: number) => {
+    seen = Math.max(seen, at);
     schedule();
   };
   listeners.add(onActivity);

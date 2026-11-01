@@ -380,6 +380,36 @@ describe("the end of the session, said before it comes (REQ-021-14, 022/A6)", ()
     expect(Number(localStorage.getItem(ACTIVITY_KEY))).toBe(Date.now() - GESTURE_WINDOW_MS - 1_000);
     vi.useRealTimers();
   });
+
+  it("dates an activity from its request, not from an answer that came late (task 029-5)", async () => {
+    const { expiry, said, cleared } = watch();
+    expiry.read("2026-01-15T09:30:00Z");
+    // A read asked at 09:00 whose answer comes 27 minutes later (a device suspended, a
+    // clock moved on meanwhile): the server saw it at 09:00 at the latest.
+    let answer: (response: Response) => void = () => {};
+    const fetcher = activityFetch(
+      (() => new Promise<Response>((done) => (answer = done))) as unknown as typeof fetch,
+    );
+    markGesture();
+    const read = fetcher("/v1/domains");
+    vi.advanceTimersByTime(27 * 60_000);
+    answer(new Response("{}"));
+    await read;
+    expect(Number(localStorage.getItem(ACTIVITY_KEY))).toBe(Date.parse("2026-01-15T09:00:00Z"));
+    // The end expected stays 09:30: said at 09:28, not pushed back by the late answer.
+    vi.advanceTimersByTime(60_000);
+    expect(said).toEqual([{ end: Date.parse("2026-01-15T09:30:00Z"), extendable: true }]);
+    expect(cleared()).toBe(0);
+    expiry.stop();
+  });
+
+  it("keeps the newer activity of another tab over an older one of this tab", () => {
+    const { expiry } = watch();
+    localStorage.setItem(ACTIVITY_KEY, String(Date.now()));
+    markActivity(Date.now() - 60_000);
+    expect(Number(localStorage.getItem(ACTIVITY_KEY))).toBe(Date.now());
+    expiry.stop();
+  });
 });
 
 describe("« Rester connecté » in the frame (watchSessionEnd)", () => {
