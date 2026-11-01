@@ -8,8 +8,9 @@ import { formatLines, impact, loadProject, WORKSPACE } from "./impact.ts";
 // repository (`git diff --name-only`), read from its root whatever the current directory,
 // or absolute. Prints one target per line, `<spec>\t<grep>` (spec relative to e2e/, a
 // regular expression for Playwright's `--grep`), or `all`; `--json` prints the whole
-// result. The doubts that widened the selection, and the paths that neither exist nor
-// were deleted, go to the standard error.
+// result. The doubts that widened the selection, the deleted specs, and the paths that
+// neither exist nor were deleted, go to the standard error (`impact: …`); the reason of
+// `all` as `impact: all: …`.
 
 const git = (...args: string[]) =>
   execFileSync("git", args, { cwd: WORKSPACE, encoding: "utf8" }).trim();
@@ -37,5 +38,7 @@ for (const path of changed) {
   if (!known) process.stderr.write(`impact: ${path}: no such file, nor a deleted one\n`);
 }
 const result = impact(changed, project);
-for (const reason of result.reasons) process.stderr.write(`impact: ${reason}\n`);
+// The reason of « everything » under its own tag, apart from the other notices.
+const tag = result.all ? "impact: all: " : "impact: ";
+for (const reason of result.reasons) process.stderr.write(`${tag}${reason}\n`);
 process.stdout.write(json ? `${JSON.stringify(result, null, 2)}\n` : formatLines(result));

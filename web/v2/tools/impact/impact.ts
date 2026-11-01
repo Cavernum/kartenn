@@ -150,6 +150,8 @@ export interface Project {
   referenced: Set<string>;
   /** Spec (relative to `e2e/`) → the pages it opens, catalogue and mock-ups aside. */
   specs: Map<string, Set<string>>;
+  /** Every spec of the captures that exists (relative to `e2e/`): a deleted one runs nothing. */
+  specFiles: Set<string>;
 }
 
 function walk(root: string): string[] {
@@ -437,9 +439,12 @@ export async function loadProject(root = WORKSPACE, sources = diskSources(root))
   }
 
   const specs = new Map<string, Set<string>>();
+  const specFiles = new Set<string>();
   for (const file of sources.files) {
     const spec = /^e2e\/((?:visual|components)\/.+\.spec\.ts)$/.exec(file)?.[1];
-    if (spec === undefined || spec === CATALOGUE_SPEC || spec === ECRANS_SPEC) continue;
+    if (spec === undefined) continue;
+    specFiles.add(spec);
+    if (spec === CATALOGUE_SPEC || spec === ECRANS_SPEC) continue;
     specs.set(spec, specPages(sources.read(file), components, mockups));
   }
 
@@ -455,6 +460,7 @@ export async function loadProject(root = WORKSPACE, sources = diskSources(root))
     entry: new Set([...closure(graph, common, lazy).files].filter((f) => !f.startsWith("ui/"))),
     referenced,
     specs,
+    specFiles,
   };
 }
 
@@ -585,6 +591,12 @@ export function impact(changed: string[], project: Project): Impact {
     for (const [key, target] of targets) if (target.spec === spec) targets.delete(key);
     targets.set(`${spec} `, specTarget(spec));
   }
+  // A deleted spec (or the spec of a deleted reference) has no test left to run.
+  for (const [key, target] of targets)
+    if (!project.specFiles.has(target.spec)) {
+      targets.delete(key);
+      reasons.push(`${target.spec}: deleted, nothing to run`);
+    }
   return {
     all: false,
     reasons: [...new Set(reasons)],
