@@ -9,19 +9,21 @@
 // (`labels.<kind>.<key>`), else the key itself is shown. A label changing reads no object.
 
 import type { QueryClient } from "@tanstack/query-core";
+import type { components } from "../api/schema";
 import { translate } from "../i18n.ts";
-import type { Entry, Queries } from "./cache.ts";
+import type { Entry, Queries, ReadOptions } from "./cache.ts";
 
-/** A dictionary of labels, as `GET /v1/labels` serves it (018, « Dictionnaire »). */
-export interface Dictionary {
-  lang: string;
-  default_lang: string;
-  revision: string;
-  valid_at?: string | null;
+/**
+ * A dictionary of labels, as `GET /v1/labels` serves it (018, « Dictionnaire »; schema
+ * `Labels`), its spaces typed: the contract leaves them an open map.
+ */
+export type Dictionary = Omit<components["schemas"]["Labels"], "spaces"> & {
   /** By space: a label by key, or (closed lists) by property then by value. */
   spaces: Record<string, Record<string, string | Record<string, string>>>;
-  fallback?: { lang: string; keys: string[] } | null;
-}
+};
+
+/** The key of the dictionary of a language: by language only, its revision in its body. */
+export type DictionaryKey = readonly ["v1", "labels", string];
 
 /** The label of `key` in `space` of a dictionary; a value of a list is `<property>/<value>`. */
 export function lookup(
@@ -48,12 +50,13 @@ export interface LabelsDeps {
 }
 
 export function createLabels({ queryClient, reads, locale }: LabelsDeps) {
-  const query = (lang: string) =>
-    reads.byUrl<Dictionary>(
-      ["v1", "labels", lang],
-      `/v1/labels?lang=${encodeURIComponent(lang)}`,
-      "labels",
-    );
+  // `lang` prevails over `Accept-Language` (018); the present, whatever the dates of the
+  // context: the key is the language alone (design 021).
+  const query = (lang: string): ReadOptions<Dictionary, DictionaryKey> =>
+    reads.keyed(["v1", "labels", lang] as const, "/v1/labels", {
+      query: { lang },
+      family: "labels",
+    });
 
   return {
     /** The query of the dictionary of a language. */

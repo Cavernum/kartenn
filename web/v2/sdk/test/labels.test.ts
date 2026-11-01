@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { afterEach, describe, expect, it } from "vitest";
+import { createInvalidation } from "../src/data/invalidate.ts";
 import { createLabels, lookup, type Dictionary } from "../src/data/labels.ts";
 import { addCatalog } from "../src/i18n.ts";
 import { resetContext, setContext } from "../src/context.ts";
@@ -75,5 +76,16 @@ describe("labels (REQ-021-19, spec 018)", () => {
     expect(s.labels.label("value", "policy.environment/prod")).toBe("Prod.");
     expect(s.queryClient.getQueryState(object.queryKey)?.isInvalidated).toBe(false);
     expect(s.seen.filter((r) => r.url.startsWith("/v1/prefixes"))).toHaveLength(1);
+  });
+
+  it("a changeset reads every list again, never the dictionary: its key is not a path", async () => {
+    const s = setup();
+    const me = s.reads.read("/v1/me");
+    await s.queryClient.fetchQuery(me);
+    await s.queryClient.fetchQuery(s.labels.query("fr"));
+    expect(s.labels.query("fr").queryKey).toEqual(["v1", "labels", "fr"]);
+    await createInvalidation(s.queryClient, s.reads).lists();
+    expect(s.queryClient.getQueryState(me.queryKey)?.isInvalidated).toBe(true);
+    expect(s.queryClient.getQueryState(["v1", "labels", "fr"])?.isInvalidated).toBe(false);
   });
 });

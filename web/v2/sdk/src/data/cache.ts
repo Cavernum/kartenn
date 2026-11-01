@@ -286,15 +286,16 @@ export function createQueries({ client, queryClient }: CacheDeps) {
     },
 
     /**
-     * A read by URL under a key of the caller, for a route outside the generated contract
-     * (`/v1/labels` of the 018 until the contract has it).
+     * A read of the contract under a key of the caller, apart from the keys by path that a
+     * changeset invalidates (`lists()`): the label dictionary, read again on the event
+     * `labels` only (design 021 « Filtres, libellés, codes »). Never dated.
      */
-    byUrl<T>(
-      key: readonly unknown[],
-      url: string,
-      family: Family,
-    ): ReadOptions<T, readonly unknown[]> {
-      return read<T, readonly unknown[]>(key, url, family);
+    keyed<P extends PathsOf<"get">, K extends QueryKey>(
+      key: K,
+      path: P,
+      options: { query?: QueryOf<P>; family: Family },
+    ): ReadOptions<Success<NonNullable<paths[P]["get"]>>, K> {
+      return read(key, path + search({ ...options.query }), options.family);
     },
 
     /** The next reads of these queries go without `If-None-Match` (`truncated`, 022). */
