@@ -198,9 +198,23 @@ function kindOf(spec, name) {
   return found[0].includes(".") ? found[0] : `core.${found[0]}`;
 }
 
+/** The member of a write that names the parent: the build fails if it is gone. */
+function memberOf(write, type, member) {
+  const found = write.properties?.[member];
+  if (!found) throw new Error(`parents: the write of the parent of ${type} has no ${member}`);
+  return found;
+}
+
+/** Whether a member admits `null` (`oneOf` with a `null`, or a `null` type). */
+function nullable(spec, schema) {
+  const own = resolved(spec, schema);
+  const types = Array.isArray(own.type) ? own.type : [own.type];
+  return types.includes("null") || (own.oneOf ?? []).some((s) => s.type === "null");
+}
+
 /** The kinds of parent the member `member` of `write` admits. */
 function parentKinds(spec, write, { type, member, list }) {
-  const schema = nonNull(spec, write.properties?.[member]);
+  const schema = nonNull(spec, memberOf(write, type, member));
   const variants = (schema.oneOf ?? []).map((v) => resolved(spec, v));
   const named = variants.map((v) =>
     v.required?.length === 1 && Object.keys(v.properties ?? {}).length === 1
@@ -228,7 +242,12 @@ function parents(spec) {
       {
         via: `${move.move.operation ?? move.move.schema}.${move.member}`,
         parents: parentKinds(spec, write, move),
-        root: !(creation.required ?? []).includes(move.member),
+        // A root: the write of the move takes `null` for its parent, and the creation does
+        // not require one (an update whose `null` means « unchanged », as the anchor of a
+        // group of VLAN, is not a root).
+        root:
+          nullable(spec, memberOf(write, move.type, move.member)) &&
+          !(creation.required ?? []).includes(move.member),
       },
     ];
   });

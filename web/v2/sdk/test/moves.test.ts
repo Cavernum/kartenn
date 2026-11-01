@@ -72,6 +72,37 @@ describe("admitted parents, drawn from the contract (REQ-021-32)", () => {
     );
     await expect(generate(changed)).rejects.toThrow(/no operation move_site/);
   }, 60_000);
+
+  /** The variant of `Operation` named `op` in a contract read again. */
+  const variantOf = (spec: ReturnType<typeof readContract>, op: string) =>
+    (
+      spec as unknown as {
+        components: {
+          schemas: { Operation: { oneOf: { properties?: Record<string, unknown> }[] } };
+        };
+      }
+    ).components.schemas.Operation.oneOf.find(
+      (v) => JSON.stringify(v.properties?.["op"]) === `{"enum":["${op}"],"type":"string"}`,
+    )!;
+
+  it("fails the build when the member of a move is gone, never falls back on a filter", async () => {
+    const changed = readContract();
+    delete variantOf(changed, "move_entity").properties!["parent"];
+    await expect(generate(changed)).rejects.toThrow(/core\.entity has no parent/);
+  }, 60_000);
+
+  it("draws the root from the nullability of the member of the move", async () => {
+    const changed = readContract();
+    const parent = variantOf(changed, "move_site").properties!["parent"] as {
+      oneOf: { type?: string }[];
+    };
+    parent.oneOf = parent.oneOf.filter((s) => s.type !== "null");
+    const { parents } = await generate(changed);
+    expect(parents).toMatch(
+      /"core\.site": \{ via: "move_site\.parent", parents: \["core\.site"\], root: false \}/,
+    );
+    expect(parents).toMatch(/"core\.entity": \{[^}]*root: true/);
+  }, 60_000);
 });
 
 describe("canMove (REQ-021-32)", () => {
@@ -147,10 +178,20 @@ describe("canMove (REQ-021-32)", () => {
     expect(canMove(machine("h"), entity("e"), env({}, all))).toMatchObject({
       refusal: "incompatible",
     });
-    // An admitted type: the rights, the node's before the target's.
+    // An admitted type: the rights, the node's before the target's — both lacking, the
+    // node's named; the node's held, the target's.
+    const neither = { lacking: ["machines.machine.edit", "machines.cluster.edit"] };
+    expect(canMove(machine("h"), cluster("c"), env({}, neither))).toMatchObject({
+      refusal: "forbidden",
+      permission: "machines.machine.edit",
+    });
     expect(
-      canMove(machine("h"), cluster("c"), env({}, { ...all, lacking: [...all.lacking] })),
-    ).toMatchObject({ refusal: "forbidden", permission: "machines.machine.edit" });
+      canMove(machine("h"), cluster("c"), env({}, { lacking: ["machines.cluster.edit"] })),
+    ).toMatchObject({ refusal: "forbidden", permission: "machines.cluster.edit" });
+    // A right lacking and off the present: the right first.
+    expect(
+      canMove(machine("h"), cluster("c"), env({}, { ...neither, present: false })),
+    ).toMatchObject({ refusal: "forbidden" });
     // Every right: the date.
     expect(canMove(machine("h"), cluster("c"), env({}, { present: false }))).toMatchObject({
       refusal: "dated",
