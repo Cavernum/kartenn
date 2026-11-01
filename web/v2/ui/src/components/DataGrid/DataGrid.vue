@@ -62,6 +62,8 @@ import { useCellEditor, useCellErrors, useCommitWatch } from "../internal/cellEd
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
 import { rowsInView, useVirtualRows, type BodyPart } from "../internal/virtualRows.ts";
 import Skeleton from "../Skeleton/Skeleton.vue";
+import { useTooltip } from "../Tooltip/tooltip.ts";
+import Tooltip from "../Tooltip/Tooltip.vue";
 import {
   columnTemplates,
   nextPresetWidth,
@@ -392,6 +394,19 @@ const reasons = computed<string[]>(() => {
   return [...found];
 });
 const reasonId = (i: number) => `k-data-grid-${uid}-reason-${i}`;
+/** The reason under the pointer: one tooltip for the grid, decorative (the description says it). */
+const reasonTip = useTooltip();
+const tipText = ref("");
+/** Escape closes it, wherever the focus is (WCAG 1.4.13); the key goes on. */
+const closeTip = (event: KeyboardEvent) => {
+  if (event.key === "Escape") reasonTip.hide();
+};
+watch(reasonTip.open, (now) =>
+  now
+    ? window.addEventListener("keydown", closeTip, { capture: true })
+    : window.removeEventListener("keydown", closeTip, { capture: true }),
+);
+onBeforeUnmount(() => window.removeEventListener("keydown", closeTip, { capture: true }));
 function reasonOf(row: R, column: GridColumn): string | undefined {
   const text = readonlyText(row, column);
   const at = text ? reasons.value.indexOf(text) : -1;
@@ -430,10 +445,18 @@ const cellElement = (cell: CellRef) =>
   ) ?? null;
 function onCellEnter(row: R, column: GridColumn, event: PointerEvent): void {
   errors.enter(cellKey(keyOf(row), column.id), event);
+  // A cell without an editor says why under the pointer too (REQ-021-37: hover and focus;
+  // the focus has its description), after the delay of a tooltip.
+  const text = readonlyText(row, column);
+  if (text && event.pointerType !== "touch") {
+    tipText.value = text;
+    reasonTip.show(event.currentTarget as HTMLElement, true);
+  }
 }
 /** Onto its message (adjacent): still hovered. */
 function onCellLeave(r: number, c: number, event: PointerEvent): void {
   errors.leave(event, document.getElementById(errorId(r, c)));
+  reasonTip.hide(true);
 }
 function onFocusout(event: FocusEvent): void {
   const to = event.relatedTarget as HTMLElement | null;
@@ -1280,6 +1303,7 @@ onBeforeUnmount(() => observer?.disconnect());
     <div v-if="reasons.length" hidden>
       <span v-for="(text, i) in reasons" :id="reasonId(i)" :key="text">{{ text }}</span>
     </div>
+    <Tooltip v-if="props.readonlyReason" :control="reasonTip" decorative>{{ tipText }}</Tooltip>
   </div>
 </template>
 

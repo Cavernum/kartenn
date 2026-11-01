@@ -123,8 +123,10 @@ const keyboard = defineComponent({
     const tree = ref<{ openMove(id: string): boolean } | null>(null);
     const said = ref("");
     const key = (node: TreeNode, column: GridColumn) => `${node.id}\n${column.id}`;
+    const committed = ref("");
     function onCommit(commit: GridCommit): void {
       const k = `${commit.row}\n${commit.column}`;
+      committed.value = `${commit.value}${commit.now ? " (appliquer maintenant)" : ""}`;
       const next = new Map(states.value);
       next.set(k, "pending");
       states.value = next;
@@ -178,6 +180,7 @@ const keyboard = defineComponent({
           onActivate: (id: string) => (said.value = `Ouvrir ${id}`),
         }),
         said.value ? h("p", { "data-demo": "activated" }, said.value) : null,
+        committed.value ? h("p", { "data-demo": "commit" }, committed.value) : null,
       ]);
   },
 });

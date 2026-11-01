@@ -246,6 +246,12 @@ test.describe("DataGrid (APG Grid)", () => {
     await expect(env).toBeFocused();
     await expect(env).toHaveAttribute("aria-readonly", "true");
     await expect(env).toHaveAccessibleDescription("L'environnement vient du site du préfixe.");
+    // Under the pointer too, in a tooltip; Escape closes it.
+    await env.hover();
+    const tip = page.locator(".k-tooltip").filter({ hasText: "vient du site du préfixe" });
+    await expect(tip).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(tip).toBeHidden();
   });
 
   test("leaving the editor: unchanged, no commit; another window, still open; elsewhere, committed", async ({
