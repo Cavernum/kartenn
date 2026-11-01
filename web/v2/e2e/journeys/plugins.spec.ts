@@ -184,4 +184,19 @@ test("the screens of the referential place the tile, the tab, the panel and the 
     .click();
   await expect(page.locator("notes-tab")).toHaveText(`Notes de prefix ${id}`);
   await expectAccessible(page);
+
+  // A type of the core since spec 026: the tab of the record of a VLAN, given its object.
+  await page.goto("/vlans");
+  await page
+    .getByRole("grid", { name: "VLAN" })
+    .getByRole("link", { name: String(DATA.vlan.vid), exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/vlans\/[0-9a-f-]+$/);
+  const vlan = page.url().split("/").pop()!;
+  await page
+    .getByRole("tablist", { name: "Sections de la fiche" })
+    .getByRole("tab", { name: "Notes" })
+    .click();
+  await expect(page.locator("notes-tab")).toHaveText(`Notes de vlan ${vlan}`);
+  await expectAccessible(page);
 });

@@ -90,6 +90,21 @@ export default async function globalSetup(): Promise<void> {
       items: { id: string }[];
     };
     const production = { id: domains.items[0]!.id };
+    // The VLAN of the data set (026): a group anchored on the domain, one VLAN in it.
+    await expectOk(api, "/v1/changesets?approval=self", {
+      motive: "end-to-end VLAN",
+      operations: [
+        {
+          op: "create_vlan_group",
+          local: 0,
+          slug: DATA.vlan.group,
+          anchor: { domain: production },
+          vid_min: 1,
+          vid_max: 99,
+        },
+        { op: "create_vlan", group: { local: 0 }, vid: DATA.vlan.vid, name: DATA.vlan.name },
+      ],
+    });
     await expectOk(api, "/v1/changesets?approval=self", {
       motive: "end-to-end long list",
       operations: [
