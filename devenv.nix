@@ -160,7 +160,8 @@
     # alone, inside its scope. Without it, the kernel's global OOM killer hits the
     # terminal's scope, and systemd then stops the whole terminal (OOMPolicy=stop).
     run() {
-      export CARGO_BUILD_JOBS=$jobs NEXTEST_TEST_THREADS=$jobs
+      # K_HEAVY_JOBS too, read by the captures for their workers (web/v2/e2e/playwright.config.ts).
+      export CARGO_BUILD_JOBS=$jobs NEXTEST_TEST_THREADS=$jobs K_HEAVY_JOBS=$jobs
       if [ -z "''${K_HEAVY_SCOPED:-}" ] && command -v systemd-run >/dev/null 2>&1 \
         && [ -S "''${XDG_RUNTIME_DIR:-/nonexistent}/bus" ]; then
         export K_HEAVY_SCOPED=1

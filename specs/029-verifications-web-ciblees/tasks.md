@@ -14,7 +14,7 @@ Commun à toutes les tâches : aucune capture, aucun instantané ni aucun script
 disparaît du passage complet ; les références ne changent pas, sauf correction voulue et
 regardée.
 
-- [ ] 1. Parallélisme et build du catalogue : `fullyParallel` sur le projet `visual` ;
+- [x] 1. Parallélisme et build du catalogue : `fullyParallel` sur le projet `visual` ;
   nombre de workers mesuré (2, 4, 6, 8) dans un créneau de `k-heavy` et fixé par
   `K_HEAVY_JOBS` ; build du catalogue réutilisé quand l'empreinte de ses sources n'a pas
   changé (ADR 0042, décision 4).
@@ -25,6 +25,24 @@ regardée.
     `devenv.nix` (`scripts.k-web-check`, `kHeavy` pour `K_HEAVY_JOBS`) ;
     `web/v2/shell/package.json` (`build:catalogue`).
   - dépend de : —
+  - fait le 2026-11-01 : `e2e/playwright.config.ts` (`fullyParallel` sur `visual` ;
+    `workers()` : la moitié de `K_HEAVY_JOBS`, entre 2 et 8, 2 hors de `k-heavy` ;
+    `webServer` par `tools/catalogue/build.ts`) ; `devenv.nix` (`k-heavy` exporte
+    `K_HEAVY_JOBS`) ; `tools/catalogue/build.ts` (empreinte de `shell`, `ui`, `sdk`,
+    `plugins`, des manifestes, du lockfile, de la configuration de base et de la version
+    de Node, fichiers suivis et non suivis ; tampon `dist/catalogue.sources` qui porte
+    aussi l'empreinte de l'`index.html` construit ; build refait sinon). Test :
+    `tools/test/catalogue.test.ts`. Mesure, un créneau de 12 cœurs, machine au repos au
+    départ, 2 706 captures : 2 workers 13 min 35, 4 workers 7 min 46, 6 workers 6 min 06,
+    8 workers 5 min 27 (avant, 2 workers sans `fullyParallel` : 15 min 30) ; à 8, charge
+    24 (toute la machine), à 6, ≈ 13 (la part du créneau). Trois `k-web2-check --all` de
+    suite à 6 workers : verts (711 tests, 2 706 captures en 6,1, 6,0 et 6,1 min, ≈ 7 min
+    en tout), aucune capture instable, `index.html` du catalogue jamais reconstruit ; un
+    fichier source ajouté puis retiré refait le build, un passage sans changement non.
+  - choix : la moitié des cœurs du créneau plutôt qu'un nombre fixe (un worker Chromium
+    en prend ≈ 2 à pleine charge ; `--all`, 24 cœurs, donne 8) ; plancher 2 pour la CI
+    (4 cœurs, `K_HEAVY_JOBS` 2) qui gardait 2 workers ; build seul ≈ 1 s, le gain est
+    surtout le parallélisme.
 - [x] 2. Graphe d'impact : outil de `web/v2/tools` qui lit les imports des sources de
   `web/v2` (`.ts`, `.vue`), résout le point d'entrée de `@kartenn/ui` symbole par
   symbole, et rend pour une liste de fichiers les cibles touchées : pages du catalogue

@@ -44,6 +44,19 @@ function fontconfig(): string {
   return file;
 }
 
+/**
+ * The workers: half the cores of the slot of `k-heavy` (`K_HEAVY_JOBS`, exported by it),
+ * between 2 and 8 (spec 029, task 1). Measured in one slot of 12 cores, machine at rest,
+ * the 2 706 tests of `visual`: 13 min 35 with 2 workers, 7 min 46 with 4, 6 min 06 with 6,
+ * 5 min 27 with 8; 8 load the whole machine (load 24), 6 about the slot (13). Outside
+ * `k-heavy`, 2, as before.
+ */
+function workers(): number {
+  const jobs = Number(process.env.K_HEAVY_JOBS);
+  if (!Number.isInteger(jobs) || jobs < 1) return 2;
+  return Math.min(8, Math.max(2, Math.floor(jobs / 2)));
+}
+
 export const PORT = previewPort();
 export const BASE_URL = `http://127.0.0.1:${PORT}`;
 
@@ -54,7 +67,7 @@ export default defineConfig({
   testMatch: ["visual/**/*.spec.ts", "components/**/*.spec.ts"],
   forbidOnly: !!process.env.CI,
   retries: 0,
-  workers: 2,
+  workers: workers(),
   // References beside their spec: visual/__screenshots__/<spec>/<name>.
   snapshotPathTemplate: "{testDir}/{testFileDir}/__screenshots__/{testFileName}/{arg}{ext}",
   expect: {
@@ -75,6 +88,8 @@ export default defineConfig({
   projects: [
     {
       name: "visual",
+      // The tests of a file side by side too: catalogue.spec.ts alone holds most of them.
+      fullyParallel: true,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1280, height: 800 },
@@ -92,7 +107,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `pnpm run build:catalogue && pnpm exec vite preview --mode catalogue --port ${PORT}`,
+    // The build again only when its sources changed (tools/catalogue/build.ts).
+    command: `node ../tools/catalogue/build.ts && pnpm exec vite preview --mode catalogue --port ${PORT}`,
     cwd: shell,
     url: `${BASE_URL}/_ui`,
     reuseExistingServer: false,
