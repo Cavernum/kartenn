@@ -107,6 +107,7 @@ import ShortcutHelp from "../shortcuts/ShortcutHelp.vue";
 import { runnable } from "../shortcuts/view.ts";
 import { closeEditWithPage, editRequest } from "../views/edit/panel.ts";
 import { crumbsOf } from "./breadcrumb.ts";
+import { detailRequests } from "./detail.ts";
 import { keepPanel, readPanel, useSettings, THEMES, DENSITIES } from "./settings.ts";
 import { EDITS, locate, pageCount, sidebarGroups, SPACE_ORDER } from "./spaces.ts";
 
@@ -246,6 +247,22 @@ watch(editing, (request) => {
   panelOpen.value = true;
   panelTab.value = "detail";
 });
+// The object a route of the administration chose in its list (`meta.detail`, task 15a): in
+// the Détail tab, the panel opened on it when another object is chosen, or the same one
+// again (`revealDetail`).
+const routeDetail = computed(() => route.meta.detail ?? null);
+const detailId = computed(() =>
+  routeDetail.value && route.params.id ? String(route.params.id) : null,
+);
+watch(
+  [detailId, detailRequests()],
+  ([id]) => {
+    if (id === null) return;
+    panelOpen.value = true;
+    panelTab.value = "detail";
+  },
+  { immediate: true },
+);
 // Another page, or a date off the present: the edit asked by the page left goes with it.
 closeEditWithPage(
   () => route.path,
@@ -851,6 +868,12 @@ onBeforeUnmount(
         >
           <template #detail>
             <EditPanel v-if="editing" :key="editing.serial" :request="editing" />
+            <component
+              :is="routeDetail"
+              v-else-if="routeDetail && detailId"
+              :id="detailId"
+              :key="detailId"
+            />
             <p v-else class="k-frame__muted">{{ t("app.noSelection") }}</p>
           </template>
           <template #draft>

@@ -387,7 +387,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     la lecture d'occupation du store qu'appelle `occupancy` ; test voisin
     `crates/kartenn-rest/tests/it/objects.rs` (arbre) ; 006 design § tableau « Arbre »
   - dépend de : —
-- [ ] 16a. `SessionState.absolute_expires_at` et en-tête `Kartenn-Background: ?1` traité
+- [x] 16a. `SessionState.absolute_expires_at` et en-tête `Kartenn-Background: ?1` traité
   en `NotActivity` (A14) : ni `seen` prolongé ni cookie réémis ; valeur autre que `?1` ou
   `?0` ignorée (requête ordinaire) — verify : `k-check -p kartenn-rest` (sessions : une
   requête de fond ne repousse pas `expires_at`, une requête ordinaire le repousse ;
@@ -397,6 +397,48 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     `crates/kartenn-rest/src/events/mod.rs`) ; test voisin
     `crates/kartenn-rest/tests/it/sessions.rs` ; 005 design § « Cookie de session »,
     006 design § « Cookies »
+  - dépend de : —
+  - fait le 2026-11-01 : `Session::absolute_end` (`kartenn-auth`), `SessionEnds { at,
+    absolute }`, `Authenticated.absolute_end` et `authn::background` ; la couche 6 retire
+    le cookie réémis et donne `quiet_end` à `GET /v1/me` pour une requête de fond ;
+    contrat et `schema.d.ts` (`web/sdk`, `web/v2/sdk`) régénérés ; tests
+    `only_the_boolean_true_marks_a_request_in_the_background` (unitaire),
+    `a_request_in_the_background_is_no_activity` et la fin absolue d'une heure du secours
+    (`sessions.rs`) ; `docs/spec/interfaces.md` (Authentification).
+  - choix : analyse stricte du champ structuré (RFC 9651 §4.2) : une seule ligne, valeur
+    `?1` à espaces près, sans paramètre ; `?0`, plusieurs lignes (même `?1, ?1`), des
+    paramètres (`?1;a=b`) ou une valeur qui ne s'analyse pas → requête ordinaire, sans
+    400 (l'en-tête ne peut que priver une requête de son effet d'activité). Les
+    paramètres, que RFC 9651 permettrait d'ignorer, sont refusés : l'en-tête n'en définit
+    aucun. Une requête de fond refusée (session close) retire le cookie comme une autre.
+  - reste : une requête de fond qui rafraîchit les groupes (jeton d'accès de l'émetteur
+    expiré) ne réémet pas le cookie, comme le flux d'événements déjà : si l'émetteur fait
+    tourner ses jetons de rafraîchissement (RFC 9700 §4.14.2), le jeton gardé par le
+    cookie est périmé et le rafraîchissement suivant échoue (fermeture
+    `refresh_failed`). Recommandation : réémettre le cookie après un rafraîchissement,
+    `seen` laissé à sa valeur lue (ne prolonge rien) ; à trancher (A14 dit « ne réémet
+    pas »).
+- [ ] 16c. Rafraîchissement pendant une requête de fond (A15) : après un rafraîchissement
+  des groupes sur une requête `Kartenn-Background: ?1` ou à l'ouverture du flux
+  d'événements, cookie réémis avec `seen` remis à la valeur lue (ni fin par inactivité
+  ni fin absolue repoussée) ; sans rafraîchissement, aucun cookie (A14) ; l'en-tête
+  `Kartenn-Background` déclaré au contrat OpenAPI (paramètre d'en-tête des routes
+  authentifiées, ou composant commun) — verify : `k-check -p kartenn-rest` (sessions :
+  requête de fond avec rafraîchissement dû → cookie réémis, nouveau jeton de
+  rafraîchissement, `expires_at` inchangé ; même cas à l'ouverture du flux ; sans
+  rafraîchissement, pas de cookie)
+  - où : `crates/kartenn-rest/src/authn.rs` (couche 6, rafraîchissement vers la ligne
+    487, filtre du cookie vers la ligne 943), `crates/kartenn-rest/src/events/mod.rs`
+    (`NotActivity`) ; test voisin `crates/kartenn-rest/tests/it/sessions.rs`
+    (`a_request_in_the_background_is_no_activity`) ; 005 design § « Cookie de session »
+  - dépend de : 16a
+- [ ] 14a. `PATCH /v1/drafts/{id}` en `application/merge-patch+json` seulement (A17,
+  REQ-006-13), 415 pour `application/json` ; client du SDK en `merge: true` ; contrat
+  régénéré — verify : `k-check -p kartenn-rest` (drafts : 415 en `application/json`,
+  200 en `merge-patch+json`) ; Vitest du SDK des brouillons ; parcours `draft`
+  - où : `crates/kartenn-rest/src/drafts.rs` (le `PATCH`), forme des autres `PATCH`
+    du contrat ; `web/v2/sdk/src/data/drafts.ts` (vers la ligne 213, `merge: false`) ;
+    test voisin `crates/kartenn-rest/tests/it/drafts.rs`
   - dépend de : —
 - [ ] 24a. `placements` dans `ChangesetSimulated` (A12) : `[{object, kind, before,
   after}]` pour chaque objet dont le parent change (déduit : préfixes, plages, adresses ;
@@ -1243,7 +1285,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/v2/shell/src/views/TopologyView.vue`, `views/edit/` (`fields.ts`) ;
     parcours `web/v2/e2e/journeys/edit.spec.ts`
   - dépend de : 11a, 11b
-- [ ] 15a. Administration : groupes (membres, liaisons) et rôles ; permissions en nom servi
+- [x] 15a. Administration : groupes (membres, liaisons) et rôles ; permissions en nom servi
   et libellé — REQ-021-12, REQ-025-12 — verify : parcours `admin` (groupes, rôles)
   - où : `web/shell/src/admin/{BindingsView,RolesView}.vue`, `admin.ts`, `write.ts`,
     `WriteOutcome.vue` (comportement) ; maquette
@@ -1251,6 +1293,52 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `groupe-edition`, `groupe-refus`) ; parcours `web/e2e/journeys/admin.spec.ts` porté
     sous `web/v2/e2e/journeys/admin.spec.ts` ; design 021 § Administration
   - dépend de : 13
+  - fait le 2026-11-01 : `web/v2/shell/src/admin/` — `routes.ts` (`adminScreen`,
+    `adminRecord`, `ADMIN_RECORDS` : la structure que reprennent 15b et 15c), `GroupsView`,
+    `GroupDetail`, `MemberDialog`, `BindingDialog`, `GroupForm`, `RolesView`,
+    `RoleDetail`, `RoleForm`, `AdminLines` (lignes alignées du panneau, marques du
+    brouillon), `model.ts` (lignes marquées, refus, opérations), `draft.ts` (ajout,
+    retrait, remplacement dans le brouillon actif), `reads.ts`, `i18n/` ; cadre :
+    `meta.detail` d'une route (`views/routes.ts`, `frame/routes.ts`) montré dans l'onglet
+    Détail (`ShellFrame.vue`), le panneau ouvert sur l'objet choisi ;
+    `web/v2/PARITE.md` créée (section Administration) ; Vitest `test/admin.test.ts` ;
+    parcours `web/v2/e2e/journeys/admin.spec.ts` (groupe : membre retiré puis rétabli,
+    rôle ajouté, brouillon appliqué ; `secours` en lecture seule annoncée ; rôle et ses
+    permissions servies ; lecteur refusé).
+  - choix : l'objet choisi s'ouvre par l'URL (`/admin/groups/:id` par UUID,
+    `/admin/roles/:key`), même écran que la liste, son détail dans le panneau droit ; le
+    périmètre plus large que celui de l'utilisateur se lit dans des simulations
+    (`?simulate=true`) séparées, qui ne se gênent pas : `close_group` seul
+    (`core.group.escalation`), puis une par liaison, liée de nouveau telle quelle (`bind` ;
+    `core.binding.escalation`, ou `core.rbac.forbidden` hors du périmètre administré :
+    seuls ces codes comptent ; une par liaison parce que les règles des droits jugent
+    l'état final et ne nomment aucune opération) ; une sonde par ouverture de groupe, en
+    parallèle, gardée cinq minutes, jamais relue au focus ni à la reconnexion ; demandée
+    seulement à qui n'a pas `core.rbac.admin` global : le
+    client ne devine aucune inclusion de périmètres ; « Ajouter un rôle » refusé avec le
+    groupe, comme la maquette ; les membres de `secours` à un administrateur global
+    seulement ; « Modifier » une liaison = `unbind` puis `bind` ; une permission ajoutée
+    ou retirée réécrit le `set_role` du brouillon (remplacé, ou retiré s'il revient à
+    l'état servi) ; permissions proposées d'après l'espace `permission` du dictionnaire
+    des libellés, un motif s'écrit tel quel ; objet d'un périmètre choisi parmi la
+    première page de sa liste ; pas de colonne Description (le contrat n'en sert pas) ;
+    clés validées comme le serveur (groupe `[a-z][a-z0-9_-]*`, rôle `[a-z][a-z0-9_]*`).
+  - reste : un champ de texte multiligne manque à `@kartenn/ui` (permissions d'un rôle
+    saisies séparées par des virgules) ; `AdminLines` candidat à la bibliothèque (lignes
+    alignées avec actions et marques du brouillon) ; l'objet d'un périmètre se cherche
+    dans la première page seulement (une recherche par le serveur viendra avec un filtre
+    de nom) ; la portée affichée d'un rôle dans « Groupes liés » montre l'identifiant de
+    l'objet, pas son nom ; `writeRole` (`draft.ts`) compare les permissions sans
+    l'ordre mais les libellés par `JSON.stringify` (ordre des langues) ; classes de
+    `AdminLines` (`__label`, `__value`…) posées par les vues, sans gabarit ; `id` fixes des
+    titres de section (`k-admin-members`…), uniques tant qu'un seul détail est monté.
+  - correctifs de revue (2026-11-01) : sonde de portée en simulations séparées (la première
+    version, `close_group` puis `unbind`, finissait en `changeset.operation.no_version`
+    avant les règles des droits) ; parcours `admin` : Dana, administratrice de la seule
+    entité du jeu (`web/e2e/users.toml`, groupe `admins-entite` de `global-setup.ts` :
+    `core.rbac.read` global, `administrator` sur l'entité), un groupe de son entité
+    modifiable, un groupe lié au-delà en lecture seule annoncée ; même objet choisi de
+    nouveau : le panneau se rouvre (`frame/detail.ts`, `revealDetail`).
 - [ ] 15b. Administration : émetteurs, comptes de service et secret (montré une fois),
   identités (groupes et droits effectifs en lecture), secours — REQ-021-12 — verify :
   parcours `admin` étendu (secret montré une fois, identité en lecture)
@@ -1272,7 +1360,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/v2/shell/src/session/{expiry,warning}.ts`, `SessionDialog.vue` ;
     `activityFetch` et `installGestures` du SDK (`web/v2/sdk/src/`) ; parcours
     `web/v2/e2e/journeys/session.spec.ts`
-  - dépend de : 16a
+  - dépend de : 16a, 16c
 - [ ] 17b. « Créer un VLAN pour ce réseau » (maquette E12) : création du VLAN et pose de
   `core.vlan` par une référence locale, au brouillon ou en Ctrl+Entrée ; poser un VLAN
   existant depuis l'onglet du réseau — REQ-026-6 — verify : parcours `vlan` (création

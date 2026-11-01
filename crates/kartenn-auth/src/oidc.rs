@@ -608,8 +608,15 @@ impl Session {
     #[must_use]
     pub const fn ends_at(&self, idle: i64, absolute: i64) -> i64 {
         let by_idle = self.seen.saturating_add(idle);
-        let by_age = self.started.saturating_add(self.lifetime(absolute));
+        let by_age = self.absolute_end(absolute);
         if by_idle < by_age { by_idle } else { by_age }
+    }
+
+    /// When its lifetime under `absolute` seconds ends (Unix seconds), whatever its
+    /// activity: the same over the whole session.
+    #[must_use]
+    pub const fn absolute_end(&self, absolute: i64) -> i64 {
+        self.started.saturating_add(self.lifetime(absolute))
     }
 
     /// Whether its groups are due for a refresh at `at`.

@@ -556,7 +556,9 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
   `HttpOnly`, `SameSite=Strict`, `Path=/`, pas de `Domain`) ; la session est réémise si
   sa dernière activité date de plus d'une minute ; suppression par `Max-Age=0`. Une
   requête qui porte `Kartenn-Background: ?1` n'est pas une activité (`NotActivity`) :
-  ni `seen` prolongé ni cookie réémis (*amendé par la 021*, A14).
+  ni `seen` prolongé ni cookie réémis (*amendé par la 021*, A14), sauf après un
+  rafraîchissement des groupes : cookie réémis, `seen` inchangé (*amendé par la 021*,
+  A15).
 - **Secours** : `POST /v1/auth/breakglass` (`name`, `passphrase`, `code`) →
   `authn::authenticate_breakglass` ; session marquée « secours », absolue 1 h.
 - **TLS** : `Transport { client, tls }` calculé en couche 4 ; sans TLS, Basic → 401 et

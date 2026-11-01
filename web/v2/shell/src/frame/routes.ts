@@ -1,4 +1,6 @@
+import type { Component } from "vue";
 import type { RouteParams, RouteRecordRaw } from "vue-router";
+import { ADMIN_RECORDS } from "../admin/routes.ts";
 import { pluginSpaces } from "../plugins/navigation.ts";
 import { labelOf, usePlugins, viewPath } from "../plugins/registry.ts";
 import { useSession } from "../rights/index.ts";
@@ -24,6 +26,8 @@ declare module "vue-router" {
   interface RouteMeta {
     /** Open without a session: the login page, « À propos ». */
     public?: boolean;
+    /** What the Détail tab of the right panel shows, with the props of the screen. */
+    detail?: Component;
   }
 }
 
@@ -64,6 +68,7 @@ function recordRoute(space: Space, entry: SpaceEntry): RouteRecordRaw {
     props: screen?.props ?? false,
     meta: {
       ...(screen?.queries ? { queries: screen.queries } : {}),
+      ...(screen?.detail ? { detail: screen.detail } : {}),
       // The object by its name once its record read it, its identifier until then.
       breadcrumb: (params, t) => [
         { label: t(space.label), to: spaceEntry(space, session.value.rights).to },
@@ -83,6 +88,7 @@ const RECORDS = new Set([
   ...COLLECTIONS.map((collection) => `/${collection.id}`),
   "/changesets",
   "/drafts",
+  ...ADMIN_RECORDS,
 ]);
 
 const admin = CORE_SPACES.find((space) => space.id === "admin")!;

@@ -32,6 +32,14 @@ groups = ["lecteurs"]
 
 # An editor confined to one entity (task 19): the interface shows her the forms, the
 # server refuses a write elsewhere (403).
+# An administrator of one entity only (journeys of the new shell, task 021-15a): the
+# rights read on the whole organisation, administered on the entity of the data set.
+[[users]]
+sub = "dana"
+name = "Dana Exemple"
+email = "dana@kartenn.invalid"
+groups = ["admins-entite"]
+
 [[users]]
 sub = "carol"
 name = "Carol Exemple"

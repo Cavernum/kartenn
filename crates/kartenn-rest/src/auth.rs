@@ -351,8 +351,12 @@ pub(crate) struct Scope {
 struct SessionState {
     /// A break-glass session.
     breakglass: bool,
-    /// Its end, RFC 3339.
+    /// Its end, RFC 3339: by inactivity or by its lifetime, whichever comes first; a
+    /// request marked `Kartenn-Background: ?1` does not push it back.
     expires_at: Option<String>,
+    /// The end of its lifetime alone, RFC 3339: the same over the whole session
+    /// (021/A14).
+    absolute_expires_at: Option<String>,
 }
 
 /// The caller and their effective rights, summed up.
@@ -398,13 +402,12 @@ async fn me(State(authenticator): State<Arc<dyn Authenticator>>, request: Reques
         Ok(rights) => rights,
         Err(refusal) => return refusal.into_response(),
     };
-    let ends = request
-        .extensions()
-        .get::<SessionEnds>()
-        .map(|SessionEnds(at)| rfc3339(Instant(at.saturating_mul(1_000_000))));
+    let ends = request.extensions().get::<SessionEnds>();
+    let at = |unix: i64| rfc3339(Instant(unix.saturating_mul(1_000_000)));
     let session = request.extensions().get::<Session>().map(|s| SessionState {
         breakglass: s.breakglass,
-        expires_at: ends,
+        expires_at: ends.map(|ends| at(ends.at)),
+        absolute_expires_at: ends.map(|ends| at(ends.absolute)),
     });
     let (groups, bindings) = groups_and_bindings(&rights);
     (
