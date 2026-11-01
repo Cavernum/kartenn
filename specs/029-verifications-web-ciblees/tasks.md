@@ -68,17 +68,26 @@ regardée.
     searchfox.org/firefox-main ; aucun bogue Bugzilla trouvé qui le décrive). Pas un
     défaut du shell : la page rechargée est entière (plugins chargés, modules repris du
     cache) ; Chromium ne dit rien. Le cas `moves.spec.ts` (branche de la 021-24) est le
-    même (`goto` juste après `login`), pas l'interception de Playwright.
+    même (`goto` juste après `login`), pas l'interception de Playwright. Les 3 échecs
+    « focus » mesurés avant sont ce cas aussi, sur les vues paresseuses de l'accueil :
+    empreinte du vide pour `HomeView`, `ViewPanel`, `slots`, `AttributeList`,
+    `ExtensionElement`, et « Unable to preload CSS » de Vite pour la feuille
+    d'`ExtensionElement` ; `login` n'attendait que l'URL `/`. `atRest` les couvre : le
+    shell monte après `router.isReady()` (vue de l'accueil et ses dépendances chargées),
+    puis seulement commence les plugins, dont la marque vient en dernier.
   - fait le 2026-11-01 (la tolérance de `moves.spec.ts`, absente de main, est retirée par
     la branche de la 021-24 après intégration de ce correctif, par la session principale) :
     marque `kartenn:plugins-fetched` (`PLUGINS_FETCHED`, `loader.ts`) quand chaque plugin
-    a chargé son entrée ou est écarté, ou que les capacités sont illisibles ;
-    `preloadModules` (`preload.ts`) n'écarte un plugin qu'une fois tous ses
-    préchargements réglés ; `atRest` (`e2e/fixtures/journeys.ts`), attendu par `loginIn` :
-    la page de l'accueil quittée au repos, sauf horloge installée par le parcours (le
-    moment d'inactivité attend alors sur elle). Tests : `test/plugins.test.ts` (marque
-    après le dernier plugin, liste vide, capacités illisibles ; écart après tous les
-    préchargements). Avant : `shell.spec.ts` Firefox `--repeat-each=10`, 4 échecs sur 150
+    a chargé son entrée (sans attendre `definePlugin`) ou est écarté, et que tous ses
+    catalogues et modules sont réglés ; ou que les capacités sont illisibles. L'écart
+    reste immédiat au premier échec (REQ-007-9) ; seule la marque attend le reste
+    (`modulesSettled`, `preload.ts`). `atRest` (`e2e/fixtures/journeys.ts`), attendu par
+    `loginIn` : la page de l'accueil quittée au repos, 15 s au plus (message qui nomme
+    la marque et les modules de plugins encore en vol), sauf horloge installée dans le
+    contexte (le moment d'inactivité attend alors sur elle). Tests :
+    `test/plugins.test.ts` (écart au premier catalogue ou module refusé, marque après
+    le règlement des autres ; marque après le chargement de l'entrée, `definePlugin`
+    jamais appelé ; liste vide ; capacités illisibles). Avant : `shell.spec.ts` Firefox `--repeat-each=10`, 4 échecs sur 150
     (3 « neither the bar nor the band hides the focus », 1 « sidebar collapsed stays
     collapsed after a reload ») ; une sonde (rechargement ou `goto` dès la première
     requête d'un module de plugin) le reproduit 10 fois sur 10. Après :

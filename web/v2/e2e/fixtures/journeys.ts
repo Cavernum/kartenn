@@ -1,4 +1,4 @@
-import { test as base, expect, type Page } from "@playwright/test";
+import { test as base, expect, type BrowserContext, type Page } from "@playwright/test";
 import { BASE_URL } from "./env.ts";
 
 export { expect };
@@ -97,12 +97,16 @@ export const test = base.extend<Guarded>({
   toleratedErrors: [[], { option: true }],
   toleratedCsp: [[], { option: true }],
   page: async ({ page, toleratedErrors, toleratedCsp }, use) => {
-    // Known to `atRest`, which does not wait on a time the journey drives.
-    const install = page.clock.install.bind(page.clock);
-    page.clock.install = (options) => {
-      clocked.add(page);
-      return install(options);
-    };
+    // Known to `atRest`, which does not wait on a time the journey drives: the clock is the
+    // context's, whichever of its pages installs it.
+    const context = page.context();
+    for (const clock of new Set([context.clock, page.clock])) {
+      const install = clock.install.bind(clock);
+      clock.install = (options) => {
+        clocked.add(context);
+        return install(options);
+      };
+    }
     await page.addInitScript(() => {
       window.__kartennCsp = [];
       document.addEventListener("securitypolicyviolation", (event) => {
@@ -144,8 +148,11 @@ export const test = base.extend<Guarded>({
 /** The mark of the shell once its plugins fetch nothing more (shell/src/plugins/loader.ts). */
 const PLUGINS_FETCHED = "kartenn:plugins-fetched";
 
-/** The pages whose journey installed a clock (`page.clock.install`). */
-const clocked = new WeakSet<Page>();
+/** How long `atRest` waits for the mark. */
+const AT_REST_MS = 15_000;
+
+/** The contexts whose journey installed a clock (`clock.install`), for all their pages. */
+const clocked = new WeakSet<BrowserContext>();
 
 /**
  * Waits until the first screen of the shell loads no more modules: its view drawn, then the
@@ -159,8 +166,8 @@ const clocked = new WeakSet<Page>();
 export async function atRest(page: Page): Promise<void> {
   // A clock installed, the shell's idle moment waits on it: nothing loads before the
   // journey moves it on, and the mark would never come.
-  if (clocked.has(page)) return;
-  await page.evaluate(
+  if (clocked.has(page.context())) return;
+  const marked = page.evaluate(
     (name) =>
       new Promise<void>((done) => {
         if (performance.getEntriesByName(name, "mark").length > 0) return done();
@@ -172,6 +179,25 @@ export async function atRest(page: Page): Promise<void> {
         observer.observe({ type: "mark" });
       }),
     PLUGINS_FETCHED,
+  );
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<"late">((done) => (timer = setTimeout(() => done("late"), AT_REST_MS)));
+  const first = await Promise.race([marked, late]).finally(() => clearTimeout(timer));
+  if (first !== "late") return;
+  marked.catch(() => {});
+  // The modules of plugins inserted whose fetch has not ended (no resource timing yet).
+  const pending = await page.evaluate(() =>
+    [
+      ...document.querySelectorAll<HTMLLinkElement | HTMLScriptElement>(
+        'link[rel="modulepreload"], script[type="module"][src]',
+      ),
+    ]
+      .map((node) => (node instanceof HTMLLinkElement ? node.href : node.src))
+      .filter((url) => url.includes("/plugins/") && performance.getEntriesByName(url).length === 0),
+  );
+  throw new Error(
+    `atRest: no « ${PLUGINS_FETCHED} » mark after ${AT_REST_MS / 1000} s; ` +
+      `plugin modules still in flight: ${pending.join(", ") || "none inserted"}`,
   );
 }
 

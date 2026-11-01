@@ -12,13 +12,13 @@ import {
   beginPlugins,
   CAPABILITY_ATTEMPTS,
   configurePlugins,
+  DEFINE_TIMEOUT_MS,
   loadPlugins,
   PLUGINS_FETCHED,
   readPlugins,
   SHARED,
   startPlugins,
 } from "../src/plugins/loader.ts";
-import { preloadModules } from "../src/plugins/preload.ts";
 import {
   pluginLetters,
   pluginSpaces,
@@ -336,10 +336,19 @@ const json = (status: number, body: unknown, headers: Record<string, string> = {
 
 const noWait = () => Promise.resolve();
 
+/** How many times the shell marked its plugins fetched. */
+const marks = () => performance.getEntriesByName(PLUGINS_FETCHED, "mark").length;
+const statuses = () => usePlugins().value.map((p) => p.status);
+/** A few turns of the microtask queue. */
+const flush = async () => {
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+};
+
 describe("the loader (REQ-007-9, 10; REQ-021-26)", () => {
   afterEach(() => {
     resetPlugins();
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("reads the capabilities again after a refusal for load, honouring Retry-After", async () => {
@@ -398,52 +407,101 @@ describe("the loader (REQ-007-9, 10; REQ-021-26)", () => {
     expect(SHARED.sdk).toBe("1.0.0");
   });
 
-  it("marks the plugins fetched once each is past its fetches, or the capabilities unread", async () => {
+  it("sets a plugin aside at its first failed catalog, marks the plugins fetched once all are read", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     performance.clearMarks(PLUGINS_FETCHED);
-    const marks = () => performance.getEntriesByName(PLUGINS_FETCHED, "mark").length;
     let answer!: (response: Response) => void;
-    vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise((done) => (answer = done)));
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(json(404, {}))
+      .mockReturnValueOnce(new Promise((done) => (answer = done)));
     const loading = loadPlugins(
       [
         plugin("ui3", [], { ui: "^3.0.0" }),
-        plugin("words", [], { catalogs: { fr: "i18n/fr.json" } }),
+        plugin("words", [], { catalogs: { fr: "i18n/fr.json", en: "i18n/en.json" } }),
       ],
-      ["fr"],
+      ["fr", "en"],
       () => {},
     );
-    // `ui3` set aside at once; `words` still fetches its catalog.
-    await nextTick();
-    expect(marks()).toBe(0);
-    answer(json(404, {}));
+    // `ui3` set aside at once, `words` at its French catalog refused, its English one
+    // still read: no mark before it is.
     await loading;
-    expect(usePlugins().value.map((p) => p.status)).toEqual([
+    expect(statuses()).toEqual([
       { state: "rejected", reason: "incompatible", detail: "ui" },
       { state: "rejected", reason: "load-failed", detail: "i18n/fr.json" },
     ]);
-    expect(marks()).toBe(1);
+    await flush();
+    expect(marks()).toBe(0);
+    answer(json(200, {}));
+    await vi.waitFor(() => expect(marks()).toBe(1));
     await loadPlugins([], ["fr"], () => {});
     expect(marks()).toBe(2);
     await startPlugins(["fr"], () => {}, answering(json(500, {})).fetcher);
     expect(marks()).toBe(3);
   });
 
-  it("sets a plugin aside once every module it preloads has settled", async () => {
-    const preloading = preloadModules({
-      base: "/plugins/pair/1.0.0/",
-      integrity: { "a.js": "sha384-a", "b.js": "sha384-b" },
-    });
-    let rejected = false;
-    preloading.catch(() => (rejected = true));
-    const [a, b] = document.head.querySelectorAll<HTMLLinkElement>(
-      'link[rel="modulepreload"][href^="/plugins/pair/"]',
+  it("sets a plugin aside at its first failed module, marks the plugins fetched once all settle", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    performance.clearMarks(PLUGINS_FETCHED);
+    const loading = loadPlugins(
+      [plugin("pair", [], { integrity: { "a.js": "sha384-a", "b.js": "sha384-b" } })],
+      ["fr"],
+      () => {},
     );
+    const links = () =>
+      document.head.querySelectorAll<HTMLLinkElement>(
+        'link[rel="modulepreload"][href^="/plugins/pair/"]',
+      );
+    await vi.waitFor(() => expect(links()).toHaveLength(2));
+    const [a, b] = links();
     a!.dispatchEvent(new Event("error"));
-    await nextTick();
-    // `b` still loads: the plugin is not set aside before it is done.
-    expect(rejected).toBe(false);
+    await loading;
+    // Set aside at once (REQ-007-9), `b` still in flight: no mark yet.
+    expect(statuses()).toEqual([
+      {
+        state: "rejected",
+        reason: "load-failed",
+        detail: "kartenn: module /plugins/pair/1.0.0/a.js not preloaded",
+      },
+    ]);
+    await flush();
+    expect(marks()).toBe(0);
     b!.dispatchEvent(new Event("load"));
-    await expect(preloading).rejects.toThrow("/plugins/pair/1.0.0/a.js");
+    await vi.waitFor(() => expect(marks()).toBe(1));
+  });
+
+  it("marks the plugins fetched once the entry is loaded, without waiting for definePlugin", async () => {
+    // The timers only: a fake `performance` would keep no mark.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    performance.clearMarks(PLUGINS_FETCHED);
+    // The nodes the loader inserts, kept out of the document: their loads are said here.
+    const nodes: Node[] = [];
+    vi.spyOn(document.head, "append").mockImplementation((...added) => {
+      nodes.push(...(added as Node[]));
+    });
+    const loads = (selector: string) => {
+      const node = nodes.find((n) => n instanceof Element && n.matches(selector));
+      expect(node, selector).toBeDefined();
+      node!.dispatchEvent(new Event("load"));
+    };
+    const loading = loadPlugins(
+      [plugin("ready", [], { integrity: { "index.js": "sha384-entry" } })],
+      ["fr"],
+      () => {},
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    loads('link[rel="modulepreload"]');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(marks()).toBe(0);
+    loads('script[type="module"]');
+    await vi.advanceTimersByTimeAsync(0);
+    // Its entry loaded, `definePlugin` not called: still loading, nothing more to fetch.
+    expect(marks()).toBe(1);
+    expect(statuses()).toEqual([{ state: "loading" }]);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    await vi.advanceTimersByTimeAsync(DEFINE_TIMEOUT_MS);
+    await loading;
+    expect(statuses()).toEqual([{ state: "rejected", reason: "timeout" }]);
+    expect(marks()).toBe(1);
   });
 
   it("loads once a session is there, in an idle moment, never twice", () => {

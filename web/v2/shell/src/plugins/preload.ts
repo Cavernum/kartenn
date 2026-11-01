@@ -35,16 +35,28 @@ function preload(href: string, integrity: string): Promise<void> {
   return loaded;
 }
 
+/** The modules of a plugin: its `.js` files, by URL, with their digests. */
+const modulesOf = (plugin: PluginModules) =>
+  Object.entries(plugin.integrity)
+    .filter(([path]) => path.endsWith(".js"))
+    .map(([path, integrity]) => [plugin.base + path, integrity] as const);
+
 /**
  * Inserts a `modulepreload` with its digest for each module of the plugin not yet inserted;
- * resolves once all are loaded; once all have settled, rejects with the first that failed,
- * so that nothing of the plugin is still fetched when it is set aside.
+ * resolves once all are loaded, rejects if one fails.
  */
-export async function preloadModules(plugin: PluginModules): Promise<void> {
-  const modules = Object.entries(plugin.integrity).filter(([path]) => path.endsWith(".js"));
-  const settled = await Promise.allSettled(
-    modules.map(([path, integrity]) => preload(plugin.base + path, integrity)),
+export function preloadModules(plugin: PluginModules): Promise<void> {
+  return Promise.all(modulesOf(plugin).map(([href, integrity]) => preload(href, integrity))).then(
+    () => undefined,
   );
-  const failed = settled.find((result) => result.status === "rejected");
-  if (failed) throw failed.reason;
+}
+
+/**
+ * Resolves once every module of the plugin inserted so far has loaded or failed (a failed one
+ * is already forgotten): what `PLUGINS_FETCHED` waits for, never the setting aside.
+ */
+export function modulesSettled(plugin: PluginModules): Promise<void> {
+  return Promise.allSettled(
+    modulesOf(plugin).map(([href]) => inserted.get(href) ?? Promise.resolve()),
+  ).then(() => undefined);
 }
