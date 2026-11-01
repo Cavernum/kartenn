@@ -53,7 +53,8 @@ function policy(importMap: string | undefined): string {
 /**
  * The import map of the build (design « API des plugins »): `@kartenn/sdk`, `@kartenn/ui`
  * and `vue` by their fingerprinted files, the digest of every module of the build under
- * `integrity`, and the sheet of `@kartenn/ui` linked with its digest. Written once the
+ * `integrity`, and the sheet of `@kartenn/ui` linked with its digest and named by its
+ * specifier (`data-kartenn-sheet`, read by `handle.styles()`). Written once the
  * files are on disk, so the digests are those of what is served. The development server
  * has none: no plugin loads there yet (task 16).
  */
@@ -141,7 +142,12 @@ function sharedModules(): Plugin {
         );
         const link = `href="${url(sheet)}"`;
         if (!html.includes(link)) throw new Error(`index.html: ${sheet} is not linked`);
-        html = html.replace(link, `${link} integrity="${sri(readFileSync(join(out, sheet)))}"`);
+        // Named by its specifier: what `handle.styles()` links in a plugin's shadow root.
+        html = html.replace(
+          link,
+          `${link} integrity="${sri(readFileSync(join(out, sheet)))}" ` +
+            `data-kartenn-sheet="@kartenn/ui/style.css"`,
+        );
         writeFileSync(page, html);
       },
     },
