@@ -103,6 +103,36 @@ Conséquences constatées les 2026-10-30 et 31 :
    - Un chemin de code qu'aucune mesure ne couvre déclenche tout le banc de son crate.
    - Un test vérifie que chaque mesure a ses chemins et que chaque crate exercé par un
      banc y figure.
+   - Précisé à la tâche 4. Dans le doute, on sélectionne plus, jamais moins. La base par
+     défaut est `origin/main`, la `main` locale d'un worktree étant souvent en retard ;
+     `--list` donne la sélection sans rien lancer. Pour chaque chemin modifié, chaque banc
+     tourne :
+     - **entier**, quand le chemin est dans son empreinte (décision 2 : sources de sa
+       préparation, crates que traverse sa préparation, toute migration, `Cargo.lock`) ;
+     - sinon, **les mesures dont les chemins le couvrent**, et celles qui partent de
+       l'état qu'elles laissent (entier si ce sont toutes) ;
+     - sinon, pas du tout.
+
+     La table (`kartenn_bench::affected`) donne pour chaque mesure les modules de
+     `kartenn-bench` que traverse son code, depuis le fichier qui la chronomètre, et les
+     crates qu'ils nomment, entiers (`crates/<crate>/`), avec leurs dépendances du
+     workspace, hors de l'empreinte du banc. Elle ne nomme aucun fichier isolé d'un autre
+     crate : la plomberie (pipeline, écriture d'un changeset, contrôle d'accès, kit REST,
+     serveur) est atteinte par toutes les mesures qui passent par son crate. Un test la
+     redérive des sources : imports `crate::<module>`, crates `kartenn_<crate>::`. Un
+     module partagé de `kartenn-bench` relance donc tous les bancs qui l'importent.
+
+     Les autres chemins :
+     - la racine, les commandes, le manifeste et le script de build de `kartenn-bench`,
+       ainsi que le manifeste du workspace, relancent tous les bancs ;
+     - la configuration des bancs (`devenv.nix`, `devenv.lock`) ne lance rien, mais
+       conseille un passage complet ;
+     - un diff de `web/v2/`, `web/` ou `clients/python/` propose `bench-ui`, `bench-web`
+       ou `bench-cli` (Playwright, Python, sans échelle réduite), sans les lancer ;
+     - le reste ne lance rien.
+
+     L'empreinte couvre aussi le `build.rs` et le `data/` des crates (fichiers lus par
+     `include_str!`).
 
 4. **Historique local des mesures.** Chaque passage ajoute une ligne JSON par mesure à
    `.bench/history.jsonl`, à la racine de la copie principale. Le chemin se déduit de
