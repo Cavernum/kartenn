@@ -5,12 +5,12 @@
 // dates of the page. Its three states: a few lines of skeleton, the explanation, the error
 // with its codes.
 import { reads, type components } from "@kartenn/sdk";
-import { CodeBadge, ErrorState, Skeleton } from "@kartenn/ui";
+import { CodeBadge, Skeleton } from "@kartenn/ui";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useQuery } from "../../data/query.ts";
 import { useTime } from "../../time/index.ts";
-import { problemOf } from "../data.ts";
+import ProblemState from "../../problems/ProblemState.vue";
 import ObjectName from "./ObjectName.vue";
 
 type Explanation = components["schemas"]["Explanation"];
@@ -45,10 +45,10 @@ const direct = computed(() => origin.value !== null && origin.value.id === props
 <template>
   <div class="k-explanation">
     <Skeleton v-if="explanation.isPending.value" variant="text" :rows="3" />
-    <ErrorState
+    <ProblemState
       v-else-if="explanation.isError.value"
       :title="t('views.record.explanationError')"
-      :problem="problemOf(explanation.error.value)"
+      :error="explanation.error.value"
     />
     <template v-else-if="facts">
       <p v-if="facts.masked">{{ t("views.record.explanationMasked") }}</p>

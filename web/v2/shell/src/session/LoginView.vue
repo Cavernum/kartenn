@@ -4,22 +4,18 @@
 // break-glass account (`POST /v1/auth/breakglass`). Back, after the login, to the URL
 // kept (`?return=`), its dates and filters included.
 import type { ApiProblem } from "@kartenn/sdk";
-import {
-  Button,
-  EmptyState,
-  ErrorState,
-  InlineAlert,
-  Skeleton,
-  Stack,
-  TextField,
-} from "@kartenn/ui";
+import { Button, EmptyState, InlineAlert, Skeleton, Stack, TextField } from "@kartenn/ui";
 import { computed, onMounted, ref, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
+import ProblemState from "../problems/ProblemState.vue";
+import { useProblems } from "../problems/index.ts";
 import { loadSession } from "../rights/index.ts";
 import { breakglassLogin, loginAt, readIssuers, returnAfterLogin } from "./index.ts";
 
 const { t } = useI18n();
+// No session yet: the catalogs say the problems, the dictionary is not read.
+const { lines } = useProblems({ dictionary: false });
 const route = useRoute();
 const router = useRouter();
 /** `undefined` while read, the problem when they could not be. */
@@ -28,18 +24,8 @@ const name = ref("");
 const passphrase = ref("");
 const code = ref("");
 const refused = shallowRef<ApiProblem | null>(null);
-/** What the refusal says: its message, its type and its Request-Id, each copyable. */
-const refusal = computed(() => {
-  const problem = refused.value;
-  if (!problem) return [];
-  return [
-    {
-      message: problem.detail ?? problem.title,
-      ...(problem.type !== "about:blank" ? { code: problem.type } : {}),
-    },
-    ...(problem.requestId ? [{ message: "Request-Id", code: problem.requestId }] : []),
-  ];
-});
+/** What the refusal says: in plain words with its type, and its Request-Id, copyable. */
+const refusal = computed(() => (refused.value ? lines(refused.value) : []));
 const busy = ref(false);
 
 /** The page to come back to: the `return` of the URL first (`returnAfterLogin`). */
@@ -95,12 +81,12 @@ async function breakglass(): Promise<void> {
           <span class="k-visually-hidden">{{ t("login.loading") }}</span>
           <Skeleton variant="text" :rows="2" />
         </Stack>
-        <ErrorState
+        <ProblemState
           v-else-if="!Array.isArray(issuers)"
           :title="t('login.issuersFailed')"
-          :problem="issuers"
-          :retry-label="t('login.retry')"
-          @retry="retry"
+          :error="issuers"
+          :retry="retry"
+          :dictionary="false"
         />
         <EmptyState v-else-if="issuers.length === 0" :title="t('login.none')">
           {{ t("login.noneText") }}

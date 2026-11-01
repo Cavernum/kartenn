@@ -23,7 +23,6 @@ import {
   Button,
   Checkbox,
   Cluster,
-  ErrorState,
   Select,
   Skeleton,
   SplitButton,
@@ -39,7 +38,8 @@ import { useInfiniteQuery, useQuery } from "../../data/query.ts";
 import { useSession } from "../../rights/index.ts";
 import { useTime } from "../../time/index.ts";
 import { collectionById, nameOf, type CollectionId, type Item } from "../collections.ts";
-import { problemOf, rowsOf, useKeyLabel } from "../data.ts";
+import ProblemState from "../../problems/ProblemState.vue";
+import { rowsOf, useKeyLabel } from "../data.ts";
 import {
   applyRight,
   changesOf,
@@ -380,12 +380,11 @@ watch(
 </script>
 
 <template>
-  <ErrorState
+  <ProblemState
     v-if="record.isError.value"
     :title="t('edit.readError', { kind: kindWords })"
-    :problem="problemOf(record.error.value)"
-    :retry-label="t('views.retry')"
-    @retry="record.refetch()"
+    :error="record.error.value"
+    :retry="record.refetch"
   />
   <Skeleton v-else-if="!filled" variant="rows" :rows="4" />
   <form

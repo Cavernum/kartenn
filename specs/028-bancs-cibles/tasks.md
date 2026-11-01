@@ -274,6 +274,23 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
     pause dans une requête d'une mesure réduite), trouvée au bon commit ; essai sans
     `--good` : bornes tirées de l'historique.
   - où : `devenv.nix` (scripts, `k-heavy`) ; historique de la tâche 3.
+  - repris de la revue de la tâche 3 (2026-11-01), à régler ici :
+    - une mesure peut rendre plusieurs budgets (une ligne d'historique par budget,
+      champ `budget`) : la bissection dit lequel elle suit (par défaut celui qui a
+      dépassé) ;
+    - un échec d'écriture de l'historique sort aussi en 1 (`main.rs:288-291`) et masque
+      « a budget is exceeded » : la bissection doit lire le verdict des budgets, pas le
+      seul code de sortie (code distinct pour l'historique, ou `--history` hors
+      bissection) ;
+    - `append` (`history.rs:464-485`) ne vérifie pas que le fichier finit par un saut
+      de ligne : une écriture interrompue colle la ligne suivante au fragment ;
+    - la charge est lue au démarrage du binaire, après la compilation du script : elle
+      inclut la compilation du passage, à corriger avant d'en tirer « machine libre » ;
+    - tout écrivain de l'historique, script compris, prend le même `flock` ;
+    - `http.rs:947-953` : budget strict (`<`) mais `limit` écrit comme un seuil ≤ ;
+      `core_budgets.rs:604` : `pass`/`fail` avec `limit: null`, cas à écrire dans l'ADR ;
+      ADR 0041 l. 111 (« ajoutée par le script ») contredit l. 124 (« c'est le programme
+      qui écrit »).
   - dépend de : 2, 3
 - [ ] 6. Règles et synchronisation : `.claude/agents/kartenn-tache.md` (`bench-affected`
   réduit permis à une tâche Rust exercée par un banc) ; `CLAUDE.md` (« Charge de la

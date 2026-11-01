@@ -65,11 +65,13 @@ export default {
     },
     {
       name: "host",
-      description: "Refus de l'hôte (l'API compare à l'heure de la base) : sur son champ",
+      description:
+        "Refus de l'hôte (l'API compare à l'heure de la base) : sur son champ, son type et Request-Id copiables",
       props: {
         timeZone: ZONE,
         asOf: "2026-01-15T09:00:00Z",
         errors: { asOf: "Refusé par le serveur : cette date dépasse son heure." },
+        problem: { type: "urn:kartenn:problem:bad-request", requestId: "req_7f3a9c2e5b1d4068" },
       },
     },
     {

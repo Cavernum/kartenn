@@ -11,14 +11,17 @@
 // an impossible entry is refused with its reason on its field, as is an `as_of` later than
 // now (the system time has no future, 006 « Lectures datées »): the focus goes to it.
 // That check reads the clock of the browser, strictly; the API compares with the `now()`
-// of the base, and its refusal (a 400 on a date) comes back on its field by `errors`.
+// of the base, and its refusal (a 400 on a date) comes back on its field by `errors`, its
+// codes (`type`, `Request-Id`) copyable under the fields by `problem`.
 // Away from the present, « Revenir au présent » clears both. The layer around it (under
 // the date pill, spec 021) is the host's, as are Escape and the focus given back.
 import { nextTick, reactive, ref, useId, watch } from "vue";
 import { fill, t, type MessageKey } from "../../i18n.ts";
 import { formatInstant } from "../../time.ts";
 import Button from "../Button/Button.vue";
+import CodeBadge from "../CodeBadge/CodeBadge.vue";
 import DateTimeField from "../DateTimeField/DateTimeField.vue";
+import type { ProblemFacts } from "../ErrorState/problem.ts";
 import { shortcut, type Period } from "../DateTimeField/dates.ts";
 
 const props = withDefaults(
@@ -34,8 +37,13 @@ const props = withDefaults(
     titleId?: string | undefined;
     /** The host's refusal of a date (the API's, with its reason), shown on its field. */
     errors?: Partial<Record<keyof Period, string>> | undefined;
+    /**
+     * The problem of that refusal: its `type` and `Request-Id`, copyable under the fields
+     * (REQ-020-22); an `ApiProblem` of the SDK as it is.
+     */
+    problem?: ProblemFacts | undefined;
   }>(),
-  { validAt: null, asOf: null, titleId: undefined, errors: undefined },
+  { validAt: null, asOf: null, titleId: undefined, errors: undefined, problem: undefined },
 );
 const emit = defineEmits<{ apply: [period: Period] }>();
 
@@ -135,6 +143,22 @@ const offPresent = () => props.validAt !== null || props.asOf !== null;
         >
       </div>
     </div>
+    <!-- The codes of the host's refusal, to pass on; `about:blank` has none (RFC 9457). -->
+    <div
+      v-if="props.problem && (props.problem.type !== 'about:blank' || props.problem.requestId)"
+      class="k-period-picker__codes"
+    >
+      <CodeBadge
+        v-if="props.problem.type !== 'about:blank'"
+        :code="props.problem.type"
+        label="type"
+      />
+      <CodeBadge
+        v-if="props.problem.requestId"
+        :code="props.problem.requestId"
+        label="Request-Id"
+      />
+    </div>
     <span class="k-visually-hidden" role="status" aria-live="polite">{{ said }}</span>
     <!-- The primary one last, as in `Dialog` and `FilterPicker`. -->
     <div class="k-period-picker__actions">
@@ -178,6 +202,14 @@ const offPresent = () => props.validAt !== null || props.asOf !== null;
     flex-wrap: wrap;
     gap: var(--k-space-1);
     margin-inline-start: calc(var(--k-control-padding-inline-sm) * -1);
+  }
+
+  /* A long code (a problem type) stays in the panel: the badge truncates. */
+  .k-period-picker__codes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--k-space-2);
+    max-inline-size: 100%;
   }
 
   .k-period-picker__actions {

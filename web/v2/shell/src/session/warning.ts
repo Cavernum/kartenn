@@ -1,5 +1,6 @@
 import type { Toasts } from "@kartenn/ui";
 import { watch, type WatchSource } from "vue";
+import { toastCodes } from "../problems/index.ts";
 import { createExpiry, readEnd, type EndReading, type ExpiryDeps } from "./expiry.ts";
 import { expired } from "./index.ts";
 
@@ -7,12 +8,14 @@ import { expired } from "./index.ts";
 // gives (`me.session.expires_at`) watched, a `warn` toast that stays until the next
 // activity, and « Rester connecté », which reads the end again (`readEnd`): an end that
 // moved clears the warning; one that did not is fixed, said again without the action; a
-// 401 opens « Session expirée »; any other failure keeps the session as it is and says so,
-// with its code.
+// 401 opens « Session expirée »; any other failure keeps the session as it is and says so
+// by `problems/`: the sentence of its type, its code and its `Request-Id`.
 
 export interface WarningDeps {
   toasts: Toasts;
   t: (key: string, params?: Record<string, unknown>) => string;
+  /** A problem in plain words (`useProblems().sentence`, `problems/`). */
+  sentence: (error: unknown) => string;
   /** The language the time of the end is written in. */
   locale: () => string;
   /** The end the session gives, reactive. */
@@ -37,9 +40,8 @@ export function watchSessionEnd(deps: WarningDeps): () => void {
       toasts.show({
         tone: "ko",
         title: t("session.stayFailed"),
-        description: t("session.stayFailedText"),
-        ...(problem && problem.type !== "about:blank" ? { code: problem.type } : {}),
-        ...(problem?.requestId ? { requestId: problem.requestId } : {}),
+        description: t("session.stayFailedText", { why: deps.sentence(problem) }),
+        ...toastCodes(problem),
         action: { label: t("session.retry"), run: () => void stay() },
       });
     }

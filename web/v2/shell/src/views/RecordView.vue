@@ -10,7 +10,6 @@ import { reads } from "@kartenn/sdk";
 import {
   Button,
   CodeBadge,
-  ErrorState,
   KeyLabel,
   Menu,
   Skeleton,
@@ -49,7 +48,8 @@ import {
   type Collection,
   type Item,
 } from "./collections.ts";
-import { problemOf, useKeyLabel } from "./data.ts";
+import ProblemState from "../problems/ProblemState.vue";
+import { useKeyLabel } from "./data.ts";
 import { keepRecordName } from "./names.ts";
 import AttributeList from "./parts/AttributeList.vue";
 import ViewPanel from "./parts/ViewPanel.vue";
@@ -203,15 +203,14 @@ const linkOf = (field: string) => {
 
 <template>
   <h1 class="k-visually-hidden">{{ kindWords }} {{ name }}</h1>
-  <ErrorState
+  <ProblemState
     v-if="record.isError.value"
     :title="t('views.record.error', { kind: kindWords })"
-    :problem="problemOf(record.error.value)"
-    :retry-label="t('views.retry')"
-    @retry="record.refetch()"
+    :error="record.error.value"
+    :retry="record.refetch"
   >
     {{ t("views.errorText") }}
-  </ErrorState>
+  </ProblemState>
   <ViewPanel v-else :title="name" :detail="detail" main>
     <template #actions>
       <Button

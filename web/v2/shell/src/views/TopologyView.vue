@@ -9,7 +9,6 @@
 import { queryClient, reads, type components, type TimeArg } from "@kartenn/sdk";
 import {
   EmptyState,
-  ErrorState,
   InlineAlert,
   Select,
   Split,
@@ -46,7 +45,8 @@ import { useTime } from "../time/index.ts";
 import { pageOfObject, type CollectionId } from "./collections.ts";
 import { editRight } from "./edit/fields.ts";
 import { openEdit } from "./edit/panel.ts";
-import { problemOf, rowsOf, useKeyLabel } from "./data.ts";
+import ProblemState from "../problems/ProblemState.vue";
+import { rowsOf, useKeyLabel } from "./data.ts";
 import ViewPanel from "./parts/ViewPanel.vue";
 import ContentTab from "./record/ContentTab.vue";
 
@@ -307,12 +307,11 @@ onBeforeUnmount(() => stopIntent());
   <InlineAlert v-if="fellBack" tone="warn" :title="t('views.topology.domainMissing')">
     {{ t("views.topology.domainMissingText", { name: domainSlug }) }}
   </InlineAlert>
-  <ErrorState
+  <ProblemState
     v-if="domains.isError.value"
     :title="t('views.topology.domainsError')"
-    :problem="problemOf(domains.error.value)"
-    :retry-label="t('views.retry')"
-    @retry="domains.refetch()"
+    :error="domains.error.value"
+    :retry="domains.refetch"
   />
   <EmptyState
     v-else-if="domains.isSuccess.value && domainItems.length === 0"
@@ -336,12 +335,11 @@ onBeforeUnmount(() => stopIntent());
           />
         </template>
         <div ref="tree" class="k-topology__tree">
-          <ErrorState
+          <ProblemState
             v-if="roots?.isError && !roots.isFetchNextPageError"
             :title="t('views.topology.treeError')"
-            :problem="problemOf(roots.error)"
-            :retry-label="t('views.retry')"
-            @retry="roots.refetch()"
+            :error="roots.error"
+            :retry="roots.refetch"
           />
           <EmptyState
             v-else-if="roots?.isSuccess && nodes.length === 0"

@@ -3,7 +3,8 @@
     - heading "ErrorState" [level=1]
     - paragraph: "Motif : role=alert, codes copiables"
     - 'figure "violations — Violations : chaque gravité, message et code (un avertissement le dit)"':
-      - alert: Le changeset est refusé.
+      - alert:
+        - paragraph: Le changeset est refusé.
       - list:
         - listitem:
           - text: Erreur Le préfixe chevauche un voisin.
