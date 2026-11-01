@@ -53,7 +53,8 @@ pub struct CredentialsEnd(pub i64);
 #[derive(Debug, Clone, Copy)]
 pub struct ServiceSecret(pub uuid::Uuid);
 
-/// A response that is no activity of its session: its cookie is not sent again.
+/// A response that is no activity of its session: its cookie is sent again only after a
+/// refresh of its groups, its last activity as it was read (021/A15).
 #[derive(Debug, Clone, Copy)]
 pub struct NotActivity;
 

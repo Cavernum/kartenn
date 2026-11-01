@@ -27,12 +27,15 @@ use kartenn_auth::oidc::{Oidc, Session};
 use kartenn_auth::secrets::FailureLimiter;
 use kartenn_auth::tokens::{HttpKeys, TokenVerifier};
 use kartenn_rest::authn::Authn;
+use kartenn_rest::events::hub::{Hub, Settings as EventSettings};
 use kartenn_rest::health::Readiness;
+use kartenn_rest::objects::Api;
 use kartenn_rest::quota::{Quotas, Rates};
 use kartenn_rest::transport::{ConnectionTls, Settings};
 use kartenn_service::aggregate::FailureAggregator;
 use kartenn_service::audit::Instance;
 use kartenn_service::authn::StateCache;
+use kartenn_service::reads::ReadAudit;
 use kartenn_store_pg::audit_journal::PgAuditJournal;
 use kartenn_store_pg::breakglass::Stored;
 use kartenn_store_pg::write::PgStore;
@@ -58,6 +61,9 @@ struct Idp {
     /// The nonce of each code issued.
     codes: HashMap<String, String>,
     groups: Vec<String>,
+    /// The refresh token it gives, and takes beside `r1`: another than `r1` turns it
+    /// (RFC 9700 §4.14.2).
+    refresh: String,
 }
 
 type Shared = Arc<Mutex<Idp>>;
@@ -103,8 +109,8 @@ async fn jwks(State(idp): State<Shared>) -> Json<JwkSet> {
     })
 }
 
-/// The token endpoint: a code once, the refresh token `r1` (PKCE and the client are
-/// checked by the tests of the 005).
+/// The token endpoint: a code once, the refresh token `r1` or the one it gives (PKCE and
+/// the client are checked by the tests of the 005).
 async fn token(State(idp): State<Shared>, body: String) -> (StatusCode, Json<Value>) {
     let form: HashMap<String, String> = form_urlencoded::parse(body.as_bytes())
         .into_owned()
@@ -121,7 +127,11 @@ async fn token(State(idp): State<Shared>, body: String) -> (StatusCode, Json<Val
             };
             id_token(&idp, Some(&nonce))
         }
-        Some("refresh_token") if form.get("refresh_token").map(String::as_str) == Some("r1") => {
+        Some("refresh_token")
+            if form
+                .get("refresh_token")
+                .is_some_and(|r| r == "r1" || *r == idp.refresh) =>
+        {
             id_token(&idp, None)
         }
         _ => return refused,
@@ -129,7 +139,7 @@ async fn token(State(idp): State<Shared>, body: String) -> (StatusCode, Json<Val
     (
         StatusCode::OK,
         Json(
-            json!({ "id_token": token, "refresh_token": "r1", "expires_in": 300, "token_type": "Bearer", "access_token": "a" }),
+            json!({ "id_token": token, "refresh_token": idp.refresh, "expires_in": 300, "token_type": "Bearer", "access_token": "a" }),
         ),
     )
 }
@@ -150,6 +160,7 @@ async fn idp() -> Shared {
         jwk,
         codes: HashMap::new(),
         groups: vec!["netops".into()],
+        refresh: "r1".into(),
     }));
     let routes = Router::new()
         .route("/.well-known/openid-configuration", get(discovery))
@@ -217,6 +228,41 @@ impl Fixture {
         settings: Settings,
         ids: &[(&str, Option<NativeClient>)],
     ) -> Self {
+        Self::around(pool, idp, settings, ids, Router::new())
+    }
+
+    /// With the issuer `main` around the routes of `/v1` and their event stream, on a hub
+    /// that no reader feeds.
+    fn streamed(pool: &PgPool, idp: &Shared) -> Self {
+        let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+        let hub = Hub::new(
+            EventSettings::default(),
+            pool.clone(),
+            ring.clone(),
+            Arc::default(),
+        );
+        let api = Api {
+            pool: pool.clone(),
+            ring,
+            bound: Duration::from_mins(1),
+            journal: PgAuditJournal::new(pool.clone(), Instance::new("test")),
+            audit: ReadAudit::default(),
+            sources: kartenn_service::expected::Sources::none(),
+            outputs: Arc::from([]),
+            modules: Arc::default(),
+        };
+        let v1 = kartenn_rest::v1(api).layer(axum::Extension(hub));
+        Self::around(pool, idp, Settings::default(), &[("main", None)], v1)
+    }
+
+    /// With the issuers `ids` around `v1`.
+    fn around(
+        pool: &PgPool,
+        idp: &Shared,
+        settings: Settings,
+        ids: &[(&str, Option<NativeClient>)],
+        v1: Router,
+    ) -> Self {
         let issuers = ids
             .iter()
             .map(|(id, native)| IssuerConfig {
@@ -249,7 +295,7 @@ impl Fixture {
             absolute: Duration::from_hours(8),
         };
         let app = kartenn_rest::router(
-            Router::new(),
+            v1,
             Arc::new(Ready),
             settings,
             Arc::new(Quotas::new(Rates::default())),
@@ -608,6 +654,96 @@ async fn a_request_in_the_background_is_no_activity(pool: PgPool) {
         .await;
     assert_eq!(me.status(), StatusCode::UNAUTHORIZED);
     assert!(removes(&me, SESSION));
+}
+
+/// `cookie` seen two minutes ago, its groups due to be refreshed at the issuer, which turns
+/// its refresh token to `r2` and gives `admins`: the cookie and the instant it was seen.
+fn refresh_due(f: &Fixture, idp: &Shared, session: &str) -> (String, i64) {
+    {
+        let mut idp = idp.lock().unwrap();
+        idp.refresh = "r2".into();
+        idp.groups = vec!["admins".into()];
+    }
+    let due = f.forged(session, |s| {
+        s.seen -= 120;
+        s.refresh_at = unix_now() - 1;
+    });
+    let seen = Session::unseal(&f.ring, &[due.split_once('=').unwrap().1])
+        .unwrap()
+        .seen;
+    (due, seen)
+}
+
+/// The session a response sends again after a refresh that is no activity: the new tokens
+/// of the issuer, its last activity as it was.
+fn refreshed_quietly(f: &Fixture, response: &Response, seen: i64) -> Session {
+    let again = value(response, SESSION).expect("sent again after a refresh");
+    let again = Session::unseal(&f.ring, &[&again]).unwrap();
+    assert_eq!(again.refresh_token.as_deref(), Some("r2"));
+    assert_eq!(again.groups, ["admins"]);
+    assert!(again.refresh_at > unix_now());
+    assert_eq!(again.seen, seen, "no activity");
+    again
+}
+
+/// 021/A15: a request in the background that refreshes the groups sends the cookie again
+/// with the refresh token the issuer turned, its last activity as it was: neither its end
+/// by inactivity nor by lifetime pushed back. Without a refresh, no cookie (A14).
+#[kartenn_testing::pg_test]
+async fn a_refresh_in_the_background_keeps_the_new_tokens(pool: PgPool) {
+    let idp = idp().await;
+    let f = Fixture::new(&pool, &idp);
+    let session = f.login(&idp).await;
+    let (due, seen) = refresh_due(&f, &idp, &session);
+
+    let me = f
+        .call(marked(request("GET", "/v1/me", Some(&due), true), &["?1"]))
+        .await;
+    assert_eq!(me.status(), StatusCode::OK);
+    let again = refreshed_quietly(&f, &me, seen);
+    let lifetime = again.started + 8 * 3_600;
+    let body = json(me).await;
+    assert_eq!(body["idp_groups"], json!(["admins"]));
+    assert_eq!(unix(&body["session"]["expires_at"]), seen + 1_800);
+    assert_eq!(unix(&body["session"]["absolute_expires_at"]), lifetime);
+
+    // The cookie sent again, in the background, nothing due: no cookie.
+    let kept = format!("{SESSION}={}", again.seal(&f.ring).unwrap()[0]);
+    let me = f
+        .call(marked(request("GET", "/v1/me", Some(&kept), true), &["?1"]))
+        .await;
+    assert_eq!(me.status(), StatusCode::OK);
+    assert!(set_cookies(&me).is_empty(), "{:?}", set_cookies(&me));
+    assert_eq!(unix(&json(me).await["session"]["expires_at"]), seen + 1_800);
+}
+
+/// 021/A15: the opening of the event stream that refreshes the groups sends the cookie
+/// again as a request in the background does; without a refresh, no cookie.
+#[kartenn_testing::pg_test]
+async fn a_refresh_at_the_opening_of_the_stream_keeps_the_new_tokens(pool: PgPool) {
+    let idp = idp().await;
+    let f = Fixture::streamed(&pool, &idp);
+    let session = f.login(&idp).await;
+    let stream = |cookie: &str| {
+        let mut r = request("GET", "/v1/events", Some(cookie), true);
+        r.headers_mut()
+            .insert(header::ACCEPT, "text/event-stream".parse().unwrap());
+        r
+    };
+
+    let older = f.forged(&session, |s| s.seen -= 120);
+    let opened = f.call(stream(&older)).await;
+    assert_eq!(opened.status(), StatusCode::OK);
+    assert!(
+        set_cookies(&opened).is_empty(),
+        "{:?}",
+        set_cookies(&opened)
+    );
+
+    let (due, seen) = refresh_due(&f, &idp, &session);
+    let opened = f.call(stream(&due)).await;
+    assert_eq!(opened.status(), StatusCode::OK);
+    refreshed_quietly(&f, &opened, seen);
 }
 
 #[kartenn_testing::pg_test]
