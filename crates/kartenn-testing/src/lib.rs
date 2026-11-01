@@ -39,6 +39,9 @@ pub const TEMPLATE_PREFIX: &str = "_kt_tpl_";
 pub const BUILD_PREFIX: &str = "_kt_build_";
 /// Prefix of the databases of `#[sqlx::test]`, which [`clean`] drops as well.
 const SQLX_PREFIX: &str = "_sqlx_test_";
+/// Prefixes of the databases the tests of `kartenn-bench` make in the cluster of the
+/// tests (a bench run, the templates it keeps: ADR 0041), which [`clean`] drops as well.
+pub const BENCH_PREFIXES: [&str; 2] = ["kartenn_bench_it_", "kartenn_bench_tpl_"];
 /// Advisory lock of the bookkeeping schema (`kt_tests` in ASCII).
 const SCHEMA_LOCK: i64 = 0x6b74_5f74_6573_7473;
 
@@ -273,10 +276,20 @@ pub async fn create_empty(conn: &mut PgConnection, name: &str) -> Result<(), sql
 /// What [`clean`] dropped.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Cleaned {
-    /// Test databases (`_kt_test_`, `_sqlx_test_`) and abandoned builds.
+    /// Test databases (`_kt_test_`, `_sqlx_test_`, those of the benches' tests) and
+    /// abandoned builds.
     pub databases: usize,
     /// Templates unused for longer than the given age, or unknown to the bookkeeping.
     pub templates: usize,
+}
+
+/// Whether [`clean`] drops the database `name` whatever its age: a test database, one of
+/// the benches' tests or a template they keep, an abandoned build.
+pub fn dropped_by_clean(name: &str) -> bool {
+    [TEST_PREFIX, SQLX_PREFIX, BUILD_PREFIX]
+        .iter()
+        .chain(&BENCH_PREFIXES)
+        .any(|prefix| name.starts_with(prefix))
 }
 
 /// Drops the test databases left by failed tests, the abandoned builds, and the
@@ -302,10 +315,7 @@ pub async fn clean(conn: &mut PgConnection, max_age: Duration) -> Result<Cleaned
         .await?;
     let mut cleaned = Cleaned::default();
     for name in names {
-        if [TEST_PREFIX, SQLX_PREFIX, BUILD_PREFIX]
-            .iter()
-            .any(|prefix| name.starts_with(prefix))
-        {
+        if dropped_by_clean(&name) {
             drop_database(conn, &name).await?;
             cleaned.databases += 1;
         } else if name.starts_with(TEMPLATE_PREFIX)
@@ -476,4 +486,25 @@ fn hex(bytes: &[u8]) -> String {
         let _ = write!(s, "{b:02x}");
         s
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::dropped_by_clean;
+
+    #[test]
+    fn clean_drops_what_the_tests_leave() {
+        for name in [
+            "_kt_test_0123",
+            "_sqlx_test_4",
+            "_kt_build_5",
+            "kartenn_bench_it_0123",
+            "kartenn_bench_tpl_props_0123456789abcdef",
+        ] {
+            assert!(dropped_by_clean(name), "{name}");
+        }
+        for name in ["_kt_tpl_0123", "kartenn", "kartenn_bench", "postgres"] {
+            assert!(!dropped_by_clean(name), "{name}");
+        }
+    }
 }

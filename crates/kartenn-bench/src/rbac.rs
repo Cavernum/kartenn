@@ -29,9 +29,10 @@ use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
 
 use crate::Dataset;
-use crate::core_budgets::{Prepared, new_address, prepare};
+use crate::core_budgets::{Ids, Prepared, new_address, prepare_with};
 use crate::measures::{Bench, Measure, Selection};
 use crate::props::{SINCE, p95, progress};
+use crate::template::Reuse;
 
 const READ: &str = "rbac.read-object";
 const READ_PAST: &str = "rbac.read-past";
@@ -274,17 +275,37 @@ pub(crate) async fn bind(
     Ok(role)
 }
 
+/// The groups of the issuer in the token of the person of [`resolution_subjects`] that
+/// resolves `n` of them.
+fn resolution_names(n: usize) -> Vec<String> {
+    (0..GROUPS).map(|g| format!("r{n}-{g:02}")).collect()
+}
+
 /// For each count of [`RESOLVED`], a person whose token carries [`GROUPS`] groups of the
-/// issuer, that many of them members of a group of kartenn of its own (the domains bound
-/// to them in turn, so that every draw is visible unless there is none).
-async fn resolution_subjects(
-    pool: &PgPool,
-    data: &Dataset,
-    role: Uuid,
-) -> anyhow::Result<Vec<(usize, Subject)>> {
-    let mut subjects = Vec::with_capacity(RESOLVED.len());
+/// issuer, that many of them members of a group of kartenn of its own
+/// ([`resolution_groups`]).
+fn resolution_subjects() -> Vec<(usize, Subject)> {
+    RESOLVED
+        .into_iter()
+        .map(|n| {
+            (
+                n,
+                Subject {
+                    id: Uuid::now_v7(),
+                    issuer: Some(ISSUER.into()),
+                    groups: resolution_names(n),
+                },
+            )
+        })
+        .collect()
+}
+
+/// For each count `n` of [`RESOLVED`], `n` groups of kartenn whose members are as many
+/// groups of the issuer, the domains bound to them in turn (so that every draw is visible
+/// unless there is none).
+async fn resolution_groups(pool: &PgPool, data: &Dataset, role: Uuid) -> anyhow::Result<()> {
     for n in RESOLVED {
-        let names: Vec<String> = (0..GROUPS).map(|g| format!("r{n}-{g:02}")).collect();
+        let names = resolution_names(n);
         let mut groups = Vec::with_capacity(n);
         for (j, name) in names.iter().take(n).enumerate() {
             groups.push(
@@ -302,19 +323,11 @@ async fn resolution_subjects(
                 binding(pool, groups[k % n], role, "domain", domain.id).await?;
             }
         }
-        subjects.push((
-            n,
-            Subject {
-                id: Uuid::now_v7(),
-                issuer: Some(ISSUER.into()),
-                groups: names,
-            },
-        ));
     }
     sqlx::raw_sql("ANALYZE binding, rbac_group, group_member")
         .execute(pool)
         .await?;
-    Ok(subjects)
+    Ok(())
 }
 
 /// A unitary changeset of `context`: its duration, or why it was not applied.
@@ -363,17 +376,26 @@ pub async fn run(
     data: &Dataset,
     seed: u64,
     selection: &Selection,
+    reuse: &Reuse,
 ) -> anyhow::Result<(String, bool)> {
     let started = Instant::now();
-    let Prepared {
-        pool,
-        author,
-        rack,
-        mut report,
-    } = prepare(database, data, seed).await?;
-    let role = bind(&pool, data, author, seed).await?;
-    let resolution = resolution_subjects(&pool, data, role).await?;
-    progress(&format!("bindings: {:?}", started.elapsed()));
+    // The bindings, part of the preparation (and of the template).
+    let (
+        Prepared {
+            pool,
+            author,
+            rack,
+            mut report,
+        },
+        _,
+    ) = prepare_with(database, data, seed, reuse, async |pool, ids: Ids, _| {
+        let role = bind(pool, data, ids.author, seed).await?;
+        resolution_groups(pool, data, role).await?;
+        progress(&format!("bindings: {:?}", started.elapsed()));
+        anyhow::Ok(())
+    })
+    .await?;
+    let resolution = resolution_subjects();
     let subject = Subject {
         id: author,
         issuer: Some(ISSUER.into()),

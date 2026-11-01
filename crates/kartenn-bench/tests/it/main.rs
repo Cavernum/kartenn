@@ -2,3 +2,4 @@
 //! per subject.
 
 mod only;
+mod template;

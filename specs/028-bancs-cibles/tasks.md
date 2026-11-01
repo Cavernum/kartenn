@@ -82,6 +82,89 @@ par l'agent : la petite échelle des tests (`small`) et l'échelle réduite suff
   - où : `crates/kartenn-bench/src/main.rs`, `lib.rs` (connexion, création de la base) ;
     `devenv.nix` (`bench`, `pgBench` et ses réglages) ; ADR 0032 (instance, verrou).
   - dépend de : 1
+  - en cours : la ligne pleine échelle du tableau de l'ADR 0041 (préparation, copie,
+    disque d'un modèle) et le disque total (3 modèles × 8 bancs), à mesurer par la session
+    principale.
+  - fait : `kartenn_bench::template` (`Reuse`, `prepared` : sans modèle de l'empreinte, ou
+    sous une mesure « de préparation », la préparation écrit dans la base vide, puis la
+    base est renommée en modèle `ALLOW_CONNECTIONS false`, commentée (banc, graine,
+    échelle, date) et copiée ; sinon copie seule ; `CREATE DATABASE … TEMPLATE …
+    STRATEGY FILE_COPY` après `SET file_copy_method = clone` ; connexions ouvertes sur la
+    base renommée, la base du passage ou le modèle refusées avec leurs pid ; trois modèles
+    par banc, les plus anciens par oid supprimés, seulement les noms
+    `kartenn_bench_tpl_<banc>_<16 hex>` ; empreinte FNV-1a 64 bits du banc, de la graine,
+    de l'échelle et de ses volumes, des migrations du cœur (sommes de sqlx) et des
+    modules machines, politique, flux (SQL), des sources de la préparation par banc) ;
+    chaque banc découpé en écriture de sa préparation (`write`) et relecture dans la
+    copie de ce qu'en tirent les mesures (`core_budgets::prepare_with`, `Ids`, `author` ;
+    `rbac` et `http` : liaisons et personnes dans la préparation ; `policy`, `flow` : modules,
+    politique, flux et machines ; `events` : abonnés `r<i>`) ; `Selection::bench`,
+    `prepares` ; `main.rs` (`--template`) ; `devenv.nix` (`bench` passe `--template` sur
+    le port 5433 seulement). Tests : `template` (empreinte : migration ajoutée ou changée,
+    graine, échelle, banc, sources ; noms ; trois gardés ; chaque banc liste ses sources),
+    `measures` (`prepares`), `main` (`--template`) ; `tests/it/template.rs` (second passage
+    copié aux mêmes lignes, mesure « de préparation » qui reprépare et remplace, modèle
+    sans connexion permise, connexion ouverte refusée nommément) ; `tests/it/only.rs` :
+    chaque banc entier prépare et garde son modèle, la mesure seule tourne sur sa copie.
+    Passages réduits `bench-core 42 --only core.read-object` : préparation 10,6 s puis
+    copie 0,35 s, mesures dans le bruit ; une migration ajoutée (sonde jetable) a donné une
+    autre empreinte et une nouvelle préparation, retirée la copie du premier modèle ;
+    tableau de l'ADR 0041 (ligne pleine échelle à mesurer par la session principale).
+    Après relecture : clients seuls comptés (`backend_type = 'client backend'`), jusqu'à
+    10 s d'attente avant l'erreur ; empreinte étendue aux crates du workspace traversés
+    (`build.rs` : sources, `Cargo.toml`, `migrations/` de chaque dépendance du workspace
+    hors développement, et `Cargo.lock` ; `template::crates`, `crate_hashes`, `Inputs`) ;
+    `VACUUM (ANALYZE)` à la fin de chaque préparation, copie lue avant les mesures
+    (`warm` : `pg_prewarm` si la base l'a, sinon lecture des tables) ; `--template` refusé
+    hors d'une base `kartenn_bench…` ; lignes du rapport de la préparation gardées dans le
+    commentaire du modèle et rendues par la copie ; `kartenn_testing::dropped_by_clean`
+    (`BENCH_PREFIXES` : `kartenn_bench_it_`, `kartenn_bench_tpl_`), bases des tests des
+    bancs nommées `kartenn_bench_it_…`. Tests : `template` (crates nommés par chaque
+    préparation couverts, crate ou verrou changés, commentaire), `kartenn-testing`
+    (`dropped_by_clean`), `tests/it/template.rs` (rapports `INFO` identiques entre passage
+    préparé et copié, quatrième modèle élagué, client sur la base préparée refusé,
+    `--template` hors `kartenn_bench…` refusé). Passages réduits sur copie, machine chargée
+    (charge 4 à 6) : `bench-properties --only props.origins-3-domains` changeset 0,65 à
+    0,86 s, valeur de toutes les racines 0,99 à 1,05 s, retrait de 3 domaines 3,14 à
+    3,59 s, contre 0,31 à 0,36 s, 0,90 s et 2,91 à 3,11 s sur la base préparée sans
+    modèle au même moment (design 003, code final, machine chargée : 0,53 s, 1,29 s,
+    1,79 s) ; `bench-core --only core.read-object` 0,55 à 0,64 ms et 0,99 à 1,83 ms
+    (passé), comme avant la relecture. `pg_prewarm` est absent des bases (extension non
+    approuvée, `CREATE EXTENSION` demande un superutilisateur) : la lecture des tables ne
+    réchauffe pas les index. Puis : `pg_prewarm` créé dans `template1` par le script `bench`
+    (5433 seulement, superutilisateur par le socket), réchauffement des seules relations
+    de l'utilisateur (`pg_has_role`), version de forme 2 dans l'empreinte. Mesures
+    réduites entrelacées, copie réchauffée par `pg_prewarm` contre base préparée sans
+    modèle, par le script : changeset 0,44 à 0,45 s contre 0,31 à 0,38 s, valeur de toutes
+    les racines 0,89 à 0,96 s contre 0,82 à 0,90 s, retrait de 3 domaines 3,09 à 3,17 s
+    contre 2,93 à 3,00 s. Reste du changeset : ni le cache ni le clonage (vraie copie
+    0,40 à 0,42 s) ; le point de contrôle de `CREATE DATABASE … FILE_COPY` (images de page
+    complètes à la première écriture) — un `CHECKPOINT` avant les mesures de la base
+    préparée la porte à 0,38 à 0,45 s. Avec le `CHECKPOINT` des deux côtés (entrelacés,
+    charge 3 à 4) : changeset 0,38 à 0,43 s sur copie contre 0,41 à 0,54 s sur base
+    préparée, valeur de toutes les racines 0,84 à 0,91 s contre 0,82 à 1,01 s, retrait de
+    3 domaines 3,01 à 3,19 s contre 2,96 à 3,05 s (4,61 s au premier passage, isolé).
+  - choix : la copie aussi au premier passage (la base préparée est renommée en modèle,
+    puis copiée) : premier passage et suivants mesurent de la même façon ; l'état tiré de
+    la préparation (identifiants, abonnés, paires de machines…) est relu ou recalculé dans
+    la copie, jamais transmis en mémoire ; les tirages de la préparation sont rejoués sans
+    écrire (`props`, `policy`, `flow`) pour que les mesures tirent ce qu'elles tiraient ;
+    `http` garde ses jetons et cookies hors du modèle (ils suivent les clés du serveur
+    lancé à chaque passage), ses personnes et liaisons y sont ; sources à la granularité
+    du fichier (une mesure modifiée dans le fichier d'une préparation invalide le
+    modèle) ; empreinte exacte plutôt que réutilisation (session principale) : les
+    sources des crates du workspace traversés et `Cargo.lock` y entrent, un modèle est
+    refait dès qu'un d'eux change ; le module `template.rs` nomme les modules pour leurs
+    migrations seulement (hors du test des crates nommés) ; réchauffement des relations
+    les plus grandes d'abord ; `pg_prewarm` installé dans `template1` de l'instance des
+    bancs par le script `bench` (session principale, option a), les modèles d'avant
+    refaits par la version de forme de l'empreinte plutôt que par une extension ajoutée
+    à la copie (que `kartenn` ne peut créer) ; mesures depuis un point de contrôle frais
+    des deux côtés (session principale) : `template::checkpoint` après la préparation ou
+    la copie réchauffée, `pg_checkpoint` donné à `kartenn` par le script `bench` sur 5433
+    seulement, sans ce droit un avertissement et la suite (le `CHECKPOINT` propre à `core`
+    retiré, sa ligne `INFO` désormais pour tous les bancs) ; ordre d'ancienneté par oid ; sans `--template` (`bench-web`, autre instance que
+    celle des bancs), même chemin sans copie.
 - [ ] 3. Historique local : une ligne JSON par mesure et par passage dans
   `.bench/history.jsonl` à la racine de la copie principale (parent de
   `git rev-parse --git-common-dir`), exclu par `.git/info/exclude` (`/.bench/`, ajouté

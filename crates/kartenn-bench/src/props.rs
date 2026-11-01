@@ -23,7 +23,9 @@ use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
 
 use crate::Dataset;
+use crate::core_budgets::author;
 use crate::measures::{self, Measure, Selection};
+use crate::template::{self, Reuse};
 
 const ORIGINS_EVERY_ROOT: &str = "props.origins-every-root";
 const RESOLUTION: &str = "props.explained-resolution";
@@ -295,34 +297,72 @@ fn store(pool: &PgPool, data: &Dataset) -> PgStore {
     store.with_down_from(down_from.max(1))
 }
 
-/// Loads, assigns and measures what `selection` runs; returns the report and whether every
-/// budget holds.
-///
-/// # Errors
-///
-/// Database or pipeline failures.
-#[allow(clippy::too_many_lines)] // one linear scenario, step by step
-pub async fn run(
-    database: &str,
+/// The prefixes other than the `roots` that the heritable property `key` is assigned on,
+/// 3 % of them.
+async fn others(pool: &PgPool, key: &str, roots: &[(Uuid, Uuid)]) -> anyhow::Result<Vec<Uuid>> {
+    let others: Vec<Uuid> =
+        sqlx::query_scalar("SELECT id FROM prefix WHERE abs(hashtext(id::text || $1)) % 100 < 3")
+            .bind(key)
+            .fetch_all(pool)
+            .await?;
+    Ok(others
+        .into_iter()
+        .filter(|o| !roots.iter().any(|(r, _)| r == o))
+        .collect())
+}
+
+/// The values `v0`…`v9` of `count` heritable assignments, drawn.
+fn heritable_values(count: usize, rng: &mut ChaCha8Rng) -> Vec<u32> {
+    (0..count).map(|_| rng.random_range(0..10)).collect()
+}
+
+/// A non-heritable value on 20 % of the addresses: their indices and values, drawn.
+fn plain_values(data: &Dataset, rng: &mut ChaCha8Rng) -> Vec<(usize, u32)> {
+    let mut values = Vec::new();
+    for a in 0..data.addresses.len() {
+        if rng.random_range(0..100) < 20 {
+            values.push((a, rng.random_range(0..1_000_000)));
+        }
+    }
+    values
+}
+
+/// The draws of the preparation again, without writing: the measures draw what follows
+/// them, in the run that prepares as in the next ones.
+async fn replay(
+    pool: &PgPool,
+    data: &Dataset,
+    roots: &[(Uuid, Uuid)],
+    rng: &mut ChaCha8Rng,
+) -> anyhow::Result<()> {
+    for key in HERITABLE {
+        heritable_values(others(pool, key, roots).await?.len(), rng);
+    }
+    for _ in PLAIN {
+        plain_values(data, rng);
+    }
+    Ok(())
+}
+
+/// The preparation: the dataset loaded, the 10 properties declared and assigned; the
+/// budget of `props.origins-every-root`, the first of these assignments, when it runs.
+async fn write(
+    pool: &PgPool,
     data: &Dataset,
     seed: u64,
     selection: &Selection,
-) -> anyhow::Result<(String, bool)> {
-    let pool = PgPool::connect(database)
-        .await
-        .with_context(|| format!("connecting to {database}"))?;
-    kartenn_store_pg::MIGRATOR.run(&pool).await?;
-    let mut report = String::new();
+) -> anyhow::Result<Vec<Budget>> {
+    kartenn_store_pg::MIGRATOR.run(pool).await?;
     let started = Instant::now();
-    load(&pool, data).await?;
+    load(pool, data).await?;
     progress(&format!("load: {:?}", started.elapsed()));
     let author = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'bench') RETURNING id",
     )
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await?;
     let bench = Bench {
-        store: store(&pool, data),
+        store: store(pool, data),
         pool: pool.clone(),
         author,
     };
@@ -349,20 +389,13 @@ pub async fn run(
                 note: format!("{} objects", touched(&diff)),
             });
         }
-        let others: Vec<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM prefix WHERE abs(hashtext(id::text || $1)) % 100 < 3",
-        )
-        .bind(*key)
-        .fetch_all(&pool)
-        .await?;
-        let others: Vec<Uuid> = others
-            .into_iter()
-            .filter(|o| !roots.iter().any(|(r, _)| r == o))
-            .collect();
-        for chunk in others.chunks(1_000) {
+        let others = others(pool, key, &roots).await?;
+        let values = heritable_values(others.len(), &mut rng);
+        for (chunk, values) in others.chunks(1_000).zip(values.chunks(1_000)) {
             let ops = chunk
                 .iter()
-                .map(|o| assign(*o, property, &format!("v{}", rng.random_range(0..10))))
+                .zip(values)
+                .map(|(o, v)| assign(*o, property, &format!("v{v}")))
                 .collect();
             bench.submit(ops).await?;
         }
@@ -374,27 +407,55 @@ pub async fn run(
     for key in PLAIN {
         let property = bench.property(key).await?;
         let mut rows = String::new();
-        for a in &data.addresses {
-            if rng.random_range(0..100) >= 20 {
-                continue;
-            }
+        for (a, value) in plain_values(data, &mut rng) {
             writeln!(
                 rows,
-                "{}\taddress\t{property}\tvalue\t{}\tinput\t{SINCE}\t{}",
-                a.id,
-                rng.random_range(0..1_000_000),
+                "{}\taddress\t{property}\tvalue\t{value}\tinput\t{SINCE}\t{}",
+                data.addresses[a].id,
                 Uuid::nil()
             )?;
         }
         copy(
-            &pool,
+            pool,
             "COPY property_assignment (object_id, object_type, property_id, kind, v_int, provenance, valid_period, changeset_id) FROM STDIN",
             rows,
         )
         .await?;
     }
-    sqlx::raw_sql("ANALYZE").execute(&pool).await?;
+    sqlx::raw_sql("ANALYZE").execute(pool).await?;
     progress(&format!("all assignments: {:?}", started.elapsed()));
+    Ok(budgets)
+}
+
+/// Prepares the database, or copies its template, and measures what `selection` runs;
+/// returns the report and whether every budget holds.
+///
+/// # Errors
+///
+/// Database or pipeline failures.
+#[allow(clippy::too_many_lines)] // one linear scenario, step by step
+pub async fn run(
+    database: &str,
+    data: &Dataset,
+    seed: u64,
+    selection: &Selection,
+    reuse: &Reuse,
+) -> anyhow::Result<(String, bool)> {
+    let (pool, mut report, written) = template::prepared(database, reuse, async |pool, _| {
+        write(pool, data, seed, selection).await
+    })
+    .await?;
+    // The budget the preparation measured, when it ran.
+    let mut budgets = written.unwrap_or_default();
+    let bench = Bench {
+        store: store(&pool, data),
+        pool: pool.clone(),
+        author: author(&pool).await?,
+    };
+    let roots = bench.roots().await?;
+    // The generator of the preparation: the measures draw what follows its draws.
+    let mut rng = ChaCha8Rng::seed_from_u64(seed);
+    replay(&pool, data, &roots, &mut rng).await?;
 
     let now = OffsetDateTime::now_utc();
     let h: Vec<Uuid> = {
