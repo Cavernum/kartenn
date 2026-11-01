@@ -160,7 +160,7 @@ const actions: ToolbarAction[] = author
           },
         ]"
       />
-      <Grid columns="auto" gap="3" class="k-ecran-attrs-tiles">
+      <Grid columns="auto" gap="3" class="k-attrs-tiles">
         <Attributs
           :items="[
             { key: 'nature', label: 'Nature' },
