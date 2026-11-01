@@ -127,7 +127,7 @@ regardée.
     - doute : une importation non résolue (import ou glob calculé, alias inconnu,
       fichier absent) ouvre la page à tout changement (aucune aujourd'hui, testé) ; un nom
       qu'un module n'exporte pas le prend entier.
-- [ ] 3. `k-web2-check` ciblé : base `origin/main` par défaut, fichiers modifiés et non
+- [x] 3. `k-web2-check` ciblé : base `origin/main` par défaut, fichiers modifiés et non
   suivis ; captures, instantanés et scripts du graphe de la tâche 2 ; prettier, eslint,
   stylelint sur les fichiers touchés ; `vitest --changed` ; vue-tsc complet ; `--all`
   pour tout ; verdict qui dit la sélection (ADR 0042, décisions 1 et 2).
@@ -136,6 +136,49 @@ regardée.
     rend le même verdict qu'avant la tâche.
   - où : `devenv.nix` (`scripts.k-web-check`, `scripts.k-web2-check`).
   - dépend de : 2
+  - fait le 2026-11-01 : `devenv.nix`, `scripts.k-web-check` : `k-web-check [--all |
+    --base <ref>] [args vitest…]`, voie ciblée là où l'espace a `tools/impact/cli.ts`
+    (`web/v2` ; `web/` garde son passage complet, `--all` y est sans effet) ; changement =
+    `git diff --name-only --no-renames <base>...HEAD`, `git diff … HEAD` (indexé et non
+    indexé, suppressions comprises), `git ls-files --others --exclude-standard` ; base
+    introuvable ou sans base commune : `KO`, code 2 ; `scripts/ci.sh` passe
+    `k-web2-check --all`. Essais (`--base HEAD`, un commentaire jeté ; durée dans le
+    créneau, attente exclue) : vue du shell `views/TopologyView.vue` → « ciblé : 0
+    captures sur 2706 (aucune touchée) », 43 s, ni build ni projet `visual` ; composant
+    `Switch.vue` (et un fichier non suivi) → 881 sur 2706 (catalogue `Switch` et
+    `FormField`, cinq scripts clavier, `clavier`, `csp`, `layout`), 4 min 35 s ; maquette
+    `E12Vlan.vue` → 1 157 sur 2706 (`E12`, `csp`, `layout`, `touch`), 4 min 27 s ; jeton
+    `tokens/tokens.css` → « 2706 captures sur 2706 (… ; tout, … the tokens) », lints
+    complets, 14 min 19 s (passé avant que Vitest suive « tout » : `vitest --changed` n'y
+    trouvait aucun test, d'où le choix ci-dessous) ; règle `tools/stylelint/plugins.js`
+    → 0 captures, lints et Vitest complets (640 tests), 48 s ; `--all`, arbre propre →
+    « OK — Tests 640 passed (640) ; captures 2706 passed (15.3m) », la forme d'avant,
+    15 min 56 s. `k-ci-lint` sans constat.
+  - choix :
+    - verdict : `OK — <Tests de Vitest>[, A fichiers de test sur T] ; ciblé : N captures
+      sur M (<passed>[ ; tout, <raison>]) ; K fichiers de <espace> changés depuis <base>` ;
+      N et M comptés par `playwright test --list` (ni build ni serveur) ; une sélection
+      vide ne lance pas le projet `visual` ; « tout » lance le projet entier. `--all` garde
+      le verdict d'avant mot pour mot.
+    - lints et Vitest : lints sur les fichiers changés encore présents (prettier
+      `--ignore-unknown`, eslint `--no-warn-ignored` sur `.js/.ts/.vue`, stylelint sur
+      `.css/.vue`), Vitest en `--changed <base> --passWithNoTests` (Vitest y ajoute
+      l'indexé, le non indexé et le non suivi) ; les deux sur tout l'espace quand le
+      graphe rend « tout » (manifeste, configuration de prettier, eslint, stylelint,
+      Vitest, jetons…) ou qu'un fichier de `tools/` (règles de lint et leurs tests) ou un
+      fichier caché de l'espace (`.prettierignore`) change : `ui/test/tokens.test.ts`,
+      `fonts.test.ts`, `package.test.ts` lisent ces fichiers sur le disque, hors du
+      graphe de modules que suit `--changed`. Des arguments Vitest donnés à l'appel
+      remplacent le filtre.
+  - ouvert : `ui/test/sheets.test.ts` et `ui/test/layout.test.ts` lisent sur le disque
+    les feuilles et les `.vue` des composants (et `EcranCadre.vue`) : un composant changé
+    ne les atteint pas par `vitest --changed`, seul le passage `--all` de la session
+    principale les rejoue. Vitest complet coûte ≈ 13 s : à trancher (Vitest complet en
+    ciblé aussi, ou les feuilles et `.vue` des composants dans les `forceRerunTriggers`
+    de Vitest).
+    - Playwright : specs de la 1re colonne en filtres de fichier, `--grep` = la 2e
+      colonne jointe par `|` ; `--project=visual` (la forme séparée prendrait les specs
+      pour des projets).
 - [ ] 4. Firefox, intégrité après un rechargement : reproduire sous charge l'erreur
   SRI dont l'empreinte est celle d'un corps vide (`shell.spec.ts`, « sidebar collapsed
   stays collapsed after a reload », et la tolérance de `moves.spec.ts`) ; écrire la

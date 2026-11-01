@@ -637,15 +637,38 @@ in {
     '';
   };
 
-  # Same for the frontend (ADR 0024): `k-web-check [vitest args…]`, in ${WEB_DIR:-web}.
-  # Convention: each workspace package defines a `typecheck` script (vue-tsc); vitest
-  # runs from the workspace root (projects).
+  # Same for the frontend (ADR 0024): `k-web-check [--all | --base <ref>] [vitest args…]`,
+  # in ${WEB_DIR:-web}. Convention: each workspace package defines a `typecheck` script
+  # (vue-tsc); vitest runs from the workspace root (projects).
+  # Targeted where the workspace has the impact graph of its captures (web/v2, spec 029,
+  # ADR 0042, decisions 1 and 2): the change is `git diff <base>...HEAD`, the working tree
+  # and the untracked files (base origin/main, deleted files and both sides of a rename
+  # included); prettier, eslint and stylelint on its files of the workspace, Vitest on the
+  # tests it reaches (`vitest --changed`), vue-tsc on everything, and the captures, ARIA
+  # snapshots and keyboard scripts the graph gives (web/v2/tools/impact/cli.ts). The lints
+  # and Vitest run on everything when the graph says « tout » (a configuration, a
+  # manifest, the tokens…: files some unit tests read from the disk, which `vitest
+  # --changed` does not see) or a file of tools/ or a dotfile of the workspace changed.
+  # `--all` checks everything, as before; the verdict says the selection (« ciblé : N
+  # captures sur M »).
   scripts.k-web-check = {
-    description = "prettier, eslint, stylelint and captures (web/v2), vue-tsc and vitest, printing a one-line verdict or the failures only";
+    description = "prettier, eslint, stylelint and captures (web/v2: targeted on the change, --all for everything), vue-tsc and vitest, printing a one-line verdict or the failures only";
     exec = ''
       set -uo pipefail
       export NO_COLOR=1 FORCE_COLOR=0
       [ -n "''${K_HEAVY_HELD:-}" ] || exec k-heavy ${dash} "$0" "$@"
+      all=
+      base=origin/main
+      while [ $# -gt 0 ]; do
+        case $1 in
+          --all) all=1; shift ;;
+          --base=?*) base=''${1#--base=}; shift ;;
+          --base)
+            [ $# -ge 2 ] || { echo "usage: k-web-check [--all | --base <ref>] [vitest args…]" >&2; exit 2; }
+            base=$2; shift 2 ;;
+          *) break ;;
+        esac
+      done
       dir=''${WEB_DIR:-web}
       [ -f "$dir/package.json" ] || { echo "OK — pas de frontend ($dir/package.json absent)"; exit 0; }
       cd "$dir" || exit 1
@@ -657,13 +680,52 @@ in {
         if [ "$n" -gt 0 ]; then grep -E "$3" "$2" | head -20 | sed "s#$PWD/##"; [ "$n" -gt 20 ] && echo "… $((n - 20)) de plus"; else tail -15 "$2"; fi
         exit 1
       }
-      pnpm exec prettier --check . >"$log/prettier" 2>&1 ||
-        ko prettier "$log/prettier" '^\[(warn|error)\]' "pnpm -C $dir exec prettier --write ."
-      pnpm exec eslint . >"$log/eslint" 2>&1 ||
-        ko eslint "$log/eslint" '^/|^ +[0-9]+:[0-9]+ +(error|warning)'
-      # Style lint where the workspace has one (web/v2, spec 020, REQ-020-13).
-      if [ -f stylelint.config.js ]; then
-        pnpm exec stylelint --allow-empty-input '**/*.{css,vue}' >"$log/stylelint" 2>&1 ||
+      targeted=
+      # Lints and Vitest: on everything, or on the change only.
+      scope=all
+      if [ -z "$all" ] && [ -f tools/impact/cli.ts ]; then
+        targeted=1
+        root=$(git rev-parse --show-toplevel) || exit 1
+        prefix=$(git rev-parse --show-prefix) || exit 1
+        if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
+          echo "KO base : « $base » introuvable — git fetch origin, --base <commit> ou --all"
+          exit 2
+        fi
+        # Committed since the merge base, then staged, unstaged and untracked: paths of the
+        # repository, as the graph reads them.
+        { git -C "$root" diff --name-only --no-renames "$base...HEAD" &&
+          git -C "$root" diff --name-only --no-renames HEAD &&
+          git -C "$root" ls-files --others --exclude-standard; } >"$log/changed.git" 2>"$log/git" ||
+          ko git "$log/git" '^(fatal|error)' "--base <commit> ou --all"
+        sort -u "$log/changed.git" >"$log/changed"
+        node tools/impact/cli.ts <"$log/changed" >"$log/impact" 2>"$log/impact.err" ||
+          ko impact "$log/impact.err" 'Error|^impact:'
+        # The changed paths of the workspace, relative to it; those still there, for the lints.
+        sed -n "s#^$prefix##p" "$log/changed" >"$log/workspace"
+        while read -r f; do
+          if [ -f "$f" ]; then echo "$f"; fi
+        done <"$log/workspace" >"$log/files"
+        if [ "$(cat "$log/impact")" != all ] && ! grep -qE '^(tools/|\.)' "$log/workspace"; then scope=change; fi
+      fi
+      if [ "$scope" = all ]; then
+        pnpm exec prettier --check . >"$log/prettier" 2>&1 ||
+          ko prettier "$log/prettier" '^\[(warn|error)\]' "pnpm -C $dir exec prettier --write ."
+        pnpm exec eslint . >"$log/eslint" 2>&1 ||
+          ko eslint "$log/eslint" '^/|^ +[0-9]+:[0-9]+ +(error|warning)'
+        # Style lint where the workspace has one (web/v2, spec 020, REQ-020-13).
+        if [ -f stylelint.config.js ]; then
+          pnpm exec stylelint --allow-empty-input '**/*.{css,vue}' >"$log/stylelint" 2>&1 ||
+            ko stylelint "$log/stylelint" '^[^ ]|^ +[0-9]+:[0-9]+ +✖'
+        fi
+      else
+        # The files the change leaves, each lint on its own kinds; ignored ones stay ignored.
+        xargs -r -d '\n' pnpm exec prettier --check --ignore-unknown <"$log/files" >"$log/prettier" 2>&1 ||
+          ko prettier "$log/prettier" '^\[(warn|error)\]' "pnpm -C $dir exec prettier --write <fichier>"
+        grep -E '\.([cm]?[jt]s|vue)$' "$log/files" >"$log/files.eslint"
+        xargs -r -d '\n' pnpm exec eslint --no-warn-ignored <"$log/files.eslint" >"$log/eslint" 2>&1 ||
+          ko eslint "$log/eslint" '^/|^ +[0-9]+:[0-9]+ +(error|warning)'
+        grep -E '\.(css|vue)$' "$log/files" >"$log/files.stylelint"
+        xargs -r -d '\n' pnpm exec stylelint --allow-empty-input <"$log/files.stylelint" >"$log/stylelint" 2>&1 ||
           ko stylelint "$log/stylelint" '^[^ ]|^ +[0-9]+:[0-9]+ +✖'
       fi
       # Package by package, so that error paths are prefixed with the package directory.
@@ -675,23 +737,59 @@ in {
           sed -E "s#^([^ ][^(]*\([0-9]+,[0-9]+\): error)#''${rel:+$rel/}\1#" >>"$log/tsc" || tsc=1
       done <"$log/packages"
       [ "$tsc" -eq 0 ] || ko vue-tsc "$log/tsc" 'error TS[0-9]+'
+      # Targeted: the tests the change reaches, unless the call names its own.
+      if [ "$scope" = change ] && [ $# -eq 0 ]; then set -- --changed "$base" --passWithNoTests; fi
       pnpm exec vitest run --reporter=dot "$@" >"$log/test" 2>&1 ||
         ko vitest "$log/test" '^ *(FAIL|×)|AssertionError|Expected|Received|Error:|❯ .*:[0-9]+:[0-9]+'
       tests=$(grep -E '^ *Tests ' "$log/test" | tail -1 | sed 's/^ *//')
+      if [ -n "$targeted" ]; then
+        tests=''${tests:-Tests aucun lié au changement}
+        affected=$(sed -nE 's/^ *Affected +([0-9]+) of ([0-9]+) test files.*/\1 fichiers de test sur \2/p' "$log/test" | tail -1)
+        tests="$tests''${affected:+, $affected}"
+      fi
       # Captures of the catalogue where the workspace has them (web/v2, spec 020, REQ-020-26):
       # the Playwright project `visual` against `vite preview` on 127.0.0.1, at
       # KARTENN_PREVIEW_PORT or a port free at start (worktrees side by side).
-      if [ -d e2e/visual ]; then
+      hint="k-web-shots --update, puis relire les images"
+      visual='^ *[0-9]+\) |Error:|pixels|^ *at .*:[0-9]+:[0-9]+'
+      if [ -d e2e/visual ] && [ -z "$targeted" ]; then
         pnpm -C e2e exec playwright test --project visual --reporter=line >"$log/visual" 2>&1 ||
-          ko visual "$log/visual" '^ *[0-9]+\) |Error:|pixels|^ *at .*:[0-9]+:[0-9]+' "k-web-shots --update, puis relire les images"
+          ko visual "$log/visual" "$visual" "$hint"
         tests="$tests ; captures $(grep -E '^ *[0-9]+ passed' "$log/visual" | tail -1 | sed 's/^ *//')"
+      elif [ -d e2e/visual ]; then
+        # The graph's targets: `all`, or `<spec>\t<grep>` per line (none: the captures do
+        # not start, nor the build of the catalogue). M and N from `--list`, which
+        # neither builds nor serves.
+        pnpm -C e2e exec playwright test --list --project=visual >"$log/list" 2>&1 ||
+          ko list "$log/list" 'Error'
+        total=$(sed -nE 's/^Total: ([0-9]+) tests? in .*/\1/p' "$log/list")
+        if [ "$(cat "$log/impact")" = all ]; then
+          pnpm -C e2e exec playwright test --project=visual --reporter=line >"$log/visual" 2>&1 ||
+            ko visual "$log/visual" "$visual" "$hint"
+          why=$(sed -n 's/^impact: //p' "$log/impact.err" | head -1)
+          selection="$total captures sur $total ($(grep -E '^ *[0-9]+ passed' "$log/visual" | tail -1 | sed 's/^ *//') ; tout, $why)"
+        elif [ ! -s "$log/impact" ]; then
+          selection="0 captures sur $total (aucune touchée)"
+        else
+          grep=$(cut -f2 "$log/impact" | paste -sd '|')
+          cut -f1 "$log/impact" | sort -u >"$log/specs"
+          set --
+          while read -r spec; do set -- "$@" "$spec"; done <"$log/specs"
+          pnpm -C e2e exec playwright test --list --project=visual --grep "$grep" "$@" >"$log/list.selected" 2>&1 ||
+            ko list "$log/list.selected" 'Error'
+          selected=$(sed -nE 's/^Total: ([0-9]+) tests? in .*/\1/p' "$log/list.selected")
+          pnpm -C e2e exec playwright test --project=visual --reporter=line --grep "$grep" "$@" >"$log/visual" 2>&1 ||
+            ko visual "$log/visual" "$visual" "$hint"
+          selection="$selected captures sur $total ($(grep -E '^ *[0-9]+ passed' "$log/visual" | tail -1 | sed 's/^ *//'))"
+        fi
+        tests="$tests ; ciblé : $selection ; $(wc -l <"$log/workspace") fichiers de $dir changés depuis $base"
       fi
       echo "OK — $tests"
     '';
   };
   # The new shell (spec 021, « Migration »): the same checks on its own workspace.
   scripts.k-web2-check = {
-    description = "k-web-check on the workspace of the new shell (web/v2)";
+    description = "k-web-check on the workspace of the new shell (web/v2): targeted on the change since origin/main, --all for everything";
     exec = ''WEB_DIR=web/v2 exec k-web-check "$@"'';
   };
   scripts.k-web2-e2e = {
