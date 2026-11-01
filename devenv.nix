@@ -643,14 +643,12 @@ in {
   # Targeted where the workspace has the impact graph of its captures (web/v2, spec 029,
   # ADR 0042, decisions 1 and 2): the change is `git diff <base>...HEAD`, the working tree
   # and the untracked files (base origin/main, deleted files and both sides of a rename
-  # included); prettier, eslint and stylelint on its files of the workspace, Vitest on the
-  # tests it reaches (`vitest --changed`), vue-tsc on everything, and the captures, ARIA
-  # snapshots and keyboard scripts the graph gives (web/v2/tools/impact/cli.ts). The lints
-  # and Vitest run on everything when the graph says « tout » (a configuration, a
-  # manifest, the tokens…: files some unit tests read from the disk, which `vitest
-  # --changed` does not see) or a file of tools/ or a dotfile of the workspace changed.
-  # `--all` checks everything, as before; the verdict says the selection (« ciblé : N
-  # captures sur M »).
+  # included); prettier, eslint and stylelint on its files of the workspace, vue-tsc and
+  # Vitest on everything, and the captures, ARIA snapshots and keyboard scripts the graph
+  # gives (web/v2/tools/impact/cli.ts). The lints run on everything when the graph says
+  # « tout » (a configuration, a manifest…) or a file of tools/ or a dotfile of the
+  # workspace changed. `--all` checks everything, as before; the verdict says the
+  # selection (« ciblé : N captures sur M »).
   scripts.k-web-check = {
     description = "prettier, eslint, stylelint and captures (web/v2: targeted on the change, --all for everything), vue-tsc and vitest, printing a one-line verdict or the failures only";
     exec = ''
@@ -681,7 +679,7 @@ in {
         exit 1
       }
       targeted=
-      # Lints and Vitest: on everything, or on the change only.
+      # Lints: on everything, or on the files of the change only.
       scope=all
       if [ -z "$all" ] && [ -f tools/impact/cli.ts ]; then
         targeted=1
@@ -737,16 +735,11 @@ in {
           sed -E "s#^([^ ][^(]*\([0-9]+,[0-9]+\): error)#''${rel:+$rel/}\1#" >>"$log/tsc" || tsc=1
       done <"$log/packages"
       [ "$tsc" -eq 0 ] || ko vue-tsc "$log/tsc" 'error TS[0-9]+'
-      # Targeted: the tests the change reaches, unless the call names its own.
-      if [ "$scope" = change ] && [ $# -eq 0 ]; then set -- --changed "$base" --passWithNoTests; fi
+      # Whole, targeted or not (ADR 0042, decision 2): some tests read the tokens, the
+      # sheets and the .vue files from the disk, which `vitest --changed` does not follow.
       pnpm exec vitest run --reporter=dot "$@" >"$log/test" 2>&1 ||
         ko vitest "$log/test" '^ *(FAIL|×)|AssertionError|Expected|Received|Error:|❯ .*:[0-9]+:[0-9]+'
       tests=$(grep -E '^ *Tests ' "$log/test" | tail -1 | sed 's/^ *//')
-      if [ -n "$targeted" ]; then
-        tests=''${tests:-Tests aucun lié au changement}
-        affected=$(sed -nE 's/^ *Affected +([0-9]+) of ([0-9]+) test files.*/\1 fichiers de test sur \2/p' "$log/test" | tail -1)
-        tests="$tests''${affected:+, $affected}"
-      fi
       # Captures of the catalogue where the workspace has them (web/v2, spec 020, REQ-020-26):
       # the Playwright project `visual` against `vite preview` on 127.0.0.1, at
       # KARTENN_PREVIEW_PORT or a port free at start (worktrees side by side).

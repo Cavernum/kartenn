@@ -129,7 +129,8 @@ regardée.
       qu'un module n'exporte pas le prend entier.
 - [x] 3. `k-web2-check` ciblé : base `origin/main` par défaut, fichiers modifiés et non
   suivis ; captures, instantanés et scripts du graphe de la tâche 2 ; prettier, eslint,
-  stylelint sur les fichiers touchés ; `vitest --changed` ; vue-tsc complet ; `--all`
+  stylelint sur les fichiers touchés ; Vitest complet (décision 2 amendée, au lieu de
+  `vitest --changed`) ; vue-tsc complet ; `--all`
   pour tout ; verdict qui dit la sélection (ADR 0042, décisions 1 et 2).
   - verify : essais sur quatre diffs jetables (un composant, une maquette, un jeton,
     une vue du shell hors maquettes) avec la sélection attendue et la durée ; `--all`
@@ -149,33 +150,29 @@ regardée.
     `FormField`, cinq scripts clavier, `clavier`, `csp`, `layout`), 4 min 35 s ; maquette
     `E12Vlan.vue` → 1 157 sur 2706 (`E12`, `csp`, `layout`, `touch`), 4 min 27 s ; jeton
     `tokens/tokens.css` → « 2706 captures sur 2706 (… ; tout, … the tokens) », lints
-    complets, 14 min 19 s (passé avant que Vitest suive « tout » : `vitest --changed` n'y
-    trouvait aucun test, d'où le choix ci-dessous) ; règle `tools/stylelint/plugins.js`
-    → 0 captures, lints et Vitest complets (640 tests), 48 s ; `--all`, arbre propre →
-    « OK — Tests 640 passed (640) ; captures 2706 passed (15.3m) », la forme d'avant,
-    15 min 56 s. `k-ci-lint` sans constat.
+    complets, 14 min 19 s (passé avec `vitest --changed`, qui n'y trouvait aucun test,
+    d'où le choix ci-dessous) ; règle `tools/stylelint/plugins.js` → 0 captures, lints
+    complets, 48 s ; `--all`, arbre propre → « OK — Tests 640 passed (640) ; captures
+    2706 passed (15.3m) », la forme d'avant, 15 min 56 s. Après le passage à Vitest
+    complet : composant `Switch.vue` → « OK — Tests 640 passed (640) ; ciblé : 881 captures sur
+    2706 (881 passed (4.0m)) », 4 min 32 s. `k-ci-lint` sans constat.
   - choix :
-    - verdict : `OK — <Tests de Vitest>[, A fichiers de test sur T] ; ciblé : N captures
+    - verdict : `OK — <Tests de Vitest> ; ciblé : N captures
       sur M (<passed>[ ; tout, <raison>]) ; K fichiers de <espace> changés depuis <base>` ;
       N et M comptés par `playwright test --list` (ni build ni serveur) ; une sélection
       vide ne lance pas le projet `visual` ; « tout » lance le projet entier. `--all` garde
       le verdict d'avant mot pour mot.
-    - lints et Vitest : lints sur les fichiers changés encore présents (prettier
-      `--ignore-unknown`, eslint `--no-warn-ignored` sur `.js/.ts/.vue`, stylelint sur
-      `.css/.vue`), Vitest en `--changed <base> --passWithNoTests` (Vitest y ajoute
-      l'indexé, le non indexé et le non suivi) ; les deux sur tout l'espace quand le
-      graphe rend « tout » (manifeste, configuration de prettier, eslint, stylelint,
-      Vitest, jetons…) ou qu'un fichier de `tools/` (règles de lint et leurs tests) ou un
-      fichier caché de l'espace (`.prettierignore`) change : `ui/test/tokens.test.ts`,
-      `fonts.test.ts`, `package.test.ts` lisent ces fichiers sur le disque, hors du
-      graphe de modules que suit `--changed`. Des arguments Vitest donnés à l'appel
-      remplacent le filtre.
-  - ouvert : `ui/test/sheets.test.ts` et `ui/test/layout.test.ts` lisent sur le disque
-    les feuilles et les `.vue` des composants (et `EcranCadre.vue`) : un composant changé
-    ne les atteint pas par `vitest --changed`, seul le passage `--all` de la session
-    principale les rejoue. Vitest complet coûte ≈ 13 s : à trancher (Vitest complet en
-    ciblé aussi, ou les feuilles et `.vue` des composants dans les `forceRerunTriggers`
-    de Vitest).
+    - lints : sur les fichiers changés encore présents (prettier `--ignore-unknown`,
+      eslint `--no-warn-ignored` sur `.js/.ts/.vue`, stylelint sur `.css/.vue`) ; sur
+      tout l'espace quand le graphe rend « tout » (manifeste, configuration de prettier,
+      eslint, stylelint…) ou qu'un fichier de `tools/` (règles de lint) ou un fichier
+      caché de l'espace (`.prettierignore`) change.
+    - Vitest complet, ciblé ou non (choix de la session principale, ADR 0042,
+      décision 2 amendée) : `vitest --changed` ne suit que le graphe de modules, et
+      `ui/test/tokens.test.ts`, `fonts.test.ts`, `package.test.ts`, `sheets.test.ts`,
+      `layout.test.ts` lisent jetons, feuilles et `.vue` sur le disque (l'essai du jeton
+      n'y trouvait aucun test) ; ≈ 13 s. Des arguments Vitest donnés à l'appel restent
+      prioritaires.
     - Playwright : specs de la 1re colonne en filtres de fichier, `--grep` = la 2e
       colonne jointe par `|` ; `--project=visual` (la forme séparée prendrait les specs
       pour des projets).
