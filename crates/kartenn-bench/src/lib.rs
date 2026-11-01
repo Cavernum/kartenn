@@ -16,6 +16,7 @@ use rand_chacha::ChaCha8Rng;
 use uuid::Uuid;
 
 pub mod affected;
+pub mod bisect;
 pub mod core_budgets;
 pub mod events_budgets;
 pub mod flow_budgets;

@@ -32,9 +32,10 @@ use crate::template;
 const BENCH_CRATE: &str = "kartenn-bench";
 
 /// The files of `kartenn-bench` that time nothing a change of them could slow down: the
-/// selection of the measures, the history, this table.
+/// selection of the measures, the history, the bisection, this table.
 const UNMEASURED: &[&str] = &[
     "crates/kartenn-bench/src/affected.rs",
+    "crates/kartenn-bench/src/bisect.rs",
     "crates/kartenn-bench/src/history.rs",
     "crates/kartenn-bench/src/measures.rs",
 ];
@@ -577,6 +578,7 @@ mod tests {
     /// The modules neither the measures nor the derivation go through.
     const OUTSIDE: &[&str] = &[
         "affected.rs",
+        "bisect.rs",
         "history.rs",
         "measures.rs",
         "lib.rs",
@@ -961,11 +963,12 @@ mod tests {
         ] {
             assert_eq!(touched(path), Touch::Every, "{path}");
         }
-        // Its tests, the selection, the history and this table: nothing.
+        // Its tests, the selection, the history, the bisection and this table: nothing.
         for path in [
             "crates/kartenn-bench/tests/it/only.rs",
             "crates/kartenn-bench/src/measures.rs",
             "crates/kartenn-bench/src/history.rs",
+            "crates/kartenn-bench/src/bisect.rs",
             "crates/kartenn-bench/src/affected.rs",
         ] {
             assert_eq!(touched(path), Touch::Nothing, "{path}");

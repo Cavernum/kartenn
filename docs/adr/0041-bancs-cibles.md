@@ -138,7 +138,7 @@ Conséquences constatées les 2026-10-30 et 31 :
    `.bench/history.jsonl`, à la racine de la copie principale. Le chemin se déduit de
    `git rev-parse --git-common-dir` : le parent de ce dossier. Tous les worktrees
    écrivent donc dans le même fichier. Le fichier est exclu par `.git/info/exclude`,
-   commun aux worktrees (entrée `/.bench/` ajoutée par le script si elle manque), et
+   commun aux worktrees (entrée `/.bench/` ajoutée par le programme si elle manque), et
    n'est jamais versionné.
    - Une ligne porte : date, commit, arbre modifié ou non, banc, mesure, échelle,
      graine, valeur, unité, seuil, verdict et charge de la machine au départ.
@@ -157,6 +157,23 @@ Conséquences constatées les 2026-10-30 et 31 :
      au départ. Les lignes d'un passage partent en une seule écriture, en ajout, sous
      verrou exclusif du fichier (`flock`) : deux worktrees n'entrelacent ni ne tronquent
      jamais une ligne.
+   - Précisé à la tâche 5 :
+     - le verrou est `flock(2)` sur le fichier lui-même, celui que prend `flock(1)` : tout
+       autre écrivain, script compris, le prend aussi. Une écriture interrompue (passage
+       tué) laisse un fragment sans fin de ligne ; l'écriture suivante commence alors par
+       une fin de ligne, et le fragment est compté illisible ;
+     - `limit` est une borne incluse : une valeur égale passe. C'est un plafond, sauf pour
+       un débit (`/s`), où c'est un plancher. Un budget strict s'écrit avec sa plus grande
+       valeur permise (dictionnaire des libellés : moins de 1 Mo, `limit` 999 999 octets) ;
+     - `pass` ou `fail` avec `limit: null` : le verdict porte sur une condition, la valeur
+       n'est que rapportée (index de période système utilisable, valeur : la lecture d'un
+       jour). Seul `verdict` dit si le budget tient ;
+     - la charge est lue par le script avant la compilation du passage (`K_BENCH_LOAD`),
+       sinon par le programme à son démarrage : la compilation n'y compte pas ;
+     - code de sortie : 0 si tout tient, 1 si un budget est dépassé ou sur une autre
+       erreur, 3 si l'historique ne s'écrit pas (après le rapport et le verdict des
+       budgets). La bissection lit les verdicts dans l'historique, jamais dans le code de
+       sortie.
 
 5. **Bissection.** `bench-bisect <mesure> [--good <rev>] [--bad <rev>]` lance
    `git bisect run` dans un worktree dédié, puis le supprime.
@@ -169,6 +186,29 @@ Conséquences constatées les 2026-10-30 et 31 :
    - **Commit qui ne compile pas** : sauté (code 125).
    - **Conditions** : machine libre (`k-heavy --status`), sous le verrou des bancs et
      avec un créneau, avec le chien de garde `K_BENCH_STALL`.
+   - Précisé à la tâche 5 :
+     - le mauvais commit est `HEAD` par défaut. Le bon, tiré de l'historique : le dernier
+       passage de la mesure à l'échelle de `K_BENCH_SCALE`, sur un arbre non modifié, où
+       aucun de ses budgets n'a dépassé (ou celui de `--budget`), à un ancêtre du
+       mauvais ;
+     - le worktree vit sous `.bench/` de la copie principale, son `target` cloné de celui
+       de la copie qui lance (`k-target-seed`). Les passages, par le script du banc
+       (copie du modèle du commit, chien de garde), écrivent dans un historique propre à
+       la bissection (`K_BENCH_HISTORY`, soit `--history=<fichier>`), jamais dans celui
+       de la copie, puis le tout est supprimé ;
+     - une mesure peut rendre plusieurs budgets : la bissection en suit un. Par défaut,
+       celui que le mauvais commit dépasse (dans la majorité de ses trois passages) ; s'il
+       en dépasse plusieurs, ou aucun (dérive), celui dont les médianes s'écartent le
+       plus, relativement à la bonne. `--budget` le nomme. Les deux bornes sont mesurées
+       avant la bissection ; un écart sous 10 % est dans le bruit, rien n'est bissecté ;
+     - un commit est mauvais quand sa médiane est du côté de la mauvaise, le milieu
+       compris. Un commit qui ne compile pas, ou dont la mesure ne rend aucun chiffre du
+       budget suivi (mesure absente, passage en échec), est sauté (125) ;
+     - machine occupée (`k-heavy --status`) : refus (code 75), sauf `K_BISECT_BUSY=1`
+       (mesures moins sûres) ; le verrou des bancs et un créneau sont tenus toute la
+       bissection ;
+     - la bissection remonte jusqu'aux commits dont `kartenn-bench` connaît `--only` et
+       `--history=<fichier>` (tâche 3) : plus loin, les commits sont sautés.
 
 6. **Rythme.**
    - **Tâche qui touche du Rust exercé par un banc** : son agent lance `bench-affected`

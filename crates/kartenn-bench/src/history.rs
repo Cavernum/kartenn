@@ -12,11 +12,18 @@
 //!
 //! Two worktrees may write at the same moment: the lines of a run are written by a single
 //! write, in append mode, under an exclusive lock of the file; a line is never interleaved
-//! with another nor cut.
+//! with another nor cut. The lock is `flock(2)` on the file itself, the one `flock(1)`
+//! takes: any other writer, a script included, takes it too. A write cut short (a run
+//! killed) leaves a fragment without its end of line: the next write starts on a line of
+//! its own, the fragment is counted unreadable.
+//!
+//! A `limit` is inclusive: a value at the limit passes. It is an upper bound, but for a
+//! rate (`/s`), a lower one. A figure may have a verdict without a limit: its verdict is a
+//! condition (an index usable), its value only reported (the duration of the read).
 
 use std::fmt::Write as _;
 use std::fs::{File, OpenOptions};
-use std::io::{Read as _, Write as _};
+use std::io::{Read as _, Seek as _, SeekFrom, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
@@ -72,7 +79,7 @@ impl Unit {
 
     /// `value` for a reader: a duration as the report prints it, else the number and the
     /// unit.
-    fn show(self, value: f64) -> String {
+    pub fn show(self, value: f64) -> String {
         match self {
             _ if !value.is_finite() => "?".into(),
             Self::Seconds => format!("{:.2?}", Duration::from_secs_f64(value.max(0.0))),
@@ -353,18 +360,31 @@ fn now() -> String {
         .unwrap_or_default()
 }
 
-/// The load average of the machine over a minute, if the system gives it.
+/// The variable through which a script gives the load it read before compiling the run.
+pub const LOAD_VARIABLE: &str = "K_BENCH_LOAD";
+
+/// The load average of the machine over a minute when the run started: `K_BENCH_LOAD`
+/// when a script read it before compiling (the build would count in it otherwise), else
+/// the system's now, if it gives it.
 pub fn load() -> Option<f64> {
-    std::fs::read_to_string("/proc/loadavg")
-        .ok()?
-        .split_whitespace()
+    match std::env::var(LOAD_VARIABLE) {
+        Ok(given) => load_of(&given),
+        Err(_) => load_of(&std::fs::read_to_string("/proc/loadavg").ok()?),
+    }
+}
+
+/// The first field of `/proc/loadavg` (or the value of `K_BENCH_LOAD`), if it is a
+/// number.
+fn load_of(text: &str) -> Option<f64> {
+    text.split_whitespace()
         .next()?
         .parse()
         .ok()
+        .filter(|l: &f64| l.is_finite() && *l >= 0.0)
 }
 
 /// `git -C dir <args>`, its standard output trimmed.
-fn git(dir: &Path, args: &[&str]) -> anyhow::Result<String> {
+pub(crate) fn git(dir: &Path, args: &[&str]) -> anyhow::Result<String> {
     let output = Command::new("git")
         .arg("-C")
         .arg(dir)
@@ -456,7 +476,8 @@ pub fn prepare(dir: &Path) -> anyhow::Result<PathBuf> {
 }
 
 /// Appends the lines of `entries` to `path` (its directory created): one write in append
-/// mode, under an exclusive lock of the file.
+/// mode, under an exclusive lock of the file, after an end of line when the file does not
+/// end with one (a write cut short).
 ///
 /// # Errors
 ///
@@ -468,17 +489,27 @@ pub fn append(path: &Path, entries: &[Entry]) -> anyhow::Result<()> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
-    let mut lines = String::new();
-    for entry in entries {
-        lines.push_str(&entry.line());
-        lines.push('\n');
-    }
     let mut file = OpenOptions::new()
+        .read(true)
         .append(true)
         .create(true)
         .open(path)
         .with_context(|| format!("opening {}", path.display()))?;
     file.lock()?;
+    // Read under the lock: the last byte another writer left.
+    let mut lines = String::new();
+    if file.metadata()?.len() > 0 {
+        let mut last = [0_u8];
+        file.seek(SeekFrom::End(-1))?;
+        file.read_exact(&mut last)?;
+        if last[0] != b'\n' {
+            lines.push('\n');
+        }
+    }
+    for entry in entries {
+        lines.push_str(&entry.line());
+        lines.push('\n');
+    }
     file.write_all(lines.as_bytes())?;
     file.flush()?;
     Ok(())
@@ -843,5 +874,37 @@ mod tests {
             .unwrap();
         let (entries, unread) = read(&path).unwrap();
         assert_eq!((entries.len(), unread), (1, 1));
+    }
+
+    #[test]
+    fn a_fragment_without_its_end_of_line_stays_alone() {
+        let scratch = Scratch::new("fragment");
+        let path = scratch.0.join(FILE);
+        append(&path, &[Entry::of(&run(), &figure("a"))]).unwrap();
+        // A run killed in the middle of its write.
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .unwrap()
+            .write_all(b"{\"date\":\"2026-11")
+            .unwrap();
+        append(&path, &[Entry::of(&run(), &figure("b"))]).unwrap();
+        append(&path, &[Entry::of(&run(), &figure("c"))]).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(text.lines().count(), 4);
+        assert!(text.ends_with('\n') && !text.contains("\n\n"));
+        let (entries, unread) = read(&path).unwrap();
+        let budgets: Vec<_> = entries.iter().map(|e| e.budget.as_str()).collect();
+        assert_eq!((budgets, unread), (vec!["a", "b", "c"], 1));
+    }
+
+    #[test]
+    fn the_load_is_the_first_field() {
+        assert_eq!(load_of("3.25 2.10 1.00 2/900 4242\n"), Some(3.25));
+        assert_eq!(load_of("0.5"), Some(0.5));
+        assert_eq!(load_of(""), None);
+        assert_eq!(load_of("high"), None);
+        assert_eq!(load_of("-1"), None);
+        assert_eq!(load_of("NaN"), None);
     }
 }
