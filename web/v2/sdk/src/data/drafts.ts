@@ -200,7 +200,13 @@ export function createDrafts(deps: DraftDeps) {
   const update = async (id: string, change: DraftChange): Promise<DraftOutcome<DraftChange>> => {
     try {
       const ifMatch = await etagOf(id);
-      const answer = await client.request("PATCH", path(id), { body: change, ifMatch });
+      // The contract takes the change as `application/json` (each member replaces its own),
+      // not as a merge patch.
+      const answer = await client.request("PATCH", path(id), {
+        body: change,
+        ifMatch,
+        merge: false,
+      });
       return await saved(answer.data as Draft, answer.etag);
     } catch (error) {
       return failure(id, error, change);
