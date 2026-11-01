@@ -24,6 +24,7 @@ import {
   editability,
   EDITS,
   modificationField,
+  patchOf,
   textOf,
   valueOf,
   type EditField,
@@ -298,7 +299,7 @@ export function useInlineEdit({ collection, rows, t, sentence, say }: InlineDeps
     const outcome = await write
       .quick({
         key: keys.object(collection().kind, ask.row),
-        patch: { [field.name]: value },
+        patch: patchOf([field], { [field.name]: value }),
         motive,
         ...(ask.version ? { ifMatch: `"${ask.version}"` } : {}),
       })

@@ -57,6 +57,8 @@ export const DATA = {
   bulk: { prefix: "2001:db8:2::/64", count: 1000 },
   /** A container with 1 000 direct children: the virtualised tree, its pages. */
   wide: { prefix: "2001:db8:3::/48", count: 1000 },
+  /** A group of VLAN anchored on the domain, and one VLAN in it (026). */
+  vlan: { group: "campus", vid: 10, name: "serveurs" },
 } as const;
 
 /** The addresses of the long list: 2001:db8:2::1 onwards. */

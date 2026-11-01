@@ -42,10 +42,18 @@ import { useI18n } from "vue-i18n";
 import { useInfiniteQuery, useQuery } from "../../data/query.ts";
 import { useSession } from "../../rights/index.ts";
 import { useTime } from "../../time/index.ts";
-import { collectionById, nameOf, type CollectionId, type Item } from "../collections.ts";
+import {
+  collectionById,
+  collectionOfKind,
+  nameOf,
+  type CollectionId,
+  type Item,
+} from "../collections.ts";
 import ProblemState from "../../problems/ProblemState.vue";
+import { problemCode, useProblems } from "../../problems/index.ts";
 import { rowsOf, useKeyLabel } from "../data.ts";
 import {
+  ANCHOR_KINDS,
   applyRight,
   changesOf,
   checkValue,
@@ -63,6 +71,7 @@ import { useMoves, type MoveOutcome } from "./moves.ts";
 import { closeEdit, type ShownRequest } from "./panel.ts";
 import RefusalAlert from "./RefusalAlert.vue";
 import { useSay } from "./say.ts";
+import { nextFreeVid } from "./vlan.ts";
 
 const props = defineProps<{ request: ShownRequest }>();
 const { t, te } = useI18n();
@@ -92,33 +101,47 @@ const record = useQuery(() => ({
 const item = computed(() => (record.data.value as Entry<Item> | undefined)?.data ?? null);
 const name = computed(() => (item.value ? nameOf(item.value) : ""));
 
-// The objects a reference may name: the domains, the parents of an entity or a site.
-const targets = computed(() => [
-  ...new Set(fields.value.flatMap((field) => (field.target ? [field.target] : []))),
-]);
-const domainsRead = useInfiniteQuery(() => ({
-  ...reads.list("/v1/domains"),
-  enabled: targets.value.includes("domains"),
-}));
-const nodesPath = computed(() =>
-  targets.value.includes("entities") ? "/v1/entities" : "/v1/sites",
+// The objects a reference may name: the domains, the parents of an entity or a site, the
+// group of a VLAN; an anchor, an entity, a site or a domain (026 V3).
+const targets = computed(
+  () =>
+    new Set(
+      fields.value.flatMap((field): CollectionId[] =>
+        field.kind === "anchor"
+          ? ["entities", "sites", "domains"]
+          : field.target
+            ? [field.target]
+            : [],
+      ),
+    ),
 );
-const nodesRead = useInfiniteQuery(() => ({
-  ...reads.list(nodesPath.value as "/v1/entities"),
-  enabled: targets.value.includes("entities") || targets.value.includes("sites"),
-}));
+const targetRead = (id: CollectionId) =>
+  useInfiniteQuery(() => ({
+    ...reads.list(collectionById(id)!.path as "/v1/domains"),
+    enabled: targets.value.has(id),
+  }));
+const READS: Partial<Record<CollectionId, ReturnType<typeof targetRead>>> = {
+  domains: targetRead("domains"),
+  entities: targetRead("entities"),
+  sites: targetRead("sites"),
+  "vlan-groups": targetRead("vlan-groups"),
+};
+const itemsOf = (id: CollectionId) => rowsOf(READS[id]?.data.value as never) as unknown as Item[];
+/** The read of the nodes a move chooses among: the entities or the sites. */
+const nodesRead = computed(() => READS[collection.value.id === "sites" ? "sites" : "entities"]!);
 // A move reads the pages after the first (ten at most): every valid target offered, and the
 // ancestors of each known for the check of a cycle.
 const MOVE_PAGES = 10;
 watchEffect(() => {
+  const nodes = nodesRead.value;
   if (
     moving.value &&
-    nodesRead.hasNextPage.value &&
-    !nodesRead.isFetching.value &&
-    !nodesRead.isFetchNextPageError.value &&
-    (nodesRead.data.value?.pages.length ?? 0) < MOVE_PAGES
+    nodes.hasNextPage.value &&
+    !nodes.isFetching.value &&
+    !nodes.isFetchNextPageError.value &&
+    (nodes.data.value?.pages.length ?? 0) < MOVE_PAGES
   ) {
-    void nodesRead.fetchNextPage();
+    void nodes.fetchNextPage();
   }
 });
 /**
@@ -138,8 +161,19 @@ function optionsOf(field: EditField): ListOption[] {
       return { value: key, label: te(words) ? t(words) : key, detail: key };
     });
   }
-  const read = field.target === "domains" ? domainsRead : nodesRead;
-  const items = rowsOf(read.data.value as never) as unknown as Item[];
+  if (field.kind === "anchor") {
+    return ANCHOR_KINDS.flatMap((kind) => {
+      const of = collectionOfKind(kind)!;
+      const words = keyLabel("kind", of.type) ?? kind;
+      return itemsOf(of.id).map((i) => ({
+        value: `${kind}:${String(i.id)}`,
+        label: nameOf(i),
+        detail: words,
+        mono: true,
+      }));
+    });
+  }
+  const items = field.target ? itemsOf(field.target) : [];
   // A move lists the valid targets only (REQ-021-32): the others are not offered at all.
   const valid = (id: string | null, label: string) =>
     !moving.value || moves.canMove(movedNode.value, id === null ? null : { id, label }).ok;
@@ -163,7 +197,7 @@ watch(moveValue, (value) => {
 // « Changer de parent… »: the node moved, its parent read, and the ancestors of each target
 // as the pages read show them (a cycle beyond them is the server's to refuse).
 const parentIds = computed(() => {
-  const items = rowsOf(nodesRead.data.value as never) as unknown as Item[];
+  const items = rowsOf(nodesRead.value.data.value as never) as unknown as Item[];
   return new Map(items.map((i) => [String(i.id), textOf(i.parent) || null]));
 });
 const movedNode = computed(() => ({ id: objectId.value ?? "", label: name.value }));
@@ -223,7 +257,48 @@ watch(
 function setValue(name: string, value: string | boolean): void {
   values.value = { ...values.value, [name]: value };
   idempotencyKey = crypto.randomUUID();
+  if (name === "vid") vidProposed.value = null;
 }
+
+// A VLAN created (026, REQ-008-20): the VID proposed is the next free one of the group
+// chosen, until the user types one.
+const vidProposed = ref<string | null>(null);
+const { sentence } = useProblems();
+watch(
+  () => (creating.value && chosenKind.value === "vlans" ? String(values.value.group ?? "") : ""),
+  async (group) => {
+    if (group === "" || (values.value.vid !== "" && vidProposed.value === null)) return;
+    let vid: number | null;
+    try {
+      vid = await nextFreeVid(group);
+    } catch (error) {
+      // No VID proposed: why, said by the status of the panel (`problems/`).
+      if (values.value.group === group) {
+        const code = problemCode(error);
+        notice.value = t("edit.vlan.vidUnread", {
+          why: code ? `${sentence(error)} (${code})` : sentence(error),
+        });
+      }
+      return;
+    }
+    if (vid === null || values.value.group !== group) return;
+    if (values.value.vid !== "" && vidProposed.value === null) return;
+    values.value = { ...values.value, vid: String(vid) };
+    vidProposed.value = group;
+    // The value changed under the user: said by the status of the panel (4.1.3).
+    notice.value = t("edit.vlan.vidSaid", { vid });
+  },
+  // A group given beforehand (« Créer un VLAN » of a group) proposes its VID at once.
+  { immediate: true },
+);
+const hintOf = (field: EditField) =>
+  field.name === "vid" && vidProposed.value !== null
+    ? t("edit.vlan.vidProposed", {
+        group: optionsOf(fields.value.find((f) => f.name === "group")!).find(
+          (o) => o.value === vidProposed.value,
+        )?.label,
+      })
+    : undefined;
 
 // The action of the split button: to the draft by default; « Appliquer » with the right.
 const action = ref("draft");
@@ -306,7 +381,7 @@ const labelOf = (field: EditField) => t(`views.field.${field.name}`);
 const shownText = (field: EditField, value: unknown) => {
   const text = textOf(value);
   if (field.kind === "flag") return t(`views.value.boolean.${value === true}`);
-  if (field.kind === "reference") {
+  if (field.kind === "reference" || field.kind === "anchor") {
     return optionsOf(field).find((o) => o.value === text)?.label ?? text;
   }
   return text || "—";
@@ -575,12 +650,14 @@ watch(
           mono
         />
         <Select
-          v-else-if="field.kind === 'choice' || field.kind === 'reference'"
+          v-else-if="
+            field.kind === 'choice' || field.kind === 'reference' || field.kind === 'anchor'
+          "
           class="k-edit-panel__field"
           :model-value="selectValue(field)"
           :label="labelOf(field)"
           :options="optionsOf(field)"
-          :mono="field.kind === 'reference'"
+          :mono="field.kind !== 'choice'"
           :required="field.required === true"
           :error="errors[field.name]"
           @update:model-value="setValue(field.name, fromSelect($event))"
@@ -593,6 +670,7 @@ watch(
           :mono="field.mono === true"
           :required="field.required === true"
           :error="errors[field.name]"
+          :hint="hintOf(field)"
           @update:model-value="setValue(field.name, $event)"
         />
       </template>

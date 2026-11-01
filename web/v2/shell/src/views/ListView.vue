@@ -19,6 +19,7 @@ import {
   FilterPicker,
   Kbd,
   KeyLabel,
+  StatusBadge,
   type CellRef,
   type GridColumn,
 } from "@kartenn/ui";
@@ -39,11 +40,15 @@ import {
   fieldText,
   isSummary,
   nameOf,
+  navOf,
   pageOfHref,
+  referenceOf,
   type Collection,
   type CollectionColumn,
   type Item,
 } from "./collections.ts";
+import NetworkVlan from "./parts/NetworkVlan.vue";
+import ObjectName from "./record/ObjectName.vue";
 import NextPageAlert from "../problems/NextPageAlert.vue";
 import ProblemState from "../problems/ProblemState.vue";
 import { useProblems } from "../problems/index.ts";
@@ -55,7 +60,7 @@ const { t, locale } = useI18n();
 const router = useRouter();
 const settings = useSettings();
 
-const title = computed(() => t(`nav.${props.collection.id}`));
+const title = computed(() => t(navOf(props.collection)));
 const {
   model,
   words,
@@ -73,13 +78,20 @@ const {
   onWindow,
 } = useFilteredList<Item>(() => props.collection.path);
 
+// The columns of the core the user may read (the VLAN of a network: `core.vlan.read`).
+const session = useSession();
+const shownColumns = computed(() =>
+  props.collection.columns.filter(
+    (column) => !column.read || session.value.rights.has(column.read),
+  ),
+);
 // The columns of the plugins for the kind of the list, after the core's (REQ-021-13): each
 // cell an element of the plugin, given its row and the object it stands for.
 const extensions = useExtensions("column", () => props.collection.kind);
 const columns = computed<GridColumn[]>(() => {
   const served = new Set(model.value.map((property) => property.key));
   return [
-    ...props.collection.columns.map((column) => ({
+    ...shownColumns.value.map((column) => ({
       id: column.id,
       label: t(`views.field.${column.id}`),
       width: column.width,
@@ -100,6 +112,11 @@ const elementProps = (row: Item) => ({
 });
 const columnOf = (id: string): CollectionColumn | undefined =>
   props.collection.columns.find((column) => column.id === id);
+/** The object a cell of a column of references names (a group, an anchor), if any. */
+const refOf = (id: string, value: unknown) => {
+  const column = columnOf(id);
+  return column ? referenceOf(column, value) : null;
+};
 const filtered = computed(() =>
   props.collection.columns
     .filter((column) => column.filter && applied.value.has(column.filter))
@@ -119,7 +136,6 @@ useViewAction("filter", {
 });
 
 // In-place editing, and the edit panel behind `c` and `e`.
-const session = useSession();
 const said = ref("");
 // Emptied first: the same sentence twice is said twice.
 const say = useSay((text) => {
@@ -295,8 +311,13 @@ function clearFilters(): void {
     >
       <template #cell="{ row, column, value }">
         <KLink v-if="column.id === props.collection.columns[0]!.id" :to="recordOf(row)">{{
-          nameOf(row)
+          columnOf(column.id)?.ownValue ? fieldText(value) : nameOf(row)
         }}</KLink>
+        <StatusBadge
+          v-else-if="columnOf(column.id)?.states?.[String(value)]"
+          :state="columnOf(column.id)!.states![String(value)]!"
+          :label="words.value(column.id, String(value)) ?? String(value)"
+        />
         <KeyLabel
           v-else-if="columnOf(column.id)?.enumerated && typeof value === 'string'"
           :value="value"
@@ -308,6 +329,17 @@ function clearFilters(): void {
           :to="pageOfHref(value.href)!"
           >{{ fieldText(value) }}</KLink
         >
+        <ObjectName
+          v-else-if="refOf(column.id, value)"
+          :id="refOf(column.id, value)!.id"
+          :kind="refOf(column.id, value)!.kind"
+          :with-kind="columnOf(column.id)!.reference === 'anchor'"
+        />
+        <NetworkVlan
+          v-else-if="columnOf(column.id)?.networkVlan"
+          :id="String(row.id)"
+          :network="row.nature === 'network'"
+        />
         <template v-else-if="typeof value === 'boolean'">{{
           t(`views.value.boolean.${value}`)
         }}</template>

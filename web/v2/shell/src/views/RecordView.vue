@@ -16,6 +16,7 @@ import {
   Skeleton,
   Split,
   Stack,
+  StatusBadge,
   Tabs,
   type MenuItem,
   type TabItem,
@@ -43,6 +44,7 @@ import { useTime } from "../time/index.ts";
 import { EDITS, editRight } from "./edit/fields.ts";
 import { openEdit } from "./edit/panel.ts";
 import {
+  anchorOf,
   fieldText,
   isSummary,
   nameOf,
@@ -55,11 +57,17 @@ import { useKeyLabel } from "./data.ts";
 import { keepRecordName } from "./names.ts";
 import AttributeList from "./parts/AttributeList.vue";
 import ViewPanel from "./parts/ViewPanel.vue";
+import { VLAN_STATES } from "./parts/vlan.ts";
 import AnomaliesTab from "./record/AnomaliesTab.vue";
 import ContentTab from "./record/ContentTab.vue";
+import GroupVlansTab from "./record/GroupVlansTab.vue";
 import HistoryTab from "./record/HistoryTab.vue";
+import NetworkVlanTab from "./record/NetworkVlanTab.vue";
+import ObjectName from "./record/ObjectName.vue";
 import OccupancyPanel from "./record/OccupancyPanel.vue";
 import PropertiesTab from "./record/PropertiesTab.vue";
+import VlanNetworksTab from "./record/VlanNetworksTab.vue";
+import VlanOccupancyPanel from "./record/VlanOccupancyPanel.vue";
 
 const props = defineProps<{ collection: Collection; id: string }>();
 const { t, te } = useI18n();
@@ -91,8 +99,9 @@ const valueWords = (field: string, value: unknown) => {
 const detail = computed(() => {
   const data = item.value;
   if (!data) return undefined;
-  const nature = data.nature ?? data.usage;
-  const field = data.nature !== undefined ? "nature" : "usage";
+  const nature = data.nature ?? data.usage ?? data.status;
+  const field =
+    data.nature !== undefined ? "nature" : data.usage !== undefined ? "usage" : "status";
   return [kindWords.value, nature ? (valueWords(field, nature) ?? String(nature)) : null]
     .filter(Boolean)
     .join(" · ");
@@ -179,9 +188,30 @@ function onAction(id: string): void {
   actionOpen.value = acting.value !== null;
 }
 
+// The sections of the VLAN (026): the VLAN of a group, the networks of a VLAN, the VLAN of a
+// prefix (with `core.vlan.read`).
+const vlanTab = computed(
+  () => props.collection.kind === "prefix" && session.value.rights.has("core.vlan.read"),
+);
+const vlanBlocked = computed(() =>
+  !session.value.rights.has(editRight("core.vlan"))
+    ? { forbidden: editRight("core.vlan") }
+    : !time.value.present
+      ? { reason: t("edit.why.past") }
+      : {},
+);
+function createVlan(): void {
+  openEdit({ mode: "create", collection: "vlans", preset: { group: props.id } });
+}
+
 const tabs = computed<TabItem[]>(() => [
   { value: "properties", label: t("views.record.properties") },
   ...(hasContent.value ? [{ value: "content", label: t("views.record.content") }] : []),
+  ...(props.collection.kind === "vlan_group" ? [{ value: "vlans", label: t("nav.vlans") }] : []),
+  ...(props.collection.kind === "vlan"
+    ? [{ value: "networks", label: t("views.vlan.networks") }]
+    : []),
+  ...(vlanTab.value ? [{ value: "vlan", label: t("nav.vlans") }] : []),
   { value: "history", label: t("views.record.history") },
   { value: "anomalies", label: t("views.record.anomalies") },
   ...tabItems(pluginTabs.value, tr),
@@ -199,6 +229,20 @@ const tab = computed({
   },
 });
 
+/** The range of VIDs of a group of VLAN (`100–199`). */
+const range = computed(() =>
+  typeof item.value?.vid_min === "number" && typeof item.value.vid_max === "number"
+    ? `${item.value.vid_min}–${item.value.vid_max}`
+    : null,
+);
+/** The object a field names by its identifier only: the group of a VLAN, an anchor. */
+const referenced = (field: string) =>
+  field === "anchor"
+    ? anchorOf(item.value?.anchor)
+    : field === "group" && isSummary(item.value?.group)
+      ? { kind: "vlan_group", id: item.value!.group.id }
+      : null;
+
 /** The attributes of each kind, the identifier last (copiable). */
 const FIELDS: Record<string, readonly string[]> = {
   domain: ["slug"],
@@ -207,11 +251,13 @@ const FIELDS: Record<string, readonly string[]> = {
   prefix: ["domain", "nature", "point_to_point", "anycast", "public"],
   range: ["domain", "first", "last", "usage", "public"],
   address: ["domain", "usage", "public"],
+  vlan_group: ["slug", "anchor", "range"],
+  vlan: ["vid", "name", "status", "group"],
 };
-const MONO = new Set(["slug", "first", "last", "parent", "domain"]);
+const MONO = new Set(["slug", "first", "last", "parent", "domain", "range", "vid", "name"]);
 const attributes = computed(() => [
   ...(FIELDS[props.collection.kind] ?? []).map((field) => {
-    const value = item.value?.[field];
+    const value = field === "range" ? range.value : item.value?.[field];
     return {
       key: field,
       label: t(`views.field.${field}`),
@@ -264,6 +310,15 @@ const linkOf = (field: string) => {
         <template v-if="hasContent" #content>
           <ContentTab v-if="contentKind" :id="props.id" :kind="contentKind" :name="name" />
         </template>
+        <template v-if="props.collection.kind === 'vlan_group'" #vlans>
+          <GroupVlansTab :id="props.id" :name="name" :blocked="vlanBlocked" @create="createVlan" />
+        </template>
+        <template v-if="props.collection.kind === 'vlan'" #networks>
+          <VlanNetworksTab :id="props.id" :name="name" />
+        </template>
+        <template v-if="vlanTab" #vlan>
+          <NetworkVlanTab :id="props.id" :name="name" :nature="item?.nature" />
+        </template>
         <template #history>
           <HistoryTab :id="props.id" :kind="props.collection.kind" :name="name" />
         </template>
@@ -304,10 +359,32 @@ const linkOf = (field: string) => {
               <template #usage>
                 <KeyLabel :value="String(item?.usage)" :label="valueWords('usage', item?.usage)" />
               </template>
+              <template v-for="field in ['anchor', 'group']" :key="field" #[field]>
+                <ObjectName
+                  v-if="referenced(field)"
+                  :id="referenced(field)!.id"
+                  :kind="referenced(field)!.kind"
+                  :with-kind="field === 'anchor'"
+                />
+                <template v-else>—</template>
+              </template>
+              <template #status>
+                <StatusBadge
+                  v-if="VLAN_STATES[String(item?.status)]"
+                  :state="VLAN_STATES[String(item?.status)]!"
+                  :label="valueWords('status', item?.status) ?? String(item?.status)"
+                />
+              </template>
               <template #id><CodeBadge :code="props.id" /></template>
             </AttributeList>
           </ViewPanel>
           <OccupancyPanel v-if="props.collection.kind === 'prefix'" :id="props.id" />
+          <VlanOccupancyPanel
+            v-if="props.collection.kind === 'vlan_group'"
+            :id="props.id"
+            :name="name"
+            :range="range"
+          />
           <ViewPanel
             v-for="extension in pluginPanels"
             :key="placeId(extension)"
