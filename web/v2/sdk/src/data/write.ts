@@ -248,15 +248,19 @@ export function createWrites({ client, queryClient, invalidation, pause }: Write
   /**
    * Submits a draft as one changeset, under an idempotency key the caller keeps until the
    * answer: a retry, a reload replay the same key (REQ-006-15). A key still in progress
-   * (409) is tried again five times.
+   * (409) is tried again five times. `approvalSelf`: applied at once when its author holds
+   * `approval.self` on all it touches and no policy holds it, held otherwise, with the
+   * reason (`?approval=self`, 024, REQ-024-13), as `drafts.submit` does.
    */
   const submit = async (
     submission: Submission,
     idempotencyKey: string,
+    options: { approvalSelf?: boolean } = {},
   ): Promise<WriteOutcome<Submission>> => {
+    const url = `/v1/changesets${options.approvalSelf ? "?approval=self" : ""}`;
     for (let attempt = 0; ; attempt += 1) {
       try {
-        const answer = await client.request("POST", "/v1/changesets", {
+        const answer = await client.request("POST", url, {
           body: submission,
           idempotencyKey,
         });

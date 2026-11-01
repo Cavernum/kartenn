@@ -283,6 +283,27 @@ describe("draft submission and simulation (W10, ADR 0037)", () => {
     expect(posts.map((r) => r.headers.get("Idempotency-Key"))).toEqual(["key-1", "key-1"]);
     expect(cache.queryClient.getQueryState(cache.options.queryKey)?.isInvalidated).toBe(true);
   });
+
+  it("submits under ?approval=self when asked, a 202 held with its reason", async () => {
+    const cache = setup(() =>
+      json(
+        {
+          changeset: { id: C1, href: "h" },
+          state: "pending",
+          kind: "approval",
+          reason: "changeset.approval.self.missing",
+        },
+        { status: 202 },
+      ),
+    );
+    const result = await cache.writes.submit(submission, "key-2", { approvalSelf: true });
+    expect(result).toMatchObject({
+      kind: "proposed",
+      changeset: C1,
+      reason: "changeset.approval.self.missing",
+    });
+    expect(cache.seen.at(-1)?.url).toBe("/v1/changesets?approval=self");
+  });
 });
 
 describe("helpers", () => {
