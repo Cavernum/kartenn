@@ -11,9 +11,10 @@ use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::family::ALL;
 use kartenn_core::objects::{IpRange, Nature, PrefixObject, RangeUsage};
 use kartenn_core::occupancy::{self, Occupancy};
-use sqlx::PgPool;
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
+use sqlx::{PgExecutor, PgPool};
+use std::collections::HashMap;
 
 /// A node of the addressing tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -219,6 +220,19 @@ async fn ancestors_at(
 /// Row of [`children`]: kind, identifier and up to three text columns.
 type ChildRow = (String, Uuid, String, Option<String>, Option<String>);
 
+/// Row of [`occupancies_as_of`]: the parent, the columns of a [`ChildRow`], then the flags
+/// `point_to_point` and `anycast` of the parent on its own row.
+type ContentRow = (
+    Uuid,
+    String,
+    Uuid,
+    String,
+    Option<String>,
+    Option<String>,
+    Option<bool>,
+    Option<bool>,
+);
+
 /// Direct children of a prefix at `at`: prefixes, ranges and addresses whose deduced parent
 /// it is, in address order (REQ-002-42).
 ///
@@ -315,7 +329,7 @@ impl Node {
     db.query.summary = "SELECT children",
 ))]
 pub async fn children_of(
-    pool: &PgPool,
+    executor: impl PgExecutor<'_>,
     parent: &PrefixObject,
     valid_at: OffsetDateTime,
     as_of: Option<OffsetDateTime>,
@@ -324,7 +338,7 @@ pub async fn children_of(
     limit: Option<i64>,
 ) -> sqlx::Result<Vec<Node>> {
     tops(
-        pool,
+        executor,
         parent.domain,
         Some(&parent.value),
         valid_at,
@@ -397,6 +411,27 @@ fn probe(
     )
 }
 
+/// In the past (`past`), the relation `recent` that [`probe`] reads, for a `WITH` clause,
+/// its comma included: whether each history holds rows of the domain `$3` closed after
+/// `$2`. Nothing for a read of the present.
+fn recent(past: bool) -> String {
+    if !past {
+        return String::new();
+    }
+    let closed = |table: &str| {
+        format!(
+            "EXISTS (SELECT 1 FROM {table}_history h \
+             WHERE h.domain_id = $3 AND h.sys_end > $2::timestamptz) AS {table}"
+        )
+    };
+    format!(
+        "recent AS MATERIALIZED (SELECT {}, {}, {}),",
+        closed("prefix"),
+        closed("ip_range"),
+        closed("address")
+    )
+}
+
 /// The scan of a gap `p` of [`tops`]: past `p.after` and the cursor (or, without one, from
 /// the first address of the prefix `$9` the walk stays in), before `p.before` if the gap is
 /// bounded, else up to the last address of `$9`, in order. Each bound is a plain comparison
@@ -456,7 +491,7 @@ fn gap(
     db.query.summary = "SELECT roots",
 ))]
 pub async fn roots_of(
-    pool: &PgPool,
+    executor: impl PgExecutor<'_>,
     domain: Uuid,
     valid_at: OffsetDateTime,
     as_of: Option<OffsetDateTime>,
@@ -464,7 +499,7 @@ pub async fn roots_of(
     after: Option<&ChildKey>,
     limit: Option<i64>,
 ) -> sqlx::Result<Vec<Node>> {
-    tops(pool, domain, None, valid_at, as_of, scope, after, limit).await
+    tops(executor, domain, None, valid_at, as_of, scope, after, limit).await
 }
 
 /// The nodes of the domain `domain` that no other prefix of the domain contains, those
@@ -475,7 +510,7 @@ pub async fn roots_of(
 #[allow(clippy::too_many_arguments)] // the read and its page
 #[allow(clippy::too_many_lines)] // one query, built from its parts
 async fn tops(
-    pool: &PgPool,
+    executor: impl PgExecutor<'_>,
     domain: Uuid,
     within: Option<&Prefix>,
     valid_at: OffsetDateTime,
@@ -500,23 +535,7 @@ async fn tops(
     );
     let (max_w, max_p) = (max("w.prefix"), max("prefix"));
     let past = as_of.is_some();
-    // Whether each history holds rows of the domain closed after `$2` (see [`probe`]).
-    let recent = if past {
-        let closed = |table: &str| {
-            format!(
-                "EXISTS (SELECT 1 FROM {table}_history h \
-                 WHERE h.domain_id = $3 AND h.sys_end > $2::timestamptz) AS {table}"
-            )
-        };
-        format!(
-            "recent AS MATERIALIZED (SELECT {}, {}, {}),",
-            closed("prefix"),
-            closed("ip_range"),
-            closed("address")
-        )
-    } else {
-        String::new()
-    };
+    let recent = recent(past);
     let prefixes = |alias: &str, cols: &str, cond: &str, order: &str| {
         probe(past, "prefix", alias, cols, cond, order, "1")
     };
@@ -625,7 +644,7 @@ async fn tops(
         .bind(after.map(|k| k.id))
         .bind(limit)
         .bind(within.map(ToString::to_string))
-        .fetch_all(pool)
+        .fetch_all(executor)
         .await?;
     rows.into_iter().map(node_of).collect()
 }
@@ -788,6 +807,156 @@ pub async fn occupancy_as_of(
         ),
         Nature::Container => occupancy::container_occupancy(p.value, &prefixes_of(&content)),
     }))
+}
+
+/// [`occupancy_as_of`] of each prefix of the domain `domain` among `ids`, valid at
+/// `valid_at` as asserted at `as_of` (now when `None`), in one query whatever their number
+/// (task 021-11a): the nodes of a page of the tree carry their occupancy. The prefixes
+/// absent then, or of another domain, are absent from the map.
+///
+/// The query reads each prefix (its flags count in the capacity of a network) and the
+/// content its occupancy counts: the direct child prefixes of a container, walked one
+/// index probe each as [`tops`] walks them; the ranges and addresses of a network, which
+/// holds no other prefix (`core.prefix.network_not_leaf`), so that all it holds is its
+/// direct content. The measures are those of [`occupancy`].
+///
+/// # Errors
+///
+/// As [`occupancy`].
+#[tracing::instrument(name = "SELECT occupancies", skip_all, fields(
+    db.system.name = "postgresql",
+    db.operation.name = "SELECT",
+    db.query.summary = "SELECT occupancies",
+))]
+#[allow(clippy::too_many_lines)] // one query, built from its parts
+pub async fn occupancies_as_of(
+    executor: impl PgExecutor<'_>,
+    domain: Uuid,
+    ids: &[Uuid],
+    valid_at: OffsetDateTime,
+    as_of: Option<OffsetDateTime>,
+) -> sqlx::Result<HashMap<Uuid, Occupancy>> {
+    if ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let past = as_of.is_some();
+    let max = |x: &str| format!("CASE family({x}) WHEN 4 THEN 32 ELSE 128 END");
+    let end = format!(
+        "set_masklen(broadcast(p.prefix), {})::cidr",
+        max("p.prefix")
+    );
+    let prefixes = |cond: &str| {
+        probe(
+            past,
+            "prefix",
+            "q",
+            "q.id, q.prefix, q.nature",
+            &format!("q.domain_id = $3 AND {cond} AND q.prefix <= {end}"),
+            "q.prefix",
+            "1",
+        )
+    };
+    let first = prefixes("q.prefix > p.prefix");
+    let step = prefixes(&format!(
+        "q.prefix > set_masklen(broadcast(w.prefix), {})::cidr",
+        max("w.prefix")
+    ));
+    let (lo, hi) = ("host(p.prefix)::inet", "host(broadcast(p.prefix))::inet");
+    let ranges = probe(
+        past,
+        "ip_range",
+        "t",
+        "t.id, t.range, t.usage",
+        &format!(
+            "t.domain_id = $3 AND t.range >= inetrange({lo}, {lo}, '[]') \
+             AND t.range <= inetrange({hi}, {hi}, '[]')"
+        ),
+        "t.range, t.id",
+        "ALL",
+    );
+    let addresses = probe(
+        past,
+        "address",
+        "t",
+        "t.id, t.address",
+        &format!("t.domain_id = $3 AND t.address >= {lo} AND t.address <= {hi}"),
+        "t.address, t.id",
+        "ALL",
+    );
+    // `s` the prefix itself, `p`, `r`, `a` the rows of its content, as [`node_of`] reads
+    // them.
+    let sql = format!(
+        "WITH RECURSIVE {recent} {relations},
+              par AS MATERIALIZED (
+                SELECT id, prefix, nature, point_to_point, anycast FROM pf
+                WHERE id = ANY($4) AND domain_id = $3
+              ),
+              walk (parent, id, prefix, nature) AS (
+                SELECT p.id, f.id, f.prefix, f.nature
+                FROM par p CROSS JOIN LATERAL ({first}) f
+                WHERE p.nature = 'container'
+                UNION ALL
+                SELECT w.parent, x.id, x.prefix, x.nature
+                FROM walk w JOIN par p ON p.id = w.parent CROSS JOIN LATERAL ({step}) x
+              )
+         SELECT p.id, 's', p.id, p.prefix::text, p.nature, NULL, p.point_to_point, p.anycast
+         FROM par p
+         UNION ALL
+         SELECT w.parent, 'p', w.id, w.prefix::text, w.nature, NULL, NULL, NULL FROM walk w
+         UNION ALL
+         SELECT p.id, 'r', g.id, host(lower(g.range)), host(upper(g.range)), g.usage,
+                NULL, NULL
+         FROM par p CROSS JOIN LATERAL ({ranges}) g WHERE p.nature = 'network'
+         UNION ALL
+         SELECT p.id, 'a', a.id, host(a.address), NULL, NULL, NULL, NULL
+         FROM par p CROSS JOIN LATERAL ({addresses}) a WHERE p.nature = 'network'",
+        recent = recent(past),
+        relations = relations(as_of)?,
+    );
+    let rows: Vec<ContentRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        .persistent(false)
+        .bind(valid_at)
+        .bind(as_of)
+        .bind(domain)
+        .bind(ids)
+        .fetch_all(executor)
+        .await?;
+    let mut parents = Vec::new();
+    let mut content: HashMap<Uuid, Vec<Node>> = HashMap::new();
+    for (parent, kind, id, a, b, c, point_to_point, anycast) in rows {
+        if kind == "s" {
+            parents.push(PrefixObject {
+                id,
+                domain,
+                value: Prefix::parse_any(&ALL, &a).map_err(decode_err)?,
+                nature: nature(b.as_deref().unwrap_or_default())?,
+                point_to_point: point_to_point.unwrap_or_default(),
+                anycast: anycast.unwrap_or_default(),
+            });
+        } else {
+            content
+                .entry(parent)
+                .or_default()
+                .push(node_of((kind, id, a, b, c))?);
+        }
+    }
+    Ok(parents
+        .into_iter()
+        .map(|p| {
+            let content = content.remove(&p.id).unwrap_or_default();
+            let measure = match p.nature {
+                Nature::Network => occupancy::network_occupancy(
+                    &p,
+                    &ranges_of(&content, p.domain),
+                    &addresses_of(&content),
+                ),
+                Nature::Container => {
+                    occupancy::container_occupancy(p.value, &prefixes_of(&content))
+                }
+            };
+            (p.id, measure)
+        })
+        .collect())
 }
 
 /// First free address of a network at `at`, outside DHCP and reserved ranges

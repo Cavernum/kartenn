@@ -61,6 +61,12 @@ import { nodesOf } from "./topology.ts";
 import ContentTab from "./record/ContentTab.vue";
 
 type Node = components["schemas"]["TreeNode"];
+/** A node as the view names it: a listed one, or a prefix read alone (no version nor occupancy). */
+type Shown = Node extends infer N
+  ? N extends unknown
+    ? Omit<N, "version" | "occupancy">
+    : never
+  : never;
 type Pages = InfiniteData<{ data: { items: Node[] } }, string | null>;
 type Result = InfiniteQueryObserverResult<Pages>;
 
@@ -154,9 +160,9 @@ const ICONS: Record<Node["kind"], IconName> = {
   range: "range",
   address: "address",
 };
-const valueOf = (node: Node) =>
+const valueOf = (node: Shown) =>
   node.kind === "range" ? `${node.first} – ${node.last}` : node.value;
-const detailOf = (node: Node) => {
+const detailOf = (node: Shown) => {
   const value = node.kind === "prefix" ? node.nature : node.kind === "range" ? node.usage : null;
   if (!value) return "";
   const key = `views.value.${node.kind === "prefix" ? "nature" : "usage"}.${value}`;
@@ -243,7 +249,7 @@ const fallback = useQuery(() => ({
   }>("prefix", unread.value ?? "", dated()),
   enabled: unread.value !== undefined,
 }));
-const chosen = computed<Node | undefined>(() => {
+const chosen = computed<Shown | undefined>(() => {
   const read = nodeById(selected.value);
   if (read) return read;
   const prefix = fallback.data.value?.data;

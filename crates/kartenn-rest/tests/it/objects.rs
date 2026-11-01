@@ -807,6 +807,107 @@ async fn the_roots_of_a_domain_list_as_the_children_of_a_prefix(pool: PgPool) {
     );
 }
 
+/// Each node of a page of the tree carries its version, the one of its `ETag`, and a
+/// prefix its occupancy, as `…/occupancy` serves it at the same moment (021/A11): for
+/// the roots of a domain and the children of a prefix, now and dated; not the ancestors.
+#[kartenn_testing::pg_test]
+async fn tree_nodes_carry_their_version_and_occupancy(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    address(&pool, lab, "10.0.0.1").await;
+    let block = prefix_of(&pool, lab, "10.1.0.0/16", "container").await;
+    let net = prefix(&pool, lab, "10.1.2.0/24").await;
+    let gone = address(&pool, lab, "10.1.2.1").await;
+    address(&pool, lab, "10.1.2.15").await;
+    let range = format!(
+        "INSERT INTO ip_range (id, domain_id, range, usage, public, registry_version,
+                               valid_period, changeset_id)
+         VALUES (gen_random_uuid(), $1::uuid, inetrange('10.1.2.10', '10.1.2.20', '[]'),
+                 'dhcp', false, 'test', {SINCE}) RETURNING id"
+    );
+    insert(&pool, &range, &[&lab.to_string()]).await;
+    let inner = prefix_of(&pool, lab, "10.1.4.0/22", "container").await;
+    prefix(&pool, lab, "10.1.4.0/24").await;
+    prefix(&pool, lab, "10.1.6.0/24").await;
+    prefix(&pool, lab, "10.1.8.0/24").await;
+    prefix_of(&pool, lab, "2001:db8::/32", "container").await;
+    prefix(&pool, lab, "2001:db8:1::/48").await;
+    let reader = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+
+    // Known as of now: the read of the past, history included. The addresses added since
+    // count in the present only; the one deleted since, kept in the history, still counts
+    // as of then.
+    let known = format!("?as_of={}", query_date(time::OffsetDateTime::now_utc()));
+    address(&pool, lab, "10.1.2.2").await;
+    address(&pool, lab, "10.1.2.3").await;
+    sqlx::query("DELETE FROM address WHERE id = $1")
+        .bind(gone)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let mut prefixes = 0;
+    for dates in ["", "?valid_at=2021-01-01T00:00:00Z", &known] {
+        // The ancestors keep their form: neither version nor occupancy (A11 names the
+        // roots and the children only).
+        let body = ok(&reader, &format!("/v1/prefixes/{inner}/ancestors{dates}")).await;
+        assert_eq!(ids_of(&body), [block.to_string()]);
+        assert!(body["items"][0].get("version").is_none());
+        assert!(body["items"][0].get("occupancy").is_none());
+        for uri in [
+            format!("/v1/domains/{lab}/roots{dates}"),
+            format!("/v1/prefixes/{block}/children{dates}"),
+            format!("/v1/prefixes/{inner}/children{dates}"),
+        ] {
+            let body = ok(&reader, &uri).await;
+            let items = body["items"].as_array().unwrap();
+            assert!(!items.is_empty(), "{uri}");
+            for item in items {
+                let href = item["href"].as_str().unwrap();
+                let response = get(&reader, &format!("{href}{dates}")).await;
+                assert_eq!(response.status(), StatusCode::OK, "{href}");
+                let etag = response.headers()["etag"].to_str().unwrap().to_owned();
+                let object = json_of(response).await;
+                let version = item["version"].as_str().unwrap();
+                assert_eq!(object["version"], version, "{uri}: {href}");
+                assert!(etag.starts_with(&format!("\"{version}.")), "{etag}");
+                if item["kind"] == "prefix" {
+                    prefixes += 1;
+                    let occupancy = ok(&reader, &format!("{href}/occupancy{dates}")).await;
+                    assert_eq!(item["occupancy"], occupancy, "{uri}: {href}");
+                } else {
+                    assert!(item.get("occupancy").is_none(), "{uri}: {href}");
+                }
+            }
+        }
+    }
+    assert_eq!(prefixes, 21);
+    // The measures themselves: as of then, two addresses (one since deleted), one inside
+    // the DHCP range of 11 addresses, in a /24 of 254; two /24 in a /22; two /24 and the
+    // /22 in the /16. Now: the two added, outside the range.
+    let children = ok(&reader, &format!("/v1/prefixes/{block}/children{known}")).await;
+    let of = |value: &str| {
+        children["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["value"] == value)
+            .map(|item| item["occupancy"].clone())
+            .unwrap()
+    };
+    assert_eq!(of("10.1.2.0/24")["used"], "12");
+    assert_eq!(of("10.1.2.0/24")["total"], "254");
+    assert_eq!(of("10.1.4.0/22")["used"], "512");
+    assert_eq!(of("10.1.2.0/24")["prefix"]["id"], net.to_string());
+    let now = ok(&reader, &format!("/v1/prefixes/{block}/children")).await;
+    assert_eq!(now["items"][0]["occupancy"]["used"], "13");
+    let roots = ok(&reader, &format!("/v1/domains/{lab}/roots")).await;
+    assert_eq!(roots["items"][1]["id"], block.to_string());
+    assert_eq!(roots["items"][1]["occupancy"]["used"], "1536");
+    assert_eq!(
+        roots["items"][2]["occupancy"]["total"],
+        (1u128 << 96).to_string()
+    );
+}
+
 /// A container with 10⁴ direct children (task 007-18): every page costs its own rows, the
 /// last as the first, and the pages together list each direct child once, in order.
 #[kartenn_testing::pg_test]

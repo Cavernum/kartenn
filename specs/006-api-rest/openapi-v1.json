@@ -189,6 +189,119 @@
         ],
         "type": "string"
       },
+      "AncestorNode": {
+        "description": "A node as listed by `…/ancestors`: the form of a node of the tree before A11, neither\nversion nor occupancy, which A11 gives to the nodes of `roots` and `children` only.",
+        "oneOf": [
+          {
+            "description": "A prefix.",
+            "properties": {
+              "href": {
+                "description": "Its URL.",
+                "type": "string"
+              },
+              "id": {
+                "description": "Identifier.",
+                "format": "uuid",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "prefix"
+                ],
+                "type": "string"
+              },
+              "nature": {
+                "$ref": "#/components/schemas/Nature",
+                "description": "Container or network."
+              },
+              "value": {
+                "description": "Canonical CIDR.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "value",
+              "nature",
+              "href",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A range.",
+            "properties": {
+              "first": {
+                "description": "First address.",
+                "type": "string"
+              },
+              "href": {
+                "description": "Its URL.",
+                "type": "string"
+              },
+              "id": {
+                "description": "Identifier.",
+                "format": "uuid",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "range"
+                ],
+                "type": "string"
+              },
+              "last": {
+                "description": "Last address, included.",
+                "type": "string"
+              },
+              "usage": {
+                "$ref": "#/components/schemas/RangeUsage",
+                "description": "Usage."
+              }
+            },
+            "required": [
+              "id",
+              "first",
+              "last",
+              "usage",
+              "href",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "An address.",
+            "properties": {
+              "href": {
+                "description": "Its URL.",
+                "type": "string"
+              },
+              "id": {
+                "description": "Identifier.",
+                "format": "uuid",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "address"
+                ],
+                "type": "string"
+              },
+              "value": {
+                "description": "Canonical address.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "value",
+              "href",
+              "kind"
+            ],
+            "type": "object"
+          }
+        ]
+      },
       "AnomalyDto": {
         "description": "An open anomaly.",
         "properties": {
@@ -4166,6 +4279,137 @@
         ],
         "type": "object"
       },
+      "Listing_AncestorNode": {
+        "description": "A page of a list, as answered.",
+        "properties": {
+          "items": {
+            "description": "The elements of the page.",
+            "items": {
+              "description": "A node as listed by `…/ancestors`: the form of a node of the tree before A11, neither\nversion nor occupancy, which A11 gives to the nodes of `roots` and `children` only.",
+              "oneOf": [
+                {
+                  "description": "A prefix.",
+                  "properties": {
+                    "href": {
+                      "description": "Its URL.",
+                      "type": "string"
+                    },
+                    "id": {
+                      "description": "Identifier.",
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "prefix"
+                      ],
+                      "type": "string"
+                    },
+                    "nature": {
+                      "$ref": "#/components/schemas/Nature",
+                      "description": "Container or network."
+                    },
+                    "value": {
+                      "description": "Canonical CIDR.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "value",
+                    "nature",
+                    "href",
+                    "kind"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "description": "A range.",
+                  "properties": {
+                    "first": {
+                      "description": "First address.",
+                      "type": "string"
+                    },
+                    "href": {
+                      "description": "Its URL.",
+                      "type": "string"
+                    },
+                    "id": {
+                      "description": "Identifier.",
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "range"
+                      ],
+                      "type": "string"
+                    },
+                    "last": {
+                      "description": "Last address, included.",
+                      "type": "string"
+                    },
+                    "usage": {
+                      "$ref": "#/components/schemas/RangeUsage",
+                      "description": "Usage."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "first",
+                    "last",
+                    "usage",
+                    "href",
+                    "kind"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "description": "An address.",
+                  "properties": {
+                    "href": {
+                      "description": "Its URL.",
+                      "type": "string"
+                    },
+                    "id": {
+                      "description": "Identifier.",
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "address"
+                      ],
+                      "type": "string"
+                    },
+                    "value": {
+                      "description": "Canonical address.",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "value",
+                    "href",
+                    "kind"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "links": {
+            "$ref": "#/components/schemas/ListingLinks",
+            "description": "The links of the page."
+          }
+        },
+        "required": [
+          "items",
+          "links"
+        ],
+        "type": "object"
+      },
       "Listing_AnomalyDto": {
         "description": "A page of a list, as answered.",
         "properties": {
@@ -5351,7 +5595,7 @@
           "items": {
             "description": "The elements of the page.",
             "items": {
-              "description": "A node of the tree, as listed.",
+              "description": "A node of the tree, as listed, with its version and, for a prefix, its occupancy, read\nat the moment of the page (021/A11).",
               "oneOf": [
                 {
                   "description": "A prefix.",
@@ -5375,8 +5619,17 @@
                       "$ref": "#/components/schemas/Nature",
                       "description": "Container or network."
                     },
+                    "occupancy": {
+                      "$ref": "#/components/schemas/Occupancy",
+                      "description": "Its occupancy, as `GET /v1/prefixes/{id}/occupancy` serves it at the moment of\nthe page."
+                    },
                     "value": {
                       "description": "Canonical CIDR.",
+                      "type": "string"
+                    },
+                    "version": {
+                      "description": "The changeset that last modified it, the version its `ETag` names (006/H19).",
+                      "format": "uuid",
                       "type": "string"
                     }
                   },
@@ -5385,6 +5638,8 @@
                     "value",
                     "nature",
                     "href",
+                    "version",
+                    "occupancy",
                     "kind"
                   ],
                   "type": "object"
@@ -5418,6 +5673,11 @@
                     "usage": {
                       "$ref": "#/components/schemas/RangeUsage",
                       "description": "Usage."
+                    },
+                    "version": {
+                      "description": "The changeset that last modified it, the version its `ETag` names (006/H19).",
+                      "format": "uuid",
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -5426,6 +5686,7 @@
                     "last",
                     "usage",
                     "href",
+                    "version",
                     "kind"
                   ],
                   "type": "object"
@@ -5451,12 +5712,18 @@
                     "value": {
                       "description": "Canonical address.",
                       "type": "string"
+                    },
+                    "version": {
+                      "description": "The changeset that last modified it, the version its `ETag` names (006/H19).",
+                      "format": "uuid",
+                      "type": "string"
                     }
                   },
                   "required": [
                     "id",
                     "value",
                     "href",
+                    "version",
                     "kind"
                   ],
                   "type": "object"
@@ -10828,7 +11095,7 @@
         "type": "string"
       },
       "TreeNode": {
-        "description": "A node of the tree, as listed.",
+        "description": "A node of the tree, as listed, with its version and, for a prefix, its occupancy, read\nat the moment of the page (021/A11).",
         "oneOf": [
           {
             "description": "A prefix.",
@@ -10852,8 +11119,17 @@
                 "$ref": "#/components/schemas/Nature",
                 "description": "Container or network."
               },
+              "occupancy": {
+                "$ref": "#/components/schemas/Occupancy",
+                "description": "Its occupancy, as `GET /v1/prefixes/{id}/occupancy` serves it at the moment of\nthe page."
+              },
               "value": {
                 "description": "Canonical CIDR.",
+                "type": "string"
+              },
+              "version": {
+                "description": "The changeset that last modified it, the version its `ETag` names (006/H19).",
+                "format": "uuid",
                 "type": "string"
               }
             },
@@ -10862,6 +11138,8 @@
               "value",
               "nature",
               "href",
+              "version",
+              "occupancy",
               "kind"
             ],
             "type": "object"
@@ -10895,6 +11173,11 @@
               "usage": {
                 "$ref": "#/components/schemas/RangeUsage",
                 "description": "Usage."
+              },
+              "version": {
+                "description": "The changeset that last modified it, the version its `ETag` names (006/H19).",
+                "format": "uuid",
+                "type": "string"
               }
             },
             "required": [
@@ -10903,6 +11186,7 @@
               "last",
               "usage",
               "href",
+              "version",
               "kind"
             ],
             "type": "object"
@@ -10928,12 +11212,18 @@
               "value": {
                 "description": "Canonical address.",
                 "type": "string"
+              },
+              "version": {
+                "description": "The changeset that last modified it, the version its `ETag` names (006/H19).",
+                "format": "uuid",
+                "type": "string"
               }
             },
             "required": [
               "id",
               "value",
               "href",
+              "version",
               "kind"
             ],
             "type": "object"
@@ -30384,7 +30674,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Listing_TreeNode"
+                  "$ref": "#/components/schemas/Listing_AncestorNode"
                 }
               }
             },
