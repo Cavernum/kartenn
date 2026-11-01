@@ -1302,7 +1302,8 @@ in {
       git bisect start "$bad" "$good" >/dev/null
       code=0
       git bisect run ${dash} "$0" --step >&2 || code=$?
-      first=$(git bisect log | sed -n 's/^# first bad commit: \[\([0-9a-f]*\)\].*/\1/p')
+      # `# first bad commit: [<hash>]`, or `# first 'bad' commit:` for recent versions of git.
+      first=$(git bisect log | sed -n 's/^# first [^[]*\[\([0-9a-f]*\)\].*/\1/p')
       if [ "$code" -ne 0 ] || [ -z "$first" ]; then
         echo "bench-bisect : pas de premier mauvais commit (code $code ; commits sautés ?)" >&2
         git bisect log >&2
