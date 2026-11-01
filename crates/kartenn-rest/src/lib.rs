@@ -46,7 +46,7 @@ use std::any::Any;
 use std::sync::Arc;
 
 use axum::extract::DefaultBodyLimit;
-use axum::middleware::from_fn_with_state;
+use axum::middleware::{from_fn, from_fn_with_state};
 use axum::response::{IntoResponse, Response};
 use axum::{Extension, Router};
 use tower_http::catch_panic::CatchPanicLayer;
@@ -187,6 +187,8 @@ pub fn router_with_web(
     routes
         // What `GET /v1/capabilities` tells of layer 5.
         .layer(Extension(BodyLimit(transport.max_body_bytes)))
+        // The `instance` of a route's problem, inside the compression: compressed with it.
+        .layer(from_fn(request_id::instance))
         // Layer 10, on the way back.
         .layer(compression::layer())
         // The limit is that of layer 5, not the 2 MB of the extractors.

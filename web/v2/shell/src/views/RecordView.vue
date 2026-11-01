@@ -5,7 +5,8 @@
 // URL (`?tab=history`); beside them its attributes and, for a prefix, its occupancy and
 // next free value. Read at the dates of the page; an object out of reach (404, 403) says
 // so with its codes, never a blank page. « Modifier » (`e`) opens the edit panel of the
-// kind (task 12).
+// kind (task 12); « Changer de parent… », in the menu of an entity or a site, the same panel
+// on the parent alone (task 24, REQ-021-32).
 import { reads } from "@kartenn/sdk";
 import {
   Button,
@@ -16,9 +17,10 @@ import {
   Split,
   Stack,
   Tabs,
+  type MenuItem,
   type TabItem,
 } from "@kartenn/ui";
-import { computed, ref, watchEffect } from "vue";
+import { computed, nextTick, ref, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { useQuery } from "../data/query.ts";
@@ -38,7 +40,7 @@ import KLink from "../prefetch/KLink.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
 import { useTime } from "../time/index.ts";
-import { editRight } from "./edit/fields.ts";
+import { EDITS, editRight } from "./edit/fields.ts";
 import { openEdit } from "./edit/panel.ts";
 import {
   fieldText,
@@ -121,10 +123,24 @@ const object = computed(() =>
     ),
   ),
 );
-/** The menu of actions: those of the plugins. */
-const actions = computed(() =>
-  actionItems(pluginActions.value, tr).filter((i) => i.kind !== "separator"),
-);
+/** The menu of actions: « Changer de parent… » of an entity or a site, those of the plugins. */
+const MOVE = "core:move";
+const movable = computed(() => EDITS[props.collection.id].move !== undefined);
+const actions = computed<MenuItem[]>(() => {
+  const own: MenuItem[] = movable.value
+    ? [
+        {
+          id: MOVE,
+          label: t("edit.move.action"),
+          icon: "move",
+          ...("reason" in editBlocked.value ? { disabled: true } : {}),
+          ...editBlocked.value,
+        },
+      ]
+    : [];
+  const theirs = actionItems(pluginActions.value, tr);
+  return own.length > 0 ? [...own, ...theirs] : theirs.filter((i) => i.kind !== "separator");
+});
 
 // « Modifier » (`e`): the edit panel of the kind (task 12, REQ-021-36), at the present and
 // with `X.edit`; refused otherwise, visible, with the permission or the reason (REQ-021-37).
@@ -149,6 +165,16 @@ useViewAction("edit", {
 const acting = ref<Placed | null>(null);
 const actionOpen = ref(false);
 function onAction(id: string): void {
+  if (id === MOVE) {
+    // Once the menu has closed and given the focus back to its button: the panel then takes
+    // it to its first field, and gives it back to that button when it closes.
+    void nextTick(() =>
+      requestAnimationFrame(() =>
+        openEdit({ mode: "move", collection: props.collection.id, id: props.id }),
+      ),
+    );
+    return;
+  }
   acting.value = placed(pluginActions.value, id) ?? null;
   actionOpen.value = acting.value !== null;
 }

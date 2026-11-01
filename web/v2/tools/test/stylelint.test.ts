@@ -74,6 +74,8 @@ describe("stylelint", () => {
           ".k-loose { color: var(--k-text); }",
           "@layer theme { .k-x { color: var(--k-text); } }",
         ].join("\n"),
+        // Outside @kartenn/ui: kartenn/component-prefix aside.
+        "shell/src/views/View.css",
       ),
     ).toEqual([
       "kartenn/known-layer",
@@ -85,14 +87,73 @@ describe("stylelint", () => {
 
   it("lets a keyframe turn, nowhere else", async () => {
     const spin =
-      "@layer components {\n  @keyframes k-spin {\n    to {\n      transform: rotate(1turn);\n    }\n  }\n}\n";
+      "@layer components {\n  @keyframes k-button-spin {\n    to {\n      transform: rotate(1turn);\n    }\n  }\n}\n";
     expect(await rules(spin)).toEqual([]);
     expect(await rules(layer("transform: rotate(1turn);"))).toEqual(["kartenn/raw-length"]);
   });
 
   it("lets the floating components cast their shadow", async () => {
-    const sheet = layer("box-shadow: var(--k-shadow-overlay);");
-    expect(await rules(sheet, "ui/src/components/Menu/Menu.css")).toEqual([]);
+    const sheet = layer("box-shadow: var(--k-shadow-overlay);").replace(".k-button", ".k-popover");
+    expect(await rules(sheet, "ui/src/components/Popover/Popover.css")).toEqual([]);
+  });
+
+  // kartenn/component-prefix (spec 029, task 2): the one sheet of @kartenn/ui matches only
+  // what each component renders.
+  it("keeps the rules of a component to the classes it owns", async () => {
+    const sheet = (selector: string) =>
+      `@layer components {\n  ${selector} {\n    color: var(--k-text);\n  }\n}\n`;
+    const grid = "ui/src/components/DataGrid/DataGrid.vue";
+    const sfc = (selector: string) =>
+      `<template><div /></template>\n<style>\n${sheet(selector)}</style>\n`;
+    for (const ok of [
+      ".k-data-grid",
+      ".k-data-grid__cell:hover",
+      ".k-data-grid--dense",
+      ".k-data-grid-frame > .k-column-chooser",
+      ".k-cell-error[hidden]",
+      ".k-data-grid :focus-visible",
+      ".k-data-grid, .k-data-grid-frame",
+    ])
+      expect(await rules(sfc(ok), grid), ok).toEqual([]);
+    for (const ko of [
+      ".k-button",
+      "button",
+      ":root",
+      ".k-tree-grid",
+      ".k-data-gridx",
+      ".k-data-grid, .k-menu",
+    ])
+      expect(await rules(sfc(ko), grid), ko).toEqual(["kartenn/component-prefix"]);
+    // The longest prefix owns a class: k-tree-grid… is TreeGrid's, not Tree's.
+    expect(await rules(sheet(".k-tree-grid"), "ui/src/components/Tree/Tree.css")).toEqual([
+      "kartenn/component-prefix",
+    ]);
+    expect(await rules(sheet(".k-tree-frame"), "ui/src/components/Tree/Tree.css")).toEqual([]);
+    // Internal parts and demos are units of their own; the shell is not concerned.
+    expect(
+      await rules(sfc(".k-column-chooser"), "ui/src/components/internal/ColumnChooser.vue"),
+    ).toEqual([]);
+    expect(
+      await rules(sfc(".k-data-grid"), "ui/src/components/internal/ColumnChooser.vue"),
+    ).toEqual(["kartenn/component-prefix"]);
+    expect(await rules(sfc(".k-demo-box"), "ui/src/demo/DemoBox.vue")).toEqual([]);
+    expect(await rules(sfc(".k-demo-frame"), "ui/src/demo/DemoBox.vue")).toEqual([
+      "kartenn/component-prefix",
+    ]);
+    expect(await rules(sheet(".k-anything"), "shell/src/frame/ShellFrame.css")).toEqual([]);
+    // The exceptions (prefixes.js), which the impact graph turns into everything.
+    expect(await rules(sheet(".k-list"), "ui/src/components/Select/options.css")).toEqual([]);
+  });
+
+  it("names the keyframes of a component by one of its prefixes", async () => {
+    const frames = (name: string) =>
+      `@layer components {\n  @keyframes ${name} {\n    to {\n      opacity: 0;\n    }\n  }\n}\n`;
+    expect(await rules(frames("k-row-fresh"), "ui/src/components/DataGrid/DataGrid.css")).toEqual(
+      [],
+    );
+    expect(await rules(frames("k-fade"), "ui/src/components/DataGrid/DataGrid.css")).toEqual([
+      "kartenn/component-prefix",
+    ]);
   });
 
   it("lets the token files hold raw values, still in their layer", async () => {
