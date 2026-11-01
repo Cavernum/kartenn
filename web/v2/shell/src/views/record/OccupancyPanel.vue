@@ -10,6 +10,7 @@ import { useI18n } from "vue-i18n";
 import { useQuery } from "../../data/query.ts";
 import { useTime } from "../../time/index.ts";
 import ProblemState from "../../problems/ProblemState.vue";
+import { shareOf, whole } from "../occupancy.ts";
 import AttributeList from "../parts/AttributeList.vue";
 import ViewPanel from "../parts/ViewPanel.vue";
 
@@ -26,24 +27,8 @@ const occupancy = useQuery(() =>
 );
 const free = useQuery(() => reads.sub<NextFree>("prefix", props.id, "next-free", null, dated()));
 
-const whole = (value: string) => {
-  try {
-    return BigInt(value);
-  } catch {
-    return 0n;
-  }
-};
 const number = (value: string) => new Intl.NumberFormat(locale.value).format(whole(value));
-/** The share used, in whole percent; under one percent but not none, « < 1 % ». */
-const share = computed(() => {
-  const data = occupancy.data.value?.data;
-  if (!data) return undefined;
-  const total = whole(data.total);
-  const used = whole(data.used);
-  if (total === 0n) return undefined;
-  const percent = (used * 100n) / total;
-  return percent === 0n && used > 0n ? "< 1 %" : `${percent} %`;
-});
+const share = computed(() => shareOf(occupancy.data.value?.data));
 const items = computed(() => {
   const data = occupancy.data.value?.data;
   if (!data) return [];
