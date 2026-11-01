@@ -2,7 +2,8 @@
 // The topography (REQ-021-9; design 021 « Écrans » : Topographie; maquette E1): the tree of
 // the prefixes of a domain in a `TreeGrid` (parents deduced, no move), its first level and
 // the children of each node read page by page through the cache at the dates of the page,
-// the children of a closed node read on intent (REQ-021-22, `childrenIntent`); beside it,
+// the children of a closed node read on intent (REQ-021-22, `childrenIntent`), each prefix
+// with its occupancy as its page serves it (021/A11, no read for a row); beside it,
 // the content of the chosen node (`?node=<id>`), its record one link away. The domain is
 // chosen in the URL (`?domain=<id>`), the first one by default. The « + » of a prefix, `c`
 // and `e` open the edit panel of the kind (task 12). No move (task 24, REQ-021-17): a
@@ -57,11 +58,16 @@ import { openEdit } from "./edit/panel.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { rowsOf, useKeyLabel } from "./data.ts";
 import ViewPanel from "./parts/ViewPanel.vue";
+import { shareOf } from "./occupancy.ts";
 import { nodesOf } from "./topology.ts";
 import ContentTab from "./record/ContentTab.vue";
 
 type Node = components["schemas"]["TreeNode"];
-/** A node as the view names it: a listed one, or a prefix read alone (no version nor occupancy). */
+/**
+ * A node as the view names it: a listed one, or a prefix read alone (no version nor
+ * occupancy; not in the tree until its level is read, its occupancy is shown nowhere and
+ * never read for it).
+ */
 type Shown = Node extends infer N
   ? N extends unknown
     ? Omit<N, "version" | "occupancy">
@@ -175,11 +181,15 @@ const levelOf = (parent: string | null) => {
   const result = results.get(parent);
   return result?.data ? { items: itemsOf(parent), more: result.hasNextPage } : undefined;
 };
+// The occupancy of a prefix comes with its page (021/A11): no read for a row.
 const nodeOf = (item: Node): TreeNode => ({
   id: item.id,
   label: valueOf(item),
   icon: ICONS[item.kind],
-  cells: { detail: detailOf(item) },
+  cells: {
+    occupancy: (item.kind === "prefix" ? shareOf(item.occupancy) : undefined) ?? "",
+    detail: detailOf(item),
+  },
   detail: keyLabel("kind", `core.${item.kind}`) ?? item.kind,
 });
 // Each node placed once, even while its levels are read again (`topology.ts`).
@@ -210,8 +220,11 @@ const nodeState = (node: TreeNode): TreeNodeState | undefined =>
     : time.value.present && inDraft.value.has(node.id)
       ? "draft"
       : undefined;
+// The occupancy first, as the mock-up E1; the nature (not in the mock-up, kept from task
+// 11) beside it, the first to hide.
 const columns = computed<GridColumn[]>(() => [
-  { id: "detail", label: t("views.record.nature"), width: "sm" },
+  { id: "occupancy", label: t("views.record.occupancy"), width: "sm", align: "end" },
+  { id: "detail", label: t("views.record.nature"), width: "sm", priority: 2 },
 ]);
 
 /** The open nodes: closed again with the domain or the dates (their pages start again). */
