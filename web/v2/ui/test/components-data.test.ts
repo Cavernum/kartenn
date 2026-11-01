@@ -616,7 +616,16 @@ describe("filters, differential, view states", () => {
     // The alert is the sentence, waiting (hidden) until it is in the tree; codes and
     // action stay out of it.
     expect(html).toMatch(
-      /<p class="k-error-state__title" role="alert" data-state="waiting"><span class="k-error-state__sentence">Le service ne répond pas\.<\/span><\/p>/,
+      /<div class="k-error-state__said" role="alert" data-state="waiting"><p class="k-error-state__title">Le service ne répond pas\.<\/p><!----><\/div>/,
+    );
+    // Why it happened, when said, is in the alert too (REQ-021-20).
+    const why = await renderToString(
+      createSSRApp({
+        render: () => h(ErrorState, { title: "Lecture impossible." }, () => "Le serveur est loin."),
+      }),
+    );
+    expect(why).toMatch(
+      /role="alert"[^>]*><p class="k-error-state__title">Lecture impossible\.<\/p><p class="k-error-state__text"><!--\[-->Le serveur est loin\.<!--\]--><\/p><\/div>/,
     );
     expect(text(html)).toContain("urn:kartenn:problem:unavailable");
     expect(text(html)).toContain("Copier Request-Id req_1");

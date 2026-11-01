@@ -1,5 +1,4 @@
 import {
-  ApiProblem,
   draft,
   drafts,
   keys,
@@ -14,6 +13,7 @@ import {
 import type { CellRef, CellState, GridColumn, GridCommit, RowState } from "@kartenn/ui";
 import { computed, onScopeDispose, ref, shallowReactive, shallowRef, watch } from "vue";
 import { useQuery } from "../../data/query.ts";
+import { problemCode } from "../../problems/index.ts";
 import { useSession } from "../../rights/index.ts";
 import { useTime } from "../../time/index.ts";
 import { nameOf, type Collection, type Item } from "../collections.ts";
@@ -83,6 +83,8 @@ export interface InlineDeps {
   rows: () => readonly Item[];
   /** The words: `t` of the shell. */
   t: (key: string, values?: Record<string, unknown>) => string;
+  /** A problem in plain words (`useProblems().sentence`). */
+  sentence: (error: unknown) => string;
   say: InlineSay;
 }
 
@@ -90,23 +92,24 @@ const keyOf = (row: string, column: string) => `${row}\n${column}`;
 const versionOf = (item: Item | undefined) =>
   typeof item?.version === "string" ? item.version : null;
 
-/** The message and the code of a refusal, as a cell shows them. */
+/**
+ * The message and the code of a refusal, as a cell shows them: the first violation and its
+ * rule, else the problem in plain words and its `type` (`problems/`).
+ */
 export function cellErrorOf(
   refusal: Refusal,
-  t: InlineDeps["t"],
+  sentence: InlineDeps["sentence"],
 ): { error: string; code?: string } {
-  const problem = refusal.problem;
   if (refusal.kind === "invalid") {
     const first = [...Object.values(refusal.byField).flat(), ...refusal.general][0];
     if (first) return { error: first.detail, code: first.rule };
   }
-  if (problem instanceof ApiProblem) {
-    return { error: problem.detail ?? problem.title, code: problem.code };
-  }
-  return { error: t("edit.network") };
+  const code = problemCode(refusal.problem);
+  const error = sentence(refusal.problem);
+  return code ? { error, code } : { error };
 }
 
-export function useInlineEdit({ collection, rows, t, say }: InlineDeps) {
+export function useInlineEdit({ collection, rows, t, sentence, say }: InlineDeps) {
   const session = useSession();
   const time = useTime();
   const present = computed(() => time.value.present);
@@ -215,7 +218,7 @@ export function useInlineEdit({ collection, rows, t, say }: InlineDeps) {
       const drafted = t("edit.drafted", { what: what(field.name, nameOf(row)) });
       say.status(note ? `${note} ${drafted}` : drafted);
     } else {
-      shown.set(key, { state: cellErrorOf(outcome, t), value, version });
+      shown.set(key, { state: cellErrorOf(outcome, sentence), value, version });
     }
   }
 
@@ -332,7 +335,7 @@ export function useInlineEdit({ collection, rows, t, say }: InlineDeps) {
       return false;
     }
     if (outcome.kind === "invalid") {
-      shown.set(key, { state: cellErrorOf(outcome, t), value, version: ask.version });
+      shown.set(key, { state: cellErrorOf(outcome, sentence), value, version: ask.version });
     } else shown.delete(key);
     asking.value = { ...ask, value: text, busy: false, refusal: outcome };
     return false;

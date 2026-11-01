@@ -290,7 +290,7 @@ async fn labels_are_negotiated(pool: PgPool) {
     );
     assert_eq!(
         body["spaces"]["problem"]["changeset-refused"],
-        "The changeset is refused"
+        "The change is refused by the consistency rules."
     );
     assert_eq!(body["spaces"]["kind"]["core.prefix"], "Prefix");
     let (status, _, problem) = get(&app, "/v1/labels?lang=fr_FR", &[]).await;

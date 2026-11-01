@@ -581,7 +581,7 @@ mod tests {
         };
         assert_eq!(
             find("problem", "changeset-refused").map(|l| l.en),
-            Some("The changeset is refused".to_owned())
+            Some("The change is refused by the consistency rules.".to_owned())
         );
         assert!(
             ProblemKind::ALL

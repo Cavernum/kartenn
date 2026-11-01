@@ -182,42 +182,94 @@ impl ProblemKind {
         }
     }
 
-    /// Its French and English labels (spec 018, R19): the English is the `title`, neutral;
-    /// a client shows the label of its language from the dictionary, space `problem`.
+    /// Its French and English labels (spec 018, R19; REQ-021-20): what happened, in plain
+    /// words, as a screen says it — not the `title`, which stays the neutral summary of the
+    /// class. A client shows the label of its language from the dictionary, space `problem`.
     #[must_use]
     pub const fn labels(self) -> kartenn_core::labels::Compiled {
-        let fr = match self {
-            Self::BadRequest => "La requête est mal formée",
-            Self::InvalidCursor => "Le curseur est invalide",
-            Self::Unauthenticated => "Une authentification est requise",
-            Self::Forbidden => "L'action n'est pas permise",
-            Self::CrossSiteRequest => "Requête intersite refusée",
-            Self::NotFound => "Introuvable",
-            Self::MethodNotAllowed => "Méthode non permise",
-            Self::NotAcceptable => "Aucune représentation acceptable",
-            Self::Conflict => "L'état courant ne permet pas l'action",
-            Self::UndoConflict => "L'annulation entre en conflit avec des changements ultérieurs",
-            Self::IdempotencyInProgress => "Une requête de même clé d'idempotence est en cours",
-            Self::PreconditionFailed => "La ressource a changé",
-            Self::PayloadTooLarge => "Le corps est trop volumineux",
-            Self::UnsupportedMediaType => "Type de média non pris en charge",
-            Self::ChangesetRefused => "Le changeset est refusé",
-            Self::MotiveRequired => "Un motif est requis",
-            Self::TooManyOperations => "Le changeset a trop d'opérations",
-            Self::IdempotencyKeyReused => "La clé d'idempotence a servi à une autre requête",
-            Self::InvalidMember => "Un membre ne peut pas être écrit",
-            Self::InvalidOverride => "Le filtre ou sa durée est invalide",
-            Self::InvalidImport => "Les éléments de l'import ne peuvent pas être triés",
-            Self::PreconditionRequired => "If-Match est requis",
-            Self::RateLimited => "Trop de requêtes",
-            Self::Unavailable => "Le service est indisponible",
-            Self::Internal => "Erreur interne",
-            Self::Exhausted => "Plus rien de libre",
-            Self::PolicyQueryTooLarge => "La requête de conformité est trop étendue",
-            Self::DraftLimit => "Limite des brouillons atteinte",
-            Self::SimulateUnsupported => "Cette écriture ne se simule pas",
-        };
-        kartenn_core::labels::Compiled::new(fr, self.title())
+        kartenn_core::labels::Compiled::new(self.label_fr(), self.label_en())
+    }
+
+    /// The French label, a sentence and its stop.
+    const fn label_fr(self) -> &'static str {
+        match self {
+            Self::BadRequest => "La requête est mal formée.",
+            Self::InvalidCursor => "Cette page a expiré ; la liste repart du début.",
+            Self::Unauthenticated => "Vous n'êtes pas, ou plus, connecté.",
+            Self::Forbidden => "Vous n'avez pas le droit de faire cela.",
+            Self::CrossSiteRequest => "Requête refusée : elle ne vient pas de kartenn.",
+            Self::NotFound => "Cet objet n'existe pas à ces dates, ou plus.",
+            Self::MethodNotAllowed => "Cette action n'est pas possible ici.",
+            Self::NotAcceptable => "Le serveur ne sait pas répondre dans ce format.",
+            Self::Conflict => "L'état actuel ne permet pas cette action.",
+            Self::UndoConflict => {
+                "Ce changeset ne peut plus être annulé : un changement plus récent le recouvre."
+            }
+            Self::IdempotencyInProgress => "La même demande est déjà en cours.",
+            Self::PreconditionFailed => "L'objet a changé depuis votre lecture.",
+            Self::PayloadTooLarge => "La demande est trop volumineuse.",
+            Self::UnsupportedMediaType => "Le format de la demande n'est pas pris en charge.",
+            Self::ChangesetRefused => "Le changement est refusé par les règles de cohérence.",
+            Self::MotiveRequired => "Un motif est obligatoire.",
+            Self::TooManyOperations => "Trop d'opérations dans un seul changeset.",
+            Self::IdempotencyKeyReused => {
+                "Cette clé d'idempotence a déjà servi pour une autre demande."
+            }
+            Self::InvalidMember => "Un champ ne peut pas être écrit.",
+            Self::InvalidOverride => "Le filtre ou sa durée est invalide.",
+            Self::InvalidImport => "L'import ne peut pas être ordonné.",
+            Self::PreconditionRequired => {
+                "La version lue de l'objet doit accompagner la modification."
+            }
+            Self::RateLimited => "Trop de requêtes : patientez un instant.",
+            Self::Unavailable => "Le service est momentanément indisponible.",
+            Self::Internal => "Erreur interne du serveur.",
+            Self::Exhausted => "Plus aucune valeur libre dans cet ensemble.",
+            Self::PolicyQueryTooLarge => "La requête de conformité est trop étendue.",
+            Self::DraftLimit => "Vous avez atteint le nombre maximal de brouillons.",
+            Self::SimulateUnsupported => "Cette écriture ne se simule pas.",
+        }
+    }
+
+    /// The English label, a sentence and its stop (not the `title`).
+    const fn label_en(self) -> &'static str {
+        match self {
+            Self::BadRequest => "The request is malformed.",
+            Self::InvalidCursor => "This page has expired; the list starts again from the top.",
+            Self::Unauthenticated => "You are not, or no longer, signed in.",
+            Self::Forbidden => "You are not allowed to do this.",
+            Self::CrossSiteRequest => "Request refused: it did not come from kartenn.",
+            Self::NotFound => "This object does not exist at these dates, or no longer.",
+            Self::MethodNotAllowed => "This action is not possible here.",
+            Self::NotAcceptable => "The server cannot answer in this format.",
+            Self::Conflict => "The current state does not allow this action.",
+            Self::UndoConflict => {
+                "This changeset can no longer be undone: a later change covers it."
+            }
+            Self::IdempotencyInProgress => "The same request is already under way.",
+            Self::PreconditionFailed => "The object changed since you read it.",
+            Self::PayloadTooLarge => "The request is too large.",
+            Self::UnsupportedMediaType => "The format of the request is not supported.",
+            Self::ChangesetRefused => "The change is refused by the consistency rules.",
+            Self::MotiveRequired => "A motive is required.",
+            Self::TooManyOperations => "Too many operations in one changeset.",
+            Self::IdempotencyKeyReused => {
+                "This idempotency key was already used for another request."
+            }
+            Self::InvalidMember => "A field cannot be written.",
+            Self::InvalidOverride => "The filter or its duration is invalid.",
+            Self::InvalidImport => "The import cannot be ordered.",
+            Self::PreconditionRequired => {
+                "The version read of the object must come with the change."
+            }
+            Self::RateLimited => "Too many requests: wait a moment.",
+            Self::Unavailable => "The service is unavailable for the moment.",
+            Self::Internal => "Internal server error.",
+            Self::Exhausted => "No free value is left in this set.",
+            Self::PolicyQueryTooLarge => "The compliance query is too wide.",
+            Self::DraftLimit => "You have reached the most drafts allowed.",
+            Self::SimulateUnsupported => "This write cannot be simulated.",
+        }
     }
 
     /// A short summary, the same for every occurrence (RFC 9457 §3.1.3).

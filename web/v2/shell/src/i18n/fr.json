@@ -141,7 +141,6 @@
     "issuer": "Se connecter par {id}",
     "loading": "Chargement des fournisseurs d'identité",
     "issuersFailed": "Les fournisseurs d'identité n'ont pas pu être lus.",
-    "retry": "Réessayer",
     "none": "Aucun fournisseur d'identité",
     "noneText": "L'instance n'en configure aucun : seul un compte de secours peut se connecter.",
     "breakglass": "Compte de secours",
@@ -163,7 +162,7 @@
     "endingFixed": "Elle atteint sa durée maximale : terminez votre saisie, puis reconnectez-vous.",
     "stay": "Rester connecté",
     "stayFailed": "La session n'a pas pu être prolongée.",
-    "stayFailedText": "Le serveur n'a pas répondu ; vous restez connecté jusqu'à l'échéance dite.",
+    "stayFailedText": "{why} Vous restez connecté jusqu'à l'échéance dite.",
     "retry": "Réessayer"
   },
   "about": {
@@ -200,7 +199,7 @@
     }
   },
   "time": {
-    "refused": "kartenn refuse cette date : {reason}",
+    "refused": "Date refusée par kartenn. {why}",
     "asOfLater": "Date postérieure à l'heure de kartenn : il n'a encore rien affirmé à cet instant."
   }
 }

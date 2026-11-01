@@ -3,7 +3,8 @@
     - heading "ErrorState" [level=1]
     - paragraph: "Motif : role=alert, codes copiables"
     - figure "retry — Phrase, code, identifiant de requête, Réessayer":
-      - alert: Le service ne répond pas.
+      - alert:
+        - paragraph: Le service ne répond pas.
       - button "Copier type urn:kartenn:problem:unavailable":
         - text: ""
         - code: urn:kartenn:problem:unavailable

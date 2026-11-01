@@ -289,4 +289,23 @@ describe("as rendered", () => {
     });
     expect(past).toContain("Revenir au présent");
   });
+
+  it("PeriodPicker: the host's refusal on its field, its codes copyable under the fields", async () => {
+    const refused = await render(PeriodPicker, {
+      timeZone: PARIS,
+      errors: { asOf: "Date refusée par kartenn." },
+      problem: { type: "urn:kartenn:problem:bad-request", requestId: "req_1" },
+    });
+    expect(refused).toContain("Date refusée par kartenn.");
+    expect(refused).toMatch(/k-period-picker__codes/);
+    expect(refused).toContain("urn:kartenn:problem:bad-request");
+    expect(refused).toContain("req_1");
+    // `about:blank` and no request: nothing to pass on.
+    const bare = await render(PeriodPicker, {
+      timeZone: PARIS,
+      errors: { asOf: "Refusée." },
+      problem: { type: "about:blank" },
+    });
+    expect(bare).not.toMatch(/k-period-picker__codes/);
+  });
 });

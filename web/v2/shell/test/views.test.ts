@@ -347,9 +347,63 @@ describe("the routes of the referential", () => {
       await expect
         .poll(() => root.textContent, { timeout: 8_000 })
         .toContain("Les propriétés déclarées n'ont pas pu être lues");
+      // Why, in plain words (the type translated: the dictionary has none, the catalog
+      // has), then its code as served (REQ-021-20).
+      expect(root.textContent).toContain("Vous n'avez pas le droit de faire cela.");
+      expect(root.textContent).toContain("urn:kartenn:problem:forbidden");
       expect(addresses(seen)).toEqual([]);
     }, 10_000);
   }
+
+  it("a next page refused: the rows kept, the refusal said above them by problems/", async () => {
+    const { root } = await mounted("/addresses", (url) => {
+      if (url.includes("cursor=c2")) return 500;
+      if (url.startsWith("/v1/addresses")) {
+        return page(
+          [{ id: ENTITY, value: "192.0.2.10", links: { self: `/v1/addresses/${ENTITY}` } }],
+          "/v1/addresses?cursor=c2",
+        );
+      }
+      return page([]);
+    });
+    await expect.poll(() => root.textContent).toContain("192.0.2.10");
+    // The next page, as the grid asks for it once scrolled to its end (no layout here).
+    const query = queryClient
+      .getQueryCache()
+      .findAll({ queryKey: ["v1", "/v1/addresses"] })
+      .find((q) => q.state.data !== undefined)!;
+    await query.fetch(undefined, { meta: { fetchMore: { direction: "forward" } } }).catch(() => {});
+    await expect
+      .poll(() => root.textContent, { timeout: 8_000 })
+      .toContain("La suite de la liste n'a pas pu être lue");
+    expect(root.textContent).toContain("192.0.2.10");
+    const alert = [...root.querySelectorAll("[role='alert']")].find((el) =>
+      el.textContent?.includes("La suite de la liste"),
+    )!;
+    expect(alert.textContent).toContain("urn:kartenn:problem:forbidden");
+    expect(alert.textContent).toContain("Réessayer");
+  }, 10_000);
+
+  it("shows the type of a declared property in words, its key at hand (REQ-021-19)", async () => {
+    const { root } = await mounted("/property-declarations", (url) =>
+      url.startsWith("/v1/property-declarations")
+        ? page([
+            { id: "d1", key: "core.site", type: "enum", carriers: [] },
+            { id: "d2", key: "custom.odd", type: "novel", carriers: [] },
+          ])
+        : page([]),
+    );
+    await expect.poll(() => root.textContent).toContain("Liste fermée");
+    // The word shown; the key in the description of its pastille, copied by it.
+    const typed = [...root.querySelectorAll(".k-key-label")].find((el) =>
+      el.textContent?.includes("Liste fermée"),
+    )!;
+    expect(typed.textContent).toContain("enum");
+    expect(typed.querySelector("button")).not.toBeNull();
+    // A type the catalogs lack: its key alone, never an empty cell.
+    const alone = [...root.querySelectorAll("[data-state='key-only']")].map((el) => el.textContent);
+    expect(alone.some((text) => text?.includes("novel"))).toBe(true);
+  });
 
   it("says why the anomalies of a site cannot be read, not that it has none", async () => {
     const site = "0b5e3c1a-0000-4000-8000-0000000000f1";

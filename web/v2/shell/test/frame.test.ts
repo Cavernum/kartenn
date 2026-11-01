@@ -18,7 +18,13 @@ import {
 import { CORE_SPACES, locate, sidebarGroups, spaceEntry } from "../src/frame/spaces.ts";
 import { installPrefetch, queriesOf } from "../src/prefetch/intent.ts";
 import { Rights, type Me } from "../src/rights/index.ts";
-import { checkPeriod, goToPeriod, installTime, probePath } from "../src/time/index.ts";
+import {
+  checkPeriod,
+  goToPeriod,
+  installTime,
+  probePath,
+  refusalOnField,
+} from "../src/time/index.ts";
 
 // The frame of the shell (REQ-021-1, 2, 4, 5): spaces by rights, breadcrumb, guards of
 // session, time and prefetch in their order, the check of a period by the API, the
@@ -242,12 +248,38 @@ describe("check of a period by the API", () => {
       });
     };
     const asOf = { validAt: null, asOf: "2026-01-01T00:00:00Z" };
-    expect(await checkPeriod(asOf, "/v1/sites", refuse(400))).toEqual({
-      asOf: "as_of is later than the time of kartenn",
-    });
+    const refused = await checkPeriod(asOf, "/v1/sites", refuse(400));
+    expect(refused).toMatchObject({ field: "asOf", problem: { status: 400 } });
     expect(asked[0]).toBe("/v1/sites?page_size=1&as_of=2026-01-01T00%3A00%3A00Z");
     const validAt = { validAt: "2026-01-01T00:00:00Z", asOf: null };
     expect(await checkPeriod(validAt, "/v1/sites", refuse(403))).toBeNull();
+  });
+
+  it("says a refused date on its field by problems/: its own words, else its type's", () => {
+    const tr = (key: string, params?: Record<string, unknown>) =>
+      `${key}${params ? JSON.stringify(params) : ""}`;
+    const sentence = (error: unknown) =>
+      error instanceof ApiProblem ? `said:${error.code}` : "said:network";
+    const later = new ApiProblem({
+      status: 400,
+      type: "urn:kartenn:problem:bad-request",
+      title: "",
+      detail: "as_of is later than the time of kartenn",
+      requestId: "r-1",
+    });
+    expect(refusalOnField({ field: "asOf", problem: later }, tr, sentence)).toEqual({
+      asOf: "time.asOfLater",
+    });
+    const malformed = new ApiProblem({
+      status: 400,
+      type: "urn:kartenn:problem:bad-request",
+      title: "",
+      detail: "valid_at is not RFC 3339",
+    });
+    const words = refusalOnField({ field: "validAt", problem: malformed }, tr, sentence);
+    expect(words).toEqual({ validAt: 'time.refused{"why":"said:bad-request"}' });
+    // A new object each time: the date pill shows each refusal again.
+    expect(refusalOnField({ field: "validAt", problem: malformed }, tr, sentence)).not.toBe(words);
   });
 });
 

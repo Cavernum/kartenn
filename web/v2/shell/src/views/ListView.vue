@@ -44,7 +44,9 @@ import {
   type CollectionColumn,
   type Item,
 } from "./collections.ts";
-import { problemOf } from "./data.ts";
+import NextPageAlert from "../problems/NextPageAlert.vue";
+import ProblemState from "../problems/ProblemState.vue";
+import { useProblems } from "../problems/index.ts";
 import { useFilteredList } from "./list.ts";
 import ViewPanel from "./parts/ViewPanel.vue";
 
@@ -63,6 +65,7 @@ const {
   list,
   rows,
   failed,
+  nextFailed,
   complete,
   blocked,
   declarationsError,
@@ -127,6 +130,7 @@ const edit = useInlineEdit({
   collection: () => props.collection,
   rows: () => rows.value,
   t: (key, values) => t(key, values ?? {}),
+  sentence: useProblems().sentence,
   say,
 });
 const active = ref<CellRef | undefined>();
@@ -232,27 +236,29 @@ function clearFilters(): void {
         @update:model-value="onFilters"
       />
     </template>
+    <NextPageAlert v-if="nextFailed" :error="list.error.value" :retry="list.fetchNextPage" />
     <!-- A property filter of the URL that no declaration types: no list read without it. -->
+    <ProblemState
+      v-if="blocked?.reason === 'failed'"
+      :title="t('views.list.declarationsFailed', { names: blocked.names.join(', ') })"
+      :error="declarationsError"
+    >
+      {{ t("views.list.notRead") }}
+    </ProblemState>
     <ErrorState
-      v-if="blocked"
-      :title="
-        t(blocked.reason === 'failed' ? 'views.list.declarationsFailed' : 'views.list.untyped', {
-          names: blocked.names.join(', '),
-        })
-      "
-      :problem="blocked.reason === 'failed' ? problemOf(declarationsError) : undefined"
+      v-else-if="blocked"
+      :title="t('views.list.untyped', { names: blocked.names.join(', ') })"
     >
       {{ t("views.list.notRead") }}
     </ErrorState>
-    <ErrorState
+    <ProblemState
       v-else-if="failed"
       :title="t('views.list.error', { name: title })"
-      :problem="problemOf(list.error.value)"
-      :retry-label="t('views.retry')"
-      @retry="list.refetch()"
+      :error="list.error.value"
+      :retry="list.refetch"
     >
       {{ t("views.errorText") }}
-    </ErrorState>
+    </ProblemState>
     <EmptyState
       v-else-if="list.isSuccess.value && rows.length === 0"
       :title="hasFilters ? t('views.list.noneFiltered') : t('views.list.none', { name: title })"

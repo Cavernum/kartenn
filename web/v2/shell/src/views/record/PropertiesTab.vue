@@ -3,20 +3,13 @@
 // and key, its value, and beside it the button of its explanation (`Popover`, read when it
 // opens); a property the caller may not read is masked, said in words. Three states.
 import { reads, type components } from "@kartenn/sdk";
-import {
-  DataGrid,
-  EmptyState,
-  ErrorState,
-  IconButton,
-  KeyLabel,
-  Popover,
-  type GridColumn,
-} from "@kartenn/ui";
+import { DataGrid, EmptyState, IconButton, KeyLabel, Popover, type GridColumn } from "@kartenn/ui";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useQuery } from "../../data/query.ts";
 import { useTime } from "../../time/index.ts";
-import { problemOf, useDeclarations, useKeyLabel } from "../data.ts";
+import ProblemState from "../../problems/ProblemState.vue";
+import { useDeclarations, useKeyLabel } from "../data.ts";
 import ExplanationBody from "./ExplanationBody.vue";
 import PropertyValue from "./PropertyValue.vue";
 
@@ -63,12 +56,11 @@ const columns = computed<GridColumn[]>(() => [
 </script>
 
 <template>
-  <ErrorState
+  <ProblemState
     v-if="resolved.isError.value"
     :title="t('views.record.propertiesError')"
-    :problem="problemOf(resolved.error.value)"
-    :retry-label="t('views.retry')"
-    @retry="resolved.refetch()"
+    :error="resolved.error.value"
+    :retry="resolved.refetch"
   />
   <EmptyState
     v-else-if="resolved.isSuccess.value && rows.length === 0"

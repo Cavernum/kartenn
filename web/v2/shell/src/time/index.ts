@@ -125,8 +125,29 @@ export function writesOf(time: Time): { quickEdit: boolean; draft: boolean } {
   return { quickEdit: time.present, draft: time.asOf === null };
 }
 
-/** The refusal of a date by the API, on its field of the period picker. */
-export type PeriodRefusal = Partial<Record<keyof Period, string>>;
+/** The refusal of a date by the API (a 400): the field it is about, and its problem. */
+export interface PeriodRefusal {
+  field: keyof Period;
+  problem: ApiProblem;
+}
+
+/**
+ * What the period picker shows of a refusal, by `problems/` (REQ-021-20): on its field, an
+ * `as_of` past the time of the base in its own words, else the sentence of the problem's
+ * type; its codes under the fields (`DatePill` `problem`). A new object each time.
+ */
+export function refusalOnField(
+  refusal: PeriodRefusal,
+  t: (key: string, params?: Record<string, unknown>) => string,
+  sentence: (error: unknown) => string,
+): Partial<Record<keyof Period, string>> {
+  const detail = refusal.problem.detail ?? refusal.problem.title;
+  const words =
+    refusal.field === "asOf" && /later than the time/.test(detail)
+      ? t("time.asOfLater")
+      : t("time.refused", { why: sentence(refusal.problem) });
+  return { [refusal.field]: words };
+}
 
 /** What the check reads: a dated read of the API by URL, its problem thrown. */
 export type Probe = (url: string) => Promise<unknown>;
@@ -175,6 +196,6 @@ export async function checkPeriod(
     if (!(error instanceof ApiProblem) || error.status !== 400) return null;
     const reason = error.detail ?? error.title;
     const field: keyof Period = period.asOf && /as_of/.test(reason) ? "asOf" : "validAt";
-    return { [field]: reason };
+    return { field, problem: error };
   }
 }
