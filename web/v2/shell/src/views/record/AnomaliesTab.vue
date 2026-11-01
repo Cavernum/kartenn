@@ -6,7 +6,7 @@
 // most), and kept to that object; those of an object outside any domain (a site) cannot be
 // read, which the tab says.
 import { reads } from "@kartenn/sdk";
-import { EmptyState, ErrorState, InlineAlert, type GridWindow } from "@kartenn/ui";
+import { EmptyState, InlineAlert, type GridWindow } from "@kartenn/ui";
 import { computed, ref, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 import { useInfiniteQuery } from "../../data/query.ts";
@@ -14,7 +14,8 @@ import { useNextPage, type ListWindow } from "../../prefetch/nextPage.ts";
 import { useTime } from "../../time/index.ts";
 import AnomalyGrid from "../anomalies/AnomalyGrid.vue";
 import type { Anomaly } from "../anomalies/anomaly.ts";
-import { problemOf, rowsOf } from "../data.ts";
+import ProblemState from "../../problems/ProblemState.vue";
+import { rowsOf } from "../data.ts";
 
 const props = defineProps<{
   kind: string;
@@ -75,12 +76,11 @@ const partial = computed(
     <InlineAlert v-if="partial" tone="warn" :title="t('views.anomalies.partialTitle')">
       {{ t("views.anomalies.partial", { n: PAGES }) }}
     </InlineAlert>
-    <ErrorState
+    <ProblemState
       v-if="list.isError.value && !list.isFetchNextPageError.value"
       :title="t('views.anomalies.error')"
-      :problem="problemOf(list.error.value)"
-      :retry-label="t('views.retry')"
-      @retry="list.refetch()"
+      :error="list.error.value"
+      :retry="list.refetch"
     />
     <EmptyState
       v-else-if="list.isSuccess.value && anomalies.length === 0"

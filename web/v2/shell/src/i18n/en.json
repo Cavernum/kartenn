@@ -141,7 +141,6 @@
     "issuer": "Log in with {id}",
     "loading": "Loading the identity providers",
     "issuersFailed": "The identity providers could not be read.",
-    "retry": "Retry",
     "none": "No identity provider",
     "noneText": "The instance configures none: only a break-glass account can log in.",
     "breakglass": "Break-glass account",

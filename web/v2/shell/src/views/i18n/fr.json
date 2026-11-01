@@ -9,7 +9,44 @@
         "entity": "Entité",
         "site": "Site"
       }
+    },
+    "problem": {
+      "bad-request": "La requête est mal formée.",
+      "invalid-cursor": "Cette page a expiré ; la liste repart du début.",
+      "unauthenticated": "Vous n'êtes pas, ou plus, connecté.",
+      "forbidden": "Vous n'avez pas le droit de faire cela.",
+      "cross-site-request": "Requête refusée : elle ne vient pas de kartenn.",
+      "not-found": "Cet objet n'existe pas à ces dates, ou plus.",
+      "method-not-allowed": "Cette action n'est pas possible ici.",
+      "not-acceptable": "Le serveur ne sait pas répondre dans ce format.",
+      "conflict": "L'état actuel ne permet pas cette action.",
+      "undo-conflict": "Ce changeset ne peut plus être annulé : un changement plus récent le recouvre.",
+      "idempotency-in-progress": "La même demande est déjà en cours.",
+      "precondition-failed": "L'objet a changé depuis votre lecture.",
+      "payload-too-large": "La demande est trop volumineuse.",
+      "unsupported-media-type": "Le format de la demande n'est pas pris en charge.",
+      "changeset-refused": "Le changement est refusé par les règles de cohérence.",
+      "motive-required": "Un motif est obligatoire.",
+      "too-many-operations": "Trop d'opérations dans un seul changeset.",
+      "idempotency-key-reused": "Cette clé d'idempotence a déjà servi pour une autre demande.",
+      "invalid-member": "Un champ ne peut pas être écrit.",
+      "invalid-override": "Le filtre ou sa durée est invalide.",
+      "invalid-import": "L'import ne peut pas être ordonné.",
+      "precondition-required": "La version lue de l'objet doit accompagner la modification.",
+      "rate-limited": "Trop de requêtes : patientez un instant.",
+      "unavailable": "Le service est momentanément indisponible.",
+      "internal": "Erreur interne du serveur.",
+      "exhausted": "Plus aucune valeur libre dans cet ensemble.",
+      "policy-query-too-large": "La requête de conformité est trop étendue.",
+      "draft-limit": "Vous avez atteint le nombre maximal de brouillons.",
+      "simulate-unsupported": "Cette écriture ne se simule pas."
     }
+  },
+  "problem": {
+    "network": "Le serveur n'a pas pu être joint.",
+    "failed": "La requête n'a pas abouti.",
+    "code": "Code du problème",
+    "requestId": "Request-Id"
   },
   "views": {
     "actions": "Actions",
@@ -183,6 +220,16 @@
     },
     "properties": {
       "type": "Type",
+      "types": {
+        "bool": "Oui ou non",
+        "date": "Date",
+        "enum": "Liste fermée",
+        "external_ref": "Référence externe",
+        "fqdn": "Nom de domaine",
+        "int": "Entier",
+        "ref": "Référence",
+        "text": "Texte"
+      },
       "cardinality": "Cardinalité",
       "carriers": "Portée par",
       "everyKind": "toute sorte",
@@ -210,7 +257,6 @@
     "askOpen": "Non appliqué : terminez ou annulez d'abord {what} ; votre saisie « {value} » n'est pas gardée.",
     "notNow": "Non écrit : hors du présent, ou sans le droit, plus rien ne s'écrit ici.",
     "applyForbidden": "Appliquer maintenant demande {permission} : la modification va au brouillon.",
-    "network": "Le serveur n'a pas pu être joint.",
     "check": {
       "required": "{field} est obligatoire.",
       "choice": "Choisissez une valeur de la liste : {values}.",
@@ -223,7 +269,6 @@
     "forbidden": "Vous n'avez pas le droit de faire cela",
     "failed": "La modification n'a pas abouti",
     "kept": "Votre saisie est gardée.",
-    "requestId": "Identifiant de la requête",
     "applyNow": "Appliquer maintenant : {field} de {name}",
     "motive": "Motif",
     "motiveQuick": "Modification rapide : {field} de {name}",

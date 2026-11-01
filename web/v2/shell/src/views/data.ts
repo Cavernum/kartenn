@@ -1,12 +1,11 @@
-import { ApiProblem, reads, type Entry, type Page } from "@kartenn/sdk";
-import type { ProblemFacts } from "@kartenn/ui";
+import { reads, type Entry, type Page } from "@kartenn/sdk";
 import { computed, watchEffect, type ComputedRef, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useInfiniteQuery, useLabel, useLocale } from "../data/query.ts";
 import type { DeclarationOfModel, FilterWords } from "./filters.ts";
 
 // What the views of the referential share (task 11): the declared properties, the words of
-// the filters, the rows of a paged list, and the facts of an error for `ErrorState`.
+// the filters, the rows of a paged list; the problems are said by `problems/`.
 
 /** How many pages of declarations are read at most (a page of the contract each). */
 const DECLARATION_PAGES = 10;
@@ -14,16 +13,6 @@ const DECLARATION_PAGES = 10;
 /** The rows of the pages of a list, in order. */
 export function rowsOf<T>(data: { pages: readonly Entry<Page<T>>[] } | undefined): T[] {
   return data?.pages.flatMap((page) => page.data.items) ?? [];
-}
-
-/** What an error state shows of an error: the problem of the API as it is, else nothing. */
-export function problemOf(error: unknown): ProblemFacts | undefined {
-  return error instanceof ApiProblem ? error : undefined;
-}
-
-/** The slug of the type of a problem (`urn:kartenn:problem:<slug>`), `null` otherwise. */
-export function problemSlug(error: unknown): string | null {
-  return error instanceof ApiProblem ? error.code : null;
 }
 
 /**

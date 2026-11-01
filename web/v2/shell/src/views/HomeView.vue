@@ -8,7 +8,7 @@
 // its tile. The instant of the computation at the foot. Three states, for the counters as a
 // whole: they are one read.
 import { stats as statsQuery, type components } from "@kartenn/sdk";
-import { BarChart, ErrorState, Grid, Skeleton, type ChartPoint } from "@kartenn/ui";
+import { BarChart, Grid, Skeleton, type ChartPoint } from "@kartenn/ui";
 import { computed, onBeforeUnmount, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useQuery } from "../data/query.ts";
@@ -19,7 +19,8 @@ import KLink from "../prefetch/KLink.vue";
 import { serverSkew } from "../session/expiry.ts";
 import { useSession } from "../rights/index.ts";
 import { COLLECTIONS } from "./collections.ts";
-import { problemOf, useKeyLabel } from "./data.ts";
+import ProblemState from "../problems/ProblemState.vue";
+import { useKeyLabel } from "./data.ts";
 import AttributeList from "./parts/AttributeList.vue";
 import ViewPanel from "./parts/ViewPanel.vue";
 
@@ -89,15 +90,14 @@ const tr = (key: string) => t(key);
 
 <template>
   <h1 class="k-visually-hidden">{{ t("nav.home") }}</h1>
-  <ErrorState
+  <ProblemState
     v-if="stats.isError.value"
     :title="t('views.home.error')"
-    :problem="problemOf(stats.error.value)"
-    :retry-label="t('views.retry')"
-    @retry="stats.refetch()"
+    :error="stats.error.value"
+    :retry="stats.refetch"
   >
     {{ t("views.errorText") }}
-  </ErrorState>
+  </ProblemState>
   <!-- One skeleton, said once (its own status region), of the height of a row of tiles. -->
   <Skeleton v-else-if="stats.isPending.value" variant="text" :rows="6" />
   <template v-else-if="data">

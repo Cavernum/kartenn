@@ -315,6 +315,12 @@ test("a creation applied at once: ?approval=self, its violation on its field, th
   await expect(value).toHaveAttribute("aria-invalid", "true");
   await expect(value).toBeFocused();
   await expect(value).toHaveAccessibleDescription(/core\.prefix\.unaligned/);
+  // Under the fields (REQ-021-20): the code of each violation, of the problem and the
+  // Request-Id, each a button that copies it.
+  const refusal = form.getByRole("alert").filter({ hasText: "La modification n'est pas valide" });
+  await expect(refusal.getByRole("button", { name: "Copier core.prefix.unaligned" })).toBeVisible();
+  await expect(refusal.getByRole("button", { name: /^Copier urn:kartenn:problem:/ })).toBeVisible();
+  await expect(refusal).toContainText("Request-Id");
   await value.fill("203.0.113.0/24");
   await page.keyboard.press("Control+Enter");
   await expect(

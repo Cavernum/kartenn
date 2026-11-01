@@ -7,7 +7,6 @@ import { reads, type components } from "@kartenn/sdk";
 import {
   DataGrid,
   EmptyState,
-  ErrorState,
   Icon,
   KeyLabel,
   type GridColumn,
@@ -21,7 +20,8 @@ import KLink from "../../prefetch/KLink.vue";
 import { useNextPage, type ListWindow } from "../../prefetch/nextPage.ts";
 import { useTime } from "../../time/index.ts";
 import { pageOfHref, pageOfObject } from "../collections.ts";
-import { problemOf, rowsOf, useKeyLabel } from "../data.ts";
+import ProblemState from "../../problems/ProblemState.vue";
+import { rowsOf, useKeyLabel } from "../data.ts";
 
 type TreeNode = components["schemas"]["TreeNode"];
 interface Row extends Record<string, unknown> {
@@ -79,12 +79,11 @@ const detailWords = (row: Row) => {
 </script>
 
 <template>
-  <ErrorState
+  <ProblemState
     v-if="content.isError.value && !content.isFetchNextPageError.value"
     :title="t('views.record.contentError')"
-    :problem="problemOf(content.error.value)"
-    :retry-label="t('views.retry')"
-    @retry="content.refetch()"
+    :error="content.error.value"
+    :retry="content.refetch"
   />
   <EmptyState
     v-else-if="content.isSuccess.value && rows.length === 0"

@@ -141,7 +141,6 @@
     "issuer": "Se connecter par {id}",
     "loading": "Chargement des fournisseurs d'identité",
     "issuersFailed": "Les fournisseurs d'identité n'ont pas pu être lus.",
-    "retry": "Réessayer",
     "none": "Aucun fournisseur d'identité",
     "noneText": "L'instance n'en configure aucun : seul un compte de secours peut se connecter.",
     "breakglass": "Compte de secours",

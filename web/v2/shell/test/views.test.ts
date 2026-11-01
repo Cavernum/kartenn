@@ -347,6 +347,10 @@ describe("the routes of the referential", () => {
       await expect
         .poll(() => root.textContent, { timeout: 8_000 })
         .toContain("Les propriétés déclarées n'ont pas pu être lues");
+      // Why, in plain words (the type translated: the dictionary has none, the catalog
+      // has), then its code as served (REQ-021-20).
+      expect(root.textContent).toContain("Vous n'avez pas le droit de faire cela.");
+      expect(root.textContent).toContain("urn:kartenn:problem:forbidden");
       expect(addresses(seen)).toEqual([]);
     }, 10_000);
   }

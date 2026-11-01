@@ -5,7 +5,8 @@ import { useRoute, useRouter } from "vue-router";
 import { useInfiniteQuery, type UseInfiniteQueryResult } from "../data/query.ts";
 import { useNextPage, type ListWindow } from "../prefetch/nextPage.ts";
 import { useTime } from "../time/index.ts";
-import { problemSlug, rowsOf, useDeclarations, useFilterWords } from "./data.ts";
+import { problemSlug } from "../problems/index.ts";
+import { rowsOf, useDeclarations, useFilterWords } from "./data.ts";
 import {
   filtersOfQuery,
   listFilterModel,

@@ -448,15 +448,21 @@ sequenceDiagram
   invalidée par l'événement `labels` du flux quand la révision qu'il nomme diffère de
   celle du dictionnaire gardé (relecture en `If-None-Match`) *(précisé à la réalisation,
   2026-10-24 : la révision n'entre pas dans la clé, sans quoi les écrans abonnés à
-  l'ancienne clé ne verraient pas la nouvelle)* ;
+  l'ancienne clé ne verraient pas la nouvelle ; tâche 13 : lecture typée par le contrat,
+  `reads.keyed`, hors des clés par chemin qu'un changeset invalide, et toujours au
+  présent, quelles que soient les dates du contexte)* ;
   `label(kind, key, locale)` cherche le dictionnaire, puis le catalogue
   (`labels.<kind>.<key>` du shell ou du plugin), puis rend la clé ; `KeyLabel` (020)
   affiche le résultat et garde la clé accessible ; les codes restent toujours visibles.
   Un changement de libellé ne relit aucun objet.
-- **Codes** : `ApiProblem` (SDK, existant) porte `type`, `violations[].code` et
+- **Codes** : `ApiProblem` (SDK, existant) porte `type`, `violations[].rule` et
   `requestId` ; tout rendu d'erreur passe par `ErrorState`, `InlineAlert` ou `Toast` de la
-  020, qui montrent ces champs en `CodeBadge`. Le slug du `type`
-  (`urn:kartenn:problem:<slug>`) est le code affiché.
+  020, qui montrent ces champs en `CodeBadge`. Le code affiché est le `type` tel que servi
+  (`urn:kartenn:problem:<slug>`, « Erreurs et cas limites ») ; son slug cherche la phrase
+  dans l'espace `problem` du dictionnaire *(précisé à la réalisation, tâche 13 : un seul
+  chemin, `web/v2/shell/src/problems/` — `useProblems()` donne la phrase et les lignes
+  d'un encart, `ProblemState` l'état d'erreur d'une vue, `RefusalAlert` l'écriture
+  refusée ; la page de connexion lit les seuls catalogues, faute de session)*.
 
 ## Couche de données (REQ-021-21 à 24, ADR 0037)
 

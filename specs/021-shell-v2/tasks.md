@@ -770,6 +770,41 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     clé ; `ApiProblem.code`. La route `GET /v1/labels` (018) n'étant pas encore au contrat
     de `main`, lecture par URL (`reads.byUrl`) et Vitest sur un serveur simulé
     (`test/labels.test.ts`). Reste : `KeyLabel`, rendu des erreurs, parcours.
+  - en cours : fait le 2026-11-01 — SDK : `GET /v1/labels` étant au contrat de `main`,
+    lecture typée `reads.keyed(clé, chemin, {query, family})` (chemin, paramètres et
+    réponse du contrat ; `byUrl` retiré), `Dictionary` = schéma `Labels` aux espaces
+    typés ; Vitest : un changeset (`lists()`) ne relit pas le dictionnaire. Shell : un seul
+    chemin des problèmes, `web/v2/shell/src/problems/` — `useProblems()` (`sentence` : espace
+    `problem` du dictionnaire, puis `labels.problem.<slug>` des catalogues, puis les mots de
+    la réponse, sinon serveur injoignable ; `lines` : violations ou champs, puis le `type`
+    tel que servi, puis `Request-Id`), `ProblemState.vue` (état d'erreur de toute vue :
+    titre de la vue, pourquoi, codes, « Réessayer ») à la place de chaque `ErrorState` des
+    vues ; `RefusalAlert`, la connexion et l'erreur d'une cellule (`cellErrorOf`) passent
+    par lui ; `problemOf`, `problemSlug` déplacés de `views/data.ts`. `@kartenn/ui` :
+    `ErrorState` met le texte du pourquoi dans sa région `alert` (relecture a11y : il
+    n'était pas annoncé). Catalogues : `labels.problem.*` (29 types), `problem.*`,
+    `views.properties.types.*` (type d'une propriété en mots, comme la maquette E13).
+    Vitest `test/problems.test.ts` ; parcours `edit` : un 422 montre le code de chaque
+    violation, du problème et le `Request-Id`, chacun un bouton qui copie.
+  - choix : le code montré est le `type` entier (design « Erreurs », revue du 2026-10-25),
+    plus le slug (le design « Codes » est corrigé) ; dictionnaire toujours lu au présent, sa
+    clé reste `['v1', 'labels', langue]` (hors des clés par chemin qu'invalide un
+    changeset) ; la page de connexion lit les seuls catalogues (pas de session pour le
+    dictionnaire) ; dans un encart dont le titre dit déjà le problème (412, 422, 403,
+    réseau), la ligne du `type` porte « Code du problème » plutôt que la phrase ;
+    « Request-Id » en toutes lettres partout, comme `ErrorState` ; type d'une propriété en
+    mots seuls (maquette E13), sans pastille ; les valeurs des listes fermées du cœur
+    (`nature`, `usage`) restent libellées par les catalogues du shell (mêmes libellés que
+    ceux compilés du serveur ; `usage` y est rangé sous `<sorte>.<usage>`).
+  - reste : « À propos », capacités illisibles (`about.pluginsUnavailable`) : ni code ni
+    `Request-Id`, le chargeur (`plugins/loader.ts`, `readPlugins`) ne garde pas le problème
+    — le garder au registre et le rendre par `useProblems().lines()`. Questions ouvertes
+    chez l'utilisateur, non tranchées : clés en texte simple ou `KeyLabel` dans les listes
+    hors tableau (`DeclarationValues` les montre déjà en `KeyLabel`) ; raccourci et position
+    des messages passagers (`Toast` : aucune erreur du shell ne passe par un avis
+    aujourd'hui). Libellés du serveur, espace `problem` (`crates/kartenn-rest/src/problem.rs`,
+    `labels()`), qui priment sur les catalogues : techniques par endroits (« If-Match est
+    requis », « La ressource a changé ») là où REQ-021-20 veut une phrase courante.
 - [ ] 14. Changesets, revues, brouillon : listes, `DiffList`, actions selon les droits,
   « À instruire » et compteur, panneau droit et page des brouillons (brouillons du
   serveur, `CommitForm`, `SplitButton`, 024) — REQ-021-6, 10, 11, 37 — verify : parcours

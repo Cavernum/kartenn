@@ -7,7 +7,6 @@ import {
   Cluster,
   DataGrid,
   EmptyState,
-  ErrorState,
   IconButton,
   InlineAlert,
   KeyLabel,
@@ -17,7 +16,8 @@ import {
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import { problemOf, useDeclarations, useKeyLabel } from "./data.ts";
+import ProblemState from "../problems/ProblemState.vue";
+import { useDeclarations, useKeyLabel } from "./data.ts";
 import type { DeclarationOfModel } from "./filters.ts";
 import ViewPanel from "./parts/ViewPanel.vue";
 import DeclarationValues from "./properties/DeclarationValues.vue";
@@ -78,12 +78,11 @@ const gaps = (key: string) =>
     <InlineAlert v-if="partial" tone="warn" :title="t('views.properties.partialTitle')">
       {{ t("views.properties.partial") }}
     </InlineAlert>
-    <ErrorState
+    <ProblemState
       v-if="failed"
       :title="t('views.properties.error')"
-      :problem="problemOf(error)"
-      :retry-label="t('views.retry')"
-      @retry="refetch()"
+      :error="error"
+      :retry="refetch"
     />
     <EmptyState v-else-if="settled && rows.length === 0" :title="t('views.properties.none')" />
     <DataGrid
@@ -102,7 +101,9 @@ const gaps = (key: string) =>
           :label="keyLabel('property', (row as Row).key)"
           show-key
         />
-        <template v-else-if="column.id === 'type'">{{ (row as Row).type }}</template>
+        <template v-else-if="column.id === 'type'">{{
+          words("types", (row as Row).type)
+        }}</template>
         <template v-else-if="column.id === 'cardinality'">{{
           words("cardinality", String((row as Row).cardinality ?? ""))
         }}</template>

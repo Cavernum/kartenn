@@ -2,12 +2,12 @@
 // The open anomalies the reader may see (REQ-021-9; design 021 « Catalogue des écrans » :
 // Anomalies et lacunes): filtered by rule, domain and entity in the URL, page by page, and
 // acknowledged with a motive. Three states.
-import { EmptyState, ErrorState, FilterPicker, Stack } from "@kartenn/ui";
+import { EmptyState, FilterPicker, Stack } from "@kartenn/ui";
 import { useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSettings } from "../../frame/settings.ts";
 import { useViewAction } from "../../shortcuts/view.ts";
-import { problemOf } from "../data.ts";
+import ProblemState from "../../problems/ProblemState.vue";
 import { useFilteredList } from "../list.ts";
 import AnomalyGrid from "./AnomalyGrid.vue";
 import type { Anomaly } from "./anomaly.ts";
@@ -34,12 +34,11 @@ useViewAction("filter", {
       :shortcut="settings.singleKeys.value ? ['/'] : undefined"
       @update:model-value="onFilters"
     />
-    <ErrorState
+    <ProblemState
       v-if="failed"
       :title="t('views.anomalies.error')"
-      :problem="problemOf(list.error.value)"
-      :retry-label="t('views.retry')"
-      @retry="list.refetch()"
+      :error="list.error.value"
+      :retry="list.refetch"
     />
     <EmptyState
       v-else-if="list.isSuccess.value && rows.length === 0"

@@ -2,20 +2,13 @@
 // The gaps (REQ-021-9; 016): the properties an object should carry and lacks, filtered by
 // property, domain and entity in the URL, page by page. Three states.
 import type { components } from "@kartenn/sdk";
-import {
-  DataGrid,
-  EmptyState,
-  ErrorState,
-  FilterPicker,
-  KeyLabel,
-  Stack,
-  type GridColumn,
-} from "@kartenn/ui";
+import { DataGrid, EmptyState, FilterPicker, KeyLabel, Stack, type GridColumn } from "@kartenn/ui";
 import { computed, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSettings } from "../../frame/settings.ts";
 import { useViewAction } from "../../shortcuts/view.ts";
-import { problemOf, useKeyLabel } from "../data.ts";
+import ProblemState from "../../problems/ProblemState.vue";
+import { useKeyLabel } from "../data.ts";
 import { useFilteredList } from "../list.ts";
 import ObjectName from "../record/ObjectName.vue";
 
@@ -55,12 +48,11 @@ const gapOf = (row: Record<string, unknown>) => row as unknown as Gap;
       :shortcut="settings.singleKeys.value ? ['/'] : undefined"
       @update:model-value="onFilters"
     />
-    <ErrorState
+    <ProblemState
       v-if="failed"
       :title="t('views.anomalies.gapsError')"
-      :problem="problemOf(list.error.value)"
-      :retry-label="t('views.retry')"
-      @retry="list.refetch()"
+      :error="list.error.value"
+      :retry="list.refetch"
     />
     <EmptyState
       v-else-if="list.isSuccess.value && rows.length === 0"

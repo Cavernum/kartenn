@@ -4,7 +4,7 @@
 // instant it was known, its value and the changeset that wrote it (a link). Read page by
 // page; three states.
 import { reads, type components } from "@kartenn/sdk";
-import { DataGrid, EmptyState, ErrorState, type GridColumn, type GridWindow } from "@kartenn/ui";
+import { DataGrid, EmptyState, type GridColumn, type GridWindow } from "@kartenn/ui";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useInfiniteQuery } from "../../data/query.ts";
@@ -12,7 +12,8 @@ import KLink from "../../prefetch/KLink.vue";
 import { useNextPage, type ListWindow } from "../../prefetch/nextPage.ts";
 import { useTime } from "../../time/index.ts";
 import { nameOf, type Item } from "../collections.ts";
-import { problemOf, rowsOf } from "../data.ts";
+import ProblemState from "../../problems/ProblemState.vue";
+import { rowsOf } from "../data.ts";
 
 type Version = components["schemas"]["Version"];
 interface Row extends Record<string, unknown> {
@@ -59,12 +60,11 @@ const columns = computed<GridColumn[]>(() => [
 </script>
 
 <template>
-  <ErrorState
+  <ProblemState
     v-if="history.isError.value && !history.isFetchNextPageError.value"
     :title="t('views.record.historyError')"
-    :problem="problemOf(history.error.value)"
-    :retry-label="t('views.retry')"
-    @retry="history.refetch()"
+    :error="history.error.value"
+    :retry="history.refetch"
   />
   <EmptyState
     v-else-if="history.isSuccess.value && rows.length === 0"

@@ -4,12 +4,12 @@
 // in percent beside the title, and the next free address (a network) or prefix (a
 // container). Three states.
 import { reads, type components } from "@kartenn/sdk";
-import { ErrorState, Skeleton } from "@kartenn/ui";
+import { Skeleton } from "@kartenn/ui";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useQuery } from "../../data/query.ts";
 import { useTime } from "../../time/index.ts";
-import { problemOf } from "../data.ts";
+import ProblemState from "../../problems/ProblemState.vue";
 import AttributeList from "../parts/AttributeList.vue";
 import ViewPanel from "../parts/ViewPanel.vue";
 
@@ -67,10 +67,10 @@ const items = computed(() => {
 
 <template>
   <ViewPanel :title="t('views.record.occupancy')" :detail="share">
-    <ErrorState
+    <ProblemState
       v-if="occupancy.isError.value"
       :title="t('views.record.occupancyError')"
-      :problem="problemOf(occupancy.error.value)"
+      :error="occupancy.error.value"
     />
     <Skeleton v-else-if="occupancy.isPending.value" variant="text" :rows="2" />
     <AttributeList v-else :items="items" />
