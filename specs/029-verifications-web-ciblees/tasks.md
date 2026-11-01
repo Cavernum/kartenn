@@ -187,10 +187,15 @@ regardée.
 - [ ] 5. Firefox, fin de session dans le parcours `session` : reproduire sous charge
   l'avertissement absent (`session.spec.ts`, « the end of the session is said before it
   comes ») ; écrire la cause (horloge simulée, relecture de `/v1/me`, activité née d'un
-  geste) ; corriger (ADR 0042, décision 5).
-  - verify : le cas reproduit avant ; après, `--repeat-each=30` vert sous charge,
+  geste) ; corriger (ADR 0042, décision 5). Même traitement pour deux autres
+  instabilités vues le 2026-11-01 : `[firefox] journeys/example.spec.ts:28`, axe
+  `scrollable-region-focusable` sur `#k-surface` (deux passages complets, vert seul) ; et
+  le script clavier `components/diff-list.spec.ts` (`toBeInViewport`, projet `visual`,
+  vert relancé).
+  - verify : chaque cas reproduit avant ; après, `--repeat-each=30` vert sous charge,
     Firefox et Chromium.
-  - où : `web/v2/e2e/journeys/session.spec.ts` ; `web/v2/shell/src/session/`.
+  - où : `web/v2/e2e/journeys/{session,example}.spec.ts` ; `web/v2/shell/src/session/` ;
+    `web/v2/e2e/components/diff-list.spec.ts`.
   - dépend de : —
 - [ ] 6. Règles et synchronisation : `.claude/agents/kartenn-tache.md` (passage ciblé
   seulement, `--all` réservé à la session principale) ; `CLAUDE.md` (« Charge de la

@@ -288,15 +288,6 @@ test("the tree of the prefixes offers no move: a prefix changes place by its val
 });
 
 test.describe("a slowed answer", () => {
-  // The answer slowed by `page.route`: under Firefox, Playwright's interception hands the
-  // modules preloaded meanwhile an empty body, which their digest refuses (the SHA-384 of
-  // nothing, below); a digest really forged computes another hash and stays an error.
-  test.use({
-    toleratedErrors: [
-      /The computed hash is “OLBgp1GsljhM2TJ\+sbHjaiH9txEUvgdDTAzHv2P24donTt6\/529l\+9Ua0vFImLlb”/,
-    ],
-  });
-
   test("an entity changes parent by its menu, the valid targets only, never before the answer", async ({
     page,
     login,
