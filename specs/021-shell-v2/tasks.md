@@ -1394,13 +1394,54 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `core.rbac.read` global, `administrator` sur l'entité), un groupe de son entité
     modifiable, un groupe lié au-delà en lecture seule annoncée ; même objet choisi de
     nouveau : le panneau se rouvre (`frame/detail.ts`, `revealDetail`).
-- [ ] 15b. Administration : émetteurs, comptes de service et secret (montré une fois),
+- [x] 15b. Administration : émetteurs, comptes de service et secret (montré une fois),
   identités (groupes et droits effectifs en lecture), secours — REQ-021-12 — verify :
   parcours `admin` étendu (secret montré une fois, identité en lecture)
   - où : `web/shell/src/admin/{IssuersView,ServiceAccountsView,ServiceAccountView,
     SecretDialog,IdentitiesView,IdentityView}.vue` ; maquette E7 (vues `secours`,
     `identite`) ; parcours de la 15a
   - dépend de : 15a
+  - fait le 2026-11-01 : `web/v2/shell/src/admin/` — `IdentitiesView`, `IdentityDetail`,
+    `AccountsView`, `AccountDetail`, `SecretDialog`, `IssuersView`, `access.ts` (permissions
+    globales, lignes marquées par le brouillon : état d'une identité, secrets, rattachements ;
+    groupes de l'IdP de la dernière connexion ; refus du serveur), `secret.ts`
+    (`useSecretWrite`), `reads.ts` (`useScopeNames`, repris par `GroupDetail`), `routes.ts`
+    (`/admin/identities/:id`, `/admin/accounts/:id`, `/admin/issuers`), `i18n/` ;
+    `web/v2/PARITE.md` ; Vitest `test/access.test.ts` ; parcours `admin` étendu (compte
+    créé, secret montré une fois puis nulle part — page, stockages, brouillon —, nouveau
+    secret, Échap demande avant de l'oublier, secret révoqué au brouillon puis rétabli ;
+    compte de secours `e2e` membre direct de `secours`, ses droits en lecture ; émetteur
+    détaché au brouillon puis gardé ; Dana lit son identité, ses groupes et droits, ne gère
+    aucun compte).
+  - choix : création d'un compte et nouveau secret écrits aussitôt (`POST` dédiés,
+    `?approval=self`), hors brouillon : le serveur seul fait le secret, l'opération
+    `create_service_account` porte son empreinte ; la réponse n'entre pas dans le cache
+    (pas une requête : les listes sont relues sans elle), le secret vit dans le dialogue et
+    s'oublie à sa fermeture ; Échap, la croix ou un clic dehors demandent confirmation ;
+    le reste au brouillon (`set_identity_state`, `revoke_service_secret`, `attach_issuer`,
+    `detach_issuer`) ; pseudonymisation aussitôt, confirmée, avec motif ; permissions de
+    l'accès tenues globales (`me.global_permissions`, comme 005 les déclare) ; « secours »
+    lu comme le compte de secours (sorte `breakglass`) et son groupe, le groupe livré
+    étant fait par la 15a ; émetteurs en liste seule, « Détacher » agit sur la ligne
+    choisie ; secret nommé par sa création à la minute (la clé de l'anneau est commune) ;
+    l'état d'un compte se gère depuis son identité (même identifiant).
+  - correctif de revue (2026-11-01) : pendant l'écriture d'un secret, son dialogue ne se
+    ferme pas (Annuler inactif, Échap et la croix retenus : le secret serait venu à un
+    dialogue fermé) ; le composant parti quand même (route quittée), la réponse est
+    oubliée à son arrivée et un avis dit qu'un secret a été créé sans être montré
+    (`createSecretWrite`, Vitest `test/access.test.ts`) ; exceptions au brouillon écrites
+    au design ; `useQueryClient` du shell plutôt que celui du SDK.
+  - reste : la pseudonymisation n'a ni parcours (elle consommerait une personne du jeu)
+    ni Vitest ; `taken` (noms de comptes, émetteurs déjà rattachés) limité aux pages
+    lues ; `useScopeNames` relit un nom dont la lecture a échoué à chaque changement des
+    périmètres ; `@kartenn/ui` : `Dialog` sans mode qui retienne sa fermeture (garde faite par
+    le shell, `AlertDialog` imbriqué), `CodeBadge` sans `aria-describedby` (l'avis « plus
+    jamais affiché » n'est pas lu au focus : le nom du code le dit), `DataGrid` sans
+    actions de ligne (d'où « Détacher » dans la barre, son nom ne dit pas l'émetteur
+    choisi) ; `AdminLines` sans `role="list"` explicite (VoiceOver) ; l'objet d'un
+    périmètre (entité d'un rattachement) choisi parmi les premières pages. Vérifié : la
+    table d'idempotence ne garde aucun corps, un rejeu rend `shown: None`
+    (`crates/kartenn-rest/src/changesets.rs`).
 - [ ] 15c. Administration : journal d'audit et export, imports ; capture E7 —
   REQ-021-12 — verify : parcours `admin` étendu (filtre du journal, export, import
   suivi) ; capture E7

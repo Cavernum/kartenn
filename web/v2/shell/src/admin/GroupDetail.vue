@@ -8,7 +8,7 @@
 // action « Annuler le retrait »; an addition comes at the end, its action takes it out.
 // An action refused stays visible with its permission or its reason; a group whose writes
 // are all refused for one reason says it at its top, with the code of the rule.
-import { changesets, queryClient, reads, type Operation, type Violation } from "@kartenn/sdk";
+import { changesets, reads, type Operation, type Violation } from "@kartenn/sdk";
 import {
   AlertDialog,
   Button,
@@ -23,14 +23,13 @@ import {
   Toolbar,
   type ToolbarAction,
 } from "@kartenn/ui";
-import { computed, ref, shallowReactive, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useQuery } from "../data/query.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { covers, useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
 import { useTime } from "../time/index.ts";
-import { collectionOfKind, nameOf, type Item } from "../views/collections.ts";
 import { useKeyLabel } from "../views/data.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import { keepRecordName } from "../views/names.ts";
@@ -55,7 +54,7 @@ import {
   type ProbeViolations,
   type Refusal,
 } from "./model.ts";
-import { useList } from "./reads.ts";
+import { useList, useScopeNames } from "./reads.ts";
 
 const props = defineProps<{ id: string }>();
 const { t, locale } = useI18n();
@@ -163,26 +162,11 @@ const drafted = computed(() => ({ reason: t("admin.why.drafted") }));
 const refusalOf = (refusal: Refusal | undefined) => refusal ?? {};
 
 // The names of the objects of the scopes, read once each: the words of a binding.
-const scopeNames = shallowReactive(new Map<string, string>());
-watch(
-  () => bindingList.value.map((b) => b.scope),
-  (scopes) => {
-    for (const scope of scopes) {
-      const collection = collectionOfKind(scope.kind);
-      if (!scope.id || !collection || scopeNames.has(scope.id)) continue;
-      const id = scope.id;
-      void queryClient
-        .fetchQuery(reads.object<Item>(collection.kind, id))
-        .then((entry) => scopeNames.set(id, nameOf(entry.data)))
-        .catch(() => undefined);
-    }
-  },
-  { immediate: true },
-);
+const scopeName = useScopeNames(() => bindingList.value.map((b) => b.scope));
 const scopeWords = (scope: BindingScope) => {
   if (scope.kind === "global" || !scope.id) return t("admin.bindings.scopes.global");
   const kind = t(`admin.bindings.scopes.${scope.kind}`);
-  return `${kind} ${scopeNames.get(scope.id) ?? scope.id}`;
+  return `${kind} ${scopeName(scope.id) ?? scope.id}`;
 };
 const roleLabel = (role: string) => {
   const found = roles.rows.value.find((r) => r.key === role);
@@ -499,7 +483,7 @@ const until = (date: string) => t("admin.until", { date: date.slice(0, 10) });
       :rows="bindingList"
       :editing="changed"
       :words="bindingWords"
-      :scope-name="(id) => scopeNames.get(id)"
+      :scope-name="scopeName"
     />
   </Stack>
 </template>

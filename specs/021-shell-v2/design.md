@@ -253,7 +253,11 @@ ne vide pas l'écran) avec ses trois états.
     ligne le montre au style du brouillon des grilles (fond et barre d'accent) avec son
     signe : un retrait reste à sa place, barré, son action devient « Annuler le retrait » ;
     un ajout vient en fin de liste, son action le retire du brouillon ; le compteur
-    « Brouillon n » compte chaque opération.
+    « Brouillon n » compte chaque opération. Trois exceptions s'écrivent aussitôt, par leur
+    route : la création d'un compte de service et un nouveau secret (le serveur seul fait
+    le secret, l'opération n'en porte que l'empreinte ; il est montré une fois, ni gardé
+    dans le cache ni dans le brouillon), et la pseudonymisation d'une personne (pas une
+    opération de changeset ; irréversible, confirmée avec un motif).
   - Une action interdite reste visible, refusée par `forbidden` ou `reason` : un groupe lié
     sur un périmètre plus large que celui de l'utilisateur refuse l'ajout et le retrait de
     membres et sa clôture (« Périmètre plus large que le vôtre », `core.group.escalation`)
