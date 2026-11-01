@@ -218,6 +218,7 @@
       "leaveTitle": "Close without having copied the secret?",
       "leaveText": "It will never be shown again; lost, it is replaced by a new secret.",
       "leaveConfirm": "Close and forget it",
+      "unseen": "A secret of {account} was made without being shown: generate another one.",
       "renew": "New secret",
       "make": "Generate the secret",
       "once": "Copy it now: it will never be shown again",

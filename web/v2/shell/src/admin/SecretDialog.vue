@@ -5,7 +5,7 @@
 // once; then, in the same dialog, the secret: « Copiez-le maintenant : il ne sera plus
 // jamais affiché », the code to copy, its expiry, « J'ai copié le secret ». The focus goes
 // to the copy, never to the cross; Escape, the cross or a click outside ask first (closed
-// by mistake, a secret shown once is lost). The secret lives in this dialog only
+// by mistake, a secret shown once is lost), and do nothing while the write is in flight. The secret lives in this dialog only
 // (`useSecretWrite`): closed, it is forgotten.
 import {
   AlertDialog,
@@ -59,6 +59,8 @@ watch(open, (now) => {
 // secret is lost with the dialog; « J'ai copié le secret » closes at once.
 const confirming = ref(false);
 function onOpen(now: boolean): void {
+  // The write in flight: nothing closes (its secret would come to a closed dialog).
+  if (!now && write.busy.value) return;
   if (!now && mode.value === "secret" && write.secret.value) confirming.value = true;
   else open.value = now;
 }
@@ -158,7 +160,9 @@ const expiryDate = computed(() => shown.value?.expires_at?.slice(0, 10) ?? null)
         t("admin.secret.copied")
       }}</Button>
       <template v-else>
-        <Button variant="ghost" @click="open = false">{{ t("admin.cancel") }}</Button>
+        <Button variant="ghost" :disabled="write.busy.value" @click="onOpen(false)">{{
+          t("admin.cancel")
+        }}</Button>
         <Button
           variant="primary"
           :icon="props.account ? 'key-round' : 'plus'"

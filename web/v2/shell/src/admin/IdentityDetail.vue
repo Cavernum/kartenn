@@ -8,7 +8,7 @@
 // it a member), its effective rights (role, scope, the group that gives it), and the
 // groups of its IdP at its last login, without date (025, Q-025-1), each with the group of
 // kartenn it gives; an identity never logged in by an IdP has a line of empty state.
-import { api, keys, queryClient, reads, type Operation } from "@kartenn/sdk";
+import { api, keys, reads, type Operation } from "@kartenn/sdk";
 import {
   Button,
   Dialog,
@@ -24,7 +24,7 @@ import {
 } from "@kartenn/ui";
 import { computed, ref, useId, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { useQuery } from "../data/query.ts";
+import { useQuery, useQueryClient } from "../data/query.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { useSession } from "../rights/index.ts";
 import { useTime } from "../time/index.ts";
@@ -52,6 +52,7 @@ const time = useTime();
 const keyLabel = useKeyLabel();
 const draft = useAdminDraft();
 const toasts = injectToasts();
+const queryClient = useQueryClient();
 
 const read = useQuery(() => reads.read("/v1/identities/{id}", { params: { id: props.id } }));
 const identity = computed(() => read.data.value?.data as IdentityDetail | undefined);

@@ -1328,15 +1328,23 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     étant fait par la 15a ; émetteurs en liste seule, « Détacher » agit sur la ligne
     choisie ; secret nommé par sa création à la minute (la clé de l'anneau est commune) ;
     l'état d'un compte se gère depuis son identité (même identifiant).
-  - reste : la pseudonymisation n'a pas de parcours (elle consommerait une personne du
-    jeu) ; `@kartenn/ui` : `Dialog` sans mode qui retienne sa fermeture (garde faite par
+  - correctif de revue (2026-11-01) : pendant l'écriture d'un secret, son dialogue ne se
+    ferme pas (Annuler inactif, Échap et la croix retenus : le secret serait venu à un
+    dialogue fermé) ; le composant parti quand même (route quittée), la réponse est
+    oubliée à son arrivée et un avis dit qu'un secret a été créé sans être montré
+    (`createSecretWrite`, Vitest `test/access.test.ts`) ; exceptions au brouillon écrites
+    au design ; `useQueryClient` du shell plutôt que celui du SDK.
+  - reste : la pseudonymisation n'a ni parcours (elle consommerait une personne du jeu)
+    ni Vitest ; `taken` (noms de comptes, émetteurs déjà rattachés) limité aux pages
+    lues ; `useScopeNames` relit un nom dont la lecture a échoué à chaque changement des
+    périmètres ; `@kartenn/ui` : `Dialog` sans mode qui retienne sa fermeture (garde faite par
     le shell, `AlertDialog` imbriqué), `CodeBadge` sans `aria-describedby` (l'avis « plus
     jamais affiché » n'est pas lu au focus : le nom du code le dit), `DataGrid` sans
     actions de ligne (d'où « Détacher » dans la barre, son nom ne dit pas l'émetteur
     choisi) ; `AdminLines` sans `role="list"` explicite (VoiceOver) ; l'objet d'un
-    périmètre (entité d'un rattachement) choisi parmi les premières pages ; le serveur
-    garde-t-il le secret dans sa réponse idempotente (`Idempotency-Key` posé par le SDK sur
-    tout `POST`) : à vérifier côté 005.
+    périmètre (entité d'un rattachement) choisi parmi les premières pages. Vérifié : la
+    table d'idempotence ne garde aucun corps, un rejeu rend `shown: None`
+    (`crates/kartenn-rest/src/changesets.rs`).
 - [ ] 15c. Administration : journal d'audit et export, imports ; capture E7 —
   REQ-021-12 — verify : parcours `admin` étendu (filtre du journal, export, import
   suivi) ; capture E7

@@ -1,5 +1,5 @@
 import { ApiProblem, type components, type Operation } from "@kartenn/sdk";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   ACCOUNT_ADMIN,
   ACCOUNT_NAME,
@@ -15,6 +15,7 @@ import {
   type IdentityDetail,
   type SecretItem,
 } from "../src/admin/access.ts";
+import { createSecretWrite } from "../src/admin/secret.ts";
 import { frameRoutes } from "../src/frame/routes.ts";
 
 // The access to kartenn in the administration (task 021-15b; REQ-021-12, REQ-025-11;
@@ -127,6 +128,57 @@ describe("service accounts", () => {
     expect(said.kind).toBe("invalid");
     expect(said.kind === "invalid" && Object.keys(said.byField)).toEqual(["name"]);
     expect(refusalOf(new Error("network")).kind).toBe("failed");
+  });
+});
+
+describe("the write of a secret", () => {
+  /** A write whose answer comes when the test says. */
+  function pending() {
+    let answer: (data: unknown) => void = () => undefined;
+    const post = vi.fn(
+      () => new Promise<{ data: unknown }>((resolve) => (answer = (data) => resolve({ data }))),
+    );
+    const notify = vi.fn();
+    const invalidateQueries = vi.fn(async () => undefined);
+    const write = createSecretWrite({
+      post,
+      queryClient: { invalidateQueries } as never,
+      t: (key) => key,
+      notify,
+    });
+    return { write, answer: (data: unknown) => answer(data), notify, invalidateQueries };
+  }
+  const made = { state: "applied", secret: { id: "s", value: "ksk_test_value" } };
+
+  it("keeps the secret answered for its dialog, busy while in flight", async () => {
+    const { write, answer, invalidateQueries } = pending();
+    const done = write.create("sync", null, "why");
+    // In flight: its dialog does not close (SecretDialog reads `busy`).
+    expect(write.busy.value).toBe(true);
+    answer(made);
+    expect(await done).toBe(true);
+    expect(write.busy.value).toBe(false);
+    expect(write.secret.value?.value).toBe("ksk_test_value");
+    expect(write.account.value).toBe("sync");
+    expect(invalidateQueries).toHaveBeenCalledTimes(3);
+    write.forget();
+    expect(write.secret.value).toBeNull();
+  });
+
+  it("keeps nothing of an answer that comes after its component went, and says it", async () => {
+    const { write, answer, notify, invalidateQueries } = pending();
+    const done = write.renew("id", "sync", null, "why");
+    write.dispose();
+    answer(made);
+    expect(await done).toBe(false);
+    expect(write.secret.value).toBeNull();
+    expect(write.account.value).toBe("");
+    expect(write.busy.value).toBe(false);
+    expect(notify).toHaveBeenCalledWith("warn", "admin.secret.unseen");
+    // The lists still read again: the account and its secret exist.
+    expect(invalidateQueries).toHaveBeenCalledTimes(3);
+    // Gone: no other write.
+    expect(await write.create("other", null, "why")).toBe(false);
   });
 });
 

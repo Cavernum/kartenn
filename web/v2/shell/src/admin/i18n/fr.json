@@ -218,6 +218,7 @@
       "leaveTitle": "Fermer sans avoir copié le secret ?",
       "leaveText": "Il ne sera plus jamais affiché ; perdu, il se remplace par un nouveau secret.",
       "leaveConfirm": "Fermer et l'oublier",
+      "unseen": "Un secret de {account} a été créé sans être montré : générez-en un autre.",
       "renew": "Nouveau secret",
       "make": "Générer le secret",
       "once": "Copiez-le maintenant : il ne sera plus jamais affiché",
