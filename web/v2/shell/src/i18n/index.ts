@@ -1,6 +1,8 @@
 import { setContext, setTranslator } from "@kartenn/sdk/host";
 import { setLocale as setLibraryLocale } from "@kartenn/ui";
 import { createI18n } from "vue-i18n";
+import viewsEn from "../views/i18n/en.json";
+import viewsFr from "../views/i18n/fr.json";
 import en from "./en.json";
 import fr from "./fr.json";
 
@@ -82,7 +84,8 @@ export function createShellI18n(
     legacy: false,
     locale,
     fallbackLocale: "en",
-    messages: { fr, en },
+    // The screens of the referential keep their words apart (`views`, `labels`, task 11).
+    messages: { fr: { ...fr, ...viewsFr }, en: { ...en, ...viewsEn } },
     missingWarn: false,
     fallbackWarn: false,
   });

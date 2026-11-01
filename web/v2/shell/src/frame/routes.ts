@@ -1,11 +1,13 @@
 import type { RouteParams, RouteRecordRaw } from "vue-router";
 import { pluginSpaces } from "../plugins/navigation.ts";
-import PluginView from "../plugins/PluginView.vue";
 import { labelOf, usePlugins, viewPath } from "../plugins/registry.ts";
 import { useSession } from "../rights/index.ts";
 import LoginView from "../session/LoginView.vue";
 import { SEARCHED } from "../shortcuts/search.ts";
 import HelpView from "../shortcuts/HelpView.vue";
+import { COLLECTIONS } from "../views/collections.ts";
+import { recordName } from "../views/names.ts";
+import { entryScreen, recordScreen } from "../views/routes.ts";
 import AboutView from "./AboutView.vue";
 import PendingView from "./PendingView.vue";
 import { CORE_SPACES, locate, spaceEntry, type Space, type SpaceEntry } from "./spaces.ts";
@@ -14,8 +16,9 @@ import { CORE_SPACES, locate, spaceEntry, type Space, type SpaceEntry } from "./
 // of the spaces, each with its breadcrumb (space, then the collection); the record of an
 // object the palette finds (`/:collection/:id`); the help of the shortcuts
 // (`/help/shortcuts`); the login page and « À propos », open without a session; the views
-// of the plugins (`/x/<plugin>/<id>/*`). The views of the entries and the records come with
-// their tasks (11 and after), a pending view until then, in the first chunk with the frame.
+// of the plugins (`/x/<plugin>/<id>/*`). The screens of the referential and their reads come
+// from `views/routes.ts` (task 11), each in a chunk of its own; the others come with their
+// tasks (12 and after), a pending view until then, in the first chunk with the frame.
 
 declare module "vue-router" {
   interface RouteMeta {
@@ -34,11 +37,14 @@ function pluginOf(params: RouteParams) {
 
 /** The record of an entry of a space: its path below the frame, its breadcrumb. */
 function entryRoute(space: Space, entry: SpaceEntry): RouteRecordRaw {
+  const screen = entryScreen(entry.id);
   return {
     path: entry.to.slice(1),
     name: entry.id,
-    component: PendingView,
+    component: screen?.component ?? PendingView,
+    ...(screen?.props ? { props: screen.props } : {}),
     meta: {
+      ...(screen?.queries ? { queries: screen.queries } : {}),
       // The space leads to its first entry the user may see.
       breadcrumb: (_, t) => [
         { label: t(space.label), to: spaceEntry(space, session.value.rights).to },
@@ -50,22 +56,33 @@ function entryRoute(space: Space, entry: SpaceEntry): RouteRecordRaw {
 
 /** The record of an object of a collection (`/prefixes/:id`): its crumb, its identifier. */
 function recordRoute(space: Space, entry: SpaceEntry): RouteRecordRaw {
+  const screen = recordScreen(entry.id);
   return {
     path: `${entry.to.slice(1)}/:id`,
     name: `${entry.id}-record`,
-    component: PendingView,
+    component: screen?.component ?? PendingView,
+    props: screen?.props ?? false,
     meta: {
+      ...(screen?.queries ? { queries: screen.queries } : {}),
+      // The object by its name once its record read it, its identifier until then.
       breadcrumb: (params, t) => [
         { label: t(space.label), to: spaceEntry(space, session.value.rights).to },
         { label: t(entry.label), to: entry.to },
-        { label: String(params.id), mono: true },
+        { label: recordName(String(params.id)) ?? String(params.id), mono: true },
       ],
     },
   };
 }
 
-/** The collections whose objects have a record: those the palette searches. */
-const RECORDS = new Set(SEARCHED.map((searched) => searched.path.slice(3)));
+/**
+ * The collections whose objects have a record: those the palette searches, those of the
+ * referential, and the changesets a history links to (their screen comes with task 14).
+ */
+const RECORDS = new Set([
+  ...SEARCHED.map((searched) => searched.path.slice(3)),
+  ...COLLECTIONS.map((collection) => `/${collection.id}`),
+  "/changesets",
+]);
 
 const admin = CORE_SPACES.find((space) => space.id === "admin")!;
 
@@ -102,7 +119,9 @@ export const frameRoutes: RouteRecordRaw[] = [
   {
     path: "x/:plugin/:view/:rest(.*)*",
     name: "plugin-view",
-    component: PluginView,
+    // A chunk of its own: its host (`ExtensionElement`, its sheet) is shared with the
+    // screens of the referential, never linked by the page (test/build.test.ts).
+    component: () => import("../plugins/PluginView.vue"),
     meta: {
       modules: (params) => pluginOf(params)?.plugin ?? null,
       breadcrumb: (params, t) => {

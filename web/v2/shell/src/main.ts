@@ -12,7 +12,7 @@ import { installPrefetch } from "./prefetch/intent.ts";
 import { useSession } from "./rights/index.ts";
 import { shellRoutes } from "./router.ts";
 import { expired } from "./session/index.ts";
-import { activityFetch } from "./session/expiry.ts";
+import { activityFetch, installGestures, markGesture } from "./session/expiry.ts";
 import { SHELL_KEYS } from "./shortcuts/shell.ts";
 import { installTime } from "./time/index.ts";
 
@@ -27,7 +27,10 @@ async function start(): Promise<void> {
   reserveKeys(SHELL_KEYS);
   // Each answer of the API sees the session again (its end said before it comes); a 401
   // while signed in offers to log in again (« Session expirée »), never on the login page.
+  // Only the reads the user asks for (a gesture just before) are activity, not those of the
+  // background (an event of the stream, a revalidation, the plugins when idle).
   setFetch(activityFetch());
+  installGestures();
   onUnauthorized(() => {
     if (useSession().value.me) expired.value = true;
   });
@@ -37,6 +40,8 @@ async function start(): Promise<void> {
   installSession(router);
   installTime(router);
   installPrefetch(router);
+  // A navigation is a gesture: the reads of its screen are the user's.
+  router.beforeEach(() => markGesture());
   const app = createApp(App).use(i18n).use(router);
   installData(app);
   await router.isReady();

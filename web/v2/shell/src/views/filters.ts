@@ -1,0 +1,327 @@
+import {
+  collectionOf,
+  filterModel,
+  parseFilters,
+  queryClient,
+  reads,
+  type Declaration,
+  type FilterField,
+  type Filters,
+  type ListPath,
+} from "@kartenn/sdk";
+import {
+  checkFilter,
+  filterOptions,
+  filtersFromParams,
+  filtersToParams,
+  type Filter,
+  type FilterModel,
+  type FilterOperator,
+  type FilterProperty,
+  type FilterType,
+  type ListOption,
+  type Suggest,
+} from "@kartenn/ui";
+import type { LocationQuery, LocationQueryRaw } from "vue-router";
+
+// The typed filters of a list (REQ-021-18; design « Filtres, libellés, codes »; 020
+// decision A7): one model per list, for the bar (`FilterPicker`) and the filters of the
+// columns of its `DataGrid`, drawn from the contract (`filters.ts` of the SDK, generated
+// like `dated.ts`) and from the declared properties the objects of the list carry. The URL
+// holds the parameters of the list route as they are: a link is a request of the API
+// (REQ-007-22); a value out of its type is read back, marked invalid, and never sent.
+
+/** A declaration as the model reads it: its type, its labels and its parameters. */
+export type DeclarationOfModel = Declaration & {
+  readonly labels?: Readonly<Record<string, string>>;
+  readonly params?: Readonly<Record<string, unknown>>;
+};
+
+/** The words the model needs, in the language of the moment. */
+export interface FilterWords {
+  /** The label of a parameter of the route (`domain`), `undefined` for its key alone. */
+  field(name: string): string | undefined;
+  /** The label of a value of a closed list of the core (`usage`, `host`). */
+  value(name: string, value: string): string | undefined;
+  /** The label of a declared property (dictionary of the 018, then its declaration). */
+  property(key: string): string | undefined;
+  /** The label of a value of a closed list of a declared property. */
+  propertyValue(key: string, value: string): string | undefined;
+}
+
+/** What reads the suggestions: the first page of a list for a text (the cache of the SDK). */
+export type SuggestRead = (
+  path: ListPath,
+  filters: Filters,
+  signal: AbortSignal,
+) => Promise<readonly Record<string, unknown>[]>;
+
+/** Through the cache of the SDK, at the page's dates; `signal` cancels the read. */
+export const cacheSuggest: SuggestRead = async (path, filters, signal) => {
+  const options = reads.list(path, filters as never);
+  const cancel = () => void queryClient.cancelQueries({ queryKey: options.queryKey, exact: true });
+  signal.addEventListener("abort", cancel, { once: true });
+  try {
+    const data = await queryClient.fetchInfiniteQuery(options);
+    return (data.pages[0]?.data.items ?? []) as readonly Record<string, unknown>[];
+  } finally {
+    signal.removeEventListener("abort", cancel);
+  }
+};
+
+/** The parameters of a route that are a value of an object, by the type of their values. */
+const VALUE_TYPES: Readonly<Record<string, Readonly<Record<string, FilterType>>>> = {
+  "/v1/prefixes": { value: "prefix" },
+  "/v1/addresses": { value: "address" },
+  "/v1/ranges": { first: "address" },
+};
+/** The collections whose filters take a slug: their completion lists their objects. */
+const FILTERS_OF_COLLECTION = new Set([
+  "/v1/domains",
+  "/v1/entities",
+  "/v1/sites",
+  "/v1/vlan-groups",
+]);
+/**
+ * The parameters that take the identifier of an object (the contract says a string): its
+ * completion lists the objects of the collection, the value is their identifier.
+ */
+const BY_ID: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  "/v1/anomalies": { domain: "/v1/domains", entity: "/v1/entities" },
+  "/v1/property-gaps": { domain: "/v1/domains", entity: "/v1/entities" },
+};
+/** The parameters that name a declared property (`property` of the gaps). */
+const PROPERTY_KEYS: Readonly<Record<string, string>> = { "/v1/property-gaps": "property" };
+/** The parameters a list keeps out of its bar: `q` is the search of the palette. */
+const LEFT_OUT = new Set(["q"]);
+/** The declared types whose values the model types (003, `TypeSpec::id`). */
+const DECLARED: Readonly<Record<string, FilterType>> = {
+  int: "number",
+  date: "date",
+  enum: "enum",
+  ref: "enum",
+  bool: "enum",
+};
+
+const text = (value: unknown) => (typeof value === "string" ? value : String(value ?? ""));
+const options = (values: readonly string[], label: (value: string) => string | undefined) =>
+  values.map((value): ListOption => ({ value, label: label(value) ?? value }));
+
+/** Whether a list of the contract takes `q` (the start of a value, a slug or a name). */
+function searchable(path: ListPath): boolean {
+  try {
+    return filterModel(path).some((field) => field.name === "q");
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The suggestions of a list for a text: `q` to the lists whose contract declares it; the
+ * others read their first page and keep what the text matches.
+ */
+async function suggestFrom(
+  path: ListPath,
+  query: string,
+  read: SuggestRead,
+  signal: AbortSignal,
+  option: (item: Record<string, unknown>) => ListOption,
+): Promise<ListOption[]> {
+  const q = query.trim();
+  const asked = searchable(path);
+  const items = await read(path, q !== "" && asked ? { q } : {}, signal);
+  const found = items.map(option);
+  return q === "" || asked ? found : filterOptions(found, q);
+}
+
+/** The suggestions of a collection whose filter takes a slug (`domain`, `parent`). */
+function slugSuggest(path: ListPath, read: SuggestRead): Suggest {
+  return (query, signal) =>
+    suggestFrom(path, query, read, signal, (item) => ({
+      value: text(item.slug),
+      label: text(item.slug),
+      mono: true,
+    }));
+}
+
+/**
+ * The suggestions of a reference to a kind of object (`core.owner` → entities): its value
+ * is the identifier of the object, its label the slug (or value) the list shows of it.
+ */
+function referenceSuggest(path: ListPath, read: SuggestRead, names: Map<string, string>): Suggest {
+  return (query, signal) =>
+    suggestFrom(path, query, read, signal, (item) => {
+      const label = text(item.slug ?? item.value ?? item.id);
+      names.set(text(item.id), label);
+      return { value: text(item.id), label, detail: text(item.id), mono: true };
+    });
+}
+
+/** The values of a closed list of a declared property (`/values`, 016). */
+function valuesSuggest(key: string, read: SuggestRead, words: FilterWords): Suggest {
+  const path = `/v1/property-declarations/${encodeURIComponent(key)}/values` as ListPath;
+  return async (query, signal) => {
+    const items = await read(path, query.trim() === "" ? {} : { q: query.trim() }, signal);
+    return items.map((item) => {
+      const value = text(item.key);
+      return { value, label: words.propertyValue(key, value) ?? value };
+    });
+  };
+}
+
+/** The filter of a declared property: one entry for its key, its tests as operators. */
+function propertyFilter(
+  key: string,
+  fields: readonly FilterField[],
+  declaration: DeclarationOfModel | undefined,
+  words: FilterWords,
+  read: SuggestRead,
+  names: Map<string, string>,
+): FilterProperty {
+  const tests = new Set(fields.map((field) => field.property!.test));
+  const operators: FilterOperator[] = [];
+  if (tests.has("equals")) operators.push("eq");
+  if (tests.has("between")) operators.push("between");
+  if (tests.has("exists")) operators.push("exists", "absent");
+  const declared = declaration?.type ?? "text";
+  const type = DECLARED[declared] ?? "text";
+  const property: FilterProperty = {
+    key: `prop.${key}`,
+    label: words.property(key),
+    type,
+    operators,
+  };
+  if (declared === "bool") {
+    property.options = options(["true", "false"], (value) => words.value("boolean", value));
+  } else if (declared === "enum") {
+    property.suggest = valuesSuggest(key, read, words);
+    property.valueLabel = (value) => words.propertyValue(key, value);
+  } else if (declared === "ref") {
+    const target = collectionOf(text(declaration?.params?.target));
+    if (target) {
+      property.suggest = referenceSuggest(target as ListPath, read, names);
+      property.valueLabel = (value) => names.get(value);
+    } else property.type = "text";
+  }
+  return property;
+}
+
+/**
+ * The model of the filters of a list: the parameters of its route (the contract), then the
+ * declared properties its objects carry, each with its type, its operators and its domain.
+ */
+export function listFilterModel(
+  path: ListPath,
+  declarations: readonly DeclarationOfModel[],
+  words: FilterWords,
+  read: SuggestRead = cacheSuggest,
+): FilterModel {
+  const fields = filterModel(path, declarations);
+  const names = new Map<string, string>();
+  const values = VALUE_TYPES[path] ?? {};
+  const within = fields.some((field) => field.name === "within");
+  const valued = Object.keys(values).find((name) => fields.some((field) => field.name === name));
+  const model: FilterProperty[] = [];
+  const byKey = new Map<string, FilterField[]>();
+  for (const field of fields) {
+    if (field.property) {
+      const known = byKey.get(field.property.key);
+      if (known) known.push(field);
+      else byKey.set(field.property.key, [field]);
+      continue;
+    }
+    if (LEFT_OUT.has(field.name)) continue;
+    // `within` is an operator of the value of the list (« Adresse dans 192.0.2.0/24 »).
+    if (field.name === "within" && valued) continue;
+    const label = words.field(field.name);
+    const property: FilterProperty = { key: field.name, label, type: "text", operators: ["eq"] };
+    if (values[field.name]) {
+      property.type = values[field.name]!;
+      if (within) {
+        property.operators = ["eq", "within"];
+        property.params = { within: "within" };
+      }
+    } else if (field.name === "within") property.type = "prefix";
+    else if (BY_ID[path]?.[field.name]) {
+      property.type = "enum";
+      property.suggest = referenceSuggest(BY_ID[path][field.name] as ListPath, read, names);
+      property.valueLabel = (value) => names.get(value);
+    } else if (PROPERTY_KEYS[path] === field.name) {
+      property.type = "enum";
+      property.options = declarations.map((d) => ({
+        value: d.key,
+        label: words.property(d.key) ?? d.key,
+        ...(words.property(d.key) ? { detail: d.key } : { mono: true }),
+      }));
+    } else if (field.enum) {
+      property.type = "enum";
+      property.options = options(field.enum, (value) => words.value(field.name, value));
+    } else if (field.type === "boolean") {
+      property.type = "enum";
+      property.options = options(["true", "false"], (value) => words.value("boolean", value));
+    } else if (field.type === "integer" || field.type === "number") property.type = "number";
+    else if (field.collection && FILTERS_OF_COLLECTION.has(field.collection)) {
+      property.type = "enum";
+      property.suggest = slugSuggest(field.collection as ListPath, read);
+      property.valueLabel = (value) => value;
+    }
+    model.push(property);
+  }
+  const declared = new Map(declarations.map((d) => [d.key, d]));
+  for (const [key, keyed] of byKey) {
+    model.push(propertyFilter(key, keyed, declared.get(key), words, read, names));
+  }
+  return model;
+}
+
+/** The query of a route as parameters, a repeated one kept repeated. */
+export function paramsOf(query: LocationQuery): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const [name, value] of Object.entries(query)) {
+    for (const one of Array.isArray(value) ? value : [value]) {
+      if (typeof one === "string") params.append(name, one);
+    }
+  }
+  return params;
+}
+
+/** The filters of a query, read with the model: applied, or invalid (out of their type). */
+export function filtersOfQuery(model: FilterModel, query: LocationQuery): Filter[] {
+  return filtersFromParams(model, paramsOf(query)).filters;
+}
+
+/**
+ * The query of a route for filters: the parameters of the filters (drafts left out), and
+ * those of the query that are none of them (the dates of the page) kept as they are.
+ */
+export function queryOfFilters(
+  model: FilterModel,
+  filters: readonly Filter[],
+  query: LocationQuery,
+  /** Parameters outside the model that chips stand for (written back from the chips). */
+  replaced: ReadonlySet<string> = new Set(),
+): LocationQueryRaw {
+  const { rest } = filtersFromParams(model, paramsOf(query));
+  for (const name of replaced) rest.delete(name);
+  const params = filtersToParams(model, filters, rest);
+  const out: Record<string, string | string[]> = {};
+  for (const [name, value] of params) {
+    const known = out[name];
+    out[name] = known === undefined ? value : [...[known].flat(), value];
+  }
+  return out;
+}
+
+/**
+ * The filters a list sends: those the model accepts (an invalid one stays in the URL and on
+ * its chip, never in the request), checked again against the contract by the SDK.
+ */
+export function sentFilters(
+  path: ListPath,
+  model: FilterModel,
+  filters: readonly Filter[],
+  declarations: readonly Declaration[],
+): Filters {
+  const accepted = filters.filter((filter) => !filter.draft && !checkFilter(model, filter));
+  return parseFilters(filterModel(path, declarations), filtersToParams(model, accepted)).filters;
+}

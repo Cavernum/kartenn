@@ -1,14 +1,14 @@
 import type { Page } from "@playwright/test";
-import { expect, expectAccessible, test } from "../fixtures/journeys.ts";
+import { DATA, expect, expectAccessible, test } from "../fixtures/journeys.ts";
 
 // The plugins in the new shell (spec 021, task 16; REQ-021-13, 26; REQ-007-9, 10, 13), with
 // the test plugins of web/v2/e2e/plugins: `notes` fills every point (its views under the
 // referential, `g m` free and `g p` the shell's, a view that throws, one for administrators);
 // `incompatible` (ui ^3), `throws` (exception while loading) and `silent` (no
 // definePlugin) are set aside; the digest of `forged` is forged here. Ported from
-// web/e2e/journeys/plugins.spec.ts. The tabs, panels, columns, actions (the type
-// `changeset`) and the tile of the home page wait for the screens that place them (tasks 11
-// and 14): their hosts are checked by shell/test/plugins.test.ts.
+// web/e2e/journeys/plugins.spec.ts. The tile of the home page, the tab and the panel of a
+// prefix and the column of the addresses are placed by the screens of task 11; the actions
+// on the type `changeset` wait for its screen (task 14).
 
 const navigation = (page: Page) => page.getByRole("navigation", { name: "Navigation principale" });
 const about = (page: Page, name: string) =>
@@ -146,4 +146,42 @@ test("a view shows by its permission, never by its URL alone", async ({ page, lo
   await page.goto("/x/notes/admin");
   await expect(page.getByText("Rien à cette adresse")).toBeVisible();
   await expect(page.locator("notes-admin")).toHaveCount(0);
+});
+
+test("the screens of the referential place the tile, the tab, the panel and the column", async ({
+  page,
+  login,
+}) => {
+  await login("bob");
+  // The tile of the home page, after the core's.
+  const tile = page.getByRole("main").locator("section").filter({ hasText: "plugin notes" });
+  await expect(tile.locator("notes-home")).toContainText("Trois notes ouvertes");
+  await expectAccessible(page);
+
+  // The column of the addresses: an element of the plugin in each row.
+  await page.goto("/addresses");
+  const grid = page.getByRole("grid", { name: "Adresses" });
+  await expect(grid.getByRole("columnheader", { name: /Repère/ })).toBeAttached();
+  await expect(grid.locator("notes-flag").first()).toHaveText("•");
+
+  // The tab and the panel of a prefix, each given the object.
+  await page.goto("/prefixes");
+  await page
+    .getByRole("grid", { name: "Préfixes" })
+    .getByRole("link", { name: DATA.prefix })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: new RegExp(`\\s${DATA.prefix.replaceAll(".", "\\.")}$`),
+    }),
+  ).toBeVisible();
+  const id = page.url().split("/").pop()!;
+  await expect(page.locator("notes-summary")).toContainText(id);
+  await page
+    .getByRole("tablist", { name: "Sections de la fiche" })
+    .getByRole("tab", { name: "Notes" })
+    .click();
+  await expect(page.locator("notes-tab")).toHaveText(`Notes de prefix ${id}`);
+  await expectAccessible(page);
 });

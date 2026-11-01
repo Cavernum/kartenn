@@ -208,7 +208,7 @@ for (const width of [1280, 1440] as const) {
             for (const frame of surface.querySelectorAll(".k-data-grid-frame, .k-tree-grid-frame"))
               for (const bar of frame.querySelectorAll(":scope > .k-column-chooser"))
                 if (!inside(bar, frame)) outside.push(`chooser of ${frame.className}`);
-            for (const box of surface.querySelectorAll(".k-ecran-panel"))
+            for (const box of surface.querySelectorAll(".k-view-panel"))
               for (const bar of box.querySelectorAll("[role='toolbar'], .k-column-chooser"))
                 if (!inside(bar, box)) outside.push(`${bar.className} of a panel`);
             return {
