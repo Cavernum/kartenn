@@ -986,6 +986,59 @@ in {
     '';
   };
 
+  # The measures a change touches (ADR 0041, decision 3), run at the reduced scale, one
+  # bench after the other, each under the bench lock: `bench-affected [base] [--list]`.
+  # The change: `git diff --name-only <base>...HEAD`, plus the modified and untracked
+  # files of the tree. The base is origin/main by default: the local main of a worktree is
+  # often stale (`git fetch origin` first). `--list` prints the selection and runs
+  # nothing. In doubt it runs more (kartenn-bench, `affected`): a path in the fingerprint
+  # of a bench runs it whole, otherwise the measures whose paths cover it; devenv.nix and
+  # devenv.lock run nothing but call for a full run; a diff of web/v2/, web/ or
+  # clients/python/ proposes bench-ui, bench-web or bench-cli, not run.
+  scripts.bench-affected = {
+    description = "Run at the reduced scale the bench measures a change touches";
+    exec = ''
+      set -euo pipefail
+      usage() {
+        echo "bench-affected : $1 ; [base] [--list] (base par défaut : origin/main)" >&2
+        exit 2
+      }
+      base="" list=""
+      for arg in "$@"; do
+        case $arg in
+          --list) list=1 ;;
+          -*) usage "option inconnue « $arg »" ;;
+          *) [ -z "$base" ] || usage "deux bases"; base=$arg ;;
+        esac
+      done
+      base=''${base:-origin/main}
+      [ "''${K_BENCH_SCALE:-reduced}" = reduced ] \
+        || usage "échelle réduite seulement (K_BENCH_SCALE=$K_BENCH_SCALE) ; la pleine échelle se lance banc par banc"
+      cd "$(git rev-parse --show-toplevel)"
+      git rev-parse -q --verify "$base^{commit}" >/dev/null \
+        || usage "base inconnue « $base » (git fetch origin ?)"
+      plan=$( {
+        git diff --name-only --no-renames "$base...HEAD"
+        git diff --name-only --no-renames HEAD
+        git ls-files --others --exclude-standard
+      } | k-heavy cargo run --release -q -p kartenn-bench -- affected)
+      [ -n "$plan" ] || exit 0
+      echo "base : $base ($(git rev-parse --short "$base")) ; échelle réduite" >&2
+      printf '%s\n' "$plan" | while read -r script only; do
+        echo "  $script''${only:+ --only $only}" >&2
+      done
+      [ -z "$list" ] || exit 0
+      export K_BENCH_SCALE=reduced
+      failed=""
+      while read -r script only; do
+        "$script" ''${only:+--only "$only"} </dev/null || failed="$failed $script"
+      done <<EOF
+      $plan
+      EOF
+      [ -z "$failed" ] || { echo "bench-affected : en échec :$failed" >&2; exit 1; }
+    '';
+  };
+
   # The budgets of the browser (spec 007, REQ-007-32): the size of the initial shell, then
   # the Playwright project `budgets` against kartenn-server in release on the dataset of
   # bench-core (web/e2e/serve.sh budgets): `bench-web [seed] [small]`. It also takes the
