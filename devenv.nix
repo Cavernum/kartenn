@@ -350,6 +350,9 @@
         exec k-heavy cargo run --release -q -p kartenn-bench -- ${command} --list ''${only:+--only "$only"}
       fi
       [ -n "''${K_BENCH_HELD:-}" ] || exec k-heavy --bench ${dash} "$0" "$@"
+      # The load of the history read before the build, which would count in it otherwise.
+      K_BENCH_LOAD=$(cut -d ' ' -f 1 /proc/loadavg 2>/dev/null || true)
+      export K_BENCH_LOAD
       k-pg-bench
       cargo build --release -q -p kartenn-bench
       # The measures named, checked before the database is touched.
@@ -378,8 +381,9 @@
       log=$(mktemp)
       trap 'rm -f "$log"' EXIT
       # Its figures added to the history of the main checkout (ADR 0041, decision 4),
-      # .bench/history.jsonl, kept out of git by /.bench/ in .git/info/exclude.
-      cargo run --release -q -p kartenn-bench -- ${command} "$bench" "''${seed:-42}" ''${small:+"$small"} ''${only:+--only "$only"} ''${template:+"$template"} --history 2>"$log" &
+      # .bench/history.jsonl, kept out of git by /.bench/ in .git/info/exclude; to the file
+      # K_BENCH_HISTORY instead when it is set (bench-bisect).
+      cargo run --release -q -p kartenn-bench -- ${command} "$bench" "''${seed:-42}" ''${small:+"$small"} ''${only:+--only "$only"} ''${template:+"$template"} "--history''${K_BENCH_HISTORY:+=$K_BENCH_HISTORY}" 2>"$log" &
       pid=$!
       tail -n +1 -f --pid="$pid" "$log" >&2 &
       follower=$!
@@ -1147,6 +1151,164 @@ in {
       $plan
       EOF
       [ -z "$failed" ] || { echo "bench-affected : en échec :$failed" >&2; exit 1; }
+    '';
+  };
+
+  # The bisection of a measure (ADR 0041, decision 5), at the scale of K_BENCH_SCALE
+  # (reduced by default): `bench-bisect <measure> [--good <rev>] [--bad <rev>] [--budget
+  # <budget>]`, the bad commit HEAD by default. `git bisect run` in a worktree of its own
+  # under .bench/ of the main checkout, removed at the end, its target cloned from this
+  # checkout's. The good commit by default: the last one of the history where the measure
+  # held at that scale, on a clean tree (kartenn-bench bisect start). At both ends and at
+  # each step, three runs of the measure alone, by its bench script (a copy of the template
+  # of the commit, the watchdog K_BENCH_STALL), write to a history of the bisection, never
+  # to that of the checkout. The budget followed is the one the bad commit exceeds (the
+  # widest gap if several, or none: a drift), or --budget; a commit is bad when the median
+  # of its runs is past the middle between those of the good and bad commits. A commit that
+  # does not compile, or gives no figure, is skipped (125). The machine must be free
+  # (k-heavy --status; K_BISECT_BUSY=1 to go on, the figures less sure); the bisection
+  # holds the bench lock and a slot throughout. It reaches back to the commits whose
+  # kartenn-bench has `--only` and `--history=<file>` (task 028-3).
+  scripts.bench-bisect = {
+    description = "Find the commit that moved a bench measure, by git bisect in a worktree of its own";
+    exec = ''
+      set -euo pipefail
+      usage() {
+        echo "bench-bisect : $1 ; <mesure> [--good <rev>] [--bad <rev>] [--budget <budget>]" >&2
+        exit 2
+      }
+      # Three runs of the measure at the commit checked out in the worktree of the
+      # bisection, into its history: 125 when the commit does not compile, 255 when a run
+      # cannot write that history (kartenn-bench exits with 3). The exit code of a run is
+      # not its verdict: the judge reads the lines.
+      runs() {
+        if ! cargo build --release -q -p kartenn-bench >>"$BISECT_DIR/log" 2>&1; then
+          echo "bench-bisect : $(git rev-parse --short HEAD) ne compile pas, sauté" >&2
+          return 125
+        fi
+        for _ in 1 2 3; do
+          status=0
+          K_BENCH_HISTORY="$BISECT_DIR/history.jsonl" "$BISECT_SCRIPT" --only "$BISECT_MEASURE" \
+            </dev/null >>"$BISECT_DIR/log" 2>&1 || status=$?
+          if [ "$status" -eq 3 ]; then
+            echo "bench-bisect : l'historique de la bissection ne s'écrit pas" >&2
+            return 255
+          fi
+        done
+      }
+      # A step of `git bisect run`, in the worktree of the bisection: 0 good, 1 bad, 125
+      # skipped, 255 to abort.
+      if [ "''${1:-}" = --step ]; then
+        commit=$(git rev-parse HEAD)
+        code=0
+        runs || code=$?
+        [ "$code" -eq 0 ] || exit "$code"
+        verdict=$("$BISECT_JUDGE" bisect judge "$BISECT_DIR/history.jsonl" "$BISECT_MEASURE" \
+          "$BISECT_BUDGET" "$BISECT_GOOD" "$BISECT_BAD" "$commit") || exit 255
+        case $verdict in
+          good) exit 0 ;;
+          bad) exit 1 ;;
+          skip) exit 125 ;;
+          *) exit 255 ;;
+        esac
+      fi
+      # The arguments checked before any lock: a mistake fails at once.
+      measure="" good="" bad="" budget=""
+      parse() {
+        while [ $# -gt 0 ]; do
+          case $1 in
+            --good | --bad | --budget)
+              { [ $# -ge 2 ] && [ -n "$2" ]; } || usage "$1 sans valeur"
+              case $1 in
+                --good) good=$2 ;;
+                --bad) bad=$2 ;;
+                *) budget=$2 ;;
+              esac
+              shift ;;
+            -*) usage "option inconnue « $1 »" ;;
+            *) [ -z "$measure" ] || usage "deux mesures"; measure=$1 ;;
+          esac
+          shift
+        done
+      }
+      parse "$@"
+      [ -n "$measure" ] || usage "mesure manquante"
+      case ''${K_BENCH_SCALE:-reduced} in
+        reduced | full) ;;
+        *) usage "K_BENCH_SCALE=$K_BENCH_SCALE : reduced ou full" ;;
+      esac
+      top=$(git rev-parse --show-toplevel)
+      cd "$top"
+      asked=''${bad:-HEAD}
+      bad=$(git rev-parse -q --verify "$asked^{commit}") || usage "mauvais commit inconnu « $asked »"
+      if [ -n "$good" ]; then
+        asked=$good
+        good=$(git rev-parse -q --verify "$asked^{commit}") || usage "bon commit inconnu « $asked »"
+      fi
+      if [ -z "''${K_BENCH_HELD:-}" ]; then
+        busy=$(k-heavy --status | grep -v ' : libre$' || true)
+        if [ -n "$busy" ]; then
+          echo "bench-bisect : machine occupée (k-heavy --status) :" >&2
+          printf '%s\n' "$busy" | sed 's/^/  /' >&2
+          if [ -z "''${K_BISECT_BUSY:-}" ]; then
+            echo "  K_BISECT_BUSY=1 pour la lancer quand même, mesures moins sûres" >&2
+            exit 75
+          fi
+          echo "  K_BISECT_BUSY=1 : on continue, mesures moins sûres" >&2
+        fi
+        exec k-heavy --bench ${dash} "$0" "$@"
+      fi
+      # The judge: kartenn-bench of this checkout, built once; each commit builds its own.
+      cargo build --release -q -p kartenn-bench
+      judge=''${CARGO_TARGET_DIR:-$top/target}/release/kartenn-bench
+      start=$("$judge" bisect start "$measure" "$bad" ''${good:+--good "$good"} ''${budget:+--budget "$budget"})
+      script=''${start%% *}
+      good=''${start#* }
+      main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+      mkdir -p "$main/.bench"
+      work=$(mktemp -d "$main/.bench/bisect.XXXXXX")
+      tree=$work/tree
+      cleanup() {
+        code=$?
+        if [ "$code" -ne 0 ] && [ -s "$work/log" ]; then
+          echo "bench-bisect : fin du journal des passages (code $code) :" >&2
+          tail -n 40 "$work/log" >&2
+        fi
+        git -C "$tree" bisect reset >/dev/null 2>&1 || true
+        git -C "$top" worktree remove --force "$tree" >/dev/null 2>&1 || true
+        rm -rf "$work"
+        git -C "$top" worktree prune
+      }
+      trap cleanup EXIT
+      trap 'exit 130' INT TERM
+      cp "$judge" "$work/judge"
+      git worktree add -q --detach "$tree" "$bad"
+      (cd "$tree" && K_TARGET_BASE=$top k-target-seed >/dev/null) \
+        || echo "bench-bisect : pas de target à cloner, premier build à froid" >&2
+      BISECT_DIR=$work BISECT_SCRIPT=$script BISECT_MEASURE=$measure BISECT_JUDGE=$work/judge
+      export BISECT_DIR BISECT_SCRIPT BISECT_MEASURE BISECT_JUDGE
+      cd "$tree"
+      echo "bench-bisect : $measure à l'échelle ''${K_BENCH_SCALE:-reduced} ($script), bon $(git rev-parse --short "$good")," \
+        "mauvais $(git rev-parse --short "$bad"), $(git rev-list --count "$good..$bad") commits" >&2
+      for end in "$good" "$bad"; do
+        git checkout -q --detach "$end"
+        code=0
+        runs || code=$?
+        [ "$code" -eq 0 ] || { echo "bench-bisect : la borne $(git rev-parse --short "$end") ne se mesure pas" >&2; exit 1; }
+      done
+      BISECT_BUDGET=$("$work/judge" bisect track "$work/history.jsonl" "$measure" "$good" "$bad" ''${budget:+--budget "$budget"})
+      BISECT_GOOD=$good BISECT_BAD=$bad
+      export BISECT_BUDGET BISECT_GOOD BISECT_BAD
+      git bisect start "$bad" "$good" >/dev/null
+      code=0
+      git bisect run ${dash} "$0" --step >&2 || code=$?
+      first=$(git bisect log | sed -n 's/^# first bad commit: \[\([0-9a-f]*\)\].*/\1/p')
+      if [ "$code" -ne 0 ] || [ -z "$first" ]; then
+        echo "bench-bisect : pas de premier mauvais commit (code $code ; commits sautés ?)" >&2
+        git bisect log >&2
+        exit 1
+      fi
+      echo "premier mauvais commit : $(git log -1 --format='%h %s' "$first")"
     '';
   };
 

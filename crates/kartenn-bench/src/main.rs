@@ -57,7 +57,15 @@
 //! run adds one JSON line per figure (budget of a measure) to `.bench/history.jsonl` at the
 //! root of the main checkout of the current directory; `--history=<file>` writes to `file`
 //! instead. `kartenn-bench history <measure> [--scale full|reduced|small]` prints the series
-//! of a measure ([`kartenn_bench::history`]).
+//! of a measure ([`kartenn_bench::history`]). The load recorded is `K_BENCH_LOAD` when the
+//! script gives it (read before compiling), else the load when the program starts.
+//!
+//! Exit codes of a bench: 0, every budget held; 1, a budget exceeded or another error; 3
+//! ([`HISTORY_UNWRITTEN`]), the history could not be written (the report and the verdict
+//! of the budgets printed first).
+//!
+//! Bisection (ADR 0041, decision 5): `kartenn-bench bisect start|track|judge …`, for the
+//! script `bench-bisect` ([`kartenn_bench::bisect`], [`bisection`]).
 //!
 //! Measures touched (ADR 0041, decision 3): `kartenn-bench affected` reads changed paths,
 //! one per line, and prints the benches and measures they call for, one line per bench
@@ -65,10 +73,12 @@
 
 use std::fs::File;
 use std::io::{BufWriter, Read as _};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 use std::time::Instant;
 
 use anyhow::{Context, bail};
+use kartenn_bench::bisect;
 use kartenn_bench::history::{self, Entry, Figure, Run};
 use kartenn_bench::measures::{Bench, Selection, bench};
 use kartenn_bench::template::Reuse;
@@ -276,7 +286,8 @@ impl Level {
     }
 
     /// The report, the caveat of the scale, the figures added to the history; fails when a
-    /// budget is exceeded.
+    /// budget is exceeded, or with [`HistoryUnwritten`] when the history cannot be written
+    /// (the budget exceeded said first).
     fn verdict(
         self,
         report: &str,
@@ -288,23 +299,63 @@ impl Level {
         if let Some(caveat) = self.caveat() {
             println!("{caveat}");
         }
-        if let Some(journal) = journal {
-            journal.write(figures)?;
+        let exceeded = figures.iter().any(Figure::fails);
+        if let Some(journal) = journal
+            && let Err(e) = journal.write(figures)
+        {
+            if exceeded {
+                eprintln!("{failure}");
+            }
+            return Err(e.context(HistoryUnwritten));
         }
-        if figures.iter().any(Figure::fails) {
+        if exceeded {
             bail!("{failure}");
         }
         Ok(())
     }
 }
 
+/// The exit code of a run whose history could not be written, apart from 1 (a budget
+/// exceeded, or another error).
+const HISTORY_UNWRITTEN: u8 = 3;
+
+/// The error of a run whose history could not be written ([`HISTORY_UNWRITTEN`]).
+#[derive(Debug)]
+struct HistoryUnwritten;
+
+impl std::fmt::Display for HistoryUnwritten {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("the history could not be written")
+    }
+}
+
+/// The exit code of an error.
+fn exit_code(error: &anyhow::Error) -> u8 {
+    if error.downcast_ref::<HistoryUnwritten>().is_some() {
+        HISTORY_UNWRITTEN
+    } else {
+        1
+    }
+}
+
+fn main() -> ExitCode {
+    match run() {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("Error: {error:?}");
+            ExitCode::from(exit_code(&error))
+        }
+    }
+}
+
 #[allow(clippy::too_many_lines)] // one arm per command
-fn main() -> anyhow::Result<()> {
+fn run() -> anyhow::Result<()> {
     // The load of the machine when the run starts, for the history.
     let load = history::load();
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.as_slice() {
         [command, rest @ ..] if command == "history" => series(rest),
+        [command, rest @ ..] if command == "bisect" => bisection(rest),
         [command] if command == "affected" => affected(),
         [command, seed, dir, rest @ ..] if command == "gen" => generate_files(seed, dir, rest),
         [command, flag, rest @ ..] if flag == "--list" => list(command, rest),
@@ -419,6 +470,7 @@ fn main() -> anyhow::Result<()> {
              | props|core|rbac|http|policy|flow|events|telemetry <database-url> <seed> [small] [--only <m1,m2>] [--template] [--history[=<file>]] \
              | props|core|rbac|http|policy|flow|events|telemetry --list [--only <m1,m2>] \
              | history <measure> [--scale full|reduced|small] \
+             | bisect start|track|judge … \
              | affected < <paths> \
              | seed <database-url> <seed> [small]"
         ),
@@ -448,10 +500,7 @@ fn series(rest: &[String]) -> anyhow::Result<()> {
     if scale.is_some_and(|s| !["full", "reduced", "small"].contains(&s)) {
         bail!("{USAGE}");
     }
-    let name = measure.split_once('.').map_or(measure.as_str(), |(b, _)| b);
-    bench(name)
-        .with_context(|| format!("`{measure}` names no bench"))?
-        .select(Some(measure))?;
+    known(measure)?;
     let (_, file) = history::location(&std::env::current_dir()?)?;
     let (entries, unread) = history::read(&file)?;
     print!("{}", history::series(&entries, measure, scale));
@@ -459,6 +508,128 @@ fn series(rest: &[String]) -> anyhow::Result<()> {
         eprintln!("{unread} lignes illisibles de l'historique ignorées");
     }
     Ok(())
+}
+
+/// The bench of `measure`, a measure of the catalogues.
+fn known(measure: &str) -> anyhow::Result<&'static Bench> {
+    let name = measure.split_once('.').map_or(measure, |(b, _)| b);
+    let found = bench(name).with_context(|| format!("`{measure}` names no bench"))?;
+    found.select(Some(measure))?;
+    Ok(found)
+}
+
+/// `bisect …`, for the script `bench-bisect` (ADR 0041, decision 5), in the checkout
+/// bisected; commits are full hashes, the scale that of `K_BENCH_SCALE`:
+/// - `start <measure> <bad> [--good <commit>] [--budget <budget>]`: the measure checked,
+///   `.bench/` kept out of git; the good commit given, or else the last one of the history
+///   of the checkout where the measure (or its budget `budget`) held at that scale,
+///   checked to be an ancestor of `bad`; prints `<script> <good>`.
+/// - `track <file> <measure> <good> <bad> [--budget <budget>]`: from the runs of the
+///   bisection in `file` at both ends, the budget followed ([`bisect::track`]), printed,
+///   with its medians and threshold on the error output.
+/// - `judge <file> <measure> <budget> <good> <bad> <commit>`: `good`, `bad` or `skip` for
+///   `commit`, its median on the error output.
+fn bisection(rest: &[String]) -> anyhow::Result<()> {
+    const USAGE: &str = "usage: kartenn-bench bisect start <measure> <bad> [--good <commit>] \
+                         [--budget <budget>] | track <file> <measure> <good> <bad> [--budget \
+                         <budget>] | judge <file> <measure> <budget> <good> <bad> <commit>";
+    /// `--good` and `--budget` after the positional arguments.
+    fn flags(rest: &[String]) -> anyhow::Result<(Option<&str>, Option<&str>)> {
+        let (mut good, mut budget) = (None, None);
+        let mut args = rest.iter();
+        while let Some(flag) = args.next() {
+            let slot = match flag.as_str() {
+                "--good" => &mut good,
+                "--budget" => &mut budget,
+                _ => bail!("{USAGE}"),
+            };
+            let value = args
+                .next()
+                .with_context(|| format!("{flag} without a value"))?;
+            if slot.replace(value.as_str()).is_some() {
+                bail!("{flag} twice");
+            }
+        }
+        Ok((good, budget))
+    }
+    let here = std::env::current_dir()?;
+    let read = |file: &str| -> anyhow::Result<Vec<Entry>> {
+        let (entries, unread) = history::read(Path::new(file))?;
+        if unread > 0 {
+            eprintln!("{unread} lignes illisibles de l'historique de la bissection ignorées");
+        }
+        Ok(entries)
+    };
+    match rest {
+        [action, measure, bad, rest @ ..] if action == "start" => {
+            let (good, budget) = flags(rest)?;
+            let script = kartenn_bench::affected::script(known(measure)?.name);
+            let scale = Level::of(false)?.name();
+            // The worktree of the bisection lives in `.bench/`, kept out of git.
+            let file = history::prepare(&here)?;
+            let good = if let Some(good) = good {
+                good.to_owned()
+            } else {
+                let (entries, _) = history::read(&file)?;
+                bisect::last_good(&entries, measure, scale, budget, bad, |c| {
+                    bisect::is_ancestor(&here, c, bad)
+                })
+                .with_context(|| {
+                    format!(
+                        "no run of {measure} held at the {scale} scale, on a clean tree, at an \
+                         ancestor of {bad} in {}: give --good <rev>",
+                        file.display()
+                    )
+                })?
+            };
+            if good == *bad || !bisect::is_ancestor(&here, &good, bad) {
+                bail!("the good commit {good} is not an ancestor of the bad one {bad}");
+            }
+            println!("{script} {good}");
+            Ok(())
+        }
+        [action, file, measure, good, bad, rest @ ..] if action == "track" => {
+            let (None, budget) = flags(rest)? else {
+                bail!("{USAGE}");
+            };
+            let entries = read(file)?;
+            let tracked = bisect::track(
+                &bisect::samples(&entries, measure, good),
+                &bisect::samples(&entries, measure, bad),
+                budget,
+            )?;
+            eprintln!("{}", tracked.describe());
+            println!("{}", tracked.budget);
+            Ok(())
+        }
+        [action, file, measure, budget, good, bad, commit] if action == "judge" => {
+            let entries = read(file)?;
+            let tracked = bisect::track(
+                &bisect::samples(&entries, measure, good),
+                &bisect::samples(&entries, measure, bad),
+                Some(budget),
+            )?;
+            let (step, median) =
+                bisect::judge(&tracked, &bisect::samples(&entries, measure, commit));
+            let short = commit.get(..12).unwrap_or(commit);
+            let word = match step {
+                bisect::Step::Good => "bon",
+                bisect::Step::Bad => "mauvais",
+                bisect::Step::Skip => "sauté, aucun chiffre du budget",
+            };
+            match median {
+                Some(m) => eprintln!(
+                    "{short} : médiane {} (seuil {}) → {word}",
+                    tracked.unit.show(m),
+                    tracked.unit.show(tracked.threshold())
+                ),
+                None => eprintln!("{short} : {word}"),
+            }
+            println!("{}", step.as_str());
+            Ok(())
+        }
+        _ => bail!("{USAGE}"),
+    }
 }
 
 /// `affected`: the changed paths on the standard input, one per line; on the standard
@@ -595,6 +766,55 @@ mod tests {
         }
         assert_eq!(Level::Reduced.name(), "reduced");
         assert_eq!(Level::Full.name(), "full");
+    }
+
+    #[test]
+    fn a_history_unwritten_has_its_own_exit_code() {
+        let unwritten = anyhow::anyhow!("disk full")
+            .context("writing the history h")
+            .context(HistoryUnwritten);
+        assert_eq!(exit_code(&unwritten), HISTORY_UNWRITTEN);
+        assert_eq!(exit_code(&anyhow::anyhow!("a budget is exceeded")), 1);
+        // The figures are reported and the budget exceeded said before the history fails.
+        let journal = Journal {
+            file: std::env::temp_dir().join("kartenn-bench-no-such-dir\0/h"),
+            run: Run {
+                date: String::new(),
+                commit: String::new(),
+                dirty: false,
+                bench: "core".into(),
+                scale: "small".into(),
+                seed: 1,
+                load: None,
+                template: None,
+            },
+        };
+        let figures = [Figure {
+            measure: "core.read-object",
+            budget: "read an object, p95".into(),
+            value: 1.0,
+            unit: history::Unit::Seconds,
+            limit: Some(0.05),
+            verdict: history::Verdict::Fail,
+        }];
+        let error = Level::Small
+            .verdict("", &figures, Some(&journal), "a budget is exceeded")
+            .unwrap_err();
+        assert_eq!(exit_code(&error), HISTORY_UNWRITTEN, "{error:?}");
+        let error = Level::Small
+            .verdict("", &figures, None, "a budget is exceeded")
+            .unwrap_err();
+        assert_eq!(
+            (exit_code(&error), error.to_string().as_str()),
+            (1, "a budget is exceeded")
+        );
+    }
+
+    #[test]
+    fn a_measure_is_known_by_its_bench() {
+        assert_eq!(known("core.read-object").unwrap().name, "core");
+        assert!(known("core.nope").is_err());
+        assert!(known("nope").is_err());
     }
 
     #[test]

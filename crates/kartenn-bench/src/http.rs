@@ -942,7 +942,8 @@ pub async fn run(
     progress(&format!("scenarios: {:?}", started.elapsed()));
 
     let mut figures = Vec::new();
-    // REQ-018-20: less than 1 MB uncompressed.
+    // REQ-018-20: less than 1 MB uncompressed. The limit of the history is inclusive: the
+    // largest size that passes.
     if let Some(largest) = largest {
         let small = largest < 1_000_000;
         figures.push(Figure::check(
@@ -950,7 +951,7 @@ pub async fn run(
             "dictionary of labels, one language, uncompressed",
             f64::from(u32::try_from(largest)?),
             Unit::Bytes,
-            Some(1_000_000.0),
+            Some(999_999.0),
             small,
         ));
         writeln!(
