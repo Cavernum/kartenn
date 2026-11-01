@@ -16,6 +16,7 @@ import {
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
+import { revealDetail } from "../frame/detail.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
@@ -58,9 +59,15 @@ const labelOf = (g: GroupItem) => g.labels[locale.value] ?? keyLabel("group", g.
 const rowState = (row: GroupItem) =>
   draft.operations.value.some((op) => touchesGroup(op, row.key)) ? ("draft" as const) : undefined;
 
-const open = (id: string) => void router.push(`/admin/groups/${encodeURIComponent(id)}`);
+/** Opens a group; the one shown already, the panel reopened on it. */
+function open(id: string): void {
+  if (id === props.selected) revealDetail();
+  else void router.push(`/admin/groups/${encodeURIComponent(id)}`);
+}
+// The row chosen again (its selection taken off by the grid): the panel shows it again.
 function onSelected(keys: string[]): void {
-  if (keys[0] && keys[0] !== props.selected) open(keys[0]);
+  const id = keys[0] ?? props.selected;
+  if (id) open(id);
 }
 const onActivate = (cell: CellRef) => open(cell.row);
 

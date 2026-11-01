@@ -42,6 +42,8 @@ export const ROLE_ADMIN = "core.role.admin";
 export const GROUP_ESCALATION = "core.group.escalation";
 export const BINDING_ESCALATION = "core.binding.escalation";
 export const GROUP_BUILTIN = "core.group.builtin";
+/** An administration the author may not do on that scope (005). */
+export const RBAC_FORBIDDEN = "core.rbac.forbidden";
 export const ROLE_BUILTIN = "core.role.builtin";
 
 /** The kinds of scope of a binding (005), in the order of the choice. */
@@ -297,16 +299,33 @@ export interface RefusalWords {
 }
 
 /**
- * The operations whose simulation says whether the group is bound wider than the user's
- * scope: its closure (`core.group.escalation`, which members and closure share), then the
- * end of each binding (refused where the user may not administer). Asked only of a user
- * who is not an administrator of the whole organisation; never written.
+ * The simulations that say whether the group is bound wider than the user's scope, each
+ * apart so that no operation hinders another (a closure ends the bindings an `unbind`
+ * would name: `changeset.operation.no_version`, refused before the rules of the rights)
+ * and so that each refusal is that of one binding (the rules of the rights judge the
+ * final state: their violations name no operation): its closure alone
+ * (`core.group.escalation`, which members and closure share), then each binding bound
+ * again as it is (`core.binding.escalation`, or `core.rbac.forbidden` where the user does
+ * not administer its scope). Asked only of a user who is not an administrator of the
+ * whole organisation; never written.
  */
-export function escalationProbe(group: GroupItem, bindings: readonly BindingItem[]): Operation[] {
-  return [
-    { op: "close_group", key: group.key },
-    ...bindings.map((b) => ({ op: "unbind" as const, id: b.id })),
-  ] as Operation[];
+export function escalationProbe(
+  group: GroupItem,
+  bindings: readonly BindingItem[],
+): { group: Operation[]; bindings: Operation[][] } {
+  return {
+    group: [{ op: "close_group", key: group.key } as Operation],
+    bindings: bindings.map((b) => [bindOp(group.key, b.role, b.scope)]),
+  };
+}
+
+/** What the simulation of a binding bound again refuses it for: its scope, its role. */
+const BINDING_RULES = new Set([BINDING_ESCALATION, RBAC_FORBIDDEN]);
+
+/** The violations of the simulations of `escalationProbe`, a list by binding. */
+export interface ProbeViolations {
+  group: readonly Violation[];
+  bindings: readonly (readonly Violation[])[];
 }
 
 export function groupRefusals(input: {
@@ -317,7 +336,7 @@ export function groupRefusals(input: {
   globalAdmin: boolean;
   present: boolean;
   /** The violations of `escalationProbe`, `null` when not asked or not come yet. */
-  violations: readonly Violation[] | null;
+  violations: ProbeViolations | null;
   words: RefusalWords;
 }): GroupRefusals {
   const { group, bindings, words } = input;
@@ -342,11 +361,15 @@ export function groupRefusals(input: {
   }
   const refusals: GroupRefusals = { bindings: new Map() };
   if (input.globalAdmin || input.violations === null) return refusals;
-  const errors = input.violations.filter((v) => v.severity === "error");
-  const wider = errors.find((v) => v.operation === 0 && v.rule === GROUP_ESCALATION);
+  // Only the codes of the scope count: another error says nothing of it.
+  const wider = input.violations.group.some(
+    (v) => v.severity === "error" && v.rule === GROUP_ESCALATION,
+  );
   bindings.forEach((b, index) => {
-    const refused = errors.find((v) => v.operation === index + 1);
-    if (refused) refusals.bindings.set(b.id, { reason: words.wider(BINDING_ESCALATION) });
+    const refused = (input.violations!.bindings[index] ?? []).find(
+      (v) => v.severity === "error" && BINDING_RULES.has(v.rule),
+    );
+    if (refused) refusals.bindings.set(b.id, { reason: words.wider(refused.rule) });
   });
   if (wider) {
     const reason = { reason: words.wider(GROUP_ESCALATION) };

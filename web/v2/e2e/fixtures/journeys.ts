@@ -13,6 +13,21 @@ export const USERS = {
   alice: "Alice Exemple",
   bob: "Bob Exemple",
   carol: "Carol Exemple",
+  dana: "Dana Exemple",
+} as const;
+
+/**
+ * The administrator of one entity (journey `admin`, task 15a; global-setup.ts): the group
+ * of users.toml bound to a role that reads the rights on the whole organisation, and to
+ * `administrator` on the entity of the data set only.
+ */
+export const ENTITY_ADMIN = {
+  group: "admins-entite",
+  reads: {
+    key: "lecteur_droits",
+    labels: { fr: "Lecteur des droits" },
+    entries: ["core.rbac.read"],
+  },
 } as const;
 
 /** Roles bound to the groups of users.toml, on the whole organisation (global-setup.ts). */

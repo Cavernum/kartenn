@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { apiCall, expect, expectAccessible, test } from "../fixtures/journeys.ts";
+import { apiCall, DATA, expect, expectAccessible, loginIn, test } from "../fixtures/journeys.ts";
 
 // The administration of the rights by groups in the new shell (spec 021, task 15a;
 // REQ-021-12, REQ-025-12; maquette E7), rewritten from web/e2e/journeys/admin.spec.ts (its
@@ -16,13 +16,17 @@ const counter = (page: Page) => page.getByRole("button", { name: /^Brouillon \d+
 const navigation = (page: Page) => page.getByRole("navigation", { name: "Navigation principale" });
 
 /** A group of its own for the journey, with a group of the IdP and the role `reader`. */
-async function ownGroup(page: Page, key: string): Promise<string> {
+async function ownGroup(
+  page: Page,
+  key: string,
+  scope: object = { kind: "global" },
+): Promise<string> {
   const created = await apiCall(page, "POST", "/v1/changesets?approval=self", {
     motive: "end-to-end administration",
     operations: [
       { op: "set_group", key, labels: { fr: `Équipe ${key}` } },
       { op: "add_member", group: key, member: { kind: "idp_group", issuer: "dev", group: key } },
-      { op: "bind", group: key, role: "reader", scope: { kind: "global" } },
+      { op: "bind", group: key, role: "reader", scope },
     ],
   });
   expect(created.status, JSON.stringify(created.body)).toBe(201);
@@ -136,6 +140,73 @@ test("a role: its permissions under their served name, its groups", async ({ pag
     detail.getByRole("list", { name: "Groupes liés à redacteur" }).getByRole("listitem"),
   ).toContainText(["redacteurs"]);
   await expectAccessible(page);
+});
+
+/** The two simulations of the probe of a group (its closure, its bindings bound again). */
+const probed = (page: Page) =>
+  Promise.all(
+    ['"close_group"', '"bind"'].map((op) =>
+      page.waitForResponse(
+        (r) =>
+          r.url().includes("/v1/changesets?simulate=true") &&
+          (r.request().postData() ?? "").includes(op),
+      ),
+    ),
+  );
+
+test("an administrator of one entity: a group of that entity written, one wider read only", async ({
+  page,
+  login,
+  browser,
+  browserName,
+}) => {
+  await login("alice");
+  const entities = (await apiCall(page, "GET", `/v1/entities?slug=${DATA.entity}`)).body as {
+    items: { id: string }[];
+  };
+  const entity = { kind: "entity", id: { id: entities.items[0]!.id } };
+  const suffix = `${browserName}-${Date.now().toString(36)}`;
+  const local = await ownGroup(page, `zz-local-${suffix}`, entity);
+  const wide = await ownGroup(page, `zz-wide-${suffix}`);
+
+  const context = await browser.newContext({ ignoreHTTPSErrors: true, locale: "fr-FR" });
+  const dana = await context.newPage();
+  try {
+    await loginIn(dana, "dana");
+    const detail = panel(dana);
+    const addMember = detail.getByRole("button", { name: "Ajouter un membre" });
+
+    // Bound on the whole organisation: the server refuses its writes to Dana, said at its top.
+    let answers = probed(dana);
+    await dana.goto(`/admin/groups/${wide}`);
+    await answers;
+    const notice = detail
+      .getByRole("status")
+      .filter({ hasText: "Lecture seule : ce groupe est lié sur un périmètre plus large" });
+    await expect(notice).toBeVisible();
+    await expect(notice.getByRole("button", { name: /core\.group\.escalation/ })).toBeVisible();
+    await expect(addMember).toHaveAttribute("aria-disabled", "true");
+    await expect(detail.getByRole("button", { name: /^Modifier le rôle reader/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+
+    // Bound on her entity only: written as by any administrator.
+    answers = probed(dana);
+    await dana.goto(`/admin/groups/${local}`);
+    await answers;
+    await expect(detail.getByRole("heading", { level: 2 })).toContainText(`zz-local-${suffix}`);
+    await expect(detail.getByRole("status").filter({ hasText: "Lecture seule" })).toHaveCount(0);
+    await expect(addMember).not.toHaveAttribute("aria-disabled");
+    await expect(
+      detail.getByRole("button", { name: /^Modifier le rôle reader/ }),
+    ).not.toHaveAttribute("aria-disabled");
+    await expect(
+      detail.getByRole("button", { name: `Retirer dev / zz-local-${suffix} du groupe` }),
+    ).not.toHaveAttribute("aria-disabled");
+  } finally {
+    await context.close();
+  }
 });
 
 test.describe("a reader", () => {

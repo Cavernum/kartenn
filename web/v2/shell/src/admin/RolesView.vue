@@ -17,6 +17,7 @@ import {
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
+import { revealDetail } from "../frame/detail.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
@@ -89,9 +90,15 @@ const labelOf = (r: RoleItem) => r.labels[locale.value] ?? keyLabel("role", r.ke
 const rowState = (row: Row) =>
   draft.operations.value.some((op) => touchesRole(op, row.key)) ? ("draft" as const) : undefined;
 
-const open = (key: string) => void router.push(`/admin/roles/${encodeURIComponent(key)}`);
+/** Opens a role; the one shown already, the panel reopened on it. */
+function open(key: string): void {
+  if (key === props.selected) revealDetail();
+  else void router.push(`/admin/roles/${encodeURIComponent(key)}`);
+}
+// The row chosen again (its selection taken off by the grid): the panel shows it again.
 function onSelected(keys: string[]): void {
-  if (keys[0] && keys[0] !== props.selected) open(keys[0]);
+  const key = keys[0] ?? props.selected;
+  if (key) open(key);
 }
 const onActivate = (cell: CellRef) => open(cell.row);
 

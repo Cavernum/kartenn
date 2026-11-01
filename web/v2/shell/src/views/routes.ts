@@ -40,7 +40,8 @@ export interface ScreenRoute {
   queries?: (params: RouteParams, time: TimeArg, query: LocationQuery) => readonly Prefetchable[];
   /**
    * What the Détail tab of the right panel shows for the route (an object of the
-   * administration chosen in its list), given the same properties as the screen.
+   * administration chosen in its list): the frame gives it the parameter `:id` of the
+   * route as its property `id`, and nothing else.
    */
   detail?: Component;
 }

@@ -143,7 +143,7 @@ describe("refusals of a group", () => {
       rights: admin,
       globalAdmin: false,
       present: true,
-      violations: [],
+      violations: { group: [], bindings: [] },
       words,
       ...extra,
     });
@@ -159,27 +159,39 @@ describe("refusals of a group", () => {
     const allowed = refuse({ globalAdmin: true, violations: null });
     expect(allowed.members ?? allowed.close ?? allowed.readOnly).toBeUndefined();
     expect(allowed.bindings.size).toBe(0);
-    expect(escalationProbe(group(), two)).toEqual([
-      { op: "close_group", key: "supervision" },
-      { op: "unbind", id: "b1" },
-      { op: "unbind", id: "b2" },
-    ]);
+    // Simulations that do not hinder each other: the closure alone, then each binding
+    // bound again as it is, alone (an `unbind` after the closure would name an ended
+    // binding; the rules of the rights name no operation).
+    expect(escalationProbe(group(), two)).toEqual({
+      group: [{ op: "close_group", key: "supervision" }],
+      bindings: [
+        [{ op: "bind", group: "supervision", role: "reader", scope: { kind: "global" } }],
+        [{ op: "bind", group: "supervision", role: "editor", scope: { kind: "global" } }],
+      ],
+    });
   });
 
-  it("refuses by the violations of the simulation, read only when all are refused", () => {
-    const violation = (operation: number, rule: string): Violation =>
-      ({ operation, rule, severity: "error", detail: "", subjects: [] }) as Violation;
-    const one = refuse({ violations: [violation(2, "core.rbac.forbidden")] });
+  it("refuses by the codes of the scope only, read only when all are refused", () => {
+    // As the server serves them: a rule of the final state, no operation named.
+    const violation = (rule: string): Violation =>
+      ({ operation: null, rule, severity: "error", detail: "", subjects: [] }) as Violation;
+    const one = refuse({
+      violations: {
+        group: [violation("changeset.operation.no_version")],
+        bindings: [[violation("core.role.unknown")], [violation("core.binding.escalation")]],
+      },
+    });
     expect(one.bindings.get("b2")).toEqual({ reason: "plus large (core.binding.escalation)" });
+    // Another error says nothing of the scope.
     expect(one.bindings.has("b1")).toBe(false);
     expect(one.members).toBeUndefined();
     const all = refuse({
-      violations: [
-        violation(0, "core.group.escalation"),
-        violation(1, "core.rbac.forbidden"),
-        violation(2, "core.rbac.forbidden"),
-      ],
+      violations: {
+        group: [violation("core.group.escalation")],
+        bindings: [[violation("core.rbac.forbidden")], [violation("core.binding.escalation")]],
+      },
     });
+    expect(all.bindings.get("b1")).toEqual({ reason: "plus large (core.rbac.forbidden)" });
     expect(all.members).toEqual({ reason: "plus large (core.group.escalation)" });
     expect(all.addBinding).toEqual({ reason: "plus large (core.binding.escalation)" });
     expect(all.readOnly).toEqual({ title: words.widerTitle, code: "core.group.escalation" });

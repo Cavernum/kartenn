@@ -8,7 +8,7 @@
 // action « Annuler le retrait »; an addition comes at the end, its action takes it out.
 // An action refused stays visible with its permission or its reason; a group whose writes
 // are all refused for one reason says it at its top, with the code of the rule.
-import { changesets, queryClient, reads, type Violation } from "@kartenn/sdk";
+import { changesets, queryClient, reads, type Operation, type Violation } from "@kartenn/sdk";
 import {
   AlertDialog,
   Button,
@@ -52,6 +52,7 @@ import {
   type BindingScope,
   type GroupItem,
   type MemberRow,
+  type ProbeViolations,
   type Refusal,
 } from "./model.ts";
 import { useList } from "./reads.ts";
@@ -99,7 +100,10 @@ const closing = computed(() =>
 );
 
 // A user who administers part of the organisation only: whether the group is bound wider
-// than their scope, as the server simulates its closure and the end of its bindings.
+// than their scope, as the server simulates its closure and its bindings bound again —
+// one probe (a simulation for the closure, one by binding, in parallel) per group
+// opened, kept five minutes, never read again on
+// the focus or the reconnection: a group's bindings changed make another key.
 const globalAdmin = computed(
   () => session.value.me?.global_permissions.some((e) => covers(e, RBAC_ADMIN)) ?? false,
 );
@@ -112,12 +116,28 @@ const probing = computed(
     !globalAdmin.value &&
     time.value.present,
 );
+const PROBE_KEPT = 5 * 60_000;
 const probe = useQuery(() => ({
-  ...changesets.simulate({
-    motive: "-",
-    operations: group.value ? escalationProbe(group.value, bindings.rows.value) : [],
-  }),
+  queryKey: ["admin", "probe", props.id, bindings.rows.value.map((b) => b.id).join(",")],
+  queryFn: async ({ signal }: { signal: AbortSignal }): Promise<ProbeViolations> => {
+    const ops = escalationProbe(group.value!, bindings.rows.value);
+    const simulate = async (operations: Operation[]) =>
+      operations.length === 0
+        ? []
+        : ((await changesets.simulate({ motive: "-", operations }).queryFn({ signal }))
+            .violations as Violation[]);
+    const [groupViolations, ...bindingViolations] = await Promise.all([
+      simulate(ops.group),
+      ...ops.bindings.map(simulate),
+    ]);
+    return { group: groupViolations ?? [], bindings: bindingViolations };
+  },
   enabled: probing.value,
+  staleTime: PROBE_KEPT,
+  gcTime: PROBE_KEPT,
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: false,
+  retry: false,
 }));
 const refusals = computed(() =>
   group.value
@@ -127,9 +147,7 @@ const refusals = computed(() =>
         rights: session.value.rights,
         globalAdmin: globalAdmin.value,
         present: time.value.present,
-        violations: probing.value
-          ? ((probe.data.value?.violations as Violation[] | undefined) ?? null)
-          : null,
+        violations: probing.value ? (probe.data.value ?? null) : null,
         words: {
           past: t("edit.why.past"),
           wider: (code) => t("admin.why.wider", { code }),

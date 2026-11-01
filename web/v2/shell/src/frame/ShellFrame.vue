@@ -107,6 +107,7 @@ import ShortcutHelp from "../shortcuts/ShortcutHelp.vue";
 import { runnable } from "../shortcuts/view.ts";
 import { closeEditWithPage, editRequest } from "../views/edit/panel.ts";
 import { crumbsOf } from "./breadcrumb.ts";
+import { detailRequests } from "./detail.ts";
 import { keepPanel, readPanel, useSettings, THEMES, DENSITIES } from "./settings.ts";
 import { EDITS, locate, pageCount, sidebarGroups, SPACE_ORDER } from "./spaces.ts";
 
@@ -247,14 +248,15 @@ watch(editing, (request) => {
   panelTab.value = "detail";
 });
 // The object a route of the administration chose in its list (`meta.detail`, task 15a): in
-// the Détail tab, the panel opened on it when another object is chosen.
+// the Détail tab, the panel opened on it when another object is chosen, or the same one
+// again (`revealDetail`).
 const routeDetail = computed(() => route.meta.detail ?? null);
 const detailId = computed(() =>
   routeDetail.value && route.params.id ? String(route.params.id) : null,
 );
 watch(
-  detailId,
-  (id) => {
+  [detailId, detailRequests()],
+  ([id]) => {
     if (id === null) return;
     panelOpen.value = true;
     panelTab.value = "detail";

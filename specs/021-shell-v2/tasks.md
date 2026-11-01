@@ -1265,9 +1265,14 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     permissions servies ; lecteur refusé).
   - choix : l'objet choisi s'ouvre par l'URL (`/admin/groups/:id` par UUID,
     `/admin/roles/:key`), même écran que la liste, son détail dans le panneau droit ; le
-    périmètre plus large que celui de l'utilisateur (`core.group.escalation`, refus d'une
-    liaison) se lit dans une simulation (`?simulate=true` de `close_group` puis `unbind` de
-    chaque liaison), demandée seulement à qui n'a pas `core.rbac.admin` global : le
+    périmètre plus large que celui de l'utilisateur se lit dans des simulations
+    (`?simulate=true`) séparées, qui ne se gênent pas : `close_group` seul
+    (`core.group.escalation`), puis une par liaison, liée de nouveau telle quelle (`bind` ;
+    `core.binding.escalation`, ou `core.rbac.forbidden` hors du périmètre administré :
+    seuls ces codes comptent ; une par liaison parce que les règles des droits jugent
+    l'état final et ne nomment aucune opération) ; une sonde par ouverture de groupe, en
+    parallèle, gardée cinq minutes, jamais relue au focus ni à la reconnexion ; demandée
+    seulement à qui n'a pas `core.rbac.admin` global : le
     client ne devine aucune inclusion de périmètres ; « Ajouter un rôle » refusé avec le
     groupe, comme la maquette ; les membres de `secours` à un administrateur global
     seulement ; « Modifier » une liaison = `unbind` puis `bind` ; une permission ajoutée
@@ -1281,7 +1286,17 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     alignées avec actions et marques du brouillon) ; l'objet d'un périmètre se cherche
     dans la première page seulement (une recherche par le serveur viendra avec un filtre
     de nom) ; la portée affichée d'un rôle dans « Groupes liés » montre l'identifiant de
-    l'objet, pas son nom.
+    l'objet, pas son nom ; `writeRole` (`draft.ts`) compare les permissions sans
+    l'ordre mais les libellés par `JSON.stringify` (ordre des langues) ; classes de
+    `AdminLines` (`__label`, `__value`…) posées par les vues, sans gabarit ; `id` fixes des
+    titres de section (`k-admin-members`…), uniques tant qu'un seul détail est monté.
+  - correctifs de revue (2026-11-01) : sonde de portée en simulations séparées (la première
+    version, `close_group` puis `unbind`, finissait en `changeset.operation.no_version`
+    avant les règles des droits) ; parcours `admin` : Dana, administratrice de la seule
+    entité du jeu (`web/e2e/users.toml`, groupe `admins-entite` de `global-setup.ts` :
+    `core.rbac.read` global, `administrator` sur l'entité), un groupe de son entité
+    modifiable, un groupe lié au-delà en lecture seule annoncée ; même objet choisi de
+    nouveau : le panneau se rouvre (`frame/detail.ts`, `revealDetail`).
 - [ ] 15b. Administration : émetteurs, comptes de service et secret (montré une fois),
   identités (groupes et droits effectifs en lecture), secours — REQ-021-12 — verify :
   parcours `admin` étendu (secret montré une fois, identité en lecture)
