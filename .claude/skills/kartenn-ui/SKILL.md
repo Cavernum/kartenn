@@ -265,6 +265,16 @@ boutons primaires multiples dans une même zone.
 - Vérification : `k-web2-check` (Prettier, ESLint, Stylelint, vue-tsc, Vitest, captures) ;
   `k-web2-e2e` (parcours) ; références des captures : `k-web-shots --update`, dans devenv
   seulement, relues dans le diff avant commit.
+- Passage ciblé (ADR 0042) : `k-web2-check` part du changement depuis `origin/main`
+  (`--base <ref>` sinon ; un agent prend `--base main`) ; lints sur les fichiers
+  touchés, vue-tsc et Vitest complets, et seulement les captures, instantanés et
+  scripts clavier que le graphe d'imports (`web/v2/tools/impact/`) tire du changement :
+  page de catalogue et script clavier d'un composant, maquettes et parties du shell
+  qui l'importent. Jetons, CSS de base, configurations, fixtures et tout fichier que le
+  graphe ne lit pas relancent tout (« tout, <raison> »). Le
+  verdict dit la sélection (« ciblé : N captures sur M ») ; un passage ciblé n'est
+  jamais un passage complet. `--all` lance tout : la session principale, sur le
+  résultat fusionné, avant chaque push ; les agents ne lancent que le passage ciblé.
 - Rendu : catalogue `/_ui` (`?mode=light|dark`, `?densite=compacte|confortable`,
   `?langue=fr|en`) ; MCP `playwright`, `browser_snapshot` d'abord.
 - Catalogue : un état = `{ name, description, props }` dans `<Nom>.catalogue.ts`, plus

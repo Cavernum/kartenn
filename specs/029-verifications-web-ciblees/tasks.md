@@ -341,10 +341,26 @@ regardée.
       `scrollend`.
     - la note dit « sous charge » pour des mesures à côté d'un `k-web2-check` ou d'un
       autre agent : charge réelle, non mesurée.
-- [ ] 6. Règles et synchronisation : `.claude/agents/kartenn-tache.md` (passage ciblé
+- [x] 6. Règles et synchronisation : `.claude/agents/kartenn-tache.md` (passage ciblé
   seulement, `--all` réservé à la session principale) ; `CLAUDE.md` (« Charge de la
   machine », « Sorties courtes ») ; skill `kartenn-ui` (vérification) ;
   `specs/README.md` (ADR 0042, décision 3).
   - verify : relecture `kartenn-revue` sans écart bloquant.
   - où : fichiers cités.
   - dépend de : 1 à 3
+  - fait le 2026-11-01 : `kartenn-tache.md` (`web/v2` : `k-web2-check --base main`,
+    passage ciblé, verdict recopié au rapport, « tout » attendu pour un fichier
+    transverse, jamais `--all` ; « Charge » : la vérification d'avant le commit est ce
+    passage) ; `CLAUDE.md` (« Charge de la machine » : passage ciblé des agents, `--all`
+    de la session principale sur le résultat fusionné avant chaque push ; « Sorties
+    courtes » : stylelint, `k-web2-check [--all | --base <ref>]` et son verdict) ; skill
+    `kartenn-ui` §8 (passage ciblé : base, graphe, déclencheurs de « tout », verdict,
+    qui lance `--all`) ; `specs/README.md` (ligne de la 029 : décision 3, 6/6).
+    Relecture `kartenn-revue` laissée à la session principale.
+  - choix :
+    - agents en `--base main` plutôt que la base par défaut : `origin/main` retarde sur
+      les fusions pas encore poussées, dont les captures s'ajouteraient à celles de la
+      tâche (sélection plus large, jamais fausse) ; `git merge-base main HEAD` rend le
+      commit de départ même quand main a avancé.
+    - `.claude/agents/test-runner.md` (« prettier, eslint, vue-tsc, vitest ») non touché :
+      hors des fichiers cités ; à reprendre avec la prochaine retouche des agents.

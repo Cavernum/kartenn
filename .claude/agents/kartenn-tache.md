@@ -42,7 +42,16 @@ propre à la tâche.
   élément interne). Mets à jour les lignes d'inventaire de
   `specs/020-systeme-de-design/design.md` et de la skill ; remplace dans les maquettes
   (`web/v2/shell/src/_ui/ecrans/`) les éléments simulés par le vrai composant.
-  Vérification : `devenv shell -- k-web2-check`, plus
+  Vérification : `devenv shell -- k-web2-check --base main`, le passage ciblé (ADR 0042,
+  décisions 1 et 2) : lints sur les fichiers touchés, vue-tsc et Vitest complets, et
+  seulement les captures, instantanés et scripts clavier que le graphe d'imports tire
+  de ton changement ; le verdict dit la sélection (« ciblé : N captures sur M »), à
+  recopier dans le rapport. `--base main` mesure le changement depuis ton point de
+  départ : `origin/main`, la base par défaut, retarde sur les fusions pas encore
+  poussées, dont les captures s'ajouteraient aux tiennes. Un jeton, une feuille de base
+  ou une configuration relancent tout d'eux-mêmes (« tout, <raison> ») : c'est attendu.
+  Jamais `--all` : le passage complet est celui de la session principale, sur le
+  résultat fusionné, avant le push (décision 3). Plus
   `devenv shell -- k-check -p kartenn-server no_old_permission` si l'interface nomme des
   permissions (refus, maquettes) : ce test lit aussi `web/v2` ; captures réécrites avec
   `k-web-shots --update changed`, seulement pour des changements voulus, chacune
@@ -52,7 +61,8 @@ propre à la tâche.
 - **Charge** : d'autres agents tournent en même temps et `k-heavy` n'a que deux
   créneaux. En route, des vérifications ciblées (`k-check -p <crate> <filtre>`, un
   fichier Vitest, un script Playwright) ; la vérification complète une fois, avant le
-  commit, et de nouveau seulement après une correction. Tes commandes lourdes portent
+  commit (pour `web/v2`, le passage ciblé ci-dessus), et de nouveau seulement après une
+  correction. Tes commandes lourdes portent
   `K_HEAVY_WAIT=30` : au bout de 30 min d'attente d'un créneau, `k-heavy` abandonne
   (code 75). Note alors `k-heavy --status`, réessaie une fois, puis arrête-toi sur un
   rapport qui dit qui tient le créneau, plutôt que d'attendre sans fin.
