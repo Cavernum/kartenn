@@ -8,8 +8,11 @@
 
 import { format, translate } from "./i18n.ts";
 
-/** The extension points (W5). */
-export type ExtensionPoint = "view" | "tab" | "panel" | "column" | "action";
+/**
+ * The extension points (W5), and the tile of the home page (`widget`, spec 021,
+ * REQ-021-13: at most one per plugin, read-only, on no object).
+ */
+export type ExtensionPoint = "view" | "tab" | "panel" | "column" | "action" | "widget";
 
 /** An extension, as `ui_plugins` of the capabilities publishes it. */
 export interface Extension {
@@ -31,7 +34,8 @@ export interface PluginManifest {
   base: string;
   /** SRI digest by file relative to `base`. */
   integrity: Record<string, string>;
-  extensions: Extension[];
+  /** Its extensions, as `ui_plugins` publishes them: the elements it may define. */
+  extensions: readonly Pick<Extension, "element">[];
 }
 
 /** What a plugin gets back: its translations, formats and style sheets. */
@@ -58,7 +62,7 @@ const expected = new Map<string, Expected>();
 
 function handleOf(manifest: PluginManifest): PluginHandle {
   return {
-    t: (key, params) => translate(`${manifest.name}.${key}`, params),
+    t: (key, params) => translate(`${manifest.name}.${key}`, params, manifest.name),
     format,
     styles(root, path) {
       const integrity = manifest.integrity[path];

@@ -1,0 +1,62 @@
+{
+  "name": "notes",
+  "version": "1.0.0",
+  "sdk": "^1.0",
+  "entry": "index.js",
+  "module": null,
+  "catalogs": { "fr": "i18n/fr.json", "en": "i18n/en.json" },
+  "extensions": [
+    {
+      "point": "view",
+      "id": "overview",
+      "element": "notes-overview",
+      "nav": "nav.overview",
+      "go": "m"
+    },
+    {
+      "point": "view",
+      "id": "broken",
+      "element": "notes-broken",
+      "nav": "nav.broken",
+      "go": "p"
+    },
+    {
+      "point": "view",
+      "id": "admin",
+      "element": "notes-admin",
+      "nav": "nav.admin",
+      "permission": "core.rbac.admin"
+    },
+    {
+      "point": "tab",
+      "id": "notes",
+      "element": "notes-tab",
+      "object_types": ["prefix", "vlan"],
+      "label": "tab.notes",
+      "permission": "core.prefix.read"
+    },
+    { "point": "panel", "id": "summary", "element": "notes-summary", "object_types": ["prefix"] },
+    {
+      "point": "column",
+      "id": "flag",
+      "element": "notes-flag",
+      "object_types": ["address"],
+      "label": "column.flag"
+    },
+    {
+      "point": "action",
+      "id": "review",
+      "element": "notes-review",
+      "object_types": ["changeset"],
+      "label": "action.review",
+      "permission": "core.changeset.read"
+    },
+    {
+      "point": "widget",
+      "id": "home",
+      "element": "notes-home",
+      "label": "widget.home",
+      "permission": "core.prefix.read"
+    }
+  ]
+}

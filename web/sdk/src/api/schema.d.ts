@@ -8174,7 +8174,7 @@ export interface components {
      * @description The points of extension of the SDK (W5).
      * @enum {string}
      */
-    UiExtensionPoint: "view" | "tab" | "panel" | "column" | "action";
+    UiExtensionPoint: "view" | "tab" | "panel" | "column" | "action" | "widget";
     /**
      * @description A plugin of the interface (D17; spec 007, REQ-007-7): what the shell needs to load it
      *     with the integrity of each file.

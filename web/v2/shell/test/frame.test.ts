@@ -114,6 +114,8 @@ describe("guards of the frame", () => {
   afterEach(() => resetContext());
 
   const signedOut = async () => ({ me: null });
+  // Signed in: a page that needs a session shows (signed out, the login page, task 16).
+  const signedIn = async () => ({ me: { identity: "0b5e3c1a-0000-4000-8000-000000000001" } as Me });
 
   function frameRouter(
     guarded: unknown[][],
@@ -150,7 +152,7 @@ describe("guards of the frame", () => {
 
   it("carries the dates into the target before the prefetch reads it", async () => {
     const guarded: unknown[][] = [];
-    const router = frameRouter(guarded, signedOut);
+    const router = frameRouter(guarded, signedIn);
     await router.push(`/?valid_at=${VALID_AT}&as_of=${AS_OF}`);
     await router.push("/prefixes/p1");
     const to = router.currentRoute.value;
@@ -161,7 +163,7 @@ describe("guards of the frame", () => {
   });
 
   it("goes back to the present without carrying the dates", async () => {
-    const router = frameRouter([], signedOut);
+    const router = frameRouter([], signedIn);
     await router.push(`/prefixes/p1?valid_at=${VALID_AT}`);
     await goToPeriod(router, { validAt: null, asOf: null });
     expect(router.currentRoute.value.query).toEqual({});
@@ -170,7 +172,7 @@ describe("guards of the frame", () => {
   });
 
   it("carries no date on a move in the history", async () => {
-    const router = frameRouter([], signedOut);
+    const router = frameRouter([], signedIn);
     await router.push("/prefixes/p1");
     await router.push(`/prefixes/p1?valid_at=${VALID_AT}`);
     // Back, to the page as it was: at the present.

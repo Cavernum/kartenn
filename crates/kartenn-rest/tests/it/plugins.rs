@@ -214,6 +214,13 @@ fn the_digest_is_that_of_sri() {
 /// A change that makes a manifest faulty.
 type Fault = Box<dyn Fn(&mut Value)>;
 
+/// A tile of the home page of the plugin of `manifest` (spec 021, REQ-021-13).
+fn widget(manifest: &Value, id: &str) -> Value {
+    let name = manifest["name"].as_str().unwrap();
+    json!({ "point": "widget", "id": id, "element": format!("{name}-{id}"),
+            "permission": "core.prefix.read" })
+}
+
 #[test]
 fn each_faulty_manifest_is_rejected_and_the_others_published() {
     let root = dir();
@@ -265,6 +272,30 @@ fn each_faulty_manifest_is_rejected_and_the_others_published() {
             "go of two letters",
             Box::new(|m| m["extensions"][0]["go"] = json!("vl")),
         ),
+        // The elements prefixed by the plugin's name: refused for the fault named only.
+        (
+            "types on a widget",
+            Box::new(|m| {
+                let mut tile = widget(m, "home");
+                tile["object_types"] = json!(["prefix"]);
+                m["extensions"].as_array_mut().unwrap().push(tile);
+            }),
+        ),
+        (
+            "two widgets",
+            Box::new(|m| {
+                let (home, more) = (widget(m, "home"), widget(m, "more"));
+                m["extensions"].as_array_mut().unwrap().extend([home, more]);
+            }),
+        ),
+        (
+            "go on a widget",
+            Box::new(|m| {
+                let mut tile = widget(m, "home");
+                tile["go"] = json!("w");
+                m["extensions"].as_array_mut().unwrap().push(tile);
+            }),
+        ),
         (
             "go twice",
             Box::new(|m| {
@@ -312,6 +343,24 @@ fn ranges_space_and_letter_are_published() {
     assert_eq!(vlan.extensions[0].go.as_deref(), Some("v"));
     let example = published.iter().find(|p| p.name == "example").unwrap();
     assert!(example.ui.is_none() && example.framework.is_none() && example.space.is_none());
+}
+
+/// Spec 021, REQ-021-13: one tile of the home page, without types of objects, published
+/// with its permission.
+#[test]
+fn a_widget_is_published() {
+    let root = dir();
+    let mut m = manifest("policy", "1.0.0");
+    let tile = widget(&m, "home");
+    m["extensions"].as_array_mut().unwrap().push(tile);
+    deposit(&root, &m);
+    let plugins = Plugins::open(&root, modules()).unwrap();
+    let published = serde_json::to_value(&plugins.published()[0].extensions[3]).unwrap();
+    assert_eq!(
+        published,
+        json!({ "point": "widget", "id": "home", "element": "policy-home",
+                "permission": "core.prefix.read" })
+    );
 }
 
 #[test]
