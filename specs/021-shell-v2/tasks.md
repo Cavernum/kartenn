@@ -651,6 +651,72 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/shell/src/edit/{QuickEdit.vue,fields.ts,submit.ts}`, `rights/index.ts`,
     `views/NewView.vue`
   - dépend de : 11 ; 4
+  - en cours : fait le 2026-11-01 — `web/v2/shell/src/views/edit/` : `fields.ts` (champs de
+    création et de patch de chaque sorte, nommés par les schémas `New*`, `*Patch` du contrat
+    — un nom hors schéma ne compile pas —, listes fermées vérifiées exhaustives, opérations
+    du brouillon `create_*`, `update_*`, `rename` avec `expected` = version lue,
+    `draftedValues` qui relit le brouillon actif, `editability` : `X.edit` du type,
+    `prop.<clé>.edit` d'une colonne `prop.<clé>`, présent, champ du patch, sinon la raison :
+    permission, hors présent, `core.domain.immutable`, valeur calculée, fixée à la
+    création, parent déplacé), `inline.ts` (`useInlineEdit` : Entrée → `draft.add`, cellule
+    « en brouillon » tirée du brouillon actif, ligne marquée ; Ctrl+Entrée → motif en ligne
+    prérempli puis `write.quick` sous `If-Match` de la version de la ligne, valeur montrée
+    « en attente » avant la réponse ; 200 appliqué, 202 « en revue » sans jamais
+    « appliqué », 412 saisie gardée et valeur relue à côté, nouvelle version prise, 422
+    violation et code sur la cellule, 403 refus ; sans `X.approval.self`, Ctrl+Entrée va
+    au brouillon et le dit), `QuickApply.vue` (formulaire du motif au pied de la liste),
+    `RefusalAlert.vue`, `EditPanel.vue` + `panel.ts` (panneau d'édition de la sorte dans
+    l'onglet Détail du panneau droit, mêmes champs d'où qu'on vienne, choix de la sorte pour
+    le « + » d'un nœud, domaine prérempli ; bouton scindé « Ajouter au brouillon » /
+    « Appliquer » (`changesets.submit` avec `approvalSelf` pour une création, `write.quick`
+    pour une modification), action refusée visible avec sa permission (`forbidden`) ;
+    Ctrl+Entrée lance l'action choisie ; focus au premier champ, rendu à l'ouvreur),
+    `say.ts` (toasts : appliqué avec « Voir le changeset », proposé avec la raison et « Voir
+    la proposition »). `ListView.vue` (grille éditable, pied : touches de la cellule ou
+    raison de la lecture seule ; `c` créer, `e` modifier la ligne), `RecordView.vue`
+    (« Modifier », `e`), `TopologyView.vue` (« + » d'un préfixe : adresses et plages dans un
+    réseau, préfixes dans un conteneur ; `c`, `e`), `ShellFrame.vue` (panneau dans l'onglet
+    Détail, morceau paresseux). `@kartenn/ui` : Ctrl+Entrée (⌘+Entrée) dans l'éditeur d'une
+    cellule émet `commit` marqué `now` (`GridCommit.now`, `internal/cellEditor.ts`, les
+    deux grilles) ; `DataGrid` prend `readonlyReason` (la raison d'une cellule sans
+    éditeur, sa description `aria-describedby`, une phrase cachée par raison distincte) ;
+    020 design « Contrat d'édition », inventaire, skill. SDK :
+    `changesets.submit(soumission, clé, { approvalSelf })`. Vitest `shell/test/edit.test.ts`
+    (éditabilité et raisons, opérations, valeurs du brouillon, vérification locale ; liste
+    montée contre une API simulée : brouillon, lecteur, Ctrl+Entrée sans droit, 202, 412 puis
+    nouvelle version, 422), `ui/test/components-data.test.ts`, `sdk/test/write.test.ts` ;
+    script `e2e/components/data-grid.spec.ts` (Ctrl+Entrée) ; parcours
+    `e2e/journeys/edit.spec.ts` (lecteur sans éditeur et raison ; préfixe modifié au clavier,
+    brouillon à 1 ; politique d'approbation → « en revue » ; deux onglets → 412 sans perte,
+    puis appliqué ; domaines nommés après `production`, que la Topographie ouvre d'abord).
+  - choix : motif en ligne au pied de la liste (formulaire, Entrée applique, Échap annule,
+    focus rendu à la cellule), non dans la cellule ; raison d'une cellule non éditable en
+    description de la cellule, et touches ou raison montrées au pied pour la cellule
+    active (pas d'encart permanent) ; « + » d'un nœud montré à qui peut ajouter seulement
+    (le `TreeGrid` n'a pas de « + » refusé, et Entrée sur un nœud irait dans le « + » au
+    lieu d'ouvrir sa fiche) ; colonne de propriété sans éditeur tant que la liste n'écrit
+    pas de propriété ; panneau d'édition fermé au changement de page, focus rendu à
+    l'ouvreur sinon à la surface ; « ajouté au brouillon » dit par le statut poli de la
+    liste ou par un toast depuis le panneau, une issue appliquée ou proposée par son seul
+    toast ; `Request-Id` d'un refus copiable dans son encart ; cellules à liste
+    fermée (nature, usage) éditées en texte vérifié contre la liste (un `Select` dans
+    l'emplacement `editor` perd le focus vers sa couche et validerait aussitôt) ; actions
+    du panneau d'édition à la fin de son formulaire (dans le `form`, Entrée et Ctrl+Entrée),
+    non dans le pied du `SidePanel` ; création appliquée par un changeset d'une opération
+    (`POST /v1/changesets?approval=self`, la même opération que le brouillon) ; une
+    référence (domaine, parent) choisie dans la première page de sa collection ; issue
+    réussie dite par un toast, refus dit sur place ; entrée de session : les écritures
+    suivent un geste (`session/expiry.ts` inchangé).
+  - reste : édition en place dans l'arbre de la Topographie et dans la grille du contenu
+    d'un nœud (`TreeNode` de `roots`/`children` ne sert pas `version` : ni `expected` ni
+    `If-Match` sans lire chaque objet, ou l'ajouter au contrat 006 — à arbitrer) ; cellules
+    de propriété (`prop.<clé>`) : la règle est là, aucune liste n'a encore de colonne de
+    propriété, et l'onglet Propriétés de la fiche ne s'édite pas encore en place ; éditeur à
+    liste (`Select`) dans une cellule de grille (composant) ; motif de la réponse 202 dit
+    par le toast, pas sur la cellule (la `DataGrid` n'a qu'un état « en revue ») ; « + »
+    refusé visible avec sa permission sur un nœud du `TreeGrid` (REQ-021-37 ; le composant
+    n'a ni `forbidden` ni `reason` pour lui) ; captures des vrais écrans (comme la 11 : sans
+    API dans le projet `visual`).
 - [ ] 24. Déplacements et invariant des arbres : arbre des préfixes en `derived` (aucun
   déplacement ; valeur modifiée par le brouillon, aperçu tiré de la simulation, arbre
   relu après application) ; `canMove` du shell (cycle, types tirés du contrat, droits sur

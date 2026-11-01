@@ -24,6 +24,8 @@
 // login and logout in the user menu; « Session expirée » on a 401 in use, and the end of
 // the session said before it comes, in a toast.
 //
+// The edit panel of a kind (task 12) in the Détail tab, when a view asks for it.
+//
 // Left to the next tasks: the content of the draft tab (task 14); the counters of the
 // sidebar (tasks 11, 14).
 import { drafts as draftStore, type DraftList } from "@kartenn/sdk";
@@ -55,7 +57,16 @@ import {
   type TabItem,
   type WidthClass,
 } from "@kartenn/ui";
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
+import {
+  computed,
+  defineAsyncComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  shallowRef,
+  watch,
+} from "vue";
 import { useI18n } from "vue-i18n";
 import { RouterView, useRoute, useRouter } from "vue-router";
 import { useQuery } from "../data/query.ts";
@@ -89,6 +100,7 @@ import { readableType, searchObjects } from "../shortcuts/search.ts";
 import { NAVIGATION, pluginShortcut, shellShortcuts } from "../shortcuts/shell.ts";
 import ShortcutHelp from "../shortcuts/ShortcutHelp.vue";
 import { runnable } from "../shortcuts/view.ts";
+import { closeEdit, editRequest } from "../views/edit/panel.ts";
 import { crumbsOf } from "./breadcrumb.ts";
 import { keepPanel, readPanel, useSettings, THEMES, DENSITIES } from "./settings.ts";
 import { EDITS, locate, sidebarGroups, SPACE_ORDER } from "./spaces.ts";
@@ -179,6 +191,23 @@ const panelTab = ref(kept.tab === "draft" ? "draft" : "detail");
 /** Its width: the one kept, else the standard width of `SidePanel` (`--k-size-panel-lg`). */
 const panelWidth = ref<number>(kept.width ?? 420);
 watch([panelOpen, panelTab, panelWidth], ([open, tab, w]) => keepPanel({ open, tab, width: w }));
+
+// The edit panel of a kind (task 12, REQ-021-36): asked by a view, shown in the Détail tab,
+// the panel opened on it; its code in its own chunk, read when first asked for.
+const EditPanel = defineAsyncComponent(() => import("../views/edit/EditPanel.vue"));
+const editing = editRequest();
+watch(editing, (request) => {
+  if (!request) return;
+  panelOpen.value = true;
+  panelTab.value = "detail";
+});
+// Another page: the edit asked by the one left goes with it.
+watch(
+  () => route.path,
+  () => {
+    if (editing.value) closeEdit(false);
+  },
+);
 
 // The drafts of the user (spec 024 § A): the list for the menu of the counter, the active
 // one of the tab for its count.
@@ -747,7 +776,8 @@ onBeforeUnmount(
           :shortcut="settings.singleKeys.value ? [']'] : undefined"
         >
           <template #detail>
-            <p class="k-frame__muted">{{ t("app.noSelection") }}</p>
+            <EditPanel v-if="editing" :key="editing.serial" :request="editing" />
+            <p v-else class="k-frame__muted">{{ t("app.noSelection") }}</p>
           </template>
           <template #draft>
             <p class="k-frame__muted">

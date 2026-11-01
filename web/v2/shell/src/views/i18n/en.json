@@ -201,5 +201,68 @@
       "partial": "Part of the declared properties was not read (cap of pages reached, or a page refused); the filters of the lists know only these.",
       "error": "The declared properties could not be read."
     }
+  },
+  "edit": {
+    "what": "{field} of {name}",
+    "whatCreated": "{kind} {name}",
+    "whatModified": "{kind} {name}",
+    "drafted": "Added to the draft: {what}.",
+    "applyForbidden": "Applying now takes {permission}: the change goes to the draft.",
+    "network": "The server could not be reached.",
+    "check": {
+      "required": "{field} is required.",
+      "choice": "Choose a value of the list: {values}.",
+      "flag": "Choose yes or no."
+    },
+    "conflict": "The object changed since you read it",
+    "conflictText": "Your input is kept; apply it again to write it on the new version.",
+    "conflictField": "{field}: now {current}, your input {input}",
+    "invalid": "The change is not valid",
+    "forbidden": "You are not allowed to do this",
+    "failed": "The change did not go through",
+    "kept": "Your input is kept.",
+    "requestId": "Identifier of the request",
+    "applyNow": "Apply now: {field} of {name}",
+    "motive": "Motive",
+    "motiveQuick": "Quick edit: {field} of {name}",
+    "motiveCreate": "Creation: {kind}",
+    "motiveModify": "Change: {kind} {name}",
+    "motiveMissing": "The motive is required.",
+    "currentValue": "Current value: {value}",
+    "apply": "Apply",
+    "applyAgain": "Apply on the new version",
+    "toDraft": "Add to the draft",
+    "chooseAction": "Choose the action",
+    "applied": "Applied: {what}",
+    "proposed": "Proposed, in review: {what}",
+    "seeChangeset": "See the changeset",
+    "seeProposal": "See the proposal",
+    "reason": {
+      "missing": "You may not apply it yourself: the change waits for a review.",
+      "held": "An approval policy holds the change: it waits for a review."
+    },
+    "createAction": "Create: {kind}",
+    "editAction": "Change the row: {kind}",
+    "editThis": "Change: {kind} {name}",
+    "modifyButton": "Change",
+    "modify": "Change: {kind} {name}",
+    "create": "Create: {kind}",
+    "addIn": "Add in {within}",
+    "kind": "Kind of object",
+    "none": "None",
+    "unchanged": "Nothing changed: there is nothing to write.",
+    "readError": "{kind}: the object to change could not be read.",
+    "hintDraft": "to the draft",
+    "hintApply": "apply with a motive",
+    "hintApplyForbidden": "apply: it takes",
+    "hintCancel": "cancel",
+    "why": {
+      "forbidden": "Read only: it takes",
+      "past": "Read only off the present: go back to the present to change it.",
+      "immutable": "The domain of an object never changes after its creation (core.domain.immutable).",
+      "computed": "A computed value: it does not change.",
+      "creation": "Fixed at creation: it does not change.",
+      "moved": "The parent changes by a move, not in place."
+    }
   }
 }

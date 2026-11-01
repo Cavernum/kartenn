@@ -4,7 +4,8 @@
 // the children of each node read page by page through the cache at the dates of the page,
 // the children of a closed node read on intent (REQ-021-22, `childrenIntent`); beside it,
 // the content of the chosen node (`?node=<id>`), its record one link away. The domain is
-// chosen in the URL (`?domain=<id>`), the first one by default.
+// chosen in the URL (`?domain=<id>`), the first one by default. The « + » of a prefix, `c`
+// and `e` open the edit panel of the kind (task 12).
 import { queryClient, reads, type components, type TimeArg } from "@kartenn/sdk";
 import {
   EmptyState,
@@ -39,8 +40,12 @@ import { useRoute, useRouter } from "vue-router";
 import { useInfiniteQuery, useQuery } from "../data/query.ts";
 import KLink from "../prefetch/KLink.vue";
 import { childrenIntent } from "../prefetch/tree.ts";
+import { useSession } from "../rights/index.ts";
+import { useViewAction } from "../shortcuts/view.ts";
 import { useTime } from "../time/index.ts";
-import { pageOfObject } from "./collections.ts";
+import { pageOfObject, type CollectionId } from "./collections.ts";
+import { editRight } from "./edit/fields.ts";
+import { openEdit } from "./edit/panel.ts";
 import { problemOf, rowsOf, useKeyLabel } from "./data.ts";
 import ViewPanel from "./parts/ViewPanel.vue";
 import ContentTab from "./record/ContentTab.vue";
@@ -230,6 +235,61 @@ function onActivate(id: string): void {
   if (to) void router.push(to);
 }
 
+// Direct addition (024/M10, REQ-021-36): the « + » of a prefix, and `c`, open the edit
+// panel of the kinds it may hold — a network its addresses and ranges, a container its
+// prefixes — the domain given; `e` modifies the chosen node. At the present only; the
+// panel refuses, visibly, what the rights do not allow.
+const session = useSession();
+const KINDS: Record<Node["kind"], CollectionId> = {
+  prefix: "prefixes",
+  range: "ranges",
+  address: "addresses",
+};
+// The « + » only for whom may add (the tree has no refused « + »: Enter on a node would go
+// into a button that refuses, rather than open its record).
+const addLabel = (node: TreeNode) =>
+  time.value.present && mayAdd() && nodeById(node.id)?.kind === "prefix"
+    ? t("edit.addIn", { within: node.label })
+    : undefined;
+function addIn(id: string | undefined): void {
+  const node = nodeById(id) ?? chosen.value;
+  const inside = node?.kind === "prefix" ? node : undefined;
+  const kinds: CollectionId[] =
+    inside?.nature === "network" ? ["addresses", "ranges"] : ["prefixes"];
+  openEdit({
+    mode: "create",
+    collection: kinds[0]!,
+    ...(inside ? { kinds, within: valueOf(inside) } : {}),
+    ...(domain.value ? { preset: { domain: domain.value } } : {}),
+  });
+}
+const mayAdd = () =>
+  (["core.prefix", "core.range", "core.address"] as const).some((type) =>
+    session.value.rights.has(editRight(type)),
+  );
+useViewAction("create", {
+  label: () =>
+    chosen.value?.kind === "prefix"
+      ? t("edit.addIn", { within: valueOf(chosen.value) })
+      : t("edit.createAction", { kind: t("labels.kind.core.prefix") }),
+  allowed: () => mayAdd() && domain.value !== undefined,
+  run: () => addIn(chosen.value?.id),
+});
+useViewAction("edit", {
+  label: () =>
+    t("edit.editThis", { kind: detailKind.value, name: chosen.value ? valueOf(chosen.value) : "" }),
+  allowed: () =>
+    chosen.value !== undefined && session.value.rights.has(editRight(`core.${chosen.value.kind}`)),
+  run: () => {
+    if (chosen.value) {
+      openEdit({ mode: "edit", collection: KINDS[chosen.value.kind], id: chosen.value.id });
+    }
+  },
+});
+const detailKind = computed(() =>
+  chosen.value ? (keyLabel("kind", `core.${chosen.value.kind}`) ?? chosen.value.kind) : "",
+);
+
 // The children of a closed node, read on intent.
 const tree = useTemplateRef<HTMLElement>("tree");
 let stopIntent = () => {};
@@ -300,9 +360,11 @@ onBeforeUnmount(() => stopIntent());
             :loading="!roots || roots.isPending"
             :loading-rows="8"
             :node-state="nodeState"
+            :add-label="addLabel"
             parent-mode="derived"
             @load="onLoad"
             @activate="onActivate"
+            @add="addIn"
           />
         </div>
       </ViewPanel>

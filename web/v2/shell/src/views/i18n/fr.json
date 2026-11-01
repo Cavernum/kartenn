@@ -201,5 +201,68 @@
       "partial": "Une partie des propriétés déclarées n'a pas été lue (plafond de pages atteint, ou page refusée) ; les filtres des listes ne connaissent que celles-ci.",
       "error": "Les propriétés déclarées n'ont pas pu être lues."
     }
+  },
+  "edit": {
+    "what": "{field} de {name}",
+    "whatCreated": "{kind} {name}",
+    "whatModified": "{kind} {name}",
+    "drafted": "Ajouté au brouillon : {what}.",
+    "applyForbidden": "Appliquer maintenant demande {permission} : la modification va au brouillon.",
+    "network": "Le serveur n'a pas pu être joint.",
+    "check": {
+      "required": "{field} est obligatoire.",
+      "choice": "Choisissez une valeur de la liste : {values}.",
+      "flag": "Choisissez oui ou non."
+    },
+    "conflict": "L'objet a changé depuis votre lecture",
+    "conflictText": "Votre saisie est gardée ; appliquez-la de nouveau pour l'écrire sur la nouvelle version.",
+    "conflictField": "{field} : maintenant {current}, votre saisie {input}",
+    "invalid": "La modification n'est pas valide",
+    "forbidden": "Vous n'avez pas le droit de faire cela",
+    "failed": "La modification n'a pas abouti",
+    "kept": "Votre saisie est gardée.",
+    "requestId": "Identifiant de la requête",
+    "applyNow": "Appliquer maintenant : {field} de {name}",
+    "motive": "Motif",
+    "motiveQuick": "Modification rapide : {field} de {name}",
+    "motiveCreate": "Création : {kind}",
+    "motiveModify": "Modification : {kind} {name}",
+    "motiveMissing": "Le motif est obligatoire.",
+    "currentValue": "Valeur actuelle : {value}",
+    "apply": "Appliquer",
+    "applyAgain": "Appliquer sur la nouvelle version",
+    "toDraft": "Ajouter au brouillon",
+    "chooseAction": "Choisir l'action",
+    "applied": "Appliqué : {what}",
+    "proposed": "Proposé, en revue : {what}",
+    "seeChangeset": "Voir le changeset",
+    "seeProposal": "Voir la proposition",
+    "reason": {
+      "missing": "Vous n'avez pas le droit d'appliquer vous-même : la modification attend une revue.",
+      "held": "Une politique d'approbation retient la modification : elle attend une revue."
+    },
+    "createAction": "Créer : {kind}",
+    "editAction": "Modifier la ligne : {kind}",
+    "editThis": "Modifier : {kind} {name}",
+    "modifyButton": "Modifier",
+    "modify": "Modifier : {kind} {name}",
+    "create": "Créer : {kind}",
+    "addIn": "Ajouter dans {within}",
+    "kind": "Sorte d'objet",
+    "none": "Aucun",
+    "unchanged": "Rien n'a changé : il n'y a rien à écrire.",
+    "readError": "{kind} : l'objet à modifier n'a pas pu être lu.",
+    "hintDraft": "vers le brouillon",
+    "hintApply": "appliquer avec motif",
+    "hintApplyForbidden": "appliquer : il faut",
+    "hintCancel": "annuler",
+    "why": {
+      "forbidden": "Lecture seule : il faut",
+      "past": "Lecture seule hors du présent : revenez au présent pour modifier.",
+      "immutable": "Le domaine d'un objet ne change pas après sa création (core.domain.immutable).",
+      "computed": "Valeur calculée : elle ne se modifie pas.",
+      "creation": "Fixée à la création : elle ne se modifie pas.",
+      "moved": "Le parent se change par un déplacement, non en place."
+    }
   }
 }

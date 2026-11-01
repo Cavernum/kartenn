@@ -4,9 +4,11 @@
 // and their explanation, content (a domain, a prefix), history, anomalies — the tab in the
 // URL (`?tab=history`); beside them its attributes and, for a prefix, its occupancy and
 // next free value. Read at the dates of the page; an object out of reach (404, 403) says
-// so with its codes, never a blank page.
+// so with its codes, never a blank page. « Modifier » (`e`) opens the edit panel of the
+// kind (task 12).
 import { reads } from "@kartenn/sdk";
 import {
+  Button,
   CodeBadge,
   ErrorState,
   KeyLabel,
@@ -32,8 +34,13 @@ import {
   tabItems,
   useExtensions,
 } from "../plugins/slots.ts";
+import { useSettings } from "../frame/settings.ts";
 import KLink from "../prefetch/KLink.vue";
+import { useSession } from "../rights/index.ts";
+import { useViewAction } from "../shortcuts/view.ts";
 import { useTime } from "../time/index.ts";
+import { editRight } from "./edit/fields.ts";
+import { openEdit } from "./edit/panel.ts";
 import {
   fieldText,
   isSummary,
@@ -58,6 +65,7 @@ const route = useRoute();
 const router = useRouter();
 const time = useTime();
 const keyLabel = useKeyLabel();
+const settings = useSettings();
 
 const record = useQuery(() =>
   reads.object(props.collection.kind, props.id, {
@@ -113,10 +121,31 @@ const object = computed(() =>
     ),
   ),
 );
-/** The menu of actions: those of the plugins, for now (the core's come with task 12). */
+/** The menu of actions: those of the plugins. */
 const actions = computed(() =>
   actionItems(pluginActions.value, tr).filter((i) => i.kind !== "separator"),
 );
+
+// « Modifier » (`e`): the edit panel of the kind (task 12, REQ-021-36), at the present and
+// with `X.edit`; refused otherwise, visible, with the permission or the reason (REQ-021-37).
+const session = useSession();
+const editPermission = computed(() => editRight(props.collection.type));
+const mayEdit = computed(() => session.value.rights.has(editPermission.value));
+const editBlocked = computed(() =>
+  !mayEdit.value
+    ? { forbidden: editPermission.value }
+    : !time.value.present
+      ? { reason: t("edit.why.past") }
+      : {},
+);
+function modify(): void {
+  openEdit({ mode: "edit", collection: props.collection.id, id: props.id });
+}
+useViewAction("edit", {
+  label: () => t("edit.editThis", { kind: kindWords.value, name: name.value }),
+  allowed: () => mayEdit.value && item.value !== undefined,
+  run: modify,
+});
 const acting = ref<Placed | null>(null);
 const actionOpen = ref(false);
 function onAction(id: string): void {
@@ -184,8 +213,16 @@ const linkOf = (field: string) => {
     {{ t("views.errorText") }}
   </ErrorState>
   <ViewPanel v-else :title="name" :detail="detail" main>
-    <template v-if="actions.length > 0" #actions>
+    <template #actions>
+      <Button
+        icon="pencil"
+        :shortcut="settings.singleKeys.value ? ['e'] : undefined"
+        v-bind="editBlocked"
+        @click="modify"
+        >{{ t("edit.modifyButton") }}</Button
+      >
       <Menu
+        v-if="actions.length > 0"
         :label="t('views.actions')"
         icon="ellipsis"
         align="end"
