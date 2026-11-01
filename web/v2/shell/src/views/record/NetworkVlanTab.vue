@@ -6,7 +6,8 @@
 // property the reader may not read is said masked, never « no VLAN », and offers no write.
 // A container carries none (`core.vlan.prefix_not_network`). Creating a VLAN for the
 // network waits for an arbitration (task 021-17). Three states.
-import { draft, drafts, reads, type components, type Draft, type Entry } from "@kartenn/sdk";
+import { drafts, reads, type components, type Draft, type Entry } from "@kartenn/sdk";
+import { addToActiveDraft } from "@kartenn/sdk/host";
 import {
   Button,
   CodeBadge,
@@ -121,7 +122,7 @@ async function remove(): Promise<void> {
   if (busy.value || !property.value || Object.keys(removeBlocked.value).length > 0) return;
   busy.value = true;
   refusal.value = null;
-  const outcome = await draft.add(networkVlanOperation(props.id, property.value, null));
+  const outcome = await addToActiveDraft([networkVlanOperation(props.id, property.value, null)]);
   busy.value = false;
   if (outcome.kind === "saved") {
     toasts?.show({
