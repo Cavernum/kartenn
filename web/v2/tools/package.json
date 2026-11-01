@@ -2,7 +2,7 @@
   "name": "@kartenn/tools",
   "version": "0.0.0",
   "private": true,
-  "description": "Lint rules of the new shell and their tests (spec 020)",
+  "description": "Lint rules of the new shell (spec 020), the impact graph of its captures (spec 029), and their tests",
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
