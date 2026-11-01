@@ -37,7 +37,6 @@
   - button "Brouillon 0 opération"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
-- status
 - main:
   - heading "Flux introuvable" [level=1]
   - region /flux-\d+/:

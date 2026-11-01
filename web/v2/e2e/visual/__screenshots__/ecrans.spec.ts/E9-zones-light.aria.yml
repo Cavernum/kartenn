@@ -52,7 +52,6 @@
   - button "Brouillon 3 opérations"
   - button "Liste des brouillons"
   - button "Compte de Camille Martin"
-- status
 - main:
   - heading "Domaine Bureaux" [level=1]
   - region "Adresses":
@@ -97,7 +96,6 @@
           - gridcell
           - gridcell
           - gridcell
-    - alert
   - heading "Préfixes" [level=2]
   - text: Bureaux
   - paragraph: Aucun préfixe racine
