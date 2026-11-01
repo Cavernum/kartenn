@@ -57,6 +57,8 @@ sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio",
 tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "net"] }
 time = { version = "0.3.55", features = ["formatting", "macros"] }
 tower = { version = "0.5", features = ["util"] }
+# Decoding a compressed answer as a client would (the same `async-compression`).
+tower-http = { version = "0.7", features = ["decompression-br", "decompression-gzip", "decompression-zstd"] }
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["std", "registry"] }
 # Serving the router over a real port, in clear and in TLS (task 006-24).
 kartenn-server = { version = "0.1.0", path = "../kartenn-server" }

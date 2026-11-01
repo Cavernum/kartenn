@@ -110,15 +110,31 @@ async fn a_list_is_compressed_after_accept_encoding() {
     }
 }
 
-/// A problem over 1 KiB is written again with its `instance` outside the compression: sent
-/// plain, it says no coding (a browser would fail to decode it, task 021-24).
+/// A problem over 1 KiB gets its `instance` inside the compression: compressed after
+/// `Accept-Encoding` like any answer, and decodable as its coding says (task 021-24: written
+/// again outside it, its body went plain under a coding no browser could decode).
 #[tokio::test]
-async fn a_problem_written_again_says_no_coding() {
+async fn a_problem_over_1_kib_is_compressed_with_its_instance() {
     for accept in ["zstd", "br", "gzip"] {
-        let response = get_with("/v1/refused", accept).await;
+        let raw = get_with("/v1/refused", accept).await;
+        assert_eq!(raw.headers()[header::CONTENT_ENCODING], accept);
+        let mut request = common::bearer(
+            Request::get("/v1/refused")
+                .header(header::ACCEPT_ENCODING, accept)
+                .body(Body::empty())
+                .unwrap(),
+        );
+        let peer = SocketAddr::from(([192, 0, 2, 1], 40000));
+        request.extensions_mut().insert(ConnectInfo(peer));
+        // Decoded as a client would, after the coding the answer states.
+        let response = tower_http::decompression::Decompression::new(app())
+            .oneshot(request)
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-        assert!(
-            !response.headers().contains_key(header::CONTENT_ENCODING),
+        assert_eq!(
+            response.headers()[header::VARY],
+            "accept-encoding",
             "{accept}"
         );
         let body = response.into_body().collect().await.unwrap().to_bytes();
