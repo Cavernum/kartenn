@@ -113,6 +113,20 @@ Conséquences constatées les 2026-10-30 et 31 :
    - Une ligne porte : date, commit, arbre modifié ou non, banc, mesure, échelle,
      graine, valeur, unité, seuil, verdict et charge de la machine au départ.
    - `bench-history <mesure>` affiche la série d'une mesure.
+   - Précisé à la tâche 3 : une ligne par chiffre d'une mesure, avec le nom de son budget
+     (une mesure peut en donner plusieurs : p95 et p99, lecture courante et passée…).
+     Champs, dans cet ordre : `date` (UTC, début du passage), `commit`, `dirty`, `bench`,
+     `measure`, `budget`, `scale`, `seed`, `value`, `unit` (`s`, `%`, `B`, `/s`, `count`),
+     `limit` (`null` sans budget), `verdict` (`pass`, `fail`, ou `info` pour un chiffre
+     rapporté sans budget), `load` (charge sur une minute au départ), `template`
+     (empreinte du modèle de la décision 2, `null` sans `--template`). Ni chemin ni nom
+     d'utilisateur.
+   - C'est le programme qui écrit : `--history`, que passent les scripts `bench-*`, ou
+     `--history=<fichier>` pour un autre fichier (tests, bissection). Il ajoute `/.bench/`
+     à l'exclusion s'il manque et lit le commit et l'état de l'arbre du répertoire courant
+     au départ. Les lignes d'un passage partent en une seule écriture, en ajout, sous
+     verrou exclusif du fichier (`flock`) : deux worktrees n'entrelacent ni ne tronquent
+     jamais une ligne.
 
 5. **Bissection.** `bench-bisect <mesure> [--good <rev>] [--bad <rev>]` lance
    `git bisect run` dans un worktree dédié, puis le supprime.

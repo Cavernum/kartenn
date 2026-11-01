@@ -419,12 +419,10 @@ pub(crate) async fn run(
             let vlan = vlan_ids[rng.random_range(0..vlan_ids.len())];
             samples.push(get(&app, &format!("/v1/vlans/{vlan}")).await?.0);
         }
-        budgets.push(Budget {
-            name: "read a VLAN, p95",
-            limit: Duration::from_millis(50),
-            measured: p95(samples),
-            note: "200 draws, through the router".into(),
-        });
+        budgets.push(
+            Budget::of(READ, "read a VLAN, p95", Duration::from_millis(50))
+                .measured(p95(samples), "200 draws, through the router"),
+        );
     }
 
     // Filtered pages of 100: a range of VIDs and a status, across the groups.
@@ -441,15 +439,20 @@ pub(crate) async fn run(
             rows += page["items"].as_array().map_or(0, Vec::len);
             samples.push(elapsed);
         }
-        budgets.push(Budget {
-            name: "filtered page of 100 VLANs, p95",
-            limit: Duration::from_millis(150),
-            measured: p95(samples),
-            note: format!(
-                "100 draws of two VIDs across the groups, {} rows a page on average",
-                rows / 100
+        budgets.push(
+            Budget::of(
+                FILTERED_PAGE,
+                "filtered page of 100 VLANs, p95",
+                Duration::from_millis(150),
+            )
+            .measured(
+                p95(samples),
+                format!(
+                    "100 draws of two VIDs across the groups, {} rows a page on average",
+                    rows / 100
+                ),
             ),
-        });
+        );
     }
 
     // Occupancy of a group.
@@ -463,12 +466,14 @@ pub(crate) async fn run(
                     .0,
             );
         }
-        budgets.push(Budget {
-            name: "occupancy of a VLAN group, p95",
-            limit: Duration::from_millis(200),
-            measured: p95(samples),
-            note: "200 draws, through the router".into(),
-        });
+        budgets.push(
+            Budget::of(
+                OCCUPANCY,
+                "occupancy of a VLAN group, p95",
+                Duration::from_millis(200),
+            )
+            .measured(p95(samples), "200 draws, through the router"),
+        );
     }
 
     // Unitary changesets: a new VLAN in a random group, past the loaded VIDs.
@@ -483,12 +488,12 @@ pub(crate) async fn run(
             )?;
             samples.push(unitary(&store, author, operation).await?);
         }
-        budgets.push(Budget {
-            name: "create a VLAN, p95",
-            limit: Duration::from_millis(200),
-            measured: p95(samples),
-            note: "100 unitary changesets, validated and applied".into(),
-        });
+        budgets.push(
+            Budget::of(CREATE, "create a VLAN, p95", Duration::from_millis(200)).measured(
+                p95(samples),
+                "100 unitary changesets, validated and applied",
+            ),
+        );
     }
     progress(&format!("vlan measures: {:?}", started.elapsed()));
     Ok(budgets)

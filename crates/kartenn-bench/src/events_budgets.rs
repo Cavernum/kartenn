@@ -33,6 +33,7 @@ use sqlx::types::Uuid;
 use tokio::sync::watch;
 
 use crate::core_budgets::author;
+use crate::history::{Figure, Unit};
 use crate::measures::{Bench, Measure, Selection};
 use crate::props::{Budget, p95, progress, verdict};
 use crate::template::{self, Reuse};
@@ -346,7 +347,7 @@ pub async fn run(
     sizes: Sizes,
     selection: &Selection,
     reuse: &Reuse,
-) -> anyhow::Result<(String, bool)> {
+) -> anyhow::Result<(String, Vec<Figure>)> {
     let (pool, mut report, _) =
         template::prepared(database, reuse, async |pool, _| write(pool, sizes).await).await?;
     let store = PgStore::new(pool.clone());
@@ -468,24 +469,30 @@ pub async fn run(
             lags.len()
         )?;
         let note = format!("{} streams, {RATE} changesets/s", sizes.streams);
-        budgets.push(Budget {
-            name: "commit to event written, p95",
-            limit: Duration::from_millis(500),
-            measured: percentile(lags.clone(), 95),
-            note: note.clone(),
-        });
-        budgets.push(Budget {
-            name: "commit to event written, p99",
-            limit: Duration::from_secs(1),
-            measured: percentile(lags, 99),
-            note,
-        });
-        budgets.push(Budget {
-            name: "events lost on a stream",
-            limit: Duration::ZERO,
-            measured: Duration::from_millis(missing as u64),
-            note: "count, as milliseconds".into(),
-        });
+        budgets.push(
+            Budget::of(
+                LATENCY,
+                "commit to event written, p95",
+                Duration::from_millis(500),
+            )
+            .measured(percentile(lags.clone(), 95), note.clone()),
+        );
+        budgets.push(
+            Budget::of(
+                LATENCY,
+                "commit to event written, p99",
+                Duration::from_secs(1),
+            )
+            .measured(percentile(lags, 99), note),
+        );
+        budgets.push(
+            Budget::of(LATENCY, "events lost on a stream", Duration::ZERO)
+                .measured(
+                    Duration::from_millis(missing as u64),
+                    "count, as milliseconds",
+                )
+                .standing_for(Unit::Count),
+        );
         let loaded = p95(loaded);
         if let Some((baseline, with_reader)) = overhead {
             writeln!(
@@ -530,12 +537,15 @@ pub async fn run(
             sizes.ceiling,
             hub.open_streams()
         )?;
-        budgets.push(Budget {
-            name: "memory per idle stream",
-            limit: Duration::from_millis(64 * 1024),
-            measured: Duration::from_millis(per),
-            note: "octets, as milliseconds".into(),
-        });
+        budgets.push(
+            Budget::of(
+                MEMORY,
+                "memory per idle stream",
+                Duration::from_millis(64 * 1024),
+            )
+            .measured(Duration::from_millis(per), "octets, as milliseconds")
+            .standing_for(Unit::Bytes),
+        );
 
         // The storm: every stream reopened with its cursor within 10 s, writes meanwhile.
         let floor = hub.floor();
@@ -588,18 +598,25 @@ pub async fn run(
                 sizes.ceiling,
                 took.len()
             )?;
-            budgets.push(Budget {
-                name: "resumption of every stream of an instance",
-                limit: Duration::from_secs(10),
-                measured: resumed,
-                note: format!("{} streams with their cursor", sizes.ceiling),
-            });
-            budgets.push(Budget {
-                name: "unitary changeset during the storm, p95 (INV-34)",
-                limit: Duration::from_millis(200),
-                measured: p95(took),
-                note: format!("{RATE} changesets/s"),
-            });
+            budgets.push(
+                Budget::of(
+                    STORM,
+                    "resumption of every stream of an instance",
+                    Duration::from_secs(10),
+                )
+                .measured(
+                    resumed,
+                    format!("{} streams with their cursor", sizes.ceiling),
+                ),
+            );
+            budgets.push(
+                Budget::of(
+                    STORM,
+                    "unitary changeset during the storm, p95 (INV-34)",
+                    Duration::from_millis(200),
+                )
+                .measured(p95(took), format!("{RATE} changesets/s")),
+            );
             for t in reopened {
                 t.abort();
             }
@@ -646,16 +663,22 @@ pub async fn run(
                 bail!("the visibility query found nothing visible");
             }
         }
-        budgets.push(Budget {
-        name: "visibility of a batch, p95",
-        limit: Duration::from_millis(250),
-        measured: p95(costs),
-        note: format!(
-            "{} subjects (domain or subtree, asked once per distinct scope) × {} objects; limit: half the latency budget",
-            scopes.len(),
-            objects.len()
-        ),
-    });
+        budgets.push(
+            Budget::of(
+                VISIBILITY,
+                "visibility of a batch, p95",
+                Duration::from_millis(250),
+            )
+            .measured(
+                p95(costs),
+                format!(
+                    "{} subjects (domain or subtree, asked once per distinct scope) × {} \
+                         objects; limit: half the latency budget",
+                    scopes.len(),
+                    objects.len()
+                ),
+            ),
+        );
         drop(conn);
     }
 
@@ -663,14 +686,20 @@ pub async fn run(
     let _ = reader_task.await;
     checks.abort();
     if let Some((reference, with_reader)) = overhead {
-        budgets.push(Budget {
-            name: "overhead of the reader on the unitary changeset, p95",
-            limit: reference.mul_f64(0.05).max(Duration::from_millis(1)),
-            measured: with_reader.saturating_sub(reference),
-            note: "NOTIFY included, 5 rounds of 60 draws each way; limit: 5 % of the baseline (floor 1 ms)".into(),
-        });
+        budgets.push(
+            Budget::of(
+                READER_OVERHEAD,
+                "overhead of the reader on the unitary changeset, p95",
+                reference.mul_f64(0.05).max(Duration::from_millis(1)),
+            )
+            .measured(
+                with_reader.saturating_sub(reference),
+                "NOTIFY included, 5 rounds of 60 draws each way; limit: 5 % of the baseline \
+                 (floor 1 ms)",
+            ),
+        );
     }
-    let (lines, ok) = verdict(&budgets)?;
+    let (lines, figures) = verdict(&budgets)?;
     report.push_str(&lines);
-    Ok((report, ok))
+    Ok((report, figures))
 }

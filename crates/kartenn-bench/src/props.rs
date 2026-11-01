@@ -24,6 +24,7 @@ use sqlx::types::time::OffsetDateTime;
 
 use crate::Dataset;
 use crate::core_budgets::author;
+use crate::history::{Figure, Unit};
 use crate::measures::{self, Measure, Selection};
 use crate::template::{self, Reuse};
 
@@ -65,12 +66,60 @@ const PLAIN: [&str; 7] = [
     "custom.n7",
 ];
 
-/// One measured budget.
+/// One measured budget of a measure: a line of the report, a figure of the history.
 pub(crate) struct Budget {
+    pub(crate) measure: &'static str,
     pub(crate) name: &'static str,
     pub(crate) limit: Duration,
     pub(crate) measured: Duration,
     pub(crate) note: String,
+    /// What the durations stand for: seconds, or as many milliseconds as bytes or things.
+    unit: Unit,
+}
+
+impl Budget {
+    /// The budget `name` of `measure` and its limit; [`Budget::measured`] gives the rest.
+    pub(crate) fn of(measure: &'static str, name: &'static str, limit: Duration) -> Self {
+        Self {
+            measure,
+            name,
+            limit,
+            measured: Duration::ZERO,
+            note: String::new(),
+            unit: Unit::Seconds,
+        }
+    }
+
+    /// What the run measured, and the note of the report.
+    pub(crate) fn measured(self, measured: Duration, note: impl Into<String>) -> Self {
+        Self {
+            measured,
+            note: note.into(),
+            ..self
+        }
+    }
+
+    /// The durations are as many milliseconds as bytes or things (`unit`), for the history.
+    pub(crate) fn standing_for(self, unit: Unit) -> Self {
+        Self { unit, ..self }
+    }
+
+    /// Its figure in the history.
+    #[allow(clippy::cast_precision_loss)] // milliseconds that stand for a count or a size
+    pub(crate) fn figure(&self) -> Figure {
+        let pass = self.measured <= self.limit;
+        match self.unit {
+            Unit::Seconds => Figure::time(self.measure, self.name, self.measured, self.limit),
+            unit => Figure::check(
+                self.measure,
+                self.name,
+                self.measured.as_millis() as f64,
+                unit,
+                Some(self.limit.as_millis() as f64),
+                pass,
+            ),
+        }
+    }
 }
 
 /// p95 of samples.
@@ -382,12 +431,14 @@ async fn write(
             .collect();
         let (elapsed, diff) = bench.submit(ops).await?;
         if i == 0 && selection.runs(ORIGINS_EVERY_ROOT) {
-            budgets.push(Budget {
-                name: "origins of every root (P10)",
-                limit: Duration::from_secs(60),
-                measured: elapsed,
-                note: format!("{} objects", touched(&diff)),
-            });
+            budgets.push(
+                Budget::of(
+                    ORIGINS_EVERY_ROOT,
+                    "origins of every root (P10)",
+                    Duration::from_secs(60),
+                )
+                .measured(elapsed, format!("{} objects", touched(&diff))),
+            );
         }
         let others = others(pool, key, &roots).await?;
         let values = heritable_values(others.len(), &mut rng);
@@ -440,7 +491,7 @@ pub async fn run(
     seed: u64,
     selection: &Selection,
     reuse: &Reuse,
-) -> anyhow::Result<(String, bool)> {
+) -> anyhow::Result<(String, Vec<Figure>)> {
     let (pool, mut report, written) = template::prepared(database, reuse, async |pool, _| {
         write(pool, data, seed, selection).await
     })
@@ -477,12 +528,14 @@ pub async fn run(
             explain(&pool, a.id, property, now, None).await?;
             samples.push(t.elapsed());
         }
-        budgets.push(Budget {
-            name: "explained resolution, p95",
-            limit: Duration::from_millis(50),
-            measured: p95(samples),
-            note: "200 draws".into(),
-        });
+        budgets.push(
+            Budget::of(
+                RESOLUTION,
+                "explained resolution, p95",
+                Duration::from_millis(50),
+            )
+            .measured(p95(samples), "200 draws"),
+        );
     }
 
     // Grouped read: 512 addresses, 6 properties (REQ-016-1).
@@ -501,12 +554,14 @@ pub async fn run(
             resolved_many(&pool, &objects, &keys, now, None).await?;
             samples.push(t.elapsed());
         }
-        budgets.push(Budget {
-            name: "grouped resolution 512 × 6, p95",
-            limit: Duration::from_millis(30),
-            measured: p95(samples),
-            note: "50 draws".into(),
-        });
+        budgets.push(
+            Budget::of(
+                GROUPED,
+                "grouped resolution 512 × 6, p95",
+                Duration::from_millis(30),
+            )
+            .measured(p95(samples), "50 draws"),
+        );
     }
 
     // Filtered pages of 100.
@@ -528,12 +583,17 @@ pub async fn run(
         .await?
         .context("no container under 10^4 addresses")?;
         let (elapsed, diff) = bench.submit(vec![assign(container, h[0], "v9")]).await?;
-        budgets.push(Budget {
-            name: "changeset, differential up to 10^4",
-            limit: Duration::from_millis(2_500),
-            measured: elapsed,
-            note: format!("{n} addresses below, {} objects changed", touched(&diff)),
-        });
+        budgets.push(
+            Budget::of(
+                CHANGESET,
+                "changeset, differential up to 10^4",
+                Duration::from_millis(2_500),
+            )
+            .measured(
+                elapsed,
+                format!("{n} addresses below, {} objects changed", touched(&diff)),
+            ),
+        );
     }
 
     // New value on every root: about 10⁶ objects change value, no origin moves.
@@ -544,12 +604,14 @@ pub async fn run(
             .map(|(r, (id, _))| assign(*id, h[1], &format!("v{}", (r + 5) % 10)))
             .collect();
         let (elapsed, diff) = bench.submit(ops).await?;
-        budgets.push(Budget {
-            name: "value of every root (up to 10^6)",
-            limit: Duration::from_secs(10),
-            measured: elapsed,
-            note: format!("{} objects changed", touched(&diff)),
-        });
+        budgets.push(
+            Budget::of(
+                VALUE_EVERY_ROOT,
+                "value of every root (up to 10^6)",
+                Duration::from_secs(10),
+            )
+            .measured(elapsed, format!("{} objects changed", touched(&diff))),
+        );
     }
 
     // Removing the roots' value in the three largest domains: > 10⁵ origins move.
@@ -577,17 +639,19 @@ pub async fn run(
             })
             .collect();
         let (elapsed, diff) = bench.submit(ops).await?;
-        budgets.push(Budget {
-            name: "origins of 3 domains removed (P10)",
-            limit: Duration::from_secs(60),
-            measured: elapsed,
-            note: format!("{} objects changed", touched(&diff)),
-        });
+        budgets.push(
+            Budget::of(
+                ORIGINS_3_DOMAINS,
+                "origins of 3 domains removed (P10)",
+                Duration::from_secs(60),
+            )
+            .measured(elapsed, format!("{} objects changed", touched(&diff))),
+        );
     }
 
-    let (lines, ok) = verdict(&budgets)?;
+    let (lines, figures) = verdict(&budgets)?;
     report.push_str(&lines);
-    Ok((report, ok))
+    Ok((report, figures))
 }
 
 /// Filtered pages of 100, on a heritable property then on a non-heritable one, in turn.
@@ -624,32 +688,37 @@ async fn filtered_pages(
         filter(pool, n1, domain, &condition, now, None, 100).await?;
         plain.push(t.elapsed());
     }
-    budgets.push(Budget {
-        name: "filtered page, heritable, p95",
-        limit: Duration::from_millis(150),
-        measured: p95(heritable),
-        note: "100 draws".into(),
-    });
-    budgets.push(Budget {
-        name: "filtered page, non-heritable, p95",
-        limit: Duration::from_millis(150),
-        measured: p95(plain),
-        note: "100 draws".into(),
-    });
+    budgets.push(
+        Budget::of(
+            FILTERED,
+            "filtered page, heritable, p95",
+            Duration::from_millis(150),
+        )
+        .measured(p95(heritable), "100 draws"),
+    );
+    budgets.push(
+        Budget::of(
+            FILTERED,
+            "filtered page, non-heritable, p95",
+            Duration::from_millis(150),
+        )
+        .measured(p95(plain), "100 draws"),
+    );
     Ok(())
 }
 
-/// One line per budget, and whether all hold.
+/// One line per budget, and its figure.
 ///
 /// # Errors
 ///
 /// Never in practice (writing to a string).
-pub(crate) fn verdict(budgets: &[Budget]) -> anyhow::Result<(String, bool)> {
+pub(crate) fn verdict(budgets: &[Budget]) -> anyhow::Result<(String, Vec<Figure>)> {
     let mut report = String::new();
-    let mut ok = true;
+    let mut figures = Vec::with_capacity(budgets.len());
     for b in budgets {
-        let pass = b.measured <= b.limit;
-        ok &= pass;
+        let figure = b.figure();
+        let pass = !figure.fails();
+        figures.push(figure);
         writeln!(
             report,
             "{} {}: {:?} (limit {:?}; {})",
@@ -660,5 +729,5 @@ pub(crate) fn verdict(budgets: &[Budget]) -> anyhow::Result<(String, bool)> {
             b.note
         )?;
     }
-    Ok((report, ok))
+    Ok((report, figures))
 }

@@ -30,6 +30,7 @@ use sqlx::types::time::OffsetDateTime;
 
 use crate::Dataset;
 use crate::core_budgets::{Ids, Prepared, new_address, prepare_with};
+use crate::history::{Figure, Unit};
 use crate::measures::{Bench, Measure, Selection};
 use crate::props::{SINCE, p95, progress};
 use crate::template::Reuse;
@@ -78,8 +79,9 @@ const OTHERS: usize = 100;
 /// decision alone (the case of the group resolution).
 const RESOLVED: [usize; 3] = [0, 1, 5];
 
-/// One budget measured both ways.
+/// One budget of a measure, measured both ways.
 struct Pair {
+    measure: &'static str,
     name: &'static str,
     /// The budget of the p95 (INV-30 to 34, as in `bench-core`; INV-33 relative to the
     /// current read).
@@ -89,8 +91,9 @@ struct Pair {
 }
 
 impl Pair {
-    const fn new(name: &'static str, limit: Duration) -> Self {
+    const fn new(measure: &'static str, name: &'static str, limit: Duration) -> Self {
         Self {
+            measure,
             name,
             limit,
             plain: Vec::new(),
@@ -377,7 +380,7 @@ pub async fn run(
     seed: u64,
     selection: &Selection,
     reuse: &Reuse,
-) -> anyhow::Result<(String, bool)> {
+) -> anyhow::Result<(String, Vec<Figure>)> {
     let started = Instant::now();
     // The bindings, part of the preparation (and of the template).
     let (
@@ -449,7 +452,7 @@ pub async fn run(
     // Reading an object: the read, then the decision on it.
     let mut current = None;
     if selection.runs(READ) {
-        let mut read = Pair::new("read an object", Duration::from_millis(50));
+        let mut read = Pair::new(READ, "read an object", Duration::from_millis(50));
         for _ in 0..200 {
             let id = if rng.random_range(0..4) == 0 {
                 data.prefixes[rng.random_range(0..data.prefixes.len())].id
@@ -483,6 +486,7 @@ pub async fn run(
     if selection.runs(READ_PAST) {
         let current = current.context("the current read is a prerequisite")?;
         let mut dated = Pair::new(
+            READ_PAST,
             "read an object as known in the past",
             (current * 2).max(Duration::from_millis(5)),
         );
@@ -510,7 +514,11 @@ pub async fn run(
 
     // Filtered pages of 100: the scope of the person, then the filtered page.
     if selection.runs(FILTERED_PAGE) {
-        let mut page = Pair::new("filtered page of 100", Duration::from_millis(150));
+        let mut page = Pair::new(
+            FILTERED_PAGE,
+            "filtered page of 100",
+            Duration::from_millis(150),
+        );
         let mut scopes = Vec::new();
         for _ in 0..100 {
             let domain = data.domains[rng.random_range(0..data.domains.len())].id;
@@ -543,7 +551,7 @@ pub async fn run(
 
     // Subtree and occupancy.
     if selection.runs(SUBTREE) {
-        let mut subtree = Pair::new("subtree and occupancy", Duration::from_millis(200));
+        let mut subtree = Pair::new(SUBTREE, "subtree and occupancy", Duration::from_millis(200));
         for _ in 0..200 {
             let p = data.prefixes[rng.random_range(0..data.prefixes.len())].id;
             let t = Instant::now();
@@ -570,7 +578,7 @@ pub async fn run(
             .filter(|p| p.nature == crate::Nature::Network)
             .map(|p| (p.id, data.domains[p.domain].id))
             .collect();
-        let mut changeset = Pair::new("unitary changeset", Duration::from_millis(200));
+        let mut changeset = Pair::new(UNITARY, "unitary changeset", Duration::from_millis(200));
         for _ in 0..100 {
             let network = networks[rng.random_range(0..networks.len())];
             let operation = new_address(&pool, network).await?;
@@ -589,6 +597,7 @@ pub async fn run(
     // The resolution of the groups (REQ-025-15): the decision on an address and the read
     // scope, for 50 groups of the issuer resolved to 0, 1 or 5 groups of kartenn, then
     // for the person.
+    let mut figures = Vec::new();
     if selection.runs(RESOLUTION) {
         let mut resolved = Vec::with_capacity(RESOLVED.len() + 1);
         for (n, who) in resolution
@@ -624,17 +633,25 @@ pub async fn run(
                 "INFO {GROUPS} groups of the issuer, {n} groups of kartenn: decision on an \
                  address p95 {decision:?}, read scope p95 {read:?}"
             )?;
+            for (what, value) in [("decision on an address", decision), ("read scope", read)] {
+                figures.push(Figure::info(
+                    RESOLUTION,
+                    format!("{n} groups of kartenn, {what}, p95"),
+                    value.as_secs_f64(),
+                    Unit::Seconds,
+                ));
+            }
         }
     }
     progress(&format!("measures: {:?}", started.elapsed()));
 
-    let mut ok = true;
     for pair in pairs {
         let plain = p95(pair.plain);
         let controlled = p95(pair.controlled);
         let overhead = controlled.as_secs_f64() / plain.as_secs_f64().max(1e-9) - 1.0;
-        let pass = controlled <= pair.limit;
-        ok &= pass;
+        let figure = Figure::time(pair.measure, pair.name, controlled, pair.limit);
+        let pass = !figure.fails();
+        figures.push(figure);
         writeln!(
             report,
             "{} {}, p95: {controlled:?} with access control, budget {:?} ({plain:?} without, {:+.1} %)",
@@ -644,5 +661,5 @@ pub async fn run(
             overhead * 100.0,
         )?;
     }
-    Ok((report, ok))
+    Ok((report, figures))
 }

@@ -56,6 +56,7 @@ use tokio::io::AsyncReadExt;
 
 use crate::Dataset;
 use crate::core_budgets::{new_address, prepare, unitary};
+use crate::history::{Figure, Unit};
 use crate::measures::{Bench, Measure, Selection};
 use crate::props::{p95, progress};
 use crate::template::Reuse;
@@ -81,6 +82,18 @@ pub(crate) static BENCH: Bench = Bench {
         Measure::new(VOLUME),
     ],
 };
+
+/// The measure whose workload gives the budget `name` of the children.
+fn measure_of(name: &str) -> Option<&'static str> {
+    match name {
+        "read an object (audited)" | "read an object as known (audited)" => Some(READ),
+        "filtered page of 100" => Some(FILTERED_PAGE),
+        "subtree and occupancy" => Some(SUBTREE),
+        "unitary changeset" => Some(UNITARY),
+        "sustained, time per changeset" => Some(SUSTAINED_RATE),
+        _ => None,
+    }
+}
 
 /// Whether a measure of the workload runs: the children have something to measure.
 fn workload_runs(selection: &Selection) -> bool {
@@ -205,12 +218,12 @@ pub async fn run(
     small: bool,
     selection: &Selection,
     reuse: &Reuse,
-) -> anyhow::Result<(String, bool)> {
+) -> anyhow::Result<(String, Vec<Figure>)> {
     let prepared = prepare(database, data, seed, reuse).await?;
     let mut report = prepared.report;
-    let mut ok = true;
+    let mut figures = Vec::new();
     if workload_runs(selection) {
-        ok = configurations(
+        figures = configurations(
             database,
             data,
             seed,
@@ -222,9 +235,9 @@ pub async fn run(
         .await?;
     }
     if selection.runs(VOLUME) {
-        volume(&prepared.pool, &mut report).await?;
+        figures.push(volume(&prepared.pool, &mut report).await?);
     }
-    Ok((report, ok))
+    Ok((report, figures))
 }
 
 /// Each configuration measured in a child process, round after round, then compared.
@@ -236,7 +249,7 @@ async fn configurations(
     selection: &Selection,
     pool: &PgPool,
     report: &mut String,
-) -> anyhow::Result<bool> {
+) -> anyhow::Result<Vec<Figure>> {
     let counts = tokio::task::block_in_place(|| counts(database, data))?;
     let syslog = receiver(true).await?;
     let blocked = receiver(false).await?;
@@ -326,7 +339,7 @@ fn compare(
     report: &mut String,
     results: &[Vec<Vec<(String, u128)>>],
     counts: &[(String, usize, usize)],
-) -> anyhow::Result<bool> {
+) -> anyhow::Result<Vec<Figure>> {
     let values = |config: usize, name: &str| -> Vec<f64> {
         results[config]
             .iter()
@@ -337,7 +350,7 @@ fn compare(
             })
             .collect()
     };
-    let mut ok = true;
+    let mut figures = Vec::new();
     writeln!(
         report,
         "p95, median of {ROUNDS} runs          {:>10} {:>10} {:>10} {:>8} {:>8} {:>7}",
@@ -416,7 +429,20 @@ fn compare(
         let over_reference = extra(1) / baseline;
         let over_blocked = extra(2) / baseline;
         let pass = over_reference <= REFERENCE_MAX && over_blocked <= BLOCKED_MAX;
-        ok &= pass;
+        let measure = measure_of(name).with_context(|| format!("no measure gives `{name}`"))?;
+        for (outputs, over, max) in [
+            ("reference outputs", over_reference, REFERENCE_MAX),
+            ("blocked output", over_blocked, BLOCKED_MAX),
+        ] {
+            figures.push(Figure::check(
+                measure,
+                format!("{name}, modelled overhead, {outputs}"),
+                over * 100.0,
+                Unit::Percent,
+                Some(max * 100.0),
+                over <= max,
+            ));
+        }
         writeln!(
             report,
             "{} {:<38} {:>6} {:>6} {:>7.2}% {:>7.2}%",
@@ -428,7 +454,7 @@ fn compare(
             over_blocked * 100.0,
         )?;
     }
-    Ok(ok)
+    Ok(figures)
 }
 
 /// Counts the events and the spans.
@@ -568,7 +594,7 @@ async fn target_index_size(pool: &PgPool) -> anyhow::Result<i64> {
 
 /// Octets per audited read of a page of 100 objects, sealed, and the volume it gives.
 #[allow(clippy::cast_precision_loss)] // sizes far below 2^52
-async fn volume(pool: &PgPool, report: &mut String) -> anyhow::Result<()> {
+async fn volume(pool: &PgPool, report: &mut String) -> anyhow::Result<Figure> {
     const EVENTS: usize = 2_000;
     let instance = Instance::new("bench");
     kartenn_store_pg::audit_seal::seal_once(pool, None, &instance).await?;
@@ -604,7 +630,12 @@ async fn volume(pool: &PgPool, report: &mut String) -> anyhow::Result<()> {
          {per_day:.2} GiB/day, {:.0} GiB over {LOW_DAYS} days",
         per_day * LOW_DAYS
     )?;
-    Ok(())
+    Ok(Figure::info(
+        VOLUME,
+        "audit of reads, per page of 100 objects",
+        per_event,
+        Unit::Bytes,
+    ))
 }
 
 /// One measured run, in this process: the instance of `config_path` runs while the
@@ -860,4 +891,28 @@ async fn workload(
         ));
     }
     Ok(results)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every budget the children measure belongs to a measure of the catalogue, every
+    /// measure of the workload to a budget.
+    #[test]
+    fn every_budget_of_the_workload_has_its_measure() {
+        let names = [
+            "read an object (audited)",
+            "read an object as known (audited)",
+            "filtered page of 100",
+            "subtree and occupancy",
+            "unitary changeset",
+            "sustained, time per changeset",
+        ];
+        let measures: Vec<_> = names.iter().map(|n| measure_of(n).unwrap()).collect();
+        for m in BENCH.measures.iter().filter(|m| m.name != VOLUME) {
+            assert!(measures.contains(&m.name), "{}", m.name);
+        }
+        assert_eq!(measure_of("lost"), None);
+    }
 }
