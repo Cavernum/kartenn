@@ -3,7 +3,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { queryClient, type components, type Extension, type User } from "@kartenn/sdk";
+import {
+  context,
+  queryClient,
+  reads,
+  type components,
+  type Extension,
+  type User,
+} from "@kartenn/sdk";
 import { resetContext, setContext } from "@kartenn/sdk/host";
 import { announcePlugin, fakeFetch, mount, type Mounted } from "@kartenn/sdk/testing";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -545,6 +552,81 @@ describe("the machines plugin", () => {
         `/x/machines/machines/${MACHINE}?valid_at=2026-10-01T00%3A00%3A00Z`,
       );
       expect(asked).toEqual([ADDRESS]);
+    });
+
+    it("follows the context and its reads while connected, moved or not; lets go once removed", async () => {
+      // The subscriptions to the context held at a time.
+      let held = 0;
+      const subscribe = context.subscribe.bind(context);
+      const spy = vi.spyOn(context, "subscribe").mockImplementation((listener) => {
+        held++;
+        const stop = subscribe(listener);
+        let stopped = false;
+        return () => {
+          if (!stopped) held--;
+          stopped = true;
+          stop();
+        };
+      });
+      try {
+        mounted = mount("machines-column", {
+          properties: { row: { id: ADDRESS } },
+          context: { locale: "en" },
+          fetch: fakeFetch({
+            "GET /v1/interfaces": () => page([iface()]),
+            "GET /v1/machines/{id}": () => machine() as never,
+          }),
+        });
+        const element = mounted.element;
+        await lightText(element, /^srv-a$/);
+        const query = () =>
+          queryClient
+            .getQueryCache()
+            .find({ queryKey: reads.list("/v1/interfaces", { address: ADDRESS }).queryKey });
+        expect(held).toBe(1);
+        expect(query()?.getObserversCount()).toBe(1);
+        // Moved: let go at its disconnection, followed again at its connection.
+        const elsewhere = document.body.appendChild(document.createElement("div"));
+        elsewhere.append(element);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(held).toBe(1);
+        expect(query()?.getObserversCount()).toBe(1);
+        mounted.unmount();
+        mounted = null;
+        elsewhere.remove();
+        // At once for the context, at the unmounting for the reads.
+        expect(held).toBe(0);
+        await vi.waitFor(() => expect(query()?.getObserversCount() ?? 0).toBe(0));
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it("column: read again once invalidated, and at each other date", async () => {
+      const asked: string[] = [];
+      mounted = mount("machines-column", {
+        properties: { row: { id: ADDRESS } },
+        context: { locale: "en" },
+        fetch: fakeFetch({
+          "GET /v1/interfaces": ({ query }) => {
+            asked.push(query.get("valid_at") ?? "now");
+            return page([iface()]);
+          },
+          "GET /v1/machines/{id}": () => machine() as never,
+        }),
+      });
+      await lightText(mounted.element, /^srv-a$/);
+      expect(asked).toEqual(["now"]);
+      await queryClient.invalidateQueries();
+      await vi.waitFor(() => expect(asked).toEqual(["now", "now"]));
+      for (const validAt of ["2026-09-01T00:00:00Z", "2026-10-01T00:00:00Z"]) {
+        setContext({ time: { validAt, asOf: null } });
+        await vi.waitFor(() => expect(asked.at(-1)).toBe(validAt));
+        await lightText(mounted.element, /^srv-a$/);
+        expect(mounted.element.querySelector("a")!.getAttribute("href")).toContain(
+          encodeURIComponent(validAt),
+        );
+      }
     });
 
     it("column: unreadable, said in a word with the code of the problem", async () => {

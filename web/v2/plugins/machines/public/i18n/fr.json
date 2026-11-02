@@ -122,7 +122,8 @@
     "close": "Fermer",
     "chooseMachine": "Choisissez d'abord la machine.",
     "noInterface": "Aucune interface sur cette machine.",
-    "pick": "Choisissez une machine parmi les suggestions."
+    "pick": "Choisissez une machine parmi les suggestions.",
+    "firstInterfaces": "Seules les premières interfaces de cette machine sont proposées."
   },
   "move": {
     "title": "Hébergement",

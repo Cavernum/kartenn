@@ -45,6 +45,8 @@ export interface List<T> {
   readonly more: boolean;
   /** The next page is being read. */
   readonly fetching: boolean;
+  /** The pages held (at most `MAX_PAGES` of the SDK: a later one drops the first). */
+  readonly pages: number;
 }
 
 const IDLE = Object.freeze({
@@ -55,6 +57,7 @@ const IDLE = Object.freeze({
   previous: false,
   more: false,
   fetching: false,
+  pages: 0,
 });
 
 /** The members of an observer this module uses, whatever its kind. */
@@ -141,6 +144,7 @@ export function useList<T, K extends Key>(
       previous: result.isPlaceholderData,
       more: result.hasNextPage,
       fetching: result.isFetchingNextPage,
+      pages: result.data?.pages.length ?? 0,
     }),
     IDLE as List<T>,
   );

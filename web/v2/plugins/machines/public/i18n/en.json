@@ -122,7 +122,8 @@
     "close": "Close",
     "chooseMachine": "Choose the machine first.",
     "noInterface": "No interface on this machine.",
-    "pick": "Choose a machine among the suggestions."
+    "pick": "Choose a machine among the suggestions.",
+    "firstInterfaces": "Only the first interfaces of this machine are offered."
   },
   "move": {
     "title": "Hosting",

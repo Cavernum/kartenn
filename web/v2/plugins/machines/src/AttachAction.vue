@@ -10,7 +10,15 @@
 // fields are refused on themselves before anything is sent; a refusal of the server is an
 // alert with its codes (`CodeBadge`), each violation also on its field. Offered at the
 // present only (W9); without the permission, the button stays, refused with its reason.
-import { ApiProblem, draft, reads, type Entry, type ObjectRef, type Operation } from "@kartenn/sdk";
+import {
+  ApiProblem,
+  draft,
+  MAX_PAGES,
+  reads,
+  type Entry,
+  type ObjectRef,
+  type Operation,
+} from "@kartenn/sdk";
 import {
   Button,
   Checkbox,
@@ -72,6 +80,16 @@ const suggest: Suggest = async (text) => {
 const interfaces = useList<Interface, never>(() =>
   machine.value ? (reads.list("/v1/interfaces", { machine: machine.value }) as never) : null,
 );
+// Every page of them, as many as the cache holds (`MAX_PAGES`); beyond, said in the help.
+watch(
+  () => interfaces.state.value,
+  (list) => {
+    if (list.more && !list.fetching && !list.previous && list.pages < MAX_PAGES) {
+      interfaces.next();
+    }
+  },
+  { immediate: true },
+);
 /** The interfaces of the machine chosen, never those of the former one kept meanwhile. */
 const options = computed(() => {
   const list = interfaces.state.value;
@@ -90,7 +108,9 @@ watch(options, (now) => {
 const why = computed(() => {
   if (!machine.value) return t("action.chooseMachine");
   const list = interfaces.state.value;
-  return !list.previous && list.items?.length === 0 ? t("action.noInterface") : undefined;
+  if (list.previous) return undefined;
+  if (list.items?.length === 0) return t("action.noInterface");
+  return list.more && list.pages >= MAX_PAGES ? t("action.firstInterfaces") : undefined;
 });
 /** Shown in the field while its interfaces are read. */
 const placeholder = computed(() => {
@@ -98,7 +118,11 @@ const placeholder = computed(() => {
   return machine.value && (list.pending || list.previous) ? t("loading") : undefined;
 });
 
-watch([machine, iface, primary], () => (said.value = ""));
+// The outcome of the last addition, or its refusal, no longer holds once a field changes.
+watch([machine, iface, primary], () => {
+  said.value = "";
+  refusal.value = null;
+});
 // A field changed is no longer refused (what was said of it no longer holds).
 watch(machine, () => (errors.value = { ...errors.value, machine: undefined }));
 watch(iface, () => (errors.value = { ...errors.value, interface: undefined }));
