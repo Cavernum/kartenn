@@ -888,6 +888,14 @@ async fn reading(
     Ok((moment, scope))
 }
 
+/// The snapshot in which the `fetch` of [`page_of`] reads its rows, once its filters are
+/// valid (task 021-11c).
+async fn snapshot(pool: &sqlx::PgPool) -> Result<kit::Snapshot, Problem> {
+    kartenn_store_pg::read::consistent(pool)
+        .await
+        .map_err(|e| kit::store(&e))
+}
+
 /// A page of flows read by `fetch` after the cursor, kept to those the caller reads.
 #[allow(clippy::too_many_arguments)] // the request, then what the route reads
 async fn page_of<F, Fut>(
@@ -901,7 +909,7 @@ async fn page_of<F, Fut>(
     fetch: F,
 ) -> Result<Response, Problem>
 where
-    F: FnOnce(Dates, Option<Cursor>, i64, Page, kit::Snapshot) -> Fut,
+    F: FnOnce(Dates, Option<Cursor>, i64, Page) -> Fut,
     Fut: std::future::Future<
             Output = Result<(Vec<FlowView>, Page, Vec<Endpoint>, kit::Snapshot), Problem>,
         >,
@@ -911,16 +919,10 @@ where
     let (moment, scope) = reading(api, principal, &page).await?;
     let size = usize::from(page.size);
     // The rows of the page and the versions of its flows in force are read in one
-    // snapshot, which `fetch` reads in and gives back (task 021-11c).
-    let snapshot = kit::snapshot(api).await?;
-    let (mut rows, page, objects, mut snapshot) = fetch(
-        dates(&moment),
-        after,
-        i64::from(page.size) + 1,
-        page,
-        snapshot,
-    )
-    .await?;
+    // snapshot, which `fetch` begins once its filters are valid, reads in and gives
+    // back (task 021-11c).
+    let (mut rows, page, objects, mut snapshot) =
+        fetch(dates(&moment), after, i64::from(page.size) + 1, page).await?;
     let next = (rows.len() > size).then(|| {
         rows.truncate(size);
         let cursor = page.next(
@@ -1065,6 +1067,7 @@ async fn list(
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
     let names: Vec<&str> = FILTERS.iter().map(|(n, _)| *n).collect();
+    let pool = api.pool.clone();
     page_of(
         &api,
         &principal,
@@ -1073,7 +1076,7 @@ async fn list(
         &query,
         COLLECTION,
         "/v1/flows",
-        |dates, after, limit, page, mut snapshot| async move {
+        |dates, after, limit, page| async move {
             let filter = filter_of(&wanted(&page, &names)?)?;
             let objects: Vec<Endpoint> = filter
                 .endpoint
@@ -1082,6 +1085,7 @@ async fn list(
                 .chain(filter.within_prefix.map(|id| ("prefix".to_owned(), id)))
                 .chain(filter.machine.map(|id| ("machine".to_owned(), id)))
                 .collect();
+            let mut snapshot = snapshot(&pool).await?;
             let rows = read::flows(&mut snapshot, dates, &filter, after, limit).await?;
             Ok((rows, page, objects, snapshot))
         },
@@ -1101,6 +1105,7 @@ async fn of_object(
     collection: &'static str,
     id: Uuid,
 ) -> Result<Response, Problem> {
+    let pool = api.pool.clone();
     let path = format!("/v1/{collection}/{id}/flows");
     let name = format!("{collection}-flows");
     page_of(
@@ -1111,7 +1116,7 @@ async fn of_object(
         query.as_deref().unwrap_or_default(),
         &name,
         &path,
-        |dates, after, limit, page, mut snapshot| async move {
+        |dates, after, limit, page| async move {
             wanted(&page, &[])?;
             let after = match after {
                 None => None,
@@ -1120,6 +1125,7 @@ async fn of_object(
                     return Err(Problem::new(ProblemKind::InvalidCursor));
                 }
             };
+            let mut snapshot = snapshot(&pool).await?;
             let rows = read::of_object(&mut snapshot, dates, kind, id, after, limit).await?;
             Ok((
                 rows,

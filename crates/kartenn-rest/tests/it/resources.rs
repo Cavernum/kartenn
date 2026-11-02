@@ -693,70 +693,40 @@ async fn the_body_states_the_own_version(pool: PgPool) {
 }
 
 /// The rows of a page and their versions are read in one snapshot (task 021-11c): a write
-/// validated between the two reads is seen by neither, so that the `version` of an object
-/// of a page names the value served and an `If-Match` taken from it answers 412 once the
-/// object has changed; out of the snapshot, the page serves the value written under its
-/// own version.
+/// validated between the two reads, through `GET /v1/prefixes`, is seen by neither, so
+/// that the `version` of an object of a page names the value served, and an `If-Match`
+/// taken from the page answers 412 once the object has changed.
 #[kartenn_testing::pg_test]
 async fn a_page_carries_the_version_of_the_value_served(pool: PgPool) {
-    use kartenn_store_pg::list::{self, Criteria, Kind};
-    use kartenn_store_pg::rbac::ReadScope;
-    use kartenn_store_pg::read;
-
     let app = admin(&pool).await;
     let (_, prefix) = lab(&app).await;
     let id: Uuid = id_of(&prefix).parse().unwrap();
-    let (etag, before) = read(&app, &prefix).await;
-    let version: Uuid = before["version"].as_str().unwrap().parse().unwrap();
-    let now = read::now(&pool).await.unwrap();
-    let mut snapshot = read::consistent(&pool).await.unwrap();
-    let ids = [id];
-    let criteria = Criteria {
-        ids: &ids,
-        ..Criteria::default()
-    };
-    let rows = list::objects(
-        &mut *snapshot,
-        Kind::Prefix,
-        &criteria,
-        now,
-        None,
-        None,
-        10,
-        &ReadScope::all(),
-    )
-    .await
-    .unwrap();
-    assert_eq!(rows[0].fields["anycast"], false, "{:?}", rows[0].fields);
-    let body = json!({"motive": "m", "anycast": true});
-    let written = send(&app, patch(&prefix, Some(&etag), MERGE_PATCH, &body)).await;
-    assert_eq!(written.status(), StatusCode::OK);
-    let changeset = json_of(written).await["changeset"]["id"].clone();
-    let versions = read::versions(&mut *snapshot, &ids, now, None)
-        .await
-        .unwrap();
-    assert_eq!(versions[&id], version, "the version of the rows read");
-    drop(snapshot);
-
-    // The version read with the old value refuses the write that would overwrite the new.
-    let stale = json!({"motive": "m", "anycast": false});
-    let refused = send(
-        &app,
-        patch(
-            &prefix,
-            Some(&format!("\"{version}\"")),
-            MERGE_PATCH,
-            &stale,
-        ),
-    )
-    .await;
-    assert_eq!(refused.status(), StatusCode::PRECONDITION_FAILED);
     for uri in ["/v1/prefixes", "/v1/prefixes?domain=lab"] {
-        let page = json_of(send(&app, Request::get(uri).body(Body::empty()).unwrap()).await).await;
+        let (_, served) = read(&app, &prefix).await;
+        let request = common::bearer(Request::get(uri).body(Body::empty()).unwrap());
+        let (response, written) = common::served_across_a_write(&pool, &app, request, id).await;
+        assert_eq!(response.status(), StatusCode::OK, "{uri}");
+        let page = json_of(response).await;
         let item = &page["items"][0];
         assert_eq!(item["id"], id.to_string(), "{uri}: {page}");
-        assert_eq!(item["anycast"], true, "{uri}");
-        assert_eq!(item["version"], changeset, "{uri}");
+        assert_eq!(
+            item["version"], served["version"],
+            "{uri}: the version of the rows"
+        );
+        let (_, now) = read(&app, &prefix).await;
+        assert_eq!(
+            now["version"],
+            written.to_string(),
+            "{uri}: the write is seen after"
+        );
+        let version = item["version"].as_str().unwrap();
+        let body = json!({"motive": "m", "anycast": true});
+        let refused = send(
+            &app,
+            patch(&prefix, Some(&format!("\"{version}\"")), MERGE_PATCH, &body),
+        )
+        .await;
+        assert_eq!(refused.status(), StatusCode::PRECONDITION_FAILED, "{uri}");
     }
 }
 

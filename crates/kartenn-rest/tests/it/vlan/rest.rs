@@ -289,6 +289,57 @@ async fn vlans_filtered_by_vid_range(pool: PgPool) {
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
+/// The pages of groups and of VLANs read their rows and versions in one snapshot (task
+/// 021-11c): a write validated between the two reads is seen by neither.
+#[kartenn_testing::pg_test]
+async fn a_page_of_vlans_carries_the_version_of_the_value_served(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env.id("addressing_domain", "lab").await;
+    let group = env
+        .seed_group(
+            "edge",
+            json!({"domain": {"id": lab}}),
+            (1, 4094),
+            &[(10, "active")],
+        )
+        .await;
+    let app = env.app(env.admin().await);
+    let (_, _, vlans) = call(&app, "GET", &format!("/v1/vlans?group={group}"), None, &[]).await;
+    let vlan: Uuid = vlans["items"][0]["id"].as_str().unwrap().parse().unwrap();
+    for (uri, id, one) in [
+        (
+            "/v1/vlan-groups".to_owned(),
+            group,
+            format!("/v1/vlan-groups/{group}"),
+        ),
+        (
+            format!("/v1/vlans?group={group}"),
+            vlan,
+            format!("/v1/vlans/{vlan}"),
+        ),
+    ] {
+        let (_, _, served) = call(&app, "GET", &one, None, &[]).await;
+        let request = crate::common::bearer(Request::get(&uri).body(Body::empty()).unwrap());
+        let (response, written) =
+            crate::common::served_across_a_write(&pool, &app, request, id).await;
+        assert_eq!(response.status(), StatusCode::OK, "{uri}");
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let page: Value = serde_json::from_slice(&bytes).unwrap();
+        let item = &page["items"][0];
+        assert_eq!(item["id"], id.to_string(), "{uri}: {page}");
+        assert_eq!(
+            item["version"], served["version"],
+            "{uri}: the version of the rows"
+        );
+        let (_, _, now) = call(&app, "GET", &one, None, &[]).await;
+        assert_eq!(
+            now["version"],
+            written.to_string(),
+            "{uri}: the write is seen after"
+        );
+    }
+}
+
 #[kartenn_testing::pg_test]
 async fn occupancy_over_http(pool: PgPool) {
     let env = Env::new(&pool).await;

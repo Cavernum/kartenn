@@ -163,9 +163,9 @@ pub async fn snapshot(api: &Api) -> Result<Snapshot, Problem> {
 }
 
 /// Ends `snapshot` once its reads are done, before the audit event of the page. It wrote
-/// nothing: it is dropped, its `ROLLBACK` sent with the ping that gives its connection back
-/// to the pool, after the answer, where a `COMMIT` would cost the answer one more round
-/// trip.
+/// nothing: it is dropped, its `ROLLBACK` queued; its connection goes back to the pool in a
+/// task of its own, whose ping sends that `ROLLBACK` while the request goes on (its audit
+/// event, its answer), where a `COMMIT` would make the request wait one more round trip.
 pub fn release(snapshot: Snapshot) {
     drop(snapshot);
 }
