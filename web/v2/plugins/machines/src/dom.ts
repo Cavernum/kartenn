@@ -83,18 +83,7 @@ export function skeleton(rows = 3): HTMLDivElement {
  * its `Request-Id`, each after its word.
  */
 export function failure(title: string, error: unknown): HTMLDivElement {
-  const alert = el("div", undefined, "k-inline-alert");
-  alert.dataset["tone"] = "ko";
-  alert.setAttribute("role", "alert");
-  const body = el("div", undefined, "k-inline-alert__body");
-  const heading = el("p", undefined, "k-inline-alert__title");
-  heading.append(el("span", t("error"), "k-visually-hidden"), title);
-  const items = el("ul", undefined, "k-inline-alert__items");
-  const line = (...nodes: (Node | string)[]) => {
-    const item = el("li", undefined, "k-inline-alert__item");
-    item.append(...nodes);
-    items.append(item);
-  };
+  const { alert, line } = alertOf("ko", title);
   if (error instanceof ApiProblem) {
     line(error.detail ?? error.title);
     // Each rule broken: its sentence, then its code (`machines.name.duplicate`…).
@@ -107,8 +96,40 @@ export function failure(title: string, error: unknown): HTMLDivElement {
   } else {
     line(t("network"));
   }
+  return alert;
+}
+
+/**
+ * The markup of `InlineAlert`: its title after the word of its tone (said, hidden), then its
+ * lines. A refusal (`ko`) is an alert; a warning has no role of its own — a live region
+ * inserted already filled is seldom read: its caller writes it into one there from the start.
+ */
+function alertOf(tone: "ko" | "warn", title: string) {
+  const alert = el("div", undefined, "k-inline-alert");
+  alert.dataset["tone"] = tone;
+  if (tone === "ko") alert.setAttribute("role", "alert");
+  const body = el("div", undefined, "k-inline-alert__body");
+  const heading = el("p", undefined, "k-inline-alert__title");
+  heading.append(el("span", t(tone === "ko" ? "error" : "warning"), "k-visually-hidden"), title);
+  const items = el("ul", undefined, "k-inline-alert__items");
   body.append(heading, items);
   alert.append(body);
+  const line = (...nodes: (Node | string)[]) => {
+    const item = el("li", undefined, "k-inline-alert__item");
+    item.append(...nodes);
+    items.append(item);
+  };
+  return { alert, line };
+}
+
+/** Rules of the server in the markup of `InlineAlert`: each its sentence, then its code. */
+export function ruled(
+  tone: "ko" | "warn",
+  title: string,
+  violations: readonly { detail: string; rule: string }[],
+): HTMLDivElement {
+  const { alert, line } = alertOf(tone, title);
+  for (const violation of violations) line(violation.detail, " ", el("code", violation.rule));
   return alert;
 }
 
@@ -247,13 +268,14 @@ export function selectField(
   texts: Texts,
   key: string,
   name: string,
-  options: { required?: boolean } = {},
+  options: { required?: boolean; hint?: string } = {},
 ): Field<HTMLSelectElement> {
   const select = el("select");
   select.name = name;
   return formField(texts.text(key), select, {
     texts,
     ...(options.required ? { required: true } : {}),
+    ...(options.hint ? { hint: texts.text(options.hint) } : {}),
   });
 }
 
