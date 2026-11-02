@@ -22,7 +22,8 @@
     "refused": "Operation refused",
     "adding": "Adding to the draft…",
     "needs": "Needs the permission",
-    "required": "Required field."
+    "required": "Required field.",
+    "dated": "The draft takes operations at the present only."
   },
   "machines": {
     "title": "Machines",
@@ -118,7 +119,10 @@
     "machine": "Machine",
     "interface": "Interface",
     "primary": "Primary address of its family",
-    "close": "Close"
+    "close": "Close",
+    "chooseMachine": "Choose the machine first.",
+    "noInterface": "No interface on this machine.",
+    "pick": "Choose a machine among the suggestions."
   },
   "move": {
     "title": "Hosting",

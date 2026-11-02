@@ -22,7 +22,8 @@
     "refused": "Opération refusée",
     "adding": "Ajout au brouillon…",
     "needs": "Il faut la permission",
-    "required": "Champ requis."
+    "required": "Champ requis.",
+    "dated": "Le brouillon ne reçoit d'opération qu'au présent."
   },
   "machines": {
     "title": "Machines",
@@ -118,7 +119,10 @@
     "machine": "Machine",
     "interface": "Interface",
     "primary": "Adresse principale de sa famille",
-    "close": "Fermer"
+    "close": "Fermer",
+    "chooseMachine": "Choisissez d'abord la machine.",
+    "noInterface": "Aucune interface sur cette machine.",
+    "pick": "Choisissez une machine parmi les suggestions."
   },
   "move": {
     "title": "Hébergement",

@@ -242,6 +242,12 @@ importers:
       '@kartenn/sdk':
         specifier: workspace:*
         version: link:../../sdk
+      '@kartenn/ui':
+        specifier: workspace:*
+        version: link:../../ui
+      vue:
+        specifier: ^3.5.44
+        version: 3.5.44(typescript@6.0.3)
     devDependencies:
       happy-dom:
         specifier: ^21.0.3
