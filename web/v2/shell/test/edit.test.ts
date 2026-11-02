@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { ApiProblem, queryClient } from "@kartenn/sdk";
+import { ApiProblem, drafts, queryClient } from "@kartenn/sdk";
 import { resetContext, setFetch } from "@kartenn/sdk/host";
 import type { GridColumn } from "@kartenn/ui";
 import { afterEach, describe, expect, it } from "vitest";
@@ -19,13 +19,16 @@ import { createShellI18n } from "../src/i18n/index.ts";
 import { loadSession, Rights, type Me } from "../src/rights/index.ts";
 import { collectionById, type Item } from "../src/views/collections.ts";
 import {
+  approvalOf,
   changesOf,
   checkValue,
   draftedValues,
   editability,
+  editRight,
   EDITS,
   fieldOfPointer,
   initialValues,
+  lackingRight,
   patchOf,
 } from "../src/views/edit/fields.ts";
 import {
@@ -35,6 +38,13 @@ import {
   type InlineSay,
 } from "../src/views/edit/inline.ts";
 import { useNodeEdit } from "../src/views/edit/nodes.ts";
+import {
+  fieldErrors,
+  NETWORK_VLAN_EDITS,
+  ofAssignment,
+  vlanForNetwork,
+  vlanForNetworkInDraft,
+} from "../src/views/edit/vlan.ts";
 
 // In-place editing and the edit panel of a kind (task 021-12; REQ-021-15, 16, 36, 37): the
 // fields of each kind typed by the contract, the operations of the draft they give, whether
@@ -873,6 +883,103 @@ describe("the edit panel of a kind", () => {
     await nextTick();
     expect(editRequest().value).toBeNull();
     scope.stop();
+  });
+});
+
+describe("a VLAN created for a network (task 17b, 021/A13)", () => {
+  afterEach(() => {
+    drafts.setActive(null);
+    queryClient.clear();
+    setFetch(null);
+  });
+  const NETWORK = { id: P1, name: "192.0.2.0/24", property: D1 };
+
+  it("creates the VLAN under a local name, then sets `core.vlan` of the network to it", () => {
+    const creation = EDITS.vlans.create({
+      group: V1,
+      vid: "100",
+      name: "serveurs",
+      status: "active",
+    });
+    expect(vlanForNetwork(creation, NETWORK, 4)).toEqual([
+      {
+        op: "create_vlan",
+        group: { id: V1 },
+        vid: 100,
+        name: "serveurs",
+        status: "active",
+        local: 4,
+      },
+      {
+        op: "assign_property",
+        kind: "prefix",
+        object: { id: P1 },
+        property: { id: D1 },
+        values: [{ local: 4 }],
+      },
+    ]);
+  });
+
+  it("says a refusal of the setting on the network, by its operation or its pointer", () => {
+    expect(ofAssignment({ operation: 1, pointer: null })).toBe(true);
+    expect(ofAssignment({ pointer: "/operations/1/values/0" })).toBe(true);
+    expect(ofAssignment({ pointer: "/operations/1" })).toBe(true);
+    expect(ofAssignment({ operation: 0, pointer: "/operations/0/vid" })).toBe(false);
+    expect(ofAssignment({ pointer: "/operations/10" })).toBe(false);
+  });
+
+  it("takes, in a draft, a local name free among its operations; a new draft, the first", () => {
+    const creation = EDITS.vlans.create({ group: V1, vid: "100", name: "a", status: "active" });
+    const made = vlanForNetworkInDraft(creation, NETWORK);
+    expect(made([])[0]).toMatchObject({ local: 0 });
+    const [vlan, setting] = made([
+      { op: "create_domain", local: 0, slug: "a" },
+      { op: "create_vlan", local: 1, vid: 10 } as never,
+    ]);
+    expect(vlan).toMatchObject({ local: 2 });
+    expect(setting).toMatchObject({ values: [{ local: 2 }] });
+  });
+
+  it("refuses « Appliquer » without the approval of each edit permission, named", () => {
+    const has = (held: string[]) => (p: string) => held.includes(p);
+    const edits = [editRight("core.vlan"), ...NETWORK_VLAN_EDITS];
+    const editor = ["core.vlan.edit", "core.prefix.edit", "prop.core.vlan.edit"];
+    // `core.vlan.approval.self` alone: the network's is missing, by its name.
+    const vlanOnly = has([...editor, "core.vlan.approval.self"]);
+    expect(lackingRight(vlanOnly, edits, true)).toBe("core.prefix.approval.self");
+    // To the draft, the edit permissions only.
+    expect(lackingRight(vlanOnly, edits, false)).toBeNull();
+    const withPrefix = has([...editor, "core.vlan.approval.self", "core.prefix.approval.self"]);
+    expect(lackingRight(withPrefix, edits, true)).toBe("prop.core.vlan.approval.self");
+    expect(lackingRight(has([...editor, ...editor.map(approvalOf)]), edits, true)).toBeNull();
+    // An edit permission missing is named first, for both actions.
+    expect(lackingRight(has(["core.vlan.edit"]), edits, false)).toBe("core.prefix.edit");
+  });
+
+  it("says `prop.assignment.invalid_value` of the setting on the field of the network", () => {
+    const names = new Set(EDITS.vlans.creation.map((f) => f.name));
+    const errors = fieldErrors(
+      "vlans",
+      names,
+      [
+        { rule: "core.vlan.vid_duplicate", detail: "VID taken", pointer: "/operations/0/vid" },
+        {
+          rule: "prop.assignment.invalid_value",
+          detail: "not a VLAN",
+          pointer: "/operations/1/values/0",
+          operation: 1,
+        },
+      ],
+      true,
+    );
+    expect(errors).toEqual({
+      vid: "VID taken (core.vlan.vid_duplicate)",
+      network: "not a VLAN (prop.assignment.invalid_value)",
+    });
+    // Without a network, an operation 1 lands on no field shown.
+    expect(
+      fieldErrors("vlans", names, [{ rule: "r", detail: "d", pointer: "/operations/1" }], false),
+    ).toEqual({});
   });
 });
 

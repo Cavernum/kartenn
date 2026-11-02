@@ -158,6 +158,33 @@ describe("writes of the drafts under If-Match (024 § A)", () => {
     expect(adds.map((r) => r.headers.get("If-Match"))).toEqual(['"1"', '"2"']);
   });
 
+  it("makes the operations given as a function from the draft at the version sent, again after a 412", async () => {
+    const s = setup();
+    await s.drafts.create({ title: "t", operations: [{ op: "create_domain", local: 0 }] });
+    // Another tab added an operation that takes the local name 1 meanwhile.
+    s.touch(D1);
+    s.held.get(D1)!.operations.push({ op: "create_domain", local: 1 });
+    const made: number[] = [];
+    const outcome = await s.drafts.addOperations(D1, (current) => {
+      made.push(current.length);
+      return [{ op: "create_domain", local: current.length } as never];
+    });
+    expect(outcome).toMatchObject({ kind: "saved", draft: { operation_count: 3 } });
+    // Made from the version read first (one operation), then from the one read again (two).
+    expect(made).toEqual([1, 2]);
+    const adds = s.seen.filter((r) => r.url.endsWith("/operations"));
+    expect(adds.map((r) => r.headers.get("If-Match"))).toEqual(['"1"', '"2"']);
+    // A new draft: made from none.
+    s.held.delete(D1);
+    s.drafts.setActive(null);
+    const first = await s.drafts.addToActive((current) => {
+      made.push(current.length);
+      return [close];
+    });
+    expect(first).toMatchObject({ kind: "saved" });
+    expect(made.at(-1)).toBe(0);
+  });
+
   it("a second 412 on an addition, or a 412 on a modification: conflict, read again", async () => {
     let refuse = false;
     const s = setup((r) =>

@@ -17,7 +17,7 @@ import {
   typeOfOperation,
   type Changeset,
 } from "../src/changesets/model.ts";
-import { operationLine } from "../src/draft/operations.ts";
+import { memberText, operationLine } from "../src/draft/operations.ts";
 import { sidebarGroups } from "../src/frame/spaces.ts";
 import { frameRoutes } from "../src/frame/routes.ts";
 import { createShellI18n } from "../src/i18n/index.ts";
@@ -207,6 +207,19 @@ describe("the review of a changeset", () => {
         last: "192.0.2.9",
       }),
     ).toMatchObject({ subject: "192.0.2.1–192.0.2.9", members: [{ name: "domain", value: D1 }] });
+    // The values of an assignment, each as text: a local name as `#n` (021/A13).
+    expect(
+      operationLine({
+        op: "assign_property",
+        kind: "prefix",
+        object: { id: P1 },
+        property: { id: D1 },
+        values: [{ local: 0 }],
+      }).members,
+    ).toContainEqual({ name: "values", value: "#0" });
+    // Any other list too, item by item (a reference, a text, an object as JSON); empty, `[]`.
+    expect(memberText([{ id: P1 }, "x", { a: 1 }])).toBe(`${P1}, x, {"a":1}`);
+    expect(memberText([])).toBe("[]");
   });
 
   it("counts « À instruire » in the sidebar, nothing shown at zero", () => {

@@ -45,6 +45,13 @@ export const ACTIVE_KEY = "kartenn.draft.active";
 export type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 /** A write of a draft: saved (the draft as the server holds it now), or refused. */
+/**
+ * Operations added to a draft: as they are, or made from those of the draft at the version
+ * the addition is sent to (a local name free in it, 021/A13).
+ */
+export type Additions =
+  readonly Operation[] | ((current: readonly Operation[]) => readonly Operation[]);
+
 export type DraftOutcome<I> = { kind: "saved"; draft: Draft; etag: string | null } | Refusal<I>;
 
 /** A submission: the changeset applied, held (with its reason), or refused. */
@@ -217,15 +224,23 @@ export function createDrafts(deps: DraftDeps) {
   /**
    * Adds operations after those of the draft. Modified meanwhile (another tab, 412): read
    * again, then tried once more, an addition commuting with what changed (024 « Erreurs »).
+   * Given as a function, the operations are made from those of the draft at the version sent
+   * (its `If-Match`), again after a 412: a local name free in the draft stays free (021/A13).
    */
   const addOperations = async (
     id: string,
-    operations: readonly Operation[],
+    operations: Additions,
   ): Promise<DraftOutcome<readonly Operation[]>> => {
+    let added: readonly Operation[] = typeof operations === "function" ? [] : operations;
     const send = async () => {
+      const ifMatch = await etagOf(id);
+      if (typeof operations === "function") {
+        const current = queryClient.getQueryData<Entry<Draft>>(get(id).queryKey);
+        added = operations(current?.data.operations ?? []);
+      }
       const answer = await client.request("POST", `${path(id)}/operations`, {
-        body: { operations },
-        ifMatch: await etagOf(id),
+        body: { operations: added },
+        ifMatch,
       });
       return saved(answer.data as Draft, answer.etag);
     };
@@ -233,14 +248,14 @@ export function createDrafts(deps: DraftDeps) {
       return await send();
     } catch (error) {
       if (!(error instanceof ApiProblem) || error.status !== 412) {
-        return failure(id, error, operations);
+        return failure(id, error, added);
       }
     }
     await reread(id);
     try {
       return await send();
     } catch (error) {
-      return failure(id, error, operations);
+      return failure(id, error, added);
     }
   };
 
@@ -315,10 +330,11 @@ export function createDrafts(deps: DraftDeps) {
 
   /**
    * Adds operations to the active draft of the tab, creating one if there is none, or if
-   * the active one is gone (`draft.add` of the plugins).
+   * the active one is gone (`draft.add` of the plugins); given as a function, a new draft's
+   * operations are made from none.
    */
   const addToActive = async (
-    operations: readonly Operation[],
+    operations: Additions,
   ): Promise<DraftOutcome<readonly Operation[]>> => {
     const id = active();
     if (id !== null) {
@@ -326,9 +342,10 @@ export function createDrafts(deps: DraftDeps) {
       const absent = outcome.kind === "failed" && outcome.problem?.status === 404;
       if (!absent) return outcome;
     }
-    const created = await create({ title: title(), operations: [...operations] });
+    const first = typeof operations === "function" ? operations([]) : operations;
+    const created = await create({ title: title(), operations: [...first] });
     if (created.kind !== "saved") {
-      return { ...created, input: operations } as Refusal<readonly Operation[]>;
+      return { ...created, input: first } as Refusal<readonly Operation[]>;
     }
     setActive(created.draft.id);
     return created;

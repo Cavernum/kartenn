@@ -50,18 +50,40 @@ export function vlanOfProperties(resolved: Resolved): NetworkVlanState {
 }
 
 /**
- * The operation that sets the VLAN of a network (`vlan` an identifier), or removes it
- * (`null`): the property by the identifier of its declaration.
+ * A VLAN a value of `core.vlan` names: an identifier, or the local name of the VLAN an
+ * earlier operation of the same changeset creates (021/A13, `{"local": n}`).
+ */
+export type VlanValue = string | { local: number };
+
+/**
+ * The operation that sets the VLAN of a network (`vlan` an identifier, or a local name), or
+ * removes it (`null`): the property by the identifier of its declaration.
  */
 export function networkVlanOperation(
   prefix: string,
   property: string,
-  vlan: string | null,
+  vlan: VlanValue | null,
 ): Operation {
   const object = { id: prefix };
   return vlan === null
     ? { op: "unassign_property", kind: "prefix", object, property: { id: property } }
     : { op: "assign_property", kind: "prefix", object, property: { id: property }, values: [vlan] };
+}
+
+/** Whether `operation` (of a draft) writes the property `property` of the network `prefix`. */
+function writesNetworkVlan(
+  operation: Operation,
+  kind: "assign_property" | "unassign_property",
+  prefix: string,
+  property: string | undefined,
+): boolean {
+  const op = operation as { op?: unknown; object?: { id?: unknown }; property?: { id?: unknown } };
+  return (
+    property !== undefined &&
+    op.op === kind &&
+    op.object?.id === prefix &&
+    op.property?.id === property
+  );
 }
 
 /** Whether `operation` (of a draft) removes the VLAN of the network `prefix`. */
@@ -70,13 +92,36 @@ export function isNetworkVlanRemoval(
   prefix: string,
   property: string | undefined,
 ): boolean {
-  const op = operation as { op?: unknown; object?: { id?: unknown }; property?: { id?: unknown } };
-  return (
-    property !== undefined &&
-    op.op === "unassign_property" &&
-    op.object?.id === prefix &&
-    op.property?.id === property
-  );
+  return writesNetworkVlan(operation, "unassign_property", prefix, property);
+}
+
+/** Whether `operation` (of a draft) sets a VLAN on the network `prefix`. */
+export function isNetworkVlanAssignment(
+  operation: Operation,
+  prefix: string,
+  property: string | undefined,
+): boolean {
+  return writesNetworkVlan(operation, "assign_property", prefix, property);
+}
+
+/**
+ * A local name no operation of `operations` uses yet (one more than the greatest one met,
+ * at any depth: a member `local`, or a reference `{"local": n}`): the names hold for the
+ * whole changeset, so the operations added to a draft take one of their own (REQ-004-4).
+ */
+export function freeLocal(operations: readonly unknown[]): number {
+  let most = -1;
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) value.forEach(visit);
+    else if (typeof value === "object" && value !== null) {
+      for (const [name, member] of Object.entries(value)) {
+        if (name === "local" && typeof member === "number") most = Math.max(most, member);
+        else visit(member);
+      }
+    }
+  };
+  visit(operations);
+  return most + 1;
 }
 
 /**
