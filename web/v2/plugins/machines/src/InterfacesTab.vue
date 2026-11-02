@@ -20,13 +20,20 @@ import {
   type GridColumn,
   type GridWindow,
 } from "@kartenn/ui";
-import { computed } from "vue";
+import { computed, onScopeDispose, shallowRef, watch } from "vue";
 import { useList, useNotified, useRead, useReads, type List } from "./data.ts";
 import { arrival, followLink, hrefOf, PAGES } from "./dom.ts";
 import { useHosted, useTexts } from "./host.ts";
 import InterfaceGrid from "./InterfaceGrid.vue";
 import PageRoot from "./PageRoot.vue";
-import { Names, within, type Interface, type Machine, type MachineAddress } from "./reads.ts";
+import {
+  limited,
+  Names,
+  within,
+  type Interface,
+  type Machine,
+  type MachineAddress,
+} from "./reads.ts";
 import RetryAlert from "./RetryAlert.vue";
 
 const props = defineProps<{ object: ObjectRef | null; row: unknown }>();
@@ -70,11 +77,68 @@ const prefix = useRead<Prefix, never>(() => prefixRead() as never);
 const machines = useList<Machine, never>(() =>
   network.value ? (reads.list("/v1/machines", { network: network.value }) as never) : null,
 );
+// The addresses of each machine, read a few at a time (`limited`, as the column of the 18ca):
+// the read of a machine is enabled once it has its place, which it holds until its answer.
+/** The machines whose read of addresses is enabled; renewed at other dates. */
+const admitted = shallowRef<ReadonlySet<string>>(new Set());
+let asked = new Set<string>();
+/** The place of each admitted machine still read, given back at its answer. */
+let places = new Map<string, () => void>();
+let alive = true;
+let round = 0;
+function admit(items: readonly Machine[] | undefined): void {
+  const mine = round;
+  for (const { id } of items ?? []) {
+    if (asked.has(id)) continue;
+    asked.add(id);
+    void limited(
+      () => alive && mine === round,
+      () =>
+        new Promise<void>((resolve) => {
+          places.set(id, resolve);
+          admitted.value = new Set(admitted.value).add(id);
+        }),
+    );
+  }
+}
+/** Every place given back: the element is gone, or the dates moved. */
+function giveBack(): void {
+  for (const release of places.values()) release();
+  places = new Map();
+}
+onScopeDispose(() => {
+  alive = false;
+  giveBack();
+});
+watch(
+  () => `${context.value.time.validAt ?? ""} ${context.value.time.asOf ?? ""}`,
+  () => {
+    round++;
+    giveBack();
+    asked = new Set();
+    admitted.value = new Set();
+    admit(machines.state.value.items);
+  },
+);
+watch(() => machines.state.value.items, admit, { immediate: true });
+
 const addressReads = () =>
-  (machines.state.value.items ?? []).map((m) =>
-    reads.sub<Addresses>("machines.machine", m.id, "addresses"),
-  );
+  (machines.state.value.items ?? []).map((m) => ({
+    ...reads.sub<Addresses>("machines.machine", m.id, "addresses"),
+    enabled: admitted.value.has(m.id),
+  }));
+/** Aligned on the machines of the list. */
 const held = useReads<Addresses, never>(() => addressReads() as never);
+// A machine answered (read or refused): its place goes to the next one.
+watch(held, (states) => {
+  (machines.state.value.items ?? []).forEach(({ id }, i) => {
+    const release = places.get(id);
+    if (release && admitted.value.has(id) && states[i] && !states[i].pending) {
+      places.delete(id);
+      release();
+    }
+  });
+});
 
 /** Each address of the network held by a machine, with its interface. */
 const networkRows = computed(() => {
@@ -106,6 +170,19 @@ const networkError = computed(
     held.value.find((r) => r.error)?.error ??
     null,
 );
+/**
+ * The window of the grid of the network: the next page of machines only once the addresses
+ * of those read are all answered (no cascade of pages ahead of their addresses).
+ */
+let lastWindow: GridWindow | null = null;
+function onNetworkWindow(w: GridWindow): void {
+  lastWindow = w;
+  if (!networkPending.value) ahead(machines, w, networkRows.value.length);
+}
+watch(networkPending, (pending) => {
+  if (!pending && lastWindow) ahead(machines, lastWindow, networkRows.value.length);
+});
+
 /** « Réessayer »: each read of the network that failed. */
 function retryNetwork(): void {
   if (machines.state.value.error) machines.retry();
@@ -178,7 +255,7 @@ const capped = computed(() => {
             :loading="networkRows.length === 0"
             :loading-rows="3"
             :row-count="networkPending || machines.state.value.more ? -1 : networkRows.length"
-            @window="(w) => ahead(machines, w, networkRows.length)"
+            @window="onNetworkWindow"
             @activate="onActivate"
           >
             <template #cell="{ row: line, column }">

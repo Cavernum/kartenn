@@ -79,6 +79,8 @@ function clear(): void {
 }
 // Back or forward to another query of the same page: its criteria, in the fields and searched.
 const onPop = () => {
+  // Another page (a record): the shell replaces the element, its search is not changed.
+  if (location.pathname.replace(/\/$/, "") !== "/x/machines/interfaces") return;
   const now = criteriaOfPage();
   Object.assign(fields, now);
   if (!same(now, searched.value)) searched.value = now;
@@ -88,41 +90,72 @@ onScopeDispose(() => window.removeEventListener("popstate", onPop));
 
 // ---------------------------------------------------------------------------- resolution
 
-/** The address and VLAN of each list to read; or what the resolution failed or found. */
+/** The pages read, at most, to resolve an address or a VID (the objects beyond: said). */
+const RESOLVE_PAGES = 3;
+/** The lists of `/v1/interfaces` read, at most, for one search (the pairs beyond: said). */
+const MAX_LISTS = 12;
+
+/**
+ * The address and VLAN of each list to read, and what was left out of the search (said, never
+ * dropped in silence); or what the resolution failed or found.
+ */
 type Resolved =
-  | { pairs: { address?: string | undefined; vlan?: string | undefined }[] }
+  | { pairs: { address?: string | undefined; vlan?: string | undefined }[]; left: string[] }
   | { problem: unknown }
   | { nothing: string };
 /** `null` while the address and the VID are resolved. */
 const resolved = shallowRef<Resolved | null>(null);
 let generation = 0;
 
-/** The identifiers of the objects whose `filter` is `value`: the first page of the list. */
+type Pages = { pages: Entry<{ items: { id: string }[]; links: { next?: string | null } }>[] };
+/**
+ * The identifiers of the objects whose `filter` is `value`, from their first `RESOLVE_PAGES`
+ * pages; `more` if some are left beyond them.
+ */
 async function idsOf(path: "/v1/addresses" | "/v1/vlans", filter: string, value: string) {
-  const data = (await queryClient.fetchInfiniteQuery(
-    reads.list(path, { [filter]: value }) as never,
-  )) as { pages: Entry<{ items: { id: string }[] }>[] };
-  return data.pages.flatMap((page) => page.data.items.map((item) => item.id));
+  const options = { ...(reads.list(path, { [filter]: value }) as object), pages: RESOLVE_PAGES };
+  const more = (data: Pages) => !!data.pages.at(-1)?.data.links.next;
+  let data = (await queryClient.fetchInfiniteQuery(options as never)) as Pages;
+  // Fresh in the cache with fewer pages (read by another screen): read again up to the bound.
+  if (more(data) && data.pages.length < RESOLVE_PAGES) {
+    data = (await queryClient.fetchInfiniteQuery({ ...options, staleTime: 0 } as never)) as Pages;
+  }
+  return {
+    ids: data.pages.flatMap((page) => page.data.items.map((item) => item.id)),
+    more: more(data),
+  };
 }
 
 async function resolve(): Promise<void> {
   const mine = ++generation;
   const criteria = searched.value;
   resolved.value = null;
+  const none = { ids: [undefined], more: false };
   try {
     const [addresses, vlans] = await Promise.all([
-      criteria.address ? idsOf("/v1/addresses", "value", criteria.address) : [undefined],
-      criteria.vid ? idsOf("/v1/vlans", "vid", criteria.vid) : [undefined],
+      criteria.address ? idsOf("/v1/addresses", "value", criteria.address) : none,
+      criteria.vid ? idsOf("/v1/vlans", "vid", criteria.vid) : none,
     ]);
     if (mine !== generation) return;
-    if (addresses.length === 0) {
+    if (addresses.ids.length === 0) {
       resolved.value = { nothing: t("search.noAddress", { value: criteria.address }) };
-    } else if (vlans.length === 0) {
+    } else if (vlans.ids.length === 0) {
       resolved.value = { nothing: t("search.noVlan", { value: criteria.vid }) };
     } else {
-      resolved.value = {
-        pairs: addresses.flatMap((address) => vlans.map((vlan) => ({ address, vlan }))),
-      };
+      const left: string[] = [];
+      if (addresses.more) {
+        left.push(t("search.manyAddresses", { n: addresses.ids.length, value: criteria.address }));
+      }
+      if (vlans.more) {
+        left.push(t("search.manyVlans", { n: vlans.ids.length, value: criteria.vid }));
+      }
+      const pairs = addresses.ids.flatMap((address) =>
+        vlans.ids.map((vlan) => ({ address, vlan })),
+      );
+      if (pairs.length > MAX_LISTS) {
+        left.push(t("search.manyLists", { total: pairs.length, n: MAX_LISTS }));
+      }
+      resolved.value = { pairs: pairs.slice(0, MAX_LISTS), left };
     }
   } catch (problem) {
     if (mine === generation) resolved.value = { problem };
@@ -174,6 +207,13 @@ const failure = computed(
 );
 const more = computed(() => states.value.some((l) => l.more));
 const capped = computed(() => states.value.some((l) => l.more && l.pages >= MAX_PAGES));
+/** What the search left out: objects beyond the bound of the resolution, pairs beyond theirs. */
+const left = computed(() => {
+  const r = resolved.value;
+  return r && "pairs" in r ? r.left : [];
+});
+/** The result is incomplete, and says so (the notice, and the sentence of the region). */
+const partial = computed(() => left.value.length > 0 || capped.value);
 
 function onWindow(window: GridWindow): void {
   if (window.end >= items.value.length - AHEAD) lists.next();
@@ -191,7 +231,7 @@ const sentence = computed(() => {
   // Said by the alert of the error state: not twice.
   if (failure.value) return "";
   if (items.value.length === 0) return pending.value ? t("search.searching") : t("search.none");
-  return t("search.count", { n: items.value.length });
+  return t(partial.value ? "search.countPartial" : "search.count", { n: items.value.length });
 });
 </script>
 
@@ -251,6 +291,12 @@ const sentence = computed(() => {
           :title="t('interfaces.failed')"
           :error="error"
           @retry="lists.retry()"
+        />
+        <InlineAlert
+          v-if="left.length"
+          tone="warn"
+          :title="t('search.partial')"
+          :items="left.map((message) => ({ message }))"
         />
         <InlineAlert v-if="capped" tone="info" :title="t('search.first', { n: items.length })" />
         <p v-if="items.length" aria-hidden="true">{{ sentence }}</p>

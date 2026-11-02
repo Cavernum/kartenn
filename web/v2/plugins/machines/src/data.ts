@@ -180,8 +180,10 @@ export function useList<T, K extends Key>(
 
 /**
  * Follows each of the options of `options()` (reactive, at the dates of the context) with an
- * observer `create` makes, while the scope lives: the observers of the options kept are
- * kept (by the hash of their key), those of the options gone let go.
+ * observer `create` makes, while the scope lives: the observer of an option kept from one
+ * set to the next is kept (by the hash of its key) and given its new options (`enabled`…),
+ * those of the options gone let go. The states and the observers are aligned on the options
+ * (the same options twice: the same observer at both places).
  */
 function observeAll<R, S>(
   options: () => readonly unknown[],
@@ -191,11 +193,15 @@ function observeAll<R, S>(
   const { context, queryClient } = useHosted();
   const states = shallowRef<readonly S[]>([]);
   const held = new Map<string, { observer: Observer<R>; stop: () => void }>();
-  // The hashes of the options, in their order; an observer subscribing calls `draw` with the
+  // The hash of each option, in their order; an observer subscribing calls `draw` with the
   // former order, whose observers are all still held.
   let order: string[] = [];
   const draw = () => {
-    states.value = order.map((hash) => shape(held.get(hash)!.observer.getCurrentResult()));
+    const shaped = new Map<string, S>();
+    states.value = order.map((hash) => {
+      if (!shaped.has(hash)) shaped.set(hash, shape(held.get(hash)!.observer.getCurrentResult()));
+      return shaped.get(hash)!;
+    });
   };
   watch(
     () => {
@@ -204,14 +210,20 @@ function observeAll<R, S>(
     },
     (next) => {
       const hashes: string[] = [];
+      const seen = new Set<string>();
       for (const option of next) {
         const defaulted = queryClient.defaultQueryOptions(option as never) as {
           queryHash: string;
         };
         const hash = defaulted.queryHash;
-        if (hashes.includes(hash)) continue;
         hashes.push(hash);
-        if (held.has(hash)) continue;
+        if (seen.has(hash)) continue;
+        seen.add(hash);
+        const kept = held.get(hash);
+        if (kept) {
+          kept.observer.setOptions(defaulted as never);
+          continue;
+        }
         const observer = create(defaulted as never);
         // Held before it subscribes: `draw` may run within the subscription.
         const entry = { observer, stop: () => {} };
@@ -219,7 +231,7 @@ function observeAll<R, S>(
         entry.stop = observer.subscribe(draw);
       }
       for (const [hash, { stop }] of held) {
-        if (hashes.includes(hash)) continue;
+        if (seen.has(hash)) continue;
         stop();
         held.delete(hash);
       }
@@ -245,8 +257,8 @@ export function useReads<T, K extends Key>(
 }
 
 /**
- * The lists of `options()` (`reads.list`), each followed page by page, in their order (the
- * same options twice: one list).
+ * The lists of `options()` (`reads.list`), each followed page by page, aligned on the
+ * options (the same options twice: one list, at both places).
  */
 export function useLists<T, K extends Key>(
   options: () => readonly ListOptions<T, K>[],
@@ -257,22 +269,30 @@ export function useLists<T, K extends Key>(
     (o) => new InfiniteQueryObserver<Entry<Paged<T>>, Error>(queryClient, o),
     listOf<T>,
   );
+  /** Each observer once, with its list. */
+  const each = (act: (observer: unknown, list: List<T>) => void) => {
+    const done = new Set<unknown>();
+    observers().forEach((observer, i) => {
+      const list = states.value[i];
+      if (done.has(observer) || !list) return;
+      done.add(observer);
+      act(observer, list);
+    });
+  };
   return {
     states,
     /** The next page of each list that has one, not read nor refused yet. */
     next() {
-      observers().forEach((observer, i) => {
-        const list = states.value[i];
-        if (list?.more && !list.fetching && !list.error && list.pages < MAX_PAGES) {
+      each((observer, list) => {
+        if (list.more && !list.fetching && !list.error && list.pages < MAX_PAGES) {
           void (observer as Pager).fetchNextPage?.();
         }
       });
     },
     /** After a failure: each list that failed read again, as `useList().retry`. */
     retry() {
-      observers().forEach((observer, i) => {
-        const list = states.value[i];
-        if (list?.error) again(observer as Pager, list);
+      each((observer, list) => {
+        if (list.error) again(observer as Pager, list);
       });
     },
   };

@@ -288,6 +288,42 @@ describe("the search of the interfaces (task 18cc)", () => {
     expect(second.sort()).toEqual([VLAN, VLAN_B, VLAN_B]);
   });
 
+  it("says what it leaves out: objects beyond the pages resolved, pairs beyond the bound", async () => {
+    const lists: string[] = [];
+    history.replaceState(null, "", "/x/machines/interfaces?address=192.0.2.10");
+    mounted = mount("machines-interfaces", {
+      context: { locale: "en", user: user() },
+      fetch: fakeFetch({
+        // Five addresses a page, a next page always: three pages read, the rest said.
+        "GET /v1/addresses": ({ query }: { query: URLSearchParams }) => {
+          const at = Number(query.get("cursor") ?? 0);
+          const ids = [0, 1, 2, 3, 4].map((i) => ({ id: `a${at * 5 + i}` }));
+          return page(ids, `/v1/addresses?cursor=${at + 1}`);
+        },
+        "GET /v1/interfaces": ({ query }: { query: URLSearchParams }) => {
+          lists.push(query.get("address")!);
+          return page(query.get("address") === "a0" ? [iface()] : []);
+        },
+        "GET /v1/machines/{id}": () => machine() as never,
+        "GET /v1/vlans/{id}": () => vlan as never,
+      } as never),
+    });
+    const { element } = mounted;
+    await text(element, "Incomplete result");
+    expect(element.textContent).toContain(
+      "More than 15 addresses have the value 192.0.2.10: only the first 15 are searched.",
+    );
+    expect(element.textContent).toContain(
+      "15 pairs of address and VLAN: only the first 12 are searched",
+    );
+    await vi.waitFor(() =>
+      expect(element.querySelector("[role=status]")?.textContent).toBe(
+        "Interfaces found: 1, incomplete result.",
+      ),
+    );
+    expect(new Set(lists).size).toBe(12);
+  });
+
   it("opens the record of a row by Enter on a cell without link", async () => {
     history.replaceState(null, "", "/x/machines/interfaces");
     mounted = mount("machines-interfaces", {
@@ -472,6 +508,74 @@ describe("the « Interfaces » tab (task 18cc)", () => {
     ]);
     // No heading of its own: the tab of the shell names its panel.
     expect(element.querySelector("h1, h2")).toBeNull();
+  });
+
+  it("of a network: the addresses read a few at a time, the next page after them, each once", async () => {
+    const asked = new Map<string, number>();
+    let reading = 0;
+    let most = 0;
+    let answered = 0;
+    /** How many addresses were answered when the second page of machines was asked. */
+    let answeredAtPage2: number | null = null;
+    const many = (from: number, n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        ...machine(),
+        id: `m${from + i}`,
+        name: `srv-${from + i}`,
+      }));
+    mounted = mount("machines-tab", {
+      object: { type: "prefix", id: PREFIX, href: `/v1/prefixes/${PREFIX}` },
+      context: { locale: "en" },
+      fetch: fakeFetch({
+        "GET /v1/prefixes/{id}": () => ({ id: PREFIX, value: "192.0.2.0/24" }) as never,
+        "GET /v1/machines": ({ query }: { query: URLSearchParams }) => {
+          if (!query.get("cursor")) return page(many(0, 6), "/v1/machines?cursor=p2");
+          answeredAtPage2 = answered;
+          return page(many(6, 1));
+        },
+        "GET /v1/machines/{id}/addresses": async ({ params }: { params: { id: string } }) => {
+          asked.set(params.id, (asked.get(params.id) ?? 0) + 1);
+          most = Math.max(most, ++reading);
+          await new Promise((done) => setTimeout(done, 5));
+          reading--;
+          answered++;
+          const i = Number(params.id.slice(1));
+          return {
+            items: [
+              {
+                address: { id: `addr-${i}` },
+                value: `192.0.2.${i + 1}`,
+                interface: { id: IFACE },
+                interface_name: "eth0",
+                primary: true,
+                href: "",
+              },
+            ],
+            links: {},
+          } as never;
+        },
+      } as never),
+    });
+    const { element } = mounted;
+    await vi.waitFor(() => expect(rows(element, "Interfaces")).toHaveLength(7));
+    // Never more than four at once; the page 2 once the six of the first answered.
+    expect(most).toBeLessThanOrEqual(4);
+    expect(answeredAtPage2).toBe(6);
+    // The observers of the first page kept with the second: each machine read once.
+    expect([...asked.values()]).toEqual([1, 1, 1, 1, 1, 1, 1]);
+    // Let go once the tab is gone: an invalidation reads nothing again.
+    mounted.unmount();
+    mounted = null;
+    // The application is unmounted a microtask after the disconnection (`host.ts`).
+    await Promise.resolve();
+    const observed = queryClient
+      .getQueryCache()
+      .getAll()
+      .filter((q) => q.getObserversCount() > 0);
+    expect(observed.map((q) => q.queryKey)).toEqual([]);
+    await queryClient.invalidateQueries();
+    await new Promise((done) => setTimeout(done, 20));
+    expect([...asked.values()]).toEqual([1, 1, 1, 1, 1, 1, 1]);
   });
 
   it("of an address and of a VLAN: the interfaces that hold or carry it", async () => {
