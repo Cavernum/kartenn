@@ -1356,7 +1356,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `PATCH` (amender la 006 ou aligner la route ; le client suit la route, `merge:
     false`) ; le contrat de `GET /v1/changesets` n'énumère pas `state` et ne dit pas le
     format `date-time` de `from`/`to` (le shell les type lui-même, `views/filters.ts`).
-- [ ] 15. Administration : groupes (membres, liaisons), rôles, émetteurs, comptes de
+- [x] 15. Administration : groupes (membres, liaisons), rôles, émetteurs, comptes de
   service et secret, identités (groupes et droits effectifs en lecture), audit et
   export, imports ; permissions en nom servi et libellé — REQ-021-12, 025/REQ-025-12 —
   verify : parcours `admin` réécrit ; capture E7
@@ -1365,6 +1365,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `groupe-edition`, `groupe-refus`, `secours`, `identite`), design 021 § Administration.
   - dépend de : 13
   - découpée le 2026-11-01 en 15a, 15b et 15c (fin de P2)
+  - faite le 2026-11-02 par ses trois sous-tâches, fusionnées
 - [ ] 16. Hôte des plugins et session : emplacements dans le nouveau cadre, point `widget`
   de l'Accueil, actions sur le type `changeset`, onglets sur les types de module, frontière
   d'erreur avec code, entrées par espace, « À propos » ; session (reconnexion, échéance
