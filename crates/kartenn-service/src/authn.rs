@@ -237,6 +237,50 @@ pub trait Identities: Send + Sync {
     ) -> impl Future<Output = Result<(Uuid, bool), StoreError>> + Send;
 }
 
+/// Where a refresh token stands among the instances ([`RefreshExchanges::claim`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Claim {
+    /// The caller exchanges it: no instance does, nor kept a result still in its window.
+    Ours,
+    /// Another instance exchanges it, under a lease not over yet: ask again later.
+    Busy,
+    /// The result of its exchange, sealed, kept within its window (021/A25).
+    Kept(String),
+}
+
+/// The exchanges of refresh tokens shared by the instances (spec 021, A24, A25; D9): a
+/// token is presented to its issuer by one instance at a time, and the result of its
+/// exchange is kept, sealed, a short window after it. A row is named by a fingerprint of
+/// the token, never by the token; a failure is not kept.
+pub trait RefreshExchanges: Send + Sync {
+    /// Under a lock on `key`, in a short transaction: the result kept for it within its
+    /// window, or another holder's lease not over, or else the exchange claimed for
+    /// `holder` during `lease`.
+    fn claim<'a>(
+        &'a self,
+        key: &'a [u8; 32],
+        holder: Uuid,
+        lease: std::time::Duration,
+    ) -> crate::module::BoxFuture<'a, Result<Claim, StoreError>>;
+
+    /// Keeps `sealed`, the result of the exchange `holder` claimed, during `window`; false
+    /// if its claim was lost (lease over and taken by another holder).
+    fn keep<'a>(
+        &'a self,
+        key: &'a [u8; 32],
+        holder: Uuid,
+        sealed: &'a str,
+        window: std::time::Duration,
+    ) -> crate::module::BoxFuture<'a, Result<bool, StoreError>>;
+
+    /// Gives up the claim of `holder` after a failed exchange: nothing is kept.
+    fn release<'a>(
+        &'a self,
+        key: &'a [u8; 32],
+        holder: Uuid,
+    ) -> crate::module::BoxFuture<'a, Result<(), StoreError>>;
+}
+
 /// The requester a service account names in `Kartenn-On-Behalf-Of` (REQ-016-12).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Requester {

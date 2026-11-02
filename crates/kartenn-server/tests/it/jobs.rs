@@ -12,12 +12,13 @@ use sqlx::PgPool;
 use sqlx::types::Uuid;
 
 /// The periodic tasks of the migrations.
-const SEEDED: [&str; 5] = [
+const SEEDED: [&str; 6] = [
     "expire-pending",
     "reevaluate-expected",
     "public-drift",
     "idempotency-purge",
     "draft-retention",
+    "refresh-exchange-purge",
 ];
 
 /// Counts the runs by task, each taking a little time.
