@@ -114,8 +114,20 @@ test("the views of the machines, their links, the tabs and the column of the cor
   await expect(page).toHaveURL(/\/x\/machines\/machines$/);
   const view = page.locator("machines-machines");
   await expect(view.getByRole("heading", { level: 1, name: "Machines" })).toBeVisible();
-  const list = view.getByRole("table", { name: "Machines", exact: true });
+  // A grid (Vue, task 18cb), filtered by the parameters of its route: the name of this run.
+  const list = view.getByRole("grid", { name: "Machines", exact: true });
   await expect(list.getByRole("row").filter({ hasText: tag })).toContainText("physique");
+  await expectAccessible(page);
+  // The filter of the « Nom » column is the bar's (020 decision A7), `name_prefix` of the
+  // route, in the query of the page.
+  await list.getByRole("columnheader", { name: /Nom/ }).click();
+  await page.keyboard.press("Alt+ArrowDown");
+  const picker = page.getByRole("dialog", { name: /filtre/i });
+  await picker.getByRole("textbox", { name: /Valeur/ }).fill(tag);
+  await picker.getByRole("button", { name: "Appliquer" }).click();
+  await expect(page).toHaveURL(new RegExp(`/x/machines/machines\\?name_prefix=${tag}$`));
+  // The header and this run's machine only.
+  await expect(list.getByRole("row")).toHaveCount(2);
   await expectAccessible(page);
 
   // Its record, by its link: followed by the shell, the page not reloaded.
@@ -130,7 +142,7 @@ test("the views of the machines, their links, the tabs and the column of the cor
     "href",
     `/x/machines/clusters/${written.cluster}`,
   );
-  const interfaces = record.getByRole("table", { name: "Interfaces", exact: true });
+  const interfaces = record.getByRole("grid", { name: "Interfaces", exact: true });
   const eth0 = interfaces.getByRole("row", { name: /eth0/ });
   await expect(eth0).toContainText(mac);
   await expect(eth0).toContainText(`accès ${DATA.vlan.vid}`);
@@ -257,12 +269,14 @@ test("a physical machine to a cluster: offered by the client, refused by the ser
   const record = page.locator("machines-machines");
   await expect(record.getByRole("heading", { level: 1, name: tag })).toBeVisible();
   const form = record.getByRole("region", { name: "Hébergement" });
-  const select = form.getByRole("combobox", { name: /^Nouvel hébergeur/ });
-  // The kinds of the pair are not in the contract: the cluster is offered.
-  const cluster = select.locator(`option[value="cluster:${written.cluster}"]`);
-  await expect(cluster).toBeEnabled();
-  await select.selectOption(`cluster:${written.cluster}`);
-  await select.press("Tab");
+  const field = form.getByRole("combobox", { name: /^Nouvel hébergeur/ });
+  // The kinds of the pair are not in the contract: the cluster is offered (the machine of
+  // the same name refused, a cycle).
+  await field.fill(tag);
+  const cluster = page.getByRole("option").filter({ hasText: "cluster" }).filter({ hasText: tag });
+  await expect(cluster).not.toContainText("refusé");
+  await cluster.click();
+  await field.press("Tab");
   await expect(form.getByRole("button", { name: "Déplacer au brouillon" })).toBeFocused();
   await page.keyboard.press("Enter");
   // The simulation of the draft refuses it with the rule of the module; the host read stays.
@@ -283,7 +297,9 @@ test("a machine created in the draft from its list, no changeset sent", async ({
   await page.goto("/x/machines/machines");
   const view = page.locator("machines-machines");
   const creation = view.getByRole("region", { name: "Créer une machine" });
-  await expect(creation.getByRole("combobox", { name: /Propriétaire/ })).toHaveValue(/.+/);
+  // The first owner taken once the entities are read.
+  const owner = creation.getByRole("combobox", { name: /Propriétaire/ });
+  await expect(owner).not.toHaveText(/^\s*$/);
   const changesets: string[] = [];
   page.on("request", (request) => {
     if (request.method() === "POST" && request.url().includes("/v1/changesets")) {
@@ -297,10 +313,10 @@ test("a machine created in the draft from its list, no changeset sent", async ({
     "true",
   );
   await creation.getByRole("textbox", { name: /^Nom/ }).fill(tag);
-  await creation.getByRole("combobox", { name: /Nature/ }).selectOption({ label: "virtuelle" });
-  await creation
-    .getByRole("combobox", { name: /Propriétaire/ })
-    .selectOption({ label: DATA.entity });
+  await creation.getByRole("combobox", { name: /Nature/ }).click();
+  await page.getByRole("option", { name: "virtuelle" }).click();
+  await owner.click();
+  await page.getByRole("option", { name: DATA.entity, exact: true }).click();
   await creation.getByRole("button", { name: "Ajouter au brouillon" }).click();
   await expect(
     creation.getByText(/^Opération ajoutée ; le brouillon en compte \d+\.$/),

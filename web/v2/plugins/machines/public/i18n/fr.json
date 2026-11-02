@@ -1,6 +1,7 @@
 {
   "nav": { "machines": "Machines", "clusters": "Clusters", "interfaces": "Interfaces" },
   "loading": "Chargement…",
+  "retry": "Réessayer",
   "error": "Erreur :",
   "warning": "Avertissement :",
   "code": "Code",
@@ -27,7 +28,7 @@
   },
   "machines": {
     "title": "Machines",
-    "intro": "Inventaire des machines lisibles : nature, propriétaire, site et hébergement.",
+    "intro": "Inventaire des machines lisibles, par nom : nature, propriétaire, site et hébergement.",
     "record": "Machine",
     "name": "Nom",
     "kind": "Nature",
@@ -40,9 +41,19 @@
     "failedOne": "Lecture de la machine impossible",
     "none": "Aucune machine",
     "noneText": "Ajoutez-en une au brouillon avec le formulaire ci-dessous.",
+    "noneFiltered": "Aucune machine ne répond à ces filtres",
+    "noneFilteredText": "Modifiez ou retirez un filtre pour voir plus de machines.",
+    "first": "Seules les {n} premières machines sont listées : un filtre réduit la liste.",
     "noneHosted": "Aucune machine hébergée",
     "noneHostedText": "Une machine hébergée par celle-ci se déclare depuis sa propre fiche.",
     "create": "Créer une machine"
+  },
+  "filter": {
+    "label": "Filtres des machines",
+    "namePrefix": "Début du nom",
+    "cluster": "Cluster (membre ou hébergée)",
+    "once": "Une seule valeur par filtre : {names}. La liste n'est pas lue tant qu'une n'est pas retirée.",
+    "clear": "Retirer les filtres"
   },
   "interfaces": {
     "title": "Interfaces",
@@ -128,14 +139,14 @@
   "move": {
     "title": "Hébergement",
     "host": "Nouvel hébergeur",
-    "hint": "Un hébergeur refusé est dit « refusé » dans la liste, avec sa raison et le code de la règle ; il n'est pas envoyé.",
+    "hint": "Un hébergeur refusé est dit « refusé » dans les suggestions, avec sa raison et le code de la règle ; il n'est pas envoyé.",
     "reading": "Lecture des hébergeurs…",
     "unreadable": "Lecture des hébergeurs impossible",
     "already": "C'est déjà son hébergeur : rien n'est ajouté.",
-    "choose": "Choisir un hébergeur",
+    "pick": "Choisissez un hébergeur parmi les suggestions.",
     "none": "Aucun (non hébergée)",
-    "clusters": "Clusters",
-    "machines": "Machines",
+    "cluster": "cluster",
+    "machine": "machine",
     "current": "hébergeur actuel",
     "cycle": "refusé : elle l'héberge, ou c'est elle",
     "incompatible": "refusé : hébergeur d'un type non admis",
