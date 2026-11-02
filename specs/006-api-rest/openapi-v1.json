@@ -10267,7 +10267,7 @@
         "type": "string"
       },
       "RawValue": {
-        "description": "One raw value of an assignment: text (closed-list key, text, host name, date,\nreference), integer or boolean (REQ-003-8).",
+        "description": "One raw value of an assignment: text (closed-list key, text, host name, date,\nreference), integer or boolean (REQ-003-8); for a reference, also the local name of\nan object an earlier operation of the changeset creates (021/A13).",
         "oneOf": [
           {
             "type": "boolean"
@@ -10298,6 +10298,20 @@
             "required": [
               "system",
               "id"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A reference to the object an earlier operation of the same changeset creates under\nthis local name, as a `Ref` names it (`prop.assignment.unknown_local` otherwise).",
+            "properties": {
+              "local": {
+                "format": "int32",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "local"
             ],
             "type": "object"
           }

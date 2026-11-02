@@ -610,7 +610,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     la simulation du service qui produit `diff` et `cascaded` ; test voisin
     `crates/kartenn-rest/tests/it/simulated.rs` ; 006 design § « `?simulate=true` »
   - dépend de : —
-- [ ] 17a. Référence locale dans une valeur de propriété (A13) : `RawValue`
+- [x] 17a. Référence locale dans une valeur de propriété (A13) : `RawValue`
   `{"local": n}` (`RawDto`, `RawInput`), résolue à l'application comme les `Ref` des
   opérations, prise dans le tri topologique ; référence vers un indice absent ou vers un
   objet d'un autre type que la déclaration → violation codée ; brouillon et simulation
@@ -622,6 +622,34 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     locales), lecture des valeurs de référence dans `kartenn-core` (`RawInput`) ; test
     voisin `crates/kartenn-rest/tests/it/vlan/` ; 004 design § « Références internes »
   - dépend de : —
+  - fait le 2026-11-02 — `RawInput::Local { local }` (`{"local": n}`, variante non
+    étiquetée, après `External`) et `RawDto::Local` au contrat (`RawValue`, contrat et
+    schémas des deux SDK régénérés). `RawInput::to_raw` prend la résolution d'un nom
+    local et rend `None` pour un nom inconnu ; une suggestion de source qui en porterait
+    un ne propose rien d'utilisable (`expected.rs`). Résolution au planifié
+    (`pipeline::plan` → `resolution::plan`, qui rend désormais un `Result`) : le nom
+    désigne l'UUID généré pour l'objet d'une opération antérieure, posé comme texte de
+    la référence, puis lu par `RefType` comme un UUID donné. Les noms des créations
+    d'objets sont suivis à part (`creates_object` : opérations du cœur qui créent,
+    `Operation::created_kind`, déplacée d'`import.rs` ; opérations de module dont le
+    type déclare `defines`). Import : `uses` compte les noms des valeurs dans le tri
+    topologique, `resolve_known` remplace un nom d'un autre lot par le texte de l'UUID
+    (et non `{"id": …}`, qui n'est pas une valeur). Brouillon : rien à changer à
+    `drafts.rs`, qui stocke et relit des `OperationDto`. Tests (`vlan::networks`,
+    `vlan::rest`, `vlan::imports`) : VLAN créé et posé sur un réseau en un changeset,
+    simulé (rien d'écrit) puis appliqué ; par les routes, appliqué, puis en brouillon
+    relu tel quel, simulé sans violation et soumis ; nom absent → 422 codé, rapporté à
+    son opération ; import où l'affectation vient en premier et le VLAN dans un autre lot.
+  - choix : un seul code nouveau, `prop.assignment.unknown_local` (REQ-004-4, 021/A13),
+    pour un nom qu'aucune opération antérieure ne définit (absent ou défini plus tard)
+    et pour celui d'une opération qui ne crée pas d'objet (liaison, appartenance,
+    compte de service), messages distincts ; un objet d'un autre type que la déclaration
+    donne `prop.assignment.invalid_value`, comme un UUID du mauvais type (même contrôle
+    `RefType`). Violations du planifié (422), non des `RequestError` (400) comme les
+    `Ref` des opérations : la déclaration visée n'est connue qu'en base, et le shell
+    lit les violations par opération. Un nom défini après son usage est refusé, comme
+    pour les `Ref` (« plus tôt », REQ-004-4) ; seul l'import réordonne. Le schéma
+    `web/sdk` (ancien shell), en retard depuis la 11a, est régénéré en entier.
 
 ## P2 — Écrans du nouveau shell (phase 4)
 

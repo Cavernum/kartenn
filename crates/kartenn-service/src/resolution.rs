@@ -19,25 +19,32 @@ use crate::operations::{ObjectKind, Operation, Ref};
 use crate::pipeline::Planned;
 use crate::port::{Change, DiffCount, StoreError, WriteError, WriteTx};
 
-/// Plans an assignment operation; nothing to check without the database.
-pub(crate) fn plan(op: &Operation, resolve: impl Fn(Ref) -> Uuid) -> Planned {
-    match op {
+/// Plans an assignment operation, a local reference of a value replaced by the identifier
+/// of its object, which `local` gives or refuses (021/A13); the rest needs the database.
+pub(crate) fn plan(
+    op: &Operation,
+    resolve: impl Fn(Ref) -> Uuid,
+    local: impl Fn(u32) -> Result<Uuid, Violation>,
+) -> Result<Planned, Violation> {
+    Ok(match op {
         Operation::AssignProperty {
             object,
             kind,
             property,
             values,
-        } => Planned::Assign {
-            object: resolve(*object),
-            kind: *kind,
-            property: resolve(*property),
-            values: Some(
-                values
-                    .iter()
-                    .map(crate::operations::RawInput::to_raw)
-                    .collect(),
-            ),
-        },
+        } => {
+            let mut raws = Vec::with_capacity(values.len());
+            for value in values {
+                let id = value.local().map(&local).transpose()?;
+                raws.extend(value.to_raw(|_| id));
+            }
+            Planned::Assign {
+                object: resolve(*object),
+                kind: *kind,
+                property: resolve(*property),
+                values: Some(raws),
+            }
+        }
         Operation::ClearProperty {
             object,
             kind,
@@ -58,7 +65,7 @@ pub(crate) fn plan(op: &Operation, resolve: impl Fn(Ref) -> Uuid) -> Planned {
             property: resolve(*property),
         },
         other => unreachable!("not an assignment operation: {other:?}"),
-    }
+    })
 }
 
 /// Facts a value type needs, read beforehand from storage.

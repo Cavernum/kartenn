@@ -146,7 +146,10 @@ flowchart TD
   référence locale (`$1`, `$2`…) résolue en UUID v7 généré à l'application. Une valeur
   de propriété de type référence peut aussi être une référence locale (`{"local": n}`
   au contrat), résolue de même ; elle compte dans le tri topologique des créations
-  (*amendé par la 021*, A13).
+  (*amendé par la 021*, A13). Elle désigne l'objet qu'une opération antérieure crée :
+  un nom qu'aucune ne définit avant, ou celui d'une opération qui ne crée pas d'objet
+  (liaison, appartenance, compte), donne `prop.assignment.unknown_local` (422) ; un objet
+  d'un autre type que la déclaration, `prop.assignment.invalid_value`, comme un UUID.
 - **Concurrence optimiste** (REQ-004-11) : une opération peut porter
   `expected` (dernier changeset ayant modifié l'objet, exposé comme ETag par
   la 006) ; différence → conflit.

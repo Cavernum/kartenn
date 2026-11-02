@@ -221,13 +221,22 @@ pub enum RawInput {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         label: Option<String>,
     },
+    /// Reference to the object an earlier operation of the same changeset creates under
+    /// this local name, `{"local": n}` as a [`Ref`] (REQ-004-4; 021/A13): resolved to its
+    /// identifier when the changeset is planned.
+    Local {
+        /// Local name.
+        local: u32,
+    },
 }
 
 impl RawInput {
-    /// The raw scalar the value types parse.
+    /// The raw scalar the value types parse, a local reference replaced by the identifier
+    /// `local` gives its name, as the text of a reference; `None` for a local reference
+    /// `local` does not know.
     #[must_use]
-    pub fn to_raw(&self) -> Raw {
-        match self {
+    pub fn to_raw(&self, local: impl FnOnce(u32) -> Option<Uuid>) -> Option<Raw> {
+        Some(match self {
             Self::Bool(b) => Raw::Bool(*b),
             Self::Int(i) => Raw::Int(*i),
             Self::Text(t) => Raw::Text(t.clone()),
@@ -236,6 +245,16 @@ impl RawInput {
                 id: id.clone(),
                 label: label.clone(),
             },
+            Self::Local { local: name } => Raw::Text(local(*name)?.to_string()),
+        })
+    }
+
+    /// The local name this value designates, if it is a local reference.
+    #[must_use]
+    pub const fn local(&self) -> Option<u32> {
+        match self {
+            Self::Local { local } => Some(*local),
+            _ => None,
         }
     }
 }
@@ -959,6 +978,34 @@ impl Operation {
             Self::Within { period, operation } => operation.own_period().or(Some(*period)),
             _ => None,
         }
+    }
+
+    /// The kind of the object an operation of the core creates; `None` for the others (a
+    /// binding, a membership, an account create no object), a module operation included,
+    /// whose kind its module declares.
+    #[must_use]
+    pub fn created_kind(&self) -> Option<ObjectKind> {
+        Some(match self.inner() {
+            Self::CreateDomain { .. } => ObjectKind::Domain,
+            Self::CreatePrefix { .. } => ObjectKind::Prefix,
+            Self::CreateRange { .. } => ObjectKind::Range,
+            Self::CreateAddress { .. } => ObjectKind::Address,
+            Self::CreateEntity { .. } => ObjectKind::Entity,
+            Self::CreateSite { .. } => ObjectKind::Site,
+            Self::DeclareProperty { .. } => ObjectKind::Property,
+            Self::AddEnumValue { .. } => ObjectKind::EnumValue,
+            _ => return None,
+        })
+    }
+
+    /// The local names of the values of an assignment that are local references
+    /// (021/A13).
+    pub fn value_locals(&self) -> impl Iterator<Item = u32> + '_ {
+        let values = match self.inner() {
+            Self::AssignProperty { values, .. } => values.as_slice(),
+            _ => &[],
+        };
+        values.iter().filter_map(RawInput::local)
     }
 
     /// Local name this operation defines, if any.

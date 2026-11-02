@@ -218,8 +218,10 @@ fn created(planned: &[Planned]) -> Vec<(Uuid, ObjectKind)> {
         .collect()
 }
 
-fn raws(values: &[RawInput]) -> Vec<Raw> {
-    values.iter().map(RawInput::to_raw).collect()
+/// The raw values of a suggestion; `None` for one holding a local reference, which no
+/// changeset defines here.
+fn raws(values: &[RawInput]) -> Option<Vec<Raw>> {
+    values.iter().map(|v| v.to_raw(|_| None)).collect()
 }
 
 /// The provenance of a default value: `source:<id>@<revision>`, and `#<detail>` when the
@@ -339,7 +341,10 @@ pub(crate) async fn defaults<T: WriteTx>(
             let (Some(suggestion), Some(kind)) = (answer.single(), kind) else {
                 continue;
             };
-            let values = raws(&suggestion.values);
+            // A source proposing a local reference expects nothing usable.
+            let Some(values) = raws(&suggestion.values) else {
+                continue;
+            };
             crate::resolution::assign(
                 tx,
                 view.id,
@@ -436,12 +441,15 @@ pub(crate) async fn check<T: WriteTx>(
             let Some(suggestion) = answer.single() else {
                 continue;
             };
+            let Some(values) = raws(&suggestion.values) else {
+                continue;
+            };
             let expected = match crate::resolution::parse(
                 tx,
                 declaration,
                 *property,
                 view.id,
-                &raws(&suggestion.values),
+                &values,
                 period,
             )
             .await

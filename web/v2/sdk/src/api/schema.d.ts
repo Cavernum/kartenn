@@ -7865,7 +7865,8 @@ export interface components {
     RangeUsage: "dhcp" | "reserved" | "static";
     /**
      * @description One raw value of an assignment: text (closed-list key, text, host name, date,
-     *     reference), integer or boolean (REQ-003-8).
+     *     reference), integer or boolean (REQ-003-8); for a reference, also the local name of
+     *     an object an earlier operation of the changeset creates (021/A13).
      */
     RawValue:
       | boolean
@@ -7875,6 +7876,10 @@ export interface components {
           id: string;
           label?: string | null;
           system: string;
+        }
+      | {
+          /** Format: int32 */
+          local: number;
         };
     /**
      * @description An object of the changeset: an existing UUID, or the local name of an object created by

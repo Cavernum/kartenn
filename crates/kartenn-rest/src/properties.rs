@@ -655,6 +655,7 @@ fn raw_value(input: &RawInput) -> Value {
         RawInput::External { system, id, label } => {
             json!({ "system": system, "id": id, "label": label })
         }
+        RawInput::Local { local } => json!({ "local": local }),
     }
 }
 

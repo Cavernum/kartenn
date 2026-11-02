@@ -1,6 +1,6 @@
 //! The changeset pipeline (004/design, § Pipeline d'un changeset).
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use kartenn_core::addr::{Addr, AddrError, Prefix};
@@ -901,6 +901,37 @@ async fn prepare<'r, T: WriteTx>(
     Ok(std::borrow::Cow::Owned(prepared))
 }
 
+/// Whether `op`, which defines a local name, creates an object: one of the core, or of the
+/// kind its module declares (021/A13); a binding, a membership or an account names none.
+fn creates_object(op: &Operation, modules: &ModuleRegistry) -> bool {
+    match op.inner() {
+        Operation::Module(m) => modules
+            .operation_type(&m.module, &m.name)
+            .is_some_and(|o| o.defines.is_some()),
+        other => other.created_kind().is_some(),
+    }
+}
+
+/// The object a local reference of a value designates (REQ-004-4; 021/A13): one an earlier
+/// operation of the changeset creates; any other name is refused.
+fn local_value(
+    local: u32,
+    ids: &HashMap<u32, Uuid>,
+    objects: &HashSet<u32>,
+) -> Result<Uuid, Violation> {
+    match ids.get(&local) {
+        Some(id) if objects.contains(&local) => Ok(*id),
+        Some(_) => Err(Violation::new(
+            &rules::PROP_UNKNOWN_LOCAL,
+            format!("${local} names no object: the operation that defines it creates none"),
+        )),
+        None => Err(Violation::new(
+            &rules::PROP_UNKNOWN_LOCAL,
+            format!("${local} is defined by no earlier operation of the changeset"),
+        )),
+    }
+}
+
 /// Parses every operation and runs the local rules (no database): the planned writes, the
 /// index of the operation each comes from, the own period of a core operation a module
 /// operation adds (its `Within`, `None` otherwise), and the violations found, each ascribed
@@ -918,6 +949,8 @@ fn plan(
     Vec<Violation>,
 ) {
     let mut ids: HashMap<u32, Uuid> = HashMap::new();
+    // The local names of the objects created so far, which a value may designate.
+    let mut objects: HashSet<u32> = HashSet::new();
     let resolve = |r: Ref, ids: &HashMap<u32, Uuid>| match r {
         Ref::Id(id) => id,
         Ref::Local(n) => ids[&n],
@@ -941,6 +974,9 @@ fn plan(
             let id = Uuid::now_v7();
             if let Some(local) = owned.defines() {
                 ids.insert(local, id);
+                if creates_object(&owned, modules) {
+                    objects.insert(local);
+                }
             }
             let op = owned.inner();
             // REQ-016-7: a policy names the measures of the modules of the build only.
@@ -1086,7 +1122,11 @@ fn plan(
                 Operation::AssignProperty { .. }
                 | Operation::ClearProperty { .. }
                 | Operation::UnassignProperty { .. } => {
-                    planned.push(crate::resolution::plan(op, |r| resolve(r, &ids)));
+                    let local = |n| local_value(n, &ids, &objects);
+                    match crate::resolution::plan(op, |r| resolve(r, &ids), local) {
+                        Ok(p) => planned.push(p),
+                        Err(v) => violations.push(v),
+                    }
                 }
             }
             derived.resize(planned.len(), own);

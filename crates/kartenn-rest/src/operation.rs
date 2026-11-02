@@ -319,7 +319,8 @@ impl From<DeclarationDto> for DeclarationInput {
 }
 
 /// One raw value of an assignment: text (closed-list key, text, host name, date,
-/// reference), integer or boolean (REQ-003-8).
+/// reference), integer or boolean (REQ-003-8); for a reference, also the local name of
+/// an object an earlier operation of the changeset creates (021/A13).
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 #[serde(untagged)]
 #[schema(as = RawValue)]
@@ -335,6 +336,11 @@ pub(crate) enum RawDto {
         #[serde(default)]
         label: Option<String>,
     },
+    /// A reference to the object an earlier operation of the same changeset creates under
+    /// this local name, as a `Ref` names it (`prop.assignment.unknown_local` otherwise).
+    Local {
+        local: u32,
+    },
 }
 
 impl From<RawDto> for RawInput {
@@ -344,6 +350,7 @@ impl From<RawDto> for RawInput {
             RawDto::Int(i) => Self::Int(i),
             RawDto::Text(t) => Self::Text(t),
             RawDto::External { system, id, label } => Self::External { system, id, label },
+            RawDto::Local { local } => Self::Local { local },
         }
     }
 }
