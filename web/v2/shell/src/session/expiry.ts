@@ -1,31 +1,33 @@
 // The end of the session, said before it comes (REQ-021-14; 022/A6, Q-022-11): `GET
-// /v1/me` gives the instant the session ends unless seen again (`session.expires_at`);
-// every request of the shell to the API sees it again, the event stream and the pages of
-// events do not (they are no activity, 022). The shell keeps the last activity of the
-// browser (all its tabs share the session: `localStorage`), and warns `WARN_BEFORE_MS`
-// before the end it then expects, with a way to stay (WCAG 2.2.1). The end is the server's
+// /v1/me` gives the instant the session ends unless seen again (`session.expires_at`, the
+// nearer of its idle end and its absolute one) and the end of its lifetime alone
+// (`session.absolute_expires_at`, the same over the whole session; 021/A14). The shell
+// keeps the last activity of the browser (all its tabs share the session:
+// `localStorage`), and warns `WARN_BEFORE_MS` before the end it then expects: the idle
+// end, with a way to stay (WCAG 2.2.1), or the absolute one once the idle end would come
+// after it, without that way, which would not push it back. The end is the server's
 // instant, read on its clock (the `Date` of its answers): a browser's clock off by minutes
-// is no early nor late warning. A session whose end did not move when seen again ends at a
-// fixed instant (its absolute lifetime): said, without the way to stay.
+// is no early nor late warning.
 //
 // Activity is the user's (decision of the main session, 2026-11-01, during task 11): a read
 // born of a gesture — a navigation, a key, the pointer, the wheel (a grid scrolled), within
 // `GESTURE_WINDOW_MS` before the request — is activity; a read nobody asked for (an
-// invalidation by an event of the stream, a revalidation on focus, the plugins loaded when
-// idle) is not, so that a screen that reads in the background does not keep the warning
-// away. The server still counts every request but the stream (`seen`, to arbitrate:
-// task 16).
-//
-// Limit (task 16, to arbitrate): `expires_at` is the nearer of the idle end and the
-// absolute one, and every request pushes the idle end; the absolute end of a user who
-// stays active is only known when it becomes the nearer one at a reading. Probing would
-// cancel the idle lifetime; knowing it needs the absolute end in `SessionState`.
+// invalidation by an event of the stream, a revalidation on focus or on reconnection, a
+// prefetch on hover, a poll, the plugins loaded when idle) is not, so that a screen that
+// reads in the background does not keep the session alive. The server is told so by
+// `Kartenn-Background: ?1` (021/A14, RFC 9651 §3.3.6), set by the `fetch` of the SDK's
+// client (`activityFetch`) on exactly the reads this rule says are no gesture: the server
+// then neither pushes the idle end nor reissues the cookie, and both ends agree. The event
+// stream (`EventSource`) cannot carry a header: the server already counts it as no
+// activity, like the pages of events (022/A6).
 import { ApiProblem } from "@kartenn/sdk";
 
 /** How long before the expected end the warning comes. */
 export const WARN_BEFORE_MS = 2 * 60_000;
-/** Two readings of the same end this far apart say a fixed end. */
-export const FIXED_AFTER_MS = 2_000;
+/** The header that says a request of the background, no activity (021/A14). */
+export const BACKGROUND_HEADER = "Kartenn-Background";
+/** The methods of a read: the others (writes) are the user's, whenever they leave. */
+const READS = new Set(["GET", "HEAD", "QUERY"]);
 /** The last activity of the browser on the API (Unix milliseconds), shared by its tabs. */
 export const ACTIVITY_KEY = "kartenn.session.activity";
 
@@ -80,15 +82,29 @@ export function serverSkew(): number {
  * the server pushes the end from when it sees the request, never before it left. An answer
  * that comes late (a slow server, a device suspended, a clock moved on meanwhile) must not
  * push the expected end past the server's, which would say the warning too late, or never.
+ *
+ * A read of the API that no gesture came just before leaves with `Kartenn-Background: ?1`
+ * and is no activity; one that a gesture came before, and every write, leave without it and
+ * are. A read asked once and read again later (a revalidation, an event) is judged again at
+ * each request: the header follows the gesture, not the query.
  */
 export function activityFetch(inner: typeof fetch = globalThis.fetch): typeof fetch {
   return async (input, init) => {
     const sent = Date.now();
-    // Asked by the user if a gesture came just before the request left.
-    const asked = sent - lastGesture <= GESTURE_WINDOW_MS;
-    const response = await inner(input, init);
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-    if (!isActivity(url)) return response;
+    if (!isActivity(url)) return inner(input, init);
+    const method = (
+      init?.method ?? (input instanceof Request ? input.method : "GET")
+    ).toUpperCase();
+    // Asked by the user if a gesture came just before the request left; a write always is.
+    const asked = !READS.has(method) || sent - lastGesture <= GESTURE_WINDOW_MS;
+    let response: Response;
+    if (asked) response = await inner(input, init);
+    else {
+      const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : {}));
+      headers.set(BACKGROUND_HEADER, "?1");
+      response = await inner(input, { ...init, headers });
+    }
     noteServerClock(response);
     if (asked && response.status !== 401) markActivity(sent);
     return response;
@@ -126,7 +142,7 @@ export function noteServerClock(response: Response): void {
 
 /** What a reading of the end says: the end, a session gone (401), or no answer. */
 export type EndReading =
-  | { kind: "end"; expiresAt: string | null }
+  | { kind: "end"; expiresAt: string | null; absoluteAt: string | null }
   | { kind: "expired" }
   /** The problem of the answer (its type and `Request-Id`), `null` without an answer. */
   | { kind: "failed"; problem: ApiProblem | null };
@@ -144,10 +160,14 @@ export async function readEnd(fetcher: typeof fetch = (i, o) => fetch(i, o)): Pr
   if (response.status === 401) return { kind: "expired" };
   if (!response.ok) return { kind: "failed", problem: await ApiProblem.from(response) };
   const me = (await response.json().catch(() => null)) as {
-    session?: { expires_at?: string | null } | null;
+    session?: { expires_at?: string | null; absolute_expires_at?: string | null } | null;
   } | null;
   if (!me) return { kind: "failed", problem: null };
-  return { kind: "end", expiresAt: me.session?.expires_at ?? null };
+  return {
+    kind: "end",
+    expiresAt: me.session?.expires_at ?? null,
+    absoluteAt: me.session?.absolute_expires_at ?? null,
+  };
 }
 
 /**
@@ -184,8 +204,11 @@ export interface ExpiryView {
 }
 
 export interface Expiry {
-  /** A new reading of `session.expires_at` (`null`: none, nothing to say). */
-  read(expiresAt: string | null | undefined): void;
+  /**
+   * A new reading of `session.expires_at` (`null`: none, nothing to say) and of
+   * `session.absolute_expires_at` (`null`: none, the idle end alone).
+   */
+  read(expiresAt: string | null | undefined, absoluteAt?: string | null): void;
   stop(): void;
 }
 
@@ -198,39 +221,49 @@ export interface ExpiryDeps {
 }
 
 /**
- * The watch of the end of the session: from each reading of `expires_at`, the length of its
- * idle window; the expected end follows the last activity (this tab's or another's); the
- * warning comes `WARN_BEFORE_MS` before it and goes with the next activity.
+ * The watch of the end of the session: each reading gives the end as the server then knew
+ * it, and a bound of its idle window (the end minus the instant of the reading); the
+ * expected end follows the activity since (this tab's or another's), up to the absolute
+ * end; the warning comes `WARN_BEFORE_MS` before it and goes with the next activity, unless
+ * the end is the absolute one, which no activity pushes back.
  */
 export function createExpiry(view: ExpiryView, deps: ExpiryDeps = {}): Expiry {
   const now = deps.now ?? Date.now;
   const skewOf = deps.skew ?? serverSkew;
-  /** The skew of the server's clock at the last reading. */
-  let offset = 0;
   const setTimer = deps.setTimer ?? ((run, ms) => setTimeout(run, ms));
   const clearTimer =
     deps.clearTimer ?? ((timer) => clearTimeout(timer as ReturnType<typeof setTimeout>));
-  /** The idle window of the session, in milliseconds; `null` without a session end. */
-  let idle: number | null = null;
-  let seen = 0;
+  /**
+   * The idle window of the session, in milliseconds: the longest seen between a reading and
+   * its end, never longer than the true one (a reading of the background, or one whose end
+   * is the absolute one, gives a shorter one: a warning early, never late).
+   */
+  let idle = 0;
+  /** The end at the last reading, on the browser's clock; `null` without a session end. */
   let lastEnd: number | null = null;
-  let lastRead = 0;
-  let extendable = true;
+  /** The absolute end, on the browser's clock; `null` if the session gives none. */
+  let absolute: number | null = null;
+  /** The last activity of this tab (the browser's storage may refuse to keep it). */
+  let seen = 0;
   let timer: unknown = null;
   /** The warning said, by the minute of its end and its way; `null` if none. */
   let warned: string | null = null;
 
-  /** The end expected now: the last activity plus the window, or the fixed end. */
+  /** The end expected now, and whether an activity would push it back. */
   const end = () => {
-    if (idle === null || lastEnd === null) return null;
-    return extendable ? Math.max(seen, lastActivity() ?? 0) + idle : lastEnd - offset;
+    if (lastEnd === null) return null;
+    const idleEnd = Math.max(lastEnd, Math.max(seen, lastActivity() ?? 0) + idle);
+    return absolute !== null && absolute <= idleEnd
+      ? { at: absolute, extendable: false }
+      : { at: idleEnd, extendable: true };
   };
 
   function schedule(): void {
     if (timer !== null) clearTimer(timer);
     timer = null;
-    const at = end();
-    if (at === null) return;
+    const expected = end();
+    if (expected === null) return;
+    const { at, extendable } = expected;
     const wait = at - WARN_BEFORE_MS - now();
     if (wait > 0) {
       if (warned) view.clear();
@@ -260,27 +293,24 @@ export function createExpiry(view: ExpiryView, deps: ExpiryDeps = {}): Expiry {
   globalThis.addEventListener?.("storage", onStorage);
 
   return {
-    read(expiresAt) {
+    read(expiresAt, absoluteAt) {
       const at = expiresAt ? Date.parse(expiresAt) : Number.NaN;
       if (Number.isNaN(at)) {
-        idle = null;
         lastEnd = null;
+        absolute = null;
+        idle = 0;
         if (timer !== null) clearTimer(timer);
         timer = null;
         if (warned) view.clear();
         warned = null;
         return;
       }
-      // Seen again a while later (the server counts in seconds), an end that did not move
-      // is a fixed one (the absolute lifetime): no way to push it back.
-      const read = now();
-      extendable = lastEnd === null || at > lastEnd || read - lastRead < FIXED_AFTER_MS;
-      lastEnd = at;
-      lastRead = read;
-      seen = read;
-      // `at` is the server's instant: read on its clock, then kept on the browser's.
-      offset = skewOf();
-      idle = Math.max(0, at - offset - seen);
+      // The server's instants: read on its clock, then kept on the browser's.
+      const offset = skewOf();
+      const fixed = absoluteAt ? Date.parse(absoluteAt) : Number.NaN;
+      lastEnd = at - offset;
+      absolute = Number.isNaN(fixed) ? null : fixed - offset;
+      idle = Math.max(idle, lastEnd - now());
       schedule();
     },
     stop() {

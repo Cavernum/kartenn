@@ -1741,11 +1741,10 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     acteurs limités aux premières pages des identités (dix pages, liste et suggestions),
     son nom perdu au rechargement (puce en UUID), un acteur au-delà montré par son
     identifiant ; le répertoire `kartenn-exports/` vidé au début d'un export peut couper
-    celui d'un autre onglet en cours ; filtres de période et d'objet sans parcours ; la relecture de l'import chaque seconde ne porte pas encore
-    `Kartenn-Background` (16b) ; « Exporter » sans icône (aucune icône de téléchargement
+    celui d'un autre onglet en cours ; filtres de période et d'objet sans parcours ; « Exporter » sans icône (aucune icône de téléchargement
     dans la liste fermée de `@kartenn/ui`) ; le fichier d'OPFS d'un très gros export est
     effacé une minute après sa remise au navigateur, qui pourrait ne pas l'avoir copié.
-- [ ] 16b. Fin de session annoncée et requêtes de fond : avis deux minutes avant
+- [x] 16b. Fin de session annoncée et requêtes de fond : avis deux minutes avant
   `absolute_expires_at` (sans « Rester connecté », qui ne la repousse pas) ; en-tête
   `Kartenn-Background: ?1` posé par le SDK sur les relectures sans geste (événements,
   revalidation au focus et à la reconnexion, préchargement) — REQ-021-14 — verify :
@@ -1754,6 +1753,35 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `activityFetch` et `installGestures` du SDK (`web/v2/sdk/src/`) ; parcours
     `web/v2/e2e/journeys/session.spec.ts`
   - dépend de : 16a, 16c
+  - fait le 2026-11-02 : `activityFetch` (`shell/src/session/expiry.ts`, branché sur le
+    client du SDK par `setFetch`, donc aussi pour les plugins) pose
+    `Kartenn-Background: ?1` sur toute lecture de l'API (GET, HEAD, QUERY) qu'aucun geste
+    ne précède de `GESTURE_WINDOW_MS`, et sur elle seule : exactement les requêtes qu'il
+    ne compte pas comme activité ; jugé à chaque requête (une lecture née d'un geste,
+    relue en fond, le porte à sa relecture). Le flux d'événements (`EventSource`) ne peut
+    poser d'en-tête : le serveur le traite déjà en `NotActivity` (022/A6), comme les pages
+    d'événements. `createExpiry.read(expiresAt, absoluteAt)` : fin attendue
+    `min(absolue, max(fin lue, dernière activité + fenêtre))`, la fenêtre étant la plus
+    longue vue entre une lecture et sa fin (une lecture de fond la sous-estime : avis tôt,
+    jamais tard) ; l'heuristique « fin qui n'a pas bougé » (`FIXED_AFTER_MS`) retirée.
+    Avis de fin absolue : titre `session.endingAbsolute`, sans « Rester connecté ». La
+    relecture de l'import chaque seconde (15c) le porte désormais. Tests : Vitest
+    `session.test.ts` (en-tête absent après chaque geste, présent hors geste, lecture née
+    d'un geste puis relue en fond, écritures et hors API jamais ; avis de fin absolue à
+    l'heure malgré l'activité ; passage de l'avis d'inactivité à celui de fin absolue
+    après « Rester connecté ») ; parcours `session` (revalidation au focus marquée,
+    navigation cliquée non marquée ; fin absolue dite sans « Rester connecté », `/v1/me`
+    réécrit par `page.route`, la durée absolue minimale d'une heure étant trop longue).
+  - choix : en-tête posé dans `activityFetch` du shell plutôt que déplacé dans le SDK
+    (c'est le `fetch` du client du SDK, plugins compris) ; écritures jamais marquées et
+    toujours comptées comme activité côté client (accord avec le serveur, qui les compte) ;
+    l'avis de fin absolue garde `endingFixed`, réécrit (« ne peut pas être prolongée »).
+  - reste : relecture a11y — l'avis de fin absolue n'offre pas d'action « Se
+    reconnecter » (le texte invite à terminer la saisie d'abord) ; un avis `warn` passe
+    par la région polie (`role="status"`) et pourrait être lu tard par un lecteur d'écran,
+    et sa perception sous une modale ouverte n'est pas vérifiée (`@kartenn/ui`, hors
+    périmètre) ; la revalidation sur reconnexion et le préchargement au survol ne sont
+    couverts qu'en Vitest (même règle), pas en parcours.
 - [ ] 17b. « Créer un VLAN pour ce réseau » (maquette E12) : création du VLAN et pose de
   `core.vlan` par une référence locale, au brouillon ou en Ctrl+Entrée ; poser un VLAN
   existant depuis l'onglet du réseau — REQ-026-6 — verify : parcours `vlan` (création
