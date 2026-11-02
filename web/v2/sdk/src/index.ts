@@ -95,6 +95,7 @@ export type {
 } from "./data/write.ts";
 export { SIMULATION_WAIT } from "./data/drafts.ts";
 export type {
+  Additions,
   Draft,
   DraftChange,
   DraftCreation,
