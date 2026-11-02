@@ -171,8 +171,28 @@ async fn acceptance_of_req_010_2(pool: PgPool) {
         .await;
     assert!(matches!(cited, Outcome::Refused { .. }), "{cited:?}");
 
-    env.applied(vec![op("environment.close", json!({ "key": "spare" }))])
+    // Under `expected`, the version of the environment (task 021-11e): another one is
+    // the conflict of the core, its own closes it.
+    let stale = env
+        .submit(vec![op(
+            "environment.close",
+            json!({ "key": "spare", "expected": "00000000-0000-7000-8000-000000000000" }),
+        )])
         .await;
+    assert_eq!(rules(&stale), ["changeset.operation.conflict"]);
+    let version: Uuid = sqlx::query_scalar(
+        "SELECT o.changeset_id FROM object_version o
+           JOIN policy.policy_value v ON v.id = o.object_id
+          WHERE v.value_key = 'spare' AND v.valid_period @> now()",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    env.applied(vec![op(
+        "environment.close",
+        json!({ "key": "spare", "expected": version }),
+    )])
+    .await;
     let living: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM policy.policy_value
           WHERE value_key = 'spare' AND valid_period @> now()",

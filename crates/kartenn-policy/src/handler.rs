@@ -9,7 +9,7 @@ use std::sync::OnceLock;
 
 use kartenn_core::period::Period;
 use kartenn_core::properties::PropertyKey;
-use kartenn_core::rules::{Rule, Violation};
+use kartenn_core::rules::{CHANGESET_CONFLICT, Rule, Violation};
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{
     BoxFuture, CheckContext, DiffContext, DiffSection, Findings, ModuleHandler, ModuleObjectRow,
@@ -186,11 +186,15 @@ struct CreateEnvironment {
 }
 
 /// `policy.environment.close`: the value of `policy.environment`, closed with its
-/// attributes; refused while a node or a rule cites it (REQ-010-2).
+/// attributes; refused while a node or a rule cites it (REQ-010-2). Under `expected`, the
+/// version of the environment as the caller saw it, as the operations of the core carry it
+/// (REQ-004-11): a write validated since refuses the closure (task 021-11e).
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CloseEnvironment {
     key: String,
+    #[serde(default)]
+    expected: Option<Uuid>,
     #[serde(default)]
     completed: ValueCompleted,
 }
@@ -386,12 +390,11 @@ impl Handler {
         // The value is closed by the core, its attributes with it (reference with
         // cascade); a node or a rule that cites it refuses the closure (REQ-010-2).
         let object = close.completed.existing.unwrap_or(value);
-        let mut planned = plan(
-            VALUE,
-            object,
-            false,
-            json!({ "noop": true, "environment": true }),
-        );
+        let mut data = json!({ "noop": true, "environment": true });
+        if let Some(expected) = close.expected {
+            data["expected"] = json!(expected);
+        }
+        let mut planned = plan(VALUE, object, false, data);
         planned.core.push(Operation::Close {
             kind: ObjectKind::EnumValue,
             id: Ref::Id(value),
@@ -505,6 +508,36 @@ impl Handler {
         Ok(())
     }
 
+    /// Under `expected` (`policy.environment.close`, task 021-11e): the version of the
+    /// environment, read under the lock of its row as the core reads that of an `expect`
+    /// (REQ-004-11), is the one the caller saw; a write validated since refuses the
+    /// closure with the conflict of the core, which a route under `If-Match` answers 412.
+    async fn check_expected(
+        conn: &mut PgConnection,
+        planned: &ModulePlan,
+    ) -> Result<(), WriteError> {
+        let Some(expected) = planned
+            .data
+            .get("expected")
+            .and_then(|v| serde_json::from_value::<Uuid>(v.clone()).ok())
+        else {
+            return Ok(());
+        };
+        let id = planned.object;
+        let current = pg::version(conn, id).await?;
+        if current == Some(expected) {
+            return Ok(());
+        }
+        let current = current.map_or_else(|| "none".to_owned(), |c| c.to_string());
+        Err(WriteError::Rule(
+            Violation::new(
+                &CHANGESET_CONFLICT,
+                format!("{id} was modified since changeset {expected}: current version {current}"),
+            )
+            .with_subjects([id]),
+        ))
+    }
+
     /// Writes a planned operation, then its record in `module_object`, and raises the
     /// revision of the policy.
     async fn write(
@@ -523,8 +556,9 @@ impl Handler {
         } else if let Some(patch) = planned.data.get("update") {
             (patch, false)
         } else {
-            // `environment.close`: the core closes the value and its attributes.
-            return Ok(());
+            // `environment.close`: the core closes the value and its attributes, once
+            // the version `expected` names is checked.
+            return Self::check_expected(connection(tx)?, planned).await;
         };
         // The unique columns it writes, checked before the write: a violated exclusion
         // would abort the whole transaction.
