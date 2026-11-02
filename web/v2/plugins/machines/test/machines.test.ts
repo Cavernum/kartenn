@@ -675,8 +675,12 @@ describe("the machines plugin", () => {
       await shadowText(element, "Move to grappe waiting for the server");
       const submit = hostSelect(element).closest("form")!.querySelector("button[type=submit]")!;
       expect(submit.getAttribute("aria-busy")).toBe("true");
-      // A second intent in flight: ignored.
+      // A second intent in flight: ignored, the list back on the host sent, its wait still said.
       choose(element, `machine:${OTHER}`);
+      expect(hostSelect(element).value).toBe(`cluster:${CLUSTER}`);
+      expect(element.shadowRoot!.querySelector("p[role=status]")?.textContent).toBe(
+        "Move to grappe waiting for the server; the host shown stays until it answers.",
+      );
       // Never optimistic: the host read stays (none).
       const host = [...element.shadowRoot!.querySelectorAll("dt")].find(
         (dt) => dt.textContent === "Hosted by",

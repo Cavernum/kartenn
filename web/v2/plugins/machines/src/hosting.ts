@@ -6,8 +6,9 @@
 // « Déplacements dans les arbres »): the counterpart, without framework, of a drop in the tree
 // of the hosting, which the `TreeGrid` of @kartenn/ui (a component of Vue) cannot draw here.
 // Each host offered is checked by `canMove` of the SDK — a cycle, a type the contract does not
-// admit, a right, the present —, refused ones shown disabled with their reason and the code of
-// the rule of the server. The move goes to the active draft by `draft.move`, which simulates
+// admit, a right, the present —, refused ones kept in the list, active and reachable at the
+// keyboard, their reason and the code of the rule of the server in their name, refused again
+// on the field if sent. The move goes to the active draft by `draft.move`, which simulates
 // it: never optimistic, the host shown stays the one read, « en attente » until the answer;
 // the server stays the only judge (its rules on the kinds of the pair, the site of the host).
 
@@ -91,6 +92,8 @@ export class HostMove {
   private readonly alerts: HTMLDivElement;
   private machine: MachineCard | undefined;
   private filled = "";
+  /** The value of the host whose move is in flight, `null` if none. */
+  private sent: string | null = null;
   /** Whether the list has the focus: not drawn again under it. */
   private focused = false;
 
@@ -124,7 +127,12 @@ export class HostMove {
       void this.move();
     });
     // What the last move said, gone once another host is chosen.
-    this.field.control.addEventListener("change", () => this.clear());
+    // While a move is in flight, the list shows the host sent and its wait stays said: the
+    // choice comes back to it (a second intent is ignored, never shown as sent).
+    this.field.control.addEventListener("change", () => {
+      if (this.sent !== null) this.field.control.value = this.sent;
+      else this.clear();
+    });
     // The list is not drawn again under the focus: once it leaves, with what came meanwhile.
     this.field.control.addEventListener("focus", () => (this.focused = true));
     this.field.control.addEventListener("blur", () => {
@@ -307,6 +315,7 @@ export class HostMove {
     }
     this.submit.setAttribute("aria-busy", "true");
     this.submit.setAttribute("aria-disabled", "true");
+    this.sent = value;
     // The host shown stays the one read until its read shows another (X33).
     this.said.textContent = t("move.pending", { host: host.label });
     const op = {
@@ -320,6 +329,7 @@ export class HostMove {
       this.said.textContent = "";
       this.alerts.replaceChildren(failure(t("move.failed", { host: host.label }), error));
     } finally {
+      this.sent = null;
       this.submit.removeAttribute("aria-busy");
       this.refuseWithout();
     }

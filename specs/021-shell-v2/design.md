@@ -585,7 +585,11 @@ export { QueryObserver, InfiniteQueryObserver };      // @tanstack/query-core, m
 // même nœud), simule le brouillon et rend le verdict de sa propre opération (`valid` avec
 // ses avertissements, `refused` avec sa règle, `unknown`) — le même que `useMoves` du shell.
 export function canMove(node: MoveSubject, target: MoveSubject | null, env: MoveEnv): MoveVerdict;
-export const draft: { add(op: Operation): Promise<DraftOutcome>; move(op: Operation, node: MoveSubject): Promise<DraftMove> };
+export const draft: {
+  active(): string | null;
+  add(op: Operation): Promise<DraftOutcome<readonly Operation[]>>;  // saved, sinon Refusal
+  move(op: Operation, node: MoveSubject): Promise<DraftMove>;
+};
 // handle.styles(root, path) : un fichier du plugin, ou la feuille partagée du shell
 // nommée par son spécifieur (`@kartenn/ui/style.css`), dans l'ordre des appels.
 ```

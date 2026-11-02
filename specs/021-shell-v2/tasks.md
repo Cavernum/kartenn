@@ -888,9 +888,11 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   les deux bouts, présent, codes des règles serveur) ; déplacement → brouillon ou
   changeset, sans optimisme ; test de propriété de bout en bout — REQ-021-17, 32, 33,
   34 — verify : Vitest de `canMove` (chaque refus, ordre) ; parcours : aucun moyen de
-  déplacer un préfixe ; cluster sur sa propre machine refusé ; machine vers un cluster
-  d'un autre site acceptée par le client puis refusée par le serveur
-  (`machines.host.site_mismatch`) sans que le nœud quitte sa place ; réponse ralentie →
+  déplacer un préfixe ; cluster sur sa propre machine refusé ; machine vers un hôte
+  d'un autre site acceptée par le client : avertissement du serveur montré
+  (`machines.host.site_mismatch`), déplacement au brouillon, le nœud à sa place
+  (amendé le 2026-11-02, arbitrage de la 18b : la règle reste un avertissement, 009
+  M11) ; réponse ralentie →
   nœud « en attente » à sa place ; test de propriété (graine fixée, 200 étapes de
   déplacements et de modifications de valeurs de préfixes et de plages, acceptées ou
   refusées) : chaque ligne contenue par sa ligne parente et parent égal à celui de l'API
@@ -982,9 +984,9 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     voisins) ; sous Firefox, corps vide des modules préchargés pendant un `page.route`
     toléré dans le seul parcours de la réponse ralentie (empreinte SHA-384 du vide).
   - reste : le cas machines (tâche 18) — cluster sur sa propre machine refusé (cycle,
-    `machines.host.invalid`, prêt dans `canMove`), machine vers un cluster d'un autre site
-    refusée par le serveur (`machines.host.site_mismatch`, règle de sévérité
-    `warning` côté serveur : à vérifier qu'elle refuse), réponse ralentie dans un
+    `machines.host.invalid`, prêt dans `canMove`), machine vers un hôte d'un autre site
+    (`machines.host.site_mismatch` : avertissement du serveur montré, déplacement au
+    brouillon — amendé le 2026-11-02, fait par la 18b), réponse ralentie dans un
     `TreeGrid` `declared` (`useMoves` est prêt pour un arbre du shell ; une vue de plugin
     reprend `canMove` du SDK et ses écritures, ou `useMoves` passe au SDK) ; Ctrl+Entrée
     sur un dépôt (l'intention du `TreeGrid` n'a pas de `now`) ; **aperçu du brouillon** :
@@ -1696,8 +1698,9 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     framework ; nombre de machines non dit dans la liste ; une seule cellule de nom en lecture
     dit « Chargement » par ligne.
 - [ ] 18b. Déplacement d'une machine vers un cluster par `canMove` du SDK (Q-021-2) :
-  cycle refusé (`machines.host.invalid`), autre site refusé par le serveur
-  (`machines.host.site_mismatch`, vérifier qu'il refuse), sans optimisme ; reste
+  cycle refusé (`machines.host.invalid`), autre site : avertissement du serveur montré
+  (`machines.host.site_mismatch`), déplacement au brouillon (amendé le 2026-11-02 : la
+  règle reste un avertissement, 009 M11), sans optimisme ; reste
   « machines » de la tâche 24 (arbre `declared`, réponse ralentie) — REQ-021-17, 32 à
   34 — verify : Vitest de `canMove` sur les codes `machines.host.*` ; parcours
   `machines` et `moves` étendus (glisser au clavier)
@@ -1737,12 +1740,20 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     tue sa raison), refusés au champ à l'envoi ; liste non redessinée sous le focus ;
     section placée après les attributs ; `as Operation` sur l'opération (le type du
     contrat ne décrit pas les opérations des modules).
-  - reste — à arbitrer : `machines.host.site_mismatch` est de sévérité `warning` côté
-    serveur (`crates/kartenn-machines/src/rules.rs`) : le serveur ne refuse pas, il
-    applique et ouvre une anomalie ; il ne compare d'ailleurs que les machines hôtes, pas
-    les clusters (`pg::site_mismatches`) — « machine vers un cluster d'un autre site
-    refusée par le serveur » (verify de la 24) n'est pas tenable sans changer la règle ;
-    ouverts : pas de glisser (un arbre sans framework dans `@kartenn/ui` à décider) ; les
+  - arbitré le 2026-11-02 (session principale) : `machines.host.site_mismatch` reste un
+    avertissement (009 M11) — le serveur applique et ouvre une anomalie, il ne compare que
+    les machines hôtes, pas les clusters (`pg::site_mismatches`) ; clauses de la 18b et de
+    la 24 amendées. Corrections de relecture : un autre hôte choisi pendant l'envoi revient
+    à l'hôte envoyé, l'attente reste dite ; test direct de `moveInDraft`
+    (`sdk/test/draft-move.test.ts` : remplacement, violations d'autres opérations
+    filtrées, refus de la sienne, `unknown`).
+  - reste — à arbitrer par l'utilisateur : l'abandon du glisser (un arbre sans framework
+    dans `@kartenn/ui`) ; REQ-021-33 dit encore, en acceptation, « le serveur le refuse
+    (`machines.host.site_mismatch`) » (`requirements.md`, à amender avec la même
+    décision) ; ouverts : `writeRight` de `sdk/src/data/moves.ts` omet la ressource qui
+    porte le nom du module par une heuristique du pluriel (`machines` ↔ `machine`), alors
+    que `editRight` du shell (`views/edit/fields.ts`) écrit toujours `<type>.edit` — une
+    table de permissions tirée du contrat les accorderait ; les
     hébergeurs au-delà de dix pages ne sont pas offerts ; sous Firefox, le parcours de la
     24 « an entity changes parent by its menu » a perdu une fois le focus du champ
     pendant le parcours complet (vert relancé seul, deux fois).
