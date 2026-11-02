@@ -61,9 +61,15 @@ struct Idp {
     /// The nonce of each code issued.
     codes: HashMap<String, String>,
     groups: Vec<String>,
-    /// The refresh token it gives, and takes beside `r1`: another than `r1` turns it
-    /// (RFC 9700 §4.14.2).
+    /// The refresh token it gives next: another than the one it takes turns it (RFC 9700
+    /// §4.14.2).
     refresh: String,
+    /// The only refresh token it takes: the last one it gave.
+    live: String,
+    /// The refresh grants it received.
+    refreshes: usize,
+    /// How long it holds a refresh grant before answering.
+    hold: Duration,
 }
 
 type Shared = Arc<Mutex<Idp>>;
@@ -109,33 +115,40 @@ async fn jwks(State(idp): State<Shared>) -> Json<JwkSet> {
     })
 }
 
-/// The token endpoint: a code once, the refresh token `r1` or the one it gives (PKCE and
-/// the client are checked by the tests of the 005).
+/// The token endpoint: a code once, the last refresh token it gave, once (PKCE and the
+/// client are checked by the tests of the 005).
 async fn token(State(idp): State<Shared>, body: String) -> (StatusCode, Json<Value>) {
     let form: HashMap<String, String> = form_urlencoded::parse(body.as_bytes())
         .into_owned()
         .collect();
+    let grant = form.get("grant_type").map(String::as_str);
+    if grant == Some("refresh_token") {
+        let hold = {
+            let mut idp = idp.lock().unwrap();
+            idp.refreshes += 1;
+            idp.hold
+        };
+        tokio::time::sleep(hold).await;
+    }
     let mut idp = idp.lock().unwrap();
     let refused = (
         StatusCode::BAD_REQUEST,
         Json(json!({ "error": "invalid_grant" })),
     );
-    let token = match form.get("grant_type").map(String::as_str) {
+    let token = match grant {
         Some("authorization_code") => {
             let Some(nonce) = form.get("code").and_then(|c| idp.codes.remove(c)) else {
                 return refused;
             };
             id_token(&idp, Some(&nonce))
         }
-        Some("refresh_token")
-            if form
-                .get("refresh_token")
-                .is_some_and(|r| r == "r1" || *r == idp.refresh) =>
-        {
+        Some("refresh_token") if form.get("refresh_token") == Some(&idp.live) => {
             id_token(&idp, None)
         }
         _ => return refused,
     };
+    let turned = idp.refresh.clone();
+    idp.live = turned;
     (
         StatusCode::OK,
         Json(
@@ -161,6 +174,9 @@ async fn idp() -> Shared {
         codes: HashMap::new(),
         groups: vec!["netops".into()],
         refresh: "r1".into(),
+        live: String::new(),
+        refreshes: 0,
+        hold: Duration::ZERO,
     }));
     let routes = Router::new()
         .route("/.well-known/openid-configuration", get(discovery))
@@ -695,13 +711,17 @@ async fn a_refresh_in_the_background_keeps_the_new_tokens(pool: PgPool) {
     let f = Fixture::new(&pool, &idp);
     let session = f.login(&idp).await;
     let (due, seen) = refresh_due(&f, &idp, &session);
+    let lifetime = Session::unseal(&f.ring, &[due.split_once('=').unwrap().1])
+        .unwrap()
+        .started
+        + 8 * 3_600;
 
     let me = f
         .call(marked(request("GET", "/v1/me", Some(&due), true), &["?1"]))
         .await;
     assert_eq!(me.status(), StatusCode::OK);
     let again = refreshed_quietly(&f, &me, seen);
-    let lifetime = again.started + 8 * 3_600;
+    assert_eq!(again.started + 8 * 3_600, lifetime);
     let body = json(me).await;
     assert_eq!(body["idp_groups"], json!(["admins"]));
     assert_eq!(unix(&body["session"]["expires_at"]), seen + 1_800);
@@ -744,6 +764,109 @@ async fn a_refresh_at_the_opening_of_the_stream_keeps_the_new_tokens(pool: PgPoo
     let opened = f.call(stream(&due)).await;
     assert_eq!(opened.status(), StatusCode::OK);
     refreshed_quietly(&f, &opened, seen);
+}
+
+/// `session` sealed with its groups due to be refreshed, as a `Cookie` header value.
+fn due_again(f: &Fixture, session: &Session) -> String {
+    let due = Session {
+        refresh_at: unix_now() - 1,
+        ..session.clone()
+    };
+    format!("{SESSION}={}", due.seal(&f.ring).unwrap()[0])
+}
+
+/// The cause of the last end of a session in the audit.
+async fn last_cause(pool: &PgPool) -> String {
+    sqlx::query_scalar(
+        "SELECT details->>'cause' FROM audit.event WHERE name = 'authn.session.closed' \
+         ORDER BY seq DESC LIMIT 1",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+/// 021/A15 (16d): a request that layer 6 refuses after a refresh of its groups (here an
+/// invalid `approval`) sends the cookie again all the same: in the background its quiet
+/// cookie, otherwise its ordinary one. The issuer refuses the token it turned from then
+/// on: a cookie left on it ends the session.
+#[kartenn_testing::pg_test]
+async fn a_refusal_after_a_refresh_keeps_the_new_tokens(pool: PgPool) {
+    let idp = idp().await;
+    let f = Fixture::new(&pool, &idp);
+    let session = f.login(&idp).await;
+
+    // In the background: the new tokens, its last activity as it was.
+    let (due, seen) = refresh_due(&f, &idp, &session);
+    let refused = f
+        .call(marked(
+            request("GET", "/v1/me?approval=other", Some(&due), true),
+            &["?1"],
+        ))
+        .await;
+    assert_eq!(refused.status(), StatusCode::BAD_REQUEST);
+    let again = refreshed_quietly(&f, &refused, seen);
+
+    // The cookie left on `r1`: refused by the issuer, the session ends.
+    let me = f.call(request("GET", "/v1/me", Some(&due), true)).await;
+    assert_eq!(me.status(), StatusCode::UNAUTHORIZED);
+    assert!(removes(&me, SESSION));
+    assert_eq!(last_cause(&pool).await, "refresh_failed");
+
+    // An ordinary request: the new tokens, seen now.
+    idp.lock().unwrap().refresh = "r3".into();
+    let refused = f
+        .call(request(
+            "GET",
+            "/v1/me?approval=other",
+            Some(&due_again(&f, &again)),
+            true,
+        ))
+        .await;
+    assert_eq!(refused.status(), StatusCode::BAD_REQUEST);
+    let again = value(&refused, SESSION).expect("sent again after a refresh");
+    let again = Session::unseal(&f.ring, &[&again]).unwrap();
+    assert_eq!(again.refresh_token.as_deref(), Some("r3"));
+    assert!(again.refresh_at > unix_now());
+    assert!(unix_now() - again.seen <= 1);
+    let kept = format!("{SESSION}={}", again.seal(&f.ring).unwrap()[0]);
+    let me = f.call(request("GET", "/v1/me", Some(&kept), true)).await;
+    assert_eq!(me.status(), StatusCode::OK);
+    assert_eq!(idp.lock().unwrap().refreshes, 3);
+}
+
+/// RFC 9700 §4.14.2 (16d): two requests of a session whose refresh is due at once present
+/// its refresh token to the issuer once, and both send the cookie again with the token it
+/// turned. The exchange over, the next refresh is presented again.
+#[kartenn_testing::pg_test]
+async fn concurrent_refreshes_present_the_token_once(pool: PgPool) {
+    let idp = idp().await;
+    let f = Fixture::new(&pool, &idp);
+    let session = f.login(&idp).await;
+    let (due, seen) = refresh_due(&f, &idp, &session);
+    idp.lock().unwrap().hold = Duration::from_secs(1);
+
+    let (ordinary, background) = tokio::join!(
+        f.call(request("GET", "/v1/me", Some(&due), true)),
+        f.call(marked(request("GET", "/v1/me", Some(&due), true), &["?1"])),
+    );
+    assert_eq!(idp.lock().unwrap().refreshes, 1);
+    assert_eq!(ordinary.status(), StatusCode::OK);
+    assert_eq!(background.status(), StatusCode::OK);
+    let again = value(&ordinary, SESSION).expect("sent again after a refresh");
+    let again = Session::unseal(&f.ring, &[&again]).unwrap();
+    assert_eq!(again.refresh_token.as_deref(), Some("r2"));
+    assert_eq!(again.groups, ["admins"]);
+    assert!(unix_now() - again.seen <= 2);
+    let quiet = refreshed_quietly(&f, &background, seen);
+
+    // Over, the exchange is forgotten: the next refresh reaches the issuer.
+    idp.lock().unwrap().hold = Duration::ZERO;
+    let me = f
+        .call(request("GET", "/v1/me", Some(&due_again(&f, &quiet)), true))
+        .await;
+    assert_eq!(me.status(), StatusCode::OK);
+    assert_eq!(idp.lock().unwrap().refreshes, 2);
 }
 
 #[kartenn_testing::pg_test]

@@ -22,7 +22,7 @@ const RELOAD_EVERY: Duration = Duration::from_mins(1);
 
 /// Why a token is refused; the caller answers `invalid_token` (RFC 6750 §3.1) whatever
 /// the reason.
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[derive(Debug, Clone, thiserror::Error, PartialEq, Eq)]
 pub enum TokenError {
     /// Not a JWT, or no `kid`.
     #[error("malformed token")]

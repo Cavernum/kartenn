@@ -11,6 +11,7 @@
 
 use std::collections::HashMap;
 use std::fmt::Write as _;
+use std::sync::{Arc, PoisonError};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -36,7 +37,7 @@ pub const LOGIN_WITHIN: i64 = 600;
 pub const BREAKGLASS_LIFETIME: i64 = 3_600;
 
 /// Why a login fails; [`LoginError::reason`] is recorded in the audit.
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[derive(Debug, Clone, thiserror::Error, PartialEq, Eq)]
 pub enum LoginError {
     /// No issuer of that name.
     #[error("unknown issuer")]
@@ -160,6 +161,72 @@ fn now() -> i64 {
         .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
 }
 
+/// What a refresh at the issuer gives a session.
+#[derive(Debug, Clone)]
+struct Refreshed {
+    /// The new ID token and its groups, when the issuer gives one.
+    id_token: Option<(String, Vec<String>)>,
+    /// The refresh token it turned to, if it did (RFC 9700 §4.14.2).
+    refresh_token: Option<String>,
+    /// When the groups are to be refreshed again (Unix seconds).
+    refresh_at: i64,
+}
+
+/// A refresh token in exchange at its issuer: its issuer, its subject and itself.
+type Presented = (String, String, String);
+
+/// The outcome of an exchange, shared by the requests that present its token meanwhile.
+type Exchange = Arc<tokio::sync::OnceCell<Result<Refreshed, LoginError>>>;
+
+/// The exchanges in progress on this instance, each with the number of requests that
+/// share it.
+type Exchanges = std::sync::Mutex<HashMap<Presented, (Exchange, usize)>>;
+
+/// A request's share of an exchange. The exchange is forgotten as soon as it is over (a
+/// later request presents its token to the issuer again), or when no request shares it
+/// any more (the one that ran it was dropped).
+struct Turn<'a> {
+    exchanges: &'a Exchanges,
+    presented: Presented,
+    exchange: Exchange,
+}
+
+impl<'a> Turn<'a> {
+    /// The exchange in progress of `presented`, joined, or a new one.
+    fn of(exchanges: &'a Exchanges, presented: Presented) -> Self {
+        let mut all = exchanges.lock().unwrap_or_else(PoisonError::into_inner);
+        let (exchange, shares) = all.entry(presented.clone()).or_default();
+        *shares += 1;
+        let exchange = Arc::clone(exchange);
+        drop(all);
+        Self {
+            exchanges,
+            presented,
+            exchange,
+        }
+    }
+}
+
+impl Drop for Turn<'_> {
+    fn drop(&mut self) {
+        let mut all = self
+            .exchanges
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let Some((exchange, shares)) = all.get_mut(&self.presented) else {
+            return;
+        };
+        // Another exchange of the same token, after this one was over and forgotten.
+        if !Arc::ptr_eq(exchange, &self.exchange) {
+            return;
+        }
+        *shares -= 1;
+        if *shares == 0 || exchange.initialized() {
+            all.remove(&self.presented);
+        }
+    }
+}
+
 /// The OIDC client of the BFF.
 pub struct Oidc<S> {
     tokens: TokenVerifier<S>,
@@ -167,6 +234,9 @@ pub struct Oidc<S> {
     ring: KeyRing,
     redirect_uri: String,
     discoveries: Mutex<HashMap<String, Discovery>>,
+    /// One exchange at a time per refresh token: a token the issuer turned is never
+    /// presented twice by concurrent requests of a session (RFC 9700 §4.14.2).
+    exchanges: Exchanges,
 }
 
 impl<S> std::fmt::Debug for Oidc<S> {
@@ -201,6 +271,7 @@ impl<S: KeySource> Oidc<S> {
             ring,
             redirect_uri,
             discoveries: Mutex::new(HashMap::new()),
+            exchanges: std::sync::Mutex::new(HashMap::new()),
         }
     }
 
@@ -378,19 +449,54 @@ impl<S: KeySource> Oidc<S> {
 
     /// Refreshes the groups of `session` at its issuer with its refresh token
     /// (REQ-005-7); the session keeps its groups when the issuer gives no new ID token.
+    /// Requests that present the same refresh token while it is in exchange share that
+    /// exchange: the issuer sees the token once (RFC 9700 §4.14.2), on this instance.
     ///
     /// # Errors
     ///
     /// [`LoginError`]: the session is then closed.
     pub async fn refresh(&self, session: &mut Session) -> Result<(), LoginError> {
-        let issuer = self
-            .tokens
-            .issuer(&session.issuer_id)
-            .ok_or(LoginError::UnknownIssuer)?;
         let refresh_token = session
             .refresh_token
             .clone()
             .ok_or_else(|| LoginError::Exchange("no refresh token".into()))?;
+        let turn = Turn::of(
+            &self.exchanges,
+            (
+                session.issuer_id.clone(),
+                session.subject.clone(),
+                refresh_token,
+            ),
+        );
+        let (issuer_id, subject, refresh_token) = &turn.presented;
+        let refreshed = turn
+            .exchange
+            .get_or_init(|| self.exchange(issuer_id, subject, refresh_token))
+            .await
+            .clone()?;
+        drop(turn);
+        if let Some((id_token, groups)) = refreshed.id_token {
+            session.groups = groups;
+            session.id_token = Some(id_token);
+        }
+        if refreshed.refresh_token.is_some() {
+            session.refresh_token = refreshed.refresh_token;
+        }
+        session.refresh_at = refreshed.refresh_at;
+        Ok(())
+    }
+
+    /// Exchanges `refresh_token` of `subject` at its issuer.
+    async fn exchange(
+        &self,
+        issuer_id: &str,
+        subject: &str,
+        refresh_token: &str,
+    ) -> Result<Refreshed, LoginError> {
+        let issuer = self
+            .tokens
+            .issuer(issuer_id)
+            .ok_or(LoginError::UnknownIssuer)?;
         let discovery = self.discovery(issuer).await?;
         let response: TokenResponse = self
             .http
@@ -398,30 +504,32 @@ impl<S: KeySource> Oidc<S> {
                 &discovery.token_endpoint,
                 &[
                     ("grant_type", "refresh_token"),
-                    ("refresh_token", &refresh_token),
+                    ("refresh_token", refresh_token),
                 ],
                 Some((&issuer.client_id, &issuer.client_secret)),
             )
             .await
             .map_err(|e| LoginError::Exchange(e.to_string()))?;
-        if let Some(id_token) = response.id_token {
-            // A refreshed ID token carries no nonce (OIDC Core §12.2): checked without it.
-            let verified = self
-                .tokens
-                .verify_id_token(issuer, &id_token, None)
-                .await
-                .map_err(LoginError::IdToken)?;
-            if verified.subject != session.subject {
-                return Err(LoginError::Subject);
+        let id_token = match response.id_token {
+            Some(id_token) => {
+                // A refreshed ID token carries no nonce (OIDC Core §12.2): checked without it.
+                let verified = self
+                    .tokens
+                    .verify_id_token(issuer, &id_token, None)
+                    .await
+                    .map_err(LoginError::IdToken)?;
+                if verified.subject != subject {
+                    return Err(LoginError::Subject);
+                }
+                Some((id_token, verified.groups))
             }
-            session.groups = verified.groups;
-            session.id_token = Some(id_token);
-        }
-        if response.refresh_token.is_some() {
-            session.refresh_token = response.refresh_token;
-        }
-        session.refresh_at = now() + response.expires_in.unwrap_or(300);
-        Ok(())
+            None => None,
+        };
+        Ok(Refreshed {
+            id_token,
+            refresh_token: response.refresh_token,
+            refresh_at: now() + response.expires_in.unwrap_or(300),
+        })
     }
 
     /// Where to send the browser to log out at the issuer too (RP-Initiated Logout §2),
