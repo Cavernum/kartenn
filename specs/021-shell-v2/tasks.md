@@ -1498,8 +1498,8 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `admin` étendu (journal filtré par l'en-tête de sa colonne, événement dans le panneau,
     même recherche exportée et relue ligne à ligne ; import en pause, repris, en pause de
     nouveau, annulé après confirmation ; import au tri impossible, sa violation par rang).
-    Capture E7 : celle de la maquette, gardée (les vrais écrans demandent l'API, absente du
-    projet `visual`).
+    Capture E7 : celle de la maquette, gardée, acceptée telle quelle (comme pour les 11, 12
+    et 14 : les vrais écrans demandent l'API, absente du projet `visual`).
   - choix : l'export ne passe pas par le SDK (son client lit du JSON) : `fetch` dans
     `audit.ts`, `Accept: application/x-ndjson`, le corps versé par `pipeTo` dans un fichier
     d'OPFS (`kartenn-exports/`, vidé au début de chaque export), remis par un lien
@@ -1527,13 +1527,24 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     cellule vide retirée. `ui-reviewer` — colonnes de l'audit (acteur en priorité 2, objets
     en 3), « Éléments » des imports en priorité 2, JSON coupé à la ligne, sévérité
     traduite, mise en page des faits (les noms chevauchaient les valeurs longues).
+  - correctifs de revue (2026-11-02) : sans `core.rbac.read` global, aucune lecture de
+    `/v1/identities` (le refus serait journalisé `denied` dans le journal lu) : le filtre
+    « Acteur » prend un identifiant collé (`useFilteredList`, option `refine`), le panneau
+    montre l'acteur en `CodeBadge` copiable, sans lien vers l'identité ; parcours `admin` :
+    Erwan, auditeur du jeu (`web/e2e/users.toml`, groupe `auditeurs` de
+    `global-setup.ts` : `reader` et le rôle `auditeur`, `core.audit.read` seul), filtre par
+    son identifiant collé, aucune réponse 403 ; export : un stockage qui refuse le fichier
+    à son ouverture passe au blob, un stockage plein en cours d'écriture
+    (`ExportStorage`) se distingue d'un corps coupé (`ExportCut`) ; design et
+    `PARITE.md` : seulement ce que le parcours prouve, repli sans OPFS dit.
   - reste : instants de l'audit sans fuseau affiché (heure du navigateur ; à trancher :
     `timeZoneName` dans le panneau) ; objets d'un événement en identifiants, sans nom ni
     lien ; noms d'événements coupés dans la liste quand le panneau est ouvert (pas de
-    point de coupure dans un nom pointé) ; pas de bouton de copie sur le JSON ; acteur
-    choisi parmi la première page des identités, son nom perdu au rechargement (puce en
-    UUID) ; le répertoire `kartenn-exports/` vidé au début d'un export peut couper celui
-    d'un autre onglet en cours ; la relecture de l'import chaque seconde ne porte pas encore
+    point de coupure dans un nom pointé) ; pas de bouton de copie sur le JSON ; noms des
+    acteurs limités aux premières pages des identités (dix pages, liste et suggestions),
+    son nom perdu au rechargement (puce en UUID), un acteur au-delà montré par son
+    identifiant ; le répertoire `kartenn-exports/` vidé au début d'un export peut couper
+    celui d'un autre onglet en cours ; filtres de période et d'objet sans parcours ; la relecture de l'import chaque seconde ne porte pas encore
     `Kartenn-Background` (16b) ; « Exporter » sans icône (aucune icône de téléchargement
     dans la liste fermée de `@kartenn/ui`) ; le fichier d'OPFS d'un très gros export est
     effacé une minute après sa remise au navigateur, qui pourrait ne pas l'avoir copié.

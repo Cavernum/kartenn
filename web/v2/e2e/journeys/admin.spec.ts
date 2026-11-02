@@ -554,6 +554,46 @@ test("an import whose sort fails is open again with its error", async ({ page, l
   await expectAccessible(page);
 });
 
+test("an auditor without the rights: filters by an actor pasted, reads no identity", async ({
+  page,
+  login,
+}) => {
+  // Erwan reads the journal (`core.audit.read`) but not the rights (`core.rbac.read`): no
+  // read of his may be refused (each would be journaled `denied` in the journal he reads).
+  const refused: string[] = [];
+  page.on("response", (r) => {
+    if (r.status() === 403) refused.push(`${r.request().method()} ${new URL(r.url()).pathname}`);
+  });
+  await login("erwan");
+  const me = (await apiCall(page, "GET", "/v1/me")).body as { identity: string };
+
+  await navigation(page).getByRole("button", { name: "Administration" }).click();
+  await navigation(page).getByRole("link", { name: "Audit" }).click();
+  await expect(page).toHaveURL(/\/admin\/audit$/);
+  const grid = page.getByRole("grid", { name: "Audit" });
+
+  // The actor typed: his identifier pasted, no list of identities offered.
+  await grid.getByRole("columnheader", { name: /Acteur/ }).click();
+  await page.keyboard.press("Alt+ArrowDown");
+  const picker = page.getByRole("dialog", { name: /filtre/i });
+  await picker.getByRole("textbox", { name: /Valeur/ }).fill(me.identity);
+  await picker.getByRole("button", { name: "Appliquer" }).click();
+  await expect(page).toHaveURL(new RegExp(`[?&]actor=${me.identity}`));
+  const found = grid.getByRole("gridcell", { name: "authn.login.succeeded" }).first();
+  await expect(async () => {
+    await page.reload();
+    await expect(found).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 20_000 });
+
+  // His event: the actor by its identifier, copyable, without the page of the identity.
+  await found.click();
+  const actor = panel(page).getByRole("list", { name: "Acteur" });
+  await expect(actor).toContainText(me.identity);
+  await expect(actor.getByRole("link")).toHaveCount(0);
+  await expectAccessible(page);
+  expect(refused).toEqual([]);
+});
+
 test.describe("a reader", () => {
   test.use({ toleratedErrors: [/status of 403/] });
 

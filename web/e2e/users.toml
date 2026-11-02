@@ -40,6 +40,14 @@ name = "Dana Exemple"
 email = "dana@kartenn.invalid"
 groups = ["admins-entite"]
 
+# An auditor who may not read the rights (journeys of the new shell, task 021-15c): the
+# audit journal and the reads of the referential, not the identities.
+[[users]]
+sub = "erwan"
+name = "Erwan Exemple"
+email = "erwan@kartenn.invalid"
+groups = ["auditeurs"]
+
 [[users]]
 sub = "carol"
 name = "Carol Exemple"

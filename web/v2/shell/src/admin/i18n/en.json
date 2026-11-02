@@ -315,6 +315,7 @@
       "exported": "Export saved: {name}",
       "exportFailed": "The export could not be saved",
       "exportCut": "The journal stopped before its end: no file was kept.",
+      "exportStorage": "The storage of the browser refused the export (full?): no file was kept.",
       "error": "The audit journal could not be read",
       "none": "No event",
       "noneText": "The journal has recorded nothing yet.",

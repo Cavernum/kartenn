@@ -90,6 +90,14 @@ export class ExportCut extends Error {
   }
 }
 
+/** The file of an export refused by the storage while written (its quota): none kept. */
+export class ExportStorage extends Error {
+  constructor(cause: unknown) {
+    super("the storage refused the export", { cause });
+    this.name = "ExportStorage";
+  }
+}
+
 /** What an export needs of the browser (replaced in the tests). */
 export interface ExportDeps {
   fetch: typeof fetch;
@@ -134,21 +142,45 @@ async function written(
   name: string,
   body: ReadableStream<Uint8Array>,
 ): Promise<{ file: File; release: () => void } | null> {
-  // The files of an export whose page closed before its release.
-  await root.removeEntry(EXPORTS, { recursive: true }).catch(() => undefined);
-  const dir = await root.getDirectoryHandle(EXPORTS, { create: true });
-  const handle = await dir.getFileHandle(name, { create: true });
-  const release = () => void dir.removeEntry(name).catch(() => undefined);
-  if (typeof handle.createWritable !== "function") {
+  // The file opened for writing; the storage refusing it (no writer, no room), nothing of
+  // the body is read yet: `null`, and the blob of the browser takes the export.
+  let release: () => void = () => undefined;
+  let handle: FileSystemFileHandle;
+  let writable: FileSystemWritableFileStream;
+  try {
+    // The files of an export whose page closed before its release.
+    await root.removeEntry(EXPORTS, { recursive: true }).catch(() => undefined);
+    const dir = await root.getDirectoryHandle(EXPORTS, { create: true });
+    handle = await dir.getFileHandle(name, { create: true });
+    release = () => void dir.removeEntry(name).catch(() => undefined);
+    if (typeof handle.createWritable !== "function") throw new TypeError("no writer");
+    writable = await handle.createWritable();
+  } catch {
     release();
     return null;
   }
+  // Which side failed: the body (cut short) or the file (the storage full).
+  const reader = body.getReader();
+  let cut = false;
+  const watched = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) controller.close();
+        else controller.enqueue(value);
+      } catch (error) {
+        cut = true;
+        controller.error(error);
+      }
+    },
+    cancel: (reason) => reader.cancel(reason),
+  });
   try {
     // `pipeTo` closes the file at the end of the body, aborts it on a failure.
-    await body.pipeTo(await handle.createWritable());
+    await watched.pipeTo(writable);
   } catch (error) {
     release();
-    throw new ExportCut(error);
+    throw cut ? new ExportCut(error) : new ExportStorage(error);
   }
   return { file: await handle.getFile(), release };
 }
@@ -156,7 +188,8 @@ async function written(
 /**
  * Exports the events `filters` select, newest first, as a file the browser saves; its
  * name answered. A refusal of the server throws its `ApiProblem`, no answer a
- * `NetworkError`, a body cut short an {@link ExportCut}.
+ * `NetworkError`, a body cut short an {@link ExportCut}, the storage full while writing an
+ * {@link ExportStorage}.
  */
 export async function exportAudit(
   filters: Filters,

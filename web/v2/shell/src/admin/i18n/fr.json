@@ -315,6 +315,7 @@
       "exported": "Export enregistré : {name}",
       "exportFailed": "L'export n'a pas pu être enregistré",
       "exportCut": "Le journal s'est interrompu avant sa fin : aucun fichier n'a été gardé.",
+      "exportStorage": "Le stockage du navigateur a refusé l'export (espace plein ?) : aucun fichier n'a été gardé.",
       "error": "Le journal d'audit n'a pas pu être lu",
       "none": "Aucun événement",
       "noneText": "Le journal n'a encore rien consigné.",

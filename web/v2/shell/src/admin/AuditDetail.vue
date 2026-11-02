@@ -7,14 +7,14 @@
 // request, trace, instance) and its details as journaled. An event of a page not read says
 // so, the filters of the list to find it.
 import { keys } from "@kartenn/sdk";
-import { EmptyState, Skeleton, Stack, StatusBadge } from "@kartenn/ui";
+import { CodeBadge, EmptyState, Skeleton, Stack, StatusBadge } from "@kartenn/ui";
 import { computed, onScopeDispose, shallowRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { RouterLink } from "vue-router";
 import { useQueryClient } from "../data/query.ts";
 import { useSession } from "../rights/index.ts";
 import { keepRecordName } from "../views/names.ts";
-import { holdsGlobally } from "./access.ts";
+import { holdsGlobally, IDENTITIES_READ } from "./access.ts";
 import AdminLines from "./AdminLines.vue";
 import { cachedEvent, outcomeBadge, type AuditEvent } from "./audit.ts";
 import { useAuditWords } from "./auditWords.ts";
@@ -23,7 +23,8 @@ const props = defineProps<{ id: string }>();
 const { t } = useI18n();
 const session = useSession();
 const queryClient = useQueryClient();
-const words = useAuditWords(() => holdsGlobally(session.value.me, "core.rbac.read"));
+const readsIdentities = () => holdsGlobally(session.value.me, IDENTITIES_READ);
+const words = useAuditWords(readsIdentities);
 
 const JOURNAL = keys.allOn("/v1/audit-events");
 const event = shallowRef<AuditEvent | undefined>(undefined);
@@ -47,10 +48,15 @@ watch(
   { immediate: true },
 );
 
-/** The identity of the actor, by its name when read, with its page when it has one. */
+/**
+ * The identity of the actor, by its name when read, with its page when it has one and the
+ * reader may open it; otherwise its identifier, copyable (to filter the journal by it).
+ */
 const actorPage = computed(() => {
   const e = event.value;
-  return e?.actor_id && (e.actor_kind === "person" || e.actor_kind === "service_account")
+  return readsIdentities() &&
+    e?.actor_id &&
+    (e.actor_kind === "person" || e.actor_kind === "service_account")
     ? `/admin/identities/${encodeURIComponent(e.actor_id)}`
     : null;
 });
@@ -165,7 +171,10 @@ const details = computed(() =>
                 :class="{ 'k-mono': !words.identity(event.actor_id) }"
                 >{{ words.identity(event.actor_id) ?? event.actor_id }}</RouterLink
               >
-              <span v-else class="k-mono">{{ event.actor_id }}</span>
+              <span v-else-if="words.identity(event.actor_id)">{{
+                words.identity(event.actor_id)
+              }}</span>
+              <CodeBadge v-else :code="event.actor_id" />
             </span>
           </li>
           <li v-for="line in actor" :key="line.key">

@@ -87,6 +87,11 @@ export interface ListOptions {
   dated?: boolean;
   /** The labels of its filters, before the shared ones (`from` of the audit). */
   field?: (name: string) => string | undefined;
+  /**
+   * The model as the reader may use it (the actor of the audit typed rather than chosen
+   * among identities he may not list); read again when its reactive sources change.
+   */
+  refine?: (model: FilterModel) => FilterModel;
 }
 
 export function useFilteredList<T>(
@@ -102,7 +107,10 @@ export function useFilteredList<T>(
   const words: FilterWords = options.field
     ? { ...shared, field: (name) => options.field?.(name) ?? shared.field(name) }
     : shared;
-  const model = computed(() => listFilterModel(path(), declarations.value, words));
+  const model = computed(() => {
+    const full = listFilterModel(path(), declarations.value, words);
+    return options.refine ? options.refine(full) : full;
+  });
 
   // The property filters of the URL that no declaration read types (REQ-021-18): the list
   // waits for every page of the declarations; a key still unknown then (or the

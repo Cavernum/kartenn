@@ -28,8 +28,8 @@ import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
 import { useFilteredList } from "../views/list.ts";
 import ViewPanel from "../views/parts/ViewPanel.vue";
-import { holdsGlobally } from "./access.ts";
-import { ExportCut, exportAudit, outcomeBadge, type AuditEvent } from "./audit.ts";
+import { holdsGlobally, IDENTITIES_READ } from "./access.ts";
+import { ExportCut, ExportStorage, exportAudit, outcomeBadge, type AuditEvent } from "./audit.ts";
 import { useAuditWords } from "./auditWords.ts";
 
 const props = defineProps<{ selected?: string | undefined }>();
@@ -42,6 +42,8 @@ const toasts = injectToasts();
 const problems = useProblems();
 
 const title = computed(() => t("nav.audit"));
+/** Whether the reader may list the identities: their names, their suggestions. */
+const readsIdentities = () => holdsGlobally(session.value.me, IDENTITIES_READ);
 const {
   model,
   filters,
@@ -58,8 +60,16 @@ const {
 } = useFilteredList<AuditEvent>(() => "/v1/audit-events", {
   dated: false,
   field: (name) => (te(`admin.audit.filter.${name}`) ? t(`admin.audit.filter.${name}`) : undefined),
+  // Who may not list the identities types the actor (an identifier pasted): no read of
+  // `/v1/identities` refused, and journaled as such, in the journal he reads.
+  refine: (model) =>
+    readsIdentities()
+      ? model
+      : model.map((p) =>
+          p.key === "actor" ? { key: p.key, label: p.label, type: "text", operators: ["eq"] } : p,
+        ),
 });
-const words = useAuditWords(() => holdsGlobally(session.value.me, "core.rbac.read"));
+const words = useAuditWords(readsIdentities);
 
 const columns = computed<GridColumn[]>(() => [
   { id: "occurred_at", label: t("admin.audit.field.occurred"), width: "lg", mono: true },
@@ -120,11 +130,13 @@ async function onExport(): Promise<void> {
     exporting.value = false;
   }
 }
-const exportLines = computed(() =>
-  exportError.value instanceof ExportCut
-    ? [{ message: t("admin.audit.exportCut") }]
-    : problems.lines(exportError.value),
-);
+const exportLines = computed(() => {
+  if (exportError.value instanceof ExportCut) return [{ message: t("admin.audit.exportCut") }];
+  if (exportError.value instanceof ExportStorage) {
+    return [{ message: t("admin.audit.exportStorage") }];
+  }
+  return problems.lines(exportError.value);
+});
 
 const number = computed(() => new Intl.NumberFormat(locale.value));
 const total = computed(() => (complete.value ? number.value.format(rows.value.length) : undefined));

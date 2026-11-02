@@ -5,6 +5,7 @@ import {
   cachedEvent,
   EXPORTS,
   ExportCut,
+  ExportStorage,
   exportAudit,
   exportName,
   NDJSON,
@@ -43,22 +44,26 @@ function body(chunks: string[], cut = false): ReadableStream<Uint8Array> {
 }
 
 /** A private storage in memory: its files, their chunks as written, those removed. */
-function storage() {
+function storage(refuse: "open" | "write" | null = null) {
   const files = new Map<string, Uint8Array[]>();
   const removed: string[] = [];
   const pulled: number[] = [];
+  const full = () => new DOMException("no room", "QuotaExceededError");
   const dir = {
     getFileHandle: async (name: string) => {
       files.set(name, []);
       return {
-        createWritable: async () =>
-          new WritableStream<Uint8Array>({
+        createWritable: async () => {
+          if (refuse === "open") throw full();
+          return new WritableStream<Uint8Array>({
             write(chunk) {
+              if (refuse === "write") throw full();
               // How many chunks the file holds when each comes: one at a time.
               files.get(name)!.push(chunk);
               pulled.push(files.get(name)!.length);
             },
-          }),
+          });
+        },
         getFile: async () => new File(files.get(name)! as BlobPart[], name),
       };
     },
@@ -118,6 +123,24 @@ describe("the export of the audit journal", () => {
     const store = storage();
     const { used, saved } = deps(ndjson(body(LINES.slice(0, 1), true)), store.root);
     await expect(exportAudit({}, used)).rejects.toBeInstanceOf(ExportCut);
+    expect(saved).toHaveLength(0);
+    expect(store.files.size).toBe(0);
+  });
+
+  it("falls back to the blob when the storage refuses the file at its opening", async () => {
+    const store = storage("open");
+    const { used, saved } = deps(ndjson(body(LINES)), store.root);
+    await exportAudit({}, used);
+    expect(await saved[0]!.file.text()).toBe(LINES.join(""));
+    expect(store.files.size).toBe(0);
+  });
+
+  it("tells the storage full while writing from a body cut short", async () => {
+    const store = storage("write");
+    const { used, saved } = deps(ndjson(body(LINES)), store.root);
+    const error = await exportAudit({}, used).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ExportStorage);
+    expect(error).not.toBeInstanceOf(ExportCut);
     expect(saved).toHaveLength(0);
     expect(store.files.size).toBe(0);
   });

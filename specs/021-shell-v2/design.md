@@ -291,8 +291,13 @@ ne vide pas l'écran) avec ses trois états.
     Détail, retrouvé parmi les pages que le cache tient (l'API n'en sert aucun seul).
     « Exporter (NDJSON) » enregistre la même recherche (`Accept: application/x-ndjson`)
     dans un fichier écrit au fil de sa réception (stockage privé de l'origine, OPFS),
-    jamais tenu entier par la page, puis remis au navigateur comme téléchargement ; un
-    corps coupé ne laisse aucun fichier.
+    sans que la page le tienne entier, puis remis au navigateur comme téléchargement ;
+    sans OPFS (fenêtre privée, stockage qui refuse le fichier), repli sur le blob du
+    navigateur, qui le tient entier (en mémoire ou sur disque, à sa guise) ; un corps
+    coupé, ou un stockage plein en cours d'écriture, ne laisse aucun fichier. L'acteur se
+    filtre parmi les identités, par son nom, pour qui a `core.rbac.read` global ; sans ce
+    droit, par son identifiant collé, et le panneau le montre copiable, sans lien vers
+    l'identité : aucune lecture refusée (chacune serait journalisée `denied`).
   - Les imports de l'utilisateur (`/imports`, espace `changes`) : l'import choisi
     (`/imports/:id`) se suit dans l'onglet Détail, son état relu chaque seconde tant que
     sa tâche le trie, le tient prêt ou le joue (aucun événement du flux ne le dit) ; tri

@@ -14,6 +14,7 @@ export const USERS = {
   bob: "Bob Exemple",
   carol: "Carol Exemple",
   dana: "Dana Exemple",
+  erwan: "Erwan Exemple",
 } as const;
 
 /**
@@ -30,11 +31,23 @@ export const ENTITY_ADMIN = {
   },
 } as const;
 
+/**
+ * A role of the journeys (global-setup.ts): the read of the audit journal alone, without
+ * the rights (`core.rbac.read`) — the auditor of the journey `admin` (task 15c), who
+ * filters by an actor he may not look up.
+ */
+export const AUDITOR = {
+  key: "auditeur",
+  labels: { fr: "Auditeur" },
+  entries: ["core.audit.read"],
+} as const;
+
 /** Roles bound to the groups of users.toml, on the whole organisation (global-setup.ts). */
 export const GROUPS: Record<string, readonly string[]> = {
   "kartenn-admins": ["administrator"],
   lecteurs: ["reader"],
   redacteurs: ["redacteur"],
+  auditeurs: ["reader", AUDITOR.key],
 };
 
 /**
