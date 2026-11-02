@@ -1955,13 +1955,51 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     et sa perception sous une modale ouverte n'est pas vérifiée (`@kartenn/ui`, hors
     périmètre) ; la revalidation sur reconnexion et le préchargement au survol ne sont
     couverts qu'en Vitest (même règle), pas en parcours.
-- [ ] 17b. « Créer un VLAN pour ce réseau » (maquette E12) : création du VLAN et pose de
+- [x] 17b. « Créer un VLAN pour ce réseau » (maquette E12) : création du VLAN et pose de
   `core.vlan` par une référence locale, au brouillon ou en Ctrl+Entrée ; poser un VLAN
   existant depuis l'onglet du réseau — REQ-026-6 — verify : parcours `vlan` (création
   pour un réseau au brouillon puis appliquée, un seul changeset)
   - où : écrans VLAN de la tâche 17 (`web/v2/shell/src/views/`, onglet Réseaux) ;
     parcours `web/v2/e2e/journeys/vlan.spec.ts`
   - dépend de : 17a
+  - fait le 2026-11-02 — onglet VLAN d'un réseau qui n'en porte aucun
+    (`record/NetworkVlanTab.vue`) : « Créer un VLAN pour ce réseau » ouvre le panneau
+    d'édition sur un VLAN (`EditRequest.network`, `edit/panel.ts`) titré « Créer un VLAN
+    pour <réseau> », champ « Réseau » en lecture seule, « Propriété posée » `core.vlan`, avis
+    « Deux opérations, un seul changeset » ; les deux opérations (`vlanForNetwork`,
+    `edit/vlan.ts`) : `create_vlan` sous un nom local, puis `assign_property` de
+    `core.vlan` à `{"local": n}` (`networkVlanOperation`, `parts/vlan.ts`) — au brouillon
+    (action par défaut, Ctrl+Entrée), le nom pris libre dans le brouillon actif relu
+    (`draftLocal`, `freeLocal`), ou appliquées ensemble (`?approval=self`, motif prérempli
+    « Création d'un VLAN pour <réseau> », nom 0). Droits de l'action : `core.vlan.edit`,
+    plus `core.prefix.edit` et `prop.core.vlan.edit` ; une violation de la pose
+    (`operation` 1 ou pointeur `/operations/1/…` : `prop.assignment.invalid_value`,
+    `prop.assignment.unknown_local`) dite sur le champ « Réseau », avec son code
+    (`ofAssignment`). « Poser un VLAN existant » : `Combobox` des suggestions de
+    `/v1/vlans` (`q`), « Poser le VLAN » au brouillon ; un texte sans VLAN choisi est
+    refusé sur le champ. Les deux refusés avec leur raison si une pose de `core.vlan` sur
+    ce réseau est déjà au brouillon (`isNetworkVlanAssignment`). Brouillon : une liste de
+    valeurs se lit valeur par valeur (`#0` pour un nom local, `draft/operations.ts`).
+    Tests : Vitest `test/edit.test.ts` (opérations, violation de la pose, nom local libre
+    relu dans le brouillon), `test/views.test.ts` (`freeLocal`, pose au brouillon),
+    `test/changesets.test.ts` (valeurs d'une affectation) ; parcours `vlan` (VLAN existant
+    posé au brouillon puis appliqué ; créé pour un réseau au brouillon puis appliqué, un
+    changeset `create_vlan` + `assign_property` ; appliqué d'emblée, refus de la pose
+    réécrit par `page.route` dit sur le champ du réseau, puis appliqué, un changeset).
+  - choix : les deux actions offertes seulement sur un réseau sans VLAN (remplacer passe
+    par le retrait, au brouillon) ; pose d'un VLAN existant au brouillon seulement, comme
+    le retrait ; groupes offerts sans filtre par l'ancre du réseau (le serveur juge,
+    `core.vlan.site_mismatch`) ; le réseau en champ en lecture seule plutôt qu'en
+    attribut (maquette), pour y dire le refus de la pose ; texte de l'avis fixe (une
+    région `status` relue à chaque frappe sinon) ; au brouillon, pas de simulation dans le
+    panneau (le panneau du brouillon la montre, comme pour les autres créations) ; champ
+    du VLAN refusé (aucun choisi) : le focus y va, l'erreur part au choix (relectures UI et
+    a11y du 2026-11-02).
+  - reste : les suggestions de « Poser un VLAN existant » ne disent pas le groupe
+    (`/v1/vlans` ne sert que son identifiant : deux VLAN de même VID et nom dans deux
+    groupes se confondent) ; l'avis « Deux opérations » ne nomme ni le VLAN ni son groupe
+    (maquette : « Créer le VLAN {vid} {nom} dans {groupe}… », texte fixe voulu) ;
+    `values` d'une liste de valeurs vide reste lue en JSON (`[]`).
 - [ ] 24b. Aperçu du brouillon dans l'arbre des préfixes, tiré de
   `ChangesetSimulated.placements` : nœuds déplacés montrés sous leur parent d'après,
   marqués « en brouillon » — REQ-021-17 — verify : Vitest de l'aperçu ; parcours `moves`
@@ -2019,7 +2057,8 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     de » dit par une région `status`, VID saisi hors type refusé sur le champ ; une cellule
     VLAN vide, en lecture ou illisible dite en mots (texte caché), illisible en court avec
     son code (relectures a11y et UI du 2026-11-01).
-  - à arbitrer : « Créer un VLAN pour ce réseau » (maquette E12 : « deux opérations au
+  - à arbitrer (tranché le 2026-11-01 : A13, option (a), livrée par 17a et 17b) :
+    « Créer un VLAN pour ce réseau » (maquette E12 : « deux opérations au
     brouillon », création du VLAN puis pose de `core.vlan`) — une valeur de propriété
     (`RawValue`) ne nomme pas un objet créé plus tôt dans le même changeset. Options :
     (a) une référence locale dans `RawValue` (`{local: n}`, contrat 004/006) : un seul
@@ -2035,8 +2074,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     VLAN : espace `network` (REQ-021-2, cette ligne), la maquette E12 les met sous
     Référentiel — écart signalé, non tranché.
   - reste : tuile de l'accueil « groupes les plus remplis » (design § « VLAN, écrans du
-    cœur ») ; poser un VLAN existant sur un réseau depuis son onglet (retrait seulement) ;
-    créer un VLAN pour un réseau (arbitrage ci-dessus) ; ancre d'un groupe par glisser
+    cœur ») ; ancre d'un groupe par glisser
     (panneau seulement) ; cohérence d'un réseau avec l'ancre du groupe
     (`core.vlan.site_mismatch`) dans l'onglet Réseaux ; onglet Interfaces (plugin
     Machines, tâche 18) ; filtre de la colonne VLAN des préfixes ; colonne d'un plugin sur

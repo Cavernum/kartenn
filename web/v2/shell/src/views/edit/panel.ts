@@ -1,5 +1,6 @@
 import { shallowRef, watch, type Ref } from "vue";
 import type { CollectionId } from "../collections.ts";
+import type { VlanNetwork } from "./vlan.ts";
 
 // The edit panel of a kind (REQ-021-36; design 021 « Panneau d'édition par sorte »): a view
 // asks for it — the list (`c`, `e`), the record (« Modifier », « Changer de parent… »), the
@@ -17,6 +18,11 @@ export type EditRequest =
       preset?: Readonly<Record<string, string>>;
       /** Where the object goes, said in the title (« Ajouter dans 192.0.2.64/26 »). */
       within?: string;
+      /**
+       * A VLAN created for a network (« Créer un VLAN pour ce réseau », REQ-026-6): set on it
+       * by `core.vlan`, in the same changeset.
+       */
+      network?: VlanNetwork;
     }
   | { mode: "edit"; collection: CollectionId; id: string }
   /** « Changer de parent… » of an entity or a site (REQ-021-32): the valid targets only. */

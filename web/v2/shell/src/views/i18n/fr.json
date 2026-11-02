@@ -208,7 +208,15 @@
       "carries": "Ce réseau porte le VLAN {vlan}.",
       "property": "Propriété posée",
       "remove": "Retirer le VLAN",
-      "removal": "retrait du VLAN {vlan} de {network}"
+      "removal": "retrait du VLAN {vlan} de {network}",
+      "createForNetwork": "Créer un VLAN pour ce réseau",
+      "setTitle": "Poser un VLAN existant",
+      "setLabel": "VLAN",
+      "setHint": "Par son VID ou le début de son nom.",
+      "set": "Poser le VLAN",
+      "setChoose": "Choisissez un VLAN dans la liste.",
+      "setting": "pose du VLAN {vlan} sur {network}",
+      "settingDrafted": "La pose d'un VLAN sur ce réseau est déjà dans votre brouillon."
     },
     "home": {
       "error": "Les compteurs du tableau de bord n'ont pas pu être lus.",
@@ -381,7 +389,13 @@
     "vlan": {
       "vidProposed": "Prochain VID libre du groupe {group}.",
       "vidSaid": "VID proposé : {vid}, le prochain libre du groupe.",
-      "vidUnread": "Aucun VID proposé : {why}"
+      "vidUnread": "Aucun VID proposé : {why}",
+      "createFor": "Créer un VLAN pour {network}",
+      "motiveFor": "Création d'un VLAN pour {network}",
+      "whatFor": "VLAN {vlan} pour {network}",
+      "networkHint": "Le VLAN créé y est posé.",
+      "twoOperations": "Deux opérations, un seul changeset",
+      "twoOperationsText": "Le VLAN est créé, puis posé sur {network} : les deux ensemble, au brouillon ou appliqués."
     },
     "move": {
       "action": "Changer de parent…",

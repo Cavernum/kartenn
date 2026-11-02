@@ -207,6 +207,16 @@ describe("the review of a changeset", () => {
         last: "192.0.2.9",
       }),
     ).toMatchObject({ subject: "192.0.2.1–192.0.2.9", members: [{ name: "domain", value: D1 }] });
+    // The values of an assignment, each as text: a local name as `#n` (021/A13).
+    expect(
+      operationLine({
+        op: "assign_property",
+        kind: "prefix",
+        object: { id: P1 },
+        property: { id: D1 },
+        values: [{ local: 0 }],
+      }).members,
+    ).toContainEqual({ name: "values", value: "#0" });
   });
 
   it("counts « À instruire » in the sidebar, nothing shown at zero", () => {

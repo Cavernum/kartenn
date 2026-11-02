@@ -17,6 +17,8 @@ import {
 } from "../src/views/collections.ts";
 import {
   COLUMN_READS,
+  freeLocal,
+  isNetworkVlanAssignment,
   isNetworkVlanRemoval,
   limited,
   networkVlanOperation,
@@ -245,6 +247,29 @@ describe("the collections", () => {
       object: { id: "p" },
       property: { id: "d" },
     });
+    // Set to the VLAN an earlier operation creates, by its local name (021/A13).
+    expect(networkVlanOperation("p", "d", { local: 2 })).toMatchObject({
+      values: [{ local: 2 }],
+    });
+    // A setting already in the draft, by its network and declaration; never a removal.
+    const setting = networkVlanOperation("p", "d", ENTITY);
+    expect(isNetworkVlanAssignment(setting, "p", "d")).toBe(true);
+    expect(isNetworkVlanAssignment(setting, "q", "d")).toBe(false);
+    expect(isNetworkVlanAssignment(setting, "p", undefined)).toBe(false);
+    expect(isNetworkVlanAssignment(removal, "p", "d")).toBe(false);
+  });
+
+  it("take a local name no operation of the draft uses, at any depth", () => {
+    expect(freeLocal([])).toBe(0);
+    expect(
+      freeLocal([
+        { op: "create_domain", local: 0, slug: "a" },
+        { op: "create_prefix", domain: { local: 0 }, prefix: "192.0.2.0/24", local: 3 },
+        { op: "assign_property", object: { local: 3 }, values: [{ local: 5 }] },
+      ]),
+    ).toBe(6);
+    // A member `local` that is not a number names nothing.
+    expect(freeLocal([{ op: "x", local: "7" }])).toBe(0);
   });
 
   it("read the VLAN of the rows a few at a time, never a row gone meanwhile", async () => {

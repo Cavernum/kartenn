@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { ApiProblem, queryClient } from "@kartenn/sdk";
+import { ApiProblem, drafts, queryClient } from "@kartenn/sdk";
 import { resetContext, setFetch } from "@kartenn/sdk/host";
 import type { GridColumn } from "@kartenn/ui";
 import { afterEach, describe, expect, it } from "vitest";
@@ -35,6 +35,7 @@ import {
   type InlineSay,
 } from "../src/views/edit/inline.ts";
 import { useNodeEdit } from "../src/views/edit/nodes.ts";
+import { draftLocal, ofAssignment, vlanForNetwork } from "../src/views/edit/vlan.ts";
 
 // In-place editing and the edit panel of a kind (task 021-12; REQ-021-15, 16, 36, 37): the
 // fields of each kind typed by the contract, the operations of the draft they give, whether
@@ -873,6 +874,73 @@ describe("the edit panel of a kind", () => {
     await nextTick();
     expect(editRequest().value).toBeNull();
     scope.stop();
+  });
+});
+
+describe("a VLAN created for a network (task 17b, 021/A13)", () => {
+  afterEach(() => {
+    drafts.setActive(null);
+    queryClient.clear();
+    setFetch(null);
+  });
+  const NETWORK = { id: P1, name: "192.0.2.0/24", property: D1 };
+
+  it("creates the VLAN under a local name, then sets `core.vlan` of the network to it", () => {
+    const creation = EDITS.vlans.create({
+      group: V1,
+      vid: "100",
+      name: "serveurs",
+      status: "active",
+    });
+    expect(vlanForNetwork(creation, NETWORK, 4)).toEqual([
+      {
+        op: "create_vlan",
+        group: { id: V1 },
+        vid: 100,
+        name: "serveurs",
+        status: "active",
+        local: 4,
+      },
+      {
+        op: "assign_property",
+        kind: "prefix",
+        object: { id: P1 },
+        property: { id: D1 },
+        values: [{ local: 4 }],
+      },
+    ]);
+  });
+
+  it("says a refusal of the setting on the network, by its operation or its pointer", () => {
+    expect(ofAssignment({ operation: 1, pointer: null })).toBe(true);
+    expect(ofAssignment({ pointer: "/operations/1/values/0" })).toBe(true);
+    expect(ofAssignment({ pointer: "/operations/1" })).toBe(true);
+    expect(ofAssignment({ operation: 0, pointer: "/operations/0/vid" })).toBe(false);
+    expect(ofAssignment({ pointer: "/operations/10" })).toBe(false);
+  });
+
+  it("takes a local name the active draft, read again, does not use", async () => {
+    expect(await draftLocal()).toBe(0);
+    let reads = 0;
+    let operations: unknown[] = [{ op: "create_domain", local: 0, slug: "a" }];
+    setFetch((async (input: RequestInfo | URL) => {
+      if (!String(input).endsWith(`/v1/drafts/${D1}`)) return new Response("{}", { status: 404 });
+      reads++;
+      const body = { id: D1, title: "B", version: reads, operation_count: 1, operations };
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ETag: `"${reads}"` },
+      });
+    }) as typeof fetch);
+    drafts.setActive(D1);
+    expect(await draftLocal()).toBe(1);
+    // Read again each time: a name taken since is not given twice.
+    operations = [...operations, { op: "create_vlan", local: 1, vid: 10 }];
+    expect(await draftLocal()).toBe(2);
+    expect(reads).toBe(2);
+    // A draft that cannot be read (gone): the SDK creates another, the first name.
+    drafts.setActive("0b5e3c1a-0000-4000-8000-0000000000ff");
+    expect(await draftLocal()).toBe(0);
   });
 });
 
