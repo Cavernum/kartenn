@@ -502,9 +502,11 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
     parent avant et après, au présent, de chaque objet dont le parent change, déduit ou
     déclaré ; un objet créé part de `before: null`, un objet fermé quitte l'arbre et n'y
     figure pas ; d'abord les objets des opérations, dans leur ordre, puis ceux qu'elles
-    déplacent, dans l'ordre des adresses ; au plus 1000, et pas plus de 1000 objets
-    examinés hors des opérations : au-delà, `placements_truncated: true` ; *amendé par la
-    021*, A12, tâche 021-24a), rien de
+    déplacent, dans l'ordre des adresses ; sous le filtre de lecture de l'arbre : un objet
+    que l'appelant ne lit pas n'y figure pas, un parent qu'il ne lit pas vaut `null` ; au
+    plus 1000, et pas plus de 1000 objets lisibles examinés hors des opérations : au-delà,
+    `placements_truncated: true`, compté sur le lisible ; `before` et `after` toujours
+    présents ; *amendé par la 021*, A12, tâche 021-24a), rien de
     journalisé, donc sans lien ; appliqué → 201, `Location` et `Link` vers le
     changeset ; en attente → 202 et `Link` ; corps `{changeset: {id, href}, state, …}` ;
   - indice d'opération : la violation du noyau porte `operation: Option<usize>`,

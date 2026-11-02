@@ -240,6 +240,9 @@ la spec qu'il touche :
   présent, pour chaque objet dont le parent change, déduit ou déclaré). Le shell en tire
   l'aperçu du brouillon dans l'arbre (REQ-021-17, 24b). Retenu contre une lecture de
   l'arbre sous brouillon (plus lourde) et contre l'abandon de l'aperçu.
+  *Précisé par la 24a* : `placements` suit le filtre de lecture de l'arbre ;
+  `placements_truncated` est gardé ; le crochet `ModuleHandler::parents` est gardé,
+  additif avec un défaut vide, avant le gel.
 - **A13 — Référence locale dans une valeur (004, 006)** : une valeur de propriété de
   type référence (`RawValue`) peut être `{"local": n}`, la référence locale d'un objet créé
   plus tôt dans le même changeset (REQ-004-4), résolue à l'application comme celles des

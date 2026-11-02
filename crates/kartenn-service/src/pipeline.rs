@@ -2117,9 +2117,14 @@ async fn stages<S: Store, A: Authorizer>(
         tx.rollback().await?;
         return Err(e.into());
     }
-    // Spec 021, A12: a simulation places the objects of its trees, read before the writes.
+    // Spec 021, A12: a simulation places the objects of its trees, read before the writes,
+    // as its author may read them.
+    let reader = crate::placements::Reader {
+        authorizer,
+        subject: author,
+    };
     let prior = if req.simulate {
-        match crate::placements::prior(&mut tx, modules, &planned).await {
+        match crate::placements::prior(&mut tx, modules, &reader, &planned).await {
             Ok(prior) => Some(prior),
             Err(e) => {
                 tx.rollback().await?;
@@ -2233,7 +2238,7 @@ async fn stages<S: Store, A: Authorizer>(
     if req.simulate {
         let sample = tx.diff_sample(SIMULATION_SAMPLE).await;
         let placements = match prior {
-            Some(prior) => crate::placements::placements(&mut tx, modules, prior).await,
+            Some(prior) => crate::placements::placements(&mut tx, modules, &reader, prior).await,
             None => Ok(crate::placements::Placements::default()),
         };
         tx.rollback().await?;

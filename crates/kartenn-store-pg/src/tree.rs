@@ -699,7 +699,8 @@ pub(crate) async fn places(
          UNION ALL SELECT id, 'site', parent_id, NULL, NULL FROM site WHERE {at}
          UNION ALL SELECT id, 'vlan_group', anchor_id, NULL, NULL FROM vlan_group WHERE {at}
          UNION ALL SELECT id, 'vlan', group_id, NULL, NULL FROM vlan WHERE {at}
-         UNION ALL SELECT id, kind, parent_id, NULL, NULL FROM module_object WHERE {at}"
+         UNION ALL SELECT id, kind, parent_id, NULL, NULL FROM module_object WHERE {at}
+         UNION ALL SELECT id, 'domain', NULL, NULL, NULL FROM addressing_domain WHERE {at}"
     )))
     .bind(objects)
     .bind(without)
@@ -711,7 +712,9 @@ pub(crate) async fn places(
 }
 
 /// The first `limit` objects valid at the instant of the transaction a prefix of value
-/// `within` in `domain` would be the deduced parent of, as [`children_of`] reads them.
+/// `within` in `domain` would be the deduced parent of, after the child `after` when
+/// given, as [`children_of`] reads them. Every child: the caller filters what its reader
+/// may read (spec 021, A12).
 ///
 /// # Errors
 ///
@@ -720,11 +723,36 @@ pub(crate) async fn children_within(
     conn: &mut sqlx::PgConnection,
     domain: Uuid,
     within: &Prefix,
+    after: Option<Uuid>,
     limit: i64,
 ) -> sqlx::Result<Vec<Node>> {
     let at: OffsetDateTime = sqlx::query_scalar("SELECT now()")
         .fetch_one(&mut *conn)
         .await?;
+    // The position of `after`: its first address and its rank, as `Node::key` says.
+    let key = match after {
+        None => None,
+        Some(id) => {
+            let found: Option<(String, i16)> = sqlx::query_as(
+                "SELECT host(prefix), 0::int2 FROM prefix WHERE id = $1 AND valid_period @> now()
+                 UNION ALL SELECT host(lower(range)), 1::int2 FROM ip_range
+                  WHERE id = $1 AND valid_period @> now()
+                 UNION ALL SELECT host(address), 2::int2 FROM address
+                  WHERE id = $1 AND valid_period @> now()",
+            )
+            .bind(id)
+            .fetch_optional(&mut *conn)
+            .await?;
+            match found {
+                Some((start, rank)) => Some(ChildKey {
+                    start: addr(&start)?,
+                    rank,
+                    id,
+                }),
+                None => return Ok(Vec::new()),
+            }
+        }
+    };
     tops(
         conn,
         domain,
@@ -732,7 +760,7 @@ pub(crate) async fn children_within(
         at,
         None,
         &ReadScope::all(),
-        None,
+        key.as_ref(),
         Some(limit),
     )
     .await

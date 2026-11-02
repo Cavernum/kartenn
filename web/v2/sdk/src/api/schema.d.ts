@@ -4434,12 +4434,13 @@ export interface components {
        * @description The objects whose parent applying would change at the present, with their parents
        *     before and after (spec 021, A12): first those the operations write, in their
        *     order, then those they move, in address order; an object closed leaves the tree
-       *     and is not listed. At most 1000.
+       *     and is not listed. Under the read filter of the tree: an object the caller may not
+       *     read is not listed. At most 1000.
        */
       placements: components["schemas"]["Placement"][];
       /**
-       * @description `true`: some placements may be missing, past 1000 (or past 1000 objects examined
-       *     beyond those of the operations).
+       * @description `true`: some placements may be missing, past 1000 (or past 1000 readable objects
+       *     examined beyond those of the operations); counted on what the caller may read.
        */
       placements_truncated: boolean;
       /** @description Its first entries. */
@@ -7418,15 +7419,16 @@ export interface components {
     Placement: {
       /**
        * Format: uuid
-       * @description Its parent after; `null` at the root.
+       * @description Its parent after; `null` at the root, or for a parent the caller may not read.
        */
-      after?: string | null;
+      after: string | null;
       /**
        * Format: uuid
        * @description Its parent before: deduced for a prefix, a range or an address, declared otherwise;
-       *     `null` at the root, or for an object the changeset creates.
+       *     `null` at the root, for an object the changeset creates, or for a parent the caller
+       *     may not read.
        */
-      before?: string | null;
+      before: string | null;
       /** @description Its kind. */
       kind: components["schemas"]["TargetKind"];
       /**

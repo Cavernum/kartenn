@@ -1150,14 +1150,14 @@
             "type": "array"
           },
           "placements": {
-            "description": "The objects whose parent applying would change at the present, with their parents\nbefore and after (spec 021, A12): first those the operations write, in their\norder, then those they move, in address order; an object closed leaves the tree\nand is not listed. At most 1000.",
+            "description": "The objects whose parent applying would change at the present, with their parents\nbefore and after (spec 021, A12): first those the operations write, in their\norder, then those they move, in address order; an object closed leaves the tree\nand is not listed. Under the read filter of the tree: an object the caller may not\nread is not listed. At most 1000.",
             "items": {
               "$ref": "#/components/schemas/Placement"
             },
             "type": "array"
           },
           "placements_truncated": {
-            "description": "`true`: some placements may be missing, past 1000 (or past 1000 objects examined\nbeyond those of the operations).",
+            "description": "`true`: some placements may be missing, past 1000 (or past 1000 readable objects\nexamined beyond those of the operations); counted on what the caller may read.",
             "type": "boolean"
           },
           "sample": {
@@ -9047,7 +9047,7 @@
         "description": "An object whose parent a simulated changeset changes, at the present (spec 021, A12).",
         "properties": {
           "after": {
-            "description": "Its parent after; `null` at the root.",
+            "description": "Its parent after; `null` at the root, or for a parent the caller may not read.",
             "format": "uuid",
             "type": [
               "string",
@@ -9055,7 +9055,7 @@
             ]
           },
           "before": {
-            "description": "Its parent before: deduced for a prefix, a range or an address, declared otherwise;\n`null` at the root, or for an object the changeset creates.",
+            "description": "Its parent before: deduced for a prefix, a range or an address, declared otherwise;\n`null` at the root, for an object the changeset creates, or for a parent the caller\nmay not read.",
             "format": "uuid",
             "type": [
               "string",
@@ -9074,7 +9074,9 @@
         },
         "required": [
           "object",
-          "kind"
+          "kind",
+          "before",
+          "after"
         ],
         "type": "object"
       },

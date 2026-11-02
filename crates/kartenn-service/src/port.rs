@@ -987,8 +987,8 @@ pub trait WriteTx {
     /// particular order: the parent of a prefix, a range or an address is deduced (the
     /// smallest prefix of its domain strictly holding it, D34) from the prefixes `supposed`
     /// says; that of an entity, a site, a VLAN group (its anchor), a VLAN (its group) or an
-    /// object of a module (its record) is declared. Objects of no tree, or not valid then,
-    /// are left out.
+    /// object of a module (its record) is declared; a domain, which anchors VLAN groups, is
+    /// listed without a parent. Objects of no tree, or not valid then, are left out.
     fn tree_places(
         &mut self,
         objects: &[Uuid],
@@ -996,13 +996,15 @@ pub trait WriteTx {
     ) -> impl Future<Output = Result<Vec<TreePlace>, StoreError>> + Send;
 
     /// The first `limit` objects valid at the instant of the transaction a prefix of value
-    /// `within` in `domain` would be the deduced parent of: the prefixes, ranges and
-    /// addresses it strictly holds that no smaller prefix holds, in address order; the
-    /// prefix of that value, if any, left out.
+    /// `within` in `domain` would be the deduced parent of, after the object `after` (one
+    /// of them, from an earlier page) when given: the prefixes, ranges and addresses it
+    /// strictly holds that no smaller prefix holds, in address order; the prefix of that
+    /// value, if any, left out.
     fn tree_children(
         &mut self,
         domain: Uuid,
         within: &Prefix,
+        after: Option<Uuid>,
         limit: i64,
     ) -> impl Future<Output = Result<Vec<(ObjectKind, Uuid)>, StoreError>> + Send;
 

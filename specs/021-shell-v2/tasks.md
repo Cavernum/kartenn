@@ -564,11 +564,23 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     où les préfixes du changeset reprennent leur valeur d'avant. Objet créé listé avec
     `before: null` (y compris à la racine, `after: null`) ; objet fermé non listé (il
     quitte l'arbre ; `cascaded` et les opérations le nomment). Borne : au plus 1000
-    placements et 1000 objets examinés hors des opérations, au-delà
+    placements et 1000 objets lisibles examinés hors des opérations, au-delà
     `placements_truncated: true` (coût borné à une marche de 1001 enfants et deux
     lectures en lot ; simulation entière d'une insertion sur 1001 enfants ≈ 130 ms en
-    test, profil dev). Mêmes identifiants exposés que `sample` et `cascaded`, sans filtre
-    de lecture. Parent d'un groupe de VLAN : son ancrage ; d'un VLAN : son groupe.
+    test, profil dev). Filtre de lecture de l'arbre (correction de revue) : sous les
+    droits de l'auteur (`Authorizer::authorize_in`, `core.<genre>.read` ou la lecture du
+    type de module), un objet illisible n'est pas placé et ne consomme pas le budget
+    (enfants lus page par page, `tree_children` avec curseur), un parent illisible se
+    sert `null` (le haut de l'arbre que l'auteur lit, sans marqueur distinct qui
+    trahirait son existence), un placement resté sans changement de parent est retiré ;
+    `placements_truncated` se compte sur le lisible ; lisibilité d'avant lue avant les
+    écritures, d'après sur l'état simulé. Objet de module placé seulement si son type a
+    un parent de fiche ou si son module le place (`parents`) : ni flux ni politique.
+    Parent d'un groupe de VLAN : son ancrage ; d'un VLAN : son groupe.
+  - reste : le budget compte aussi les enfants lisibles dont le parent ne bouge pas (une
+    valeur redimensionnée qui garde ses enfants) ; des enfants illisibles nombreux se
+    parcourent sans borne de pages ; le test de lecture retire la lecture des adresses
+    partout, pas sur les adresses d'une seule entité.
 - [ ] 17a. Référence locale dans une valeur de propriété (A13) : `RawValue`
   `{"local": n}` (`RawDto`, `RawInput`), résolue à l'application comme les `Ref` des
   opérations, prise dans le tri topologique ; référence vers un indice absent ou vers un

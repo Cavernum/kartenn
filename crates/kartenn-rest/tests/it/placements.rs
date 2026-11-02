@@ -27,6 +27,11 @@ use uuid::Uuid;
 
 /// The router, as a person granted everything everywhere.
 async fn app(pool: &PgPool) -> Router {
+    app_with(pool, &["*"]).await
+}
+
+/// The router, as a person granted `permissions` everywhere.
+async fn app_with(pool: &PgPool, permissions: &[&str]) -> Router {
     let identity: Uuid = sqlx::query_scalar(
         "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'p') RETURNING id",
     )
@@ -35,21 +40,25 @@ async fn app(pool: &PgPool) -> Router {
     .unwrap();
     let role: Uuid = sqlx::query_scalar(
         "INSERT INTO role (id, key, labels, valid_period, changeset_id)
-         VALUES (gen_random_uuid(), 'all', '{\"fr\": \"tout\"}',
-                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())
+         VALUES (gen_random_uuid(), 'r_' || replace(gen_random_uuid()::text, '-', ''),
+                 '{\"fr\": \"r\"}', tstzrange(now() - interval '1 day', NULL),
+                 gen_random_uuid())
          RETURNING id",
     )
     .fetch_one(pool)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
-         VALUES ($1, '*', tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
-    )
-    .bind(role)
-    .execute(pool)
-    .await
-    .unwrap();
+    for permission in permissions {
+        sqlx::query(
+            "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
+             VALUES ($1, $2, tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+        )
+        .bind(role)
+        .bind(permission)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
     sqlx::query(kartenn_testing::BIND_IDENTITY)
         .bind(identity)
         .bind(role)
@@ -356,4 +365,46 @@ async fn past_a_thousand_the_placements_are_truncated(pool: PgPool) {
     assert_eq!(found[0]["before"], Value::Null);
     let new = &found[0]["object"];
     assert!(found[1..].iter().all(|p| &p["after"] == new), "{answer}");
+}
+
+/// Under the read filter of the tree (task 021-24a): an author who writes prefixes but
+/// reads no address sees none of their identifiers in a simulation.
+#[kartenn_testing::pg_test]
+async fn an_author_sees_no_placement_of_what_they_may_not_read(pool: PgPool) {
+    let admin = app(&pool).await;
+    let (domain, [wide, _, two, _, address]) = lab(&pool, &admin).await;
+    // 10.0.2.0/24 closed for 10.0.2.0/25: its address changes network.
+    let operations = json!([
+        {"op": "close", "kind": "prefix", "id": {"id": two}},
+        {"op": "create_prefix", "local": null, "domain": {"id": domain},
+         "prefix": "10.0.2.0/25", "nature": "network"},
+    ]);
+    let answer = simulate(&admin, operations.clone()).await;
+    let (new, row) = created(&answer);
+    assert_eq!(
+        placements(&answer),
+        sorted(vec![row, json!([address, "address", two, new])]),
+        "{answer}"
+    );
+
+    let author = app_with(
+        &pool,
+        &[
+            "core.domain.read",
+            "core.domain.edit",
+            "core.prefix.read",
+            "core.prefix.edit",
+        ],
+    )
+    .await;
+    let answer = simulate(&author, operations).await;
+    let (_, row) = created(&answer);
+    assert_eq!(placements(&answer), vec![row], "{answer}");
+    assert_eq!(answer["placements"][0]["after"], json!(wide), "{answer}");
+    assert!(
+        !answer["placements"]
+            .to_string()
+            .contains(&address.to_string()),
+        "{answer}"
+    );
 }

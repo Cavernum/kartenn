@@ -1698,9 +1698,10 @@ impl WriteTx for PgTx {
         &mut self,
         domain: Uuid,
         within: &Prefix,
+        after: Option<Uuid>,
         limit: i64,
     ) -> Result<Vec<(ObjectKind, Uuid)>, StoreError> {
-        let nodes = crate::tree::children_within(&mut self.tx, domain, within, limit)
+        let nodes = crate::tree::children_within(&mut self.tx, domain, within, after, limit)
             .await
             .map_err(store_err)?;
         Ok(nodes
