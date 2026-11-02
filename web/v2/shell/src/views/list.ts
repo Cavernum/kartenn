@@ -1,4 +1,4 @@
-import { filterModel, queryClient, reads, type ListPath } from "@kartenn/sdk";
+import { filterModel, queryClient, reads, type Filters, type ListPath } from "@kartenn/sdk";
 import { checkFilter, type Filter, type FilterModel, type GridWindow } from "@kartenn/ui";
 import { computed, ref, shallowRef, watch, type ComputedRef, type Ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -31,6 +31,8 @@ export interface FilteredList<T> {
   onFilters: (next: Filter[]) => void;
   /** The keys of the filters applied (neither drafts nor invalid). */
   applied: ComputedRef<Set<string>>;
+  /** The filters the list sends, as the API takes them (an export sends the same). */
+  sent: ComputedRef<Filters>;
   list: UseInfiniteQueryResult<unknown>;
   rows: ComputedRef<T[]>;
   /** The list failed (not its next page, which only stops the prefetch). */
@@ -79,13 +81,27 @@ function typedNames(model: FilterModel): Set<string> {
   return names;
 }
 
-export function useFilteredList<T>(path: () => ListPath): FilteredList<T> {
+/** How a list departs from those of the referential. */
+export interface ListOptions {
+  /** Read at the dates of the page (the default); `false`, at the present alone (the audit). */
+  dated?: boolean;
+  /** The labels of its filters, before the shared ones (`from` of the audit). */
+  field?: (name: string) => string | undefined;
+}
+
+export function useFilteredList<T>(
+  path: () => ListPath,
+  options: ListOptions = {},
+): FilteredList<T> {
   const route = useRoute();
   const router = useRouter();
   const time = useTime();
   const declared = useDeclarations();
   const { declarations } = declared;
-  const words = useFilterWords(declarations);
+  const shared = useFilterWords(declarations);
+  const words: FilterWords = options.field
+    ? { ...shared, field: (name) => options.field?.(name) ?? shared.field(name) }
+    : shared;
   const model = computed(() => listFilterModel(path(), declarations.value, words));
 
   // The property filters of the URL that no declaration read types (REQ-021-18): the list
@@ -150,10 +166,11 @@ export function useFilteredList<T>(path: () => ListPath): FilteredList<T> {
   const sent = computed(() => sentFilters(path(), model.value, ofUrl.value, declarations.value));
 
   const read = () =>
-    reads.list(path(), sent.value as never, {
-      validAt: time.value.validAt,
-      asOf: time.value.asOf,
-    });
+    reads.list(
+      path(),
+      sent.value as never,
+      options.dated === false ? null : { validAt: time.value.validAt, asOf: time.value.asOf },
+    );
   // Read only once every property filter of the URL is typed.
   const list = useInfiniteQuery(() => ({ ...read(), enabled: untyped.value.length === 0 }));
   const rows = computed(() => rowsOf(list.data.value) as unknown as T[]);
@@ -180,6 +197,7 @@ export function useFilteredList<T>(path: () => ListPath): FilteredList<T> {
     filters,
     onFilters,
     applied,
+    sent,
     list: list as UseInfiniteQueryResult<unknown>,
     rows,
     failed: computed(() => list.isError.value && !list.isFetchNextPageError.value),

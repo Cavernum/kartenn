@@ -284,6 +284,21 @@ ne vide pas l'écran) avec ses trois états.
   - Le rôle choisi : permissions, une par ligne (libellé à gauche, `CodeBadge` du nom servi
     à droite, action Retirer), « Ajouter une permission » ; puis les groupes qui le
     portent, avec leur périmètre, en lecture.
+  - L'audit (`/admin/audit`) : `DataGrid` du journal, du plus récent au plus ancien, page
+    par page, au présent quelles que soient les dates de la page (le journal n'en prend
+    pas), filtres typés dans l'URL (période en jours, événement, acteur, objet).
+    L'événement choisi (`/admin/audit/:id`, les filtres gardés) se lit dans l'onglet
+    Détail, retrouvé parmi les pages que le cache tient (l'API n'en sert aucun seul).
+    « Exporter (NDJSON) » enregistre la même recherche (`Accept: application/x-ndjson`)
+    dans un fichier écrit au fil de sa réception (stockage privé de l'origine, OPFS),
+    jamais tenu entier par la page, puis remis au navigateur comme téléchargement ; un
+    corps coupé ne laisse aucun fichier.
+  - Les imports de l'utilisateur (`/imports`, espace `changes`) : l'import choisi
+    (`/imports/:id`) se suit dans l'onglet Détail, son état relu chaque seconde tant que
+    sa tâche le trie, le tient prêt ou le joue (aucun événement du flux ne le dit) ; tri
+    en échec avec ses violations par rang d'élément ; rapport des lots. « Reprendre » et
+    « Annuler l'import » (confirmé : un import annulé ne reprend pas) s'écrivent aussitôt
+    par leur route : ni l'un ni l'autre n'est une opération de changeset.
 - **Hôte des plugins** : composants hôtes de la 007 (`ExtensionElement`, `PluginView`)
   repris dans le cadre ; vue de plugin sous son espace.
 

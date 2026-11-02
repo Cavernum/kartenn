@@ -4,7 +4,8 @@ import type { ScreenRoute } from "../views/routes.ts";
 // The screens of the space `changes` (task 14; design 021 « Routes »): the changesets, « À
 // instruire », the drafts of the user, and the records of a changeset and of a draft, each
 // in a chunk of its own with the reads its route declares (`meta.queries`), prefetched on
-// the intent of a link (REQ-021-22). The imports wait for task 27 (`/imports`).
+// the intent of a link (REQ-021-22). The imports (`/imports`) are those of the
+// administration (`admin/routes.ts`, task 15c).
 
 /** The screen of an entry of the space `changes`, by its id. */
 export function changesScreen(id: string): ScreenRoute | undefined {

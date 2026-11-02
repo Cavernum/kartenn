@@ -260,6 +260,110 @@
       "noneText": "Un émetteur OIDC rattaché ouvre des sessions à ses identités, sur une entité ou toute l'organisation.",
       "issuerHint": "Son identifiant (iss), tel que ses jetons le portent.",
       "already": "Cet émetteur est déjà rattaché à ce périmètre."
+    },
+    "audit": {
+      "filter": {
+        "from": "Depuis le",
+        "to": "Jusqu'au",
+        "name": "Événement",
+        "actor": "Acteur",
+        "object": "Objet"
+      },
+      "field": {
+        "occurred": "Survenu le",
+        "name": "Événement",
+        "actor": "Acteur",
+        "outcome": "Issue",
+        "targets": "Objets",
+        "severity": "Sévérité",
+        "criticality": "Criticité",
+        "reason": "Raison",
+        "motive": "Motif",
+        "kind": "Sorte",
+        "identity": "Identité",
+        "authMethod": "Authentification",
+        "issuer": "Émetteur",
+        "claimed": "Identité revendiquée",
+        "sourceIp": "Adresse source",
+        "userAgent": "Agent utilisateur",
+        "changeset": "Changeset",
+        "request": "Requête",
+        "trace": "Trace",
+        "instance": "Instance",
+        "version": "Version"
+      },
+      "outcome": { "success": "Réussi", "failure": "Échoué", "denied": "Refusé" },
+      "actorKind": {
+        "person": "Personne",
+        "service_account": "Compte de service",
+        "system": "Système",
+        "unknown": "Inconnu"
+      },
+      "criticality": { "low": "Basse", "normal": "Normale", "high": "Haute" },
+      "severity": { "INFO": "Information", "WARN": "Avertissement", "ERROR": "Erreur" },
+      "targetCount": "{kind} · {n}",
+      "moreTargets": "… et {n} autre, dans l'export | … et {n} autres, dans l'export",
+      "section": {
+        "event": "Ce qui s'est passé",
+        "actor": "Acteur",
+        "targets": "Objets · {n}",
+        "targetList": "Objets de l'événement",
+        "correlation": "Corrélation",
+        "details": "Détails"
+      },
+      "export": "Exporter (NDJSON)",
+      "exported": "Export enregistré : {name}",
+      "exportFailed": "L'export n'a pas pu être enregistré",
+      "exportCut": "Le journal s'est interrompu avant sa fin : aucun fichier n'a été gardé.",
+      "error": "Le journal d'audit n'a pas pu être lu",
+      "none": "Aucun événement",
+      "noneText": "Le journal n'a encore rien consigné.",
+      "unread": "Événement hors des pages lues",
+      "unreadText": "Il n'est pas dans les pages du journal lues : retrouvez-le par les filtres de la liste."
+    },
+    "imports": {
+      "source": "Source",
+      "state": "État",
+      "stateIs": "État :",
+      "chunks": "Morceaux",
+      "elements": "Éléments",
+      "batches": "Lots",
+      "applied": "{applied} appliqués, {remaining} restants",
+      "id": "Identifiant",
+      "facts": "Import {source}",
+      "report": "Rapport",
+      "actions": "Actions de l'import",
+      "resume": "Reprendre",
+      "cancel": "Annuler l'import",
+      "keep": "Garder l'import",
+      "cancelTitle": "Annuler l'import {source} ?",
+      "cancelText": "Le lot en cours s'arrête ; les lots déjà appliqués restent. Un import annulé ne se reprend pas.",
+      "resumeFailed": "L'import n'a pas pu être repris",
+      "cancelFailed": "L'import n'a pas pu être annulé",
+      "sortFailed": "Tri impossible",
+      "sortFailedText": "Ses éléments n'ont pas pu être ordonnés : il attend d'autres morceaux, puis un nouveau lancement.",
+      "violations": {
+        "import": {
+          "missing-external-id": "L'élément de rang {element} crée un objet sans identifiant dans la source.",
+          "unknown-reference": "L'élément de rang {element} utilise une référence locale qu'aucun élément ne définit.",
+          "order": "Les références locales sont définies deux fois ou forment un cycle."
+        }
+      },
+      "states": {
+        "uploading": "En téléversement",
+        "sorting": "En tri",
+        "ready": "Prêt",
+        "running": "En cours",
+        "paused": "En pause",
+        "done": "Terminé",
+        "failed": "Échoué",
+        "cancelled": "Annulé"
+      },
+      "error": "Les imports n'ont pas pu être lus",
+      "readError": "L'import n'a pas pu être lu",
+      "stale": "L'import n'a pas pu être relu : son dernier état lu reste affiché",
+      "none": "Aucun import",
+      "noneText": "Un import se dépose par l'API, morceau par morceau, puis se lance ; il se suit ici."
     }
   }
 }
