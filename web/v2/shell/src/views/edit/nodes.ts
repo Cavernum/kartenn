@@ -1,6 +1,7 @@
 import type { components } from "@kartenn/sdk";
 import { useI18n } from "vue-i18n";
 import { collectionById, type Collection, type CollectionId, type Item } from "../collections.ts";
+import { applyRight } from "./fields.ts";
 import { useInlineEdit, type InlineDeps } from "./inline.ts";
 
 // In-place editing of the nodes of the prefixes (task 12a; REQ-021-15, 16): the tree of the
@@ -29,6 +30,9 @@ export const DETAIL_FIELD: Readonly<Partial<Record<Kind, string>>> = {
 const kindOf = (row: Item | undefined): Kind =>
   row?.kind === "range" || row?.kind === "address" ? row.kind : "prefix";
 const collectionOf = (row?: Item): Collection => collectionById(NODE_COLLECTIONS[kindOf(row)])!;
+
+/** The permission that applies at once a change of the node `row` (`X.approval.self`). */
+export const nodeApplyRight = (row: Item): string => applyRight(collectionOf(row).type);
 
 /** The detail of a node as its row holds it: the nature of a prefix, the usage of a range. */
 export function detailOf(row: Item): string | null {

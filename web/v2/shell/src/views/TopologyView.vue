@@ -11,9 +11,9 @@
 // Edited in place (task 12a, REQ-021-15, 16): the nature of a prefix, the usage of a range,
 // `expected` and `If-Match` the `version` its page served with it; Ctrl+Enter asks for its
 // motive at the foot of the tree, which says too why a cell has no editor. Enter on a node
-// opens its record, Tab goes into its « + », `c` adds in the node of the focus (021/A20);
-// the « Ajouter » of the chosen node stays visible when refused, its permission said
-// (REQ-021-37) — the `TreeGrid` has no refused « + » of its own.
+// opens its record, Tab goes into its « + » (the tree's keys), `c` adds in the node of the
+// focus (021/A20); a refused « + », and the « Ajouter » of the chosen node, stay visible
+// and say their permission (REQ-021-37).
 import {
   drafts,
   queryClient,
@@ -65,10 +65,10 @@ import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
 import { useTime } from "../time/index.ts";
 import { collectionById, pageOfObject, type CollectionId, type Item } from "./collections.ts";
-import { applyRight, draftedValues, editRight } from "./edit/fields.ts";
+import { draftedValues, editRight } from "./edit/fields.ts";
 import EditHint from "./edit/EditHint.vue";
 import { whyWords } from "./edit/inline.ts";
-import { NODE_COLLECTIONS, useNodeEdit, useNodeWords } from "./edit/nodes.ts";
+import { NODE_COLLECTIONS, nodeApplyRight, useNodeEdit, useNodeWords } from "./edit/nodes.ts";
 import { openEdit } from "./edit/panel.ts";
 import QuickApply from "./edit/QuickApply.vue";
 import { useSay } from "./edit/say.ts";
@@ -361,14 +361,10 @@ function addRefusal(node: Shown | undefined): { forbidden: string } | { reason: 
   if (types.some((type) => session.value.rights.has(editRight(type)))) return null;
   return { forbidden: editRight(types[0]!) };
 }
-// The « + » of a row only for whom may add: the `TreeGrid` has no refused « + » (the one
-// of the content, beside, stays visible and says the permission).
-const addLabel = (node: TreeNode) => {
-  const item = nodeById(node.id);
-  return item?.kind === "prefix" && addRefusal(item) === null
-    ? t("edit.addIn", { within: node.label })
-    : undefined;
-};
+// The « + » of every prefix; refused, it stays visible and says why (REQ-021-37).
+const addLabel = (node: TreeNode) =>
+  nodeById(node.id)?.kind === "prefix" ? t("edit.addIn", { within: node.label }) : undefined;
+const addBlocked = (node: TreeNode) => addRefusal(nodeById(node.id)) ?? undefined;
 function addIn(id: string | undefined): void {
   const node = nodeById(id) ?? chosen.value;
   const inside = node?.kind === "prefix" ? node : undefined;
@@ -380,9 +376,9 @@ function addIn(id: string | undefined): void {
     ...(domain.value ? { preset: { domain: domain.value } } : {}),
   });
 }
-/** The node of the focus in the tree, if any: where `c` adds. */
-const focused = ref<string | undefined>();
-const target = computed<Shown | undefined>(() => nodeById(focused.value) ?? chosen.value);
+/** The cell of the focus in the tree (kept on leaving it, as a grid's): where `c` adds. */
+const activeCell = ref<CellRef | undefined>();
+const target = computed<Shown | undefined>(() => nodeById(activeCell.value?.row) ?? chosen.value);
 const targetPrefix = computed(() => (target.value?.kind === "prefix" ? target.value : undefined));
 useViewAction("create", {
   label: () =>
@@ -392,7 +388,10 @@ useViewAction("create", {
   allowed: () => addRefusal(targetPrefix.value) === null && domain.value !== undefined,
   run: () => addIn(targetPrefix.value?.id),
 });
-/** « Ajouter dans » of the chosen prefix: visible, refused with its permission, `c`. */
+/**
+ * « Ajouter dans » of the chosen prefix: visible, refused with its permission; `c` shown
+ * on it only when `c` adds there (the node of the focus is the chosen one, or none).
+ */
 const contentActions = computed<ToolbarAction[]>(() => {
   const node = chosen.value;
   if (node?.kind !== "prefix") return [];
@@ -401,7 +400,7 @@ const contentActions = computed<ToolbarAction[]>(() => {
       id: "add",
       label: t("edit.addIn", { within: valueOf(node) }),
       icon: "plus",
-      shortcut: ["c"],
+      ...(targetPrefix.value?.id === node.id ? { shortcut: ["c"] } : {}),
       ...(addRefusal(node) ?? {}),
     },
   ];
@@ -422,58 +421,19 @@ useViewAction("edit", {
   },
 });
 
-// The keys of a node cell (021/A20), before the tree's own: Enter opens the record of the
-// node (the tree would go into its « + »), Tab goes into its « + », if any; from there Tab
-// leaves the tree, Shift+Tab, Escape or F2 come back. The `TreeGrid` does not offer them yet.
-function onTreeKeydown(event: KeyboardEvent): void {
-  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-  const cell = event.target as HTMLElement;
-  if (cell.getAttribute("role") !== "gridcell" || cell.dataset.column !== "") return;
-  const node = nodeById(cell.dataset.row);
-  if (!node) return;
-  if (event.key === "Enter") {
-    event.preventDefault();
-    event.stopPropagation();
-    onActivate(node.id);
-  } else if (event.key === "Tab") {
-    const add = cell.querySelector<HTMLElement>("button");
-    if (!add) return;
-    event.preventDefault();
-    event.stopPropagation();
-    add.focus();
-  }
-}
-/** The cell of the focus in the tree: where `c` adds, what the foot of the tree says. */
-const focusCell = ref<CellRef | undefined>();
-function onTreeFocusin(event: FocusEvent): void {
-  const cell = (event.target as HTMLElement).closest<HTMLElement>("[data-row][data-column]");
-  focusCell.value = cell ? { row: cell.dataset.row!, column: cell.dataset.column! } : undefined;
-  focused.value = cell && nodeById(cell.dataset.row) ? cell.dataset.row : undefined;
-}
-// The cell is kept while the focus goes into the foot that speaks of it (its code to
-// copy), and goes once the focus is elsewhere: the foot never says keys that do nothing
-// there; `c` then adds in the chosen node.
-const inTreeOrFoot = (to: EventTarget | null) =>
-  to instanceof HTMLElement && (!!tree.value?.contains(to) || !!to.closest("[data-k-tree-foot]"));
-function onTreeFocusout(event: FocusEvent): void {
-  if (!tree.value?.contains(event.relatedTarget as HTMLElement | null)) focused.value = undefined;
-  if (!inTreeOrFoot(event.relatedTarget)) focusCell.value = undefined;
-}
-function onFootFocusout(event: FocusEvent): void {
-  if (!inTreeOrFoot(event.relatedTarget)) focusCell.value = undefined;
-}
-const focusRow = computed(() => (focusCell.value ? rowOf(focusCell.value.row) : undefined));
+// The foot of the tree speaks of the cell of the focus (the tree's `active`, kept when the
+// focus leaves it, as at the foot of a list): Enter opens the record of a node and Tab its
+// « + » by the tree itself (021/A20).
+const focusRow = computed(() => (activeCell.value ? rowOf(activeCell.value.row) : undefined));
 /** Why the cell of the focus has no editor (the tree has no description for it), or none. */
 const focusWhy = computed(() =>
-  focusCell.value && focusRow.value ? edit.why(focusCell.value.column, focusRow.value) : null,
+  activeCell.value && focusRow.value ? edit.why(activeCell.value.column, focusRow.value) : null,
 );
 const focusEditable = computed(() => focusRow.value !== undefined && focusWhy.value === null);
 const focusSaysWhy = computed(() => focusWhy.value !== null && focusWhy.value.kind !== "none");
 /** The permission Ctrl+Enter lacks in the cell of the focus, `null` when held. */
 const focusApplyLacks = computed(() =>
-  focusRow.value && !edit.mayApply(focusRow.value)
-    ? applyRight(collectionById(NODE_COLLECTIONS[focusRow.value.kind as Node["kind"]])!.type)
-    : null,
+  focusRow.value && !edit.mayApply(focusRow.value) ? nodeApplyRight(focusRow.value) : null,
 );
 // The tree has no description for a cell without an editor (`readonlyReason`): its reason
 // is said by the status of the view when the focus comes to it (4.1.3).
@@ -552,13 +512,7 @@ onBeforeUnmount(() => stopIntent());
             @update:model-value="chooseDomain"
           />
         </template>
-        <div
-          ref="tree"
-          class="k-topology__tree"
-          @keydown.capture="onTreeKeydown"
-          @focusin="onTreeFocusin"
-          @focusout="onTreeFocusout"
-        >
+        <div ref="tree" class="k-topology__tree">
           <ProblemState
             v-if="roots?.isError && !roots.isFetchNextPageError"
             :title="t('views.topology.treeError')"
@@ -573,6 +527,7 @@ onBeforeUnmount(() => stopIntent());
             v-else
             v-model:expanded="expanded"
             v-model:selected="selected"
+            v-model:active="activeCell"
             data-k-tree
             :label="t('views.topology.tree', { name: domainSlug })"
             :tree-label="t('views.topology.prefix')"
@@ -584,6 +539,7 @@ onBeforeUnmount(() => stopIntent());
             :loading-rows="8"
             :node-state="nodeState"
             :add-label="addLabel"
+            :add-blocked="addBlocked"
             :editable="editable"
             :validate="validate"
             :cell-state="cellState"
@@ -605,13 +561,7 @@ onBeforeUnmount(() => stopIntent());
             @confirm="onConfirm"
             @cancel="onCancelAsk"
           />
-          <EditHint
-            v-else
-            data-k-tree-foot
-            :why="focusWhy"
-            :apply-lacks="focusApplyLacks"
-            @focusout="onFootFocusout"
-          />
+          <EditHint v-else :why="focusWhy" :apply-lacks="focusApplyLacks" />
         </template>
       </ViewPanel>
     </template>

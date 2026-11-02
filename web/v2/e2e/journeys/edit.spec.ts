@@ -263,8 +263,17 @@ test("a cell of the tree: a reader is told why, an author edits it to the draft,
   await expect(treeCell(read, "detail")).toHaveAttribute("aria-readonly", "true");
   await expect(reader.locator(".k-keyboard-hint")).toContainText("Lecture seule : il faut");
   await expect(reader.getByRole("button", { name: /core\.prefix\.edit/ })).toBeVisible();
+  // The « + » of the node, reached by Tab from it, and « Ajouter » of the content: both
+  // visible, refused, their permission said (REQ-021-37).
   await read.getByText("198.51.100.0/24", { exact: true }).click();
-  const add = reader.getByRole("button", { name: "Ajouter dans 198.51.100.0/24" });
+  await reader.keyboard.press("Tab");
+  const plus = read.getByRole("button", { name: "Ajouter dans 198.51.100.0/24" });
+  await expect(plus).toBeFocused();
+  await expect(plus).toHaveAttribute("aria-disabled", "true");
+  await expect(plus).toHaveAccessibleDescription(/core\.address\.edit/);
+  const add = reader
+    .getByRole("region", { name: "198.51.100.0/24" })
+    .getByRole("button", { name: /^Ajouter dans 198\.51\.100\.0\/24/ });
   await expect(add).toHaveAttribute("aria-disabled", "true");
   await expect(add).toHaveAccessibleDescription(/core\.address\.edit/);
   await other.close();
@@ -289,21 +298,59 @@ test("a cell of the tree: a reader is told why, an author edits it to the draft,
   await expect(page).toHaveURL(/\/prefixes\/[0-9a-f-]{36}$/);
 });
 
-test("two tabs on a cell of the tree: Ctrl+Enter applies, the second gets 412 and keeps its input", async ({
+test("two tabs, the tree and the content: Ctrl+Enter applies one value, the other gets 412 and keeps its own", async ({
   page,
   login,
   browserName,
 }) => {
   await login("alice");
   const domain = await newDomain(page, unique(browserName));
-  const second = await page.context().newPage();
-  const trees = new Map<Page, Locator>();
   const id = await domainId(page, domain);
-  for (const tab of [page, second]) trees.set(tab, await topologyOf(tab, domain, id));
+  const added = await call(page, "POST", "/v1/changesets?approval=self", {
+    motive: "end-to-end range",
+    operations: [
+      {
+        op: "create_range",
+        domain: { id },
+        first: "198.51.100.10",
+        last: "198.51.100.20",
+        usage: "static",
+      },
+    ],
+  });
+  expect(added.status).toBe(201);
+  const RANGE = "198.51.100.10 – 198.51.100.20";
 
-  /** In `tab`: the nature typed in the tree, then Ctrl+Enter, the motive asked. */
-  async function ask(tab: Page, value: string): Promise<void> {
-    await treeCell(trees.get(tab)!, "detail").click();
+  // The first tab: the range in the tree, under its network opened.
+  const tree = await topologyOf(page, domain, id);
+  await tree.getByText("198.51.100.0/24", { exact: true }).click();
+  await page.keyboard.press("ArrowRight");
+  const rangeRow = tree.locator("[role='row'][data-node]").filter({
+    has: page.getByText(RANGE, { exact: true }),
+  });
+  const inTree = rangeRow.locator('[role="gridcell"][data-column="detail"]');
+  await expect(inTree).toContainText("Statique");
+  const network = new URL(page.url()).searchParams.get("node")!;
+
+  // The second tab: the same range in the grid of the content of its network.
+  const second = await page.context().newPage();
+  await second.goto(`/topology?domain=${id}&node=${network}`);
+  const content = second.getByRole("grid", { name: "Contenu de 198.51.100.0/24" });
+  await expect(content.getByText(RANGE)).toBeVisible();
+  const inContent = content.locator('[role="gridcell"][data-column="detail"]').first();
+  if (!(await inContent.isVisible())) {
+    await second
+      .getByRole("region", { name: "198.51.100.0/24" })
+      .getByRole("button", { name: "Colonnes" })
+      .click();
+    await second.getByRole("menuitemcheckbox", { name: "Nature, usage" }).click();
+    await second.keyboard.press("Escape");
+  }
+  await expect(inContent).toContainText("Statique");
+
+  /** In `tab`, from `cell`: the usage typed, then Ctrl+Enter, the motive asked. */
+  async function ask(tab: Page, cell: Locator, value: string): Promise<void> {
+    await cell.click();
     await tab.keyboard.press("Enter");
     await tab.keyboard.press("Control+a");
     await tab.keyboard.type(value);
@@ -311,9 +358,10 @@ test("two tabs on a cell of the tree: Ctrl+Enter applies, the second gets 412 an
     await expect(tab.getByRole("textbox", { name: "Motif" })).toBeFocused();
   }
 
-  // The second tab asks first, on the version both read; the first one then applies.
-  await ask(second, "container");
-  await ask(page, "Conteneur");
+  // The second tab asks first, on the version both read (« Réservée »); the first one then
+  // applies another value (« DHCP »).
+  await ask(second, inContent, "Réservée");
+  await ask(page, inTree, "DHCP");
   const written = page.waitForResponse((r) => r.request().method() === "PATCH");
   await page.keyboard.press("Enter");
   // A modification applied at once: 200 (REQ-021-15), the changeset in its body.
@@ -321,25 +369,33 @@ test("two tabs on a cell of the tree: Ctrl+Enter applies, the second gets 412 an
   await expect(
     page
       .getByRole("status")
-      .filter({ hasText: /Appliqué : Nature de/ })
+      .filter({ hasText: /Appliqué : Usage de/ })
       .first(),
   ).toBeVisible();
-  await expect(treeCell(trees.get(page)!, "detail")).toContainText("Conteneur");
+  await expect(inTree).toContainText("DHCP");
 
-  // The second still holds the version its page served: 412, its input kept, applied again.
+  // The second still holds the version its page served: 412; the input kept is its own
+  // (« reserved »), beside the value read again (« dhcp »), never replaced by it.
   await second.keyboard.press("Enter");
-  const line = second.getByRole("form", { name: /^Appliquer maintenant : Nature de / });
+  const line = second.getByRole("form", { name: /^Appliquer maintenant : Usage de / });
   await expect(
     line.getByRole("status").filter({ hasText: "L'objet a changé depuis votre lecture" }),
   ).toBeVisible();
+  await expect(line).toContainText("maintenant dhcp, votre saisie reserved");
+  await expect(line.getByRole("combobox", { name: /^Usage/ })).toContainText("Réservée");
+  // The grid read again: the value now, the input waiting in the line.
+  await expect(inContent).toContainText("DHCP");
   await expectAccessible(second);
   await line.getByRole("button", { name: "Appliquer sur la nouvelle version" }).click();
   await expect(
     second
       .getByRole("status")
-      .filter({ hasText: /Appliqué : Nature de/ })
+      .filter({ hasText: /Appliqué : Usage de/ })
       .first(),
   ).toBeVisible();
+  // The focus back to its cell, the value applied.
+  await expect(inContent).toBeFocused();
+  await expect(inContent).toContainText("Réservée");
   await second.close();
 });
 

@@ -705,6 +705,152 @@ describe("a list edited in place", () => {
   });
 });
 
+describe("the content of a node edited in place (task 12a)", () => {
+  let app: App | undefined;
+  afterEach(() => {
+    app?.unmount();
+    app = undefined;
+    queryClient.clear();
+    resetContext();
+    sessionStorage.clear();
+    setFetch(null);
+    document.body.innerHTML = "";
+  });
+  const P2 = "0b5e3c1a-0000-4000-8000-0000000000a4";
+  const R2 = "0b5e3c1a-0000-4000-8000-0000000000a5";
+  const VR = "0b5e3c1a-0000-4000-8000-0000000000c5";
+  const CHILDREN = [
+    { kind: "prefix", id: P2, value: "192.0.2.0/25", nature: "network", version: V1, href: "" },
+    {
+      kind: "range",
+      id: R2,
+      first: "192.0.2.130",
+      last: "192.0.2.140",
+      usage: "static",
+      version: VR,
+      href: "",
+    },
+  ];
+
+  it("a cell without an editor says why, a draft marks its row, Ctrl+Enter its motive, 412 read again", async () => {
+    const seen: { method: string; url: string; ifMatch: string | null }[] = [];
+    setFetch((async (input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      const url = String(input);
+      seen.push({ method, url, ifMatch: new Headers(init?.headers).get("If-Match") });
+      const json = (status: number, body: unknown) =>
+        new Response(JSON.stringify(body), {
+          status,
+          headers: {
+            "Content-Type": status >= 400 ? "application/problem+json" : "application/json",
+          },
+        });
+      if (url.startsWith(`/v1/prefixes/${P1}/children`)) {
+        return json(200, { items: CHILDREN, links: {} });
+      }
+      if (method === "POST" && url === "/v1/drafts") {
+        const operations = (JSON.parse(String(init!.body)) as { operations: unknown[] }).operations;
+        return json(201, {
+          id: D1,
+          title: "Brouillon",
+          version: 1,
+          operation_count: 1,
+          operations,
+        });
+      }
+      if (method === "PATCH") {
+        return json(412, {
+          type: "urn:kartenn:problem:precondition-failed",
+          title: "",
+          status: 412,
+        });
+      }
+      if (url.startsWith(`/v1/ranges/${R2}`)) {
+        return json(200, { ...CHILDREN[1], usage: "dhcp", version: V2 });
+      }
+      return json(200, { items: [], links: {} });
+    }) as typeof fetch);
+    await loadSession(async (url) =>
+      url === "/v1/me"
+        ? ({
+            identity: "alice",
+            kind: "person",
+            global_permissions: ["core.range.edit", "core.range.approval.self"],
+            bindings: [],
+          } as unknown as Me)
+        : null,
+    );
+    const { default: ContentTab } = await import("../src/views/record/ContentTab.vue");
+    const Host = defineComponent({
+      setup: () => () => h(ContentTab, { kind: "prefix", id: P1, name: "192.0.2.0/24" }),
+    });
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: "/", component: Host }],
+    });
+    await router.push("/");
+    const root = document.createElement("div");
+    document.body.append(root);
+    app = createApp({ render: () => h(RouterView) });
+    app.use(createShellI18n("fr")).use(router);
+    app.mount(root);
+    await router.isReady();
+    const cell = (row: string) =>
+      root.querySelector<HTMLElement>(`[data-row="${row}"][data-column="detail"]`);
+    await expect.poll(() => cell(R2)?.textContent).toContain("Statique");
+
+    // Without `core.prefix.edit`: no editor, and the cell says why (its description).
+    const described = cell(P2)!.getAttribute("aria-describedby")!;
+    expect(document.getElementById(described)?.textContent).toBe(
+      "Lecture seule : il faut core.prefix.edit",
+    );
+    expect(cell(R2)!.getAttribute("aria-describedby")).toBeNull();
+
+    /** The editor of the range opened, `text` typed, then `key` (with Ctrl or not). */
+    async function type(text: string, ctrlKey = false): Promise<void> {
+      cell(R2)!.click();
+      cell(R2)!.focus();
+      await nextTick();
+      cell(R2)!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+      );
+      await expect.poll(() => document.querySelector("[data-k-content] input")).not.toBeNull();
+      const input = document.querySelector<HTMLInputElement>("[data-k-content] input")!;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey, bubbles: true }));
+      await nextTick();
+    }
+    // Enter: to the draft, at the version the page served; the row marked « en brouillon ».
+    await type("DHCP");
+    await expect
+      .poll(() => cell(R2)!.closest("[role='row']")!.getAttribute("data-row-state"))
+      .toBe("draft");
+    const post = seen.find((s) => s.method === "POST" && s.url === "/v1/drafts")!;
+    expect(post).toBeDefined();
+
+    // Ctrl+Enter: the motive asked under the grid; applied, 412: the content read again.
+    await type("Réservée", true);
+    await expect
+      .poll(() => root.querySelector("form[aria-label^='Appliquer maintenant']"))
+      .not.toBeNull();
+    const reads = () => seen.filter((s) => s.url.startsWith(`/v1/prefixes/${P1}/children`)).length;
+    const before = reads();
+    root
+      .querySelector<HTMLFormElement>("form[aria-label^='Appliquer maintenant']")!
+      .requestSubmit();
+    await expect.poll(() => seen.some((s) => s.method === "PATCH")).toBe(true);
+    const patch = seen.find((s) => s.method === "PATCH")!;
+    expect(patch.url).toBe(`/v1/ranges/${R2}?approval=self`);
+    expect(patch.ifMatch).toBe(`"${VR}"`);
+    await expect.poll(reads).toBeGreaterThan(before);
+    await expect
+      .poll(() => root.textContent)
+      // The input kept is the one typed, beside the value read again.
+      .toContain("maintenant dhcp, votre saisie reserved");
+  });
+});
+
 describe("the edit panel of a kind", () => {
   it("closes with its page, and off the present (nothing written there)", async () => {
     const path = ref("/addresses");

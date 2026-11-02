@@ -25,12 +25,8 @@ import { useProblems } from "../../problems/index.ts";
 import { useTime } from "../../time/index.ts";
 import { pageOfHref, pageOfObject, type Item } from "../collections.ts";
 import EditHint from "../edit/EditHint.vue";
-import { applyRight } from "../edit/fields.ts";
 import { whyWords } from "../edit/inline.ts";
-import { detailOf, useNodeEdit, useNodeWords } from "../edit/nodes.ts";
-
-/** The qualified type of each kind of node, whose `approval.self` applies at once. */
-const NODE_TYPES = { prefix: "core.prefix", range: "core.range", address: "core.address" };
+import { detailOf, nodeApplyRight, useNodeEdit, useNodeWords } from "../edit/nodes.ts";
 import QuickApply from "../edit/QuickApply.vue";
 import { useSay } from "../edit/say.ts";
 import NextPageAlert from "../../problems/NextPageAlert.vue";
@@ -111,9 +107,7 @@ const activeWhy = computed(() =>
   active.value && activeRow.value ? edit.why(active.value.column, activeRow.value) : null,
 );
 const applyLacks = computed(() =>
-  activeRow.value && !edit.mayApply(activeRow.value)
-    ? applyRight(NODE_TYPES[activeRow.value.kind as Row["kind"]])
-    : null,
+  activeRow.value && !edit.mayApply(activeRow.value) ? nodeApplyRight(activeRow.value) : null,
 );
 
 const columns = computed<GridColumn[]>(() => [
