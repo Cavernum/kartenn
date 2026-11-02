@@ -554,7 +554,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
   - reste : `contract::breaches` compare les paramètres par nom et emplacement sans suivre
     les `$ref` : un changement du composant `Kartenn-Background` (le rendre requis) ne
     serait pas vu comme une rupture.
-- [ ] 11d. Lecture d'un objet par identifiant en un seul instantané : la valeur et sa
+- [x] 11d. Lecture d'un objet par identifiant en un seul instantané : la valeur et sa
   version se lisent dans la même transaction `REPEATABLE READ, READ ONLY` (`kit::snapshot`
   de la 11c), pour le `GET` d'un objet du noyau (`objects::object` : `read_object` du
   service sur un `PgStore` du pool, puis `read::version`) et des modules (`vlan.rs`
@@ -570,6 +570,37 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     `crates/kartenn-policy/src/rest.rs`, `crates/kartenn-flow/src/rest.rs` ; aide de test
     `crates/kartenn-rest/tests/it/common/mod.rs` (`served_across_a_write`)
   - dépend de : 11c
+  - fait le 2026-11-02 — `read_object` du service se coupe en deux : la lecture sur un
+    `Reader`, puis `reads::shown_object` (droits, masques, événements d'audit) sur une
+    valeur lue ailleurs ; `kartenn_store_pg::read::object_in` lit l'objet sur une
+    connexion (`object` la prend du pool), `read::version` et `kit::version` sur un
+    exécuteur ; `kit::read_one` lit la ligne d'un objet et sa version dans un
+    instantané, le libère et rend 404 si l'un manque. `objects::object` lit valeur et
+    version dans l'instantané, le libère, puis droits et audit (`shown_object`) ; VLAN et
+    groupes (`vlan.rs`), grappes, machines et interfaces (`kartenn-machines`, la fiche
+    libère l'instantané avant ses interfaces et adresses), objets des collections de
+    politique et relecture de `DELETE /v1/environments/{id}` (`kartenn-policy`
+    `row_at`) passent par `read_one` ; `kartenn-flow` `show` lit le flux et sa version
+    dans un instantané (`flow_at` sur une connexion), libéré avant les extrémités. Une
+    connexion tenue à la fois. Tests, par les routes, une écriture validée entre la
+    lecture de la valeur et celle de la version (`kartenn_testing::across_a_write`, que
+    `common::served_across_a_write` reprend) : `resources::a_read_by_identifier_carries_the_version_of_the_value_served`
+    (`GET /v1/prefixes/{id}` : `version` et `ETag` de la valeur, écriture vue ensuite,
+    `If-Match` servi → 412), `vlan::rest::a_page_of_vlans_carries_the_version_of_the_value_served`
+    (étendu aux lectures d'un groupe et d'un VLAN) et
+    `a_read_by_identifier_carries_the_version_of_the_value_served` de `kartenn-machines`
+    (machine, interface), `kartenn-policy` (environnement) et `kartenn-flow` (flux) ;
+    les cinq échouent sur l'ancien code (version écrite servie avec l'ancienne valeur).
+  - choix : coupe de `read_object` plutôt qu'un `Reader` sur une transaction (le port
+    a d'autres méthodes et prend `&self`) ; `across_a_write` dans `kartenn-testing`
+    (identifiants en texte, sans nouvelle fonctionnalité de sqlx) pour servir les crates
+    des modules ; `list::link` (libellé de l'objet lié) reste lu sur le pool, hors de la
+    version.
+  - reste : la relecture de `DELETE /v1/environments/{id}` compare l'`If-Match` à la
+    version lue puis soumet la fermeture par clé sans version attendue : une écriture
+    validée entre cette lecture et le changeset n'est pas vue (fenêtre antérieure à la
+    11d, que l'instantané ne ferme pas) ; la fermer demande une version attendue dans
+    l'opération `policy.environment.close`.
 - [ ] 16d. Jeton tourné jamais perdu (A15, relevé par la revue de la 16c) : les retours
   anticipés de la couche 6 (refus `on_behalf`, `approval` ou `simulate` invalides)
   partent après un rafraîchissement réussi sans aucun cookie : ils réémettent le cookie
