@@ -297,6 +297,36 @@ async fn the_collections_are_read_under_the_catalogue(pool: PgPool) {
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
+/// An object of a collection read by identifier is read with its version in one snapshot
+/// (task 021-11d): a write validated between the two reads is seen by neither, so that
+/// the `version` names the value served.
+#[kartenn_testing::pg_test]
+async fn a_read_by_identifier_carries_the_version_of_the_value_served(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    policy(&env).await;
+    let reader = env.app(env.person(&["policy.catalogue.read"]).await);
+    let (_, _, page) = call(&reader, Method::GET, "/v1/environments", None, &[]).await;
+    let id = page["items"][0]["id"].as_str().unwrap().to_owned();
+    let uri = format!("/v1/environments/{id}");
+    let (_, _, before) = call(&reader, Method::GET, &uri, None, &[]).await;
+    let request = Request::get(&uri)
+        .header(header::AUTHORIZATION, "Bearer t")
+        .body(Body::empty())
+        .unwrap();
+    let (response, written) =
+        kartenn_testing::across_a_write(&pool, &id, reader.clone().oneshot(request)).await;
+    let response = response.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let shown: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        shown["version"], before["version"],
+        "the version of the value"
+    );
+    let (_, _, after) = call(&reader, Method::GET, &uri, None, &[]).await;
+    assert_eq!(after["version"], written, "the write is seen after");
+}
+
 #[kartenn_testing::pg_test]
 async fn a_family_is_written_under_its_administration(pool: PgPool) {
     let env = Env::new(&pool).await;

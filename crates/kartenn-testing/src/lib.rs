@@ -488,6 +488,73 @@ fn hex(bytes: &[u8]) -> String {
     })
 }
 
+/// `served`, a read of the object `id` (a request to a route), with a write of `id`
+/// validated while it reads (tasks 021-11c, 11d): its answer, and the changeset written,
+/// the new version of `id`.
+///
+/// It holds a lock on `object_version`, which only the reads of versions read: the read
+/// reads its rows, then waits on the lock at its version. Once it waits, the locking
+/// transaction sets the version of `id` to another changeset and commits, which frees the
+/// lock. Nothing in the code served knows of it. The identifiers are text, cast in the
+/// queries.
+///
+/// # Panics
+///
+/// The database unavailable; `served` done before it waits on the lock (it read no version
+/// after its rows), or no wait within ten seconds.
+pub async fn across_a_write<T: Send + 'static>(
+    pool: &PgPool,
+    id: &str,
+    served: impl Future<Output = T> + Send + 'static,
+) -> (T, String) {
+    let mut lock = pool.begin().await.unwrap();
+    sqlx::query("LOCK TABLE object_version IN ACCESS EXCLUSIVE MODE")
+        .execute(&mut *lock)
+        .await
+        .unwrap();
+    let served = tokio::spawn(served);
+    // The test databases are copies of one template: the same relation has the same
+    // identifier in each, hence the database named.
+    let waiting = "SELECT EXISTS (SELECT 1 FROM pg_locks
+                    WHERE database = (SELECT oid FROM pg_database
+                                       WHERE datname = current_database())
+                      AND relation = 'object_version'::regclass AND NOT granted)";
+    let started = std::time::Instant::now();
+    while !sqlx::query_scalar::<_, bool>(waiting)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    {
+        assert!(
+            !served.is_finished(),
+            "the request read no version after its rows"
+        );
+        assert!(started.elapsed() < Duration::from_secs(10), "no read waits");
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    let written: String = sqlx::query_scalar(
+        "SELECT c.id::text FROM changeset c
+          WHERE c.id IS DISTINCT FROM (SELECT changeset_id FROM object_version
+                                        WHERE object_id = $1::uuid)
+          ORDER BY c.submitted_at LIMIT 1",
+    )
+    .bind(id)
+    .fetch_one(&mut *lock)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO object_version (object_id, changeset_id) VALUES ($1::uuid, $2::uuid)
+         ON CONFLICT (object_id) DO UPDATE SET changeset_id = EXCLUDED.changeset_id",
+    )
+    .bind(id)
+    .bind(&written)
+    .execute(&mut *lock)
+    .await
+    .unwrap();
+    lock.commit().await.unwrap();
+    (served.await.unwrap(), written)
+}
+
 #[cfg(test)]
 mod tests {
     use super::dropped_by_clean;

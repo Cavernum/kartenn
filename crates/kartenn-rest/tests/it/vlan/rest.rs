@@ -289,8 +289,9 @@ async fn vlans_filtered_by_vid_range(pool: PgPool) {
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
-/// The pages of groups and of VLANs read their rows and versions in one snapshot (task
-/// 021-11c): a write validated between the two reads is seen by neither.
+/// The pages of groups and of VLANs (task 021-11c), and their reads by identifier (task
+/// 021-11d), read their rows and versions in one snapshot: a write validated between the
+/// two reads is seen by neither.
 #[kartenn_testing::pg_test]
 async fn a_page_of_vlans_carries_the_version_of_the_value_served(pool: PgPool) {
     let env = Env::new(&pool).await;
@@ -336,6 +337,22 @@ async fn a_page_of_vlans_carries_the_version_of_the_value_served(pool: PgPool) {
             now["version"],
             written.to_string(),
             "{uri}: the write is seen after"
+        );
+        let request = crate::common::bearer(Request::get(&one).body(Body::empty()).unwrap());
+        let (response, written) =
+            crate::common::served_across_a_write(&pool, &app, request, id).await;
+        assert_eq!(response.status(), StatusCode::OK, "{one}");
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let shown: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(
+            shown["version"], now["version"],
+            "{one}: the version of the value"
+        );
+        let (_, _, after) = call(&app, "GET", &one, None, &[]).await;
+        assert_eq!(
+            after["version"],
+            written.to_string(),
+            "{one}: the write is seen after"
         );
     }
 }

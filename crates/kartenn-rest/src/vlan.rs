@@ -577,12 +577,16 @@ async fn dated_read(
     dates.at(now, api.bound)
 }
 
-async fn group_at(api: &Api, id: Uuid, moment: &Moment) -> Result<GroupRow, Problem> {
-    let sql = format!(
+/// The read of the group `$3` at a moment (`$1`, `$2`).
+fn group_sql() -> String {
+    format!(
         "SELECT {GROUP_COLUMNS} FROM {} x WHERE x.id = $3",
         dated("vlan_group", GROUP_COLUMNS)
-    );
-    sqlx::query_as(sqlx::AssertSqlSafe(sql))
+    )
+}
+
+async fn group_at(api: &Api, id: Uuid, moment: &Moment) -> Result<GroupRow, Problem> {
+    sqlx::query_as(sqlx::AssertSqlSafe(group_sql()))
         .bind(moment.valid_at)
         .bind(moment.as_of)
         .bind(id)
@@ -592,8 +596,9 @@ async fn group_at(api: &Api, id: Uuid, moment: &Moment) -> Result<GroupRow, Prob
         .ok_or_else(|| Problem::new(ProblemKind::NotFound))
 }
 
-/// The answer of a read by identifier: the object, its version as `ETag`, the read
-/// journaled.
+/// The answer of a read by identifier: the object and its version as `ETag`, read in one
+/// snapshot ([`kit::read_one`]), the read journaled.
+#[allow(clippy::too_many_arguments)] // a read, its moment and its answer
 async fn answer<T: Serialize>(
     api: &Api,
     context: &RequestContext,
@@ -601,11 +606,9 @@ async fn answer<T: Serialize>(
     kind: &str,
     id: Uuid,
     moment: &Moment,
+    version: Uuid,
     body: T,
 ) -> Result<Response, Problem> {
-    let version = kit::version(api, id, moment)
-        .await?
-        .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
     kit::record_read(api, context, kind, &[id], json!({"id": id})).await?;
     Ok(kit::respond_object(headers, moment, version, &body))
 }
@@ -619,8 +622,9 @@ async fn show_group(
     headers: HeaderMap,
 ) -> Result<Response, Problem> {
     let moment = dated_read(&api, &context, group_type(), id, dates).await?;
-    let row = group_at(&api, id, &moment).await?;
-    answer(&api, &context, &headers, GROUP, id, &moment, group_dto(row)).await
+    let (row, version): (GroupRow, _) = kit::read_one(&api, group_sql(), id, &moment).await?;
+    let body = group_dto(row);
+    answer(&api, &context, &headers, GROUP, id, &moment, version, body).await
 }
 
 /// `GET /v1/vlans/{id}`.
@@ -636,15 +640,9 @@ async fn show_vlan(
         "SELECT {VLAN_COLUMNS} FROM {} x WHERE x.id = $3",
         dated("vlan", VLAN_COLUMNS)
     );
-    let row: VlanRow = sqlx::query_as(sqlx::AssertSqlSafe(sql))
-        .bind(moment.valid_at)
-        .bind(moment.as_of)
-        .bind(id)
-        .fetch_optional(&api.pool)
-        .await
-        .map_err(|e| kit::store(&e))?
-        .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
-    answer(&api, &context, &headers, VLAN, id, &moment, vlan_dto(row)).await
+    let (row, version): (VlanRow, _) = kit::read_one(&api, sql, id, &moment).await?;
+    let body = vlan_dto(row);
+    answer(&api, &context, &headers, VLAN, id, &moment, version, body).await
 }
 
 /// The range of the group `row` and its VLANs at `moment`, `(vid, status)`.

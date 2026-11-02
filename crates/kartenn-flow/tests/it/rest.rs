@@ -275,6 +275,45 @@ async fn a_reader_lists_filters_and_reads_flows(pool: PgPool) {
     assert!(page["items"].as_array().unwrap().is_empty());
 }
 
+/// A flow read by identifier is read with its version in one snapshot (task 021-11d): a
+/// write validated between the two reads is seen by neither, so that the `version` names
+/// the value served.
+#[kartenn_testing::pg_test]
+async fn a_read_by_identifier_carries_the_version_of_the_value_served(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.address("10.1.0.0/24", "10.1.0.1", "prod").await;
+    let dev = env.address("10.2.0.0/24", "10.2.0.1", "dev").await;
+    let requester = env.granted(crate::requests::REQUEST).await;
+    let (status, answer) = call(
+        &env.app(requester),
+        Method::POST,
+        "/v1/flows",
+        Some(body(&env, prod, dev).await),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{answer}");
+    let id = answer["flow"]["id"].as_str().unwrap().to_owned();
+    let reader = env.app(env.granted(&["flow.read"]).await);
+    let uri = format!("/v1/flows/{id}");
+    let (_, before) = call(&reader, Method::GET, &uri, None).await;
+    let request = Request::get(&uri)
+        .header(header::AUTHORIZATION, "Bearer t")
+        .body(Body::empty())
+        .unwrap();
+    let (response, written) =
+        kartenn_testing::across_a_write(&pool, &id, reader.clone().oneshot(request)).await;
+    let response = response.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let shown: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        shown["version"], before["version"],
+        "the version of the value"
+    );
+    let (_, after) = call(&reader, Method::GET, &uri, None).await;
+    assert_eq!(after["version"], written, "the write is seen after");
+}
+
 /// The instant of the database, as a query parameter.
 async fn instant(pool: &PgPool) -> String {
     let at: sqlx::types::time::OffsetDateTime = sqlx::query_scalar("SELECT clock_timestamp()")
