@@ -54,8 +54,15 @@ export const MOVE_CODES: Readonly<Record<string, Partial<Record<MoveRefusal, str
   "machines.machine": { cycle: "machines.host.invalid", incompatible: "machines.host.invalid" },
 };
 
-/** The permission that writes an object of a type (verbs of the 024). */
-const writeRight = (type: string) => `${type}.edit`;
+/**
+ * The permission that writes an object of a type (verbs of the 024): `<type>.edit`, the
+ * resource left out when it bears the name of its module (018 R2: `machines.machine` →
+ * `machines.edit`, `flow.flow` → `flow.edit`).
+ */
+function writeRight(type: string): string {
+  const [module, resource] = type.split(".");
+  return resource === module || `${resource}s` === module ? `${module}.edit` : `${type}.edit`;
+}
 
 /** How a type changes parent, from the contract; `undefined`: its parent is not declared. */
 export function parentRule(type: string): ParentRule | undefined {

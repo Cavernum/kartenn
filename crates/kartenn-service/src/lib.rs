@@ -18,6 +18,7 @@ pub mod module;
 pub mod observability;
 pub mod operations;
 pub mod pipeline;
+pub mod placements;
 pub mod port;
 pub mod rbac;
 pub mod reads;

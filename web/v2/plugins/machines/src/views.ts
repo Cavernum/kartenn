@@ -36,6 +36,7 @@ import {
 } from "./dom.ts";
 import { MachinesElement, type Followed, type FollowedList } from "./element.ts";
 import { draftForm, type DraftForm } from "./forms.ts";
+import { HostMove } from "./hosting.ts";
 import {
   KINDS,
   modeOf,
@@ -310,6 +311,7 @@ class MachineRecord {
   private readonly hosted;
   private readonly kit: Kit;
   private creation: DraftForm | null = null;
+  private hostMove: HostMove | null = null;
 
   constructor(
     view: MachinesView,
@@ -344,11 +346,20 @@ class MachineRecord {
         };
       },
     });
+    this.hostMove = new HostMove(
+      {
+        texts,
+        clusters: this.kit.followList(() => reads.list("/v1/clusters")),
+        machines: this.kit.followList(() => reads.list("/v1/machines")),
+      },
+      this.id,
+    );
     return [
       stack(
         "6",
         this.title.node,
         this.attributes.node,
+        section(texts.text("move.title"), this.hostMove.node),
         section(texts.text("interfaces.title"), this.ifaces.node),
         section(texts.text("machines.hosted"), this.hostedArea.node),
         section(texts.text("interfaces.create"), this.creation.form),
@@ -360,6 +371,7 @@ class MachineRecord {
     const { names } = this.kit;
     this.creation?.refresh();
     const machine = this.machine.data;
+    this.hostMove?.update(machine);
     const failed = problemOf(this.machine.error);
     this.title.set(
       machine ? machine.name : t("machines.record"),

@@ -554,7 +554,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
   - reste : `contract::breaches` compare les paramètres par nom et emplacement sans suivre
     les `$ref` : un changement du composant `Kartenn-Background` (le rendre requis) ne
     serait pas vu comme une rupture.
-- [ ] 11d. Lecture d'un objet par identifiant en un seul instantané : la valeur et sa
+- [x] 11d. Lecture d'un objet par identifiant en un seul instantané : la valeur et sa
   version se lisent dans la même transaction `REPEATABLE READ, READ ONLY` (`kit::snapshot`
   de la 11c), pour le `GET` d'un objet du noyau (`objects::object` : `read_object` du
   service sur un `PgStore` du pool, puis `read::version`) et des modules (`vlan.rs`
@@ -570,6 +570,51 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     `crates/kartenn-policy/src/rest.rs`, `crates/kartenn-flow/src/rest.rs` ; aide de test
     `crates/kartenn-rest/tests/it/common/mod.rs` (`served_across_a_write`)
   - dépend de : 11c
+  - fait le 2026-11-02 — `read_object` du service se coupe en deux : la lecture sur un
+    `Reader`, puis `reads::shown_object` (droits, masques, événements d'audit) sur une
+    valeur lue ailleurs ; `kartenn_store_pg::read::object_in` lit l'objet sur une
+    connexion (`object` la prend du pool), `read::version` et `kit::version` sur un
+    exécuteur ; `kit::read_one` lit la ligne d'un objet et sa version dans un
+    instantané, le libère et rend 404 si l'un manque. `objects::object` lit valeur et
+    version dans l'instantané, le libère, puis droits et audit (`shown_object`) ; VLAN et
+    groupes (`vlan.rs`), grappes, machines et interfaces (`kartenn-machines`, la fiche
+    libère l'instantané avant ses interfaces et adresses), objets des collections de
+    politique et relecture de `DELETE /v1/environments/{id}` (`kartenn-policy`
+    `row_at`) passent par `read_one` ; `kartenn-flow` `show` lit le flux et sa version
+    dans un instantané (`flow_at` sur une connexion), libéré avant les extrémités. Une
+    connexion tenue à la fois. Tests, par les routes, une écriture validée entre la
+    lecture de la valeur et celle de la version (`kartenn_testing::across_a_write`, que
+    `common::served_across_a_write` reprend) : `resources::a_read_by_identifier_carries_the_version_of_the_value_served`
+    (`GET /v1/prefixes/{id}` : `version` et `ETag` de la valeur, écriture vue ensuite,
+    `If-Match` servi → 412), `vlan::rest::a_page_of_vlans_carries_the_version_of_the_value_served`
+    (étendu aux lectures d'un groupe et d'un VLAN) et
+    `a_read_by_identifier_carries_the_version_of_the_value_served` de `kartenn-machines`
+    (machine, interface), `kartenn-policy` (environnement) et `kartenn-flow` (flux) ;
+    les cinq échouent sur l'ancien code (version écrite servie avec l'ancienne valeur).
+  - choix : coupe de `read_object` plutôt qu'un `Reader` sur une transaction (le port
+    a d'autres méthodes et prend `&self`) ; `across_a_write` dans `kartenn-testing`
+    (identifiants en texte, sans nouvelle fonctionnalité de sqlx) pour servir les crates
+    des modules ; `list::link` (libellé de l'objet lié) reste lu sur le pool, hors de la
+    version.
+  - reste : la relecture de `DELETE /v1/environments/{id}` compare l'`If-Match` à la
+    version lue puis soumet la fermeture par clé sans version attendue : une écriture
+    validée entre cette lecture et le changeset n'est pas vue (fenêtre antérieure à la
+    11d, que l'instantané ne ferme pas) ; la fermer demande une version attendue dans
+    l'opération `policy.environment.close`.
+- [ ] 11e. Fermeture d'un environnement sous `If-Match` sans écriture écrasée :
+  `DELETE /v1/environments/{id}` compare l'`If-Match` à la version lue, puis soumet
+  `policy.environment.close` par clé sans version attendue ; une écriture validée entre
+  les deux passe sans 412 (REQ-004-11, REQ-006-14 ; relevé par la revue de la 11d). La
+  version attendue est portée par l'opération (`expected`, comme les opérations du
+  noyau) et vérifiée dans le changeset ; même examen pour les autres routes de modules
+  qui vérifient un `If-Match` avant de soumettre — verify : `k-check -p kartenn-policy`
+  (test à la forme de `kartenn_testing::across_a_write` : écriture validée entre la
+  comparaison et le changeset → 412, et l'environnement reste ouvert)
+  - où : `crates/kartenn-policy/src/rest.rs` (`close_environment`, vers les lignes
+    587-606), l'opération `policy.environment.close` du module ; `expected` des
+    opérations du noyau (004 design § « Concurrence optimiste ») ;
+    `crates/kartenn-testing/src/lib.rs` (`across_a_write`)
+  - dépend de : 11d
 - [ ] 16d. Jeton tourné jamais perdu (A15, relevé par la revue de la 16c) : les retours
   anticipés de la couche 6 (refus `on_behalf`, `approval` ou `simulate` invalides)
   partent après un rafraîchissement réussi sans aucun cookie : ils réémettent le cookie
@@ -592,7 +637,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
   - où : `crates/kartenn-rest/src/contract.rs` (`breaches`, vers les lignes 145-195),
     `crates/kartenn-rest/src/openapi.rs` (`finish`, vers les lignes 339-385)
   - dépend de : 16c ; avant le gel du contrat
-- [ ] 14a. `PATCH /v1/drafts/{id}` en `application/merge-patch+json` seulement (A17,
+- [x] 14a. `PATCH /v1/drafts/{id}` en `application/merge-patch+json` seulement (A17,
   REQ-006-13), 415 pour `application/json` ; client du SDK en `merge: true` ; contrat
   régénéré — verify : `k-check -p kartenn-rest` (drafts : 415 en `application/json`,
   200 en `merge-patch+json`) ; Vitest du SDK des brouillons ; parcours `draft`
@@ -600,7 +645,24 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     du contrat ; `web/v2/sdk/src/data/drafts.ts` (vers la ligne 213, `merge: false`) ;
     test voisin `crates/kartenn-rest/tests/it/drafts.rs`
   - dépend de : —
-- [ ] 24a. `placements` dans `ChangesetSimulated` (A12) : `[{object, kind, before,
+  - fait le 2026-11-02 — `crates/kartenn-rest/src/drafts.rs` (`change` : corps lu par
+    `resources::members` en `MERGE_PATCH`, 415 sinon ; `ChangeBody` en fusion RFC 7396,
+    `ReasonPatch`, `given`), `crates/kartenn-store-pg/src/drafts.rs` (`update` : le motif
+    fusionné membre à membre, `jsonb_strip_nulls(reason || $3)`), contrat
+    `specs/006-api-rest/openapi-v1.json` et `web/v2/sdk/src/api/schema.d.ts` régénérés,
+    `web/v2/sdk/src/data/drafts.ts` (`update` sans `merge: false`) ; tests
+    `tests/it/drafts.rs` (`a_change_is_a_json_merge_patch` : 415 en `application/json`,
+    membre absent laissé, motif fusionné, `null` qui efface un membre puis le motif,
+    tableau remplacé, 422 pour `title` ou `operations` à `null`, 400 pour un membre
+    inconnu du motif), `web/v2/sdk/test/drafts.test.ts` (type de contenu) ; l'ancien
+    shell n'appelle pas la route (rien à aligner)
+  - choix : `null` sur `title` ou `operations` → 422 « cannot be removed » (pointeur),
+    comme `kit::modify_nullable` ; `reason: null` vide le motif (`{}`) ; la fusion du
+    motif se fait dans l'`UPDATE` verrouillé (pas de lecture préalable) ; `title` et
+    `operations` non nullables dans `DraftChange` ; le SDK prend le défaut d'un `PATCH`
+    (fusion) comme `write.ts`, plutôt qu'un `merge: true` explicite ; l'ordre reste
+    428 avant 415 (`every_route_under_if_match_requires_it`)
+- [x] 24a. `placements` dans `ChangesetSimulated` (A12) : `[{object, kind, before,
   after}]` pour chaque objet dont le parent change (déduit : préfixes, plages, adresses ;
   déclaré : modules), au présent, sur la simulation d'un changeset et d'un brouillon —
   verify : `k-check -p kartenn-rest` (préfixe inséré entre un parent et ses enfants : les
@@ -610,6 +672,43 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     la simulation du service qui produit `diff` et `cascaded` ; test voisin
     `crates/kartenn-rest/tests/it/simulated.rs` ; 006 design § « `?simulate=true` »
   - dépend de : —
+  - fait le 2026-11-02 : service `crates/kartenn-service/src/placements.rs` (`prior`
+    avant les écritures, `placements` après, avant le rollback de la simulation ;
+    `Outcome::Simulated.placements`) ; port `WriteTx::tree_places` (parent déduit ou
+    déclaré au `now()` de la transaction, avec des préfixes supposés : `Supposed`) et
+    `WriteTx::tree_children` (enfants qu'aurait une valeur, la marche `tops` de l'arbre),
+    `crates/kartenn-store-pg/src/tree.rs` (`places`, `children_within`) ; crochet
+    `ModuleHandler::parents` (parent déclaré hors de la fiche), servi par `machines` (hôte
+    d'une machine, `pg::hosts`) ; REST `Placement`, `placements` et
+    `placements_truncated` dans `ChangesetSimulated` ; contrat et `schema.d.ts`
+    (`web/sdk`, `web/v2/sdk`) régénérés, `write.ts` (simulation refusée) complété ;
+    006 design et `docs/spec/interfaces.md` ; tests `crates/kartenn-rest/tests/it/placements.rs`
+    (insertion, aussi par un brouillon ; fermeture et redimensionnement ; rien sans effet ;
+    troncature à 1000) et `a_simulated_move_places_the_machine_under_its_new_host`
+    (`kartenn-machines`).
+  - choix : candidats lus sans relire l'arbre : les objets des opérations, plus les
+    enfants (après écriture) des anciennes et nouvelles valeurs des seuls préfixes dont la
+    valeur change, apparaît ou disparaît ; leur parent d'avant déduit de l'état d'après
+    où les préfixes du changeset reprennent leur valeur d'avant. Objet créé listé avec
+    `before: null` (y compris à la racine, `after: null`) ; objet fermé non listé (il
+    quitte l'arbre ; `cascaded` et les opérations le nomment). Borne : au plus 1000
+    placements et 1000 objets lisibles examinés hors des opérations, au-delà
+    `placements_truncated: true` (coût borné à une marche de 1001 enfants et deux
+    lectures en lot ; simulation entière d'une insertion sur 1001 enfants ≈ 130 ms en
+    test, profil dev). Filtre de lecture de l'arbre (correction de revue) : sous les
+    droits de l'auteur (`Authorizer::authorize_in`, `core.<genre>.read` ou la lecture du
+    type de module), un objet illisible n'est pas placé et ne consomme pas le budget
+    (enfants lus page par page, `tree_children` avec curseur), un parent illisible se
+    sert `null` (le haut de l'arbre que l'auteur lit, sans marqueur distinct qui
+    trahirait son existence), un placement resté sans changement de parent est retiré ;
+    `placements_truncated` se compte sur le lisible ; lisibilité d'avant lue avant les
+    écritures, d'après sur l'état simulé. Objet de module placé seulement si son type a
+    un parent de fiche ou si son module le place (`parents`) : ni flux ni politique.
+    Parent d'un groupe de VLAN : son ancrage ; d'un VLAN : son groupe.
+  - reste : le budget compte aussi les enfants lisibles dont le parent ne bouge pas (une
+    valeur redimensionnée qui garde ses enfants) ; des enfants illisibles nombreux se
+    parcourent sans borne de pages ; le test de lecture retire la lecture des adresses
+    partout, pas sur les adresses d'une seule entité.
 - [x] 17a. Référence locale dans une valeur de propriété (A13) : `RawValue`
   `{"local": n}` (`RawDto`, `RawInput`), résolue à l'application comme les `Ref` des
   opérations, prise dans le tri topologique ; référence vers un indice absent ou vers un
@@ -1021,9 +1120,11 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   les deux bouts, présent, codes des règles serveur) ; déplacement → brouillon ou
   changeset, sans optimisme ; test de propriété de bout en bout — REQ-021-17, 32, 33,
   34 — verify : Vitest de `canMove` (chaque refus, ordre) ; parcours : aucun moyen de
-  déplacer un préfixe ; cluster sur sa propre machine refusé ; machine vers un cluster
-  d'un autre site acceptée par le client puis refusée par le serveur
-  (`machines.host.site_mismatch`) sans que le nœud quitte sa place ; réponse ralentie →
+  déplacer un préfixe ; cluster sur sa propre machine refusé ; machine vers un hôte
+  d'un autre site acceptée par le client : avertissement du serveur montré
+  (`machines.host.site_mismatch`), déplacement au brouillon, le nœud à sa place
+  (amendé le 2026-11-02, arbitrage de la 18b : la règle reste un avertissement, 009
+  M11) ; réponse ralentie →
   nœud « en attente » à sa place ; test de propriété (graine fixée, 200 étapes de
   déplacements et de modifications de valeurs de préfixes et de plages, acceptées ou
   refusées) : chaque ligne contenue par sa ligne parente et parent égal à celui de l'API
@@ -1115,9 +1216,9 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     voisins) ; sous Firefox, corps vide des modules préchargés pendant un `page.route`
     toléré dans le seul parcours de la réponse ralentie (empreinte SHA-384 du vide).
   - reste : le cas machines (tâche 18) — cluster sur sa propre machine refusé (cycle,
-    `machines.host.invalid`, prêt dans `canMove`), machine vers un cluster d'un autre site
-    refusée par le serveur (`machines.host.site_mismatch`, règle de sévérité
-    `warning` côté serveur : à vérifier qu'elle refuse), réponse ralentie dans un
+    `machines.host.invalid`, prêt dans `canMove`), machine vers un hôte d'un autre site
+    (`machines.host.site_mismatch` : avertissement du serveur montré, déplacement au
+    brouillon — amendé le 2026-11-02, fait par la 18b), réponse ralentie dans un
     `TreeGrid` `declared` (`useMoves` est prêt pour un arbre du shell ; une vue de plugin
     reprend `canMove` du SDK et ses écritures, ou `useMoves` passe au SDK) ; Ctrl+Entrée
     sur un dépôt (l'intention du `TreeGrid` n'a pas de `now`) ; **aperçu du brouillon** :
@@ -1345,7 +1446,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `PATCH` (amender la 006 ou aligner la route ; le client suit la route, `merge:
     false`) ; le contrat de `GET /v1/changesets` n'énumère pas `state` et ne dit pas le
     format `date-time` de `from`/`to` (le shell les type lui-même, `views/filters.ts`).
-- [ ] 15. Administration : groupes (membres, liaisons), rôles, émetteurs, comptes de
+- [x] 15. Administration : groupes (membres, liaisons), rôles, émetteurs, comptes de
   service et secret, identités (groupes et droits effectifs en lecture), audit et
   export, imports ; permissions en nom servi et libellé — REQ-021-12, 025/REQ-025-12 —
   verify : parcours `admin` réécrit ; capture E7
@@ -1354,6 +1455,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `groupe-edition`, `groupe-refus`, `secours`, `identite`), design 021 § Administration.
   - dépend de : 13
   - découpée le 2026-11-01 en 15a, 15b et 15c (fin de P2)
+  - faite le 2026-11-02 par ses trois sous-tâches, fusionnées
 - [ ] 16. Hôte des plugins et session : emplacements dans le nouveau cadre, point `widget`
   de l'Accueil, actions sur le type `changeset`, onglets sur les types de module, frontière
   d'erreur avec code, entrées par espace, « À propos » ; session (reconnexion, échéance
@@ -1604,13 +1706,73 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     périmètre (entité d'un rattachement) choisi parmi les premières pages. Vérifié : la
     table d'idempotence ne garde aucun corps, un rejeu rend `shown: None`
     (`crates/kartenn-rest/src/changesets.rs`).
-- [ ] 15c. Administration : journal d'audit et export, imports ; capture E7 —
+- [x] 15c. Administration : journal d'audit et export, imports ; capture E7 —
   REQ-021-12 — verify : parcours `admin` étendu (filtre du journal, export, import
   suivi) ; capture E7
   - où : `web/shell/src/admin/{AuditView,ImportsView,ImportView,PagedTable}.vue` ;
     maquette E7 ; parcours de la 15a
   - dépend de : 15a
-- [ ] 16b. Fin de session annoncée et requêtes de fond : avis deux minutes avant
+  - fait le 2026-11-02 : `web/v2/shell/src/admin/` — `AuditView`, `AuditDetail`,
+    `audit.ts` (événement, `cachedEvent`, `exportAudit` : corps NDJSON versé dans un
+    fichier du stockage privé de l'origine au fil de sa réception, puis téléchargé),
+    `auditWords.ts`, `ImportsView`, `ImportDetail`, `imports.ts`, `routes.ts`
+    (`/admin/audit/:id`, `/imports`, `/imports/:id` dans `ADMIN_RECORDS`), `i18n/` ;
+    `views/list.ts` (`useFilteredList` : options `dated`, `field`, filtres envoyés `sent`),
+    `views/filters.ts` (période de l'audit en jours, acteur parmi les identités) ; design
+    021 § Administration ; `web/v2/PARITE.md` ; Vitest `test/audit.test.ts` ; parcours
+    `admin` étendu (journal filtré par l'en-tête de sa colonne, événement dans le panneau,
+    même recherche exportée et relue ligne à ligne ; import en pause, repris, en pause de
+    nouveau, annulé après confirmation ; import au tri impossible, sa violation par rang).
+    Capture E7 : celle de la maquette, gardée, acceptée telle quelle (comme pour les 11, 12
+    et 14 : les vrais écrans demandent l'API, absente du projet `visual`).
+  - choix : l'export ne passe pas par le SDK (son client lit du JSON) : `fetch` dans
+    `audit.ts`, `Accept: application/x-ndjson`, le corps versé par `pipeTo` dans un fichier
+    d'OPFS (`kartenn-exports/`, vidé au début de chaque export), remis par un lien
+    `blob:` sur ce fichier, effacé une minute après ; sans OPFS (fenêtre privée), le blob du
+    navigateur (qu'il garde sur disque passé une taille) ; un corps coupé ne laisse aucun
+    fichier ; pas de `showSaveFilePicker` (absent de Firefox). L'événement choisi est
+    cherché dans les pages du journal que tient le cache (aucune route ne sert un
+    événement seul) : hors d'elles, un état vide le dit. Le journal se lit au présent,
+    quelles que soient les dates de la page ; période en jours (`from` au début du jour,
+    `to` à sa fin, comme les changesets) ; acteur choisi parmi la première page des
+    identités, son nom affiché quand le lecteur a `core.rbac.read` global, son identifiant
+    sinon. Les imports, entrée de l'espace `changes`, suivent la structure de
+    l'administration (liste, objet dans le panneau droit) ; état relu chaque seconde
+    (`refetchInterval`) tant que la tâche y travaille, la liste relue quand l'état change ;
+    « Reprendre » et « Annuler l'import » écrits aussitôt (`api.request`, sans corps),
+    l'annulation confirmée ; ni création ni dépôt de morceaux dans le shell (l'ancien n'en
+    avait pas : un import vient d'un outil, par l'API). Faits d'un objet (`k-admin-facts`,
+    `AdminLines.vue`) : la valeur à gauche après son nom, coupée n'importe où (un agent
+    utilisateur), au lieu de la valeur à droite des autres panneaux ; sévérité en mots
+    (`INFO`, `WARN`, `ERROR`), son code sinon ; vingt objets d'un événement montrés, le
+    reste dit (« dans l'export »).
+  - relectures (2026-11-02) : `a11y-auditor` — focus remis au titre de l'import quand son
+    action disparaît (reprise, annulation) ; une relecture en échec garde l'import affiché
+    sous un avis au lieu de le remplacer ; sections sans nom en doublon de leur liste ;
+    cellule vide retirée. `ui-reviewer` — colonnes de l'audit (acteur en priorité 2, objets
+    en 3), « Éléments » des imports en priorité 2, JSON coupé à la ligne, sévérité
+    traduite, mise en page des faits (les noms chevauchaient les valeurs longues).
+  - correctifs de revue (2026-11-02) : sans `core.rbac.read` global, aucune lecture de
+    `/v1/identities` (le refus serait journalisé `denied` dans le journal lu) : le filtre
+    « Acteur » prend un identifiant collé (`useFilteredList`, option `refine`), le panneau
+    montre l'acteur en `CodeBadge` copiable, sans lien vers l'identité ; parcours `admin` :
+    Erwan, auditeur du jeu (`web/e2e/users.toml`, groupe `auditeurs` de
+    `global-setup.ts` : `reader` et le rôle `auditeur`, `core.audit.read` seul), filtre par
+    son identifiant collé, aucune réponse 403 ; export : un stockage qui refuse le fichier
+    à son ouverture passe au blob, un stockage plein en cours d'écriture
+    (`ExportStorage`) se distingue d'un corps coupé (`ExportCut`) ; design et
+    `PARITE.md` : seulement ce que le parcours prouve, repli sans OPFS dit.
+  - reste : instants de l'audit sans fuseau affiché (heure du navigateur ; à trancher :
+    `timeZoneName` dans le panneau) ; objets d'un événement en identifiants, sans nom ni
+    lien ; noms d'événements coupés dans la liste quand le panneau est ouvert (pas de
+    point de coupure dans un nom pointé) ; pas de bouton de copie sur le JSON ; noms des
+    acteurs limités aux premières pages des identités (dix pages, liste et suggestions),
+    son nom perdu au rechargement (puce en UUID), un acteur au-delà montré par son
+    identifiant ; le répertoire `kartenn-exports/` vidé au début d'un export peut couper
+    celui d'un autre onglet en cours ; filtres de période et d'objet sans parcours ; « Exporter » sans icône (aucune icône de téléchargement
+    dans la liste fermée de `@kartenn/ui`) ; le fichier d'OPFS d'un très gros export est
+    effacé une minute après sa remise au navigateur, qui pourrait ne pas l'avoir copié.
+- [x] 16b. Fin de session annoncée et requêtes de fond : avis deux minutes avant
   `absolute_expires_at` (sans « Rester connecté », qui ne la repousse pas) ; en-tête
   `Kartenn-Background: ?1` posé par le SDK sur les relectures sans geste (événements,
   revalidation au focus et à la reconnexion, préchargement) — REQ-021-14 — verify :
@@ -1619,6 +1781,35 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `activityFetch` et `installGestures` du SDK (`web/v2/sdk/src/`) ; parcours
     `web/v2/e2e/journeys/session.spec.ts`
   - dépend de : 16a, 16c
+  - fait le 2026-11-02 : `activityFetch` (`shell/src/session/expiry.ts`, branché sur le
+    client du SDK par `setFetch`, donc aussi pour les plugins) pose
+    `Kartenn-Background: ?1` sur toute lecture de l'API (GET, HEAD, QUERY) qu'aucun geste
+    ne précède de `GESTURE_WINDOW_MS`, et sur elle seule : exactement les requêtes qu'il
+    ne compte pas comme activité ; jugé à chaque requête (une lecture née d'un geste,
+    relue en fond, le porte à sa relecture). Le flux d'événements (`EventSource`) ne peut
+    poser d'en-tête : le serveur le traite déjà en `NotActivity` (022/A6), comme les pages
+    d'événements. `createExpiry.read(expiresAt, absoluteAt)` : fin attendue
+    `min(absolue, max(fin lue, dernière activité + fenêtre))`, la fenêtre étant la plus
+    longue vue entre une lecture et sa fin (une lecture de fond la sous-estime : avis tôt,
+    jamais tard) ; l'heuristique « fin qui n'a pas bougé » (`FIXED_AFTER_MS`) retirée.
+    Avis de fin absolue : titre `session.endingAbsolute`, sans « Rester connecté ». La
+    relecture de l'import chaque seconde (15c) le porte désormais. Tests : Vitest
+    `session.test.ts` (en-tête absent après chaque geste, présent hors geste, lecture née
+    d'un geste puis relue en fond, écritures et hors API jamais ; avis de fin absolue à
+    l'heure malgré l'activité ; passage de l'avis d'inactivité à celui de fin absolue
+    après « Rester connecté ») ; parcours `session` (revalidation au focus marquée,
+    navigation cliquée non marquée ; fin absolue dite sans « Rester connecté », `/v1/me`
+    réécrit par `page.route`, la durée absolue minimale d'une heure étant trop longue).
+  - choix : en-tête posé dans `activityFetch` du shell plutôt que déplacé dans le SDK
+    (c'est le `fetch` du client du SDK, plugins compris) ; écritures jamais marquées et
+    toujours comptées comme activité côté client (accord avec le serveur, qui les compte) ;
+    l'avis de fin absolue garde `endingFixed`, réécrit (« ne peut pas être prolongée »).
+  - reste : relecture a11y — l'avis de fin absolue n'offre pas d'action « Se
+    reconnecter » (le texte invite à terminer la saisie d'abord) ; un avis `warn` passe
+    par la région polie (`role="status"`) et pourrait être lu tard par un lecteur d'écran,
+    et sa perception sous une modale ouverte n'est pas vérifiée (`@kartenn/ui`, hors
+    périmètre) ; la revalidation sur reconnexion et le préchargement au survol ne sont
+    couverts qu'en Vitest (même règle), pas en parcours.
 - [ ] 17b. « Créer un VLAN pour ce réseau » (maquette E12) : création du VLAN et pose de
   `core.vlan` par une référence locale, au brouillon ou en Ctrl+Entrée ; poser un VLAN
   existant depuis l'onglet du réseau — REQ-026-6 — verify : parcours `vlan` (création
@@ -1858,13 +2049,65 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     framework ; nombre de machines non dit dans la liste ; une seule cellule de nom en lecture
     dit « Chargement » par ligne.
 - [ ] 18b. Déplacement d'une machine vers un cluster par `canMove` du SDK (Q-021-2) :
-  cycle refusé (`machines.host.invalid`), autre site refusé par le serveur
-  (`machines.host.site_mismatch`, vérifier qu'il refuse), sans optimisme ; reste
+  cycle refusé (`machines.host.invalid`), autre site : avertissement du serveur montré
+  (`machines.host.site_mismatch`), déplacement au brouillon (amendé le 2026-11-02 : la
+  règle reste un avertissement, 009 M11), sans optimisme ; reste
   « machines » de la tâche 24 (arbre `declared`, réponse ralentie) — REQ-021-17, 32 à
   34 — verify : Vitest de `canMove` sur les codes `machines.host.*` ; parcours
   `machines` et `moves` étendus (glisser au clavier)
   - où : `canMove` et `useMoves` (tâche 24, `web/v2/shell/src/`, SDK) ; plugin de la 18a
   - dépend de : 18a
+  - en cours : fait le 2026-11-02 — SDK : `canMove` demande `machines.edit` pour une
+    machine (018 R2 : la ressource qui porte le nom du module s'omet ; il demandait
+    `machines.machine.edit`, qui n'existe pas, et refusait tout déplacement) ; `draft.move`
+    (`src/draft.ts`, `moveInDraft`) : le changement de parent au brouillon actif, celui du
+    même nœud remplacé (membre tiré de `PARENTS[type].via`), le brouillon simulé, verdict
+    de sa seule opération (`valid` et ses avertissements, `refused` et sa règle, `unknown`
+    et son problème) ; `useMoves` du shell le reprend par `moveInActiveDraft` de
+    `@kartenn/sdk/host` (sans ouvrir le brouillon). Plugin : section « Hébergement » de la
+    fiche d'une machine (`src/hosting.ts`, `HostMove`) — liste native des hébergeurs
+    (aucun, clusters, machines, dix pages au plus), chacun jugé par `canMove` (ancêtres
+    tirés des hôtes de la liste), refusés dits dans leur nom avec la raison et le code
+    (`machines.host.invalid`), refusés de nouveau sur le champ s'ils sont envoyés ;
+    `machines.update_machine` `host` au brouillon par `draft.move`, « en attente » jusqu'à
+    la réponse, hébergeur lu gardé ; refus du serveur (alerte, règle, opération gardée),
+    avertissements dans une région `status` présente dès le départ ; lecture des
+    hébergeurs dite, échec par `failure`. Vitest `sdk/test/moves.test.ts` (codes
+    `machines.host.*` : soi-même, hôte direct et indirect, type non admis, cluster, autre
+    machine, racine, `machines.edit`), `plugins/machines/test/machines.test.ts` (4 :
+    hébergeurs jugés et refus au champ, droit absent, attente puis avertissement
+    `site_mismatch`, refus de la simulation et opération remplacée), `shell/test/moves*`
+    inchangés et verts. Parcours `moves` (« the host of a machine » : hôte sous lui-même
+    et sous son invité refusé par le client, rien envoyé ; vers un hôte d'un autre site,
+    simulation retenue → « en attente », hébergeur inchangé, puis avertissement
+    `machines.host.site_mismatch`, aucun changeset), `machines` (machine physique vers un
+    cluster : offert par le client, refusé par la simulation `machines.host.invalid`, à sa
+    place) ; verts dans les deux navigateurs.
+  - choix : pas d'arbre de l'hébergement ni de glisser — le `TreeGrid` est un composant
+    Vue et le plugin n'a pas de framework : la liste des hébergeurs est l'alternative au
+    dépôt (2.5.7), au clavier ; brouillon seulement (W10 : un plugin n'envoie pas de
+    changeset), donc ni « Appliquer » ni Ctrl+Entrée ; hébergeur actuel et hébergeurs
+    refusés gardés dans la liste, actifs (une option désactivée est sautée au clavier et
+    tue sa raison), refusés au champ à l'envoi ; liste non redessinée sous le focus ;
+    section placée après les attributs ; `as Operation` sur l'opération (le type du
+    contrat ne décrit pas les opérations des modules).
+  - arbitré le 2026-11-02 (session principale) : `machines.host.site_mismatch` reste un
+    avertissement (009 M11) — le serveur applique et ouvre une anomalie, il ne compare que
+    les machines hôtes, pas les clusters (`pg::site_mismatches`) ; clauses de la 18b et de
+    la 24 amendées. Corrections de relecture : un autre hôte choisi pendant l'envoi revient
+    à l'hôte envoyé, l'attente reste dite ; test direct de `moveInDraft`
+    (`sdk/test/draft-move.test.ts` : remplacement, violations d'autres opérations
+    filtrées, refus de la sienne, `unknown`).
+  - reste — à arbitrer par l'utilisateur : l'abandon du glisser (un arbre sans framework
+    dans `@kartenn/ui`) ; REQ-021-33 dit encore, en acceptation, « le serveur le refuse
+    (`machines.host.site_mismatch`) » (`requirements.md`, à amender avec la même
+    décision) ; ouverts : `writeRight` de `sdk/src/data/moves.ts` omet la ressource qui
+    porte le nom du module par une heuristique du pluriel (`machines` ↔ `machine`), alors
+    que `editRight` du shell (`views/edit/fields.ts`) écrit toujours `<type>.edit` — une
+    table de permissions tirée du contrat les accorderait ; les
+    hébergeurs au-delà de dix pages ne sont pas offerts ; sous Firefox, le parcours de la
+    24 « an entity changes parent by its menu » a perdu une fois le focus du champ
+    pendant le parcours complet (vert relancé seul, deux fois).
 
 - [ ] 18c. Plugin Machines en Vue 3 et `@kartenn/ui` (A19) : réécriture de
   `web/v2/plugins/machines` en Vue, à la forme que prendront les plugins de la 017 ;
@@ -1880,6 +2123,60 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     défaut, celle qu'en tire cette tâche, notée au design 021 § « API des plugins » ;
     `TreeGrid` de `web/v2/ui` ; `web/v2/shell/src/views/edit/moves.ts` (forme)
   - dépend de : 18b
+  - découpée le 2026-11-02 en 18ca à 18cd (A23), chacune migrant des éléments entiers ;
+    l'ancien élément et ses tests ne partent qu'une fois l'élément Vue et ses tests verts
+- [ ] 18ca. Montage d'un plugin de première partie en Vue (modèle de la 017) : une
+  application par élément (`createApp`) montée dans son DOM léger à `connectedCallback`,
+  démontée à `disconnectedCallback`, contexte du SDK, lien en `<a href>` suivi par
+  `ExtensionElement`, portail ; lectures par composables sur `QueryObserver` et
+  `InfiniteQueryObserver` (A23), `Names` ; textes par le handle ; manifeste
+  `framework: "^3.5.0"` ; build `@vitejs/plugin-vue`, modules partagés externes ;
+  contrôle du poids d'un plugin (gzip de `dist/plugins/machines/<v>/index.js` ≤ 50 Ko,
+  modules partagés exclus) ; la forme écrite au design 021 § « API des plugins » ; la
+  colonne `machines-column` et l'action `machines-attach` en Vue (`Select`/`Combobox`,
+  `CodeBadge` sur un échec) — verify : Vitest du plugin (tests de la colonne et de
+  l'action repris) ; parcours `machines` (colonne, action au brouillon) dans les deux
+  navigateurs ; contrôle du poids ; `k-web2-check --base main` ; revues `ui-reviewer`
+  et `a11y-auditor`
+  - où : `web/v2/plugins/machines/{src/index.ts, src/host.ts (nouveau), src/data.ts
+    (nouveau), src/extensions.ts, vite.config.ts, package.json, public/manifest.json,
+    test/}` ; ADR 0038 (décisions 3 et 4) ; `web/v2/shell/vite.config.ts` (`SHARED`, en
+    lecture) ; `web/v2/ui/src/context.ts` (lien, portail) ; `web/v2/shell/src/data/query.ts`
+    (forme des composables) ; `web/v2/shell/scripts/size.ts` (forme du contrôle)
+  - dépend de : 18b
+- [ ] 18cb. Vue Machines en Vue : liste en `DataGrid` (tri, filtres typés) ; fiche en
+  sections (attributs, interfaces avec `StatusBadge`, machines hébergées, ajout d'une
+  interface) ; section « Hébergement » de la 18b en `Combobox` d'hébergeurs jugés par
+  `canMove`, envoyés par `draft.move`, sans optimisme ; anciens `MachinesView` et
+  `HostMove` retirés — verify : Vitest ; parcours `machines` (lecture, création au
+  brouillon, machine physique vers un cluster refusée par la simulation) et `moves`
+  (« the host of a machine ») dans les deux navigateurs ; revues
+  - où : `src/views.ts` (`MachinesView`, `MachineList`, `MachineRecord`),
+    `src/hosting.ts`, `src/forms.ts` ; les tests de la 18b dans `test/machines.test.ts` ;
+    `web/v2/shell/src/views/edit/moves.ts` (forme)
+  - dépend de : 18ca
+- [ ] 18cc. Vue Interfaces et onglet `interfaces-of` en Vue : recherche par MAC, adresse et
+  VID, critères dans la requête de la page, `DataGrid`, fiche d'une interface ; onglet sur
+  adresse, préfixe et VLAN ; anciens `InterfacesView` et `InterfacesTab` retirés —
+  verify : Vitest ; parcours `machines` (recherche par MAC, retour arrière, trois onglets)
+  dans les deux navigateurs ; revues
+  - où : `src/views.ts` (`InterfacesView`, `criteriaOfPage`, `idsOf`, `interfaceTable`),
+    `src/extensions.ts` (`InterfacesTab`)
+  - dépend de : 18ca
+- [ ] 18cd. Vue « Hébergement et clusters » en `TreeGrid` à parent déclaré
+  (`parentMode: "declared"`) : clusters et machines hôtes, machines hébergées chargées
+  sous eux ; fiche d'un cluster ; déplacement par glisser, Ctrl+X puis Ctrl+V et
+  « Déplacer vers… », par `canMove` et `draft.move` ; `moveState: "pending"` jusqu'au
+  verdict, aucun `setQueryData` ; avertissements dans une région `status` présente dès
+  l'origine ; refus dit par son code ; `dom.ts`, `element.ts`, `styles.css` retirés s'ils
+  ne servent plus ; `web/v2/PARITE.md` et le catalogue du design à jour — verify :
+  parcours `moves` (déplacement au clavier vers un cluster, cycle refusé, avertissement
+  `machines.host.site_mismatch`, aucun changeset) et `machines` dans les deux
+  navigateurs ; contrôle final du poids ; revues
+  - où : `src/views.ts` (`ClustersView`) ; `web/v2/ui/src/components/TreeGrid/` (en
+    lecture) ; design 021 § « Déplacements dans les arbres » et § « Catalogue » (plugin
+    Machines, « Hébergement et clusters »)
+  - dépend de : 18ca, 18cb
 
 ## P4 — Budgets et clôture
 

@@ -4,12 +4,13 @@ import { toastCodes } from "../problems/index.ts";
 import { createExpiry, readEnd, type EndReading, type ExpiryDeps } from "./expiry.ts";
 import { expired } from "./index.ts";
 
-// The warning of the end of the session in the frame (REQ-021-14): the end the session
-// gives (`me.session.expires_at`) watched, a `warn` toast that stays until the next
-// activity, and « Rester connecté », which reads the end again (`readEnd`): an end that
-// moved clears the warning; one that did not is fixed, said again without the action; a
-// 401 opens « Session expirée »; any other failure keeps the session as it is and says so
-// by `problems/`: the sentence of its type, its code and its `Request-Id`.
+// The warning of the end of the session in the frame (REQ-021-14): the ends the session
+// gives (`me.session.expires_at`, `absolute_expires_at`) watched, a `warn` toast that stays
+// until the next activity, and « Rester connecté », which reads the ends again
+// (`readEnd`): an end that moved clears the warning; a 401 opens « Session expirée »; any
+// other failure keeps the session as it is and says so by `problems/`: the sentence of its
+// type, its code and its `Request-Id`. The absolute end (021/A14) is said two minutes
+// before it, without « Rester connecté », which would not push it back.
 
 export interface WarningDeps {
   toasts: Toasts;
@@ -18,8 +19,10 @@ export interface WarningDeps {
   sentence: (error: unknown) => string;
   /** The language the time of the end is written in. */
   locale: () => string;
-  /** The end the session gives, reactive. */
+  /** The end the session gives, reactive (`expires_at`). */
   end: WatchSource<string | null | undefined>;
+  /** The end of its lifetime alone, reactive (`absolute_expires_at`). */
+  absoluteEnd: WatchSource<string | null | undefined>;
   readEnd?: () => Promise<EndReading>;
   expiry?: ExpiryDeps;
 }
@@ -33,7 +36,7 @@ export function watchSessionEnd(deps: WarningDeps): () => void {
 
   async function stay(): Promise<void> {
     const reading = await (deps.readEnd ?? readEnd)();
-    if (reading.kind === "end") expiry.read(reading.expiresAt);
+    if (reading.kind === "end") expiry.read(reading.expiresAt, reading.absoluteAt);
     else if (reading.kind === "expired") expired.value = true;
     else {
       const problem = reading.problem;
@@ -53,7 +56,9 @@ export function watchSessionEnd(deps: WarningDeps): () => void {
         if (ending) toasts.dismiss(ending);
         ending = toasts.show({
           tone: "warn",
-          title: t("session.ending", { time: timeOf(end) }),
+          title: t(extendable ? "session.ending" : "session.endingAbsolute", {
+            time: timeOf(end),
+          }),
           description: t(extendable ? "session.endingText" : "session.endingFixed"),
           ...(extendable ? { action: { label: t("session.stay"), run: () => void stay() } } : {}),
         });
@@ -65,7 +70,11 @@ export function watchSessionEnd(deps: WarningDeps): () => void {
     },
     deps.expiry,
   );
-  const stop = watch(deps.end, (end) => expiry.read(end), { immediate: true });
+  const stop = watch(
+    [deps.end, deps.absoluteEnd],
+    ([end, absoluteEnd]) => expiry.read(end, absoluteEnd),
+    { immediate: true },
+  );
   return () => {
     stop();
     expiry.stop();

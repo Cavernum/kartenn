@@ -284,6 +284,26 @@ ne vide pas l'écran) avec ses trois états.
   - Le rôle choisi : permissions, une par ligne (libellé à gauche, `CodeBadge` du nom servi
     à droite, action Retirer), « Ajouter une permission » ; puis les groupes qui le
     portent, avec leur périmètre, en lecture.
+  - L'audit (`/admin/audit`) : `DataGrid` du journal, du plus récent au plus ancien, page
+    par page, au présent quelles que soient les dates de la page (le journal n'en prend
+    pas), filtres typés dans l'URL (période en jours, événement, acteur, objet).
+    L'événement choisi (`/admin/audit/:id`, les filtres gardés) se lit dans l'onglet
+    Détail, retrouvé parmi les pages que le cache tient (l'API n'en sert aucun seul).
+    « Exporter (NDJSON) » enregistre la même recherche (`Accept: application/x-ndjson`)
+    dans un fichier écrit au fil de sa réception (stockage privé de l'origine, OPFS),
+    sans que la page le tienne entier, puis remis au navigateur comme téléchargement ;
+    sans OPFS (fenêtre privée, stockage qui refuse le fichier), repli sur le blob du
+    navigateur, qui le tient entier (en mémoire ou sur disque, à sa guise) ; un corps
+    coupé, ou un stockage plein en cours d'écriture, ne laisse aucun fichier. L'acteur se
+    filtre parmi les identités, par son nom, pour qui a `core.rbac.read` global ; sans ce
+    droit, par son identifiant collé, et le panneau le montre copiable, sans lien vers
+    l'identité : aucune lecture refusée (chacune serait journalisée `denied`).
+  - Les imports de l'utilisateur (`/imports`, espace `changes`) : l'import choisi
+    (`/imports/:id`) se suit dans l'onglet Détail, son état relu chaque seconde tant que
+    sa tâche le trie, le tient prêt ou le joue (aucun événement du flux ne le dit) ; tri
+    en échec avec ses violations par rang d'élément ; rapport des lots. « Reprendre » et
+    « Annuler l'import » (confirmé : un import annulé ne reprend pas) s'écrivent aussitôt
+    par leur route : ni l'un ni l'autre n'est une opération de changeset.
 - **Hôte des plugins** : composants hôtes de la 007 (`ExtensionElement`, `PluginView`)
   repris dans le cadre ; vue de plugin sous son espace.
 
@@ -580,6 +600,16 @@ export function label(kind: string, key: string): string;
 // Sans framework (tâche 19) : un observateur tient sa requête dans le cache partagé, la relit
 // quand elle est invalidée (écriture, événement du flux) et en signale chaque état.
 export { QueryObserver, InfiniteQueryObserver };      // @tanstack/query-core, même instance
+// Déplacements (tâches 24, 18b) : `canMove` (table des parents tirée du contrat, codes des
+// règles) ; `draft.move` met le changement de parent au brouillon actif (remplace celui du
+// même nœud), simule le brouillon et rend le verdict de sa propre opération (`valid` avec
+// ses avertissements, `refused` avec sa règle, `unknown`) — le même que `useMoves` du shell.
+export function canMove(node: MoveSubject, target: MoveSubject | null, env: MoveEnv): MoveVerdict;
+export const draft: {
+  active(): string | null;
+  add(op: Operation): Promise<DraftOutcome<readonly Operation[]>>;  // saved, sinon Refusal
+  move(op: Operation, node: MoveSubject): Promise<DraftMove>;
+};
 // handle.styles(root, path) : un fichier du plugin, ou la feuille partagée du shell
 // nommée par son spécifieur (`@kartenn/ui/style.css`), dans l'ordre des appels.
 ```

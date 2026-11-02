@@ -4,7 +4,7 @@
 
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
-use sqlx::{AssertSqlSafe, PgExecutor, PgPool};
+use sqlx::{AssertSqlSafe, PgConnection, PgExecutor, PgPool};
 
 use kartenn_service::StoreError;
 use kartenn_service::port::{AuditQuery, Reader, Resolved};
@@ -128,7 +128,22 @@ fn properties_sql() -> Result<String, TemporalError> {
 }
 
 /// The object `id` valid at `valid_at`, as asserted at `as_of` (now when `None`); `None`
-/// if it does not exist then.
+/// if it does not exist then. Read on one connection of `pool` ([`object_in`]).
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn object(
+    pool: &PgPool,
+    id: Uuid,
+    valid_at: OffsetDateTime,
+    as_of: Option<OffsetDateTime>,
+) -> sqlx::Result<Option<ObjectRead>> {
+    object_in(&mut *pool.acquire().await?, id, valid_at, as_of).await
+}
+
+/// The object `id` as [`object`] reads it, on `conn`: the snapshot where the caller reads
+/// its version too (task 021-11d).
 ///
 /// # Errors
 ///
@@ -138,8 +153,8 @@ fn properties_sql() -> Result<String, TemporalError> {
     db.operation.name = "SELECT",
     db.query.summary = "SELECT object",
 ))]
-pub async fn object(
-    pool: &PgPool,
+pub async fn object_in(
+    conn: &mut PgConnection,
     id: Uuid,
     valid_at: OffsetDateTime,
     as_of: Option<OffsetDateTime>,
@@ -149,7 +164,7 @@ pub async fn object(
             .bind(valid_at)
             .bind(as_of)
             .bind(id)
-            .fetch_optional(pool)
+            .fetch_optional(&mut *conn)
             .await?;
     let Some((kind, fields)) = row else {
         return Ok(None);
@@ -159,7 +174,7 @@ pub async fn object(
             .bind(valid_at)
             .bind(as_of)
             .bind(id)
-            .fetch_all(pool)
+            .fetch_all(&mut *conn)
             .await?;
     let sensitive = properties
         .iter()
@@ -193,7 +208,8 @@ const OBJECT_TABLES: [&str; 9] = [
 /// `None`), the strong `ETag` of its representation (REQ-006-6): without `as_of`, the
 /// version a write expects (REQ-004-11), the last changeset that wrote the object or its
 /// properties (`object_version`, 006-16); at a past `as_of`, the changeset of the version
-/// read. `None` if it does not exist then.
+/// read. `None` if it does not exist then. Read in the snapshot of the value served, it is
+/// the version of that value (task 021-11d).
 ///
 /// # Errors
 ///
@@ -204,7 +220,7 @@ const OBJECT_TABLES: [&str; 9] = [
     db.query.summary = "SELECT version",
 ))]
 pub async fn version(
-    pool: &PgPool,
+    executor: impl PgExecutor<'_>,
     id: Uuid,
     valid_at: OffsetDateTime,
     as_of: Option<OffsetDateTime>,
@@ -231,7 +247,7 @@ pub async fn version(
         .bind(valid_at)
         .bind(as_of)
         .bind(id)
-        .fetch_optional(pool)
+        .fetch_optional(executor)
         .await
 }
 

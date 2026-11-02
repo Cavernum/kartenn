@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { request, type APIRequestContext, type APIResponse } from "@playwright/test";
 import { BASE_URL, ISSUER, STATE } from "../fixtures/env.ts";
 import {
+  AUDITOR,
   bulkAddresses,
   DATA,
   EDITOR_WITHOUT_APPLY,
@@ -47,6 +48,8 @@ export default async function globalSetup(): Promise<void> {
       operations: [
         // The role of the editor who may not apply (journey `edit`, REQ-021-37).
         { op: "set_role", ...EDITOR_WITHOUT_APPLY },
+        // The auditor without the rights (journey `admin`, task 15c).
+        { op: "set_role", ...AUDITOR },
         ...Object.entries(GROUPS).flatMap(([key, roles]) => [
           { op: "set_group", key, labels: { fr: key } },
           {

@@ -40,7 +40,7 @@ use crate::changesets::{
 use crate::objects::{Api, audited, instant};
 use crate::operation::OperationDto;
 use crate::problem::{Problem, ProblemKind};
-use crate::resources::{entity_tag, invalid, stale};
+use crate::resources::{MERGE_PATCH, entity_tag, invalid, members, stale, typed};
 
 /// The routes of the drafts.
 pub(crate) fn routes() -> OpenApiRouter<Api> {
@@ -395,22 +395,68 @@ async fn show(
     Ok(answered(&draft, StatusCode::OK))
 }
 
-/// The body of a modification: each member given replaces its own.
+/// The body of a modification, a JSON Merge Patch (RFC 7396): each member given replaces
+/// its own, the motive member by member; `null` removes the motive or one of its members,
+/// never the title nor the operations (422).
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
 #[schema(as = DraftChange)]
 struct ChangeBody {
     /// 1 to 200 characters.
+    #[schema(nullable = false)]
     title: Option<String>,
-    /// The motive it will submit.
-    reason: Option<ReasonDto>,
+    /// The motive it will submit, merged into its own.
+    #[serde(default, deserialize_with = "given")]
+    #[schema(value_type = Option<ReasonDto>)]
+    #[allow(clippy::option_option)] // Absent, `null` or a patch: three states.
+    reason: Option<Option<ReasonPatch>>,
     /// Operations that replace its own.
-    #[schema(value_type = Option<Vec<OperationDto>>)]
+    #[schema(value_type = Option<Vec<OperationDto>>, nullable = false)]
     operations: Option<Vec<Value>>,
 }
 
-/// `PATCH /v1/drafts/{id}`: its title, motive or operations (the list replaced), under
-/// `If-Match` (REQ-024-3); not audited (REQ-024-6).
+/// The patch of a motive: a member absent stays, `null` removes it (RFC 7396 §2).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(clippy::option_option)] // Absent, `null` or a text: three states.
+struct ReasonPatch {
+    #[serde(default, deserialize_with = "given")]
+    summary: Option<Option<String>>,
+    #[serde(default, deserialize_with = "given")]
+    description: Option<Option<String>>,
+}
+
+impl ReasonPatch {
+    /// The patch as the store merges it: `None` (the motive removed) clears both members.
+    fn merged(patch: Option<Self>) -> Value {
+        let member = |m: Option<Option<String>>| m.map(|v| v.map_or(Value::Null, Value::String));
+        let mut members = serde_json::Map::new();
+        let (summary, description) = match patch {
+            Some(p) => (member(p.summary), member(p.description)),
+            None => (Some(Value::Null), Some(Value::Null)),
+        };
+        for (name, value) in [("summary", summary), ("description", description)] {
+            if let Some(value) = value {
+                members.insert(name.to_owned(), value);
+            }
+        }
+        Value::Object(members)
+    }
+}
+
+/// A member given, even `null` (`Some(None)`), apart from one absent (`None`, by
+/// `#[serde(default)]`).
+#[allow(clippy::option_option)] // Absent, `null` or a value: three states.
+fn given<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer).map(Some)
+}
+
+/// `PATCH /v1/drafts/{id}` (JSON Merge Patch): its title, motive or operations (the list
+/// replaced), under `If-Match` (REQ-024-3); not audited (REQ-024-6).
 #[utoipa::path(
     patch,
     path = "/drafts/{id}",
@@ -420,7 +466,7 @@ struct ChangeBody {
         ("id" = Uuid, Path, description = "The draft."),
         ("If-Match" = String, Header, description = "The ETag of the draft read."),
     ),
-    request_body = ChangeBody,
+    request_body(content = ChangeBody, content_type = "application/merge-patch+json"),
     responses(
         (status = 200, description = "Modified; `ETag` its new version.", body = DraftDto),
         (status = 404, description = "Absent, or someone else's.", body = Problem, content_type = "application/problem+json"),
@@ -437,10 +483,20 @@ async fn change(
 ) -> Result<Response, Problem> {
     person(&principal)?;
     let version = if_match(&headers)?;
-    let body: ChangeBody = json(&headers, &raw)?;
+    let members = members(&headers, &raw, MERGE_PATCH)?;
+    if let Some(name) = ["title", "operations"]
+        .into_iter()
+        .find(|n| members.get(*n).is_some_and(Value::is_null))
+    {
+        return Err(invalid(
+            &format!("/{name}"),
+            format!("{name} cannot be removed"),
+        ));
+    }
+    let body: ChangeBody = typed("the body", Value::Object(members))?;
     let change = Change {
         title: body.title.as_deref().map(title).transpose()?,
-        reason: body.reason.map(reason),
+        reason: body.reason.map(ReasonPatch::merged),
         operations: body.operations.map(operations).transpose()?,
         append: Vec::new(),
     };

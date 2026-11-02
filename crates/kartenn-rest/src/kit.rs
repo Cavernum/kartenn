@@ -136,15 +136,56 @@ pub const IF_MATCH_OBJECT: &str = "The ETag of the object read. Only its version
     (\"<version>\") is accepted too.";
 
 /// The version of the object `id` at `moment`, the own part of its strong `ETag`
-/// (REQ-006-6, 14).
+/// (REQ-006-6, 14). Read in the [`Snapshot`] of the value served, it is the version of
+/// that value (task 021-11d); [`read_one`] reads both.
 ///
 /// # Errors
 ///
 /// The database unavailable.
-pub async fn version(api: &Api, id: Uuid, moment: &Moment) -> Result<Option<Uuid>, Problem> {
-    read::version(&api.pool, id, moment.valid_at, moment.as_of)
+pub async fn version(
+    executor: impl sqlx::PgExecutor<'_>,
+    id: Uuid,
+    moment: &Moment,
+) -> Result<Option<Uuid>, Problem> {
+    read::version(executor, id, moment.valid_at, moment.as_of)
         .await
         .map_err(|e| store(&e))
+}
+
+/// The row of the object `id` that `sql` reads at `moment` (`$1` its `valid_at`, `$2` its
+/// `as_of`, `$3` the identifier, as [`crate::dated`] relations take them) and its version,
+/// both read in one [`Snapshot`]: an `If-Match` taken from the answer names the value it
+/// shows, never a later one (task 021-11d). The snapshot ends before the caller's audit
+/// event.
+///
+/// # Errors
+///
+/// 404 `not-found` when the object does not exist at `moment`; the database unavailable.
+pub async fn read_one<R>(
+    api: &Api,
+    sql: String,
+    id: Uuid,
+    moment: &Moment,
+) -> Result<(R, Uuid), Problem>
+where
+    R: for<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> + Send + Unpin,
+{
+    let mut snapshot = snapshot(api).await?;
+    let row: Option<R> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
+        .bind(moment.valid_at)
+        .bind(moment.as_of)
+        .bind(id)
+        .fetch_optional(&mut *snapshot)
+        .await
+        .map_err(|e| store(&e))?;
+    let found = match row {
+        Some(row) => version(&mut *snapshot, id, moment)
+            .await?
+            .map(|version| (row, version)),
+        None => None,
+    };
+    release(snapshot);
+    found.ok_or_else(|| Problem::new(ProblemKind::NotFound))
 }
 
 /// A read-only snapshot of the database ([`read::consistent`]): a page and the versions of

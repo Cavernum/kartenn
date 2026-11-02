@@ -240,6 +240,9 @@ la spec qu'il touche :
   présent, pour chaque objet dont le parent change, déduit ou déclaré). Le shell en tire
   l'aperçu du brouillon dans l'arbre (REQ-021-17, 24b). Retenu contre une lecture de
   l'arbre sous brouillon (plus lourde) et contre l'abandon de l'aperçu.
+  *Précisé par la 24a* : `placements` suit le filtre de lecture de l'arbre ;
+  `placements_truncated` est gardé ; le crochet `ModuleHandler::parents` est gardé,
+  additif avec un défaut vide, avant le gel.
 - **A13 — Référence locale dans une valeur (004, 006)** : une valeur de propriété de
   type référence (`RawValue`) peut être `{"local": n}`, la référence locale d'un objet créé
   plus tôt dans le même changeset (REQ-004-4), résolue à l'application comme celles des
@@ -289,6 +292,14 @@ Tranchés le 2026-11-02, après les tâches 11b et 18b :
   `machines.host.site_mismatch` reste un avertissement qui ouvre une anomalie ; le
   client le montre et le déplacement va au brouillon. Les tâches 18b et 24 disaient
   « refusé par le serveur », contre M11 : elles sont amendées.
+
+- **A23 — Plugin de première partie en Vue** (2026-11-02, d'après la 18c) : DOM léger,
+  conformément à l'ADR 0038 (décision 4), pas de racine d'ombre, pas de feuille propre
+  (mise en page par `Stack`/`Cluster` de `@kartenn/ui`) ; lectures par des composables
+  sur les observateurs du SDK, pas par `VueQueryPlugin` (utilisateur ; ADR 0038 amendée) ;
+  hôte mince et composables écrits d'abord dans le plugin Machines (18ca), puis déplacés
+  dans `@kartenn/ui` par une tâche de la bibliothèque avant la 017-2 (session principale,
+  choix réversible).
 
 ## Questions (closes le 2026-10-23)
 

@@ -638,6 +638,40 @@ async fn hosting_cycle_refused(pool: PgPool) {
     .await;
 }
 
+/// Spec 021, A12: a simulation places a machine under its host, before and after.
+#[kartenn_testing::pg_test]
+async fn a_simulated_move_places_the_machine_under_its_new_host(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let one = env.create("h1", "physical", json!({})).await;
+    let two = env.create("h2", "physical", json!({})).await;
+    let vm = env
+        .create("vm1", "virtual", json!({"host": {"machine": {"id": one}}}))
+        .await;
+    let request = ChangesetRequest {
+        simulate: true,
+        ..env.request(vec![op(
+            "update_machine",
+            json!({"id": {"id": vm}, "host": {"machine": {"id": two}}}),
+        )])
+    };
+    let outcome = submit(&env.store, &Unrestricted, &request, MAX_OPERATIONS)
+        .await
+        .unwrap();
+    let Outcome::Simulated { placements, .. } = outcome else {
+        panic!("{outcome:?}");
+    };
+    assert!(!placements.truncated);
+    let found: Vec<_> = placements
+        .items
+        .iter()
+        .map(|p| (p.object, p.kind.name().to_owned(), p.before, p.after))
+        .collect();
+    assert_eq!(
+        found,
+        [(vm, "machines.machine".to_owned(), Some(one), Some(two))]
+    );
+}
+
 #[kartenn_testing::pg_test]
 async fn kind_change_with_host_refused(pool: PgPool) {
     let env = Env::new(&pool).await;

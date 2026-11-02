@@ -730,6 +730,40 @@ async fn a_page_carries_the_version_of_the_value_served(pool: PgPool) {
     }
 }
 
+/// An object read by identifier and its version are read in one snapshot (task 021-11d):
+/// a write validated between the two reads, through `GET /v1/prefixes/{id}`, is seen by
+/// neither, so that the `ETag` and the `version` name the value served, and an `If-Match`
+/// taken from the answer answers 412 once the object has changed.
+#[kartenn_testing::pg_test]
+async fn a_read_by_identifier_carries_the_version_of_the_value_served(pool: PgPool) {
+    let app = admin(&pool).await;
+    let (_, prefix) = lab(&app).await;
+    let id: Uuid = id_of(&prefix).parse().unwrap();
+    let (etag, served) = read(&app, &prefix).await;
+    let request = common::bearer(Request::get(&prefix).body(Body::empty()).unwrap());
+    let (response, written) = common::served_across_a_write(&pool, &app, request, id).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let shown = response.headers()[header::ETAG]
+        .to_str()
+        .unwrap()
+        .to_owned();
+    let body = json_of(response).await;
+    assert_eq!(
+        body["version"], served["version"],
+        "the version of the value"
+    );
+    assert_eq!(shown, etag, "the ETag of the value");
+    let (_, now) = read(&app, &prefix).await;
+    assert_eq!(
+        now["version"],
+        written.to_string(),
+        "the write is seen after"
+    );
+    let change = json!({"motive": "m", "anycast": true});
+    let refused = send(&app, patch(&prefix, Some(&shown), MERGE_PATCH, &change)).await;
+    assert_eq!(refused.status(), StatusCode::PRECONDITION_FAILED);
+}
+
 /// `If-Match` compares the version of the object only (REQ-006-14, 006/H19): a parent
 /// renamed since the read refuses no write, the bare version is accepted, and a version
 /// no longer current still answers 412.

@@ -343,3 +343,15 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
 | INV-69 | Le coût du flux en base ne dépend pas du nombre de connexions | Lecteur partagé | Tâche 7 |
 | INV-70 | Un abonné lent ne retarde ni le lecteur ni les autres abonnés | Tampon borné, `reset` | Tâche 8 |
 | INV-71 | Latence validation → client p95 < 500 ms à 50 écritures/s et 2 000 flux ; 5 000 flux par instance, < 64 Kio par flux | Banc `bench-events` | Tâche 17 |
+- [ ] 20. Tests du flux sous charge : `events::a_page_holds_only_what_the_caller_may_read`
+  et `events::a_page_starts_over_on_a_cursor_it_cannot_follow` échouent dans un `k-check`
+  complet sur une machine chargée (trois branches les 2026-11-01 et 02 : 021-11c, 021-24a,
+  021-14a), à l'attente du lecteur de l'outbox (`settled`, `WAIT` de 5 s,
+  `crates/kartenn-rest/tests/it/events.rs` vers la ligne 1807) ; seuls, ils passent.
+  Chercher la cause (lecteur qui attend un créneau, intervalle de sondage, base partagée)
+  avant d'allonger l'attente ; une attente plus longue n'est admise que bornée et
+  justifiée — verify : `k-check` complet trois fois de suite sous charge (deux agents qui
+  compilent) sans échec de `events::`
+  - où : `crates/kartenn-rest/tests/it/events.rs` (`settled`, `WAIT`), le lecteur de
+    l'outbox (`crates/kartenn-rest/src/events/`)
+  - dépend de : —

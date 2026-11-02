@@ -1053,6 +1053,23 @@ pub(crate) async fn site_mismatches(
     .map_err(|e| store(&e))
 }
 
+/// The host, machine or cluster, of each of the machines `ids` valid at the instant of the
+/// transaction (`None`: hosted by nothing), their place in the tree of the hosting (spec
+/// 021, A12).
+pub(crate) async fn hosts(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<(Uuid, Option<Uuid>)>, StoreError> {
+    sqlx::query_as(
+        "SELECT id, coalesce(host_machine_id, host_cluster_id) FROM machines.machine
+          WHERE id = ANY($1) AND valid_period @> now()",
+    )
+    .bind(ids)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
 /// The living objects that cite `target` by the reference `(from, to)` of the module, from
 /// `at` on (REQ-009-14). The attachments of an interface (`to` an interface) are given by
 /// their addresses.

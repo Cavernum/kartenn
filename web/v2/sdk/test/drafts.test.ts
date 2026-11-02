@@ -183,9 +183,9 @@ describe("writes of the drafts under If-Match (024 § A)", () => {
       kind: "saved",
       draft: { title: "u", version: 2 },
     });
-    // A change of a draft is JSON, not a merge patch (contract: 415 otherwise).
+    // A change of a draft is a merge patch (A17, REQ-006-13: 415 for `application/json`).
     const patch = s.seen.find((r) => r.method === "PATCH");
-    expect(patch?.headers.get("Content-Type")).toBe("application/json");
+    expect(patch?.headers.get("Content-Type")).toBe("application/merge-patch+json");
     expect(await s.drafts.remove(D1)).toEqual({ kind: "removed" });
     const remove = s.seen.find((r) => r.method === "DELETE");
     expect(remove?.headers.get("If-Match")).toBe('"2"');

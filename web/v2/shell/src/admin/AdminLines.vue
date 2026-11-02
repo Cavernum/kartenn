@@ -3,7 +3,9 @@
 // (024-11; design 021 « Administration »; maquette E7): the entry on the left (label then
 // key, wrapping before the key, never inside it), its value on the right (kind, scope,
 // served name, with the end of a temporary membership or binding on a second line), then
-// its actions in a last column at a fixed place. A row waiting in the draft has the draft
+// its actions in a last column at a fixed place; the facts of an object (`k-admin-facts`:
+// an event, an import) have their value left beside its name instead, wrapping (an
+// identifier, a user agent). A row waiting in the draft has the draft
 // look of the grids and its sign; a removal stays in place, struck. A part of the shell
 // taken from the mock-up, not a component of @kartenn/ui: its items are `li` of the views.
 const props = withDefaults(
@@ -120,6 +122,33 @@ const props = withDefaults(
   .k-admin-muted {
     font-weight: var(--k-weight-regular);
     color: var(--k-text-muted);
+  }
+
+  /* The facts of an object (an event of the audit, an import): the name of each at its
+   * width, its value after it, wrapping anywhere (an identifier, a user agent) rather than
+   * pushing the names under it. */
+  .k-admin-lines.k-admin-facts {
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+
+  .k-admin-facts .k-admin-lines__value {
+    overflow-wrap: anywhere;
+  }
+
+  /* A document as journaled (the details of an event, the report of an import): it scrolls
+   * in its place, never the panel sideways. */
+  .k-admin-json {
+    max-block-size: calc(var(--k-row-height) * 12);
+    padding: var(--k-space-2);
+    margin: 0;
+    overflow: auto;
+    /* A long string (a message) wraps rather than scrolling sideways. */
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    font-size: var(--k-text-sm);
+    line-height: var(--k-text-sm-line);
+    background-color: var(--k-surface-sunken);
+    border-radius: var(--k-radius-sm);
   }
 }
 </style>

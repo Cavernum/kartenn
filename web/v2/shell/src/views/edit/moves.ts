@@ -1,10 +1,8 @@
-import { addToActiveDraft } from "@kartenn/sdk/host";
+import { moveInActiveDraft } from "@kartenn/sdk/host";
 import {
   ApiProblem,
-  NetworkError,
   canMove as check,
   changesets,
-  drafts,
   FORBIDDEN_RULE,
   queryClient,
   reads,
@@ -13,8 +11,6 @@ import {
   type MoveSubject,
   type MoveVerdict,
   type Operation,
-  type Simulated,
-  type Violation,
   type WriteOutcome,
 } from "@kartenn/sdk";
 import type { MoveCheck, MoveIntent, MoveState, TreeNode } from "@kartenn/ui";
@@ -114,30 +110,6 @@ export type Refused = Extract<MoveCheck, { ok: false }>;
 
 /** A node that does not move, or a target of no admitted type. */
 const INCOMPATIBLE = { ok: false, refusal: "incompatible" } as const;
-
-/**
- * The violation of a simulation that refuses the operation `index`: one of that operation
- * (its index, or its pointer `/operations/<index>`), else a rule of the final state
- * (`operation` null) about the node; never one of another operation of the draft.
- */
-function violationOf(simulated: Simulated, index: number, id: string): Violation | undefined {
-  const errors = simulated.violations.filter((v) => v.severity === "error");
-  const own = (v: Violation) =>
-    v.operation === index ||
-    v.pointer === `/operations/${index}` ||
-    (v.pointer ?? "").startsWith(`/operations/${index}/`);
-  return (
-    errors.find(own) ??
-    errors.find((v) => v.operation == null && v.pointer == null && v.subjects.includes(id))
-  );
-}
-
-/** Whether `operation` is a change of parent of the node `id` (as `OPERATIONS` writes it). */
-function movesNode(operation: Operation, op: Operation, id: string): boolean {
-  const o = operation as Record<string, unknown>;
-  const target = (o.id as { id?: unknown } | undefined)?.id;
-  return o.op === op.op && target === id && ("parent" in o || "anchor" in o);
-}
 
 export function useMoves(model: MoveModel) {
   const { t } = useI18n();
@@ -259,60 +231,32 @@ export function useMoves(model: MoveModel) {
       refuse(node.id, refusalOf(outcome));
       return outcome;
     }
-    // A node moved already in the active draft: its operation replaced, never doubled.
-    const active = drafts.active();
-    const current = active
-      ? ((await queryClient.fetchQuery(drafts.get(active)).catch(() => undefined)) as
-          Entry<Draft> | undefined)
-      : undefined;
-    const operations = current?.data.operations ?? [];
-    const earlier = operations.findIndex((o) => movesNode(o, op, subject.id));
-    const added =
-      earlier >= 0
-        ? await drafts.update(current!.data.id, {
-            operations: operations.map((o, i) => (i === earlier ? op : o)),
-          })
-        : // The shell's own addition: said here, the draft not opened (`draft.add` is the plugins').
-          await addToActiveDraft([op]);
-    if (added.kind !== "saved") {
-      refuse(
-        node.id,
-        refusalOf(added as Exclude<WriteOutcome<unknown>, { kind: "applied" | "proposed" }>),
-      );
-      return added as WriteOutcome<unknown>;
-    }
-    const index = earlier >= 0 ? earlier : (added.draft.operations?.length ?? 1) - 1;
-    // In the draft: its simulation says whether the move holds; the node stays at its place,
+    // In the draft (the SDK's, shared with the plugins): a node moved already there has its
+    // operation replaced, never doubled; the shell's own addition is said here, the draft
+    // not opened. Its simulation says whether the move holds; the node stays at its place,
     // marked as moved in the draft. Refused, the operation stays in the draft, the node
     // marked refused with the rule; a new move of the node replaces it.
-    const simulated = await queryClient
-      .fetchQuery(drafts.simulate(added.draft))
-      .then((answer) => ({ answer }))
-      .catch((error: unknown) => ({ error }));
-    if ("error" in simulated) {
-      // No answer (`NetworkError`) or a problem: said by `problems/`; anything else is a
-      // bug of the client, never passed off as the network's.
-      const { error } = simulated;
-      if (!(error instanceof ApiProblem) && !(error instanceof NetworkError)) throw error;
-      states.delete(node.id);
-      drafted.add(node.id);
-      const problem = error instanceof ApiProblem ? error : null;
-      return {
-        kind: "drafted",
-        draft: added.draft,
-        verdict: "unknown",
-        failure: { kind: "failed", input: op, problem },
-      };
+    const added = await moveInActiveDraft(op, subject);
+    if (added.kind !== "drafted") {
+      refuse(node.id, refusalOf(added));
+      return added;
     }
-    const refused = simulated.answer.valid
-      ? undefined
-      : violationOf(simulated.answer, index, node.id);
-    if (refused) {
-      refuse(node.id, { ok: false, reason: refused.detail, code: refused.rule });
+    if (added.verdict === "refused") {
+      const { violation } = added;
+      refuse(node.id, { ok: false, reason: violation.detail, code: violation.rule });
       return { kind: "drafted", draft: added.draft, verdict: "refused" };
     }
     states.delete(node.id);
     drafted.add(node.id);
+    // Not simulated (no answer, a problem): said by `problems/`.
+    if (added.verdict === "unknown") {
+      return {
+        kind: "drafted",
+        draft: added.draft,
+        verdict: "unknown",
+        failure: { kind: "failed", input: op, problem: added.problem },
+      };
+    }
     return { kind: "drafted", draft: added.draft, verdict: "valid" };
   }
 

@@ -139,7 +139,32 @@ pub async fn read_object<R: Reader, A: Authorizer, J: AuditJournal>(
     as_of: Option<Instant>,
     audit: ReadAudit,
 ) -> Result<Option<ObjectRead>, RequestError> {
-    let mut read = reader.object(id, valid_at, as_of).await?;
+    let read = reader.object(id, valid_at, as_of).await?;
+    shown_object(
+        read, authorizer, journal, context, id, valid_at, as_of, audit,
+    )
+    .await
+}
+
+/// The object `id` read by [`read_object`] from `read`, its value already read by the
+/// caller (`None` if absent), for a caller that reads it elsewhere than on a [`Reader`]:
+/// in the snapshot where it reads its version too (task 021-11d). The same rights, masks
+/// and audit events as [`read_object`].
+///
+/// # Errors
+///
+/// As [`read_object`].
+#[allow(clippy::too_many_arguments)] // a read, its rights and its audit
+pub async fn shown_object<A: Authorizer, J: AuditJournal>(
+    mut read: Option<ObjectRead>,
+    authorizer: &A,
+    journal: &J,
+    context: &RequestContext,
+    id: Uuid,
+    valid_at: Instant,
+    as_of: Option<Instant>,
+    audit: ReadAudit,
+) -> Result<Option<ObjectRead>, RequestError> {
     if let (Some(found), Some(subject)) = (read.as_mut(), context.subject()) {
         let permission = read_permission(&found.kind);
         if !authorizer

@@ -25,7 +25,7 @@ use kartenn_service::authn::Principal;
 use kartenn_service::authz::Authorizer;
 use kartenn_service::expected::Sources;
 use kartenn_service::module::{ModuleRegistry, ObjectType};
-use kartenn_service::reads::{ReadAudit, objects_read, read_object, read_permission};
+use kartenn_service::reads::{ReadAudit, objects_read, read_permission, shown_object};
 use kartenn_service::{RequestError, StoreError};
 use kartenn_store_pg::audit_journal::PgAuditJournal;
 use kartenn_store_pg::filter::{self as engine, Condition, FilterError};
@@ -33,7 +33,6 @@ use kartenn_store_pg::list::{self, Criteria, Key, Kind, Version};
 use kartenn_store_pg::property_read;
 use kartenn_store_pg::rbac::{PgAuthorizer, ReadScope};
 use kartenn_store_pg::read;
-use kartenn_store_pg::write::PgStore;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::PgPool;
@@ -49,6 +48,7 @@ use crate::changesets::{ChangesetApplied, ChangesetPending, ChangesetRef};
 use crate::cursor::{Page, PageParams, next_href, respond_page};
 use crate::dated::{Dates, DatesParams, Moment, respond_object};
 use crate::filter::{self, Field, ListQuery};
+use crate::kit;
 use crate::openapi::enums::{AddressUsageSchema, NatureSchema, RangeUsageSchema};
 use crate::openapi::{documented, listing_of, op, queryable, schemas_of};
 use crate::problem::{Problem, ProblemKind};
@@ -1162,8 +1162,19 @@ async fn object(
 ) -> Result<Response, Problem> {
     let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
     let moment: Moment = dates.at(now, api.bound)?;
-    let found = read_object(
-        &PgStore::new(api.pool.clone()),
+    // The value and its version in one snapshot (task 021-11d), ended before the rights
+    // and the audit event of the read.
+    let mut snapshot = kit::snapshot(&api).await?;
+    let read = read::object_in(&mut snapshot, id, moment.valid_at, moment.as_of)
+        .await
+        .map_err(|e| store(&e))?;
+    let version = match read {
+        Some(_) => kit::version(&mut *snapshot, id, &moment).await?,
+        None => None,
+    };
+    kit::release(snapshot);
+    let found = shown_object(
+        read,
         &api.authorizer(),
         &api.journal,
         &context,
@@ -1175,10 +1186,7 @@ async fn object(
     .await?
     .filter(|found| found.kind == kind.as_str())
     .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
-    let version = read::version(&api.pool, id, moment.valid_at, moment.as_of)
-        .await
-        .map_err(|e| store(&e))?
-        .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
+    let version = version.ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
     let link = match link_id(kind, &found.fields) {
         Some(to) => list::link(&api.pool, kind, to, moment.valid_at, moment.as_of)
             .await

@@ -1149,6 +1149,17 @@
             },
             "type": "array"
           },
+          "placements": {
+            "description": "The objects whose parent applying would change at the present, with their parents\nbefore and after (spec 021, A12): first those the operations write, in their\norder, then those they move, in address order; an object closed leaves the tree\nand is not listed. Under the read filter of the tree: an object the caller may not\nread is not listed. At most 1000.",
+            "items": {
+              "$ref": "#/components/schemas/Placement"
+            },
+            "type": "array"
+          },
+          "placements_truncated": {
+            "description": "`true`: some placements may be missing, past 1000 (or past 1000 readable objects\nexamined beyond those of the operations); counted on what the caller may read.",
+            "type": "boolean"
+          },
           "sample": {
             "description": "Its first entries.",
             "items": {
@@ -1181,7 +1192,9 @@
           "diff",
           "sample",
           "cascaded",
-          "sections"
+          "sections",
+          "placements",
+          "placements_truncated"
         ],
         "type": "object"
       },
@@ -1925,23 +1938,20 @@
       },
       "DraftChange": {
         "additionalProperties": false,
-        "description": "The body of a modification: each member given replaces its own.",
+        "description": "The body of a modification, a JSON Merge Patch (RFC 7396): each member given replaces\nits own, the motive member by member; `null` removes the motive or one of its members,\nnever the title nor the operations (422).",
         "properties": {
           "operations": {
             "description": "Operations that replace its own.",
             "items": {
               "$ref": "#/components/schemas/Operation"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "type": "array"
           },
           "reason": {
             "oneOf": [
               {
                 "$ref": "#/components/schemas/DraftReason",
-                "description": "The motive it will submit."
+                "description": "The motive it will submit, merged into its own."
               },
               {
                 "type": "null"
@@ -1950,10 +1960,7 @@
           },
           "title": {
             "description": "1 to 200 characters.",
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           }
         },
         "type": "object"
@@ -9027,6 +9034,43 @@
         },
         "required": [
           "start"
+        ],
+        "type": "object"
+      },
+      "Placement": {
+        "description": "An object whose parent a simulated changeset changes, at the present (spec 021, A12).",
+        "properties": {
+          "after": {
+            "description": "Its parent after; `null` at the root, or for a parent the caller may not read.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "before": {
+            "description": "Its parent before: deduced for a prefix, a range or an address, declared otherwise;\n`null` at the root, for an object the changeset creates, or for a parent the caller\nmay not read.",
+            "format": "uuid",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TargetKind",
+            "description": "Its kind."
+          },
+          "object": {
+            "description": "The object.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "object",
+          "kind",
+          "before",
+          "after"
         ],
         "type": "object"
       },
@@ -17595,7 +17639,7 @@
         ],
         "requestBody": {
           "content": {
-            "application/json": {
+            "application/merge-patch+json": {
               "schema": {
                 "$ref": "#/components/schemas/DraftChange"
               }
@@ -17655,7 +17699,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "`PATCH /v1/drafts/{id}`: its title, motive or operations (the list replaced), under\n`If-Match` (REQ-024-3); not audited (REQ-024-6).",
+        "summary": "`PATCH /v1/drafts/{id}` (JSON Merge Patch): its title, motive or operations (the list\nreplaced), under `If-Match` (REQ-024-3); not audited (REQ-024-6).",
         "tags": [
           "changesets"
         ],

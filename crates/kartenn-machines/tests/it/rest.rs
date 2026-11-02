@@ -463,6 +463,39 @@ async fn machine_card_with_interfaces(pool: PgPool) {
     assert_eq!(addresses["items"][0]["value"], "10.0.0.20");
 }
 
+/// A machine and an interface read by identifier are read with their version in one
+/// snapshot (task 021-11d): a write validated between the two reads is seen by neither,
+/// so that the `version` names the value served.
+#[kartenn_testing::pg_test]
+async fn a_read_by_identifier_carries_the_version_of_the_value_served(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    let (machine, eth0) = env.machine("db1", acme).await;
+    let app = env.app(env.admin().await);
+    for (id, uri) in [
+        (machine.to_string(), format!("/v1/machines/{machine}")),
+        (eth0.to_string(), format!("/v1/interfaces/{eth0}")),
+    ] {
+        let (_, _, before) = call(&app, "GET", &uri, None, &[]).await;
+        let request = Request::get(&uri)
+            .header(header::AUTHORIZATION, "Bearer test")
+            .body(Body::empty())
+            .unwrap();
+        let (response, written) =
+            kartenn_testing::across_a_write(&pool, &id, app.clone().oneshot(request)).await;
+        let response = response.unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{uri}");
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let shown: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(
+            shown["version"], before["version"],
+            "{uri}: the version of the value"
+        );
+        let (_, _, after) = call(&app, "GET", &uri, None, &[]).await;
+        assert_eq!(after["version"], written, "{uri}: the write is seen after");
+    }
+}
+
 #[kartenn_testing::pg_test]
 async fn machines_filtered_by_owner(pool: PgPool) {
     let env = Env::new(&pool).await;

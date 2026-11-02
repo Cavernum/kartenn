@@ -90,6 +90,7 @@ const FILTERS_OF_COLLECTION = new Set([
 const BY_ID: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   "/v1/anomalies": { domain: "/v1/domains", entity: "/v1/entities" },
   "/v1/property-gaps": { domain: "/v1/domains", entity: "/v1/entities" },
+  "/v1/audit-events": { actor: "/v1/identities" },
 };
 /** The parameters that name a declared property (`property` of the gaps). */
 const PROPERTY_KEYS: Readonly<Record<string, string>> = { "/v1/property-gaps": "property" };
@@ -107,6 +108,7 @@ const CLOSED: Readonly<Record<string, Readonly<Record<string, readonly string[]>
  */
 const INSTANTS: Readonly<Record<string, Readonly<Record<string, "start" | "end">>>> = {
   "/v1/changesets": { from: "start", to: "end" },
+  "/v1/audit-events": { from: "start", to: "end" },
 };
 
 /** A day of the bar (AAAA-MM-JJ) as the instant a list takes (RFC 3339, UTC). */
@@ -168,14 +170,18 @@ function slugSuggest(path: ListPath, read: SuggestRead): Suggest {
 
 /**
  * The suggestions of a reference to a kind of object (`core.owner` → entities): its value
- * is the identifier of the object, its label the slug (or value) the list shows of it.
+ * is the identifier of the object, its label the slug (or value, or name: an identity) the
+ * list shows of it.
  */
 function referenceSuggest(path: ListPath, read: SuggestRead, names: Map<string, string>): Suggest {
   return (query, signal) =>
     suggestFrom(path, query, read, signal, (item) => {
-      const label = text(item.slug ?? item.value ?? item.id);
+      const coded = item.slug ?? item.value;
+      const label = text(coded ?? item.name ?? item.id);
       names.set(text(item.id), label);
-      return { value: text(item.id), label, detail: text(item.id), mono: true };
+      // A name in words (a person), a slug or a value in fixed pitch.
+      const mono = coded !== undefined || item.name === undefined;
+      return { value: text(item.id), label, detail: text(item.id), mono };
     });
 }
 
