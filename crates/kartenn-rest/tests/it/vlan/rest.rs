@@ -761,3 +761,149 @@ async fn capabilities_list_no_vlan_module(pool: PgPool) {
         "the capabilities name no module vlan: {body}"
     );
 }
+
+impl Env {
+    /// A new network `cidr` of the domain `lab`.
+    async fn lab_network(&self, cidr: &str) -> Uuid {
+        let lab = self.id("addressing_domain", "lab").await;
+        self.applied(vec![
+            serde_json::from_value(json!({
+                "op": "create_prefix", "domain": {"id": lab}, "prefix": cidr,
+                "nature": "network",
+            }))
+            .unwrap(),
+        ])
+        .await;
+        sqlx::query_scalar("SELECT id FROM prefix WHERE prefix = $1::cidr")
+            .bind(cidr)
+            .fetch_one(&self.pool)
+            .await
+            .unwrap()
+    }
+
+    /// The VLAN `vid` of the group `slug` that `core.vlan` of `network` names, if any.
+    async fn vlan_set_on(&self, network: Uuid, slug: &str, vid: i16) -> bool {
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM property_assignment a
+                JOIN property_declaration d ON d.id = a.property_id AND d.key = 'core.vlan'
+                JOIN vlan v ON v.id = a.v_uuid JOIN vlan_group g ON g.id = v.group_id
+               WHERE a.object_id = $1 AND g.slug = $2 AND v.vid = $3
+                 AND a.valid_period @> now())",
+        )
+        .bind(network)
+        .bind(slug)
+        .bind(vid)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+}
+
+/// 021/A13 (E12): through the routes, a VLAN created and set on a network by its local
+/// name in one changeset, applied; the same kept in a draft, read back as written,
+/// simulated without violation, then submitted; a local name no earlier operation
+/// defines → 422 `prop.assignment.unknown_local`, ascribed to its operation.
+#[kartenn_testing::pg_test]
+async fn a_vlan_created_for_a_network_by_its_local_name(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env.id("addressing_domain", "lab").await;
+    let property = env.property("core.vlan").await;
+    let (first, second) = (
+        env.lab_network("10.6.0.0/24").await,
+        env.lab_network("10.7.0.0/24").await,
+    );
+    let operations = |slug: &str, network: Uuid, local: u32| {
+        json!([
+            {"op": "create_vlan_group", "local": 1, "slug": slug,
+             "anchor": {"domain": {"id": lab}}},
+            {"op": "create_vlan", "local": 2, "group": {"local": 1}, "vid": 10, "name": "v10"},
+            {"op": "assign_property", "object": {"id": network}, "kind": "prefix",
+             "property": {"id": property}, "values": [{"local": local}]},
+        ])
+    };
+    let writer = env
+        .person(
+            &[
+                "core.vlan_group.read",
+                "core.vlan_group.edit",
+                "core.vlan_group.approval.self",
+                "core.vlan.read",
+                "core.vlan.edit",
+                "core.vlan.approval.self",
+                "core.prefix.read",
+                "prop.core.vlan.read",
+                "prop.core.vlan.edit",
+                "prop.core.vlan.approval.self",
+                // The group takes the owner of its anchor.
+                "prop.core.owner.read",
+                "prop.core.owner.edit",
+                "prop.core.owner.approval.self",
+            ],
+            None,
+        )
+        .await;
+    let app = env.app(writer);
+    let changeset = |operations: Value| {
+        Some((
+            "application/json",
+            json!({"motive": "a VLAN for the network", "operations": operations}),
+        ))
+    };
+
+    let (status, _, body) = call(
+        &app,
+        "POST",
+        "/v1/changesets",
+        changeset(operations("edge", first, 2)),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    assert!(env.vlan_set_on(first, "edge", 10).await);
+
+    let (status, _, body) = call(
+        &app,
+        "POST",
+        "/v1/changesets",
+        changeset(operations("core", second, 7)),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert_eq!(
+        body["violations"][0]["rule"], "prop.assignment.unknown_local",
+        "{body}"
+    );
+    assert_eq!(body["violations"][0]["operation"], 2, "{body}");
+
+    let draft = json!({
+        "title": "A VLAN for the network",
+        "reason": {"summary": "a VLAN for the network"},
+        "operations": operations("core", second, 2),
+    });
+    let (status, _, body) = call(
+        &app,
+        "POST",
+        "/v1/drafts",
+        Some(("application/json", draft)),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    let uri = body["href"].as_str().unwrap().to_owned();
+    let (_, _, body) = call(&app, "GET", &uri, None, &[]).await;
+    assert_eq!(
+        body["operations"][2]["values"],
+        json!([{"local": 2}]),
+        "{body}"
+    );
+    let simulation = format!("{uri}/simulation");
+    let (status, _, body) = call(&app, "POST", &simulation, None, &[]).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["violations"], json!([]), "{body}");
+    assert!(!env.vlan_set_on(second, "core", 10).await);
+    let submission = format!("{uri}/submission");
+    let (status, _, body) = call(&app, "POST", &submission, None, &[]).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    assert!(env.vlan_set_on(second, "core", 10).await);
+}

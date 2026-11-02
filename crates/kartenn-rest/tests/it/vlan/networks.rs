@@ -3,7 +3,7 @@
 //! group of the VLAN is anchored on a site outside that of the network or on another
 //! domain.
 
-use super::env::{Env, op, rules};
+use super::env::{Env, messages, op, rules};
 use kartenn_service::authz::Unrestricted;
 use kartenn_service::operations::RawInput;
 use kartenn_service::pipeline::MAX_OPERATIONS;
@@ -250,4 +250,157 @@ async fn v4_and_v6_networks_on_one_vlan(pool: PgPool) {
     .await
     .unwrap();
     assert_eq!(carried, 2);
+}
+
+/// A group `edge` on `lab` (`$1`), its VLAN 10 (`$2`), then `core.vlan` of `network`
+/// set to the object of the local name `local`: one changeset (021/A13).
+fn vlan_for(lab: Uuid, network: Uuid, property: Uuid, local: u32) -> Vec<Operation> {
+    vec![
+        op(
+            "create_vlan_group",
+            json!({"local": 1, "slug": "edge", "anchor": {"domain": {"id": lab}}}),
+        ),
+        op(
+            "create_vlan",
+            json!({"local": 2, "group": {"local": 1}, "vid": 10, "name": "v10"}),
+        ),
+        core(json!({
+            "op": "assign_property", "object": {"id": network}, "kind": "prefix",
+            "property": {"id": property}, "values": [{"local": local}],
+        })),
+    ]
+}
+
+impl Env {
+    /// The VLAN `core.vlan` of `network` names now.
+    async fn vlan_of_network(&self, network: Uuid) -> Option<Uuid> {
+        sqlx::query_scalar(
+            "SELECT a.v_uuid FROM property_assignment a
+               JOIN property_declaration d ON d.id = a.property_id AND d.key = 'core.vlan'
+              WHERE a.object_id = $1 AND a.valid_period @> now()",
+        )
+        .bind(network)
+        .fetch_optional(&self.pool)
+        .await
+        .unwrap()
+        .flatten()
+    }
+}
+
+/// 021/A13: a VLAN created and set on a network in one changeset, the value naming it by
+/// its local name, resolved like the references of the operations; simulated first,
+/// nothing written.
+#[kartenn_testing::pg_test]
+async fn vlan_created_and_set_by_its_local_name(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env.id("addressing_domain", "lab").await;
+    let network = env.prefix("10.4.0.0/24", "network").await;
+    let property = env.property("core.vlan").await;
+    let operations = vlan_for(lab, network, property, 2);
+    let mut simulated = env.request(operations.clone(), None);
+    simulated.simulate = true;
+    let outcome = submit(&env.store, &Unrestricted, &simulated, MAX_OPERATIONS)
+        .await
+        .unwrap();
+    assert!(warnings(&outcome).is_empty(), "{outcome:?}");
+    assert_eq!(env.vlan_of_network(network).await, None);
+    env.applied(operations).await;
+    let vlan: Uuid = sqlx::query_scalar(
+        "SELECT v.id FROM vlan v JOIN vlan_group g ON g.id = v.group_id
+          WHERE g.slug = 'edge' AND v.vid = 10",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(env.vlan_of_network(network).await, Some(vlan));
+}
+
+/// 021/A13: a local name no earlier operation defines, one defined later, one of an
+/// operation that creates no object → `prop.assignment.unknown_local`; one of an object of
+/// another kind than the declaration's → `prop.assignment.invalid_value`.
+#[kartenn_testing::pg_test]
+async fn local_values_designate_an_earlier_object_of_the_kind(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env.id("addressing_domain", "lab").await;
+    let network = env.prefix("10.5.0.0/24", "network").await;
+    let property = env.property("core.vlan").await;
+    let absent = env.submit(vlan_for(lab, network, property, 9)).await;
+    assert_eq!(
+        rules(&absent),
+        ["prop.assignment.unknown_local"],
+        "{absent:?}"
+    );
+    assert!(
+        messages(&absent).contains("$9 is defined by no earlier operation"),
+        "{absent:?}"
+    );
+    let mut later = vlan_for(lab, network, property, 2);
+    later.rotate_right(1);
+    let later = env.submit(later).await;
+    assert!(
+        rules(&later).contains(&"prop.assignment.unknown_local"),
+        "{later:?}"
+    );
+    let mut binding = vlan_for(lab, network, property, 5);
+    binding.insert(
+        0,
+        Operation::Bind {
+            local: Some(5),
+            group: "g".into(),
+            role: "r".into(),
+            scope: kartenn_service::operations::BindingScope::Global,
+        },
+    );
+    let binding = env.submit(binding).await;
+    assert!(
+        rules(&binding).contains(&"prop.assignment.unknown_local"),
+        "{binding:?}"
+    );
+    assert!(
+        messages(&binding).contains("$5 names no object"),
+        "{binding:?}"
+    );
+    let group = env.submit(vlan_for(lab, network, property, 1)).await;
+    assert_eq!(
+        rules(&group),
+        ["prop.assignment.invalid_value"],
+        "{group:?}"
+    );
+    assert_eq!(env.vlan_of_network(network).await, None);
+}
+
+/// 021/A13: only a reference property takes a local reference; a text, or a host name,
+/// refuses it as an invalid value, whatever the identifier would read as there.
+#[kartenn_testing::pg_test]
+async fn only_a_reference_property_takes_a_local_name(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env.id("addressing_domain", "lab").await;
+    let network = env.prefix("10.9.0.0/24", "network").await;
+    let declarations = [
+        json!({"key": "custom.note", "type": "text", "max_len": 100}),
+        json!({"key": "custom.host", "type": "fqdn"}),
+    ];
+    for declaration in declarations {
+        let mut declare = declaration.clone();
+        declare["local"] = 3.into();
+        declare["cardinality"] = "single".into();
+        declare["carriers"] = json!(["prefix"]);
+        let mut operations = vlan_for(lab, network, Uuid::nil(), 2);
+        operations.pop();
+        operations.push(op("declare_property", declare));
+        operations.push(core(json!({
+            "op": "assign_property", "object": {"id": network}, "kind": "prefix",
+            "property": {"local": 3}, "values": [{"local": 2}],
+        })));
+        let refused = env.submit(operations).await;
+        assert_eq!(
+            rules(&refused),
+            ["prop.assignment.invalid_value"],
+            "{declaration}: {refused:?}"
+        );
+        assert!(
+            messages(&refused).contains("the local reference designates the object"),
+            "{refused:?}"
+        );
+    }
 }

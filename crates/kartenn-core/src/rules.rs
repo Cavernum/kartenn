@@ -203,6 +203,8 @@ rules! {
         "L'auteur détient la permission de la propriété sur chaque objet dont la valeur résolue change.";
     PROP_DANGLING_REFERENCE = "prop.assignment.dangling_reference", Error, ["REQ-003-10"], "D33",
         "Une référence désigne un objet valide sur toute la période de l'affectation.";
+    PROP_UNKNOWN_LOCAL = "prop.assignment.unknown_local", Error, ["REQ-004-4"], "021/A13",
+        "Une référence locale dans une valeur désigne un objet qu'une opération antérieure du même changeset crée.";
     PROP_EXPECTED_MISMATCH = "prop.resolution.expected_mismatch", Warning, ["REQ-003-24"], "D23",
         "La valeur résolue diffère de la valeur attendue par la source configurée.";
 }

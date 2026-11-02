@@ -97,3 +97,64 @@ async fn import_ten_thousand_vlans_resumes_without_duplicates(pool: PgPool) {
     assert_eq!(count(&pool, vlans).await, expected);
     assert_eq!(count(&pool, bound).await, expected + i64::from(GROUPS));
 }
+
+/// 021/A13: an assignment whose value names a VLAN of the import by its local name, given
+/// first, is ordered after the VLAN, and resolved to it from another batch.
+#[kartenn_testing::pg_test]
+async fn a_value_names_a_vlan_of_another_batch(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env.id("addressing_domain", "lab").await;
+    env.applied(vec![
+        serde_json::from_value(json!({
+            "op": "create_prefix", "domain": {"id": lab}, "prefix": "10.8.0.0/24",
+            "nature": "network",
+        }))
+        .unwrap(),
+    ])
+    .await;
+    let property = env.property("core.vlan").await;
+    let network: sqlx::types::Uuid =
+        sqlx::query_scalar("SELECT id FROM prefix WHERE prefix = '10.8.0.0/24'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let items = vec![
+        ImportItem {
+            external_id: None,
+            operation: serde_json::from_value(json!({
+                "op": "assign_property", "kind": "prefix", "property": {"id": property},
+                "object": {"id": network}, "values": [{"local": 2}],
+            }))
+            .unwrap(),
+        },
+        ImportItem {
+            external_id: Some("vlan-10".into()),
+            operation: op(
+                "create_vlan",
+                json!({"local": 2, "group": {"local": 1}, "vid": 10, "name": "v10"}),
+            ),
+        },
+        ImportItem {
+            external_id: Some("edge".into()),
+            operation: op(
+                "create_vlan_group",
+                json!({"local": 1, "slug": "edge", "anchor": {"domain": {"id": lab}}}),
+            ),
+        },
+    ];
+    // Two operations a batch: the group, the VLAN, the assignment each in its own.
+    let import = create_import(&env.store, env.author, SOURCE, items, 2)
+        .await
+        .unwrap();
+    let done = run_import(&env.store, &Unrestricted, import, 2)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(done.state, "done", "{}", done.report);
+    assert_eq!(done.applied, 3, "{done:?}");
+    let carried = "SELECT count(*) FROM property_assignment a
+                     JOIN property_declaration d ON d.id = a.property_id AND d.key = 'core.vlan'
+                     JOIN vlan v ON v.id = a.v_uuid AND v.vid = 10
+                     JOIN prefix p ON p.id = a.object_id AND p.prefix = '10.8.0.0/24'";
+    assert_eq!(count(&pool, carried).await, 1);
+}

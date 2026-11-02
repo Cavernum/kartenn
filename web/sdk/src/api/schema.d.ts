@@ -923,8 +923,8 @@ export interface paths {
     options?: never;
     head?: never;
     /**
-     * `PATCH /v1/drafts/{id}`: its title, motive or operations (the list replaced), under
-     *     `If-Match` (REQ-024-3); not audited (REQ-024-6).
+     * `PATCH /v1/drafts/{id}` (JSON Merge Patch): its title, motive or operations (the list
+     *     replaced), under `If-Match` (REQ-024-3); not audited (REQ-024-6).
      */
     patch: operations["update_draft"];
     trace?: never;
@@ -4710,13 +4710,17 @@ export interface components {
       /** @description The motive it submits. */
       reason: components["schemas"]["DraftReason"];
     };
-    /** @description The body of a modification: each member given replaces its own. */
+    /**
+     * @description The body of a modification, a JSON Merge Patch (RFC 7396): each member given replaces
+     *     its own, the motive member by member; `null` removes the motive or one of its members,
+     *     never the title nor the operations (422).
+     */
     DraftChange: {
       /** @description Operations that replace its own. */
-      operations?: components["schemas"]["Operation"][] | null;
+      operations?: components["schemas"]["Operation"][];
       reason?: components["schemas"]["DraftReason"] | null;
       /** @description 1 to 200 characters. */
-      title?: string | null;
+      title?: string;
     };
     /** @description The body of a creation. */
     DraftCreation: {
@@ -7900,7 +7904,8 @@ export interface components {
     RangeUsage: "dhcp" | "reserved" | "static";
     /**
      * @description One raw value of an assignment: text (closed-list key, text, host name, date,
-     *     reference), integer or boolean (REQ-003-8).
+     *     reference), integer or boolean (REQ-003-8); for a reference, also the local name of
+     *     an object an earlier operation of the changeset creates (021/A13).
      */
     RawValue:
       | boolean
@@ -7910,6 +7915,10 @@ export interface components {
           id: string;
           label?: string | null;
           system: string;
+        }
+      | {
+          /** Format: int32 */
+          local: number;
         };
     /**
      * @description An object of the changeset: an existing UUID, or the local name of an object created by
@@ -11775,7 +11784,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["DraftChange"];
+        "application/merge-patch+json": components["schemas"]["DraftChange"];
       };
     };
     responses: {

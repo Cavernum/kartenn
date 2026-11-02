@@ -162,6 +162,9 @@ pub enum Raw {
         /// Label.
         label: Option<String>,
     },
+    /// An object designated by the identifier a local reference of a changeset resolves
+    /// to (021/A13): a reference type alone takes it.
+    Ref(Uuid),
 }
 
 /// Cardinality of a property.
@@ -306,6 +309,9 @@ pub struct RefType {
 fn expect_text<'a>(raw: &'a Raw, type_id: &str) -> Result<&'a str, String> {
     match raw {
         Raw::Text(t) => Ok(t),
+        Raw::Ref(id) => Err(format!(
+            "the local reference designates the object {id}, which a {type_id} value is not"
+        )),
         other => Err(format!(
             "{other:?} is not a text, as a {type_id} value must be"
         )),
@@ -425,9 +431,14 @@ impl ValueType for RefType {
     }
 
     fn parse(&self, raw: &Raw, ctx: &dyn ValueContext) -> Result<Scalar, String> {
-        let text = expect_text(raw, self.id())?;
-        let id =
-            Uuid::parse_str(text).map_err(|_| format!("{text:?} is not an object identifier"))?;
+        let id = match raw {
+            Raw::Ref(id) => *id,
+            other => {
+                let text = expect_text(other, self.id())?;
+                Uuid::parse_str(text)
+                    .map_err(|_| format!("{text:?} is not an object identifier"))?
+            }
+        };
         match ctx.object_kind(id) {
             Some(kind) if kind == self.target => Ok(Scalar::Ref(id)),
             Some(kind) => Err(format!("{id} is a {kind}, not a {}", self.target)),
