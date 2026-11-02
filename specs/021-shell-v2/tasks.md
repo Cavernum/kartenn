@@ -2001,19 +2001,28 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `edit/vlan.ts`) : `create_vlan` sous un nom local, puis `assign_property` de
     `core.vlan` à `{"local": n}` (`networkVlanOperation`, `parts/vlan.ts`) — au brouillon
     (action par défaut, Ctrl+Entrée), le nom pris libre dans le brouillon actif relu
-    (`draftLocal`, `freeLocal`), ou appliquées ensemble (`?approval=self`, motif prérempli
-    « Création d'un VLAN pour <réseau> », nom 0). Droits de l'action : `core.vlan.edit`,
-    plus `core.prefix.edit` et `prop.core.vlan.edit` ; une violation de la pose
+    (`vlanForNetworkInDraft`, `freeLocal` : les opérations données au SDK en fonction,
+    `Additions` de `drafts.addOperations`/`addToActive`, faites du brouillon à la version
+    envoyée, de nouveau après un 412), ou appliquées ensemble (`?approval=self`, motif
+    prérempli « Création d'un VLAN pour <réseau> », nom 0). Droits de l'action : une seule
+    liste, `core.vlan.edit` plus `NETWORK_VLAN_EDITS` (`core.prefix.edit`,
+    `prop.core.vlan.edit`, aussi celle de l'onglet), et pour appliquer l'approbation de
+    chacun (`approvalOf`, `lackingRight` : `core.prefix.approval.self`,
+    `prop.core.vlan.approval.self`, comme le serveur), « Appliquer » refusé nomme celui qui
+    manque ; une violation de la pose
     (`operation` 1 ou pointeur `/operations/1/…` : `prop.assignment.invalid_value`,
     `prop.assignment.unknown_local`) dite sur le champ « Réseau », avec son code
-    (`ofAssignment`). « Poser un VLAN existant » : `Combobox` des suggestions de
+    (`ofAssignment`, `fieldErrors`). « Poser un VLAN existant » : `Combobox` des suggestions de
     `/v1/vlans` (`q`), « Poser le VLAN » au brouillon ; un texte sans VLAN choisi est
     refusé sur le champ. Les deux refusés avec leur raison si une pose de `core.vlan` sur
     ce réseau est déjà au brouillon (`isNetworkVlanAssignment`). Brouillon : une liste de
     valeurs se lit valeur par valeur (`#0` pour un nom local, `draft/operations.ts`).
-    Tests : Vitest `test/edit.test.ts` (opérations, violation de la pose, nom local libre
-    relu dans le brouillon), `test/views.test.ts` (`freeLocal`, pose au brouillon),
-    `test/changesets.test.ts` (valeurs d'une affectation) ; parcours `vlan` (VLAN existant
+    Tests : Vitest `test/edit.test.ts` (opérations, violation de la pose et
+    `prop.assignment.invalid_value` sur le champ du réseau, nom local libre dans le
+    brouillon, « Appliquer » refusé sans `core.prefix.approval.self`),
+    `test/views.test.ts` (`freeLocal`, pose au brouillon), `test/changesets.test.ts`
+    (valeurs d'une affectation, toute liste), `sdk/test/drafts.test.ts` (opérations faites
+    du brouillon, de nouveau après un 412) ; parcours `vlan` (VLAN existant
     posé au brouillon puis appliqué ; créé pour un réseau au brouillon puis appliqué, un
     changeset `create_vlan` + `assign_property` ; appliqué d'emblée, refus de la pose
     réécrit par `page.route` dit sur le champ du réseau, puis appliqué, un changeset).
@@ -2030,7 +2039,9 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (`/v1/vlans` ne sert que son identifiant : deux VLAN de même VID et nom dans deux
     groupes se confondent) ; l'avis « Deux opérations » ne nomme ni le VLAN ni son groupe
     (maquette : « Créer le VLAN {vid} {nom} dans {groupe}… », texte fixe voulu) ;
-    `values` d'une liste de valeurs vide reste lue en JSON (`[]`).
+    `values` d'une liste de valeurs vide reste lue en JSON (`[]`) ; après « Poser le
+    VLAN », le focus reste sur le bouton, alors refusé (raison en description) : à
+    vérifier au lecteur d'écran (revue du 2026-11-02).
 - [x] 24b. Aperçu du brouillon dans l'arbre des préfixes, tiré de
   `ChangesetSimulated.placements` : nœuds déplacés montrés sous leur parent d'après,
   marqués « en brouillon » — REQ-021-17 — verify : Vitest de l'aperçu ; parcours `moves`

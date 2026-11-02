@@ -1,5 +1,7 @@
-import { drafts, queryClient, reads, type components, type Operation } from "@kartenn/sdk";
-import { freeLocal, networkVlanOperation } from "../parts/vlan.ts";
+import { queryClient, reads, type components, type Operation, type Violation } from "@kartenn/sdk";
+import type { CollectionId } from "../collections.ts";
+import { freeLocal, networkVlanOperation, VLAN_PROPERTY } from "../parts/vlan.ts";
+import { editRight, fieldOfPointer, propertyRight } from "./fields.ts";
 
 // The creation of a VLAN in the edit panel (026, REQ-008-14, 20; maquette E12): the VID
 // proposed is the next free one of the group chosen. « Créer un VLAN pour ce réseau »
@@ -42,20 +44,22 @@ export function vlanForNetwork(
 }
 
 /**
- * A local name the active draft does not use yet (its operations read again): the names
- * hold for the whole draft, submitted as one changeset. Without a draft, or one that could
- * not be read (the SDK then creates another), the first.
+ * The two operations made from those of the draft they are added to (the SDK reads it, again
+ * after a 412): under a local name free in it, the names holding for the whole draft,
+ * submitted as one changeset; a new draft, the first.
  */
-export async function draftLocal(): Promise<number> {
-  const id = drafts.active();
-  if (id === null) return 0;
-  try {
-    const draft = await queryClient.fetchQuery({ ...drafts.get(id), staleTime: 0 });
-    return freeLocal(draft.data.operations);
-  } catch {
-    return 0;
-  }
-}
+export const vlanForNetworkInDraft =
+  (creation: Operation, network: VlanNetwork) => (current: readonly Operation[]) =>
+    vlanForNetwork(creation, network, freeLocal(current));
+
+/**
+ * The edit permissions the setting of `core.vlan` on a network needs, beside those of what
+ * the action writes: the network, and the property (the approval of each to apply).
+ */
+export const NETWORK_VLAN_EDITS: readonly string[] = [
+  editRight("core.prefix"),
+  propertyRight(VLAN_PROPERTY),
+];
 
 /**
  * Whether a violation of « Créer un VLAN pour ce réseau » is about the second operation, the
@@ -67,3 +71,29 @@ export const ofAssignment = (violation: {
   pointer?: string | null;
 }): boolean =>
   violation.operation === 1 || /^\/operations\/1(?:\/|$)/.test(violation.pointer ?? "");
+
+type FieldViolation = Pick<Violation, "rule" | "detail" | "pointer" | "operation">;
+
+/**
+ * The errors of the fields of a creation refused (422): each violation on the field its
+ * pointer names (`names`, the fields shown), with its code; for a VLAN created for a network
+ * (`network`), the setting of `core.vlan` on the field `network`.
+ */
+export function fieldErrors(
+  collection: CollectionId,
+  names: ReadonlySet<string>,
+  violations: readonly FieldViolation[],
+  network: boolean,
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  for (const violation of violations) {
+    const name =
+      network && ofAssignment(violation)
+        ? "network"
+        : fieldOfPointer(collection, violation.pointer);
+    if (!name || !(names.has(name) || (network && name === "network"))) continue;
+    const said = `${violation.detail} (${violation.rule})`;
+    errors[name] = errors[name] ? `${errors[name]} ${said}` : said;
+  }
+  return errors;
+}

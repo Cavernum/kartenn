@@ -415,6 +415,26 @@ export const editRight = (type: string) => `${type}.edit`;
 export const applyRight = (type: string) => `${type}.approval.self`;
 /** The permission that writes a property (`prop.core.owner.edit`, spec 018). */
 export const propertyRight = (key: string) => `prop.${key}.edit`;
+/**
+ * The approval of one's own changeset that goes with an edit permission, which the server
+ * asks of each one a changeset applied at once needs (024, `verb_permission`):
+ * `core.prefix.edit` → `core.prefix.approval.self`, `prop.core.vlan.edit` →
+ * `prop.core.vlan.approval.self`.
+ */
+export const approvalOf = (edit: string) => edit.replace(/\.edit$/, ".approval.self");
+/**
+ * The permission an action lacks, named: each of `edits` for both actions; to apply, the
+ * approval of each too.
+ */
+export function lackingRight(
+  has: (permission: string) => boolean,
+  edits: readonly string[],
+  apply: boolean,
+): string | null {
+  const missing = edits.find((p) => !has(p));
+  if (missing) return missing;
+  return apply ? (edits.map(approvalOf).find((p) => !has(p)) ?? null) : null;
+}
 /** A column of a grid that stands for a property (`prop.<key>`). */
 const PROPERTY_COLUMN = /^prop\.(.+)$/;
 

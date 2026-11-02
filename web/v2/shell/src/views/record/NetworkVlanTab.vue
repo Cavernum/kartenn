@@ -31,7 +31,8 @@ import { useSession } from "../../rights/index.ts";
 import { useTime } from "../../time/index.ts";
 import { nameOf, type Item } from "../collections.ts";
 import { useDeclarations } from "../data.ts";
-import { editRight, propertyRight } from "../edit/fields.ts";
+import { editRight } from "../edit/fields.ts";
+import { NETWORK_VLAN_EDITS } from "../edit/vlan.ts";
 import type { Refusal } from "../edit/inline.ts";
 import { openEdit } from "../edit/panel.ts";
 import RefusalAlert from "../edit/RefusalAlert.vue";
@@ -114,9 +115,7 @@ const settingDrafted = computed(() =>
  * created too), the date, the declaration unread (the server stays the judge).
  */
 function writeBlocked(extra: readonly string[] = []): { forbidden?: string; reason?: string } {
-  const missing = [...extra, editRight("core.prefix"), propertyRight(VLAN_PROPERTY)].find(
-    (p) => !session.value.rights.has(p),
-  );
+  const missing = [...extra, ...NETWORK_VLAN_EDITS].find((p) => !session.value.rights.has(p));
   if (missing) return { forbidden: missing };
   if (!time.value.present) return { reason: t("edit.why.past") };
   if (!property.value) {

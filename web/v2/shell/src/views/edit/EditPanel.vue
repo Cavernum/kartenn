@@ -59,15 +59,13 @@ import { problemCode, useProblems } from "../../problems/index.ts";
 import { rowsOf, useKeyLabel } from "../data.ts";
 import {
   ANCHOR_KINDS,
-  applyRight,
   changesOf,
   checkValue,
   editRight,
   EDITS,
-  fieldOfPointer,
   initialValues,
+  lackingRight,
   patchOf,
-  propertyRight,
   textOf,
   type EditField,
   type Values,
@@ -79,7 +77,13 @@ import { useMoves, type MoveOutcome } from "./moves.ts";
 import { closeEdit, type ShownRequest } from "./panel.ts";
 import RefusalAlert from "./RefusalAlert.vue";
 import { useSay } from "./say.ts";
-import { draftLocal, nextFreeVid, ofAssignment, vlanForNetwork } from "./vlan.ts";
+import {
+  fieldErrors,
+  NETWORK_VLAN_EDITS,
+  nextFreeVid,
+  vlanForNetwork,
+  vlanForNetworkInDraft,
+} from "./vlan.ts";
 
 const props = defineProps<{ request: ShownRequest }>();
 const { t, te } = useI18n();
@@ -316,24 +320,18 @@ const hintOf = (field: EditField) =>
 
 // The action of the split button: to the draft by default; « Appliquer » with the right.
 const action = ref("draft");
-const canEdit = computed(() => session.value.rights.has(editRight(collection.value.type)));
-const canApply = computed(
-  () => canEdit.value && session.value.rights.has(applyRight(collection.value.type)),
-);
 /**
- * The permission an action lacks: `X.edit` for both, `X.approval.self` to apply; a VLAN set
- * on a network also writes the network and its property `core.vlan`.
+ * The edit permissions the action needs: `X.edit` of its kind; a VLAN set on a network also
+ * writes the network and its property `core.vlan`. To apply, the approval of each.
  */
-const lacking = (id: string) => {
-  if (!canEdit.value) return editRight(collection.value.type);
-  if (network.value) {
-    const missing = [editRight("core.prefix"), propertyRight(VLAN_PROPERTY)].find(
-      (p) => !session.value.rights.has(p),
-    );
-    if (missing) return missing;
-  }
-  return id === "apply" && !canApply.value ? applyRight(collection.value.type) : null;
-};
+const editRights = computed(() => [
+  editRight(collection.value.type),
+  ...(network.value ? NETWORK_VLAN_EDITS : []),
+]);
+/** The permission an action lacks, named: an edit permission, or to apply its approval. */
+const lacking = (id: string) =>
+  lackingRight((p) => session.value.rights.has(p), editRights.value, id === "apply");
+const canApply = computed(() => lacking("apply") === null);
 const actions = computed<SplitAction[]>(() =>
   [
     { id: "draft", label: t("edit.toDraft"), icon: "draft" as const },
@@ -461,19 +459,12 @@ function settle(outcome: WriteOutcome<unknown> | { kind: "saved" }, what: string
     // Each violation on the field its pointer names: a member of the patch, or of the one
     // operation of a creation (`/operations/0/prefix` → « Valeur »); for a VLAN created for
     // a network, the setting of `core.vlan` (`/operations/1/…`) on the field of the network.
-    const names = new Set(fields.value.map((field) => field.name));
-    if (network.value) names.add("network");
-    const byField: Record<string, string> = {};
-    for (const violation of [...Object.values(refused.byField).flat(), ...refused.general]) {
-      const name =
-        network.value && ofAssignment(violation)
-          ? "network"
-          : fieldOfPointer(collection.value.id, violation.pointer);
-      if (!name || !names.has(name)) continue;
-      const said = `${violation.detail} (${violation.rule})`;
-      byField[name] = byField[name] ? `${byField[name]} ${said}` : said;
-    }
-    errors.value = byField;
+    errors.value = fieldErrors(
+      collection.value.id,
+      new Set(fields.value.map((field) => field.name)),
+      [...Object.values(refused.byField).flat(), ...refused.general],
+      network.value !== undefined,
+    );
     void toFirstError();
   }
   if (refused.kind === "conflict") {
@@ -522,24 +513,24 @@ async function run(id: string = action.value): Promise<void> {
     return;
   }
   busy.value = true;
-  // A VLAN for a network: its creation and the setting of `core.vlan` by its local name, one
-  // free in the draft (the names hold for the whole changeset).
-  const created = async (draft: boolean) => {
-    const op = edit.create(values.value);
-    return network.value ? vlanForNetwork(op, network.value, draft ? await draftLocal() : 0) : [op];
-  };
+  // A VLAN for a network: its creation and the setting of `core.vlan` by its local name —
+  // in a draft, one free in it, made by the SDK from the draft at the version it writes
+  // (again after a 412); applied at once, the first.
   if (id === "draft") {
-    const ops = creating.value
-      ? await created(true)
-      : [edit.update(objectId.value!, version.value, changes)];
-    const outcome = await addToActiveDraft(ops);
+    const op = creating.value
+      ? edit.create(values.value)
+      : edit.update(objectId.value!, version.value, changes);
+    const outcome = await addToActiveDraft(
+      network.value ? vlanForNetworkInDraft(op, network.value) : [op],
+    );
     settle(outcome as WriteOutcome<unknown> | { kind: "saved" }, what);
     return;
   }
   if (creating.value) {
+    const op = edit.create(values.value);
     const submission: Submission = {
       motive: motive.value.trim(),
-      operations: await created(false),
+      operations: network.value ? vlanForNetwork(op, network.value, 0) : [op],
     };
     settle(await changesets.submit(submission, idempotencyKey, { approvalSelf: true }), what);
     return;
