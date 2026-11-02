@@ -42,7 +42,7 @@ Routes (`crates/kartenn-rest/src/drafts.rs`, à l'image de `changesets.rs`) :
 | `GET /v1/drafts` | les brouillons de l'appelant, sans opérations (titre, nombre, dates) |
 | `POST /v1/drafts` | crée (titre, opérations facultatives) → 201, `ETag` |
 | `GET /v1/drafts/{id}` | le brouillon complet, `ETag` |
-| `PATCH /v1/drafts/{id}` | titre, motif, opérations (remplacement de la liste), `If-Match` |
+| `PATCH /v1/drafts/{id}` | JSON Merge Patch (REQ-006-13, 021/A17) : titre, motif (fusionné), opérations (remplacement de la liste), `If-Match` |
 | `POST /v1/drafts/{id}/operations` | ajoute des opérations, `If-Match` |
 | `DELETE /v1/drafts/{id}` | supprime, `If-Match` |
 | `POST /v1/drafts/{id}/simulation` | comme `POST /v1/changesets?simulate=true` |

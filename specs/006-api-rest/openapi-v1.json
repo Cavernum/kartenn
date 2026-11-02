@@ -1925,23 +1925,20 @@
       },
       "DraftChange": {
         "additionalProperties": false,
-        "description": "The body of a modification: each member given replaces its own.",
+        "description": "The body of a modification, a JSON Merge Patch (RFC 7396): each member given replaces\nits own, the motive member by member; `null` removes the motive or one of its members,\nnever the title nor the operations (422).",
         "properties": {
           "operations": {
             "description": "Operations that replace its own.",
             "items": {
               "$ref": "#/components/schemas/Operation"
             },
-            "type": [
-              "array",
-              "null"
-            ]
+            "type": "array"
           },
           "reason": {
             "oneOf": [
               {
                 "$ref": "#/components/schemas/DraftReason",
-                "description": "The motive it will submit."
+                "description": "The motive it will submit, merged into its own."
               },
               {
                 "type": "null"
@@ -1950,10 +1947,7 @@
           },
           "title": {
             "description": "1 to 200 characters.",
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           }
         },
         "type": "object"
@@ -17581,7 +17575,7 @@
         ],
         "requestBody": {
           "content": {
-            "application/json": {
+            "application/merge-patch+json": {
               "schema": {
                 "$ref": "#/components/schemas/DraftChange"
               }
@@ -17641,7 +17635,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "`PATCH /v1/drafts/{id}`: its title, motive or operations (the list replaced), under\n`If-Match` (REQ-024-3); not audited (REQ-024-6).",
+        "summary": "`PATCH /v1/drafts/{id}` (JSON Merge Patch): its title, motive or operations (the list\nreplaced), under `If-Match` (REQ-024-3); not audited (REQ-024-6).",
         "tags": [
           "changesets"
         ],

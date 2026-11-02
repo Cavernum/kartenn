@@ -292,7 +292,8 @@ pub async fn create(
 pub struct Change {
     /// A new title.
     pub title: Option<String>,
-    /// A new reason.
+    /// A JSON Merge Patch of its reason (RFC 7396 §2), an object of strings: each member
+    /// replaces its own, `null` removes it, the others stay.
     pub reason: Option<Value>,
     /// Operations that replace its own.
     pub operations: Option<Vec<Value>>,
@@ -345,7 +346,8 @@ pub async fn update(
     bounded(kept.saturating_add(change.append.len()))?;
     let found: FullRow = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "WITH changed AS (
-             UPDATE draft SET title = coalesce($2, title), reason = coalesce($3, reason),
+             UPDATE draft SET title = coalesce($2, title),
+                    reason = coalesce(jsonb_strip_nulls(reason || $3::jsonb), reason),
                     operations = coalesce($4, operations) || $5, version = version + 1,
                     updated_at = now()
              WHERE id = $1 RETURNING *)

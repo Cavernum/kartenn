@@ -115,8 +115,23 @@ async fn as_person(pool: &PgPool, permissions: &[&str]) -> (Uuid, Router) {
     (identity, app(pool, identity, IdentityKind::Person))
 }
 
-/// A request with an access token, its body JSON when given.
+/// A request with an access token, its body JSON when given (a merge patch for `PATCH`).
 fn request(method: &str, uri: &str, if_match: Option<i64>, body: Option<Value>) -> Request<Body> {
+    let media = if method == "PATCH" {
+        "application/merge-patch+json"
+    } else {
+        "application/json"
+    };
+    typed_request(method, uri, if_match, body.map(|b| (media, b)))
+}
+
+/// A request with an access token, its body of the media type given.
+fn typed_request(
+    method: &str,
+    uri: &str,
+    if_match: Option<i64>,
+    body: Option<(&str, Value)>,
+) -> Request<Body> {
     let mut r = Request::builder()
         .method(method)
         .uri(uri)
@@ -125,8 +140,8 @@ fn request(method: &str, uri: &str, if_match: Option<i64>, body: Option<Value>) 
         r = r.header(header::IF_MATCH, format!("\"{version}\""));
     }
     match body {
-        Some(body) => r
-            .header(header::CONTENT_TYPE, "application/json")
+        Some((media, body)) => r
+            .header(header::CONTENT_TYPE, media)
             .body(Body::from(body.to_string()))
             .unwrap(),
         None => r.body(Body::empty()).unwrap(),
@@ -273,6 +288,93 @@ async fn an_author_keeps_a_draft_under_its_versions(pool: PgPool) {
         deleted,
         [json!({"cause": "author", "author": author.to_string()})]
     );
+}
+
+#[kartenn_testing::pg_test]
+async fn a_change_is_a_json_merge_patch(pool: PgPool) {
+    let (_, app) = as_person(&pool, EDITOR).await;
+    let id = created(
+        &app,
+        json!({"title": "Lab", "reason": {"summary": "A lab", "description": "For the tests."},
+               "operations": [domain("lab")]}),
+    )
+    .await;
+    let uri = format!("/v1/drafts/{id}");
+
+    // A17, REQ-006-13: `application/json` → 415, the draft untouched.
+    let plain = typed_request(
+        "PATCH",
+        &uri,
+        Some(1),
+        Some(("application/json", json!({"title": "Lab 2"}))),
+    );
+    let response = send(&app, plain).await;
+    assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    assert_eq!(
+        response.headers()[header::CONTENT_TYPE],
+        "application/problem+json"
+    );
+
+    // RFC 7396: a member absent stays, a member of the motive merges into its own.
+    let (status, changed) = call(
+        &app,
+        "PATCH",
+        &uri,
+        Some(1),
+        Some(json!({"reason": {"summary": "Two labs"}})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{changed}");
+    assert_eq!(changed["title"], "Lab");
+    assert_eq!(
+        changed["reason"],
+        json!({"summary": "Two labs", "description": "For the tests."})
+    );
+    assert_eq!(changed["operations"], json!([domain("lab")]));
+
+    // `null` removes a member of the motive, then the motive whole.
+    let (status, changed) = call(
+        &app,
+        "PATCH",
+        &uri,
+        Some(2),
+        Some(json!({"reason": {"description": null}})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{changed}");
+    assert_eq!(changed["reason"], json!({"summary": "Two labs"}));
+    let (status, changed) = call(&app, "PATCH", &uri, Some(3), Some(json!({"reason": null}))).await;
+    assert_eq!(status, StatusCode::OK, "{changed}");
+    assert_eq!(changed["reason"], json!({}));
+
+    // An array is replaced whole; the title and the operations cannot be removed (422).
+    let (status, changed) = call(
+        &app,
+        "PATCH",
+        &uri,
+        Some(4),
+        Some(json!({"operations": [domain("lab2")]})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{changed}");
+    assert_eq!(changed["operations"], json!([domain("lab2")]));
+    for member in ["title", "operations"] {
+        let (status, problem) =
+            call(&app, "PATCH", &uri, Some(5), Some(json!({ member: null }))).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{problem}");
+        assert_eq!(problem["pointer"], format!("/{member}"), "{problem}");
+    }
+    let (status, _) = call(
+        &app,
+        "PATCH",
+        &uri,
+        Some(5),
+        Some(json!({"reason": {"motive": "x"}})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (_, draft) = call(&app, "GET", &uri, None, None).await;
+    assert_eq!(draft["version"], 5);
 }
 
 #[kartenn_testing::pg_test]

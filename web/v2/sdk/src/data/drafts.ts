@@ -205,13 +205,9 @@ export function createDrafts(deps: DraftDeps) {
   const update = async (id: string, change: DraftChange): Promise<DraftOutcome<DraftChange>> => {
     try {
       const ifMatch = await etagOf(id);
-      // The contract takes the change as `application/json` (each member replaces its own),
-      // not as a merge patch.
-      const answer = await client.request("PATCH", path(id), {
-        body: change,
-        ifMatch,
-        merge: false,
-      });
+      // A JSON Merge Patch, the default of a `PATCH` (RFC 7396, REQ-006-13): a member of the
+      // motive absent stays, `null` removes it.
+      const answer = await client.request("PATCH", path(id), { body: change, ifMatch });
       return await saved(answer.data as Draft, answer.etag);
     } catch (error) {
       return failure(id, error, change);
