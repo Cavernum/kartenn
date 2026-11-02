@@ -33,6 +33,7 @@ import {
 import { computed, nextTick, ref, shallowRef, useTemplateRef, watch } from "vue";
 import { useList } from "./data.ts";
 import { useClose, useHosted, usePresent, useTexts } from "./host.ts";
+import { linesOf } from "./problems.ts";
 import type { Interface, Machine } from "./reads.ts";
 
 const props = defineProps<{
@@ -141,18 +142,7 @@ watch(
   { flush: "pre" },
 );
 
-/** The lines of a refusal: each rule broken with its code, the problem's, its request. */
-function linesOf(problem: unknown): { message: string; code?: string }[] {
-  if (!(problem instanceof ApiProblem)) return [{ message: t("network") }];
-  const lines: { message: string; code?: string }[] = problem.violations.map((v) => ({
-    message: v.detail,
-    code: v.rule,
-  }));
-  if (problem.detail) lines.unshift({ message: problem.detail });
-  lines.push({ message: t("code"), code: problem.code });
-  if (problem.requestId) lines.push({ message: t("request"), code: problem.requestId });
-  return lines;
-}
+const lines = (problem: unknown) => linesOf(problem, t);
 
 const listFailure = computed(() => interfaces.state.value.error);
 
@@ -242,7 +232,7 @@ function refused(problem: unknown): void {
         v-if="listFailure"
         tone="ko"
         :title="t('interfaces.failed')"
-        :items="linesOf(listFailure)"
+        :items="lines(listFailure)"
       />
       <!-- Mounted again as its options come: `SelectValue` shows only the label of an
            option mounted before the value (skill kartenn-ui, « Pièges de Reka UI »). -->
@@ -264,7 +254,7 @@ function refused(problem: unknown): void {
         v-if="refusal !== null"
         tone="ko"
         :title="t('form.refused')"
-        :items="linesOf(refusal)"
+        :items="lines(refusal)"
       />
       <Cluster gap="2">
         <Button
