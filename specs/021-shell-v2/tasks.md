@@ -1859,13 +1859,51 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : écrans VLAN de la tâche 17 (`web/v2/shell/src/views/`, onglet Réseaux) ;
     parcours `web/v2/e2e/journeys/vlan.spec.ts`
   - dépend de : 17a
-- [ ] 24b. Aperçu du brouillon dans l'arbre des préfixes, tiré de
+- [x] 24b. Aperçu du brouillon dans l'arbre des préfixes, tiré de
   `ChangesetSimulated.placements` : nœuds déplacés montrés sous leur parent d'après,
   marqués « en brouillon » — REQ-021-17 — verify : Vitest de l'aperçu ; parcours `moves`
   (préfixe inséré au brouillon : ses futurs enfants montrés dessous avant application)
   - où : `web/v2/shell/src/views/TopologyView.vue`, `topology.ts` ; parcours
     `web/v2/e2e/journeys/moves.spec.ts`
   - dépend de : 24a
+  - fait le 2026-11-02 : `topology.ts` (`previewOf` : placements du domaine, objet créé
+    rapproché de sa création ; `overlay` : chaque déplacé sous sa ligne d'après, par-dessus
+    l'arbre servi, jamais écrit dans le cache) ; `TopologyView.vue` (simulation du
+    brouillon actif par `useDraftQueries`, la même requête que l'onglet Brouillon ; ligne
+    d'aperçu `draft:…` marquée « en brouillon », l'objet marqué aussi à sa place présente ;
+    avis au-dessus de l'arbre : lignes montrées, lignes en attente de leur parent, « Aperçu
+    partiel » sur `placements_truncated`) ; chaînes `views.topology.preview.*` ; tests
+    `web/v2/shell/test/topology.test.ts` (insertion et futurs enfants, rapprochement d'une
+    création derrière des opérations sans placement, clé stable d'une simulation à
+    l'autre, parent qui se déplace aussi, préfixe déplacé avec les enfants qu'il garde,
+    autre domaine, troncature, parent illisible), parcours `moves` (préfixe inséré au
+    brouillon par son « + », ses enfants dessous avant l'application, une ligne d'aperçu
+    choisie reste sélectionnée, aperçu parti après ; valeur changée : la ligne d'aperçu sous le /24 ;
+    `rendered` ne lit que l'arbre servi ; le motif du brouillon écrit en JSON Merge Patch,
+    `applyActive`, le parcours envoyant encore `application/json` depuis la 14a).
+  - choix : objet créé rapproché par l'ordre du contrat (objets des opérations d'abord,
+    dans leur ordre ; création = même genre, `before` nul, identifiant hors des
+    opérations) ; clé d'une ligne créée `draft:<indice de l'opération>`, stable d'une
+    simulation à l'autre ; aperçu seulement d'une simulation valide, au présent, la
+    dernière réponse gardée pendant la suivante ; `after` nul (racine ou parent illisible)
+    au premier niveau ; un objet n'est de ce domaine que lu dans l'arbre ou créé avec ce
+    domaine (les autres ne sont ni montrés ni comptés) ; un déplacé dont le parent d'après
+    n'est pas lu attend (compté dans l'avis) ; lignes d'aperçu après les enfants servis,
+    sans « + » ni éditeur, un objet déplacé avec son occupation lue et les enfants qu'il
+    garde (copiés de l'arbre servi, jusqu'où il est lu ; ceux qui partent ailleurs non
+    répétés) ; choisir une ligne d'aperçu la garde sélectionnée et met son objet dans
+    l'URL, Entrée ouvre sa fiche (rien pour un objet créé) ; avis dans la bande d'outils du
+    panneau (corps sans marge). Corrections de relecture (ui-reviewer, a11y-auditor) :
+    sous-arbre gardé, sélection, occupation, place de l'avis, libellés.
+  - reste : `TreeGrid` n'a que `draft` et `loading-children` : la ligne présente d'un
+    objet déplacé et sa ligne d'aperçu portent la même marque et les mêmes mots « en
+    brouillon », un lecteur d'écran ne les distingue que par le niveau (le design en veut
+    deux : « déplacé dans le brouillon » et « aperçu » ; états à ajouter à `@kartenn/ui`,
+    hors périmètre) ; lignes d'aperçu après les enfants servis, sans tri par valeur (pas de
+    calcul CIDR du client) ; un enfant gardé non lu se montre sans ses enfants ; l'avis
+    (`status`) se relit à chaque nouveau compte ; un objet créé choisi ne montre rien ; le
+    rapprochement d'une création suit l'ordre du contrat (un `Placement` portant l'indice
+    de son opération le rendrait exact).
 
 ## P3 — Plugins (phase 5)
 

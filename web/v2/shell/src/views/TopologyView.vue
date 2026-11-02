@@ -13,16 +13,9 @@
 // motive at the foot of the tree, which says too why a cell has no editor. Enter on a node
 // opens its record, Tab goes into its « + » (the tree's keys), `c` adds in the node of the
 // focus (021/A20); a refused « + », and the « Ajouter » of the chosen node, stay visible
-// and say their permission (REQ-021-37).
-import {
-  drafts,
-  queryClient,
-  reads,
-  type components,
-  type Draft,
-  type Entry,
-  type TimeArg,
-} from "@kartenn/sdk";
+// and say their permission (REQ-021-37). The preview of the active draft (task 24b,
+// 021/A12): the places its simulation gives laid over the tree served (`topology.ts`).
+import { drafts, queryClient, reads, type components, type TimeArg } from "@kartenn/sdk";
 import {
   EmptyState,
   InlineAlert,
@@ -51,6 +44,7 @@ import {
   onMounted,
   ref,
   shallowReactive,
+  shallowRef,
   useTemplateRef,
   watch,
   watchEffect,
@@ -58,6 +52,7 @@ import {
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { useInfiniteQuery, useQuery } from "../data/query.ts";
+import { useDraftQueries } from "../draft/state.ts";
 import KLink from "../prefetch/KLink.vue";
 import { useProblems } from "../problems/index.ts";
 import { childrenIntent } from "../prefetch/tree.ts";
@@ -76,7 +71,15 @@ import ProblemState from "../problems/ProblemState.vue";
 import { rowsOf, useKeyLabel } from "./data.ts";
 import ViewPanel from "./parts/ViewPanel.vue";
 import { shareOf } from "./occupancy.ts";
-import { nodesOf } from "./topology.ts";
+import {
+  isPreview,
+  nodesOf,
+  overlay,
+  PREVIEW,
+  previewOf,
+  type Preview,
+  type Shift,
+} from "./topology.ts";
 import ContentTab from "./record/ContentTab.vue";
 
 type Node = components["schemas"]["TreeNode"];
@@ -173,6 +176,8 @@ onBeforeUnmount(() => {
 });
 /** The tree asks for the children of a node, or the next page of a level. */
 function onLoad(parent: string | null): void {
+  // A row of the preview has its children given (`topology.ts`): nothing to read.
+  if (parent !== null && isPreview(parent)) return;
   const known = observers.get(parent);
   if (!known) observe(parent);
   else if (results.get(parent)?.hasNextPage) void known.observer.fetchNextPage();
@@ -185,12 +190,17 @@ const ICONS: Record<Node["kind"], IconName> = {
 };
 const valueOf = (node: Shown) =>
   node.kind === "range" ? `${node.first} – ${node.last}` : node.value;
-const detailOf = (node: Shown) => {
-  const value = node.kind === "prefix" ? node.nature : node.kind === "range" ? node.usage : null;
-  if (!value) return "";
-  const key = `views.value.${node.kind === "prefix" ? "nature" : "usage"}.${value}`;
+/** The nature of a prefix, the usage of a range, in words. */
+const detailWords = (kind: Node["kind"], value: string | null | undefined) => {
+  if (!value || kind === "address") return "";
+  const key = `views.value.${kind === "prefix" ? "nature" : "usage"}.${value}`;
   return te(key) ? t(key) : value;
 };
+const detailOf = (node: Shown) =>
+  detailWords(
+    node.kind,
+    node.kind === "prefix" ? node.nature : node.kind === "range" ? node.usage : null,
+  );
 const itemsOf = (parent: string | null) =>
   rowsOf(results.get(parent)?.data as never) as unknown as Node[];
 /** A level read, as the tree takes it: `undefined` until its first page is read. */
@@ -252,8 +262,6 @@ const nodeOf = (item: Node): TreeNode => ({
   },
   detail: keyLabel("kind", `core.${item.kind}`) ?? item.kind,
 });
-// Each node placed once, even while its levels are read again (`topology.ts`).
-const nodes = computed(() => nodesOf(levelOf, nodeOf, (item) => item.kind === "prefix"));
 const roots = computed(() => results.get(null));
 
 // Parents deduced (D34, REQ-021-17): no move is offered; a node whose value the active
@@ -262,22 +270,89 @@ const roots = computed(() => results.get(null));
 const active = ref<string | null>(drafts.active());
 const stopActive = drafts.onActive((id) => (active.value = id));
 onBeforeUnmount(stopActive);
-const activeDraft = useQuery(() => ({
-  ...drafts.get(active.value ?? "-"),
-  enabled: active.value !== null,
-}));
+const activeDraft = useDraftQueries(active);
 const inDraft = computed(() => {
-  const operations = (activeDraft.data.value as Entry<Draft> | undefined)?.data.operations;
+  const operations = activeDraft.operations.value;
   return new Set(
     (["prefixes", "ranges", "addresses"] as const).flatMap((c) => [
       ...draftedValues(operations, c).keys(),
     ]),
   );
 });
+// The preview of the draft (task 24b, 021/A12): from its valid simulation at the present,
+// the one last answered kept while the next is to come (the operations it simulated with
+// it), gone with the draft. A simulation with errors shows none: it cannot be applied.
+const preview = shallowRef<Preview>();
+watchEffect(() => {
+  const operations = activeDraft.operations.value;
+  if (!time.value.present || domain.value === undefined || operations.length === 0) {
+    preview.value = undefined;
+    return;
+  }
+  if (activeDraft.simulating.value) return;
+  const simulated = activeDraft.simulated.value;
+  preview.value = simulated?.valid
+    ? previewOf(simulated, operations, (id) => itemById.value.has(id), domain.value)
+    : undefined;
+});
+/** A row of the preview: the object at its place after, in its value after. */
+function shiftOf(shift: Shift, children: TreeNode[] | undefined): TreeNode {
+  const row = shift.object ? (shownById.value.get(shift.object) ?? nodeById(shift.object)) : null;
+  const read = shift.object ? itemById.value.get(shift.object) : undefined;
+  return {
+    id: shift.key,
+    label: shift.creation?.label ?? (row ? valueOf(row) : ""),
+    icon: ICONS[shift.kind],
+    ...(children ? { children } : {}),
+    cells: {
+      // An object moved keeps its occupancy; one created has none read yet.
+      occupancy: (read?.kind === "prefix" ? shareOf(read.occupancy) : undefined) ?? "",
+      detail: shift.creation
+        ? detailWords(shift.kind, shift.creation.detail)
+        : row
+          ? detailOf(row)
+          : "",
+    },
+    detail: keyLabel("kind", `core.${shift.kind}`) ?? shift.kind,
+  };
+}
+// Each node placed once, even while its levels are read again (`topology.ts`); the preview
+// over them.
+const laid = computed(() => {
+  const served = nodesOf(levelOf, nodeOf, (item) => item.kind === "prefix");
+  return preview.value ? overlay(served, preview.value, shiftOf) : { nodes: served, shown: 0 };
+});
+const nodes = computed(() => laid.value.nodes);
+/** The keys of the rows of the preview laid. */
+const previewKeys = computed(() => {
+  const keys = new Set<string>();
+  const walk = (list: readonly TreeNode[]) =>
+    list.forEach((n) => {
+      if (isPreview(n.id)) keys.add(n.id);
+      walk(n.children ?? []);
+    });
+  walk(nodes.value);
+  return keys;
+});
+/** The preview says what it shows, what waits for its parent to be read, and if partial. */
+const previewNote = computed(() => {
+  const shown = preview.value;
+  if (!shown || (shown.shifts.length === 0 && !shown.truncated)) return undefined;
+  const waiting = shown.shifts.length - laid.value.shown;
+  return {
+    partial: shown.truncated,
+    text: [
+      t("views.topology.preview.shown", { n: laid.value.shown }, laid.value.shown),
+      ...(waiting > 0 ? [t("views.topology.preview.waiting", { n: waiting }, waiting)] : []),
+      ...(shown.truncated ? [t("views.topology.preview.partialText")] : []),
+    ].join(" "),
+  };
+});
 const nodeState = (node: TreeNode): TreeNodeState | undefined =>
   results.get(node.id)?.isFetching
     ? "loading-children"
-    : time.value.present && inDraft.value.has(node.id)
+    : time.value.present &&
+        (isPreview(node.id) || inDraft.value.has(node.id) || preview.value?.moved.has(node.id))
       ? "draft"
       : undefined;
 // The occupancy first, as the mock-up E1; the nature (not in the mock-up, kept from task
@@ -291,10 +366,36 @@ const columns = computed<GridColumn[]>(() => [
 const expanded = ref<string[]>([]);
 watch([domain, () => time.value.validAt, () => time.value.asOf], () => (expanded.value = []));
 
+/** The node chosen, in the URL: an object of the tree served. */
+const node = computed(() => (typeof route.query.node === "string" ? route.query.node : undefined));
+/** The row of the preview chosen, while it stands for the node chosen. */
+const previewChoice = ref<string>();
+// The row chosen: one of the preview stays selected where it was chosen, its object in the
+// URL (none for an object the draft creates: nothing to show, nothing chosen).
 const selected = computed({
-  get: () => (typeof route.query.node === "string" ? route.query.node : undefined),
-  set: (id: string | undefined) => void router.replace({ query: { ...route.query, node: id } }),
+  get: () =>
+    previewChoice.value !== undefined &&
+    previewKeys.value.has(previewChoice.value) &&
+    objectOf(previewChoice.value) === node.value
+      ? previewChoice.value
+      : node.value,
+  set: (id: string | undefined) => {
+    const object = id !== undefined && isPreview(id) ? objectOf(id) : id;
+    if (object === null) return;
+    previewChoice.value = id !== undefined && isPreview(id) ? id : undefined;
+    void router.replace({ query: { ...route.query, node: object } });
+  },
 });
+/**
+ * The object of a row of the preview (a shift, or a child it takes along); `null` for one
+ * the draft creates.
+ */
+function objectOf(key: string): string | null {
+  const shift = preview.value?.shifts.find((s) => s.key === key);
+  if (shift) return shift.object ?? null;
+  const id = key.slice(PREVIEW.length);
+  return itemById.value.has(id) ? id : null;
+}
 /** A node read, by identifier, in any level read so far. */
 function nodeById(id: string | undefined): Node | undefined {
   if (id === undefined) return undefined;
@@ -309,9 +410,7 @@ function nodeById(id: string | undefined): Node | undefined {
  * that hold content are prefixes — until its level is read.
  */
 const unread = computed(() =>
-  selected.value !== undefined && nodeById(selected.value) === undefined
-    ? selected.value
-    : undefined,
+  node.value !== undefined && nodeById(node.value) === undefined ? node.value : undefined,
 );
 const fallback = useQuery(() => ({
   ...reads.object<{
@@ -323,10 +422,10 @@ const fallback = useQuery(() => ({
   enabled: unread.value !== undefined,
 }));
 const chosen = computed<Shown | undefined>(() => {
-  const read = nodeById(selected.value);
+  const read = nodeById(node.value);
   if (read) return read;
   const prefix = fallback.data.value?.data;
-  return prefix && prefix.id === selected.value
+  return prefix && prefix.id === node.value
     ? {
         kind: "prefix",
         id: prefix.id,
@@ -337,7 +436,8 @@ const chosen = computed<Shown | undefined>(() => {
     : undefined;
 });
 function onActivate(id: string): void {
-  const node = nodeById(id);
+  // A row of the preview opens the record of its object, if it exists already.
+  const node = nodeById(isPreview(id) ? (objectOf(id) ?? undefined) : id);
   const to = node ? pageOfObject(node.kind, node.id) : null;
   if (to) void router.push(to);
 }
@@ -473,9 +573,10 @@ const tree = useTemplateRef<HTMLElement>("tree");
 let stopIntent = () => {};
 onMounted(() => {
   if (tree.value)
-    stopIntent = childrenIntent(tree.value, (id) => [
-      reads.subPages<Node>("prefix", id, "children", null, dated()),
-    ]);
+    stopIntent = childrenIntent(tree.value, (id) =>
+      // A row of the preview has its children given: nothing to read.
+      isPreview(id) ? [] : [reads.subPages<Node>("prefix", id, "children", null, dated())],
+    );
 });
 onBeforeUnmount(() => stopIntent());
 </script>
@@ -511,6 +612,23 @@ onBeforeUnmount(() => stopIntent());
             size="sm"
             @update:model-value="chooseDomain"
           />
+        </template>
+        <!-- The preview of the draft: what it shows, what waits, partial (never silent);
+             in the band above the tree, which has its margin (the body is flush). -->
+        <template v-if="previewNote" #toolbar>
+          <InlineAlert
+            :tone="previewNote.partial ? 'warn' : 'info'"
+            icon="draft"
+            :title="
+              t(
+                previewNote.partial
+                  ? 'views.topology.preview.partial'
+                  : 'views.topology.preview.title',
+              )
+            "
+          >
+            {{ previewNote.text }}
+          </InlineAlert>
         </template>
         <div ref="tree" class="k-topology__tree">
           <ProblemState
