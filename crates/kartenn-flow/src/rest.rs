@@ -1178,14 +1178,18 @@ async fn access(
     Ok(sides.iter().any(|e| read.contains(e)))
 }
 
-/// The flow `id` at `moment`, as listed.
-async fn flow_at(api: &Api, id: Uuid, moment: &Moment) -> Result<FlowView, Problem> {
-    let mut conn = api.pool.acquire().await.map_err(|e| kit::store(&e))?;
+/// The flow `id` at `moment`, as listed, read on `conn` (the snapshot of a read by
+/// identifier, where its version is read too).
+async fn flow_at(
+    conn: &mut sqlx::PgConnection,
+    id: Uuid,
+    moment: &Moment,
+) -> Result<FlowView, Problem> {
     // The list ordered by identifier from the one before `id`: its first row is `id` when
     // it lives at the date.
     let before = predecessor(id);
     let rows = read::flows(
-        &mut conn,
+        conn,
         dates(moment),
         &FlowFilter::default(),
         before.map(Cursor::Flow),
@@ -1217,10 +1221,14 @@ async fn show(
     if !access(&api, &principal, &context, id, moment.valid_at).await? {
         return Err(Problem::new(ProblemKind::NotFound));
     }
-    let view = flow_at(&api, id, &moment).await?;
-    let version = kit::version(&api, id, &moment)
+    // The flow and its version in one snapshot (task 021-11d), ended before the reads of
+    // its endpoints: one connection held at a time.
+    let mut snapshot = kit::snapshot(&api).await?;
+    let view = flow_at(&mut snapshot, id, &moment).await?;
+    let version = kit::version(&mut *snapshot, id, &moment)
         .await?
         .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
+    kit::release(snapshot);
     let flow = served(&api, moment.valid_at, vec![view])
         .await?
         .pop()
@@ -1420,7 +1428,10 @@ async fn request(
     let mut answer: Map<String, Value> = serde_json::from_slice(&bytes).unwrap_or_default();
     let now = kit::now(&api).await?;
     let moment = DateParams::default().at(now, api.bound)?;
-    if let Ok(view) = flow_at(&api, id, &moment).await
+    let mut conn = api.pool.acquire().await.map_err(|e| kit::store(&e))?;
+    let view = flow_at(&mut conn, id, &moment).await;
+    drop(conn);
+    if let Ok(view) = view
         && let Some(flow) = served(&api, moment.valid_at, vec![view]).await?.pop()
     {
         answer.insert("flow".into(), json!(flow));

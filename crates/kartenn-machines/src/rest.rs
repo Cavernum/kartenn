@@ -1034,8 +1034,9 @@ async fn dated_read(
     dates.at(now, api.bound)
 }
 
-/// The answer of a read by identifier: the object, its version as `ETag`, the read
-/// journaled.
+/// The answer of a read by identifier: the object and its version as `ETag`, read in one
+/// snapshot ([`kit::read_one`]), the read journaled.
+#[allow(clippy::too_many_arguments)] // a read, its moment and its answer
 async fn answer<T: Serialize>(
     api: &Api,
     context: &RequestContext,
@@ -1043,11 +1044,9 @@ async fn answer<T: Serialize>(
     kind: &str,
     id: Uuid,
     moment: &Moment,
+    version: Uuid,
     body: T,
 ) -> Result<Response, Problem> {
-    let version = kit::version(api, id, moment)
-        .await?
-        .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
     kit::record_read(api, context, kind, &[id], json!({"id": id})).await?;
     Ok(kit::respond_object(headers, moment, version, &body))
 }
@@ -1065,22 +1064,10 @@ async fn show_cluster(
         "SELECT {CLUSTER_SELECT} FROM {} x WHERE x.id = $3",
         dated("machines.cluster", CLUSTER_COLUMNS)
     );
-    let row: ClusterRow = sqlx::query_as(sqlx::AssertSqlSafe(sql))
-        .bind(moment.valid_at)
-        .bind(moment.as_of)
-        .bind(id)
-        .fetch_optional(&api.pool)
-        .await
-        .map_err(|e| kit::store(&e))?
-        .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
+    let (row, version): (ClusterRow, _) = kit::read_one(&api, sql, id, &moment).await?;
+    let body = cluster_dto(row);
     answer(
-        &api,
-        &context,
-        &headers,
-        CLUSTER,
-        id,
-        &moment,
-        cluster_dto(row),
+        &api, &context, &headers, CLUSTER, id, &moment, version, body,
     )
     .await
 }
@@ -1100,14 +1087,9 @@ async fn show_machine(
         "SELECT {MACHINE_SELECT} FROM {} x WHERE x.id = $3",
         dated("machines.machine", MACHINE_COLUMNS)
     );
-    let row: MachineRow = sqlx::query_as(sqlx::AssertSqlSafe(sql))
-        .bind(moment.valid_at)
-        .bind(moment.as_of)
-        .bind(id)
-        .fetch_optional(&api.pool)
-        .await
-        .map_err(|e| kit::store(&e))?
-        .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
+    // The machine and its version in one snapshot, ended before the reads of its
+    // interfaces and addresses: one connection held at a time.
+    let (row, version): (MachineRow, _) = kit::read_one(&api, sql, id, &moment).await?;
     let now = kit::now(&api).await?;
     let scope = kit::scope(&api, &principal, now).await?;
     let interfaces: Vec<InterfaceRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
@@ -1157,7 +1139,10 @@ async fn show_machine(
             .collect(),
         href: machine.href,
     };
-    answer(&api, &context, &headers, MACHINE, id, &moment, card).await
+    answer(
+        &api, &context, &headers, MACHINE, id, &moment, version, card,
+    )
+    .await
 }
 
 fn interface_ids(rows: &[InterfaceRow]) -> Vec<Uuid> {
@@ -1268,22 +1253,10 @@ async fn show_interface(
         "SELECT {INTERFACE_SELECT} FROM {} x WHERE x.id = $3",
         dated("machines.interface", INTERFACE_COLUMNS)
     );
-    let row: InterfaceRow = sqlx::query_as(sqlx::AssertSqlSafe(sql))
-        .bind(moment.valid_at)
-        .bind(moment.as_of)
-        .bind(id)
-        .fetch_optional(&api.pool)
-        .await
-        .map_err(|e| kit::store(&e))?
-        .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
+    let (row, version): (InterfaceRow, _) = kit::read_one(&api, sql, id, &moment).await?;
+    let body = interface_dto(row);
     answer(
-        &api,
-        &context,
-        &headers,
-        INTERFACE,
-        id,
-        &moment,
-        interface_dto(row),
+        &api, &context, &headers, INTERFACE, id, &moment, version, body,
     )
     .await
 }

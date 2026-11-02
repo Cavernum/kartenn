@@ -540,18 +540,17 @@ async fn list(
     Ok(respond_page(headers, &moment, &items, next.as_deref()))
 }
 
-/// The object `id` of `c` at `moment`.
-async fn row_at(api: &Api, c: &Collection, id: Uuid, moment: &Moment) -> Result<Value, Problem> {
+/// The object `id` of `c` at `moment` and its version, read in one snapshot
+/// ([`kit::read_one`]): the version names the value read (task 021-11d).
+async fn row_at(
+    api: &Api,
+    c: &Collection,
+    id: Uuid,
+    moment: &Moment,
+) -> Result<(Value, Uuid), Problem> {
     let sql = format!("SELECT x.body FROM {} x WHERE x.id = $3", dated(c));
-    let body: Value = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
-        .bind(moment.valid_at)
-        .bind(moment.as_of)
-        .bind(id)
-        .fetch_optional(&api.pool)
-        .await
-        .map_err(|e| kit::store(&e))?
-        .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
-    Ok(object_of(body))
+    let ((body,), version): ((Value,), _) = kit::read_one(api, sql, id, moment).await?;
+    Ok((object_of(body), version))
 }
 
 /// `GET /v1/<collection>/{id}`: the object, its version as `ETag`, the read journaled.
@@ -566,10 +565,7 @@ async fn show(
     kit::gate(api, context, object_type(c.kind), id).await?;
     let now = kit::now(api).await?;
     let moment = dates.at(now, api.bound)?;
-    let body = row_at(api, c, id, &moment).await?;
-    let version = kit::version(api, id, &moment)
-        .await?
-        .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
+    let (body, version) = row_at(api, c, id, &moment).await?;
     kit::record_read(api, context, c.kind, &[id], json!({"id": id})).await?;
     Ok(kit::respond_object(headers, &moment, version, &body))
 }
@@ -588,10 +584,9 @@ async fn close_environment(
     kit::gate(api, context, object_type(c.kind), id).await?;
     let now = kit::now(api).await?;
     let moment = Dates::default().at(now, api.bound)?;
-    let body = row_at(api, c, id, &moment).await?;
+    let (body, current) = row_at(api, c, id, &moment).await?;
     let expected = kit::if_match(headers)?;
-    let current = kit::version(api, id, &moment).await?;
-    if current != Some(expected) {
+    if current != expected {
         return Err(Problem::new(ProblemKind::PreconditionFailed));
     }
     let key = body
