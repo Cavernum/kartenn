@@ -2318,7 +2318,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     focus ; un refus du serveur sans champ connu laisse le focus au bouton (l'alerte est
     dite) ; une erreur de rendu d'une application après sa création n'est pas confinée en
     encart ; `host.ts` et `data.ts` à déplacer dans `@kartenn/ui` (A23).
-- [ ] 18cb. Vue Machines en Vue : liste en `DataGrid` (tri, filtres typés) ; fiche en
+- [x] 18cb. Vue Machines en Vue : liste en `DataGrid` (tri, filtres typés) ; fiche en
   sections (attributs, interfaces avec `StatusBadge`, machines hébergées, ajout d'une
   interface) ; section « Hébergement » de la 18b en `Combobox` d'hébergeurs jugés par
   `canMove`, envoyés par `draft.move`, sans optimisme ; anciens `MachinesView` et
@@ -2329,6 +2329,61 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `src/hosting.ts`, `src/forms.ts` ; les tests de la 18b dans `test/machines.test.ts` ;
     `web/v2/shell/src/views/edit/moves.ts` (forme)
   - dépend de : 18ca
+  - fait le 2026-11-02 — `machines-machines` = `host.element(MachinesView.vue)` : la liste
+    (`MachineList.vue`) ou la fiche (`MachineRecord.vue`) selon le chemin, choisie à la
+    création de l'élément ; `DataGrid` de `/v1/machines` (nom en lien, nature en
+    `KeyLabel`, propriétaire, site, hébergeur cités par `CitedName.vue` sur `Names`), page
+    suivante lue quand la fenêtre approche de la fin, au plus `MAX_PAGES` (au-delà, dit
+    au-dessus de la grille) ; filtres typés en `FilterPicker`, tirés des paramètres que
+    sert la route (`filterModel` du SDK : `name_prefix`, `kind`, `owner`, `site`, `host`,
+    `cluster`), filtres de colonne (Alt+Bas), tenus dans la requête de la page par un lien
+    que suit le shell, relus au retour arrière (`popstate`) ; **pas de tri** : la route n'a
+    aucun paramètre de tri (ordre du serveur, par nom, dit dans l'introduction), et trier
+    les seules pages chargées mentirait ; fiche en sections (attributs en `dl` dans `Grid`,
+    « Hébergement », interfaces en `DataGrid` avec `StatusBadge`, machines hébergées, ajout
+    d'une interface) ; `HostSection.vue` : `Combobox` des hébergeurs lus (aucun, clusters,
+    machines, toutes les pages du cache), chacun jugé par `canMove`, refusé gardé avec sa
+    raison et son code dans son nom, refusé de nouveau sur le champ (focus) s'il est
+    envoyé ; `draft.move`, sans optimisme (« en attente », hébergeur lu inchangé),
+    avertissements en `InlineAlert` ; `DraftForm.vue` (formulaire au brouillon commun aux
+    deux créations) ; `problems.ts` (`linesOf`, repris par `AttachAction.vue`) ; états
+    d'erreur avec « Réessayer » (`refetchQueries` sur la clé de la lecture, sans toucher
+    `data.ts`). `host.ts` et `data.ts` inchangés. Retirés : `MachinesView`, `MachineList`,
+    `MachineRecord`, `hostOf` de `views.ts`, `src/hosting.ts` (`HostMove`) et leurs tests ;
+    `forms.ts` reste (vue Interfaces). Poids : `index.js` 20,0 Ko gzip -9 (16,2 avant),
+    aucune feuille émise par Vue. Vitest : 30 (`test/machines-view.test.ts`, 11 : liste,
+    invalidation, échec puis « Réessayer », vide, filtres de la requête et retour arrière,
+    deux valeurs d'un filtre refusées, création et champ requis, droit absent et autre
+    date ; fiche et ajout d'interface, hébergeurs jugés, droit absent, « en attente » puis
+    avertissement, refus de la simulation). Parcours `machines` et `moves`
+    (`--grep machine`) : 10 sur 10 dans les deux navigateurs (liste filtrée par l'en-tête
+    « Nom », fiche, cluster refusé par la simulation, création au brouillon, cycle refusé,
+    autre site avertie).
+  - choix : filtres offerts `name_prefix` (« Début du nom ») plutôt que `name` (égalité
+    exacte), `network` laissé (il faut choisir un préfixe : à ajouter avec une suggestion
+    des réseaux) ; la route refuse un paramètre répété : deux valeurs d'un filtre sont
+    refusées par un encart avant tout envoi (la liste n'est pas lue) ; propriétaire en
+    `Select` de la première page des entités par slug, le premier pris, nature
+    « physique » par défaut ; hébergeurs : nom et raison du refus dans le libellé de
+    l'option (lus avec elle, gardés dans le champ une fois pris), type en détail ; un
+    second envoi pendant un déplacement est ignoré (le champ n'est plus ramené à
+    l'hébergeur envoyé, son attente reste dite) ; Entrée sur une cellule sans lien ouvre la
+    fiche (`activate`), le focus au titre de la nouvelle page (`arrival`, clics sans
+    modificateur seulement) ; message de droit vidé avant d'être redit.
+  - relectures : `ui-reviewer` et `a11y-auditor` sur le code (sans rendu : serveur et
+    base chargés par d'autres agents), aucun bloquant ; corrigés : « Réessayer » sur les
+    quatre états d'erreur, `arrival` ignoré pour un clic avec modificateur, un autre bouton
+    ou une autre cible, message de droit redit à chaque envoi, alias `Row` de `Cluster`
+    renommé.
+  - reste : titres `h1`/`h2` et `dl` des attributs sans style de la bibliothèque (pas de
+    composant de titre ni de liste de propriétés dans `@kartenn/ui`, A23 : à demander à la
+    bibliothèque) ; pas de pied de liste (décompte), ni de raccourci `/` sur la barre de
+    filtres (le `ViewPanel` du shell n'est pas partagé) ; le tiret « aucun » est écrit à
+    trois endroits ; avertissements du déplacement annoncés par l'`InlineAlert` créé avec
+    eux (à vérifier au lecteur d'écran) ; le mode 802.1Q en texte, sans clé ; filtre
+    `network` ; le parcours `moves` « the tree of the prefixes » a échoué ici
+    (`If-Match is not an entity tag` à la soumission d'un brouillon, code que cette tâche
+    ne touche pas ; non revérifié sur main).
 - [ ] 18cc. Vue Interfaces et onglet `interfaces-of` en Vue : recherche par MAC, adresse et
   VID, critères dans la requête de la page, `DataGrid`, fiche d'une interface ; onglet sur
   adresse, préfixe et VLAN ; anciens `InterfacesView` et `InterfacesTab` retirés —
