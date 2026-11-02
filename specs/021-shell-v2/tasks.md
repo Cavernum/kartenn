@@ -592,7 +592,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
   - où : `crates/kartenn-rest/src/contract.rs` (`breaches`, vers les lignes 145-195),
     `crates/kartenn-rest/src/openapi.rs` (`finish`, vers les lignes 339-385)
   - dépend de : 16c ; avant le gel du contrat
-- [ ] 14a. `PATCH /v1/drafts/{id}` en `application/merge-patch+json` seulement (A17,
+- [x] 14a. `PATCH /v1/drafts/{id}` en `application/merge-patch+json` seulement (A17,
   REQ-006-13), 415 pour `application/json` ; client du SDK en `merge: true` ; contrat
   régénéré — verify : `k-check -p kartenn-rest` (drafts : 415 en `application/json`,
   200 en `merge-patch+json`) ; Vitest du SDK des brouillons ; parcours `draft`
@@ -600,6 +600,23 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     du contrat ; `web/v2/sdk/src/data/drafts.ts` (vers la ligne 213, `merge: false`) ;
     test voisin `crates/kartenn-rest/tests/it/drafts.rs`
   - dépend de : —
+  - fait le 2026-11-02 — `crates/kartenn-rest/src/drafts.rs` (`change` : corps lu par
+    `resources::members` en `MERGE_PATCH`, 415 sinon ; `ChangeBody` en fusion RFC 7396,
+    `ReasonPatch`, `given`), `crates/kartenn-store-pg/src/drafts.rs` (`update` : le motif
+    fusionné membre à membre, `jsonb_strip_nulls(reason || $3)`), contrat
+    `specs/006-api-rest/openapi-v1.json` et `web/v2/sdk/src/api/schema.d.ts` régénérés,
+    `web/v2/sdk/src/data/drafts.ts` (`update` sans `merge: false`) ; tests
+    `tests/it/drafts.rs` (`a_change_is_a_json_merge_patch` : 415 en `application/json`,
+    membre absent laissé, motif fusionné, `null` qui efface un membre puis le motif,
+    tableau remplacé, 422 pour `title` ou `operations` à `null`, 400 pour un membre
+    inconnu du motif), `web/v2/sdk/test/drafts.test.ts` (type de contenu) ; l'ancien
+    shell n'appelle pas la route (rien à aligner)
+  - choix : `null` sur `title` ou `operations` → 422 « cannot be removed » (pointeur),
+    comme `kit::modify_nullable` ; `reason: null` vide le motif (`{}`) ; la fusion du
+    motif se fait dans l'`UPDATE` verrouillé (pas de lecture préalable) ; `title` et
+    `operations` non nullables dans `DraftChange` ; le SDK prend le défaut d'un `PATCH`
+    (fusion) comme `write.ts`, plutôt qu'un `merge: true` explicite ; l'ordre reste
+    428 avant 415 (`every_route_under_if_match_requires_it`)
 - [x] 24a. `placements` dans `ChangesetSimulated` (A12) : `[{object, kind, before,
   after}]` pour chaque objet dont le parent change (déduit : préfixes, plages, adresses ;
   déclaré : modules), au présent, sur la simulation d'un changeset et d'un brouillon —

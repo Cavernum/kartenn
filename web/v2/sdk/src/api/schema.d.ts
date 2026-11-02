@@ -923,8 +923,8 @@ export interface paths {
     options?: never;
     head?: never;
     /**
-     * `PATCH /v1/drafts/{id}`: its title, motive or operations (the list replaced), under
-     *     `If-Match` (REQ-024-3); not audited (REQ-024-6).
+     * `PATCH /v1/drafts/{id}` (JSON Merge Patch): its title, motive or operations (the list
+     *     replaced), under `If-Match` (REQ-024-3); not audited (REQ-024-6).
      */
     patch: operations["update_draft"];
     trace?: never;
@@ -4710,13 +4710,17 @@ export interface components {
       /** @description The motive it submits. */
       reason: components["schemas"]["DraftReason"];
     };
-    /** @description The body of a modification: each member given replaces its own. */
+    /**
+     * @description The body of a modification, a JSON Merge Patch (RFC 7396): each member given replaces
+     *     its own, the motive member by member; `null` removes the motive or one of its members,
+     *     never the title nor the operations (422).
+     */
     DraftChange: {
       /** @description Operations that replace its own. */
-      operations?: components["schemas"]["Operation"][] | null;
+      operations?: components["schemas"]["Operation"][];
       reason?: components["schemas"]["DraftReason"] | null;
       /** @description 1 to 200 characters. */
-      title?: string | null;
+      title?: string;
     };
     /** @description The body of a creation. */
     DraftCreation: {
@@ -11775,7 +11779,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["DraftChange"];
+        "application/merge-patch+json": components["schemas"]["DraftChange"];
       };
     };
     responses: {
