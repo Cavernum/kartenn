@@ -1578,12 +1578,73 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     périmètre (entité d'un rattachement) choisi parmi les premières pages. Vérifié : la
     table d'idempotence ne garde aucun corps, un rejeu rend `shown: None`
     (`crates/kartenn-rest/src/changesets.rs`).
-- [ ] 15c. Administration : journal d'audit et export, imports ; capture E7 —
+- [x] 15c. Administration : journal d'audit et export, imports ; capture E7 —
   REQ-021-12 — verify : parcours `admin` étendu (filtre du journal, export, import
   suivi) ; capture E7
   - où : `web/shell/src/admin/{AuditView,ImportsView,ImportView,PagedTable}.vue` ;
     maquette E7 ; parcours de la 15a
   - dépend de : 15a
+  - fait le 2026-11-02 : `web/v2/shell/src/admin/` — `AuditView`, `AuditDetail`,
+    `audit.ts` (événement, `cachedEvent`, `exportAudit` : corps NDJSON versé dans un
+    fichier du stockage privé de l'origine au fil de sa réception, puis téléchargé),
+    `auditWords.ts`, `ImportsView`, `ImportDetail`, `imports.ts`, `routes.ts`
+    (`/admin/audit/:id`, `/imports`, `/imports/:id` dans `ADMIN_RECORDS`), `i18n/` ;
+    `views/list.ts` (`useFilteredList` : options `dated`, `field`, filtres envoyés `sent`),
+    `views/filters.ts` (période de l'audit en jours, acteur parmi les identités) ; design
+    021 § Administration ; `web/v2/PARITE.md` ; Vitest `test/audit.test.ts` ; parcours
+    `admin` étendu (journal filtré par l'en-tête de sa colonne, événement dans le panneau,
+    même recherche exportée et relue ligne à ligne ; import en pause, repris, en pause de
+    nouveau, annulé après confirmation ; import au tri impossible, sa violation par rang).
+    Capture E7 : celle de la maquette, gardée, acceptée telle quelle (comme pour les 11, 12
+    et 14 : les vrais écrans demandent l'API, absente du projet `visual`).
+  - choix : l'export ne passe pas par le SDK (son client lit du JSON) : `fetch` dans
+    `audit.ts`, `Accept: application/x-ndjson`, le corps versé par `pipeTo` dans un fichier
+    d'OPFS (`kartenn-exports/`, vidé au début de chaque export), remis par un lien
+    `blob:` sur ce fichier, effacé une minute après ; sans OPFS (fenêtre privée), le blob du
+    navigateur (qu'il garde sur disque passé une taille) ; un corps coupé ne laisse aucun
+    fichier ; pas de `showSaveFilePicker` (absent de Firefox). L'événement choisi est
+    cherché dans les pages du journal que tient le cache (aucune route ne sert un
+    événement seul) : hors d'elles, un état vide le dit. Le journal se lit au présent,
+    quelles que soient les dates de la page ; période en jours (`from` au début du jour,
+    `to` à sa fin, comme les changesets) ; acteur choisi parmi la première page des
+    identités, son nom affiché quand le lecteur a `core.rbac.read` global, son identifiant
+    sinon. Les imports, entrée de l'espace `changes`, suivent la structure de
+    l'administration (liste, objet dans le panneau droit) ; état relu chaque seconde
+    (`refetchInterval`) tant que la tâche y travaille, la liste relue quand l'état change ;
+    « Reprendre » et « Annuler l'import » écrits aussitôt (`api.request`, sans corps),
+    l'annulation confirmée ; ni création ni dépôt de morceaux dans le shell (l'ancien n'en
+    avait pas : un import vient d'un outil, par l'API). Faits d'un objet (`k-admin-facts`,
+    `AdminLines.vue`) : la valeur à gauche après son nom, coupée n'importe où (un agent
+    utilisateur), au lieu de la valeur à droite des autres panneaux ; sévérité en mots
+    (`INFO`, `WARN`, `ERROR`), son code sinon ; vingt objets d'un événement montrés, le
+    reste dit (« dans l'export »).
+  - relectures (2026-11-02) : `a11y-auditor` — focus remis au titre de l'import quand son
+    action disparaît (reprise, annulation) ; une relecture en échec garde l'import affiché
+    sous un avis au lieu de le remplacer ; sections sans nom en doublon de leur liste ;
+    cellule vide retirée. `ui-reviewer` — colonnes de l'audit (acteur en priorité 2, objets
+    en 3), « Éléments » des imports en priorité 2, JSON coupé à la ligne, sévérité
+    traduite, mise en page des faits (les noms chevauchaient les valeurs longues).
+  - correctifs de revue (2026-11-02) : sans `core.rbac.read` global, aucune lecture de
+    `/v1/identities` (le refus serait journalisé `denied` dans le journal lu) : le filtre
+    « Acteur » prend un identifiant collé (`useFilteredList`, option `refine`), le panneau
+    montre l'acteur en `CodeBadge` copiable, sans lien vers l'identité ; parcours `admin` :
+    Erwan, auditeur du jeu (`web/e2e/users.toml`, groupe `auditeurs` de
+    `global-setup.ts` : `reader` et le rôle `auditeur`, `core.audit.read` seul), filtre par
+    son identifiant collé, aucune réponse 403 ; export : un stockage qui refuse le fichier
+    à son ouverture passe au blob, un stockage plein en cours d'écriture
+    (`ExportStorage`) se distingue d'un corps coupé (`ExportCut`) ; design et
+    `PARITE.md` : seulement ce que le parcours prouve, repli sans OPFS dit.
+  - reste : instants de l'audit sans fuseau affiché (heure du navigateur ; à trancher :
+    `timeZoneName` dans le panneau) ; objets d'un événement en identifiants, sans nom ni
+    lien ; noms d'événements coupés dans la liste quand le panneau est ouvert (pas de
+    point de coupure dans un nom pointé) ; pas de bouton de copie sur le JSON ; noms des
+    acteurs limités aux premières pages des identités (dix pages, liste et suggestions),
+    son nom perdu au rechargement (puce en UUID), un acteur au-delà montré par son
+    identifiant ; le répertoire `kartenn-exports/` vidé au début d'un export peut couper
+    celui d'un autre onglet en cours ; filtres de période et d'objet sans parcours ; la relecture de l'import chaque seconde ne porte pas encore
+    `Kartenn-Background` (16b) ; « Exporter » sans icône (aucune icône de téléchargement
+    dans la liste fermée de `@kartenn/ui`) ; le fichier d'OPFS d'un très gros export est
+    effacé une minute après sa remise au navigateur, qui pourrait ne pas l'avoir copié.
 - [ ] 16b. Fin de session annoncée et requêtes de fond : avis deux minutes avant
   `absolute_expires_at` (sans « Rester connecté », qui ne la repousse pas) ; en-tête
   `Kartenn-Background: ?1` posé par le SDK sur les relectures sans geste (événements,

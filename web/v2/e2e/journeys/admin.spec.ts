@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
 import { apiCall, DATA, expect, expectAccessible, loginIn, test } from "../fixtures/journeys.ts";
 
@@ -12,8 +13,10 @@ import { apiCall, DATA, expect, expectAccessible, loginIn, test } from "../fixtu
 // then nowhere (neither in the page, nor stored, nor in the draft), a new secret, one
 // revoked in the draft; the break-glass account, member of `secours`, read with its
 // rights; an issuer detached in the draft; Dana, administrator of one entity, reads her
-// identity (groups, effective rights, groups of her IdP) and may manage no account. The
-// audit and the imports (15c) extend this journey.
+// identity (groups, effective rights, groups of her IdP) and may manage no account. Task
+// 15c: the audit searched by event from its column, an event read in the panel, the same
+// search exported as NDJSON; an import followed, resumed, then cancelled once confirmed;
+// an import whose sort fails, its violation said by the rank of its element.
 
 const panel = (page: Page) => page.getByRole("complementary", { name: "Panneau droit" });
 const counter = (page: Page) => page.getByRole("button", { name: /^Brouillon \d+ opération/ });
@@ -403,6 +406,192 @@ test.describe("an administrator of one entity", () => {
       await context.close();
     }
   });
+});
+
+test("the audit: searched by event, an event in the panel, the same search exported", async ({
+  page,
+  login,
+}) => {
+  await login("alice");
+  await navigation(page).getByRole("button", { name: "Administration" }).click();
+  await navigation(page).getByRole("link", { name: "Audit" }).click();
+  await expect(page).toHaveURL(/\/admin\/audit$/);
+  const grid = page.getByRole("grid", { name: "Audit" });
+
+  // The filter of the event, from its column: Alt+Down on its header opens the picker.
+  await grid.getByRole("columnheader", { name: /Événement/ }).click();
+  await page.keyboard.press("Alt+ArrowDown");
+  const picker = page.getByRole("dialog", { name: /filtre/i });
+  await picker.getByRole("textbox", { name: /Valeur/ }).fill("authn.login.succeeded");
+  await picker.getByRole("button", { name: "Appliquer" }).click();
+  await expect(page).toHaveURL(/[?&]name=authn\.login\.succeeded/);
+  // The login of the journey, journaled by the relay: read again until it is there.
+  const found = grid.getByRole("gridcell", { name: "authn.login.succeeded" }).first();
+  await expect(async () => {
+    await page.reload();
+    await expect(found).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 20_000 });
+  // The event chosen, in the panel, the filter kept.
+  await found.click();
+  await expect(page).toHaveURL(/\/admin\/audit\/[0-9a-f-]+\?name=authn\.login\.succeeded$/);
+  const detail = panel(page);
+  await expect(detail.getByRole("heading", { level: 2 })).toHaveText("authn.login.succeeded");
+  await expect(detail).toContainText("Réussi");
+  await expect(detail.getByRole("list", { name: "Acteur" })).toContainText("Personne");
+  await expectAccessible(page);
+
+  // The export of the same search, saved as a file.
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("main").getByRole("button", { name: "Exporter (NDJSON)" }).click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/^kartenn-audit-.*\.ndjson$/);
+  const lines = readFileSync((await download.path())!, "utf8")
+    .trim()
+    .split("\n");
+  expect(lines.length).toBeGreaterThan(0);
+  for (const line of lines) expect(JSON.parse(line).name).toBe("authn.login.succeeded");
+  await expect(page.getByRole("status").filter({ hasText: "Export enregistré" })).toBeVisible();
+});
+
+/** An element of an import: an address created in the domain of the data set. */
+async function opened(page: Page, source: string, elements: object[]): Promise<string> {
+  const made = await apiCall(page, "POST", "/v1/imports", { source });
+  expect(made.status, JSON.stringify(made.body)).toBe(201);
+  const id = (made.body as { id: string }).id;
+  const chunk = await apiCall(page, "PUT", `/v1/imports/${id}/chunks/0`, { elements });
+  expect(chunk.status, JSON.stringify(chunk.body)).toBe(201);
+  const started = await apiCall(page, "POST", `/v1/imports/${id}/start`);
+  expect(started.status, JSON.stringify(started.body)).toBe(202);
+  return id;
+}
+
+/**
+ * The wait for the task of an import: the scheduler of the instance takes one due task
+ * every 5 s, the imports of both browsers after the tasks due at its start (006/H18: the
+ * sort too is the task's).
+ */
+const JOB_WAIT = 60_000;
+
+test("an import followed, resumed, then cancelled", async ({ page, login, browserName }) => {
+  test.slow();
+  await login("alice");
+  const source = `e2e-${browserName}-${Date.now().toString(36)}`;
+  const domains = (await apiCall(page, "GET", `/v1/domains?slug=${DATA.domain}`)).body as {
+    items: { id: string }[];
+  };
+  // An address that already exists: its batch is refused, the import pauses.
+  const id = await opened(page, source, [
+    {
+      external_id: "e2e-duplicate",
+      operation: {
+        op: "create_address",
+        domain: { id: domains.items[0]!.id },
+        address: DATA.address,
+        usage: "host",
+      },
+    },
+  ]);
+
+  await navigation(page).getByRole("button", { name: "Changesets" }).click();
+  await navigation(page).getByRole("link", { name: "Imports" }).click();
+  await expect(page).toHaveURL(/\/imports$/);
+  await page.getByRole("grid", { name: "Imports" }).getByRole("gridcell", { name: source }).click();
+  await expect(page).toHaveURL(new RegExp(`/imports/${id}$`));
+  const detail = panel(page);
+  await expect(detail.getByRole("heading", { level: 2 })).toHaveText(source);
+  const state = detail.getByRole("status").filter({ hasText: "État" });
+  await expect(state).toContainText("En pause", { timeout: JOB_WAIT });
+  await expect(detail.getByRole("heading", { name: "Rapport" })).toBeVisible();
+  await expectAccessible(page);
+
+  const actions = detail.getByRole("toolbar", { name: "Actions de l'import" });
+  const [resumed] = await Promise.all([
+    page.waitForResponse((r) => r.url().endsWith(`/imports/${id}/resume`)),
+    actions.getByRole("button", { name: "Reprendre" }).click(),
+  ]);
+  expect(resumed.status()).toBe(202);
+  // Its batch refused again, it pauses again.
+  await expect(state).toContainText("En pause", { timeout: JOB_WAIT });
+
+  // Cancelled, once confirmed: it does not resume.
+  await actions.getByRole("button", { name: "Annuler l'import" }).click();
+  const confirm = page.getByRole("alertdialog", { name: `Annuler l'import ${source} ?` });
+  await confirm.getByRole("button", { name: "Annuler l'import" }).click();
+  await expect(state).toContainText("Annulé");
+  await expect(detail.getByRole("button", { name: "Reprendre" })).toHaveCount(0);
+  await expect(
+    page.getByRole("grid", { name: "Imports" }).getByRole("row").filter({ hasText: source }),
+  ).toContainText("Annulé");
+});
+
+test("an import whose sort fails is open again with its error", async ({ page, login }) => {
+  test.slow();
+  await login("alice");
+  // An address in a domain that no element defines: the sort of its task fails.
+  const id = await opened(page, `e2e-unsorted-${Date.now().toString(36)}`, [
+    {
+      external_id: "e2e-stray",
+      operation: {
+        op: "create_address",
+        domain: { local: 7 },
+        address: "192.0.2.1",
+        usage: "host",
+      },
+    },
+  ]);
+
+  await page.goto(`/imports/${id}`);
+  const detail = panel(page);
+  const state = detail.getByRole("status").filter({ hasText: "État" });
+  await expect(state).toContainText("En téléversement", { timeout: JOB_WAIT });
+  // A warning (the import waits for more), said politely.
+  const alert = detail.getByRole("status").filter({ hasText: "Tri impossible" });
+  await expect(alert).toContainText(
+    "L'élément de rang 0 utilise une référence locale qu'aucun élément ne définit.",
+  );
+  await expect(alert).toContainText("import.unknown-reference");
+  await expectAccessible(page);
+});
+
+test("an auditor without the rights: filters by an actor pasted, reads no identity", async ({
+  page,
+  login,
+}) => {
+  // Erwan reads the journal (`core.audit.read`) but not the rights (`core.rbac.read`): no
+  // read of his may be refused (each would be journaled `denied` in the journal he reads).
+  const refused: string[] = [];
+  page.on("response", (r) => {
+    if (r.status() === 403) refused.push(`${r.request().method()} ${new URL(r.url()).pathname}`);
+  });
+  await login("erwan");
+  const me = (await apiCall(page, "GET", "/v1/me")).body as { identity: string };
+
+  await navigation(page).getByRole("button", { name: "Administration" }).click();
+  await navigation(page).getByRole("link", { name: "Audit" }).click();
+  await expect(page).toHaveURL(/\/admin\/audit$/);
+  const grid = page.getByRole("grid", { name: "Audit" });
+
+  // The actor typed: his identifier pasted, no list of identities offered.
+  await grid.getByRole("columnheader", { name: /Acteur/ }).click();
+  await page.keyboard.press("Alt+ArrowDown");
+  const picker = page.getByRole("dialog", { name: /filtre/i });
+  await picker.getByRole("textbox", { name: /Valeur/ }).fill(me.identity);
+  await picker.getByRole("button", { name: "Appliquer" }).click();
+  await expect(page).toHaveURL(new RegExp(`[?&]actor=${me.identity}`));
+  const found = grid.getByRole("gridcell", { name: "authn.login.succeeded" }).first();
+  await expect(async () => {
+    await page.reload();
+    await expect(found).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 20_000 });
+
+  // His event: the actor by its identifier, copyable, without the page of the identity.
+  await found.click();
+  const actor = panel(page).getByRole("list", { name: "Acteur" });
+  await expect(actor).toContainText(me.identity);
+  await expect(actor.getByRole("link")).toHaveCount(0);
+  await expectAccessible(page);
+  expect(refused).toEqual([]);
 });
 
 test.describe("a reader", () => {

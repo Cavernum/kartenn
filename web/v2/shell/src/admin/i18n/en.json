@@ -260,6 +260,111 @@
       "noneText": "An attached OIDC issuer opens sessions to its identities, on an entity or the whole organisation.",
       "issuerHint": "Its identifier (iss), as its tokens carry it.",
       "already": "This issuer is already attached to this scope."
+    },
+    "audit": {
+      "filter": {
+        "from": "Since",
+        "to": "Until",
+        "name": "Event",
+        "actor": "Actor",
+        "object": "Object"
+      },
+      "field": {
+        "occurred": "Occurred",
+        "name": "Event",
+        "actor": "Actor",
+        "outcome": "Outcome",
+        "targets": "Objects",
+        "severity": "Severity",
+        "criticality": "Criticality",
+        "reason": "Reason",
+        "motive": "Motive",
+        "kind": "Kind",
+        "identity": "Identity",
+        "authMethod": "Authentication",
+        "issuer": "Issuer",
+        "claimed": "Claimed identity",
+        "sourceIp": "Source address",
+        "userAgent": "User agent",
+        "changeset": "Changeset",
+        "request": "Request",
+        "trace": "Trace",
+        "instance": "Instance",
+        "version": "Version"
+      },
+      "outcome": { "success": "Succeeded", "failure": "Failed", "denied": "Denied" },
+      "actorKind": {
+        "person": "Person",
+        "service_account": "Service account",
+        "system": "System",
+        "unknown": "Unknown"
+      },
+      "criticality": { "low": "Low", "normal": "Normal", "high": "High" },
+      "severity": { "INFO": "Information", "WARN": "Warning", "ERROR": "Error" },
+      "targetCount": "{kind} · {n}",
+      "moreTargets": "… and {n} more, in the export | … and {n} more, in the export",
+      "section": {
+        "event": "What happened",
+        "actor": "Actor",
+        "targets": "Objects · {n}",
+        "targetList": "Objects of the event",
+        "correlation": "Correlation",
+        "details": "Details"
+      },
+      "export": "Export (NDJSON)",
+      "exported": "Export saved: {name}",
+      "exportFailed": "The export could not be saved",
+      "exportCut": "The journal stopped before its end: no file was kept.",
+      "exportStorage": "The storage of the browser refused the export (full?): no file was kept.",
+      "error": "The audit journal could not be read",
+      "none": "No event",
+      "noneText": "The journal has recorded nothing yet.",
+      "unread": "Event outside the pages read",
+      "unreadText": "It is not in the pages of the journal read: find it again by the filters of the list."
+    },
+    "imports": {
+      "source": "Source",
+      "state": "State",
+      "stateIs": "State:",
+      "chunks": "Chunks",
+      "elements": "Elements",
+      "batches": "Batches",
+      "applied": "{applied} applied, {remaining} remaining",
+      "id": "Identifier",
+      "facts": "Import {source}",
+      "report": "Report",
+      "actions": "Actions of the import",
+      "resume": "Resume",
+      "cancel": "Cancel the import",
+      "keep": "Keep the import",
+      "cancelTitle": "Cancel the import {source}?",
+      "cancelText": "The batch in progress stops; the batches applied stay. A cancelled import does not resume.",
+      "resumeFailed": "The import could not be resumed",
+      "cancelFailed": "The import could not be cancelled",
+      "sortFailed": "Sort failed",
+      "sortFailedText": "Its elements could not be ordered: it waits for more chunks, then a new start.",
+      "violations": {
+        "import": {
+          "missing-external-id": "The element of rank {element} creates an object without an identifier in the source.",
+          "unknown-reference": "The element of rank {element} uses a local reference no element defines.",
+          "order": "The local references are defined twice or form a cycle."
+        }
+      },
+      "states": {
+        "uploading": "Uploading",
+        "sorting": "Sorting",
+        "ready": "Ready",
+        "running": "Running",
+        "paused": "Paused",
+        "done": "Done",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      },
+      "error": "The imports could not be read",
+      "readError": "The import could not be read",
+      "stale": "The import could not be read again: its last state read stays shown",
+      "none": "No import",
+      "noneText": "An import is deposited through the API, chunk by chunk, then started; it is followed here."
     }
   }
 }

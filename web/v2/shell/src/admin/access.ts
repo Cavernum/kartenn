@@ -28,6 +28,8 @@ type Me = components["schemas"]["Me"];
 
 /** Who manages the service accounts and the state of the identities (global, 005). */
 export const ACCOUNT_ADMIN = "core.account.admin";
+/** Who lists the identities and reads their page (global): an actor of the audit by name. */
+export const IDENTITIES_READ = "core.rbac.read";
 /** Who attaches the issuers (global, 005). */
 export const ISSUER_ADMIN = "core.issuer.admin";
 /** Who pseudonymises a person at once (global, 005, REQ-004-33). */
