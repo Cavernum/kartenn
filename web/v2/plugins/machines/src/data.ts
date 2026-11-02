@@ -262,36 +262,40 @@ export function useReads<T, K extends Key>(
  */
 export function useLists<T, K extends Key>(
   options: () => readonly ListOptions<T, K>[],
-): { states: Readonly<ShallowRef<readonly List<T>[]>>; next(): void; retry(): void } {
+): {
+  states: Readonly<ShallowRef<readonly List<T>[]>>;
+  next(index?: number): void;
+  retry(index?: number): void;
+} {
   const { queryClient } = useHosted();
   const { states, observers } = observeAll(
     options,
     (o) => new InfiniteQueryObserver<Entry<Paged<T>>, Error>(queryClient, o),
     listOf<T>,
   );
-  /** Each observer once, with its list. */
-  const each = (act: (observer: unknown, list: List<T>) => void) => {
+  /** Each observer once, with its list; only the one at `index` when given. */
+  const each = (index: number | undefined, act: (observer: unknown, list: List<T>) => void) => {
     const done = new Set<unknown>();
     observers().forEach((observer, i) => {
       const list = states.value[i];
-      if (done.has(observer) || !list) return;
+      if ((index !== undefined && i !== index) || done.has(observer) || !list) return;
       done.add(observer);
       act(observer, list);
     });
   };
   return {
     states,
-    /** The next page of each list that has one, not read nor refused yet. */
-    next() {
-      each((observer, list) => {
+    /** The next page of each list (or of the one at `index`) that has one, not read nor refused yet. */
+    next(index?: number) {
+      each(index, (observer, list) => {
         if (list.more && !list.fetching && !list.error && list.pages < MAX_PAGES) {
           void (observer as Pager).fetchNextPage?.();
         }
       });
     },
-    /** After a failure: each list that failed read again, as `useList().retry`. */
-    retry() {
-      each((observer, list) => {
+    /** After a failure: each list (or the one at `index`) that failed read again, as `useList().retry`. */
+    retry(index?: number) {
+      each(index, (observer, list) => {
         if (list.error) again(observer as Pager, list);
       });
     },

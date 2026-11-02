@@ -351,7 +351,7 @@ par la maquette de la 026 (tâche 6). Les codes sont ceux du cœur.
 |---|---|---|---|---|
 | Machines | `/x/machines/machines`, `…/<id>` | inventaire, hébergement, propriétaire, adresses principales | place, form | `machines.name.duplicate`, `machines.host.invalid` |
 | Fiche et interfaces | `…/machines/<id>` (fiche en sections : attributs, interfaces, hébergées, ajout ; tâche 18a) | interfaces, VLAN, adresses rattachées | place, form | `machines.mac.duplicate`, `machines.address.vlan_mismatch` |
-| Hébergement et clusters | `/x/machines/clusters`, `…/<id>` | qui héberge quoi ; déplacer une machine | glisser, menu | `machines.host.site_mismatch` |
+| Hébergement et clusters | `/x/machines/clusters` (`TreeGrid` à parent déclaré : clusters et machines sans hébergeur, hébergées lues à l'ouverture ; tâche 18cd), `…/<id>` (fiche : propriétaire, site, membres et hébergées) | qui héberge quoi ; déplacer une machine | glisser, Ctrl+X puis Ctrl+V, « Déplacer vers… » (au brouillon par `draft.move`) | `machines.host.site_mismatch`, `machines.host.invalid` |
 | Interfaces | `/x/machines/interfaces` | recherche par MAC, adresse, VLAN (réponse à incident) | lecture | `machines.mac.invalid` |
 
 ### Plugin Politique (espace `policy`)
@@ -663,8 +663,9 @@ Manifeste (ajouts) :
   useList(() => reads.list(…) | null): { state: ShallowRef<{ items, error, pending,
     previous, more, fetching, pages }>, next(), retry() };
   useReads(() => [reads.sub(…), …]): ShallowRef<Read[]>;   // un observateur par lecture
-  useLists(() => [reads.list(…), …]): { states: ShallowRef<List[]>, next(), retry() };
-  // next() de useLists : chaque liste qui a une page suivante, ni en lecture ni refusée
+  useLists(() => [reads.list(…), …]): { states: ShallowRef<List[]>, next(i?), retry(i?) };
+  // next() de useLists : chaque liste qui a une page suivante, ni en lecture ni refusée ;
+  // next(i), retry(i) : la seule liste de rang i (les enfants d'un nœud d'arbre, 18cd)
   useNotified((changed, live) => store): () => store;  // Names, lus quelques-uns à la fois
   ```
 
