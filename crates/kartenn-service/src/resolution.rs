@@ -19,25 +19,36 @@ use crate::operations::{ObjectKind, Operation, Ref};
 use crate::pipeline::Planned;
 use crate::port::{Change, DiffCount, StoreError, WriteError, WriteTx};
 
-/// Plans an assignment operation; nothing to check without the database.
-pub(crate) fn plan(op: &Operation, resolve: impl Fn(Ref) -> Uuid) -> Planned {
-    match op {
+/// Plans an assignment operation, a local reference of a value replaced by the identifier
+/// of its object, which `local` gives or refuses (021/A13); the rest needs the database.
+pub(crate) fn plan(
+    op: &Operation,
+    resolve: impl Fn(Ref) -> Uuid,
+    local: impl Fn(u32) -> Result<Uuid, Violation>,
+) -> Result<Planned, Violation> {
+    Ok(match op {
         Operation::AssignProperty {
             object,
             kind,
             property,
             values,
-        } => Planned::Assign {
-            object: resolve(*object),
-            kind: *kind,
-            property: resolve(*property),
-            values: Some(
-                values
-                    .iter()
-                    .map(crate::operations::RawInput::to_raw)
-                    .collect(),
-            ),
-        },
+        } => {
+            // A local reference designates its object by identifier, which only a reference
+            // type takes (`prop.assignment.invalid_value` otherwise).
+            let raws = values
+                .iter()
+                .map(|value| match value.to_raw() {
+                    Ok(raw) => Ok(raw),
+                    Err(name) => local(name).map(Raw::Ref),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            Planned::Assign {
+                object: resolve(*object),
+                kind: *kind,
+                property: resolve(*property),
+                values: Some(raws),
+            }
+        }
         Operation::ClearProperty {
             object,
             kind,
@@ -58,7 +69,7 @@ pub(crate) fn plan(op: &Operation, resolve: impl Fn(Ref) -> Uuid) -> Planned {
             property: resolve(*property),
         },
         other => unreachable!("not an assignment operation: {other:?}"),
-    }
+    })
 }
 
 /// Facts a value type needs, read beforehand from storage.
@@ -160,7 +171,16 @@ pub(crate) async fn parse<T: WriteTx>(
             }
         }
         TypeSpec::Ref { .. } => {
-            for id in texts.iter().filter_map(|t| t.parse::<Uuid>().ok()) {
+            let given = raws.iter().filter_map(|r| match r {
+                Raw::Ref(id) => Some(*id),
+                _ => None,
+            });
+            let ids: Vec<Uuid> = texts
+                .iter()
+                .filter_map(|t| t.parse::<Uuid>().ok())
+                .chain(given)
+                .collect();
+            for id in ids {
                 if let Some(k) = tx.object_kind_covering(id, period).await? {
                     facts.kinds.insert(id, k);
                 }

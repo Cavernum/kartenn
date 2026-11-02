@@ -92,6 +92,31 @@ async function newDomain(page: Page, slug: string, operations: object[]): Promis
   return domains.items[0]!.id;
 }
 
+/**
+ * Applies the active draft of the tab, as its foot would: its motive written (a JSON Merge
+ * Patch, task 14a), then submitted under `approval.self`.
+ */
+async function applyActive(page: Page, summary: string): Promise<void> {
+  const active = await page.evaluate(() => sessionStorage.getItem("kartenn.draft.active"));
+  const read = await call(page, "GET", `/v1/drafts/${active}`);
+  const draft = await call(
+    page,
+    "PATCH",
+    `/v1/drafts/${active}`,
+    { reason: { summary } },
+    { "Content-Type": "application/merge-patch+json", "If-Match": read.etag! },
+  );
+  expect(draft.status, JSON.stringify(draft.body)).toBe(200);
+  const submitted = await call(
+    page,
+    "POST",
+    `/v1/drafts/${active}/submission?approval=self`,
+    {},
+    { "If-Match": draft.etag! },
+  );
+  expect(submitted.status, JSON.stringify(submitted.body)).toBe(201);
+}
+
 const prefix = (value: string, nature: "network" | "container") => ({
   op: "create_prefix",
   prefix: value,
@@ -107,12 +132,18 @@ const range = (first: string, last: string) => ({
 /** The tree of the topography of the domain `slug`. */
 const treeOf = (page: Page, slug: string) =>
   page.getByRole("treegrid", { name: `Arbre des préfixes du domaine ${slug}` });
-const rowOf = (tree: Locator, label: string) =>
-  tree.locator("[role='row'][data-node]").filter({
+/** The rows of the tree served; those of the preview of the draft are keyed `draft:` (24b). */
+const SERVED = "[role='row'][data-node]:not([data-node^='draft:'])";
+const PREVIEWED = "[role='row'][data-node^='draft:']";
+const labelled = (tree: Locator, rows: string, label: string) =>
+  tree.locator(rows).filter({
     has: tree.page().locator(".k-tree-grid__label", {
       hasText: new RegExp(`^${label.replaceAll(".", "\\.")}$`),
     }),
   });
+const rowOf = (tree: Locator, label: string) => labelled(tree, SERVED, label);
+/** A row of the preview of the draft: an object at its place after the draft. */
+const previewOf = (tree: Locator, label: string) => labelled(tree, PREVIEWED, label);
 
 /** Opens every node of the tree, one chevron at a time, each level read before the next. */
 async function expandAll(tree: Locator): Promise<void> {
@@ -132,9 +163,12 @@ interface Line {
   parent: string | null;
 }
 
-/** The rows rendered, depth first, each with its visual parent (the row of level − 1 above). */
+/**
+ * The rows of the tree served rendered, depth first, each with its visual parent (the row
+ * of level − 1 above); the preview of a draft, never above a row served, left out.
+ */
 async function rendered(tree: Locator): Promise<Line[]> {
-  const rows = await tree.locator("[role='row'][data-node]:not([data-more])").evaluateAll((all) =>
+  const rows = await tree.locator(`${SERVED}:not([data-more])`).evaluateAll((all) =>
     all.map((row) => ({
       level: Number(row.getAttribute("aria-level")),
       label: row.querySelector(".k-tree-grid__label")?.textContent?.trim() ?? "",
@@ -256,35 +290,92 @@ test("the tree of the prefixes offers no move: a prefix changes place by its val
   await expect(page.getByRole("button", { name: /^Brouillon 1 opération$/ })).toBeVisible();
   await expect(moved).toHaveAttribute("data-state", "draft");
   await expect(moved).toHaveAttribute("aria-level", "3");
+  // The preview of its simulation (24b): the node again at its place after, under the /24.
+  const after = previewOf(tree, "198.51.100.128/26");
+  await expect(after).toHaveAttribute("aria-level", "2");
+  await expect(after).toHaveAttribute("data-state", "draft");
   expect(await rendered(tree)).toEqual(await served(page, domain));
   await expectAccessible(page);
 
   // Applied (the draft submitted): the tree read again shows its new place, under the /24.
-  const active = await page.evaluate(() => sessionStorage.getItem("kartenn.draft.active"));
-  const read = await call(page, "GET", `/v1/drafts/${active}`);
-  const draft = await call(
-    page,
-    "PATCH",
-    `/v1/drafts/${active}`,
-    { reason: { summary: "end-to-end moves" } },
-    { "If-Match": read.etag! },
-  );
-  const submitted = await call(
-    page,
-    "POST",
-    `/v1/drafts/${active}/submission?approval=self`,
-    {},
-    { "If-Match": draft.etag! },
-  );
-  expect(submitted.status, JSON.stringify(submitted.body)).toBe(201);
+  await applyActive(page, "end-to-end moves");
   // Read again on the event of the stream that names the prefix (022).
   const now = rowOf(tree, "198.51.100.128/26");
   await expect(now).toHaveAttribute("aria-level", "2", { timeout: 15_000 });
   await expect(rowOf(tree, "198.51.100.64/26")).toHaveCount(0);
+  await expect(tree.locator(PREVIEWED)).toHaveCount(0);
   await expandAll(tree);
   const lines = await rendered(tree);
   expect(lines).toEqual(await served(page, domain));
   expectContained(lines);
+});
+
+test("a prefix inserted in the draft shows its future children under it before it is applied", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const slug = unique("preview", browserName);
+  const domain = await newDomain(page, slug, [
+    prefix("198.51.100.0/24", "container"),
+    prefix("198.51.100.0/26", "network"),
+    prefix("198.51.100.64/26", "network"),
+  ]);
+  await page.goto(`/topology?domain=${domain}`);
+  const tree = treeOf(page, slug);
+  await expect(rowOf(tree, "198.51.100.0/24")).toBeVisible();
+  await expandAll(tree);
+  const before = await served(page, domain);
+
+  // A /25 inserted between the /24 and its children, from the « + » of the /24, in the draft.
+  await rowOf(tree, "198.51.100.0/24").locator(".k-tree-grid__label").click();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  const form = page.getByRole("form", { name: "Ajouter dans 198.51.100.0/24" });
+  await form.getByRole("textbox", { name: "Valeur" }).fill("198.51.100.0/25");
+  // A container: a network holds no prefix (core.prefix.network_not_leaf).
+  await form.getByRole("combobox", { name: /^Nature/ }).click();
+  await page.getByRole("option", { name: /^Conteneur/ }).click();
+  await form.getByRole("button", { name: "Ajouter au brouillon" }).click();
+  await expect(page.getByRole("button", { name: /^Brouillon 1 opération$/ })).toBeVisible();
+
+  // The preview: the /25 under the /24, its future children under it, all marked; the
+  // children marked at their present place too; the tree served unchanged.
+  const inserted = previewOf(tree, "198.51.100.0/25");
+  await expect(inserted).toHaveAttribute("aria-level", "2");
+  await expect(inserted).toHaveAttribute("data-state", "draft");
+  await expect(page.getByRole("status").filter({ hasText: "Aperçu du brouillon" })).toContainText(
+    "3 nœuds apparaissent à leur place après application",
+  );
+  await inserted.locator("[role='gridcell']").first().click();
+  await page.keyboard.press("ArrowRight");
+  for (const child of ["198.51.100.0/26", "198.51.100.64/26"]) {
+    await expect(previewOf(tree, child)).toHaveAttribute("aria-level", "3");
+    await expect(previewOf(tree, child)).toHaveAttribute("data-state", "draft");
+    await expect(rowOf(tree, child)).toHaveAttribute("aria-level", "2");
+    await expect(rowOf(tree, child)).toHaveAttribute("data-state", "draft");
+  }
+  // A row of the preview chosen stays selected, its object's content beside the tree.
+  await previewOf(tree, "198.51.100.0/26").locator(".k-tree-grid__label").click();
+  await expect(previewOf(tree, "198.51.100.0/26")).toHaveAttribute("aria-selected", "true");
+  await expect(page).toHaveURL(/[?&]node=[0-9a-f-]{36}/);
+  expect(await rendered(tree)).toEqual(before);
+  await expectAccessible(page);
+
+  // Applied: the preview gone, the tree read again shows the /25 and its children.
+  await applyActive(page, "end-to-end preview");
+  await expect(rowOf(tree, "198.51.100.0/25")).toHaveAttribute("aria-level", "2", {
+    timeout: 15_000,
+  });
+  await expect(tree.locator(PREVIEWED)).toHaveCount(0);
+  await expandAll(tree);
+  const lines = await rendered(tree);
+  expect(lines).toEqual(await served(page, domain));
+  expect(lines.filter((line) => line.parent === "198.51.100.0/25").map((l) => l.label)).toEqual([
+    "198.51.100.0/26",
+    "198.51.100.64/26",
+  ]);
 });
 
 test.describe("a slowed answer", () => {

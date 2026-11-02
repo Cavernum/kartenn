@@ -395,6 +395,10 @@ pub static RULES_EN: &[(&str, &str)] = &[
         "A reference designates an object valid over the whole period of the assignment.",
     ),
     (
+        "prop.assignment.unknown_local",
+        "A local reference in a value designates an object an earlier operation of the same changeset creates.",
+    ),
+    (
         "prop.resolution.expected_mismatch",
         "The resolved value differs from the value expected by the configured source.",
     ),

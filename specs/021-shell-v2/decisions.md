@@ -310,6 +310,13 @@ Tranchés le 2026-11-02, après les tâches 11b et 18b :
   sujet × empreinte du jeton présenté : seul le porteur de l'ancien jeton l'obtient,
   et seulement dans ce délai (16f).
 
+- **A26 — Indice d'opération d'un placement** (utilisateur, 2026-11-02, d'après la revue
+  de la 24b) : chaque `Placement` porte `operation`, l'indice de l'opération qui place
+  l'objet (`null` pour un objet déplacé par effet, enfant d'un préfixe inséré par
+  exemple). Le client rapproche une création de son opération exactement, et non par
+  l'ordre des opérations, qui se trompe sur une création de module ou sous `within`
+  (24c).
+
 ## Questions (closes le 2026-10-23)
 
 - **Q-021-1** — Édition en place : brouillon par défaut, en lot avec un motif ;

@@ -11,7 +11,7 @@ use crate::audit::RequestContext;
 use crate::authz::Authorizer;
 use crate::expected::Sources;
 use crate::module::ModuleRegistry;
-use crate::operations::{ChangesetRequest, ObjectKind, Operation, Ref};
+use crate::operations::{ChangesetRequest, ObjectKind, Operation, RawInput, Ref};
 use crate::pipeline::{Outcome, RequestError, references, submit_in};
 use crate::port::{ImportBatch, ImportItem, ImportRecord, Store, StoreError};
 
@@ -76,21 +76,6 @@ fn rank(op: &Operation) -> (u8, u8) {
     }
 }
 
-/// The kind of the object an operation creates.
-fn created_kind(op: &Operation) -> Option<ObjectKind> {
-    Some(match op.inner() {
-        Operation::CreateDomain { .. } => ObjectKind::Domain,
-        Operation::CreatePrefix { .. } => ObjectKind::Prefix,
-        Operation::CreateRange { .. } => ObjectKind::Range,
-        Operation::CreateAddress { .. } => ObjectKind::Address,
-        Operation::CreateEntity { .. } => ObjectKind::Entity,
-        Operation::CreateSite { .. } => ObjectKind::Site,
-        Operation::DeclareProperty { .. } => ObjectKind::Property,
-        Operation::AddEnumValue { .. } => ObjectKind::EnumValue,
-        _ => return None,
-    })
-}
-
 /// The kind of the object a module operation creates, as its module declares it; or an
 /// operation of the VLANs of the core (spec 026).
 fn created_module_kind(modules: &ModuleRegistry, op: &Operation) -> Option<ObjectKind> {
@@ -136,6 +121,9 @@ fn uses(op: &Operation) -> Vec<u32> {
             Ref::Local(local) => Some(local),
             Ref::Id(_) => None,
         })
+        // The objects the values of an assignment designate by their local names
+        // (021/A13), created before as well.
+        .chain(op.value_locals())
         .collect()
 }
 
@@ -309,7 +297,17 @@ fn resolve_known(op: &Operation, known: &BTreeMap<u32, Uuid>) -> Result<Operatio
             _ => {}
         }
     }
-    let mut value = serde_json::to_value(op).map_err(|e| StoreError(e.to_string()))?;
+    // A value designates its object by the text of its identifier, not by a `Ref`
+    // (021/A13).
+    let mut op = op.clone();
+    if let Operation::AssignProperty { values, .. } = op.inner_mut() {
+        for v in values.iter_mut() {
+            if let Some(id) = v.local().and_then(|local| known.get(&local)) {
+                *v = RawInput::Text(id.to_string());
+            }
+        }
+    }
+    let mut value = serde_json::to_value(&op).map_err(|e| StoreError(e.to_string()))?;
     walk(&mut value, known);
     serde_json::from_value(value).map_err(|e| StoreError(e.to_string()))
 }
@@ -403,7 +401,9 @@ pub async fn run_import<S: Store, A: Authorizer>(
                 if known.contains_key(&local) {
                     continue;
                 }
-                let kind = created_kind(&item.operation)
+                let kind = item
+                    .operation
+                    .created_kind()
                     .or_else(|| created_module_kind(store.modules(), &item.operation))
                     .unwrap_or(ObjectKind::Address);
                 operations.push(resolve_known(&item.operation, &known)?);

@@ -702,6 +702,20 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     (`concurrent_refreshes_present_the_token_once`) ; 005 design § « Rafraîchissement
     des groupes »
   - dépend de : 16d
+- [ ] 24c. Indice d'opération dans un placement (A26) : `Placement.operation` (indice de
+  l'opération source, `null` pour un objet placé par effet), au contrat et dans la
+  simulation d'un changeset et d'un brouillon, y compris sous `within` et pour une
+  opération de module ; le shell (`previewOf`, `web/v2/shell/src/views/topology.ts`)
+  rapproche une création par cet indice et non plus par l'ordre — verify :
+  `k-check -p kartenn-rest -p kartenn-service` (indice juste pour une création du noyau,
+  une création de module et une création sous `within` ; `null` pour un enfant déplacé
+  par effet) ; Vitest de `previewOf` (brouillon `[machines.create_machine,
+  create_prefix]` et `[within(create_prefix A), create_prefix B]` : chaque ligne porte
+  le bon libellé) ; contrat et schémas du SDK régénérés
+  - où : `crates/kartenn-service/src/placements.rs`, DTO `Placement` de
+    `crates/kartenn-rest/src/changesets.rs` ; `web/v2/shell/src/views/topology.ts`
+    (`targetOf`, `previewOf`), `web/v2/shell/test/topology.test.ts`
+  - dépend de : 24a, 24b
 - [ ] 16e. Comparaison du contrat à travers les `$ref` : `contract::breaches` résout les
   références locales vers `components.parameters` avant de comparer (aujourd'hui une
   `$ref` reçoit la clé `("", "")` : rendre `Kartenn-Background` requis passerait
@@ -782,7 +796,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     valeur redimensionnée qui garde ses enfants) ; des enfants illisibles nombreux se
     parcourent sans borne de pages ; le test de lecture retire la lecture des adresses
     partout, pas sur les adresses d'une seule entité.
-- [ ] 17a. Référence locale dans une valeur de propriété (A13) : `RawValue`
+- [x] 17a. Référence locale dans une valeur de propriété (A13) : `RawValue`
   `{"local": n}` (`RawDto`, `RawInput`), résolue à l'application comme les `Ref` des
   opérations, prise dans le tri topologique ; référence vers un indice absent ou vers un
   objet d'un autre type que la déclaration → violation codée ; brouillon et simulation
@@ -794,6 +808,36 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     locales), lecture des valeurs de référence dans `kartenn-core` (`RawInput`) ; test
     voisin `crates/kartenn-rest/tests/it/vlan/` ; 004 design § « Références internes »
   - dépend de : —
+  - fait le 2026-11-02 — `RawInput::Local { local }` (`{"local": n}`, variante non
+    étiquetée, après `External`) et `RawDto::Local` au contrat (`RawValue`, contrat et
+    schémas des deux SDK régénérés) ; les formes objet refusent un champ inconnu
+    (`RawWire`, `deny_unknown_fields`, aussi par le contrat). `RawInput::to_raw` rend
+    `Err(nom)` pour un nom local ; une suggestion de source qui en porterait un ne
+    propose rien d'utilisable (`expected.rs`). Résolution au planifié
+    (`pipeline::plan` → `resolution::plan`, qui rend désormais un `Result`) : le nom
+    désigne l'UUID généré pour l'objet d'une opération antérieure, posé en `Raw::Ref`
+    (nouvelle forme du cœur), que seul `RefType` accepte : une propriété texte ou nom
+    d'hôte la refuse (`prop.assignment.invalid_value`). Les noms des créations
+    d'objets sont suivis à part (`creates_object` : opérations du cœur qui créent,
+    `Operation::created_kind`, déplacée d'`import.rs` ; opérations de module dont le
+    type déclare `defines`). Import : `uses` compte les noms des valeurs dans le tri
+    topologique, `resolve_known` remplace un nom d'un autre lot par le texte de l'UUID
+    (et non `{"id": …}`, qui n'est pas une valeur). Brouillon : rien à changer à
+    `drafts.rs`, qui stocke et relit des `OperationDto`. Tests (`vlan::networks`,
+    `vlan::rest`, `vlan::imports`) : VLAN créé et posé sur un réseau en un changeset,
+    simulé (rien d'écrit) puis appliqué ; par les routes, appliqué, puis en brouillon
+    relu tel quel, simulé sans violation et soumis ; nom absent → 422 codé, rapporté à
+    son opération ; import où l'affectation vient en premier et le VLAN dans un autre lot.
+  - choix : un seul code nouveau, `prop.assignment.unknown_local` (REQ-004-4, 021/A13),
+    pour un nom qu'aucune opération antérieure ne définit (absent ou défini plus tard)
+    et pour celui d'une opération qui ne crée pas d'objet (liaison, appartenance,
+    compte de service), messages distincts ; un objet d'un autre type que la déclaration
+    donne `prop.assignment.invalid_value`, comme un UUID du mauvais type (même contrôle
+    `RefType`). Violations du planifié (422), non des `RequestError` (400) comme les
+    `Ref` des opérations : la déclaration visée n'est connue qu'en base, et le shell
+    lit les violations par opération. Un nom défini après son usage est refusé, comme
+    pour les `Ref` (« plus tôt », REQ-004-4) ; seul l'import réordonne. Le schéma
+    `web/sdk` (ancien shell), en retard depuis la 11a, est régénéré en entier.
 
 ## P2 — Écrans du nouveau shell (phase 4)
 
@@ -1932,13 +1976,51 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : écrans VLAN de la tâche 17 (`web/v2/shell/src/views/`, onglet Réseaux) ;
     parcours `web/v2/e2e/journeys/vlan.spec.ts`
   - dépend de : 17a
-- [ ] 24b. Aperçu du brouillon dans l'arbre des préfixes, tiré de
+- [x] 24b. Aperçu du brouillon dans l'arbre des préfixes, tiré de
   `ChangesetSimulated.placements` : nœuds déplacés montrés sous leur parent d'après,
   marqués « en brouillon » — REQ-021-17 — verify : Vitest de l'aperçu ; parcours `moves`
   (préfixe inséré au brouillon : ses futurs enfants montrés dessous avant application)
   - où : `web/v2/shell/src/views/TopologyView.vue`, `topology.ts` ; parcours
     `web/v2/e2e/journeys/moves.spec.ts`
   - dépend de : 24a
+  - fait le 2026-11-02 : `topology.ts` (`previewOf` : placements du domaine, objet créé
+    rapproché de sa création ; `overlay` : chaque déplacé sous sa ligne d'après, par-dessus
+    l'arbre servi, jamais écrit dans le cache) ; `TopologyView.vue` (simulation du
+    brouillon actif par `useDraftQueries`, la même requête que l'onglet Brouillon ; ligne
+    d'aperçu `draft:…` marquée « en brouillon », l'objet marqué aussi à sa place présente ;
+    avis au-dessus de l'arbre : lignes montrées, lignes en attente de leur parent, « Aperçu
+    partiel » sur `placements_truncated`) ; chaînes `views.topology.preview.*` ; tests
+    `web/v2/shell/test/topology.test.ts` (insertion et futurs enfants, rapprochement d'une
+    création derrière des opérations sans placement, clé stable d'une simulation à
+    l'autre, parent qui se déplace aussi, préfixe déplacé avec les enfants qu'il garde,
+    autre domaine, troncature, parent illisible), parcours `moves` (préfixe inséré au
+    brouillon par son « + », ses enfants dessous avant l'application, une ligne d'aperçu
+    choisie reste sélectionnée, aperçu parti après ; valeur changée : la ligne d'aperçu sous le /24 ;
+    `rendered` ne lit que l'arbre servi ; le motif du brouillon écrit en JSON Merge Patch,
+    `applyActive`, le parcours envoyant encore `application/json` depuis la 14a).
+  - choix : objet créé rapproché par l'ordre du contrat (objets des opérations d'abord,
+    dans leur ordre ; création = même genre, `before` nul, identifiant hors des
+    opérations) ; clé d'une ligne créée `draft:<indice de l'opération>`, stable d'une
+    simulation à l'autre ; aperçu seulement d'une simulation valide, au présent, la
+    dernière réponse gardée pendant la suivante ; `after` nul (racine ou parent illisible)
+    au premier niveau ; un objet n'est de ce domaine que lu dans l'arbre ou créé avec ce
+    domaine (les autres ne sont ni montrés ni comptés) ; un déplacé dont le parent d'après
+    n'est pas lu attend (compté dans l'avis) ; lignes d'aperçu après les enfants servis,
+    sans « + » ni éditeur, un objet déplacé avec son occupation lue et les enfants qu'il
+    garde (copiés de l'arbre servi, jusqu'où il est lu ; ceux qui partent ailleurs non
+    répétés) ; choisir une ligne d'aperçu la garde sélectionnée et met son objet dans
+    l'URL, Entrée ouvre sa fiche (rien pour un objet créé) ; avis dans la bande d'outils du
+    panneau (corps sans marge). Corrections de relecture (ui-reviewer, a11y-auditor) :
+    sous-arbre gardé, sélection, occupation, place de l'avis, libellés.
+  - reste : `TreeGrid` n'a que `draft` et `loading-children` : la ligne présente d'un
+    objet déplacé et sa ligne d'aperçu portent la même marque et les mêmes mots « en
+    brouillon », un lecteur d'écran ne les distingue que par le niveau (le design en veut
+    deux : « déplacé dans le brouillon » et « aperçu » ; états à ajouter à `@kartenn/ui`,
+    hors périmètre) ; lignes d'aperçu après les enfants servis, sans tri par valeur (pas de
+    calcul CIDR du client) ; un enfant gardé non lu se montre sans ses enfants ; l'avis
+    (`status`) se relit à chaque nouveau compte ; un objet créé choisi ne montre rien ; le
+    rapprochement d'une création suit l'ordre du contrat (un `Placement` portant l'indice
+    de son opération le rendrait exact).
 
 ## P3 — Plugins (phase 5)
 

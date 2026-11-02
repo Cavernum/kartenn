@@ -201,9 +201,10 @@ impl TypeInput {
 }
 
 /// One raw value of an assignment, as received: text (closed-list key, text, host name,
-/// date, reference), integer or boolean (REQ-003-8).
+/// date, reference), integer or boolean (REQ-003-8). An object form with a field it does
+/// not know is refused, not read in part.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, from = "RawWire")]
 pub enum RawInput {
     /// Boolean.
     Bool(bool),
@@ -221,13 +222,64 @@ pub enum RawInput {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         label: Option<String>,
     },
+    /// Reference to the object an earlier operation of the same changeset creates under
+    /// this local name, `{"local": n}` as a [`Ref`] (REQ-004-4; 021/A13): resolved to its
+    /// identifier when the changeset is planned.
+    Local {
+        /// Local name.
+        local: u32,
+    },
+}
+
+/// The forms of a [`RawInput`] as read, each object form closed to other fields.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum RawWire {
+    Bool(bool),
+    Int(i64),
+    Text(String),
+    External(ExternalWire),
+    Local(LocalWire),
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ExternalWire {
+    system: String,
+    id: String,
+    #[serde(default)]
+    label: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LocalWire {
+    local: u32,
+}
+
+impl From<RawWire> for RawInput {
+    fn from(wire: RawWire) -> Self {
+        match wire {
+            RawWire::Bool(b) => Self::Bool(b),
+            RawWire::Int(i) => Self::Int(i),
+            RawWire::Text(t) => Self::Text(t),
+            RawWire::External(ExternalWire { system, id, label }) => {
+                Self::External { system, id, label }
+            }
+            RawWire::Local(LocalWire { local }) => Self::Local { local },
+        }
+    }
 }
 
 impl RawInput {
     /// The raw scalar the value types parse.
-    #[must_use]
-    pub fn to_raw(&self) -> Raw {
-        match self {
+    ///
+    /// # Errors
+    ///
+    /// The local name of a local reference, which only the changeset that defines it
+    /// resolves (021/A13).
+    pub fn to_raw(&self) -> Result<Raw, u32> {
+        Ok(match self {
             Self::Bool(b) => Raw::Bool(*b),
             Self::Int(i) => Raw::Int(*i),
             Self::Text(t) => Raw::Text(t.clone()),
@@ -236,6 +288,16 @@ impl RawInput {
                 id: id.clone(),
                 label: label.clone(),
             },
+            Self::Local { local } => return Err(*local),
+        })
+    }
+
+    /// The local name this value designates, if it is a local reference.
+    #[must_use]
+    pub const fn local(&self) -> Option<u32> {
+        match self {
+            Self::Local { local } => Some(*local),
+            _ => None,
         }
     }
 }
@@ -961,6 +1023,34 @@ impl Operation {
         }
     }
 
+    /// The kind of the object an operation of the core creates; `None` for the others (a
+    /// binding, a membership, an account create no object), a module operation included,
+    /// whose kind its module declares.
+    #[must_use]
+    pub fn created_kind(&self) -> Option<ObjectKind> {
+        Some(match self.inner() {
+            Self::CreateDomain { .. } => ObjectKind::Domain,
+            Self::CreatePrefix { .. } => ObjectKind::Prefix,
+            Self::CreateRange { .. } => ObjectKind::Range,
+            Self::CreateAddress { .. } => ObjectKind::Address,
+            Self::CreateEntity { .. } => ObjectKind::Entity,
+            Self::CreateSite { .. } => ObjectKind::Site,
+            Self::DeclareProperty { .. } => ObjectKind::Property,
+            Self::AddEnumValue { .. } => ObjectKind::EnumValue,
+            _ => return None,
+        })
+    }
+
+    /// The local names of the values of an assignment that are local references
+    /// (021/A13).
+    pub fn value_locals(&self) -> impl Iterator<Item = u32> + '_ {
+        let values = match self.inner() {
+            Self::AssignProperty { values, .. } => values.as_slice(),
+            _ => &[],
+        };
+        values.iter().filter_map(RawInput::local)
+    }
+
     /// Local name this operation defines, if any.
     #[must_use]
     pub fn defines(&self) -> Option<u32> {
@@ -1110,4 +1200,32 @@ pub struct ChangesetRequest {
 
 const fn enabled() -> bool {
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RawInput;
+    use serde_json::{from_value, json, to_value};
+
+    #[test]
+    fn raw_values_refuse_a_field_their_form_does_not_know() {
+        for value in [
+            json!(true),
+            json!(4),
+            json!("x"),
+            json!({"system": "cmdb", "id": "CI-1"}),
+            json!({"system": "cmdb", "id": "CI-1", "label": "a"}),
+            json!({"local": 3}),
+        ] {
+            let read: RawInput = from_value(value.clone()).unwrap();
+            assert_eq!(to_value(read).unwrap(), value);
+        }
+        for value in [
+            json!({"system": "cmdb", "id": "CI-1", "local": 3}),
+            json!({"local": 1, "label": "x"}),
+            json!({"local": -1}),
+        ] {
+            assert!(from_value::<RawInput>(value.clone()).is_err(), "{value}");
+        }
+    }
 }
