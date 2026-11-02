@@ -922,6 +922,38 @@ async fn a_late_request_within_the_window_gets_the_same_tokens(pool: PgPool) {
     assert!(kept(&pool).await.is_empty(), "a failure is not kept");
 }
 
+/// 16d (3), 16f: a request dropped while the issuer exchanges its token (client gone,
+/// time over) leaves the exchange to end apart: its result is kept, and the next request
+/// gets it without presenting the token again.
+#[kartenn_testing::pg_test]
+async fn a_request_dropped_during_the_exchange_leaves_its_result_kept(pool: PgPool) {
+    let idp = idp().await;
+    let f = Fixture::new(&pool, &idp);
+    let session = f.login(&idp).await;
+    let (due, _) = refresh_due(&f, &idp, &session);
+    idp.lock().unwrap().hold = Duration::from_secs(2);
+
+    let at_the_issuer = async {
+        while idp.lock().unwrap().refreshes == 0 {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    };
+    tokio::select! {
+        _ = f.call(request("GET", "/v1/me", Some(&due), true)) => {
+            panic!("the request ended before the issuer answered");
+        }
+        () = at_the_issuer => {}
+    }
+
+    // Dropped: the exchange ends apart, and the next request gets its result.
+    let me = f.call(request("GET", "/v1/me", Some(&due), true)).await;
+    assert_eq!(me.status(), StatusCode::OK);
+    let again = sent_again(&f, &me);
+    assert_eq!(again.refresh_token.as_deref(), Some("r2"));
+    assert_eq!(again.groups, ["admins"]);
+    assert_eq!(idp.lock().unwrap().refreshes, 1);
+}
+
 /// The cause of the last end of a session in the audit.
 async fn last_cause(pool: &PgPool) -> String {
     sqlx::query_scalar(
