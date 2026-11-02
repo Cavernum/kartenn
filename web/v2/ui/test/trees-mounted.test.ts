@@ -303,3 +303,90 @@ describe.each(components)("%s mounted: the contract follows its props", (_, comp
     expect(row.getAttribute("data-move")).toBe("pending");
   });
 });
+
+describe("TreeGrid: the node cell and its « + » (021/A20, REQ-021-37)", () => {
+  const nodes: TreeNode[] = [
+    { id: "a", label: "192.0.2.0/24" },
+    { id: "b", label: "198.51.100.0/24" },
+  ];
+  /** The tree mounted with a « + » on each node, `b`'s refused; its events recorded. */
+  function mounted(extra: Record<string, unknown> = {}) {
+    const seen: { activate: string[]; add: string[] } = { activate: [], add: [] };
+    const root = document.createElement("div");
+    document.body.append(root);
+    const app = createApp({
+      render: () =>
+        h(TreeGrid, {
+          label: "Arbre",
+          treeLabel: "Préfixe",
+          nodes,
+          addLabel: (node: TreeNode) => `Ajouter dans ${node.label}`,
+          addBlocked: (node: TreeNode) =>
+            node.id === "b" ? { forbidden: "core.prefix.edit" } : undefined,
+          onActivate: (id: string) => seen.activate.push(id),
+          onAdd: (id: string) => seen.add.push(id),
+          ...extra,
+        }),
+    });
+    apps.push(app);
+    app.mount(root);
+    const cell = (id: string) =>
+      root.querySelector<HTMLElement>(`[data-row="${id}"][data-column=""]`)!;
+    const press = (el: HTMLElement, key: string, init: KeyboardEventInit = {}) => {
+      const event = new KeyboardEvent("keydown", {
+        key,
+        bubbles: true,
+        cancelable: true,
+        ...init,
+      });
+      el.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    const add = (id: string) => cell(id).querySelector<HTMLElement>(".k-tree-grid__add")!;
+    return { seen, cell, press, add };
+  }
+
+  it("Enter on the node cell activates its row, not its « + »; Tab goes into the « + »", async () => {
+    const { seen, cell, press, add } = mounted();
+    await nextTick();
+    cell("a").focus();
+    expect(press(cell("a"), "Enter")).toBe(true);
+    expect(seen.activate).toEqual(["a"]);
+    expect(document.activeElement).toBe(cell("a"));
+    expect(press(cell("a"), "Tab")).toBe(true);
+    expect(document.activeElement).toBe(add("a"));
+    // Shift+Tab is the browser's: back to the cell, the one stop of the tree.
+    expect(press(cell("a"), "Tab", { shiftKey: true })).toBe(false);
+    add("a").click();
+    expect(seen.add).toEqual(["a"]);
+  });
+
+  it("F2 also goes into the « + »; Tab without a « + » is the browser's; an editable node cell edits on Enter", async () => {
+    const { seen, cell, press, add } = mounted({
+      addLabel: (node: TreeNode) => (node.id === "a" ? "Ajouter dans a" : undefined),
+      editable: (node: TreeNode, column: { id: string }) => node.id === "b" && column.id === "",
+    });
+    await nextTick();
+    cell("a").focus();
+    expect(press(cell("a"), "F2")).toBe(true);
+    expect(document.activeElement).toBe(add("a"));
+    cell("b").focus();
+    expect(press(cell("b"), "Tab")).toBe(false);
+    expect(press(cell("b"), "Enter")).toBe(true);
+    await nextTick();
+    await nextTick();
+    expect(cell("b").querySelector("input")).not.toBeNull();
+    expect(seen.activate).toEqual([]);
+  });
+
+  it("a refused « + » stays, aria-disabled, its permission in its description; a click adds nothing", async () => {
+    const { seen, add } = mounted();
+    await nextTick();
+    expect(add("b").getAttribute("aria-disabled")).toBe("true");
+    const described = add("b").getAttribute("aria-describedby")!;
+    expect(document.getElementById(described)?.textContent).toContain("core.prefix.edit");
+    expect(add("a").getAttribute("aria-disabled")).toBeNull();
+    add("b").click();
+    expect(seen.add).toEqual([]);
+  });
+});

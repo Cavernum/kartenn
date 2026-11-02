@@ -379,6 +379,20 @@ export default {
       wide: true,
     },
     {
+      name: "add-refused",
+      description:
+        "« + » refusé : visible, grisé, la permission manquante dite au survol et au focus (REQ-021-37)",
+      props: {
+        ...base,
+        selected: "p5",
+        addLabel: (node: TreeNode) =>
+          node.objectKey ? `Ajouter dans ${node.objectKey}` : undefined,
+        addBlocked: (node: TreeNode) =>
+          node.id === "p5" ? { forbidden: "core.prefix.edit" } : undefined,
+      },
+      wide: true,
+    },
+    {
       name: "virtual",
       description:
         "Cent mille nœuds : une fenêtre dans le document, la ligne du focus gardée, déplacement au clavier",
