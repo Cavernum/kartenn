@@ -61,9 +61,12 @@ frontière d'extension (D17, W5).
   `framework: "^3.5.0"`. vue-router et vue-i18n restent internes au shell : les plugins
   naviguent et traduisent par le SDK.
 - Hôte d'un plugin de première partie : l'élément personnalisé crée une application par
-  élément (`createApp`), lui fournit (`provide`) le contexte du SDK et le `QueryClient`
-  (`VueQueryPlugin`), la monte dans son DOM léger à `connectedCallback` et la démonte à
-  `disconnectedCallback`.
+  élément (`createApp`), lui fournit (`provide`) le contexte du SDK et le `QueryClient`,
+  la monte dans son DOM léger à `connectedCallback` et la démonte à
+  `disconnectedCallback`. Le plugin lit par de petits composables sur `QueryObserver` et
+  `InfiniteQueryObserver`, que le SDK réexporte, et non par `VueQueryPlugin` :
+  `@tanstack/vue-query` n'est pas un module partagé, chaque plugin en livrerait une copie
+  et risquerait une seconde instance du cache (*amendé le 2026-11-02 par la 021, A23*).
 - CSP : vérifiée au prototype pour les primitives retenues (zéro violation en usage, après
   retrait de `ComboboxViewport`) ; la liste des composants interdits est dans l'ADR 0036.
 

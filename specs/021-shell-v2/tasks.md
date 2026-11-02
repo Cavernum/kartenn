@@ -2067,6 +2067,60 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     défaut, celle qu'en tire cette tâche, notée au design 021 § « API des plugins » ;
     `TreeGrid` de `web/v2/ui` ; `web/v2/shell/src/views/edit/moves.ts` (forme)
   - dépend de : 18b
+  - découpée le 2026-11-02 en 18ca à 18cd (A23), chacune migrant des éléments entiers ;
+    l'ancien élément et ses tests ne partent qu'une fois l'élément Vue et ses tests verts
+- [ ] 18ca. Montage d'un plugin de première partie en Vue (modèle de la 017) : une
+  application par élément (`createApp`) montée dans son DOM léger à `connectedCallback`,
+  démontée à `disconnectedCallback`, contexte du SDK, lien en `<a href>` suivi par
+  `ExtensionElement`, portail ; lectures par composables sur `QueryObserver` et
+  `InfiniteQueryObserver` (A23), `Names` ; textes par le handle ; manifeste
+  `framework: "^3.5.0"` ; build `@vitejs/plugin-vue`, modules partagés externes ;
+  contrôle du poids d'un plugin (gzip de `dist/plugins/machines/<v>/index.js` ≤ 50 Ko,
+  modules partagés exclus) ; la forme écrite au design 021 § « API des plugins » ; la
+  colonne `machines-column` et l'action `machines-attach` en Vue (`Select`/`Combobox`,
+  `CodeBadge` sur un échec) — verify : Vitest du plugin (tests de la colonne et de
+  l'action repris) ; parcours `machines` (colonne, action au brouillon) dans les deux
+  navigateurs ; contrôle du poids ; `k-web2-check --base main` ; revues `ui-reviewer`
+  et `a11y-auditor`
+  - où : `web/v2/plugins/machines/{src/index.ts, src/host.ts (nouveau), src/data.ts
+    (nouveau), src/extensions.ts, vite.config.ts, package.json, public/manifest.json,
+    test/}` ; ADR 0038 (décisions 3 et 4) ; `web/v2/shell/vite.config.ts` (`SHARED`, en
+    lecture) ; `web/v2/ui/src/context.ts` (lien, portail) ; `web/v2/shell/src/data/query.ts`
+    (forme des composables) ; `web/v2/shell/scripts/size.ts` (forme du contrôle)
+  - dépend de : 18b
+- [ ] 18cb. Vue Machines en Vue : liste en `DataGrid` (tri, filtres typés) ; fiche en
+  sections (attributs, interfaces avec `StatusBadge`, machines hébergées, ajout d'une
+  interface) ; section « Hébergement » de la 18b en `Combobox` d'hébergeurs jugés par
+  `canMove`, envoyés par `draft.move`, sans optimisme ; anciens `MachinesView` et
+  `HostMove` retirés — verify : Vitest ; parcours `machines` (lecture, création au
+  brouillon, machine physique vers un cluster refusée par la simulation) et `moves`
+  (« the host of a machine ») dans les deux navigateurs ; revues
+  - où : `src/views.ts` (`MachinesView`, `MachineList`, `MachineRecord`),
+    `src/hosting.ts`, `src/forms.ts` ; les tests de la 18b dans `test/machines.test.ts` ;
+    `web/v2/shell/src/views/edit/moves.ts` (forme)
+  - dépend de : 18ca
+- [ ] 18cc. Vue Interfaces et onglet `interfaces-of` en Vue : recherche par MAC, adresse et
+  VID, critères dans la requête de la page, `DataGrid`, fiche d'une interface ; onglet sur
+  adresse, préfixe et VLAN ; anciens `InterfacesView` et `InterfacesTab` retirés —
+  verify : Vitest ; parcours `machines` (recherche par MAC, retour arrière, trois onglets)
+  dans les deux navigateurs ; revues
+  - où : `src/views.ts` (`InterfacesView`, `criteriaOfPage`, `idsOf`, `interfaceTable`),
+    `src/extensions.ts` (`InterfacesTab`)
+  - dépend de : 18ca
+- [ ] 18cd. Vue « Hébergement et clusters » en `TreeGrid` à parent déclaré
+  (`parentMode: "declared"`) : clusters et machines hôtes, machines hébergées chargées
+  sous eux ; fiche d'un cluster ; déplacement par glisser, Ctrl+X puis Ctrl+V et
+  « Déplacer vers… », par `canMove` et `draft.move` ; `moveState: "pending"` jusqu'au
+  verdict, aucun `setQueryData` ; avertissements dans une région `status` présente dès
+  l'origine ; refus dit par son code ; `dom.ts`, `element.ts`, `styles.css` retirés s'ils
+  ne servent plus ; `web/v2/PARITE.md` et le catalogue du design à jour — verify :
+  parcours `moves` (déplacement au clavier vers un cluster, cycle refusé, avertissement
+  `machines.host.site_mismatch`, aucun changeset) et `machines` dans les deux
+  navigateurs ; contrôle final du poids ; revues
+  - où : `src/views.ts` (`ClustersView`) ; `web/v2/ui/src/components/TreeGrid/` (en
+    lecture) ; design 021 § « Déplacements dans les arbres » et § « Catalogue » (plugin
+    Machines, « Hébergement et clusters »)
+  - dépend de : 18ca, 18cb
 
 ## P4 — Budgets et clôture
 
