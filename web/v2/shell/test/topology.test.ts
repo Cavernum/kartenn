@@ -5,8 +5,9 @@ import { overlay, previewOf, type Preview, type Shift } from "../src/views/topol
 
 // The preview of the draft in the tree of the topography (task 021-24b; REQ-021-17; 021/A12,
 // precised by 24a): the places of the simulation laid over the tree served, an object the
-// draft creates matched with its creation by the order of the contract, a parent the author
-// may not read at the first level, a parent not read waiting, the truncation kept.
+// draft creates matched with its creation by the index of its operation (A26, task 24c), a
+// parent the author may not read at the first level, a parent not read waiting, the
+// truncation kept.
 
 const DOMAIN = "d0000000-0000-4000-8000-000000000000";
 const OTHER = "d0000000-0000-4000-8000-000000000001";
@@ -17,14 +18,16 @@ const C2 = ID(3); // 198.51.100.64/26, under P
 const Q = ID(4); // 203.0.113.0/24, served at the first level
 const TEMP = "7e000000-0000-4000-8000-000000000000"; // an identifier of the simulation alone
 const TEMP2 = "7e000000-0000-4000-8000-000000000001";
+const MACHINE = "7e000000-0000-4000-8000-000000000002";
 
 type Placement = Simulated["placements"][number];
-const placed = (object: string, before: string | null, after: string | null): Placement => ({
-  object,
-  kind: "prefix",
-  before,
-  after,
-});
+/** A prefix placed, by operation `operation` of the draft, or by effect (`null`). */
+const placed = (
+  object: string,
+  before: string | null,
+  after: string | null,
+  operation: number | null = null,
+): Placement => ({ object, kind: "prefix", before, after, operation });
 const simulated = (placements: Placement[], truncated = false) => ({
   placements,
   placements_truncated: truncated,
@@ -40,6 +43,9 @@ const create = (prefix: string, domain = DOMAIN) =>
   }) as unknown as Operation;
 const update = (id: string, prefix: string) =>
   ({ op: "update_prefix", id: { id }, prefix }) as unknown as Operation;
+const within = (operation: Operation) =>
+  ({ op: "within", period: { start: 0, end: null }, operation }) as unknown as Operation;
+const machine = { op: "machines.create_machine", name: "h1", kind: "physical" } as Operation;
 
 const served: TreeNode[] = [
   {
@@ -69,7 +75,7 @@ const laid = (preview: Preview) => overlay(served, preview, nodeOf);
 describe("the preview of the draft in the tree of the prefixes", () => {
   it("shows a prefix inserted with its future children under it, marked where they are", () => {
     const preview = previewOf(
-      simulated([placed(TEMP, null, P), placed(C1, P, TEMP), placed(C2, P, TEMP)]),
+      simulated([placed(TEMP, null, P, 0), placed(C1, P, TEMP), placed(C2, P, TEMP)]),
       [create("198.51.100.0/25")],
       known,
       DOMAIN,
@@ -93,11 +99,11 @@ describe("the preview of the draft in the tree of the prefixes", () => {
     expect(served[0]!.children).toHaveLength(2);
   });
 
-  it("matches a creation by the order of the operations, past those that move nothing", () => {
+  it("matches a creation by the index of its operation, past those that move nothing", () => {
     // The first update keeps its parent (not placed); the second moves C2 under Q; the
     // creation after them, then the objects moved.
     const preview = previewOf(
-      simulated([placed(C2, P, Q), placed(TEMP, null, Q), placed(C1, P, null)]),
+      simulated([placed(C2, P, Q, 1), placed(TEMP, null, Q, 2), placed(C1, P, null)]),
       [update(Q, "203.0.113.0/24"), update(C2, "203.0.113.64/26"), create("203.0.113.0/25")],
       known,
       DOMAIN,
@@ -115,15 +121,15 @@ describe("the preview of the draft in the tree of the prefixes", () => {
 
   it("keeps the key of a creation from one simulation to the next", () => {
     const ops = [create("198.51.100.0/25")];
-    const first = previewOf(simulated([placed(TEMP, null, P)]), ops, known, DOMAIN);
-    const second = previewOf(simulated([placed(TEMP2, null, P)]), ops, known, DOMAIN);
+    const first = previewOf(simulated([placed(TEMP, null, P, 0)]), ops, known, DOMAIN);
+    const second = previewOf(simulated([placed(TEMP2, null, P, 0)]), ops, known, DOMAIN);
     expect(first.shifts[0]!.key).toBe(second.shifts[0]!.key);
   });
 
   it("places a child moved with a parent that moves under that parent's row after", () => {
     // P inserted under a creation at the first level, C1 leaving P for the creation too.
     const preview = previewOf(
-      simulated([placed(TEMP, null, null), placed(P, null, TEMP), placed(C1, P, TEMP)]),
+      simulated([placed(TEMP, null, null, 0), placed(P, null, TEMP), placed(C1, P, TEMP)]),
       [create("198.51.0.0/16")],
       known,
       DOMAIN,
@@ -140,7 +146,7 @@ describe("the preview of the draft in the tree of the prefixes", () => {
   it("takes along the children a moved prefix keeps, as rows of the preview", () => {
     // P moved under Q (its value changed): C1 and C2 follow it, not placed; C2 leaves it.
     const preview = previewOf(
-      simulated([placed(P, null, Q), placed(C2, P, null)]),
+      simulated([placed(P, null, Q, 0), placed(C2, P, null)]),
       [update(P, "203.0.113.0/25")],
       known,
       DOMAIN,
@@ -158,9 +164,9 @@ describe("the preview of the draft in the tree of the prefixes", () => {
     const preview = previewOf(
       simulated(
         [
-          placed(TEMP, null, null),
-          placed(TEMP2, null, null),
-          { object: ID(9), kind: "entity", before: null, after: null },
+          placed(TEMP, null, null, 0),
+          placed(TEMP2, null, null, 1),
+          { object: ID(9), kind: "entity", before: null, after: null, operation: null },
           placed(ID(8), ID(7), ID(6)),
         ],
         true,
@@ -178,5 +184,42 @@ describe("the preview of the draft in the tree of the prefixes", () => {
     // `after` `null`: at the root, or a parent hidden — the top of the tree it reads.
     const preview = previewOf(simulated([placed(C1, P, null)]), [], known, DOMAIN);
     expect(rows(laid(preview).nodes).at(-1)).toBe("1 198.51.100.0/26");
+  });
+
+  it("labels a creation after a module creation, which the order would mismatch", () => {
+    // The machine first, placed from no parent too, then the prefix: each by its index.
+    const preview = previewOf(
+      simulated([
+        { object: MACHINE, kind: "machines.machine", before: null, after: null, operation: 0 },
+        placed(TEMP, null, P, 1),
+      ]),
+      [machine, create("198.51.100.128/25")],
+      known,
+      DOMAIN,
+    );
+    expect(preview.shifts.map((s) => s.key)).toEqual(["draft:1"]);
+    expect(rows(laid(preview).nodes)).toContain("2 198.51.100.128/25");
+  });
+
+  it("labels a creation under `within` by the index of its envelope", () => {
+    const preview = previewOf(
+      simulated([placed(TEMP, null, P, 0), placed(TEMP2, null, Q, 1)]),
+      [within(create("198.51.100.128/25")), create("203.0.113.128/25")],
+      known,
+      DOMAIN,
+    );
+    expect(preview.shifts.map((s) => [s.key, s.creation?.label, s.parent])).toEqual([
+      ["draft:0", "198.51.100.128/25", P],
+      ["draft:1", "203.0.113.128/25", Q],
+    ]);
+    const open: TreeNode[] = [served[0]!, { ...served[1]!, hasChildren: false, children: [] }];
+    expect(rows(overlay(open, preview, nodeOf).nodes)).toEqual([
+      "1 198.51.100.0/24",
+      "2 198.51.100.0/26",
+      "2 198.51.100.64/26",
+      "2 198.51.100.128/25",
+      "1 203.0.113.0/24",
+      "2 203.0.113.128/25",
+    ]);
   });
 });
