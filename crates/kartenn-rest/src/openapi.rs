@@ -359,6 +359,27 @@ fn finish(document: &mut OpenApi) {
             }
             approval_self(operation);
         }
+        if let Some(query) = item
+            .extensions
+            .as_mut()
+            .and_then(|e| e.get_mut(QUERY_EXTENSION))
+            .and_then(Value::as_object_mut)
+        {
+            if public {
+                query.insert("security".to_owned(), Value::Array(Vec::new()));
+            } else {
+                let background = serde_json::json!({
+                    "$ref": format!("#/components/parameters/{BACKGROUND}")
+                });
+                match query
+                    .entry("parameters")
+                    .or_insert_with(|| Value::Array(Vec::new()))
+                {
+                    Value::Array(parameters) => parameters.push(background),
+                    _ => unreachable!("the parameters of an operation are a list"),
+                }
+            }
+        }
     }
     crate::simulation::declare(document);
 }

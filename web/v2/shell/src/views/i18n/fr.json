@@ -261,7 +261,14 @@
       "domainMissing": "Domaine introuvable",
       "domainMissingText": "Le domaine de l'adresse n'est pas parmi ceux que vous lisez : l'arbre montre {name}.",
       "noDomain": "Aucun domaine",
-      "noDomainText": "Aucun domaine que vous puissiez lire : l'arbre des préfixes en a besoin."
+      "noDomainText": "Aucun domaine que vous puissiez lire : l'arbre des préfixes en a besoin.",
+      "preview": {
+        "title": "Aperçu du brouillon",
+        "partial": "Aperçu partiel du brouillon",
+        "shown": "Aucun nœud n'est encore montré à sa place après application. | Un nœud apparaît à sa place après application, marqué « en brouillon » ; l'arbre au présent ne change qu'à l'application. | {n} nœuds apparaissent à leur place après application, marqués « en brouillon » ; l'arbre au présent ne change qu'à l'application.",
+        "waiting": "Un nœud n'est pas montré : son parent après application n'est pas lu dans cet arbre. | {n} nœuds ne sont pas montrés : leur parent après application n'est pas lu dans cet arbre.",
+        "partialText": "La simulation ne donne pas tous les changements de place : d'autres nœuds manquent peut-être."
+      }
     },
     "anomalies": {
       "sections": "Anomalies et lacunes",

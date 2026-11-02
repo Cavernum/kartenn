@@ -1,3 +1,4 @@
+import type { Operation, Simulated } from "@kartenn/sdk";
 import type { TreeNode } from "@kartenn/ui";
 
 // The nodes of the tree of the topography from its levels read (task 24, REQ-021-34): the
@@ -34,4 +35,231 @@ export function nodesOf<I extends { id: string }>(
     } else node.hasChildren = true;
     return node;
   });
+}
+
+// The preview of the active draft in the tree (task 24b; REQ-021-17; 021/A12, precised by
+// 24a): the places its simulation gives (`placements`, at the present), laid over the tree
+// served, never a deduction of the client. Each object whose parent the draft changes stays
+// at its present place, marked, and shows again under its parent after; the tree served
+// stays the truth, and the preview goes with the draft (applied or abandoned).
+
+/** The kinds of the nodes of the tree of the topography. */
+export type NodeKind = "prefix" | "range" | "address";
+const NODE_KINDS: ReadonlySet<string> = new Set<NodeKind>(["prefix", "range", "address"]);
+
+/** An object a creation of the draft makes, as the preview names it. */
+export interface Creation {
+  /** The index of its operation in the draft: its key, kept from one simulation to the next. */
+  index: number;
+  kind: NodeKind;
+  /** Its value: a prefix or an address, a range « first – last ». */
+  label: string;
+  /** Its nature (a prefix) or its usage (a range), as the operation gives it. */
+  detail: string | null;
+  /** Its domain, when the operation names it by identifier. */
+  domain: string | null;
+}
+
+/** An object of the tree shown under its parent after the draft. */
+export interface Shift {
+  /** Its key among the rows: `draft:` and its object, or the index of the creation. */
+  key: string;
+  /** The object, when it exists already; a creation otherwise. */
+  object?: string;
+  creation?: Creation;
+  kind: NodeKind;
+  /**
+   * The row it shows under: a node served, another shift, `null` for the first level;
+   * `undefined` while its parent after is not read in this tree (not shown).
+   */
+  parent: string | null | undefined;
+}
+
+/** The preview of a simulation in the tree of a domain. */
+export interface Preview {
+  /** The objects of the domain whose place changes, each to show under its parent after. */
+  shifts: Shift[];
+  /** The objects that exist already and change place: marked at their present place. */
+  moved: ReadonlySet<string>;
+  /** Some placements may be missing (`placements_truncated`): the preview is partial. */
+  truncated: boolean;
+}
+
+/** The key of a row of the preview, never one of the tree served. */
+export const PREVIEW = "draft:";
+export const isPreview = (key: string): boolean => key.startsWith(PREVIEW);
+
+type Target = { id: string } | { kind: string; creation: Creation | undefined };
+
+/** What an operation writes, in the order of the draft: an object, or one it creates. */
+function targetOf(operation: Operation, index: number): Target | undefined {
+  const op = operation as Record<string, unknown>;
+  const name = typeof op.op === "string" ? op.op : "";
+  if (name.startsWith("create_")) {
+    const kind = name.slice("create_".length);
+    return { kind, creation: creationOf(op, index, kind) };
+  }
+  const named = (op.id ?? op.object) as { id?: unknown } | undefined;
+  return typeof named?.id === "string" ? { id: named.id } : undefined;
+}
+
+function creationOf(
+  op: Record<string, unknown>,
+  index: number,
+  kind: string,
+): Creation | undefined {
+  const text = (member: string) => (typeof op[member] === "string" ? op[member] : null);
+  const domain = (op.domain as { id?: unknown } | undefined)?.id;
+  const label =
+    kind === "prefix"
+      ? text("prefix")
+      : kind === "address"
+        ? text("address")
+        : kind === "range"
+          ? `${text("first") ?? ""} – ${text("last") ?? ""}`
+          : null;
+  if (label === null || !NODE_KINDS.has(kind)) return undefined;
+  return {
+    index,
+    kind: kind as NodeKind,
+    label,
+    detail: kind === "prefix" ? text("nature") : kind === "range" ? text("usage") : null,
+    domain: typeof domain === "string" ? domain : null,
+  };
+}
+
+/**
+ * The preview of `simulated` in the tree of `domain`, `operations` the draft simulated and
+ * `known` whether an object is read in this tree. `placements` names objects only: an object
+ * the draft creates has an identifier of the simulation alone, matched with its creation by
+ * the order the contract gives — the objects of the operations first, in their order (an
+ * object created always placed, from no parent), then those they move. A parent the author
+ * may not read comes `null`: shown at the first level, as the top of the tree it reads.
+ */
+export function previewOf(
+  simulated: Pick<Simulated, "placements" | "placements_truncated">,
+  operations: readonly Operation[],
+  known: (id: string) => boolean,
+  domain: string,
+): Preview {
+  const targets: Target[] = [];
+  const written = new Set<string>();
+  operations.forEach((operation, index) => {
+    const target = targetOf(operation, index);
+    if (!target) return;
+    if ("id" in target) {
+      if (written.has(target.id)) return;
+      written.add(target.id);
+    }
+    targets.push(target);
+  });
+  // The identifiers of the simulation of the objects created, by the order of the targets.
+  const created = new Map<string, Creation>();
+  let next = 0;
+  for (const placement of simulated.placements) {
+    if (next >= targets.length) break;
+    const at = targets.findIndex(
+      (target, i) =>
+        i >= next &&
+        ("id" in target
+          ? target.id === placement.object
+          : target.kind === placement.kind &&
+            placement.before === null &&
+            !written.has(placement.object)),
+    );
+    // None: the objects the operations move begin.
+    if (at < 0) break;
+    const target = targets[at]!;
+    if (!("id" in target) && target.creation) created.set(placement.object, target.creation);
+    next = at + 1;
+  }
+
+  const keyOf = (object: string) => {
+    const creation = created.get(object);
+    return `${PREVIEW}${creation ? String(creation.index) : object}`;
+  };
+  const ofDomain = simulated.placements.filter((p) => {
+    if (!NODE_KINDS.has(p.kind)) return false;
+    const creation = created.get(p.object);
+    return creation ? creation.domain === domain : known(p.object);
+  });
+  const shifting = new Set(ofDomain.map((p) => p.object));
+  const moved = new Set(ofDomain.filter((p) => !created.has(p.object)).map((p) => p.object));
+  const shifts = ofDomain.map((p): Shift => {
+    const creation = created.get(p.object);
+    const after = p.after;
+    const parent =
+      after === null
+        ? null
+        : shifting.has(after)
+          ? keyOf(after)
+          : !created.has(after) && known(after)
+            ? after
+            : undefined;
+    return {
+      key: keyOf(p.object),
+      ...(creation ? { creation } : { object: p.object }),
+      kind: creation?.kind ?? (p.kind as NodeKind),
+      parent,
+    };
+  });
+  return { shifts, moved, truncated: simulated.placements_truncated };
+}
+
+/**
+ * The nodes served with the preview over them: each shift under its row after (a node
+ * served whose children are read, another shift, the first level), after the children
+ * served; the count shown, the others waiting for their parent to be read. An object that
+ * moves takes along the children it keeps (not placed: their parent stays), copied from
+ * the tree served as rows of the preview, as far as they are read.
+ */
+export function overlay(
+  nodes: readonly TreeNode[],
+  preview: Preview,
+  nodeOf: (shift: Shift, children: TreeNode[] | undefined) => TreeNode,
+): { nodes: TreeNode[]; shown: number } {
+  const under = new Map<string | null, Shift[]>();
+  for (const shift of preview.shifts) {
+    if (shift.parent === undefined) continue;
+    under.set(shift.parent, [...(under.get(shift.parent) ?? []), shift]);
+  }
+  const servedById = new Map<string, TreeNode>();
+  const index = (list: readonly TreeNode[]) =>
+    list.forEach((node) => {
+      servedById.set(node.id, node);
+      index(node.children ?? []);
+    });
+  index(nodes);
+  const shifting = new Set(preview.shifts.flatMap((shift) => shift.object ?? []));
+  // A row of the preview has its children given: one not read is shown without them.
+  const kept = (list: readonly TreeNode[]): TreeNode[] =>
+    list
+      .filter((node) => !shifting.has(node.id))
+      .map((node) => {
+        const copied = kept(node.children ?? []);
+        const copy: TreeNode = { ...node, id: `${PREVIEW}${node.id}` };
+        delete copy.hasChildren;
+        delete copy.more;
+        delete copy.children;
+        if (copied.length > 0) copy.children = copied;
+        return copy;
+      });
+  const done = new Set<string>();
+  const extra = (key: string | null): TreeNode[] =>
+    (under.get(key) ?? [])
+      .filter((shift) => !done.has(shift.key))
+      .map((shift) => {
+        done.add(shift.key);
+        const children = [
+          ...kept((shift.object && servedById.get(shift.object)?.children) || []),
+          ...extra(shift.key),
+        ];
+        return nodeOf(shift, children.length > 0 ? children : undefined);
+      });
+  const walk = (list: readonly TreeNode[]): TreeNode[] =>
+    list.map((node) =>
+      node.children ? { ...node, children: [...walk(node.children), ...extra(node.id)] } : node,
+    );
+  const out = [...walk(nodes), ...extra(null)];
+  return { nodes: out, shown: done.size };
 }
