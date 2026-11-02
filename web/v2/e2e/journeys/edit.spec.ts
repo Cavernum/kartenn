@@ -6,8 +6,10 @@ import { DATA, expect, expectAccessible, loginIn, test } from "../fixtures/journ
 // why; an author edits a prefix at the keyboard alone, to the draft (counter at 1); under
 // an approval policy, Ctrl+Enter with its motive leaves the row « en revue », never
 // « appliqué »; two tabs on the same prefix, the second gets 412 and keeps its input
-// beside the new value, then applies it on the new version. Each test writes in a domain
-// of its own (RFC 5737, TEST-NET-2).
+// beside the new value, then applies it on the new version. The same in a cell of the
+// tree of the topography (task 12a), at the version its page served; Enter on a node opens
+// its record, `c` adds in it (021/A20). Each test writes in a domain of its own (RFC 5737,
+// TEST-NET-2).
 
 /** A call of the API by the page itself, under its session (same origin: CSRF). */
 async function call(
@@ -217,6 +219,130 @@ test("two tabs on the same prefix: the second gets 412 and keeps its input, then
   await second.close();
 });
 
+/**
+ * The topography of the domain `slug` (identifier `id`), its tree, the column « Nature »
+ * shown: of priority 2 (021/A21), it hides in the width of the tree, the chooser shows it.
+ */
+async function topologyOf(tab: Page, slug: string, id: string): Promise<Locator> {
+  await tab.goto(`/topology?domain=${id}`);
+  const tree = tab.getByRole("treegrid", { name: `Arbre des préfixes du domaine ${slug}` });
+  await expect(tree.getByText("198.51.100.0/24", { exact: true })).toBeVisible();
+  // No node chosen yet: the chooser of the tree is the only one.
+  const chooser = tab.getByRole("button", { name: "Colonnes" });
+  if (await chooser.isVisible()) {
+    await chooser.click();
+    const nature = tab.getByRole("menuitemcheckbox", { name: "Nature" });
+    if ((await nature.getAttribute("aria-checked")) !== "true") await nature.click();
+    await tab.keyboard.press("Escape");
+  }
+  await expect(treeCell(tree, "detail")).toBeVisible();
+  return tree;
+}
+/** The cell `column` of the network in the tree. */
+const treeCell = (tree: Locator, column: string) =>
+  tree.locator(`[role="gridcell"][data-column="${column}"]`).first();
+
+test("a cell of the tree: a reader is told why, an author edits it to the draft, the node opens its record", async ({
+  page,
+  login,
+  browser,
+  browserName,
+}) => {
+  await login("alice");
+  const domain = await newDomain(page, unique(browserName));
+
+  // Bob reads: no editor, the foot of the tree says the right missing; « Ajouter » refused.
+  const other = await browser.newContext({ ignoreHTTPSErrors: true });
+  const reader = await other.newPage();
+  await loginIn(reader, "bob");
+  const id = await domainId(page, domain);
+  const read = await topologyOf(reader, domain, id);
+  await treeCell(read, "detail").click();
+  await reader.keyboard.press("F2");
+  await expect(read.getByRole("textbox")).toHaveCount(0);
+  await expect(treeCell(read, "detail")).toHaveAttribute("aria-readonly", "true");
+  await expect(reader.locator(".k-keyboard-hint")).toContainText("Lecture seule : il faut");
+  await expect(reader.getByRole("button", { name: /core\.prefix\.edit/ })).toBeVisible();
+  await read.getByText("198.51.100.0/24", { exact: true }).click();
+  const add = reader.getByRole("button", { name: "Ajouter dans 198.51.100.0/24" });
+  await expect(add).toHaveAttribute("aria-disabled", "true");
+  await expect(add).toHaveAccessibleDescription(/core\.address\.edit/);
+  await other.close();
+
+  // Alice, at the keyboard: Enter opens the editor of the nature, its words stand for its key.
+  const tree = await topologyOf(page, domain, id);
+  await treeCell(tree, "detail").click();
+  await page.keyboard.press("Enter");
+  const editor = tree.getByRole("textbox", { name: /^Nature, usage — 198\.51\.100\.0\/24$/ });
+  await expect(editor).toBeFocused();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.type("Conteneur");
+  await page.keyboard.press("Enter");
+  await expect(treeCell(tree, "detail")).toHaveAttribute("data-state", "draft");
+  await expect(treeCell(tree, "detail")).toContainText("Conteneur");
+  await expect(page.getByRole("button", { name: /^Brouillon 1 opération$/ })).toBeVisible();
+  await expectAccessible(page);
+
+  // Enter on the node opens its record (021/A20), not its « + ».
+  await tree.getByText("198.51.100.0/24", { exact: true }).click();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/prefixes\/[0-9a-f-]{36}$/);
+});
+
+test("two tabs on a cell of the tree: Ctrl+Enter applies, the second gets 412 and keeps its input", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const domain = await newDomain(page, unique(browserName));
+  const second = await page.context().newPage();
+  const trees = new Map<Page, Locator>();
+  const id = await domainId(page, domain);
+  for (const tab of [page, second]) trees.set(tab, await topologyOf(tab, domain, id));
+
+  /** In `tab`: the nature typed in the tree, then Ctrl+Enter, the motive asked. */
+  async function ask(tab: Page, value: string): Promise<void> {
+    await treeCell(trees.get(tab)!, "detail").click();
+    await tab.keyboard.press("Enter");
+    await tab.keyboard.press("Control+a");
+    await tab.keyboard.type(value);
+    await tab.keyboard.press("Control+Enter");
+    await expect(tab.getByRole("textbox", { name: "Motif" })).toBeFocused();
+  }
+
+  // The second tab asks first, on the version both read; the first one then applies.
+  await ask(second, "container");
+  await ask(page, "Conteneur");
+  const written = page.waitForResponse((r) => r.request().method() === "PATCH");
+  await page.keyboard.press("Enter");
+  // A modification applied at once: 200 (REQ-021-15), the changeset in its body.
+  expect((await written).status()).toBe(200);
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: /Appliqué : Nature de/ })
+      .first(),
+  ).toBeVisible();
+  await expect(treeCell(trees.get(page)!, "detail")).toContainText("Conteneur");
+
+  // The second still holds the version its page served: 412, its input kept, applied again.
+  await second.keyboard.press("Enter");
+  const line = second.getByRole("form", { name: /^Appliquer maintenant : Nature de / });
+  await expect(
+    line.getByRole("status").filter({ hasText: "L'objet a changé depuis votre lecture" }),
+  ).toBeVisible();
+  await expectAccessible(second);
+  await line.getByRole("button", { name: "Appliquer sur la nouvelle version" }).click();
+  await expect(
+    second
+      .getByRole("status")
+      .filter({ hasText: /Appliqué : Nature de/ })
+      .first(),
+  ).toBeVisible();
+  await second.close();
+});
+
 /** The identifier of a domain, by its slug. */
 async function domainId(page: Page, slug: string): Promise<string> {
   const domains = (await call(page, "GET", `/v1/domains?slug=${slug}`)).body as {
@@ -241,11 +367,9 @@ test("the same edit panel from a node of the topography and from the list of add
   const slug = await newDomain(page, unique(browserName));
   await page.goto(`/topology?domain=${await domainId(page, slug)}`);
   const tree = page.getByRole("treegrid", { name: `Arbre des préfixes du domaine ${slug}` });
-  // The keyboard: Enter on the node goes into its « + », Enter on it opens the panel.
+  // The keyboard: `c` on a node adds in it (021/A20).
   await tree.getByText("198.51.100.0/24", { exact: true }).click();
-  await page.keyboard.press("Enter");
-  await expect(tree.getByRole("button", { name: "Ajouter dans 198.51.100.0/24" })).toBeFocused();
-  await page.keyboard.press("Enter");
+  await page.keyboard.press("c");
   const fromNode = page.getByRole("form", { name: "Ajouter dans 198.51.100.0/24" });
   await expect(fromNode.getByRole("button", { name: "Adresse", pressed: true })).toBeVisible();
   await expect(fromNode.getByRole("combobox", { name: /^Domaine/ })).toContainText(slug);

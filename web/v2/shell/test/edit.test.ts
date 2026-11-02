@@ -28,7 +28,13 @@ import {
   initialValues,
   patchOf,
 } from "../src/views/edit/fields.ts";
-import { useInlineEdit, type InlineEdit, type InlineSay } from "../src/views/edit/inline.ts";
+import {
+  useInlineEdit,
+  type InlineDeps,
+  type InlineEdit,
+  type InlineSay,
+} from "../src/views/edit/inline.ts";
+import { useNodeEdit } from "../src/views/edit/nodes.ts";
 
 // In-place editing and the edit panel of a kind (task 021-12; REQ-021-15, 16, 36, 37): the
 // fields of each kind typed by the contract, the operations of the draft they give, whether
@@ -230,6 +236,8 @@ describe("a list edited in place", () => {
     permissions: string[],
     answer: (seen: Seen) => { status: number; body: unknown; etag?: string },
     at = "/",
+    /** Another editing on the same rows (the nodes of the topography). */
+    make?: (deps: Omit<InlineDeps, "collection">) => InlineEdit,
   ) {
     const seen: Seen[] = [];
     const rows = shallowRef<Item[]>([ROW]);
@@ -275,14 +283,15 @@ describe("a list edited in place", () => {
     let edit!: InlineEdit;
     const Host = defineComponent({
       setup() {
-        edit = useInlineEdit({
-          collection: () => PREFIXES,
+        const deps = {
           rows: () => rows.value,
-          t: (key, values) => `${key}${values ? JSON.stringify(values) : ""}`,
-          sentence: (error) =>
+          t: (key: string, values?: Record<string, unknown>) =>
+            `${key}${values ? JSON.stringify(values) : ""}`,
+          sentence: (error: unknown) =>
             error instanceof ApiProblem ? `said:${error.code}` : "said:network",
           say,
-        });
+        };
+        edit = make ? make(deps) : useInlineEdit({ collection: () => PREFIXES, ...deps });
         return () => h("div");
       },
     });
@@ -576,6 +585,123 @@ describe("a list edited in place", () => {
     rows.value = [{ ...ROW, version: V2 }];
     await nextTick();
     expect(edit().cellState(rows.value[0]!, column("value"))).toBeUndefined();
+  });
+
+  // The nodes of the topography (task 12a): a prefix, a range, an address, as their page
+  // serves them, each with its version.
+  const R1 = "0b5e3c1a-0000-4000-8000-0000000000a2";
+  const A1 = "0b5e3c1a-0000-4000-8000-0000000000a3";
+  const VR = "0b5e3c1a-0000-4000-8000-0000000000c3";
+  const NODES: Item[] = [
+    { kind: "prefix", id: P1, value: "192.0.2.0/24", nature: "network", version: V1, href: "" },
+    {
+      kind: "range",
+      id: R1,
+      first: "192.0.2.10",
+      last: "192.0.2.20",
+      usage: "static",
+      version: VR,
+      href: "",
+    },
+    { kind: "address", id: A1, value: "192.0.2.5", version: V2, href: "" },
+  ];
+  const WORDS: Record<string, Record<string, string>> = {
+    nature: { network: "Réseau", container: "Conteneur" },
+    usage: { static: "Statique", dhcp: "DHCP" },
+  };
+  const nodeEdit = (reread: string[]) => (deps: Omit<InlineDeps, "collection">) =>
+    useNodeEdit({
+      ...deps,
+      words: (field, key) => WORDS[field]?.[key] ?? null,
+      reread: (id) => void reread.push(id),
+    });
+
+  it("a node: its detail edits its nature or usage, the words typed for the key, at its version", async () => {
+    const reread: string[] = [];
+    const { edit, seen, rows } = await mounted(
+      ["core.prefix.edit", "core.range.edit", "core.address.edit"],
+      (call) =>
+        call.method === "POST" && call.url === "/v1/drafts"
+          ? {
+              status: 201,
+              body: draftBody((call.body as { operations: unknown[] }).operations),
+              etag: '"1"',
+            }
+          : { status: 200, body: { items: [], links: {} } },
+      "/",
+      nodeEdit(reread),
+    );
+    rows.value = NODES;
+    await nextTick();
+    const [prefix, range, address] = NODES as [Item, Item, Item];
+    // The node itself (Enter opens its record, 021/A20), an address, the occupancy: none.
+    expect(edit().editable(prefix, column(""))).toBe(false);
+    expect(edit().editable(prefix, column("occupancy"))).toBe(false);
+    expect(edit().editable(address, column("detail"))).toBe(false);
+    expect(edit().editable(prefix, column("detail"))).toBe(true);
+    expect(edit().editable(range, column("detail"))).toBe(true);
+    expect(edit().validate(prefix, column("detail"), "Conteneur")).toBeUndefined();
+    expect(edit().validate(prefix, column("detail"), "ailleurs")).toContain("Réseau, Conteneur");
+
+    edit().onCommit({ row: P1, column: "detail", value: "Conteneur" });
+    await expect.poll(() => edit().cellState(prefix, column("detail"))).toBe("draft");
+    expect(edit().shownRows.value[0]!.nature).toBe("container");
+    edit().onCommit({ row: R1, column: "detail", value: "dhcp" });
+    await expect.poll(() => seen.filter((s) => s.method === "POST").length).toBe(2);
+    const operations = seen
+      .filter((s) => s.method === "POST")
+      .flatMap((s) => (s.body as { operations: unknown[] }).operations);
+    expect(operations).toEqual([
+      { op: "update_prefix", id: { id: P1 }, nature: "container", expected: V1 },
+      { op: "update_range", id: { id: R1 }, usage: "dhcp", expected: VR },
+    ]);
+  });
+
+  it("a node applied now: If-Match its version served, 412 its level read again", async () => {
+    const reread: string[] = [];
+    const { edit, seen, rows } = await mounted(
+      ["core.range.edit", "core.range.approval.self"],
+      (call) => {
+        if (call.method === "PATCH") {
+          return {
+            status: 412,
+            body: { type: "urn:kartenn:problem:precondition-failed", title: "", status: 412 },
+          };
+        }
+        if (call.url.startsWith(`/v1/ranges/${R1}`)) {
+          return { status: 200, body: { ...NODES[1], usage: "reserved", version: V2 } };
+        }
+        return { status: 200, body: { items: [], links: {} } };
+      },
+      "/",
+      nodeEdit(reread),
+    );
+    rows.value = NODES;
+    await nextTick();
+    // Without `core.prefix.edit`, the prefix has no editor and says why.
+    expect(edit().why("detail", NODES[0])).toEqual({
+      kind: "forbidden",
+      permission: "core.prefix.edit",
+    });
+    edit().onCommit({ row: R1, column: "detail", value: "DHCP", now: true });
+    expect(edit().asking.value).toMatchObject({
+      row: R1,
+      column: "detail",
+      field: { name: "usage" },
+      value: "dhcp",
+      version: VR,
+    });
+    expect(await edit().confirm("motif", "dhcp")).toBe(false);
+    const patch = seen.find((s) => s.method === "PATCH")!;
+    expect(patch.url).toBe(`/v1/ranges/${R1}?approval=self`);
+    expect(patch.ifMatch).toBe(`"${VR}"`);
+    expect(reread).toEqual([R1]);
+    expect(edit().asking.value).toMatchObject({
+      value: "dhcp",
+      current: "reserved",
+      version: V2,
+      refusal: { kind: "conflict" },
+    });
   });
 });
 
