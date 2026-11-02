@@ -2494,7 +2494,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     « Hébergement » monté seulement une fois la machine lue. Vitest : 32 (page 2 refusée
     lue une seule fois, puis relue par « Réessayer », pour les hébergeurs et pour
     l'action ; second envoi ignoré pendant un déplacement).
-- [ ] 18cc. Vue Interfaces et onglet `interfaces-of` en Vue : recherche par MAC, adresse et
+- [x] 18cc. Vue Interfaces et onglet `interfaces-of` en Vue : recherche par MAC, adresse et
   VID, critères dans la requête de la page, `DataGrid`, fiche d'une interface ; onglet sur
   adresse, préfixe et VLAN ; anciens `InterfacesView` et `InterfacesTab` retirés —
   verify : Vitest ; parcours `machines` (recherche par MAC, retour arrière, trois onglets)
@@ -2502,6 +2502,62 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `src/views.ts` (`InterfacesView`, `criteriaOfPage`, `idsOf`, `interfaceTable`),
     `src/extensions.ts` (`InterfacesTab`)
   - dépend de : 18ca
+  - fait le 2026-11-02 — `machines-interfaces` = `host.element(InterfacesView.vue)` :
+    recherche (`InterfaceSearch.vue`) ou fiche (`InterfaceRecord.vue`) selon le chemin ;
+    `machines-tab` = `host.element(InterfacesTab.vue)`. Recherche : formulaire `search`
+    (MAC, adresse, VID en `TextField`), critères dans la requête de la page par un lien que
+    suit le shell, relus au retour arrière (`popstate`), adresse et VID résolus en objets
+    (première page de `/v1/addresses?value=`, `/v1/vlans?vid=`, relus à d'autres dates), une
+    liste de `/v1/interfaces` par paire, interfaces fusionnées dans `InterfaceGrid.vue`
+    (`DataGrid` : interface en lien, machine par `CitedName`, MAC, mode 802.1Q, état en
+    `StatusBadge` ; Entrée sur une cellule sans lien ouvre la fiche), pages suivantes lues
+    à l'approche de la fin, jamais après une page refusée (`RetryAlert`), au plus
+    `MAX_PAGES` (au-delà, dit) ; ce qui est trouvé dit par une région `status` présente dès
+    l'origine. Fiche : attributs en `dl`, adresses rattachées en `DataGrid` (lues dans la
+    carte de la machine), mode 802.1Q au brouillon par `DraftForm.vue` (`Select` du mode,
+    `Select` du VLAN d'accès en mode accès seulement, première page des VLAN, `RetryAlert`
+    si elle est refusée). Onglet : interfaces de l'adresse ou du VLAN en `InterfaceGrid` ;
+    d'un réseau, adresses du réseau tenues par ses machines (`?network=`, puis les adresses
+    de chacune par `useReads`), interface, machine et adresse en liens. `PageRoot.vue` (tiré
+    de `MachinesView.vue`) : focus au titre à l'arrivée par un lien du plugin, sans titre
+    pour l'onglet. `data.ts` gagne `useReads` et `useLists` (un observateur par lecture,
+    gardé d'un jeu d'options à l'autre par le hachage de sa clé ; `next()` ne relit pas une
+    liste refusée), écrits au design 021 § « API des plugins ». Retirés : `InterfacesView`,
+    `criteriaOfPage`, `idsOf`, `interfaceTable`, `InterfaceRow`, `src/extensions.ts`
+    (`InterfacesTab`), `src/forms.ts` et leurs tests ; `views.ts` ne garde que
+    `ClustersView`. Poids : `index.js` 20,8 Ko gzip -9 (20,0 avant), aucune feuille émise.
+    Vitest : 40 (`test/interfaces-view.test.ts`, 11 : critères de la page puis recherche par
+    MAC, adresse et VID, lien suivi, retour arrière ; refus avec codes puis « Réessayer »,
+    rien trouvé ; page suivante refusée lue une fois puis relue par « Réessayer », dans la
+    recherche et dans l'onglet ; Entrée sur une cellule ; fiche, attributs, adresses, mode
+    au brouillon ; trunk refusé sur son champ, droit absent ; fiche illisible, autre date ;
+    onglet d'un réseau, d'une adresse et d'un VLAN, refus et vide). Parcours `machines` :
+    6 sur 6 dans les deux navigateurs (grilles `Interfaces trouvées` et `Adresses
+    rattachées`, focus au titre de la fiche, retour arrière, trois onglets).
+  - choix : une interface en trunk n'a aucun mode choisi dans le formulaire (l'ancien
+    proposait « aucun » à tort), une aide dit que ses VLAN étiquetés se changent par l'API ;
+    VLAN d'accès en `Select` de la première page, une aide quand il en reste ; erreurs des
+    champs effacées quand le mode change ; recherche sans critère : toutes les interfaces
+    (comme avant) ; la phrase de la région `status` vidée sur une erreur (dite par l'alerte
+    de l'`ErrorState`) ; vide après recherche avec « Effacer » quand un critère est posé ;
+    nom d'interface en `md` et machine en `fill` ; clés `search.first`, `tab.first`,
+    `interfaces.firstVlans`, `interfaces.failedVlans`, `interfaces.trunkHint` (`tab.more`
+    retirée).
+  - relectures : `ui-reviewer` et `a11y-auditor` sur le code (sans rendu : serveur et base
+    partagés), aucun bloquant ; corrigés : phrase de la région `status` en double avec
+    l'alerte d'erreur, VLAN illisible dit avec « Réessayer », erreur du VLAN gardée après
+    changement de mode, vide sans action, Entrée et lien de l'adresse dans la grille d'un
+    réseau, aide du trunk, `queryClient` pris de `useHosted` partout.
+  - reste : le compte des interfaces trouvées est redit à chaque page lue ; une recherche
+    relancée avec les mêmes critères ne redit rien ; un MAC ou un VID mal formé est dit par
+    l'`ErrorState` de la vue (code `machines.mac.invalid`), pas sur son champ, et le VID
+    n'est pas vérifié avant l'envoi ; le VLAN d'accès actuel absent de la première page
+    n'est pas proposé ; `arrival.byLink` reste levé si le lien suivi ne remonte pas la
+    page (hérité de la 18cb) ; titre `h1` de la fiche générique jusqu'à la lecture ;
+    « inconnue à cette date » (404) dite comme une erreur avec « Réessayer » ; le tiret
+    « aucun » est écrit à cinq endroits ; `dom.ts` garde des fonctions mortes (`textField`,
+    `selectField`, `option`, `fill`, `checkbox`, `wrapperOf`, `ruled`) et `styles.css`
+    des règles de l'ancienne recherche, à retirer avec eux à la 18cd.
 - [ ] 18cd. Vue « Hébergement et clusters » en `TreeGrid` à parent déclaré
   (`parentMode: "declared"`) : clusters et machines hôtes, machines hébergées chargées
   sous eux ; fiche d'un cluster ; déplacement par glisser, Ctrl+X puis Ctrl+V et
