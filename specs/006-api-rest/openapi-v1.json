@@ -12647,6 +12647,11 @@
       },
       "x-query": {
         "operationId": "query_addresses",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -13525,6 +13530,11 @@
       },
       "x-query": {
         "operationId": "query_admissibility_conditions",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -14368,6 +14378,11 @@
       },
       "x-query": {
         "operationId": "query_audit_events",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -15825,6 +15840,11 @@
       },
       "x-query": {
         "operationId": "query_clusters",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -16702,6 +16722,11 @@
       },
       "x-query": {
         "operationId": "query_domains",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -18376,6 +18401,11 @@
       },
       "x-query": {
         "operationId": "query_entities",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -19162,6 +19192,11 @@
       },
       "x-query": {
         "operationId": "query_environments",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -19655,6 +19690,11 @@
       },
       "x-query": {
         "operationId": "query_flow_check",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -20018,6 +20058,11 @@
       },
       "x-query": {
         "operationId": "query_flow_types",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -20948,6 +20993,11 @@
       },
       "x-query": {
         "operationId": "query_flows",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -23411,6 +23461,11 @@
       },
       "x-query": {
         "operationId": "query_inference_rules",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -24244,6 +24299,11 @@
       },
       "x-query": {
         "operationId": "query_interfaces",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -25806,6 +25866,11 @@
       },
       "x-query": {
         "operationId": "query_machines",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -26899,6 +26964,11 @@
       },
       "x-query": {
         "operationId": "query_policy_axes",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -27673,6 +27743,11 @@
       },
       "x-query": {
         "operationId": "query_policy_exempt_roles",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -28531,6 +28606,11 @@
       },
       "x-query": {
         "operationId": "query_policy_patterns",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -29611,6 +29691,11 @@
       },
       "x-query": {
         "operationId": "query_policy_rules",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -30386,6 +30471,11 @@
       },
       "x-query": {
         "operationId": "query_policy_values",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -31063,6 +31153,11 @@
       },
       "x-query": {
         "operationId": "query_prefixes",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -32621,6 +32716,11 @@
       },
       "x-query": {
         "operationId": "query_ranges",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -33416,6 +33516,11 @@
       },
       "x-query": {
         "operationId": "query_risk_signals",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -34971,6 +35076,11 @@
       },
       "x-query": {
         "operationId": "query_services",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -35767,6 +35877,11 @@
       },
       "x-query": {
         "operationId": "query_sites",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -36525,6 +36640,11 @@
       },
       "x-query": {
         "operationId": "query_verdicts",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -36760,6 +36880,11 @@
       },
       "x-query": {
         "operationId": "query_vlan_groups",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -37730,6 +37855,11 @@
       },
       "x-query": {
         "operationId": "query_vlans",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
