@@ -15,13 +15,11 @@ import { build, type Rollup } from "vite";
 /** The budget of a plugin, in bytes, blocking (Q-021-11). */
 export const PLUGIN_BUDGET = 50_000;
 
-/** The modules of the import map (ADR 0038, `SHARED` of web/v2/shell/vite.config.ts). */
-export const SHARED_MODULES: readonly string[] = [
-  "@kartenn/sdk",
-  "@kartenn/ui",
-  "@kartenn/ui/style.css",
-  "vue",
-];
+/**
+ * The modules of the import map (ADR 0038, `SHARED` of web/v2/shell/vite.config.ts). The
+ * sheet of @kartenn/ui is not one: the document links it, a plugin never imports it.
+ */
+export const SHARED_MODULES: readonly string[] = ["@kartenn/sdk", "@kartenn/ui", "vue"];
 
 /** The sources of a shared module, found in a plugin's file only by mistake. */
 const SHARED_SOURCES =
@@ -34,6 +32,11 @@ export interface PluginWeight {
   imports: string[];
   /** Modules of the shared packages bundled into it (none expected). */
   bundled: string[];
+  /**
+   * The sheets the build emits: none for a first-party plugin, which has no sheet of its
+   * own (A23: the document's @kartenn/ui, layout by `Stack` and `Cluster`).
+   */
+  sheets: string[];
 }
 
 /** Builds the plugin at `root` with its own `vite.config.ts`, in memory, and weighs it. */
@@ -45,13 +48,15 @@ export async function pluginWeight(root: string): Promise<PluginWeight> {
     build: { write: false },
   });
   const outputs = (Array.isArray(result) ? result : [result]) as Rollup.RollupOutput[];
-  const entry = outputs
-    .flatMap((output) => output.output)
-    .find((file): file is Rollup.OutputChunk => file.type === "chunk" && file.isEntry);
+  const files = outputs.flatMap((output) => output.output);
+  const entry = files.find(
+    (file): file is Rollup.OutputChunk => file.type === "chunk" && file.isEntry,
+  );
   if (!entry) throw new Error(`${root}: no entry in the build`);
   return {
     bytes: gzipSync(entry.code, { level: 9 }).length,
     imports: [...entry.imports, ...entry.dynamicImports],
     bundled: entry.moduleIds.filter((id) => SHARED_SOURCES.test(id)),
+    sheets: files.map((file) => file.fileName).filter((name) => name.endsWith(".css")),
   };
 }

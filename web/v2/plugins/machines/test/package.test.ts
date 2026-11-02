@@ -33,6 +33,8 @@ describe("@kartenn/plugin-machines", () => {
   it("weighs at most 50 Ko gzip, the shared modules imported, never bundled (REQ-021-30)", async () => {
     const weight = await pluginWeight(root);
     expect(weight.bundled).toEqual([]);
+    // No sheet of its own (A23).
+    expect(weight.sheets).toEqual([]);
     expect(weight.imports.filter((name) => !SHARED_MODULES.includes(name))).toEqual([]);
     expect(weight.bytes).toBeLessThanOrEqual(PLUGIN_BUDGET);
   }, 60_000);

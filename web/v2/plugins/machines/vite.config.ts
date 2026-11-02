@@ -10,8 +10,10 @@ import { defineConfig } from "vitest/config";
 /**
  * The modules of the import map of the shell (ADR 0038, `SHARED` of
  * web/v2/shell/vite.config.ts), left to it: one instance each, never in the plugin's file.
+ * The sheet of @kartenn/ui is not one (the document links it): imported, it would be
+ * emitted, and refused by the weight check (A23).
  */
-const SHARED = ["@kartenn/sdk", "@kartenn/ui", "@kartenn/ui/style.css", "vue"];
+const SHARED = ["@kartenn/sdk", "@kartenn/ui", "vue"];
 
 // Build of the plugin as an operator installs it (spec 007, design « Plugins côté
 // serveur »): `web/v2/dist/plugins/<name>/<version>/` holds `index.js` and the files of
