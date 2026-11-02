@@ -44,23 +44,24 @@ impl PgRefreshExchanges {
         .execute(&mut *tx)
         .await
         .map_err(store_err)?;
-        let found: Option<(Option<Uuid>, Option<String>)> = sqlx::query_as(
-            "SELECT holder, sealed FROM refresh_exchange WHERE key = $1 AND ends_at > now()",
+        // The clock at the statement, not at the start of a transaction that may have
+        // waited for the lock.
+        let found: Option<Option<String>> = sqlx::query_scalar(
+            "SELECT sealed FROM refresh_exchange WHERE key = $1 AND ends_at > clock_timestamp()",
         )
         .bind(&key[..])
         .fetch_optional(&mut *tx)
         .await
         .map_err(store_err)?;
         let claim = match found {
-            Some((_, Some(sealed))) => Claim::Kept(sealed),
-            // The lease of another holder. Its own claim, still running, means that the
-            // request which ran it was dropped: this instance runs no other exchange of
-            // the token (`Oidc`), so it takes the claim over at once.
-            Some((Some(other), None)) if other != holder => Claim::Busy,
-            _ => {
+            Some(Some(sealed)) => Claim::Kept(sealed),
+            // A lease not over, of another instance or of this one: its exchange runs
+            // apart from the request that claimed it (`Oidc`), until it ends.
+            Some(None) => Claim::Busy,
+            None => {
                 sqlx::query(
                     "INSERT INTO refresh_exchange (key, holder, ends_at)
-                     VALUES ($1, $2, now() + make_interval(secs => $3))
+                     VALUES ($1, $2, clock_timestamp() + make_interval(secs => $3))
                      ON CONFLICT (key) DO UPDATE
                         SET holder = excluded.holder, sealed = NULL, ends_at = excluded.ends_at",
                 )
@@ -86,7 +87,8 @@ impl PgRefreshExchanges {
     ) -> Result<bool, StoreError> {
         sqlx::query(
             "UPDATE refresh_exchange
-                SET holder = NULL, sealed = $3, ends_at = now() + make_interval(secs => $4)
+                SET holder = NULL, sealed = $3,
+                    ends_at = clock_timestamp() + make_interval(secs => $4)
               WHERE key = $1 AND holder = $2",
         )
         .bind(&key[..])
@@ -146,7 +148,7 @@ impl RefreshExchanges for PgRefreshExchanges {
 ///
 /// Database errors.
 pub async fn purge(pool: &PgPool) -> Result<u64, StoreError> {
-    sqlx::query("DELETE FROM refresh_exchange WHERE ends_at <= now()")
+    sqlx::query("DELETE FROM refresh_exchange WHERE ends_at <= clock_timestamp()")
         .execute(pool)
         .await
         .map(|done| done.rows_affected())

@@ -242,7 +242,8 @@ pub trait Identities: Send + Sync {
 pub enum Claim {
     /// The caller exchanges it: no instance does, nor kept a result still in its window.
     Ours,
-    /// Another instance exchanges it, under a lease not over yet: ask again later.
+    /// An instance, this one or another, exchanges it under a lease not over yet: ask
+    /// again later.
     Busy,
     /// The result of its exchange, sealed, kept within its window (021/A25).
     Kept(String),
@@ -254,7 +255,7 @@ pub enum Claim {
 /// the token, never by the token; a failure is not kept.
 pub trait RefreshExchanges: Send + Sync {
     /// Under a lock on `key`, in a short transaction: the result kept for it within its
-    /// window, or another holder's lease not over, or else the exchange claimed for
+    /// window, or a lease not over (of any holder), or else the exchange claimed for
     /// `holder` during `lease`.
     fn claim<'a>(
         &'a self,
