@@ -2069,7 +2069,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - dépend de : 18b
   - découpée le 2026-11-02 en 18ca à 18cd (A23), chacune migrant des éléments entiers ;
     l'ancien élément et ses tests ne partent qu'une fois l'élément Vue et ses tests verts
-- [ ] 18ca. Montage d'un plugin de première partie en Vue (modèle de la 017) : une
+- [x] 18ca. Montage d'un plugin de première partie en Vue (modèle de la 017) : une
   application par élément (`createApp`) montée dans son DOM léger à `connectedCallback`,
   démontée à `disconnectedCallback`, contexte du SDK, lien en `<a href>` suivi par
   `ExtensionElement`, portail ; lectures par composables sur `QueryObserver` et
@@ -2088,6 +2088,51 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     lecture) ; `web/v2/ui/src/context.ts` (lien, portail) ; `web/v2/shell/src/data/query.ts`
     (forme des composables) ; `web/v2/shell/scripts/size.ts` (forme du contrôle)
   - dépend de : 18b
+  - fait le 2026-11-02 — hôte mince `src/host.ts` (`pluginHost()` : `element(composant)`,
+    `define(définition)` ; `useHosted`, `useTexts`, `usePresent`, `useClose`) et
+    composables `src/data.ts` (`useRead`, `useList`, `useNotified`), sans rien qui nomme
+    le plugin, forme écrite au design 021 § « API des plugins » ; `MachineColumn.vue`
+    (machines liées aux dates du contexte, lecture relancée à d'autres dates, échec dit par
+    un mot et le code en `CodeBadge`) et `AttachAction.vue` (`Combobox` de machines par
+    `q`, `Select` de ses interfaces, `Checkbox`, refus au champ puis focus, refus du
+    serveur en `InlineAlert` avec règles, code et `Request-Id`, `forbidden` sur le bouton,
+    message à une autre date) ; anciennes classes retirées de `extensions.ts` ; manifeste
+    `framework: "^3.5.0"`, `vue` et `@kartenn/ui` en dépendances, `vue-tsc`, build
+    `@vitejs/plugin-vue` (`index.js` : 16,2 Ko gzip -9, n'importe que `vue`,
+    `@kartenn/sdk`, `@kartenn/ui`). Contrôle du poids : `web/v2/tools/plugin-size.ts`
+    (build en mémoire, gzip -9, ≤ 50 Ko, modules partagés importés jamais embarqués), lu
+    par `plugins/machines/test/package.test.ts`, donc par `k-web2-check` (Vitest), sans
+    toucher `devenv.nix`. Vitest : 25 (colonne : montage en DOM léger, déplacement gardé,
+    démontage ; liens datés ; illisible avec code ; action : recherche puis ajout au
+    brouillon, champs requis et texte non choisi, refus avec règles et codes, droit absent
+    puis autre date). Parcours `machines` vert dans les deux navigateurs (envoi sans
+    machine refusé au champ et focalisé, puis rattachement au brouillon).
+  - choix : montage et démontage une microtâche après `connectedCallback` et
+    `disconnectedCallback` (un montage pendant le rendu du shell viderait ses rappels au
+    milieu de son correctif ; un élément déplacé garde son application), le contexte
+    lâché aussitôt à la déconnexion ; `app.config.idPrefix` par application (`useId`
+    compte par application) ; portail `#k-layers` du cadre, `body` sans lui ; aucun
+    `provideLink` (liens `<a href>` suivis par `ExtensionElement`) ; erreurs d'une
+    application dans la console (`errorHandler`) ; colonne : « … » plutôt que `Skeleton`
+    (une région `status` par cellule dirait « Chargement » à chaque ligne), le code seul
+    en `CodeBadge` dans la cellule (pas de `Request-Id`, trop large) ; action : la
+    machine cherchée par `q` (la liste entière n'était lue qu'en première page), la
+    première interface prise, `Select` remonté à l'arrivée de ses options (piège de
+    `SelectValue`) en gardant le focus, raison du champ vide en aide (`hint`) plutôt qu'en
+    texte de remplacement, issue dans une région `status` à côté des boutons (comme
+    l'ancien formulaire) ; trois clés de catalogue (`action.chooseMachine`,
+    `action.noInterface`, `action.pick`) et `form.dated`.
+  - relectures : `ui-reviewer` (aucun bloquant) et `a11y-auditor` (aucun bloquant) ;
+    corrigés : erreur d'un champ effacée quand il change, focus gardé au remontage du
+    `Select`, raison du champ des interfaces en aide, texte tapé sans suggestion dit,
+    refus sans droit dit aussi par Entrée dans un champ, interface non exigée tant
+    qu'aucune machine n'est choisie.
+  - reste : les liens de la colonne dans la grille des adresses ne passent pas par
+    `ExtensionElement` (rechargent la page, comme avant) ; un contexte qui passe à une
+    autre date pendant que le dialogue est ouvert remplace le formulaire sans y mettre le
+    focus ; un refus du serveur sans champ connu laisse le focus au bouton (l'alerte est
+    dite) ; une erreur de rendu d'une application après sa création n'est pas confinée en
+    encart ; `host.ts` et `data.ts` à déplacer dans `@kartenn/ui` (A23).
 - [ ] 18cb. Vue Machines en Vue : liste en `DataGrid` (tri, filtres typés) ; fiche en
   sections (attributs, interfaces avec `StatusBadge`, machines hébergées, ajout d'une
   interface) ; section « Hébergement » de la 18b en `Combobox` d'hébergeurs jugés par
