@@ -273,6 +273,23 @@ Tranchés le 2026-11-01 par l'utilisateur, après les tâches 14, 16a et 17 :
 - **A18 — Place des VLAN** : espace `network` (REQ-021-2, design) ; la maquette E12, qui
   les met sous Référentiel, est corrigée à sa prochaine retouche.
 
+Tranchés le 2026-11-02, après les tâches 11b et 18b :
+
+- **A19 — Plugin Machines en Vue** (utilisateur) : le plugin Machines passe à Vue 3 et
+  `@kartenn/ui`, comme les plugins policy et flow de la 017 ; il y gagne `TreeGrid`
+  (arbre de l'hébergement à parent déclaré, glisser et son alternative au clavier),
+  `DataGrid`, `Select` et `CodeBadge`. Le plugin d'exemple reste sans framework (tâche
+  19) : les deux voies d'écriture d'un plugin restent couvertes (18c).
+- **A20 — Entrée sur un nœud de la Topographie** (utilisateur) : Entrée ouvre la fiche,
+  comme dans les autres grilles ; le « + » se joint par Tab dans la ligne ou par `c`
+  (12a).
+- **A21 — Colonne « Nature »** (utilisateur) : gardée dans la Topographie en priorité 2,
+  bien qu'absente de la maquette E1.
+- **A22 — Hôte d'un autre site** (session principale, d'après la 009, M11) :
+  `machines.host.site_mismatch` reste un avertissement qui ouvre une anomalie ; le
+  client le montre et le déplacement va au brouillon. Les tâches 18b et 24 disaient
+  « refusé par le serveur », contre M11 : elles sont amendées.
+
 ## Questions (closes le 2026-10-23)
 
 - **Q-021-1** — Édition en place : brouillon par défaut, en lot avec un motif ;

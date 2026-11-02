@@ -554,6 +554,22 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
   - reste : `contract::breaches` compare les paramètres par nom et emplacement sans suivre
     les `$ref` : un changement du composant `Kartenn-Background` (le rendre requis) ne
     serait pas vu comme une rupture.
+- [ ] 11d. Lecture d'un objet par identifiant en un seul instantané : la valeur et sa
+  version se lisent dans la même transaction `REPEATABLE READ, READ ONLY` (`kit::snapshot`
+  de la 11c), pour le `GET` d'un objet du noyau (`objects::object` : `read_object` du
+  service sur un `PgStore` du pool, puis `read::version`) et des modules (`vlan.rs`
+  `answer`, `kartenn-machines` `answer`, `kartenn-policy` `show` et sa relecture avant
+  écriture, `kartenn-flow` `show`) ; sans cela, le panneau d'édition (12a) prend un
+  `If-Match` d'une version plus récente que la valeur montrée (relevé par la 11c) —
+  verify : `k-check -p kartenn-rest` et les crates des modules (test par une route, à
+  la forme de `served_across_a_write` de la 11c : la version suit la valeur servie, et
+  le test échoue sur l'ancien code)
+  - où : `crates/kartenn-rest/src/objects.rs` (`object`), `kit.rs` (`version`,
+    `snapshot`, `release`), `read_object` de `crates/kartenn-service/` (lecture sur un
+    exécuteur), `crates/kartenn-rest/src/vlan.rs`, `crates/kartenn-machines/src/rest.rs`,
+    `crates/kartenn-policy/src/rest.rs`, `crates/kartenn-flow/src/rest.rs` ; aide de test
+    `crates/kartenn-rest/tests/it/common/mod.rs` (`served_across_a_write`)
+  - dépend de : 11c
 - [ ] 16d. Jeton tourné jamais perdu (A15, relevé par la revue de la 16c) : les retours
   anticipés de la couche 6 (refus `on_behalf`, `approval` ou `simulate` invalides)
   partent après un rafraîchissement réussi sans aucun cookie : ils réémettent le cookie
@@ -1455,7 +1471,9 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   l'arbre → brouillon, Ctrl+Entrée → 201 ; deux onglets → 412 sans perte)
   - où : `web/v2/shell/src/views/TopologyView.vue`, `views/edit/` (`fields.ts`) ;
     parcours `web/v2/e2e/journeys/edit.spec.ts`
-  - dépend de : 11a, 11b, 11c
+  - dépend de : 11a, 11b, 11c, 11d
+  - amendée le 2026-11-02 (A20) : Entrée sur un nœud ouvre la fiche ; le « + » se joint
+    par Tab dans la ligne ou par `c`
 - [x] 15a. Administration : groupes (membres, liaisons) et rôles ; permissions en nom servi
   et libellé — REQ-021-12, REQ-025-12 — verify : parcours `admin` (groupes, rôles)
   - où : `web/shell/src/admin/{BindingsView,RolesView}.vue`, `admin.ts`, `write.ts`,
@@ -1819,6 +1837,21 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   `machines` et `moves` étendus (glisser au clavier)
   - où : `canMove` et `useMoves` (tâche 24, `web/v2/shell/src/`, SDK) ; plugin de la 18a
   - dépend de : 18a
+
+- [ ] 18c. Plugin Machines en Vue 3 et `@kartenn/ui` (A19) : réécriture de
+  `web/v2/plugins/machines` en Vue, à la forme que prendront les plugins de la 017 ;
+  listes en `DataGrid` (tri et filtres typés), choix en `Select`/`Combobox`, codes en
+  `CodeBadge`, état en `StatusBadge` ; arbre de l'hébergement en `TreeGrid` à parent
+  déclaré (`derived: false`), glisser et alternative au clavier par `canMove` et
+  `draft.move` (18b), sans optimisme ; poids ≤ 50 Ko gzip (REQ-021-30) — verify :
+  parcours `machines` et `moves` (déplacement glissé au clavier vers un cluster, refus
+  par cycle, avertissement `machines.host.site_mismatch`) dans les deux navigateurs ;
+  budget du plugin tenu ; revues `ui-reviewer` et `a11y-auditor`
+  - où : `web/v2/plugins/machines/` (comportement de la 18a et de la 18b, tests à
+    garder) ; montage d'un plugin Vue : la forme décidée pour la 017 (017-2) ou, à
+    défaut, celle qu'en tire cette tâche, notée au design 021 § « API des plugins » ;
+    `TreeGrid` de `web/v2/ui` ; `web/v2/shell/src/views/edit/moves.ts` (forme)
+  - dépend de : 18b
 
 ## P4 — Budgets et clôture
 
