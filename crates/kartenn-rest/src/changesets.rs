@@ -394,6 +394,13 @@ pub(crate) struct Placement {
     /// Its parent after; `null` at the root, or for a parent the caller may not read.
     #[schema(required = true)]
     after: Option<Uuid>,
+    /// The index of the operation that places it, numbered as the `operation` of a
+    /// violation (an operation under `within` has the index of its envelope, a module
+    /// operation its own): the first operation that writes the object; `null` for an
+    /// object no operation writes, placed by effect (a child of a prefix inserted, for
+    /// instance) (spec 021, A26).
+    #[schema(required = true)]
+    operation: Option<usize>,
 }
 
 impl From<&kartenn_service::placements::Placement> for Placement {
@@ -403,6 +410,7 @@ impl From<&kartenn_service::placements::Placement> for Placement {
             kind: p.kind,
             before: p.before,
             after: p.after,
+            operation: p.operation,
         }
     }
 }
