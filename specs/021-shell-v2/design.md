@@ -661,7 +661,10 @@ Manifeste (ajouts) :
   // data.ts — observateurs du SDK, pas de VueQueryPlugin
   useRead(() => reads.object(…) | null): ShallowRef<{ data, error, pending }>;
   useList(() => reads.list(…) | null): { state: ShallowRef<{ items, error, pending,
-    previous, more, fetching, pages }>, next() };
+    previous, more, fetching, pages }>, next(), retry() };
+  useReads(() => [reads.sub(…), …]): ShallowRef<Read[]>;   // un observateur par lecture
+  useLists(() => [reads.list(…), …]): { states: ShallowRef<List[]>, next(), retry() };
+  // next() de useLists : chaque liste qui a une page suivante, ni en lecture ni refusée
   useNotified((changed, live) => store): () => store;  // Names, lus quelques-uns à la fois
   ```
 

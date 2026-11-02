@@ -154,9 +154,10 @@ test("the views of the machines, their links, the tabs and the column of the cor
   await eth0.getByRole("link", { name: "eth0" }).click();
   await expect(page).toHaveURL(/\/x\/machines\/interfaces\/[0-9a-f-]+$/);
   const one = page.locator("machines-interfaces");
-  await expect(one.getByRole("heading", { level: 1, name: "eth0" })).toBeVisible();
+  // In Vue (task 18cc): the focus on its heading, its addresses in a grid.
+  await expect(one.getByRole("heading", { level: 1, name: "eth0" })).toBeFocused();
   await expect(
-    one.getByRole("table", { name: "Adresses rattachées" }).getByRole("link", { name: ADDRESS }),
+    one.getByRole("grid", { name: "Adresses rattachées" }).getByRole("link", { name: ADDRESS }),
   ).toBeVisible();
   await expectAccessible(page);
   await one.getByRole("link", { name: tag, exact: true }).click();
@@ -179,24 +180,20 @@ test("the views of the machines, their links, the tabs and the column of the cor
   await expect(
     search.getByRole("status").filter({ hasText: "Interfaces trouvées : 1." }),
   ).toHaveCount(1);
-  await expect(
-    search.getByRole("table", { name: "Interfaces trouvées" }).getByRole("row", { name: /eth0/ }),
-  ).toContainText(tag);
+  // Its results in a grid (Vue, task 18cc).
+  const found = search.getByRole("grid", { name: "Interfaces trouvées" });
+  await expect(found.getByRole("row", { name: /eth0/ })).toContainText(tag);
   await expect(page).toHaveURL(/[?&]mac=/);
   await expectAccessible(page);
   // A result opened, then back: the search as it was, its criteria in the field.
   const searched = page.url();
-  await search
-    .getByRole("table", { name: "Interfaces trouvées" })
-    .getByRole("link", { name: "eth0" })
-    .click();
+  await found.getByRole("link", { name: "eth0" }).click();
   await expect(page).toHaveURL(/\/x\/machines\/interfaces\/[0-9a-f-]+$/);
+  await expect(one.getByRole("heading", { level: 1, name: "eth0" })).toBeFocused();
   await page.goBack();
   await expect(page).toHaveURL(searched);
   await expect(search.getByRole("textbox", { name: "MAC" })).toHaveValue(mac);
-  await expect(
-    search.getByRole("table", { name: "Interfaces trouvées" }).getByRole("row", { name: /eth0/ }),
-  ).toContainText(tag);
+  await expect(found.getByRole("row", { name: /eth0/ })).toContainText(tag);
 
   // The « Interfaces » tab of the address, of its network and of the VLAN.
   const tab = async (path: string, expected: string[]) => {
