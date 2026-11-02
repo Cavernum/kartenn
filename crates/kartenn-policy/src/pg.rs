@@ -40,6 +40,18 @@ pub(crate) fn store(e: &sqlx::Error) -> StoreError {
     StoreError(e.to_string())
 }
 
+/// The version of the object `id` (the changeset that last wrote it), its row locked to
+/// the end of the transaction, as the core reads it under an `expect` (REQ-004-11).
+pub(crate) async fn version(conn: &mut PgConnection, id: Uuid) -> Result<Option<Uuid>, StoreError> {
+    sqlx::query_scalar(
+        "SELECT changeset_id FROM public.object_version WHERE object_id = $1 FOR UPDATE",
+    )
+    .bind(id)
+    .fetch_optional(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
 /// The identifier of the property `key` declared at `at`.
 pub(crate) async fn property(
     conn: &mut PgConnection,

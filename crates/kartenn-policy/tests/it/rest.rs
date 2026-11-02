@@ -327,6 +327,63 @@ async fn a_read_by_identifier_carries_the_version_of_the_value_served(pool: PgPo
     assert_eq!(after["version"], written, "the write is seen after");
 }
 
+/// The closure of an environment under `If-Match` carries the version compared in
+/// `policy.environment.close` (task 021-11e): a write validated between the comparison and
+/// the changeset answers 412, and the environment stays open.
+#[kartenn_testing::pg_test]
+async fn a_closure_under_if_match_never_passes_over_a_write(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    env.applied(vec![op("environment.create", json!({ "key": "spare" }))])
+        .await;
+    let admin = env.app(
+        env.person(&[
+            "policy.catalogue.read",
+            "policy.settings.edit",
+            "policy.settings.approval.self",
+        ])
+        .await,
+    );
+    let (_, _, page) = call(&admin, Method::GET, "/v1/environments?key=spare", None, &[]).await;
+    let id = page["items"][0]["id"].as_str().unwrap().to_owned();
+    let uri = format!("/v1/environments/{id}");
+    let (_, headers, _) = call(&admin, Method::GET, &uri, None, &[]).await;
+    let etag = headers.etag.unwrap().to_str().unwrap().to_owned();
+    let request = Request::delete(kartenn_testing::applied_by_author("DELETE", &uri))
+        .header(header::AUTHORIZATION, "Bearer t")
+        .header(header::IF_MATCH, &etag)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(json!({ "motive": "m" }).to_string()))
+        .unwrap();
+    let (response, written) =
+        kartenn_testing::across_a_write(&pool, &id, admin.clone().oneshot(request)).await;
+    let response = response.unwrap();
+    let status = response.status();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(
+        status,
+        StatusCode::PRECONDITION_FAILED,
+        "{}",
+        String::from_utf8_lossy(&bytes)
+    );
+    let (status, headers, open) = call(&admin, Method::GET, &uri, None, &[]).await;
+    assert_eq!(status, StatusCode::OK, "the environment stays open");
+    assert_eq!(open["version"], written);
+
+    // Under the version of the write, the closure passes.
+    let etag = headers.etag.unwrap().to_str().unwrap().to_owned();
+    let (status, _, body) = call(
+        &admin,
+        Method::DELETE,
+        &uri,
+        Some(json!({ "motive": "m" })),
+        &[("if-match", &etag)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let (status, _, _) = call(&admin, Method::GET, &uri, None, &[]).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
 #[kartenn_testing::pg_test]
 async fn a_family_is_written_under_its_administration(pool: PgPool) {
     let env = Env::new(&pool).await;

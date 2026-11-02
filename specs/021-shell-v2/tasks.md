@@ -601,7 +601,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     validée entre cette lecture et le changeset n'est pas vue (fenêtre antérieure à la
     11d, que l'instantané ne ferme pas) ; la fermer demande une version attendue dans
     l'opération `policy.environment.close`.
-- [ ] 11e. Fermeture d'un environnement sous `If-Match` sans écriture écrasée :
+- [x] 11e. Fermeture d'un environnement sous `If-Match` sans écriture écrasée :
   `DELETE /v1/environments/{id}` compare l'`If-Match` à la version lue, puis soumet
   `policy.environment.close` par clé sans version attendue ; une écriture validée entre
   les deux passe sans 412 (REQ-004-11, REQ-006-14 ; relevé par la revue de la 11d). La
@@ -615,6 +615,27 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     opérations du noyau (004 design § « Concurrence optimiste ») ;
     `crates/kartenn-testing/src/lib.rs` (`across_a_write`)
   - dépend de : 11d
+  - fait : `policy.environment.close` déclare `expected` (`CloseEnvironment`, version
+    facultative, à la forme du noyau) ; le plan le porte dans ses données et l'écriture
+    du module (`Handler::check_expected`, `pg::version`) relit la version de
+    l'environnement sous verrou de sa ligne `object_version` (`FOR UPDATE`, comme
+    l'`expect` du noyau) : une autre version refuse le changeset par
+    `changeset.operation.conflict`. `close_environment` garde sa comparaison, passe la
+    version dans `expected` et soumet par `kit::submit_matched` (ce conflit → 412).
+    Routes de modules examinées : `kit::modify`/`modify_nullable` et `kit::act`
+    (machines, flux, politique) soumettent un `expect` dans le même changeset,
+    `kit::close` porte `expected` dans la clôture, `PUT` d'une cellule de matrice
+    (`submit_matched`) revérifie la révision sous la clé `policy` (`check_set`) : aucune
+    autre ne compare puis soumet sans garde. Tests :
+    `rest::a_closure_under_if_match_never_passes_over_a_write` (`across_a_write` : 412,
+    l'environnement reste ouvert, puis fermé sous la version écrite ; 200 sans
+    vérification sur l'ancien code) et `axes::acceptance_of_req_010_2` (`expected`
+    périmé → conflit, juste → fermé).
+  - choix : vérification dans l'écriture du module plutôt qu'un `expect` du noyau ajouté
+    au plan, que le pipeline planifie après l'opération du module (ADR 0026, clause 6),
+    donc après que l'objet du plan a été marqué écrit par ce changeset ; la version lue
+    ne compte pas les écritures du même changeset encore en attente de `touch` ;
+    `object_version` lu par le module (`public.`), comme ses autres lectures du noyau.
 - [ ] 16d. Jeton tourné jamais perdu (A15, relevé par la revue de la 16c) : les retours
   anticipés de la couche 6 (refus `on_behalf`, `approval` ou `simulate` invalides)
   partent après un rafraîchissement réussi sans aucun cookie : ils réémettent le cookie

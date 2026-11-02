@@ -560,8 +560,9 @@ pub async fn submit(
 }
 
 /// [`submit`] of an operation that checks by itself the entity tag `If-Match` named (the
-/// matrix of a flow type, 010/S35), carried in one of the members of `fixed`
-/// ([`if_match_tag`]): a violation of `stale` answers 412 instead of 422.
+/// matrix of a flow type, 010/S35, by [`if_match_tag`]; the version of an object named by
+/// its key, task 021-11e, by [`if_match`]), carried in one of the members of `fixed`: a
+/// violation of `stale` answers 412 instead of 422.
 ///
 /// # Errors
 ///

@@ -18,6 +18,7 @@ use axum::http::{HeaderMap, Method, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Extension, Json};
+use kartenn_core::rules::CHANGESET_CONFLICT;
 use kartenn_rest::ModuleRouter;
 use kartenn_rest::kit::{
     self, Api, Dates, DatesParams, ETag, ListQuery, MERGE_PATCH, Moment, Page, PageParams, Problem,
@@ -571,7 +572,9 @@ async fn show(
 }
 
 /// `DELETE /v1/environments/{id}`: `policy.environment.close` of its key, under
-/// `If-Match`.
+/// `If-Match`. The version it names is compared to the one read, then carried by the
+/// operation (`expected`), which checks it again in the changeset: a write validated in
+/// between answers 412 too (task 021-11e).
 async fn close_environment(
     api: &Api,
     principal: &Principal,
@@ -595,13 +598,15 @@ async fn close_environment(
         .ok_or_else(|| Problem::new(ProblemKind::NotFound))?;
     let mut fixed = Map::new();
     fixed.insert("key".into(), key);
-    kit::submit(
+    fixed.insert("expected".into(), expected.to_string().into());
+    kit::submit_matched(
         api,
         principal,
         context,
         headers,
         raw,
         ("policy.environment.close", &[], fixed),
+        &CHANGESET_CONFLICT,
     )
     .await
 }
