@@ -223,8 +223,17 @@ test("the views of the machines, their links, the tabs and the column of the cor
   await page.getByRole("menuitem", { name: "Rattacher à une interface" }).click();
   const dialog = page.getByRole("dialog", { name: "Rattacher à une interface" });
   const attach = dialog.locator("machines-attach");
-  await attach.getByRole("combobox", { name: /^Machine/ }).selectOption({ label: tag });
-  await expect(attach.getByRole("combobox", { name: /^Interface/ })).toHaveValue(/.+/);
+  // Sent without a machine: refused on its field, which takes the focus, nothing sent.
+  const machineField = attach.getByRole("combobox", { name: /^Machine/ });
+  await attach.getByRole("button", { name: "Ajouter au brouillon" }).click();
+  await expect(machineField).toBeFocused();
+  await expect(machineField).toHaveAttribute("aria-invalid", "true");
+  // The machine searched by its name (`Combobox`, its list in the layer of the shell), then
+  // the first of its interfaces taken (`Select`).
+  await machineField.fill(tag);
+  await page.getByRole("option", { name: tag }).click();
+  await expect(machineField).not.toHaveAttribute("aria-invalid", "true");
+  await expect(attach.getByRole("combobox", { name: /^Interface/ })).toContainText("eth0");
   await attach.getByRole("checkbox", { name: "Adresse principale de sa famille" }).check();
   await attach.getByRole("button", { name: "Ajouter au brouillon" }).click();
   await expect(

@@ -4,5 +4,13 @@
     "types": ["node"],
     "allowJs": true
   },
-  "include": ["test", "stylelint", "impact", "catalogue", "notices.ts", "vitest.config.ts"]
+  "include": [
+    "test",
+    "stylelint",
+    "impact",
+    "catalogue",
+    "notices.ts",
+    "plugin-size.ts",
+    "vitest.config.ts"
+  ]
 }

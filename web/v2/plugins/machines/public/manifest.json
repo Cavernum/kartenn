@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "sdk": "^1.0",
   "ui": "^0.1",
+  "framework": "^3.5.0",
   "entry": "index.js",
   "module": "machines",
   "space": "hosts",

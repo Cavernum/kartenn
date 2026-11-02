@@ -646,7 +646,45 @@ Manifeste (ajouts) :
   se déplace pas dans la racine : déplacé, il serait relu, ses règles absentes entre-temps.
 - Hôte d'un plugin de première partie : l'élément personnalisé monte une application du
   framework dans son DOM léger, avec le `QueryClient` du SDK et le contexte ; il la démonte
-  à `disconnectedCallback`.
+  à `disconnectedCallback`. Forme tirée de la 18ca (A23), écrite dans le plugin Machines
+  (`src/host.ts`, `src/data.ts`) sans rien qui le nomme, à déplacer telle quelle dans
+  `@kartenn/ui` avant la 017-2 :
+
+  ```ts
+  // host.ts — un hôte par plugin ; index.ts : host.define({ name, elements: {
+  //   "machines-column": host.element(MachineColumn), … } })
+  const host = pluginHost();
+  host.element(component): CustomElementConstructor; // racine : props { object, row }
+  host.define(definition): PluginHandle;               // definePlugin, handle gardé
+  useHosted(): { element, context /* shallowRef */, queryClient, t };
+  useTexts(); usePresent(); useClose();                // textes du handle, W9, kartenn-close
+  // data.ts — observateurs du SDK, pas de VueQueryPlugin
+  useRead(() => reads.object(…) | null): ShallowRef<{ data, error, pending }>;
+  useList(() => reads.list(…) | null): { state: ShallowRef<{ items, error, pending,
+    previous, more, fetching, pages }>, next() };
+  useNotified((changed, live) => store): () => store;  // Names, lus quelques-uns à la fois
+  ```
+
+  - **Cycle** : montage et démontage une microtâche après `connectedCallback` et
+    `disconnectedCallback`, jamais pendant l'appel (l'élément est connecté pendant le
+    rendu du shell : une application montée là viderait les rappels du shell au milieu de
+    son correctif) ; un élément déplacé dans l'arbre garde son application ; déconnecté,
+    il cesse aussitôt de suivre le contexte. `object` et `row` sont des propriétés
+    réactives (reprises si posées avant la définition).
+  - **Contexte** : `context.subscribe` du SDK dans un `shallowRef` ; les lectures se
+    replacent aux dates du contexte quand elles changent ; `t` relit la langue.
+  - **Identifiants** : `app.config.idPrefix` propre à chaque application (`useId` compte
+    par application ; sans préfixe, deux éléments et le shell se répéteraient).
+  - **Portail** : `providePortalTarget("#k-layers")`, la couche du cadre du shell
+    (`body` sans elle) ; les liens sont des `<a href>`, sans `provideLink` (le composant du
+    routeur n'est pas partagé), suivis par `ExtensionElement`.
+  - **Feuille** : aucune ; mise en page par `Stack` et `Cluster` (A23).
+  - **Erreurs** : `app.config.errorHandler` les écrit dans la console, nommées par
+    l'élément ; seules celles de la création restent confinées par `ExtensionElement`.
+  - **Poids** : `web/v2/tools/plugin-size.ts` construit le plugin en mémoire et pèse son
+    `index.js` (gzip -9, ≤ 50 Ko, modules de l'import map importés, jamais embarqués,
+    aucune feuille émise) ; lu par `test/package.test.ts` du plugin, donc par
+    `k-web2-check`.
 - **Liens d'un plugin** (tâche 18a) : un plugin écrit des `<a href>` ordinaires ; l'hôte
   d'une extension (`ExtensionElement`, tous les points) suit par le routeur du shell, sans
   recharger la page, le clic gauche sans modificateur sur un lien de même origine dont le
@@ -673,7 +711,7 @@ passage complet.
 | Budget | Seuil | Mesure |
 |---|---|---|
 | Shell initial | ≤ 300 Ko gzip | `size.mjs` : entrée, imports statiques, CSS, SDK, framework, `@kartenn/ui` |
-| Plugin | ≤ 50 Ko gzip | `size.mjs` par plugin, modules partagés exclus |
+| Plugin | ≤ 50 Ko gzip | `web/v2/tools/plugin-size.ts` par plugin (son test de paquet, Vitest), modules partagés exclus |
 | Premier écran utile | ≤ 2 s | navigation après le rappel OIDC → marque `k:ready` (existant) |
 | Page de 100 lignes | ≤ 100 ms | `responseEnd` → `k:rows`, p95 de 20 pages (existant) |
 | INP | ≤ 200 ms, p75 | Event Timing (`PerformanceObserver` `event`, `durationThreshold: 16`) sur 20 répétitions de : ouvrir un nœud, filtrer, éditer une cellule, changer d'onglet, ouvrir la palette |

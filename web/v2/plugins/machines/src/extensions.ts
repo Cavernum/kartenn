@@ -2,36 +2,29 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-// What the plugin adds to the screens of the core: the « Interfaces » tab of an address, of
-// a network and of a VLAN; the machine column of the lists of addresses; and the action of
-// an address that attaches it to an interface, as an operation of the draft.
+// What the plugin adds to the screens of the core, without a framework: the « Interfaces »
+// tab of an address, of a network and of a VLAN (task 18cc moves it to Vue). The machine
+// column of the lists of addresses and the action that attaches an address are in Vue
+// (`MachineColumn.vue`, `AttachAction.vue`, task 18ca).
 
-import { queryClient, reads, type Entry } from "@kartenn/sdk";
+import { reads } from "@kartenn/sdk";
 import {
   Area,
-  button,
-  checkbox,
   el,
   empty,
   failure,
   link,
   mono,
-  none,
-  fill,
   PAGES,
   problemOf,
   row,
-  selectField,
   skeleton,
   stack,
   t,
   table,
-  wrapperOf,
 } from "./dom.ts";
 import { MachinesElement, type Followed, type FollowedList } from "./element.ts";
-import { draftForm, type DraftForm } from "./forms.ts";
 import {
-  limited,
   modeOf,
   Names,
   within,
@@ -178,160 +171,5 @@ export class InterfacesTab extends MachinesElement {
         return stack("2", ...nodes);
       },
     );
-  }
-}
-
-/** The machine column of the lists of addresses: the machines that hold the row's. */
-export class MachineColumn extends MachinesElement {
-  row: Record<string, unknown> | null = null;
-  private readonly area = new Area();
-  private readonly names = new Names(
-    () => this.update(),
-    () => this.isConnected,
-  );
-  private found: Interface[] | null = null;
-  private failed = false;
-  private asked = false;
-
-  protected build(): Node[] {
-    return [this.area.node];
-  }
-
-  protected update(): void {
-    const id = this.object?.id ?? (typeof this.row?.["id"] === "string" ? this.row["id"] : null);
-    if (id && !this.asked) {
-      this.asked = true;
-      // Once the cell is in view (the shell creates it then), a few at a time; the row
-      // scrolled out of the list by its turn reads nothing.
-      void limited(
-        () => this.isConnected,
-        () =>
-          queryClient.fetchInfiniteQuery(reads.list("/v1/interfaces", { address: id }) as never),
-      ).then(
-        (data) => {
-          if (data === null) {
-            this.asked = false;
-            return;
-          }
-          const pages = (data as { pages: Entry<{ items: Interface[] }>[] }).pages;
-          this.found = pages.flatMap((page) => page.data.items);
-          this.update();
-        },
-        () => {
-          this.failed = true;
-          this.update();
-        },
-      );
-    }
-    const machines = [...new Set((this.found ?? []).map((i) => i.machine.id))].map((m) => ({
-      id: m,
-      name: this.names.of("machines.machine", m),
-    }));
-    this.area.show(
-      [
-        this.found === null,
-        this.failed,
-        machines.map((m) => [m.id, m.name.state === "read" ? m.name.name : m.name.state]),
-      ],
-      () => {
-        if (this.failed) {
-          const span = el("span", undefined, "k-machines-muted");
-          span.append(el("span", t("column.unreadable")));
-          return span;
-        }
-        if (this.found === null) {
-          return nameNode({ state: "reading" }, "");
-        }
-        if (machines.length === 0) return none();
-        const span = el("span");
-        machines.forEach((m, index) => {
-          if (index > 0) span.append(", ");
-          span.append(nameNode(m.name, m.id, PAGES.machine(m.id)));
-        });
-        return span;
-      },
-    );
-  }
-}
-
-/** The action of an address: attached to an interface of a chosen machine, in the draft. */
-export class AttachAction extends MachinesElement {
-  private machines: FollowedList<Machine> | null = null;
-  private interfaces: FollowedList<Interface> | null = null;
-  private form: DraftForm | null = null;
-  private machine: HTMLSelectElement | null = null;
-  private iface: HTMLSelectElement | null = null;
-
-  protected build(): Node[] {
-    const { texts } = this;
-    const address = this.object?.id ?? "";
-    this.machines = this.followList(() => reads.list("/v1/machines"));
-    const machine = selectField(texts, "action.machine", "machine", { required: true });
-    const iface = selectField(texts, "action.interface", "interface", { required: true });
-    this.machine = machine.control;
-    this.iface = iface.control;
-    const primary = checkbox(texts, "action.primary", "primary");
-    machine.control.addEventListener("change", () => this.chosen());
-    const close = button(texts.text("action.close"), "secondary");
-    close.addEventListener("click", () =>
-      this.dispatchEvent(new Event("kartenn-close", { bubbles: true, composed: true })),
-    );
-    this.form = draftForm(texts, {
-      fields: [machine, iface],
-      extra: [wrapperOf(primary)],
-      submit: "form.submit",
-      permission: "machines.interface.edit",
-      actions: [close],
-      added: () => {},
-      operation: () => ({
-        op: "machines.attach_address",
-        interface: { id: iface.control.value },
-        address: { id: address },
-        primary: primary.checked,
-      }),
-    });
-    return [this.form.form];
-  }
-
-  /** Another machine chosen: its interfaces, followed in the place of the former's. */
-  private chosen(): void {
-    if (this.interfaces) this.drop(this.interfaces);
-    this.interfaces = null;
-    if (this.iface) {
-      this.iface.replaceChildren();
-      delete this.iface.dataset["filled"];
-    }
-    const id = this.machine?.value;
-    if (id) this.interfaces = this.followList(() => reads.list("/v1/interfaces", { machine: id }));
-    this.update();
-  }
-
-  protected update(): void {
-    this.form?.refresh();
-    const select = this.machine;
-    const machines = this.machines?.items;
-    if (select && machines) {
-      const chosen = select.value;
-      const sorted = [...machines].sort((a, b) => a.name.localeCompare(b.name));
-      if (
-        fill(
-          select,
-          sorted.map((m) => [m.id, m.name]),
-        )
-      ) {
-        // Another machine chosen (the first, once listed): its interfaces.
-        if (select.value !== chosen || !this.interfaces) this.chosen();
-        return;
-      }
-    }
-    const iface = this.iface;
-    const interfaces = this.interfaces?.items;
-    if (iface && interfaces) {
-      const sorted = [...interfaces].sort((a, b) => a.name.localeCompare(b.name));
-      fill(
-        iface,
-        sorted.map((i) => [i.id, i.name]),
-      );
-    }
   }
 }
