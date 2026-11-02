@@ -22,6 +22,7 @@ import { within } from "../src/reads.ts";
 // The machines plugin in the sandbox of the SDK (spec 021, task 18a): announced as the shell
 // would, its module loaded, each element mounted with a context and a simulated `fetch`. Its
 // reads go through the shared cache; its forms add operations of the module to the draft.
+// The view of the machines, in Vue since the 18cb: `machines-view.test.ts`.
 
 const MACHINE = "4c9f2a52-0f1e-4f55-9a43-6f1f2d1b7a10";
 const ENTITY = "0b7d1c8e-3a54-4b1c-8f0e-2d6a9c4e5f21";
@@ -52,21 +53,6 @@ const iface = (): Interface => ({
   vlan: { mode: "access", access: { id: VLAN }, tagged: [] },
 });
 
-const card = () => ({
-  ...machine(),
-  interfaces: [
-    {
-      id: IFACE,
-      href: `/v1/interfaces/${IFACE}`,
-      name: "eth0",
-      mac: "00:00:5e:00:53:01",
-      enabled: true,
-      addresses: [{ id: ADDRESS, value: "192.0.2.10", primary: true }],
-    },
-  ],
-});
-
-const entity = { id: ENTITY, slug: "exemple", href: `/v1/entities/${ENTITY}` };
 const vlan = { id: VLAN, vid: 310, name: "hotes", group: { id: ENTITY }, status: "active" };
 const page = <T>(items: T[]) => ({ items, links: {} }) as never;
 
@@ -170,43 +156,6 @@ describe("the machines plugin", () => {
     expect(keys(fr).sort()).toEqual(keys(en).sort());
   });
 
-  it("lists the machines through the shared cache, with their owner, again once invalidated", async () => {
-    let name = "srv-a";
-    let answer: () => void = () => {};
-    const answered = new Promise<void>((resolve) => (answer = resolve));
-    history.replaceState(null, "", "/x/machines/machines");
-    mounted = mount("machines-machines", {
-      context: { locale: "fr", user: user() },
-      fetch: fakeFetch({
-        "GET /v1/machines": async () => {
-          await answered;
-          return page([machine(name)]);
-        },
-        "GET /v1/entities": () => page([entity]),
-        "GET /v1/entities/{id}": () => entity as never,
-      }),
-    });
-    const { element } = mounted;
-    await shadowText(element, "Chargement…");
-    expect(element.shadowRoot!.querySelector(".k-skeleton")).not.toBeNull();
-    answer();
-    await vi.waitFor(() =>
-      // No site, no host: a dash, said « aucun ».
-      expect(rows(element)).toEqual([["srv-a", "physique", "exemple", "—aucun", "—aucun"]]),
-    );
-    const link = element.shadowRoot!.querySelector<HTMLAnchorElement>("tbody a")!;
-    expect(new URL(link.href).pathname).toBe(`/x/machines/machines/${MACHINE}`);
-    expect(element.shadowRoot!.querySelector("h1")?.textContent).toBe("Machines");
-
-    // An event of the stream invalidates the list: the cache reads it again, the element
-    // draws it in the same page.
-    const heading = element.shadowRoot!.querySelector("h1");
-    name = "srv-b";
-    await queryClient.invalidateQueries({ queryKey: ["v1", "/v1/machines"], exact: false });
-    await vi.waitFor(() => expect(rows(element)[0]?.[0]).toBe("srv-b"));
-    expect(element.shadowRoot!.querySelector("h1")).toBe(heading);
-  });
-
   it("says a failed list with its code and Request-Id, an empty one with what to do", async () => {
     mounted = mount("machines-clusters", {
       context: { locale: "en" },
@@ -222,132 +171,6 @@ describe("the machines plugin", () => {
     });
     await shadowText(mounted.element, "No cluster");
     expect(mounted.element.shadowRoot!.querySelector(".k-empty-state")).not.toBeNull();
-  });
-
-  it("creates a machine in the draft, refusing an empty name before sending anything", async () => {
-    const posted: unknown[] = [];
-    history.replaceState(null, "", "/x/machines/machines");
-    mounted = mount("machines-machines", {
-      context: { locale: "en", user: user() },
-      fetch: fakeFetch({
-        "GET /v1/machines": () => page([]),
-        "GET /v1/entities": () => page([entity]),
-        "GET /v1/drafts": () => page([]),
-        "POST /v1/drafts": ({ body }) => {
-          posted.push(body);
-          return created();
-        },
-      }),
-    });
-    const root = mounted.element.shadowRoot!;
-    await shadowText(mounted.element, "No machine");
-    await vi.waitFor(() =>
-      expect(root.querySelector<HTMLSelectElement>("select[name=owner]")?.value).toBe(ENTITY),
-    );
-    const form = root.querySelector("form")!;
-    const name = root.querySelector<HTMLInputElement>("input[name=name]")!;
-    form.requestSubmit();
-    expect(name.getAttribute("aria-invalid")).toBe("true");
-    expect(root.getElementById(name.getAttribute("aria-describedby")!)?.textContent).toBe(
-      "Required field.",
-    );
-    expect(posted).toEqual([]);
-    name.value = "srv-c";
-    root.querySelector<HTMLSelectElement>("select[name=kind]")!.value = "virtual";
-    form.requestSubmit();
-    await shadowText(mounted.element, "Operation added; the draft holds 1.");
-    expect(posted).toMatchObject([
-      {
-        operations: [
-          { op: "machines.create_machine", name: "srv-c", kind: "virtual", owner: { id: ENTITY } },
-        ],
-      },
-    ]);
-    expect(name.hasAttribute("aria-invalid")).toBe(false);
-  });
-
-  it("keeps the form visible but refused without the permission, hidden at another date", async () => {
-    history.replaceState(null, "", "/x/machines/machines");
-    mounted = mount("machines-machines", {
-      context: { locale: "en", user: user(["machines.edit"]) },
-      fetch: fakeFetch({
-        "GET /v1/machines": () => page([]),
-        "GET /v1/entities": () => page([entity]),
-      }),
-    });
-    const root = mounted.element.shadowRoot!;
-    await shadowText(mounted.element, "Needs the permission machines.edit");
-    const submit = root.querySelector<HTMLButtonElement>("button[type=submit]")!;
-    expect(submit.getAttribute("aria-disabled")).toBe("true");
-    expect(root.getElementById(submit.getAttribute("aria-describedby")!)?.textContent).toBe(
-      "Needs the permission machines.edit",
-    );
-    mounted.unmount();
-    queryClient.clear();
-    mounted = mount("machines-machines", {
-      context: { user: user(), time: { validAt: "2026-01-01T00:00:00Z", asOf: null } },
-      fetch: fakeFetch({
-        "GET /v1/machines": () => page([]),
-        "GET /v1/entities": () => page([entity]),
-      }),
-    });
-    await shadowText(mounted.element, "No machine");
-    expect(mounted.element.shadowRoot!.querySelector("section")?.hidden).toBe(true);
-  });
-
-  it("draws the record of a machine: its interfaces, their VLAN and addresses", async () => {
-    history.replaceState(null, "", `/x/machines/machines/${MACHINE}`);
-    const posted: unknown[] = [];
-    mounted = mount("machines-machines", {
-      context: { locale: "fr", user: user() },
-      fetch: fakeFetch({
-        "GET /v1/machines/{id}": () => card() as never,
-        "GET /v1/machines/{id}/hosted": () => page([]),
-        "GET /v1/interfaces": ({ query }) => {
-          expect(query.get("machine")).toBe(MACHINE);
-          return page([iface()]);
-        },
-        "GET /v1/entities/{id}": () => entity as never,
-        "GET /v1/vlans/{id}": () => vlan as never,
-        "GET /v1/drafts": () => page([]),
-        "POST /v1/drafts": ({ body }) => {
-          posted.push(body);
-          return created();
-        },
-      }),
-    });
-    const { element } = mounted;
-    await vi.waitFor(() =>
-      expect(element.shadowRoot!.querySelector("h1")?.textContent).toBe("srv-a"),
-    );
-    await vi.waitFor(() =>
-      expect(rows(element)[0]).toEqual([
-        "eth0",
-        "00:00:5e:00:53:01",
-        "accès 310",
-        "192.0.2.10",
-        "active",
-      ]),
-    );
-    expect(element.shadowRoot!.textContent).toContain("Aucune machine hébergée");
-    const root = element.shadowRoot!;
-    const form = [...root.querySelectorAll("form")].at(-1)!;
-    form.querySelector<HTMLInputElement>("input[name=name]")!.value = "eth1";
-    form.querySelector<HTMLInputElement>("input[name=mac]")!.value = "00:00:5e:00:53:02";
-    form.requestSubmit();
-    await shadowText(element, "Opération ajoutée ; le brouillon en compte 1.");
-    expect(posted).toMatchObject([
-      {
-        operations: [
-          {
-            op: "machines.create_interface",
-            machine: { id: MACHINE },
-            name: "eth1",
-            mac: "00:00:5e:00:53:02",
-          },
-        ],
-      },
-    ]);
   });
 
   it("searches the interfaces by address value, the criteria in the address of the page", async () => {
@@ -684,6 +507,34 @@ describe("the machines plugin", () => {
       expect(closed).toHaveBeenCalledOnce();
     });
 
+    it("action: stops reading the interfaces at a page refused, read again by « Retry » only", async () => {
+      const second: string[] = [];
+      let refused = true;
+      mounted = mount("machines-attach", {
+        object: address,
+        context: { locale: "en", user: user() },
+        fetch: fakeFetch({
+          "GET /v1/machines": () => page([machine()]),
+          "GET /v1/interfaces": ({ query }) => {
+            if (!query.get("cursor")) {
+              return { items: [iface()], links: { next: "/v1/interfaces?cursor=p2" } } as never;
+            }
+            second.push(query.get("cursor")!);
+            return refused ? problem(403, "forbidden") : page([]);
+          },
+        }),
+      });
+      const element = mounted.element;
+      await chooseMachine(element, "srv", "srv-a");
+      await lightText(element, "The interfaces could not be read");
+      await new Promise((done) => setTimeout(done, 50));
+      expect(second).toEqual(["p2"]);
+      refused = false;
+      buttonOf(element, "Retry").click();
+      await vi.waitFor(() => expect(element.textContent).not.toContain("could not be read"));
+      expect(second).toEqual(["p2", "p2"]);
+    });
+
     it("action: refuses empty fields on themselves, nothing sent", async () => {
       const posted: unknown[] = [];
       mounted = mount("machines-attach", {
@@ -760,265 +611,6 @@ describe("the machines plugin", () => {
       setContext({ time: { validAt: "2026-10-01T00:00:00Z", asOf: null } });
       await lightText(element, "The draft takes operations at the present only.");
       expect(element.querySelector("form")).toBeNull();
-    });
-  });
-
-  describe("the host of a machine, moved by `canMove` and `draft.move` (task 18b)", () => {
-    const GUEST = "5d0a3b61-1f2e-4a66-8b54-7a2e3c2d8b21";
-    const OTHER = "5d0a3b61-1f2e-4a66-8b54-7a2e3c2d8b22";
-    const CLUSTER = "5d0a3b61-1f2e-4a66-8b54-7a2e3c2d8b23";
-    const listed = () =>
-      page([
-        machine(),
-        {
-          ...machine("vm-a"),
-          id: GUEST,
-          kind: "virtual",
-          host: { machine: { id: MACHINE } },
-        },
-        { ...machine("srv-b"), id: OTHER },
-      ]);
-    const cluster = {
-      id: CLUSTER,
-      href: `/v1/clusters/${CLUSTER}`,
-      slug: "grappe",
-      owner: { id: ENTITY },
-    };
-    const draftOf = (operations: unknown[], version = 1) =>
-      new Response(
-        JSON.stringify({
-          id: DRAFT,
-          href: `/v1/drafts/${DRAFT}`,
-          title: "t",
-          operation_count: operations.length,
-          version,
-          operations,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json", ETag: `"${version}"` } },
-      );
-    const simulation = (valid: boolean, violations: unknown[]) => ({
-      valid,
-      violations,
-      diff: [],
-      sample: [],
-      cascaded: [],
-      sections: [],
-    });
-    const reads = {
-      "GET /v1/machines/{id}": () => card() as never,
-      "GET /v1/machines/{id}/hosted": () => page([]),
-      "GET /v1/interfaces": () => page([]),
-      "GET /v1/entities/{id}": () => entity as never,
-      "GET /v1/machines": () => listed(),
-      "GET /v1/clusters": () => page([cluster]),
-    };
-    const hostSelect = (element: HTMLElement) =>
-      element.shadowRoot!.querySelector<HTMLSelectElement>("select[name=host]")!;
-    const optionOf = (element: HTMLElement, value: string) =>
-      [...hostSelect(element).options].find((o) => o.value === value)!;
-    const choose = (element: HTMLElement, value: string) => {
-      const select = hostSelect(element);
-      select.value = value;
-      select.dispatchEvent(new Event("change"));
-      select.closest("form")!.requestSubmit();
-    };
-
-    it("offers each host checked by canMove: a cycle and a right refused, with their code", async () => {
-      history.replaceState(null, "", `/x/machines/machines/${MACHINE}`);
-      const posted: unknown[] = [];
-      mounted = mount("machines-machines", {
-        context: { locale: "en", user: user(["machines.cluster.edit"]) },
-        fetch: fakeFetch({
-          ...reads,
-          "POST /v1/drafts": ({ body }) => (posted.push(body), created()),
-        }),
-      });
-      const { element } = mounted;
-      await vi.waitFor(() => expect(optionOf(element, `machine:${OTHER}`)).toBeDefined());
-      // Each refused host reachable and read: its reason and the code in its name.
-      const said = (value: string) => optionOf(element, value).textContent;
-      // Itself and the machine it hosts: a cycle, the rule of the module.
-      expect(said(`machine:${MACHINE}`)).toBe(
-        "srv-a — refused: it hosts it, or is it (machines.host.invalid)",
-      );
-      expect(said(`machine:${GUEST}`)).toBe(
-        "vm-a — refused: it hosts it, or is it (machines.host.invalid)",
-      );
-      // A cluster without its right; none, its host now; another machine, offered.
-      expect(said(`cluster:${CLUSTER}`)).toBe(
-        "grappe — refused: needs the permission machines.cluster.edit",
-      );
-      expect(said("none")).toBe("None (not hosted) — current host");
-      expect(said(`machine:${OTHER}`)).toBe("srv-b");
-      // Grouped by type of host; the placeholder not offered.
-      expect([...hostSelect(element).querySelectorAll("optgroup")].map((g) => g.label)).toEqual([
-        "Clusters",
-        "Machines",
-      ]);
-      expect(optionOf(element, "")).toMatchObject({ disabled: true, hidden: true });
-      // Sent anyway: refused on the field with its code, nothing in the draft.
-      choose(element, `machine:${GUEST}`);
-      const select = hostSelect(element);
-      expect(select.getAttribute("aria-invalid")).toBe("true");
-      const described = select.getAttribute("aria-describedby")!.split(" ");
-      expect(element.shadowRoot!.getElementById(described[0]!)?.textContent).toBe(
-        "refused: it hosts it, or is it (machines.host.invalid)",
-      );
-      // The hint kept beside the error.
-      expect(element.shadowRoot!.getElementById(described[1]!)?.textContent).toContain(
-        "A host refused is said « refused » in the list",
-      );
-      choose(element, "none");
-      expect(
-        element.shadowRoot!.getElementById(select.getAttribute("aria-describedby")!.split(" ")[0]!)
-          ?.textContent,
-      ).toBe("It is its host already: nothing is added.");
-      await new Promise((done) => setTimeout(done, 20));
-      expect(posted).toEqual([]);
-      // happy-dom keeps the focus of a removed shadow root and stalls the next mount's reads.
-      select.blur();
-    });
-
-    it("refuses the button without machines.edit, says why beside it", async () => {
-      history.replaceState(null, "", `/x/machines/machines/${MACHINE}`);
-      const posted: unknown[] = [];
-      mounted = mount("machines-machines", {
-        context: { locale: "en", user: user(["machines.edit"]) },
-        fetch: fakeFetch({
-          ...reads,
-          "POST /v1/drafts": ({ body }) => (posted.push(body), created()),
-        }),
-      });
-      const { element } = mounted;
-      await vi.waitFor(() => expect(optionOf(element, `cluster:${CLUSTER}`)).toBeDefined());
-      const submit = hostSelect(element).closest("form")!.querySelector("button[type=submit]")!;
-      expect(submit.getAttribute("aria-disabled")).toBe("true");
-      expect(
-        element.shadowRoot!.getElementById(submit.getAttribute("aria-describedby")!)?.textContent,
-      ).toBe("Needs the permission machines.edit");
-      choose(element, `machine:${OTHER}`);
-      await new Promise((done) => setTimeout(done, 20));
-      expect(posted).toEqual([]);
-    });
-
-    it("in the draft, « en attente » at its place until simulated; the warnings of the server said", async () => {
-      history.replaceState(null, "", `/x/machines/machines/${MACHINE}`);
-      const posted: unknown[] = [];
-      let release!: () => void;
-      const held = new Promise<void>((done) => (release = done));
-      const warning = {
-        rule: "machines.host.site_mismatch",
-        severity: "warning",
-        detail: "the machine is hosted on another site",
-        subjects: [MACHINE],
-        operation: null,
-        pointer: null,
-      };
-      mounted = mount("machines-machines", {
-        context: { locale: "en", user: user() },
-        fetch: fakeFetch({
-          ...reads,
-          "GET /v1/drafts": () => page([]),
-          "POST /v1/drafts": ({ body }) => {
-            posted.push(body);
-            return draftOf((body as { operations: unknown[] }).operations);
-          },
-          "POST /v1/drafts/{id}/simulation": async () => {
-            await held;
-            return simulation(true, [warning]) as never;
-          },
-        }),
-      });
-      const { element } = mounted;
-      await vi.waitFor(() => expect(optionOf(element, `cluster:${CLUSTER}`)?.disabled).toBe(false));
-      choose(element, `cluster:${CLUSTER}`);
-      await shadowText(element, "Move to grappe waiting for the server");
-      const submit = hostSelect(element).closest("form")!.querySelector("button[type=submit]")!;
-      expect(submit.getAttribute("aria-busy")).toBe("true");
-      // A second intent in flight: ignored, the list back on the host sent, its wait still said.
-      choose(element, `machine:${OTHER}`);
-      expect(hostSelect(element).value).toBe(`cluster:${CLUSTER}`);
-      expect(element.shadowRoot!.querySelector("p[role=status]")?.textContent).toBe(
-        "Move to grappe waiting for the server; the host shown stays until it answers.",
-      );
-      // Never optimistic: the host read stays (none).
-      const host = [...element.shadowRoot!.querySelectorAll("dt")].find(
-        (dt) => dt.textContent === "Hosted by",
-      )!;
-      expect(host.nextElementSibling?.textContent).toBe("—none");
-      release();
-      await shadowText(element, "Move to grappe in the draft, held by its simulation");
-      expect(element.shadowRoot!.querySelector("[data-tone=warn]")?.textContent).toContain(
-        "machines.host.site_mismatch",
-      );
-      expect(posted).toEqual([
-        {
-          title: expect.any(String),
-          operations: [
-            {
-              op: "machines.update_machine",
-              id: { id: MACHINE },
-              host: { cluster: { id: CLUSTER } },
-            },
-          ],
-        },
-      ]);
-      expect(host.nextElementSibling?.textContent).toBe("—none");
-      expect(submit.hasAttribute("aria-busy")).toBe(false);
-    });
-
-    it("refused by the simulation: its rule said, the operation replaced by the next move", async () => {
-      history.replaceState(null, "", `/x/machines/machines/${MACHINE}`);
-      sessionStorage.setItem("kartenn.draft.active", DRAFT);
-      const earlier = {
-        op: "machines.update_machine",
-        id: { id: MACHINE },
-        host: { cluster: { id: CLUSTER } },
-      };
-      let operations: unknown[] = [earlier];
-      const patched: unknown[] = [];
-      const invalid = {
-        rule: "machines.host.invalid",
-        severity: "error",
-        detail: "une machine physical ne peut pas être hébergée par une machine physical",
-        subjects: [MACHINE],
-        operation: 0,
-        pointer: "/operations/0",
-      };
-      mounted = mount("machines-machines", {
-        context: { locale: "en", user: user() },
-        fetch: fakeFetch({
-          ...reads,
-          "GET /v1/drafts/{id}": () => draftOf(operations),
-          "PATCH /v1/drafts/{id}": ({ body }) => {
-            patched.push(body);
-            operations = (body as { operations: unknown[] }).operations;
-            return draftOf(operations, 2);
-          },
-          "POST /v1/drafts/{id}/simulation": () => simulation(false, [invalid]) as never,
-        }),
-      });
-      const { element } = mounted;
-      await vi.waitFor(() => expect(optionOf(element, `machine:${OTHER}`)?.disabled).toBe(false));
-      choose(element, `machine:${OTHER}`);
-      await shadowText(element, "Move to srv-b refused by the server");
-      const alert = element.shadowRoot!.querySelector("[role=alert]")!;
-      expect(alert.textContent).toContain("machines.host.invalid");
-      expect(element.shadowRoot!.textContent).toContain(
-        "The operation stays in the draft; another host chosen replaces it.",
-      );
-      // The earlier move of the machine replaced in place, never a second one.
-      expect(patched).toEqual([
-        {
-          operations: [
-            {
-              op: "machines.update_machine",
-              id: { id: MACHINE },
-              host: { machine: { id: OTHER } },
-            },
-          ],
-        },
-      ]);
     });
   });
 

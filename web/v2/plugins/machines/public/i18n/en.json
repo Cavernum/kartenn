@@ -1,6 +1,7 @@
 {
   "nav": { "machines": "Machines", "clusters": "Clusters", "interfaces": "Interfaces" },
   "loading": "Loading…",
+  "retry": "Retry",
   "error": "Error:",
   "warning": "Warning:",
   "code": "Code",
@@ -27,7 +28,7 @@
   },
   "machines": {
     "title": "Machines",
-    "intro": "Inventory of the readable machines: kind, owner, site and hosting.",
+    "intro": "Inventory of the readable machines, by name: kind, owner, site and hosting.",
     "record": "Machine",
     "name": "Name",
     "kind": "Kind",
@@ -40,9 +41,19 @@
     "failedOne": "The machine could not be read",
     "none": "No machine",
     "noneText": "Add one to the draft with the form below.",
+    "noneFiltered": "No machine matches these filters",
+    "noneFilteredText": "Change or remove a filter to see more machines.",
+    "first": "Only the first {n} machines are listed: a filter narrows the list.",
     "noneHosted": "No hosted machine",
     "noneHostedText": "A machine hosted by this one is declared from its own record.",
     "create": "Create a machine"
+  },
+  "filter": {
+    "label": "Filters of the machines",
+    "namePrefix": "Start of the name",
+    "cluster": "Cluster (member or hosted)",
+    "once": "One value only for each filter: {names}. The list is not read until one is removed.",
+    "clear": "Remove the filters"
   },
   "interfaces": {
     "title": "Interfaces",
@@ -128,14 +139,14 @@
   "move": {
     "title": "Hosting",
     "host": "New host",
-    "hint": "A host refused is said « refused » in the list, with its reason and the code of the rule; it is not sent.",
+    "hint": "A host refused is said « refused » in the suggestions, with its reason and the code of the rule; it is not sent.",
     "reading": "Reading the hosts…",
     "unreadable": "Reading the hosts impossible",
     "already": "It is its host already: nothing is added.",
-    "choose": "Choose a host",
+    "pick": "Choose a host among the suggestions.",
     "none": "None (not hosted)",
-    "clusters": "Clusters",
-    "machines": "Machines",
+    "cluster": "cluster",
+    "machine": "machine",
     "current": "current host",
     "cycle": "refused: it hosts it, or is it",
     "incompatible": "refused: not a host it admits",

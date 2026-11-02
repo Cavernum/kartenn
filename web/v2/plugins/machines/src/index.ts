@@ -7,25 +7,27 @@
 // clusters and interfaces; on the screens of the core, the « Interfaces » tab of an address,
 // a network and a VLAN, the machine column of the addresses, and the action that attaches an
 // address to an interface. Being moved to Vue 3 and @kartenn/ui, shared with the shell
-// (A19, A23), element by element: the column and the action are applications of `vue`
-// mounted in their light DOM by the thin host (`host.ts`, task 18ca); the views and the tab
-// are still Custom Elements without a framework, in their shadow roots (`element.ts`). Reads
-// go through the shared cache; writes are operations added to the draft of the shell
-// (`draft.add`), offered at the present only (W9).
+// (A19, A23), element by element: the column, the action (task 18ca) and the view of the
+// machines (task 18cb) are applications of `vue` mounted in their light DOM by the thin host
+// (`host.ts`); the views of the clusters and of the interfaces, and the tab, are still
+// Custom Elements without a framework, in their shadow roots (`element.ts`). Reads go
+// through the shared cache; writes are operations added to the draft of the shell
+// (`draft.add`, `draft.move`), offered at the present only (W9).
 
 import AttachAction from "./AttachAction.vue";
 import { defined } from "./dom.ts";
 import { InterfacesTab } from "./extensions.ts";
 import { pluginHost } from "./host.ts";
 import MachineColumn from "./MachineColumn.vue";
-import { ClustersView, InterfacesView, MachinesView } from "./views.ts";
+import MachinesView from "./MachinesView.vue";
+import { ClustersView, InterfacesView } from "./views.ts";
 
 const host = pluginHost();
 
 defined.handle = host.define({
   name: "machines",
   elements: {
-    "machines-machines": MachinesView,
+    "machines-machines": host.element(MachinesView),
     "machines-clusters": ClustersView,
     "machines-interfaces": InterfacesView,
     "machines-tab": InterfacesTab,

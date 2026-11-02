@@ -533,26 +533,31 @@ test.describe("the host of a machine", () => {
     await page.goto(`/x/machines/machines/${host}`);
     const record = page.locator("machines-machines");
     const form = record.getByRole("region", { name: "Hébergement" });
-    const select = form.getByRole("combobox", { name: /^Nouvel hébergeur/ });
+    const field = form.getByRole("combobox", { name: /^Nouvel hébergeur/ });
     // Each refused host said in its name, with its reason and the code of the server rule.
+    const option = (name: string) => page.getByRole("option").filter({ hasText: name });
     const refused = (name: string) =>
-      select.locator("option", { hasText: `${name} — refusé : elle l'héberge, ou c'est elle` });
-    await expect(refused(`${tag}-host`)).toContainText("(machines.host.invalid)");
-    await expect(refused(`${tag}-guest`)).toContainText("(machines.host.invalid)");
-    await expect(select.locator("option", { hasText: "hébergeur actuel" })).toHaveCount(1);
-    await expect(select.locator("option", { hasText: `${tag}-away` })).toHaveText(`${tag}-away`);
+      option(`${name} — refusé : elle l'héberge, ou c'est elle (machines.host.invalid)`);
+    await field.fill(tag);
+    await expect(refused(`${tag}-host`)).toHaveCount(1);
+    await expect(refused(`${tag}-guest`)).toHaveCount(1);
+    await expect(option(`${tag}-away`)).not.toContainText("refusé");
     await expectAccessible(page);
-    // Sent at the keyboard all the same: refused on the field, nothing in the draft.
+    await field.fill("Aucun");
+    await expect(option("Aucun (non hébergée) — hébergeur actuel")).toHaveCount(1);
+    // Taken and sent at the keyboard all the same: refused on the field, nothing in the draft.
     const writes: string[] = [];
     page.on("request", (request) => {
       if (request.method() !== "GET" && request.url().includes("/v1/")) writes.push(request.url());
     });
-    const guest = await refused(`${tag}-guest`).getAttribute("value");
-    await select.selectOption(guest!);
-    await select.press("Tab");
+    await field.fill(`${tag}-guest`);
+    await expect(refused(`${tag}-guest`)).toHaveCount(1);
+    await field.press("ArrowDown");
+    await field.press("Enter");
+    await field.press("Tab");
     await page.keyboard.press("Enter");
-    await expect(select).toHaveAttribute("aria-invalid", "true");
-    await expect(select).toBeFocused();
+    await expect(field).toHaveAttribute("aria-invalid", "true");
+    await expect(field).toBeFocused();
     await expect(form).toContainText(
       "refusé : elle l'héberge, ou c'est elle (machines.host.invalid)",
     );
@@ -579,8 +584,11 @@ test.describe("the host of a machine", () => {
     const hostedBy = record.locator("dt:has-text('Hébergée par') + dd");
     await expect(hostedBy).toHaveText("—aucun");
     const form = record.getByRole("region", { name: "Hébergement" });
-    const select = form.getByRole("combobox", { name: /^Nouvel hébergeur/ });
-    await expect(select.locator(`option[value="machine:${host}"]`)).toBeEnabled();
+    const field = form.getByRole("combobox", { name: /^Nouvel hébergeur/ });
+    await field.fill(`${tag}-host`);
+    const offered = page.getByRole("option").filter({ hasText: `${tag}-host` });
+    await expect(offered).toHaveCount(1);
+    await expect(offered).not.toContainText("refusé");
 
     // Its simulation held: the move waits at its place, the host read unchanged.
     let release!: () => void;
@@ -590,9 +598,11 @@ test.describe("the host of a machine", () => {
       await held;
       await route.continue();
     });
-    // At the keyboard: the host chosen in the list, then the button after it.
-    await select.selectOption(`machine:${host}`);
-    await select.press("Tab");
+    // At the keyboard: the host taken among the suggestions, then the button after it.
+    await field.press("ArrowDown");
+    await field.press("Enter");
+    await expect(field).toHaveValue(`${tag}-host`);
+    await field.press("Tab");
     const submit = form.getByRole("button", { name: "Déplacer au brouillon" });
     await expect(submit).toBeFocused();
     const sent = page.waitForRequest((r) => simulation(new URL(r.url())));
