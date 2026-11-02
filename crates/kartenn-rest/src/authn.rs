@@ -388,7 +388,7 @@ fn principal_of(session: &Session) -> Principal {
     }
 }
 
-impl<I: Identities, J: AuditJournal, S: KeySource> Authn<I, J, S> {
+impl<I: Identities, J: AuditJournal, S: KeySource + 'static> Authn<I, J, S> {
     /// The events of the failures aggregated in windows over at `at`, or of every window
     /// if `all`, to record.
     pub fn tick(&self, at: Instant, all: bool) -> Vec<AuditEvent> {
@@ -711,7 +711,7 @@ impl<I, J, S> Authenticator for Authn<I, J, S>
 where
     I: Identities,
     J: AuditJournal,
-    S: KeySource,
+    S: KeySource + 'static,
 {
     fn authenticate(&self, proof: Proof, source: Source) -> Answer<'_, Authenticated> {
         Box::pin(self.run(proof, source))

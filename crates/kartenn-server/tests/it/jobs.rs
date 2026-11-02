@@ -12,12 +12,13 @@ use sqlx::PgPool;
 use sqlx::types::Uuid;
 
 /// The periodic tasks of the migrations.
-const SEEDED: [&str; 5] = [
+const SEEDED: [&str; 6] = [
     "expire-pending",
     "reevaluate-expected",
     "public-drift",
     "idempotency-purge",
     "draft-retention",
+    "refresh-exchange-purge",
 ];
 
 /// Counts the runs by task, each taking a little time.
@@ -123,6 +124,34 @@ async fn the_tasks_of_kartenn_run(pool: PgPool) {
             .unwrap_or_else(|e| panic!("{name}: {e:#}"));
     }
     assert!(tasks.run("unknown").await.is_err());
+}
+
+/// 021/A25: the task `refresh-exchange-purge` deletes the refresh exchanges past their
+/// end, and only them.
+#[kartenn_testing::pg_test]
+async fn the_purge_task_deletes_the_exchanges_past_their_end(pool: PgPool) {
+    sqlx::query(
+        "INSERT INTO refresh_exchange (key, holder, sealed, ends_at) VALUES
+            ($1, NULL, 'kept', clock_timestamp() + interval '30 seconds'),
+            ($2, NULL, 'past', clock_timestamp() - interval '1 second'),
+            ($3, gen_random_uuid(), NULL, clock_timestamp() - interval '1 second')",
+    )
+    .bind(vec![1u8; 32])
+    .bind(vec![2u8; 32])
+    .bind(vec![3u8; 32])
+    .execute(&pool)
+    .await
+    .unwrap();
+    let tasks = Tasks {
+        store: kartenn_store_pg::write::PgStore::new(pool.clone()),
+        sources: kartenn_service::expected::Sources::none(),
+    };
+    tasks.run("refresh-exchange-purge").await.unwrap();
+    let left: Vec<Option<String>> = sqlx::query_scalar("SELECT sealed FROM refresh_exchange")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+    assert_eq!(left, [Some("kept".to_owned())]);
 }
 
 /// A person granted everything everywhere.

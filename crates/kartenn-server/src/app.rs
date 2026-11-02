@@ -616,11 +616,13 @@ type ServerAuthn = kartenn_rest::authn::Authn<
 
 /// The authentication of `auth` (spec 005): failures limited to 20 per minute and
 /// source (REQ-005-13), aggregated beyond 10 per minute (REQ-012-19), the state of the
-/// identities kept 5 s (K10).
+/// identities kept 5 s (K10); the exchanges of refresh tokens shared by the instances,
+/// their results kept the longest of 30 s and `longest_request` (021/A24, A25).
 fn authn(
     auth: &crate::auth::Loaded,
     pool: &PgPool,
     journal: &PgAuditJournal,
+    longest_request: Duration,
 ) -> anyhow::Result<ServerAuthn> {
     let client = kartenn_auth::http::HttpClient::new().context("loading the roots of trust")?;
     Ok(kartenn_rest::authn::Authn {
@@ -636,6 +638,10 @@ fn authn(
             auth.ring.clone(),
             // Required with issuers (configuration); without, no login starts.
             auth.redirect_uri.clone().unwrap_or_default(),
+        )
+        .shared(
+            Arc::new(kartenn_store_pg::refresh_exchanges::PgRefreshExchanges::new(pool.clone())),
+            longest_request,
         ),
         states: kartenn_service::authn::StateCache::new(Duration::from_secs(5)),
         limiter: kartenn_auth::secrets::FailureLimiter::new(20, Duration::from_mins(1)),
@@ -719,7 +725,15 @@ impl Api {
     ) -> anyhow::Result<Self> {
         let (web, plugins, watcher) = serve_web(web, &modules)?;
         let authn = auth
-            .map(|auth| authn(auth, pool, journal).map(Arc::new))
+            .map(|auth| {
+                authn(
+                    auth,
+                    pool,
+                    journal,
+                    Duration::from_millis(http.request_timeout_ms),
+                )
+                .map(Arc::new)
+            })
             .transpose()?;
         let authenticator: Arc<dyn kartenn_rest::authn::Authenticator> = match &authn {
             Some(authn) => authn.clone(),

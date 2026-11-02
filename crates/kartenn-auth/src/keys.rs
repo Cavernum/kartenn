@@ -24,6 +24,8 @@ pub enum Purpose {
     Cursor,
     /// The cursors of the event stream (spec 022, REQ-022-6), encrypted.
     EventCursor,
+    /// The results of refresh-token exchanges kept by the instances (spec 021, A25).
+    RefreshExchange,
 }
 
 impl Purpose {
@@ -35,6 +37,7 @@ impl Purpose {
             Self::Totp => b"kartenn/totp/v1",
             Self::Cursor => b"kartenn/cursor/v1",
             Self::EventCursor => b"kartenn/event-cursor/v1",
+            Self::RefreshExchange => b"kartenn/refresh-exchange/v1",
         }
     }
 }

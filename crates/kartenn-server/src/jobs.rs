@@ -79,6 +79,13 @@ impl Runner for Tasks {
                     .map_err(|e| anyhow::anyhow!(e.0))?;
                 tracing::info!(name: "job.idempotency_purge", purged, "expired idempotency keys purged");
             }
+            "refresh-exchange-purge" => {
+                // Spec 021, A25: the exchanges of refresh tokens past their window.
+                let purged = kartenn_store_pg::refresh_exchanges::purge(self.store.pool())
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e.0))?;
+                tracing::info!(name: "job.refresh_exchange_purge", purged, "past refresh exchanges purged");
+            }
             "draft-retention" => {
                 // Spec 024, REQ-024-7: the drafts inactive for 90 days.
                 let deleted =

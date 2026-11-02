@@ -233,7 +233,22 @@ livrés ([025](../025-droits-par-groupes/design.md)).*
   requêtes concurrentes qui présentent le même jeton pendant l'échange en partagent le
   résultat : l'émetteur ne le voit qu'une fois (RFC 9700 § 4.14.2), par instance ; une
   requête refusée par la couche 6 après l'échange réémet le cookie (*amendé par la 021*,
-  16d).
+  16d). Entre instances (D9 ; *amendé par la 021*, A24, A25, 16f) : sous
+  `pg_advisory_xact_lock` sur l'empreinte du jeton présenté (SHA-256 de émetteur × sujet
+  × jeton, chacun préfixé de sa longueur), une transaction courte lit le résultat gardé
+  ou réclame l'échange sous un bail de 40 s (table `refresh_exchange`) ; l'appel à
+  l'émetteur (30 s au plus) se fait hors transaction, sans connexion tenue, dans une
+  tâche détachée de la requête (une requête partie n'interrompt pas l'échange, qui garde
+  son résultat), et les autres requêtes, de cette instance ou d'une autre, redemandent
+  toutes les 100 ms, au plus le bail et un quart. Le résultat (jetons, groupes, prochaine
+  échéance) est gardé 30 s (ou le délai maximal d'une requête, s'il est plus long),
+  scellé en AES-256-GCM par une clé dérivée du trousseau (`kartenn/refresh-exchange/v1`),
+  les données associées liant l'empreinte : une requête partie avec l'ancien cookie dans
+  ce délai reçoit le même cookie neuf ; au-delà, elle présente de nouveau l'ancien jeton.
+  Un échec n'est pas gardé (la réclamation est rendue) ; la tâche
+  `refresh-exchange-purge` (chaque minute) supprime les lignes échues, lues comme
+  absentes d'ici là. La carte en mémoire reste un cache devant la base : une requête par
+  instance et par jeton interroge la base.
 - **Jetons Bearer** : validation RFC 9068 par `jsonwebtoken`, clés JWKS en cache par
   émetteur, rechargement sur `kid` inconnu au plus une fois par minute ; identité
   juste-à-temps comme à la connexion. Une clé retirée par l'émetteur reste acceptée

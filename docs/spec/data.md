@@ -252,6 +252,14 @@ l'audit garde les anciens noms.
   échecs ; `rbac_migration_report` (report des liaisons d'avant les groupes par la 0068 :
   groupes créés, liaisons d'émetteur entier retirées ; lu une fois par le job de
   migration, `reported_at`).
+- **Échanges de jetons de rafraîchissement** (`refresh_exchange`, migration 0074 ; 021,
+  A24, A25) : clé = empreinte SHA-256 (32 octets) de émetteur × sujet × jeton présenté,
+  jamais le jeton ; soit l'instance qui l'échange (`holder`, bail), soit le résultat
+  scellé sous le trousseau (`sealed`, AES-256-GCM, but `refresh-exchange`, données
+  associées liées à l'empreinte), jamais les deux ; `ends_at`, fin du bail ou de la
+  fenêtre (30 s ou le délai maximal d'une requête). Un échec n'y reste pas ; les lignes
+  échues sont lues comme absentes, puis supprimées par la tâche
+  `refresh-exchange-purge` (1 min).
 - **Fonction `kartenn_member_of`** (0066) : groupes kartenn d'une identité, de son
   émetteur et des groupes de son jeton à une date ; lue par les visibilités, les droits
   effectifs et les libellés.
