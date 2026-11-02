@@ -683,7 +683,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     avant la route de la première requête, et une requête partie avec l'ancien cookie
     pendant toute la durée de cette route présente encore `r1`. Ce cas et le partage entre
     instances (D9) vont à la 16f (A24, A25)
-- [ ] 16f. Échange du jeton de rafraîchissement partagé entre instances, avec fenêtre de
+- [x] 16f. Échange du jeton de rafraîchissement partagé entre instances, avec fenêtre de
   grâce (A24, A25) : un verrou en base (`pg_advisory_xact_lock` sur une empreinte du
   jeton présenté) sérialise l'échange entre instances (D9) ; le résultat (nouveaux jetons,
   groupes) est gardé chiffré 30 s après l'échange (ou le délai maximal d'une requête, s'il
@@ -702,6 +702,45 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     (`concurrent_refreshes_present_the_token_once`) ; 005 design § « Rafraîchissement
     des groupes »
   - dépend de : 16d
+  - fait le 2026-11-02 : port `RefreshExchanges` et `Claim` (`kartenn-service/src/authn.rs`),
+    adaptateur `PgRefreshExchanges` et `purge` (`kartenn-store-pg/src/refresh_exchanges.rs`),
+    migration 0074 (`refresh_exchange` : `key` empreinte de 32 octets, `holder` ou
+    `sealed`, jamais les deux, `ends_at` ; tâche `refresh-exchange-purge`, 1 min) ;
+    `Oidc::shared` et `exchange_once` (`kartenn-auth/src/oidc.rs`) : la carte de la 16d
+    reste un cache devant la base (une requête par instance et par jeton l'interroge) ;
+    sous `pg_advisory_xact_lock` sur l'empreinte, une transaction courte lit le résultat
+    gardé ou réclame l'échange sous un bail de 40 s, puis se termine : l'émetteur est
+    appelé hors transaction (30 s au plus), sans connexion tenue, et les autres instances
+    redemandent toutes les 100 ms, sans connexion tenue entre deux questions ; le
+    résultat est gardé la plus longue de 30 s et du délai maximal d'une requête
+    (`authn` du serveur, `request_timeout_ms`) ; un échec rend la réclamation ; tâche
+    `refresh-exchange-purge` (`kartenn-server/src/jobs.rs`) ; tests
+    `two_instances_present_the_token_once` et
+    `a_late_request_within_the_window_gets_the_same_tokens` (`sessions.rs`, deux `Oidc`
+    sur la même base et le même trousseau, cartes distinctes) ; le test de la 16d sur le
+    cookie resté sur `r1` le présente après la fenêtre ; 005 design § « Rafraîchissement
+    des groupes », `docs/spec/data.md`, `docs/spec/interfaces.md`.
+  - choix : chiffrement par une clé dérivée du trousseau des cookies (HKDF, but
+    `kartenn/refresh-exchange/v1`, nouvelle variante `Purpose::RefreshExchange`) et, en
+    plus, données associées liant le nom `refresh-exchange/<empreinte>` (le `seal` des
+    cookies) : un résultat ne s'ouvre ni comme cookie ni sous une autre ligne ; empreinte
+    SHA-256 étiquetée, chaque partie préfixée de sa longueur, plutôt qu'un HMAC sous le
+    trousseau (un jeton de rafraîchissement a l'entropie d'un secret, et l'empreinte ne
+    change pas pendant une rotation du trousseau) ; le verrou sérialise la lecture et la
+    réclamation, la réclamation (bail en base) sérialise l'échange : aucune connexion
+    pendant l'appel à l'émetteur, au prix d'un bail (40 s, au-delà des 30 s laissées à
+    l'émetteur) qui fait attendre les autres instances si le porteur s'arrête ; sa propre
+    réclamation encore en cours (requête abandonnée) se reprend aussitôt ; une ligne
+    échue se lit comme absente (un émetteur qui ne tourne pas le jeton le reprend au
+    rafraîchissement suivant) ; un résultat qui ne se garde pas ou une réclamation qui ne
+    se rend pas (base indisponible) est laissé à son bail, sans journal (`kartenn-auth`
+    n'a pas `tracing`) ; base indisponible à la réclamation → 503, la session reste ; le
+    port est un trait objet (`BoxFuture`) installé par `Oidc::shared`, pour ne pas
+    ajouter de paramètre de type à `Oidc` ni à `Authn` ; sans lui (tests de
+    `kartenn-auth`, banc), le partage reste par instance.
+  - reste : une requête abandonnée pendant l'échange chez l'émetteur peut encore perdre
+    le jeton tourné (l'échange n'est pas détaché de la requête, 16d (3)) ; l'échec de
+    garde ou de rendu n'est pas journalisé.
 - [ ] 16e. Comparaison du contrat à travers les `$ref` : `contract::breaches` résout les
   références locales vers `components.parameters` avant de comparer (aujourd'hui une
   `$ref` reçoit la clé `("", "")` : rendre `Kartenn-Background` requis passerait
