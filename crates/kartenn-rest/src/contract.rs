@@ -65,7 +65,11 @@ impl Way {
 /// The breaches of `produced` against `reference`, both OpenAPI documents as JSON.
 #[must_use]
 pub fn breaches(reference: &Value, produced: &Value) -> Vec<Breach> {
-    let mut found = Breaches(Vec::new());
+    let mut found = Breaches {
+        found: Vec::new(),
+        reference,
+        produced,
+    };
     let members = |v: &Value, k: &str| v.get(k).and_then(Value::as_object).cloned();
     let paths = members(reference, "paths").unwrap_or_default();
     let now = members(produced, "paths").unwrap_or_default();
@@ -86,24 +90,83 @@ pub fn breaches(reference: &Value, produced: &Value) -> Vec<Breach> {
             }
         }
     }
-    let schemas = |v: &Value| {
-        v.pointer("/components/schemas")
+    let components = |v: &Value, section: &str| {
+        v.pointer(&format!("/components/{section}"))
             .and_then(Value::as_object)
             .cloned()
             .unwrap_or_default()
     };
-    let (reference, produced) = (schemas(reference), schemas(produced));
-    for (name, schema) in &reference {
+    let now = components(produced, "parameters");
+    for (name, parameter) in &components(reference, "parameters") {
+        let at = format!("components.parameters.{name}");
+        match (resolve(reference, parameter), now.get(name)) {
+            (_, None) => found.add(&at, "parameter removed"),
+            (None, Some(_)) => {}
+            (Some(was), Some(now)) => match resolve(produced, now) {
+                None => found.add(&at, "reference not resolved"),
+                Some(is) => found.parameter(&at, was, is),
+            },
+        }
+    }
+    let now = components(produced, "schemas");
+    for (name, schema) in &components(reference, "schemas") {
         let at = format!("components.schemas.{name}");
-        match produced.get(name) {
+        match now.get(name) {
             None => found.add(&at, "schema removed"),
             Some(now) => found.schema(&at, schema, now, Way::Both),
         }
     }
-    found.0
+    found.found
 }
 
-struct Breaches(Vec<Breach>);
+/// The breaches found, and the two documents their local references are resolved in.
+struct Breaches<'a> {
+    found: Vec<Breach>,
+    reference: &'a Value,
+    produced: &'a Value,
+}
+
+/// How many local references [`resolve`] follows before it gives up on a loop.
+const HOPS: usize = 8;
+
+/// What `value` stands for in `document`: the target of its local reference `$ref`
+/// (`#/…`, a JSON pointer, RFC 6901 §6), followed through the references the target holds
+/// in turn, or `value` itself when it is no reference. `None` when the reference is not
+/// local, names nothing or loops.
+fn resolve<'a>(document: &'a Value, value: &'a Value) -> Option<&'a Value> {
+    let mut current = value;
+    for _ in 0..HOPS {
+        let Some(target) = current.get("$ref") else {
+            return Some(current);
+        };
+        current = document.pointer(target.as_str()?.strip_prefix('#')?)?;
+    }
+    None
+}
+
+/// The identity of a parameter of an operation of `document`: its name and its place,
+/// once its reference resolved; the reference itself, at the place `$ref`, when it names
+/// nothing, so that two references never stand for one another.
+fn parameter_key(document: &Value, parameter: &Value) -> (String, String) {
+    let text = |p: &Value, member: &str| {
+        p.get(member)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned()
+    };
+    match resolve(document, parameter) {
+        Some(p) => (text(p, "name"), text(p, "in")),
+        None => (text(parameter, "$ref"), "$ref".to_owned()),
+    }
+}
+
+/// Whether `parameter` is a reference that one of `others` makes too: the component
+/// it names is compared once, under `components.parameters`.
+fn shared_reference(parameter: &Value, others: &[Value]) -> bool {
+    parameter
+        .get("$ref")
+        .is_some_and(|r| others.iter().any(|p| p.get("$ref") == Some(r)))
+}
 
 /// The types a schema allows: `type` as a string or an array.
 fn types(schema: &Value) -> BTreeSet<String> {
@@ -134,27 +197,33 @@ fn required(value: Option<&Value>) -> bool {
     value.and_then(Value::as_bool).unwrap_or(false)
 }
 
-impl Breaches {
+impl Breaches<'_> {
     fn add(&mut self, at: &str, what: impl Into<String>) {
-        self.0.push(Breach {
+        self.found.push(Breach {
             at: at.to_owned(),
             what: what.into(),
         });
     }
 
+    /// Compares two parameters, their references resolved.
+    fn parameter(&mut self, at: &str, reference: &Value, produced: &Value) {
+        for member in ["name", "in"] {
+            if let Some(was) = reference.get(member)
+                && produced.get(member) != Some(was)
+            {
+                self.add(at, format!("{member} changed from {was}"));
+            }
+        }
+        if required(produced.get("required")) && !required(reference.get("required")) {
+            self.add(at, "parameter now required");
+        }
+        if let (Some(was), Some(is)) = (reference.get("schema"), produced.get("schema")) {
+            self.schema(&format!("{at}.schema"), was, is, Way::Request);
+        }
+    }
+
     fn operation(&mut self, at: &str, reference: &Value, produced: &Value) {
-        let key = |p: &Value| {
-            (
-                p.get("name")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_owned(),
-                p.get("in")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_owned(),
-            )
-        };
+        let (then, now) = (self.reference, self.produced);
         let list = |v: &Value| {
             v.get("parameters")
                 .and_then(Value::as_array)
@@ -163,31 +232,30 @@ impl Breaches {
         };
         let (before, after) = (list(reference), list(produced));
         for parameter in &before {
-            let (name, place) = key(parameter);
-            let at = format!("{at}.parameters.{place}.{name}");
-            match after
-                .iter()
-                .find(|p| key(p) == (name.clone(), place.clone()))
-            {
+            if shared_reference(parameter, &after) {
+                continue;
+            }
+            let key = parameter_key(then, parameter);
+            let at = format!("{at}.parameters.{}.{}", key.1, key.0);
+            match after.iter().find(|p| parameter_key(now, p) == key) {
                 None => self.add(&at, "parameter removed"),
-                Some(now) => {
-                    if required(now.get("required")) && !required(parameter.get("required")) {
-                        self.add(&at, "parameter now required");
-                    }
-                    if let (Some(was), Some(is)) = (parameter.get("schema"), now.get("schema")) {
-                        self.schema(&format!("{at}.schema"), was, is, Way::Request);
+                Some(is) => {
+                    if let (Some(was), Some(is)) = (resolve(then, parameter), resolve(now, is)) {
+                        self.parameter(&at, was, is);
                     }
                 }
             }
         }
-        for now in &after {
-            let (name, place) = key(now);
-            let known = before
-                .iter()
-                .any(|p| key(p) == (name.clone(), place.clone()));
-            if !known && required(now.get("required")) {
+        for parameter in &after {
+            if shared_reference(parameter, &before) {
+                continue;
+            }
+            let key = parameter_key(now, parameter);
+            let known = before.iter().any(|p| parameter_key(then, p) == key);
+            let is_required = resolve(now, parameter).is_some_and(|p| required(p.get("required")));
+            if !known && is_required {
                 self.add(
-                    &format!("{at}.parameters.{place}.{name}"),
+                    &format!("{at}.parameters.{}.{}", key.1, key.0),
                     "required parameter added",
                 );
             }
@@ -422,5 +490,77 @@ mod tests {
         changed["properties"]["usage"]["enum"] = json!(["a"]);
         let found = breaches(&document(&thing(), false), &document(&changed, false));
         assert_eq!(found[0].what, "value b removed");
+    }
+
+    /// A document whose operation takes the parameters `refs` by reference, among the
+    /// components `Background` and `Other`; `Background` required or not.
+    fn referring(refs: &[&str], background_required: bool) -> Value {
+        let mut d = document(&thing(), false);
+        d["paths"]["/v1/things"]["get"]["parameters"] = refs
+            .iter()
+            .map(|name| json!({"$ref": format!("#/components/parameters/{name}")}))
+            .collect();
+        d["components"]["parameters"] = json!({
+            "Background": {"name": "Kartenn-Background", "in": "header",
+                           "required": background_required, "schema": {"type": "string"}},
+            "Other": {"name": "Kartenn-Other", "in": "header", "schema": {"type": "string"}},
+        });
+        d
+    }
+
+    #[test]
+    fn a_referred_parameter_is_compared_through_its_reference() {
+        let d = referring(&["Background"], false);
+        assert_eq!(breaches(&d, &d), []);
+        let found = breaches(&d, &referring(&["Background"], true));
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].at, "components.parameters.Background");
+        assert_eq!(found[0].what, "parameter now required");
+    }
+
+    #[test]
+    fn a_component_parameter_changed_or_removed_breaks() {
+        let reference = referring(&["Background"], false);
+        let mut produced = reference.clone();
+        produced["components"]["parameters"]["Background"]["schema"] = json!({"type": "integer"});
+        let found = breaches(&reference, &produced);
+        assert_eq!(found[0].at, "components.parameters.Background.schema");
+        produced["components"]["parameters"]
+            .as_object_mut()
+            .unwrap()
+            .remove("Background");
+        assert_eq!(breaches(&reference, &produced)[0].what, "parameter removed");
+    }
+
+    #[test]
+    fn two_references_are_two_parameters() {
+        let found = breaches(
+            &referring(&["Background"], false),
+            &referring(&["Other"], false),
+        );
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(
+            found[0].at,
+            "paths./v1/things.get.parameters.header.Kartenn-Background"
+        );
+        assert_eq!(found[0].what, "parameter removed");
+        let found = breaches(
+            &referring(&["Other"], false),
+            &referring(&["Other", "Background"], true),
+        );
+        assert_eq!(found[0].what, "required parameter added");
+    }
+
+    #[test]
+    fn a_parameter_written_out_matches_its_reference() {
+        let reference = referring(&["Background"], false);
+        let mut produced = reference.clone();
+        produced["paths"]["/v1/things"]["get"]["parameters"] = json!([
+            {"name": "Kartenn-Background", "in": "header", "required": true,
+             "schema": {"type": "string"}}
+        ]);
+        let found = breaches(&reference, &produced);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].what, "parameter now required");
     }
 }

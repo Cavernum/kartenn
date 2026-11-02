@@ -716,7 +716,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     `crates/kartenn-rest/src/changesets.rs` ; `web/v2/shell/src/views/topology.ts`
     (`targetOf`, `previewOf`), `web/v2/shell/test/topology.test.ts`
   - dépend de : 24a, 24b
-- [ ] 16e. Comparaison du contrat à travers les `$ref` : `contract::breaches` résout les
+- [x] 16e. Comparaison du contrat à travers les `$ref` : `contract::breaches` résout les
   références locales vers `components.parameters` avant de comparer (aujourd'hui une
   `$ref` reçoit la clé `("", "")` : rendre `Kartenn-Background` requis passerait
   inaperçu) ; l'en-tête déclaré aussi sur les opérations `x-query` — verify :
@@ -724,6 +724,23 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
   - où : `crates/kartenn-rest/src/contract.rs` (`breaches`, vers les lignes 145-195),
     `crates/kartenn-rest/src/openapi.rs` (`finish`, vers les lignes 339-385)
   - dépend de : 16c ; avant le gel du contrat
+  - fait : `components.parameters` comparés un à un (disparu, nom ou place changés,
+    rendu requis, schéma) ; un paramètre d'opération identifié par son nom et sa place
+    une fois sa référence résolue (`resolve`, pointeur JSON local, références en chaîne) ;
+    les 26 opérations `x-query` prennent `Kartenn-Background` ; contrat régénéré, types
+    du SDK inchangés (`gen.mjs` ne lit pas les paramètres des `x-query`) ; 4 tests
+    unitaires dans `contract.rs`.
+  - choix : une même `$ref` des deux côtés n'est pas comparée sur l'opération, son
+    composant l'est une fois sous `components.parameters` (une rupture, pas une par
+    opération) ; une référence qui ne se résout pas garde la référence pour identité
+    (place `$ref`), si bien que deux références ne se confondent jamais ; un composant
+    présent mais dont la référence ne se résout plus : « reference not resolved » ;
+    un `x-query` d'un chemin public prendrait `security: []` comme les autres opérations.
+  - reste : les schémas restent comparés par nom (`$ref` égales, puis
+    `components.schemas` un à un, dans les deux sens) : sûr mais plus strict que
+    nécessaire pour un schéma qui ne voyage que dans un sens ; aucune autre section de
+    `components` (réponses, corps) n'est utilisée par le contrat aujourd'hui, et
+    `breaches` ne les lit pas.
 - [x] 14a. `PATCH /v1/drafts/{id}` en `application/merge-patch+json` seulement (A17,
   REQ-006-13), 415 pour `application/json` ; client du SDK en `merge: true` ; contrat
   régénéré — verify : `k-check -p kartenn-rest` (drafts : 415 en `application/json`,
