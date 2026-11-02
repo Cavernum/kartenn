@@ -1608,20 +1608,39 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     adresse n'a pas de détail dans l'arbre (`TreeNode` sans usage), donc rien d'éditable ;
     le mot affiché (« Réseau ») est le texte de départ de l'éditeur de l'arbre (le
     `TreeGrid` ne prend que des chaînes), d'où les mots acceptés pour la clé, et la liste
-    des choix dite en mots ; pied de l'arbre montré tant que la focalisation est dans
-    l'arbre ou dans ce pied (son code à copier), absent sinon ; une modification appliquée
-    répond 200 (REQ-021-15 ; le « 201 » du verify est le code d'une création) ; la colonne
-    « Nature, usage » étant de priorité 2 (A21), masquée dans la largeur de l'arbre, le
-    parcours l'affiche par le sélecteur « Colonnes » ;
-    « + » d'une ligne pour qui peut ajouter une des sortes du nœud seulement ; Entrée et
-    Tab du nœud interceptés par la vue en capture, le `TreeGrid` ne les offrant pas.
-  - reste : le `TreeGrid` (web/v2/ui, non modifié) n'a ni « + » refusé (motif au survol et
-    au focus), ni Entrée qui active la ligne quand elle porte un « + », ni Tab vers ses
-    widgets, ni `readonlyReason` (description d'une cellule sans éditeur), ni emplacement
-    de cellule ou d'éditeur (texte de départ = texte affiché) : la vue y supplée en capture
-    et par son pied ; à reporter dans le composant (tâche de la bibliothèque), puis retirer
-    l'interception de la vue. La seule colonne éditable de l'arbre est masquée par défaut
-    (priorité 2, A21) : à revoir avec la maquette E1 (relevé par la revue). `c` refusé
+    des choix dite en mots ; pied de l'arbre sur la cellule de la focalisation (modèle
+    `active` du `TreeGrid`, gardée à la sortie comme au pied d'une liste) ; une
+    modification appliquée répond 200 (REQ-021-15 ; le « 201 » du verify est le code d'une
+    création) ; la colonne « Nature, usage » étant de priorité 2 (A21), masquée dans la
+    largeur de l'arbre, le parcours l'affiche par le sélecteur « Colonnes » ; le raccourci
+    `c` n'est montré sur « Ajouter dans » du contenu que s'il agit sur ce nœud.
+  - corrections de la revue (2026-11-02, une passe) : `TreeGrid` (web/v2/ui) porte A20 —
+    Entrée sur la cellule du nœud active la ligne, Tab (ou F2) entre dans son « + », d'où
+    Tab sort de l'arbre — et le « + » refusé visible (`addBlocked` : permission ou motif,
+    `aria-disabled`, infobulle et description, REQ-021-37), la cellule de la focalisation
+    en modèle `active` ; l'interception en capture de la vue est retirée, la Topographie
+    passe `addBlocked` (« + » de chaque préfixe, refusé avec `core.address.edit` ou
+    `core.prefix.edit`, ou hors présent) ; catalogue `add-refused`, Vitest
+    `trees-mounted.test.ts` (Entrée, Tab, refus), script clavier `tree-grid.spec.ts`
+    (Tab, Maj+Tab, « + » refusé) ; `nodeApplyRight` remplace le doublon des types dans
+    `ContentTab` ; Vitest de la grille du contenu (`edit.test.ts` : pourquoi d'une cellule,
+    ligne en brouillon, ligne du motif, 412 relu avec la saisie gardée) ; parcours `edit` :
+    deux onglets, l'arbre et la grille du contenu, deux valeurs différentes, le second
+    reçoit 412, garde sa saisie à côté de la valeur relue, l'applique, focus rendu à sa
+    cellule ; lecteur : « + » de l'arbre et « Ajouter » du contenu refusés avec
+    `core.address.edit`.
+  - reste : le `TreeGrid` n'a pas encore de `readonlyReason` (description d'une cellule
+    sans éditeur : la vue le dit par son statut et son pied) ni d'emplacement de cellule ou
+    d'éditeur (texte de départ = texte affiché). L'arbre et la grille du contenu ont chacun
+    leur `useNodeEdit` (états de cellule et ligne du motif séparés pour un même nœud) ;
+    `kindOf` de `nodes.ts` lit `kind` sans garde de type ; 202, 422 et 403 ne sont prouvés
+    que pour les listes (`edit.test.ts`), pas dans l'arbre. Relevé par les revues du
+    `TreeGrid` : le « + » refusé ne se distingue de l'autre qu'au survol ou au focus
+    (infobulle), et, comme lui, ne paraît que sur la ligne choisie, survolée ou focalisée ;
+    rien ne dit sur la cellule du nœud que Tab mène au « + » ; le raccourci `c` du bouton
+    « Ajouter dans » du contenu suit la cellule de la focalisation ; la maquette E1 n'a pas
+    de « + » refusé. La seule colonne éditable de
+    l'arbre est masquée par défaut (priorité 2, A21) : à revoir avec la maquette E1 (relevé par la revue). `c` refusé
     (droit, domaine absent) ne dit rien : `useViewAction` n'appelle pas l'action refusée,
     comportement du cadre pour toutes les vues (le bouton « Ajouter » visible dit la
     permission). Le pied de l'arbre apparaît à la première focalisation d'une cellule qui
