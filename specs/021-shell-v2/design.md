@@ -661,7 +661,7 @@ Manifeste (ajouts) :
   // data.ts — observateurs du SDK, pas de VueQueryPlugin
   useRead(() => reads.object(…) | null): ShallowRef<{ data, error, pending }>;
   useList(() => reads.list(…) | null): { state: ShallowRef<{ items, error, pending,
-    previous, more, fetching }>, next() };
+    previous, more, fetching, pages }>, next() };
   useNotified((changed, live) => store): () => store;  // Names, lus quelques-uns à la fois
   ```
 
@@ -682,8 +682,9 @@ Manifeste (ajouts) :
   - **Erreurs** : `app.config.errorHandler` les écrit dans la console, nommées par
     l'élément ; seules celles de la création restent confinées par `ExtensionElement`.
   - **Poids** : `web/v2/tools/plugin-size.ts` construit le plugin en mémoire et pèse son
-    `index.js` (gzip -9, ≤ 50 Ko, modules de l'import map importés, jamais embarqués) ;
-    lu par `test/package.test.ts` du plugin, donc par `k-web2-check`.
+    `index.js` (gzip -9, ≤ 50 Ko, modules de l'import map importés, jamais embarqués,
+    aucune feuille émise) ; lu par `test/package.test.ts` du plugin, donc par
+    `k-web2-check`.
 - **Liens d'un plugin** (tâche 18a) : un plugin écrit des `<a href>` ordinaires ; l'hôte
   d'une extension (`ExtensionElement`, tous les points) suit par le routeur du shell, sans
   recharger la page, le clic gauche sans modificateur sur un lien de même origine dont le

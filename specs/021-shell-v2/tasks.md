@@ -2102,7 +2102,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `@kartenn/sdk`, `@kartenn/ui`). Contrôle du poids : `web/v2/tools/plugin-size.ts`
     (build en mémoire, gzip -9, ≤ 50 Ko, modules partagés importés jamais embarqués), lu
     par `plugins/machines/test/package.test.ts`, donc par `k-web2-check` (Vitest), sans
-    toucher `devenv.nix`. Vitest : 25 (colonne : montage en DOM léger, déplacement gardé,
+    toucher `devenv.nix`. Vitest : 25 à la première passe (colonne : montage en DOM léger, déplacement gardé,
     démontage ; liens datés ; illisible avec code ; action : recherche puis ajout au
     brouillon, champs requis et texte non choisi, refus avec règles et codes, droit absent
     puis autre date). Parcours `machines` vert dans les deux navigateurs (envoi sans
@@ -2113,9 +2113,13 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     lâché aussitôt à la déconnexion ; `app.config.idPrefix` par application (`useId`
     compte par application) ; portail `#k-layers` du cadre, `body` sans lui ; aucun
     `provideLink` (liens `<a href>` suivis par `ExtensionElement`) ; erreurs d'une
-    application dans la console (`errorHandler`) ; colonne : « … » plutôt que `Skeleton`
-    (une région `status` par cellule dirait « Chargement » à chaque ligne), le code seul
-    en `CodeBadge` dans la cellule (pas de `Request-Id`, trop large) ; action : la
+    application dans la console (`errorHandler`) ; colonne : chargement en `Skeleton`
+    `variant="cell"` (barre seule `aria-hidden`, sans région `status`, faite pour une
+    cellule ; d'abord écarté sur une prémisse fausse, corrigé à la relecture), interfaces
+    suivies par `useList` (relues à l'invalidation et à d'autres dates) depuis le tour de
+    la cellule, la place parmi les lectures simultanées (`limited`) rendue à la première
+    réponse ; le code seul en `CodeBadge` dans la cellule (pas de `Request-Id`, trop
+    large) ; action : la
     machine cherchée par `q` (la liste entière n'était lue qu'en première page), la
     première interface prise, `Select` remonté à l'arrivée de ses options (piège de
     `SelectValue`) en gardant le focus, raison du champ vide en aide (`hint`) plutôt qu'en
@@ -2126,8 +2130,18 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     corrigés : erreur d'un champ effacée quand il change, focus gardé au remontage du
     `Select`, raison du champ des interfaces en aide, texte tapé sans suggestion dit,
     refus sans droit dit aussi par Entrée dans un champ, interface non exigée tant
-    qu'aucune machine n'est choisie.
-  - reste : les liens de la colonne dans la grille des adresses ne passent pas par
+    qu'aucune machine n'est choisie. Passe de corrections (revue de branche) : `Skeleton`
+    de cellule ; colonne sur `useList` ; tests du modèle (abonnement au contexte rendu et
+    observateur parti du cache au démontage, contexte suivi de nouveau après un
+    déplacement, colonne relue à l'invalidation et à deux dates successives) ; alerte de
+    refus effacée au changement d'un champ ; interfaces lues page après page jusqu'à
+    `MAX_PAGES`, au-delà annoncées en aide (`action.firstInterfaces`) ;
+    `@kartenn/ui/style.css` retiré des modules partagés (absent de la carte d'import) ;
+    une feuille émise par le plugin fait échouer le contrôle du poids (A23). Vitest : 27.
+  - reste : la liste des modules partagés est recopiée à trois endroits
+    (`SHARED` de `web/v2/shell/vite.config.ts`, celui de
+    `web/v2/plugins/machines/vite.config.ts`, `SHARED_MODULES` de
+    `web/v2/tools/plugin-size.ts`) : une source unique à tirer ; les liens de la colonne dans la grille des adresses ne passent pas par
     `ExtensionElement` (rechargent la page, comme avant) ; un contexte qui passe à une
     autre date pendant que le dialogue est ouvert remplace le formulaire sans y mettre le
     focus ; un refus du serveur sans champ connu laisse le focus au bouton (l'alerte est
