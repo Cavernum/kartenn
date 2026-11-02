@@ -12,12 +12,10 @@
 // modifies the object of the row by the edit panel of the kind (REQ-021-36).
 import {
   Button,
-  CodeBadge,
   DataGrid,
   EmptyState,
   ErrorState,
   FilterPicker,
-  Kbd,
   KeyLabel,
   StatusBadge,
   type CellRef,
@@ -32,8 +30,9 @@ import KLink from "../prefetch/KLink.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
 import { applyRight, editRight } from "./edit/fields.ts";
-import { useInlineEdit } from "./edit/inline.ts";
+import { useInlineEdit, whyWords } from "./edit/inline.ts";
 import { openEdit } from "./edit/panel.ts";
+import EditHint from "./edit/EditHint.vue";
 import QuickApply from "./edit/QuickApply.vue";
 import { useSay } from "./edit/say.ts";
 import {
@@ -178,14 +177,8 @@ const activeWhy = computed(() =>
 );
 /** The same reason as one sentence: the description of a cell without an editor. */
 function readonlyReason(_row: Item, column: GridColumn): string | undefined {
-  const why = edit.why(column.id);
-  if (!why || why.kind === "none") return undefined;
-  if (why.kind === "forbidden") return `${t("edit.why.forbidden")} ${why.permission}`;
-  return t(why.kind === "past" ? "edit.why.past" : `edit.why.${why.reason}`);
+  return whyWords(edit.why(column.id), t);
 }
-const activeEditable = computed(
-  () => active.value !== undefined && active.value.row !== "" && activeWhy.value === null,
-);
 /** The words of a key of a closed list, for the line of the motive. */
 const choiceWords = (field: string, key: string) => words.value(field, key) ?? null;
 /** The line of the motive closed: the focus back to its cell. */
@@ -357,24 +350,11 @@ function clearFilters(): void {
       />
       <template v-else>
         <span class="k-num">{{ list.isPending.value ? "" : countText }}</span>
-        <span v-if="activeEditable" class="k-keyboard-hint">
-          <Kbd :keys="['Enter']" /> {{ t("edit.hintDraft") }} ·
-          <template v-if="edit.canApply.value">
-            <Kbd :keys="['Control', 'Enter']" /> {{ t("edit.hintApply") }}
-          </template>
-          <template v-else>
-            <Kbd :keys="['Control', 'Enter']" /> {{ t("edit.hintApplyForbidden") }}
-            <CodeBadge :code="applyRight(props.collection.type)" />
-          </template>
-          · <Kbd :keys="['Escape']" /> {{ t("edit.hintCancel") }}
-        </span>
-        <span v-else-if="activeWhy && activeWhy.kind !== 'none'" class="k-keyboard-hint">
-          <template v-if="activeWhy.kind === 'forbidden'">
-            {{ t("edit.why.forbidden") }} <CodeBadge :code="activeWhy.permission" />
-          </template>
-          <template v-else-if="activeWhy.kind === 'past'">{{ t("edit.why.past") }}</template>
-          <template v-else>{{ t(`edit.why.${activeWhy.reason}`) }}</template>
-        </span>
+        <EditHint
+          v-if="active && active.row !== ''"
+          :why="activeWhy"
+          :apply-lacks="edit.canApply.value ? null : applyRight(props.collection.type)"
+        />
       </template>
       <span role="status">{{ restarted ? t("views.list.restarted") : said }}</span>
     </template>
