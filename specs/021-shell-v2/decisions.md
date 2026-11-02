@@ -301,6 +301,15 @@ Tranchés le 2026-11-02, après les tâches 11b et 18b :
   dans `@kartenn/ui` par une tâche de la bibliothèque avant la 017-2 (session principale,
   choix réversible).
 
+- **A24 — Échange du jeton entre instances** (utilisateur, 2026-11-02, d'après la 16d) :
+  conformément à D9, l'échange d'un jeton de rafraîchissement est sérialisé entre
+  instances par un verrou en base (`pg_advisory_xact_lock` sur une empreinte du jeton),
+  et non par l'affinité au répartiteur (16f).
+- **A25 — Fenêtre de grâce de 30 s** (utilisateur, 2026-11-02) : le résultat d'un échange
+  est gardé chiffré 30 s (ou le délai maximal d'une requête), sous la clé émetteur ×
+  sujet × empreinte du jeton présenté : seul le porteur de l'ancien jeton l'obtient,
+  et seulement dans ce délai (16f).
+
 ## Questions (closes le 2026-10-23)
 
 - **Q-021-1** — Édition en place : brouillon par défaut, en lot avec un motif ;

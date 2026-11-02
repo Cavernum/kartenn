@@ -636,7 +636,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     donc après que l'objet du plan a été marqué écrit par ce changeset ; la version lue
     ne compte pas les écritures du même changeset encore en attente de `touch` ;
     `object_version` lu par le module (`public.`), comme ses autres lectures du noyau.
-- [ ] 16d. Jeton tourné jamais perdu (A15, relevé par la revue de la 16c) : les retours
+- [x] 16d. Jeton tourné jamais perdu (A15, relevé par la revue de la 16c) : les retours
   anticipés de la couche 6 (refus `on_behalf`, `approval` ou `simulate` invalides)
   partent après un rafraîchissement réussi sans aucun cookie : ils réémettent le cookie
   qui convient (ordinaire, ou de fond `seen` inchangé) ; deux requêtes concurrentes dont
@@ -650,6 +650,58 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     966-989, `reissue`, `quiet_cookie`) ; test voisin
     `crates/kartenn-rest/tests/it/sessions.rs` (`a_refresh_in_the_background_keeps_the_new_tokens`)
   - dépend de : 16c
+  - fait le 2026-11-02 : couche 6, `context_of` (`authn.rs`) rend la réponse de refus
+    (`on_behalf`, `approval`, `simulate`) et la couche y réémet `quiet_cookie` pour une
+    requête marquée, `cookie` sinon ; `Oidc::refresh` (`kartenn-auth/src/oidc.rs`)
+    partage l'échange en cours par jeton présenté (`Turn`, carte
+    émetteur × sujet × jeton → `OnceCell` du résultat, oubliée dès l'échange fini ou
+    sans plus aucune requête) ; `LoginError` et `TokenError` deviennent `Clone` ; tests
+    `a_refusal_after_a_refresh_keeps_the_new_tokens`,
+    `concurrent_refreshes_present_the_token_once` et fin absolue comparée au `started` du
+    cookie d'entrée (`sessions.rs`, émetteur de test qui ne prend que le dernier jeton
+    donné, compte les échanges et peut les retenir) ; 005 design § « Rafraîchissement
+    des groupes ».
+  - choix : état par instance, en mémoire (le plus simple qui tienne une instance) ;
+    clé émetteur × sujet × jeton plutôt qu'un identifiant de session, que le cookie
+    n'a pas ; un refus anticipé d'une requête ordinaire réémet le cookie ordinaire
+    (`seen` à l'instant), comme la tâche le dit ; un échec de l'échange (émetteur
+    injoignable, refus) est partagé de même.
+  - reste : (1) plusieurs instances : deux requêtes concurrentes servies par deux
+    instances présentent encore deux fois le jeton (la seconde ferme la session en
+    `refresh_failed`, et un émetteur qui détecte la réutilisation peut révoquer toute
+    la famille, RFC 9700 § 4.14.2) ; options : affinité de session au répartiteur, ou
+    verrou partagé dans PostgreSQL (`pg_advisory_xact_lock` sur une empreinte du jeton,
+    plus un résultat gardé le temps de l'échange) — arbitrage à prendre avant le
+    déploiement multi-instance. (2) Une requête partie avec l'ancien cookie mais
+    arrivée après la fin de l'échange (réponse du premier pas encore reçue par le
+    navigateur) présente encore l'ancien jeton : seul un résultat gardé quelques
+    secondes après l'échange la couvrirait (arbitrage : un ancien cookie y vaut le
+    nouveau jeton pendant la fenêtre). (3) Une requête abandonnée (client parti)
+    pendant l'échange laisse la suivante le refaire avec le même jeton.
+  - portée, après la revue (2026-11-02) : la clause tient pendant l'échange chez
+    l'émetteur et sur une seule instance ; l'entrée partagée est retirée dès le résultat,
+    avant la route de la première requête, et une requête partie avec l'ancien cookie
+    pendant toute la durée de cette route présente encore `r1`. Ce cas et le partage entre
+    instances (D9) vont à la 16f (A24, A25)
+- [ ] 16f. Échange du jeton de rafraîchissement partagé entre instances, avec fenêtre de
+  grâce (A24, A25) : un verrou en base (`pg_advisory_xact_lock` sur une empreinte du
+  jeton présenté) sérialise l'échange entre instances (D9) ; le résultat (nouveaux jetons,
+  groupes) est gardé chiffré 30 s après l'échange (ou le délai maximal d'une requête, s'il
+  est plus long), sous la clé émetteur × sujet × empreinte du jeton présenté, puis purgé :
+  une requête partie avec l'ancien cookie et arrivée pendant ce délai reçoit le même
+  résultat au lieu de présenter de nouveau `r1` ; un échec partagé ne se garde pas ; la
+  carte en mémoire de la 16d devient un cache devant la base ou disparaît — verify :
+  `k-check -p kartenn-rest -p kartenn-auth` (deux instances sur la même base : deux
+  requêtes simultanées → un seul appel à l'émetteur ; requête tardive dans les 30 s →
+  même cookie neuf ; après 30 s → `refresh_failed` ; table purgée ; aucun jeton en
+  clair en base) ; migration et revue de sécurité attentive
+  - où : `crates/kartenn-auth/src/oidc.rs` (`exchanges`, `Turn`, `refresh`, `exchange`),
+    `crates/kartenn-store-pg/migrations/` (table courte des échanges, chiffrée par la
+    clé des cookies ou une clé dérivée), purge à la forme des jobs distribués (D9) ; test
+    voisin `crates/kartenn-rest/tests/it/sessions.rs`
+    (`concurrent_refreshes_present_the_token_once`) ; 005 design § « Rafraîchissement
+    des groupes »
+  - dépend de : 16d
 - [ ] 16e. Comparaison du contrat à travers les `$ref` : `contract::breaches` résout les
   références locales vers `components.parameters` avant de comparer (aujourd'hui une
   `$ref` reçoit la clé `("", "")` : rendre `Kartenn-Background` requis passerait

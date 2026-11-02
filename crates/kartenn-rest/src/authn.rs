@@ -919,6 +919,34 @@ pub(crate) fn source(client: Client, headers: &HeaderMap) -> Source {
     }
 }
 
+/// The [`RequestContext`] of `principal` completed from a request of `method`, its
+/// `headers` and its `query`, or the response that refuses it: an invalid `on_behalf`,
+/// `approval` or `simulate`.
+async fn context_of(
+    authenticator: &dyn Authenticator,
+    headers: &HeaderMap,
+    method: &axum::http::Method,
+    query: Option<&str>,
+    principal: &Principal,
+    source: Source,
+    mut context: RequestContext,
+) -> Result<RequestContext, Box<Response>> {
+    context.on_behalf_of = on_behalf(authenticator, headers, method, principal, source)
+        .await
+        .map_err(|refusal| Box::new(refusal.into_response()))?;
+    // Spec 024, REQ-024-13: a write applies its changeset when asked and allowed.
+    let asked = crate::changesets::approval_self(query)
+        .map_err(|problem| Box::new(problem.into_response()))?;
+    context.approval_self = asked && !method.is_safe();
+    // Spec 024, REQ-024-17: a write simulated writes nothing; a route that submits no
+    // changeset refuses it (`crate::simulation::gate`).
+    if !method.is_safe() {
+        context.simulate = crate::changesets::simulate_asked(query)
+            .map_err(|problem| Box::new(problem.into_response()))?;
+    }
+    Ok(context)
+}
+
 /// Layer 6: the [`Principal`], its [`Session`] if any, and the [`RequestContext`] of its
 /// actor in the request extensions, or the refusal; the session cookie sent again when
 /// due, removed when the session ended.
@@ -965,32 +993,29 @@ pub async fn layer(
     if let Some(before) = request.extensions().get::<RequestContext>() {
         context.correlation = before.correlation.clone();
     }
-    let method = request.method().clone();
-    match on_behalf(
+    let context = match context_of(
         authenticator.as_ref(),
         request.headers(),
-        &method,
+        request.method(),
+        request.uri().query(),
         &principal,
         source,
+        context,
     )
     .await
     {
-        Ok(requester) => context.on_behalf_of = requester,
-        Err(refusal) => return refusal.into_response(),
-    }
-    // Spec 024, REQ-024-13: a write applies its changeset when asked and allowed.
-    match crate::changesets::approval_self(request.uri().query()) {
-        Ok(asked) => context.approval_self = asked && !method.is_safe(),
-        Err(problem) => return problem.into_response(),
-    }
-    // Spec 024, REQ-024-17: a write simulated writes nothing; a route that submits no
-    // changeset refuses it (`crate::simulation::gate`).
-    if !method.is_safe() {
-        match crate::changesets::simulate_asked(request.uri().query()) {
-            Ok(simulate) => context.simulate = simulate,
-            Err(problem) => return problem.into_response(),
+        Ok(context) => context,
+        Err(response) => {
+            let mut response = *response;
+            // 021/A15: a refusal after a refresh keeps the tokens the issuer turned. No
+            // route ran: only the mark tells a request that is no activity.
+            reissue(
+                &mut response,
+                if background { quiet_cookie } else { cookie },
+            );
+            return response;
         }
-    }
+    };
     request.extensions_mut().insert(context);
     request.extensions_mut().insert(principal);
     if let Some(session) = session {

@@ -229,7 +229,11 @@ livrés ([025](../025-droits-par-groupes/design.md)).*
   groupes, le cookie est réémis avec `seen` inchangé, pour garder le jeton de
   rafraîchissement tourné sans rien prolonger (*amendé par la 021*, A15).
 - **Rafraîchissement des groupes** : à l'expiration du jeton d'accès de l'IdP (au plus
-  15 min), le jeton de rafraîchissement est échangé ; un échec ferme la session.
+  15 min), le jeton de rafraîchissement est échangé ; un échec ferme la session. Les
+  requêtes concurrentes qui présentent le même jeton pendant l'échange en partagent le
+  résultat : l'émetteur ne le voit qu'une fois (RFC 9700 § 4.14.2), par instance ; une
+  requête refusée par la couche 6 après l'échange réémet le cookie (*amendé par la 021*,
+  16d).
 - **Jetons Bearer** : validation RFC 9068 par `jsonwebtoken`, clés JWKS en cache par
   émetteur, rechargement sur `kid` inconnu au plus une fois par minute ; identité
   juste-à-temps comme à la connexion. Une clé retirée par l'émetteur reste acceptée
