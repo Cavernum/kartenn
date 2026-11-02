@@ -1798,19 +1798,46 @@ fn cursor_of(body: &Value) -> String {
     body["cursor"].as_str().unwrap().to_owned()
 }
 
-/// Waits until the reader of `hub` has passed every number committed.
+/// The longest wait of [`settled`]. The floor of a reader rises once every transaction
+/// begun before the pass that noted it has ended, in the whole cluster: transaction
+/// numbers are global, so `pg_snapshot_xmin` waits for the other databases too. In the
+/// shared test cluster the other tests hold one for seconds (sampled on full `k-check`
+/// runs: a `DROP DATABASE` of the harness up to 9.5 s, an import up to 8.4 s on an idle
+/// machine, 13.7 s under the load of other agents), and the floor may wait for two of
+/// them in a row, the one under way when its pending number is noted, then the one under
+/// way at the next pass. `WAIT` does not cover that; this bound does, with room.
+const SETTLE: Duration = Duration::from_secs(45);
+
+/// Waits until the reader of `hub` has passed every number committed; past [`SETTLE`],
+/// fails naming the oldest transaction of the cluster, the one that holds the floor.
 async fn settled(pool: &PgPool, hub: &Hub) {
     let top: i64 = sqlx::query_scalar("SELECT coalesce(max(seq), 0) FROM outbox")
         .fetch_one(pool)
         .await
         .unwrap();
-    tokio::time::timeout(WAIT, async {
+    let passed = tokio::time::timeout(SETTLE, async {
         while hub.floor() < top {
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
     })
-    .await
-    .expect("the reader passes the outbox");
+    .await;
+    if passed.is_err() {
+        let oldest: Option<(String, f64, String)> = sqlx::query_as(
+            "SELECT coalesce(datname, ''),
+                    extract(epoch FROM clock_timestamp() - xact_start)::float8,
+                    left(coalesce(query, ''), 120)
+             FROM pg_stat_activity WHERE backend_xid IS NOT NULL
+             ORDER BY xact_start LIMIT 1",
+        )
+        .fetch_optional(pool)
+        .await
+        .unwrap();
+        panic!(
+            "the reader passes the outbox: floor {} under {top}; the oldest transaction \
+             of the cluster (database, age in s, statement): {oldest:?}",
+            hub.floor()
+        );
+    }
 }
 
 /// REQ-022-28: without a cursor, an empty page and the point of departure; three
