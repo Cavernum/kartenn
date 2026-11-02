@@ -723,12 +723,14 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
   - dépend de : —
   - fait le 2026-11-02 — `RawInput::Local { local }` (`{"local": n}`, variante non
     étiquetée, après `External`) et `RawDto::Local` au contrat (`RawValue`, contrat et
-    schémas des deux SDK régénérés). `RawInput::to_raw` prend la résolution d'un nom
-    local et rend `None` pour un nom inconnu ; une suggestion de source qui en porterait
-    un ne propose rien d'utilisable (`expected.rs`). Résolution au planifié
+    schémas des deux SDK régénérés) ; les formes objet refusent un champ inconnu
+    (`RawWire`, `deny_unknown_fields`, aussi par le contrat). `RawInput::to_raw` rend
+    `Err(nom)` pour un nom local ; une suggestion de source qui en porterait un ne
+    propose rien d'utilisable (`expected.rs`). Résolution au planifié
     (`pipeline::plan` → `resolution::plan`, qui rend désormais un `Result`) : le nom
-    désigne l'UUID généré pour l'objet d'une opération antérieure, posé comme texte de
-    la référence, puis lu par `RefType` comme un UUID donné. Les noms des créations
+    désigne l'UUID généré pour l'objet d'une opération antérieure, posé en `Raw::Ref`
+    (nouvelle forme du cœur), que seul `RefType` accepte : une propriété texte ou nom
+    d'hôte la refuse (`prop.assignment.invalid_value`). Les noms des créations
     d'objets sont suivis à part (`creates_object` : opérations du cœur qui créent,
     `Operation::created_kind`, déplacée d'`import.rs` ; opérations de module dont le
     type déclare `defines`). Import : `uses` compte les noms des valeurs dans le tri
