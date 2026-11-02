@@ -38,6 +38,7 @@ import { useList, type List } from "./data.ts";
 import { useHosted, usePresent, useTexts } from "./host.ts";
 import { linesOf, type AlertLine } from "./problems.ts";
 import type { Cluster, Machine, MachineCard } from "./reads.ts";
+import RetryAlert from "./RetryAlert.vue";
 
 const props = defineProps<{ id: string; machine: MachineCard | undefined }>();
 
@@ -55,15 +56,25 @@ const form = useTemplateRef<HTMLFormElement>("form");
 
 const clusters = useList<Cluster, never>(() => reads.list("/v1/clusters") as never);
 const machines = useList<Machine, never>(() => reads.list("/v1/machines") as never);
-// Every page of them, as many as the cache holds: every host offered, its ancestors known.
-for (const list of [clusters, machines] as { state: { value: List<unknown> }; next(): void }[]) {
+const lists = [clusters, machines] as {
+  state: { value: List<unknown> };
+  next(): void;
+  retry(): void;
+}[];
+// Every page of them, as many as the cache holds: every host offered, its ancestors known;
+// a page refused stops the reading (said, with « Réessayer »), never asked again by itself.
+for (const list of lists) {
   watch(
     () => list.state.value,
     (s) => {
-      if (s.more && !s.fetching && !s.previous && s.pages < MAX_PAGES) list.next();
+      if (s.more && !s.fetching && !s.previous && !s.error && s.pages < MAX_PAGES) list.next();
     },
     { immediate: true },
   );
+}
+/** The lists of hosts that failed, read again (the next pages follow by themselves). */
+function retryLists(): void {
+  for (const list of lists) if (list.state.value.error) list.retry();
 }
 
 const allowed = computed(() => context.value.user.has(PERMISSION));
@@ -181,7 +192,7 @@ const listFailure = computed(
 );
 const reading = computed(() =>
   [clusters.state.value, machines.state.value].some(
-    (s) => s.items === undefined || s.fetching || (s.more && s.pages < MAX_PAGES),
+    (s) => !s.error && (s.items === undefined || s.fetching || (s.more && s.pages < MAX_PAGES)),
   ),
 );
 
@@ -268,11 +279,11 @@ function outcome(result: DraftMove, host: string): void {
 <template>
   <form ref="form" novalidate @submit.prevent="submit">
     <Stack gap="4">
-      <InlineAlert
+      <RetryAlert
         v-if="listFailure"
-        tone="ko"
         :title="t('move.unreadable')"
-        :items="linesOf(listFailure, t)"
+        :error="listFailure"
+        @retry="retryLists"
       />
       <Combobox
         v-model="search"

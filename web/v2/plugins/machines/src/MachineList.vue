@@ -50,8 +50,8 @@ import { useList, useNotified } from "./data.ts";
 import { arrival, followLink, hrefOf, PAGES } from "./dom.ts";
 import DraftForm from "./DraftForm.vue";
 import { useHosted, usePresent, useTexts } from "./host.ts";
-import { linesOf } from "./problems.ts";
 import { KINDS, Names, type Cluster, type Machine } from "./reads.ts";
+import RetryAlert from "./RetryAlert.vue";
 
 const PATH = "/v1/machines";
 /** The rows left before the end of the window when the next page is read. */
@@ -418,11 +418,11 @@ function added(): void {
         </template>
       </EmptyState>
       <template v-else>
-        <InlineAlert
+        <RetryAlert
           v-if="nextFailure"
-          tone="ko"
           :title="t('machines.failed')"
-          :items="linesOf(nextFailure, t)"
+          :error="nextFailure"
+          @retry="list.retry()"
         />
         <InlineAlert v-if="capped" tone="info" :title="t('machines.first', { n: rows.length })" />
         <DataGrid

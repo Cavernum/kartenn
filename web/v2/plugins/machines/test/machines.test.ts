@@ -507,6 +507,34 @@ describe("the machines plugin", () => {
       expect(closed).toHaveBeenCalledOnce();
     });
 
+    it("action: stops reading the interfaces at a page refused, read again by « Retry » only", async () => {
+      const second: string[] = [];
+      let refused = true;
+      mounted = mount("machines-attach", {
+        object: address,
+        context: { locale: "en", user: user() },
+        fetch: fakeFetch({
+          "GET /v1/machines": () => page([machine()]),
+          "GET /v1/interfaces": ({ query }) => {
+            if (!query.get("cursor")) {
+              return { items: [iface()], links: { next: "/v1/interfaces?cursor=p2" } } as never;
+            }
+            second.push(query.get("cursor")!);
+            return refused ? problem(403, "forbidden") : page([]);
+          },
+        }),
+      });
+      const element = mounted.element;
+      await chooseMachine(element, "srv", "srv-a");
+      await lightText(element, "The interfaces could not be read");
+      await new Promise((done) => setTimeout(done, 50));
+      expect(second).toEqual(["p2"]);
+      refused = false;
+      buttonOf(element, "Retry").click();
+      await vi.waitFor(() => expect(element.textContent).not.toContain("could not be read"));
+      expect(second).toEqual(["p2", "p2"]);
+    });
+
     it("action: refuses empty fields on themselves, nothing sent", async () => {
       const posted: unknown[] = [];
       mounted = mount("machines-attach", {

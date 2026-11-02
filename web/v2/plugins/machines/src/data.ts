@@ -132,7 +132,7 @@ type Paged<T> = { items: T[]; links: { next?: string | null } };
 /** The list of `options()` (`reads.list`; `null`: none), followed page by page. */
 export function useList<T, K extends Key>(
   options: () => ListOptions<T, K> | null,
-): { state: Readonly<ShallowRef<List<T>>>; next(): void } {
+): { state: Readonly<ShallowRef<List<T>>>; next(): void; retry(): void } {
   const { queryClient } = useHosted();
   const { state, current } = observe(
     options,
@@ -153,6 +153,15 @@ export function useList<T, K extends Key>(
     next() {
       const observer = current() as { fetchNextPage?: () => Promise<unknown> } | null;
       void observer?.fetchNextPage?.();
+    },
+    /** After a failure: the first page read again, or the next page that failed. */
+    retry() {
+      const observer = current() as {
+        refetch?: () => Promise<unknown>;
+        fetchNextPage?: () => Promise<unknown>;
+      } | null;
+      if (state.value.items === undefined) void observer?.refetch?.();
+      else void observer?.fetchNextPage?.();
     },
   };
 }

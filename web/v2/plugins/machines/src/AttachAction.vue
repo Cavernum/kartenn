@@ -35,6 +35,7 @@ import { useList } from "./data.ts";
 import { useClose, useHosted, usePresent, useTexts } from "./host.ts";
 import { linesOf } from "./problems.ts";
 import type { Interface, Machine } from "./reads.ts";
+import RetryAlert from "./RetryAlert.vue";
 
 const props = defineProps<{
   object: ObjectRef | null;
@@ -81,11 +82,12 @@ const suggest: Suggest = async (text) => {
 const interfaces = useList<Interface, never>(() =>
   machine.value ? (reads.list("/v1/interfaces", { machine: machine.value }) as never) : null,
 );
-// Every page of them, as many as the cache holds (`MAX_PAGES`); beyond, said in the help.
+// Every page of them, as many as the cache holds (`MAX_PAGES`); beyond, said in the help. A
+// page refused stops the reading (said, with « Réessayer »), never asked again by itself.
 watch(
   () => interfaces.state.value,
   (list) => {
-    if (list.more && !list.fetching && !list.previous && list.pages < MAX_PAGES) {
+    if (list.more && !list.fetching && !list.previous && !list.error && list.pages < MAX_PAGES) {
       interfaces.next();
     }
   },
@@ -228,11 +230,11 @@ function refused(problem: unknown): void {
         :error="errors.machine"
         required
       />
-      <InlineAlert
+      <RetryAlert
         v-if="listFailure"
-        tone="ko"
         :title="t('interfaces.failed')"
-        :items="lines(listFailure)"
+        :error="listFailure"
+        @retry="interfaces.retry()"
       />
       <!-- Mounted again as its options come: `SelectValue` shows only the label of an
            option mounted before the value (skill kartenn-ui, « Pièges de Reka UI »). -->

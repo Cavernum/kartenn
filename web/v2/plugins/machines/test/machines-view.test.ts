@@ -395,10 +395,16 @@ describe("the record of a machine (task 18cb)", () => {
   }
   /** Takes the host whose name starts with `name`, then sends the form. */
   async function move(element: HTMLElement, name: string): Promise<void> {
-    const options = await suggested(element, name);
-    const option = options.find((o) => o.textContent?.startsWith(name));
-    expect(option, name).toBeDefined();
-    option!.click();
+    await suggested(element, name);
+    // The suggestions of this text (those of a former one may still be shown).
+    const option = await vi.waitFor(() => {
+      const found = [...document.querySelectorAll<HTMLElement>("[role=option]")].find((o) =>
+        o.textContent?.startsWith(name),
+      );
+      expect(found, name).toBeDefined();
+      return found!;
+    });
+    option.click();
     await new Promise((done) => setTimeout(done, 0));
     element.querySelector<HTMLFormElement>("section form")!.requestSubmit();
   }
@@ -496,6 +502,35 @@ describe("the record of a machine (task 18cb)", () => {
     input.blur();
   });
 
+  it("stops reading the hosts at a page refused, said with « Retry », read again only then", async () => {
+    history.replaceState(null, "", `/x/machines/machines/${MACHINE}`);
+    const second: string[] = [];
+    let refused = true;
+    mounted = mount("machines-machines", {
+      context: { locale: "en", user: user() },
+      fetch: fakeFetch({
+        ...reads,
+        "GET /v1/clusters": ({ query }) => {
+          if (!query.get("cursor")) {
+            return { items: [cluster], links: { next: "/v1/clusters?cursor=p2" } } as never;
+          }
+          second.push(query.get("cursor")!);
+          return refused ? problem(403, "forbidden") : page([]);
+        },
+      }),
+    });
+    const { element } = mounted;
+    await text(element, "Reading the hosts impossible");
+    await new Promise((done) => setTimeout(done, 50));
+    expect(second).toEqual(["p2"]);
+    refused = false;
+    buttonOf(element, "Retry").click();
+    await vi.waitFor(() =>
+      expect(element.textContent).not.toContain("Reading the hosts impossible"),
+    );
+    expect(second).toEqual(["p2", "p2"]);
+  });
+
   it("refuses the button without machines.edit, says why", async () => {
     history.replaceState(null, "", `/x/machines/machines/${MACHINE}`);
     const posted: unknown[] = [];
@@ -551,6 +586,11 @@ describe("the record of a machine (task 18cb)", () => {
     await text(element, "Move to grappe waiting for the server");
     const submit = buttonOf(element, "Move in the draft");
     expect(submit.getAttribute("aria-busy")).toBe("true");
+    // A second intent in flight: ignored, nothing more sent, the wait still said.
+    await move(element, "srv-b");
+    await new Promise((done) => setTimeout(done, 20));
+    expect(posted).toHaveLength(1);
+    expect(element.textContent).toContain("Move to grappe waiting for the server");
     // Never optimistic: the host read stays (none).
     expect(hostedBy(element)).toBe("—none");
     release();

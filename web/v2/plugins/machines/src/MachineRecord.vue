@@ -15,7 +15,6 @@ import {
   EmptyState,
   ErrorState,
   Grid,
-  InlineAlert,
   KeyLabel,
   Skeleton,
   Stack,
@@ -31,8 +30,8 @@ import { hrefOf, PAGES } from "./dom.ts";
 import DraftForm from "./DraftForm.vue";
 import HostSection from "./HostSection.vue";
 import { useHosted, usePresent, useTexts } from "./host.ts";
-import { linesOf } from "./problems.ts";
 import { modeOf, Names, type Interface, type Machine, type MachineCard } from "./reads.ts";
+import RetryAlert from "./RetryAlert.vue";
 
 const props = defineProps<{ id: string }>();
 
@@ -219,7 +218,8 @@ function added(): void {
       </div>
     </Grid>
 
-    <section v-if="present()" :aria-labelledby="ids.host">
+    <!-- Moved only once the machine is read: without it, nothing to judge the hosts by. -->
+    <section v-if="present() && machine" :aria-labelledby="ids.host">
       <Stack gap="4">
         <h2 :id="ids.host">{{ t("move.title") }}</h2>
         <HostSection :id="props.id" :machine="machine" />
@@ -243,11 +243,11 @@ function added(): void {
           {{ t("interfaces.noneText") }}
         </EmptyState>
         <template v-else>
-          <InlineAlert
+          <RetryAlert
             v-if="laterFailure(interfaces.state.value)"
-            tone="ko"
             :title="t('interfaces.failed')"
-            :items="linesOf(interfaces.state.value.error, t)"
+            :error="interfaces.state.value.error"
+            @retry="interfaces.retry()"
           />
           <DataGrid
             :label="t('interfaces.title')"
@@ -301,11 +301,11 @@ function added(): void {
           {{ t("machines.noneHostedText") }}
         </EmptyState>
         <template v-else>
-          <InlineAlert
+          <RetryAlert
             v-if="laterFailure(hosted.state.value)"
-            tone="ko"
             :title="t('machines.failed')"
-            :items="linesOf(hosted.state.value.error, t)"
+            :error="hosted.state.value.error"
+            @retry="hosted.retry()"
           />
           <DataGrid
             :label="t('machines.hosted')"
