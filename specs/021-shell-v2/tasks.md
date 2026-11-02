@@ -2400,7 +2400,8 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     focus ; un refus du serveur sans champ connu laisse le focus au bouton (l'alerte est
     dite) ; une erreur de rendu d'une application après sa création n'est pas confinée en
     encart ; `host.ts` et `data.ts` à déplacer dans `@kartenn/ui` (A23).
-- [x] 18cb. Vue Machines en Vue : liste en `DataGrid` (tri, filtres typés) ; fiche en
+- [x] 18cb. Vue Machines en Vue : liste en `DataGrid` (sans tri : la route n'en sert pas ;
+  filtres typés) ; fiche en
   sections (attributs, interfaces avec `StatusBadge`, machines hébergées, ajout d'une
   interface) ; section « Hébergement » de la 18b en `Combobox` d'hébergeurs jugés par
   `canMove`, envoyés par `draft.move`, sans optimisme ; anciens `MachinesView` et
@@ -2429,8 +2430,8 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     envoyé ; `draft.move`, sans optimisme (« en attente », hébergeur lu inchangé),
     avertissements en `InlineAlert` ; `DraftForm.vue` (formulaire au brouillon commun aux
     deux créations) ; `problems.ts` (`linesOf`, repris par `AttachAction.vue`) ; états
-    d'erreur avec « Réessayer » (`refetchQueries` sur la clé de la lecture, sans toucher
-    `data.ts`). `host.ts` et `data.ts` inchangés. Retirés : `MachinesView`, `MachineList`,
+    d'erreur avec « Réessayer » (`refetchQueries` sur la clé de la lecture). `host.ts`
+    inchangé, `data.ts` aussi hormis `retry()` (passe de corrections). Retirés : `MachinesView`, `MachineList`,
     `MachineRecord`, `hostOf` de `views.ts`, `src/hosting.ts` (`HostMove`) et leurs tests ;
     `forms.ts` reste (vue Interfaces). Poids : `index.js` 20,0 Ko gzip -9 (16,2 avant),
     aucune feuille émise par Vue. Vitest : 30 (`test/machines-view.test.ts`, 11 : liste,
@@ -2465,7 +2466,17 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     eux (à vérifier au lecteur d'écran) ; le mode 802.1Q en texte, sans clé ; filtre
     `network` ; le parcours `moves` « the tree of the prefixes » a échoué ici
     (`If-Match is not an entity tag` à la soumission d'un brouillon, code que cette tâche
-    ne touche pas ; non revérifié sur main).
+    ne touche pas ; non revérifié sur main) ; `AttachAction.vue` double encore une part de
+    `DraftForm.vue` (envoi au brouillon, refus, issue dite) ; `lines()` d'`AttachAction`
+    recopie l'appel de `linesOf` de `problems.ts`.
+  - passe de corrections (revue de branche) : la lecture des pages suivantes s'arrête sur
+    une page refusée (hébergeurs de `HostSection`, interfaces d'`AttachAction`, qui
+    relançaient la page sans fin), dite avec « Réessayer » (`RetryAlert.vue`), aussi sur
+    l'échec d'une page suivante de la liste et des deux grilles de la fiche ; `useList`
+    de `data.ts` gagne `retry()` (première page relue, ou la page suivante refusée) ;
+    « Hébergement » monté seulement une fois la machine lue. Vitest : 32 (page 2 refusée
+    lue une seule fois, puis relue par « Réessayer », pour les hébergeurs et pour
+    l'action ; second envoi ignoré pendant un déplacement).
 - [ ] 18cc. Vue Interfaces et onglet `interfaces-of` en Vue : recherche par MAC, adresse et
   VID, critères dans la requête de la page, `DataGrid`, fiche d'une interface ; onglet sur
   adresse, préfixe et VLAN ; anciens `InterfacesView` et `InterfacesTab` retirés —
