@@ -19,9 +19,14 @@
 // one back to the node cell), Home and End to the ends of the row, Ctrl+Home and Ctrl+End
 // to the first and last rows (APG Treegrid). Space selects the row. Enter or F2 edits an
 // editable cell (`editable`; Escape cancels, Enter or Tab commits, Ctrl+Enter commits
-// marked `now`), else moves into the
-// « + » of the node (Escape or F2 back), else Enter activates the row (`activate`).
-// Direct addition (024/M10): the « + » of a node (`addLabel`) emits `add`.
+// marked `now`); else, on the node cell, Enter activates the row (`activate`: its record,
+// as in the other grids, 021/A20) and Tab or F2 moves into its « + » (from there Tab
+// leaves the tree, Shift+Tab, Escape or F2 come back); on another cell, Enter or F2 moves
+// into its first widget, else Enter activates the row. The cell of the focus is a model
+// (`active`), kept when the focus leaves, as in `DataGrid`.
+// Direct addition (024/M10): the « + » of a node (`addLabel`) emits `add`; refused
+// (`addBlocked`: the permission missing, or another reason), it stays visible and
+// focusable, `aria-disabled`, its reason in its tooltip and description (REQ-021-37).
 // Moves (`parentMode`): `derived`, none; `declared`, drag and drop, Ctrl+X then Ctrl+V,
 // and « Déplacer vers… » (`openMove`, for the host's action on the chosen node), every
 // target checked by `canMove` first; an intent only (`move`), the node shown at its place
@@ -97,6 +102,12 @@ const props = withDefaults(
     /** The name of the « + » of a node (« Ajouter dans 192.0.2.0/24 »); none, no button. */
     addLabel?: ((node: TreeNode) => string | undefined) | undefined;
     /**
+     * Why the « + » of a node is refused: the permission the user lacks (`forbidden`,
+     * « Il faut … »), or another sentence (`reason`); nothing, it is allowed.
+     */
+    addBlocked?:
+      ((node: TreeNode) => { forbidden?: string; reason?: string } | undefined) | undefined;
+    /**
      * The nodes are coming: skeleton rows of the height of a row, in the cells, the tree
      * busy (REQ-020-23); as many as the host expects, so that the nodes take their place.
      */
@@ -122,6 +133,7 @@ const props = withDefaults(
     columns: () => [],
     nodeState: undefined,
     addLabel: undefined,
+    addBlocked: undefined,
     loadingRows: 5,
     parentMode: "derived",
     canMove: undefined,
@@ -139,7 +151,7 @@ const emit = defineEmits<{
   move: [intent: MoveIntent];
   /** An editor commits its text (Enter, Tab, or the focus leaving it), checked locally. */
   commit: [commit: GridCommit];
-  /** Enter on a row whose node cell is neither editable nor holds a widget. */
+  /** Enter on the node cell of a row (not editable), or on a cell without a widget. */
   activate: [id: string];
 }>();
 /** The ids of the open nodes. */
@@ -198,8 +210,9 @@ const depth = (row: TreeRow) => ({ "--k-tree-depth": String(row.level - 1) });
 
 // ——— Focus ———
 
+/** The cell of the focus (`row`: the node id; `column`: `""` for the tree), kept on leaving. */
+const active = defineModel<CellRef | undefined>("active", { default: undefined });
 /** The cell that holds the roving focus: the one last focused, the selected row, the first. */
-const active = ref<CellRef | undefined>(undefined);
 const current = computed<CellRef | undefined>(() => {
   const there = (key: string | undefined) => key !== undefined && rowIndex.value.has(key);
   if (active.value && there(active.value.row)) return active.value;
@@ -434,8 +447,9 @@ function onKeydown(event: KeyboardEvent): void {
   }
   const cell = target.closest<HTMLElement>("[data-column]");
   if (!cell || !grid.value?.contains(cell)) return;
-  // A widget of a cell (the « + », the copy button of a code) keeps its keys; F2 goes on
-  // to the next one, then back to the cell; Escape back to the cell.
+  // A widget of a cell (the « + », the copy button of a code; reached by Enter or F2, the
+  // « + » of the node cell by Tab or F2) keeps its keys; F2 goes on to the next one, then
+  // back to the cell; Escape back to the cell.
   if (cell !== target) {
     if (event.key === "Escape" || event.key === "F2") {
       event.preventDefault();
@@ -471,10 +485,22 @@ function onKeydown(event: KeyboardEvent): void {
     pages.request(row.parent, true);
     return;
   }
+  // The node cell (021/A20): Enter activates the row, Tab goes into its « + », if any;
+  // from there Tab leaves the tree (the « + » is out of the tab order).
+  const nodeCell = ref.column === "";
+  if (row.kind === "node" && nodeCell && event.key === "Tab" && !event.shiftKey && !ctrl) {
+    const add = cell.querySelector<HTMLElement>(".k-tree-grid__add");
+    if (add && !event.altKey) {
+      event.preventDefault();
+      add.focus();
+    }
+    return;
+  }
   if (row.kind === "node" && (event.key === "Enter" || event.key === "F2")) {
     event.preventDefault();
     const column = columnOf(ref.column);
     if (column && canEdit(row.node, column)) void startEditing(ref);
+    else if (nodeCell && event.key === "Enter") emit("activate", row.key);
     else {
       const widget = widgetsOf(cell)[0];
       if (widget) widget.focus();
@@ -852,6 +878,7 @@ onBeforeUnmount(() => observer?.disconnect());
                 tabindex="-1"
                 class="k-tree-grid__add"
                 :label="props.addLabel(part.row.node)!"
+                v-bind="props.addBlocked?.(part.row.node) ?? {}"
                 @click.stop="emit('add', part.row.key)"
               />
               <CellError

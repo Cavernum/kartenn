@@ -5,7 +5,8 @@ import { DATA, expect, expectAccessible, test } from "../fixtures/journeys.ts";
 // web/e2e/journeys/tree.spec.ts: the first level of the domain, the children of a node read
 // on demand page by page, rows virtualised, the keys of the APG treegrid, the content of the
 // chosen node beside the tree, its record by Enter; the occupancy of each prefix served with
-// its page (task 11b, 021/A11), the « + » of a node opening the edit panel of its kind.
+// its page (task 11b, 021/A11), the « + » of a node opening the edit panel of its kind,
+// reached by Tab while Enter opens the record (task 12a, 021/A20).
 
 /** The row of a node, by its value. */
 const row = (tree: Locator, value: string) =>
@@ -100,9 +101,10 @@ test("each prefix says its occupancy from its page, its « + » opens the panel 
   await expect(occupancy("2001:db8:3::/64")).toHaveText(share);
   expect(reads.filter((path) => path.endsWith("/occupancy"))).toEqual([]);
 
-  // The « + » of a container: the edit panel of its prefixes, the domain given. Enter on the
-  // node goes into its « + », Enter on it opens the panel; « Annuler » gives the focus back.
-  await page.keyboard.press("Enter");
+  // The « + » of a container: the edit panel of its prefixes, the domain given. Tab on the
+  // node goes into its « + » (021/A20), Enter on it opens the panel; « Annuler » gives the
+  // focus back; Escape back to the node, where Enter opens its record, even for an author.
+  await page.keyboard.press("Tab");
   const add = tree.getByRole("button", { name: `Ajouter dans ${DATA.wide.prefix}` });
   await expect(add).toBeFocused();
   await page.keyboard.press("Enter");
@@ -112,6 +114,10 @@ test("each prefix says its occupancy from its page, its « + » opens the panel 
   await expectAccessible(page);
   await form.getByRole("button", { name: "Annuler" }).click();
   await expect(add).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(wide.locator("[role='gridcell']").first()).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/prefixes\/[0-9a-f-]{36}$/);
 });
 
 test("the chosen node shows its content, and the URL keeps it", async ({ page, login }) => {

@@ -1567,7 +1567,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     avec la fiche) ; cellule vide d'une plage ou d'une adresse sans mot ; « + » refusé
     visible (12a ; le `TreeGrid` n'a ni état refusé pour le « + » ni colonne d'élément,
     non modifié).
-- [ ] 12a. Édition en place dans l'arbre de la Topographie et la grille du contenu d'un
+- [x] 12a. Édition en place dans l'arbre de la Topographie et la grille du contenu d'un
   nœud, `expected` et `If-Match` tirés de `TreeNode.version` ; « + » refusé visible avec
   sa permission sur un nœud — REQ-021-15, 37 — verify : parcours `edit` (cellule de
   l'arbre → brouillon, Ctrl+Entrée → 201 ; deux onglets → 412 sans perte)
@@ -1576,6 +1576,76 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - dépend de : 11a, 11b, 11c, 11d
   - amendée le 2026-11-02 (A20) : Entrée sur un nœud ouvre la fiche ; le « + » se joint
     par Tab dans la ligne ou par `c`
+  - fait le 2026-11-02 — `views/edit/inline.ts` : `useInlineEdit` prend des lignes de
+    plusieurs sortes (`collection(row)`, `field(row, colonne)`), les mots d'une liste
+    fermée tapés valent sa clé (`words`), la relecture après un 412 est à l'hôte
+    (`reread`), `whyWords` (le pourquoi en une phrase, repris par `ListView`) ;
+    `views/edit/nodes.ts` (`useNodeEdit`, `useNodeWords`) : la colonne `detail` d'un nœud
+    édite la nature d'un préfixe, l'usage d'une plage ; `TopologyView.vue` : cellules de
+    l'arbre éditables (`editable`, `validate`, `cellState`, `commit`), `expected` et
+    `If-Match` = la `version` servie par la page du nœud, après un 412 la version servie
+    par la relecture de l'objet avec sa valeur (11d) et le niveau qui le tient relu ; pied
+    de l'arbre : ligne du motif (`QuickApply`), ce que font Entrée et Ctrl+Entrée, ou
+    pourquoi la cellule de la focalisation n'a pas d'éditeur avec sa permission ; Entrée sur
+    un nœud ouvre la fiche, Tab entre dans son « + » (A20), `c` ajoute dans le nœud de la
+    focalisation, sinon le choisi ; « Ajouter dans <préfixe> » du panneau du contenu
+    (`Toolbar`, `c`) visible refusé avec sa permission (`core.address.edit` pour un réseau,
+    `core.prefix.edit` pour un conteneur) ou hors présent ; `record/ContentTab.vue` : même
+    édition dans la grille du contenu (fiche et Topographie), ligne du motif sous la
+    grille, indice des touches ou pourquoi sous elle ; `edit/EditHint.vue` : indice d'une
+    cellule (Entrée, Ctrl+Entrée ou la permission qui lui manque, Échap) ou pourquoi elle
+    n'a pas d'éditeur, partagé par `ListView`, l'arbre et le contenu ; le pourquoi d'une
+    cellule de l'arbre est aussi dit par le statut de la vue quand la focalisation y vient
+    (le `TreeGrid` n'a pas de description de cellule). Tests : `test/edit.test.ts` (2 cas :
+    nature et usage par `detail`, mots → clé,
+    `expected` par sorte ; Ctrl+Entrée `If-Match` = version servie, 412 → niveau relu,
+    version de la relecture) ; parcours `edit` (lecteur : pourquoi au pied, « Ajouter »
+    refusé avec `core.address.edit` ; auteur : nature au clavier → brouillon ; Entrée sur
+    le nœud → fiche ; deux onglets : Ctrl+Entrée → 201, second → 412, saisie gardée, puis
+    appliquée ; panneau d'ajout par `c`) et `tree` (Tab → « + », Échap, Entrée → fiche).
+  - choix : la valeur d'un nœud (colonne de l'arbre, valeur de la grille du contenu) n'est
+    pas éditable en place : Entrée l'ouvre (A20), `e` ouvre le panneau d'édition ; une
+    adresse n'a pas de détail dans l'arbre (`TreeNode` sans usage), donc rien d'éditable ;
+    le mot affiché (« Réseau ») est le texte de départ de l'éditeur de l'arbre (le
+    `TreeGrid` ne prend que des chaînes), d'où les mots acceptés pour la clé, et la liste
+    des choix dite en mots ; pied de l'arbre sur la cellule de la focalisation (modèle
+    `active` du `TreeGrid`, gardée à la sortie comme au pied d'une liste) ; une
+    modification appliquée répond 200 (REQ-021-15 ; le « 201 » du verify est le code d'une
+    création) ; la colonne « Nature, usage » étant de priorité 2 (A21), masquée dans la
+    largeur de l'arbre, le parcours l'affiche par le sélecteur « Colonnes » ; le raccourci
+    `c` n'est montré sur « Ajouter dans » du contenu que s'il agit sur ce nœud.
+  - corrections de la revue (2026-11-02, une passe) : `TreeGrid` (web/v2/ui) porte A20 —
+    Entrée sur la cellule du nœud active la ligne, Tab (ou F2) entre dans son « + », d'où
+    Tab sort de l'arbre — et le « + » refusé visible (`addBlocked` : permission ou motif,
+    `aria-disabled`, infobulle et description, REQ-021-37), la cellule de la focalisation
+    en modèle `active` ; l'interception en capture de la vue est retirée, la Topographie
+    passe `addBlocked` (« + » de chaque préfixe, refusé avec `core.address.edit` ou
+    `core.prefix.edit`, ou hors présent) ; catalogue `add-refused`, Vitest
+    `trees-mounted.test.ts` (Entrée, Tab, refus), script clavier `tree-grid.spec.ts`
+    (Tab, Maj+Tab, « + » refusé) ; `nodeApplyRight` remplace le doublon des types dans
+    `ContentTab` ; Vitest de la grille du contenu (`edit.test.ts` : pourquoi d'une cellule,
+    ligne en brouillon, ligne du motif, 412 relu avec la saisie gardée) ; parcours `edit` :
+    deux onglets, l'arbre et la grille du contenu, deux valeurs différentes, le second
+    reçoit 412, garde sa saisie à côté de la valeur relue, l'applique, focus rendu à sa
+    cellule ; lecteur : « + » de l'arbre et « Ajouter » du contenu refusés avec
+    `core.address.edit`.
+  - reste : le `TreeGrid` n'a pas encore de `readonlyReason` (description d'une cellule
+    sans éditeur : la vue le dit par son statut et son pied) ni d'emplacement de cellule ou
+    d'éditeur (texte de départ = texte affiché). L'arbre et la grille du contenu ont chacun
+    leur `useNodeEdit` (états de cellule et ligne du motif séparés pour un même nœud) ;
+    `kindOf` de `nodes.ts` lit `kind` sans garde de type ; 202, 422 et 403 ne sont prouvés
+    que pour les listes (`edit.test.ts`), pas dans l'arbre. Relevé par les revues du
+    `TreeGrid` : le « + » refusé ne se distingue de l'autre qu'au survol ou au focus
+    (infobulle), et, comme lui, ne paraît que sur la ligne choisie, survolée ou focalisée ;
+    rien ne dit sur la cellule du nœud que Tab mène au « + » ; le raccourci `c` du bouton
+    « Ajouter dans » du contenu suit la cellule de la focalisation ; la maquette E1 n'a pas
+    de « + » refusé. La seule colonne éditable de
+    l'arbre est masquée par défaut (priorité 2, A21) : à revoir avec la maquette E1 (relevé par la revue). `c` refusé
+    (droit, domaine absent) ne dit rien : `useViewAction` n'appelle pas l'action refusée,
+    comportement du cadre pour toutes les vues (le bouton « Ajouter » visible dit la
+    permission). Le pied de l'arbre apparaît à la première focalisation d'une cellule qui
+    a quelque chose à dire (pas de pied permanent dans la maquette E1) ; focus rendu à la
+    cellule après la ligne du motif sans repli si la ligne a disparu à la relecture.
 - [x] 15a. Administration : groupes (membres, liaisons) et rôles ; permissions en nom servi
   et libellé — REQ-021-12, REQ-025-12 — verify : parcours `admin` (groupes, rôles)
   - où : `web/shell/src/admin/{BindingsView,RolesView}.vue`, `admin.ts`, `write.ts`,

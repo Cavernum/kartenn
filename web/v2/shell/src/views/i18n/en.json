@@ -245,6 +245,7 @@
       "choose": "No node chosen",
       "chooseText": "Choose a prefix of the tree: its content shows here.",
       "open": "Open the record",
+      "actions": "Actions on {name}",
       "leaf": "This object holds nothing; its record tells the rest.",
       "empty": "No prefix in this domain",
       "treeError": "The tree of the prefixes could not be read.",

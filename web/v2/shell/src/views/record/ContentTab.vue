@@ -2,24 +2,33 @@
 // The content of a domain or of a prefix (REQ-021-9; maquette E2, onglet Contenu): the
 // prefixes at the top of a domain (`roots`), the direct children of a prefix (prefixes,
 // ranges, addresses: `children`), each a link to its record, read page by page at the
-// dates of the page; three states.
+// dates of the page; three states. Edited in place (task 12a, REQ-021-15): the nature of a
+// prefix and the usage of a range, at the version their page served (`edit/nodes.ts`);
+// Ctrl+Enter asks for its motive under the grid.
 import { reads, type components } from "@kartenn/sdk";
 import {
   DataGrid,
   EmptyState,
   Icon,
   KeyLabel,
+  type CellRef,
   type GridColumn,
   type GridWindow,
   type IconName,
 } from "@kartenn/ui";
-import { computed, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useInfiniteQuery } from "../../data/query.ts";
 import KLink from "../../prefetch/KLink.vue";
 import { useNextPage, type ListWindow } from "../../prefetch/nextPage.ts";
+import { useProblems } from "../../problems/index.ts";
 import { useTime } from "../../time/index.ts";
-import { pageOfHref, pageOfObject } from "../collections.ts";
+import { pageOfHref, pageOfObject, type Item } from "../collections.ts";
+import EditHint from "../edit/EditHint.vue";
+import { whyWords } from "../edit/inline.ts";
+import { detailOf, nodeApplyRight, useNodeEdit, useNodeWords } from "../edit/nodes.ts";
+import QuickApply from "../edit/QuickApply.vue";
+import { useSay } from "../edit/say.ts";
 import NextPageAlert from "../../problems/NextPageAlert.vue";
 import ProblemState from "../../problems/ProblemState.vue";
 import { rowsOf, useKeyLabel } from "../data.ts";
@@ -59,15 +68,48 @@ const ICONS: Record<Row["kind"], IconName> = {
   range: "range",
   address: "address",
 };
-const rows = computed<Row[]>(() =>
+// The nodes as their page serves them (their version with them), the value as shown.
+const read = computed<Item[]>(() =>
   rowsOf(content.data.value).map((node) => ({
-    id: node.id,
-    kind: node.kind,
+    ...node,
     value: node.kind === "range" ? `${node.first} – ${node.last}` : node.value,
-    detail: node.kind === "prefix" ? node.nature : node.kind === "range" ? node.usage : null,
     to: pageOfHref(node.href) ?? pageOfObject(node.kind, node.id),
   })),
 );
+
+// In-place editing: the words of a closed list stand for its key in a cell.
+const words = useNodeWords();
+const said = ref("");
+const say = useSay((text) => {
+  said.value = "";
+  void nextTick(() => (said.value = text));
+});
+const edit = useNodeEdit({
+  rows: () => read.value,
+  words,
+  reread: () => void content.refetch(),
+  t: (key, values) => t(key, values ?? {}),
+  sentence: useProblems().sentence,
+  say,
+});
+const rows = computed<Row[]>(() =>
+  edit.shownRows.value.map((row) => ({ ...(row as Row), detail: detailOf(row) })),
+);
+const readonlyReason = (row: Row, column: GridColumn) => whyWords(edit.why(column.id, row), t);
+/** The cell of the focus, and what its keys do or why it has no editor, under the grid. */
+const active = ref<CellRef | undefined>();
+const activeRow = computed(() =>
+  active.value && active.value.row !== ""
+    ? read.value.find((row) => row.id === active.value!.row)
+    : undefined,
+);
+const activeWhy = computed(() =>
+  active.value && activeRow.value ? edit.why(active.value.column, activeRow.value) : null,
+);
+const applyLacks = computed(() =>
+  activeRow.value && !edit.mayApply(activeRow.value) ? nodeApplyRight(activeRow.value) : null,
+);
+
 const columns = computed<GridColumn[]>(() => [
   { id: "value", label: t("views.record.object"), width: "fill", mono: true },
   { id: "detail", label: t("views.record.nature"), width: "md", priority: 2 },
@@ -77,6 +119,25 @@ const detailWords = (row: Row) => {
   const key = `views.value.${row.kind === "prefix" ? "nature" : "usage"}.${row.detail}`;
   return te(key) ? t(key) : null;
 };
+
+/** The line of the motive closed: the focus back to its cell. */
+async function afterAsk(cell: CellRef): Promise<void> {
+  await nextTick();
+  document
+    .querySelector<HTMLElement>(
+      `[data-k-content] [data-row="${CSS.escape(cell.row)}"][data-column="${CSS.escape(cell.column)}"]`,
+    )
+    ?.focus();
+}
+async function onConfirm(motive: string, value: string): Promise<void> {
+  const ask = edit.asking.value;
+  if (ask && (await edit.confirm(motive, value))) void afterAsk(edit.cellOf(ask));
+}
+function onCancelAsk(): void {
+  const ask = edit.asking.value;
+  edit.cancel();
+  if (ask) void afterAsk(edit.cellOf(ask));
+}
 </script>
 
 <template>
@@ -97,23 +158,42 @@ const detailWords = (row: Row) => {
   >
     {{ t("views.record.noContentText") }}
   </EmptyState>
-  <DataGrid
-    v-else
-    :label="t('views.record.contentOf', { name: props.name })"
-    :columns="columns"
-    :rows="rows"
-    row-key="id"
-    :loading="content.isPending.value"
-    :loading-rows="4"
-    @window="onWindow"
-  >
-    <template #cell="{ row, column }">
-      <template v-if="column.id === 'value'">
-        <Icon :name="ICONS[row.kind]" meaningful :label="kindWords(row.kind)" />
-        <KLink v-if="row.to" :to="row.to">{{ row.value }}</KLink>
-        <template v-else>{{ row.value }}</template>
+  <template v-else>
+    <DataGrid
+      v-model:active="active"
+      data-k-content
+      :label="t('views.record.contentOf', { name: props.name })"
+      :columns="columns"
+      :rows="rows"
+      row-key="id"
+      :loading="content.isPending.value"
+      :loading-rows="4"
+      :editable="edit.editable"
+      :readonly-reason="readonlyReason"
+      :validate="edit.validate"
+      :cell-state="edit.cellState"
+      :row-state="edit.rowState"
+      @commit="edit.onCommit"
+      @window="onWindow"
+    >
+      <template #cell="{ row, column }">
+        <template v-if="column.id === 'value'">
+          <Icon :name="ICONS[row.kind]" meaningful :label="kindWords(row.kind)" />
+          <KLink v-if="row.to" :to="row.to">{{ row.value }}</KLink>
+          <template v-else>{{ row.value }}</template>
+        </template>
+        <KeyLabel v-else-if="row.detail" :value="row.detail" :label="detailWords(row)" plain />
       </template>
-      <KeyLabel v-else-if="row.detail" :value="row.detail" :label="detailWords(row)" plain />
-    </template>
-  </DataGrid>
+    </DataGrid>
+    <QuickApply
+      v-if="edit.asking.value"
+      :key="edit.asking.value.row + edit.asking.value.column"
+      :ask="edit.asking.value"
+      :words="words"
+      @confirm="onConfirm"
+      @cancel="onCancelAsk"
+    />
+    <EditHint v-else-if="activeRow" :why="activeWhy" :apply-lacks="applyLacks" />
+    <span class="k-visually-hidden" role="status">{{ said }}</span>
+  </template>
 </template>

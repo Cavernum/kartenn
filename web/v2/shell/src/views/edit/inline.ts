@@ -29,6 +29,7 @@ import {
   valueOf,
   type EditField,
   type NotEditable,
+  type Values,
 } from "./fields.ts";
 
 // In-place editing of a list of the referential (REQ-021-15, 16; design 021 « Édition en
@@ -39,7 +40,9 @@ import {
 // value shown before the answer (present only), then: 200 applied, 202 « en revue » (never
 // applied), 412 the object read again with the input kept beside its current value, 422
 // the violations on the cell with their codes, 403 a refusal, the input kept. Without
-// `X.approval.self`, Ctrl+Enter goes to the draft and says why.
+// `X.approval.self`, Ctrl+Enter goes to the draft and says why. Rows of several kinds (the
+// nodes of the topography, task 12a) give the collection of each row and the field each of
+// their columns edits; a word of a closed list typed stands for its key.
 
 /** A refused try, as the line of the motive shows it (the SDK's, whatever its input). */
 export type Refusal = SdkRefusal<unknown>;
@@ -47,7 +50,10 @@ export type Refusal = SdkRefusal<unknown>;
 /** The motive asked in line for an edit applied now (Ctrl+Enter). */
 export interface QuickAsk {
   row: string;
+  /** The column of the grid, where the focus goes back. */
   column: string;
+  /** The collection of the row, and the field the column edits. */
+  collection: Collection;
   field: EditField;
   /** What the object is named (`192.0.2.0/24`). */
   name: string;
@@ -80,8 +86,15 @@ export interface InlineSay {
 }
 
 export interface InlineDeps {
-  collection: () => Collection;
+  /** The collection of the rows: of `row` when they mix kinds, the default one without. */
+  collection: (row?: Item) => Collection;
   rows: () => readonly Item[];
+  /** The field the column `column` of `row` edits, none for a column of no field. */
+  field?: (row: Item, column: string) => string | undefined;
+  /** The words of a key of a closed list: typed in a cell, they stand for the key. */
+  words?: (field: string, key: string) => string | null;
+  /** After a 412, the rows read again: the lists of the collection by default. */
+  reread?: (row: string, collection: Collection) => void;
   /** The words: `t` of the shell. */
   t: (key: string, values?: Record<string, unknown>) => string;
   /** A problem in plain words (`useProblems().sentence`). */
@@ -110,7 +123,23 @@ export function cellErrorOf(
   return code ? { error, code } : { error };
 }
 
-export function useInlineEdit({ collection, rows, t, sentence, say }: InlineDeps) {
+/** Why a cell offers no editor, as one sentence (its description); none for no field. */
+export function whyWords(why: NotEditable | null, t: (key: string) => string): string | undefined {
+  if (!why || why.kind === "none") return undefined;
+  if (why.kind === "forbidden") return `${t("edit.why.forbidden")} ${why.permission}`;
+  return t(why.kind === "past" ? "edit.why.past" : `edit.why.${why.reason}`);
+}
+
+export function useInlineEdit({
+  collection,
+  rows,
+  field: fieldOfColumn = (_row, column) => column,
+  words,
+  reread = (_row, of) => void queryClient.invalidateQueries({ queryKey: keys.allOn(of.path) }),
+  t,
+  sentence,
+  say,
+}: InlineDeps) {
   const session = useSession();
   const time = useTime();
   const present = computed(() => time.value.present);
@@ -123,12 +152,37 @@ export function useInlineEdit({ collection, rows, t, sentence, say }: InlineDeps
     ...drafts.get(active.value ?? "-"),
     enabled: active.value !== null,
   }));
-  const drafted = computed(() =>
-    draftedValues(
-      (activeDraft.data.value as Entry<Draft> | undefined)?.data.operations,
-      collection().id,
-    ),
-  );
+  // Of every collection the rows are of (identifiers are unique across them).
+  const drafted = computed(() => {
+    const operations = (activeDraft.data.value as Entry<Draft> | undefined)?.data.operations;
+    const ids = new Set(rows().map((row) => collection(row).id));
+    if (ids.size === 0) ids.add(collection().id);
+    const out = new Map<string, Values>();
+    for (const id of ids) {
+      for (const [row, values] of draftedValues(operations, id)) out.set(row, values);
+    }
+    return out;
+  });
+  /** The field the column of a row edits (`detail` of a prefix: `nature`), if any. */
+  const fieldName = (row: Item | undefined, column: string) =>
+    row ? fieldOfColumn(row, column) : column;
+
+  /**
+   * A text typed in a cell as the field takes it: for a closed list given its words, the
+   * key whose words were typed (« Conteneur » → `container`), else the text itself.
+   */
+  function parse(field: EditField, text: string): string {
+    if (field.kind !== "choice" || !words || field.options?.includes(text)) return text;
+    const typed = text.trim().toLocaleLowerCase();
+    return (
+      field.options?.find(
+        (key) => key === typed || words(field.name, key)?.toLocaleLowerCase() === typed,
+      ) ?? text
+    );
+  }
+  /** The choices of a closed list as the refusal of a cell lists them. */
+  const choicesOf = (field: EditField) =>
+    (field.options ?? []).map((key) => words?.(field.name, key) ?? key).join(", ");
 
   // The edits of this session not yet in the rows read: under way, applied, in review, refused.
   const shown = shallowReactive(new Map<string, Shown>());
@@ -152,7 +206,7 @@ export function useInlineEdit({ collection, rows, t, sentence, say }: InlineDeps
       const id = String(row.id);
       const fromDraft = drafted.value.get(id);
       let out: Item | null = fromDraft ? { ...row, ...fromDraft } : null;
-      for (const column of EDITS[collection().id].modification) {
+      for (const column of EDITS[collection(row).id].modification) {
         const entry = shown.get(keyOf(id, column.name));
         if (entry && (entry.state === undefined || entry.state === "pending")) {
           out ??= { ...row };
@@ -163,13 +217,13 @@ export function useInlineEdit({ collection, rows, t, sentence, say }: InlineDeps
     }),
   );
 
-  const columnOfRow = (row: Item, column: string) => keyOf(String(row.id), column);
-
   function cellState(row: Item, column: GridColumn): CellState | undefined {
-    const entry = shown.get(columnOfRow(row, column.id));
+    const name = fieldName(row, column.id);
+    if (name === undefined) return undefined;
+    const entry = shown.get(keyOf(String(row.id), name));
     if (entry?.state !== undefined) return entry.state;
     if (entry) return undefined;
-    return drafted.value.get(String(row.id))?.[column.id] !== undefined ? "draft" : undefined;
+    return drafted.value.get(String(row.id))?.[name] !== undefined ? "draft" : undefined;
   }
   function rowState(row: Item): RowState | undefined {
     const id = String(row.id);
@@ -179,24 +233,32 @@ export function useInlineEdit({ collection, rows, t, sentence, say }: InlineDeps
     return drafted.value.has(id) ? "draft" : undefined;
   }
 
-  /** Why the cell of `column` offers no editor, or `null` when it does. */
-  function why(column: string): NotEditable | null {
-    const editable = editability(rights.value, present.value, collection(), column);
+  /** Why the field `name` of an object of `of` offers no editor, or `null` when it does. */
+  function whyField(of: Collection, name: string | undefined): NotEditable | null {
+    if (name === undefined) return { kind: "none" };
+    const editable = editability(rights.value, present.value, of, name);
     if (!editable.editable) return editable.why;
     // A column this list cannot write yet (a property): no editor rather than a lost input.
-    return modificationField(collection().id, column) ? null : { kind: "none" };
+    return modificationField(of.id, name) ? null : { kind: "none" };
   }
-  const editable = (_row: Item, column: GridColumn) => why(column.id) === null;
-  /** Whether Ctrl+Enter applies (`X.approval.self`), else it goes to the draft. */
-  const canApply = computed(() => rights.value.has(applyRight(collection().type)));
+  /** Why the cell of `column` (of `row`, when the rows mix kinds) offers no editor. */
+  const why = (column: string, row?: Item): NotEditable | null =>
+    whyField(collection(row), fieldName(row, column));
+  const editable = (row: Item, column: GridColumn) => why(column.id, row) === null;
+  /** Whether Ctrl+Enter applies (`X.approval.self`) to `row`, else it goes to the draft. */
+  const mayApply = (row?: Item) => rights.value.has(applyRight(collection(row).type));
+  const canApply = computed(() => mayApply());
+  /** The field a cell of `row` edits, if any. */
+  const fieldOf = (row: Item, column: string) => {
+    const name = fieldName(row, column);
+    return name === undefined ? undefined : modificationField(collection(row).id, name);
+  };
 
-  function validate(_row: Item, column: GridColumn, value: string): string | undefined {
-    const field = modificationField(collection().id, column.id);
+  function validate(row: Item, column: GridColumn, value: string): string | undefined {
+    const field = fieldOf(row, column.id);
     if (!field) return undefined;
-    const refused = checkValue(field, valueOf(field, value));
-    return refused
-      ? t(refused, { values: (field.options ?? []).join(", "), field: column.label })
-      : undefined;
+    const refused = checkValue(field, valueOf(field, parse(field, value)));
+    return refused ? t(refused, { values: choicesOf(field), field: column.label }) : undefined;
   }
 
   const fieldWords = (column: string) => t(`views.field.${column}`);
@@ -210,9 +272,10 @@ export function useInlineEdit({ collection, rows, t, sentence, say }: InlineDeps
     const id = String(row.id);
     const key = keyOf(id, field.name);
     const value = valueOf(field, text);
+    // `expected`: the version served with the value shown (the same page, the same read).
     const version = versionOf(row);
     shown.set(key, { state: "pending", value, version });
-    const op = EDITS[collection().id].update(id, version, { [field.name]: value });
+    const op = EDITS[collection(row).id].update(id, version, { [field.name]: value });
     const outcome = await addToActiveDraft([op]);
     if (outcome.kind === "saved") {
       shown.delete(key);
@@ -228,9 +291,10 @@ export function useInlineEdit({ collection, rows, t, sentence, say }: InlineDeps
 
   function onCommit(commit: GridCommit): void {
     const row = rowById.value.get(commit.row);
-    const field = modificationField(collection().id, commit.column);
-    if (!row || !field || why(commit.column) !== null) return;
-    if (commit.now && canApply.value) {
+    const field = row ? fieldOf(row, commit.column) : undefined;
+    if (!row || !field || why(commit.column, row) !== null) return;
+    const text = parse(field, commit.value);
+    if (commit.now && mayApply(row)) {
       // A write under way, or a refusal still open (a 412 and its input), is never replaced:
       // the new input is said refused, with its value, on its cell and in the status.
       const open = asking.value;
@@ -240,12 +304,12 @@ export function useInlineEdit({ collection, rows, t, sentence, say }: InlineDeps
         (open.row !== commit.row || open.column !== commit.column)
       ) {
         const refused = t("edit.askOpen", {
-          what: what(open.column, open.name),
+          what: what(open.field.name, open.name),
           value: commit.value,
         });
-        shown.set(keyOf(commit.row, commit.column), {
+        shown.set(keyOf(commit.row, field.name), {
           state: { error: refused },
-          value: commit.value,
+          value: text,
           version: versionOf(row),
         });
         say.status(refused);
@@ -254,9 +318,10 @@ export function useInlineEdit({ collection, rows, t, sentence, say }: InlineDeps
       asking.value = {
         row: commit.row,
         column: commit.column,
+        collection: collection(row),
         field,
         name: nameOf(row),
-        value: commit.value,
+        value: text,
         version: versionOf(row),
         refusal: null,
         current: null,
@@ -266,45 +331,55 @@ export function useInlineEdit({ collection, rows, t, sentence, say }: InlineDeps
     }
     // Without the right to apply, one sentence says both: why not now, and where it went.
     const note = commit.now
-      ? t("edit.applyForbidden", { permission: applyRight(collection().type) })
+      ? t("edit.applyForbidden", { permission: applyRight(collection(row).type) })
       : "";
-    void toDraft(row, field, commit.value, note);
+    void toDraft(row, field, text, note);
   }
 
-  /** The value read again after a 412: the cache's answer, else the object read now. */
-  async function currentOf(id: string, refusal: Refusal): Promise<Item | undefined> {
-    if (refusal.kind === "conflict" && refusal.current) return refusal.current.data as Item;
-    const entry = await queryClient
-      .fetchQuery({ ...reads.object(collection().kind, id), staleTime: 0 })
-      .catch(() => undefined);
-    return (entry as Entry<Item> | undefined)?.data;
+  /**
+   * The object read again after a 412, the cache's answer else read now, and its version:
+   * the one its body serves with that value (one snapshot, 11d), never another read.
+   */
+  async function currentOf(
+    of: Collection,
+    id: string,
+    refusal: Refusal,
+  ): Promise<{ data: Item; version: string | null } | undefined> {
+    const entry =
+      refusal.kind === "conflict" && refusal.current
+        ? (refusal.current as Entry<Item>)
+        : ((await queryClient
+            .fetchQuery({ ...reads.object(of.kind, id), staleTime: 0 })
+            .catch(() => undefined)) as Entry<Item> | undefined);
+    return entry ? { data: entry.data, version: versionOf(entry.data) } : undefined;
   }
 
   /** Ctrl+Enter, the motive given: the write applied now, rendered by its answer. */
   async function confirm(motive: string, text: string): Promise<boolean> {
     const ask = asking.value;
     if (!ask || ask.busy) return false;
+    const of = ask.collection;
     // Checked again when it is written: still at the present, still with the rights.
-    if (why(ask.column) !== null || !canApply.value) {
+    if (whyField(of, ask.field.name) !== null || !rights.value.has(applyRight(of.type))) {
       cancel();
       say.status(t("edit.notNow"));
       return false;
     }
     const field = ask.field;
     const value = valueOf(field, text);
-    const key = keyOf(ask.row, ask.column);
+    const key = keyOf(ask.row, field.name);
     asking.value = { ...ask, value: text, busy: true };
     // Optimism at the present (D-7): the value shown before the answer, under way.
     shown.set(key, { state: "pending", value, version: ask.version });
     const outcome = await write
       .quick({
-        key: keys.object(collection().kind, ask.row),
+        key: keys.object(of.kind, ask.row),
         patch: patchOf([field], { [field.name]: value }),
         motive,
         ...(ask.version ? { ifMatch: `"${ask.version}"` } : {}),
       })
       .catch(() => ({ kind: "failed", input: {}, problem: null }) as Refusal);
-    const words = what(ask.column, ask.name);
+    const words = what(field.name, ask.name);
     if (outcome.kind === "applied") {
       // Shown until the list is read again, unless it already is.
       if (versionOf(rowById.value.get(ask.row)) === ask.version) {
@@ -322,16 +397,16 @@ export function useInlineEdit({ collection, rows, t, sentence, say }: InlineDeps
     }
     if (outcome.kind === "conflict") {
       shown.delete(key);
-      const current = await currentOf(ask.row, outcome);
-      // The list reads the object again; the line keeps the input beside its new value.
-      void queryClient.invalidateQueries({ queryKey: keys.allOn(collection().path) });
+      const current = await currentOf(of, ask.row, outcome);
+      // The rows read again; the line keeps the input beside its new value.
+      reread(ask.row, of);
       asking.value = {
         ...ask,
         value: text,
         busy: false,
         refusal: outcome,
-        current: current ? textOf(current[field.name]) : null,
-        version: versionOf(current) ?? ask.version,
+        current: current ? textOf(current.data[field.name]) : null,
+        version: current?.version ?? ask.version,
       };
       return false;
     }
@@ -346,7 +421,7 @@ export function useInlineEdit({ collection, rows, t, sentence, say }: InlineDeps
   function cancel(): void {
     const ask = asking.value;
     if (!ask) return;
-    const key = keyOf(ask.row, ask.column);
+    const key = keyOf(ask.row, ask.field.name);
     if (typeof shown.get(key)?.state === "object") shown.delete(key);
     asking.value = null;
   }
@@ -367,6 +442,7 @@ export function useInlineEdit({ collection, rows, t, sentence, say }: InlineDeps
     validate,
     why,
     canApply,
+    mayApply,
     present,
     asking,
     onCommit,

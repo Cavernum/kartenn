@@ -8,6 +8,12 @@
 // chosen in the URL (`?domain=<id>`), the first one by default. The « + » of a prefix, `c`
 // and `e` open the edit panel of the kind (task 12). No move (task 24, REQ-021-17): a
 // prefix changes place by its value, through the draft, and the tree is read again.
+// Edited in place (task 12a, REQ-021-15, 16): the nature of a prefix, the usage of a range,
+// `expected` and `If-Match` the `version` its page served with it; Ctrl+Enter asks for its
+// motive at the foot of the tree, which says too why a cell has no editor. Enter on a node
+// opens its record, Tab goes into its « + » (the tree's keys), `c` adds in the node of the
+// focus (021/A20); a refused « + », and the « Ajouter » of the chosen node, stay visible
+// and say their permission (REQ-021-37).
 import {
   drafts,
   queryClient,
@@ -22,8 +28,12 @@ import {
   InlineAlert,
   Select,
   Split,
+  Toolbar,
   TreeGrid,
+  type CellRef,
   type GridColumn,
+  type GridCommit,
+  type ToolbarAction,
   type IconName,
   type ListOption,
   type TreeNode,
@@ -36,6 +46,7 @@ import {
 } from "@tanstack/query-core";
 import {
   computed,
+  nextTick,
   onBeforeUnmount,
   onMounted,
   ref,
@@ -48,13 +59,19 @@ import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { useInfiniteQuery, useQuery } from "../data/query.ts";
 import KLink from "../prefetch/KLink.vue";
+import { useProblems } from "../problems/index.ts";
 import { childrenIntent } from "../prefetch/tree.ts";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
 import { useTime } from "../time/index.ts";
-import { pageOfObject, type CollectionId } from "./collections.ts";
+import { collectionById, pageOfObject, type CollectionId, type Item } from "./collections.ts";
 import { draftedValues, editRight } from "./edit/fields.ts";
+import EditHint from "./edit/EditHint.vue";
+import { whyWords } from "./edit/inline.ts";
+import { NODE_COLLECTIONS, nodeApplyRight, useNodeEdit, useNodeWords } from "./edit/nodes.ts";
 import { openEdit } from "./edit/panel.ts";
+import QuickApply from "./edit/QuickApply.vue";
+import { useSay } from "./edit/say.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { rowsOf, useKeyLabel } from "./data.ts";
 import ViewPanel from "./parts/ViewPanel.vue";
@@ -181,14 +198,57 @@ const levelOf = (parent: string | null) => {
   const result = results.get(parent);
   return result?.data ? { items: itemsOf(parent), more: result.hasNextPage } : undefined;
 };
-// The occupancy of a prefix comes with its page (021/A11): no read for a row.
+// In-place editing (task 12a): the nodes of every level read, each at the version its page
+// served; after a 412, the level that holds the node is read again.
+const items = computed(() => [...results.keys()].flatMap(itemsOf));
+const itemById = computed(() => new Map(items.value.map((item) => [item.id, item])));
+const said = ref("");
+// Emptied first: the same sentence twice is said twice.
+const say = useSay((text) => {
+  said.value = "";
+  void nextTick(() => (said.value = text));
+});
+const words = useNodeWords();
+const edit = useNodeEdit({
+  rows: () => items.value as unknown as Item[],
+  words,
+  reread: (id) => {
+    for (const [parent, result] of results) {
+      if (itemsOf(parent).some((item) => item.id === id)) void result.refetch();
+    }
+  },
+  t: (key, values) => t(key, values ?? {}),
+  sentence: useProblems().sentence,
+  say,
+});
+/** The nodes as the cells show them: with the values of the draft and of this session. */
+const shownById = computed(
+  () => new Map(edit.shownRows.value.map((row) => [String(row.id), row as unknown as Node])),
+);
+const rowOf = (id: string) => itemById.value.get(id) as Item | undefined;
+const editable = (node: TreeNode, column: GridColumn) => {
+  const row = rowOf(node.id);
+  return row !== undefined && edit.editable(row, column);
+};
+const validate = (node: TreeNode, column: GridColumn, value: string) => {
+  const row = rowOf(node.id);
+  return row ? edit.validate(row, column, value) : undefined;
+};
+const cellState = (node: TreeNode, column: GridColumn) => {
+  const row = rowOf(node.id);
+  return row ? edit.cellState(row, column) : undefined;
+};
+const onCommit = (commit: GridCommit) => edit.onCommit(commit);
+
+// The occupancy of a prefix comes with its page (021/A11): no read for a row. The node is
+// named by its value read (the tree places it by the present); its detail is the one shown.
 const nodeOf = (item: Node): TreeNode => ({
   id: item.id,
   label: valueOf(item),
   icon: ICONS[item.kind],
   cells: {
     occupancy: (item.kind === "prefix" ? shareOf(item.occupancy) : undefined) ?? "",
-    detail: detailOf(item),
+    detail: detailOf(shownById.value.get(item.id) ?? item),
   },
   detail: keyLabel("kind", `core.${item.kind}`) ?? item.kind,
 });
@@ -285,24 +345,30 @@ function onActivate(id: string): void {
 // Direct addition (024/M10, REQ-021-36): the « + » of a prefix, and `c`, open the edit
 // panel of the kinds it may hold — a network its addresses and ranges, a container its
 // prefixes — the domain given; `e` modifies the chosen node. At the present only; the
-// panel refuses, visibly, what the rights do not allow.
+// panel refuses, visibly, what the rights do not allow. `c` adds in the node of the focus
+// in the tree, else in the chosen one (021/A20).
 const session = useSession();
-const KINDS: Record<Node["kind"], CollectionId> = {
-  prefix: "prefixes",
-  range: "ranges",
-  address: "addresses",
-};
-// The « + » only for whom may add (the tree has no refused « + »: Enter on a node would go
-// into a button that refuses, rather than open its record).
+/** The kinds a node may hold: a network its addresses and ranges, else prefixes. */
+const kindsIn = (node: Shown | undefined): CollectionId[] =>
+  node?.kind === "prefix" && node.nature === "network" ? ["addresses", "ranges"] : ["prefixes"];
+/**
+ * Why adding in `node` (the first level without one) is refused: off the present, or
+ * without the right to write any kind it may hold — the first one named, as served.
+ */
+function addRefusal(node: Shown | undefined): { forbidden: string } | { reason: string } | null {
+  if (!time.value.present) return { reason: t("edit.why.past") };
+  const types = kindsIn(node).map((id) => collectionById(id)!.type);
+  if (types.some((type) => session.value.rights.has(editRight(type)))) return null;
+  return { forbidden: editRight(types[0]!) };
+}
+// The « + » of every prefix; refused, it stays visible and says why (REQ-021-37).
 const addLabel = (node: TreeNode) =>
-  time.value.present && mayAdd() && nodeById(node.id)?.kind === "prefix"
-    ? t("edit.addIn", { within: node.label })
-    : undefined;
+  nodeById(node.id)?.kind === "prefix" ? t("edit.addIn", { within: node.label }) : undefined;
+const addBlocked = (node: TreeNode) => addRefusal(nodeById(node.id)) ?? undefined;
 function addIn(id: string | undefined): void {
   const node = nodeById(id) ?? chosen.value;
   const inside = node?.kind === "prefix" ? node : undefined;
-  const kinds: CollectionId[] =
-    inside?.nature === "network" ? ["addresses", "ranges"] : ["prefixes"];
+  const kinds = kindsIn(inside);
   openEdit({
     mode: "create",
     collection: kinds[0]!,
@@ -310,17 +376,34 @@ function addIn(id: string | undefined): void {
     ...(domain.value ? { preset: { domain: domain.value } } : {}),
   });
 }
-const mayAdd = () =>
-  (["core.prefix", "core.range", "core.address"] as const).some((type) =>
-    session.value.rights.has(editRight(type)),
-  );
+/** The cell of the focus in the tree (kept on leaving it, as a grid's): where `c` adds. */
+const activeCell = ref<CellRef | undefined>();
+const target = computed<Shown | undefined>(() => nodeById(activeCell.value?.row) ?? chosen.value);
+const targetPrefix = computed(() => (target.value?.kind === "prefix" ? target.value : undefined));
 useViewAction("create", {
   label: () =>
-    chosen.value?.kind === "prefix"
-      ? t("edit.addIn", { within: valueOf(chosen.value) })
+    targetPrefix.value
+      ? t("edit.addIn", { within: valueOf(targetPrefix.value) })
       : t("edit.createAction", { kind: t("labels.kind.core.prefix") }),
-  allowed: () => mayAdd() && domain.value !== undefined,
-  run: () => addIn(chosen.value?.id),
+  allowed: () => addRefusal(targetPrefix.value) === null && domain.value !== undefined,
+  run: () => addIn(targetPrefix.value?.id),
+});
+/**
+ * « Ajouter dans » of the chosen prefix: visible, refused with its permission; `c` shown
+ * on it only when `c` adds there (the node of the focus is the chosen one, or none).
+ */
+const contentActions = computed<ToolbarAction[]>(() => {
+  const node = chosen.value;
+  if (node?.kind !== "prefix") return [];
+  return [
+    {
+      id: "add",
+      label: t("edit.addIn", { within: valueOf(node) }),
+      icon: "plus",
+      ...(targetPrefix.value?.id === node.id ? { shortcut: ["c"] } : {}),
+      ...(addRefusal(node) ?? {}),
+    },
+  ];
 });
 useViewAction("edit", {
   label: () =>
@@ -329,10 +412,58 @@ useViewAction("edit", {
     chosen.value !== undefined && session.value.rights.has(editRight(`core.${chosen.value.kind}`)),
   run: () => {
     if (chosen.value) {
-      openEdit({ mode: "edit", collection: KINDS[chosen.value.kind], id: chosen.value.id });
+      openEdit({
+        mode: "edit",
+        collection: NODE_COLLECTIONS[chosen.value.kind],
+        id: chosen.value.id,
+      });
     }
   },
 });
+
+// The foot of the tree speaks of the cell of the focus (the tree's `active`, kept when the
+// focus leaves it, as at the foot of a list): Enter opens the record of a node and Tab its
+// « + » by the tree itself (021/A20).
+const focusRow = computed(() => (activeCell.value ? rowOf(activeCell.value.row) : undefined));
+/** Why the cell of the focus has no editor (the tree has no description for it), or none. */
+const focusWhy = computed(() =>
+  activeCell.value && focusRow.value ? edit.why(activeCell.value.column, focusRow.value) : null,
+);
+const focusEditable = computed(() => focusRow.value !== undefined && focusWhy.value === null);
+const focusSaysWhy = computed(() => focusWhy.value !== null && focusWhy.value.kind !== "none");
+/** The permission Ctrl+Enter lacks in the cell of the focus, `null` when held. */
+const focusApplyLacks = computed(() =>
+  focusRow.value && !edit.mayApply(focusRow.value) ? nodeApplyRight(focusRow.value) : null,
+);
+// The tree has no description for a cell without an editor (`readonlyReason`): its reason
+// is said by the status of the view when the focus comes to it (4.1.3).
+watch(
+  () => whyWords(focusWhy.value, t),
+  (words) => {
+    if (!words) return;
+    said.value = "";
+    void nextTick(() => (said.value = words));
+  },
+);
+
+/** The line of the motive closed: the focus back to its cell. */
+async function afterAsk(cell: CellRef): Promise<void> {
+  await nextTick();
+  document
+    .querySelector<HTMLElement>(
+      `[data-k-tree] [data-row="${CSS.escape(cell.row)}"][data-column="${CSS.escape(cell.column)}"]`,
+    )
+    ?.focus();
+}
+async function onConfirm(motive: string, value: string): Promise<void> {
+  const ask = edit.asking.value;
+  if (ask && (await edit.confirm(motive, value))) void afterAsk(edit.cellOf(ask));
+}
+function onCancelAsk(): void {
+  const ask = edit.asking.value;
+  edit.cancel();
+  if (ask) void afterAsk(edit.cellOf(ask));
+}
 const detailKind = computed(() =>
   chosen.value ? (keyLabel("kind", `core.${chosen.value.kind}`) ?? chosen.value.kind) : "",
 );
@@ -396,6 +527,8 @@ onBeforeUnmount(() => stopIntent());
             v-else
             v-model:expanded="expanded"
             v-model:selected="selected"
+            v-model:active="activeCell"
+            data-k-tree
             :label="t('views.topology.tree', { name: domainSlug })"
             :tree-label="t('views.topology.prefix')"
             :nodes="nodes"
@@ -406,12 +539,30 @@ onBeforeUnmount(() => stopIntent());
             :loading-rows="8"
             :node-state="nodeState"
             :add-label="addLabel"
+            :add-blocked="addBlocked"
+            :editable="editable"
+            :validate="validate"
+            :cell-state="cellState"
             parent-mode="derived"
             @load="onLoad"
             @activate="onActivate"
             @add="addIn"
+            @commit="onCommit"
           />
         </div>
+        <span class="k-visually-hidden" role="status">{{ said }}</span>
+        <!-- Once a cell has had the focus: what Enter does there, or why it has no editor. -->
+        <template v-if="edit.asking.value || focusEditable || focusSaysWhy" #footer>
+          <QuickApply
+            v-if="edit.asking.value"
+            :key="edit.asking.value.row + edit.asking.value.column"
+            :ask="edit.asking.value"
+            :words="words"
+            @confirm="onConfirm"
+            @cancel="onCancelAsk"
+          />
+          <EditHint v-else :why="focusWhy" :apply-lacks="focusApplyLacks" />
+        </template>
       </ViewPanel>
     </template>
     <ViewPanel
@@ -422,6 +573,13 @@ onBeforeUnmount(() => stopIntent());
       :flush="chosen.kind === 'prefix'"
     >
       <template #actions>
+        <Toolbar
+          v-if="contentActions.length > 0"
+          :label="t('views.topology.actions', { name: valueOf(chosen) })"
+          :actions="contentActions"
+          align="end"
+          @action="(id: string) => id === 'add' && addIn(chosen!.id)"
+        />
         <KLink
           v-if="pageOfObject(chosen.kind, chosen.id)"
           :to="pageOfObject(chosen.kind, chosen.id)!"

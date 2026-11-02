@@ -245,6 +245,7 @@
       "choose": "Aucun nœud choisi",
       "chooseText": "Choisissez un préfixe de l'arbre : son contenu s'affiche ici.",
       "open": "Ouvrir la fiche",
+      "actions": "Actions sur {name}",
       "leaf": "Cet objet ne contient rien ; sa fiche dit le reste.",
       "empty": "Aucun préfixe dans ce domaine",
       "treeError": "L'arbre des préfixes n'a pas pu être lu.",

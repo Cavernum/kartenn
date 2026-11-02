@@ -5,7 +5,8 @@ import { expect, openState, test } from "../fixtures/index.ts";
 // « Inventaire » line 21, « Contrat d'édition », « Contrat de déplacement »; REQ-020-18,
 // 19, 31, 32), the keyboard alone from the title of the page: one tab stop; on the node
 // cell, Up, Down, Home, End, Right (opens, then into the row), Left (closes, then up),
-// Enter to the « + »; along the cells, the arrows, Home, End, Ctrl+Home, Ctrl+End; in-place
+// Enter activates, Tab to the « + » (021/A20), refused with its permission; along the
+// cells, the arrows, Home, End, Ctrl+Home, Ctrl+End; in-place
 // editing (Enter or F2, Escape, Enter or Tab) with the host's states; moves of declared
 // parents (drag checked first, Ctrl+X and Ctrl+V, « Déplacer vers… »); a hundred thousand
 // nodes, the focus exact after 500 presses and kept mounted; children page by page.
@@ -36,7 +37,7 @@ async function tabIn(page: Page, presses = 1): Promise<void> {
 }
 
 test.describe("TreeGrid (APG Treegrid)", () => {
-  test("one tab stop; Up, Down; Right opens then goes into the row, Left closes or goes up; Enter to the « + »", async ({
+  test("one tab stop; Up, Down; Right opens then goes into the row, Left closes or goes up; Tab to the « + »", async ({
     page,
   }) => {
     await openState(page, "TreeGrid", "add");
@@ -62,9 +63,13 @@ test.describe("TreeGrid (APG Treegrid)", () => {
     expect(await focusedCell(page)).toBe("p1|");
     await page.keyboard.press("ArrowDown");
     expect(await focusedCell(page)).toBe("p2|");
-    await page.keyboard.press("Enter");
+    // Tab goes into the « + » of the node (021/A20), Escape back; Shift+Tab back too.
+    await page.keyboard.press("Tab");
     await expect(page.getByRole("button", { name: "Ajouter dans 192.0.2.0/26" })).toBeFocused();
     await page.keyboard.press("Escape");
+    expect(await focusedCell(page)).toBe("p2|");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Shift+Tab");
     expect(await focusedCell(page)).toBe("p2|");
     await page.keyboard.press("End");
     expect(await focusedCell(page)).toBe("p5|");
@@ -74,6 +79,30 @@ test.describe("TreeGrid (APG Treegrid)", () => {
     await page.keyboard.press("Space");
     await expect(row("Centre de données nord")).toHaveAttribute("aria-selected", "true");
     await expect(tree.locator("[tabindex='0']")).toHaveCount(1);
+  });
+
+  test("a refused « + »: reached by Tab, aria-disabled, its permission said at the keyboard; Tab then leaves", async ({
+    page,
+  }) => {
+    await openState(page, "TreeGrid", "add-refused");
+    await tabIn(page);
+    expect(await focusedCell(page)).toBe("p5|");
+    await page.keyboard.press("Tab");
+    const add = page.getByRole("button", { name: "Ajouter dans 203.0.113.0/24" });
+    await expect(add).toBeFocused();
+    await expect(add).toHaveAttribute("aria-disabled", "true");
+    await expect(add).toHaveAccessibleDescription(/Il faut core\.prefix\.edit/);
+    await expect(page.locator(".k-tooltip").filter({ hasText: "core.prefix.edit" })).toBeVisible();
+    // Shift+Tab, or Escape, back to the node cell; Tab again, then Tab leaves the tree.
+    await page.keyboard.press("Shift+Tab");
+    expect(await focusedCell(page)).toBe("p5|");
+    await page.keyboard.press("Tab");
+    await expect(add).toBeFocused();
+    await page.keyboard.press("Escape");
+    expect(await focusedCell(page)).toBe("p5|");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("treegrid").locator(":focus")).toHaveCount(0);
   });
 
   test("the cells: arrows along the row and the column, Home, End, Ctrl+Home, Ctrl+End", async ({
