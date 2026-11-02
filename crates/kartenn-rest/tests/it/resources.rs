@@ -692,6 +692,44 @@ async fn the_body_states_the_own_version(pool: PgPool) {
     assert_eq!(refused.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
+/// The rows of a page and their versions are read in one snapshot (task 021-11c): a write
+/// validated between the two reads, through `GET /v1/prefixes`, is seen by neither, so
+/// that the `version` of an object of a page names the value served, and an `If-Match`
+/// taken from the page answers 412 once the object has changed.
+#[kartenn_testing::pg_test]
+async fn a_page_carries_the_version_of_the_value_served(pool: PgPool) {
+    let app = admin(&pool).await;
+    let (_, prefix) = lab(&app).await;
+    let id: Uuid = id_of(&prefix).parse().unwrap();
+    for uri in ["/v1/prefixes", "/v1/prefixes?domain=lab"] {
+        let (_, served) = read(&app, &prefix).await;
+        let request = common::bearer(Request::get(uri).body(Body::empty()).unwrap());
+        let (response, written) = common::served_across_a_write(&pool, &app, request, id).await;
+        assert_eq!(response.status(), StatusCode::OK, "{uri}");
+        let page = json_of(response).await;
+        let item = &page["items"][0];
+        assert_eq!(item["id"], id.to_string(), "{uri}: {page}");
+        assert_eq!(
+            item["version"], served["version"],
+            "{uri}: the version of the rows"
+        );
+        let (_, now) = read(&app, &prefix).await;
+        assert_eq!(
+            now["version"],
+            written.to_string(),
+            "{uri}: the write is seen after"
+        );
+        let version = item["version"].as_str().unwrap();
+        let body = json!({"motive": "m", "anycast": true});
+        let refused = send(
+            &app,
+            patch(&prefix, Some(&format!("\"{version}\"")), MERGE_PATCH, &body),
+        )
+        .await;
+        assert_eq!(refused.status(), StatusCode::PRECONDITION_FAILED, "{uri}");
+    }
+}
+
 /// `If-Match` compares the version of the object only (REQ-006-14, 006/H19): a parent
 /// renamed since the read refuses no write, the bare version is accepted, and a version
 /// no longer current still answers 412.

@@ -888,6 +888,14 @@ async fn reading(
     Ok((moment, scope))
 }
 
+/// The snapshot in which the `fetch` of [`page_of`] reads its rows, once its filters are
+/// valid (task 021-11c).
+async fn snapshot(pool: &sqlx::PgPool) -> Result<kit::Snapshot, Problem> {
+    kartenn_store_pg::read::consistent(pool)
+        .await
+        .map_err(|e| kit::store(&e))
+}
+
 /// A page of flows read by `fetch` after the cursor, kept to those the caller reads.
 #[allow(clippy::too_many_arguments)] // the request, then what the route reads
 async fn page_of<F, Fut>(
@@ -902,13 +910,18 @@ async fn page_of<F, Fut>(
 ) -> Result<Response, Problem>
 where
     F: FnOnce(Dates, Option<Cursor>, i64, Page) -> Fut,
-    Fut: std::future::Future<Output = Result<(Vec<FlowView>, Page, Vec<Endpoint>), Problem>>,
+    Fut: std::future::Future<
+            Output = Result<(Vec<FlowView>, Page, Vec<Endpoint>, kit::Snapshot), Problem>,
+        >,
 {
     let page = Page::from_query(query, &api.ring, collection)?;
     let after = page.after().map(cursor_of).transpose()?;
     let (moment, scope) = reading(api, principal, &page).await?;
     let size = usize::from(page.size);
-    let (mut rows, page, objects) =
+    // The rows of the page and the versions of its flows in force are read in one
+    // snapshot, which `fetch` begins once its filters are valid, reads in and gives
+    // back (task 021-11c).
+    let (mut rows, page, objects, mut snapshot) =
         fetch(dates(&moment), after, i64::from(page.size) + 1, page).await?;
     let next = (rows.len() > size).then(|| {
         rows.truncate(size);
@@ -925,6 +938,9 @@ where
         .filter(|r| r.review.is_none())
         .filter_map(|r| Some((r.id?, endpoints_of(&r.flow))))
         .collect();
+    let current: Vec<Uuid> = flows.iter().map(|(id, _)| *id).collect();
+    let versions = kit::versions(&mut *snapshot, &moment, &current).await?;
+    kit::release(snapshot);
     let seen = flows_seen(api, &scope, principal, moment.valid_at, &flows, &objects).await?;
     let reviews = reviews_seen(api, &scope, principal, moment.valid_at, &rows).await?;
     // A flow under review shows the state proposed, not its own version: only the flows
@@ -968,7 +984,7 @@ where
     )
     .await?;
     let in_force: Vec<&FlowDto> = items.iter().filter(|i| i.1).map(|i| &i.0).collect();
-    let mut versioned = kit::versioned(api, &moment, &in_force).await?.into_iter();
+    let mut versioned = kit::versioned(&in_force, &versions).into_iter();
     let items: Vec<Value> = items
         .iter()
         .map(|(flow, in_force)| {
@@ -1069,9 +1085,9 @@ async fn list(
                 .chain(filter.within_prefix.map(|id| ("prefix".to_owned(), id)))
                 .chain(filter.machine.map(|id| ("machine".to_owned(), id)))
                 .collect();
-            let mut conn = pool.acquire().await.map_err(|e| kit::store(&e))?;
-            let rows = read::flows(&mut conn, dates, &filter, after, limit).await?;
-            Ok((rows, page, objects))
+            let mut snapshot = snapshot(&pool).await?;
+            let rows = read::flows(&mut snapshot, dates, &filter, after, limit).await?;
+            Ok((rows, page, objects, snapshot))
         },
     )
     .await
@@ -1109,12 +1125,13 @@ async fn of_object(
                     return Err(Problem::new(ProblemKind::InvalidCursor));
                 }
             };
-            let mut conn = pool.acquire().await.map_err(|e| kit::store(&e))?;
-            let rows = read::of_object(&mut conn, dates, kind, id, after, limit).await?;
+            let mut snapshot = snapshot(&pool).await?;
+            let rows = read::of_object(&mut snapshot, dates, kind, id, after, limit).await?;
             Ok((
                 rows,
                 page,
                 vec![(crate::pg::kind_name(kind).to_owned(), id)],
+                snapshot,
             ))
         },
     )

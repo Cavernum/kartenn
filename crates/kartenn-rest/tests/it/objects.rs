@@ -1419,6 +1419,22 @@ async fn properties_filter_the_objects_of_one_domain(pool: PgPool) {
     let body = ok(&app, "/v1/prefixes?domain=lab&prop.policy.env=dev").await;
     assert_eq!(body["items"][0]["value"], "10.3.0.0/24", "{body}");
     assert_eq!(body["items"][0]["domain"]["slug"], "lab", "{body}");
+    // Each object of a filtered page carries its own version, read with its row in one
+    // snapshot: the one its read by identifier states (task 021-11c).
+    let body = ok(
+        &app,
+        "/v1/prefixes?domain=lab&prop.policy.env=prod&prop.policy.env=test",
+    )
+    .await;
+    assert_eq!(ids_of(&body), sorted(vec![a, b, d]));
+    for item in body["items"].as_array().unwrap() {
+        let href = format!("/v1/prefixes/{}", item["id"].as_str().unwrap());
+        let response = get(&app, &href).await;
+        let etag = response.headers()["etag"].to_str().unwrap().to_owned();
+        let version = item["version"].as_str().unwrap();
+        assert_eq!(json_of(response).await["version"], version, "{href}");
+        assert!(etag.starts_with(&format!("\"{version}.")), "{etag}");
+    }
     let body = ok(&app, "/v1/addresses?domain=lab&prop.policy.env=prod").await;
     assert_eq!(ids_of(&body), vec![gateway.to_string()]);
 

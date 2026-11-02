@@ -639,6 +639,8 @@ async fn list_clusters(
         listed("machines.cluster", CLUSTER_COLUMNS, moment.as_of.is_none()),
         visible("x", CLUSTER),
     );
+    // The rows of the page and their versions are read in one snapshot (task 021-11c).
+    let mut snapshot = kit::snapshot(&api).await?;
     let mut rows: Vec<ClusterRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
         // A prefix `q` is planned with its value (an unnamed statement).
         .persistent(prefix.is_none())
@@ -650,7 +652,7 @@ async fn list_clusters(
         .bind(after.as_ref().map(|(_, id)| *id))
         .bind(i64::from(page.size) + 1)
         .bind(prefix.as_deref())
-        .fetch_all(&api.pool)
+        .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
     let size = usize::from(page.size);
@@ -661,6 +663,8 @@ async fn list_clusters(
         next_href(&format!("/v1/{NAME}"), &cursor)
     });
     let ids: Vec<Uuid> = rows.iter().map(|r| r.0).collect();
+    let versions = kit::versions(&mut *snapshot, &moment, &ids).await?;
+    kit::release(snapshot);
     kit::record_read(
         &api,
         &context,
@@ -670,7 +674,7 @@ async fn list_clusters(
     )
     .await?;
     let items: Vec<ClusterDto> = rows.into_iter().map(cluster_dto).collect();
-    let items = kit::versioned(&api, &moment, &items).await?;
+    let items = kit::versioned(&items, &versions);
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 
@@ -760,6 +764,8 @@ async fn machines_page(
         listed("machines.machine", MACHINE_COLUMNS, moment.as_of.is_none()),
         visible("x", MACHINE),
     );
+    // The rows of the page and their versions are read in one snapshot (task 021-11c).
+    let mut snapshot = kit::snapshot(api).await?;
     let mut rows: Vec<MachineRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
         // A prefix `q` is planned with its value (an unnamed statement).
         .persistent(filter.suggestion.is_none())
@@ -778,7 +784,7 @@ async fn machines_page(
         .bind(filter.network)
         .bind(i64::from(page.size) + 1)
         .bind(filter.suggestion)
-        .fetch_all(&api.pool)
+        .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
     let size = usize::from(page.size);
@@ -789,9 +795,11 @@ async fn machines_page(
         next_href(&format!("/v1/{path}"), &cursor)
     });
     let ids: Vec<Uuid> = rows.iter().map(|r| r.0).collect();
+    let versions = kit::versions(&mut *snapshot, &moment, &ids).await?;
+    kit::release(snapshot);
     kit::record_read(api, context, MACHINE, &ids, criteria(path, page, &moment)).await?;
     let items: Vec<MachineDto> = rows.into_iter().map(machine_dto).collect();
-    let items = kit::versioned(api, &moment, &items).await?;
+    let items = kit::versioned(&items, &versions);
     Ok(respond_page(headers, &moment, &items, next.as_deref()))
 }
 
@@ -963,6 +971,8 @@ async fn list_interfaces(
         dated("machines.attachment", "interface_id, address_id"),
         visible("x", INTERFACE),
     );
+    // The rows of the page and their versions are read in one snapshot (task 021-11c).
+    let mut snapshot = kit::snapshot(&api).await?;
     let mut rows: Vec<InterfaceRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
         // A prefix `q` is planned with its value (an unnamed statement).
         .persistent(prefix.is_none())
@@ -980,7 +990,7 @@ async fn list_interfaces(
         .bind(i64::from(page.size) + 1)
         .bind(prefix.as_deref())
         .bind(wanted.get("media").copied())
-        .fetch_all(&api.pool)
+        .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
     let size = usize::from(page.size);
@@ -996,6 +1006,8 @@ async fn list_interfaces(
         next_href(&format!("/v1/{NAME}"), &cursor)
     });
     let ids: Vec<Uuid> = rows.iter().map(|r| r.id).collect();
+    let versions = kit::versions(&mut *snapshot, &moment, &ids).await?;
+    kit::release(snapshot);
     kit::record_read(
         &api,
         &context,
@@ -1005,7 +1017,7 @@ async fn list_interfaces(
     )
     .await?;
     let items: Vec<InterfaceDto> = rows.into_iter().map(interface_dto).collect();
-    let items = kit::versioned(&api, &moment, &items).await?;
+    let items = kit::versioned(&items, &versions);
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 

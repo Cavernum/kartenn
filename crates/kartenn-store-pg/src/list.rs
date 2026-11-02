@@ -6,7 +6,7 @@
 
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
-use sqlx::{AssertSqlSafe, PgPool};
+use sqlx::{AssertSqlSafe, PgExecutor, PgPool};
 
 use crate::rbac::{ReadScope, readable};
 use crate::temporal::{TemporalError, current_rows, history_of, snapshot};
@@ -349,7 +349,7 @@ type ListRow = (
     kartenn.kind = kind.as_str(),
 ))]
 pub async fn objects(
-    pool: &PgPool,
+    executor: impl PgExecutor<'_>,
     kind: Kind,
     criteria: &Criteria<'_>,
     valid_at: OffsetDateTime,
@@ -378,7 +378,7 @@ pub async fn objects(
         .bind(criteria.within)
         .bind(criteria.usages)
         .bind(criteria.prefix.map(like_prefix))
-        .fetch_all(pool)
+        .fetch_all(executor)
         .await?;
     Ok(rows
         .into_iter()

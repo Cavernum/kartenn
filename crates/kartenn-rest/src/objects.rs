@@ -5,6 +5,7 @@
 //! history. An object the caller may not read answers as an absent one: the read
 //! predicate does not tell them apart (ADR 0021).
 
+use std::collections::HashMap;
 use std::time::Duration;
 
 use axum::Extension;
@@ -1047,7 +1048,8 @@ async fn list(
         .read_scope(&principal.subject(), now)
         .await?;
     let size = usize::from(page.size);
-    let (moment, rows, next) = if wanted.properties.is_empty() {
+    // The rows of the page and their versions are read in one snapshot (task 021-11c).
+    let (moment, rows, next, versions) = if wanted.properties.is_empty() {
         let after = page
             .after()
             .map(|key| serde_json::from_value::<(Option<Uuid>, String, Uuid)>(key.clone()))
@@ -1055,8 +1057,9 @@ async fn list(
             .map_err(|_| Problem::new(ProblemKind::InvalidCursor))?
             .map(|(domain, value, id)| Key { domain, value, id });
         let moment = page.dates.at(now, api.bound)?;
+        let mut snapshot = crate::kit::snapshot(&api).await?;
         let mut rows = list::objects(
-            &api.pool,
+            &mut *snapshot,
             kind,
             &Criteria {
                 slugs: &wanted.slugs,
@@ -1087,18 +1090,22 @@ async fn list(
                 json!([last.domain, last.value, last.id]),
             )
         });
-        (moment, rows, next)
+        let ids: Vec<Uuid> = rows.iter().map(|row| row.key.id).collect();
+        let versions = crate::kit::versions(&mut *snapshot, &moment, &ids).await?;
+        crate::kit::release(snapshot);
+        (moment, rows, next, versions)
     } else {
         let (moment, mut ids) = filtered(&api, kind, &page, &wanted, &scope, now).await?;
         let next = (ids.len() > size).then(|| {
             ids.truncate(size);
             page.next_current(&api.ring, name, &moment, json!(ids[size - 1]))
         });
-        let mut rows = if ids.is_empty() {
-            Vec::new()
+        let (mut rows, versions) = if ids.is_empty() {
+            (Vec::new(), HashMap::new())
         } else {
-            list::objects(
-                &api.pool,
+            let mut snapshot = crate::kit::snapshot(&api).await?;
+            let rows = list::objects(
+                &mut *snapshot,
                 kind,
                 &Criteria {
                     ids: &ids,
@@ -1113,10 +1120,13 @@ async fn list(
                 &scope,
             )
             .await
-            .map_err(|e| store(&e))?
+            .map_err(|e| store(&e))?;
+            let versions = crate::kit::versions(&mut *snapshot, &moment, &ids).await?;
+            crate::kit::release(snapshot);
+            (rows, versions)
         };
         rows.sort_by_key(|row| row.key.id);
-        (moment, rows, next)
+        (moment, rows, next, versions)
     };
     let next = next.map(|cursor| next_href(&format!("/v1/{name}"), &cursor));
     let ids: Vec<Uuid> = rows.iter().map(|row| row.key.id).collect();
@@ -1124,7 +1134,7 @@ async fn list(
         .into_iter()
         .map(|row| represent(kind, &row.fields, row.link.as_deref()))
         .collect::<Result<Vec<_>, _>>()?;
-    let items = crate::kit::versioned(&api, &moment, &items).await?;
+    let items = crate::kit::versioned(&items, &versions);
     let criteria = json!({
         "collection": name,
         "filters": page.filters,

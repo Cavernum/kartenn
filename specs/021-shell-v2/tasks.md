@@ -461,7 +461,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     `refresh_failed`). Recommandation : réémettre le cookie après un rafraîchissement,
     `seen` laissé à sa valeur lue (ne prolonge rien) ; à trancher (A14 dit « ne réémet
     pas »).
-- [ ] 11c. Pages d'objets lues dans un seul instantané : `kit::versioned` lit la page et
+- [x] 11c. Pages d'objets lues dans un seul instantané : `kit::versioned` lit la page et
   ses versions dans la même transaction `REPEATABLE READ, READ ONLY` (`read::consistent`
   de la 11a), comme l'arbre ; sans cela, une écriture validée entre les deux lectures sert
   une valeur ancienne sous une `version` nouvelle, et un `If-Match` de l'édition en place
@@ -473,6 +473,56 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     appelants ; `read::consistent` et `children` de `crates/kartenn-rest/src/tree.rs`
     (forme) ; test voisin `crates/kartenn-rest/tests/it/objects.rs`
   - dépend de : 11a
+  - fait le 2026-11-01 — `kit` (`crates/kartenn-rest/src/kit.rs`) : `snapshot` (la
+    transaction de `read::consistent`, type `Snapshot`), `versions(executor, moment, ids)`
+    qui lit les versions dans l'instantané, `versioned(items, &versions)` qui les pose
+    (sans lecture), `release` qui finit l'instantané avant l'événement d'audit. Chaque
+    page d'objets lit ses lignes et leurs versions dans un instantané : objets du cœur
+    par clé naturelle et par propriétés (`objects::list`, l'instantané ouvert après la
+    sélection des identifiants par le moteur de filtres, aucun s'il n'y en a pas),
+    groupes de VLAN et VLAN (`vlan.rs`), grappes, machines et interfaces
+    (`kartenn-machines`), collections de politique (`kartenn-policy`), flux et flux d'un
+    objet (`kartenn-flow`, `fetch` ouvre l'instantané une fois ses filtres valides et le
+    rend à `page_of` ; versions
+    des flux en vigueur lues avant les lectures de visibilité et de valeurs des
+    extrémités, une seule connexion tenue à la fois) ; l'arbre (`tree.rs`) passe aux
+    mêmes `snapshot`/`release`. `list::objects` prend un exécuteur. Coût : un aller-retour
+    de plus par page (le `BEGIN`) ; la fin de l'instantané n'en coûte aucun à la réponse.
+    Tests, par les routes, une écriture validée entre la lecture des lignes et celle des
+    versions (`common::served_across_a_write`) : `resources::a_page_carries_the_version_of_the_value_served`
+    (`GET /v1/prefixes`, sans filtre et par domaine : `version` de la valeur lue,
+    l'écriture vue ensuite, `If-Match` de la version servie → 412) et
+    `vlan::rest::a_page_of_vlans_carries_the_version_of_the_value_served` (groupes de
+    VLAN, VLAN) ; tous deux échouent quand les versions se relisent sur le pool ;
+    `objects::properties_filter_the_objects_of_one_domain` (page filtrée : `version` de
+    chaque objet = celle de sa lecture et tête de son ETag) ; `k-check -p kartenn-rest -p
+    kartenn-flow` vert (410 tests) ; `k-check` complet vert hors deux tests du flux
+    d'événements (`settled`, attente du lecteur de l'outbox dépassée sous charge), verts
+    seuls. Banc
+    `bench-http` (pages filtrées) laissé à la session principale.
+  - choix : l'instantané se finit en le lâchant (`ROLLBACK` mis en file ; la connexion
+    revient au pool dans une tâche à part, dont le ping l'envoie pendant que la requête
+    continue, audit et réponse) plutôt que par un `COMMIT` attendu, qui coûtait un second
+    aller-retour ; pour une transaction en lecture seule les deux se valent (seul
+    `pg_stat_database.xact_rollback` les distingue) ; l'arbre de la 11a suit, pour une
+    forme unique. `versioned` séparé en `versions` (lecture) et `versioned` (pose), pour
+    que les flux lisent leurs versions avec leurs lignes. L'écriture des tests passe par
+    un verrou `ACCESS EXCLUSIVE` sur `object_version`, que seules les lectures de
+    versions lisent, tenu par le test qui y écrit puis valide quand la requête l'attend :
+    rien dans le code servi, aucun coût en production.
+  - reste : (1) page filtrée par propriétés : les identifiants sont choisis par le moteur
+    de filtres hors de l'instantané, seules les lignes et leurs versions y sont lues (un
+    objet qui ne vérifie plus le filtre peut encore paraître) ; limite admise. (2) Lecture
+    d'un objet par identifiant : la valeur et la version (`kit::version`, l'ETag) se
+    lisent en deux lectures sur le pool, dans `vlan.rs` (`answer`), `kartenn-machines`
+    (`answer`), `kartenn-policy` (`show`, et la relecture avant écriture),
+    `kartenn-flow` (`show`) et le `GET` d'un objet du noyau (`objects::object`, valeur
+    par `read_object` du service sur un `PgStore` du pool, puis `read::version`) : une
+    écriture entre les deux sert une valeur ancienne sous une version nouvelle, et le
+    panneau d'édition (12a) en tire son `If-Match`. À traiter dans une tâche à part (le
+    noyau demande que `read_object` lise dans l'instantané) ; en attendant, lire la
+    version avant la valeur suffirait à rendre la course sûre (412 de trop, jamais
+    d'écrasement).
 - [x] 16c. Rafraîchissement pendant une requête de fond (A15) : après un rafraîchissement
   des groupes sur une requête `Kartenn-Background: ?1` ou à l'ouverture du flux
   d'événements, cookie réémis avec `seen` remis à la valeur lue (ni fin par inactivité

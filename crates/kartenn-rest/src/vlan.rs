@@ -440,6 +440,8 @@ async fn list_groups(
         listed("vlan_group", GROUP_COLUMNS, moment.as_of.is_none()),
         visible(GROUP),
     );
+    // The rows of the page and their versions are read in one snapshot (task 021-11c).
+    let mut snapshot = kit::snapshot(&api).await?;
     let mut rows: Vec<GroupRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
         // A prefix `q` is planned with its value (an unnamed statement).
         .persistent(prefix.is_none())
@@ -452,7 +454,7 @@ async fn list_groups(
         .bind(after.as_ref().map(|(_, id)| *id))
         .bind(i64::from(page.size) + 1)
         .bind(prefix.as_deref())
-        .fetch_all(&api.pool)
+        .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
     let size = usize::from(page.size);
@@ -463,9 +465,11 @@ async fn list_groups(
         next_href(&format!("/v1/{NAME}"), &cursor)
     });
     let ids: Vec<Uuid> = rows.iter().map(|r| r.0).collect();
+    let versions = kit::versions(&mut *snapshot, &moment, &ids).await?;
+    kit::release(snapshot);
     kit::record_read(&api, &context, GROUP, &ids, criteria(NAME, &page, &moment)).await?;
     let items: Vec<GroupDto> = rows.into_iter().map(group_dto).collect();
-    let items = kit::versioned(&api, &moment, &items).await?;
+    let items = kit::versioned(&items, &versions);
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 
@@ -522,6 +526,8 @@ async fn list_vlans(
         listed("vlan", VLAN_COLUMNS, moment.as_of.is_none()),
         visible(VLAN),
     );
+    // The rows of the page and their versions are read in one snapshot (task 021-11c).
+    let mut snapshot = kit::snapshot(&api).await?;
     let mut rows: Vec<VlanRow> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
         // A prefix `q` is planned with its value (an unnamed statement).
         .persistent(prefix.is_none())
@@ -539,7 +545,7 @@ async fn list_vlans(
         .bind(after.map(|a| a.2))
         .bind(i64::from(page.size) + 1)
         .bind(prefix.as_deref())
-        .fetch_all(&api.pool)
+        .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
     let size = usize::from(page.size);
@@ -550,9 +556,11 @@ async fn list_vlans(
         next_href(&format!("/v1/{NAME}"), &cursor)
     });
     let ids: Vec<Uuid> = rows.iter().map(|r| r.0).collect();
+    let versions = kit::versions(&mut *snapshot, &moment, &ids).await?;
+    kit::release(snapshot);
     kit::record_read(&api, &context, VLAN, &ids, criteria(NAME, &page, &moment)).await?;
     let items: Vec<VlanDto> = rows.into_iter().map(vlan_dto).collect();
-    let items = kit::versioned(&api, &moment, &items).await?;
+    let items = kit::versioned(&items, &versions);
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
 

@@ -284,7 +284,7 @@ pub async fn versions(
 
 /// A read-only `REPEATABLE READ` transaction: the reads made in it see one snapshot of
 /// the database, those of the present included (the rows of a page and their versions,
-/// task 021-11a). It writes nothing: dropping it ends it.
+/// tasks 021-11a, 11c). It writes nothing: dropping it ends it.
 ///
 /// # Errors
 ///
