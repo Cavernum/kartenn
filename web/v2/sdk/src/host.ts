@@ -55,7 +55,7 @@ export function addToActiveDraft(
  * `draft.move`, without its promise to open the draft (REQ-021-33).
  */
 export function moveInActiveDraft(
-  op: Parameters<typeof drafts.addToActive>[0][number],
+  op: Extract<Parameters<typeof drafts.addToActive>[0], readonly unknown[]>[number],
   node: MoveSubject,
 ): Promise<DraftMove> {
   return moveInDraft(op, node, drafts.addToActive);

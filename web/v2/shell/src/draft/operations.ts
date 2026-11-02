@@ -18,11 +18,16 @@ const SUBJECTS = ["prefix", "address", "first", "slug", "key", "vid", "name", "i
 /** Members said elsewhere or of no use to read (the version read, the local name). */
 const HIDDEN = new Set(["op", "expected", "local"]);
 
-/** A member value as text: a reference by its identifier, a list joined, JSON otherwise. */
+/**
+ * A member value as text: a reference by its identifier (a local name as `#n`), a list of
+ * values joined, JSON otherwise.
+ */
 export function memberText(value: unknown): string {
   if (value === null || value === undefined) return "—";
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
+  // The values of an assignment: each as text (`#0` for the VLAN an earlier operation creates).
+  if (Array.isArray(value) && value.length > 0) return value.map(memberText).join(", ");
   if (typeof value === "object" && !Array.isArray(value)) {
     const ref = value as Record<string, unknown>;
     if (typeof ref.id === "string" && Object.keys(ref).length === 1) return ref.id;

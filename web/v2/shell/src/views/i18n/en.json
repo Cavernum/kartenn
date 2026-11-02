@@ -208,7 +208,15 @@
       "carries": "This network carries the VLAN {vlan}.",
       "property": "Property set",
       "remove": "Remove the VLAN",
-      "removal": "removal of the VLAN {vlan} from {network}"
+      "removal": "removal of the VLAN {vlan} from {network}",
+      "createForNetwork": "Create a VLAN for this network",
+      "setTitle": "Set an existing VLAN",
+      "setLabel": "VLAN",
+      "setHint": "By its VID or the start of its name.",
+      "set": "Set the VLAN",
+      "setChoose": "Choose a VLAN in the list.",
+      "setting": "setting of the VLAN {vlan} on {network}",
+      "settingDrafted": "Setting a VLAN on this network is already in your draft."
     },
     "home": {
       "error": "The counters of the dashboard could not be read.",
@@ -388,7 +396,13 @@
     "vlan": {
       "vidProposed": "Next free VID of the group {group}.",
       "vidSaid": "VID proposed: {vid}, the next free one of the group.",
-      "vidUnread": "No VID proposed: {why}"
+      "vidUnread": "No VID proposed: {why}",
+      "createFor": "Create a VLAN for {network}",
+      "motiveFor": "Creation of a VLAN for {network}",
+      "whatFor": "VLAN {vlan} for {network}",
+      "networkHint": "The VLAN created is set on it.",
+      "twoOperations": "Two operations, one changeset",
+      "twoOperationsText": "The VLAN is created, then set on {network}: both together, to the draft or applied."
     },
     "move": {
       "action": "Change parent…",

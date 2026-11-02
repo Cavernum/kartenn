@@ -11,7 +11,10 @@
 // violations on their fields with their codes, 403 a refusal. « Changer de parent… » of an
 // entity or a site (REQ-021-32, 33) lists the valid targets only (`canMove`, `moves.ts`) and
 // moves by the same split button: to the draft, or a changeset applied now; the record and
-// the lists show the new parent once read again, never before.
+// the lists show the new parent once read again, never before. « Créer un VLAN pour ce
+// réseau » (REQ-026-6, 021/A13): the creation and the setting of `core.vlan` on the network
+// by a local name, two operations of one changeset, to the draft or applied at once; a
+// refusal of the setting said on the field of the network.
 import { addToActiveDraft } from "@kartenn/sdk/host";
 import {
   changesets,
@@ -26,8 +29,10 @@ import {
   Button,
   Checkbox,
   Cluster,
+  CodeBadge,
   Combobox,
   filterOptions,
+  InlineAlert,
   Select,
   Skeleton,
   SplitButton,
@@ -54,24 +59,31 @@ import { problemCode, useProblems } from "../../problems/index.ts";
 import { rowsOf, useKeyLabel } from "../data.ts";
 import {
   ANCHOR_KINDS,
-  applyRight,
   changesOf,
   checkValue,
   editRight,
   EDITS,
-  fieldOfPointer,
   initialValues,
+  lackingRight,
   patchOf,
   textOf,
   type EditField,
   type Values,
 } from "./fields.ts";
+import AttributeList from "../parts/AttributeList.vue";
+import { VLAN_PROPERTY } from "../parts/vlan.ts";
 import type { Refusal } from "./inline.ts";
 import { useMoves, type MoveOutcome } from "./moves.ts";
 import { closeEdit, type ShownRequest } from "./panel.ts";
 import RefusalAlert from "./RefusalAlert.vue";
 import { useSay } from "./say.ts";
-import { nextFreeVid } from "./vlan.ts";
+import {
+  fieldErrors,
+  NETWORK_VLAN_EDITS,
+  nextFreeVid,
+  vlanForNetwork,
+  vlanForNetworkInDraft,
+} from "./vlan.ts";
 
 const props = defineProps<{ request: ShownRequest }>();
 const { t, te } = useI18n();
@@ -92,6 +104,12 @@ const fields = computed<readonly EditField[]>(() => {
   const edit = EDITS[collection.value.id];
   return creating.value ? edit.creation : moving.value ? (edit.move ?? []) : edit.modification;
 });
+/** The network a VLAN created is set on (« Créer un VLAN pour ce réseau »), if any. */
+const network = computed(() =>
+  props.request.mode === "create" && chosenKind.value === "vlans"
+    ? props.request.network
+    : undefined,
+);
 
 // The object modified, read at the present (the same entry as its record).
 const record = useQuery(() => ({
@@ -302,17 +320,18 @@ const hintOf = (field: EditField) =>
 
 // The action of the split button: to the draft by default; « Appliquer » with the right.
 const action = ref("draft");
-const canEdit = computed(() => session.value.rights.has(editRight(collection.value.type)));
-const canApply = computed(
-  () => canEdit.value && session.value.rights.has(applyRight(collection.value.type)),
-);
-/** The permission an action lacks: `X.edit` for both, `X.approval.self` to apply. */
+/**
+ * The edit permissions the action needs: `X.edit` of its kind; a VLAN set on a network also
+ * writes the network and its property `core.vlan`. To apply, the approval of each.
+ */
+const editRights = computed(() => [
+  editRight(collection.value.type),
+  ...(network.value ? NETWORK_VLAN_EDITS : []),
+]);
+/** The permission an action lacks, named: an edit permission, or to apply its approval. */
 const lacking = (id: string) =>
-  !canEdit.value
-    ? editRight(collection.value.type)
-    : id === "apply" && !canApply.value
-      ? applyRight(collection.value.type)
-      : null;
+  lackingRight((p) => session.value.rights.has(p), editRights.value, id === "apply");
+const canApply = computed(() => lacking("apply") === null);
 const actions = computed<SplitAction[]>(() =>
   [
     { id: "draft", label: t("edit.toDraft"), icon: "draft" as const },
@@ -338,9 +357,11 @@ watch(
   () => {
     if (motiveTyped) return;
     const words = { kind: kindWords.value, name: name.value, to: destination.value };
-    motive.value = creating.value
-      ? t("edit.motiveCreate", words)
-      : t(moving.value ? "edit.move.motive" : "edit.motiveModify", words);
+    motive.value = network.value
+      ? t("edit.vlan.motiveFor", { network: network.value.name })
+      : creating.value
+        ? t("edit.motiveCreate", words)
+        : t(moving.value ? "edit.move.motive" : "edit.motiveModify", words);
   },
   { immediate: true },
 );
@@ -356,6 +377,7 @@ const title = computed(() => {
   if (request.mode === "move") {
     return t("edit.move.title", { kind: kindWords.value, name: name.value });
   }
+  if (network.value) return t("edit.vlan.createFor", { network: network.value.name });
   return request.within
     ? t("edit.addIn", { within: request.within })
     : t("edit.create", { kind: kindWords.value });
@@ -435,16 +457,14 @@ function settle(outcome: WriteOutcome<unknown> | { kind: "saved" }, what: string
   refusal.value = refused;
   if (refused.kind === "invalid") {
     // Each violation on the field its pointer names: a member of the patch, or of the one
-    // operation of a creation (`/operations/0/prefix` → « Valeur »).
-    const names = new Set(fields.value.map((field) => field.name));
-    const byField: Record<string, string> = {};
-    for (const violation of [...Object.values(refused.byField).flat(), ...refused.general]) {
-      const name = fieldOfPointer(collection.value.id, violation.pointer);
-      if (!name || !names.has(name)) continue;
-      const said = `${violation.detail} (${violation.rule})`;
-      byField[name] = byField[name] ? `${byField[name]} ${said}` : said;
-    }
-    errors.value = byField;
+    // operation of a creation (`/operations/0/prefix` → « Valeur »); for a VLAN created for
+    // a network, the setting of `core.vlan` (`/operations/1/…`) on the field of the network.
+    errors.value = fieldErrors(
+      collection.value.id,
+      new Set(fields.value.map((field) => field.name)),
+      [...Object.values(refused.byField).flat(), ...refused.general],
+      network.value !== undefined,
+    );
     void toFirstError();
   }
   if (refused.kind === "conflict") {
@@ -471,9 +491,11 @@ async function run(id: string = action.value): Promise<void> {
     return;
   }
   const edit = EDITS[collection.value.id];
-  const what = creating.value
-    ? t("edit.whatCreated", { kind: kindWords.value, name: nameOf(values.value as Item) })
-    : t("edit.whatModified", { kind: kindWords.value, name: name.value });
+  const what = network.value
+    ? t("edit.vlan.whatFor", { vlan: nameOf(values.value as Item), network: network.value.name })
+    : creating.value
+      ? t("edit.whatCreated", { kind: kindWords.value, name: nameOf(values.value as Item) })
+      : t("edit.whatModified", { kind: kindWords.value, name: name.value });
   if (id === "apply" && motive.value.trim() === "") {
     errors.value = { ...errors.value, motive: t("edit.motiveMissing") };
     void toFirstError();
@@ -491,18 +513,24 @@ async function run(id: string = action.value): Promise<void> {
     return;
   }
   busy.value = true;
+  // A VLAN for a network: its creation and the setting of `core.vlan` by its local name —
+  // in a draft, one free in it, made by the SDK from the draft at the version it writes
+  // (again after a 412); applied at once, the first.
   if (id === "draft") {
     const op = creating.value
       ? edit.create(values.value)
       : edit.update(objectId.value!, version.value, changes);
-    const outcome = await addToActiveDraft([op]);
+    const outcome = await addToActiveDraft(
+      network.value ? vlanForNetworkInDraft(op, network.value) : [op],
+    );
     settle(outcome as WriteOutcome<unknown> | { kind: "saved" }, what);
     return;
   }
   if (creating.value) {
+    const op = edit.create(values.value);
     const submission: Submission = {
       motive: motive.value.trim(),
-      operations: [edit.create(values.value)],
+      operations: network.value ? vlanForNetwork(op, network.value, 0) : [op],
     };
     settle(await changesets.submit(submission, idempotencyKey, { approvalSelf: true }), what);
     return;
@@ -673,6 +701,23 @@ watch(
           :hint="hintOf(field)"
           @update:model-value="setValue(field.name, $event)"
         />
+      </template>
+      <template v-if="network">
+        <!-- The network the VLAN is set on: read only, the refusal of the setting on it. -->
+        <TextField
+          :model-value="network.name"
+          :label="t('views.vlan.network')"
+          :hint="t('edit.vlan.networkHint')"
+          :error="errors.network"
+          mono
+          readonly
+        />
+        <AttributeList :items="[{ key: 'property', label: t('views.vlan.property') }]">
+          <template #property><CodeBadge :code="VLAN_PROPERTY" /></template>
+        </AttributeList>
+        <InlineAlert tone="info" :title="t('edit.vlan.twoOperations')">
+          {{ t("edit.vlan.twoOperationsText", { network: network.name }) }}
+        </InlineAlert>
       </template>
       <TextField
         v-if="applying"
