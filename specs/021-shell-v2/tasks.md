@@ -2606,7 +2606,26 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     « inconnue à cette date » (404) dite comme une erreur avec « Réessayer » ; le tiret
     « aucun » est écrit à cinq endroits ; `dom.ts` garde des fonctions mortes (`textField`,
     `selectField`, `option`, `fill`, `checkbox`, `wrapperOf`, `ruled`) et `styles.css`
-    des règles de l'ancienne recherche, à retirer avec eux à la 18cd.
+    des règles de l'ancienne recherche, à retirer avec eux à la 18cd. À arbitrer côté API :
+    l'onglet d'un réseau lit les adresses machine par machine (N+1 lectures : une route
+    des adresses d'un réseau avec leur interface les ferait en une) ; la résolution de
+    l'adresse et du VID est une lecture ponctuelle (`fetchInfiniteQuery`), pas observée :
+    une écriture ou un événement ne la relance pas, seules les listes d'interfaces le sont
+    (un filtre `address_value`/`vid` de `/v1/interfaces` la supprimerait).
+  - passe de corrections (revue de branche) : onglet d'un réseau, adresses de chaque
+    machine lues quatre à la fois (`limited`, `enabled` donné à l'observateur quand la
+    machine a sa place, rendue à sa réponse ; places rendues au démontage et à d'autres
+    dates), page suivante de machines seulement une fois les adresses des pages lues
+    répondues ; recherche, adresse et VID résolus sur trois pages au plus
+    (`RESOLVE_PAGES`), au plus douze listes de `/v1/interfaces` (`MAX_LISTS`), le reste
+    dit par un avis « Résultat incomplet » et dans la phrase de la région `status`
+    (`search.countPartial`), comme les listes plafonnées à `MAX_PAGES` ; `observeAll` de
+    `data.ts` : états et observateurs alignés sur les options (doublons : le même
+    observateur aux deux places), `setOptions` transmis à un observateur gardé, `Set`
+    plutôt que `includes` ; `onPop` de la recherche ignore un autre chemin. Vitest : 42
+    (adresses lues au plus quatre à la fois, page 2 après les six adresses de la page 1,
+    chaque machine lue une fois, observateurs libérés au démontage ; objets au-delà des
+    pages résolues et couples au-delà de la borne dits, compte « incomplet »).
 - [ ] 18cd. Vue « Hébergement et clusters » en `TreeGrid` à parent déclaré
   (`parentMode: "declared"`) : clusters et machines hôtes, machines hébergées chargées
   sous eux ; fiche d'un cluster ; déplacement par glisser, Ctrl+X puis Ctrl+V et
