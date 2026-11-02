@@ -1792,11 +1792,10 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     acteurs limités aux premières pages des identités (dix pages, liste et suggestions),
     son nom perdu au rechargement (puce en UUID), un acteur au-delà montré par son
     identifiant ; le répertoire `kartenn-exports/` vidé au début d'un export peut couper
-    celui d'un autre onglet en cours ; filtres de période et d'objet sans parcours ; la relecture de l'import chaque seconde ne porte pas encore
-    `Kartenn-Background` (16b) ; « Exporter » sans icône (aucune icône de téléchargement
+    celui d'un autre onglet en cours ; filtres de période et d'objet sans parcours ; « Exporter » sans icône (aucune icône de téléchargement
     dans la liste fermée de `@kartenn/ui`) ; le fichier d'OPFS d'un très gros export est
     effacé une minute après sa remise au navigateur, qui pourrait ne pas l'avoir copié.
-- [ ] 16b. Fin de session annoncée et requêtes de fond : avis deux minutes avant
+- [x] 16b. Fin de session annoncée et requêtes de fond : avis deux minutes avant
   `absolute_expires_at` (sans « Rester connecté », qui ne la repousse pas) ; en-tête
   `Kartenn-Background: ?1` posé par le SDK sur les relectures sans geste (événements,
   revalidation au focus et à la reconnexion, préchargement) — REQ-021-14 — verify :
@@ -1805,6 +1804,35 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `activityFetch` et `installGestures` du SDK (`web/v2/sdk/src/`) ; parcours
     `web/v2/e2e/journeys/session.spec.ts`
   - dépend de : 16a, 16c
+  - fait le 2026-11-02 : `activityFetch` (`shell/src/session/expiry.ts`, branché sur le
+    client du SDK par `setFetch`, donc aussi pour les plugins) pose
+    `Kartenn-Background: ?1` sur toute lecture de l'API (GET, HEAD, QUERY) qu'aucun geste
+    ne précède de `GESTURE_WINDOW_MS`, et sur elle seule : exactement les requêtes qu'il
+    ne compte pas comme activité ; jugé à chaque requête (une lecture née d'un geste,
+    relue en fond, le porte à sa relecture). Le flux d'événements (`EventSource`) ne peut
+    poser d'en-tête : le serveur le traite déjà en `NotActivity` (022/A6), comme les pages
+    d'événements. `createExpiry.read(expiresAt, absoluteAt)` : fin attendue
+    `min(absolue, max(fin lue, dernière activité + fenêtre))`, la fenêtre étant la plus
+    longue vue entre une lecture et sa fin (une lecture de fond la sous-estime : avis tôt,
+    jamais tard) ; l'heuristique « fin qui n'a pas bougé » (`FIXED_AFTER_MS`) retirée.
+    Avis de fin absolue : titre `session.endingAbsolute`, sans « Rester connecté ». La
+    relecture de l'import chaque seconde (15c) le porte désormais. Tests : Vitest
+    `session.test.ts` (en-tête absent après chaque geste, présent hors geste, lecture née
+    d'un geste puis relue en fond, écritures et hors API jamais ; avis de fin absolue à
+    l'heure malgré l'activité ; passage de l'avis d'inactivité à celui de fin absolue
+    après « Rester connecté ») ; parcours `session` (revalidation au focus marquée,
+    navigation cliquée non marquée ; fin absolue dite sans « Rester connecté », `/v1/me`
+    réécrit par `page.route`, la durée absolue minimale d'une heure étant trop longue).
+  - choix : en-tête posé dans `activityFetch` du shell plutôt que déplacé dans le SDK
+    (c'est le `fetch` du client du SDK, plugins compris) ; écritures jamais marquées et
+    toujours comptées comme activité côté client (accord avec le serveur, qui les compte) ;
+    l'avis de fin absolue garde `endingFixed`, réécrit (« ne peut pas être prolongée »).
+  - reste : relecture a11y — l'avis de fin absolue n'offre pas d'action « Se
+    reconnecter » (le texte invite à terminer la saisie d'abord) ; un avis `warn` passe
+    par la région polie (`role="status"`) et pourrait être lu tard par un lecteur d'écran,
+    et sa perception sous une modale ouverte n'est pas vérifiée (`@kartenn/ui`, hors
+    périmètre) ; la revalidation sur reconnexion et le préchargement au survol ne sont
+    couverts qu'en Vitest (même règle), pas en parcours.
 - [ ] 17b. « Créer un VLAN pour ce réseau » (maquette E12) : création du VLAN et pose de
   `core.vlan` par une référence locale, au brouillon ou en Ctrl+Entrée ; poser un VLAN
   existant depuis l'onglet du réseau — REQ-026-6 — verify : parcours `vlan` (création
@@ -2118,6 +2146,60 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     défaut, celle qu'en tire cette tâche, notée au design 021 § « API des plugins » ;
     `TreeGrid` de `web/v2/ui` ; `web/v2/shell/src/views/edit/moves.ts` (forme)
   - dépend de : 18b
+  - découpée le 2026-11-02 en 18ca à 18cd (A23), chacune migrant des éléments entiers ;
+    l'ancien élément et ses tests ne partent qu'une fois l'élément Vue et ses tests verts
+- [ ] 18ca. Montage d'un plugin de première partie en Vue (modèle de la 017) : une
+  application par élément (`createApp`) montée dans son DOM léger à `connectedCallback`,
+  démontée à `disconnectedCallback`, contexte du SDK, lien en `<a href>` suivi par
+  `ExtensionElement`, portail ; lectures par composables sur `QueryObserver` et
+  `InfiniteQueryObserver` (A23), `Names` ; textes par le handle ; manifeste
+  `framework: "^3.5.0"` ; build `@vitejs/plugin-vue`, modules partagés externes ;
+  contrôle du poids d'un plugin (gzip de `dist/plugins/machines/<v>/index.js` ≤ 50 Ko,
+  modules partagés exclus) ; la forme écrite au design 021 § « API des plugins » ; la
+  colonne `machines-column` et l'action `machines-attach` en Vue (`Select`/`Combobox`,
+  `CodeBadge` sur un échec) — verify : Vitest du plugin (tests de la colonne et de
+  l'action repris) ; parcours `machines` (colonne, action au brouillon) dans les deux
+  navigateurs ; contrôle du poids ; `k-web2-check --base main` ; revues `ui-reviewer`
+  et `a11y-auditor`
+  - où : `web/v2/plugins/machines/{src/index.ts, src/host.ts (nouveau), src/data.ts
+    (nouveau), src/extensions.ts, vite.config.ts, package.json, public/manifest.json,
+    test/}` ; ADR 0038 (décisions 3 et 4) ; `web/v2/shell/vite.config.ts` (`SHARED`, en
+    lecture) ; `web/v2/ui/src/context.ts` (lien, portail) ; `web/v2/shell/src/data/query.ts`
+    (forme des composables) ; `web/v2/shell/scripts/size.ts` (forme du contrôle)
+  - dépend de : 18b
+- [ ] 18cb. Vue Machines en Vue : liste en `DataGrid` (tri, filtres typés) ; fiche en
+  sections (attributs, interfaces avec `StatusBadge`, machines hébergées, ajout d'une
+  interface) ; section « Hébergement » de la 18b en `Combobox` d'hébergeurs jugés par
+  `canMove`, envoyés par `draft.move`, sans optimisme ; anciens `MachinesView` et
+  `HostMove` retirés — verify : Vitest ; parcours `machines` (lecture, création au
+  brouillon, machine physique vers un cluster refusée par la simulation) et `moves`
+  (« the host of a machine ») dans les deux navigateurs ; revues
+  - où : `src/views.ts` (`MachinesView`, `MachineList`, `MachineRecord`),
+    `src/hosting.ts`, `src/forms.ts` ; les tests de la 18b dans `test/machines.test.ts` ;
+    `web/v2/shell/src/views/edit/moves.ts` (forme)
+  - dépend de : 18ca
+- [ ] 18cc. Vue Interfaces et onglet `interfaces-of` en Vue : recherche par MAC, adresse et
+  VID, critères dans la requête de la page, `DataGrid`, fiche d'une interface ; onglet sur
+  adresse, préfixe et VLAN ; anciens `InterfacesView` et `InterfacesTab` retirés —
+  verify : Vitest ; parcours `machines` (recherche par MAC, retour arrière, trois onglets)
+  dans les deux navigateurs ; revues
+  - où : `src/views.ts` (`InterfacesView`, `criteriaOfPage`, `idsOf`, `interfaceTable`),
+    `src/extensions.ts` (`InterfacesTab`)
+  - dépend de : 18ca
+- [ ] 18cd. Vue « Hébergement et clusters » en `TreeGrid` à parent déclaré
+  (`parentMode: "declared"`) : clusters et machines hôtes, machines hébergées chargées
+  sous eux ; fiche d'un cluster ; déplacement par glisser, Ctrl+X puis Ctrl+V et
+  « Déplacer vers… », par `canMove` et `draft.move` ; `moveState: "pending"` jusqu'au
+  verdict, aucun `setQueryData` ; avertissements dans une région `status` présente dès
+  l'origine ; refus dit par son code ; `dom.ts`, `element.ts`, `styles.css` retirés s'ils
+  ne servent plus ; `web/v2/PARITE.md` et le catalogue du design à jour — verify :
+  parcours `moves` (déplacement au clavier vers un cluster, cycle refusé, avertissement
+  `machines.host.site_mismatch`, aucun changeset) et `machines` dans les deux
+  navigateurs ; contrôle final du poids ; revues
+  - où : `src/views.ts` (`ClustersView`) ; `web/v2/ui/src/components/TreeGrid/` (en
+    lecture) ; design 021 § « Déplacements dans les arbres » et § « Catalogue » (plugin
+    Machines, « Hébergement et clusters »)
+  - dépend de : 18ca, 18cb
 
 ## P4 — Budgets et clôture
 

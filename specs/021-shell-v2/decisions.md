@@ -293,6 +293,14 @@ Tranchés le 2026-11-02, après les tâches 11b et 18b :
   client le montre et le déplacement va au brouillon. Les tâches 18b et 24 disaient
   « refusé par le serveur », contre M11 : elles sont amendées.
 
+- **A23 — Plugin de première partie en Vue** (2026-11-02, d'après la 18c) : DOM léger,
+  conformément à l'ADR 0038 (décision 4), pas de racine d'ombre, pas de feuille propre
+  (mise en page par `Stack`/`Cluster` de `@kartenn/ui`) ; lectures par des composables
+  sur les observateurs du SDK, pas par `VueQueryPlugin` (utilisateur ; ADR 0038 amendée) ;
+  hôte mince et composables écrits d'abord dans le plugin Machines (18ca), puis déplacés
+  dans `@kartenn/ui` par une tâche de la bibliothèque avant la 017-2 (session principale,
+  choix réversible).
+
 ## Questions (closes le 2026-10-23)
 
 - **Q-021-1** — Édition en place : brouillon par défaut, en lot avec un motif ;

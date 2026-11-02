@@ -748,13 +748,14 @@ const userLabel = computed(() =>
 );
 
 // The end of the session, said before it comes (REQ-021-14): a warning that stays until
-// the next activity, with « Rester connecté » unless the end is a fixed one.
+// the next activity, with « Rester connecté » unless the end is the absolute one.
 onBeforeUnmount(
   watchSessionEnd({
     toasts,
     t,
     locale: () => i18n.locale.value,
     end: () => session.value.me?.session?.expires_at,
+    absoluteEnd: () => session.value.me?.session?.absolute_expires_at,
     sentence,
   }),
 );

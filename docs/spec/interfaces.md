@@ -86,8 +86,9 @@ son corps.
   au plus) ; cookies `__Host-kartenn-N`, `Secure`, `HttpOnly`, `SameSite=Strict`,
   `Path=/`, sans `Domain`, réémis après une minute d'activité ; une requête marquée
   `Kartenn-Background: ?1` (booléen RFC 9651, une seule ligne, sans paramètre ; toute
-  autre valeur → requête ordinaire ; paramètre d'en-tête commun du contrat) n'est pas une
-  activité : ni inactivité repoussée ni cookie réémis, sauf après un rafraîchissement des
+  autre valeur → requête ordinaire ; paramètre d'en-tête commun du contrat ; le shell le
+  pose sur toute lecture qu'aucun geste de l'utilisateur ne précède de 10 s, jamais sur
+  une écriture) n'est pas une activité : ni inactivité repoussée ni cookie réémis, sauf après un rafraîchissement des
   groupes (elle ou l'ouverture du flux) : cookie réémis, `seen` inchangé (021/A15) ;
   `GET /v1/me` donne `session.expires_at` et
   `session.absolute_expires_at` (021/A14) ; `Authorization: Bearer`

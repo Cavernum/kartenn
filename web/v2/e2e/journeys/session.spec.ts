@@ -152,3 +152,76 @@ test("the end of the session is said before it comes, and staying pushes it back
   await expect(warning).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 1, name: "Accueil" })).toBeVisible();
 });
+
+/** A request of the API to the shell, but the event stream and its pages. */
+const isRead = (url: string) => {
+  const path = new URL(url).pathname;
+  return path.startsWith("/v1/") && !path.startsWith("/v1/events");
+};
+
+test("the reads of the background say so (Kartenn-Background), the reads asked do not", async ({
+  page,
+  login,
+}) => {
+  await page.clock.install();
+  await login("bob");
+  await expect(page.getByRole("heading", { level: 1, name: "Accueil" })).toBeVisible();
+  // A minute without a gesture: the reads of the home page are stale, the user is away.
+  await page.clock.fastForward(60_000);
+  // A read of the home page still on its way (asked just after the login, its event late
+  // under load) may come first: the one awaited is a read of the revalidation, marked.
+  const background = page.waitForRequest(
+    async (request) =>
+      isRead(request.url()) && (await request.headerValue("kartenn-background")) === "?1",
+  );
+  // The tab hidden then shown again: the data layer revalidates on focus (no gesture).
+  await page.evaluate(() => {
+    for (const state of ["hidden", "visible"]) {
+      Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+      document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
+    }
+  });
+  await background;
+
+  // A navigation, clicked: the reads of its screen are the user's.
+  const nav = page.getByRole("navigation", { name: "Navigation principale" });
+  const asked = page.waitForRequest(
+    (request) => new URL(request.url()).pathname === "/v1/prefixes",
+  );
+  await nav.getByRole("link", { name: "Préfixes" }).click();
+  expect(await (await asked).headerValue("kartenn-background")).toBeNull();
+  await expect(page.getByRole("heading", { level: 1, name: "Préfixes" })).toBeVisible();
+});
+
+test("the absolute end of the session is said before it comes, without staying", async ({
+  page,
+  login,
+}) => {
+  // A session at the end of its lifetime: `/v1/me` says its absolute end, the nearer one
+  // (the server's shortest lifetime is an hour, too long for a journey).
+  await page.route("**/v1/me", async (route) => {
+    const response = await route.fetch();
+    const me = (await response.json()) as {
+      session: { expires_at: string; absolute_expires_at: string };
+    };
+    const end = new Date(Date.parse(me.session.expires_at) - 5 * 60_000).toISOString();
+    me.session.expires_at = end;
+    me.session.absolute_expires_at = end;
+    await route.fulfill({ response, json: me });
+  });
+  await page.clock.install();
+  await login("bob");
+  await expect(page.getByRole("heading", { level: 1, name: "Accueil" })).toBeVisible();
+  const ends = await page.evaluate(async () => {
+    const me = (await (await fetch("/v1/me")).json()) as {
+      session: { absolute_expires_at: string };
+    };
+    return Date.parse(me.session.absolute_expires_at) - Date.now();
+  });
+  await page.clock.fastForward(ends - 90_000);
+  const notifications = page.getByRole("region", { name: "Notifications" });
+  await expect(notifications.getByText(/au terme de sa durée maximale/)).toBeVisible();
+  await expect(notifications).toContainText("Elle ne peut pas être prolongée");
+  await expect(page.getByRole("button", { name: "Rester connecté" })).toHaveCount(0);
+  await expectAccessible(page);
+});

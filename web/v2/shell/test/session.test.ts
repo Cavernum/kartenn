@@ -301,14 +301,45 @@ describe("the end of the session, said before it comes (REQ-021-14, 022/A6)", ()
     expiry.stop();
   });
 
-  it("says a fixed end without the way to push it back", () => {
+  it("says the absolute end two minutes before it, without the way to push it back (A14)", () => {
+    const { expiry, said, cleared } = watch();
+    // Idle until 09:30, at most until 09:40 whatever the activity.
+    expiry.read("2026-01-15T09:30:00Z", "2026-01-15T09:40:00Z");
+    vi.advanceTimersByTime(15 * 60_000);
+    // Active at 09:15: the idle end would be 09:45, after the absolute one.
+    markActivity();
+    vi.advanceTimersByTime(23 * 60_000 - 1);
+    expect(said).toEqual([]);
+    vi.advanceTimersByTime(1);
+    expect(said).toEqual([{ end: Date.parse("2026-01-15T09:40:00Z"), extendable: false }]);
+    // Still active: the end does not move, the warning stays as it was said.
+    markActivity();
+    expect(cleared()).toBe(0);
+    expect(said).toHaveLength(1);
+    expiry.stop();
+  });
+
+  it("says the idle end with the way to stay while it comes before the absolute one", () => {
+    const { expiry, said, cleared } = watch();
+    expiry.read("2026-01-15T09:30:00Z", "2026-01-15T09:30:30Z");
+    vi.advanceTimersByTime(28 * 60_000);
+    expect(said).toEqual([{ end: Date.parse("2026-01-15T09:30:00Z"), extendable: true }]);
+    // Seen again at 09:28: the end is now the absolute one (the nearer of the two), fixed.
+    expiry.read("2026-01-15T09:30:30Z", "2026-01-15T09:30:30Z");
+    expect(cleared()).toBe(1);
+    vi.advanceTimersByTime(30_000);
+    expect(said.at(-1)).toEqual({ end: Date.parse("2026-01-15T09:30:30Z"), extendable: false });
+    expiry.stop();
+  });
+
+  it("never expects the end later than a reading of the background says it", () => {
     const { expiry, said } = watch();
-    expiry.read("2026-01-15T09:10:00Z");
-    vi.advanceTimersByTime(9 * 60_000);
-    expect(said.at(-1)?.extendable).toBe(true);
-    // « Rester connecté » read /v1/me again: the end did not move.
-    expiry.read("2026-01-15T09:10:00Z");
-    expect(said.at(-1)).toEqual({ end: Date.parse("2026-01-15T09:10:00Z"), extendable: false });
+    expiry.read("2026-01-15T09:30:00Z", "2026-01-15T17:00:00Z");
+    // At 09:20, a revalidation without a gesture: the server's end did not move (A14).
+    vi.advanceTimersByTime(20 * 60_000);
+    expiry.read("2026-01-15T09:30:00Z", "2026-01-15T17:00:00Z");
+    vi.advanceTimersByTime(8 * 60_000);
+    expect(said).toEqual([{ end: Date.parse("2026-01-15T09:30:00Z"), extendable: true }]);
     expiry.stop();
   });
 
@@ -387,6 +418,91 @@ describe("the end of the session, said before it comes (REQ-021-14, 022/A6)", ()
     vi.useRealTimers();
   });
 
+  describe("Kartenn-Background: ?1 on the reads of the background (A14)", () => {
+    /** The header each request left with, `null` without it. */
+    function sent() {
+      const headers: (string | null)[] = [];
+      const inner = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const from = new Headers(init?.headers ?? (input instanceof Request ? input.headers : {}));
+        headers.push(from.get("Kartenn-Background"));
+        return new Response("{}");
+      });
+      return { fetcher: activityFetch(inner as unknown as typeof fetch), headers };
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-15T09:00:00Z"));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it("never marks a read born of a gesture, which stays activity", async () => {
+      const { fetcher, headers } = sent();
+      const target = new EventTarget();
+      const stop = installGestures(target as unknown as Document);
+      for (const gesture of ["keydown", "pointerdown", "wheel", "touchstart"]) {
+        vi.advanceTimersByTime(GESTURE_WINDOW_MS * 2);
+        target.dispatchEvent(new Event(gesture));
+        vi.advanceTimersByTime(GESTURE_WINDOW_MS);
+        await fetcher("/v1/prefixes", { headers: { Accept: "application/json" } });
+      }
+      markGesture();
+      await fetcher(new Request("http://localhost/v1/sites"));
+      expect(headers).toEqual([null, null, null, null, null]);
+      expect(Number(localStorage.getItem(ACTIVITY_KEY))).toBe(Date.now());
+      stop();
+    });
+
+    it("marks a read nobody asked for, which is no activity, and keeps its headers", async () => {
+      const { fetcher, headers } = sent();
+      markGesture();
+      vi.advanceTimersByTime(GESTURE_WINDOW_MS + 1);
+      // An event of the stream, a revalidation on focus or on reconnection, a prefetch.
+      await fetcher("/v1/stats", { headers: { Accept: "application/json" } });
+      await fetcher(
+        new Request("http://localhost/v1/sites", { headers: { "If-None-Match": "x" } }),
+      );
+      await fetcher("/v1/domains", { method: "QUERY", body: "{}" });
+      expect(headers).toEqual(["?1", "?1", "?1"]);
+      expect(localStorage.getItem(ACTIVITY_KEY)).toBeNull();
+      const kept = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const from = new Headers(init?.headers);
+        return new Response(JSON.stringify([from.get("Accept"), from.get("If-None-Match")]));
+      });
+      const answer = await activityFetch(kept as unknown as typeof fetch)(
+        new Request("http://localhost/v1/sites", { headers: { "If-None-Match": "x" } }),
+        { headers: { Accept: "application/json", "If-None-Match": "y" } },
+      );
+      expect(await answer.json()).toEqual(["application/json", "y"]);
+    });
+
+    it("marks a read asked by a gesture once it is read again in the background", async () => {
+      const { fetcher, headers } = sent();
+      markGesture();
+      await fetcher("/v1/prefixes");
+      // The same query, revalidated on focus a minute later, then invalidated by an event.
+      vi.advanceTimersByTime(60_000);
+      await fetcher("/v1/prefixes");
+      vi.advanceTimersByTime(60_000);
+      await fetcher("/v1/prefixes");
+      // Read again just after a gesture: the user's again.
+      markGesture();
+      await fetcher("/v1/prefixes");
+      expect(headers).toEqual([null, "?1", "?1", null]);
+    });
+
+    it("never marks a write, nor what is not the API", async () => {
+      const { fetcher, headers } = sent();
+      vi.advanceTimersByTime(GESTURE_WINDOW_MS * 10);
+      await fetcher("/v1/prefixes", { method: "POST", body: "{}" });
+      expect(Number(localStorage.getItem(ACTIVITY_KEY))).toBe(Date.now());
+      await fetcher("/v1/drafts/d1", { method: "PATCH", body: "{}" });
+      await fetcher("/plugins/notes/1.0.0/index.js");
+      await fetcher("/v1/events?after=1");
+      expect(headers).toEqual([null, null, null, null]);
+    });
+  });
+
   it("dates an activity from its request, not from an answer that came late (task 029-5)", async () => {
     const { expiry, said, cleared } = watch();
     expiry.read("2026-01-15T09:30:00Z");
@@ -448,17 +564,19 @@ describe("the end of the session, said before it comes (REQ-021-14, 022/A6)", ()
 
 describe("« Rester connecté » in the frame (watchSessionEnd)", () => {
   const END = "2026-01-15T09:30:00Z";
+  const ABSOLUTE = "2026-01-15T17:00:00Z";
   afterEach(() => {
     vi.useRealTimers();
     expired.value = false;
   });
 
   /** The frame's wiring, on a store of toasts and an end of the session as `/v1/me` gave it. */
-  function frame(reading: () => Promise<EndReading>) {
+  function frame(reading: () => Promise<EndReading>, absolute = ABSOLUTE) {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-15T09:00:00Z"));
     const toasts = createToasts();
     const end = ref<string | null>(END);
+    const absoluteEnd = ref<string | null>(absolute);
     const read = vi.fn(reading);
     const stop = watchSessionEnd({
       toasts,
@@ -466,10 +584,11 @@ describe("« Rester connecté » in the frame (watchSessionEnd)", () => {
       sentence: (error) => (error instanceof ApiProblem ? `said:${error.code}` : "said:network"),
       locale: () => "fr",
       end,
+      absoluteEnd,
       readEnd: read,
     });
     vi.advanceTimersByTime(28 * 60_000);
-    const warning = () => toasts.list.find((toast) => toast.title === "session.ending");
+    const warning = () => toasts.list.find((toast) => toast.title?.startsWith("session.ending"));
     /** Plays « Rester connecté » as the region does: the action, then the toast dismissed. */
     async function stay() {
       const shown = warning()!;
@@ -481,12 +600,37 @@ describe("« Rester connecté » in the frame (watchSessionEnd)", () => {
     return { toasts, warning, stay, stop };
   }
 
-  it("says a fixed end again, without the action, when the end did not move", async () => {
-    const { warning, stay, stop } = frame(async () => ({ kind: "end", expiresAt: END }));
+  it("says the absolute end without the action, which would not push it back", async () => {
+    const { warning, stop } = frame(
+      async () => ({ kind: "end", expiresAt: END, absoluteAt: END }),
+      END,
+    );
+    expect(warning()).toMatchObject({
+      tone: "warn",
+      title: "session.endingAbsolute",
+      description: "session.endingFixed",
+    });
+    expect(warning()!.action).toBeUndefined();
+    stop();
+  });
+
+  it("says the absolute end again, without the action, once staying reaches it", async () => {
+    const LAST = "2026-01-15T09:30:30Z";
+    const { warning, stay, stop } = frame(
+      async () => ({ kind: "end", expiresAt: LAST, absoluteAt: LAST }),
+      LAST,
+    );
+    expect(warning()).toMatchObject({ title: "session.ending", description: "session.endingText" });
     expect(warning()?.action?.label).toBe("session.stay");
     await stay();
+    // Pushed back to the absolute end only: said again two minutes before it.
+    expect(warning()).toBeUndefined();
+    vi.advanceTimersByTime(30_000);
     await vi.waitFor(() => expect(warning()).toBeDefined());
-    expect(warning()!.description).toBe("session.endingFixed");
+    expect(warning()).toMatchObject({
+      title: "session.endingAbsolute",
+      description: "session.endingFixed",
+    });
     expect(warning()!.action).toBeUndefined();
     stop();
   });
@@ -495,6 +639,7 @@ describe("« Rester connecté » in the frame (watchSessionEnd)", () => {
     const { warning, stay, stop } = frame(async () => ({
       kind: "end",
       expiresAt: "2026-01-15T09:58:00Z",
+      absoluteAt: ABSOLUTE,
     }));
     await stay();
     expect(warning()).toBeUndefined();
@@ -538,17 +683,21 @@ describe("« Rester connecté » in the frame (watchSessionEnd)", () => {
   });
 
   it("reads the end outside the SDK's client: no activity that would clear the warning", async () => {
-    const answer = vi.fn(
+    const answer = vi.fn<typeof fetch>(
       async () =>
-        new Response(JSON.stringify({ session: { expires_at: END } }), {
-          headers: { "content-type": "application/json" },
-        }),
+        new Response(
+          JSON.stringify({ session: { expires_at: END, absolute_expires_at: ABSOLUTE } }),
+          { headers: { "content-type": "application/json" } },
+        ),
     );
-    expect(await readEnd(answer as unknown as typeof fetch)).toEqual({
+    expect(await readEnd(answer)).toEqual({
       kind: "end",
       expiresAt: END,
+      absoluteAt: ABSOLUTE,
     });
     expect(localStorage.getItem(ACTIVITY_KEY)).toBeNull();
+    // A gesture (« Rester connecté »): the server sees the session again, no header.
+    expect(new Headers(answer.mock.calls[0]?.[1]?.headers).has("Kartenn-Background")).toBe(false);
     const refused = vi.fn(async () => new Response(null, { status: 401 }));
     expect(await readEnd(refused as unknown as typeof fetch)).toEqual({ kind: "expired" });
   });
