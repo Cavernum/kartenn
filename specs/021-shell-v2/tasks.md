@@ -600,7 +600,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     du contrat ; `web/v2/sdk/src/data/drafts.ts` (vers la ligne 213, `merge: false`) ;
     test voisin `crates/kartenn-rest/tests/it/drafts.rs`
   - dépend de : —
-- [ ] 24a. `placements` dans `ChangesetSimulated` (A12) : `[{object, kind, before,
+- [x] 24a. `placements` dans `ChangesetSimulated` (A12) : `[{object, kind, before,
   after}]` pour chaque objet dont le parent change (déduit : préfixes, plages, adresses ;
   déclaré : modules), au présent, sur la simulation d'un changeset et d'un brouillon —
   verify : `k-check -p kartenn-rest` (préfixe inséré entre un parent et ses enfants : les
@@ -610,6 +610,43 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     la simulation du service qui produit `diff` et `cascaded` ; test voisin
     `crates/kartenn-rest/tests/it/simulated.rs` ; 006 design § « `?simulate=true` »
   - dépend de : —
+  - fait le 2026-11-02 : service `crates/kartenn-service/src/placements.rs` (`prior`
+    avant les écritures, `placements` après, avant le rollback de la simulation ;
+    `Outcome::Simulated.placements`) ; port `WriteTx::tree_places` (parent déduit ou
+    déclaré au `now()` de la transaction, avec des préfixes supposés : `Supposed`) et
+    `WriteTx::tree_children` (enfants qu'aurait une valeur, la marche `tops` de l'arbre),
+    `crates/kartenn-store-pg/src/tree.rs` (`places`, `children_within`) ; crochet
+    `ModuleHandler::parents` (parent déclaré hors de la fiche), servi par `machines` (hôte
+    d'une machine, `pg::hosts`) ; REST `Placement`, `placements` et
+    `placements_truncated` dans `ChangesetSimulated` ; contrat et `schema.d.ts`
+    (`web/sdk`, `web/v2/sdk`) régénérés, `write.ts` (simulation refusée) complété ;
+    006 design et `docs/spec/interfaces.md` ; tests `crates/kartenn-rest/tests/it/placements.rs`
+    (insertion, aussi par un brouillon ; fermeture et redimensionnement ; rien sans effet ;
+    troncature à 1000) et `a_simulated_move_places_the_machine_under_its_new_host`
+    (`kartenn-machines`).
+  - choix : candidats lus sans relire l'arbre : les objets des opérations, plus les
+    enfants (après écriture) des anciennes et nouvelles valeurs des seuls préfixes dont la
+    valeur change, apparaît ou disparaît ; leur parent d'avant déduit de l'état d'après
+    où les préfixes du changeset reprennent leur valeur d'avant. Objet créé listé avec
+    `before: null` (y compris à la racine, `after: null`) ; objet fermé non listé (il
+    quitte l'arbre ; `cascaded` et les opérations le nomment). Borne : au plus 1000
+    placements et 1000 objets lisibles examinés hors des opérations, au-delà
+    `placements_truncated: true` (coût borné à une marche de 1001 enfants et deux
+    lectures en lot ; simulation entière d'une insertion sur 1001 enfants ≈ 130 ms en
+    test, profil dev). Filtre de lecture de l'arbre (correction de revue) : sous les
+    droits de l'auteur (`Authorizer::authorize_in`, `core.<genre>.read` ou la lecture du
+    type de module), un objet illisible n'est pas placé et ne consomme pas le budget
+    (enfants lus page par page, `tree_children` avec curseur), un parent illisible se
+    sert `null` (le haut de l'arbre que l'auteur lit, sans marqueur distinct qui
+    trahirait son existence), un placement resté sans changement de parent est retiré ;
+    `placements_truncated` se compte sur le lisible ; lisibilité d'avant lue avant les
+    écritures, d'après sur l'état simulé. Objet de module placé seulement si son type a
+    un parent de fiche ou si son module le place (`parents`) : ni flux ni politique.
+    Parent d'un groupe de VLAN : son ancrage ; d'un VLAN : son groupe.
+  - reste : le budget compte aussi les enfants lisibles dont le parent ne bouge pas (une
+    valeur redimensionnée qui garde ses enfants) ; des enfants illisibles nombreux se
+    parcourent sans borne de pages ; le test de lecture retire la lecture des adresses
+    partout, pas sur les adresses d'une seule entité.
 - [ ] 17a. Référence locale dans une valeur de propriété (A13) : `RawValue`
   `{"local": n}` (`RawDto`, `RawInput`), résolue à l'application comme les `Ref` des
   opérations, prise dans le tri topologique ; référence vers un indice absent ou vers un

@@ -554,6 +554,31 @@ pub struct DiffCount {
     pub count: u64,
 }
 
+/// The place of an object in its tree at the instant of the transaction (spec 021, A12):
+/// its parent, deduced or declared, and for a prefix its domain and value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TreePlace {
+    /// The object.
+    pub id: Uuid,
+    /// Its kind.
+    pub kind: ObjectKind,
+    /// Its parent; `None` at the root of its tree.
+    pub parent: Option<Uuid>,
+    /// For a prefix, its domain and value.
+    pub prefix: Option<(Uuid, Prefix)>,
+}
+
+/// The prefixes [`WriteTx::tree_places`] deduces the parents from in place of those of the
+/// transaction: the prefixes `without` left out, the prefixes `with` (identifier, domain,
+/// value) added. Empty: the prefixes of the transaction as they are.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Supposed<'a> {
+    /// Prefixes left out.
+    pub without: &'a [Uuid],
+    /// Prefixes added, with their domain and value.
+    pub with: &'a [(Uuid, Uuid, Prefix)],
+}
+
 /// One object of the differential (REQ-003-19).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct DiffItem {
@@ -957,6 +982,31 @@ pub trait WriteTx {
         id: Uuid,
         period: Option<Period>,
     ) -> impl Future<Output = Result<Vec<Uuid>, StoreError>> + Send;
+
+    /// The place of each of `objects` valid at the instant of the transaction, in no
+    /// particular order: the parent of a prefix, a range or an address is deduced (the
+    /// smallest prefix of its domain strictly holding it, D34) from the prefixes `supposed`
+    /// says; that of an entity, a site, a VLAN group (its anchor), a VLAN (its group) or an
+    /// object of a module (its record) is declared; a domain, which anchors VLAN groups, is
+    /// listed without a parent. Objects of no tree, or not valid then, are left out.
+    fn tree_places(
+        &mut self,
+        objects: &[Uuid],
+        supposed: Supposed<'_>,
+    ) -> impl Future<Output = Result<Vec<TreePlace>, StoreError>> + Send;
+
+    /// The first `limit` objects valid at the instant of the transaction a prefix of value
+    /// `within` in `domain` would be the deduced parent of, after the object `after` (one
+    /// of them, from an earlier page) when given: the prefixes, ranges and addresses it
+    /// strictly holds that no smaller prefix holds, in address order; the prefix of that
+    /// value, if any, left out.
+    fn tree_children(
+        &mut self,
+        domain: Uuid,
+        within: &Prefix,
+        after: Option<Uuid>,
+        limit: i64,
+    ) -> impl Future<Output = Result<Vec<(ObjectKind, Uuid)>, StoreError>> + Send;
 
     /// Prefixes among `prefixes` that are containers while carrying an assignment of the
     /// property `key`, at some instant over `period`.

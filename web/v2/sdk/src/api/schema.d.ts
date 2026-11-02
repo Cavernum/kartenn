@@ -4430,6 +4430,19 @@ export interface components {
       cascaded: components["schemas"]["Cascaded"][];
       /** @description The counted differential applying would produce. */
       diff: components["schemas"]["DiffCountDto"][];
+      /**
+       * @description The objects whose parent applying would change at the present, with their parents
+       *     before and after (spec 021, A12): first those the operations write, in their
+       *     order, then those they move, in address order; an object closed leaves the tree
+       *     and is not listed. Under the read filter of the tree: an object the caller may not
+       *     read is not listed. At most 1000.
+       */
+      placements: components["schemas"]["Placement"][];
+      /**
+       * @description `true`: some placements may be missing, past 1000 (or past 1000 readable objects
+       *     examined beyond those of the operations); counted on what the caller may read.
+       */
+      placements_truncated: boolean;
       /** @description Its first entries. */
       sample: components["schemas"]["DiffItemDto"][];
       /** @description The sections the modules would contribute to the differential (REQ-008-26). */
@@ -7401,6 +7414,28 @@ export interface components {
        * @description Start, included.
        */
       start: number;
+    };
+    /** @description An object whose parent a simulated changeset changes, at the present (spec 021, A12). */
+    Placement: {
+      /**
+       * Format: uuid
+       * @description Its parent after; `null` at the root, or for a parent the caller may not read.
+       */
+      after: string | null;
+      /**
+       * Format: uuid
+       * @description Its parent before: deduced for a prefix, a range or an address, declared otherwise;
+       *     `null` at the root, for an object the changeset creates, or for a parent the caller
+       *     may not read.
+       */
+      before: string | null;
+      /** @description Its kind. */
+      kind: components["schemas"]["TargetKind"];
+      /**
+       * Format: uuid
+       * @description The object.
+       */
+      object: string;
     };
     /** @description The values of an endpoint on an axis, and where they come from (REQ-010-31). */
     PolicyAxisResolution: {

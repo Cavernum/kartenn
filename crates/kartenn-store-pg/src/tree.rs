@@ -649,6 +649,123 @@ async fn tops(
     rows.into_iter().map(node_of).collect()
 }
 
+/// A row of [`places`]: identifier, kind, parent, and for a prefix its domain and value.
+pub(crate) type PlaceRow = (Uuid, String, Option<Uuid>, Option<Uuid>, Option<String>);
+
+/// The place of each of `objects` valid at the instant of the transaction (spec 021, A12):
+/// the deduced parent of a prefix, a range (by its first address, as [`ancestors`]) or an
+/// address, from the prefixes of the transaction but `without`, plus `with` (identifier,
+/// domain, value); the declared parent of an entity, a site, a VLAN group (its anchor), a
+/// VLAN (its group) or an object of a module (its record). One probe of the per-domain
+/// index for each deduced parent.
+///
+/// # Errors
+///
+/// Database errors.
+pub(crate) async fn places(
+    executor: impl PgExecutor<'_>,
+    objects: &[Uuid],
+    without: &[Uuid],
+    with: &[(Uuid, Uuid, Prefix)],
+) -> sqlx::Result<Vec<PlaceRow>> {
+    let (ids, (domains, values)): (Vec<Uuid>, (Vec<Uuid>, Vec<String>)) = with
+        .iter()
+        .map(|(id, domain, value)| (*id, (*domain, value.to_string())))
+        .unzip();
+    let at = "valid_period @> now() AND id = ANY($1)";
+    sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "WITH o AS (
+              SELECT id, 'prefix' AS kind, domain_id, prefix::inet AS v, prefix::text AS value
+                FROM prefix WHERE {at}
+              UNION ALL
+              SELECT id, 'range', domain_id, lower(range), NULL FROM ip_range WHERE {at}
+              UNION ALL
+              SELECT id, 'address', domain_id, address, NULL FROM address WHERE {at}),
+              w AS (SELECT w.id, w.domain_id, w.value::cidr AS prefix
+                    FROM unnest($3::uuid[], $4::uuid[], $5::text[]) AS w(id, domain_id, value))
+         SELECT o.id, o.kind,
+                (SELECT c.id FROM (
+                    (SELECT p.id, p.prefix FROM prefix p
+                     WHERE p.domain_id = o.domain_id AND p.valid_period @> now()
+                       AND p.prefix >> o.v AND p.id <> ALL($2::uuid[])
+                     ORDER BY masklen(p.prefix) DESC LIMIT 1)
+                    UNION ALL
+                    SELECT w.id, w.prefix FROM w
+                    WHERE w.domain_id = o.domain_id AND w.prefix >> o.v) c
+                 ORDER BY masklen(c.prefix) DESC LIMIT 1),
+                o.domain_id, o.value
+         FROM o
+         UNION ALL SELECT id, 'entity', parent_id, NULL, NULL FROM entity WHERE {at}
+         UNION ALL SELECT id, 'site', parent_id, NULL, NULL FROM site WHERE {at}
+         UNION ALL SELECT id, 'vlan_group', anchor_id, NULL, NULL FROM vlan_group WHERE {at}
+         UNION ALL SELECT id, 'vlan', group_id, NULL, NULL FROM vlan WHERE {at}
+         UNION ALL SELECT id, kind, parent_id, NULL, NULL FROM module_object WHERE {at}
+         UNION ALL SELECT id, 'domain', NULL, NULL, NULL FROM addressing_domain WHERE {at}"
+    )))
+    .bind(objects)
+    .bind(without)
+    .bind(ids)
+    .bind(domains)
+    .bind(values)
+    .fetch_all(executor)
+    .await
+}
+
+/// The first `limit` objects valid at the instant of the transaction a prefix of value
+/// `within` in `domain` would be the deduced parent of, after the child `after` when
+/// given, as [`children_of`] reads them. Every child: the caller filters what its reader
+/// may read (spec 021, A12).
+///
+/// # Errors
+///
+/// Database or decoding errors.
+pub(crate) async fn children_within(
+    conn: &mut sqlx::PgConnection,
+    domain: Uuid,
+    within: &Prefix,
+    after: Option<Uuid>,
+    limit: i64,
+) -> sqlx::Result<Vec<Node>> {
+    let at: OffsetDateTime = sqlx::query_scalar("SELECT now()")
+        .fetch_one(&mut *conn)
+        .await?;
+    // The position of `after`: its first address and its rank, as `Node::key` says.
+    let key = match after {
+        None => None,
+        Some(id) => {
+            let found: Option<(String, i16)> = sqlx::query_as(
+                "SELECT host(prefix), 0::int2 FROM prefix WHERE id = $1 AND valid_period @> now()
+                 UNION ALL SELECT host(lower(range)), 1::int2 FROM ip_range
+                  WHERE id = $1 AND valid_period @> now()
+                 UNION ALL SELECT host(address), 2::int2 FROM address
+                  WHERE id = $1 AND valid_period @> now()",
+            )
+            .bind(id)
+            .fetch_optional(&mut *conn)
+            .await?;
+            match found {
+                Some((start, rank)) => Some(ChildKey {
+                    start: addr(&start)?,
+                    rank,
+                    id,
+                }),
+                None => return Ok(Vec::new()),
+            }
+        }
+    };
+    tops(
+        conn,
+        domain,
+        Some(within),
+        at,
+        None,
+        &ReadScope::all(),
+        key.as_ref(),
+        Some(limit),
+    )
+    .await
+}
+
 /// Whether the addressing domain `id` exists at `valid_at` as asserted at `as_of` (now
 /// when `None`).
 ///

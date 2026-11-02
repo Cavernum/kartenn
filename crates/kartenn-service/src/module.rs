@@ -161,6 +161,10 @@ pub struct DefaultPolicy {
 /// A future of a module, boxed so that its traits stay object-safe.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+/// What [`ModuleHandler::parents`] answers: objects and their declared parents, `None` at
+/// the root.
+pub type DeclaredParents = Vec<(Uuid, Option<Uuid>)>;
+
 /// An operation a module accepts in a changeset (REQ-008-4).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OperationType {
@@ -516,6 +520,19 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         period: Option<Period>,
     ) -> BoxFuture<'a, Result<Vec<Uuid>, StoreError>> {
         let _ = (tx, reference, target, period);
+        Box::pin(std::future::ready(Ok(Vec::new())))
+    }
+
+    /// The declared parent of those of `objects` of the module whose tree is not that of
+    /// their records (the host of a machine, for instance), valid at the instant of the
+    /// transaction, on its state: `(object, parent)`, `None` at the root. The objects it
+    /// leaves out keep the parent of their record (spec 021, A12). None by default.
+    fn parents<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        objects: &'a [(ModuleKind, Uuid)],
+    ) -> BoxFuture<'a, Result<DeclaredParents, StoreError>> {
+        let _ = (tx, objects);
         Box::pin(std::future::ready(Ok(Vec::new())))
     }
 

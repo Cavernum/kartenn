@@ -378,6 +378,35 @@ pub(crate) struct Cascaded {
     id: Uuid,
 }
 
+/// An object whose parent a simulated changeset changes, at the present (spec 021, A12).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub(crate) struct Placement {
+    /// The object.
+    object: Uuid,
+    /// Its kind.
+    #[schema(value_type = TargetKindDto)]
+    kind: ObjectKind,
+    /// Its parent before: deduced for a prefix, a range or an address, declared otherwise;
+    /// `null` at the root, for an object the changeset creates, or for a parent the caller
+    /// may not read.
+    #[schema(required = true)]
+    before: Option<Uuid>,
+    /// Its parent after; `null` at the root, or for a parent the caller may not read.
+    #[schema(required = true)]
+    after: Option<Uuid>,
+}
+
+impl From<&kartenn_service::placements::Placement> for Placement {
+    fn from(p: &kartenn_service::placements::Placement) -> Self {
+        Self {
+            object: p.object,
+            kind: p.kind,
+            before: p.before,
+            after: p.after,
+        }
+    }
+}
+
 pub(crate) fn cascaded(closures: &[(ObjectKind, Uuid)]) -> Vec<Cascaded> {
     closures
         .iter()
@@ -713,6 +742,15 @@ pub(crate) struct ChangesetSimulated {
     cascaded: Vec<Cascaded>,
     /// The sections the modules would contribute to the differential (REQ-008-26).
     sections: Vec<SectionSampleDto>,
+    /// The objects whose parent applying would change at the present, with their parents
+    /// before and after (spec 021, A12): first those the operations write, in their
+    /// order, then those they move, in address order; an object closed leaves the tree
+    /// and is not listed. Under the read filter of the tree: an object the caller may not
+    /// read is not listed. At most 1000.
+    placements: Vec<Placement>,
+    /// `true`: some placements may be missing, past 1000 (or past 1000 readable objects
+    /// examined beyond those of the operations); counted on what the caller may read.
+    placements_truncated: bool,
 }
 
 /// What `Location` names for the changeset `changeset` applied.
@@ -933,6 +971,7 @@ pub(crate) async fn answered(
             sample,
             cascaded: closures,
             sections,
+            placements,
         } => {
             let mut sections: Vec<SectionSampleDto> =
                 sections.iter().map(SectionSampleDto::from).collect();
@@ -956,6 +995,8 @@ pub(crate) async fn answered(
                 sample: sample.iter().map(DiffItemDto::from).collect(),
                 cascaded: cascaded(&closures),
                 sections,
+                placements: placements.items.iter().map(Placement::from).collect(),
+                placements_truncated: placements.truncated,
             })
             .into_response()
         }

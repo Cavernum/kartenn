@@ -1663,6 +1663,60 @@ impl WriteTx for PgTx {
             .map_err(store_err)
     }
 
+    async fn tree_places(
+        &mut self,
+        objects: &[Uuid],
+        supposed: kartenn_service::port::Supposed<'_>,
+    ) -> Result<Vec<kartenn_service::port::TreePlace>, StoreError> {
+        let rows = crate::tree::places(&mut *self.tx, objects, supposed.without, supposed.with)
+            .await
+            .map_err(store_err)?;
+        let mut places = Vec::with_capacity(rows.len());
+        for (id, kind, parent, domain, value) in rows {
+            // The VLANs of the core registered as objects of a module are read from their
+            // own tables.
+            let Some(kind) = ObjectKind::from_name(&kind) else {
+                continue;
+            };
+            let prefix = match (domain, value) {
+                (Some(domain), Some(value)) => {
+                    Some((domain, Prefix::parse_any(&ALL, &value).map_err(store_err)?))
+                }
+                _ => None,
+            };
+            places.push(kartenn_service::port::TreePlace {
+                id,
+                kind,
+                parent,
+                prefix,
+            });
+        }
+        Ok(places)
+    }
+
+    async fn tree_children(
+        &mut self,
+        domain: Uuid,
+        within: &Prefix,
+        after: Option<Uuid>,
+        limit: i64,
+    ) -> Result<Vec<(ObjectKind, Uuid)>, StoreError> {
+        let nodes = crate::tree::children_within(&mut self.tx, domain, within, after, limit)
+            .await
+            .map_err(store_err)?;
+        Ok(nodes
+            .iter()
+            .map(|node| {
+                let kind = match node {
+                    crate::tree::Node::Prefix { .. } => ObjectKind::Prefix,
+                    crate::tree::Node::Range { .. } => ObjectKind::Range,
+                    crate::tree::Node::Address { .. } => ObjectKind::Address,
+                };
+                (kind, node.id())
+            })
+            .collect())
+    }
+
     async fn containers_carrying(
         &mut self,
         key: &str,
