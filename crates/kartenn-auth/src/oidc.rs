@@ -12,9 +12,12 @@
 use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::sync::{Arc, PoisonError};
+use std::time::Duration;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use kartenn_service::StoreError;
+use kartenn_service::authn::{Claim, RefreshExchanges};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
@@ -161,8 +164,42 @@ fn now() -> i64 {
         .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
 }
 
+/// How long, at least, the instances keep the result of an exchange for the requests that
+/// left with the token it turned (021/A25); longer if a request may last longer.
+pub const EXCHANGE_GRACE: Duration = Duration::from_secs(30);
+/// Most time an instance gives its issuer for an exchange: the discovery, the token and
+/// the keys, three calls of at most 10 s.
+const EXCHANGE_WITHIN: Duration = Duration::from_secs(30);
+/// The lease of a claimed exchange: [`EXCHANGE_WITHIN`] and a margin for the round trips
+/// to the database, so that no instance takes over an exchange still running.
+const EXCHANGE_LEASE: Duration = Duration::from_secs(40);
+/// How often an instance asks again whether the exchange of another one is over.
+const EXCHANGE_POLL: Duration = Duration::from_millis(100);
+
+/// The fingerprint naming the exchange of `refresh_token` of `subject` at `issuer_id`
+/// among the instances (021/A25): SHA-256 of the three, each prefixed by its length, under
+/// a label of its own. The token never leaves the instance.
+fn fingerprint(issuer_id: &str, subject: &str, refresh_token: &str) -> [u8; 32] {
+    let mut digest = Sha256::new();
+    digest.update(b"kartenn/refresh-exchange/v1");
+    for part in [issuer_id, subject, refresh_token] {
+        digest.update(u64::try_from(part.len()).unwrap_or(u64::MAX).to_be_bytes());
+        digest.update(part.as_bytes());
+    }
+    digest.finalize().into()
+}
+
+/// The exchanges shared with the other instances.
+struct Shared {
+    exchanges: Arc<dyn RefreshExchanges>,
+    /// This instance, as the holder of its claims.
+    holder: Uuid,
+    /// How long a result is kept.
+    window: Duration,
+}
+
 /// What a refresh at the issuer gives a session.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct Refreshed {
     /// The new ID token and its groups, when the issuer gives one.
     id_token: Option<(String, Vec<String>)>,
@@ -235,8 +272,11 @@ pub struct Oidc<S> {
     redirect_uri: String,
     discoveries: Mutex<HashMap<String, Discovery>>,
     /// One exchange at a time per refresh token: a token the issuer turned is never
-    /// presented twice by concurrent requests of a session (RFC 9700 §4.14.2).
+    /// presented twice by concurrent requests of a session (RFC 9700 §4.14.2). The cache,
+    /// on this instance, in front of [`Self::shared`].
     exchanges: Exchanges,
+    /// The same among the instances, with the results kept a short window (021/A24, A25).
+    shared: Option<Shared>,
 }
 
 impl<S> std::fmt::Debug for Oidc<S> {
@@ -272,7 +312,26 @@ impl<S: KeySource> Oidc<S> {
             redirect_uri,
             discoveries: Mutex::new(HashMap::new()),
             exchanges: std::sync::Mutex::new(HashMap::new()),
+            shared: None,
         }
+    }
+
+    /// Shares the exchanges of the refresh tokens with the other instances through
+    /// `exchanges` (021/A24): one instance presents a token at a time, and its result is
+    /// kept [`EXCHANGE_GRACE`], or `longest_request` if longer, for the requests that left
+    /// with the token it turned (A25). Without it, an instance shares them with itself only.
+    #[must_use]
+    pub fn shared(
+        mut self,
+        exchanges: Arc<dyn RefreshExchanges>,
+        longest_request: Duration,
+    ) -> Self {
+        self.shared = Some(Shared {
+            exchanges,
+            holder: Uuid::now_v7(),
+            window: longest_request.max(EXCHANGE_GRACE),
+        });
+        self
     }
 
     async fn discovery(&self, issuer: &IssuerConfig) -> Result<Discovery, LoginError> {
@@ -450,7 +509,9 @@ impl<S: KeySource> Oidc<S> {
     /// Refreshes the groups of `session` at its issuer with its refresh token
     /// (REQ-005-7); the session keeps its groups when the issuer gives no new ID token.
     /// Requests that present the same refresh token while it is in exchange share that
-    /// exchange: the issuer sees the token once (RFC 9700 §4.14.2), on this instance.
+    /// exchange: the issuer sees the token once (RFC 9700 §4.14.2), on this instance and,
+    /// when [`Self::shared`], among the instances, where a request that presents it within
+    /// the window after the exchange gets the same result (021/A24, A25).
     ///
     /// # Errors
     ///
@@ -471,7 +532,7 @@ impl<S: KeySource> Oidc<S> {
         let (issuer_id, subject, refresh_token) = &turn.presented;
         let refreshed = turn
             .exchange
-            .get_or_init(|| self.exchange(issuer_id, subject, refresh_token))
+            .get_or_init(|| self.exchange_once(issuer_id, subject, refresh_token))
             .await
             .clone()?;
         drop(turn);
@@ -484,6 +545,76 @@ impl<S: KeySource> Oidc<S> {
         }
         session.refresh_at = refreshed.refresh_at;
         Ok(())
+    }
+
+    /// The exchange of `refresh_token` of `subject`, by this instance or, when shared, by
+    /// another one (021/A24). Under the lock of its fingerprint, a short transaction reads
+    /// the result kept within its window, or claims the exchange under a lease; the issuer
+    /// is called outside any transaction, no connection held: the claim, not the lock,
+    /// keeps the other instances waiting meanwhile, each asking again every
+    /// [`EXCHANGE_POLL`] with no connection held between two questions. A result is kept
+    /// sealed by a key of its own, derived from the ring and bound to the fingerprint; a
+    /// failure gives the claim up, so that the next request presents the token again.
+    async fn exchange_once(
+        &self,
+        issuer_id: &str,
+        subject: &str,
+        refresh_token: &str,
+    ) -> Result<Refreshed, LoginError> {
+        let Some(shared) = &self.shared else {
+            return self.exchange(issuer_id, subject, refresh_token).await;
+        };
+        let key = fingerprint(issuer_id, subject, refresh_token);
+        let name = format!("refresh-exchange/{}", URL_SAFE_NO_PAD.encode(key));
+        let unavailable =
+            |e: StoreError| LoginError::Unavailable(format!("the shared exchanges: {}", e.0));
+        loop {
+            match shared
+                .exchanges
+                .claim(&key, shared.holder, EXCHANGE_LEASE)
+                .await
+                .map_err(unavailable)?
+            {
+                Claim::Ours => break,
+                Claim::Busy => tokio::time::sleep(EXCHANGE_POLL).await,
+                Claim::Kept(sealed) => {
+                    return open(&self.ring, Purpose::RefreshExchange, &name, &[&sealed])
+                        .ok()
+                        .and_then(|plain| serde_json::from_slice(&plain).ok())
+                        .ok_or_else(|| {
+                            LoginError::Exchange("the kept exchange does not open".into())
+                        });
+                }
+            }
+        }
+        let outcome = tokio::time::timeout(
+            EXCHANGE_WITHIN,
+            self.exchange(issuer_id, subject, refresh_token),
+        )
+        .await
+        .unwrap_or_else(|_| {
+            Err(LoginError::Unavailable(
+                "the issuer did not answer in time".into(),
+            ))
+        });
+        // A result that cannot be kept, or a claim that cannot be given up, is left to its
+        // lease: the other instances wait for its end, then present the token themselves.
+        match &outcome {
+            Ok(refreshed) => {
+                if let Some(sealed) = serde_json::to_vec(refreshed).ok().and_then(|plain| {
+                    seal(&self.ring, Purpose::RefreshExchange, &name, &plain).ok()
+                }) {
+                    let _ = shared
+                        .exchanges
+                        .keep(&key, shared.holder, &sealed.concat(), shared.window)
+                        .await;
+                }
+            }
+            Err(_) => {
+                let _ = shared.exchanges.release(&key, shared.holder).await;
+            }
+        }
+        outcome
     }
 
     /// Exchanges `refresh_token` of `subject` at its issuer.

@@ -38,6 +38,7 @@ use kartenn_service::authn::StateCache;
 use kartenn_service::reads::ReadAudit;
 use kartenn_store_pg::audit_journal::PgAuditJournal;
 use kartenn_store_pg::breakglass::Stored;
+use kartenn_store_pg::refresh_exchanges::{PgRefreshExchanges, purge};
 use kartenn_store_pg::write::PgStore;
 use p256::pkcs8::EncodePrivateKey;
 use serde_json::{Value, json};
@@ -279,6 +280,31 @@ impl Fixture {
         ids: &[(&str, Option<NativeClient>)],
         v1: Router,
     ) -> Self {
+        let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+        Self::instance(pool, idp, settings, ids, v1, ring)
+    }
+
+    /// Two instances of the issuer `main` on the same database and key ring (D9), each
+    /// with its own exchanges in progress.
+    fn pair(pool: &PgPool, idp: &Shared) -> (Self, Self) {
+        let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+        let of = |ring: KeyRing| {
+            let ids = [("main", None)];
+            Self::instance(pool, idp, Settings::default(), &ids, Router::new(), ring)
+        };
+        (of(ring.clone()), of(ring))
+    }
+
+    /// An instance with the issuers `ids` around `v1`, on `ring`, its exchanges of
+    /// refresh tokens shared through the database (021/A24).
+    fn instance(
+        pool: &PgPool,
+        idp: &Shared,
+        settings: Settings,
+        ids: &[(&str, Option<NativeClient>)],
+        v1: Router,
+        ring: KeyRing,
+    ) -> Self {
         let issuers = ids
             .iter()
             .map(|(id, native)| IssuerConfig {
@@ -292,7 +318,6 @@ impl Fixture {
                 native: native.clone(),
             })
             .collect();
-        let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
         let http = HttpClient::new().unwrap();
         let authn = Authn {
             identities: PgStore::new(pool.clone()),
@@ -303,6 +328,10 @@ impl Fixture {
                 http,
                 ring.clone(),
                 REDIRECT.into(),
+            )
+            .shared(
+                Arc::new(PgRefreshExchanges::new(pool.clone())),
+                Duration::from_secs(30),
             ),
             states: StateCache::new(Duration::from_secs(5)),
             limiter: FailureLimiter::new(100, Duration::from_mins(1)),
@@ -775,6 +804,124 @@ fn due_again(f: &Fixture, session: &Session) -> String {
     format!("{SESSION}={}", due.seal(&f.ring).unwrap()[0])
 }
 
+/// Brings the end of the kept exchanges to the past, as 30 s later (021/A25).
+async fn window_over(pool: &PgPool) {
+    sqlx::query("UPDATE refresh_exchange SET ends_at = now() - interval '1 second'")
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+/// The exchanges kept: their keys, sealed results and seconds left.
+async fn kept(pool: &PgPool) -> Vec<(Vec<u8>, Option<String>, f64)> {
+    sqlx::query_as(
+        "SELECT key, sealed, extract(epoch FROM ends_at - now())::float8 FROM refresh_exchange",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap()
+}
+
+/// The session sent again by `response`.
+fn sent_again(f: &Fixture, response: &Response) -> Session {
+    let again = value(response, SESSION).expect("sent again after a refresh");
+    Session::unseal(&f.ring, &[&again]).unwrap()
+}
+
+/// 021/A24 (D9): two instances on the same database, each with its own exchanges in
+/// progress, serve two requests of a session whose refresh is due at once: the issuer
+/// sees its refresh token once, and both send the cookie again with the token it turned.
+#[kartenn_testing::pg_test]
+async fn two_instances_present_the_token_once(pool: PgPool) {
+    let idp = idp().await;
+    let (a, b) = Fixture::pair(&pool, &idp);
+    let session = a.login(&idp).await;
+    let (due, _) = refresh_due(&a, &idp, &session);
+    idp.lock().unwrap().hold = Duration::from_secs(1);
+
+    let (first, second) = tokio::join!(
+        a.call(request("GET", "/v1/me", Some(&due), true)),
+        b.call(request("GET", "/v1/me", Some(&due), true)),
+    );
+    assert_eq!(idp.lock().unwrap().refreshes, 1);
+    assert_eq!(first.status(), StatusCode::OK);
+    assert_eq!(second.status(), StatusCode::OK);
+    let (first, second) = (sent_again(&a, &first), sent_again(&b, &second));
+    assert_eq!(first.refresh_token.as_deref(), Some("r2"));
+    assert_eq!(first.groups, ["admins"]);
+    assert_eq!(
+        (&second.refresh_token, &second.groups, &second.id_token),
+        (&first.refresh_token, &first.groups, &first.id_token)
+    );
+}
+
+/// 021/A25: a request that left with the cookie on `r1` and arrives within 30 s of its
+/// exchange, on another instance or the same one, gets the same new tokens without the
+/// issuer; past the window, it presents `r1` again and the session ends. The result is
+/// kept sealed under a fingerprint, no token in clear, a failure is not kept, and the
+/// purge deletes what is past its end.
+#[kartenn_testing::pg_test]
+async fn a_late_request_within_the_window_gets_the_same_tokens(pool: PgPool) {
+    let idp = idp().await;
+    let (a, b) = Fixture::pair(&pool, &idp);
+    let session = a.login(&idp).await;
+    let (due, _) = refresh_due(&a, &idp, &session);
+    let turned = "turned-refresh-token-0123456789";
+    idp.lock().unwrap().refresh = turned.into();
+
+    let me = a.call(request("GET", "/v1/me", Some(&due), true)).await;
+    assert_eq!(me.status(), StatusCode::OK);
+    let fresh = sent_again(&a, &me);
+    assert_eq!(fresh.refresh_token.as_deref(), Some(turned));
+
+    // Kept 30 s, sealed under a fingerprint: neither token nor ID token in clear.
+    let rows = kept(&pool).await;
+    assert_eq!(rows.len(), 1);
+    let (key, sealed, left) = &rows[0];
+    assert_eq!(key.len(), 32);
+    let sealed = sealed.as_deref().expect("the result is kept");
+    // (`r1`, too short to be told from chance in base64, is in the fingerprint only.)
+    for clear in [turned, fresh.id_token.as_deref().unwrap()] {
+        assert!(!sealed.contains(clear), "{clear} in clear");
+        assert!(!key.windows(clear.len()).any(|w| w == clear.as_bytes()));
+    }
+    assert!((29.0..=30.0).contains(left), "{left}");
+    assert_eq!(purge(&pool).await.unwrap(), 0, "within its window");
+
+    // Late, on the other instance and on the same one: the same new tokens.
+    for f in [&b, &a] {
+        let late = f.call(request("GET", "/v1/me", Some(&due), true)).await;
+        assert_eq!(late.status(), StatusCode::OK);
+        let late = sent_again(f, &late);
+        assert_eq!(
+            (
+                &late.refresh_token,
+                &late.groups,
+                &late.id_token,
+                late.refresh_at
+            ),
+            (
+                &fresh.refresh_token,
+                &fresh.groups,
+                &fresh.id_token,
+                fresh.refresh_at
+            )
+        );
+    }
+    assert_eq!(idp.lock().unwrap().refreshes, 1);
+
+    // Past the window, purged; `r1` presented again: refused, the session ends, and the
+    // failure is not kept.
+    window_over(&pool).await;
+    assert_eq!(purge(&pool).await.unwrap(), 1);
+    let me = b.call(request("GET", "/v1/me", Some(&due), true)).await;
+    assert_eq!(me.status(), StatusCode::UNAUTHORIZED);
+    assert!(removes(&me, SESSION));
+    assert_eq!(last_cause(&pool).await, "refresh_failed");
+    assert_eq!(idp.lock().unwrap().refreshes, 2);
+    assert!(kept(&pool).await.is_empty(), "a failure is not kept");
+}
+
 /// The cause of the last end of a session in the audit.
 async fn last_cause(pool: &PgPool) -> String {
     sqlx::query_scalar(
@@ -807,7 +954,8 @@ async fn a_refusal_after_a_refresh_keeps_the_new_tokens(pool: PgPool) {
     assert_eq!(refused.status(), StatusCode::BAD_REQUEST);
     let again = refreshed_quietly(&f, &refused, seen);
 
-    // The cookie left on `r1`: refused by the issuer, the session ends.
+    // The cookie left on `r1`, past the window: refused by the issuer, the session ends.
+    window_over(&pool).await;
     let me = f.call(request("GET", "/v1/me", Some(&due), true)).await;
     assert_eq!(me.status(), StatusCode::UNAUTHORIZED);
     assert!(removes(&me, SESSION));
