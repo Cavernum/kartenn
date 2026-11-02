@@ -66,6 +66,9 @@
     "mode": "802.1Q mode",
     "access": "Access VLAN",
     "chooseVlan": "Choose a VLAN",
+    "firstVlans": "Only the first VLANs read are offered.",
+    "failedVlans": "The VLANs could not be read",
+    "trunkHint": "Trunk interface: its tagged VLANs are changed through the API; « none » or « access » replaces it.",
     "addresses": "Attached addresses",
     "state": "State",
     "enabled": "enabled",
@@ -109,7 +112,8 @@
     "none": "No interface found",
     "noAddress": "No address {value}",
     "noVlan": "No VLAN of VID {value}",
-    "again": "Check the criteria, or clear them to list everything."
+    "again": "Check the criteria, or clear them to list everything.",
+    "first": "Only the first {n} interfaces found are listed: one more criterion narrows the search."
   },
   "tab": {
     "label": "Interfaces",
@@ -122,7 +126,7 @@
     "none": "No interface",
     "noneNetwork": "No interface in this network",
     "noneText": "An address is attached to an interface from its record.",
-    "more": "Only the first page is shown."
+    "first": "Only the first {n} rows are listed."
   },
   "column": { "label": "Machine", "unreadable": "unreadable" },
   "action": {

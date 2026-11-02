@@ -22,7 +22,8 @@ import { within } from "../src/reads.ts";
 // The machines plugin in the sandbox of the SDK (spec 021, task 18a): announced as the shell
 // would, its module loaded, each element mounted with a context and a simulated `fetch`. Its
 // reads go through the shared cache; its forms add operations of the module to the draft.
-// The view of the machines, in Vue since the 18cb: `machines-view.test.ts`.
+// The view of the machines, in Vue since the 18cb: `machines-view.test.ts`; the view of the
+// interfaces and the tab, in Vue since the 18cc: `interfaces-view.test.ts`.
 
 const MACHINE = "4c9f2a52-0f1e-4f55-9a43-6f1f2d1b7a10";
 const ENTITY = "0b7d1c8e-3a54-4b1c-8f0e-2d6a9c4e5f21";
@@ -53,7 +54,6 @@ const iface = (): Interface => ({
   vlan: { mode: "access", access: { id: VLAN }, tagged: [] },
 });
 
-const vlan = { id: VLAN, vid: 310, name: "hotes", group: { id: ENTITY }, status: "active" };
 const page = <T>(items: T[]) => ({ items, links: {} }) as never;
 
 /** A user who holds every permission, or none of `missing`. */
@@ -126,12 +126,6 @@ async function shadowText(element: HTMLElement, expected: string | RegExp): Prom
   return text;
 }
 
-/** The rows of the first table of `element`, each its cells' texts. */
-const rows = (element: HTMLElement) =>
-  [...element.shadowRoot!.querySelectorAll("tbody tr")].map((tr) =>
-    [...tr.children].map((cell) => cell.textContent?.trim()),
-  );
-
 describe("the machines plugin", () => {
   it("defines every element its manifest declares, under the space hosts", () => {
     for (const extension of manifest.extensions) {
@@ -171,126 +165,6 @@ describe("the machines plugin", () => {
     });
     await shadowText(mounted.element, "No cluster");
     expect(mounted.element.shadowRoot!.querySelector(".k-empty-state")).not.toBeNull();
-  });
-
-  it("searches the interfaces by address value, the criteria in the address of the page", async () => {
-    history.replaceState(null, "", "/x/machines/interfaces");
-    const asked: string[] = [];
-    mounted = mount("machines-interfaces", {
-      context: { locale: "en", user: user() },
-      fetch: fakeFetch({
-        "GET /v1/interfaces": ({ query }) => {
-          asked.push(query.toString());
-          return page(query.get("address") === ADDRESS || !query.has("address") ? [iface()] : []);
-        },
-        "GET /v1/addresses": ({ query }) =>
-          page(query.get("value") === "192.0.2.10" ? [{ id: ADDRESS }] : []),
-        "GET /v1/machines/{id}": () => machine() as never,
-        "GET /v1/vlans/{id}": () => vlan as never,
-      }),
-    });
-    const { element } = mounted;
-    // What the shell does of a link of the plugin: followed by its router, a new entry.
-    const followed: string[] = [];
-    const router = (event: Event) => {
-      const anchor = event.composedPath().find((n) => n instanceof HTMLAnchorElement);
-      if (!(anchor instanceof HTMLAnchorElement)) return;
-      event.preventDefault();
-      const url = new URL(anchor.href);
-      followed.push(url.pathname + url.search);
-      history.pushState({ shell: true }, "", url.pathname + url.search);
-    };
-    document.addEventListener("click", router);
-    try {
-      await vi.waitFor(() =>
-        expect(rows(element)[0]?.slice(0, 3)).toEqual(["eth0", "srv-a", "00:00:5e:00:53:01"]),
-      );
-      const root = element.shadowRoot!;
-      const field = root.querySelector<HTMLInputElement>("input[name=address]")!;
-      field.value = "192.0.2.10";
-      root.querySelector("form")!.requestSubmit();
-      await vi.waitFor(() => expect(asked).toContain(`address=${ADDRESS}`));
-      expect(followed).toEqual(["/x/machines/interfaces?address=192.0.2.10"]);
-      await shadowText(element, "Interfaces found: 1.");
-      // Said by the live region there from the start, the visible count hidden from it.
-      expect(root.querySelector("[role=status].k-visually-hidden")?.textContent).toBe(
-        "Interfaces found: 1.",
-      );
-      field.value = "192.0.2.99";
-      root.querySelector("form")!.requestSubmit();
-      await shadowText(element, "No address 192.0.2.99");
-      // Back: the criteria of the former entry, in the field and searched again.
-      history.back();
-      await vi.waitFor(() => expect(field.value).toBe("192.0.2.10"));
-      await shadowText(element, "Interfaces found: 1.");
-    } finally {
-      document.removeEventListener("click", router);
-    }
-  });
-
-  it("tab of a network: the interfaces of its machines that hold one of its addresses", async () => {
-    mounted = mount("machines-tab", {
-      object: { type: "prefix", id: PREFIX, href: `/v1/prefixes/${PREFIX}` },
-      context: { locale: "en" },
-      fetch: fakeFetch({
-        "GET /v1/prefixes/{id}": () => ({ id: PREFIX, value: "192.0.2.0/24" }) as never,
-        "GET /v1/machines": ({ query }) => {
-          expect(query.get("network")).toBe(PREFIX);
-          return page([machine()]);
-        },
-        "GET /v1/machines/{id}/addresses": () =>
-          ({
-            items: [
-              {
-                address: { id: ADDRESS },
-                value: "192.0.2.10",
-                interface: { id: IFACE },
-                interface_name: "eth0",
-                primary: true,
-                href: "",
-              },
-              {
-                address: { id: VLAN },
-                value: "198.51.100.1",
-                interface: { id: IFACE },
-                interface_name: "eth0",
-                primary: false,
-                href: "",
-              },
-            ],
-            links: {},
-          }) as never,
-      }),
-    });
-    await vi.waitFor(() =>
-      expect(rows(mounted!.element)).toEqual([["eth0", "srv-a", "192.0.2.10", "yes"]]),
-    );
-  });
-
-  it("tab of an address and of a VLAN: the interfaces that hold or carry it", async () => {
-    const asked: string[] = [];
-    mounted = mount("machines-tab", {
-      object: { type: "vlan", id: VLAN, href: `/v1/vlans/${VLAN}` },
-      context: { locale: "en" },
-      fetch: fakeFetch({
-        "GET /v1/interfaces": ({ query }) => {
-          asked.push(query.toString());
-          return page([iface()]);
-        },
-        "GET /v1/machines/{id}": () => machine() as never,
-        "GET /v1/vlans/{id}": () => vlan as never,
-      }),
-    });
-    await vi.waitFor(() =>
-      expect(rows(mounted!.element)[0]).toEqual([
-        "eth0",
-        "srv-a",
-        "00:00:5e:00:53:01",
-        "access 310",
-        "enabled",
-      ]),
-    );
-    expect(asked).toEqual([`vlan=${VLAN}`]);
   });
 
   describe("the column and the action in Vue, in their light DOM (task 18ca)", () => {

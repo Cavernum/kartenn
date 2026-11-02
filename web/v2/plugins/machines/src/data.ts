@@ -13,6 +13,7 @@
 
 import {
   InfiniteQueryObserver,
+  MAX_PAGES,
   QueryObserver,
   type Entry,
   type InfiniteQueryObserverResult,
@@ -64,8 +65,15 @@ const IDLE = Object.freeze({
 interface Observer<R> {
   setOptions(options: never): void;
   getOptimisticResult(options: never): R;
+  getCurrentResult(): R;
   subscribe(listener: (result: R) => void): () => void;
 }
+
+const readOf = <T>(result: QueryObserverResult<Entry<T>, Error>): Read<T> => ({
+  data: result.data?.data,
+  error: result.isError ? result.error : null,
+  pending: result.data === undefined && !result.isError,
+});
 
 /**
  * Follows the options of `options()` (reactive, at the dates of the context; `null`: no
@@ -118,16 +126,33 @@ export function useRead<T, K extends Key>(
   return observe(
     options,
     (o) => new QueryObserver<Entry<T>, Error>(queryClient, o),
-    (result: QueryObserverResult<Entry<T>, Error>): Read<T> => ({
-      data: result.data?.data,
-      error: result.isError ? result.error : null,
-      pending: result.data === undefined && !result.isError,
-    }),
+    readOf<T>,
     IDLE as Read<T>,
   ).state;
 }
 
 type Paged<T> = { items: T[]; links: { next?: string | null } };
+
+const listOf = <T>(
+  result: InfiniteQueryObserverResult<{ pages: Entry<Paged<T>>[] }, Error>,
+): List<T> => ({
+  items: result.data?.pages.flatMap((page) => page.data.items),
+  error: result.isError ? result.error : null,
+  pending: result.data === undefined && !result.isError,
+  previous: result.isPlaceholderData,
+  more: result.hasNextPage,
+  fetching: result.isFetchingNextPage,
+  pages: result.data?.pages.length ?? 0,
+});
+
+/** The members of an infinite observer that read a page again or the next one. */
+type Pager = { refetch?: () => Promise<unknown>; fetchNextPage?: () => Promise<unknown> };
+
+/** After a failure: the first page read again, or the next page that failed. */
+function again(observer: Pager | null, list: List<unknown>): void {
+  if (list.items === undefined) void observer?.refetch?.();
+  else void observer?.fetchNextPage?.();
+}
 
 /** The list of `options()` (`reads.list`; `null`: none), followed page by page. */
 export function useList<T, K extends Key>(
@@ -137,15 +162,7 @@ export function useList<T, K extends Key>(
   const { state, current } = observe(
     options,
     (o) => new InfiniteQueryObserver<Entry<Paged<T>>, Error>(queryClient, o),
-    (result: InfiniteQueryObserverResult<{ pages: Entry<Paged<T>>[] }, Error>): List<T> => ({
-      items: result.data?.pages.flatMap((page) => page.data.items),
-      error: result.isError ? result.error : null,
-      pending: result.data === undefined && !result.isError,
-      previous: result.isPlaceholderData,
-      more: result.hasNextPage,
-      fetching: result.isFetchingNextPage,
-      pages: result.data?.pages.length ?? 0,
-    }),
+    listOf<T>,
     IDLE as List<T>,
   );
   return {
@@ -156,12 +173,107 @@ export function useList<T, K extends Key>(
     },
     /** After a failure: the first page read again, or the next page that failed. */
     retry() {
-      const observer = current() as {
-        refetch?: () => Promise<unknown>;
-        fetchNextPage?: () => Promise<unknown>;
-      } | null;
-      if (state.value.items === undefined) void observer?.refetch?.();
-      else void observer?.fetchNextPage?.();
+      again(current() as Pager | null, state.value);
+    },
+  };
+}
+
+/**
+ * Follows each of the options of `options()` (reactive, at the dates of the context) with an
+ * observer `create` makes, while the scope lives: the observers of the options kept are
+ * kept (by the hash of their key), those of the options gone let go.
+ */
+function observeAll<R, S>(
+  options: () => readonly unknown[],
+  create: (options: never) => Observer<R>,
+  shape: (result: R) => S,
+): { states: ShallowRef<readonly S[]>; observers: () => readonly Observer<R>[] } {
+  const { context, queryClient } = useHosted();
+  const states = shallowRef<readonly S[]>([]);
+  const held = new Map<string, { observer: Observer<R>; stop: () => void }>();
+  // The hashes of the options, in their order; an observer subscribing calls `draw` with the
+  // former order, whose observers are all still held.
+  let order: string[] = [];
+  const draw = () => {
+    states.value = order.map((hash) => shape(held.get(hash)!.observer.getCurrentResult()));
+  };
+  watch(
+    () => {
+      void context.value.time;
+      return options();
+    },
+    (next) => {
+      const hashes: string[] = [];
+      for (const option of next) {
+        const defaulted = queryClient.defaultQueryOptions(option as never) as {
+          queryHash: string;
+        };
+        const hash = defaulted.queryHash;
+        if (hashes.includes(hash)) continue;
+        hashes.push(hash);
+        if (held.has(hash)) continue;
+        const observer = create(defaulted as never);
+        // Held before it subscribes: `draw` may run within the subscription.
+        const entry = { observer, stop: () => {} };
+        held.set(hash, entry);
+        entry.stop = observer.subscribe(draw);
+      }
+      for (const [hash, { stop }] of held) {
+        if (hashes.includes(hash)) continue;
+        stop();
+        held.delete(hash);
+      }
+      order = hashes;
+      draw();
+    },
+    { immediate: true, flush: "sync" },
+  );
+  onScopeDispose(() => {
+    for (const { stop } of held.values()) stop();
+    held.clear();
+  });
+  return { states, observers: () => order.map((hash) => held.get(hash)!.observer) };
+}
+
+/** The reads of `options()` (`reads.object`, `reads.sub`…), each followed, in their order. */
+export function useReads<T, K extends Key>(
+  options: () => readonly ReadOptions<T, K>[],
+): Readonly<ShallowRef<readonly Read<T>[]>> {
+  const { queryClient } = useHosted();
+  return observeAll(options, (o) => new QueryObserver<Entry<T>, Error>(queryClient, o), readOf<T>)
+    .states;
+}
+
+/**
+ * The lists of `options()` (`reads.list`), each followed page by page, in their order (the
+ * same options twice: one list).
+ */
+export function useLists<T, K extends Key>(
+  options: () => readonly ListOptions<T, K>[],
+): { states: Readonly<ShallowRef<readonly List<T>[]>>; next(): void; retry(): void } {
+  const { queryClient } = useHosted();
+  const { states, observers } = observeAll(
+    options,
+    (o) => new InfiniteQueryObserver<Entry<Paged<T>>, Error>(queryClient, o),
+    listOf<T>,
+  );
+  return {
+    states,
+    /** The next page of each list that has one, not read nor refused yet. */
+    next() {
+      observers().forEach((observer, i) => {
+        const list = states.value[i];
+        if (list?.more && !list.fetching && !list.error && list.pages < MAX_PAGES) {
+          void (observer as Pager).fetchNextPage?.();
+        }
+      });
+    },
+    /** After a failure: each list that failed read again, as `useList().retry`. */
+    retry() {
+      observers().forEach((observer, i) => {
+        const list = states.value[i];
+        if (list?.error) again(observer as Pager, list);
+      });
     },
   };
 }
