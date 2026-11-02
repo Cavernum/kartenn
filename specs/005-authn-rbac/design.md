@@ -237,8 +237,10 @@ livrés ([025](../025-droits-par-groupes/design.md)).*
   `pg_advisory_xact_lock` sur l'empreinte du jeton présenté (SHA-256 de émetteur × sujet
   × jeton, chacun préfixé de sa longueur), une transaction courte lit le résultat gardé
   ou réclame l'échange sous un bail de 40 s (table `refresh_exchange`) ; l'appel à
-  l'émetteur (30 s au plus) se fait hors transaction, sans connexion tenue, et les autres
-  instances redemandent toutes les 100 ms. Le résultat (jetons, groupes, prochaine
+  l'émetteur (30 s au plus) se fait hors transaction, sans connexion tenue, dans une
+  tâche détachée de la requête (une requête partie n'interrompt pas l'échange, qui garde
+  son résultat), et les autres requêtes, de cette instance ou d'une autre, redemandent
+  toutes les 100 ms, au plus le bail et un quart. Le résultat (jetons, groupes, prochaine
   échéance) est gardé 30 s (ou le délai maximal d'une requête, s'il est plus long),
   scellé en AES-256-GCM par une clé dérivée du trousseau (`kartenn/refresh-exchange/v1`),
   les données associées liant l'empreinte : une requête partie avec l'ancien cookie dans

@@ -729,18 +729,29 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     change pas pendant une rotation du trousseau) ; le verrou sérialise la lecture et la
     réclamation, la réclamation (bail en base) sérialise l'échange : aucune connexion
     pendant l'appel à l'émetteur, au prix d'un bail (40 s, au-delà des 30 s laissées à
-    l'émetteur) qui fait attendre les autres instances si le porteur s'arrête ; sa propre
-    réclamation encore en cours (requête abandonnée) se reprend aussitôt ; une ligne
+    l'émetteur) qui fait attendre les autres instances si le porteur s'arrête ; une ligne
     échue se lit comme absente (un émetteur qui ne tourne pas le jeton le reprend au
     rafraîchissement suivant) ; un résultat qui ne se garde pas ou une réclamation qui ne
-    se rend pas (base indisponible) est laissé à son bail, sans journal (`kartenn-auth`
-    n'a pas `tracing`) ; base indisponible à la réclamation → 503, la session reste ; le
-    port est un trait objet (`BoxFuture`) installé par `Oidc::shared`, pour ne pas
-    ajouter de paramètre de type à `Oidc` ni à `Authn` ; sans lui (tests de
-    `kartenn-auth`, banc), le partage reste par instance.
-  - reste : une requête abandonnée pendant l'échange chez l'émetteur peut encore perdre
-    le jeton tourné (l'échange n'est pas détaché de la requête, 16d (3)) ; l'échec de
-    garde ou de rendu n'est pas journalisé.
+    se rend pas (base indisponible) est laissé à son bail ; base indisponible à la
+    réclamation → 503, la session reste ; le port est un trait objet (`BoxFuture`)
+    installé par `Oidc::shared`, pour ne pas ajouter de paramètre de type à `Oidc` ni à
+    `Authn` ; sans lui (tests de `kartenn-auth`, banc), le partage reste par instance.
+  - passe de corrections (revue, 2026-11-02) : l'échange réclamé tourne dans une tâche à
+    part (`tokio::spawn`, bornée par `EXCHANGE_WITHIN`), qui garde son résultat ou rend
+    la réclamation même si la requête est partie (16d (3)) ; `Oidc` tient donc son
+    vérificateur et ses découvertes sous `Arc`, et `refresh` demande `S: 'static` ; la
+    réclamation encore en cours de sa propre instance n'est plus reprise mais attendue
+    (`Busy`), puisque sa tâche tourne encore ; l'attente sur `Busy` est bornée (bail plus
+    un quart, puis 503) ; bail, fenêtre et purge à `clock_timestamp()` ; échecs de garde,
+    de rendu ou de scellement journalisés par `tracing` (déjà au workspace, ajouté à
+    `kartenn-auth`), la tâche détachée n'ayant plus forcément d'appelant ; `EXCHANGE_WITHIN`
+    reste à 30 s : détaché, l'échange n'est plus coupé par le délai de la requête, et sa
+    borne propre libère toujours la réclamation ; tests
+    `a_lease_over_is_taken_over_and_a_lost_claim_keeps_nothing`,
+    `a_row_is_a_claim_or_a_result` (`kartenn-store-pg/tests/it/refresh_exchanges.rs`),
+    `a_request_dropped_during_the_exchange_leaves_its_result_kept` (`sessions.rs`),
+    `the_purge_task_deletes_the_exchanges_past_their_end` (`kartenn-server/tests/it/jobs.rs`).
+  - reste : rien de la 16f.
 - [ ] 24c. Indice d'opération dans un placement (A26) : `Placement.operation` (indice de
   l'opération source, `null` pour un objet placé par effet), au contrat et dans la
   simulation d'un changeset et d'un brouillon, y compris sous `within` et pour une
