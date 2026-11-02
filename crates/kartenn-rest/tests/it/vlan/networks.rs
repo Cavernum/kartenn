@@ -368,3 +368,39 @@ async fn local_values_designate_an_earlier_object_of_the_kind(pool: PgPool) {
     );
     assert_eq!(env.vlan_of_network(network).await, None);
 }
+
+/// 021/A13: only a reference property takes a local reference; a text, or a host name,
+/// refuses it as an invalid value, whatever the identifier would read as there.
+#[kartenn_testing::pg_test]
+async fn only_a_reference_property_takes_a_local_name(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env.id("addressing_domain", "lab").await;
+    let network = env.prefix("10.9.0.0/24", "network").await;
+    let declarations = [
+        json!({"key": "custom.note", "type": "text", "max_len": 100}),
+        json!({"key": "custom.host", "type": "fqdn"}),
+    ];
+    for declaration in declarations {
+        let mut declare = declaration.clone();
+        declare["local"] = 3.into();
+        declare["cardinality"] = "single".into();
+        declare["carriers"] = json!(["prefix"]);
+        let mut operations = vlan_for(lab, network, Uuid::nil(), 2);
+        operations.pop();
+        operations.push(op("declare_property", declare));
+        operations.push(core(json!({
+            "op": "assign_property", "object": {"id": network}, "kind": "prefix",
+            "property": {"local": 3}, "values": [{"local": 2}],
+        })));
+        let refused = env.submit(operations).await;
+        assert_eq!(
+            rules(&refused),
+            ["prop.assignment.invalid_value"],
+            "{declaration}: {refused:?}"
+        );
+        assert!(
+            messages(&refused).contains("the local reference designates the object"),
+            "{refused:?}"
+        );
+    }
+}

@@ -201,9 +201,10 @@ impl TypeInput {
 }
 
 /// One raw value of an assignment, as received: text (closed-list key, text, host name,
-/// date, reference), integer or boolean (REQ-003-8).
+/// date, reference), integer or boolean (REQ-003-8). An object form with a field it does
+/// not know is refused, not read in part.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, from = "RawWire")]
 pub enum RawInput {
     /// Boolean.
     Bool(bool),
@@ -230,13 +231,55 @@ pub enum RawInput {
     },
 }
 
+/// The forms of a [`RawInput`] as read, each object form closed to other fields.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum RawWire {
+    Bool(bool),
+    Int(i64),
+    Text(String),
+    External(ExternalWire),
+    Local(LocalWire),
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ExternalWire {
+    system: String,
+    id: String,
+    #[serde(default)]
+    label: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LocalWire {
+    local: u32,
+}
+
+impl From<RawWire> for RawInput {
+    fn from(wire: RawWire) -> Self {
+        match wire {
+            RawWire::Bool(b) => Self::Bool(b),
+            RawWire::Int(i) => Self::Int(i),
+            RawWire::Text(t) => Self::Text(t),
+            RawWire::External(ExternalWire { system, id, label }) => {
+                Self::External { system, id, label }
+            }
+            RawWire::Local(LocalWire { local }) => Self::Local { local },
+        }
+    }
+}
+
 impl RawInput {
-    /// The raw scalar the value types parse, a local reference replaced by the identifier
-    /// `local` gives its name, as the text of a reference; `None` for a local reference
-    /// `local` does not know.
-    #[must_use]
-    pub fn to_raw(&self, local: impl FnOnce(u32) -> Option<Uuid>) -> Option<Raw> {
-        Some(match self {
+    /// The raw scalar the value types parse.
+    ///
+    /// # Errors
+    ///
+    /// The local name of a local reference, which only the changeset that defines it
+    /// resolves (021/A13).
+    pub fn to_raw(&self) -> Result<Raw, u32> {
+        Ok(match self {
             Self::Bool(b) => Raw::Bool(*b),
             Self::Int(i) => Raw::Int(*i),
             Self::Text(t) => Raw::Text(t.clone()),
@@ -245,7 +288,7 @@ impl RawInput {
                 id: id.clone(),
                 label: label.clone(),
             },
-            Self::Local { local: name } => Raw::Text(local(*name)?.to_string()),
+            Self::Local { local } => return Err(*local),
         })
     }
 
@@ -1157,4 +1200,32 @@ pub struct ChangesetRequest {
 
 const fn enabled() -> bool {
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RawInput;
+    use serde_json::{from_value, json, to_value};
+
+    #[test]
+    fn raw_values_refuse_a_field_their_form_does_not_know() {
+        for value in [
+            json!(true),
+            json!(4),
+            json!("x"),
+            json!({"system": "cmdb", "id": "CI-1"}),
+            json!({"system": "cmdb", "id": "CI-1", "label": "a"}),
+            json!({"local": 3}),
+        ] {
+            let read: RawInput = from_value(value.clone()).unwrap();
+            assert_eq!(to_value(read).unwrap(), value);
+        }
+        for value in [
+            json!({"system": "cmdb", "id": "CI-1", "local": 3}),
+            json!({"local": 1, "label": "x"}),
+            json!({"local": -1}),
+        ] {
+            assert!(from_value::<RawInput>(value.clone()).is_err(), "{value}");
+        }
+    }
 }

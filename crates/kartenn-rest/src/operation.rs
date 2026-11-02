@@ -321,8 +321,9 @@ impl From<DeclarationDto> for DeclarationInput {
 /// One raw value of an assignment: text (closed-list key, text, host name, date,
 /// reference), integer or boolean (REQ-003-8); for a reference, also the local name of
 /// an object an earlier operation of the changeset creates (021/A13).
+// Read as a `RawInput`, whose object forms refuse a field they do not know.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
-#[serde(untagged)]
+#[serde(untagged, from = "RawInput")]
 #[schema(as = RawValue)]
 pub(crate) enum RawDto {
     Bool(bool),
@@ -351,6 +352,18 @@ impl From<RawDto> for RawInput {
             RawDto::Text(t) => Self::Text(t),
             RawDto::External { system, id, label } => Self::External { system, id, label },
             RawDto::Local { local } => Self::Local { local },
+        }
+    }
+}
+
+impl From<RawInput> for RawDto {
+    fn from(r: RawInput) -> Self {
+        match r {
+            RawInput::Bool(b) => Self::Bool(b),
+            RawInput::Int(i) => Self::Int(i),
+            RawInput::Text(t) => Self::Text(t),
+            RawInput::External { system, id, label } => Self::External { system, id, label },
+            RawInput::Local { local } => Self::Local { local },
         }
     }
 }
@@ -1721,5 +1734,24 @@ mod tests {
         let direct: ImportItem = serde_json::from_value(item.clone()).unwrap();
         let mirrored: ImportItemDto = serde_json::from_value(item).unwrap();
         assert_eq!(ImportItem::from(mirrored), direct);
+    }
+
+    #[test]
+    fn a_value_with_a_field_its_form_does_not_know_is_refused() {
+        let assign = |value: Value| {
+            json!({"op": "assign_property", "object": {"id": Uuid::now_v7()}, "kind": "prefix",
+                "property": {"local": 3}, "values": [value]})
+        };
+        assert!(serde_json::from_value::<OperationDto>(assign(json!({"local": 1}))).is_ok());
+        for value in [
+            json!({"system": "cmdb", "id": "CI-1", "local": 3}),
+            json!({"local": 1, "label": "x"}),
+        ] {
+            let sample = assign(value);
+            assert!(
+                serde_json::from_value::<OperationDto>(sample.clone()).is_err(),
+                "{sample}"
+            );
+        }
     }
 }

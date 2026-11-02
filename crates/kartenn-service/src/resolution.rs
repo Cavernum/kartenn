@@ -33,11 +33,15 @@ pub(crate) fn plan(
             property,
             values,
         } => {
-            let mut raws = Vec::with_capacity(values.len());
-            for value in values {
-                let id = value.local().map(&local).transpose()?;
-                raws.extend(value.to_raw(|_| id));
-            }
+            // A local reference designates its object by identifier, which only a reference
+            // type takes (`prop.assignment.invalid_value` otherwise).
+            let raws = values
+                .iter()
+                .map(|value| match value.to_raw() {
+                    Ok(raw) => Ok(raw),
+                    Err(name) => local(name).map(Raw::Ref),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
             Planned::Assign {
                 object: resolve(*object),
                 kind: *kind,
@@ -167,7 +171,16 @@ pub(crate) async fn parse<T: WriteTx>(
             }
         }
         TypeSpec::Ref { .. } => {
-            for id in texts.iter().filter_map(|t| t.parse::<Uuid>().ok()) {
+            let given = raws.iter().filter_map(|r| match r {
+                Raw::Ref(id) => Some(*id),
+                _ => None,
+            });
+            let ids: Vec<Uuid> = texts
+                .iter()
+                .filter_map(|t| t.parse::<Uuid>().ok())
+                .chain(given)
+                .collect();
+            for id in ids {
                 if let Some(k) = tx.object_kind_covering(id, period).await? {
                     facts.kinds.insert(id, k);
                 }

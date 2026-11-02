@@ -221,7 +221,7 @@ fn created(planned: &[Planned]) -> Vec<(Uuid, ObjectKind)> {
 /// The raw values of a suggestion; `None` for one holding a local reference, which no
 /// changeset defines here.
 fn raws(values: &[RawInput]) -> Option<Vec<Raw>> {
-    values.iter().map(|v| v.to_raw(|_| None)).collect()
+    values.iter().map(|v| v.to_raw().ok()).collect()
 }
 
 /// The provenance of a default value: `source:<id>@<revision>`, and `#<detail>` when the
@@ -637,4 +637,20 @@ pub async fn reevaluate_outdated<S: Store>(
         tx.commit().await?;
     }
     Ok(evaluated)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Raw, RawInput, raws};
+
+    #[test]
+    fn a_suggestion_with_a_local_reference_proposes_nothing() {
+        // No changeset defines its name here: the suggestion is left out, not half read.
+        let text = RawInput::Text("web".into());
+        assert_eq!(
+            raws(std::slice::from_ref(&text)),
+            Some(vec![Raw::Text("web".into())])
+        );
+        assert_eq!(raws(&[text, RawInput::Local { local: 1 }]), None);
+    }
 }
