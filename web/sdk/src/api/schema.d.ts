@@ -4057,6 +4057,56 @@ export interface components {
      * @enum {string}
      */
     AddressUsage: "host" | "gateway" | "vip" | "anycast" | "reserved";
+    /**
+     * @description A node as listed by `…/ancestors`: the form of a node of the tree before A11, neither
+     *     version nor occupancy, which A11 gives to the nodes of `roots` and `children` only.
+     */
+    AncestorNode:
+      | {
+          /** @description Its URL. */
+          href: string;
+          /**
+           * Format: uuid
+           * @description Identifier.
+           */
+          id: string;
+          /** @enum {string} */
+          kind: "prefix";
+          /** @description Container or network. */
+          nature: components["schemas"]["Nature"];
+          /** @description Canonical CIDR. */
+          value: string;
+        }
+      | {
+          /** @description First address. */
+          first: string;
+          /** @description Its URL. */
+          href: string;
+          /**
+           * Format: uuid
+           * @description Identifier.
+           */
+          id: string;
+          /** @enum {string} */
+          kind: "range";
+          /** @description Last address, included. */
+          last: string;
+          /** @description Usage. */
+          usage: components["schemas"]["RangeUsage"];
+        }
+      | {
+          /** @description Its URL. */
+          href: string;
+          /**
+           * Format: uuid
+           * @description Identifier.
+           */
+          id: string;
+          /** @enum {string} */
+          kind: "address";
+          /** @description Canonical address. */
+          value: string;
+        };
     /** @description An open anomaly. */
     AnomalyDto: {
       /**
@@ -4380,6 +4430,18 @@ export interface components {
       cascaded: components["schemas"]["Cascaded"][];
       /** @description The counted differential applying would produce. */
       diff: components["schemas"]["DiffCountDto"][];
+      /**
+       * @description The objects whose parent applying would change at the present, with their parents
+       *     before and after (spec 021, A12): first those the operations write, in their
+       *     order, then those they move, in address order; an object closed leaves the tree
+       *     and is not listed. At most 1000.
+       */
+      placements: components["schemas"]["Placement"][];
+      /**
+       * @description `true`: some placements may be missing, past 1000 (or past 1000 objects examined
+       *     beyond those of the operations).
+       */
+      placements_truncated: boolean;
       /** @description Its first entries. */
       sample: components["schemas"]["DiffItemDto"][];
       /** @description The sections the modules would contribute to the differential (REQ-008-26). */
@@ -5621,6 +5683,59 @@ export interface components {
       links: components["schemas"]["ListingLinks"];
     };
     /** @description A page of a list, as answered. */
+    Listing_AncestorNode: {
+      /** @description The elements of the page. */
+      items: (
+        | {
+            /** @description Its URL. */
+            href: string;
+            /**
+             * Format: uuid
+             * @description Identifier.
+             */
+            id: string;
+            /** @enum {string} */
+            kind: "prefix";
+            /** @description Container or network. */
+            nature: components["schemas"]["Nature"];
+            /** @description Canonical CIDR. */
+            value: string;
+          }
+        | {
+            /** @description First address. */
+            first: string;
+            /** @description Its URL. */
+            href: string;
+            /**
+             * Format: uuid
+             * @description Identifier.
+             */
+            id: string;
+            /** @enum {string} */
+            kind: "range";
+            /** @description Last address, included. */
+            last: string;
+            /** @description Usage. */
+            usage: components["schemas"]["RangeUsage"];
+          }
+        | {
+            /** @description Its URL. */
+            href: string;
+            /**
+             * Format: uuid
+             * @description Identifier.
+             */
+            id: string;
+            /** @enum {string} */
+            kind: "address";
+            /** @description Canonical address. */
+            value: string;
+          }
+      )[];
+      /** @description The links of the page. */
+      links: components["schemas"]["ListingLinks"];
+    };
+    /** @description A page of a list, as answered. */
     Listing_AnomalyDto: {
       /** @description The elements of the page. */
       items: {
@@ -6078,8 +6193,18 @@ export interface components {
             kind: "prefix";
             /** @description Container or network. */
             nature: components["schemas"]["Nature"];
+            /**
+             * @description Its occupancy, as `GET /v1/prefixes/{id}/occupancy` serves it at the moment of
+             *     the page.
+             */
+            occupancy: components["schemas"]["Occupancy"];
             /** @description Canonical CIDR. */
             value: string;
+            /**
+             * Format: uuid
+             * @description The changeset that last modified it, the version its `ETag` names (006/H19).
+             */
+            version: string;
           }
         | {
             /** @description First address. */
@@ -6097,6 +6222,11 @@ export interface components {
             last: string;
             /** @description Usage. */
             usage: components["schemas"]["RangeUsage"];
+            /**
+             * Format: uuid
+             * @description The changeset that last modified it, the version its `ETag` names (006/H19).
+             */
+            version: string;
           }
         | {
             /** @description Its URL. */
@@ -6110,6 +6240,11 @@ export interface components {
             kind: "address";
             /** @description Canonical address. */
             value: string;
+            /**
+             * Format: uuid
+             * @description The changeset that last modified it, the version its `ETag` names (006/H19).
+             */
+            version: string;
           }
       )[];
       /** @description The links of the page. */
@@ -7279,6 +7414,27 @@ export interface components {
        */
       start: number;
     };
+    /** @description An object whose parent a simulated changeset changes, at the present (spec 021, A12). */
+    Placement: {
+      /**
+       * Format: uuid
+       * @description Its parent after; `null` at the root.
+       */
+      after?: string | null;
+      /**
+       * Format: uuid
+       * @description Its parent before: deduced for a prefix, a range or an address, declared otherwise;
+       *     `null` at the root, or for an object the changeset creates.
+       */
+      before?: string | null;
+      /** @description Its kind. */
+      kind: components["schemas"]["TargetKind"];
+      /**
+       * Format: uuid
+       * @description The object.
+       */
+      object: string;
+    };
     /** @description The values of an endpoint on an axis, and where they come from (REQ-010-31). */
     PolicyAxisResolution: {
       /** @description The axis. */
@@ -8109,7 +8265,10 @@ export interface components {
       | "policy.exempt_role"
       | "policy.inference_rule"
       | "flow.flow";
-    /** @description A node of the tree, as listed. */
+    /**
+     * @description A node of the tree, as listed, with its version and, for a prefix, its occupancy, read
+     *     at the moment of the page (021/A11).
+     */
     TreeNode:
       | {
           /** @description Its URL. */
@@ -8123,8 +8282,18 @@ export interface components {
           kind: "prefix";
           /** @description Container or network. */
           nature: components["schemas"]["Nature"];
+          /**
+           * @description Its occupancy, as `GET /v1/prefixes/{id}/occupancy` serves it at the moment of
+           *     the page.
+           */
+          occupancy: components["schemas"]["Occupancy"];
           /** @description Canonical CIDR. */
           value: string;
+          /**
+           * Format: uuid
+           * @description The changeset that last modified it, the version its `ETag` names (006/H19).
+           */
+          version: string;
         }
       | {
           /** @description First address. */
@@ -8142,6 +8311,11 @@ export interface components {
           last: string;
           /** @description Usage. */
           usage: components["schemas"]["RangeUsage"];
+          /**
+           * Format: uuid
+           * @description The changeset that last modified it, the version its `ETag` names (006/H19).
+           */
+          version: string;
         }
       | {
           /** @description Its URL. */
@@ -8155,6 +8329,11 @@ export interface components {
           kind: "address";
           /** @description Canonical address. */
           value: string;
+          /**
+           * Format: uuid
+           * @description The changeset that last modified it, the version its `ETag` names (006/H19).
+           */
+          version: string;
         };
     /** @description A point of extension a plugin fills. */
     UiExtension: {
@@ -19132,7 +19311,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["Listing_TreeNode"];
+          "application/json": components["schemas"]["Listing_AncestorNode"];
         };
       };
       /** @description A problem (RFC 9457). */

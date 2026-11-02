@@ -14,8 +14,8 @@ use kartenn_core::period::Period;
 use kartenn_core::rules::{Rule, Violation};
 use kartenn_service::ObjectKind;
 use kartenn_service::module::{
-    BoxFuture, CheckContext, DiffContext, DiffSection, Edge, Findings, ModuleHandler,
-    ModuleObjectRow, ModulePlan, ModuleRead, ModuleTx, Reference,
+    BoxFuture, CheckContext, DeclaredParents, DiffContext, DiffSection, Edge, Findings,
+    ModuleHandler, ModuleObjectRow, ModulePlan, ModuleRead, ModuleTx, Reference,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, RawInput, Ref};
 use kartenn_service::port::{StoreError, WriteError};
@@ -896,6 +896,26 @@ impl ModuleHandler for Handler {
         Box::pin(async move {
             let (at, _) = pg::bounds(period);
             pg::referrers(connection(tx)?, reference.from, reference.to, target, at).await
+        })
+    }
+
+    /// A machine is placed under its host, a machine or a cluster (spec 021, A12); an
+    /// interface keeps the parent of its record, its machine.
+    fn parents<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        objects: &'a [(ModuleKind, Uuid)],
+    ) -> BoxFuture<'a, Result<DeclaredParents, StoreError>> {
+        Box::pin(async move {
+            let machines: Vec<Uuid> = objects
+                .iter()
+                .filter(|(kind, _)| *kind == machine_kind())
+                .map(|(_, id)| *id)
+                .collect();
+            if machines.is_empty() {
+                return Ok(Vec::new());
+            }
+            pg::hosts(connection(tx)?, &machines).await
         })
     }
 

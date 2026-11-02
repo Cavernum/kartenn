@@ -147,6 +147,8 @@ export async function simulation(
         sample: [],
         cascaded: [],
         sections: [],
+        placements: [],
+        placements_truncated: false,
       };
     }
     throw error;

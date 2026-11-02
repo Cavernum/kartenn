@@ -171,6 +171,8 @@ pub enum Outcome {
         /// The sections the modules would contribute, each with its first rows
         /// (REQ-008-26).
         sections: Vec<SectionSample>,
+        /// The objects whose parent it would change at the present (spec 021, A12).
+        placements: crate::placements::Placements,
     },
 }
 
@@ -2115,6 +2117,18 @@ async fn stages<S: Store, A: Authorizer>(
         tx.rollback().await?;
         return Err(e.into());
     }
+    // Spec 021, A12: a simulation places the objects of its trees, read before the writes.
+    let prior = if req.simulate {
+        match crate::placements::prior(&mut tx, modules, &planned).await {
+            Ok(prior) => Some(prior),
+            Err(e) => {
+                tx.rollback().await?;
+                return Err(e.into());
+            }
+        }
+    } else {
+        None
+    };
     let former = match apply(
         &mut tx,
         modules,
@@ -2218,6 +2232,10 @@ async fn stages<S: Store, A: Authorizer>(
     }
     if req.simulate {
         let sample = tx.diff_sample(SIMULATION_SAMPLE).await;
+        let placements = match prior {
+            Some(prior) => crate::placements::placements(&mut tx, modules, prior).await,
+            None => Ok(crate::placements::Placements::default()),
+        };
         tx.rollback().await?;
         return Ok(Outcome::Simulated {
             violations,
@@ -2225,6 +2243,7 @@ async fn stages<S: Store, A: Authorizer>(
             sample: sample?,
             cascaded,
             sections: sections.into_iter().map(SectionSample::of).collect(),
+            placements: placements?,
         });
     }
     let objects: Vec<Uuid> = planned.iter().map(Planned::object).collect();
@@ -2670,6 +2689,7 @@ async fn refuse<S: Store>(
             sample: Vec::new(),
             cascaded: Vec::new(),
             sections: Vec::new(),
+            placements: crate::placements::Placements::default(),
         });
     }
     let journal = Journal {

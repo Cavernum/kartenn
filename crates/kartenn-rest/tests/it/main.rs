@@ -27,6 +27,7 @@ mod modules;
 mod objects;
 mod on_behalf;
 mod on_behalf_e2e;
+mod placements;
 mod plugins;
 mod quota;
 mod resources;
