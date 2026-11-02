@@ -601,6 +601,20 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     validée entre cette lecture et le changeset n'est pas vue (fenêtre antérieure à la
     11d, que l'instantané ne ferme pas) ; la fermer demande une version attendue dans
     l'opération `policy.environment.close`.
+- [ ] 11e. Fermeture d'un environnement sous `If-Match` sans écriture écrasée :
+  `DELETE /v1/environments/{id}` compare l'`If-Match` à la version lue, puis soumet
+  `policy.environment.close` par clé sans version attendue ; une écriture validée entre
+  les deux passe sans 412 (REQ-004-11, REQ-006-14 ; relevé par la revue de la 11d). La
+  version attendue est portée par l'opération (`expected`, comme les opérations du
+  noyau) et vérifiée dans le changeset ; même examen pour les autres routes de modules
+  qui vérifient un `If-Match` avant de soumettre — verify : `k-check -p kartenn-policy`
+  (test à la forme de `kartenn_testing::across_a_write` : écriture validée entre la
+  comparaison et le changeset → 412, et l'environnement reste ouvert)
+  - où : `crates/kartenn-policy/src/rest.rs` (`close_environment`, vers les lignes
+    587-606), l'opération `policy.environment.close` du module ; `expected` des
+    opérations du noyau (004 design § « Concurrence optimiste ») ;
+    `crates/kartenn-testing/src/lib.rs` (`across_a_write`)
+  - dépend de : 11d
 - [ ] 16d. Jeton tourné jamais perdu (A15, relevé par la revue de la 16c) : les retours
   anticipés de la couche 6 (refus `on_behalf`, `approval` ou `simulate` invalides)
   partent après un rafraîchissement réussi sans aucun cookie : ils réémettent le cookie
