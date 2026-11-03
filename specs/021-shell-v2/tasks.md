@@ -3456,7 +3456,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     violation axe et un script en ligne font chacun échouer un parcours) prouvées par un
     test des fixtures de `web/v2/e2e/`
   - découpée le 2026-11-03 en 21a et 21b
-- [ ] 21a. Accessibilité, portage et gardes : le parcours `accessibility` de l'ancien shell
+- [x] 21a. Accessibilité, portage et gardes : le parcours `accessibility` de l'ancien shell
   porté sous `web/v2/e2e/journeys/` (« every journey runs axe », « every screen of the shell
   passes axe » avec les listes `/ranges`, `/entities`, `/sites`, « the tree, a table, an
   action menu and a dialog by the keyboard alone ») ; les gardes des fixtures prouvées par
@@ -3467,6 +3467,23 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/e2e/journeys/accessibility.spec.ts` et `smoke.spec.ts` (anciens),
     `web/v2/e2e/fixtures/` (gardes axe et CSP), `web/v2/e2e/journeys/`
   - dépend de : 16
+  - fait le 2026-11-03 — `web/v2/e2e/journeys/accessibility.spec.ts` : la couverture axe
+    de chaque parcours (`served` y entre, axe sur sa page de connexion) ; chaque entrée des
+    espaces du cœur (lue de `shell/src/frame/spaces.ts`, `/ranges`, `/entities`, `/sites`
+    compris), la fiche du premier objet de chaque collection du référentiel, des VLAN et des
+    changesets, l'aide des raccourcis, « À propos » et `/login`, chacun sous axe, aucune
+    violation trouvée ; au clavier seul, l'arbre (le conteneur large ouvert, son premier
+    enfant ouvert), le menu « Actions » de la fiche et le dialogue de l'action du plugin
+    `example`, puis la grille des adresses ; les gardes : `expectAccessible` rejette sur
+    `image-alt`, et un script en ligne fait échouer le parcours (`test.fail`). Gardes
+    retirées à l'essai, les quatre tests des gardes échouent sous les deux navigateurs.
+    `PARITE.md` : les six lignes cochées ; `parity.test.ts` sans plus aucun `todo`
+  - choix : la garde axe prouvée par le rejet de `expectAccessible` (règle nommée) plutôt
+    que par `test.fail`, plus précis ; la garde CSP, qui s'exerce à la fin de la fixture
+    `page`, par `test.fail`, l'erreur de console du refus tolérée dans ce test pour que la
+    garde CSP seule le fasse échouer (sinon la garde de la console le masque) ; écrans lus
+    de `spaces.ts` par expression régulière plutôt qu'importés (le module tire
+    `@kartenn/ui`, hors des dépendances de `web/v2/e2e`)
 - [ ] 21b. Accessibilité étendue, parcours clavier et reflow : parcours clavier complet
   (palette, barre repliée, panneau du brouillon, édition en place) ; reflow à 320 px des
   écrans de consultation ; message d'édition sous 1024 px — REQ-021-29 — verify :
