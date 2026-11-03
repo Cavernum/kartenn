@@ -9,14 +9,7 @@
 // (422, 403, a version changed meanwhile) stays here with its code; « Appliquer » without
 // `<sorte>.approval.self` stays visible, refused, and names the permission.
 import { addToActiveDraft } from "@kartenn/sdk/host";
-import {
-  ApiProblem,
-  changesets,
-  reads,
-  type Entry,
-  type Simulated,
-  type WriteOutcome,
-} from "@kartenn/sdk";
+import { changesets, reads, type Entry, type Simulated } from "@kartenn/sdk";
 import {
   Checkbox,
   Cluster,
@@ -26,39 +19,25 @@ import {
   SplitButton,
   Stack,
   TextField,
-  injectToasts,
-  type SplitAction,
 } from "@kartenn/ui";
 import { computed, nextTick, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useQuery } from "../../data/query.ts";
 import ProblemState from "../../problems/ProblemState.vue";
 import { useProblems } from "../../problems/index.ts";
-import { useSession } from "../../rights/index.ts";
 import { useTime } from "../../time/index.ts";
 import { collectionById, nameOf, type Item } from "../collections.ts";
 import { useKeyLabel } from "../data.ts";
-import {
-  CASCADING,
-  closeOperation,
-  closeVerdict,
-  CONFLICT_RULE,
-  DEPENDENTS_RULE,
-  typeOfKind,
-} from "./close.ts";
-import { editRight, lackingRight } from "./fields.ts";
-import type { Refusal } from "./inline.ts";
+import { isConflict, useWriteAction } from "./action.ts";
+import { CASCADING, closeOperation, closeVerdict, DEPENDENTS_RULE, typeOfKind } from "./close.ts";
+import { editRight } from "./fields.ts";
 import { closeEdit, type CloseRequest } from "./panel.ts";
 import RefusalAlert from "./RefusalAlert.vue";
-import { useSay } from "./say.ts";
 
 const props = defineProps<{ request: CloseRequest }>();
 const { t } = useI18n();
-const session = useSession();
 const time = useTime();
 const keyLabel = useKeyLabel();
-const toasts = injectToasts();
-const say = useSay((text) => toasts?.show({ tone: "ok", title: text }));
 const { lines } = useProblems();
 
 const collection = computed(() => collectionById(props.request.collection)!);
@@ -121,81 +100,35 @@ const simulating = computed(() =>
     : "",
 );
 
-// The action of the split button: to the draft by default; « Appliquer » with the right.
-const action = ref("draft");
-const lacking = (id: string) =>
-  lackingRight(
-    (p) => session.value.rights.has(p),
-    [editRight(collection.value.type)],
-    id === "apply",
-  );
-const actions = computed<SplitAction[]>(() =>
-  [
-    { id: "draft", label: t("edit.close.toDraft"), icon: "draft" as const },
-    { id: "apply", label: t("edit.close.apply"), icon: "circle-check" as const },
-  ].map((a) => {
-    const permission = lacking(a.id);
-    return permission ? { ...a, forbidden: permission } : a;
-  }),
-);
-const applying = computed(() => action.value === "apply" && lacking("apply") === null);
-// The generic motive, prefilled until the user writes one of their own.
-const motive = ref("");
-let motiveTyped = false;
-watch(
-  [name, kindWords],
-  () => {
-    if (!motiveTyped)
-      motive.value = t("edit.close.motive", { kind: kindWords.value, name: name.value });
+// The split button, the motive prefilled, the idempotency key and the outcome said
+// (`action.ts`): the key follows the body sent, a cascade or a version read again a new one.
+const {
+  action,
+  actions,
+  applying,
+  motive,
+  setMotive,
+  idempotencyKey,
+  busy,
+  notice,
+  refusal,
+  ...writing
+} = useWriteAction({
+  rights: () => [editRight(collection.value.type)],
+  motive: () => t("edit.close.motive", { kind: kindWords.value, name: name.value }),
+  words: { draft: "edit.close.toDraft", apply: "edit.close.apply", past: "edit.close.past" },
+  refused: () => {
+    if (conflicted.value) void readAgain();
   },
-  { immediate: true },
-);
-/**
- * The key of a closure applied at once, kept while nothing changes (REQ-006-15): a try again
- * after a lost answer replays the same submission. A new operation (the cascade, the version
- * read again after a conflict) or a new motive takes a new key.
- */
-let idempotencyKey = crypto.randomUUID();
-function setMotive(text: string): void {
-  motive.value = text;
-  motiveTyped = true;
-  idempotencyKey = crypto.randomUUID();
-}
-watch(
-  () => JSON.stringify(operation.value),
-  () => (idempotencyKey = crypto.randomUUID()),
-);
+});
 
 const title = computed(() => t("edit.close.title", { kind: kindWords.value, name: name.value }));
 const what = computed(() => t("edit.close.what", { kind: kindWords.value, name: name.value }));
 
 const motiveError = ref<string | undefined>();
-const refusal = ref<Refusal | null>(null);
-const notice = ref<string | null>(null);
-const busy = ref(false);
 
-function settle(outcome: WriteOutcome<unknown> | { kind: "saved" }): void {
-  busy.value = false;
-  if (outcome.kind === "saved") {
-    say.status(t("edit.drafted", { what: what.value }));
-    closeEdit();
-  } else if (outcome.kind === "applied") {
-    say.applied(what.value, outcome.changeset);
-    closeEdit();
-  } else if (outcome.kind === "proposed") {
-    say.proposed(what.value, outcome.changeset, outcome.reason);
-    closeEdit();
-  } else {
-    refusal.value = outcome as Refusal;
-    if (conflicted.value) void readAgain();
-  }
-}
 /** The object changed since its read: the closure is written again on the version read again. */
-const conflicted = computed(() => {
-  const r = refusal.value;
-  if (r?.kind === "conflict") return true;
-  return r?.problem?.violations.some((v) => v.rule === CONFLICT_RULE) ?? false;
-});
+const conflicted = computed(() => isConflict(refusal.value));
 async function readAgain(): Promise<void> {
   await record.refetch();
   const read = item.value;
@@ -203,46 +136,23 @@ async function readAgain(): Promise<void> {
 }
 
 async function run(id: string = action.value): Promise<void> {
-  if (busy.value) return;
-  // A refused action, run at the keyboard: its permission said by the status, not silence.
-  const missing = lacking(id);
-  if (missing !== null) {
-    notice.value = t("edit.close.forbidden", { permission: missing });
-    return;
-  }
-  notice.value = null;
-  refusal.value = null;
   motiveError.value = undefined;
-  // Nothing is written off the present, the draft included.
-  if (!time.value.present) {
-    notice.value = t("edit.close.past");
-    return;
-  }
+  if (!writing.begin(id)) return;
   if (id === "apply" && motive.value.trim() === "") {
     motiveError.value = t("edit.motiveMissing");
     await nextTick();
     root.value?.querySelector<HTMLElement>("[aria-invalid='true']")?.focus();
     return;
   }
-  busy.value = true;
+  const operations = [operation.value];
   if (id === "draft") {
-    const outcome = await addToActiveDraft([operation.value]).catch(failed);
-    settle(outcome as WriteOutcome<unknown> | { kind: "saved" });
+    await writing.write(what.value, () => addToActiveDraft(operations));
     return;
   }
-  const outcome = await changesets
-    .submit({ motive: motive.value.trim(), operations: [operation.value] }, idempotencyKey, {
-      approvalSelf: true,
-    })
-    .catch(failed);
-  settle(outcome);
+  const submission = { motive: motive.value.trim(), operations };
+  const key = idempotencyKey(submission);
+  await writing.write(what.value, () => changesets.submit(submission, key, { approvalSelf: true }));
 }
-/** A write rejected outright: the problem kept, its code and `Request-Id` said with it. */
-const failed = (error: unknown): Refusal => ({
-  kind: "failed",
-  input: {},
-  problem: error instanceof ApiProblem ? error : null,
-});
 
 function onKeydown(event: KeyboardEvent): void {
   if (event.defaultPrevented) return;
