@@ -295,8 +295,13 @@ function openFor(key: string, from: HTMLElement | null = null): void {
     });
   returnTo = open.value ? from : null;
 }
+
+/** The focus on « Ajouter un filtre », from a host that took the filters away (an empty state). */
+function focusAdd(): void {
+  addButton()?.focus();
+}
 /** « Ajouter un filtre », from the host: the filter key of its view (`/`, REQ-021-8). */
-defineExpose({ openAdd, openFor });
+defineExpose({ openAdd, openFor, focusAdd });
 
 /**
  * Reka's focus scopes say their auto focus by an event that bubbles: the lists of the
