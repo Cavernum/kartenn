@@ -76,6 +76,34 @@ test("the tree opens on demand, reads pages as it scrolls, and goes by the keybo
   ).toBeVisible();
 });
 
+test("the tree reads a container of more than 10³ children to its last one", async ({
+  page,
+  login,
+}) => {
+  // 021/A34 (task 24e): the cache keeps up to 100 pages of children, so the eleventh page
+  // comes, the first stays, and the list ends with its last child, no row to read more.
+  await login("bob");
+  const tree = await topology(page);
+  const wide = row(tree, DATA.wide.prefix);
+  await wide.click();
+  await page.keyboard.press("ArrowRight");
+  await expect(row(tree, "2001:db8:3::/64")).toBeVisible();
+  const last = `2001:db8:3:${(DATA.wide.count - 1).toString(16)}::/64`;
+  // To the end of the rows read, again as each page comes (the row that reads the next one
+  // asks once in view); by the scroll position, the same in both browsers.
+  await expect(async () => {
+    await tree.evaluate((el) => (el.scrollTop = el.scrollHeight));
+    await expect(row(tree, last)).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 60_000 });
+  await expect(row(tree, last)).toHaveAttribute("aria-posinset", String(DATA.wide.count));
+  await expect(row(tree, last)).toHaveAttribute("aria-setsize", String(DATA.wide.count));
+  await expect(tree.locator("[data-more]")).toHaveCount(0);
+  expect(await tree.locator("[role='row']").count()).toBeLessThanOrEqual(MAX_ROWS);
+  // The first child is still read: back to the top, it is there.
+  await page.keyboard.press("Control+Home");
+  await expect(row(tree, "2001:db8:3::/64")).toBeVisible();
+});
+
 test("each prefix says its occupancy from its page, its « + » opens the panel of its kind", async ({
   page,
   login,

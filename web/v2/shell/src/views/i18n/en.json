@@ -268,6 +268,11 @@
         "shown": "No node is shown yet at its place once applied. | One node appears at its place once applied, marked « in draft »; the tree at the present changes only once applied. | {n} nodes appear at their place once applied, marked « in draft »; the tree at the present changes only once applied.",
         "waiting": "One node is not shown: its parent once applied is not read in this tree. | {n} nodes are not shown: their parent once applied is not read in this tree.",
         "partialText": "The simulation does not give every change of place: other nodes may be missing."
+      },
+      "capped": {
+        "prefixes": "The tree stops at {n} nodes: Enter opens the list of the prefixes within {within}",
+        "addresses": "The tree stops at {n} nodes: Enter opens the list of the addresses within {within}",
+        "roots": "The tree stops at {n} nodes: Enter opens the list of the prefixes of the domain {name}"
       }
     },
     "anomalies": {

@@ -1,4 +1,4 @@
-import type { Operation, Simulated } from "@kartenn/sdk";
+import { CHILDREN_PAGES, type Operation, type Simulated } from "@kartenn/sdk";
 import type { TreeNode, TreeNodeState } from "@kartenn/ui";
 
 // The nodes of the tree of the topography from its levels read (task 24, REQ-021-34): the
@@ -8,33 +8,76 @@ import type { TreeNode, TreeNodeState } from "@kartenn/ui";
 // placed once, the first list that shows it, depth first, and waits there for the others
 // to be read again, rather than show twice or loop.
 
-/** A level read: its items, whether pages remain; `undefined` when not read yet. */
+/**
+ * A level read: its items, whether pages remain to read; `capped`, pages remain beyond
+ * those the tree reads (021/A34); `undefined` when not read yet.
+ */
 export interface Level<I> {
   items: readonly I[];
   more: boolean;
+  capped?: boolean;
 }
 
-/** The nodes under `parent`, each placed once. */
+/** The pages of a level as the cache keeps them (`InfiniteQueryObserver`). */
+export interface LevelPages<I> {
+  data?: { pages: readonly { data: { items: readonly I[] } }[] } | undefined;
+  hasNextPage: boolean;
+}
+
+/**
+ * A level from its pages: the next page read while pages remain and fewer than `cap` are
+ * kept (`CHILDREN_PAGES`, the cache's for the children of a node); past the cap, no page
+ * more — the cache would drop the first one to keep the next — and the level is capped.
+ */
+export function levelOfPages<I>(
+  result: LevelPages<I> | undefined,
+  cap: number = CHILDREN_PAGES,
+): Level<I> | undefined {
+  const pages = result?.data?.pages;
+  if (!pages) return undefined;
+  const capped = result.hasNextPage && pages.length >= cap;
+  return {
+    items: pages.flatMap((page) => page.data.items),
+    more: result.hasNextPage && !capped,
+    capped,
+  };
+}
+
+/** The key of the notice under a level capped: its parent's (`""`, the first level). */
+export const CAPPED = "capped:";
+export const cappedKey = (parent: string | null): string => `${CAPPED}${parent ?? ""}`;
+export const isCapped = (key: string): boolean => key.startsWith(CAPPED);
+/** The parent of a notice (`null`: the first level). */
+export const cappedParent = (key: string): string | null => key.slice(CAPPED.length) || null;
+
+/**
+ * The nodes under `parent`, each placed once; after the children of a level capped, the
+ * row of `notice`, when given (the rest of the list elsewhere).
+ */
 export function nodesOf<I extends { id: string }>(
   levelOf: (parent: string | null) => Level<I> | undefined,
   nodeOf: (item: I) => TreeNode,
   /** Whether an item holds children (a prefix). */
   holds: (item: I) => boolean,
+  notice?: (parent: string | null) => TreeNode,
   parent: string | null = null,
   placed = new Set<string>(),
 ): TreeNode[] {
-  const items = (levelOf(parent)?.items ?? []).filter((item) => !placed.has(item.id));
+  const level = levelOf(parent);
+  const items = (level?.items ?? []).filter((item) => !placed.has(item.id));
   for (const item of items) placed.add(item.id);
-  return items.map((item) => {
+  const nodes = items.map((item) => {
     const node = nodeOf(item);
     if (!holds(item)) return node;
-    const level = levelOf(item.id);
-    if (level) {
-      node.children = nodesOf(levelOf, nodeOf, holds, item.id, placed);
-      if (level.more) node.more = true;
+    const below = levelOf(item.id);
+    if (below) {
+      node.children = nodesOf(levelOf, nodeOf, holds, notice, item.id, placed);
+      if (below.more) node.more = true;
     } else node.hasChildren = true;
     return node;
   });
+  if (level?.capped && notice) nodes.push(notice(parent));
+  return nodes;
 }
 
 // The preview of the active draft in the tree (task 24b; REQ-021-17; 021/A12, precised by
@@ -221,10 +264,11 @@ export function overlay(
     });
   index(nodes);
   const shifting = new Set(preview.shifts.flatMap((shift) => shift.object ?? []));
-  // A row of the preview has its children given: one not read is shown without them.
+  // A row of the preview has its children given: one not read is shown without them; the
+  // notice of a level capped stays under the row at its present place.
   const kept = (list: readonly TreeNode[]): TreeNode[] =>
     list
-      .filter((node) => !shifting.has(node.id))
+      .filter((node) => !shifting.has(node.id) && !isCapped(node.id))
       .map((node) => {
         const copied = kept(node.children ?? []);
         const copy: TreeNode = { ...node, id: `${PREVIEW}${node.id}` };

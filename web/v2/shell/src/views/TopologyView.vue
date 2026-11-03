@@ -72,8 +72,12 @@ import { rowsOf, useKeyLabel } from "./data.ts";
 import ViewPanel from "./parts/ViewPanel.vue";
 import { shareOf } from "./occupancy.ts";
 import {
+  cappedKey,
+  cappedParent,
   draftStateOf,
+  isCapped,
   isPreview,
+  levelOfPages,
   nodesOf,
   overlay,
   PREVIEW,
@@ -97,7 +101,7 @@ type Shown = Node extends infer N
 type Pages = InfiniteData<{ data: { items: Node[] } }, string | null>;
 type Result = InfiniteQueryObserverResult<Pages>;
 
-const { t, te } = useI18n();
+const { t, te, locale } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const time = useTime();
@@ -181,7 +185,8 @@ function onLoad(parent: string | null): void {
   if (parent !== null && isPreview(parent)) return;
   const known = observers.get(parent);
   if (!known) observe(parent);
-  else if (results.get(parent)?.hasNextPage) void known.observer.fetchNextPage();
+  // Within the cap only (021/A34): past it, the cache would drop the first page.
+  else if (levelOf(parent)?.more) void known.observer.fetchNextPage();
 }
 
 const ICONS: Record<Node["kind"], IconName> = {
@@ -204,11 +209,12 @@ const detailOf = (node: Shown) =>
   );
 const itemsOf = (parent: string | null) =>
   rowsOf(results.get(parent)?.data as never) as unknown as Node[];
-/** A level read, as the tree takes it: `undefined` until its first page is read. */
-const levelOf = (parent: string | null) => {
-  const result = results.get(parent);
-  return result?.data ? { items: itemsOf(parent), more: result.hasNextPage } : undefined;
-};
+/**
+ * A level read, as the tree takes it: `undefined` until its first page is read; its pages
+ * read up to the cap of the cache (`CHILDREN_PAGES`), a notice under it past the cap.
+ */
+const levelOf = (parent: string | null) =>
+  levelOfPages(results.get(parent) as Parameters<typeof levelOfPages<Node>>[0]);
 // In-place editing (task 12a): the nodes of every level read, each at the version its page
 // served; after a 412, the level that holds the node is read again.
 const items = computed(() => [...results.keys()].flatMap(itemsOf));
@@ -264,6 +270,33 @@ const nodeOf = (item: Node): TreeNode => ({
   detail: keyLabel("kind", `core.${item.kind}`) ?? item.kind,
 });
 const roots = computed(() => results.get(null));
+
+// Past the pages the cache keeps of a level (021/A34, 10⁴ children), the row under its
+// last child says so and leads to the list « dans ce préfixe » — the kind a node holds
+// (`kindsIn`), filtered by `within` —, or for the first level to the prefixes of the domain.
+/** Where the rest of a level capped is listed: a list of the core, filtered. */
+function restOf(parent: string | null): { name: CollectionId; query: Record<string, string> } {
+  if (parent === null)
+    return { name: "prefixes", query: domain.value ? { domain: domain.value } : {} };
+  const node = nodeById(parent);
+  return { name: kindsIn(node)[0]!, query: { within: node ? valueOf(node) : "" } };
+}
+function noticeOf(parent: string | null): TreeNode {
+  const count = new Intl.NumberFormat(locale.value).format(levelOf(parent)?.items.length ?? 0);
+  const rest = restOf(parent);
+  return {
+    id: cappedKey(parent),
+    label:
+      parent === null
+        ? t("views.topology.capped.roots", { n: count, name: domainSlug.value })
+        : t(`views.topology.capped.${rest.name}`, { n: count, within: rest.query.within }),
+    icon: "info",
+  };
+}
+/** The row of a notice chosen or activated: its list. */
+function openRest(key: string): void {
+  void router.push(restOf(cappedParent(key)));
+}
 
 // Parents deduced (D34, REQ-021-17): no move is offered; a node whose value the active
 // draft changes stays where the present has it, marked « en brouillon » (« déplacé dans le
@@ -321,7 +354,7 @@ function shiftOf(shift: Shift, children: TreeNode[] | undefined): TreeNode {
 // Each node placed once, even while its levels are read again (`topology.ts`); the preview
 // over them.
 const laid = computed(() => {
-  const served = nodesOf(levelOf, nodeOf, (item) => item.kind === "prefix");
+  const served = nodesOf(levelOf, nodeOf, (item) => item.kind === "prefix", noticeOf);
   return preview.value ? overlay(served, preview.value, shiftOf) : { nodes: served, shown: 0 };
 });
 const nodes = computed(() => laid.value.nodes);
@@ -381,6 +414,7 @@ const selected = computed({
       ? previewChoice.value
       : node.value,
   set: (id: string | undefined) => {
+    if (id !== undefined && isCapped(id)) return openRest(id);
     const object = id !== undefined && isPreview(id) ? objectOf(id) : id;
     if (object === null) return;
     previewChoice.value = id !== undefined && isPreview(id) ? id : undefined;
@@ -437,6 +471,7 @@ const chosen = computed<Shown | undefined>(() => {
     : undefined;
 });
 function onActivate(id: string): void {
+  if (isCapped(id)) return openRest(id);
   // A row of the preview opens the record of its object, if it exists already.
   const node = nodeById(isPreview(id) ? (objectOf(id) ?? undefined) : id);
   const to = node ? pageOfObject(node.kind, node.id) : null;
@@ -652,7 +687,7 @@ onBeforeUnmount(() => stopIntent());
             :tree-label="t('views.topology.prefix')"
             :nodes="nodes"
             :columns="columns"
-            :more="roots?.hasNextPage ?? false"
+            :more="levelOf(null)?.more ?? false"
             :more-loading="roots?.isFetchingNextPage ?? false"
             :loading="!roots || roots.isPending"
             :loading-rows="8"
