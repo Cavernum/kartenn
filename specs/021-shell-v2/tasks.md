@@ -2165,6 +2165,18 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (`web/v2/shell/src/views/`) ; `Heading` et `AttributeList` de `web/v2/ui` (en lecture)
   - dépend de : 020-29
 
+- [ ] 11g. « Clore » un objet depuis sa fiche (A31) : action de la fiche de chaque sorte du
+  noyau (entité, site, domaine, préfixe, plage, adresse, VLAN, groupe de VLAN), au
+  brouillon ou en Ctrl+Entrée avec motif ; `expected` de la version servie ; refus de
+  cascade et de règle dits par leur code, sur l'action ; droit manquant visible avec sa
+  permission (REQ-021-37) — verify : Vitest ; parcours `records` (clôture d'une adresse
+  au brouillon puis appliquée ; clôture d'un préfixe refusée par une règle, code dit) sous
+  les deux navigateurs ; ligne de la liste de parité cochée
+  - où : `web/v2/shell/src/views/record/RecordView.vue` (barre d'actions), `views/edit/`
+    (`write.quick`, brouillon), `Close` des opérations du noyau (contrat 006) ; ancien
+    comportement : `web/shell/src/` (grep « Clore »)
+  - dépend de : 11d
+
 ## P3 — Plugins (phase 5)
 
 - [ ] 17. Écrans VLAN du cœur (amendée par la 026 : plus un plugin, des écrans du shell)
@@ -2803,6 +2815,8 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   `machines` et `moves` sous les deux navigateurs ; poids du plugin
   - où : `web/v2/plugins/machines/src/{MachineRecord,InterfaceRecord,ClusterRecord,HostingTree}.vue`
   - dépend de : 18cd, 020-29
+  - étendue le 2026-11-03 (A33) : l'ajout d'une interface et son mode 802.1Q depuis la
+    fiche de l'interface prouvés par le parcours `machines` (lignes de la liste de parité)
 
 ## P4 — Budgets et clôture
 
@@ -2812,6 +2826,9 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   `a11y-auditor` avec lecteur d'écran en mode navigation
   - où : `web/e2e/journeys/accessibility.spec.ts`
   - dépend de : 16
+  - étendue le 2026-11-03 (A33) : les gardes du parcours `smoke` de l'ancien shell (une
+    violation axe et un script en ligne font chacun échouer un parcours) prouvées par un
+    test des fixtures de `web/v2/e2e/`
 - [ ] 22. `bench-web` étendu : INP (Event Timing), navigation en cache, CLS, trames
   perdues de l'arbre (≤ 2 %), Flèche bas (≤ 100 ms p75), tas JS (≤ 64 Mo), plafond par
   plugin, shell avec modules partagés ; protocole de mesure du prototype D-1 repris —
