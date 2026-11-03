@@ -2430,7 +2430,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     hors du shell : la raison d'un « Acquitter… » refusé seulement dans une infobulle
     (`Button`, `web/v2/ui`), une alerte du dialogue insérée remplie peut-être peu annoncée
     (à juger au lecteur d'écran).
-- [ ] 11j. Une ligne de lacune prouvée (relevé par la revue de la 11i) : l'onglet Lacunes
+- [x] 11j. Une ligne de lacune prouvée (relevé par la revue de la 11i) : l'onglet Lacunes
   de `/anomalies` rend une vraie lacune (clé en `KeyLabel`, objet, message, `NoValue` pour
   une propriété absente), produite par une source attendue dans le jeu des parcours
   (règle d'inférence de la politique et sa passe, ou une déclaration attendue posée par le
@@ -2445,6 +2445,40 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `web/v2/shell/src/views/list.ts` (forme) ; `web/v2/e2e/journeys/anomalies.spec.ts`,
     `web/v2/e2e/journeys/global-setup.ts`
   - dépend de : 11i
+  - fait : parcours `anomalies`, « a gap read: its key, its object and the deviation, from
+    a source of the build » — dans le domaine du test, une clé à lui
+    (`custom.gap_<navigateur>_<horodatage>`, liste fermée, portée par les préfixes,
+    attendue de `policy.inference` en mode `check`), sa valeur `prod`, désignée axe
+    d'inférence, une règle d'inférence restreinte au domaine (`criteria: [{domain}]`),
+    puis un réseau écrit sans la valeur : la lacune s'ouvre à l'écriture (REQ-003-24),
+    sans tâche de fond ; sa ligne lue dans `/anomalies?tab=gaps&property=<clé>` (libellé
+    et clé, réseau en lien, message du serveur `<clé>: resolved no value, expected …`),
+    axe sans violation. `global-setup.ts` intact. Onglet Anomalies d'une fiche : un
+    curseur refusé relit les pages depuis la première (`resetQueries`), dit dans un
+    `role="status"` masqué (comme `ContentTab`) ; refusé de nouveau, l'alerte de la page
+    suivante, dont « Réessayer » repart du début au lieu de renvoyer le curseur ; page
+    suivante refusée, l'état vide « dans les pages lues » sous l'alerte au lieu d'une
+    grille vide. Vitest `shell/test/anomalies.test.ts` (curseur refusé relu une fois,
+    refusé deux fois sans boucle, page suivante refusée). Ligne 47 de `PARITE.md` sans
+    réserve.
+  - choix : la source la plus légère du build est l'inférence de la politique en mode
+    `check` sur une déclaration du test — la seule source d'attendus du build est
+    `policy.inference` ; `policy.environment` y est en mode `default` (il n'ouvre aucune
+    lacune) et le contrôle `policy.inference.mismatch` passe par une tâche de fond et ne
+    figure pas parmi les lacunes ; la comparaison `check` se fait à l'écriture, quatre
+    opérations dans un changeset puis un réseau. Clé, axe et règle propres à chaque
+    navigateur et à chaque passage (la base est recréée à chaque lancement). Le
+    redémarrage sur curseur refusé ne se fait qu'une fois de lui-même (les pages du
+    domaine d'un objet se lisent sans le lecteur : un curseur toujours refusé bouclerait),
+    là où `list.ts` repart à chaque refus (la page suivante y vient du défilement) ;
+    relectures : l'état « reparti » remis à zéro au changement de la clé de lecture
+    (filtre et dates, comme `sent` de `list.ts`), le statut vidé puis redit à chaque
+    redémarrage pour être annoncé de nouveau.
+  - reste : le parcours lit le message de l'écart tel que le serveur l'écrit, en anglais
+    (`<clé>: resolved no value, expected [Text("prod")] by policy.inference@…`), libre et
+    non traduit — à reprendre si la 006 le structure ; `a11y-auditor`, à juger au lecteur
+    d'écran : le statut « la liste repart du début » suivi de près par l'alerte de la page
+    suivante si le curseur est refusé deux fois.
 - [ ] 12c. Réponses d'une écriture et écritures coupées sous `as_of`, prouvées : 202 sous
   une politique d'approbation avec le lien « Voir le changeset » ; 403 du serveur qui garde
   la saisie et dit l'alerte ; éditeurs et actions de la fiche coupés sous `as_of`, le
