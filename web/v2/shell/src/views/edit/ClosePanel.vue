@@ -26,7 +26,7 @@ import { useI18n } from "vue-i18n";
 import { useQuery } from "../../data/query.ts";
 import ProblemState from "../../problems/ProblemState.vue";
 import { useProblems } from "../../problems/index.ts";
-import { useTime } from "../../time/index.ts";
+import { useTime, writesOf } from "../../time/index.ts";
 import { collectionById, nameOf, type Item } from "../collections.ts";
 import { useKeyLabel } from "../data.ts";
 import { isConflict, useWriteAction } from "./action.ts";
@@ -70,7 +70,9 @@ const operation = computed(() =>
 );
 const simulation = useQuery(() => ({
   ...changesets.simulate({ motive: "-", operations: [operation.value] }),
-  enabled: filled.value && time.value.present,
+  // Simulated at the present, whose version the closure names: under `valid_at` alone, it
+  // goes to the dated draft, written on that version (nothing at all under `as_of`).
+  enabled: filled.value && writesOf(time.value).draft,
   retry: false,
   // The cascade ticked: the verdict before stays until the new one, no blank in between.
   placeholderData: (previous: Simulated | undefined) => previous,

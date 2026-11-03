@@ -42,8 +42,9 @@ import { useSettings } from "../frame/settings.ts";
 import KLink from "../prefetch/KLink.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
-import { useTime } from "../time/index.ts";
+import { useTime, writesOf } from "../time/index.ts";
 import { EDITS, editRight } from "./edit/fields.ts";
+import { moveEntryRefusal } from "./edit/moves.ts";
 import { openEdit } from "./edit/panel.ts";
 import {
   anchorOf,
@@ -75,6 +76,8 @@ const { t, te } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const time = useTime();
+/** What may be written at the date read (`time/`): the draft, at once (the present). */
+const writes = computed(() => writesOf(time.value));
 const keyLabel = useKeyLabel();
 const settings = useSettings();
 
@@ -145,8 +148,10 @@ const actions = computed<MenuItem[]>(() => {
     ...("reason" in editBlocked.value ? { disabled: true } : {}),
     ...editBlocked.value,
   };
+  // A change of parent at the present only (`moves.ts`): under `valid_at` alone too.
+  const moveRefused = moveEntryRefusal(refused, writes.value, t("edit.move.dated"));
   const own: MenuItem[] = movable.value
-    ? [{ id: MOVE, label: t("edit.move.action"), icon: "move", ...refused }]
+    ? [{ id: MOVE, label: t("edit.move.action"), icon: "move", ...moveRefused }]
     : [];
   // The plugins' entries open with a separator (`actionItems`): none at the top of the menu.
   const theirs = actionItems(pluginActions.value, tr);
@@ -159,18 +164,20 @@ const actions = computed<MenuItem[]>(() => {
   ];
 });
 
-// « Modifier » (`e`): the edit panel of the kind (task 12, REQ-021-36), at the present and
-// with `X.edit`; refused otherwise, visible, with the permission or the reason (REQ-021-37).
+// « Modifier » (`e`) and the actions: the edit panel of the kind (task 12, REQ-021-36), with
+// `X.edit`; refused otherwise, visible, with the permission or the reason (REQ-021-37). Under
+// `as_of`, nothing is written; under `valid_at` alone, the panel opens to the dated draft
+// only (REQ-021-5, 007/W9; `action.ts`).
 const session = useSession();
 const editPermission = computed(() => editRight(props.collection.type));
 const mayEdit = computed(() => session.value.rights.has(editPermission.value));
-const editBlocked = computed(() =>
-  !mayEdit.value
-    ? { forbidden: editPermission.value }
-    : !time.value.present
+const blockedBy = (permission: string) =>
+  !session.value.rights.has(permission)
+    ? { forbidden: permission }
+    : !writes.value.draft
       ? { reason: t("edit.why.past") }
-      : {},
-);
+      : {};
+const editBlocked = computed(() => blockedBy(editPermission.value));
 function modify(): void {
   openEdit({ mode: "edit", collection: props.collection.id, id: props.id });
 }
@@ -178,6 +185,7 @@ useViewAction("edit", {
   label: () => t("edit.editThis", { kind: kindWords.value, name: name.value }),
   allowed: () => mayEdit.value && item.value !== undefined,
   run: modify,
+  dated: true,
 });
 const acting = ref<Placed | null>(null);
 const actionOpen = ref(false);
@@ -202,13 +210,7 @@ function onAction(id: string): void {
 const vlanTab = computed(
   () => props.collection.kind === "prefix" && session.value.rights.has("core.vlan.read"),
 );
-const vlanBlocked = computed(() =>
-  !session.value.rights.has(editRight("core.vlan"))
-    ? { forbidden: editRight("core.vlan") }
-    : !time.value.present
-      ? { reason: t("edit.why.past") }
-      : {},
-);
+const vlanBlocked = computed(() => blockedBy(editRight("core.vlan")));
 function createVlan(): void {
   openEdit({ mode: "create", collection: "vlans", preset: { group: props.id } });
 }

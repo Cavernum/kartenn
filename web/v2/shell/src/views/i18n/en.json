@@ -404,6 +404,7 @@
     "why": {
       "forbidden": "Read only: it takes",
       "past": "Read only off the present: go back to the present to change it.",
+      "dated": "Dated read: nothing is applied at once, the change goes to the dated draft.",
       "immutable": "The domain of an object never changes after its creation (core.domain.immutable).",
       "computed": "A computed value: it does not change.",
       "creation": "Fixed at creation: it does not change.",

@@ -159,10 +159,30 @@ describe("the write action of a panel", () => {
     expect(writing.begin("draft")).toBe(false);
   });
 
-  it("writes nothing off the present, the draft included, and says so", async () => {
+  it("writes nothing under as_of, the draft included, and says so", async () => {
     const { writing } = await mounted(["core.address.edit"], "/?as_of=2026-01-01T00:00:00Z");
     expect(writing.begin("draft")).toBe(false);
     expect(writing.notice.value).toContain("revenez au présent pour clore");
+  });
+
+  it("under a validity date alone, leaves the dated draft and refuses to apply, saying why", async () => {
+    const { writing } = await mounted(
+      ["core.address.edit", "core.address.approval.self"],
+      "/?valid_at=2026-01-01T00:00:00Z",
+    );
+    const apply = writing.actions.value.find((a) => a.id === "apply");
+    expect(apply).toMatchObject({
+      disabled: true,
+      reason: expect.stringContaining("brouillon daté"),
+    });
+    expect(apply?.forbidden).toBeUndefined();
+    // Chosen at the keyboard all the same: said by the status, nothing written, no motive asked.
+    writing.action.value = "apply";
+    expect(writing.applying.value).toBe(false);
+    expect(writing.begin("apply")).toBe(false);
+    expect(writing.notice.value).toContain("brouillon daté");
+    expect(writing.begin("draft")).toBe(true);
+    expect(writing.notice.value).toBeNull();
   });
 });
 

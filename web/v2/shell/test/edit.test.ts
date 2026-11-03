@@ -862,22 +862,31 @@ describe("the content of a node edited in place (task 12a)", () => {
 });
 
 describe("the edit panel of a kind", () => {
-  it("closes with its page, and off the present (nothing written there)", async () => {
+  it("closes with its page, and at another date off the present", async () => {
     const path = ref("/addresses");
-    const present = ref(true);
+    const period = ref<{ validAt: string | null; asOf: string | null }>({
+      validAt: null,
+      asOf: null,
+    });
     const scope = effectScope();
     scope.run(() =>
       closeEditWithPage(
         () => path.value,
-        () => present.value,
+        () => period.value,
       ),
     );
     openEdit({ mode: "create", collection: "addresses" });
     expect(editRequest().value).toMatchObject({ mode: "create", collection: "addresses" });
-    present.value = false;
+    period.value = { validAt: "2026-01-01T00:00:00Z", asOf: null };
     await nextTick();
     expect(editRequest().value).toBeNull();
-    present.value = true;
+    // Opened under `valid_at` alone (the dated draft), closed once `as_of` comes.
+    openEdit({ mode: "create", collection: "addresses" });
+    period.value = { validAt: "2026-01-01T00:00:00Z", asOf: "2026-06-30T12:00:00Z" };
+    await nextTick();
+    expect(editRequest().value).toBeNull();
+    period.value = { validAt: null, asOf: null };
+    await nextTick();
     openEdit({ mode: "edit", collection: "prefixes", id: P1 });
     path.value = `/prefixes/${P1}`;
     await nextTick();

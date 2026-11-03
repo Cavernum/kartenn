@@ -1,4 +1,5 @@
 import { shallowRef, watch, type Ref } from "vue";
+import type { Period } from "../../time/index.ts";
 import type { CollectionId } from "../collections.ts";
 import type { VlanNetwork } from "./vlan.ts";
 
@@ -63,12 +64,15 @@ export function closeEdit(back = true): void {
 }
 
 /**
- * In the frame's `setup`: another page, or a date off the present (nothing is written
- * there, REQ-021-5), closes the edit the page left had asked for.
+ * In the frame's `setup`: another page, or another date off the present (nothing is written
+ * under `as_of`, only the dated draft under `valid_at`, REQ-021-5: what was asked at the
+ * date before no longer holds), closes the edit the page left had asked for.
  */
-export function closeEditWithPage(path: () => string, present: () => boolean): void {
-  watch([path, present], ([now, isPresent], [before]) => {
-    if (current.value && (now !== before || !isPresent)) closeEdit(false);
+export function closeEditWithPage(path: () => string, period: () => Period): void {
+  watch([path, () => period().validAt, () => period().asOf], ([now, validAt, asOf], [before]) => {
+    if (current.value && (now !== before || validAt !== null || asOf !== null)) {
+      closeEdit(false);
+    }
   });
 }
 
