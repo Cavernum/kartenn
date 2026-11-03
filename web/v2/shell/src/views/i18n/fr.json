@@ -399,6 +399,7 @@
     "why": {
       "forbidden": "Lecture seule : il faut",
       "past": "Lecture seule hors du présent : revenez au présent pour modifier.",
+      "dated": "Lecture datée : rien ne s'applique tout de suite, la modification va au brouillon daté.",
       "immutable": "Le domaine d'un objet ne change pas après sa création (core.domain.immutable).",
       "computed": "Valeur calculée : elle ne se modifie pas.",
       "creation": "Fixée à la création : elle ne se modifie pas.",

@@ -94,7 +94,8 @@ const network = computed(() =>
     : undefined,
 );
 
-// The object modified, read at the present (the same entry as its record).
+// The object modified, read at the present (the same entry as its record; under `valid_at`
+// alone, the version the dated draft writes on).
 const record = useQuery(() => ({
   ...reads.object<Item>(collection.value.kind, objectId.value ?? "-"),
   enabled: objectId.value !== null,

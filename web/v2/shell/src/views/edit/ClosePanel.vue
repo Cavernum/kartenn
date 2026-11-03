@@ -70,7 +70,9 @@ const operation = computed(() =>
 );
 const simulation = useQuery(() => ({
   ...changesets.simulate({ motive: "-", operations: [operation.value] }),
-  enabled: filled.value && time.value.present,
+  // Simulated at the present, whose version the closure names: under `valid_at` alone, it
+  // goes to the dated draft, written on that version (nothing at all under `as_of`).
+  enabled: filled.value && time.value.asOf === null,
   retry: false,
   // The cascade ticked: the verdict before stays until the new one, no blank in between.
   placeholderData: (previous: Simulated | undefined) => previous,

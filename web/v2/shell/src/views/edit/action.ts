@@ -58,14 +58,23 @@ export function useWriteAction(options: WriteActionOptions) {
   /** The permission an action lacks, named: an edit permission, or to apply its approval. */
   const lacking = (id: string) =>
     lackingRight((p) => session.value.rights.has(p), options.rights(), id === "apply");
-  const canApply = computed(() => lacking("apply") === null);
+  /**
+   * Under a validity date alone (REQ-021-5, 007/W9): the dated draft only, nothing applied at
+   * once — what a write applies takes effect now, not at the date read.
+   */
+  const dated = computed(() => time.value.asOf === null && time.value.validAt !== null);
+  /** Why `id` is impossible at the date read, if it is: « Appliquer » under `valid_at`. */
+  const datedReason = (id: string) => (id === "apply" && dated.value ? t("edit.why.dated") : null);
+  const canApply = computed(() => lacking("apply") === null && !dated.value);
   const actions = computed<SplitAction[]>(() =>
     [
       { id: "draft", label: t(options.words.draft), icon: "draft" as const },
       { id: "apply", label: t(options.words.apply), icon: "circle-check" as const },
     ].map((a) => {
       const permission = lacking(a.id);
-      return permission ? { ...a, forbidden: permission } : a;
+      if (permission) return { ...a, forbidden: permission };
+      const reason = datedReason(a.id);
+      return reason ? { ...a, disabled: true, reason } : a;
     }),
   );
   /** « Appliquer » chosen and permitted: the motive is asked. */
@@ -108,8 +117,9 @@ export function useWriteAction(options: WriteActionOptions) {
 
   /**
    * Whether `id` may run now: not while a write is in flight; a refused action — run at the
-   * keyboard too — says its permission by the status, never silence; nothing is written off
-   * the present, the draft included. The sentence and the refusal before are cleared.
+   * keyboard too — says its permission by the status, never silence; nothing is written
+   * under `as_of`, the draft included; under `valid_at` alone, the dated draft only. The
+   * sentence and the refusal before are cleared.
    */
   function begin(id: string): boolean {
     if (busy.value) return false;
@@ -118,9 +128,10 @@ export function useWriteAction(options: WriteActionOptions) {
       tell(t("edit.unsent", { permission: missing }));
       return false;
     }
-    if (!time.value.present) {
+    const off = time.value.asOf !== null ? t(options.words.past) : datedReason(id);
+    if (off !== null) {
       refusal.value = null;
-      tell(t(options.words.past));
+      tell(off);
       return false;
     }
     notice.value = null;

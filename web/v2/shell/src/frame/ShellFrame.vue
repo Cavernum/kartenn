@@ -265,10 +265,10 @@ watch(
   },
   { immediate: true },
 );
-// Another page, or a date off the present: the edit asked by the page left goes with it.
+// Another page, or another date off the present: the edit asked by the page left goes with it.
 closeEditWithPage(
   () => route.path,
-  () => time.value.present,
+  () => time.value,
 );
 
 // The drafts of the user (spec 024 § A): the list for the menu of the counter, the active
@@ -484,7 +484,7 @@ const pluginCommands = shallowRef(commandRegistry.list());
 onBeforeUnmount(commandRegistry.subscribe(() => (pluginCommands.value = commandRegistry.list())));
 const commands = computed<PaletteEntry[]>(() => {
   const list: PaletteEntry[] = [];
-  const create = runnable("create", atPresent.value);
+  const create = runnable("create", time.value);
   if (create)
     list.push({
       id: "cmd:create",
@@ -493,7 +493,7 @@ const commands = computed<PaletteEntry[]>(() => {
       ...hint(["c"]),
       run: create.run,
     });
-  const edit = runnable("edit", atPresent.value);
+  const edit = runnable("edit", time.value);
   if (edit)
     list.push({
       id: "cmd:edit",
@@ -694,7 +694,7 @@ for (const shortcut of shellShortcuts({
 }
 /** An action of the view behind `/`, `c`, `e`; `false` when it has none or cannot now. */
 function playView(id: "filter" | "create" | "edit"): boolean {
-  const action = runnable(id, atPresent.value);
+  const action = runnable(id, time.value);
   action?.run();
   return action !== null;
 }

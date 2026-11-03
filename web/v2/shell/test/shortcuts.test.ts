@@ -381,20 +381,36 @@ describe("help", () => {
 
 describe("actions of the view", () => {
   it("plays `c` and `e` at the present only, when allowed; `/` at any date", () => {
+    const present = { validAt: null, asOf: null };
+    const past = { validAt: null, asOf: "2026-01-01T00:00:00Z" };
     const scope = effectScope();
     let allowed = true;
     scope.run(() => {
       useViewAction("create", { label: () => "Créer", run: vi.fn(), allowed: () => allowed });
       useViewAction("filter", { label: () => "Filtrer", run: vi.fn() });
     });
-    expect(runnable("create", true)).not.toBeNull();
-    expect(runnable("create", false)).toBeNull();
-    expect(runnable("filter", false)).not.toBeNull();
-    expect(runnable("edit", true)).toBeNull();
+    expect(runnable("create", present)).not.toBeNull();
+    expect(runnable("create", past)).toBeNull();
+    expect(runnable("filter", past)).not.toBeNull();
+    expect(runnable("edit", present)).toBeNull();
     allowed = false;
-    expect(runnable("create", true)).toBeNull();
+    expect(runnable("create", present)).toBeNull();
     scope.stop();
-    expect(runnable("filter", true)).toBeNull();
+    expect(runnable("filter", present)).toBeNull();
+  });
+
+  it("plays a `dated` action under a validity date alone, never under `as_of`", () => {
+    const scope = effectScope();
+    scope.run(() => {
+      useViewAction("edit", { label: () => "Modifier", run: vi.fn(), dated: true });
+      useViewAction("create", { label: () => "Créer", run: vi.fn() });
+    });
+    const validAt = "2026-01-01T00:00:00Z";
+    expect(runnable("edit", { validAt, asOf: null })).not.toBeNull();
+    expect(runnable("create", { validAt, asOf: null })).toBeNull();
+    expect(runnable("edit", { validAt, asOf: "2026-06-30T12:00:00Z" })).toBeNull();
+    expect(runnable("edit", { validAt: null, asOf: "2026-06-30T12:00:00Z" })).toBeNull();
+    scope.stop();
   });
 
   it("keeps the action of the view that came after", () => {
@@ -402,10 +418,11 @@ describe("actions of the view", () => {
     const second = { label: () => "b", run: vi.fn() };
     const removeFirst = setViewAction("edit", first);
     const removeSecond = setViewAction("edit", second);
+    const present = { validAt: null, asOf: null };
     removeFirst();
-    expect(runnable("edit", true)).toBe(second);
+    expect(runnable("edit", present)).toBe(second);
     removeSecond();
-    expect(runnable("edit", true)).toBeNull();
+    expect(runnable("edit", present)).toBeNull();
   });
 });
 
