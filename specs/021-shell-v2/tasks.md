@@ -3012,7 +3012,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     hébergeur (un filtre « sans hébergeur » de `/v1/machines` le ferait en une page ; fait
     par la 18f, A28).
 
-- [ ] 18e. `GET /v1/interfaces?network=<id>` (A28) : interfaces d'un réseau avec leurs
+- [x] 18e. `GET /v1/interfaces?network=<id>` (A28) : interfaces d'un réseau avec leurs
   adresses, paginées, sous le filtre de lecture ; l'onglet « Interfaces » d'un réseau
   du plugin la lit en une liste au lieu d'une lecture par machine — verify :
   `k-check -p kartenn-machines` (interfaces d'un réseau, pagination, lecture refusée
@@ -3020,6 +3020,53 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `crates/kartenn-machines/src/rest.rs` (routes des interfaces, forme des
     filtres de `/v1/machines?network=`), `web/v2/plugins/machines/src/InterfacesTab.vue`
   - dépend de : 18cc
+  - fait le 2026-11-03 — `list_interfaces` (`crates/kartenn-machines/src/rest.rs`) gagne le
+    filtre `network`, de la forme de ceux de `/v1/machines` (inconnu ou répété refusé,
+    identifiant) : les interfaces qui tiennent une adresse du réseau que l'appelant lit
+    (`in_network`, jointures `LATERAL` depuis le réseau), chacune avec ces adresses seules,
+    par valeur, dans `addresses` (`MachineCardAddress` : `id`, `value`, `primary`),
+    calculées dans la requête de la page, sur ses seules lignes, après le `LIMIT`
+    (`network_addresses`) ; page et versions dans un instantané ; les adresses servies
+    journalisées en lecture. `addresses` absent des autres lectures d'interfaces. Contrat et
+    schémas des deux SDK régénérés ; design 009 § Routes. Plugin : `InterfacesTab.vue` lit
+    une liste `/v1/interfaces` pour les trois objets (`network`, `vlan`, `address`), états
+    d'erreur, de vide et de reprise communs, machine citée par `CitedName` ; retirés : la
+    lecture du préfixe, les lectures d'adresses par machine et leurs places au limiteur
+    (`limited` reste à `MachineColumn` et `Names`), `within` et son test, le type
+    `MachineAddress`. Tests : `rest::interfaces_of_a_network_with_their_addresses`
+    (pagination par 2, adresse hors du réseau et interface sans adresse absentes, interface
+    d'une autre entité lue du seul administrateur, sans lecture des interfaces ou des
+    adresses : rien, interfaces lues mais adresses lues ailleurs : rien, filtre répété ou
+    non identifiant : 400) ; Vitest 41 (une liste par le réseau, rien d'autre lu, page
+    suivante, chaque machine nommée une fois, observateurs libérés) ; parcours `machines`
+    6 sur 6 dans les deux navigateurs.
+  - choix : seules les adresses du réseau sont servies, pas toutes celles de l'interface ;
+    une interface dont aucune adresse du réseau n'est lisible n'est pas listée (chaque
+    interface servie a donc au moins une ligne dans l'onglet) ; `useReads` reste dans `data.ts`
+    (API du design 021 § « API des plugins »), sans usage dans le plugin ; nom de machine
+    par `CitedName`, squelette de cellule pendant sa lecture comme dans `InterfaceGrid`.
+  - corrections de la revue (ADR 0021) : un réseau que l'appelant ne lit pas répond comme un
+    réseau inconnu, sur `/v1/interfaces?network=` comme sur `/v1/machines?network=`
+    (`readable_network`, prédicat évalué une fois sur la ligne du réseau) ;
+    `/v1/machines?network=` ne compte plus une machine que par les adresses du réseau que l'appelant lit
+    (il les comptait toutes) : pour ses appelants (colonne et fiches du plugin, parcours),
+    rien ne change sous les droits du jeu de données, un lecteur sans `core.address.read`
+    ou `core.prefix.read` sur le réseau n'y trouve plus rien. `held_in_network` (commun aux
+    deux) garde le prédicat des adresses au-dessus de la jointure des rattachements
+    (`OFFSET 0`) : évalué sur les seules adresses rattachées. Tests :
+    `rest::a_list_by_network_serves_only_what_the_caller_reads` (adresse lue et non lue
+    d'une même interface par une portée de préfixe plus étroite que le réseau, écrite en
+    base ; le test échoue sans le prédicat des adresses ; réseau illisible = réseau inconnu
+    sur les deux listes), lecture journalisée des adresses servies ; Vitest du plugin 52
+    (erreur, « Réessayer » et vide de l'onglet d'un réseau). `EXPLAIN (ANALYZE, BUFFERS)` de la
+    requête de page (première page de 100, base jetable, test temporaire non gardé) : réseau
+    10.1.0.0/16 de 20 000 adresses dont 10 000 rattachées à autant d'interfaces, lecteur
+    d'entité (propriétaire résolu de chaque adresse) : plan générique 231 ms, 213 309
+    tampons, personnalisé 1 164 ms (première exécution) ; lecteur global : 100 ms, 88 700
+    tampons, dans les deux plans. Avant `OFFSET 0`, à 5 000 adresses dont 2 500 rattachées :
+    605 ms (prédicat sur les 5 000), 318 ms personnalisé et 57 ms générique après. Chaque
+    page relit l'appartenance de tout le réseau (sous-plan haché) : coût linéaire en
+    adresses rattachées du réseau, à reprendre si un banc pleine échelle le demande.
 - [x] 18f. Filtre « sans hôte » sur `/v1/machines` (A28) : un paramètre qui ne garde que
   les machines sans hôte ; le premier niveau de l'arbre de l'hébergement se lit en une
   liste paginée au lieu de toutes les machines — verify : `k-check -p kartenn-machines` ;

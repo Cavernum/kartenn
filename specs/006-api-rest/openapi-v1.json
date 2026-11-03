@@ -3837,6 +3837,13 @@
       "Interface": {
         "description": "An interface of a machine (REQ-009-6).",
         "properties": {
+          "addresses": {
+            "description": "In a list filtered by `network` only: its addresses in the network that the caller\nmay read, by value (021/A28).",
+            "items": {
+              "$ref": "#/components/schemas/MachineCardAddress"
+            },
+            "type": "array"
+          },
           "enabled": {
             "description": "Whether it is enabled.",
             "type": "boolean"
@@ -6096,7 +6103,7 @@
         "type": "object"
       },
       "MachineCardAddress": {
-        "description": "An address on the card of a machine.",
+        "description": "An address on the card of a machine, or of an interface in a list by network.",
         "properties": {
           "id": {
             "description": "Identifier.",
@@ -24122,6 +24129,15 @@
             }
           },
           {
+            "description": "Holding an address of this network that the caller may read, each interface then with those addresses in `addresses`; none for a network the caller may not read.",
+            "in": "query",
+            "name": "network",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read.",
             "in": "query",
             "name": "q",
@@ -25701,7 +25717,7 @@
             }
           },
           {
-            "description": "Holding an address of this network.",
+            "description": "Holding an address of this network that the caller may read; none for a network the caller may not read.",
             "in": "query",
             "name": "network",
             "required": false,

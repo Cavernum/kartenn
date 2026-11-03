@@ -1,6 +1,7 @@
 //! The routes of the module through the router (spec 009, REQ-009-15 to 18; task 009-10):
 //! the interface that held an address at a date, the card of a machine, the machines of a
-//! network under the rights of the reader, the edge from an address to its interface, the
+//! network and the interfaces of a network with their addresses under the rights of the
+//! reader, the edge from an address to its interface, the
 //! `If-Match` of a patch, the canonical EUI-48.
 
 use std::sync::Arc;
@@ -236,6 +237,20 @@ impl Env {
         .fetch_one(pool)
         .await
         .unwrap();
+        self.grant(identity, entries, scope).await;
+        identity
+    }
+
+    /// Grants `entries` to the person `identity` on `scope` (`None`: everywhere), by a
+    /// role of their own.
+    async fn grant(&self, identity: Uuid, entries: &[&str], scope: Option<Uuid>) {
+        let kind = if scope.is_some() { "entity" } else { "global" };
+        self.grant_on(identity, entries, kind, scope).await;
+    }
+
+    /// [`Self::grant`] on a scope of the kind `kind` (`entity`, `prefix`…).
+    async fn grant_on(&self, identity: Uuid, entries: &[&str], kind: &str, scope: Option<Uuid>) {
+        let pool = &self.pool;
         let role = Uuid::now_v7();
         sqlx::query(
             "INSERT INTO role (id, key, labels, valid_period, changeset_id)
@@ -260,12 +275,11 @@ impl Env {
         sqlx::query(kartenn_testing::BIND_IDENTITY)
             .bind(identity)
             .bind(role)
-            .bind(if scope.is_some() { "entity" } else { "global" })
+            .bind(kind)
             .bind(scope)
             .execute(pool)
             .await
             .unwrap();
-        identity
     }
 
     /// Everything on the module, and the reading of the addressing and the VLANs.
@@ -686,7 +700,10 @@ async fn machines_of_a_network_hide_unreadable(pool: PgPool) {
     // A machine of acme outside the network.
     env.machine("lonely", acme).await;
     let reader = env
-        .person(&["machines.read", "core.prefix.read"], Some(acme))
+        .person(
+            &["machines.read", "core.prefix.read", "core.address.read"],
+            Some(acme),
+        )
         .await;
     let app = env.app(reader);
     let network = env.network().await;
@@ -702,6 +719,257 @@ async fn machines_of_a_network_hide_unreadable(pool: PgPool) {
         }
     }
     assert_eq!(names, ["app0", "app1", "app2", "app3", "app4"]);
+}
+
+/// Every page of `uri`, its links followed: the items in the order served.
+async fn every_page(app: &Router, uri: &str) -> Vec<Value> {
+    let mut items = Vec::new();
+    let mut uri = uri.to_owned();
+    loop {
+        let (status, _, body) = call(app, "GET", &uri, None, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        items.extend(body["items"].as_array().unwrap().iter().cloned());
+        match body["links"]["next"].as_str() {
+            Some(next) => next.clone_into(&mut uri),
+            None => break,
+        }
+    }
+    items
+}
+
+/// The values of the addresses of each interface of `items`, by interface.
+fn held_values(items: &[Value]) -> std::collections::BTreeMap<String, Vec<String>> {
+    items
+        .iter()
+        .map(|i| {
+            let values = i["addresses"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|a| a["value"].as_str().unwrap().to_owned())
+                .collect();
+            (i["id"].as_str().unwrap().to_owned(), values)
+        })
+        .collect()
+}
+
+/// 021/A28: `/v1/interfaces?network=` serves the interfaces holding an address of the
+/// network that the caller may read, each with those addresses only, by pages; an
+/// interface or an address the caller may not read is not served; the filter is given
+/// once.
+#[kartenn_testing::pg_test]
+async fn interfaces_of_a_network_with_their_addresses(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    let other = env.entity("other").await;
+    env.applied(vec![Operation::CreatePrefix {
+        local: None,
+        domain: Ref::Id(env.domain().await),
+        prefix: "10.0.1.0/24".into(),
+        nature: Nature::Network,
+        point_to_point: false,
+        anycast: false,
+    }])
+    .await;
+    // web1: two addresses of the network and one outside; an interface without address.
+    let (web1, web1_eth0) = env.machine("web1", acme).await;
+    let first = env.address("10.0.0.11").await;
+    let second = env.address("10.0.0.10").await;
+    let outside = env.address("10.0.1.5").await;
+    env.applied(vec![
+        attach(web1_eth0, first),
+        attach(web1_eth0, second),
+        attach(web1_eth0, outside),
+        op(
+            "create_interface",
+            json!({"machine": {"id": web1}, "name": "eth1"}),
+        ),
+    ])
+    .await;
+    // An interface of `other`, which a reader of acme may not read.
+    let (_, hidden_eth0) = env.machine("hidden", other).await;
+    let hidden_address = env.address("10.0.0.13").await;
+    env.applied(vec![attach(hidden_eth0, hidden_address)]).await;
+    let mut expected = std::collections::BTreeMap::new();
+    expected.insert(
+        web1_eth0.to_string(),
+        vec!["10.0.0.10".to_owned(), "10.0.0.11".to_owned()],
+    );
+    for n in 0..4 {
+        let (_, interface) = env.machine(&format!("app{n}"), acme).await;
+        let value = format!("10.0.0.{}", 20 + n);
+        let address = env.address(&value).await;
+        env.applied(vec![attach(interface, address)]).await;
+        expected.insert(interface.to_string(), vec![value]);
+    }
+    let network = env.network().await;
+    let uri = format!("/v1/interfaces?network={network}&page_size=2");
+
+    let reader = env
+        .person(
+            &[
+                "machines.interface.read",
+                "core.address.read",
+                "core.prefix.read",
+            ],
+            Some(acme),
+        )
+        .await;
+    let app = env.app(reader);
+    let items = every_page(&app, &uri).await;
+    assert_eq!(held_values(&items), expected);
+    assert_eq!(items.len(), 5, "each interface once");
+    // The addresses served by the last page are journaled as read.
+    let journaled: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT target_ids FROM audit.event
+          WHERE name = 'data.objects.read' AND target_kind = 'address'
+          ORDER BY seq DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let last: Vec<Uuid> = items[4]["addresses"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|a| a["id"].as_str().unwrap().parse().unwrap())
+        .collect();
+    assert_eq!(journaled, last);
+    let web1_item = items.iter().find(|i| i["id"] == json!(web1_eth0)).unwrap();
+    assert_eq!(
+        web1_item["addresses"],
+        json!([
+            {"id": second, "value": "10.0.0.10", "primary": false},
+            {"id": first, "value": "10.0.0.11", "primary": false},
+        ])
+    );
+    assert_eq!(web1_item["machine"]["id"], json!(web1));
+    assert!(web1_item["version"].is_string(), "{web1_item}");
+    // Without `network`, the interfaces carry no addresses.
+    let (_, _, body) = call(&app, "GET", "/v1/interfaces?name=eth1", None, &[]).await;
+    assert_eq!(ids(&body, "name"), ["eth1"]);
+    assert!(body["items"][0].get("addresses").is_none(), "{body}");
+
+    // Whoever reads everything sees the interface of `other` as well.
+    let app = env.app(env.admin().await);
+    let all = held_values(&every_page(&app, &uri).await);
+    assert_eq!(all[&hidden_eth0.to_string()], ["10.0.0.13"]);
+    assert_eq!(all.len(), 6);
+
+    // Without the reading of the interfaces, or of the addresses: nothing. The interfaces
+    // read on acme and the addresses on `other` only: those of `lab`, owned by acme, are
+    // not read, nor are the interfaces that hold them.
+    for entries in [
+        &["core.address.read", "core.prefix.read"][..],
+        &["machines.interface.read", "core.prefix.read"][..],
+    ] {
+        let app = env.app(env.person(entries, Some(acme)).await);
+        assert!(every_page(&app, &uri).await.is_empty(), "{entries:?}");
+    }
+    let elsewhere = env
+        .person(&["machines.interface.read", "core.prefix.read"], Some(acme))
+        .await;
+    env.grant(elsewhere, &["core.address.read"], Some(other))
+        .await;
+    let app = env.app(elsewhere);
+    assert!(every_page(&app, &uri).await.is_empty());
+    let (_, _, body) = call(&app, "GET", "/v1/interfaces?name=eth1", None, &[]).await;
+    assert_eq!(ids(&body, "name"), ["eth1"], "the interfaces are read");
+
+    // The filter once, an identifier.
+    let app = env.app(reader);
+    for wrong in [
+        format!("/v1/interfaces?network={network}&network={network}"),
+        "/v1/interfaces?network=lab".to_owned(),
+    ] {
+        let (status, _, body) = call(&app, "GET", &wrong, None, &[]).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{wrong}: {body}");
+    }
+}
+
+/// `items` and `links` of `GET uri`, what tells two lists apart.
+async fn listed(app: &Router, uri: &str) -> Value {
+    let (status, _, body) = call(app, "GET", uri, None, &[]).await;
+    assert_eq!(status, StatusCode::OK, "{uri}: {body}");
+    json!({"items": body["items"], "links": body["links"]})
+}
+
+/// ADR 0021 on the lists by network (task 021-18e): of an interface the caller reads, only
+/// the addresses it reads are served, and a machine counts only by those; a network the
+/// caller may not read answers as an unknown one, on the interfaces and on the machines.
+#[kartenn_testing::pg_test]
+async fn a_list_by_network_serves_only_what_the_caller_reads(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    // web1 holds an address the reader reads and one it does not; web2 only the latter.
+    let (web1, web1_eth0) = env.machine("web1", acme).await;
+    let read = env.address("10.0.0.10").await;
+    let unread = env.address("10.0.0.20").await;
+    let (_, web2_eth0) = env.machine("web2", acme).await;
+    let unread_too = env.address("10.0.0.30").await;
+    env.applied(vec![
+        attach(web1_eth0, read),
+        attach(web1_eth0, unread),
+        attach(web2_eth0, unread_too),
+    ])
+    .await;
+    // The reader reads the addresses of 10.0.0.8/29 only: a prefix scope narrower than
+    // the network, written in the base (the tree keeps a network a leaf; the scope reads
+    // the prefix by its identifier and value alone).
+    let narrow = Uuid::now_v7();
+    sqlx::query(
+        "INSERT INTO prefix (id, domain_id, prefix, nature, public, registry_version,
+                             valid_period, changeset_id)
+         VALUES ($1, $2, '10.0.0.8/29', 'network', false, 'test',
+                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+    )
+    .bind(narrow)
+    .bind(env.domain().await)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let reader = env
+        .person(
+            &[
+                "machines.read",
+                "machines.interface.read",
+                "core.prefix.read",
+            ],
+            None,
+        )
+        .await;
+    env.grant_on(reader, &["core.address.read"], "prefix", Some(narrow))
+        .await;
+    let app = env.app(reader);
+    let network = env.network().await;
+    let body = listed(&app, &format!("/v1/interfaces?network={network}")).await;
+    assert_eq!(ids(&body, "id"), [web1_eth0.to_string()]);
+    assert_eq!(
+        body["items"][0]["addresses"],
+        json!([{"id": read, "value": "10.0.0.10", "primary": false}])
+    );
+    let body = listed(&app, &format!("/v1/machines?network={network}")).await;
+    assert_eq!(ids(&body, "id"), [web1.to_string()]);
+
+    // A network it may not read: the answer of an unknown one, on both lists.
+    let blind = env
+        .person(
+            &[
+                "machines.read",
+                "machines.interface.read",
+                "core.address.read",
+            ],
+            None,
+        )
+        .await;
+    let app = env.app(blind);
+    let unknown = Uuid::now_v7();
+    for collection in ["interfaces", "machines"] {
+        let hidden = listed(&app, &format!("/v1/{collection}?network={network}")).await;
+        let absent = listed(&app, &format!("/v1/{collection}?network={unknown}")).await;
+        assert_eq!(hidden, absent, "{collection}");
+        assert_eq!(hidden["items"], json!([]), "{collection}");
+    }
 }
 
 /// REQ-018-23: `q` suggests by prefix, ignoring case, only the objects the caller may

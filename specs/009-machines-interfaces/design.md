@@ -214,7 +214,8 @@ noyau (clé `machines.interface_role`).
 | `GET, POST /v1/clusters` ; `GET, PATCH, DELETE /v1/clusters/{id}` ; `GET /v1/clusters/{id}/machines` | clusters, membres et hébergés |
 | `GET, POST /v1/machines` ; `GET, PATCH, DELETE /v1/machines/{id}` | filtres `name`, `name_prefix`, `kind`, `host`, `host:exists` (hébergée ou non ; un membre de cluster n'est pas hébergé, 021/A28), `cluster`, `owner`, `site` ; la fiche inclut interfaces et adresses (résumé) |
 | `GET /v1/machines/{id}/addresses`, `/hosted` | lectures croisées |
-| `GET, POST /v1/interfaces` ; `GET, PATCH, DELETE /v1/interfaces/{id}` | filtres `machine`, `name`, `mac`, `address`, `vlan`, `media` |
+| `GET, POST /v1/interfaces` ; `GET, PATCH, DELETE /v1/interfaces/{id}` | filtres `machine`, `name`, `mac`, `address`, `vlan`, `media`, `network` |
+| `GET /v1/interfaces?network=<prefix>` | interfaces d'un réseau (021/A28) : celles qui tiennent une adresse du réseau que l'appelant lit, chacune avec ces adresses seules (`addresses`, par valeur), en une requête par page ; un réseau illisible répond comme un réseau inconnu, ici et pour `/v1/machines?network=`, qui ne compte que les adresses lues |
 | `POST /v1/interfaces/{id}/attachments`, `DELETE /v1/interfaces/{id}/attachments/{address}` | `attach_address`, `detach_address` (changeset d'une opération, `If-Match` de l'interface) |
 | `GET /v1/machines?network=<prefix>` | machines d'un réseau |
 
