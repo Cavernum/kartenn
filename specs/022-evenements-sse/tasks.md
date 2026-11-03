@@ -387,3 +387,14 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     (`outbox::revision` lit `max(seq)`) : autre cause, probablement la fenêtre de
     400 ms (`refresh`) entre le premier calcul et la lecture « trop récente » qui suit un
     `apply` lent ; non reproduit ici.
+- [ ] 21. `stats::the_etag_and_the_snapshot_follow_the_outbox` instable sous charge (vu le
+  2026-11-02 par la 16f, le 2026-11-03 par la vérification complète de main) : 200 au
+  lieu de 304 attendu (« served, recomputed behind », `crates/kartenn-rest/tests/it/stats.rs`
+  vers la ligne 358) ; seul, il passe. Piste de la 022-20 : `outbox::revision` lit
+  `max(seq)`, et la fenêtre de 400 ms du rafraîchissement est dépassée quand `apply`
+  ralentit sous charge. Chercher la cause comme la 022-20, puis la régler sans affaiblir
+  ce que le test prouve — verify : `k-check` complet trois fois de suite sous charge sans
+  échec de `stats::`
+  - où : `crates/kartenn-rest/tests/it/stats.rs`, rafraîchissement de `GET /v1/stats`
+    (`crates/kartenn-rest/src/stats.rs`)
+  - dépend de : —

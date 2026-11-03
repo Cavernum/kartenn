@@ -2691,6 +2691,22 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     Machines, « Hébergement et clusters »)
   - dépend de : 18ca, 18cb
 
+- [ ] 18e. `GET /v1/interfaces?network=<id>` (A28) : interfaces d'un réseau avec leurs
+  adresses, paginées, sous le filtre de lecture ; l'onglet « Interfaces » d'un réseau
+  du plugin la lit en une liste au lieu d'une lecture par machine — verify :
+  `k-check -p kartenn-machines` (interfaces d'un réseau, pagination, lecture refusée
+  hors droits) ; Vitest et parcours `machines` (onglet d'un réseau) ; contrat régénéré
+  - où : `crates/kartenn-machines/src/rest.rs` (routes des interfaces, forme des
+    filtres de `/v1/machines?network=`), `web/v2/plugins/machines/src/InterfacesTab.vue`
+  - dépend de : 18cc
+- [ ] 18f. Filtre « sans hôte » sur `/v1/machines` (A28) : un paramètre qui ne garde que
+  les machines sans hôte ; le premier niveau de l'arbre de l'hébergement se lit en une
+  liste paginée au lieu de toutes les machines — verify : `k-check -p kartenn-machines` ;
+  Vitest et parcours `moves` (arbre de l'hébergement) ; contrat régénéré
+  - où : `crates/kartenn-machines/src/rest.rs` (filtres de `/v1/machines`),
+    `web/v2/plugins/machines/src/HostingTree.vue`
+  - dépend de : 18cd
+
 ## P4 — Budgets et clôture
 
 - [ ] 21. Accessibilité étendue : parcours clavier complet (palette, barre repliée,
