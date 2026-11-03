@@ -3,7 +3,7 @@ import { injectToasts, type SplitAction } from "@kartenn/ui";
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSession } from "../../rights/index.ts";
-import { useTime } from "../../time/index.ts";
+import { useTime, writesOf } from "../../time/index.ts";
 import { CONFLICT_RULE } from "./close.ts";
 import { lackingRight } from "./fields.ts";
 import type { Refusal } from "./inline.ts";
@@ -62,7 +62,8 @@ export function useWriteAction(options: WriteActionOptions) {
    * Under a validity date alone (REQ-021-5, 007/W9): the dated draft only, nothing applied at
    * once — what a write applies takes effect now, not at the date read.
    */
-  const dated = computed(() => time.value.asOf === null && time.value.validAt !== null);
+  const writes = computed(() => writesOf(time.value));
+  const dated = computed(() => writes.value.draft && !writes.value.quickEdit);
   /** Why `id` is impossible at the date read, if it is: « Appliquer » under `valid_at`. */
   const datedReason = (id: string) => (id === "apply" && dated.value ? t("edit.why.dated") : null);
   const canApply = computed(() => lacking("apply") === null && !dated.value);
@@ -128,7 +129,7 @@ export function useWriteAction(options: WriteActionOptions) {
       tell(t("edit.unsent", { permission: missing }));
       return false;
     }
-    const off = time.value.asOf !== null ? t(options.words.past) : datedReason(id);
+    const off = !writes.value.draft ? t(options.words.past) : datedReason(id);
     if (off !== null) {
       refusal.value = null;
       tell(off);

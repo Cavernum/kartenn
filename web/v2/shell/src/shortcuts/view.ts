@@ -1,5 +1,5 @@
 import { onScopeDispose, shallowRef, type Ref } from "vue";
-import type { Period } from "../time/index.ts";
+import { writesOf, type Time } from "../time/index.ts";
 
 // The actions of the current view behind the shell's keys `/`, `c` and `e` (design 021
 // « Raccourcis ») and the palette's commands « Créer… », « Modifier… » (REQ-021-3): a view
@@ -49,10 +49,11 @@ export function useViewAction(id: ViewActionId, action: ViewAction): void {
  * The action `id` if it may run at `time` — `as_of` (nothing is written), `valid_at` alone
  * (the `dated` ones), the present — for `create` and `edit`.
  */
-export function runnable(id: ViewActionId, time: Period): ViewAction | null {
+export function runnable(id: ViewActionId, time: Time): ViewAction | null {
   const action = actions.value[id];
   if (!action || action.allowed?.() === false) return null;
   if (id === "filter") return action;
-  if (time.asOf !== null) return null;
-  return time.validAt === null || action.dated === true ? action : null;
+  const writes = writesOf(time);
+  if (!writes.draft) return null;
+  return writes.quickEdit || action.dated === true ? action : null;
 }

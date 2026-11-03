@@ -31,6 +31,7 @@ import {
   type ShellActions,
 } from "../src/shortcuts/shell.ts";
 import { runnable, setViewAction, useViewAction } from "../src/shortcuts/view.ts";
+import { timeOf } from "../src/time/index.ts";
 
 // The shortcuts of the shell (REQ-021-3, 7, 8; design « Raccourcis »): the registry and its
 // conflicts, the one listener (sequences, fields, consumers of characters, layers,
@@ -381,8 +382,8 @@ describe("help", () => {
 
 describe("actions of the view", () => {
   it("plays `c` and `e` at the present only, when allowed; `/` at any date", () => {
-    const present = { validAt: null, asOf: null };
-    const past = { validAt: null, asOf: "2026-01-01T00:00:00Z" };
+    const present = timeOf({});
+    const past = timeOf({ as_of: "2026-01-01T00:00:00Z" });
     const scope = effectScope();
     let allowed = true;
     scope.run(() => {
@@ -405,11 +406,12 @@ describe("actions of the view", () => {
       useViewAction("edit", { label: () => "Modifier", run: vi.fn(), dated: true });
       useViewAction("create", { label: () => "Créer", run: vi.fn() });
     });
-    const validAt = "2026-01-01T00:00:00Z";
-    expect(runnable("edit", { validAt, asOf: null })).not.toBeNull();
-    expect(runnable("create", { validAt, asOf: null })).toBeNull();
-    expect(runnable("edit", { validAt, asOf: "2026-06-30T12:00:00Z" })).toBeNull();
-    expect(runnable("edit", { validAt: null, asOf: "2026-06-30T12:00:00Z" })).toBeNull();
+    const valid_at = "2026-01-01T00:00:00Z";
+    const as_of = "2026-06-30T12:00:00Z";
+    expect(runnable("edit", timeOf({ valid_at }))).not.toBeNull();
+    expect(runnable("create", timeOf({ valid_at }))).toBeNull();
+    expect(runnable("edit", timeOf({ valid_at, as_of }))).toBeNull();
+    expect(runnable("edit", timeOf({ as_of }))).toBeNull();
     scope.stop();
   });
 
@@ -418,7 +420,7 @@ describe("actions of the view", () => {
     const second = { label: () => "b", run: vi.fn() };
     const removeFirst = setViewAction("edit", first);
     const removeSecond = setViewAction("edit", second);
-    const present = { validAt: null, asOf: null };
+    const present = timeOf({});
     removeFirst();
     expect(runnable("edit", present)).toBe(second);
     removeSecond();

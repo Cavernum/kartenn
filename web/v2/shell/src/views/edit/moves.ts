@@ -120,6 +120,19 @@ export type Refused = Extract<MoveCheck, { ok: false }>;
 /** A node that does not move, or a target of no admitted type. */
 const INCOMPATIBLE = { ok: false, refusal: "incompatible" } as const;
 
+/**
+ * « Changer de parent… » of a record (its menu of actions): the refusal of the record's
+ * writes (`refused`, a permission or `as_of`), or, a move being checked and written at the
+ * present only, `dated` off it — under `valid_at` alone too (REQ-021-5).
+ */
+export function moveEntryRefusal<R extends object>(
+  refused: R,
+  writes: { quickEdit: boolean },
+  dated: string,
+): R | { disabled: true; reason: string } {
+  return "forbidden" in refused || writes.quickEdit ? refused : { disabled: true, reason: dated };
+}
+
 export function useMoves(model: MoveModel) {
   const { t } = useI18n();
   const problems = useProblems();

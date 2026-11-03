@@ -42,8 +42,9 @@ import { useSettings } from "../frame/settings.ts";
 import KLink from "../prefetch/KLink.vue";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
-import { useTime } from "../time/index.ts";
+import { useTime, writesOf } from "../time/index.ts";
 import { EDITS, editRight } from "./edit/fields.ts";
+import { moveEntryRefusal } from "./edit/moves.ts";
 import { openEdit } from "./edit/panel.ts";
 import {
   anchorOf,
@@ -75,6 +76,8 @@ const { t, te } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const time = useTime();
+/** What may be written at the date read (`time/`): the draft, at once (the present). */
+const writes = computed(() => writesOf(time.value));
 const keyLabel = useKeyLabel();
 const settings = useSettings();
 
@@ -145,12 +148,8 @@ const actions = computed<MenuItem[]>(() => {
     ...("reason" in editBlocked.value ? { disabled: true } : {}),
     ...editBlocked.value,
   };
-  // A change of parent is checked and written at the present only (`moves.ts`): under
-  // `valid_at` alone too, refused with its reason.
-  const moveRefused =
-    "forbidden" in refused || time.value.present
-      ? refused
-      : { disabled: true, reason: t("edit.move.dated") };
+  // A change of parent at the present only (`moves.ts`): under `valid_at` alone too.
+  const moveRefused = moveEntryRefusal(refused, writes.value, t("edit.move.dated"));
   const own: MenuItem[] = movable.value
     ? [{ id: MOVE, label: t("edit.move.action"), icon: "move", ...moveRefused }]
     : [];
@@ -175,7 +174,7 @@ const mayEdit = computed(() => session.value.rights.has(editPermission.value));
 const blockedBy = (permission: string) =>
   !session.value.rights.has(permission)
     ? { forbidden: permission }
-    : time.value.asOf !== null
+    : !writes.value.draft
       ? { reason: t("edit.why.past") }
       : {};
 const editBlocked = computed(() => blockedBy(editPermission.value));

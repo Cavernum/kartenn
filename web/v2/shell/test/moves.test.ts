@@ -7,7 +7,8 @@ import { createApp, defineComponent, h, nextTick, type App } from "vue";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
 import { createShellI18n } from "../src/i18n/index.ts";
 import { loadSession, type Me } from "../src/rights/index.ts";
-import { useMoves, type Moves } from "../src/views/edit/moves.ts";
+import { timeOf, writesOf } from "../src/time/index.ts";
+import { moveEntryRefusal, useMoves, type Moves } from "../src/views/edit/moves.ts";
 import { nodesOf } from "../src/views/topology.ts";
 
 // The moves of the shell in a tree whose parent is declared (task 021-24; REQ-021-32, 33):
@@ -439,6 +440,31 @@ describe("moves in a tree whose parent is declared", () => {
     expect(await moves().move({ node: node(2), target: node(1) })).toEqual({ kind: "unchanged" });
     expect(moves().moveState(node(2))).toBeUndefined();
     expect(writes(seen)).toEqual([]);
+  });
+});
+
+describe("« Changer de parent… » of a record by the date read (task 021-12c)", () => {
+  const dated = createShellI18n("fr").global.t("edit.move.dated");
+
+  it("is refused under a validity date alone with edit.move.dated, the record's refusal kept otherwise", () => {
+    expect(dated).toBe("Lecture datée : revenez au présent pour changer de parent.");
+    const at = (query: Record<string, string>) => writesOf(timeOf(query));
+    // Under `valid_at` alone the record's other writes open (to the dated draft), not the move.
+    expect(moveEntryRefusal({}, at({ valid_at: "2026-01-01T00:00:00Z" }), dated)).toEqual({
+      disabled: true,
+      reason: dated,
+    });
+    // At the present, the record's own (nothing, or its permission).
+    expect(moveEntryRefusal({}, at({}), dated)).toEqual({});
+    const forbidden = { forbidden: "core.entity.edit" };
+    expect(moveEntryRefusal(forbidden, at({ valid_at: "2026-01-01T00:00:00Z" }), dated)).toBe(
+      forbidden,
+    );
+    // Under `as_of`, refused too, by the date.
+    expect(moveEntryRefusal({}, at({ as_of: "2026-01-01T00:00:00Z" }), dated)).toEqual({
+      disabled: true,
+      reason: dated,
+    });
   });
 });
 
