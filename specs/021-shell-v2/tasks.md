@@ -2241,7 +2241,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     qu'une clôture de l'objet attend au brouillon ; les maquettes nomment encore
     `core.<sorte>.apply` sur « Clore… » (E2, E12, E27).
 
-- [ ] 12b. Action d'écriture partagée par les panneaux (relevé par la revue de la 11g) :
+- [x] 12b. Action d'écriture partagée par les panneaux (relevé par la revue de la 11g) :
   un composable du type `useWriteAction` porte l'action scindée (brouillon ou
   application), le motif prérempli, la clé d'idempotence et `settle`, employé par
   `EditPanel` et `ClosePanel` ; la règle « opération nouvelle, clé nouvelle » y est écrite
@@ -2253,6 +2253,28 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/v2/shell/src/views/edit/{EditPanel,ClosePanel}.vue`, forme de
     `web/v2/shell/src/views/edit/` ; tests `web/v2/shell/test/{edit,close}.test.ts`
   - dépend de : 11g
+  - fait le 2026-11-03 — `views/edit/action.ts` : `useWriteAction` (action du bouton scindé,
+    `actions` refusées avec leur permission, `applying`, motif prérempli jusqu'à la saisie,
+    `idempotencyKey()`, `busy`, `notice`, `refusal`, `begin` — droit, présent —, `write` —
+    un rejet devient un refus `failed` qui garde son `ApiProblem` —, `settle`) ;
+    `EditPanel.vue` et `ClosePanel.vue` l'emploient, chacun gardant ses refus propres
+    (champs d'un 422, relecture d'un conflit) par `refused` ; Ctrl+Entrée d'une action
+    refusée dit sa permission dans `EditPanel` aussi ; un rejet du brouillon, de la création
+    appliquée ou d'un changement de parent rend le bouton ; `edit.close.forbidden` devenu
+    `edit.unsent`, commun ; la même phrase redite (deux Ctrl+Entrée refusés) est vidée puis
+    reposée, pour être annoncée de nouveau (revue `a11y-auditor`) ; test
+    `web/v2/shell/test/action.test.ts` (clé gardée, renouvelée par une opération ou un motif
+    nouveaux, rejet qui rend la main, refus et hors présent dits ; `EditPanel` monté :
+    Ctrl+Entrée sans `core.domain.edit` dit la permission, un rejet de `addToActiveDraft`
+    rend le bouton et dit le problème — les deux en échec sur l'`EditPanel` d'avant) ;
+    `edit.test.ts` et `close.test.ts` inchangés et verts (conflit de la 11g compris).
+  - choix : la clé se compare quand on la prend (l'envoi sérialisé avec son motif), au lieu
+    d'un `watch` qui la renouvelait — aucun changement manqué entre deux ticks ; la
+    soumission d'`EditPanel` est la sorte, les valeurs et la version lue ; `write.quick` en
+    échec garde son problème (avant : `problem: null`).
+  - reste : une alerte `warn` (conflit 412) de `RefusalAlert` est un `role="status"` inséré
+    avec son contenu, peu annoncé par les lecteurs d'écran (antérieur, `InlineAlert` de
+    `web/v2/ui`, hors de cette tâche ; revue `a11y-auditor`).
 
 ## P3 — Plugins (phase 5)
 

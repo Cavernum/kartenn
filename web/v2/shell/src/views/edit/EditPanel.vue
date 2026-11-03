@@ -16,15 +16,7 @@
 // by a local name, two operations of one changeset, to the draft or applied at once; a
 // refusal of the setting said on the field of the network.
 import { addToActiveDraft } from "@kartenn/sdk/host";
-import {
-  changesets,
-  keys,
-  reads,
-  write,
-  type Entry,
-  type Submission,
-  type WriteOutcome,
-} from "@kartenn/sdk";
+import { changesets, keys, reads, write, type Entry, type Submission } from "@kartenn/sdk";
 import {
   AttributeList,
   Button,
@@ -39,15 +31,11 @@ import {
   SplitButton,
   Stack,
   TextField,
-  injectToasts,
   type ListOption,
-  type SplitAction,
 } from "@kartenn/ui";
 import { computed, nextTick, ref, useTemplateRef, watch, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 import { useInfiniteQuery, useQuery } from "../../data/query.ts";
-import { useSession } from "../../rights/index.ts";
-import { useTime } from "../../time/index.ts";
 import {
   collectionById,
   collectionOfKind,
@@ -58,6 +46,7 @@ import {
 import ProblemState from "../../problems/ProblemState.vue";
 import { problemCode, useProblems } from "../../problems/index.ts";
 import { rowsOf, useKeyLabel } from "../data.ts";
+import { failed, useWriteAction } from "./action.ts";
 import {
   ANCHOR_KINDS,
   changesOf,
@@ -65,7 +54,6 @@ import {
   editRight,
   EDITS,
   initialValues,
-  lackingRight,
   patchOf,
   textOf,
   type EditField,
@@ -76,7 +64,6 @@ import type { Refusal } from "./inline.ts";
 import { useMoves, type MoveOutcome } from "./moves.ts";
 import { closeEdit, type FormRequest } from "./panel.ts";
 import RefusalAlert from "./RefusalAlert.vue";
-import { useSay } from "./say.ts";
 import {
   fieldErrors,
   NETWORK_VLAN_EDITS,
@@ -87,12 +74,7 @@ import {
 
 const props = defineProps<{ request: FormRequest }>();
 const { t, te } = useI18n();
-const session = useSession();
-const time = useTime();
 const keyLabel = useKeyLabel();
-// The panel closes once the write went through: « ajouté au brouillon » said by a toast too.
-const toasts = injectToasts();
-const say = useSay((text) => toasts?.show({ tone: "ok", title: text }));
 
 const chosenKind = ref<CollectionId>(props.request.collection);
 const collection = computed(() => collectionById(chosenKind.value)!);
@@ -271,10 +253,9 @@ watch(
   },
   { immediate: true },
 );
-/** An input of the user: a new submission, under a new idempotency key. */
+/** An input of the user: a new submission, under a new idempotency key (`action.ts`). */
 function setValue(name: string, value: string | boolean): void {
   values.value = { ...values.value, [name]: value };
-  idempotencyKey = crypto.randomUUID();
   if (name === "vid") vidProposed.value = null;
 }
 
@@ -318,8 +299,6 @@ const hintOf = (field: EditField) =>
       })
     : undefined;
 
-// The action of the split button: to the draft by default; « Appliquer » with the right.
-const action = ref("draft");
 /**
  * The edit permissions the action needs: `X.edit` of its kind; a VLAN set on a network also
  * writes the network and its property `core.vlan`. To apply, the approval of each.
@@ -328,23 +307,6 @@ const editRights = computed(() => [
   editRight(collection.value.type),
   ...(network.value ? NETWORK_VLAN_EDITS : []),
 ]);
-/** The permission an action lacks, named: an edit permission, or to apply its approval. */
-const lacking = (id: string) =>
-  lackingRight((p) => session.value.rights.has(p), editRights.value, id === "apply");
-const canApply = computed(() => lacking("apply") === null);
-const actions = computed<SplitAction[]>(() =>
-  [
-    { id: "draft", label: t("edit.toDraft"), icon: "draft" as const },
-    { id: "apply", label: t("edit.apply"), icon: "circle-check" as const },
-  ].map((a) => {
-    const permission = lacking(a.id);
-    return permission ? { ...a, forbidden: permission } : a;
-  }),
-);
-const applying = computed(() => action.value === "apply" && canApply.value);
-// The generic motive, prefilled until the user writes one of their own.
-const motive = ref("");
-let motiveTyped = false;
 /** A move's destination, in its words: the target chosen, or the root. */
 const destination = computed(() => {
   if (!moving.value) return "";
@@ -352,24 +314,34 @@ const destination = computed(() => {
   if (parent === "") return t("edit.move.root");
   return optionsOf(fields.value[0]!).find((o) => o.value === parent)?.label ?? parent;
 });
-watch(
-  [name, kindWords, destination],
-  () => {
-    if (motiveTyped) return;
+// The split button, the generic motive prefilled, the idempotency key and the outcome said
+// (`action.ts`): an input of the user, another kind, or the version read again after a 412
+// is a new submission.
+const {
+  action,
+  actions,
+  applying,
+  motive,
+  setMotive,
+  idempotencyKey,
+  busy,
+  notice,
+  refusal,
+  ...writing
+} = useWriteAction({
+  rights: () => editRights.value,
+  motive: () => {
     const words = { kind: kindWords.value, name: name.value, to: destination.value };
-    motive.value = network.value
+    return network.value
       ? t("edit.vlan.motiveFor", { network: network.value.name })
       : creating.value
         ? t("edit.motiveCreate", words)
         : t(moving.value ? "edit.move.motive" : "edit.motiveModify", words);
   },
-  { immediate: true },
-);
-function setMotive(text: string): void {
-  motive.value = text;
-  motiveTyped = true;
-  idempotencyKey = crypto.randomUUID();
-}
+  submission: () => [chosenKind.value, values.value, version.value],
+  words: { draft: "edit.toDraft", apply: "edit.apply", past: "edit.why.past" },
+  refused,
+});
 
 const title = computed(() => {
   const request = props.request;
@@ -385,14 +357,6 @@ const title = computed(() => {
 
 // The answers: errors of the fields (local check, then 422), a refusal kept with the input.
 const errors = ref<Record<string, string>>({});
-const refusal = ref<Refusal | null>(null);
-const notice = ref<string | null>(null);
-const busy = ref(false);
-/**
- * The key of a creation applied at once: kept while the user changes nothing, so that a try
- * again after a lost answer replays the same submission (REQ-006-15).
- */
-let idempotencyKey = crypto.randomUUID();
 /** The focus to the first field refused (local check, 422), its error read with it. */
 async function toFirstError(): Promise<void> {
   await nextTick();
@@ -436,40 +400,23 @@ function checked(): boolean {
   return Object.keys(found).length === 0;
 }
 
-function settle(outcome: WriteOutcome<unknown> | { kind: "saved" }, what: string): void {
-  busy.value = false;
-  if (outcome.kind === "saved") {
-    say.status(t("edit.drafted", { what }));
-    closeEdit();
-    return;
-  }
-  if (outcome.kind === "applied") {
-    say.applied(what, outcome.changeset);
-    closeEdit();
-    return;
-  }
-  if (outcome.kind === "proposed") {
-    say.proposed(what, outcome.changeset, outcome.reason);
-    closeEdit();
-    return;
-  }
-  const refused = outcome as Refusal;
-  refusal.value = refused;
-  if (refused.kind === "invalid") {
+/** A refusal of the server, kept in the panel with the input: on its fields, or read again. */
+function refused(answer: Refusal): void {
+  if (answer.kind === "invalid") {
     // Each violation on the field its pointer names: a member of the patch, or of the one
     // operation of a creation (`/operations/0/prefix` → « Valeur »); for a VLAN created for
     // a network, the setting of `core.vlan` (`/operations/1/…`) on the field of the network.
     errors.value = fieldErrors(
       collection.value.id,
       new Set(fields.value.map((field) => field.name)),
-      [...Object.values(refused.byField).flat(), ...refused.general],
+      [...Object.values(answer.byField).flat(), ...answer.general],
       network.value !== undefined,
     );
     void toFirstError();
   }
-  if (refused.kind === "conflict") {
+  if (answer.kind === "conflict") {
     // Applying again writes on the version read again; the input stays.
-    const current = refused.current?.data as Item | undefined;
+    const current = answer.current?.data as Item | undefined;
     if (current) {
       before.value = initialValues(fields.value, current);
       version.value = typeof current.version === "string" ? current.version : version.value;
@@ -478,14 +425,8 @@ function settle(outcome: WriteOutcome<unknown> | { kind: "saved" }, what: string
 }
 
 async function run(id: string = action.value): Promise<void> {
-  if (busy.value || lacking(id) !== null) return;
-  notice.value = null;
-  refusal.value = null;
-  // Checked again when it is written: nothing off the present, the draft included.
-  if (!time.value.present) {
-    notice.value = t("edit.why.past");
-    return;
-  }
+  // Checked again when it is written: the right, and nothing off the present (`action.ts`).
+  if (!writing.begin(id)) return;
   if (!checked()) {
     void toFirstError();
     return;
@@ -512,7 +453,6 @@ async function run(id: string = action.value): Promise<void> {
     notice.value = t("edit.unchanged");
     return;
   }
-  busy.value = true;
   // A VLAN for a network: its creation and the setting of `core.vlan` by its local name —
   // in a draft, one free in it, made by the SDK from the draft at the version it writes
   // (again after a 412); applied at once, the first.
@@ -520,10 +460,8 @@ async function run(id: string = action.value): Promise<void> {
     const op = creating.value
       ? edit.create(values.value)
       : edit.update(objectId.value!, version.value, changes);
-    const outcome = await addToActiveDraft(
-      network.value ? vlanForNetworkInDraft(op, network.value) : [op],
-    );
-    settle(outcome as WriteOutcome<unknown> | { kind: "saved" }, what);
+    const operations = network.value ? vlanForNetworkInDraft(op, network.value) : [op];
+    await writing.write(what, () => addToActiveDraft(operations));
     return;
   }
   if (creating.value) {
@@ -532,18 +470,18 @@ async function run(id: string = action.value): Promise<void> {
       motive: motive.value.trim(),
       operations: network.value ? vlanForNetwork(op, network.value, 0) : [op],
     };
-    settle(await changesets.submit(submission, idempotencyKey, { approvalSelf: true }), what);
+    const key = idempotencyKey();
+    await writing.write(what, () => changesets.submit(submission, key, { approvalSelf: true }));
     return;
   }
-  const outcome = await write
-    .quick({
+  await writing.write(what, () =>
+    write.quick({
       key: keys.object(collection.value.kind, objectId.value!),
       patch: patchOf(fields.value, changes),
       motive: motive.value.trim(),
       ...(version.value ? { ifMatch: `"${version.value}"` } : {}),
-    })
-    .catch(() => ({ kind: "failed", input: {}, problem: null }) as Refusal);
-  settle(outcome, what);
+    }),
+  );
 }
 
 /**
@@ -564,11 +502,14 @@ async function moveTo(parent: string, now: boolean, what: string): Promise<void>
   }
   busy.value = true;
   const label = optionsOf(fields.value[0]!).find((o) => o.value === parent)?.label ?? parent;
-  const outcome: MoveOutcome = await moves.move(
-    { node: movedNode.value, target: parent ? { id: parent, label } : null },
-    { now, motive: motive.value.trim(), idempotencyKey },
-  );
-  const refused = (check: { reason: string; code?: string }) => {
+  // A rejection settles as a refusal: the button given back, the problem said.
+  const outcome: MoveOutcome | Refusal = await moves
+    .move(
+      { node: movedNode.value, target: parent ? { id: parent, label } : null },
+      { now, motive: motive.value.trim(), idempotencyKey: idempotencyKey() },
+    )
+    .catch(failed);
+  const refuse = (check: { reason: string; code?: string }) => {
     busy.value = false;
     errors.value = { parent: check.code ? `${check.reason} (${check.code})` : check.reason };
     void toFirstError();
@@ -576,7 +517,7 @@ async function moveTo(parent: string, now: boolean, what: string): Promise<void>
   if (outcome.kind === "unchanged") {
     busy.value = false;
     notice.value = t("edit.unchanged");
-  } else if (outcome.kind === "refused") refused(outcome.check);
+  } else if (outcome.kind === "refused") refuse(outcome.check);
   else if (outcome.kind === "drafted") {
     const state = moves.moveState(movedNode.value);
     if (outcome.verdict === "unknown") {
@@ -585,14 +526,14 @@ async function moveTo(parent: string, now: boolean, what: string): Promise<void>
       notice.value = t("edit.move.unsimulated", { what });
       refusal.value = outcome.failure ?? null;
     } else if (outcome.verdict === "valid" || typeof state !== "object" || state.refused.ok) {
-      settle({ kind: "saved" }, what);
+      writing.settle({ kind: "saved" }, what);
     } else {
       // In the draft, but its simulation refuses it: its operation kept there, marked
       // refused; another target chosen here replaces it.
       notice.value = t("edit.move.keptRefused", { what });
-      refused(state.refused);
+      refuse(state.refused);
     }
-  } else settle(outcome, what);
+  } else writing.settle(outcome, what);
 }
 
 function onKeydown(event: KeyboardEvent): void {
