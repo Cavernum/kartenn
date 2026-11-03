@@ -438,7 +438,9 @@ sequenceDiagram
   l'ordre, rend le premier refus :
   1. cible = nœud ou descendant connu (ancêtres de la cible dans le cache) → « cycle » ;
   2. type de la cible absent des types de parent admis pour le type du nœud (table tirée
-     du contrat au build, comme `filters.ts`) → « parent incompatible » ;
+     du contrat au build, comme `filters.ts`), ou nature de la cible qui n'est jamais
+     parent (`PARENT_KINDS` : une machine `container` ou `appliance`) → « parent
+     incompatible » ;
   3. `rights.can` faux pour l'écriture du nœud ou de la cible → « droit manquant » ;
   4. contexte hors présent → « lecture datée » ;
   chaque motif porte le code de la règle serveur équivalente quand elle existe (table du
@@ -604,11 +606,18 @@ export { QueryObserver, InfiniteQueryObserver };      // @tanstack/query-core, m
 // règles) ; `draft.move` met le changement de parent au brouillon actif (remplace celui du
 // même nœud), simule le brouillon et rend le verdict de sa propre opération (`valid` avec
 // ses avertissements, `refused` avec sa règle, `unknown`) — le même que `useMoves` du shell.
+// `MoveSubject` : { id, type, kind? } ; la nature de la cible, quand elle est donnée, est
+// jugée par `PARENT_KINDS` (une machine `container` ou `appliance` n'héberge rien, M5 de la
+// 009 : « parent incompatible », `machines.host.invalid`) ; la paire de natures reste au
+// serveur. `draft.onActive` : chaque changement du brouillon actif de l'onglet (un autre,
+// ou aucun : quitté, supprimé, soumis, repris ailleurs), comme `drafts.onActive` de
+// l'hôte ; une marque « en brouillon » d'un plugin tombe alors (18cd).
 export function canMove(node: MoveSubject, target: MoveSubject | null, env: MoveEnv): MoveVerdict;
 export const draft: {
   active(): string | null;
   add(op: Operation): Promise<DraftOutcome<readonly Operation[]>>;  // saved, sinon Refusal
   move(op: Operation, node: MoveSubject): Promise<DraftMove>;
+  onActive(listener: (id: string | null) => void): () => void;      // rend l'arrêt
 };
 // handle.styles(root, path) : un fichier du plugin, ou la feuille partagée du shell
 // nommée par son spécifieur (`@kartenn/ui/style.css`), dans l'ordre des appels.

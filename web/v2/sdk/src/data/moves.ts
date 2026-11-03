@@ -15,6 +15,11 @@ import { PARENTS, type ParentRule } from "../api/parents.ts";
 export interface MoveSubject {
   readonly id: string;
   readonly type: string;
+  /**
+   * Its kind, when its type has kinds that may not be parents (a machine `container` or
+   * `appliance` hosts nothing: 009/M5); unknown, the server judges.
+   */
+  readonly kind?: string;
 }
 
 /** Why a target is refused, in the order the checks run. */
@@ -55,6 +60,16 @@ export const MOVE_CODES: Readonly<Record<string, Partial<Record<MoveRefusal, str
 };
 
 /**
+ * The kinds of a type that may be a parent at all, by type of the target (009/M5: a
+ * physical machine hosts a virtual one or a container, a virtual one a container; a
+ * container or an appliance hosts nothing). Whether the kind of the node suits the kind of
+ * the target stays the server's (`machines.host.invalid`).
+ */
+export const PARENT_KINDS: Readonly<Record<string, readonly string[]>> = {
+  "machines.machine": ["physical", "virtual"],
+};
+
+/**
  * The permission that writes an object of a type (verbs of the 024): `<type>.edit`, the
  * resource left out when it bears the name of its module (018 R2: `machines.machine` →
  * `machines.edit`, `flow.flow` → `flow.edit`).
@@ -90,6 +105,10 @@ export function canMove(node: MoveSubject, target: MoveSubject | null, env: Move
   }
   const rule = parentRule(node.type);
   if (!rule || (target ? !rule.parents.includes(target.type) : !rule.root)) {
+    return refuse("incompatible");
+  }
+  const kinds = target ? PARENT_KINDS[target.type] : undefined;
+  if (kinds && target?.kind !== undefined && !kinds.includes(target.kind)) {
     return refuse("incompatible");
   }
   for (const type of target ? [node.type, target.type] : [node.type]) {
