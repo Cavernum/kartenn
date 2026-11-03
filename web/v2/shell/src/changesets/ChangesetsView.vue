@@ -99,13 +99,10 @@ const countText = computed(() =>
   ),
 );
 const hasFilters = computed(() => filters.value.some((filter) => !filter.draft));
+/** The way out of the filters: its button leaves with the empty state, the focus goes to the bar. */
 function clearFilters(): void {
   onFilters(filters.value.filter((filter) => filter.draft));
-  void nextTick(() =>
-    (picker.value?.$el as HTMLElement | undefined)
-      ?.querySelector<HTMLElement>(".k-filter-picker__add")
-      ?.focus(),
-  );
+  void nextTick(() => picker.value?.focusAdd());
 }
 </script>
 
