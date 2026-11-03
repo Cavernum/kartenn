@@ -1,5 +1,13 @@
 import type { Locator, Page } from "@playwright/test";
-import { DATA, expect, expectAccessible, loginIn, test } from "../fixtures/journeys.ts";
+import {
+  apiCall,
+  DATA,
+  expect,
+  expectAccessible,
+  loginIn,
+  ownedDomain,
+  test,
+} from "../fixtures/journeys.ts";
 
 // Lists and records of the new shell (spec 021, task 11; REQ-021-9, 18, 22), ported from
 // web/e2e/journeys/records.spec.ts: from a domain to a prefix to an address, its inherited
@@ -211,4 +219,116 @@ test("a record hovered then opened shows without a skeleton (its reads prefetche
   // Neither the record nor its properties wait: no skeleton in the main panel at once.
   const main = page.getByRole("region", { name: DATA.address });
   expect(await main.locator(".k-skeleton-fill, [aria-busy='true']").count()).toBe(0);
+});
+
+// « Clore… » of a record (task 11g, 021/A31): the closure in the right panel, its simulation
+// said first; to the draft by Ctrl+Enter, then applied from the draft; refused by a rule, the
+// code said before and after it is sent. Each test closes in a domain of its own (RFC 5737).
+const unique = (browser: string) => `zz-close-${browser}-${Date.now().toString(36)}`;
+const counter = (page: Page) => page.getByRole("button", { name: /^Brouillon \d+ opération/ });
+const panel = (page: Page) => page.getByRole("complementary", { name: "Panneau droit" });
+const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+
+/** A domain of its own, its network 198.51.100.0/24 holding the address `address`. */
+async function closable(page: Page, browser: string, address: string): Promise<string> {
+  const { slug } = await ownedDomain(page, unique(browser));
+  const domains = (await apiCall(page, "GET", `/v1/domains?slug=${slug}`)).body as {
+    items: { id: string }[];
+  };
+  const created = await apiCall(page, "POST", "/v1/changesets?approval=self", {
+    motive: "end-to-end closure",
+    operations: [
+      { op: "create_address", domain: { id: domains.items[0]!.id }, address, usage: "host" },
+    ],
+  });
+  expect(created.status).toBe(201);
+  return slug;
+}
+
+/** « Clore… » of the record shown, from its menu of actions: the close panel. */
+async function closeFromRecord(page: Page, name: string): Promise<Locator> {
+  await expect(page.getByRole("heading", { level: 1, name: titled(name) })).toBeVisible();
+  await page.getByRole("main").getByRole("button", { name: "Actions" }).click();
+  await page.getByRole("menuitem", { name: "Clore…" }).click();
+  const form = page.getByRole("form", { name: new RegExp(`^Clore : .* ${escaped(name)}$`) });
+  await expect(form).toBeVisible();
+  return form;
+}
+
+test("an address closed from its record to the draft, at the keyboard, then applied", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const address = "198.51.100.10";
+  const slug = await closable(page, browserName, address);
+  await page.goto(`/addresses?domain=${slug}`);
+  await page.getByRole("grid", { name: "Adresses" }).getByRole("link", { name: address }).click();
+  const form = await closeFromRecord(page, address);
+  // Its simulation alone, said before anything is sent: it passes, the address alone.
+  await expect(form.getByText("La clôture passe les règles")).toBeVisible();
+  await expect(form).toContainText("Seul cet objet se clôt.");
+  const action = form.locator(".k-split-button__main");
+  await expect(action).toHaveText(/^Clore au brouillon/);
+  await expect(action).toBeFocused();
+  await expectAccessible(page);
+  await page.keyboard.press("Control+Enter");
+  await expect(form).toHaveCount(0);
+  await expect(counter(page)).toHaveAccessibleName(/^Brouillon 1 opération/);
+
+  // The draft, simulated, applied with its summary. The counter opens the panel on the draft,
+  // or closes it whatever its tab: the panel still open (the close panel just closed in its
+  // Détail tab), its tab Brouillon.
+  const draftTab = panel(page).getByRole("tab", { name: /Brouillon/ });
+  if (await draftTab.isVisible()) await draftTab.click();
+  else await counter(page).click();
+  await expect(draftTab).toHaveAttribute("aria-selected", "true");
+  const operations = panel(page).getByRole("list", { name: /^Opérations du brouillon/ });
+  await expect(operations).toContainText("close");
+  await expect(
+    panel(page).getByRole("status").filter({ hasText: "Simulation valide" }),
+  ).toBeVisible();
+  const summary = panel(page).getByRole("textbox", { name: /^Résumé/ });
+  await summary.focus();
+  await page.keyboard.press("Control+Enter");
+  await expect(page.getByRole("status").filter({ hasText: "Appliqué :" }).first()).toBeVisible();
+  await expect(counter(page)).toHaveAccessibleName(/^Brouillon 0 opération/);
+  // Closed: no longer in the list of the domain at the present.
+  await page.goto(`/addresses?domain=${slug}`);
+  await expect(page.getByText(/^Aucun objet/).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: address, exact: true })).toHaveCount(0);
+});
+
+test("a network closed alone is refused by a rule, its code said; the cascade counted", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const network = "198.51.100.0/24";
+  const slug = await closable(page, browserName, "198.51.100.20");
+  await page.goto(`/prefixes?domain=${slug}`);
+  await page.getByRole("grid", { name: "Préfixes" }).getByRole("link", { name: network }).click();
+  const form = await closeFromRecord(page, network);
+  // Before it is sent: the rule that refuses it, with its code.
+  await expect(form.getByText("Clôture refusée par les règles")).toBeVisible();
+  await expect(form).toContainText("core.address.outside_network");
+  await expectAccessible(page);
+
+  // Applied anyway: the server refuses it, on the action, with the same code.
+  await form.getByRole("button", { name: "Choisir l'action" }).click();
+  await page.getByRole("menuitem", { name: "Appliquer la clôture" }).click();
+  const motive = form.getByRole("textbox", { name: /^Motif/ });
+  await expect(motive).toHaveValue(new RegExp(`^Clôture : .* ${escaped(network)}$`));
+  await motive.press("Control+Enter");
+  const failed = form.locator(".k-inline-alert").filter({ hasText: "La clôture n'a pas abouti" });
+  await expect(failed).toBeVisible();
+  await expect(failed).toContainText("core.address.outside_network");
+  await expectAccessible(page);
+
+  // With the cascade: it passes, the address closed with it, counted.
+  await form.getByRole("checkbox", { name: "Clore aussi ce qui en dépend" }).check();
+  await expect(form.getByText("La clôture passe les règles")).toBeVisible();
+  await expect(form).toContainText(/Se closent avec lui : .* · 1\./);
 });

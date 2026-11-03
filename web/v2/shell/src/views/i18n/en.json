@@ -417,6 +417,29 @@
       "noVersion": "Nothing sent: the version of the object could not be read. Try again.",
       "unsimulated": "Added to the draft: {what}. Its simulation could not be done.",
       "keptRefused": "Added to the draft: {what}. The simulation refuses it; the operation stays in the draft, another target chosen here replaces it."
+    },
+    "close": {
+      "action": "Close…",
+      "title": "Close: {kind} {name}",
+      "what": "{kind} {name} (closure)",
+      "motive": "Closure: {kind} {name}",
+      "toDraft": "Close in the draft",
+      "apply": "Apply the closure",
+      "cascade": "Also close what depends on it",
+      "cascadeHint": "Each dependent closes under your rights; the simulation says which.",
+      "simulating": "Simulating the closure…",
+      "unsimulated": "The closure could not be simulated",
+      "forbidden": "Nothing sent: it takes {permission}.",
+      "valid": "The closure passes the rules",
+      "alone": "This object alone closes.",
+      "withIt": "Closed with it: {list}.",
+      "refused": "Closure refused by the rules",
+      "refusedDependents": "If it has dependents, tick “Also close what depends on it” to close them with it.",
+      "warnings": "Warnings of the closure",
+      "failed": "The closure did not go through",
+      "conflict": "The object changed since it was read: the closure now bears on the version read again, run it again.",
+      "past": "Read only off the present: go back to the present to close.",
+      "readError": "{kind}: the object to close could not be read."
     }
   }
 }

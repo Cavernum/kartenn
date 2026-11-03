@@ -241,6 +241,8 @@ watch([panelOpen, panelTab, panelWidth], ([open, tab, w]) => keepPanel({ open, t
 // The edit panel of a kind (task 12, REQ-021-36): asked by a view, shown in the Détail tab,
 // the panel opened on it; its code in its own chunk, read when first asked for.
 const EditPanel = defineAsyncComponent(() => import("../views/edit/EditPanel.vue"));
+// « Clore… » of a record (021/A31, task 11g): the closure in the same place, its own panel.
+const ClosePanel = defineAsyncComponent(() => import("../views/edit/ClosePanel.vue"));
 const editing = editRequest();
 watch(editing, (request) => {
   if (!request) return;
@@ -868,7 +870,8 @@ onBeforeUnmount(
           :shortcut="settings.singleKeys.value ? [']'] : undefined"
         >
           <template #detail>
-            <EditPanel v-if="editing" :key="editing.serial" :request="editing" />
+            <ClosePanel v-if="editing?.mode === 'close'" :key="editing.serial" :request="editing" />
+            <EditPanel v-else-if="editing" :key="editing.serial" :request="editing" />
             <component
               :is="routeDetail"
               v-else-if="routeDetail && detailId"

@@ -6,7 +6,8 @@
 // next free value. Read at the dates of the page; an object out of reach (404, 403) says
 // so with its codes, never a blank page. « Modifier » (`e`) opens the edit panel of the
 // kind (task 12); « Changer de parent… », in the menu of an entity or a site, the same panel
-// on the parent alone (task 24, REQ-021-32).
+// on the parent alone (task 24, REQ-021-32); « Clore… », last in the menu of every kind, its
+// closure in the same place (`ClosePanel`, task 11g, 021/A31).
 import { reads } from "@kartenn/sdk";
 import {
   AttributeList,
@@ -132,23 +133,30 @@ const object = computed(() =>
     ),
   ),
 );
-/** The menu of actions: « Changer de parent… » of an entity or a site, those of the plugins. */
+/**
+ * The menu of actions: « Changer de parent… » of an entity or a site, those of the plugins,
+ * then « Clore… » (021/A31, task 11g), last, apart.
+ */
 const MOVE = "core:move";
+const CLOSE = "core:close";
 const movable = computed(() => EDITS[props.collection.id].move !== undefined);
 const actions = computed<MenuItem[]>(() => {
+  const refused = {
+    ...("reason" in editBlocked.value ? { disabled: true } : {}),
+    ...editBlocked.value,
+  };
   const own: MenuItem[] = movable.value
-    ? [
-        {
-          id: MOVE,
-          label: t("edit.move.action"),
-          icon: "move",
-          ...("reason" in editBlocked.value ? { disabled: true } : {}),
-          ...editBlocked.value,
-        },
-      ]
+    ? [{ id: MOVE, label: t("edit.move.action"), icon: "move", ...refused }]
     : [];
+  // The plugins' entries open with a separator (`actionItems`): none at the top of the menu.
   const theirs = actionItems(pluginActions.value, tr);
-  return own.length > 0 ? [...own, ...theirs] : theirs.filter((i) => i.kind !== "separator");
+  const lead = theirs[0]?.kind === "separator" ? theirs.slice(1) : theirs;
+  const before = own.length > 0 ? [...own, ...theirs] : lead;
+  return [
+    ...before,
+    ...(before.length > 0 ? [{ kind: "separator" } as const] : []),
+    { id: CLOSE, label: t("edit.close.action"), icon: "trash", danger: true, ...refused },
+  ];
 });
 
 // « Modifier » (`e`): the edit panel of the kind (task 12, REQ-021-36), at the present and
@@ -174,12 +182,13 @@ useViewAction("edit", {
 const acting = ref<Placed | null>(null);
 const actionOpen = ref(false);
 function onAction(id: string): void {
-  if (id === MOVE) {
+  if (id === MOVE || id === CLOSE) {
     // Once the menu has closed and given the focus back to its button: the panel then takes
     // it to its first field, and gives it back to that button when it closes.
+    const mode = id === MOVE ? "move" : "close";
     void nextTick(() =>
       requestAnimationFrame(() =>
-        openEdit({ mode: "move", collection: props.collection.id, id: props.id }),
+        openEdit({ mode, collection: props.collection.id, id: props.id }),
       ),
     );
     return;
@@ -293,7 +302,6 @@ const linkOf = (field: string) => {
         >{{ t("edit.modifyButton") }}</Button
       >
       <Menu
-        v-if="actions.length > 0"
         :label="t('views.actions')"
         icon="ellipsis"
         align="end"

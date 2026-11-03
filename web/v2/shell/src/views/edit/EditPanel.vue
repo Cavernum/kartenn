@@ -74,7 +74,7 @@ import {
 import { VLAN_PROPERTY } from "../parts/vlan.ts";
 import type { Refusal } from "./inline.ts";
 import { useMoves, type MoveOutcome } from "./moves.ts";
-import { closeEdit, type ShownRequest } from "./panel.ts";
+import { closeEdit, type FormRequest } from "./panel.ts";
 import RefusalAlert from "./RefusalAlert.vue";
 import { useSay } from "./say.ts";
 import {
@@ -85,7 +85,7 @@ import {
   vlanForNetworkInDraft,
 } from "./vlan.ts";
 
-const props = defineProps<{ request: ShownRequest }>();
+const props = defineProps<{ request: FormRequest }>();
 const { t, te } = useI18n();
 const session = useSession();
 const time = useTime();
