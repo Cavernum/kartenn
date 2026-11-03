@@ -8,6 +8,7 @@ import {
   DataGrid,
   EmptyState,
   KeyLabel,
+  NoValue,
   Toolbar,
   type CellRef,
   type GridColumn,
@@ -181,7 +182,8 @@ const total = computed(() =>
         <template v-else-if="column.id === 'builtin'">{{
           row.builtin ? t("admin.yes") : t("admin.no")
         }}</template>
-        <span v-else class="k-num">{{ value ?? "—" }}</span>
+        <NoValue v-else-if="value === null || value === undefined" />
+        <span v-else class="k-num">{{ value }}</span>
       </template>
     </DataGrid>
   </ViewPanel>

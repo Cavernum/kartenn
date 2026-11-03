@@ -11,6 +11,7 @@ import {
   EmptyState,
   FilterPicker,
   InlineAlert,
+  NoValue,
   StatusBadge,
   injectToasts,
   type CellRef,
@@ -229,7 +230,10 @@ function clearFilters(): void {
           :state="outcomeBadge(row.outcome)"
           :label="words.outcome(row.outcome)"
         />
-        <template v-else-if="column.id === 'target'">{{ words.targets(row) }}</template>
+        <template v-else-if="column.id === 'target' && words.targets(row)">{{
+          words.targets(row)
+        }}</template>
+        <NoValue v-else-if="column.id === 'target'" />
       </template>
     </DataGrid>
     <template #footer>

@@ -220,6 +220,16 @@ describe("the review of a changeset", () => {
     // Any other list too, item by item (a reference, a text, an object as JSON); empty, `[]`.
     expect(memberText([{ id: P1 }, "x", { a: 1 }])).toBe(`${P1}, x, {"a":1}`);
     expect(memberText([])).toBe("[]");
+    // Absent: `null`, said by the line (`NoValue`), never a dash read « tiret » (020-30).
+    expect(memberText(null)).toBeNull();
+    expect(memberText([null, "x"])).toBe("null, x");
+    expect(
+      operationLine({ op: "within", period: null, operation: { op: "delete_prefix", id: P1 } })
+        .members,
+    ).toContainEqual({ name: "period", value: null });
+    expect(operationLine({ op: "update_range", first: "192.0.2.1", last: null }).subject).toBe(
+      "192.0.2.1",
+    );
   });
 
   it("counts « À instruire » in the sidebar, nothing shown at zero", () => {

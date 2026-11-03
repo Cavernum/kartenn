@@ -17,6 +17,7 @@ import {
   ErrorState,
   FilterPicker,
   KeyLabel,
+  NoValue,
   StatusBadge,
   type CellRef,
   type GridColumn,
@@ -300,7 +301,7 @@ function clearFilters(): void {
     >
       <template #cell="{ row, column, value }">
         <KLink v-if="column.id === props.collection.columns[0]!.id" :to="recordOf(row)">{{
-          columnOf(column.id)?.ownValue ? fieldText(value) : nameOf(row)
+          (columnOf(column.id)?.ownValue && fieldText(value)) || nameOf(row)
         }}</KLink>
         <StatusBadge
           v-else-if="columnOf(column.id)?.states?.[String(value)]"
@@ -332,6 +333,7 @@ function clearFilters(): void {
         <template v-else-if="typeof value === 'boolean'">{{
           t(`views.value.boolean.${value}`)
         }}</template>
+        <NoValue v-else-if="fieldText(value) === null" />
         <template v-else>{{ fieldText(value) }}</template>
       </template>
     </DataGrid>

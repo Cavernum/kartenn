@@ -9,8 +9,8 @@ export interface OperationLine {
   op: string;
   /** What it names: the value created (`192.0.2.0/24`), a slug, a key, an identifier. */
   subject: string | null;
-  /** Its other members, `name: value`, each value as text. */
-  members: { name: string; value: string }[];
+  /** Its other members, `name: value`, each value as text (`null`: absent, `NoValue`). */
+  members: { name: string; value: string | null }[];
 }
 
 /** The members that name what an operation creates or writes, in order of preference. */
@@ -20,14 +20,16 @@ const HIDDEN = new Set(["op", "expected", "local"]);
 
 /**
  * A member value as text: a reference by its identifier (a local name as `#n`), a list of
- * values joined, JSON otherwise.
+ * values joined, JSON otherwise; absent, `null`, said by the line (`NoValue`).
  */
-export function memberText(value: unknown): string {
-  if (value === null || value === undefined) return "—";
+export function memberText(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
-  // The values of an assignment: each as text (`#0` for the VLAN an earlier operation creates).
-  if (Array.isArray(value) && value.length > 0) return value.map(memberText).join(", ");
+  // The values of an assignment: each as text (`#0` for the VLAN an earlier operation creates),
+  // an item absent as its JSON (`null`).
+  if (Array.isArray(value) && value.length > 0)
+    return value.map((item) => memberText(item) ?? "null").join(", ");
   if (typeof value === "object" && !Array.isArray(value)) {
     const ref = value as Record<string, unknown>;
     if (typeof ref.id === "string" && Object.keys(ref).length === 1) return ref.id;
@@ -46,7 +48,8 @@ export function operationLine(operation: Operation | Record<string, unknown>): O
     };
   }
   const subjectName = SUBJECTS.find((name) => op[name] !== undefined && op[name] !== null);
-  const first = op.first !== undefined && op.last !== undefined;
+  // A range by its two ends; an end absent is not written (absent members are left out).
+  const first = op.first != null && op.last != null;
   const subject = subjectName
     ? first && subjectName === "first"
       ? `${memberText(op.first)}–${memberText(op.last)}`
