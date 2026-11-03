@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import type { Page } from "@playwright/test";
-import { expect, expectAccessible, test } from "../fixtures/journeys.ts";
+import { apiCall, expect, expectAccessible, test } from "../fixtures/journeys.ts";
 
 // The frame of the new shell (spec 021, task 9; REQ-021-1, 2, 4, 6): the skip link first,
 // the spaces by rights, the breadcrumb, the sidebar collapsed and kept, the settings of the
@@ -8,6 +10,12 @@ import { expect, expectAccessible, test } from "../fixtures/journeys.ts";
 // (2.4.11). Ported from web/e2e/journeys/shell.spec.ts.
 
 const navigation = (page: Page) => page.getByRole("navigation", { name: "Navigation principale" });
+
+/** The packages of web/v2, and the framework as the shell resolves it. */
+const V2 = new URL("../../", import.meta.url);
+const shellRequire = createRequire(new URL("shell/package.json", V2));
+const versionOf = (path: string) =>
+  (JSON.parse(readFileSync(new URL(path, V2), "utf8")) as { version: string }).version;
 
 test("the skip link is the first stop and leads to the content", async ({ page, login }) => {
   await login("bob");
@@ -89,6 +97,47 @@ test("language, theme and density are chosen from the user menu and kept", async
   await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(page.locator("html")).toHaveAttribute("data-density", "comfortable");
+});
+
+test.describe("in a time zone of its own", () => {
+  // Not the zone of the machine: the page shows the browser's, whatever it is.
+  const zone = "America/Sao_Paulo";
+  test.use({ timezoneId: zone });
+
+  test("the about page names the versions of the build and of the server, and the time zone", async ({
+    page,
+    login,
+  }) => {
+    await login("bob");
+    // What the page shows comes from the build and the server, never from this journey.
+    const { version: server } = (await apiCall(page, "GET", "/v1/capabilities")).body as {
+      version: string;
+    };
+    await page.getByRole("button", { name: "Compte de Bob Exemple" }).click();
+    await page.getByRole("menuitem", { name: "À propos" }).click();
+    await expect(page).toHaveURL(/\/about$/);
+    await expect(page.getByRole("heading", { level: 1, name: "À propos" })).toBeVisible();
+    const facts = page.getByRole("region", { name: "Versions" }).locator("dl");
+    // The row of the server comes once the capabilities are read.
+    await expect
+      .poll(() =>
+        facts.evaluate((dl) =>
+          [...dl.querySelectorAll("dt")].map((dt) => [
+            dt.textContent?.trim(),
+            dt.nextElementSibling?.textContent?.trim(),
+          ]),
+        ),
+      )
+      .toEqual([
+        ["Shell", versionOf("shell/package.json")],
+        ["SDK des plugins", versionOf("sdk/package.json")],
+        ["Bibliothèque de composants", versionOf("ui/package.json")],
+        ["Vue", versionOf(shellRequire.resolve("vue/package.json"))],
+        ["Serveur", server],
+        ["Fuseau horaire des dates", zone],
+      ]);
+    await expectAccessible(page);
+  });
 });
 
 test("the draft counter opens the panel on its tab, then closes it", async ({ page, login }) => {

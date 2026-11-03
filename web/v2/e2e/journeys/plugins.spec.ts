@@ -202,6 +202,31 @@ test("the screens of the referential place the tile, the tab, the panel and the 
   await expectAccessible(page);
 });
 
+test("an action is absent without its permission", async ({ page, login }) => {
+  // Bob reads, he does not edit: the action of the example on a prefix asks
+  // core.address.edit (Alice's, journey `example`), its tab only core.prefix.read.
+  await login("bob");
+  await page.goto("/prefixes");
+  await page
+    .getByRole("grid", { name: "Préfixes" })
+    .getByRole("link", { name: DATA.prefix })
+    .click();
+  await expect(page).toHaveURL(/\/prefixes\/[0-9a-f-]+$/);
+  // The plugin is loaded and placed on this record: its tab is there.
+  await expect(
+    page
+      .getByRole("tablist", { name: "Sections de la fiche" })
+      .getByRole("tab", { name: "Exemple" }),
+  ).toBeVisible();
+  await page.getByRole("main").getByRole("button", { name: "Actions" }).click();
+  // The menu opens, with the actions of the core (refused to him, said so), not the plugin's.
+  await expect(page.getByRole("menuitem", { name: "Clore…" })).toBeVisible();
+  await expect(
+    page.getByRole("menuitem", { name: "Ajouter une adresse au brouillon" }),
+  ).toHaveCount(0);
+  await expectAccessible(page);
+});
+
 test("an action on the type changeset: in « … » of its record, its dialog closed by kartenn-close", async ({
   page,
   login,

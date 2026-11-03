@@ -2527,13 +2527,48 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/shell/src/draft/` (`DraftSubmit`, `LostSubmissions`) ; ancien parcours
     `web/e2e/journeys/draft.spec.ts`
   - dépend de : 14, 12b
-- [ ] 16h. « À propos » et actions des plugins, reste prouvé : versions (shell, SDK,
+- [ ] 14e. Brouillon daté sous `valid_at` seul (REQ-021-5, X5 ; relevé par la revue de la
+  12c) : « Ajouter au brouillon » sous une date de validité préremplit `valid_from` du
+  brouillon ; le panneau et la page du brouillon laissent retirer une opération et
+  soumettre à la date lue (aujourd'hui refusés hors présent : `draft/state.ts` vers la
+  ligne 118, `DraftOperations.vue` vers les lignes 75 et 145, `DraftsView.vue` vers la
+  ligne 99) ; sous `as_of`, tout reste en lecture seule (14d) — verify : Vitest de l'état
+  du brouillon par période ; parcours `draft` et `time` (une opération ajoutée sous
+  `valid_at`, retirée puis soumise à la date lue) sous les deux navigateurs
+  - où : `web/v2/shell/src/draft/`, `writesOf` de `web/v2/shell/src/time/index.ts`
+  - dépend de : 12c, 14d
+- [ ] 12d. Créer sous `valid_at` seul (REQ-021-5, X5 ; relevé par la revue de la 12c) :
+  « Créer » (`c`) des listes et « + » de la Topographie mènent au brouillon daté sous une
+  date de validité, comme « Modifier » de la fiche ; « Appliquer » refusé avec sa raison ;
+  rien sous `as_of` ; la raison d'une cellule sous `valid_at` dit le brouillon daté, et
+  non « revenez au présent » — verify : Vitest des raccourcis par période ; parcours
+  `time` (création au brouillon sous `valid_at`) sous les deux navigateurs
+  - où : `web/v2/shell/src/views/{ListView,TopologyView}.vue`, `shortcuts/view.ts`
+    (`dated`), `views/edit/` ; `writesOf`
+  - dépend de : 12c
+- [x] 16h. « À propos » et actions des plugins, reste prouvé : versions (shell, SDK,
   `@kartenn/ui`, Vue, serveur) et fuseau horaire affichés ; une action de plugin absente
   sans sa permission — verify : parcours `shell` et `plugins` sous les deux navigateurs ;
   lignes 31, 92, 187 et 198 cochées
-  - où : `web/v2/shell/src/views/AboutView.vue`, `plugins/` (`PluginAction`) ; anciens
+  - où : `web/v2/shell/src/frame/AboutView.vue`, `plugins/` (`PluginAction`) ; anciens
     parcours `web/e2e/journeys/{shell,plugins}.spec.ts`
   - dépend de : 16
+  - fait le 2026-11-03 : parcours seulement, le code était livré par la 16 (`AboutView`,
+    `extensionsOf` filtré par les droits). `shell` (« the about page names the versions of
+    the build and of the server, and the time zone ») : Bob ouvre « À propos » par le menu
+    du compte ; les six lignes de `Versions` comparées à ce que le build et le serveur
+    servent, aucune écrite à la main — `package.json` du shell, du SDK et de `@kartenn/ui`,
+    celui de `vue` résolu depuis le shell, `version` de `GET /v1/capabilities` — et le
+    fuseau du contexte (`timezoneId`), un autre que celui de la machine. `plugins` (« an
+    action is absent without its permission ») : Bob (lecteur) sur la fiche du préfixe des
+    données, l'onglet « Exemple » du plugin d'exemple placé, le menu « Actions » ouvert avec
+    « Clore… » (refusé) et sans « Ajouter une adresse au brouillon » (`core.address.edit`,
+    celle d'Alice dans `example`). `PARITE.md` : lignes 31, 92, 187 et 198 cochées.
+  - choix : l'action absente est celle du plugin d'exemple sur `prefix`, pas `review` du
+    plugin `notes` (sur `changeset`, dont la fiche demande déjà `core.changeset.read`, la
+    permission de l'action : aucun compte ne verrait la fiche sans elle) ; le serveur
+    comparé au champ `version` des capacités, que le shell lit dans `modules[core]` (même
+    `CARGO_PKG_VERSION` de `kartenn-rest`).
 
 ## P3 — Plugins (phase 5)
 
