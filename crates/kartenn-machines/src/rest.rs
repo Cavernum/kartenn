@@ -1,8 +1,8 @@
 //! The routes of the module under `/v1` (feature `rest`; spec 009, REQ-009-15 to 18;
 //! design « Routes »), mounted by kartenn-server: clusters, machines and interfaces as
 //! collections, dated, paged, filtered and readable as the routes of the core; the card of
-//! a machine with its interfaces and addresses; the addresses of a machine, the machines
-//! hosted by a machine or a cluster; writes by changeset, Merge Patch under `If-Match`;
+//! a machine with its interfaces and addresses; the addresses of a machine, the interfaces
+//! of a network with their addresses in it, the machines hosted by a machine or a cluster; writes by changeset, Merge Patch under `If-Match`;
 //! the attachment and the detachment of an address under the `If-Match` of the interface.
 //!
 //! An object the caller may not read answers as an absent one (ADR 0021); a list keeps
@@ -141,6 +141,11 @@ pub struct InterfaceDto {
     pub enabled: bool,
     /// Its 802.1Q mode.
     pub vlan: VlanDto,
+    /// In a list filtered by `network` only: its addresses in the network that the caller
+    /// may read, by value (021/A28).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
+    pub addresses: Option<Vec<CardAddress>>,
     /// Its URL.
     pub href: String,
 }
@@ -181,8 +186,8 @@ pub struct CardInterface {
     pub href: String,
 }
 
-/// An address on the card of a machine.
-#[derive(Debug, Serialize, ToSchema)]
+/// An address on the card of a machine, or of an interface in a list by network.
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 #[schema(as = MachineCardAddress)]
 pub struct CardAddress {
     /// Identifier.
@@ -488,6 +493,9 @@ struct InterfaceRow {
     access_vlan_id: Option<Uuid>,
     native_vlan_id: Option<Uuid>,
     tagged_vlan_ids: Vec<Uuid>,
+    /// Its addresses in the network of a list by network, absent from the other reads.
+    #[sqlx(default)]
+    addresses: Option<sqlx::types::Json<Vec<CardAddress>>>,
 }
 
 /// The select list of a machine: its columns, then its resolved owner and site at `$1`.
@@ -546,6 +554,7 @@ fn interface_dto(row: InterfaceRow) -> InterfaceDto {
                 .map(|id| IdRef { id })
                 .collect(),
         },
+        addresses: row.addresses.map(|held| held.0),
         href: format!("/v1/interfaces/{}", row.id),
     }
 }
@@ -915,10 +924,61 @@ fn media_is(param: &str) -> String {
     )
 }
 
+/// The condition that the interface `x` holds an address of the network `$15` that the
+/// caller may read, at (`$1`, `$2`): correlated in `LATERAL` joins from the network down,
+/// as the filter `network` of the machines.
+fn in_network() -> String {
+    format!(
+        "x.id IN (SELECT t.interface_id FROM {p} p
+                    CROSS JOIN LATERAL {a} a
+                    CROSS JOIN LATERAL {t} t
+                   WHERE $3::jsonb IS NULL OR {visible})",
+        p = dated_where("public.prefix", "id, domain_id, prefix", "id = $15"),
+        a = dated_where(
+            "public.address",
+            "id, domain_id, address",
+            "domain_id = p.domain_id AND address <<= p.prefix"
+        ),
+        t = dated_where("machines.attachment", "interface_id", "address_id = a.id"),
+        visible = address_visible("a"),
+    )
+}
+
+/// The addresses of the network `$15` held by the interface `x` that the caller may read,
+/// by value, as a JSON array of [`CardAddress`]; null without `$15`. Evaluated on the rows
+/// of the page only, in the query of the page.
+fn network_addresses() -> String {
+    format!(
+        "CASE WHEN $15::uuid IS NULL THEN NULL ELSE coalesce(
+           (SELECT jsonb_agg(jsonb_build_object('id', a.id, 'value', host(a.address),
+                                                'primary', t.primary_for_family)
+                             ORDER BY a.address)
+              FROM {p} p
+              CROSS JOIN LATERAL {t} t
+              CROSS JOIN LATERAL {a} a
+             WHERE $3::jsonb IS NULL OR {visible}),
+           '[]'::jsonb) END",
+        p = dated_where("public.prefix", "id, domain_id, prefix", "id = $15"),
+        t = dated_where(
+            "machines.attachment",
+            "address_id, primary_for_family",
+            "interface_id = x.id"
+        ),
+        a = dated_where(
+            "public.address",
+            "id, domain_id, address",
+            "id = t.address_id AND domain_id = p.domain_id AND address <<= p.prefix"
+        ),
+        visible = address_visible("a"),
+    )
+}
+
 /// `GET`/`QUERY /v1/interfaces`: by machine then name, filtered by `machine`, `name`,
 /// `mac`, `address` (the interface that holds it at the date) and `vlan` (access, native
-/// or tagged) and `media` (the key of its `machines.interface_media`, REQ-009-26), in
-/// conjunction (REQ-009-15).
+/// or tagged), `media` (the key of its `machines.interface_media`, REQ-009-26) and
+/// `network` (holding an address of the network the caller may read; each interface then
+/// carries those addresses, 021/A28), in conjunction (REQ-009-15).
+#[allow(clippy::too_many_lines)] // a list, its filters, its query and the reads it journals
 async fn list_interfaces(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -930,11 +990,14 @@ async fn list_interfaces(
     let (page, prefix) = kit::suggestion(Page::from_query(&query, &api.ring, NAME)?)?;
     let wanted = filters(
         &page,
-        &["machine", "name", "mac", "address", "vlan", "media", "q"],
+        &[
+            "machine", "name", "mac", "address", "vlan", "media", "network", "q",
+        ],
     )?;
     let machine = optional_uuid(&wanted, "machine")?;
     let address = optional_uuid(&wanted, "address")?;
     let vlan = optional_uuid(&wanted, "vlan")?;
+    let network = optional_uuid(&wanted, "network")?;
     let mac = wanted
         .get("mac")
         .map(|m| {
@@ -946,9 +1009,13 @@ async fn list_interfaces(
     let after = after::<(Uuid, String, Uuid)>(&page)?;
     let (moment, scope) = reading(&api, &principal, &page).await?;
     let media = media_is("$14");
+    let in_network = in_network();
+    let addresses = network_addresses();
+    // The page in a subquery, its addresses computed on its rows only, after its `LIMIT`.
     let sql = format!(
         "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($3))
-         SELECT {INTERFACE_SELECT}
+         SELECT x.*, {addresses} AS addresses
+           FROM (SELECT {INTERFACE_SELECT}
            FROM {} x
           WHERE ($4::uuid IS NULL OR x.machine_id = $4)
             AND ($5::text IS NULL OR x.name = $5)
@@ -960,9 +1027,11 @@ async fn list_interfaces(
             AND ($9::uuid IS NULL OR (x.machine_id, x.name, x.id) > ($9, $10::text, $11::uuid))
             AND ($13::text IS NULL OR lower(x.name) LIKE $13)
             AND ($14::text IS NULL OR {media})
+            AND ($15::uuid IS NULL OR {in_network})
             AND ($3::jsonb IS NULL OR {})
           ORDER BY x.machine_id, x.name, x.id
-          LIMIT $12",
+          LIMIT $12) x
+          ORDER BY x.machine_id, x.name, x.id",
         listed(
             "machines.interface",
             INTERFACE_COLUMNS,
@@ -990,6 +1059,7 @@ async fn list_interfaces(
         .bind(i64::from(page.size) + 1)
         .bind(prefix.as_deref())
         .bind(wanted.get("media").copied())
+        .bind(network)
         .fetch_all(&mut *snapshot)
         .await
         .map_err(|e| kit::store(&e))?;
@@ -1016,6 +1086,22 @@ async fn list_interfaces(
         criteria(NAME, &page, &moment),
     )
     .await?;
+    // The addresses served with the interfaces of a network are read as well.
+    if network.is_some() {
+        let held: Vec<Uuid> = rows
+            .iter()
+            .flat_map(|r| r.addresses.iter().flat_map(|held| held.0.iter()))
+            .map(|a| a.id)
+            .collect();
+        kit::record_read(
+            &api,
+            &context,
+            "address",
+            &held,
+            criteria(NAME, &page, &moment),
+        )
+        .await?;
+    }
     let items: Vec<InterfaceDto> = rows.into_iter().map(interface_dto).collect();
     let items = kit::versioned(&items, &versions);
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
@@ -1571,6 +1657,11 @@ pub fn routes() -> ModuleRouter {
             (
                 "media",
                 "Of this medium, a key of `machines.interface_media`.",
+            ),
+            (
+                "network",
+                "Holding an address of this network that the caller may read; each \
+                 interface then carries those addresses in `addresses`.",
             ),
             ("q", "the name"),
         ],
