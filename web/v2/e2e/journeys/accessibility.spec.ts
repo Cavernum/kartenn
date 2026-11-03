@@ -37,32 +37,65 @@ test("every journey runs axe", () => {
 
 /**
  * The entries of the spaces of the core (shell/src/frame/spaces.ts), by their path: read
- * from the source, so that an entry added is a screen checked.
+ * from the source, so that an entry added is a screen checked. Each entry also has its
+ * icon, the only `icon: "…"` of the source: counted apart, an entry whose path is not a
+ * literal the expression reads fails the journey instead of escaping it.
  */
 function entries(): string[] {
   const source = readFileSync(SPACES, "utf8");
-  return [...new Set([...source.matchAll(/\bto: "(\/[^"]*)"/g)].map((m) => m[1]!))];
+  const paths = [...source.matchAll(/\bto: "(\/[^"]*)"/g)].map((m) => m[1]!);
+  const icons = [...source.matchAll(/\bicon: "[^"]+"/g)].length;
+  expect(paths.length, "the entries of spaces.ts, by their paths and by their icons").toBe(icons);
+  expect(new Set(paths).size, "an entry of spaces.ts per path").toBe(paths.length);
+  return paths;
 }
 
-/** The collections whose first object has its record checked, by their segment of the URL. */
+/**
+ * The records whose first object is checked: the collection of the API, the route of its
+ * record in the shell.
+ */
 const RECORDS = [
-  "domains",
-  "prefixes",
-  "ranges",
-  "addresses",
-  "entities",
-  "sites",
-  "vlan-groups",
-  "vlans",
-  "changesets",
+  ["domains", "/domains"],
+  ["prefixes", "/prefixes"],
+  ["ranges", "/ranges"],
+  ["addresses", "/addresses"],
+  ["entities", "/entities"],
+  ["sites", "/sites"],
+  ["vlan-groups", "/vlan-groups"],
+  ["vlans", "/vlans"],
+  ["changesets", "/changesets"],
+  ["groups", "/admin/groups"],
 ] as const;
 
 /** The record of the first object of `collection`, `null` if it holds none. */
-async function firstRecord(page: Page, collection: string): Promise<string | null> {
+async function firstRecord(page: Page, collection: string, route: string): Promise<string | null> {
   const listed = await apiCall(page, "GET", `/v1/${collection}?page_size=1`);
   expect(listed.status, `/v1/${collection}`).toBe(200);
   const id = (listed.body as { items: { id: string }[] }).items[0]?.id;
-  return id === undefined ? null : `/${collection}/${id}`;
+  return id === undefined ? null : `${route}/${id}`;
+}
+
+/** A draft of the page's user, empty, for its record; dropped by `dropDraft`. */
+async function newDraft(page: Page, title: string): Promise<string> {
+  const created = await apiCall(page, "POST", "/v1/drafts", { title, operations: [] });
+  expect(created.status, JSON.stringify(created.body)).toBe(201);
+  return (created.body as { id: string }).id;
+}
+
+/** Deletes the draft `id` (under `If-Match`: its ETag read first). */
+async function dropDraft(page: Page, id: string): Promise<void> {
+  const status = await page.evaluate(async (id) => {
+    const read = await fetch(`/v1/drafts/${id}`);
+    const response = await fetch(`/v1/drafts/${id}`, {
+      method: "DELETE",
+      headers: {
+        "If-Match": read.headers.get("ETag") ?? "",
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+    });
+    return response.status;
+  }, id);
+  expect(status).toBe(204);
 }
 
 /** The screen shown drawn: its title, nothing left loading in the content. */
@@ -72,16 +105,25 @@ async function drawn(page: Page): Promise<void> {
   await expect(main.locator(".k-skeleton-fill, [aria-busy='true']")).toHaveCount(0);
 }
 
-test("every screen of the shell passes axe", async ({ page, login, context }) => {
+test("every screen of the shell passes axe", async ({ page, login, context, browserName }) => {
   test.setTimeout(300_000);
   await login("alice");
   const records = (
-    await Promise.all(RECORDS.map((collection) => firstRecord(page, collection)))
+    await Promise.all(RECORDS.map(([collection, route]) => firstRecord(page, collection, route)))
   ).filter((record) => record !== null);
   // The lists of the referential (the old journey `accessibility` was their only proof).
   expect(entries()).toEqual(expect.arrayContaining(["/ranges", "/entities", "/sites"]));
-  expect(records.length).toBeGreaterThanOrEqual(4);
-  const screens = [...entries(), ...records, "/help/shortcuts", "/about"];
+  expect(records.length).toBeGreaterThanOrEqual(5);
+  const draft = await newDraft(page, `axe ${browserName} ${Date.now()}`);
+  const screens = [
+    ...entries(),
+    ...records,
+    `/drafts/${draft}`,
+    // The view of a plugin, in the frame.
+    "/x/example/overview",
+    "/help/shortcuts",
+    "/about",
+  ];
   for (const screen of screens) {
     await test.step(screen, async () => {
       await page.goto(screen);
@@ -91,6 +133,7 @@ test("every screen of the shell passes axe", async ({ page, login, context }) =>
       await expectAccessible(page);
     });
   }
+  await dropDraft(page, draft);
   await context.clearCookies();
   await page.goto("/login");
   await expect(page.getByRole("heading", { level: 1, name: "Connexion" })).toBeVisible();
@@ -215,21 +258,30 @@ test.describe("guards of every journey", () => {
     await expect(expectAccessible(page)).rejects.toThrow(/image-alt: [^\n]*img/);
   });
 
-  // The guard of the CSP runs after the journey, as the fixture `page` ends: only an expected
-  // failure can show it, once the violation is recorded. The browsers also say the refusal
-  // on their console, which the guard of the console errors would catch: tolerated here, so
-  // that the guard of the CSP alone fails this journey.
-  test.use({ toleratedErrors: [/^console: .*Content.Security.Policy/] });
-  test.fail("an inline script fails the journey", async ({ page, login }) => {
-    await login("bob");
-    await page.evaluate(() => {
-      const script = document.createElement("script");
-      script.textContent = "document.title = 'injected';";
-      document.body.append(script);
+  test.describe("the CSP", () => {
+    // The browsers also say the refusal on their console, which the guard of the console
+    // errors would catch: tolerated here, so that the guard of the CSP alone fails.
+    test.use({ toleratedErrors: [/^console: .*Content.Security.Policy/] });
+
+    // The guard of the CSP runs after the journey, as the fixture `page` ends: only an
+    // expected failure can show it. Declared once the script is known refused and its
+    // violation recorded, so that any other failure (a login broken, a CSP that lets the
+    // script run) fails the test for real.
+    test("an inline script fails the journey", async ({ page, login }) => {
+      await login("bob");
+      await page.evaluate(() => {
+        const script = document.createElement("script");
+        script.textContent = "window.__kartennInjected = true;";
+        document.body.append(script);
+      });
+      await expect
+        .poll(() => page.evaluate(() => window.__kartennCsp ?? []))
+        .toEqual([expect.stringMatching(/^script-src(-elem)? inline$/)]);
+      expect(
+        await page.evaluate(() => "__kartennInjected" in window),
+        "the inline script ran",
+      ).toBe(false);
+      test.fail();
     });
-    await expect
-      .poll(() => page.evaluate(() => window.__kartennCsp ?? []))
-      .toEqual([expect.stringMatching(/^script-src(-elem)? inline$/)]);
-    expect(await page.title()).not.toBe("injected");
   });
 });

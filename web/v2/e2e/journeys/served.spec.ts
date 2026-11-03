@@ -15,7 +15,15 @@ test("kartenn-server serves the new shell under its CSP", async ({ page }) => {
   });
 
   const response = await page.goto("/");
-  expect(response?.headers()["content-security-policy"]).toContain("script-src 'self' 'sha256-");
+  const csp = response?.headers()["content-security-policy"] ?? "";
+  expect(csp).toContain("script-src 'self' 'sha256-");
+  // No inline script beyond the digest of the import map, in any directive of the scripts.
+  const scripts = csp
+    .split(";")
+    .map((directive) => directive.trim())
+    .filter((directive) => /^script-src(-elem|-attr)?\s/.test(directive));
+  expect(scripts.length).toBeGreaterThan(0);
+  for (const directive of scripts) expect(directive).not.toContain("'unsafe-inline'");
   // Signed out, the frame shows its login page (task 16).
   await expect(page).toHaveURL(/\/login\?return=(%2F|\/)$/);
   await expect(page.getByRole("heading", { level: 1, name: "Connexion" })).toBeVisible();
