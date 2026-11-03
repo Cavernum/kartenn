@@ -371,6 +371,17 @@ Tranchés le 2026-11-03 par l'utilisateur, d'après les 11g, 11i et 11j :
 - **A38 — Droits de « Clore… »** : les maquettes E2, E12 et E27 passent aux noms servis
   (`<sorte>.edit`, `<sorte>.approval.self`) à leur prochaine retouche ; le code ne change pas.
 
+- **A39 — Détail d'une anomalie stocké** (session principale, *provisoire, à confirmer
+  par l'utilisateur* ; il a demandé d'avancer sans lui le 2026-11-03) : pour servir A36,
+  la table `anomaly` gagne `detail jsonb` (facultatif, additif), écrit avec la violation
+  (`Violation.detail`), rejoué par l'idempotence ; pour une lacune, `{property, resolved,
+  expected, source, revision}`. Retenu contre un recalcul à la lecture (valeurs d'aujourd'hui
+  et non celles de l'ouverture, sources externes appelées à chaque page). Une anomalie
+  ouverte avant la migration garde `detail` vide jusqu'à sa réévaluation. Reste ouvert :
+  une seule anomalie par (règle, objet), alors qu'une lacune est par (objet, propriété)
+  (index `anomaly_one_open`) ; deux propriétés en écart sur un même objet n'en gardent
+  qu'une (11n).
+
 ## Questions (closes le 2026-10-23)
 
 - **Q-021-1** — Édition en place : brouillon par défaut, en lot avec un motif ;

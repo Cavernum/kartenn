@@ -2494,7 +2494,19 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   servie avec ses membres ; message sans représentation interne) ; contrat et schémas
   régénérés
   - où : `crates/kartenn-service/src/expected.rs`, DTO `Gap` de `crates/kartenn-rest/src/`
+    (`properties.rs`, `gap_property`) ; d'après A39 : `crates/kartenn-core/src/rules.rs`
+    (`Violation`), `crates/kartenn-store-pg/src/{anomalies,write,idempotency}.rs`, une
+    migration (`anomaly.detail`) ; verify étendu à `-p kartenn-store-pg -p kartenn-core`
   - dépend de : —
+- [ ] 11n. Une lacune par (objet, propriété) (A39, relevé par la 11l) : l'identité d'une
+  anomalie `prop.resolution.expected_mismatch` porte la clé de la propriété, pour que deux
+  propriétés en écart sur un même objet ouvrent deux lacunes (index `anomaly_one_open`,
+  `BTreeMap` de `anomalies::record`) ; le filtre `property` lit `detail` et non plus le
+  préfixe du message — verify : `k-check -p kartenn-store-pg -p kartenn-rest` (deux
+  propriétés en écart, deux lacunes ; l'une corrigée, l'autre reste)
+  - où : `crates/kartenn-store-pg/migrations/` (index), `crates/kartenn-store-pg/src/anomalies.rs`,
+    `crates/kartenn-rest/src/properties.rs`
+  - dépend de : 11l
 - [ ] 11m. Lacune composée par l'écran (A36) : `GapList` dit la règle par son code, les
   valeurs attendue et résolue par leur libellé (`KeyLabel`), la source et sa révision ; le
   parcours `anomalies` n'assertit plus le texte anglais du serveur — verify : Vitest de
