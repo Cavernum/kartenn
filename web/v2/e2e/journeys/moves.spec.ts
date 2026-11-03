@@ -616,10 +616,26 @@ test.describe("the host of a machine", () => {
     await expect(
       says(`Déplacement de ${tag}-away vers ${tag}-c au brouillon, tenu par sa simulation`),
     ).toHaveCount(1);
-    // At its place, marked as moved in the draft; nothing under the cluster yet.
-    await expect(row(`${tag}-away`)).toHaveAttribute("data-state", "draft");
-    await expect(row(`${tag}-away`)).toHaveAttribute("aria-level", "1");
-    await expect(tree.locator(`[role='row'][data-node='${away}']`)).toHaveCount(1);
+    // At its place, marked as moved in the draft; nothing under the cluster yet, its guests
+    // not read (closed): no preview.
+    const present = tree.locator(`[role='row'][data-node='${away}']`);
+    const preview = tree.locator(`[role='row'][data-node='preview:${away}']`);
+    await expect(present).toHaveAttribute("data-state", "moved");
+    await expect(present).toContainText("déplacé dans le brouillon");
+    await expect(present).toHaveAttribute("aria-level", "1");
+    await expect(present).toHaveCount(1);
+    await expect(preview).toHaveCount(0);
+    await expect(says(`Son aperçu se montre sous ${tag}-c une fois ouvert.`)).toHaveCount(1);
+    await expectAccessible(page);
+    // The cluster opened (the focus on it since Ctrl+V): its guests read, the preview of the
+    // machine under it, told apart from its row at its place by its state (021/A27).
+    await expect(row(`${tag}-c`).locator("[data-column='']")).toBeFocused();
+    await page.keyboard.press("ArrowRight");
+    await expect(preview).toHaveAttribute("data-state", "preview");
+    await expect(preview).toHaveAttribute("aria-level", "2");
+    await expect(preview).toContainText("aperçu du brouillon");
+    await expect(present).toHaveAttribute("data-state", "moved");
+    await expect(present).toHaveAttribute("aria-level", "1");
     await expectAccessible(page);
     await page.unroute(simulation);
     expect(changesets).toEqual([]);
@@ -645,13 +661,13 @@ test.describe("the host of a machine", () => {
   }) => {
     await login("alice");
     const tag = unique("treesite", browserName);
-    await hosting(page, tag);
+    const { away } = await hosting(page, tag);
     const writes: string[] = [];
     page.on("request", (request) => {
       if (request.method() !== "GET" && request.url().includes("/v1/")) writes.push(request.url());
     });
     await page.goto("/x/machines/clusters");
-    const { row, arrowTo, says } = hostingTree(page);
+    const { tree, row, arrowTo, says } = hostingTree(page);
     // The host opened: its guest under it.
     await row(`${tag}-host`).locator("[data-column='']").click();
     await page.keyboard.press("ArrowRight");
@@ -674,7 +690,19 @@ test.describe("the host of a machine", () => {
       says(`Déplacement de ${tag}-away vers ${tag}-host au brouillon, tenu par sa simulation`),
     ).toHaveCount(1);
     await expect(says("machines.host.site_mismatch")).toHaveCount(1);
-    await expect(row(`${tag}-away`)).toHaveAttribute("aria-level", "1");
+    // The host open, its guests read: the machine moved at its place, its preview under the
+    // host, told apart by their state (021/A27).
+    await expect(tree.locator(`[role='row'][data-node='${away}']`)).toHaveAttribute(
+      "aria-level",
+      "1",
+    );
+    await expect(tree.locator(`[role='row'][data-node='${away}']`)).toHaveAttribute(
+      "data-state",
+      "moved",
+    );
+    const preview = tree.locator(`[role='row'][data-node='preview:${away}']`);
+    await expect(preview).toHaveAttribute("data-state", "preview");
+    await expect(preview).toHaveAttribute("aria-level", "2");
     await expectAccessible(page);
     expect(writes.filter((url) => url.includes("/v1/changesets"))).toEqual([]);
   });
@@ -739,7 +767,7 @@ test.describe("the host of a machine", () => {
     const record = page.locator("machines-machines");
     await expect(record.getByRole("heading", { level: 1, name: `${tag}-away` })).toBeVisible();
     const hostedBy = record.locator("dt:has-text('Hébergée par') + dd");
-    await expect(hostedBy).toHaveText("—aucun");
+    await expect(hostedBy).toHaveText("—non renseigné");
     const form = record.getByRole("region", { name: "Hébergement" });
     const field = form.getByRole("combobox", { name: /^Nouvel hébergeur/ });
     await field.fill(`${tag}-host`);
@@ -770,7 +798,7 @@ test.describe("the host of a machine", () => {
         .getByRole("status")
         .filter({ hasText: `Déplacement vers ${tag}-host en attente du serveur` }),
     ).toHaveCount(1);
-    await expect(hostedBy).toHaveText("—aucun");
+    await expect(hostedBy).toHaveText("—non renseigné");
     release();
     // Held by its simulation; the other site warned of, not refused (the rule is a warning).
     await expect(
@@ -779,7 +807,7 @@ test.describe("the host of a machine", () => {
         .filter({ hasText: `Déplacement vers ${tag}-host au brouillon, tenu` }),
     ).toHaveCount(1);
     await expect(form.locator("[data-tone=warn]")).toContainText("machines.host.site_mismatch");
-    await expect(hostedBy).toHaveText("—aucun");
+    await expect(hostedBy).toHaveText("—non renseigné");
     await expectAccessible(page);
     await page.unroute(simulation);
     // In the draft, no changeset sent.

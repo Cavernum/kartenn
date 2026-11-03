@@ -2867,7 +2867,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     pas un 400 ; plafond `MAX_PAGES` du cache gardé pour toutes les listes de l'arbre (une
     page de plus ferait tomber la première), dit par `hosting.partial`.
 
-- [ ] 18g. Plugin Machines sur `Heading`, `AttributeList` et les états d'arbre (020-29) :
+- [x] 18g. Plugin Machines sur `Heading`, `AttributeList` et les états d'arbre (020-29) :
   fiches (`MachineRecord`, `InterfaceRecord`, `ClusterRecord`) en `AttributeList` et
   `Heading` au lieu de `Grid as="dl"` et de `h1`/`h2` nus ; `HostingTree` en
   `moved`/`preview` au lieu de `draft` — verify : Vitest du plugin ; parcours
@@ -2876,6 +2876,48 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - dépend de : 18cd, 020-29
   - étendue le 2026-11-03 (A33) : l'ajout d'une interface et son mode 802.1Q depuis la
     fiche de l'interface prouvés par le parcours `machines` (lignes de la liste de parité)
+  - fait le 2026-11-03 — Fiches `MachineRecord`, `InterfaceRecord`, `ClusterRecord` en
+    `AttributeList` (valeur par l'emplacement nommé d'après sa clé ; absente : `CitedName`
+    sous `v-if`, MAC `undefined`, la liste dit « non renseigné ») et `Heading` (`h1` à
+    `tabindex="-1"`, `h2` des sections) ; `Heading` aussi pour `HostingTree`, `MachineList`
+    et `InterfaceSearch` : plus aucun `h1`/`h2` nu ni `dl` brut dans le plugin. Cellules de
+    grille sans valeur (MAC, adresses, relation au cluster, colonne des adresses, nom cité
+    absent) : `NotSet.vue`, seul endroit du plugin qui écrit le tiret, clé `notSet` (« non
+    renseigné », comme la liste) au lieu de `none` (« aucun ») ; les cinq copies relevées
+    par la 18cc retirées. `HostingTree` : `draft` → `moved` sur la ligne à sa place ; ligne
+    `preview:<id>` (`preview`, mêmes libellé et cellules, sans enfants) sous le nouvel hôte
+    si ses hébergées sont lues (premier niveau, hôte ouvert), sinon `moved` seul et la
+    région `status` le dit (« Son aperçu se montre sous {host} une fois ouvert. ») ; plus
+    d'aperçu ni de marque dès que les listes relues la montrent ailleurs ou que le
+    brouillon actif change ; sur l'aperçu, Entrée ouvre la fiche de la machine, le glisser
+    et la cible refusés avec leur motif, « Déplacer vers… » refusé, la sélection effacée
+    quand l'aperçu disparaît. Vitest du plugin : 53 (aperçu sous un hôte ouvert, deux
+    lignes distinguées par leur état, Entrée, refus de « Déplacer vers… », brouillon
+    quitté ; cluster fermé : `moved` seul, dit) ; parcours `machines` (nouveau test « an
+    interface and its 802.1Q mode in the draft, from the records » : `eth1` et sa MAC
+    depuis la fiche de la machine, nom requis ; `eth0` en aucun puis en accès sur le VLAN
+    du jeu de données depuis sa fiche ; trois opérations au brouillon, aucun changeset) et
+    `moves` (aperçu sous le cluster ouvert, sous l'hôte ouvert) : 23 sur 23 dans les deux
+    navigateurs ; `k-web2-check --base main` : 852 Vitest, ciblé : 0 captures sur 2 715.
+    Poids : `index.js` 22,9 Ko gzip -9 (22,7 avant), aucune feuille émise. `PARITE.md` :
+    ajout d'une interface, mode 802.1Q, parcours `machines` (deux lignes) cochés.
+  - relectures : `ui-reviewer` et `a11y-auditor` sur le code (sans rendu : serveur et base
+    partagés), aucun bloquant ; corrigés : sélection d'un aperçu disparu effacée ; aperçu
+    non montré dit dans la région `status`.
+  - reste : le site absent d'une ligne de l'arbre s'écrit « non renseigné » en clair (les
+    cellules de `TreeGrid` sont des chaînes, pas de tiret doublé) ; `NotSet.vue` et la clé
+    `notSet` doublent `AttributeList` et `valueNone` de la bibliothèque, faute de cellule
+    absente dans `DataGrid` (à exporter de `@kartenn/ui`, puis retirer la copie) ; la ligne
+    `moved` ne nomme pas son nouvel hôte (dit seulement par la région `status` ; `detail`
+    n'est pas rendu par `TreeGrid`) ; l'aperçu d'un hôte déplacé n'a pas ses hébergées ; la
+    valeur absente d'un attribut dit « non renseigné » là où l'ancien disait « aucun »
+    (hébergeur : « non hébergée » serait plus juste).
+  - choix : valeur absente dans une grille par un composant du plugin (`NotSet`) plutôt
+    que du texte nu ; identifiant `preview:<id>` de la ligne d'aperçu (celui du catalogue
+    de `TreeGrid`) ; aperçu en fin des hébergées lues ; tests du plugin sur la marque
+    `data-empty` de la liste (sa phrase suit la langue de la bibliothèque, que le shell
+    règle) ; `Heading` étendu à `MachineList` et `InterfaceSearch` (hors `où :`, trois
+    lignes) ; titre court du test du parcours, cité tel quel par la liste de parité.
 
 ## P4 — Budgets et clôture
 

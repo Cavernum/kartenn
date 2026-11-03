@@ -15,8 +15,10 @@
 // `canMove` of the SDK (a cycle, a type the contract does not admit, a right, the present),
 // to the active draft by `draft.move`, which simulates it. Never optimistic (X33): no
 // `setQueryData`, the node stays at its place, « en attente » until the verdict, then
-// « en brouillon » there once its simulation holds it, or refused with the code of the rule;
-// it changes place only when the lists read again, once the draft is applied, show it there.
+// « déplacé dans le brouillon » there once its simulation holds it (`moved`), its preview
+// row (`preview`) under its new host if the tree has read the guests of that host (opened),
+// or refused with the code of the rule; it changes place only when the lists read again,
+// once the draft is applied, show it there.
 // What a move says, its warnings among it (`machines.host.site_mismatch`), goes to a status
 // region there from the start. Moves are offered at the present only (W9).
 import {
@@ -34,6 +36,7 @@ import {
   Cluster as Inline,
   EmptyState,
   ErrorState,
+  Heading,
   InlineAlert,
   Stack,
   TreeGrid,
@@ -163,9 +166,14 @@ const columns = computed<GridColumn[]>(() => [
   { id: "site", label: t("machines.site"), width: "md", priority: 2 },
 ]);
 
-/** A site in a cell: its slug once read, its identifier if unreadable, « aucun » if none. */
+/** The row of a machine a draft moves, at its place after the draft: `preview:<id>`. */
+const PREVIEW = "preview:";
+/** The machine a row shows: itself, or the one its preview row shows. */
+const machineOf = (id: string) => (id.startsWith(PREVIEW) ? id.slice(PREVIEW.length) : id);
+
+/** A site in a cell: its slug once read, its identifier if unreadable, « non renseigné » if none. */
 function siteOf(id: string | undefined): string {
-  if (!id) return t("none");
+  if (!id) return t("notSet");
   const name = names().of("core.site", id);
   return name.state === "read" ? name.name : name.state === "failed" ? id : t("loading");
 }
@@ -179,6 +187,8 @@ const model = computed(() => {
   const labels = new Map<string, string>();
   /** The host of each guest read, the parent of its node: the ancestors `canMove` walks. */
   const up = new Map<string, string>();
+  /** The node of each cluster and machine, as given to the tree. */
+  const byId = new Map<string, TreeNode>();
   /** The guests of a host opened, once read; a leaf when it has none. */
   function withGuests(node: TreeNode): TreeNode {
     const list = guestsOf(node.id);
@@ -201,7 +211,9 @@ const model = computed(() => {
       icon: "server",
       cells: { kind: t(`kind.${m.kind}`), site: siteOf(m.site?.id) },
     };
-    return [HOSTS.has(m.kind) ? withGuests(node) : node];
+    const built = HOSTS.has(m.kind) ? withGuests(node) : node;
+    byId.set(m.id, built);
+    return [built];
   }
   const nodes: TreeNode[] = [];
   for (const c of clusters.state.value.items ?? []) {
@@ -215,10 +227,33 @@ const model = computed(() => {
       icon: "cluster",
       cells: { kind: t("hosting.cluster"), site: siteOf(c.site?.id) },
     };
-    nodes.push(withGuests(node));
+    const built = withGuests(node);
+    byId.set(c.id, built);
+    nodes.push(built);
   }
   for (const m of machines.state.value.items ?? []) nodes.push(...machineNode(m, null));
-  return { nodes, parents, types, kinds, labels, up };
+  // The preview of each machine the draft moves, under its new host if the tree has read
+  // its guests (the first level, or a host opened); else its row at its place says it alone.
+  // None once the lists show it elsewhere than where it was (the draft applied). The preview
+  // is a row alone: the guests of a host moved stay under its row at its place.
+  const previews = new Set<string>();
+  for (const [id, { from, to }] of drafted) {
+    const moved = byId.get(id);
+    if (!moved || parents.get(id) !== from) continue;
+    const host = to === null ? null : byId.get(to);
+    const under = to === null ? nodes : host?.children;
+    if (!under || under.some((n) => n.id === id)) continue;
+    const { label, icon, cells } = moved;
+    under.push({
+      id: `${PREVIEW}${id}`,
+      label,
+      ...(icon ? { icon } : {}),
+      ...(cells ? { cells } : {}),
+    });
+    if (host) host.hasChildren = true;
+    previews.add(`${PREVIEW}${id}`);
+  }
+  return { nodes, parents, types, kinds, labels, up, previews };
 });
 
 /** Pages of the first level left to read, within `MAX_PAGES`. */
@@ -281,7 +316,9 @@ const empty = computed(
 const problemOf = (error: unknown) => (error instanceof ApiProblem ? error : undefined);
 
 /** Enter on a row: the record of its cluster or its machine, its heading focused. */
-function onActivate(id: string): void {
+function onActivate(row: string): void {
+  // A preview row opens the record of the machine it shows.
+  const id = machineOf(row);
   const type = model.value.types.get(id);
   if (!type) return;
   arrival.byLink = true;
@@ -318,6 +355,10 @@ const refusalOf = (verdict: Extract<MoveVerdict, { ok: false }>): MoveCheck => (
 /** Whether `node` may go under `target` (`null`: no host), for each target hovered or listed. */
 function check(node: TreeNode, target: TreeNode | null): MoveCheck {
   const { types, kinds, parents } = model.value;
+  // A preview row is not the machine: neither moved nor a host (the machine moves from its
+  // row at its present place).
+  if (node.id.startsWith(PREVIEW)) return { ok: false, reason: t("hosting.preview") };
+  if (target?.id.startsWith(PREVIEW)) return { ok: false, reason: t("hosting.previewTarget") };
   const type = types.get(node.id);
   if (type === CLUSTER) return { ok: false, reason: t("hosting.fixed") };
   const to = target ? types.get(target.id) : null;
@@ -335,9 +376,12 @@ function check(node: TreeNode, target: TreeNode | null): MoveCheck {
   return verdict.ok ? { ok: true } : refusalOf(verdict);
 }
 
-/** The moves in flight or refused, by node; the nodes moved in the draft, with their parent then. */
+/**
+ * The moves in flight or refused, by node; the machines moved in the draft, with their host
+ * when moved (`from`) and their host in the draft (`to`; `null`: none).
+ */
 const states = shallowReactive(new Map<string, MoveState>());
-const drafted = shallowReactive(new Map<string, string | null>());
+const drafted = shallowReactive(new Map<string, { from: string | null; to: string | null }>());
 /** What the last move says, in a status region there from the start; its warnings in it. */
 const said = ref("");
 const warnings = shallowRef<AlertLine[]>([]);
@@ -362,13 +406,18 @@ watch(
 // Another active draft, or none (left, deleted, submitted): the marks « en brouillon » no
 // longer hold.
 onScopeDispose(draft.onActive(() => drafted.clear()));
+// A preview row chosen, gone (the draft left or applied): nothing chosen any more.
+watch(model, ({ previews }) => {
+  const id = selected.value;
+  if (id?.startsWith(PREVIEW) && !previews.has(id)) selected.value = undefined;
+});
 
 const moveState = (node: TreeNode): MoveState | undefined => states.get(node.id);
 function nodeState(node: TreeNode): TreeNodeState | undefined {
+  if (node.id.startsWith(PREVIEW)) return "preview";
   // At its place, as long as its reads keep it there (the draft not applied yet).
-  if (drafted.has(node.id) && drafted.get(node.id) === (model.value.parents.get(node.id) ?? null)) {
-    return "draft";
-  }
+  const move = drafted.get(node.id);
+  if (move && move.from === (model.value.parents.get(node.id) ?? null)) return "moved";
   // Opened, its list awaited: not admitted yet, or read.
   if (!expanded.value.includes(node.id) || node.children) return undefined;
   return !admitted.value.has(node.id) || guestsOf(node.id)?.pending
@@ -434,19 +483,22 @@ async function onMove({ node, target }: MoveIntent): Promise<void> {
     return;
   }
   states.delete(node.id);
-  drafted.set(node.id, from);
+  drafted.set(node.id, { from, to: target?.id ?? null });
+  // Its preview shown only under a host whose guests are read: else, said how to see it.
+  const unseen = target && !guestsOf(target.id)?.items ? ` ${t("hosting.unseen", words)}` : "";
   if (result.verdict === "unknown") {
-    said.value = t("hosting.drafted", words);
+    said.value = t("hosting.drafted", words) + unseen;
     unsimulated.value = linesOf(result.problem, t);
     return;
   }
   warnings.value = result.warnings.map((w) => ({ message: w.detail, code: w.rule }));
-  said.value = t("hosting.valid", words);
+  said.value = t("hosting.valid", words) + unseen;
 }
 
 /** Why « Déplacer vers… » cannot start on the chosen node, if it cannot. */
 const moveBlocked = computed(() => {
   const id = selected.value;
+  if (id?.startsWith(PREVIEW)) return t("hosting.previewChosen");
   if (!id || !model.value.types.has(id)) return t("hosting.pickFirst");
   if (model.value.types.get(id) === CLUSTER) return t("hosting.fixedCluster");
   if (states.get(id) === "pending") return t("hosting.inFlight");
@@ -460,7 +512,7 @@ function moveTo(): void {
 <template>
   <Stack gap="6">
     <Stack gap="1">
-      <h1 tabindex="-1">{{ t("hosting.title") }}</h1>
+      <Heading :level="1" tabindex="-1">{{ t("hosting.title") }}</Heading>
       <p>{{ t("hosting.intro") }}</p>
       <!-- There from the start, whatever the state of the view, so that what it holds is
            said: the outcome of a move, its warnings with their codes. -->

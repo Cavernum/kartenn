@@ -198,7 +198,7 @@ describe("the list of the machines (task 18cb)", () => {
     await vi.waitFor(() =>
       expect(rows(element, "Machines")).toEqual([
         // The kind by its label, its key in its description (REQ-020-21).
-        ["srv-a", "physiquephysical", "exemple", "—aucun", "—aucun"],
+        ["srv-a", "physiquephysical", "exemple", "—non renseigné", "—non renseigné"],
       ]),
     );
     const link = element.querySelector<HTMLAnchorElement>("[role=gridcell] a")!;
@@ -407,9 +407,14 @@ describe("the record of a machine (task 18cb)", () => {
     await new Promise((done) => setTimeout(done, 0));
     element.querySelector<HTMLFormElement>("section form")!.requestSubmit();
   }
-  /** The host the record shows (the second-to-last attribute: « Hosted by »). */
-  const hostedBy = (element: HTMLElement) =>
-    [...element.querySelectorAll("dt")].at(-2)!.nextElementSibling!.textContent;
+  /**
+   * The host the record shows (the second-to-last attribute: « Hosted by »); `null` when the
+   * `AttributeList` says it absent (its words are the library's, in the shell's language).
+   */
+  const hostedBy = (element: HTMLElement) => {
+    const value = [...element.querySelectorAll("dt")].at(-2)!.nextElementSibling as HTMLElement;
+    return value.dataset["empty"] === "true" ? null : value.textContent;
+  };
 
   it("draws its sections: attributes, interfaces with their state, hosted machines; adds an interface", async () => {
     history.replaceState(null, "", `/x/machines/machines/${MACHINE}`);
@@ -436,7 +441,7 @@ describe("the record of a machine (task 18cb)", () => {
         expect.stringContaining("active"),
       ]),
     );
-    expect(hostedBy(element)).toBe("—aucun");
+    expect(hostedBy(element)).toBeNull();
     await text(element, "exemple");
     expect(element.textContent).toContain("Aucune machine hébergée");
     const names = [...element.querySelectorAll("section h2")].map((h) => h.textContent);
@@ -591,7 +596,7 @@ describe("the record of a machine (task 18cb)", () => {
     expect(posted).toHaveLength(1);
     expect(element.textContent).toContain("Move to grappe waiting for the server");
     // Never optimistic: the host read stays (none).
-    expect(hostedBy(element)).toBe("—none");
+    expect(hostedBy(element)).toBeNull();
     release();
     await text(element, "Move to grappe in the draft, held by its simulation");
     expect(element.querySelector("[data-tone=warn]")?.textContent).toContain(
@@ -609,7 +614,7 @@ describe("the record of a machine (task 18cb)", () => {
         ],
       },
     ]);
-    expect(hostedBy(element)).toBe("—none");
+    expect(hostedBy(element)).toBeNull();
     expect(submit.hasAttribute("aria-busy")).toBe(false);
     (document.activeElement as HTMLElement | null)?.blur();
   });

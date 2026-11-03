@@ -30,6 +30,7 @@ import {
   FilterPicker,
   filtersFromParams,
   filtersToParams,
+  Heading,
   InlineAlert,
   KeyLabel,
   Select,
@@ -388,7 +389,7 @@ function added(): void {
   <Stack gap="6">
     <header>
       <Stack gap="1">
-        <h1 tabindex="-1">{{ t("machines.title") }}</h1>
+        <Heading :level="1" tabindex="-1">{{ t("machines.title") }}</Heading>
         <p>{{ t("machines.intro") }}</p>
       </Stack>
     </header>
@@ -471,7 +472,7 @@ function added(): void {
     </Stack>
     <section v-if="present()" aria-labelledby="k-machines-create">
       <Stack gap="4">
-        <h2 id="k-machines-create">{{ t("machines.create") }}</h2>
+        <Heading id="k-machines-create" :level="2">{{ t("machines.create") }}</Heading>
         <DraftForm
           permission="machines.edit"
           :operation="creation"

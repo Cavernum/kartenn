@@ -10,13 +10,15 @@
 // codes and « Réessayer », never read again by itself.
 import { ApiProblem, MAX_PAGES, queryClient, reads } from "@kartenn/sdk";
 import {
+  AttributeList,
   DataGrid,
   EmptyState,
   ErrorState,
-  Grid,
+  Heading,
   KeyLabel,
   Skeleton,
   Stack,
+  type AttributeItem,
   type GridColumn,
   type GridWindow,
 } from "@kartenn/ui";
@@ -25,6 +27,7 @@ import CitedName from "./CitedName.vue";
 import { useList, useNotified, useRead } from "./data.ts";
 import { hrefOf, PAGES } from "./dom.ts";
 import { useHosted, useTexts } from "./host.ts";
+import NotSet from "./NotSet.vue";
 import { Names, type Cluster, type Machine } from "./reads.ts";
 import RetryAlert from "./RetryAlert.vue";
 
@@ -56,6 +59,12 @@ const link = (page: string) => {
   return hrefOf(page);
 };
 
+/** Its attributes; a value absent said by the list (« non renseigné »). */
+const attributes = computed<AttributeItem[]>(() => [
+  { key: "owner", label: t("machines.owner") },
+  { key: "site", label: t("machines.site") },
+]);
+
 const columns = computed<GridColumn[]>(() => [
   { id: "name", label: t("machines.name"), width: "fill" },
   { id: "kind", label: t("machines.kind"), width: "sm" },
@@ -84,9 +93,9 @@ function ahead(w: GridWindow): void {
 <template>
   <Stack gap="6">
     <Stack gap="2">
-      <h1 tabindex="-1" :class="cluster ? 'k-mono' : undefined">
+      <Heading :level="1" tabindex="-1" :class="cluster ? 'k-mono' : undefined">
         {{ cluster ? cluster.slug : t("clusters.record") }}
-      </h1>
+      </Heading>
       <ErrorState
         v-if="!cluster && read.error"
         :title="t('clusters.failedOne')"
@@ -99,20 +108,18 @@ function ahead(w: GridWindow): void {
     </Stack>
 
     <Skeleton v-if="!cluster && !read.error" variant="text" :rows="2" />
-    <Grid v-else-if="cluster" as="dl" columns="auto" gap="4">
-      <div>
-        <dt>{{ t("machines.owner") }}</dt>
-        <dd><CitedName :id="cluster.owner?.id" :names="names" type="core.entity" /></dd>
-      </div>
-      <div>
-        <dt>{{ t("machines.site") }}</dt>
-        <dd><CitedName :id="cluster.site?.id" :names="names" type="core.site" /></dd>
-      </div>
-    </Grid>
+    <AttributeList v-else-if="cluster" :items="attributes">
+      <template #owner>
+        <CitedName v-if="cluster.owner" :id="cluster.owner.id" :names="names" type="core.entity" />
+      </template>
+      <template #site>
+        <CitedName v-if="cluster.site" :id="cluster.site.id" :names="names" type="core.site" />
+      </template>
+    </AttributeList>
 
     <section :aria-labelledby="heading">
       <Stack gap="4">
-        <h2 :id="heading">{{ t("clusters.machines") }}</h2>
+        <Heading :id="heading" :level="2">{{ t("clusters.machines") }}</Heading>
         <ErrorState
           v-if="list.items === undefined && list.error"
           :title="t('machines.failed')"
@@ -149,10 +156,7 @@ function ahead(w: GridWindow): void {
                 plain
               />
               <template v-else-if="row.relation">{{ row.relation }}</template>
-              <span v-else
-                ><span aria-hidden="true">—</span
-                ><span class="k-visually-hidden">{{ t("none") }}</span></span
-              >
+              <NotSet v-else />
             </template>
           </DataGrid>
         </template>

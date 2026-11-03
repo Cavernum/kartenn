@@ -16,7 +16,9 @@ import {
 // the machine, of its interface, of the cluster; the search of the interfaces by MAC), the
 // links followed without reloading the page; in the « Interfaces » tab of the address, of its
 // network and of the VLAN; in the machine column of the addresses. Created in the draft: a
-// machine from its list, an operation added and no changeset sent. Each browser writes in a
+// machine from its list, an interface from the record of its machine, an 802.1Q mode (none,
+// then access) from the record of the interface (task 18g), each an operation added and no
+// changeset sent. Each browser writes in a
 // domain of its own (RFC 5737, TEST-NET-3); axe-core without violation at each step.
 
 const navigation = (page: Page) => page.getByRole("navigation", { name: "Navigation principale" });
@@ -299,8 +301,128 @@ test("a physical machine to a cluster: offered by the client, refused by the ser
   await expect(alert).toContainText(`Déplacement vers ${tag} refusé par le serveur`);
   await expect(alert).toContainText("machines.host.invalid");
   await expect(form).toContainText("L'opération reste au brouillon");
-  await expect(record.locator("dt:has-text('Hébergée par') + dd")).toHaveText("—aucun");
+  // No host: said by the list of the attributes (« non renseigné »).
+  await expect(record.locator("dt:has-text('Hébergée par') + dd")).toHaveText("—non renseigné");
   await expectAccessible(page);
+});
+
+test("an interface and its 802.1Q mode in the draft, from the records", async ({
+  page,
+  login,
+}, info) => {
+  await login("alice");
+  const firefox = info.project.name === "firefox";
+  const tag = `zz-iface-${info.project.name}-${Date.now() % 1_000_000}`;
+  const written = await write(page, tag, firefox ? "00:00:5e:00:53:25" : "00:00:5e:00:53:24");
+  const added = firefox ? "00:00:5e:00:53:27" : "00:00:5e:00:53:26";
+  const changesets: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.url().includes("/v1/changesets")) {
+      changesets.push(request.url());
+    }
+  });
+
+  // From the record of the machine: an interface `eth1` with its MAC, to the draft.
+  await page.goto(`/x/machines/machines/${written.machine}`);
+  const record = page.locator("machines-machines");
+  await expect(record.getByRole("heading", { level: 1, name: tag })).toBeVisible();
+  const creation = record.getByRole("region", { name: "Ajouter une interface" });
+  const name = creation.getByRole("textbox", { name: /^Interface/ });
+  // Without its name, refused on the field, nothing sent.
+  await creation.getByRole("button", { name: "Ajouter au brouillon" }).click();
+  await expect(name).toHaveAttribute("aria-invalid", "true");
+  await name.fill("eth1");
+  await creation.getByRole("textbox", { name: /^MAC/ }).fill(added);
+  await creation.getByRole("button", { name: "Ajouter au brouillon" }).click();
+  await expect(
+    creation.getByText(/^Opération ajoutée ; le brouillon en compte \d+\.$/),
+  ).toBeVisible();
+  // The form emptied for the next one.
+  await expect(name).toHaveValue("");
+  await expectAccessible(page);
+
+  // From the record of `eth0`, in access on the VLAN of the data set: no mode, to the draft.
+  await record
+    .getByRole("grid", { name: "Interfaces", exact: true })
+    .getByRole("link", { name: "eth0" })
+    .click();
+  await expect(page).toHaveURL(/\/x\/machines\/interfaces\/[0-9a-f-]+$/);
+  const eth0 = page.url().split("/").pop()!;
+  const one = page.locator("machines-interfaces");
+  await expect(one.getByRole("heading", { level: 1, name: "eth0" })).toBeFocused();
+  const modeForm = one.getByRole("region", { name: "Mode 802.1Q de l'interface" });
+  const mode = modeForm.getByRole("combobox", { name: /^Mode 802\.1Q/ });
+  // Its mode read: access, its VLAN asked.
+  await expect(mode).toContainText("accès");
+  await expect(modeForm.getByRole("combobox", { name: /^VLAN d'accès/ })).toContainText(
+    String(DATA.vlan.vid),
+  );
+  await expectAccessible(page);
+  await mode.click();
+  await page.getByRole("option", { name: "aucun", exact: true }).click();
+  // No VLAN asked without access.
+  await expect(modeForm.getByRole("combobox", { name: /^VLAN d'accès/ })).toHaveCount(0);
+  await modeForm.getByRole("button", { name: "Ajouter au brouillon" }).click();
+  const addedOne = modeForm.getByText(/^Opération ajoutée ; le brouillon en compte \d+\.$/);
+  await expect(addedOne).toBeVisible();
+  const count = Number(/(\d+)\.$/.exec((await addedOne.textContent()) ?? "")![1]);
+  await expectAccessible(page);
+  // Then in access again: its VLAN asked, taken from the list.
+  await mode.click();
+  await page.getByRole("option", { name: "accès", exact: true }).click();
+  const vlan = modeForm.getByRole("combobox", { name: /^VLAN d'accès/ });
+  await expect(vlan).toBeVisible();
+  await vlan.click();
+  await page
+    .getByRole("option")
+    .filter({ hasText: new RegExp(`^${DATA.vlan.vid} · `) })
+    .click();
+  await expect(vlan).toContainText(String(DATA.vlan.vid));
+  await modeForm.getByRole("button", { name: "Ajouter au brouillon" }).click();
+  await expect(
+    modeForm.getByText(`Opération ajoutée ; le brouillon en compte ${count + 1}.`),
+  ).toBeVisible();
+  await expectAccessible(page);
+  expect(changesets).toEqual([]);
+
+  // In the draft of the server, not in the referential.
+  const drafts = (await apiCall(page, "GET", "/v1/drafts")).body as { items: { id: string }[] };
+  const operations = (
+    await Promise.all(
+      drafts.items.map(async (d) => {
+        const read = (await apiCall(page, "GET", `/v1/drafts/${d.id}`)).body as {
+          operations: unknown[];
+        };
+        return read.operations;
+      }),
+    )
+  ).flat();
+  expect(operations).toContainEqual(
+    expect.objectContaining({
+      op: "machines.create_interface",
+      machine: { id: written.machine },
+      name: "eth1",
+      mac: added,
+    }),
+  );
+  expect(operations).toContainEqual(
+    expect.objectContaining({
+      op: "machines.update_interface",
+      id: { id: eth0 },
+      vlan: { mode: "none" },
+    }),
+  );
+  expect(operations).toContainEqual(
+    expect.objectContaining({
+      op: "machines.update_interface",
+      id: { id: eth0 },
+      vlan: { mode: "access", access: { id: written.vlan } },
+    }),
+  );
+  const listed = (await apiCall(page, "GET", `/v1/interfaces?machine=${written.machine}`)).body as {
+    items: { name: string; vlan: { mode: string } }[];
+  };
+  expect(listed.items.map((i) => [i.name, i.vlan.mode])).toEqual([["eth0", "access"]]);
 });
 
 test("a machine created in the draft from its list, no changeset sent", async ({
