@@ -1,7 +1,13 @@
 import type { Operation, Simulated } from "@kartenn/sdk";
 import type { TreeNode } from "@kartenn/ui";
 import { describe, expect, it } from "vitest";
-import { overlay, previewOf, type Preview, type Shift } from "../src/views/topology.ts";
+import {
+  draftStateOf,
+  overlay,
+  previewOf,
+  type Preview,
+  type Shift,
+} from "../src/views/topology.ts";
 
 // The preview of the draft in the tree of the topography (task 021-24b; REQ-021-17; 021/A12,
 // precised by 24a): the places of the simulation laid over the tree served, an object the
@@ -117,6 +123,51 @@ describe("the preview of the draft in the tree of the prefixes", () => {
     const { nodes, shown } = laid(preview);
     expect(shown).toBe(1);
     expect(rows(nodes)).toContain("1 198.51.100.0/26");
+  });
+
+  it("says each row: moved at its present place, preview at its place after, draft otherwise", () => {
+    // A /25 inserted above C1 and C2; Q's value changed in place (not moved).
+    const preview = previewOf(
+      simulated([placed(TEMP, null, P, 0), placed(C1, P, TEMP), placed(C2, P, TEMP)]),
+      [create("198.51.100.0/25"), update(Q, "203.0.113.0/24")],
+      known,
+      DOMAIN,
+    );
+    const inDraft = new Set([Q, C1]);
+    const states = (list: readonly TreeNode[]): [string, string | undefined][] =>
+      list.flatMap((n) => [
+        [n.id, draftStateOf(n.id, inDraft, preview)],
+        ...states(n.children ?? []),
+      ]);
+    expect(states(laid(preview).nodes)).toEqual([
+      [P, undefined],
+      [C1, "moved"],
+      [C2, "moved"],
+      ["draft:0", "preview"],
+      [`draft:${C1}`, "preview"],
+      [`draft:${C2}`, "preview"],
+      [Q, "draft"],
+    ]);
+    // Before the simulation answers, a node the draft changes is in the draft only.
+    expect(draftStateOf(C1, inDraft, undefined)).toBe("draft");
+    expect(draftStateOf(C2, inDraft, undefined)).toBeUndefined();
+  });
+
+  it("says moved a node whose parent after is not read, and preview a child taken along", () => {
+    // P moved under Q, C1 along with it (not placed), C2 left at the first level.
+    const preview = previewOf(
+      simulated([placed(P, null, Q, 0), placed(C2, P, null)]),
+      [update(P, "203.0.113.0/25")],
+      known,
+      DOMAIN,
+    );
+    const inDraft = new Set([P, C1]);
+    // Q's children not read: P waits (counted in the notice), moved at its present place.
+    expect(laid(preview).shown).toBe(1);
+    expect(draftStateOf(P, inDraft, preview)).toBe("moved");
+    // C1 keeps its parent: at its present place in the draft only; its copy, a preview row.
+    expect(draftStateOf(C1, inDraft, preview)).toBe("draft");
+    expect(draftStateOf(`draft:${C1}`, inDraft, preview)).toBe("preview");
   });
 
   it("keeps the key of a creation from one simulation to the next", () => {

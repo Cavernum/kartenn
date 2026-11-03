@@ -144,6 +144,22 @@ const labelled = (tree: Locator, rows: string, label: string) =>
 const rowOf = (tree: Locator, label: string) => labelled(tree, SERVED, label);
 /** A row of the preview of the draft: an object at its place after the draft. */
 const previewOf = (tree: Locator, label: string) => labelled(tree, PREVIEWED, label);
+/** The words of the states of the draft on a row (24d), never told by the mark alone. */
+const MOVED_WORDS = "(déplacé dans le brouillon)";
+const PREVIEW_WORDS = "(aperçu du brouillon)";
+const DRAFT_WORDS = "(en brouillon)";
+/** The row at its present place of an object the draft moves, and its row of the preview. */
+async function expectMoved(present: Locator, after: Locator): Promise<void> {
+  await expect(present).toHaveAttribute("data-state", "moved");
+  await expect(present).toContainText(MOVED_WORDS);
+  await expect(after).toHaveAttribute("data-state", "preview");
+  await expect(after).toContainText(PREVIEW_WORDS);
+  for (const [row, words] of [
+    [present, [PREVIEW_WORDS, DRAFT_WORDS]],
+    [after, [MOVED_WORDS, DRAFT_WORDS]],
+  ] as const)
+    for (const other of words) await expect(row).not.toContainText(other);
+}
 
 /** Opens every node of the tree, one chevron at a time, each level read before the next. */
 async function expandAll(tree: Locator): Promise<void> {
@@ -288,12 +304,12 @@ test("the tree of the prefixes offers no move: a prefix changes place by its val
   await form.getByRole("textbox", { name: "Valeur" }).fill("198.51.100.128/26");
   await form.getByRole("button", { name: "Ajouter au brouillon" }).click();
   await expect(page.getByRole("button", { name: /^Brouillon 1 opération$/ })).toBeVisible();
-  await expect(moved).toHaveAttribute("data-state", "draft");
   await expect(moved).toHaveAttribute("aria-level", "3");
-  // The preview of its simulation (24b): the node again at its place after, under the /24.
+  // The preview of its simulation (24b): the node again at its place after, under the /24;
+  // at its present place moved in the draft, at its place after a row of the preview (24d).
   const after = previewOf(tree, "198.51.100.128/26");
   await expect(after).toHaveAttribute("aria-level", "2");
-  await expect(after).toHaveAttribute("data-state", "draft");
+  await expectMoved(moved, after);
   expect(await rendered(tree)).toEqual(await served(page, domain));
   await expectAccessible(page);
 
@@ -340,11 +356,12 @@ test("a prefix inserted in the draft shows its future children under it before i
   await form.getByRole("button", { name: "Ajouter au brouillon" }).click();
   await expect(page.getByRole("button", { name: /^Brouillon 1 opération$/ })).toBeVisible();
 
-  // The preview: the /25 under the /24, its future children under it, all marked; the
-  // children marked at their present place too; the tree served unchanged.
+  // The preview: the /25 under the /24, its future children under it, rows of the preview;
+  // the children moved in the draft at their present place (24d); the tree served unchanged.
   const inserted = previewOf(tree, "198.51.100.0/25");
   await expect(inserted).toHaveAttribute("aria-level", "2");
-  await expect(inserted).toHaveAttribute("data-state", "draft");
+  await expect(inserted).toHaveAttribute("data-state", "preview");
+  await expect(inserted).toContainText(PREVIEW_WORDS);
   await expect(page.getByRole("status").filter({ hasText: "Aperçu du brouillon" })).toContainText(
     "3 nœuds apparaissent à leur place après application",
   );
@@ -352,9 +369,8 @@ test("a prefix inserted in the draft shows its future children under it before i
   await page.keyboard.press("ArrowRight");
   for (const child of ["198.51.100.0/26", "198.51.100.64/26"]) {
     await expect(previewOf(tree, child)).toHaveAttribute("aria-level", "3");
-    await expect(previewOf(tree, child)).toHaveAttribute("data-state", "draft");
     await expect(rowOf(tree, child)).toHaveAttribute("aria-level", "2");
-    await expect(rowOf(tree, child)).toHaveAttribute("data-state", "draft");
+    await expectMoved(rowOf(tree, child), previewOf(tree, child));
   }
   // A row of the preview chosen stays selected, its object's content beside the tree.
   await previewOf(tree, "198.51.100.0/26").locator(".k-tree-grid__label").click();

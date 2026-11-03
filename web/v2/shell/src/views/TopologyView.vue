@@ -72,6 +72,7 @@ import { rowsOf, useKeyLabel } from "./data.ts";
 import ViewPanel from "./parts/ViewPanel.vue";
 import { shareOf } from "./occupancy.ts";
 import {
+  draftStateOf,
   isPreview,
   nodesOf,
   overlay,
@@ -265,7 +266,8 @@ const nodeOf = (item: Node): TreeNode => ({
 const roots = computed(() => results.get(null));
 
 // Parents deduced (D34, REQ-021-17): no move is offered; a node whose value the active
-// draft changes stays where the present has it, marked « en brouillon » — the tree is never
+// draft changes stays where the present has it, marked « en brouillon » (« déplacé dans le
+// brouillon » when the draft moves it, task 24d) — the tree is never
 // retouched by the client, only read again once a change is applied (X24).
 const active = ref<string | null>(drafts.active());
 const stopActive = drafts.onActive((id) => (active.value = id));
@@ -351,9 +353,8 @@ const previewNote = computed(() => {
 const nodeState = (node: TreeNode): TreeNodeState | undefined =>
   results.get(node.id)?.isFetching
     ? "loading-children"
-    : time.value.present &&
-        (isPreview(node.id) || inDraft.value.has(node.id) || preview.value?.moved.has(node.id))
-      ? "draft"
+    : time.value.present
+      ? draftStateOf(node.id, inDraft.value, preview.value)
       : undefined;
 // The occupancy first, as the mock-up E1; the nature (not in the mock-up, kept from task
 // 11) beside it, the first to hide.
