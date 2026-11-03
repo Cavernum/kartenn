@@ -1,6 +1,14 @@
 import { readFileSync } from "node:fs";
-import type { Page } from "@playwright/test";
-import { apiCall, DATA, expect, expectAccessible, loginIn, test } from "../fixtures/journeys.ts";
+import type { Browser, Locator, Page } from "@playwright/test";
+import {
+  apiCall,
+  DATA,
+  expect,
+  expectAccessible,
+  loginIn,
+  test,
+  USERS,
+} from "../fixtures/journeys.ts";
 
 // The administration of the rights by groups in the new shell (spec 021, task 15a;
 // REQ-021-12, REQ-025-12; maquette E7), rewritten from web/e2e/journeys/admin.spec.ts (its
@@ -341,6 +349,146 @@ test("the break-glass account: member of `secours`, its rights in read", async (
   await expectAccessible(page);
 });
 
+/** A day of the browser's calendar, `days` from today, as the filters type it (AAAA-MM-JJ). */
+const day = (page: Page, days = 0) =>
+  page.evaluate((days) => {
+    const at = new Date();
+    at.setDate(at.getDate() + days);
+    const two = (n: number) => String(n).padStart(2, "0");
+    return `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}`;
+  }, days);
+
+/**
+ * « Pseudonymiser… » of the identity in the panel: the last of its actions, in « Plus
+ * d'actions » at the width of the panel; the menu left open.
+ */
+async function pseudonymiseEntry(page: Page): Promise<Locator> {
+  await panel(page)
+    .getByRole("toolbar", { name: "Actions de l'identité" })
+    .getByRole("button", { name: "Plus d'actions" })
+    .click();
+  return page.getByRole("menuitem", { name: "Pseudonymiser…" });
+}
+
+/** The identity of `user`, created by its login in a context of its own, then closed. */
+async function loggedOnce(browser: Browser, user: keyof typeof USERS): Promise<string> {
+  const context = await browser.newContext({ ignoreHTTPSErrors: true, locale: "fr-FR" });
+  try {
+    const person = await context.newPage();
+    await loginIn(person, user);
+    return ((await apiCall(person, "GET", "/v1/me")).body as { identity: string }).identity;
+  } finally {
+    await context.close();
+  }
+}
+
+/** Adds the filter `property` = `value` by « Ajouter un filtre » of the audit's bar. */
+async function addFilter(page: Page, property: RegExp, value: string): Promise<void> {
+  await page
+    .getByRole("group", { name: "Filtres : Audit" })
+    .getByRole("button", { name: "Ajouter un filtre" })
+    .click();
+  const picker = page.getByRole("dialog", { name: /filtre/i });
+  await page.getByRole("option", { name: property }).click();
+  await picker.getByRole("textbox", { name: /Valeur/ }).fill(value);
+  await picker.getByRole("button", { name: "Appliquer" }).click();
+  await expect(picker).toHaveCount(0);
+}
+
+test("a person pseudonymised at once, confirmed, then found in the audit by object and period", async ({
+  page,
+  login,
+  browser,
+  browserName,
+}) => {
+  // A person of the journey's own, one per browser (both run at once): created by its
+  // first login through the development issuer, never a person of the shared data set.
+  const user = browserName === "firefox" ? "oubli-firefox" : "oubli-chromium";
+  const id = await loggedOnce(browser, user);
+  const pseudonym = `personne #${id.slice(0, 8)}`;
+
+  await login("alice");
+  await page.goto(`/admin/identities/${id}`);
+  const detail = panel(page);
+  const name = USERS[user];
+  await expect(detail.getByRole("heading", { level: 2 })).toHaveText(`${name} personne`);
+  await (await pseudonymiseEntry(page)).click();
+
+  // Confirmed, with a motive: none given, the dialog says it and sends nothing.
+  const dialog = page.getByRole("dialog", { name: `Pseudonymiser ${name} ?` });
+  await expect(dialog).toContainText("Irréversible");
+  const sent: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().includes("/pseudonymisation")) {
+      sent.push(`${r.method()} ${new URL(r.url()).pathname} ${r.postData() ?? ""}`);
+    }
+  });
+  await dialog.getByRole("button", { name: "Pseudonymiser", exact: true }).click();
+  const motive = dialog.getByRole("textbox", { name: /^Motif/ });
+  await expect(motive).toHaveAccessibleDescription(/Motif est obligatoire/);
+  expect(sent).toEqual([]);
+  await expectAccessible(page);
+  await motive.fill("end-to-end right to erasure");
+  await dialog.getByRole("button", { name: "Pseudonymiser", exact: true }).click();
+
+  // At once: no draft, its name replaced by the pseudonym, here and in the list.
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByRole("status").filter({ hasText: "Identité pseudonymisée." }),
+  ).toBeVisible();
+  expect(sent).toEqual([
+    `POST /v1/identities/${id}/pseudonymisation ${JSON.stringify({ motive: "end-to-end right to erasure" })}`,
+  ]);
+  await noOperation(page);
+  await expect(detail.getByRole("heading", { level: 2 })).toHaveText(`${pseudonym} personne`);
+  await expect(detail).not.toContainText(name);
+  await expect(detail).toContainText(
+    "Aucun : cette identité ne s'est jamais connectée par un IdP.",
+  );
+
+  // Only a person is pseudonymised: the server refuses another identity (409), whose
+  // panel offers no « Pseudonymiser… » (the break-glass account, above).
+  const identities = (await apiCall(page, "GET", "/v1/identities?page_size=500")).body as {
+    items: { id: string; kind: string }[];
+  };
+  const breakglass = identities.items.find((i) => i.kind === "breakglass")!;
+  const conflict = await apiCall(page, "POST", `/v1/identities/${breakglass.id}/pseudonymisation`, {
+    motive: "end-to-end refusal",
+  });
+  expect(conflict.status).toBe(409);
+  expect(conflict.body).toMatchObject({ detail: "only a person is pseudonymised" });
+
+  // Its event, in the audit: by the object it names, then by the period it falls in.
+  await navigation(page).getByRole("link", { name: "Audit" }).click();
+  await expect(page).toHaveURL(/\/admin\/audit$/);
+  const grid = page.getByRole("grid", { name: "Audit" });
+  await addFilter(page, /^Objet/, id);
+  await expect(page).toHaveURL(new RegExp(`[?&]object=${id}`));
+  const event = grid.getByRole("row").filter({ hasText: "person.identity.pseudonymised" });
+  await expect(event).toHaveCount(1);
+  await expect(event).toContainText("Alice Exemple");
+  await event.getByRole("gridcell").first().click();
+  const read = panel(page);
+  await expect(read.getByRole("heading", { level: 2 })).toHaveText("person.identity.pseudonymised");
+  await expect(read.getByRole("list", { name: "Objets de l'événement" })).toHaveText(id);
+  const today = await day(page);
+  await addFilter(page, /^Depuis le/, today);
+  await expect(page).toHaveURL(new RegExp(`[?&]from=${today}`));
+  await expect(event).toHaveCount(1);
+  await expectAccessible(page);
+  // Up to yesterday: nothing, the filters said, and cleared from the empty state.
+  await addFilter(page, /^Jusqu'au/, await day(page, -1));
+  await expect(page.getByRole("main")).toContainText("Aucun objet ne répond à ces filtres");
+  await page.getByRole("main").getByRole("button", { name: "Retirer les filtres" }).click();
+  await expect(page).toHaveURL(/\/admin\/audit(\/[0-9a-f-]+)?$/);
+  // The button gone with the empty state, the focus on the bar.
+  await expect(
+    page
+      .getByRole("group", { name: "Filtres : Audit" })
+      .getByRole("button", { name: "Ajouter un filtre" }),
+  ).toBeFocused();
+});
+
 test("an issuer: detached in the draft, marked in place, then kept", async ({ page, login }) => {
   await login("alice");
   await page.goto("/admin/issuers");
@@ -394,6 +542,22 @@ test.describe("an administrator of one entity", () => {
           .getByRole("toolbar", { name: "Actions de l'identité" })
           .getByRole("button", { name: "Désactiver" }),
       ).toHaveAttribute("aria-disabled", "true");
+      // A pseudonymisation is a global one's too (core.identity.pseudonymise): refused
+      // here with its reason, and by the server (403) before it reads the identity.
+      const entry = await pseudonymiseEntry(dana);
+      await expect(entry).toHaveAttribute("aria-disabled", "true");
+      await expect(entry).toHaveAccessibleDescription(/^Il faut .*pseudonymise/);
+      await dana.keyboard.press("Escape");
+      const me = (await apiCall(dana, "GET", "/v1/me")).body as { identity: string };
+      const refused = await apiCall(
+        dana,
+        "POST",
+        `/v1/identities/${me.identity}/pseudonymisation`,
+        {
+          motive: "end-to-end refusal",
+        },
+      );
+      expect(refused.status).toBe(403);
       await expectAccessible(dana);
 
       await dana.goto("/admin/accounts");

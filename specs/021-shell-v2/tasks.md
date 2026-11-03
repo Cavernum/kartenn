@@ -2007,7 +2007,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     celui d'un autre onglet en cours ; filtres de période et d'objet sans parcours ; « Exporter » sans icône (aucune icône de téléchargement
     dans la liste fermée de `@kartenn/ui`) ; le fichier d'OPFS d'un très gros export est
     effacé une minute après sa remise au navigateur, qui pourrait ne pas l'avoir copié.
-- [ ] 15d. Reste de l'administration prouvé par le parcours (relevé par la liste de parité,
+- [x] 15d. Reste de l'administration prouvé par le parcours (relevé par la liste de parité,
   26) : pseudonymisation d'une identité (confirmation, motif, refus 403 et 409), sur une
   identité créée pour le parcours, afin de ne consommer aucune personne du jeu ; filtres de
   période et d'objet du journal d'audit — verify : parcours `admin` sous les deux
@@ -2015,6 +2015,35 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/v2/shell/src/admin/{IdentityDetail,AuditView}.vue` ;
     `web/v2/e2e/journeys/admin.spec.ts`, `web/v2/e2e/journeys/global-setup.ts`
   - dépend de : 15b, 15c
+  - fait le 2026-11-03 : le serveur ne crée une personne qu'à sa connexion par un émetteur
+    (ni route, ni opération) : deux utilisateurs de l'émetteur de développement
+    (`web/e2e/users.toml`, `oubli-chromium` et `oubli-firefox`, groupe `lecteurs`), un par
+    navigateur puisque les deux tournent à la fois ; le parcours connecte le sien dans un
+    contexte à part, lit son identité (`/v1/me`), et c'est elle qu'Alice pseudonymise ;
+    pseudonymisée, elle perd son sujet, et la connexion suivante en crée une neuve.
+    Parcours `admin`, « a person pseudonymised at once, confirmed, then found in the audit
+    by object and period » : « Pseudonymiser… » (dans « Plus d'actions » à la largeur du
+    panneau), motif vide refusé sans requête, puis une seule requête avec son motif ; nom
+    remplacé par `personne #…`, aucun brouillon ; 409 du serveur sur le compte de secours
+    (« only a person is pseudonymised ») ; l'événement `person.identity.pseudonymised`
+    trouvé par « Ajouter un filtre » : objet (l'identifiant), « Depuis le » aujourd'hui,
+    lu dans le panneau ; « Jusqu'au » hier : recherche vide, filtres retirés, le focus sur
+    « Ajouter un filtre ». Dana (« an administrator of one entity ») : l'entrée refusée
+    avec sa raison, 403 du serveur avant toute lecture. `AuditView.vue` : « Retirer les
+    filtres » levait une exception (`$el` du `FilterPicker` n'est pas un élément : sa
+    racine est celle du popover) ; le focus passe par le parent. Vitest : `audit.test.ts`
+    (période typée en jours, envoyée en instants ; objet ; un jour invalide hors de la
+    requête), `access.test.ts` (409 dit tel quel). `PARITE.md` : trois lignes cochées.
+  - choix : une personne par navigateur plutôt qu'un `global-setup.ts` (une personne ne
+    naît que d'une connexion, que le setup ne fait que par l'API) ; 403 et 409 prouvés
+    sur le serveur par `apiCall` et, à l'écran, par l'entrée refusée et son absence hors
+    d'une personne : l'interface n'envoie jamais ces requêtes, ni un faux serveur.
+  - reste : `ListView.vue` et `ChangesetsView.vue` ont le même `clearFilters` qui lève
+    l'exception (hors périmètre) ; « Pseudonymiser… » d'un demandeur (`requester`, 016),
+    que le serveur accepte, n'est pas offert (le panneau ne l'offre qu'à `person`) ;
+    relectures (mineurs) : l'avertissement d'irréversibilité n'est pas la description du
+    dialogue (lu dans son corps, pas annoncé à l'ouverture) ; un motif vide laisse le
+    focus sur « Pseudonymiser » (erreur dite par la région polie du champ).
 - [x] 16b. Fin de session annoncée et requêtes de fond : avis deux minutes avant
   `absolute_expires_at` (sans « Rester connecté », qui ne la repousse pas) ; en-tête
   `Kartenn-Background: ?1` posé par le SDK sur les relectures sans geste (événements,

@@ -15,6 +15,9 @@ export const USERS = {
   carol: "Carol Exemple",
   dana: "Dana Exemple",
   erwan: "Erwan Exemple",
+  // Pseudonymised by the journey `admin` (task 15d), one per browser: no other reads them.
+  "oubli-chromium": "Oubli Chromium",
+  "oubli-firefox": "Oubli Firefox",
 } as const;
 
 /**

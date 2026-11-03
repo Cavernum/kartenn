@@ -118,6 +118,14 @@ describe("service accounts", () => {
   it("says a refusal of the server by its kind", () => {
     const forbidden = new ApiProblem({ status: 403, type: "t", title: "t" });
     expect(refusalOf(forbidden).kind).toBe("forbidden");
+    // The pseudonymisation of another than a person (409): the problem said as it came.
+    const conflict = new ApiProblem({
+      status: 409,
+      type: "urn:kartenn:problem:conflict",
+      title: "Conflict",
+      detail: "only a person is pseudonymised",
+    });
+    expect(refusalOf(conflict)).toMatchObject({ kind: "failed", problem: conflict });
     const invalid = new ApiProblem({
       status: 422,
       type: "t",
