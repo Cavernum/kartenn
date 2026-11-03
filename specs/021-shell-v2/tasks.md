@@ -3190,6 +3190,26 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
 
 ## P4 — Budgets et clôture
 
+- [ ] 24e. Enfants d'un nœud jusqu'à 10⁴ lignes (A34) : les lectures `roots` et `children`
+  gardent jusqu'à 100 pages dans le cache (les autres listes restent à `MAX_PAGES`) ; la
+  lecture de l'arbre (`treePages.ts`) redemande la page suivante tant qu'il en reste et que
+  le plafond n'est pas atteint (aujourd'hui elle s'arrête quand le compte d'enfants ne
+  change plus, vers 10³) ; au-delà du plafond, un avis sous le nœud renvoie vers la liste
+  filtrée « dans ce préfixe » — verify : Vitest (11ᵉ page puis 101ᵉ : lue, puis avis) ;
+  parcours `tree` (un conteneur de plus de 10³ enfants défilé jusqu'au dernier lu) ; tas
+  sous 64 Mo au banc (22a)
+  - où : `web/v2/sdk/src/data/cache.ts` (`MAX_PAGES`, `maxPages`), `treePages.ts` du shell,
+    `web/v2/shell/src/views/TopologyView.vue` (avis) ; jeu de données `core.wide-children`
+  - dépend de : 22
+- [ ] 22a. Mesures restantes du banc web : la page de 100 lignes rend son chiffre (lectures
+  servies en 304 comptées à part, déjà codé, pas encore passé) ; l'arbre chargé jusqu'au
+  bout avant le défilement, une fois la 24e faite, sur 10⁴ lignes ; navigation en cache au
+  p75, le pire imprimé (A35) ; `.claude/agents/bench-runner.md` à jour (fait par la session
+  principale à la fusion de la 22) — verify : une passe réduite où chaque mesure rend un
+  chiffre ; la passe complète lancée par la session principale sur machine libre
+  - où : `web/v2/e2e/budgets/budgets.spec.ts`, `web/v2/e2e/budgets/global-setup.ts`
+  - dépend de : 22, 24e
+
 - [ ] 21. Accessibilité étendue : parcours clavier complet (palette, barre repliée,
   panneau du brouillon, édition en place), reflow 320 px des écrans de consultation,
   message d'édition sous 1024 px — REQ-021-29 — verify : `k-web-e2e` ; revue

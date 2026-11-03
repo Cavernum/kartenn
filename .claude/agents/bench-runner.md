@@ -14,11 +14,17 @@ les bancs recréent eux-mêmes la base `kartenn_bench`.
   Redirige la sortie complète vers un fichier `/tmp/bench-<script>-<date>.out` et lis-la
   ensuite. Les bancs démarrent eux-mêmes leur instance PostgreSQL (port 5433,
   `k-pg-bench`, ADR 0032).
-- Navigateur : `devenv shell -- bench-web [graine] [small]` (taille du shell initial par
-  `size.mjs`, puis le projet Playwright `budgets` contre kartenn-server en release : premier
-  écran, INP, navigation en cache, CLS, trames perdues de l'arbre, mémoire). Chaque mesure
-  sort en une ligne `PASS|FAIL <budget>: <mesure> (limit <seuil>)` : c'est elle que tu
-  reportes, sans les traces ni le détail de Playwright. `small` est l'échelle réduite.
+- Navigateur : `devenv shell -- bench-web [graine] [small] [args playwright]` (nouveau shell
+  `web/v2/` : poids du shell initial par `web/v2/shell/scripts/shell-size.ts`, poids de
+  chaque plugin par `web/v2/tools/plugin-size.ts`, puis le projet Playwright `budgets` de
+  `web/v2/e2e/` contre kartenn-server en release, CPU ralenti ×4 : premier écran, page de 100
+  lignes, navigation en cache jusqu'à `k:view` (p75, le pire imprimé), CLS du premier écran
+  et des navigations, INP par scénario avec la cible de sa plus longue interaction, Flèche
+  bas dans l'arbre et la grille, trames perdues et tâches longues de l'arbre, tas). Chaque
+  mesure sort en une ligne `PASS|FAIL <budget>: <mesure> (limit <seuil>)`, avec médiane et
+  pire pour les mesures répétées : c'est elle que tu reportes, sans les traces ni le
+  détail de Playwright. `small` est l'échelle réduite. Il prend lui-même les verrous des
+  bancs et de `pg`.
 - Bibliothèque `@kartenn/ui` : `devenv shell -- bench-ui` (sans PostgreSQL ni échelle ;
   poids par `web/v2/shell/scripts/size.ts`, puis le projet Playwright `components-bench` :
   arbres de 10⁵ nœuds, grille de 10⁴ lignes, couches ; spec 020, REQ-020-29). Chaque

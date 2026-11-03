@@ -349,6 +349,17 @@ Tranchés le 2026-11-03, d'après la liste de parité (26) :
   parcours vont à la 18g ; les gardes du parcours `smoke` (violation axe, script en
   ligne) prouvées par un test vont à la 21.
 
+Tranchés le 2026-11-03 par l'utilisateur, d'après le banc web étendu (22) :
+
+- **A34 — Enfants d'un nœud de l'arbre** : le cache garde jusqu'à 100 pages (10⁴ lignes)
+  pour les enfants d'un nœud (`roots`, `children`), au lieu de 10 ; au-delà, un avis
+  renvoie vers la liste filtrée « dans ce préfixe ». REQ-021-30 tient telle quelle (10⁴
+  lignes défilées) ; la mémoire reste sous 64 Mo, vérifiée par le banc (24e). Une
+  pagination en fenêtre glissante (lignes évincées derrière, curseurs gardés) viendra si
+  plus de 10⁴ enfants deviennent un cas réel.
+- **A35 — Navigation en cache** : le budget de ≤ 100 ms porte sur le p75 de dix
+  navigations, le pire imprimé, comme les autres mesures répétées (INP, Flèche bas).
+
 ## Questions (closes le 2026-10-23)
 
 - **Q-021-1** — Édition en place : brouillon par défaut, en lot avec un motif ;

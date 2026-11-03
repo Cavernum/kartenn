@@ -730,7 +730,7 @@ passage complet.
 | Premier écran utile | ≤ 2 s | `fetchStart` de la navigation après le rappel OIDC → première trame où les tuiles de l'accueil (`.k-home-tiles`) sont dans le document, relevée par le banc |
 | Page de 100 lignes | ≤ 100 ms | `responseEnd` de la page de `/v1/addresses` demandée (sa propre ressource) → première trame où sa première ligne (`data-row`) est dans le DOM, p95 de 20 pages, médiane imprimée |
 | INP | ≤ 200 ms, p75 | Event Timing (`PerformanceObserver` `event`, `durationThreshold: 16`) sur 20 répétitions de : ouvrir un nœud, filtrer, éditer une cellule, changer d'onglet, ouvrir la palette |
-| Navigation en cache | ≤ 100 ms | clic sur un lien déjà préchargé → marque `k:view` |
+| Navigation en cache | ≤ 100 ms au p75, le pire imprimé (*précisé le 2026-11-03*, A35) | clic sur un lien déjà préchargé → marque `k:view` |
 | CLS | ≤ 0,05 | premier écran : `layout-shift` sans entrée récente ; chaque navigation (10) : tous les `layout-shift` de la trame de `k:view` à 1 s après, ceux qui suivent le clic de moins de 500 ms compris (témoin : un bloc de 200 px inséré exprès doit être vu) |
 | Arbre de 10⁵ | ≤ 2 % de trames perdues, aucune tâche longue | défilement scénarisé de 10⁴ lignes, aller-retour sur les enfants gardés en cache (au plus `MAX_PAGES` × 100), toutes chargées avant, aucune lecture de `/children` pendant la fenêtre (comptée) ; trames perdues = 1 − trames observées / (durée ÷ 16,67 ms), boucle `requestAnimationFrame` (protocole du prototype) ; tâches longues > 50 ms par `PerformanceObserver` |
 | Flèche bas (arbre, grille) | ≤ 100 ms, p75 | 50 appuis ; du `timeStamp` du `keydown` au premier `requestAnimationFrame` après le focus attendu |
