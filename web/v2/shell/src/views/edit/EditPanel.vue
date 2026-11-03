@@ -25,6 +25,7 @@ import {
   CodeBadge,
   Combobox,
   filterOptions,
+  Heading,
   InlineAlert,
   Select,
   Skeleton,
@@ -587,7 +588,7 @@ watch(
     @keydown="onKeydown"
   >
     <Stack gap="3">
-      <h2 class="k-edit-panel__title">{{ title }}</h2>
+      <Heading :level="2">{{ title }}</Heading>
       <Cluster
         v-if="props.request.mode === 'create' && props.request.kinds"
         gap="1"
@@ -697,11 +698,6 @@ watch(
 
 <style>
 @layer components {
-  .k-edit-panel__title {
-    font-size: var(--k-text-md);
-    font-weight: var(--k-weight-semibold);
-  }
-
   .k-edit-panel__notice {
     color: var(--k-text-muted);
   }

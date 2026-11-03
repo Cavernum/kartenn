@@ -14,6 +14,7 @@ import {
   Checkbox,
   Cluster,
   Button,
+  Heading,
   InlineAlert,
   Skeleton,
   SplitButton,
@@ -202,7 +203,7 @@ watch(
     @keydown="onKeydown"
   >
     <Stack gap="3">
-      <h2 class="k-close-panel__title">{{ title }}</h2>
+      <Heading :level="2">{{ title }}</Heading>
       <Checkbox
         v-if="offersCascade"
         v-model="cascade"
@@ -279,11 +280,6 @@ watch(
 
 <style>
 @layer components {
-  .k-close-panel__title {
-    font-size: var(--k-text-md);
-    font-weight: var(--k-weight-semibold);
-  }
-
   .k-close-panel__muted {
     color: var(--k-text-muted);
   }
