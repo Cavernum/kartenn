@@ -1348,7 +1348,17 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     passer à `NoValue` (hors du périmètre : seul `NetworkVlan.vue` touché côté shell) ;
     relations vides du plugin dites « non renseigné » (`MachineColumn` sans machine,
     `MachineRecord` sans adresse, `ClusterRecord` sans relation) : « aucune machine »,
-    « aucune adresse » seraient plus justes, textes de la vue à écrire.
+    « aucune adresse » seraient plus justes, textes de la vue à écrire. Tirets recopiés du
+    shell que la règle vise aussi (`web/v2/shell/src/`) : `admin/IdentitiesView.vue:116`,
+    `admin/RolesView.vue:184`, `draft/DraftsView.vue:240`, `draft/operations.ts:26`,
+    `views/PropertiesView.vue:74` et `:120`, `changesets/words.ts:25` et `:27`,
+    `admin/auditWords.ts:49`. L'outil d'impact (`web/v2/tools/impact/`) échoue sur un
+    fichier supprimé de l'arbre de travail (« no such file, nor a deleted one ») et force
+    alors une passe complète des captures.
+  - corrigé après la revue de la branche : `ExpandableGrid` passe toujours son emplacement
+    `cell` à `DataGrid` ; son contenu par défaut rend `NoValue` pour une cellule `null`,
+    dans la grille compacte et dans le dialogue (`ui/test/no-value-mounted.test.ts`) ;
+    `TreeGrid` lit la cellule une fois (`cellOf`).
 - [ ] 28. Synchronisation : `docs/spec/` (architecture web : `@kartenn/ui`, couches,
   catalogue) ; ADR 0036, 0038, 0039 acceptées ;
   `specs/README.md` ; audit `spec-keeper` — verify : liens croisés ; aucun écart
