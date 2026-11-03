@@ -2210,9 +2210,18 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     comme le brouillon ; après une clôture appliquée, la fiche se relit et dit que l'objet
     n'est plus au présent (comme l'ancien shell) ; l'entrée du menu reprend l'icône `trash`
     de la maquette E2 ; le menu d'actions est désormais toujours montré.
+  - corrections de revue : la clé d'idempotence se renouvelle dès que l'opération change
+    (cascade, version relue après `changeset.operation.conflict`), sans quoi la seconde
+    tentative recevait `IdempotencyConflict` (REQ-006-15) ; test monté du conflit (422, note,
+    relecture, second envoi à la version relue sous une autre clé), d'un auteur sans
+    `.approval.self` (« Appliquer » le nomme, le brouillon reste permis) ; un rejet de
+    l'écriture (brouillon compris) garde son problème, code et `Request-Id` dits, et libère
+    le bouton ; le séparateur de tête des actions des plugins n'est retiré que s'il y est.
   - reste : mécanique commune au panneau d'édition (action, motif, clé d'idempotence,
-    `settle`) recopiée, à factoriser (revue `ui-reviewer`) ; Ctrl+Entrée d'une action
-    refusée reste muet dans `EditPanel.vue` (revue `a11y-auditor`) ; la fiche ne dit pas
+    `settle`) recopiée, à factoriser en un composable (du type `useWriteAction`) qui porte la
+    règle « opération nouvelle, clé nouvelle » (revue `ui-reviewer`) ; dans `EditPanel.vue`,
+    même cause : Ctrl+Entrée d'une action refusée reste muet (revue `a11y-auditor`), et un
+    rejet de `addToActiveDraft` laisse `busy` vrai (pas de `.catch`) ; la fiche ne dit pas
     qu'une clôture de l'objet attend au brouillon ; les maquettes nomment encore
     `core.<sorte>.apply` sur « Clore… » (E2, E12, E27).
 

@@ -9,7 +9,14 @@
 // (422, 403, a version changed meanwhile) stays here with its code; « Appliquer » without
 // `<sorte>.approval.self` stays visible, refused, and names the permission.
 import { addToActiveDraft } from "@kartenn/sdk/host";
-import { changesets, reads, type Entry, type Simulated, type WriteOutcome } from "@kartenn/sdk";
+import {
+  ApiProblem,
+  changesets,
+  reads,
+  type Entry,
+  type Simulated,
+  type WriteOutcome,
+} from "@kartenn/sdk";
 import {
   Checkbox,
   Cluster,
@@ -143,14 +150,21 @@ watch(
   },
   { immediate: true },
 );
-/** The key of a closure applied at once, kept while nothing changes (REQ-006-15). */
+/**
+ * The key of a closure applied at once, kept while nothing changes (REQ-006-15): a try again
+ * after a lost answer replays the same submission. A new operation (the cascade, the version
+ * read again after a conflict) or a new motive takes a new key.
+ */
 let idempotencyKey = crypto.randomUUID();
 function setMotive(text: string): void {
   motive.value = text;
   motiveTyped = true;
   idempotencyKey = crypto.randomUUID();
 }
-watch(cascade, () => (idempotencyKey = crypto.randomUUID()));
+watch(
+  () => JSON.stringify(operation.value),
+  () => (idempotencyKey = crypto.randomUUID()),
+);
 
 const title = computed(() => t("edit.close.title", { kind: kindWords.value, name: name.value }));
 const what = computed(() => t("edit.close.what", { kind: kindWords.value, name: name.value }));
@@ -212,18 +226,23 @@ async function run(id: string = action.value): Promise<void> {
   }
   busy.value = true;
   if (id === "draft") {
-    settle(
-      (await addToActiveDraft([operation.value])) as WriteOutcome<unknown> | { kind: "saved" },
-    );
+    const outcome = await addToActiveDraft([operation.value]).catch(failed);
+    settle(outcome as WriteOutcome<unknown> | { kind: "saved" });
     return;
   }
   const outcome = await changesets
     .submit({ motive: motive.value.trim(), operations: [operation.value] }, idempotencyKey, {
       approvalSelf: true,
     })
-    .catch(() => ({ kind: "failed", input: {}, problem: null }) as Refusal);
+    .catch(failed);
   settle(outcome);
 }
+/** A write rejected outright: the problem kept, its code and `Request-Id` said with it. */
+const failed = (error: unknown): Refusal => ({
+  kind: "failed",
+  input: {},
+  problem: error instanceof ApiProblem ? error : null,
+});
 
 function onKeydown(event: KeyboardEvent): void {
   if (event.defaultPrevented) return;

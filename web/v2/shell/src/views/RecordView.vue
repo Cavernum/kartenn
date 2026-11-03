@@ -148,9 +148,10 @@ const actions = computed<MenuItem[]>(() => {
   const own: MenuItem[] = movable.value
     ? [{ id: MOVE, label: t("edit.move.action"), icon: "move", ...refused }]
     : [];
-  // The plugins' entries open with a separator: none at the top of the menu.
+  // The plugins' entries open with a separator (`actionItems`): none at the top of the menu.
   const theirs = actionItems(pluginActions.value, tr);
-  const before = own.length > 0 ? [...own, ...theirs] : theirs.slice(1);
+  const lead = theirs[0]?.kind === "separator" ? theirs.slice(1) : theirs;
+  const before = own.length > 0 ? [...own, ...theirs] : lead;
   return [
     ...before,
     ...(before.length > 0 ? [{ kind: "separator" } as const] : []),

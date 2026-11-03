@@ -110,6 +110,7 @@ describe("the close panel of a record", () => {
     method: string;
     url: string;
     body: Record<string, unknown> | null;
+    key: string | null;
   }
   type Answer = { status?: number; body: unknown; etag?: string };
 
@@ -125,6 +126,7 @@ describe("the close panel of a record", () => {
         method: init?.method ?? "GET",
         url: String(input),
         body: init?.body ? JSON.parse(String(init.body)) : null,
+        key: new Headers(init?.headers).get("Idempotency-Key"),
       };
       seen.push(call);
       const out = call.url.startsWith("/v1/labels")
@@ -174,14 +176,28 @@ describe("the close panel of a record", () => {
     return { seen, root };
   }
 
-  const object = (id: string, value: string) => ({
-    body: { id, value, version: V1, domain: { id: D1, slug: "essai", href: `/v1/domains/${D1}` } },
-    etag: `"${V1}"`,
+  const object = (id: string, value: string, version = V1) => ({
+    body: { id, value, version, domain: { id: D1, slug: "essai", href: `/v1/domains/${D1}` } },
+    etag: `"${version}"`,
   });
   const main = (root: HTMLElement) =>
     root.querySelector<HTMLButtonElement>(".k-split-button__main");
   const writes = (seen: Seen[]) =>
     seen.filter((s) => s.method !== "GET" && !s.url.includes("simulate"));
+  const ctrlEnter = (root: HTMLElement) =>
+    root
+      .querySelector("form")!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true }));
+  /** The entries of the menu of the split button, opened at the keyboard. */
+  async function splitMenu(root: HTMLElement): Promise<HTMLElement[]> {
+    const chevron = root.querySelector<HTMLButtonElement>(
+      ".k-split-button [aria-haspopup='menu']",
+    )!;
+    chevron.focus();
+    chevron.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    await expect.poll(() => document.querySelectorAll("[role='menuitem']").length).toBe(2);
+    return [...document.querySelectorAll<HTMLElement>("[role='menuitem']")];
+  }
 
   it("closes an address to the draft at the version served, its simulation said first", async () => {
     const { seen, root } = await mounted("addresses", A1, ["core.address.edit"], (call) => {
@@ -290,5 +306,87 @@ describe("the close panel of a record", () => {
     expect(root.querySelector("[role='status']:last-of-type")?.textContent).toContain(
       "il faut core.address.edit",
     );
+  });
+
+  it("with `.edit` and without `.approval.self`: « Appliquer » names it, the draft stays", async () => {
+    const { root } = await mounted("addresses", A1, ["core.address.edit"], (call) => {
+      if (call.url === `/v1/addresses/${A1}`) return object(A1, "198.51.100.10");
+      if (call.url.startsWith("/v1/changesets?simulate=true")) return { body: simulated() };
+      return undefined;
+    });
+    await expect.poll(() => main(root)).not.toBeNull();
+    expect(main(root)!.textContent).toContain("Clore au brouillon");
+    expect(main(root)!.getAttribute("aria-disabled")).not.toBe("true");
+    const [draft, apply] = await splitMenu(root);
+    expect(draft!.getAttribute("aria-disabled")).not.toBe("true");
+    expect(apply!.textContent).toContain("Appliquer la clôture");
+    expect(apply!.getAttribute("aria-disabled")).toBe("true");
+    const described = apply!.getAttribute("aria-describedby")!;
+    expect(document.getElementById(described)?.textContent).toContain("core.address.approval.self");
+  });
+
+  it("after a conflict, applies again on the version read again, under a new key", async () => {
+    let reads = 0;
+    let submits = 0;
+    const V2 = "0b5e3c1a-0000-4000-8000-0000000000c2";
+    const { seen, root } = await mounted(
+      "addresses",
+      A1,
+      ["core.address.edit", "core.address.approval.self"],
+      (call) => {
+        if (call.url === `/v1/addresses/${A1}`) {
+          // Written by another between the read and the closure: V2 once it was refused.
+          if (submits > 0) reads += 1;
+          return object(A1, "198.51.100.10", submits === 0 ? V1 : V2);
+        }
+        if (call.url.startsWith("/v1/changesets?simulate=true")) return { body: simulated() };
+        if (call.method === "POST" && call.url === "/v1/changesets?approval=self") {
+          submits += 1;
+          if (submits === 1) {
+            return {
+              status: 422,
+              body: {
+                type: "urn:kartenn:problem:validation",
+                title: "Changeset invalide",
+                status: 422,
+                violations: [
+                  {
+                    rule: "changeset.operation.conflict",
+                    severity: "error",
+                    detail: `${A1} was modified since changeset ${V1}: current version ${V2}`,
+                    operation: 0,
+                    pointer: null,
+                    subjects: [A1],
+                  },
+                ],
+              },
+            };
+          }
+          return {
+            status: 201,
+            body: { changeset: { id: D1 }, warnings: [], cascaded: [] },
+          };
+        }
+        return undefined;
+      },
+    );
+    await expect.poll(() => root.textContent).toContain("La clôture passe les règles");
+    const [, apply] = await splitMenu(root);
+    apply!.click();
+    await expect.poll(() => main(root)?.textContent).toContain("Appliquer la clôture");
+    ctrlEnter(root);
+    await expect.poll(() => root.textContent).toContain("L'objet a changé depuis sa lecture");
+    expect(root.textContent).toContain("changeset.operation.conflict");
+    // Read again after the refusal: value and version of one snapshot.
+    await expect.poll(() => reads).toBeGreaterThanOrEqual(1);
+    await nextTick();
+    ctrlEnter(root);
+    await expect.poll(() => submits).toBe(2);
+    const [first, second] = writes(seen);
+    expect((first!.body?.operations as unknown[])[0]).toMatchObject({ expected: V1 });
+    expect((second!.body?.operations as unknown[])[0]).toMatchObject({ expected: V2 });
+    expect(second!.key).not.toBeNull();
+    expect(second!.key).not.toBe(first!.key);
+    await expect.poll(() => editRequest().value).toBeNull();
   });
 });
