@@ -2229,12 +2229,13 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (`session`, `time`, `edit`), des modules refusés par `integrity` dont le contenu reçu
     est vide (empreinte SHA-384 de la chaîne vide) ; les mêmes parcours passent seuls
     (14/14) ; `vlan` et `plugins` verts dans les deux navigateurs.
-- [ ] 18. Plugin Machines, même traitement, espace `hosts`, déplacement d'une machine vers
+- [x] 18. Plugin Machines, même traitement, espace `hosts`, déplacement d'une machine vers
   un cluster (si Q-021-2 le retient) par le `canMove` de la tâche 24 (codes
   `machines.host.*`), sans optimisme — verify : parcours `machines` vert
   - où : `web/plugins/machines/`
   - dépend de : 17
   - découpée le 2026-11-01 en 18a et 18b (fin de P3)
+  - faite le 2026-11-03 par ses sous-tâches 18a, 18b et 18ca à 18cd, fusionnées
 - [x] 19. Plugin d'exemple passé au SDK 1.0, **toujours sans framework**, en racine
   d'ombre avec `handle.styles()` sur `@kartenn/ui/style.css`, lecture par le
   `QueryClient` — REQ-021-25, 27 — verify : parcours `example` vert ; invalidation reçue
@@ -2431,7 +2432,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     24 « an entity changes parent by its menu » a perdu une fois le focus du champ
     pendant le parcours complet (vert relancé seul, deux fois).
 
-- [ ] 18c. Plugin Machines en Vue 3 et `@kartenn/ui` (A19) : réécriture de
+- [x] 18c. Plugin Machines en Vue 3 et `@kartenn/ui` (A19) : réécriture de
   `web/v2/plugins/machines` en Vue, à la forme que prendront les plugins de la 017 ;
   listes en `DataGrid` (tri et filtres typés), choix en `Select`/`Combobox`, codes en
   `CodeBadge`, état en `StatusBadge` ; arbre de l'hébergement en `TreeGrid` à parent
@@ -2447,6 +2448,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - dépend de : 18b
   - découpée le 2026-11-02 en 18ca à 18cd (A23), chacune migrant des éléments entiers ;
     l'ancien élément et ses tests ne partent qu'une fois l'élément Vue et ses tests verts
+  - faite le 2026-11-03 par ses sous-tâches 18ca à 18cd, fusionnées
 - [x] 18ca. Montage d'un plugin de première partie en Vue (modèle de la 017) : une
   application par élément (`createApp`) montée dans son DOM léger à `connectedCallback`,
   démontée à `disconnectedCallback`, contexte du SDK, lien en `<a href>` suivi par
