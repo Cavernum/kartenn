@@ -1,0 +1,8 @@
+- main:
+  - region "NoValue":
+    - heading "NoValue" [level=1]
+    - paragraph: "Motif : texte (tiret caché aux lecteurs d'écran, mots lus à sa place)"
+    - 'figure "default — Valeur absente : un tiret montré, « non renseigné » pour les lecteurs d''écran"':
+      - text: ""
+      - code: default
+      - text: ""

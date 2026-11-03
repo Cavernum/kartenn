@@ -1,0 +1,40 @@
+- main:
+  - region "NoValue":
+    - heading "NoValue" [level=1]
+    - paragraph: "Motif : texte (tiret caché aux lecteurs d'écran, mots lus à sa place)"
+    - 'figure "grids — Cellule null d''une DataGrid et d''une TreeGrid : dite absente ; une cellule \"\" reste vide"':
+      - grid "Interfaces":
+        - rowgroup:
+          - row "Interface Adresse MAC Note":
+            - columnheader "Interface"
+            - columnheader "Adresse MAC"
+            - columnheader "Note"
+        - rowgroup:
+          - row /eth0 \d+-\d+-5E-\d+-\d+-\d+ Gestion/:
+            - gridcell "eth0"
+            - gridcell /\d+-\d+-5E-\d+-\d+-\d+/
+            - gridcell "Gestion"
+          - row "eth1 non renseigné":
+            - gridcell "eth1"
+            - gridcell "non renseigné"
+            - gridcell
+      - alert
+      - treegrid "Hébergement":
+        - rowgroup:
+          - row "Machine Site":
+            - columnheader "Machine"
+            - columnheader "Site"
+        - rowgroup:
+          - row "grappe-nord Site A" [expanded] [level=1]:
+            - gridcell "grappe-nord"
+            - gridcell "Site A"
+          - row /hv-nord-\d+ Site A/ [level=2]:
+            - gridcell /hv-nord-\d+/
+            - gridcell "Site A"
+          - row /hv-nord-\d+ non renseigné/ [level=2]:
+            - gridcell /hv-nord-\d+/
+            - gridcell "non renseigné"
+      - status
+      - alert
+      - code: grids
+      - text: ""

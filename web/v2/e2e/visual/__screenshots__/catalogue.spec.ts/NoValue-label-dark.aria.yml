@@ -1,0 +1,8 @@
+- main:
+  - region "NoValue":
+    - heading "NoValue" [level=1]
+    - paragraph: "Motif : texte (tiret caché aux lecteurs d'écran, mots lus à sa place)"
+    - 'figure "label — Mots de la vue (une relation vide, un sans-objet) : le même tiret, « Aucun VLAN » lu"':
+      - text: ""
+      - code: label
+      - text: ""

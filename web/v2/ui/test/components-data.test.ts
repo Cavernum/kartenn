@@ -88,6 +88,31 @@ describe("DataGrid", () => {
     expect(html).toContain('aria-readonly="true"');
   });
 
+  it('a cell null is said absent (NoValue); a cell "" or not given stays blank (task 30)', async () => {
+    const html = await render(DataGrid, {
+      label: "Préfixes",
+      columns: [...columns, { id: "site", label: "Site", width: "md" }],
+      rows: [
+        { prefix: "192.0.2.0/24", label: null, site: "" },
+        { prefix: "198.51.100.0/24", label: "Postes" },
+      ],
+      rowKey: "prefix",
+    });
+    /** The content of a cell, its opening tag left out. */
+    const cell = (row: string, column: string) =>
+      html.match(
+        new RegExp(
+          `data-row="${row.replaceAll(".", "\\.")}" data-column="${column}"[^>]*>([\\s\\S]*?)</div>`,
+        ),
+      )![1]!;
+    expect(cell("192.0.2.0/24", "label")).toContain(
+      '<span class="k-no-value"><span aria-hidden="true">—</span><span class="k-visually-hidden">non renseigné</span></span>',
+    );
+    expect(html.match(/k-no-value/g)).toHaveLength(1);
+    expect(text(cell("192.0.2.0/24", "site")).trim()).toBe("");
+    expect(text(cell("198.51.100.0/24", "site")).trim()).toBe("");
+  });
+
   it("templates: a width the user gave, the track of the checkboxes", () => {
     expect(columnsTemplate(columns, { label: 300.4 })).toBe(
       "minmax(auto, var(--k-size-col-md)) minmax(auto, 300px)",
@@ -544,6 +569,28 @@ describe("TreeGrid", () => {
       { ...flat[2]!, level: 2 },
     ];
     expect(misplaced(moved)).toEqual(["a11"]);
+  });
+
+  it('a cell null is said absent (NoValue); a cell "" or not given stays blank (task 30)', async () => {
+    const html = await render(TreeGrid, {
+      label: "Arbre",
+      treeLabel: "Machine",
+      columns: [{ id: "site", label: "Site", width: "md" }],
+      nodes: [
+        { id: "a", label: "A", cells: { site: null } },
+        { id: "b", label: "B", cells: { site: "" } },
+        { id: "c", label: "C" },
+      ],
+    });
+    /** The content of the cell « site » of a row, its opening tag left out. */
+    const value = (row: string) =>
+      html.match(new RegExp(`data-row="${row}" data-column="site"[^>]*>([\\s\\S]*?)</div>`))![1]!;
+    expect(html.match(/k-no-value/g)).toHaveLength(1);
+    expect(value("a")).toContain(
+      '<span class="k-tree-grid__value"><span class="k-no-value"><span aria-hidden="true">—</span><span class="k-visually-hidden">non renseigné</span></span></span>',
+    );
+    expect(text(value("b")).trim()).toBe("");
+    expect(text(value("c")).trim()).toBe("");
   });
 
   it("renders the treegrid pattern and the states of moves", async () => {

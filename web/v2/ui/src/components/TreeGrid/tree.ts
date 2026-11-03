@@ -24,8 +24,11 @@ export interface TreeNode {
    * (`aria-setsize="-1"`) and a row after them reads the next page (`load`).
    */
   more?: boolean;
-  /** Further cells of the row, by column id (treegrid). */
-  cells?: Record<string, string>;
+  /**
+   * Further cells of the row, by column id (treegrid). `null`: a value absent, said (a dash
+   * shown, « non renseigné » read, `NoValue`); a cell not given, or `""`, stays blank.
+   */
+  cells?: Record<string, string | null>;
   /** What the node is, beside its label (a description of the row, not its name). */
   detail?: string;
 }

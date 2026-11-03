@@ -7,16 +7,16 @@
 // in the shell, the records of a plugin written in Vue without a sheet of its own (A23).
 // Taken from the shell (task 021-11, its mock-ups `EcranAttributs`). A value may be
 // replaced by a slot named after its term key; a value absent (`undefined`, `null`, `""`,
-// or a slot that renders nothing) is said, never blank: a dash shown, « non renseigné »
-// for the screen readers. One grid: the columns are set once on the list, every item is a
-// subgrid of it (design « Adaptation à la largeur »); the columns stay in fractions, so
+// or a slot that renders nothing) is said, never blank (`NoValue`): a dash shown,
+// « non renseigné » for the screen readers. One grid: the columns are set once on the
+// list, every item is a subgrid of it (design « Adaptation à la largeur »); the columns stay in fractions, so
 // that blocks of the same width, stacked, align their values. `tile`: blocks side by side
 // in a grid (`Grid columns="auto"`) share its rows (row subgrid), the n-th property of
 // each block on the same line. With `columns` (a wide panel, the bottom panel of E1), the
 // pairs of tracks repeat as many times as the width holds: properties in several columns,
 // each still a subgrid, terms and values of a column aligned.
 import { Comment, Fragment, Text, computed, useSlots, type VNode } from "vue";
-import { t } from "../../i18n.ts";
+import NoValue from "../NoValue/NoValue.vue";
 import type { AttributeItem } from "./attributes.ts";
 
 const props = defineProps<{ items: AttributeItem[]; columns?: boolean; tile?: boolean }>();
@@ -50,9 +50,7 @@ const empty = (item: AttributeItem) => {
   >
     <div v-for="item in props.items" :key="item.key" class="k-attribute-list__item">
       <dt class="k-attribute-list__term">{{ item.label }}</dt>
-      <dd v-if="empty(item)" class="k-attribute-list__value" data-empty="true">
-        <span aria-hidden="true">—</span><span class="k-visually-hidden">{{ t("valueNone") }}</span>
-      </dd>
+      <dd v-if="empty(item)" class="k-attribute-list__value" data-empty="true"><NoValue /></dd>
       <dd v-else class="k-attribute-list__value" :class="{ 'k-mono': item.mono }">
         <slot :name="item.key">{{ item.value }}</slot>
       </dd>
@@ -100,8 +98,7 @@ const empty = (item: AttributeItem) => {
     row-gap: var(--k-space-1);
   }
 
-  .k-attribute-list__term,
-  .k-attribute-list__value[data-empty] {
+  .k-attribute-list__term {
     color: var(--k-text-muted);
   }
 

@@ -34,6 +34,7 @@ export { default as Split } from "./components/Split/Split.vue";
 export { default as Heading } from "./components/Heading/Heading.vue";
 export { default as AttributeList } from "./components/AttributeList/AttributeList.vue";
 export type { AttributeItem } from "./components/AttributeList/attributes.ts";
+export { default as NoValue } from "./components/NoValue/NoValue.vue";
 export { default as Button } from "./components/Button/Button.vue";
 export type { ButtonProps, ButtonVariant } from "./components/Button/button.ts";
 export { default as IconButton } from "./components/IconButton/IconButton.vue";
