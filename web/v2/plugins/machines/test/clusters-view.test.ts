@@ -80,13 +80,19 @@ const draftOf = (operations: unknown[]) =>
 const simulation = (valid: boolean, violations: unknown[]) =>
   ({ valid, violations, diff: [], sample: [], cascaded: [], sections: [] }) as never;
 
-/** The reads of the tree: the guests of a host by `?host=`, the machines without it. */
+/**
+ * The reads of the tree: the guests of a host by `?host=`, the machines without one by
+ * `?host:exists=false` (A28); any other list of machines holds the hosted ones too.
+ */
 const READS = {
   "GET /v1/clusters": () => page([cluster]),
   "GET /v1/machines": ({ query }: { query: URLSearchParams }) => {
     const host = query.get("host");
     if (host === HOST) return page([HOSTED]);
-    return host ? page([]) : page(MACHINES);
+    if (host) return page([]);
+    return query.get("host:exists") === "false"
+      ? page(MACHINES.filter((m) => !m.host))
+      : page(MACHINES);
   },
   "GET /v1/sites/{id}": () => ({ id: SITE, slug: "nord", href: `/v1/sites/${SITE}` }) as never,
 };
@@ -155,13 +161,15 @@ const status = (element: HTMLElement) =>
 describe("the tree « Hébergement et clusters » (task 18cd)", () => {
   it("shows the clusters and the machines without a host, the guests once opened; Enter opens a record", async () => {
     history.replaceState(null, "", "/x/machines/clusters");
-    const asked: (string | null)[] = [];
+    const asked: string[] = [];
+    const ROOTS = "host:exists=false";
     mounted = mount("machines-clusters", {
       context: { locale: "en", user: user() },
       fetch: fakeFetch({
         ...READS,
         "GET /v1/machines": (request) => {
-          asked.push(request.query.get("host"));
+          const { query } = request;
+          asked.push(query.get("host") ?? `host:exists=${query.get("host:exists")}`);
           return READS["GET /v1/machines"](request);
         },
       }),
@@ -179,16 +187,47 @@ describe("the tree « Hébergement et clusters » (task 18cd)", () => {
     await vi.waitFor(() =>
       expect(rows(element)).toEqual(["1 grappe", "1 srv-a", "2 vm-a", "1 vm-b"]),
     );
-    expect(asked).toEqual([null, HOST]);
+    expect(asked).toEqual([ROOTS, HOST]);
     // A cluster opened without guests: a leaf.
     press(element, CLUSTER, "ArrowRight");
-    await vi.waitFor(() => expect(asked).toEqual([null, HOST, CLUSTER]));
+    await vi.waitFor(() => expect(asked).toEqual([ROOTS, HOST, CLUSTER]));
     await vi.waitFor(() =>
       expect(rowOf(element, CLUSTER)?.hasAttribute("aria-expanded")).toBe(false),
     );
     press(element, CLUSTER, "Enter");
     press(element, GUEST, "Enter");
     expect(followed).toEqual([`/x/machines/clusters/${CLUSTER}`, `/x/machines/machines/${GUEST}`]);
+  });
+
+  it("reads the machines without a host a page at a time, the next one when the tree asks (A28)", async () => {
+    history.replaceState(null, "", "/x/machines/clusters");
+    const asked: string[] = [];
+    mounted = mount("machines-clusters", {
+      context: { locale: "en", user: user() },
+      fetch: fakeFetch({
+        ...READS,
+        "GET /v1/machines": ({ query }) => {
+          const cursor = query.get("cursor");
+          asked.push(cursor ?? `host:exists=${query.get("host:exists")}`);
+          return cursor
+            ? page([machine(AWAY, "vm-b", "virtual")])
+            : page([machine(HOST, "srv-a", "physical")], "/v1/machines?cursor=p2");
+        },
+      }),
+    });
+    const { element } = mounted;
+    await text(element, "srv-a");
+    const more = () => element.querySelector<HTMLElement>(".k-tree-grid__more");
+    await vi.waitFor(() => expect(more()).not.toBeNull());
+    // One page, and no other before the tree asks for it.
+    await new Promise((done) => setTimeout(done, 50));
+    expect(asked).toEqual(["host:exists=false"]);
+    expect(rows(element).slice(0, 2)).toEqual(["1 grappe", "1 srv-a"]);
+    // At the keyboard: Enter on the row that reads the next page of the first level.
+    press(element, "more:", "Enter");
+    await vi.waitFor(() => expect(rows(element)).toEqual(["1 grappe", "1 srv-a", "1 vm-b"]));
+    expect(asked).toEqual(["host:exists=false", "p2"]);
+    expect(more()).toBeNull();
   });
 
   it("says a failed first level with its codes, an empty one with what to do", async () => {

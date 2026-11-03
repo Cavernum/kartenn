@@ -6,8 +6,9 @@
 // The view « Hébergement et clusters » (`/x/machines/clusters`; task 18cd; design 021
 // « Catalogue », plugin Machines, and « Déplacements dans les arbres »; REQ-021-32, 33): who
 // hosts what, in a `TreeGrid` whose parent is declared. At the first level the clusters,
-// then the machines without a host (a page of `/v1/machines` read until one shows, at most
-// `MAX_PAGES`); under a cluster or a machine that may host (physical, virtual: M5), its
+// then the machines without a host (`/v1/machines?host:exists=false`, a member of a cluster
+// among them: membership is not hosting; A28, task 18f), page by page as the tree asks;
+// under a cluster or a machine that may host (physical, virtual: M5), its
 // guests (`/v1/machines?host=`), read once the node is opened, a few lists at a time
 // (`limited`), never read again by themselves after a refusal (« Réessayer »). A machine moves
 // by a drag, by Ctrl+X then Ctrl+V, or by « Déplacer vers… », each target judged by
@@ -78,7 +79,9 @@ const allowed = computed(() => context.value.user.has(PERMISSION));
 // ---------------------------------------------------------------------------- the reads
 
 const clusters = useList<Cluster, never>(() => reads.list("/v1/clusters") as never);
-const machines = useList<Machine, never>(() => reads.list("/v1/machines") as never);
+const machines = useList<Machine, never>(
+  () => reads.list("/v1/machines", { "host:exists": false }) as never,
+);
 
 const expanded = ref<string[]>([]);
 const selected = ref<string | undefined>();
@@ -174,10 +177,8 @@ const model = computed(() => {
   /** The kind of each machine (M5: who may host), the label of each node. */
   const kinds = new Map<string, string>();
   const labels = new Map<string, string>();
+  /** The host of each guest read, the parent of its node: the ancestors `canMove` walks. */
   const up = new Map<string, string>();
-  for (const m of machines.state.value.items ?? []) {
-    if (m.host) up.set(m.id, "machine" in m.host ? m.host.machine.id : m.host.cluster.id);
-  }
   /** The guests of a host opened, once read; a leaf when it has none. */
   function withGuests(node: TreeNode): TreeNode {
     const list = guestsOf(node.id);
@@ -216,10 +217,8 @@ const model = computed(() => {
     };
     nodes.push(withGuests(node));
   }
-  for (const m of machines.state.value.items ?? []) {
-    if (!m.host) nodes.push(...machineNode(m, null));
-  }
-  return { nodes, parents, types, kinds, labels, up, roots: nodes.length };
+  for (const m of machines.state.value.items ?? []) nodes.push(...machineNode(m, null));
+  return { nodes, parents, types, kinds, labels, up };
 });
 
 /** Pages of the first level left to read, within `MAX_PAGES`. */
@@ -233,18 +232,10 @@ const partial = computed(() =>
   ),
 );
 
-/** The first level the tree asked a page for: the machines read until a new root shows. */
-const wanted = ref<number | null>(null);
-watch(
-  () => [machines.state.value, wanted.value, model.value.roots] as const,
-  ([s, want, roots]) => {
-    if (want === null) return;
-    if (roots > want || !pagesLeft(s)) wanted.value = null;
-    else if (!s.fetching) machines.next();
-  },
-);
-
-/** The tree asks the next page of a list: of the first level (`null`), or of a node. */
+/**
+ * The tree asks the next page of a list: of a node, or of the first level (`null`), its
+ * clusters first, then its machines without a host, a page each time.
+ */
 function onLoad(parent: string | null): void {
   if (parent !== null) {
     const i = indexOf(parent);
@@ -252,11 +243,10 @@ function onLoad(parent: string | null): void {
     return;
   }
   const c = clusters.state.value;
+  const m = machines.state.value;
   if (pagesLeft(c)) {
     if (!c.fetching) clusters.next();
-    return;
-  }
-  wanted.value = model.value.roots;
+  } else if (pagesLeft(m) && !m.fetching) machines.next();
 }
 
 /** The lists that failed: the first level before any of its nodes, or else any. */
