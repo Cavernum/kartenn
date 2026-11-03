@@ -16,6 +16,7 @@ import {
   ErrorState,
   Heading,
   KeyLabel,
+  NoValue,
   Skeleton,
   Stack,
   type AttributeItem,
@@ -27,7 +28,6 @@ import CitedName from "./CitedName.vue";
 import { useList, useNotified, useRead } from "./data.ts";
 import { hrefOf, PAGES } from "./dom.ts";
 import { useHosted, useTexts } from "./host.ts";
-import NotSet from "./NotSet.vue";
 import { Names, type Cluster, type Machine } from "./reads.ts";
 import RetryAlert from "./RetryAlert.vue";
 
@@ -156,7 +156,7 @@ function ahead(w: GridWindow): void {
                 plain
               />
               <template v-else-if="row.relation">{{ row.relation }}</template>
-              <NotSet v-else />
+              <NoValue v-else />
             </template>
           </DataGrid>
         </template>

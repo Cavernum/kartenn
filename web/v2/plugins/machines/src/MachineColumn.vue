@@ -10,12 +10,11 @@
 // of the machines through the shared cache (`Names`). Unreadable: said in a word, with the
 // code of the problem (`CodeBadge`).
 import { ApiProblem, reads, type ObjectRef } from "@kartenn/sdk";
-import { CodeBadge, Skeleton } from "@kartenn/ui";
+import { CodeBadge, NoValue, Skeleton } from "@kartenn/ui";
 import { computed, onScopeDispose, shallowRef, watch } from "vue";
 import { useList, useNotified } from "./data.ts";
 import { hrefOf, PAGES } from "./dom.ts";
 import { useHosted, useTexts } from "./host.ts";
-import NotSet from "./NotSet.vue";
 import { limited, Names, type Interface } from "./reads.ts";
 
 const props = defineProps<{
@@ -107,7 +106,7 @@ const problem = computed(() => (failure.value instanceof ApiProblem ? failure.va
     <CodeBadge v-if="problem" :code="problem.code" :label="t('code')" />
   </span>
   <Skeleton v-else-if="found === null" variant="cell" />
-  <NotSet v-else-if="machines.length === 0" />
+  <NoValue v-else-if="machines.length === 0" />
   <span v-else
     ><template v-for="(machine, index) in machines" :key="machine.id"
       ><template v-if="index > 0">, </template

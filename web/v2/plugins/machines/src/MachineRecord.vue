@@ -17,6 +17,7 @@ import {
   ErrorState,
   Heading,
   KeyLabel,
+  NoValue,
   Skeleton,
   Stack,
   StatusBadge,
@@ -32,7 +33,6 @@ import { hrefOf, PAGES } from "./dom.ts";
 import DraftForm from "./DraftForm.vue";
 import HostSection from "./HostSection.vue";
 import { useHosted, usePresent, useTexts } from "./host.ts";
-import NotSet from "./NotSet.vue";
 import { modeOf, Names, type Interface, type Machine, type MachineCard } from "./reads.ts";
 import RetryAlert from "./RetryAlert.vue";
 
@@ -267,7 +267,7 @@ function added(): void {
                 <template v-if="column.id === 'mac' ? row.mac : row.addresses.length">{{
                   column.id === "mac" ? row.mac : row.addresses.join(", ")
                 }}</template>
-                <NotSet v-else />
+                <NoValue v-else />
               </template>
               <StatusBadge
                 v-else-if="column.id === 'state'"

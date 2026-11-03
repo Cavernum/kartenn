@@ -8,7 +8,7 @@
 // ellipsis; a read refused, said short with the code of its problem (`problems/`). Each
 // sign is said in words to assistive technologies.
 import { queryClient, reads } from "@kartenn/sdk";
-import { CodeBadge } from "@kartenn/ui";
+import { CodeBadge, NoValue } from "@kartenn/ui";
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useQuery } from "../../data/query.ts";
@@ -62,10 +62,7 @@ const vlan = computed(() =>
 
 <template>
   <span ref="root">
-    <span v-if="!props.network"
-      ><span aria-hidden="true">—</span
-      ><span class="k-visually-hidden">{{ t("views.vlan.notNetworkCell") }}</span></span
-    >
+    <NoValue v-if="!props.network" :label="t('views.vlan.notNetworkCell')" />
     <!-- Short in a row (the record's tab says the whole problem); its code copiable. -->
     <span v-else-if="resolved.isError.value"
       >{{ t("views.vlan.unreadable") }}
@@ -79,9 +76,6 @@ const vlan = computed(() =>
     >
     <span v-else-if="vlan.kind === 'masked'">{{ t("views.record.masked") }}</span>
     <ObjectName v-else-if="vlan.kind === 'vlan'" :id="vlan.id" kind="vlan" capped />
-    <span v-else
-      ><span aria-hidden="true">—</span
-      ><span class="k-visually-hidden">{{ t("views.vlan.noVlanCell") }}</span></span
-    >
+    <NoValue v-else :label="t('views.vlan.noVlanCell')" />
   </span>
 </template>

@@ -171,9 +171,9 @@ const PREVIEW = "preview:";
 /** The machine a row shows: itself, or the one its preview row shows. */
 const machineOf = (id: string) => (id.startsWith(PREVIEW) ? id.slice(PREVIEW.length) : id);
 
-/** A site in a cell: its slug once read, its identifier if unreadable, « non renseigné » if none. */
-function siteOf(id: string | undefined): string {
-  if (!id) return t("notSet");
+/** A site in a cell: its slug once read, its identifier if unreadable; none, absent (`null`). */
+function siteOf(id: string | undefined): string | null {
+  if (!id) return null;
   const name = names().of("core.site", id);
   return name.state === "read" ? name.name : name.state === "failed" ? id : t("loading");
 }
