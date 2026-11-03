@@ -2254,6 +2254,20 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `web/v2/shell/src/views/edit/` ; tests `web/v2/shell/test/{edit,close}.test.ts`
   - dépend de : 11g
 
+- [ ] 11h. « Retirer les filtres » sans exception (relevé par la 15d) : `FilterPicker`
+  expose une méthode qui met le focus sur « Ajouter un filtre » (à la forme de `openAdd`) ;
+  `ListView`, `ChangesetsView` et `AuditView` l'appellent au lieu de chercher le bouton
+  dans le DOM depuis `$el` (un nœud texte, la racine du composant étant un fragment :
+  `TypeError` aujourd'hui dans les deux premières vues, contournement fragile dans la
+  troisième) — verify : Vitest des trois vues (filtres retirés, focus sur « Ajouter un
+  filtre », aucune exception) ; Vitest du composant ; seul agent sur `web/v2/ui`
+  - où : `web/v2/ui/src/components/FilterPicker/FilterPicker.vue` (`addButton`, vers la
+    ligne 237 ; `defineExpose`, vers la ligne 299) ;
+    `web/v2/shell/src/views/ListView.vue` (vers la ligne 225),
+    `web/v2/shell/src/changesets/ChangesetsView.vue` (vers la ligne 102),
+    `web/v2/shell/src/admin/AuditView.vue` (vers la ligne 153)
+  - dépend de : 15d ; après la 020-30 (`web/v2/ui`)
+
 ## P3 — Plugins (phase 5)
 
 - [ ] 17. Écrans VLAN du cœur (amendée par la 026 : plus un plugin, des écrans du shell)
