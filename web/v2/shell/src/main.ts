@@ -9,6 +9,7 @@ import { useSettings } from "./frame/settings.ts";
 import { createShellI18n, LOCALES, mergePluginCatalog } from "./i18n/index.ts";
 import { beginPlugins, configurePlugins } from "./plugins/loader.ts";
 import { installPrefetch } from "./prefetch/intent.ts";
+import { installViewMark } from "./prefetch/viewMark.ts";
 import { useSession } from "./rights/index.ts";
 import { shellRoutes } from "./router.ts";
 import { expired } from "./session/index.ts";
@@ -40,6 +41,7 @@ async function start(): Promise<void> {
   installSession(router);
   installTime(router);
   installPrefetch(router);
+  installViewMark(router);
   // A navigation is a gesture: the reads of its screen are the user's.
   router.beforeEach(() => markGesture());
   const app = createApp(App).use(i18n).use(router);
