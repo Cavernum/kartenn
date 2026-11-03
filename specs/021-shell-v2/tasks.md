@@ -2155,7 +2155,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     rapprochement d'une création suit l'ordre du contrat (un `Placement` portant l'indice
     de son opération le rendrait exact).
 
-- [ ] 24d. États `moved` et `preview` dans la Topographie (020-29) : la ligne au présent
+- [x] 24d. États `moved` et `preview` dans la Topographie (020-29) : la ligne au présent
   d'un objet que le brouillon déplace en `moved`, sa ligne d'aperçu en `preview`, au lieu
   de `draft` sur les deux — verify : Vitest de l'aperçu (états par ligne) ; parcours
   `moves` (préfixe inséré au brouillon : ligne au présent et ligne d'aperçu dites
@@ -2163,6 +2163,22 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/v2/shell/src/views/TopologyView.vue`, `topology.ts` ; `TreeNodeState` de
     `web/v2/ui/src/components/TreeGrid/tree.ts` (en lecture)
   - dépend de : 24c, 020-29
+  - fait : `draftStateOf` (`topology.ts`) donne `preview` à une ligne d'aperçu (création,
+    objet déplacé, enfant qu'il garde), `moved` à la ligne servie d'un objet que le
+    brouillon déplace, `draft` à un objet changé sans déplacement ; `nodeState` de
+    `TopologyView.vue` s'en sert (au présent, `loading-children` d'abord). Vitest
+    (`web/v2/shell/test/topology.test.ts` : états de chaque ligne d'un préfixe inséré, un
+    déplacé dont le parent d'après n'est pas lu, un enfant emporté) ; parcours `moves`
+    (`expectMoved` : `data-state` et mots de chaque ligne, ceux de l'autre et « en
+    brouillon » absents), chromium et firefox. Relectures `ui-reviewer`, `a11y-auditor`.
+  - choix : `moved` l'emporte sur `draft` (un préfixe dont la valeur change et qui change
+    de place est dit « déplacé », sa valeur nouvelle se lit sur sa ligne d'aperçu) ; un
+    déplacé dont le parent d'après n'est pas lu est dit `moved` sans ligne d'aperçu (il
+    attend, compté dans l'avis, 24b) ; la copie d'un enfant emporté est `preview`, même si
+    sa valeur est au brouillon, et sa ligne servie garde son état (il ne change pas de
+    parent).
+  - reste : une ligne `moved` qui lit ses enfants dit `loading-children` le temps de la
+    lecture (comme `draft` avant).
 - [ ] 16g. Titres du shell par `Heading` (020-29) : les classes de titre recopiées
   (`k-login__title`, `k-about__title`, `k-plugin-view__title`, `k-pending__title`,
   `k-help__title`, `k-edit-panel__title`, `k-network-vlan__title`) remplacées par `Heading` ;

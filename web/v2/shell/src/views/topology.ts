@@ -1,5 +1,5 @@
 import type { Operation, Simulated } from "@kartenn/sdk";
-import type { TreeNode } from "@kartenn/ui";
+import type { TreeNode, TreeNodeState } from "@kartenn/ui";
 
 // The nodes of the tree of the topography from its levels read (task 24, REQ-021-34): the
 // children of a prefix are those its own list gives, read again after a change level by
@@ -88,6 +88,22 @@ export interface Preview {
 /** The key of a row of the preview, never one of the tree served. */
 export const PREVIEW = "draft:";
 export const isPreview = (key: string): boolean => key.startsWith(PREVIEW);
+
+/**
+ * What the draft does to the row `id` (task 24d; 021 design « Après un dépôt accepté »): a
+ * row of the preview is the object at its place after (`preview`); a row served whose
+ * object the draft moves stays at its present place, `moved`; one the draft changes without
+ * moving it, `draft` (`inDraft`: the objects the draft changes); none otherwise.
+ */
+export function draftStateOf(
+  id: string,
+  inDraft: ReadonlySet<string>,
+  preview: Preview | undefined,
+): Exclude<TreeNodeState, "loading-children"> | undefined {
+  if (isPreview(id)) return "preview";
+  if (preview?.moved.has(id)) return "moved";
+  return inDraft.has(id) ? "draft" : undefined;
+}
 
 /**
  * The node of the tree operation `index` of the draft creates, if any: under `within`, the
