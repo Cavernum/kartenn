@@ -115,7 +115,7 @@ export default async function globalSetup(): Promise<void> {
       ],
     });
     // The referential of the lists and the tree (task 11): a network of 1 000 addresses, a
-    // container of 1 000 networks, in documentation space (RFC 3849).
+    // container of 1 100 networks, in documentation space (RFC 3849).
     const domains = (await (await api.get(`/v1/domains?slug=${DATA.domain}`)).json()) as {
       items: { id: string }[];
     };

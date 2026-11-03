@@ -507,7 +507,7 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
 | `as_of` passé (toute requête) | `Infinity` | 30 min | jamais |
 | objet, présent ou `valid_at` | 30 s | 10 min | `If-None-Match`, focus, flux |
 | liste (pages) | 30 s | 5 min, 10 pages gardées au plus | idem ; `placeholderData` = page précédente |
-| enfants d'un nœud d'arbre | 30 s | 10 min | idem |
+| enfants d'un nœud d'arbre | 30 s | 10 min, 100 pages gardées au plus (`roots`, `children` : `CHILDREN_PAGES`, A34) | idem |
 | capacités, `/v1/me`, déclarations | 5 min | session | flux (`changeset` d'administration), focus |
 | dictionnaire des libellés (`/v1/labels`) | `Infinity` par révision | session | événement `labels` |
 | simulation du brouillon | 0 | 1 min | à chaque changement (débrayé) |
@@ -732,7 +732,7 @@ passage complet.
 | INP | ≤ 200 ms, p75 | Event Timing (`PerformanceObserver` `event`, `durationThreshold: 16`) sur 20 répétitions de : ouvrir un nœud, filtrer, éditer une cellule, changer d'onglet, ouvrir la palette |
 | Navigation en cache | ≤ 100 ms au p75, le pire imprimé (*précisé le 2026-11-03*, A35) | clic sur un lien déjà préchargé → marque `k:view` |
 | CLS | ≤ 0,05 | premier écran : `layout-shift` sans entrée récente ; chaque navigation (10) : tous les `layout-shift` de la trame de `k:view` à 1 s après, ceux qui suivent le clic de moins de 500 ms compris (témoin : un bloc de 200 px inséré exprès doit être vu) |
-| Arbre de 10⁵ | ≤ 2 % de trames perdues, aucune tâche longue | défilement scénarisé de 10⁴ lignes, aller-retour sur les enfants gardés en cache (au plus `MAX_PAGES` × 100), toutes chargées avant, aucune lecture de `/children` pendant la fenêtre (comptée) ; trames perdues = 1 − trames observées / (durée ÷ 16,67 ms), boucle `requestAnimationFrame` (protocole du prototype) ; tâches longues > 50 ms par `PerformanceObserver` |
+| Arbre de 10⁵ | ≤ 2 % de trames perdues, aucune tâche longue | défilement scénarisé de 10⁴ lignes, aller-retour sur les enfants gardés en cache (au plus `CHILDREN_PAGES` × 100 = 10⁴, A34), toutes chargées avant, aucune lecture de `/children` pendant la fenêtre (comptée) ; trames perdues = 1 − trames observées / (durée ÷ 16,67 ms), boucle `requestAnimationFrame` (protocole du prototype) ; tâches longues > 50 ms par `PerformanceObserver` |
 | Flèche bas (arbre, grille) | ≤ 100 ms, p75 | 50 appuis ; du `timeStamp` du `keydown` au premier `requestAnimationFrame` après le focus attendu |
 | Mémoire | ≤ 64 Mo | CDP `Runtime.getHeapUsage` `usedSize` (comme les bancs de `@kartenn/ui`) après 10⁴ lignes défilées et 50 navigations, après `HeapProfiler.collectGarbage` |
 | Plugin lent | écarté à 5 s | existant |

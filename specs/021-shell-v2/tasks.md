@@ -3328,7 +3328,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
 
 ## P4 — Budgets et clôture
 
-- [ ] 24e. Enfants d'un nœud jusqu'à 10⁴ lignes (A34) : les lectures `roots` et `children`
+- [x] 24e. Enfants d'un nœud jusqu'à 10⁴ lignes (A34) : les lectures `roots` et `children`
   gardent jusqu'à 100 pages dans le cache (les autres listes restent à `MAX_PAGES`) ; la
   lecture de l'arbre (`treePages.ts`) redemande la page suivante tant qu'il en reste et que
   le plafond n'est pas atteint (aujourd'hui elle s'arrête quand le compte d'enfants ne
@@ -3339,6 +3339,44 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/sdk/src/data/cache.ts` (`MAX_PAGES`, `maxPages`), `treePages.ts` du shell,
     `web/v2/shell/src/views/TopologyView.vue` (avis) ; jeu de données `core.wide-children`
   - dépend de : 22
+  - fait : `CHILDREN_PAGES` = 100 (`web/v2/sdk/src/data/cache.ts`, exporté) : `subPages`
+    de `children` et `roots` le prend pour `maxPages`, toute autre liste reste à
+    `MAX_PAGES` ; l'appelant ne demande rien, le plafond suit la sous-ressource (l'arbre et
+    l'onglet Contenu lisent la même requête, qui garderait sinon le plafond du dernier
+    lecteur). Cause de l'arrêt vers 10³ : la onzième page faisait tomber la première du
+    cache, le compte d'enfants restait égal et `treePages.ts` (inchangé, `web/v2/ui`) ne
+    redemandait plus. `levelOfPages` (`topology.ts`) : page suivante tant qu'il en reste
+    et que moins de `CHILDREN_PAGES` sont gardées, au-delà niveau `capped` ; `nodesOf`
+    ajoute alors la ligne d'avis (`capped:<parent>`) sous le dernier enfant ;
+    `TopologyView.vue` : `onLoad` ne lit que dans le plafond, l'avis (« L'arbre s'arrête à
+    10 000 nœuds : Entrée ouvre la liste des préfixes dans … », adresses pour un réseau,
+    les préfixes du domaine pour le premier niveau) ouvre au clic, par Espace ou Entrée la
+    liste filtrée par `within` (`domain` au premier niveau) ; l'aperçu du brouillon ne le
+    recopie pas sous un nœud déplacé (`overlay`). Vitest : `sdk/test/cache.test.ts`
+    (100 pages pour `children`/`roots`, 10 ailleurs, onzième page lue, première gardée),
+    `shell/test/topology.test.ts` (onzième page lue, 100ᵉ atteinte, 101ᵉ jamais
+    demandée, avis sous le nœud et au premier niveau, avis laissé à la place au présent
+    par l'aperçu) ; parcours `tree` : conteneur de
+    1 100 enfants (`DATA.wide`) lu jusqu'au dernier, sans ligne « suite », le premier
+    toujours là, sous les deux navigateurs ; `moves` inchangé et vert. Arrêt à 2–6 pages
+    du banc non reproduit : la boucle du banc sur 5 000 enfants (essai jetable dans les
+    parcours, deux navigateurs) lit les 50 pages ; `more: false` du banc n'en est pas un
+    signe (la page arrive dans les 300 ms d'attente et repousse la ligne « suite » hors
+    de la fenêtre) ; à reprendre au banc (22a).
+  - choix : avis en ligne de l'arbre (`TreeGrid` n'a pas de fente, `web/v2/ui` hors
+    périmètre), icône `info`, la consigne dans son libellé (`TreeGrid` ne rend pas
+    `detail`) ; le clic et Espace y mènent aussi à la liste (comme le choix d'un nœud) ; `within` liste tous les descendants (pas seulement les
+    enfants directs) et une seule sorte d'objets : pas de filtre « enfants directs » dans
+    le contrat ; le défilement du parcours par `scrollTop` (à la molette, Firefox n'a pas
+    atteint le dernier enfant en 60 s).
+  - reste (banc) : tas sous 64 Mo sur 10⁴ lignes, à la passe de la 22a.
+  - reste : l'onglet Contenu partage la requête des enfants : défilé au-delà de 10⁴, il
+    lirait la 101ᵉ page et ferait tomber la première sous le nœud de l'arbre (rare) ;
+    chaque ligne de réseau passée sous le pointeur immobile pendant le défilement lit ses
+    enfants sur intention (≈ 100 lectures de `/children` vides pour 50 pages au banc) ;
+    l'avis compte dans `aria-setsize` (10 001 au lieu d'inconnu) : il faudrait à `TreeGrid`
+    une marque `capped` qui l'en sorte (020) ; sous un réseau plafonné, l'avis mène aux
+    adresses, pas aux plages.
 - [ ] 22a. Mesures restantes du banc web : la page de 100 lignes rend son chiffre (lectures
   servies en 304 comptées à part, déjà codé, pas encore passé) ; l'arbre chargé jusqu'au
   bout avant le défilement, une fois la 24e faite, sur 10⁴ lignes ; navigation en cache au

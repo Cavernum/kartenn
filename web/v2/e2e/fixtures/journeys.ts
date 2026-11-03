@@ -86,8 +86,11 @@ export const DATA = {
   address: "192.0.2.10",
   /** A network with 1 000 addresses: a long list (REQ-021-22), in RFC 3849 space. */
   bulk: { prefix: "2001:db8:2::/64", count: 1000 },
-  /** A container with 1 000 direct children: the virtualised tree, its pages. */
-  wide: { prefix: "2001:db8:3::/48", count: 1000 },
+  /**
+   * A container with 1 100 direct children: the virtualised tree, its pages, the eleventh
+   * one read (the cache keeps 100 pages of children, 021/A34).
+   */
+  wide: { prefix: "2001:db8:3::/48", count: 1100 },
   /** A group of VLAN anchored on the domain, and one VLAN in it (026). */
   vlan: { group: "campus", vid: 10, name: "serveurs" },
 } as const;

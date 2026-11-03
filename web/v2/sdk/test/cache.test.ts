@@ -5,7 +5,14 @@
 import { InfiniteQueryObserver, QueryObserver } from "@tanstack/query-core";
 import { afterEach, describe, expect, it } from "vitest";
 import { resetContext, setContext } from "../src/context.ts";
-import { FRESHNESS, IMMUTABLE, MAX_PAGES, fallback, type Entry } from "../src/data/cache.ts";
+import {
+  CHILDREN_PAGES,
+  FRESHNESS,
+  IMMUTABLE,
+  MAX_PAGES,
+  fallback,
+  type Entry,
+} from "../src/data/cache.ts";
 import { isImmutable, keys, normalize, timeKey } from "../src/data/keys.ts";
 import { collectionOf, qualify, registerType, typeOfCollection } from "../src/data/types.ts";
 import { D1, P1, fakeCache, json, notModified } from "./helpers.ts";
@@ -149,6 +156,31 @@ describe("reads (REQ-021-21, ADR 0037)", () => {
     const again = seen.slice(-2);
     expect(again[0]?.headers.get("If-None-Match")).toBe('W/"p0"');
     expect(again[1]?.headers.get("If-None-Match")).toBe('W/"p1"');
+  });
+
+  it("keep up to 100 pages of the children of a node, the other lists 10 (021/A34)", async () => {
+    const { queryClient, reads, seen } = fakeCache((request) => {
+      const n = Number(new URL(request.url, "http://x").searchParams.get("cursor") ?? 0);
+      return json({
+        items: [{ id: `c${n}` }],
+        links: { next: `/v1/prefixes/${P1}/children?cursor=${n + 1}` },
+      });
+    });
+    const children = reads.subPages("core.prefix", P1, "children", null, null);
+    expect(children.maxPages).toBe(CHILDREN_PAGES);
+    expect(reads.subPages("core.domain", D1, "roots", null, null).maxPages).toBe(CHILDREN_PAGES);
+    expect(reads.subPages("core.prefix", P1, "history", null, null).maxPages).toBe(MAX_PAGES);
+    expect(reads.list("/v1/prefixes", null, null).maxPages).toBe(MAX_PAGES);
+    const observer = new InfiniteQueryObserver(queryClient, children);
+    const stop = observer.subscribe(() => undefined);
+    await observer.refetch();
+    for (let page = 1; page <= MAX_PAGES; page++) await observer.fetchNextPage();
+    stop();
+    // The eleventh page read, the first kept: 11 children, the first one still there.
+    const data = observer.getCurrentResult().data!;
+    expect(data.pages).toHaveLength(MAX_PAGES + 1);
+    expect(data.pages[0]!.data.items).toEqual([{ id: "c0" }]);
+    expect(seen.at(-1)!.url).toBe(`/v1/prefixes/${P1}/children?cursor=10`);
   });
 
   it("read again without If-None-Match the queries marked unconditional", async () => {

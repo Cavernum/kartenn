@@ -268,6 +268,11 @@
         "shown": "Aucun nœud n'est encore montré à sa place après application. | Un nœud apparaît à sa place après application, marqué « en brouillon » ; l'arbre au présent ne change qu'à l'application. | {n} nœuds apparaissent à leur place après application, marqués « en brouillon » ; l'arbre au présent ne change qu'à l'application.",
         "waiting": "Un nœud n'est pas montré : son parent après application n'est pas lu dans cet arbre. | {n} nœuds ne sont pas montrés : leur parent après application n'est pas lu dans cet arbre.",
         "partialText": "La simulation ne donne pas tous les changements de place : d'autres nœuds manquent peut-être."
+      },
+      "capped": {
+        "prefixes": "L'arbre s'arrête à {n} nœuds : Entrée ouvre la liste des préfixes dans {within}",
+        "addresses": "L'arbre s'arrête à {n} nœuds : Entrée ouvre la liste des adresses dans {within}",
+        "roots": "L'arbre s'arrête à {n} nœuds : Entrée ouvre la liste des préfixes du domaine {name}"
       }
     },
     "anomalies": {

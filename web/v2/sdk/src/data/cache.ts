@@ -65,6 +65,17 @@ export const IMMUTABLE = { staleTime: Infinity, gcTime: 30 * MINUTE } as const;
 /** The pages of a list kept in memory at most. */
 export const MAX_PAGES = 10;
 
+/**
+ * The pages of the children of a node kept in memory at most (`roots` of a domain,
+ * `children` of a prefix; 021/A34): 10⁴ rows of a tree at the server's 100 by page. The
+ * cap goes with the sub-resource, not with the caller: the tree and the content of a node
+ * read the same query, which keeps the pages of the cap of whichever reads it last.
+ */
+export const CHILDREN_PAGES = 100;
+
+/** The sub-resources that are the children of a node, kept to `CHILDREN_PAGES`. */
+const CHILDREN: ReadonlySet<string> = new Set(["children", "roots"]);
+
 /** The freshness of a family for a key. */
 export function freshness(family: Family, key: readonly unknown[]) {
   return isImmutable(key) ? IMMUTABLE : FRESHNESS[family];
@@ -199,7 +210,12 @@ export function createQueries({ client, queryClient }: CacheDeps) {
     };
   }
 
-  function pages<T, K extends QueryKey>(key: K, first: string, family: Family): ListOptions<T, K> {
+  function pages<T, K extends QueryKey>(
+    key: K,
+    first: string,
+    family: Family,
+    maxPages = MAX_PAGES,
+  ): ListOptions<T, K> {
     return {
       queryKey: key,
       queryFn: ({ pageParam, signal }) => {
@@ -212,7 +228,7 @@ export function createQueries({ client, queryClient }: CacheDeps) {
       initialPageParam: null,
       // The cursor carries the filters and the dates: `next` is followed as it is.
       getNextPageParam: (last) => last.data.links?.next ?? undefined,
-      maxPages: MAX_PAGES,
+      maxPages,
       placeholderData: keepPreviousData,
       ...freshness(family, key),
     };
@@ -272,7 +288,10 @@ export function createQueries({ client, queryClient }: CacheDeps) {
       return read<T, SubKey>(key, url, sub === "children" ? "children" : "object");
     },
 
-    /** A sub-resource read page by page (`children` of a node, `history`). */
+    /**
+     * A sub-resource read page by page (`children` of a node, `history`): the children of
+     * a node (`children`, `roots`) keep up to `CHILDREN_PAGES`, the others `MAX_PAGES`.
+     */
     subPages<T = unknown>(
       type: string,
       id: string,
@@ -282,7 +301,8 @@ export function createQueries({ client, queryClient }: CacheDeps) {
     ): ListOptions<T, SubKey> {
       const key = keys.sub(type, id, sub, params, time);
       const url = urlOf(`${collection(type)}/${encodeURIComponent(id)}/${sub}`, key[4], key[5]);
-      return pages<T, SubKey>(key, url, sub === "children" ? "children" : "list");
+      const family = sub === "children" ? "children" : "list";
+      return pages<T, SubKey>(key, url, family, CHILDREN.has(sub) ? CHILDREN_PAGES : MAX_PAGES);
     },
 
     /**

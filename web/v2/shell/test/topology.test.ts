@@ -1,8 +1,15 @@
-import type { Operation, Simulated } from "@kartenn/sdk";
+import { CHILDREN_PAGES, queryClient, reads, type Operation, type Simulated } from "@kartenn/sdk";
+import { setFetch } from "@kartenn/sdk/host";
 import type { TreeNode } from "@kartenn/ui";
-import { describe, expect, it } from "vitest";
+import { InfiniteQueryObserver } from "@tanstack/query-core";
+import { afterEach, describe, expect, it } from "vitest";
 import {
+  cappedKey,
+  cappedParent,
   draftStateOf,
+  isCapped,
+  levelOfPages,
+  nodesOf,
   overlay,
   previewOf,
   type Preview,
@@ -211,6 +218,22 @@ describe("the preview of the draft in the tree of the prefixes", () => {
     expect(nodes.at(-1)!.id).toBe(`draft:${C2}`);
   });
 
+  it("leaves the notice of a capped level under the row at its present place", () => {
+    const preview = previewOf(
+      simulated([placed(P, null, Q, 0)]),
+      [update(P, "203.0.113.0/25")],
+      known,
+      DOMAIN,
+    );
+    const notice = { id: cappedKey(P), label: "rest" };
+    const capped = { ...served[0]!, children: [...served[0]!.children!, notice] };
+    const open: TreeNode[] = [capped, { ...served[1]!, hasChildren: false, children: [] }];
+    const { nodes } = overlay(open, preview, nodeOf);
+    expect(nodes[0]!.children!.at(-1)!.id).toBe(cappedKey(P));
+    const moved = nodes.find((n) => n.id === Q)!.children![0]!;
+    expect(moved.children!.map((n) => n.id)).toEqual([`draft:${C1}`, `draft:${C2}`]);
+  });
+
   it("leaves out what is not of this tree, and keeps the truncation", () => {
     const preview = previewOf(
       simulated(
@@ -272,5 +295,93 @@ describe("the preview of the draft in the tree of the prefixes", () => {
       "1 203.0.113.0/24",
       "2 203.0.113.128/25",
     ]);
+  });
+});
+
+// The children of a node up to 10⁴ rows (task 021-24e, 021/A34): the pages of `children`
+// kept to `CHILDREN_PAGES` by the cache, the next one read while pages remain within the
+// cap (as `TopologyView` asks it, `onLoad`); past the cap, none more and a notice under
+// the node, leading to the list « dans ce préfixe ».
+describe("the children of a node, page by page up to the cap", () => {
+  afterEach(() => {
+    setFetch(null);
+    queryClient.clear();
+  });
+
+  type Child = { id: string; kind: "prefix" };
+  type Page = { data: { items: Child[] } };
+  /**
+   * A container with more children than the cap: a `next` always; 10 children by page (the
+   * server gives 100; the cap counts pages, and the test stays light).
+   */
+  function wide(): string[] {
+    const seen: string[] = [];
+    setFetch((async (input: RequestInfo | URL) => {
+      const url = String(input);
+      seen.push(url);
+      const n = Number(new URL(url, "http://x").searchParams.get("cursor") ?? 0);
+      const items = Array.from({ length: 10 }, (_, i) => ({ id: `c${n}-${i}`, kind: "prefix" }));
+      const next = `/v1/prefixes/${P}/children?cursor=${n + 1}`;
+      return new Response(JSON.stringify({ items, links: { next } }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch);
+    return seen;
+  }
+
+  it("reads the eleventh page, then stops at the hundredth with a notice under the node", async () => {
+    const seen = wide();
+    const options = queryClient.defaultQueryOptions(
+      reads.subPages<Child>("prefix", P, "children") as never,
+    );
+    const observer = new InfiniteQueryObserver<Page>(queryClient, options as never);
+    const stop = observer.subscribe(() => undefined);
+    await observer.refetch();
+    const level = () => levelOfPages<Child>(observer.getCurrentResult());
+    // The tree asks for the next page as long as its level says more (`onLoad`).
+    const ask = async () => {
+      if (level()?.more) await observer.fetchNextPage();
+    };
+    for (let page = 2; page <= 11; page++) await ask();
+    expect(seen).toHaveLength(11);
+    expect(level()?.items).toHaveLength(110);
+    expect(level()?.items[0]).toEqual({ id: "c0-0", kind: "prefix" });
+    expect(level()).toMatchObject({ more: true, capped: false });
+
+    for (let page = 12; page <= CHILDREN_PAGES; page++) await ask();
+    expect(seen).toHaveLength(CHILDREN_PAGES);
+    expect(level()).toMatchObject({ more: false, capped: true });
+    // The hundred and first is never asked: the first page stays.
+    await ask();
+    stop();
+    expect(seen).toHaveLength(CHILDREN_PAGES);
+    expect(level()?.items).toHaveLength(CHILDREN_PAGES * 10);
+    expect(level()?.items[0]).toEqual({ id: "c0-0", kind: "prefix" });
+
+    // The node shows its children read, no row to read more, then the notice.
+    const nodes = nodesOf<Child>(
+      (parent) => (parent === null ? { items: [{ id: P, kind: "prefix" }], more: false } : level()),
+      (item) => ({ id: item.id, label: item.id }),
+      () => true,
+      (parent) => ({ id: cappedKey(parent), label: `rest of ${parent}` }),
+    );
+    const node = nodes[0]!;
+    expect(node.more).toBeUndefined();
+    expect(node.children).toHaveLength(CHILDREN_PAGES * 10 + 1);
+    expect(node.children!.at(-1)).toEqual({ id: `capped:${P}`, label: `rest of ${P}` });
+    expect(isCapped(node.children!.at(-1)!.id)).toBe(true);
+    expect(cappedParent(cappedKey(P))).toBe(P);
+    expect(cappedParent(cappedKey(null))).toBeNull();
+  });
+
+  it("puts the notice of the first level after its last node", () => {
+    const capped = { items: [{ id: P, kind: "prefix" as const }], more: false, capped: true };
+    const nodes = nodesOf(
+      (parent) => (parent === null ? capped : undefined),
+      (item) => ({ id: item.id, label: item.id }),
+      () => true,
+      (parent) => ({ id: cappedKey(parent), label: "rest" }),
+    );
+    expect(nodes.map((n) => n.id)).toEqual([P, "capped:"]);
   });
 });

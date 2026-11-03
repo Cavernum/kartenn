@@ -52,7 +52,7 @@ export type {
   TimeArg,
   TimeKey,
 } from "./data/keys.ts";
-export { FRESHNESS, IMMUTABLE, MAX_PAGES } from "./data/cache.ts";
+export { CHILDREN_PAGES, FRESHNESS, IMMUTABLE, MAX_PAGES } from "./data/cache.ts";
 export type {
   Entry,
   Family,
