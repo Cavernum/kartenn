@@ -142,7 +142,7 @@ Révisé par la 024 (M8, M15 ; disposition B arbitrée sur prototype, hors dép�
 
 ## Routes
 
-Les routes de la 007 sont gardées (liens existants valides) ; s'ajoutent :
+Les routes de la 007 ne sont plus garanties : pas de compatibilité avant le gel, les liens de l'ancien shell (`/?domain=`, `/properties`, `/search?q=`, `/:collection/new`, `/admin/service-accounts`…) ne sont ni servis ni redirigés (*amendé le 2026-11-03*, A30) ; les routes du nouveau shell :
 
 | Route | Écran | Remarque |
 |---|---|---|
@@ -351,7 +351,7 @@ par la maquette de la 026 (tâche 6). Les codes sont ceux du cœur.
 |---|---|---|---|---|
 | Machines | `/x/machines/machines`, `…/<id>` | inventaire, hébergement, propriétaire, adresses principales | place, form | `machines.name.duplicate`, `machines.host.invalid` |
 | Fiche et interfaces | `…/machines/<id>` (fiche en sections : attributs, interfaces, hébergées, ajout ; tâche 18a) | interfaces, VLAN, adresses rattachées | place, form | `machines.mac.duplicate`, `machines.address.vlan_mismatch` |
-| Hébergement et clusters | `/x/machines/clusters`, `…/<id>` | qui héberge quoi ; déplacer une machine | glisser, menu | `machines.host.site_mismatch` |
+| Hébergement et clusters | `/x/machines/clusters` (`TreeGrid` à parent déclaré : clusters et machines sans hébergeur, page à page par `/v1/machines?host:exists=false` (A28, tâche 18f), hébergées lues à l'ouverture ; tâche 18cd), `…/<id>` (fiche : propriétaire, site, membres et hébergées) | qui héberge quoi ; déplacer une machine | glisser, Ctrl+X puis Ctrl+V, « Déplacer vers… » (au brouillon par `draft.move`) | `machines.host.site_mismatch`, `machines.host.invalid` |
 | Interfaces | `/x/machines/interfaces` | recherche par MAC, adresse, VLAN (réponse à incident) | lecture | `machines.mac.invalid` |
 
 ### Plugin Politique (espace `policy`)
@@ -438,7 +438,9 @@ sequenceDiagram
   l'ordre, rend le premier refus :
   1. cible = nœud ou descendant connu (ancêtres de la cible dans le cache) → « cycle » ;
   2. type de la cible absent des types de parent admis pour le type du nœud (table tirée
-     du contrat au build, comme `filters.ts`) → « parent incompatible » ;
+     du contrat au build, comme `filters.ts`), ou nature de la cible qui n'est jamais
+     parent (`PARENT_KINDS` : une machine `container` ou `appliance`) → « parent
+     incompatible » ;
   3. `rights.can` faux pour l'écriture du nœud ou de la cible → « droit manquant » ;
   4. contexte hors présent → « lecture datée » ;
   chaque motif porte le code de la règle serveur équivalente quand elle existe (table du
@@ -604,11 +606,18 @@ export { QueryObserver, InfiniteQueryObserver };      // @tanstack/query-core, m
 // règles) ; `draft.move` met le changement de parent au brouillon actif (remplace celui du
 // même nœud), simule le brouillon et rend le verdict de sa propre opération (`valid` avec
 // ses avertissements, `refused` avec sa règle, `unknown`) — le même que `useMoves` du shell.
+// `MoveSubject` : { id, type, kind? } ; la nature de la cible, quand elle est donnée, est
+// jugée par `PARENT_KINDS` (une machine `container` ou `appliance` n'héberge rien, M5 de la
+// 009 : « parent incompatible », `machines.host.invalid`) ; la paire de natures reste au
+// serveur. `draft.onActive` : chaque changement du brouillon actif de l'onglet (un autre,
+// ou aucun : quitté, supprimé, soumis, repris ailleurs), comme `drafts.onActive` de
+// l'hôte ; une marque « en brouillon » d'un plugin tombe alors (18cd).
 export function canMove(node: MoveSubject, target: MoveSubject | null, env: MoveEnv): MoveVerdict;
 export const draft: {
   active(): string | null;
   add(op: Operation): Promise<DraftOutcome<readonly Operation[]>>;  // saved, sinon Refusal
   move(op: Operation, node: MoveSubject): Promise<DraftMove>;
+  onActive(listener: (id: string | null) => void): () => void;      // rend l'arrêt
 };
 // handle.styles(root, path) : un fichier du plugin, ou la feuille partagée du shell
 // nommée par son spécifieur (`@kartenn/ui/style.css`), dans l'ordre des appels.
@@ -663,8 +672,9 @@ Manifeste (ajouts) :
   useList(() => reads.list(…) | null): { state: ShallowRef<{ items, error, pending,
     previous, more, fetching, pages }>, next(), retry() };
   useReads(() => [reads.sub(…), …]): ShallowRef<Read[]>;   // un observateur par lecture
-  useLists(() => [reads.list(…), …]): { states: ShallowRef<List[]>, next(), retry() };
-  // next() de useLists : chaque liste qui a une page suivante, ni en lecture ni refusée
+  useLists(() => [reads.list(…), …]): { states: ShallowRef<List[]>, next(i?), retry(i?) };
+  // next() de useLists : chaque liste qui a une page suivante, ni en lecture ni refusée ;
+  // next(i), retry(i) : la seule liste de rang i (les enfants d'un nœud d'arbre, 18cd)
   useNotified((changed, live) => store): () => store;  // Names, lus quelques-uns à la fois
   ```
 

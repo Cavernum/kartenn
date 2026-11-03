@@ -216,14 +216,16 @@ const flowSort = ref<GridSort | undefined>({ column: "type", direction: "ascendi
           <StatusBadge state="review" label="En revue" />
         </Barre>
       </template>
-      <Grid columns="auto" gap="3" class="k-attrs-tiles">
+      <Grid columns="auto" gap="3">
         <Attributs
+          tile
           :items="[
             { key: 'author', label: 'Auteur', value: PEOPLE.sacha },
             { key: 'submitted', label: 'Soumis', value: '2026-01-15 09:58', mono: true },
           ]"
         />
         <Attributs
+          tile
           :items="[
             { key: 'policy', label: 'Retenu par', value: 'Ouverture de flux' },
             { key: 'rule', label: 'Déclencheur' },
@@ -232,6 +234,7 @@ const flowSort = ref<GridSort | undefined>({ column: "type", direction: "ascendi
           <template #rule><CodeBadge code="policy.opens" /></template>
         </Attributs>
         <Attributs
+          tile
           :items="[
             { key: 'operations', label: 'Opérations', value: '2 cellules de matrice' },
             { key: 'id', label: 'Identifiant' },

@@ -27,9 +27,9 @@ use kartenn_store_pg::rbac::{ReadScope, readable};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use time::OffsetDateTime;
-use utoipa::ToSchema;
 use utoipa::openapi::path::HttpMethod;
 use utoipa::openapi::{RefOr, Schema};
+use utoipa::{PartialSchema, ToSchema};
 use uuid::Uuid;
 
 use crate::mac::Mac;
@@ -697,6 +697,9 @@ struct MachineFilter<'a> {
     kind: Option<&'a str>,
     /// Hosted by this machine or this cluster.
     host: Option<Uuid>,
+    /// Hosted by a machine or a cluster (`true`), or by none (`false`): membership of a
+    /// cluster is not hosting (`host:exists`, task 021-18f).
+    hosted: Option<bool>,
     /// Hosted by or member of this cluster.
     cluster: Option<Uuid>,
     owner: Option<Uuid>,
@@ -753,6 +756,14 @@ async fn machines_page(
     };
     let owned = assigned("core.owner", "$9");
     let sited = assigned("core.site", "$10");
+    // Written in the text, not bound: a statement of its own, whose generic plan keeps the
+    // partial index of the machines without a host (`machine_unhosted`) for the order of
+    // the page; `$n IS NULL OR …` would leave the predicate of that index unproven.
+    let hosted = match filter.hosted {
+        None => "",
+        Some(false) => "AND x.host_machine_id IS NULL AND x.host_cluster_id IS NULL",
+        Some(true) => "AND (x.host_machine_id IS NOT NULL OR x.host_cluster_id IS NOT NULL)",
+    };
     let sql = format!(
         "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($3))
          SELECT {MACHINE_SELECT}
@@ -761,6 +772,7 @@ async fn machines_page(
             AND ($5::text IS NULL OR starts_with(x.name, $5))
             AND ($6::text IS NULL OR x.kind = $6)
             AND ($7::uuid IS NULL OR x.host_machine_id = $7 OR x.host_cluster_id = $7)
+            {hosted}
             AND ($8::uuid IS NULL OR x.host_cluster_id = $8 OR x.member_cluster_id = $8)
             AND ($9::uuid IS NULL OR x.id IN ({owned}))
             AND ($10::uuid IS NULL OR x.id IN ({sited}))
@@ -812,8 +824,14 @@ async fn machines_page(
     Ok(respond_page(headers, &moment, &items, next.as_deref()))
 }
 
+/// The filter of the machines hosted (`true`) or not (`false`), in the grammar of the
+/// lists of the core (`{field}:exists`, spec 006, design « Filtres »): `host:exists` of
+/// the query string, `{"field": "host", "op": "exists", "value": false}` of a `QUERY`.
+const HOSTED: &str = "host:exists";
+
 /// `GET`/`QUERY /v1/machines`: by name, filtered by `name`, `name_prefix`, `kind`, `host`,
-/// `cluster`, `owner`, `site` and `network`, in conjunction (REQ-009-15, 16).
+/// `host:exists`, `cluster`, `owner`, `site` and `network`, in conjunction (REQ-009-15,
+/// 16).
 async fn list_machines(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -831,6 +849,7 @@ async fn list_machines(
             "name_prefix",
             "kind",
             "host",
+            HOSTED,
             "cluster",
             "owner",
             "site",
@@ -850,6 +869,14 @@ async fn list_machines(
         suggestion: prefix.as_deref(),
         kind: wanted.get("kind").copied(),
         host: optional_uuid(&wanted, "host")?,
+        hosted: wanted
+            .get(HOSTED)
+            .map(|v| match *v {
+                "true" => Ok(true),
+                "false" => Ok(false),
+                _ => Err(kit::bad(format!("{HOSTED} expects true or false"))),
+            })
+            .transpose()?,
         cluster: optional_uuid(&wanted, "cluster")?,
         owner: optional_uuid(&wanted, "owner")?,
         site: optional_uuid(&wanted, "site")?,
@@ -1407,6 +1434,8 @@ fn collection_routes(
     for (filter, description) in filters {
         list_op = if *filter == "q" {
             list_op.suggestion(description)
+        } else if filter.ends_with(":exists") {
+            list_op.filter(filter, description, bool::schema(), None)
         } else {
             list_op.query(filter, description)
         };
@@ -1634,6 +1663,11 @@ pub fn routes() -> ModuleRouter {
             ("q", "the name"),
             ("kind", "`physical`, `virtual`, `container` or `appliance`."),
             ("host", "Hosted by this machine or this cluster."),
+            (
+                HOSTED,
+                "Hosted by a machine or a cluster (`true`), or by none (`false`): \
+                 the member of a cluster is not hosted by it.",
+            ),
             ("cluster", "Hosted by or member of this cluster."),
             ("owner", "Whose resolved owner is this entity."),
             ("site", "Whose resolved site is this site."),

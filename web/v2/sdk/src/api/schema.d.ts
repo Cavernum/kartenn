@@ -16213,6 +16213,8 @@ export interface operations {
         kind?: string;
         /** @description Hosted by this machine or this cluster. */
         host?: string;
+        /** @description Hosted by a machine or a cluster (`true`), or by none (`false`): the member of a cluster is not hosted by it. */
+        "host:exists"?: boolean;
         /** @description Hosted by or member of this cluster. */
         cluster?: string;
         /** @description Whose resolved owner is this entity. */

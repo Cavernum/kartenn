@@ -115,7 +115,6 @@ beforeAll(async () => {
     name: manifest.name,
     extensions: manifest.extensions as Extension[],
     catalogs: { en, fr },
-    integrity: { "styles.css": "sha384-test" },
   });
   await import("../src/index.ts");
   await defined;

@@ -558,6 +558,16 @@ function onKeydown(event: KeyboardEvent): void {
                 name="eye"
                 class="k-tree__mark"
               />
+              <Icon
+                v-if="props.nodeState?.(part.row.node) === 'moved'"
+                name="move"
+                class="k-tree__mark"
+              />
+              <Icon
+                v-else-if="props.nodeState?.(part.row.node) === 'preview'"
+                name="circle-dashed"
+                class="k-tree__mark"
+              />
               <span v-if="rowWords(part.row.node)" class="k-visually-hidden"
                 >({{ rowWords(part.row.node) }})</span
               >
@@ -657,8 +667,23 @@ function onKeydown(event: KeyboardEvent): void {
     box-shadow: var(--k-shadow-inset-accent);
   }
 
-  .k-tree__row[data-state="draft"] {
+  .k-tree__row[data-state="draft"],
+  .k-tree__row[data-state="moved"],
+  .k-tree__row[data-state="preview"] {
     box-shadow: var(--k-shadow-inset-accent);
+  }
+
+  /* A node a draft moves: at its present place, muted (it leaves); at its place after the
+   * draft, a dashed outline (not there yet). Each also has its mark and its words. */
+  .k-tree__row[data-state="moved"] {
+    color: var(--k-text-muted);
+  }
+
+  /* Under the focus ring, never in its place; the outline of a target during a drag wins
+   * over it (`:where`: no more weight than the row's class). */
+  .k-tree__row:where([data-state="preview"]:not(:focus-visible)) {
+    outline: var(--k-border-width) dashed var(--k-accent);
+    outline-offset: calc(var(--k-border-width) * -1);
   }
 
   .k-tree__row[data-drop="ok"] {

@@ -335,6 +335,20 @@ Tranchés le 2026-11-02, après les tâches 11b et 18b :
   points de reprise prennent du retard (la remise n'attend pas). Limite connue, écrite
   dans l'ADR 0018, à revoir si kartenn doit partager son cluster (022-20).
 
+Tranchés le 2026-11-03, d'après la liste de parité (26) :
+
+- **A30 — Liens de la 007** (utilisateur) : ni servis ni redirigés ; la promesse du design
+  § « Routes » est retirée (pas de compatibilité avant le gel). Les lignes de la liste de
+  parité passent en `[-]`.
+- **A31 — « Clore » depuis la fiche** (utilisateur) : porté (11g).
+- **A32 — Opération en JSON brut dans le brouillon** (utilisateur) : retirée ; l'API reste
+  le moyen d'écrire une opération à la main.
+- **A33 — Autres trous de la liste** (session principale, choix réversibles) : le compte
+  des opérations du brouillon dans la vue du plugin d'exemple est retiré (démonstration
+  du SDK, sans usage) ; l'ajout d'une interface et son mode 802.1Q prouvés par un
+  parcours vont à la 18g ; les gardes du parcours `smoke` (violation axe, script en
+  ligne) prouvées par un test vont à la 21.
+
 ## Questions (closes le 2026-10-23)
 
 - **Q-021-1** — Édition en place : brouillon par défaut, en lot avec un motif ;

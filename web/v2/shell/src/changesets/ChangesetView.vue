@@ -11,6 +11,7 @@ import { queryClient, reads, type Operation } from "@kartenn/sdk";
 import { review, type Decision, type DecisionOutcome } from "@kartenn/sdk/host";
 import {
   AlertDialog,
+  AttributeList,
   Button,
   CodeBadge,
   Dialog,
@@ -47,7 +48,6 @@ import { useSay } from "../views/edit/say.ts";
 import { rowsOf, useKeyLabel } from "../views/data.ts";
 import { nameOf, type Item } from "../views/collections.ts";
 import { keepRecordName } from "../views/names.ts";
-import AttributeList from "../views/parts/AttributeList.vue";
 import ViewPanel from "../views/parts/ViewPanel.vue";
 import {
   countedGroups,
@@ -446,14 +446,14 @@ const counted = computed(() =>
             : []),
         ]"
       />
-      <Grid columns="auto" gap="3" class="k-attrs-tiles">
-        <AttributeList :items="attributes.who">
+      <Grid columns="auto" gap="3">
+        <AttributeList tile :items="attributes.who">
           <template #kind>
             <KeyLabel :value="changeset.kind" :label="words.kind(changeset.kind)" />
           </template>
         </AttributeList>
-        <AttributeList :items="attributes.when" />
-        <AttributeList :items="attributes.what">
+        <AttributeList tile :items="attributes.when" />
+        <AttributeList tile :items="attributes.what">
           <template #id><CodeBadge :code="props.id" /></template>
         </AttributeList>
       </Grid>

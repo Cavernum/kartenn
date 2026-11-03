@@ -5,6 +5,7 @@
 // Read at the dates of the page; three states.
 import { reads, type components } from "@kartenn/sdk";
 import {
+  AttributeList,
   BarList,
   ExpandableGrid,
   Skeleton,
@@ -20,7 +21,6 @@ import { useQuery } from "../../data/query.ts";
 import { useProblems } from "../../problems/index.ts";
 import ProblemState from "../../problems/ProblemState.vue";
 import { useTime } from "../../time/index.ts";
-import AttributeList from "../parts/AttributeList.vue";
 import ViewPanel from "../parts/ViewPanel.vue";
 import { SLICE_STATES } from "../parts/vlan.ts";
 

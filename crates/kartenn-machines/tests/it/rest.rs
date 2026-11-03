@@ -601,6 +601,83 @@ async fn machines_filtered_by_site(pool: PgPool) {
     assert!(ids(&body, "name").is_empty(), "{body}");
 }
 
+/// A28 (task 021-18f): `host:exists=false` keeps the machines without a host, the member
+/// of a cluster among them (membership is not hosting), page by page under its cursor;
+/// `true` the others; a `QUERY` says it as `exists`.
+#[kartenn_testing::pg_test]
+async fn machines_filtered_by_their_host_or_none(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    let owner = json!({"id": acme});
+    env.applied(vec![
+        op(
+            "create_cluster",
+            json!({"local": 1, "slug": "c1", "owner": owner}),
+        ),
+        op(
+            "create_machine",
+            json!({"local": 2, "name": "host1", "kind": "physical", "owner": owner,
+                   "member_of": {"local": 1}}),
+        ),
+        op(
+            "create_machine",
+            json!({"name": "vm1", "kind": "virtual", "owner": owner,
+                   "host": {"machine": {"local": 2}}}),
+        ),
+        op(
+            "create_machine",
+            json!({"name": "vm2", "kind": "virtual", "owner": owner,
+                   "host": {"cluster": {"local": 1}}}),
+        ),
+        op(
+            "create_machine",
+            json!({"name": "vm3", "kind": "virtual", "owner": owner}),
+        ),
+        op(
+            "create_machine",
+            json!({"name": "app1", "kind": "appliance", "owner": owner}),
+        ),
+    ])
+    .await;
+    let app = env.app(env.admin().await);
+    let mut names = Vec::new();
+    let mut uri = "/v1/machines?host:exists=false&page_size=2".to_owned();
+    loop {
+        let (status, _, body) = call(&app, "GET", &uri, None, &[]).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        names.extend(ids(&body, "name"));
+        match body["links"]["next"].as_str() {
+            Some(next) => uri = next.to_owned(),
+            None => break,
+        }
+    }
+    assert_eq!(names, ["app1", "host1", "vm3"]);
+    let (_, _, body) = call(&app, "GET", "/v1/machines?host:exists=true", None, &[]).await;
+    assert_eq!(ids(&body, "name"), ["vm1", "vm2"], "{body}");
+    let (_, _, body) = call(
+        &app,
+        "GET",
+        "/v1/machines?host:exists=false&kind=virtual",
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(ids(&body, "name"), ["vm3"], "{body}");
+    let query = json!({"filters": [{"field": "host", "op": "exists", "value": false}]});
+    let (status, _, body) = call(
+        &app,
+        "QUERY",
+        "/v1/machines",
+        Some(("application/json", query)),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(ids(&body, "name"), ["app1", "host1", "vm3"]);
+    let (status, _, body) = call(&app, "GET", "/v1/machines?host:exists=none", None, &[]).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+}
+
 #[kartenn_testing::pg_test]
 async fn machines_of_a_network_hide_unreadable(pool: PgPool) {
     let env = Env::new(&pool).await;

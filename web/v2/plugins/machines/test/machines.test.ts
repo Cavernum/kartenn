@@ -22,7 +22,8 @@ import manifest from "../public/manifest.json";
 // would, its module loaded, each element mounted with a context and a simulated `fetch`. Its
 // reads go through the shared cache; its forms add operations of the module to the draft.
 // The view of the machines, in Vue since the 18cb: `machines-view.test.ts`; the view of the
-// interfaces and the tab, in Vue since the 18cc: `interfaces-view.test.ts`.
+// interfaces and the tab, in Vue since the 18cc: `interfaces-view.test.ts`; the view of the
+// clusters, in Vue since the 18cd: `clusters-view.test.ts`.
 
 const MACHINE = "4c9f2a52-0f1e-4f55-9a43-6f1f2d1b7a10";
 const ENTITY = "0b7d1c8e-3a54-4b1c-8f0e-2d6a9c4e5f21";
@@ -95,13 +96,7 @@ beforeAll(async () => {
     name: manifest.name,
     extensions: manifest.extensions as Extension[],
     catalogs: { en, fr },
-    integrity: { "styles.css": "sha384-test" },
   });
-  const sheet = document.createElement("link");
-  sheet.href = "/assets/ui-test.css";
-  sheet.integrity = "sha384-ui";
-  sheet.dataset["kartennSheet"] = "@kartenn/ui/style.css";
-  document.head.append(sheet);
   await import("../src/index.ts");
   await defined;
 });
@@ -114,16 +109,6 @@ afterEach(() => {
   sessionStorage.clear();
   history.replaceState(null, "", "/");
 });
-
-/** The text of the shadow root of `element`, once it holds `expected`. */
-async function shadowText(element: HTMLElement, expected: string | RegExp): Promise<string> {
-  let text = "";
-  await vi.waitFor(() => {
-    text = element.shadowRoot?.textContent ?? "";
-    expect(text).toMatch(expected);
-  });
-  return text;
-}
 
 describe("the machines plugin", () => {
   it("defines every element its manifest declares, under the space hosts", () => {
@@ -147,23 +132,6 @@ describe("the machines plugin", () => {
         typeof value === "object" ? keys(value as object, `${prefix}${key}.`) : [prefix + key],
       );
     expect(keys(fr).sort()).toEqual(keys(en).sort());
-  });
-
-  it("says a failed list with its code and Request-Id, an empty one with what to do", async () => {
-    mounted = mount("machines-clusters", {
-      context: { locale: "en" },
-      fetch: fakeFetch({ "GET /v1/clusters": () => problem(403, "forbidden") }),
-    });
-    await shadowText(mounted.element, "The clusters could not be read");
-    const codes = [...mounted.element.shadowRoot!.querySelectorAll("[role=alert] code")];
-    expect(codes.map((code) => code.textContent)).toEqual(["forbidden", "req-42"]);
-    mounted.unmount();
-    queryClient.clear();
-    mounted = mount("machines-clusters", {
-      fetch: fakeFetch({ "GET /v1/clusters": () => page([]) }),
-    });
-    await shadowText(mounted.element, "No cluster");
-    expect(mounted.element.shadowRoot!.querySelector(".k-empty-state")).not.toBeNull();
   });
 
   describe("the column and the action in Vue, in their light DOM (task 18ca)", () => {

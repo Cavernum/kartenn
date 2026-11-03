@@ -1131,7 +1131,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (anomalies et lacunes, `?tab=gaps`, acquittement avec motif), `PropertiesView.vue`
     (déclarations, valeurs d'une liste fermée, lien aux lacunes) ; `parts/ViewPanel.vue`,
     `parts/AttributeList.vue` (repris d'`EcranPanneau`, `EcranAttributs`, qui les
-    enveloppent) ; catalogues `views/i18n/{fr,en}.json`. `@kartenn/ui` : `FilterPicker`
+    enveloppent ; déplacé dans `@kartenn/ui` par la 020-29) ; catalogues `views/i18n/{fr,en}.json`. `@kartenn/ui` : `FilterPicker`
     expose `openFor(clé, origine)` et `openAdd()`, état de catalogue `columns`. Vitest
     `shell/test/views.test.ts` (modèle, URL aller-retour, valeur hors type gardée et non
     envoyée, lien copié = même clé de cache, colonnes filtrables seulement si servies,
@@ -2007,6 +2007,14 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     celui d'un autre onglet en cours ; filtres de période et d'objet sans parcours ; « Exporter » sans icône (aucune icône de téléchargement
     dans la liste fermée de `@kartenn/ui`) ; le fichier d'OPFS d'un très gros export est
     effacé une minute après sa remise au navigateur, qui pourrait ne pas l'avoir copié.
+- [ ] 15d. Reste de l'administration prouvé par le parcours (relevé par la liste de parité,
+  26) : pseudonymisation d'une identité (confirmation, motif, refus 403 et 409), sur une
+  identité créée pour le parcours, afin de ne consommer aucune personne du jeu ; filtres de
+  période et d'objet du journal d'audit — verify : parcours `admin` sous les deux
+  navigateurs ; lignes de `web/v2/PARITE.md` cochées
+  - où : `web/v2/shell/src/admin/{IdentityDetail,AuditView}.vue` ;
+    `web/v2/e2e/journeys/admin.spec.ts`, `web/v2/e2e/journeys/global-setup.ts`
+  - dépend de : 15b, 15c
 - [x] 16b. Fin de session annoncée et requêtes de fond : avis deux minutes avant
   `absolute_expires_at` (sans « Rester connecté », qui ne la repousse pas) ; en-tête
   `Kartenn-Background: ?1` posé par le SDK sur les relectures sans geste (événements,
@@ -2147,6 +2155,36 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     rapprochement d'une création suit l'ordre du contrat (un `Placement` portant l'indice
     de son opération le rendrait exact).
 
+- [ ] 24d. États `moved` et `preview` dans la Topographie (020-29) : la ligne au présent
+  d'un objet que le brouillon déplace en `moved`, sa ligne d'aperçu en `preview`, au lieu
+  de `draft` sur les deux — verify : Vitest de l'aperçu (états par ligne) ; parcours
+  `moves` (préfixe inséré au brouillon : ligne au présent et ligne d'aperçu dites
+  différemment) sous les deux navigateurs
+  - où : `web/v2/shell/src/views/TopologyView.vue`, `topology.ts` ; `TreeNodeState` de
+    `web/v2/ui/src/components/TreeGrid/tree.ts` (en lecture)
+  - dépend de : 24c, 020-29
+- [ ] 16g. Titres du shell par `Heading` (020-29) : les classes de titre recopiées
+  (`k-login__title`, `k-about__title`, `k-plugin-view__title`, `k-pending__title`,
+  `k-help__title`, `k-edit-panel__title`, `k-network-vlan__title`) remplacées par `Heading` ;
+  `fieldText` passe une valeur absente à `AttributeList` au lieu d'un « — » lu « tiret »
+  — verify : Vitest ; `k-web2-check --base main` (captures touchées listées) ; revue
+  `ui-reviewer`
+  - où : les fichiers des classes citées sous `web/v2/shell/src/` (grep), `fieldText`
+    (`web/v2/shell/src/views/`) ; `Heading` et `AttributeList` de `web/v2/ui` (en lecture)
+  - dépend de : 020-29
+
+- [ ] 11g. « Clore » un objet depuis sa fiche (A31) : action de la fiche de chaque sorte du
+  noyau (entité, site, domaine, préfixe, plage, adresse, VLAN, groupe de VLAN), au
+  brouillon ou en Ctrl+Entrée avec motif ; `expected` de la version servie ; refus de
+  cascade et de règle dits par leur code, sur l'action ; droit manquant visible avec sa
+  permission (REQ-021-37) — verify : Vitest ; parcours `records` (clôture d'une adresse
+  au brouillon puis appliquée ; clôture d'un préfixe refusée par une règle, code dit) sous
+  les deux navigateurs ; ligne de la liste de parité cochée
+  - où : `web/v2/shell/src/views/record/RecordView.vue` (barre d'actions), `views/edit/`
+    (`write.quick`, brouillon), `Close` des opérations du noyau (contrat 006) ; ancien
+    comportement : `web/shell/src/` (grep « Clore »)
+  - dépend de : 11d
+
 ## P3 — Plugins (phase 5)
 
 - [ ] 17. Écrans VLAN du cœur (amendée par la 026 : plus un plugin, des écrans du shell)
@@ -2229,12 +2267,13 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (`session`, `time`, `edit`), des modules refusés par `integrity` dont le contenu reçu
     est vide (empreinte SHA-384 de la chaîne vide) ; les mêmes parcours passent seuls
     (14/14) ; `vlan` et `plugins` verts dans les deux navigateurs.
-- [ ] 18. Plugin Machines, même traitement, espace `hosts`, déplacement d'une machine vers
+- [x] 18. Plugin Machines, même traitement, espace `hosts`, déplacement d'une machine vers
   un cluster (si Q-021-2 le retient) par le `canMove` de la tâche 24 (codes
   `machines.host.*`), sans optimisme — verify : parcours `machines` vert
   - où : `web/plugins/machines/`
   - dépend de : 17
   - découpée le 2026-11-01 en 18a et 18b (fin de P3)
+  - faite le 2026-11-03 par ses sous-tâches 18a, 18b et 18ca à 18cd, fusionnées
 - [x] 19. Plugin d'exemple passé au SDK 1.0, **toujours sans framework**, en racine
   d'ombre avec `handle.styles()` sur `@kartenn/ui/style.css`, lecture par le
   `QueryClient` — REQ-021-25, 27 — verify : parcours `example` vert ; invalidation reçue
@@ -2431,7 +2470,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     24 « an entity changes parent by its menu » a perdu une fois le focus du champ
     pendant le parcours complet (vert relancé seul, deux fois).
 
-- [ ] 18c. Plugin Machines en Vue 3 et `@kartenn/ui` (A19) : réécriture de
+- [x] 18c. Plugin Machines en Vue 3 et `@kartenn/ui` (A19) : réécriture de
   `web/v2/plugins/machines` en Vue, à la forme que prendront les plugins de la 017 ;
   listes en `DataGrid` (tri et filtres typés), choix en `Select`/`Combobox`, codes en
   `CodeBadge`, état en `StatusBadge` ; arbre de l'hébergement en `TreeGrid` à parent
@@ -2447,6 +2486,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - dépend de : 18b
   - découpée le 2026-11-02 en 18ca à 18cd (A23), chacune migrant des éléments entiers ;
     l'ancien élément et ses tests ne partent qu'une fois l'élément Vue et ses tests verts
+  - faite le 2026-11-03 par ses sous-tâches 18ca à 18cd, fusionnées
 - [x] 18ca. Montage d'un plugin de première partie en Vue (modèle de la 017) : une
   application par élément (`createApp`) montée dans son DOM léger à `connectedCallback`,
   démontée à `disconnectedCallback`, contexte du SDK, lien en `<a href>` suivi par
@@ -2685,7 +2725,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (adresses lues au plus quatre à la fois, page 2 après les six adresses de la page 1,
     chaque machine lue une fois, observateurs libérés au démontage ; objets au-delà des
     pages résolues et couples au-delà de la borne dits, compte « incomplet »).
-- [ ] 18cd. Vue « Hébergement et clusters » en `TreeGrid` à parent déclaré
+- [x] 18cd. Vue « Hébergement et clusters » en `TreeGrid` à parent déclaré
   (`parentMode: "declared"`) : clusters et machines hôtes, machines hébergées chargées
   sous eux ; fiche d'un cluster ; déplacement par glisser, Ctrl+X puis Ctrl+V et
   « Déplacer vers… », par `canMove` et `draft.move` ; `moveState: "pending"` jusqu'au
@@ -2699,6 +2739,67 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     lecture) ; design 021 § « Déplacements dans les arbres » et § « Catalogue » (plugin
     Machines, « Hébergement et clusters »)
   - dépend de : 18ca, 18cb
+  - fait le 2026-11-02 — `machines-clusters` = `host.element(ClustersView.vue)` : arbre
+    (`HostingTree.vue`) ou fiche (`ClusterRecord.vue`) selon le chemin. Arbre : `TreeGrid`
+    à parent déclaré au présent (`derived` à une autre date, dit), au premier niveau les
+    clusters puis les machines sans hébergeur (pages de `/v1/machines` lues jusqu'à ce
+    qu'une racine nouvelle paraisse, au plus `MAX_PAGES`, le reste dit), sous un cluster
+    ou une machine qui peut héberger (physique, virtuelle : M5) ses hébergées
+    (`/v1/machines?host=`), lues à l'ouverture, quatre listes au plus à la fois
+    (`limited`), jamais relues seules après un refus (`RetryAlert`) ; colonnes nature et
+    site ; Entrée ouvre la fiche (focus au titre). Déplacement par glisser, Ctrl+X puis
+    Ctrl+V et « Déplacer vers… » (`openMove` du nœud sélectionné ; refusé avec sa raison
+    sans sélection, sur un cluster, sans `machines.edit`), chaque cible jugée par `canMove`
+    du SDK (cycle par les hébergeurs lus, type, droits, présent ; hébergeur actuel refusé)
+    avec le code de la règle ; au brouillon par `draft.move` (`machines.update_machine`) :
+    `moveState: "pending"` jusqu'au verdict, puis nœud « en brouillon » à sa place tant
+    que ses lectures l'y montrent, ou refusé avec la règle de la simulation ; aucun
+    `setQueryData` des clés de l'arbre. Région `status` présente dès l'origine : issue du
+    déplacement et avertissements avec leur code (`machines.host.site_mismatch`).
+    Fiche : propriétaire et site en `dl`, membres et hébergées en `DataGrid` (lien,
+    nature, lien au cluster). `data.ts` : `next(i)`, `retry(i)` de `useLists` (design 021
+    § « API des plugins »). Retirés : `src/views.ts`, `src/element.ts`,
+    `public/styles.css` ; `dom.ts` réduit à ce que servent les éléments Vue (`defined`, `t`,
+    `hrefOf`, `arrival`, `followLink`, `PAGES`, `pageId`). Poids : `index.js` 22,7 Ko gzip
+    -9 (20,8 avant), aucune feuille. Vitest : 49 (`test/clusters-view.test.ts`, 8 :
+    premier niveau et hébergées à l'ouverture, Entrée ; premier niveau refusé et vide ;
+    liste d'hébergées refusée lue une fois puis par « Réessayer » ; cycle refusé sans
+    envoi ; vers un cluster, en attente puis au brouillon, avertissement dans la région,
+    aucune clé de l'arbre écrite, aucun changeset ; refus de la simulation avec sa règle ;
+    sans droit, autre date ; fiche et son refus). Parcours `moves` (deux tests de l'arbre :
+    vers un cluster au clavier, aucun changeset ; cycle refusé puis avertissement d'un
+    autre site) et `machines` (arbre depuis la navigation, Entrée vers la fiche, grille
+    `Machines du cluster`) : 21 sur 21 dans les deux navigateurs.
+  - choix : racines = clusters et machines sans hébergeur (un membre physique d'un cluster
+    reste à la racine : il n'est pas hébergé) ; « en attente » dit par la ligne et le
+    « demandé » de l'arbre, pas une troisième fois par la vue ; le refus annoncé par
+    l'arbre, la vue ajoutant seulement que l'opération reste au brouillon ; site lu par
+    `Names` dans une cellule texte (« Chargement… » le temps de la lecture) ; clés
+    `hosting.*` ; clés mortes retirées (`list.more`, `error`, `required`,
+    `clusters.title`, `intro`, `slug`, `failed`, `none`, `noneText`).
+  - relectures : `ui-reviewer` et `a11y-auditor` sur le code (sans rendu : serveur et base
+    partagés), aucun bloquant ; corrigés : messages d'un déplacement précédent effacés au
+    suivant et à une autre date, échec d'envoi dit dans la région, région `status` sortie
+    des états de la vue, phrase « en attente » en trop, troncature des hébergées dite,
+    lecture datée dite, « Chargement… » au lieu de « … », Entrée et sélection dans
+    l'introduction, raisons du cluster harmonisées.
+  - passe de corrections (revue de branche) : places de `limited` rendues à la réponse,
+    le nœud ouvert ou refermé (sa liste suivie jusque-là), nœud refermé avant son tour
+    jamais admis ; cible d'une nature qui n'héberge rien refusée par le client
+    (`MoveSubject.kind`, `PARENT_KINDS` du SDK : `container`, `appliance` →
+    `machines.host.invalid`, aussi dans la section « Hébergement » de la fiche) ;
+    `draft.onActive` au SDK (design 021 § « API des plugins »), les marques « en
+    brouillon » effacées quand le brouillon actif change ou disparaît ; un seul `watch` de
+    la date ; un `RetryAlert` par liste d'hébergées refusée, nommée par son hôte
+    (`retry(i)`) ; `loading-children` sur un hôte ouvert pas encore admis. Vitest : 51 du
+    plugin (refermé avant la réponse, cible `container`, brouillon quitté) ; SDK
+    (`PARENT_KINDS`, `draft.onActive`).
+  - reste : focus après « Déplacer vers… » rendu au bouton (comportement du composant), loin de la
+    ligne « en attente » ; nature d'un cluster en texte (cellules de `TreeGrid` en
+    chaînes, pas de `KeyLabel`) ; la grille de la fiche porte le nom de son titre. À
+    arbitrer côté API : le premier niveau lit toutes les machines pour garder celles sans
+    hébergeur (un filtre « sans hébergeur » de `/v1/machines` le ferait en une page ; fait
+    par la 18f, A28).
 
 - [x] 18e. `GET /v1/interfaces?network=<id>` (A28) : interfaces d'un réseau avec leurs
   adresses, paginées, sous le filtre de lecture ; l'onglet « Interfaces » d'un réseau
@@ -2734,13 +2835,57 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     contrôlé en lecture, comme `/v1/machines?network=` ; `useReads` reste dans `data.ts`
     (API du design 021 § « API des plugins »), sans usage dans le plugin ; nom de machine
     par `CitedName`, squelette de cellule pendant sa lecture comme dans `InterfaceGrid`.
-- [ ] 18f. Filtre « sans hôte » sur `/v1/machines` (A28) : un paramètre qui ne garde que
+- [x] 18f. Filtre « sans hôte » sur `/v1/machines` (A28) : un paramètre qui ne garde que
   les machines sans hôte ; le premier niveau de l'arbre de l'hébergement se lit en une
   liste paginée au lieu de toutes les machines — verify : `k-check -p kartenn-machines` ;
   Vitest et parcours `moves` (arbre de l'hébergement) ; contrat régénéré
   - où : `crates/kartenn-machines/src/rest.rs` (filtres de `/v1/machines`),
     `web/v2/plugins/machines/src/HostingTree.vue`
   - dépend de : 18cd
+  - fait le 2026-11-03 — `GET`/`QUERY /v1/machines?host:exists=false` (sans hôte, un membre
+    de cluster compris : l'appartenance n'est pas l'hébergement), `true` (hébergée par une
+    machine ou un cluster), autre valeur → 400 ; en conjonction avec les autres filtres,
+    gardé par le curseur ; un `QUERY` le dit `{"field": "host", "op": "exists", "value":
+    false}`. Contrat : paramètre `host:exists` de schéma booléen (`filters.ts`,
+    `schema.d.ts` régénérés). Index partiel `machine_unhosted (name, id) WHERE
+    host_machine_id IS NULL AND host_cluster_id IS NULL` (migration `machines` 0005) ; la
+    condition est écrite dans le texte de la requête (trois instructions selon la valeur),
+    non liée : `$n IS NULL OR …` laisserait le prédicat de l'index non prouvé. `EXPLAIN`
+    en réduit (100 000 machines, 5 475 sans hôte, base jetable) : plan de l'instruction
+    préparée (personnalisé, gardé en mode `auto` après 7 exécutions, le générique estimé
+    591 contre 15,6) `Index Scan using machine_unhosted`, 53 tampons, 0,06 ms ; sans
+    l'index, `machine_by_name` et 11 460 lignes écartées (11 615 tampons, 20 ms) ; plan
+    générique forcé : `BitmapAnd` de `machine_pkey` et `machine_unhosted`, tri des 5 475,
+    pas de parcours de la table (547 blocs sur 1 799). Plugin : premier niveau lu par
+    `{"host:exists": false}`, une page à la demande de l'arbre (`onLoad`) ; retirés la
+    lecture des pages jusqu'à une racine nouvelle (`wanted`), le filtre client `!m.host`
+    et les hôtes tirés de la liste de toutes les machines (`up` vient des hébergées
+    lues). `k-check -p kartenn-machines` : 64 (`machines_filtered_by_their_host_or_none`) ;
+    Vitest du plugin : 52 (premier niveau page à page par Entrée sur la ligne « plus »,
+    aucune page lue d'avance) ; parcours `moves` : 15 sur 15 dans les deux navigateurs ;
+    `k-web2-check --base main` : 837 Vitest, 2 707 captures sur 2 707 (tout : `filters.ts`
+    régénéré est lu par l'entrée du shell) ; `k-check` : 1 265.
+  - relectures : `ui-reviewer` et `a11y-auditor` sur le code, aucun bloquant ni important ;
+    corrigé : le test passe la page suivante au clavier (Entrée) et non au clic.
+  - reste : une page de machines qui n'ajoute aucune ligne mais garde un curseur n'est ni
+    redemandée d'elle-même ni annoncée (`treePages.ts`, commun à tous les niveaux) ; rare
+    avec `host:exists=false`.
+  - choix : forme `host:exists=true|false`, la grammaire des listes du noyau (spec 006,
+    design « Filtres » : `{champ}:exists`), plutôt que `host=none` (un identifiant
+    surchargé d'une sentinelle) ou un booléen nouveau ; `true` servi aussi (la grammaire
+    est à deux valeurs) ; `host=<id>&host:exists=false` rend une liste vide (conjonction),
+    pas un 400 ; plafond `MAX_PAGES` du cache gardé pour toutes les listes de l'arbre (une
+    page de plus ferait tomber la première), dit par `hosting.partial`.
+
+- [ ] 18g. Plugin Machines sur `Heading`, `AttributeList` et les états d'arbre (020-29) :
+  fiches (`MachineRecord`, `InterfaceRecord`, `ClusterRecord`) en `AttributeList` et
+  `Heading` au lieu de `Grid as="dl"` et de `h1`/`h2` nus ; `HostingTree` en
+  `moved`/`preview` au lieu de `draft` — verify : Vitest du plugin ; parcours
+  `machines` et `moves` sous les deux navigateurs ; poids du plugin
+  - où : `web/v2/plugins/machines/src/{MachineRecord,InterfaceRecord,ClusterRecord,HostingTree}.vue`
+  - dépend de : 18cd, 020-29
+  - étendue le 2026-11-03 (A33) : l'ajout d'une interface et son mode 802.1Q depuis la
+    fiche de l'interface prouvés par le parcours `machines` (lignes de la liste de parité)
 
 ## P4 — Budgets et clôture
 
@@ -2750,6 +2895,9 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   `a11y-auditor` avec lecteur d'écran en mode navigation
   - où : `web/e2e/journeys/accessibility.spec.ts`
   - dépend de : 16
+  - étendue le 2026-11-03 (A33) : les gardes du parcours `smoke` de l'ancien shell (une
+    violation axe et un script en ligne font chacun échouer un parcours) prouvées par un
+    test des fixtures de `web/v2/e2e/`
 - [ ] 22. `bench-web` étendu : INP (Event Timing), navigation en cache, CLS, trames
   perdues de l'arbre (≤ 2 %), Flèche bas (≤ 100 ms p75), tas JS (≤ 64 Mo), plafond par
   plugin, shell avec modules partagés ; protocole de mesure du prototype D-1 repris —
@@ -2767,6 +2915,33 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/shell/src/router.ts` (routes), `web/e2e/journeys/*.spec.ts`,
     `web/plugins/*/public/manifest.json`
   - dépend de : 25 (créée tôt, cochée au fil des tâches)
+  - en cours : fait le 2026-11-03 — `web/v2/PARITE.md` complète : cadre, session et temps ;
+    référentiel ; édition ; changesets et brouillon ; hôte des plugins ; plugin d'exemple ;
+    VLAN (écrans du cœur, 026) ; Politique et Flux (017 : absents de l'ancien shell, rien à
+    porter, la bascule ne les attend pas, design § « Migration », phase 6) ; « Parcours de
+    bout en bout », une ligne par test de `web/e2e/journeys/` (43). Vitest
+    `web/v2/shell/test/parity.test.ts` : une ligne par ancien test et aucune pour un test
+    disparu ; le pendant nommé existe et tient les titres cités ; une ligne à porter nomme
+    sa tâche ou « aucune tâche », une ligne retirée sa référence ; un `todo` par parcours
+    sans pendant (`accessibility`, tâche 21) et par test à porter.
+  - corrigé le 2026-11-03 (revue, arbitrages A30 à A33) : liens de la 007, opération en
+    JSON brut et compte du brouillon de la vue d'exemple en `[-]` (021/A30, A32, A33) ;
+    « Clore » à la 11g ; interface et mode 802.1Q à la 18g ; gardes du parcours `smoke` à
+    la 21 ; pseudonymisation (15b) et filtres de période et d'objet de l'audit (15c) en
+    lignes à porter, la ligne du parcours `admin` et celle de « then undone » des
+    changesets (14 : « Appliqué » dans « Mes changesets ») décochées. Le test confronte
+    aussi les lignes cochées des autres sections aux parcours qu'elles citent (fichier,
+    test ou `describe`), lit la tâche d'une ligne à porter dans sa dernière colonne, et
+    met un `todo` par ligne à porter de toutes les sections. État : 81 lignes cochées, 35
+    à porter, 6 retirées ; aucune ligne sans tâche.
+  - reste : la liste entièrement cochée, au fil des tâches 11, 11g, 12, 14, 15b, 15c, 16,
+    18g, 21.
+  - choix : une ligne n'est cochée que si un parcours de `web/v2/e2e/` tient tout son
+    scénario (une étape manquante la laisse à porter ; une donnée de hasard, comme
+    l'événement cherché dans l'audit, ne compte pas) ; ce que seul Vitest prouve reste à
+    porter (« Ajout d'une interface » des Machines décoché) ; le test vit dans le projet
+    Vitest `shell` (un fichier de `tools/` relancerait toutes les captures) ; un parcours
+    est « sans pendant » quand aucune de ses lignes ne nomme un parcours de `web/v2/e2e/`.
 - [ ] 27. Commit de bascule : `web/v2/*` à la place de `web/*`, build branché dans
   `[web] root`, paquets Nix et OCI, `bench-web` et `scripts/ci.sh` ; ancien shell, SDK
   0.1 et anciens plugins supprimés ; un seul commit — REQ-021-31 — verify : liste de

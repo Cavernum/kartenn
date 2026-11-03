@@ -1,0 +1,19 @@
+- main:
+  - region "Tree":
+    - heading "Tree" [level=1]
+    - paragraph: "Motif : Tree View"
+    - 'figure "moved-preview — Nœud que le brouillon déplace : sa ligne au présent (déplacé dans le brouillon) et sa ligne d''aperçu sous son parent d''après"':
+      - tree "Sites":
+        - treeitem "Site A" [expanded] [level=1]
+        - treeitem "Salle 1" [expanded] [level=2]
+        - treeitem /Baie 2-\d+/ [level=3]
+        - treeitem "Salle 2" [expanded] [level=2]
+        - treeitem /Baie 2-\d+/ [level=3]
+        - treeitem /Baie 2-\d+/ [level=3]
+        - treeitem "Salle 3" [level=2]
+        - treeitem "Site B" [level=1]
+        - treeitem "Site C" [level=1]
+      - status
+      - alert
+      - code: moved-preview
+      - text: ""

@@ -109,7 +109,8 @@ const hosts = computed<Host[]>(() => [
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((m) => ({
       value: `machine:${m.id}`,
-      subject: { id: m.id, type: MACHINE },
+      // Its kind: a container or an appliance hosts nothing (M5).
+      subject: { id: m.id, type: MACHINE, kind: m.kind },
       label: m.name,
       type: t("move.machine"),
     })),
