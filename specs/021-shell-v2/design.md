@@ -714,8 +714,10 @@ Manifeste (ajouts) :
 
 ## Budgets (REQ-021-30)
 
-Projet Playwright `budgets` de `bench-web` (existant), Chromium, CPU ralenti ×4 par CDP,
-jeu à 10⁶ objets. Les seuils de trames perdues, de flèches et de mémoire viennent du
+Projet Playwright `budgets` de `bench-web` (`web/v2/e2e/budgets.config.ts`, contre
+`serve.sh budgets` : kartenn-server en release, `kartenn-bench seed`), Chromium, CPU
+ralenti ×4 par CDP, jeu à 10⁶ objets ; le protocole des mesures est celui de
+`web/v2/e2e/bench/measure.ts` (bancs de `@kartenn/ui`, prototype D-1). Les seuils de trames perdues, de flèches et de mémoire viennent du
 prototype D-1 (sans ralenti : 0,2 % de trames perdues, Flèche bas p75 ≈ 15 ms, tas de 19 à
 25 Mo par écran) : 2 % et 100 ms laissent la marge du ralenti ×4 ; 64 Mo couvrent
 l'écran le plus lourd et le cache de 50 navigations. Ils se resserrent après le premier
@@ -723,16 +725,16 @@ passage complet.
 
 | Budget | Seuil | Mesure |
 |---|---|---|
-| Shell initial | ≤ 300 Ko gzip | `size.mjs` : entrée, imports statiques, CSS, SDK, framework, `@kartenn/ui` |
+| Shell initial | ≤ 300 Ko gzip | `web/v2/shell/scripts/shell-size.ts` : entrée, imports statiques, CSS, modules partagés de l'import map (SDK, framework, `@kartenn/ui`) et leurs imports statiques, chaque fichier une fois |
 | Plugin | ≤ 50 Ko gzip | `web/v2/tools/plugin-size.ts` par plugin (son test de paquet, Vitest), modules partagés exclus |
-| Premier écran utile | ≤ 2 s | navigation après le rappel OIDC → marque `k:ready` (existant) |
-| Page de 100 lignes | ≤ 100 ms | `responseEnd` → `k:rows`, p95 de 20 pages (existant) |
+| Premier écran utile | ≤ 2 s | `fetchStart` de la navigation après le rappel OIDC → première trame où les tuiles de l'accueil (`.k-home-tiles`) sont dans le document, relevée par le banc |
+| Page de 100 lignes | ≤ 100 ms | `responseEnd` d'une page de `/v1/addresses` → trame qui suit la première mutation de la grille, p95 de 20 pages |
 | INP | ≤ 200 ms, p75 | Event Timing (`PerformanceObserver` `event`, `durationThreshold: 16`) sur 20 répétitions de : ouvrir un nœud, filtrer, éditer une cellule, changer d'onglet, ouvrir la palette |
-| Navigation en cache | ≤ 100 ms | clic sur un lien déjà préchargé → marque `k:view` |
+| Navigation en cache | ≤ 100 ms, p75 | clic sur un lien déjà préchargé (survol, lectures servies) → marque `k:view` (`shell/src/prefetch/viewMark.ts` : après chaque navigation sauf la première, première trame après le rendu), 10 fiches |
 | CLS | ≤ 0,05 | `layout-shift` sans entrée récente, premier écran et 10 navigations |
 | Arbre de 10⁵ | ≤ 2 % de trames perdues, aucune tâche longue | défilement scénarisé de 10⁴ lignes ; trames perdues = 1 − trames observées / (durée ÷ 16,67 ms), boucle `requestAnimationFrame` (protocole du prototype) ; tâches longues > 50 ms par `PerformanceObserver` |
 | Flèche bas (arbre, grille) | ≤ 100 ms, p75 | 50 appuis ; du `timeStamp` du `keydown` au premier `requestAnimationFrame` après le focus attendu |
-| Mémoire | ≤ 64 Mo | CDP `Performance.getMetrics` `JSHeapUsedSize` après 10⁴ lignes défilées et 50 navigations, après `HeapProfiler.collectGarbage` |
+| Mémoire | ≤ 64 Mo | CDP `Runtime.getHeapUsage` `usedSize` (comme les bancs de `@kartenn/ui`) après 10⁴ lignes défilées et 50 navigations, après `HeapProfiler.collectGarbage` |
 | Plugin lent | écarté à 5 s | existant |
 
 ## Migration depuis le shell actuel (bascule en un bloc, décidée le 2026-10-23)
