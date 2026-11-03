@@ -2,10 +2,19 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { createSSRApp, h, type Component } from "vue";
+import {
+  createCommentVNode,
+  createSSRApp,
+  createTextVNode,
+  Fragment,
+  h,
+  type Component,
+} from "vue";
 import { renderToString } from "vue/server-renderer";
 import { afterEach, describe, expect, it } from "vitest";
 import { copyText } from "../src/clipboard.ts";
+import AttributeList from "../src/components/AttributeList/AttributeList.vue";
+import Heading from "../src/components/Heading/Heading.vue";
 import Button from "../src/components/Button/Button.vue";
 import { ariaKeyshortcuts } from "../src/components/Button/shortcut.ts";
 import Checkbox from "../src/components/Checkbox/Checkbox.vue";
@@ -39,6 +48,9 @@ const render = (component: Component, props: Record<string, unknown> = {}, slot?
   );
 
 afterEach(() => setLocale("fr"));
+
+/** The markup without the fragment anchors of server rendering. */
+const bare = (html: string) => html.replace(/<!--[[\]]-->/g, "");
 
 describe("Button", () => {
   it("is a button of type button, with its variant and size", async () => {
@@ -472,5 +484,114 @@ describe("layouts", () => {
       }),
     );
     expect(html.indexOf("Principal")).toBeLessThan(html.indexOf("Côté"));
+  });
+});
+
+describe("Heading (021/A27)", () => {
+  it("its level for the outline, its size apart: page at level 1, section below", async () => {
+    expect(bare(await render(Heading, { level: 1 }, "Machines"))).toBe(
+      '<h1 class="k-heading" data-size="page">Machines</h1>',
+    );
+    expect(bare(await render(Heading, { level: 2 }, "Interfaces"))).toBe(
+      '<h2 class="k-heading" data-size="section">Interfaces</h2>',
+    );
+    expect(await render(Heading, { level: 3, size: "page" }, "Hôte")).toMatch(
+      /^<h3 class="k-heading" data-size="page">/,
+    );
+  });
+
+  it("its attributes on the heading itself: an id to label by, the focus of a view", async () => {
+    const html = await render(Heading, { level: 1, id: "titre", tabindex: "-1" }, "Machines");
+    expect(html).toMatch(/^<h1[^>]* id="titre"/);
+    expect(html).toMatch(/^<h1[^>]* tabindex="-1"/);
+  });
+});
+
+describe("AttributeList (021/A27)", () => {
+  it("a dl of terms and values, each pair a group of the one grid; fixed pitch where asked", async () => {
+    const html = bare(
+      await render(AttributeList, {
+        items: [
+          { key: "site", label: "Site", value: "Site A" },
+          { key: "address", label: "Adresse", value: "192.0.2.10", mono: true },
+        ],
+      }),
+    );
+    expect(html).toMatch(/^<dl class="k-attribute-list" style="--k-attribute-list-rows:2;"/);
+    expect(html.match(/<div class="k-attribute-list__item"><dt/g)).toHaveLength(2);
+    expect(html).toContain('<dd class="k-mono k-attribute-list__value">192.0.2.10</dd>');
+    expect(html).toContain('<dd class="k-attribute-list__value">Site A</dd>');
+  });
+
+  it("an absent value is said, never blank: a dash shown, « non renseigné » read", async () => {
+    const html = await render(AttributeList, {
+      items: [
+        { key: "owner", label: "Responsable" },
+        { key: "host", label: "Hôte", value: null },
+        { key: "name", label: "Nom", value: "" },
+      ],
+    });
+    expect(html.match(/data-empty="true"/g)).toHaveLength(3);
+    expect(
+      html.match(
+        /<span aria-hidden="true">—<\/span><span class="k-visually-hidden">non renseigné<\/span>/g,
+      ),
+    ).toHaveLength(3);
+    setLocale("en");
+    expect(await render(AttributeList, { items: [{ key: "a", label: "A" }] })).toContain("not set");
+  });
+
+  it("a value given by its slot is the host's, never said absent", async () => {
+    const html = await renderToString(
+      createSSRApp({
+        render: () =>
+          h(
+            AttributeList,
+            { items: [{ key: "kind", label: "Genre" }] },
+            { kind: () => h("span", { class: "chosen" }, "Virtuelle") },
+          ),
+      }),
+    );
+    expect(html).not.toContain("data-empty");
+    expect(html).toContain('<span class="chosen">Virtuelle</span>');
+  });
+
+  it("a slot given but rendering nothing is said absent, as a missing value", async () => {
+    const html = await renderToString(
+      createSSRApp({
+        render: () =>
+          h(
+            AttributeList,
+            {
+              items: [
+                { key: "none", label: "Rien" },
+                { key: "blank", label: "Blanc" },
+                { key: "nested", label: "Imbriqué" },
+              ],
+            },
+            {
+              none: () => [],
+              blank: () => [createTextVNode("  "), createCommentVNode("v-if")],
+              nested: () => [h(Fragment, null, [createCommentVNode("v-if")])],
+            },
+          ),
+      }),
+    );
+    expect(html.match(/data-empty="true"/g)).toHaveLength(3);
+    expect(html.match(/non renseigné/g)).toHaveLength(3);
+  });
+
+  it("a tile shares the rows of its grid: its own rows counted, marked", async () => {
+    const html = bare(
+      await render(AttributeList, {
+        tile: true,
+        items: [
+          { key: "a", label: "A", value: "1" },
+          { key: "b", label: "B", value: "2" },
+        ],
+      }),
+    );
+    expect(html).toMatch(/^<dl class="k-attribute-list" style="--k-attribute-list-rows:2;"/);
+    expect(html).toMatch(/^<dl[^>]* data-tile="true"/);
   });
 });

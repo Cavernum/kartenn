@@ -44,7 +44,25 @@ const stateBy =
   (node: TreeNode): TreeNodeState | undefined =>
     states[node.id];
 
-const dragged = (target: string) =>
+/** A draft moves « Baie 2-02 » into « Salle 1 »: its present row, its preview row. */
+const previewed: TreeNode[] = nodes.map((site) =>
+  site.children
+    ? {
+        ...site,
+        children: site.children.map((room) =>
+          room.id === "s11"
+            ? {
+                ...room,
+                children: [{ id: "preview:s122", label: "Baie 2-02", objectKey: "B2-02" }],
+              }
+            : room,
+        ),
+      }
+    : site,
+);
+
+/** A drag held over a target; with `preview`, the target is a preview row. */
+const dragged = (target: string, preview = false) =>
   defineComponent({
     setup() {
       const host = moveHost(keyboardTree());
@@ -59,6 +77,7 @@ const dragged = (target: string) =>
             parentMode: "declared",
             canMove: host.canMove,
             moveState: host.moveState,
+            nodeState: preview ? stateBy({ [target]: "preview" }) : undefined,
           }),
         ]);
     },
@@ -223,6 +242,17 @@ export default {
       props: { ...base, nodeState: stateBy({ s11: "draft" }) },
     },
     {
+      name: "moved-preview",
+      description:
+        "Nœud que le brouillon déplace : sa ligne au présent (déplacé dans le brouillon) et sa ligne d'aperçu sous son parent d'après",
+      props: {
+        ...base,
+        nodes: previewed,
+        expanded: ["s1", "s11", "s12"],
+        nodeState: stateBy({ s122: "moved", "preview:s122": "preview" }),
+      },
+    },
+    {
       name: "editing",
       description: "Renommer : le libellé dans un champ (Entrée ou F2)",
       props: { ...base, selected: "s11", editing: "s11", editable: () => true },
@@ -239,6 +269,20 @@ export default {
         "Glisser sur un descendant : cible refusée, jamais mise en évidence, motif et code",
       props: {},
       demo: dragged("n111"),
+    },
+    {
+      name: "drop-accepted-preview",
+      description:
+        "Glisser au-dessus d'une ligne d'aperçu acceptée : le contour de la cible remplace le tireté de l'aperçu",
+      props: {},
+      demo: dragged("n2", true),
+    },
+    {
+      name: "drop-refused-preview",
+      description:
+        "Glisser au-dessus d'une ligne d'aperçu refusée : le tireté de la cible refusée, motif et code",
+      props: {},
+      demo: dragged("n111", true),
     },
     {
       name: "move-states",

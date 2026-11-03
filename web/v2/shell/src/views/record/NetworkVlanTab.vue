@@ -11,6 +11,7 @@
 import { drafts, reads, type components, type Draft, type Entry } from "@kartenn/sdk";
 import { addToActiveDraft } from "@kartenn/sdk/host";
 import {
+  AttributeList,
   Button,
   CodeBadge,
   Cluster,
@@ -37,7 +38,6 @@ import type { Refusal } from "../edit/inline.ts";
 import { openEdit } from "../edit/panel.ts";
 import RefusalAlert from "../edit/RefusalAlert.vue";
 import { cacheSuggest } from "../filters.ts";
-import AttributeList from "../parts/AttributeList.vue";
 import {
   isNetworkVlanAssignment,
   isNetworkVlanRemoval,

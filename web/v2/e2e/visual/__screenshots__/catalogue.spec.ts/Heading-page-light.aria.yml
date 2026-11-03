@@ -1,0 +1,8 @@
+- main:
+  - region "Heading":
+    - heading "Heading" [level=1]
+    - paragraph: "Motif : heading (h1 à h6 ; niveau et taille séparés)"
+    - 'figure "page — Titre de page : niveau 1, taille de la page (défaut du niveau 1)"':
+      - heading "Machines" [level=1]
+      - code: page
+      - text: ""

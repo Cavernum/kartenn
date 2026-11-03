@@ -1131,7 +1131,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (anomalies et lacunes, `?tab=gaps`, acquittement avec motif), `PropertiesView.vue`
     (déclarations, valeurs d'une liste fermée, lien aux lacunes) ; `parts/ViewPanel.vue`,
     `parts/AttributeList.vue` (repris d'`EcranPanneau`, `EcranAttributs`, qui les
-    enveloppent) ; catalogues `views/i18n/{fr,en}.json`. `@kartenn/ui` : `FilterPicker`
+    enveloppent ; déplacé dans `@kartenn/ui` par la 020-29) ; catalogues `views/i18n/{fr,en}.json`. `@kartenn/ui` : `FilterPicker`
     expose `openFor(clé, origine)` et `openAdd()`, état de catalogue `columns`. Vitest
     `shell/test/views.test.ts` (modèle, URL aller-retour, valeur hors type gardée et non
     envoyée, lien copié = même clé de cache, colonnes filtrables seulement si servies,
@@ -2147,6 +2147,36 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     rapprochement d'une création suit l'ordre du contrat (un `Placement` portant l'indice
     de son opération le rendrait exact).
 
+- [ ] 24d. États `moved` et `preview` dans la Topographie (020-29) : la ligne au présent
+  d'un objet que le brouillon déplace en `moved`, sa ligne d'aperçu en `preview`, au lieu
+  de `draft` sur les deux — verify : Vitest de l'aperçu (états par ligne) ; parcours
+  `moves` (préfixe inséré au brouillon : ligne au présent et ligne d'aperçu dites
+  différemment) sous les deux navigateurs
+  - où : `web/v2/shell/src/views/TopologyView.vue`, `topology.ts` ; `TreeNodeState` de
+    `web/v2/ui/src/components/TreeGrid/tree.ts` (en lecture)
+  - dépend de : 24c, 020-29
+- [ ] 16g. Titres du shell par `Heading` (020-29) : les classes de titre recopiées
+  (`k-login__title`, `k-about__title`, `k-plugin-view__title`, `k-pending__title`,
+  `k-help__title`, `k-edit-panel__title`, `k-network-vlan__title`) remplacées par `Heading` ;
+  `fieldText` passe une valeur absente à `AttributeList` au lieu d'un « — » lu « tiret »
+  — verify : Vitest ; `k-web2-check --base main` (captures touchées listées) ; revue
+  `ui-reviewer`
+  - où : les fichiers des classes citées sous `web/v2/shell/src/` (grep), `fieldText`
+    (`web/v2/shell/src/views/`) ; `Heading` et `AttributeList` de `web/v2/ui` (en lecture)
+  - dépend de : 020-29
+
+- [ ] 11g. « Clore » un objet depuis sa fiche (A31) : action de la fiche de chaque sorte du
+  noyau (entité, site, domaine, préfixe, plage, adresse, VLAN, groupe de VLAN), au
+  brouillon ou en Ctrl+Entrée avec motif ; `expected` de la version servie ; refus de
+  cascade et de règle dits par leur code, sur l'action ; droit manquant visible avec sa
+  permission (REQ-021-37) — verify : Vitest ; parcours `records` (clôture d'une adresse
+  au brouillon puis appliquée ; clôture d'un préfixe refusée par une règle, code dit) sous
+  les deux navigateurs ; ligne de la liste de parité cochée
+  - où : `web/v2/shell/src/views/record/RecordView.vue` (barre d'actions), `views/edit/`
+    (`write.quick`, brouillon), `Close` des opérations du noyau (contrat 006) ; ancien
+    comportement : `web/shell/src/` (grep « Clore »)
+  - dépend de : 11d
+
 ## P3 — Plugins (phase 5)
 
 - [ ] 17. Écrans VLAN du cœur (amendée par la 026 : plus un plugin, des écrans du shell)
@@ -2778,6 +2808,16 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `web/v2/plugins/machines/src/HostingTree.vue`
   - dépend de : 18cd
 
+- [ ] 18g. Plugin Machines sur `Heading`, `AttributeList` et les états d'arbre (020-29) :
+  fiches (`MachineRecord`, `InterfaceRecord`, `ClusterRecord`) en `AttributeList` et
+  `Heading` au lieu de `Grid as="dl"` et de `h1`/`h2` nus ; `HostingTree` en
+  `moved`/`preview` au lieu de `draft` — verify : Vitest du plugin ; parcours
+  `machines` et `moves` sous les deux navigateurs ; poids du plugin
+  - où : `web/v2/plugins/machines/src/{MachineRecord,InterfaceRecord,ClusterRecord,HostingTree}.vue`
+  - dépend de : 18cd, 020-29
+  - étendue le 2026-11-03 (A33) : l'ajout d'une interface et son mode 802.1Q depuis la
+    fiche de l'interface prouvés par le parcours `machines` (lignes de la liste de parité)
+
 ## P4 — Budgets et clôture
 
 - [ ] 21. Accessibilité étendue : parcours clavier complet (palette, barre repliée,
@@ -2786,6 +2826,9 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   `a11y-auditor` avec lecteur d'écran en mode navigation
   - où : `web/e2e/journeys/accessibility.spec.ts`
   - dépend de : 16
+  - étendue le 2026-11-03 (A33) : les gardes du parcours `smoke` de l'ancien shell (une
+    violation axe et un script en ligne font chacun échouer un parcours) prouvées par un
+    test des fixtures de `web/v2/e2e/`
 - [ ] 22. `bench-web` étendu : INP (Event Timing), navigation en cache, CLS, trames
   perdues de l'arbre (≤ 2 %), Flèche bas (≤ 100 ms p75), tas JS (≤ 64 Mo), plafond par
   plugin, shell avec modules partagés ; protocole de mesure du prototype D-1 repris —

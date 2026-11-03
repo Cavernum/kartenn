@@ -1,0 +1,17 @@
+- main:
+  - region "AttributeList":
+    - heading "AttributeList" [level=1]
+    - paragraph: "Motif : liste de descriptions (dl : dt, dd)"
+    - figure "default — Clé et valeur, une valeur par son emplacement (clé et libellé), chasse fixe":
+      - term: Genre
+      - definition:
+        - button "Machine virtuelle"
+        - status
+      - term: Adresse de gestion
+      - definition: /\d+\.\d+\.\d+\.\d+/
+      - term: Adresse MAC
+      - definition: /\d+-\d+-5E-\d+-\d+-\d+/
+      - term: Site
+      - definition: Site A
+      - code: default
+      - text: ""

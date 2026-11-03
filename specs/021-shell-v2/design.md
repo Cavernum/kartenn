@@ -142,7 +142,7 @@ Révisé par la 024 (M8, M15 ; disposition B arbitrée sur prototype, hors dép�
 
 ## Routes
 
-Les routes de la 007 sont gardées (liens existants valides) ; s'ajoutent :
+Les routes de la 007 ne sont plus garanties : pas de compatibilité avant le gel, les liens de l'ancien shell (`/?domain=`, `/properties`, `/search?q=`, `/:collection/new`, `/admin/service-accounts`…) ne sont ni servis ni redirigés (*amendé le 2026-11-03*, A30) ; les routes du nouveau shell :
 
 | Route | Écran | Remarque |
 |---|---|---|

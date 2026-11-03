@@ -46,8 +46,12 @@ export interface MoveIntent {
 /** Where a move stands, as the host says it: none, pending, refused (with its reason). */
 export type MoveState = "idle" | "pending" | { refused: MoveCheck };
 
-/** The state of a node as the host renders it: in a draft, its children loading. */
-export type TreeNodeState = "draft" | "loading-children";
+/**
+ * The state of a node as the host renders it: in a draft, its children loading; for a
+ * node a draft moves (021 design « Après un dépôt accepté »), `moved` on its row at its
+ * present place, `preview` on the row that shows it at its place after the draft.
+ */
+export type TreeNodeState = "draft" | "loading-children" | "moved" | "preview";
 
 /** One rendered row of the flattened tree: a node, or the row that reads a next page. */
 export type TreeRow =

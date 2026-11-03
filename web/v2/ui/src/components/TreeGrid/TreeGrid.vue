@@ -861,6 +861,16 @@ onBeforeUnmount(() => observer?.disconnect());
                 name="draft"
                 class="k-tree-grid__mark"
               />
+              <Icon
+                v-else-if="props.nodeState?.(part.row.node) === 'moved'"
+                name="move"
+                class="k-tree-grid__mark"
+              />
+              <Icon
+                v-else-if="props.nodeState?.(part.row.node) === 'preview'"
+                name="circle-dashed"
+                class="k-tree-grid__mark"
+              />
               <span v-if="rowWords(part.row.node)" class="k-visually-hidden"
                 >({{ rowWords(part.row.node) }})</span
               >
@@ -1068,7 +1078,9 @@ onBeforeUnmount(() => observer?.disconnect());
   }
 
   .k-tree-grid__row[aria-selected="true"] > :first-child,
-  .k-tree-grid__row[data-state="draft"] > :first-child {
+  .k-tree-grid__row[data-state="draft"] > :first-child,
+  .k-tree-grid__row[data-state="moved"] > :first-child,
+  .k-tree-grid__row[data-state="preview"] > :first-child {
     box-shadow: var(--k-shadow-inset-accent);
   }
 
@@ -1218,17 +1230,34 @@ onBeforeUnmount(() => observer?.disconnect());
     box-shadow: var(--k-shadow-inset-accent);
   }
 
-  .k-tree-grid__row[data-state="draft"] {
+  .k-tree-grid__row[data-state="draft"],
+  .k-tree-grid__row[data-state="moved"],
+  .k-tree-grid__row[data-state="preview"] {
     box-shadow: var(--k-shadow-inset-accent);
   }
 
-  /* A target during a drag: its outline over the whole row, the sticky tree cell
-   * included (a layer of the row above its cells, the header still above it). */
-  .k-tree-grid__row[data-drop] {
+  /* A node a draft moves: at its present place, muted (it leaves); at its place after the
+   * draft, a dashed outline (not there yet). Each also has its mark and its words. */
+  .k-tree-grid__row[data-state="moved"] {
+    color: var(--k-text-muted);
+  }
+
+  /* A target during a drag, or a preview: an outline over the whole row, the sticky tree
+   * cell included (a layer of the row above its cells, the header still above it). */
+  .k-tree-grid__row[data-drop],
+  .k-tree-grid__row[data-state="preview"] {
     position: relative;
   }
 
-  .k-tree-grid__row[data-drop]::after {
+  /* Never over the focus ring of one of its cells (as in `Tree`); the outline of a target
+   * during a drag wins over it (`:where`: no more weight than the row's class). */
+  .k-tree-grid__row:where([data-state="preview"]:not(:has(:focus-visible)))::after {
+    outline: var(--k-border-width) dashed var(--k-accent);
+    outline-offset: calc(var(--k-border-width) * -1);
+  }
+
+  .k-tree-grid__row[data-drop]::after,
+  .k-tree-grid__row[data-state="preview"]::after {
     position: absolute;
     inset: 0;
     z-index: var(--k-z-sticky);
