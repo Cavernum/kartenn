@@ -26,10 +26,16 @@ export type EditRequest =
     }
   | { mode: "edit"; collection: CollectionId; id: string }
   /** « Changer de parent… » of an entity or a site (REQ-021-32): the valid targets only. */
-  | { mode: "move"; collection: CollectionId; id: string };
+  | { mode: "move"; collection: CollectionId; id: string }
+  /** « Clore… » of a record (021/A31): its closure, to the draft or applied (`ClosePanel`). */
+  | { mode: "close"; collection: CollectionId; id: string };
 
 /** A request shown: its serial (a new request starts a new form), who asked for it. */
 export type ShownRequest = EditRequest & { serial: number; opener: HTMLElement | null };
+/** A request of the edit panel's form: a creation, a modification, a move. */
+export type FormRequest = Exclude<ShownRequest, { mode: "close" }>;
+/** A request of a closure. */
+export type CloseRequest = Extract<ShownRequest, { mode: "close" }>;
 
 const current = shallowRef<ShownRequest | null>(null);
 let serial = 0;

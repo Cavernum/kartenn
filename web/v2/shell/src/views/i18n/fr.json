@@ -417,6 +417,29 @@
       "noVersion": "Rien n'est envoyé : la version de l'objet n'a pas pu être lue. Réessayez.",
       "unsimulated": "Ajouté au brouillon : {what}. Sa simulation n'a pas pu être faite.",
       "keptRefused": "Ajouté au brouillon : {what}. La simulation le refuse ; l'opération reste au brouillon, une autre cible choisie ici la remplace."
+    },
+    "close": {
+      "action": "Clore…",
+      "title": "Clore : {kind} {name}",
+      "what": "{kind} {name} (clôture)",
+      "motive": "Clôture : {kind} {name}",
+      "toDraft": "Clore au brouillon",
+      "apply": "Appliquer la clôture",
+      "cascade": "Clore aussi ce qui en dépend",
+      "cascadeHint": "Chaque dépendant se clôt sous vos droits ; la simulation dit lesquels.",
+      "simulating": "Simulation de la clôture…",
+      "unsimulated": "La clôture n'a pas pu être simulée",
+      "forbidden": "Rien n'est envoyé : il faut {permission}.",
+      "valid": "La clôture passe les règles",
+      "alone": "Seul cet objet se clôt.",
+      "withIt": "Se closent avec lui : {list}.",
+      "refused": "Clôture refusée par les règles",
+      "refusedDependents": "S'il a des dépendants, cochez « Clore aussi ce qui en dépend » pour les clore avec lui.",
+      "warnings": "Avertissements de la clôture",
+      "failed": "La clôture n'a pas abouti",
+      "conflict": "L'objet a changé depuis sa lecture : la clôture porte maintenant sur la version relue, relancez-la.",
+      "past": "Lecture seule hors du présent : revenez au présent pour clore.",
+      "readError": "{kind} : l'objet à clore n'a pas pu être lu."
     }
   }
 }

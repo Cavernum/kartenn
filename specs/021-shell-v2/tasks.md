@@ -2173,7 +2173,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (`web/v2/shell/src/views/`) ; `Heading` et `AttributeList` de `web/v2/ui` (en lecture)
   - dépend de : 020-29
 
-- [ ] 11g. « Clore » un objet depuis sa fiche (A31) : action de la fiche de chaque sorte du
+- [x] 11g. « Clore » un objet depuis sa fiche (A31) : action de la fiche de chaque sorte du
   noyau (entité, site, domaine, préfixe, plage, adresse, VLAN, groupe de VLAN), au
   brouillon ou en Ctrl+Entrée avec motif ; `expected` de la version servie ; refus de
   cascade et de règle dits par leur code, sur l'action ; droit manquant visible avec sa
@@ -2184,6 +2184,37 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (`write.quick`, brouillon), `Close` des opérations du noyau (contrat 006) ; ancien
     comportement : `web/shell/src/` (grep « Clore »)
   - dépend de : 11d
+  - fait le 2026-11-03 — « Clore… », dernière entrée du menu d'actions de la fiche de
+    chaque sorte (`RecordView.vue`, après un séparateur, `danger`), refusée avec
+    `<sorte>.edit` ou hors du présent ; elle ouvre `views/edit/ClosePanel.vue` dans l'onglet
+    Détail (requête `close` de `panel.ts`, montée par `ShellFrame.vue`). L'opération
+    `close` (`views/edit/close.ts`, `closeOperation`) porte en `expected` la version servie
+    avec la valeur lue (instantané de la 11d), relue seulement après un refus
+    `changeset.operation.conflict`. Avant tout envoi, la simulation de la clôture seule
+    (`POST /v1/changesets?simulate=true`, `closeVerdict`) dit les règles qui la refusent avec
+    leur code, et, la cascade cochée (« Clore aussi ce qui en dépend », offerte pour domaine,
+    préfixe, entité, site, groupe de VLAN, ou sur `core.object.dependents`), les clôtures
+    ajoutées comptées par sorte. Bouton scindé « Clore au brouillon » / « Appliquer la
+    clôture » (motif prérempli, `?approval=self`, sans `<sorte>.approval.self` refusé et
+    nommé) ; Ctrl+Entrée lance l'action choisie, et dit la permission manquante par le statut.
+    Un refus du serveur reste sur l'action avec son code (`RefusalAlert`). Tests :
+    `shell/test/close.test.ts` (opération et verdict ; panneau monté : brouillon par
+    Ctrl+Entrée à la version servie, refus de règle et cascade comptée, droits manquants) ;
+    parcours `records` « an address closed from its record… » et « a network closed
+    alone… » (`core.address.outside_network` dit avant l'envoi puis par le serveur), sous
+    Chromium et Firefox ; ligne « Clore » de `web/v2/PARITE.md` cochée.
+  - choix : un panneau de clôture à part plutôt qu'un mode du panneau d'édition (aucun
+    champ, sa simulation) ; la simulation est celle de la clôture seule sur le référentiel,
+    non du brouillon (le brouillon a la sienne) ; la soumission immédiate passe par
+    `changesets.submit` (l'`expected` dans l'opération) plutôt que `DELETE` sous `If-Match`,
+    comme le brouillon ; après une clôture appliquée, la fiche se relit et dit que l'objet
+    n'est plus au présent (comme l'ancien shell) ; l'entrée du menu reprend l'icône `trash`
+    de la maquette E2 ; le menu d'actions est désormais toujours montré.
+  - reste : mécanique commune au panneau d'édition (action, motif, clé d'idempotence,
+    `settle`) recopiée, à factoriser (revue `ui-reviewer`) ; Ctrl+Entrée d'une action
+    refusée reste muet dans `EditPanel.vue` (revue `a11y-auditor`) ; la fiche ne dit pas
+    qu'une clôture de l'objet attend au brouillon ; les maquettes nomment encore
+    `core.<sorte>.apply` sur « Clore… » (E2, E12, E27).
 
 ## P3 — Plugins (phase 5)
 
