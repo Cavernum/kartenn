@@ -6,8 +6,9 @@ import { apiCall, expect, expectAccessible, ownedDomain, test } from "../fixture
 // for axe): the Anomalies tab of a record, a domain's with their object and a network's
 // own; /anomalies filtered by the bar, one acknowledged with its motive, the gaps a tab of
 // their own in the URL; /property-declarations, each its cardinality, and the gaps of an
-// expected key at hand. Each test in a domain of its own: its network 198.51.100.0/24, in a
-// documentation block (RFC 5737), opens the warning `core.addr.documentation` (REQ-002-35).
+// expected key at hand; a gap read (task 11j), opened by a key of the test's own. Each test
+// in a domain of its own: its network 198.51.100.0/24, in a documentation block (RFC 5737),
+// opens the warning `core.addr.documentation` (REQ-002-35).
 
 const RULE = "core.addr.documentation";
 const NETWORK = "198.51.100.0/24";
@@ -128,6 +129,71 @@ test("the open anomalies filtered by domain, one acknowledged with its motive, t
   await expect(
     page.getByRole("grid", { name: "Lacunes" }).or(page.getByText("Aucune lacune")),
   ).toBeVisible();
+  await expectAccessible(page);
+});
+
+test("a gap read: its key, its object and the deviation, from a source of the build", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const { slug } = await ownedDomain(page, unique("gap", browserName), []);
+  const domains = (await apiCall(page, "GET", `/v1/domains?slug=${slug}`)).body as {
+    items: { id: string }[];
+  };
+  const domain = domains.items[0]!.id;
+  // The lightest source of the build: a key of the test's own (one per browser: both run
+  // at once), checked against the inference of the policy (REQ-003-24, REQ-010-40), one
+  // rule of it on that key, in the test's domain alone. The write of a network then
+  // compares, with no task in the background.
+  const stamp = `${browserName}-${Date.now().toString(36)}`;
+  const key = `custom.gap_${stamp.replaceAll("-", "_")}`;
+  const source = await apiCall(page, "POST", "/v1/changesets?approval=self", {
+    motive: "end-to-end expected source",
+    operations: [
+      {
+        op: "declare_property",
+        local: 0,
+        key,
+        type: "enum",
+        cardinality: "single",
+        carriers: ["prefix"],
+        expected: { source: "policy.inference", mode: "check" },
+        labels: { fr: "Zone du parcours" },
+      },
+      { op: "add_enum_value", property: { local: 0 }, key: "prod", labels: { fr: "Production" } },
+      { op: "policy.axis.designate", property: key, carrier: "tree", inference: true },
+      {
+        op: "policy.inference_rule.create",
+        key: `gap-${stamp}`,
+        axis: key,
+        criteria: [{ domain: [domain] }],
+        values: ["prod"],
+      },
+    ],
+  });
+  expect(source.status, JSON.stringify(source.body)).toBe(201);
+  // A network written without the value expected: the gap opened by the write.
+  const network = await apiCall(page, "POST", "/v1/changesets?approval=self", {
+    motive: "end-to-end gap",
+    operations: [
+      { op: "create_prefix", domain: { id: domain }, prefix: NETWORK, nature: "network" },
+    ],
+  });
+  expect(network.status, JSON.stringify(network.body)).toBe(201);
+
+  // Its row in the tab of the gaps filtered by the key: the key and its label, the network,
+  // the deviation in the server's words.
+  await page.goto(`/anomalies?tab=gaps&property=${key}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Anomalies" })).toBeVisible();
+  const grid = page.getByRole("grid", { name: "Lacunes" });
+  const gap = grid.getByRole("row").filter({ hasText: NETWORK });
+  await expect(gap).toHaveCount(1);
+  await expect(gap).toContainText("Zone du parcours");
+  await expect(gap).toContainText(key);
+  await expect(gap).toContainText(`${key}: resolved no value, expected`);
+  await expect(gap.getByRole("link", { name: NETWORK })).toBeVisible();
   await expectAccessible(page);
 });
 
