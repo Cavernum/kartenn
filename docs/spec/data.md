@@ -367,7 +367,10 @@ l'audit garde les anciens noms.
   `address_host_suggested`, migration 0062), qui servent `LIKE 'q%'` et l'ordre d'une
   page de suggestions ; machines : `interface_keyset`, `interface_name_pattern`
   (`machines` 0004) ; VLAN : `vlan_group_keyset` (ancien module `vlan` 0002, dans le noyau depuis 0072). Une requête avec `q`
-  se planifie avec sa valeur (instruction non nommée).
+  se planifie avec sa valeur (instruction non nommée). Machines sans hôte
+  (`/v1/machines?host:exists=false`, 021/A28) : index partiel `machine_unhosted`
+  `(name, id)` (`machines` 0005), sa condition écrite dans le texte de la requête et non
+  liée, pour que le plan générique la prouve.
 - Registres IANA à usage spécial : embarqués dans le code, chargés par le job de
   migration dans `special_registry`, une copie par version (REQ-002-34) ; un rapport
   liste les objets dont `public` changerait sous une nouvelle version.

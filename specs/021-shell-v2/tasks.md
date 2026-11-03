@@ -2798,7 +2798,8 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     ligne « en attente » ; nature d'un cluster en texte (cellules de `TreeGrid` en
     chaînes, pas de `KeyLabel`) ; la grille de la fiche porte le nom de son titre. À
     arbitrer côté API : le premier niveau lit toutes les machines pour garder celles sans
-    hébergeur (un filtre « sans hébergeur » de `/v1/machines` le ferait en une page).
+    hébergeur (un filtre « sans hébergeur » de `/v1/machines` le ferait en une page ; fait
+    par la 18f, A28).
 
 - [ ] 18e. `GET /v1/interfaces?network=<id>` (A28) : interfaces d'un réseau avec leurs
   adresses, paginées, sous le filtre de lecture ; l'onglet « Interfaces » d'un réseau
@@ -2808,13 +2809,47 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `crates/kartenn-machines/src/rest.rs` (routes des interfaces, forme des
     filtres de `/v1/machines?network=`), `web/v2/plugins/machines/src/InterfacesTab.vue`
   - dépend de : 18cc
-- [ ] 18f. Filtre « sans hôte » sur `/v1/machines` (A28) : un paramètre qui ne garde que
+- [x] 18f. Filtre « sans hôte » sur `/v1/machines` (A28) : un paramètre qui ne garde que
   les machines sans hôte ; le premier niveau de l'arbre de l'hébergement se lit en une
   liste paginée au lieu de toutes les machines — verify : `k-check -p kartenn-machines` ;
   Vitest et parcours `moves` (arbre de l'hébergement) ; contrat régénéré
   - où : `crates/kartenn-machines/src/rest.rs` (filtres de `/v1/machines`),
     `web/v2/plugins/machines/src/HostingTree.vue`
   - dépend de : 18cd
+  - fait le 2026-11-03 — `GET`/`QUERY /v1/machines?host:exists=false` (sans hôte, un membre
+    de cluster compris : l'appartenance n'est pas l'hébergement), `true` (hébergée par une
+    machine ou un cluster), autre valeur → 400 ; en conjonction avec les autres filtres,
+    gardé par le curseur ; un `QUERY` le dit `{"field": "host", "op": "exists", "value":
+    false}`. Contrat : paramètre `host:exists` de schéma booléen (`filters.ts`,
+    `schema.d.ts` régénérés). Index partiel `machine_unhosted (name, id) WHERE
+    host_machine_id IS NULL AND host_cluster_id IS NULL` (migration `machines` 0005) ; la
+    condition est écrite dans le texte de la requête (trois instructions selon la valeur),
+    non liée : `$n IS NULL OR …` laisserait le prédicat de l'index non prouvé. `EXPLAIN`
+    en réduit (100 000 machines, 5 475 sans hôte, base jetable) : plan de l'instruction
+    préparée (personnalisé, gardé en mode `auto` après 7 exécutions, le générique estimé
+    591 contre 15,6) `Index Scan using machine_unhosted`, 53 tampons, 0,06 ms ; sans
+    l'index, `machine_by_name` et 11 460 lignes écartées (11 615 tampons, 20 ms) ; plan
+    générique forcé : `BitmapAnd` de `machine_pkey` et `machine_unhosted`, tri des 5 475,
+    pas de parcours de la table (547 blocs sur 1 799). Plugin : premier niveau lu par
+    `{"host:exists": false}`, une page à la demande de l'arbre (`onLoad`) ; retirés la
+    lecture des pages jusqu'à une racine nouvelle (`wanted`), le filtre client `!m.host`
+    et les hôtes tirés de la liste de toutes les machines (`up` vient des hébergées
+    lues). `k-check -p kartenn-machines` : 64 (`machines_filtered_by_their_host_or_none`) ;
+    Vitest du plugin : 52 (premier niveau page à page par Entrée sur la ligne « plus »,
+    aucune page lue d'avance) ; parcours `moves` : 15 sur 15 dans les deux navigateurs ;
+    `k-web2-check --base main` : 837 Vitest, 2 707 captures sur 2 707 (tout : `filters.ts`
+    régénéré est lu par l'entrée du shell) ; `k-check` : 1 265.
+  - relectures : `ui-reviewer` et `a11y-auditor` sur le code, aucun bloquant ni important ;
+    corrigé : le test passe la page suivante au clavier (Entrée) et non au clic.
+  - reste : une page de machines qui n'ajoute aucune ligne mais garde un curseur n'est ni
+    redemandée d'elle-même ni annoncée (`treePages.ts`, commun à tous les niveaux) ; rare
+    avec `host:exists=false`.
+  - choix : forme `host:exists=true|false`, la grammaire des listes du noyau (spec 006,
+    design « Filtres » : `{champ}:exists`), plutôt que `host=none` (un identifiant
+    surchargé d'une sentinelle) ou un booléen nouveau ; `true` servi aussi (la grammaire
+    est à deux valeurs) ; `host=<id>&host:exists=false` rend une liste vide (conjonction),
+    pas un 400 ; plafond `MAX_PAGES` du cache gardé pour toutes les listes de l'arbre (une
+    page de plus ferait tomber la première), dit par `hosting.partial`.
 
 - [ ] 18g. Plugin Machines sur `Heading`, `AttributeList` et les états d'arbre (020-29) :
   fiches (`MachineRecord`, `InterfaceRecord`, `ClusterRecord`) en `AttributeList` et

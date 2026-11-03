@@ -212,7 +212,7 @@ noyau (clé `machines.interface_role`).
 | Route | Rôle |
 |---|---|
 | `GET, POST /v1/clusters` ; `GET, PATCH, DELETE /v1/clusters/{id}` ; `GET /v1/clusters/{id}/machines` | clusters, membres et hébergés |
-| `GET, POST /v1/machines` ; `GET, PATCH, DELETE /v1/machines/{id}` | filtres `name`, `name_prefix`, `kind`, `host`, `cluster`, `owner`, `site` ; la fiche inclut interfaces et adresses (résumé) |
+| `GET, POST /v1/machines` ; `GET, PATCH, DELETE /v1/machines/{id}` | filtres `name`, `name_prefix`, `kind`, `host`, `host:exists` (hébergée ou non ; un membre de cluster n'est pas hébergé, 021/A28), `cluster`, `owner`, `site` ; la fiche inclut interfaces et adresses (résumé) |
 | `GET /v1/machines/{id}/addresses`, `/hosted` | lectures croisées |
 | `GET, POST /v1/interfaces` ; `GET, PATCH, DELETE /v1/interfaces/{id}` | filtres `machine`, `name`, `mac`, `address`, `vlan`, `media` |
 | `POST /v1/interfaces/{id}/attachments`, `DELETE /v1/interfaces/{id}/attachments/{address}` | `attach_address`, `detach_address` (changeset d'une opération, `If-Match` de l'interface) |
