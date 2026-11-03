@@ -3484,6 +3484,15 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     garde CSP seule le fasse échouer (sinon la garde de la console le masque) ; écrans lus
     de `spaces.ts` par expression régulière plutôt qu'importés (le module tire
     `@kartenn/ui`, hors des dépendances de `web/v2/e2e`)
+  - passe de corrections (revue) : la garde CSP déclare l'échec attendu (`test.fail()` dans
+    le corps) seulement une fois le script refusé, sa violation reçue et le script non
+    exécuté, de sorte qu'un autre échec (connexion cassée, CSP qui laisse passer le script)
+    échoue vraiment ; `served` vérifie l'absence de `'unsafe-inline'` dans chaque
+    directive `script-src*` ; les entrées de `spaces.ts` comptées aussi par leurs icônes,
+    une entrée dont le chemin n'est pas lu fait échouer le parcours ; sous axe aussi la fiche
+    d'un brouillon (créé vide puis supprimé), celle d'un groupe d'administration et la vue
+    `/x/example/overview`. Écrans de l'ancien parcours sans pendant : `/search?q=` (la
+    palette) et `/prefixes/new` (la création, un panneau), retirés par 021/A30
 - [ ] 21b. Accessibilité étendue, parcours clavier et reflow : parcours clavier complet
   (palette, barre repliée, panneau du brouillon, édition en place) ; reflow à 320 px des
   écrans de consultation ; message d'édition sous 1024 px — REQ-021-29 — verify :
