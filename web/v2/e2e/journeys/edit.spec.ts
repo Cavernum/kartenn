@@ -132,7 +132,7 @@ test("a reader sees no editor and why; an author edits a prefix at the keyboard,
   await expectAccessible(page);
 });
 
-test("under an approval policy, Ctrl+Enter with its motive: « en revue », never applied", async ({
+test("under an approval policy, Ctrl+Enter with its motive: « en revue », never applied, its changeset linked", async ({
   page,
   login,
   browserName,
@@ -152,14 +152,78 @@ test("under an approval policy, Ctrl+Enter with its motive: « en revue », neve
   await expect(motive).toBeFocused();
   await expect(motive).toHaveValue(/^Modification rapide : Nature de 198\.51\.100\.0\/24$/);
   await expectAccessible(page);
+  const held = page.waitForResponse((r) => r.request().method() === "PATCH" && r.status() === 202);
   await page.keyboard.press("Enter");
+  // The changeset held, as the answer names it (`Link`, rel changeset).
+  const link = (await held).headers()["link"] ?? "";
+  const changeset = /^<\/v1\/changesets\/([0-9a-f-]{36})>/.exec(link)?.[1];
+  expect(changeset, link).toBeDefined();
   const proposed = page.getByRole("status").filter({ hasText: "Proposé, en revue" }).first();
   await expect(proposed).toBeVisible();
   await expect(cellOf(page, "nature")).toHaveAttribute("data-state", "review");
   // The value read stays in the cell: the one proposed is not the object's yet.
   await expect(cellOf(page, "nature")).toContainText("Réseau");
   await expect(page.getByText(/Appliqué :/)).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Voir la proposition" })).toBeVisible();
+  // The toast leads to that changeset, pending, with the motive.
+  await page.getByRole("button", { name: "Voir la proposition" }).click();
+  await expect(page).toHaveURL(new RegExp(`/changesets/${changeset}$`));
+  await expect(
+    page.getByRole("main").getByText("Modification rapide : Nature de 198.51.100.0/24").first(),
+  ).toBeVisible();
+});
+
+test("a refusal of the server (403) keeps the input and says the alert", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const slug = await newDomain(page, unique(browserName));
+  const listed = (await call(page, "GET", `/v1/prefixes?domain=${slug}`)).body as {
+    items: { id: string }[];
+  };
+  await page.goto(`/prefixes/${listed.items[0]!.id}`);
+  // The right withdrawn between the read and the write: the shell, read before, shows the
+  // form; the server, the judge, refuses. Its answer given by the route, as kartenn-server
+  // words a 403 (urn:kartenn:problem:forbidden, its Request-Id).
+  const requestId = "00000000-0000-4000-8000-000000000403";
+  await page.route(/\/v1\/prefixes\/[0-9a-f-]{36}\?approval=self$/, (route) =>
+    route.request().method() === "PATCH"
+      ? route.fulfill({
+          status: 403,
+          contentType: "application/problem+json",
+          headers: { "Request-Id": requestId },
+          body: JSON.stringify({
+            type: "urn:kartenn:problem:forbidden",
+            title: "The action is not permitted",
+            status: 403,
+            detail: "core.prefix.edit is not granted on this domain",
+          }),
+        })
+      : route.fallback(),
+  );
+  await page.getByRole("main").getByRole("button", { name: "Modifier" }).click();
+  const form = page.getByRole("form", { name: "Modifier : Préfixe 198.51.100.0/24" });
+  await form.getByRole("button", { name: "Choisir l'action" }).click();
+  await page.getByRole("menuitem", { name: "Appliquer" }).click();
+  const motive = form.getByRole("textbox", { name: "Motif" });
+  await motive.fill("bout en bout : refus");
+  const value = form.getByRole("textbox", { name: "Valeur" });
+  await value.fill("198.51.100.0/25");
+  const sent = page.waitForResponse((r) => r.request().method() === "PATCH");
+  await page.keyboard.press("Control+Enter");
+  expect((await sent).status()).toBe(403);
+  const alert = form
+    .getByRole("alert")
+    .filter({ hasText: "Vous n'avez pas le droit de faire cela" });
+  await expect(alert).toBeVisible();
+  await expect(alert).toContainText("Votre saisie est gardée.");
+  await expect(alert.getByRole("button", { name: `Copier ${requestId}` })).toBeVisible();
+  // The panel stays, the input and the motive in their fields; nothing said as applied.
+  await expect(value).toHaveValue("198.51.100.0/25");
+  await expect(motive).toHaveValue("bout en bout : refus");
+  await expect(page.getByText(/Appliqué :/)).toHaveCount(0);
+  await expectAccessible(page);
 });
 
 test("two tabs on the same prefix: the second gets 412 and keeps its input, then applies", async ({

@@ -1,11 +1,13 @@
 import type { Page } from "@playwright/test";
-import { expect, expectAccessible, loginIn, test } from "../fixtures/journeys.ts";
+import { atRest, DATA, expect, expectAccessible, loginIn, test } from "../fixtures/journeys.ts";
 
 // The dated context in the frame (spec 021, task 9; REQ-021-5, 007/W9): carried by the URL
 // and by every internal navigation, shown by the date pill and the band, applied from the
 // period picker once the API reads at it, back to the present from the band. Ported from
-// web/e2e/journeys/time.spec.ts; the writes switched off by the band come with the screens
-// that write (tasks 12, 14).
+// web/e2e/journeys/time.spec.ts. The writes (task 12c): under `as_of`, the editors and the
+// actions of a record off, each saying why; under `valid_at` alone, its edit panel opens to
+// the dated draft, « Appliquer » refused with its reason. The draft's own submission at
+// that date is the journey `draft`'s (task 14d).
 
 const VALID_AT = "2026-01-01T00:00:00Z";
 const AS_OF = "2026-06-30T12:00:00Z";
@@ -59,12 +61,104 @@ test("a dated link shows the same dates to whoever opens it", async ({ page, log
   await expect(pill(page)).toHaveAccessibleName(/^Date de lecture : Présent/);
 });
 
+/** The record of the prefix of the data set: its path. */
+async function prefixRecord(page: Page): Promise<string> {
+  const id = await page.evaluate(
+    async (url) => {
+      const response = await fetch(url);
+      return ((await response.json()) as { items: { id: string }[] }).items[0]!.id;
+    },
+    `/v1/prefixes?value=${encodeURIComponent(DATA.prefix)}`,
+  );
+  return `/prefixes/${id}`;
+}
+const main = (page: Page) => page.getByRole("main");
+const modify = (page: Page) => main(page).getByRole("button", { name: "Modifier" });
+const editPanel = (page: Page) =>
+  page.getByRole("form", { name: `Modifier : Préfixe ${DATA.prefix}` });
+
+test("under as_of, the editors and the actions of the record are off, each saying why", async ({
+  page,
+  login,
+}) => {
+  await login("alice");
+  const record = await prefixRecord(page);
+  await page.goto(record);
+  await expect(modify(page)).not.toHaveAttribute("aria-disabled");
+
+  // Known a moment ago: the prefix of the data set already there, nothing written.
+  const asOf = new Date(Date.now() - 1_000).toISOString();
+  // Each page left at rest, its plugins loaded (`atRest`: Firefox and the loads cut short).
+  await atRest(page);
+  await page.goto(`${record}?as_of=${encodeURIComponent(asOf)}`);
+  await expect(band(page)).toContainText("lecture seule");
+  await expect(
+    page.getByRole("heading", { level: 1, name: `Préfixe ${DATA.prefix}` }),
+  ).toBeAttached();
+  await expect(modify(page)).toHaveAttribute("aria-disabled", "true");
+  await expect(modify(page)).toHaveAccessibleDescription(/revenez au présent pour modifier/);
+  // Its key does nothing either.
+  await page.keyboard.press("e");
+  await expect(editPanel(page)).toHaveCount(0);
+  await main(page).getByRole("button", { name: "Actions" }).click();
+  const close = page.getByRole("menuitem", { name: /^Clore…/ });
+  await expect(close).toHaveAttribute("aria-disabled", "true");
+  await expect(close).toHaveAccessibleDescription(/revenez au présent pour modifier/);
+  await expectAccessible(page);
+  await page.keyboard.press("Escape");
+
+  // The list at that date: no editor in a cell.
+  await atRest(page);
+  await page.goto(`/prefixes?domain=${DATA.domain}&as_of=${encodeURIComponent(asOf)}`);
+  const cell = page
+    .getByRole("grid", { name: "Préfixes" })
+    .locator('[role="gridcell"][data-column="value"]')
+    .first();
+  await expect(cell).toHaveAttribute("aria-readonly", "true");
+  await expect(cell).toHaveAccessibleDescription(/hors du présent/);
+});
+
 test("a validity date alone leaves the dated draft possible", async ({ page, login }) => {
-  await login("bob");
+  await login("alice");
   await page.goto(`/prefixes?valid_at=${encodeURIComponent(VALID_AT)}`);
   await expect(band(page)).toContainText("brouillon daté possible");
   await expect(band(page)).not.toContainText("lecture seule");
   await expect(band(page)).not.toContainText("désactivé");
+
+  // A month ahead: the record opens its panel, to the draft only; nothing applied at once.
+  const record = await prefixRecord(page);
+  const ahead = new Date(Date.now() + 30 * 86_400_000).toISOString();
+  await atRest(page);
+  await page.goto(`${record}?valid_at=${encodeURIComponent(ahead)}`);
+  await expect(band(page)).toContainText("brouillon daté possible");
+  await expect(
+    page.getByRole("heading", { level: 1, name: `Préfixe ${DATA.prefix}` }),
+  ).toBeAttached();
+  await expect(modify(page)).not.toHaveAttribute("aria-disabled");
+  await main(page).getByRole("button", { name: "Actions" }).click();
+  await expect(page.getByRole("menuitem", { name: /^Clore…/ })).not.toHaveAttribute(
+    "aria-disabled",
+  );
+  await page.keyboard.press("Escape");
+  await modify(page).click();
+  const form = editPanel(page);
+  await expect(form).toBeVisible();
+  // Its key too, once the panel is closed (the focus back on « Modifier »).
+  await form.getByRole("button", { name: "Annuler" }).click();
+  await expect(form).toHaveCount(0);
+  await expect(modify(page)).toBeFocused();
+  await page.keyboard.press("e");
+  await expect(form).toBeVisible();
+  await form.getByRole("button", { name: "Choisir l'action" }).click();
+  const apply = page.getByRole("menuitem", { name: /^Appliquer/ });
+  await expect(apply).toHaveAttribute("aria-disabled", "true");
+  await expect(apply).toHaveAccessibleDescription(/va au brouillon daté/);
+  await page.keyboard.press("Escape");
+  const value = form.getByRole("textbox", { name: "Valeur" });
+  await value.fill("192.0.2.0/25");
+  await page.keyboard.press("Control+Enter");
+  await expect(form).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Brouillon 1 opération/ })).toBeVisible();
 });
 
 test("the date pill applies a period to the URL; Back returns to the present", async ({
