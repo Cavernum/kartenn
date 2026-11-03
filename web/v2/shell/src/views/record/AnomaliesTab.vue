@@ -7,13 +7,14 @@
 // read, which the tab says.
 import { reads } from "@kartenn/sdk";
 import { EmptyState, InlineAlert, type GridWindow } from "@kartenn/ui";
-import { computed, ref, watchEffect } from "vue";
+import { computed, ref, useTemplateRef, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
 import { useInfiniteQuery } from "../../data/query.ts";
 import { useNextPage, type ListWindow } from "../../prefetch/nextPage.ts";
 import { useTime } from "../../time/index.ts";
 import AnomalyGrid from "../anomalies/AnomalyGrid.vue";
-import type { Anomaly } from "../anomalies/anomaly.ts";
+import { useFocusWhenEmptied, type Anomaly } from "../anomalies/anomaly.ts";
+import NextPageAlert from "../../problems/NextPageAlert.vue";
 import ProblemState from "../../problems/ProblemState.vue";
 import { rowsOf } from "../data.ts";
 
@@ -53,7 +54,9 @@ const onWindow = (window: GridWindow) => (view.value = { end: window.end, size: 
 // Those of an object of a domain: its domain's pages, ten at most, kept to the object.
 watchEffect(() => {
   const pages = list.data.value?.pages.length ?? 0;
-  if (!own.value && list.hasNextPage.value && !list.isFetching.value && pages < PAGES) {
+  // A page refused is not asked again by itself: the alert offers to (`NextPageAlert`).
+  const refused = list.isFetchNextPageError.value;
+  if (!own.value && list.hasNextPage.value && !list.isFetching.value && !refused && pages < PAGES) {
     void list.fetchNextPage();
   }
 });
@@ -66,6 +69,7 @@ const anomalies = computed(() =>
 const partial = computed(
   () => !own.value && list.hasNextPage.value && (list.data.value?.pages.length ?? 0) >= PAGES,
 );
+const emptied = useFocusWhenEmptied(() => anomalies.value, useTemplateRef<HTMLElement>("empty"));
 </script>
 
 <template>
@@ -76,17 +80,23 @@ const partial = computed(
     <InlineAlert v-if="partial" tone="warn" :title="t('views.anomalies.partialTitle')">
       {{ t("views.anomalies.partial", { n: PAGES }) }}
     </InlineAlert>
+    <NextPageAlert
+      v-if="list.isFetchNextPageError.value"
+      :error="list.error.value"
+      :retry="list.fetchNextPage"
+    />
     <ProblemState
       v-if="list.isError.value && !list.isFetchNextPageError.value"
       :title="t('views.anomalies.error')"
       :error="list.error.value"
       :retry="list.refetch"
     />
-    <EmptyState
-      v-else-if="list.isSuccess.value && anomalies.length === 0"
-      icon="circle-check"
-      :title="t('views.anomalies.noneOf')"
-    />
+    <div v-else-if="list.isSuccess.value && anomalies.length === 0" ref="empty" tabindex="-1">
+      <EmptyState
+        icon="circle-check"
+        :title="partial ? t('views.anomalies.noneRead') : t('views.anomalies.noneOf')"
+      />
+    </div>
     <AnomalyGrid
       v-else
       :label="t('views.anomalies.of', { name: props.name })"
@@ -94,6 +104,7 @@ const partial = computed(
       :loading="list.isPending.value"
       :with-object="own"
       @window="onWindow"
+      @acknowledged="emptied.arm()"
     />
   </template>
 </template>

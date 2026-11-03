@@ -21,7 +21,11 @@ const props = defineProps<{
   /** The object column: left out on the record of that object. */
   withObject?: boolean;
 }>();
-const emit = defineEmits<{ window: [window: GridWindow] }>();
+const emit = defineEmits<{
+  window: [window: GridWindow];
+  /** One acknowledged, before the list is read again: the host's empty state may take the focus. */
+  acknowledged: [];
+}>();
 const { t, locale } = useI18n();
 const time = useTime();
 const session = useSession();
@@ -65,9 +69,15 @@ function acknowledge(anomaly: Anomaly): void {
 }
 
 // An anomaly acknowledged leaves the list once it is read again, and its button with it:
-// the focus, if it was lost with the row, goes to the grid's current cell (2.4.3).
+// the focus, if it was lost with the row, goes to the grid's current cell (2.4.3); the
+// last one leaves the grid itself, the host's empty state takes it (`useFocusWhenEmptied`).
+// Said before the list is read again (the dialog does not wait for it).
 const grid = useTemplateRef<{ $el: HTMLElement }>("grid");
 const refocus = ref(false);
+function acknowledged(): void {
+  refocus.value = true;
+  emit("acknowledged");
+}
 watch(
   () => props.anomalies,
   async () => {
@@ -128,6 +138,6 @@ watch(
     :id="chosen?.id ?? null"
     v-model:open="open"
     :rule="chosen?.rule ?? ''"
-    @done="refocus = true"
+    @done="acknowledged"
   />
 </template>
