@@ -17,6 +17,7 @@ import {
   EmptyState,
   ErrorState,
   Grid,
+  Heading,
   InlineAlert,
   Stack,
   TextField,
@@ -239,7 +240,7 @@ const sentence = computed(() => {
   <Stack gap="6">
     <header>
       <Stack gap="1">
-        <h1 tabindex="-1">{{ t("interfaces.title") }}</h1>
+        <Heading :level="1" tabindex="-1">{{ t("interfaces.title") }}</Heading>
         <p>{{ t("interfaces.intro") }}</p>
       </Stack>
     </header>

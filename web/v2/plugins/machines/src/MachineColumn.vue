@@ -15,6 +15,7 @@ import { computed, onScopeDispose, shallowRef, watch } from "vue";
 import { useList, useNotified } from "./data.ts";
 import { hrefOf, PAGES } from "./dom.ts";
 import { useHosted, useTexts } from "./host.ts";
+import NotSet from "./NotSet.vue";
 import { limited, Names, type Interface } from "./reads.ts";
 
 const props = defineProps<{
@@ -106,9 +107,7 @@ const problem = computed(() => (failure.value instanceof ApiProblem ? failure.va
     <CodeBadge v-if="problem" :code="problem.code" :label="t('code')" />
   </span>
   <Skeleton v-else-if="found === null" variant="cell" />
-  <span v-else-if="machines.length === 0"
-    ><span aria-hidden="true">—</span><span class="k-visually-hidden">{{ t("none") }}</span></span
-  >
+  <NotSet v-else-if="machines.length === 0" />
   <span v-else
     ><template v-for="(machine, index) in machines" :key="machine.id"
       ><template v-if="index > 0">, </template

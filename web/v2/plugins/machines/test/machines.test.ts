@@ -181,7 +181,7 @@ describe("the machines plugin", () => {
         }),
       });
       const element = mounted.element;
-      await lightText(element, "none");
+      await lightText(element, "not set");
       expect(element.shadowRoot).toBeNull();
       // No sheet of its own: the document's @kartenn/ui applies (A23).
       expect(element.querySelector("link, style")).toBeNull();

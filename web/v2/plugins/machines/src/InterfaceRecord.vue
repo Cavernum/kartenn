@@ -9,14 +9,16 @@
 // only (W9). Each read through the shared cache at the dates of the context.
 import { ApiProblem, reads } from "@kartenn/sdk";
 import {
+  AttributeList,
   DataGrid,
   EmptyState,
   ErrorState,
-  Grid,
+  Heading,
   Select,
   Skeleton,
   Stack,
   StatusBadge,
+  type AttributeItem,
   type GridColumn,
   type ListOption,
 } from "@kartenn/ui";
@@ -51,6 +53,14 @@ function retry(options: { queryKey: readonly unknown[] } | null): void {
   if (options) void queryClient.refetchQueries({ queryKey: options.queryKey, exact: true });
 }
 const problemOf = (error: unknown) => (error instanceof ApiProblem ? error : undefined);
+
+/** Its attributes; a value absent (no MAC) said by the list (« non renseigné »). */
+const attributes = computed<AttributeItem[]>(() => [
+  { key: "machine", label: t("interfaces.machine") },
+  { key: "mac", label: t("interfaces.mac"), value: iface.value?.mac ?? undefined, mono: true },
+  { key: "mode", label: t("interfaces.mode"), value: iface.value && modeOf(iface.value, names()) },
+  { key: "state", label: t("interfaces.state") },
+]);
 
 // ----------------------------------------------------------------------------- addresses
 
@@ -148,9 +158,9 @@ function violations(problem: ApiProblem): boolean {
 <template>
   <Stack gap="6">
     <Stack gap="2">
-      <h1 tabindex="-1" :class="{ 'k-mono': !!iface }">
+      <Heading :level="1" tabindex="-1" :class="{ 'k-mono': !!iface }">
         {{ iface ? iface.name : t("interfaces.record") }}
-      </h1>
+      </Heading>
       <ErrorState
         v-if="!iface && read.error"
         :title="t('interfaces.failedOne')"
@@ -163,46 +173,26 @@ function violations(problem: ApiProblem): boolean {
     </Stack>
 
     <Skeleton v-if="!iface && !read.error" variant="text" :rows="3" />
-    <Grid v-else-if="iface" as="dl" columns="auto" gap="4">
-      <div>
-        <dt>{{ t("interfaces.machine") }}</dt>
-        <dd>
-          <CitedName
-            :id="iface.machine.id"
-            :names="names"
-            type="machines.machine"
-            :page="PAGES.machine(iface.machine.id)"
-          />
-        </dd>
-      </div>
-      <div>
-        <dt>{{ t("interfaces.mac") }}</dt>
-        <dd>
-          <span v-if="iface.mac" class="k-mono">{{ iface.mac }}</span>
-          <span v-else
-            ><span aria-hidden="true">—</span
-            ><span class="k-visually-hidden">{{ t("none") }}</span></span
-          >
-        </dd>
-      </div>
-      <div>
-        <dt>{{ t("interfaces.mode") }}</dt>
-        <dd>{{ modeOf(iface, names()) }}</dd>
-      </div>
-      <div>
-        <dt>{{ t("interfaces.state") }}</dt>
-        <dd>
-          <StatusBadge
-            :state="iface.enabled ? 'ok' : 'neutral'"
-            :label="t(iface.enabled ? 'interfaces.enabled' : 'interfaces.disabled')"
-          />
-        </dd>
-      </div>
-    </Grid>
+    <AttributeList v-else-if="iface" :items="attributes">
+      <template #machine>
+        <CitedName
+          :id="iface.machine.id"
+          :names="names"
+          type="machines.machine"
+          :page="PAGES.machine(iface.machine.id)"
+        />
+      </template>
+      <template #state>
+        <StatusBadge
+          :state="iface.enabled ? 'ok' : 'neutral'"
+          :label="t(iface.enabled ? 'interfaces.enabled' : 'interfaces.disabled')"
+        />
+      </template>
+    </AttributeList>
 
     <section v-if="iface" :aria-labelledby="ids.addresses">
       <Stack gap="4">
-        <h2 :id="ids.addresses">{{ t("interfaces.addresses") }}</h2>
+        <Heading :id="ids.addresses" :level="2">{{ t("interfaces.addresses") }}</Heading>
         <ErrorState
           v-if="card.error"
           :title="t('interfaces.failedAddresses')"
@@ -240,7 +230,7 @@ function violations(problem: ApiProblem): boolean {
 
     <section v-if="present() && iface" :aria-labelledby="ids.mode">
       <Stack gap="4">
-        <h2 :id="ids.mode">{{ t("interfaces.setMode") }}</h2>
+        <Heading :id="ids.mode" :level="2">{{ t("interfaces.setMode") }}</Heading>
         <DraftForm
           permission="machines.interface.edit"
           :operation="operation"

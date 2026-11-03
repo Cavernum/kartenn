@@ -438,9 +438,12 @@ describe("the tree « Hébergement et clusters » (task 18cd)", () => {
     await text(element, "Move of vm-b to grappe in the draft, held by its simulation");
     expect(status(element).textContent).toContain("machines.host.site_mismatch");
     expect(status(element).textContent).toContain("the machine is hosted on another site");
-    // At its place, marked as moved in the draft.
+    // At its place, marked as moved in the draft; the cluster closed, its guests unread: no
+    // preview row.
     expect(rows(element)).toEqual(["1 grappe", "1 srv-a", "1 vm-b"]);
-    expect(rowOf(element, AWAY)?.dataset["state"]).toBe("draft");
+    expect(rowOf(element, AWAY)?.dataset["state"]).toBe("moved");
+    expect(rowOf(element, `preview:${AWAY}`)).toBeNull();
+    expect(status(element).textContent).toContain("Its preview shows under grappe once opened.");
     expect(rowOf(element, AWAY)?.hasAttribute("data-move")).toBe(false);
     expect(posted).toEqual([
       {
@@ -457,6 +460,61 @@ describe("the tree « Hébergement et clusters » (task 18cd)", () => {
     // The draft no longer active (left, deleted, submitted): no longer marked.
     drafts.setActive(null);
     await vi.waitFor(() => expect(rowOf(element, AWAY)?.hasAttribute("data-state")).toBe(false));
+  });
+
+  it("moved under a host opened: moved at its place, its preview under the host, until the draft goes", async () => {
+    history.replaceState(null, "", "/x/machines/clusters");
+    mounted = mount("machines-clusters", {
+      context: { locale: "en", user: user() },
+      fetch: fakeFetch({
+        ...READS,
+        "GET /v1/drafts": () => page([]),
+        "POST /v1/drafts": ({ body }) => draftOf((body as { operations: unknown[] }).operations),
+        "POST /v1/drafts/{id}/simulation": () => simulation(true, []),
+      }),
+    });
+    const { element } = mounted;
+    await text(element, "vm-b");
+    // The host opened: its guests read.
+    press(element, HOST, "ArrowRight");
+    await vi.waitFor(() =>
+      expect(rows(element)).toEqual(["1 grappe", "1 srv-a", "2 vm-a", "1 vm-b"]),
+    );
+    press(element, AWAY, "x", true);
+    press(element, HOST, "v", true);
+    await text(element, "Move of vm-b to srv-a in the draft, held by its simulation");
+    // Two rows of vm-b, told apart by their state, not by their level only (021/A27).
+    expect(rows(element)).toEqual(["1 grappe", "1 srv-a", "2 vm-a", "2 vm-b", "1 vm-b"]);
+    expect(status(element).textContent).not.toContain("once opened");
+    expect(rowOf(element, AWAY)?.dataset["state"]).toBe("moved");
+    const preview = rowOf(element, `preview:${AWAY}`);
+    expect(preview?.dataset["state"]).toBe("preview");
+    expect(preview?.getAttribute("aria-level")).toBe("2");
+    expect(preview?.textContent).toContain("virtual");
+    // Enter on the preview: the record of the machine it shows.
+    press(element, `preview:${AWAY}`, "Enter");
+    expect(followed).toEqual([`/x/machines/machines/${AWAY}`]);
+    // « Déplacer vers… » on the preview chosen (Space): refused, with its reason.
+    press(element, `preview:${AWAY}`, " ");
+    const button = [...element.querySelectorAll("button")].find((b) =>
+      b.textContent?.includes("Move to…"),
+    )!;
+    await vi.waitFor(() =>
+      expect(
+        document.getElementById(button.getAttribute("aria-describedby") ?? "")?.textContent,
+      ).toContain("This is the draft preview: select the machine at its present place."),
+    );
+    expect(button.getAttribute("aria-disabled")).toBe("true");
+    // The draft no longer active: neither mark nor preview, the preview chosen no longer.
+    drafts.setActive(null);
+    await vi.waitFor(() => expect(rowOf(element, `preview:${AWAY}`)).toBeNull());
+    await vi.waitFor(() =>
+      expect(
+        document.getElementById(button.getAttribute("aria-describedby") ?? "")?.textContent,
+      ).toContain("Select a machine of the tree first"),
+    );
+    expect(rowOf(element, AWAY)?.hasAttribute("data-state")).toBe(false);
+    expect(rows(element)).toEqual(["1 grappe", "1 srv-a", "2 vm-a", "1 vm-b"]);
   });
 
   it("refused by the simulation: the node at its place, refused with the code of the rule", async () => {

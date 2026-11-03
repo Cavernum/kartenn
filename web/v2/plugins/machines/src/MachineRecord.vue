@@ -11,15 +11,17 @@
 // writes offered at the present only (W9).
 import { ApiProblem, MAX_PAGES, queryClient, reads } from "@kartenn/sdk";
 import {
+  AttributeList,
   DataGrid,
   EmptyState,
   ErrorState,
-  Grid,
+  Heading,
   KeyLabel,
   Skeleton,
   Stack,
   StatusBadge,
   TextField,
+  type AttributeItem,
   type GridColumn,
   type GridWindow,
 } from "@kartenn/ui";
@@ -30,6 +32,7 @@ import { hrefOf, PAGES } from "./dom.ts";
 import DraftForm from "./DraftForm.vue";
 import HostSection from "./HostSection.vue";
 import { useHosted, usePresent, useTexts } from "./host.ts";
+import NotSet from "./NotSet.vue";
 import { modeOf, Names, type Interface, type Machine, type MachineCard } from "./reads.ts";
 import RetryAlert from "./RetryAlert.vue";
 
@@ -75,6 +78,14 @@ const host = computed(() => {
     ? { type: "machines.machine" as const, id: h.machine.id, page: PAGES.machine(h.machine.id) }
     : { type: "machines.cluster" as const, id: h.cluster.id, page: PAGES.cluster(h.cluster.id) };
 });
+/** Its attributes, each by its slot; one absent (no owner, no host…) said by the list. */
+const attributes = computed<AttributeItem[]>(() => [
+  { key: "kind", label: t("machines.kind") },
+  { key: "owner", label: t("machines.owner") },
+  { key: "site", label: t("machines.site") },
+  { key: "host", label: t("machines.host") },
+  { key: "memberOf", label: t("machines.memberOf") },
+]);
 
 // ---------------------------------------------------------------------------- interfaces
 
@@ -168,7 +179,9 @@ function added(): void {
 <template>
   <Stack gap="6">
     <Stack gap="2">
-      <h1 tabindex="-1">{{ machine ? machine.name : t("machines.record") }}</h1>
+      <Heading :level="1" tabindex="-1">{{
+        machine ? machine.name : t("machines.record")
+      }}</Heading>
       <ErrorState
         v-if="!machine && card.error"
         :title="t('machines.failedOne')"
@@ -181,54 +194,41 @@ function added(): void {
     </Stack>
 
     <Skeleton v-if="!machine && !card.error" variant="text" :rows="3" />
-    <Grid v-else-if="machine" as="dl" columns="auto" gap="4">
-      <div>
-        <dt>{{ t("machines.kind") }}</dt>
-        <dd><KeyLabel :value="machine.kind" :label="t(`kind.${machine.kind}`)" /></dd>
-      </div>
-      <div>
-        <dt>{{ t("machines.owner") }}</dt>
-        <dd><CitedName :id="machine.owner?.id" :names="names" type="core.entity" /></dd>
-      </div>
-      <div>
-        <dt>{{ t("machines.site") }}</dt>
-        <dd><CitedName :id="machine.site?.id" :names="names" type="core.site" /></dd>
-      </div>
-      <div>
-        <dt>{{ t("machines.host") }}</dt>
-        <dd>
-          <CitedName
-            :id="host?.id"
-            :names="names"
-            :type="host?.type ?? 'machines.machine'"
-            :page="host?.page"
-          />
-        </dd>
-      </div>
-      <div>
-        <dt>{{ t("machines.memberOf") }}</dt>
-        <dd>
-          <CitedName
-            :id="machine.member_of?.id"
-            :names="names"
-            type="machines.cluster"
-            :page="machine.member_of ? PAGES.cluster(machine.member_of.id) : undefined"
-          />
-        </dd>
-      </div>
-    </Grid>
+    <AttributeList v-else-if="machine" :items="attributes">
+      <template #kind>
+        <KeyLabel :value="machine.kind" :label="t(`kind.${machine.kind}`)" />
+      </template>
+      <template #owner>
+        <CitedName v-if="machine.owner" :id="machine.owner.id" :names="names" type="core.entity" />
+      </template>
+      <template #site>
+        <CitedName v-if="machine.site" :id="machine.site.id" :names="names" type="core.site" />
+      </template>
+      <template #host>
+        <CitedName v-if="host" :id="host.id" :names="names" :type="host.type" :page="host.page" />
+      </template>
+      <template #memberOf>
+        <CitedName
+          v-if="machine.member_of"
+          :id="machine.member_of.id"
+          :names="names"
+          type="machines.cluster"
+          :page="PAGES.cluster(machine.member_of.id)"
+        />
+      </template>
+    </AttributeList>
 
     <!-- Moved only once the machine is read: without it, nothing to judge the hosts by. -->
     <section v-if="present() && machine" :aria-labelledby="ids.host">
       <Stack gap="4">
-        <h2 :id="ids.host">{{ t("move.title") }}</h2>
+        <Heading :id="ids.host" :level="2">{{ t("move.title") }}</Heading>
         <HostSection :id="props.id" :machine="machine" />
       </Stack>
     </section>
 
     <section :aria-labelledby="ids.ifaces">
       <Stack gap="4">
-        <h2 :id="ids.ifaces">{{ t("interfaces.title") }}</h2>
+        <Heading :id="ids.ifaces" :level="2">{{ t("interfaces.title") }}</Heading>
         <ErrorState
           v-if="firstFailure(interfaces.state.value)"
           :title="t('interfaces.failed')"
@@ -267,10 +267,7 @@ function added(): void {
                 <template v-if="column.id === 'mac' ? row.mac : row.addresses.length">{{
                   column.id === "mac" ? row.mac : row.addresses.join(", ")
                 }}</template>
-                <span v-else
-                  ><span aria-hidden="true">—</span
-                  ><span class="k-visually-hidden">{{ t("none") }}</span></span
-                >
+                <NotSet v-else />
               </template>
               <StatusBadge
                 v-else-if="column.id === 'state'"
@@ -286,7 +283,7 @@ function added(): void {
 
     <section :aria-labelledby="ids.hosted">
       <Stack gap="4">
-        <h2 :id="ids.hosted">{{ t("machines.hosted") }}</h2>
+        <Heading :id="ids.hosted" :level="2">{{ t("machines.hosted") }}</Heading>
         <ErrorState
           v-if="firstFailure(hosted.state.value)"
           :title="t('machines.failed')"
@@ -328,7 +325,7 @@ function added(): void {
 
     <section v-if="present()" :aria-labelledby="ids.create">
       <Stack gap="4">
-        <h2 :id="ids.create">{{ t("interfaces.create") }}</h2>
+        <Heading :id="ids.create" :level="2">{{ t("interfaces.create") }}</Heading>
         <DraftForm
           permission="machines.interface.edit"
           :operation="creation"

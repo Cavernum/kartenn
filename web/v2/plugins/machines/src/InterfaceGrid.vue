@@ -12,6 +12,7 @@ import { computed } from "vue";
 import CitedName from "./CitedName.vue";
 import { arrival, followLink, hrefOf, PAGES } from "./dom.ts";
 import { useHosted, useTexts } from "./host.ts";
+import NotSet from "./NotSet.vue";
 import { modeOf, type Interface, type Names } from "./reads.ts";
 
 const props = defineProps<{
@@ -82,10 +83,7 @@ function onActivate(cell: CellRef): void {
       />
       <template v-else-if="column.id === 'mac'">
         <template v-if="row.mac">{{ row.mac }}</template>
-        <span v-else
-          ><span aria-hidden="true">—</span
-          ><span class="k-visually-hidden">{{ t("none") }}</span></span
-        >
+        <NotSet v-else />
       </template>
       <StatusBadge
         v-else-if="column.id === 'state'"
