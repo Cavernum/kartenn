@@ -24129,7 +24129,7 @@
             }
           },
           {
-            "description": "Holding an address of this network that the caller may read; each interface then carries those addresses in `addresses`.",
+            "description": "Holding an address of this network that the caller may read, each interface then with those addresses in `addresses`; none for a network the caller may not read.",
             "in": "query",
             "name": "network",
             "required": false,
@@ -25717,7 +25717,7 @@
             }
           },
           {
-            "description": "Holding an address of this network.",
+            "description": "Holding an address of this network that the caller may read; none for a network the caller may not read.",
             "in": "query",
             "name": "network",
             "required": false,

@@ -2,8 +2,9 @@
 //! design « Routes »), mounted by kartenn-server: clusters, machines and interfaces as
 //! collections, dated, paged, filtered and readable as the routes of the core; the card of
 //! a machine with its interfaces and addresses; the addresses of a machine, the interfaces
-//! of a network with their addresses in it, the machines hosted by a machine or a cluster; writes by changeset, Merge Patch under `If-Match`;
-//! the attachment and the detachment of an address under the `If-Match` of the interface.
+//! of a network with their addresses in it, the machines hosted by a machine or a cluster;
+//! writes by changeset, Merge Patch under `If-Match`; the attachment and the detachment of
+//! an address under the `If-Match` of the interface.
 //!
 //! An object the caller may not read answers as an absent one (ADR 0021); a list keeps
 //! the objects of the read scope of the caller, by the predicate of the core, and so does
@@ -467,6 +468,23 @@ fn address_visible(alias: &str) -> String {
     )
 }
 
+/// The network `param` (a prefix of the core) valid at (`$1`, `$2`) if the caller may read
+/// it under `s`, as a relation `(id, domain_id, prefix)` of one row at most: a network the
+/// caller may not read answers as an unknown one (ADR 0021). Its condition is evaluated
+/// once, on that row, before the joins down to its addresses.
+fn readable_network(param: &str) -> String {
+    format!(
+        "(SELECT n.id, n.domain_id, n.prefix FROM {} n
+           WHERE $3::jsonb IS NULL OR {})",
+        dated_where(
+            "public.prefix",
+            "id, domain_id, prefix",
+            &format!("id = {param}")
+        ),
+        readable("n.id", "'prefix'", "n.domain_id", "n.prefix", "$1"),
+    )
+}
+
 const CLUSTER_COLUMNS: &str = "id, slug";
 const MACHINE_COLUMNS: &str = "id, name, kind, host_machine_id, host_cluster_id, member_cluster_id";
 const INTERFACE_COLUMNS: &str = "id, machine_id, name, mac, enabled, vlan_mode, access_vlan_id, native_vlan_id, tagged_vlan_ids";
@@ -723,20 +741,23 @@ async fn machines_page(
     let (moment, scope) = reading(api, principal, page).await?;
     // Correlated in `LATERAL` joins from the network down: the generic plan the pool's
     // prepared statement ends on keeps to the indexes (each address valid at `$1` scanned
-    // otherwise, task 010-19).
+    // otherwise, task 010-19). The network and its addresses count only if the caller may
+    // read them (ADR 0021, task 021-18e).
     let network = format!(
         "x.id IN (SELECT i.machine_id FROM {p} p
                     CROSS JOIN LATERAL {a} a
                     CROSS JOIN LATERAL {t} t
-                    CROSS JOIN LATERAL {i} i)",
-        p = dated_where("public.prefix", "id, domain_id, prefix", "id = $13"),
+                    CROSS JOIN LATERAL {i} i
+                   WHERE $3::jsonb IS NULL OR {visible})",
+        p = readable_network("$13"),
         a = dated_where(
             "public.address",
-            "id",
+            "id, domain_id, address",
             "domain_id = p.domain_id AND address <<= p.prefix"
         ),
         t = dated_where("machines.attachment", "interface_id", "address_id = a.id"),
         i = dated_where("machines.interface", "machine_id", "id = t.interface_id"),
+        visible = address_visible("a"),
     );
     // A machine is the root of its tree and inherits neither owner nor site
     // (`module::TYPES`): its resolved owner and site are its own assignments of
@@ -952,7 +973,7 @@ fn media_is(param: &str) -> String {
 }
 
 /// The condition that the interface `x` holds an address of the network `$15` that the
-/// caller may read, at (`$1`, `$2`): correlated in `LATERAL` joins from the network down,
+/// caller may read, the network readable too, at (`$1`, `$2`): correlated in `LATERAL` joins from the network down,
 /// as the filter `network` of the machines.
 fn in_network() -> String {
     format!(
@@ -960,7 +981,7 @@ fn in_network() -> String {
                     CROSS JOIN LATERAL {a} a
                     CROSS JOIN LATERAL {t} t
                    WHERE $3::jsonb IS NULL OR {visible})",
-        p = dated_where("public.prefix", "id, domain_id, prefix", "id = $15"),
+        p = readable_network("$15"),
         a = dated_where(
             "public.address",
             "id, domain_id, address",
@@ -985,7 +1006,7 @@ fn network_addresses() -> String {
               CROSS JOIN LATERAL {a} a
              WHERE $3::jsonb IS NULL OR {visible}),
            '[]'::jsonb) END",
-        p = dated_where("public.prefix", "id, domain_id, prefix", "id = $15"),
+        p = readable_network("$15"),
         t = dated_where(
             "machines.attachment",
             "address_id, primary_for_family",
@@ -1671,7 +1692,11 @@ pub fn routes() -> ModuleRouter {
             ("cluster", "Hosted by or member of this cluster."),
             ("owner", "Whose resolved owner is this entity."),
             ("site", "Whose resolved site is this site."),
-            ("network", "Holding an address of this network."),
+            (
+                "network",
+                "Holding an address of this network that the caller may read; none for a \
+                 network the caller may not read.",
+            ),
         ],
         &MACHINE_WRITES,
         (kit::collection(list_machines), get(show_machine)),
@@ -1694,8 +1719,9 @@ pub fn routes() -> ModuleRouter {
             ),
             (
                 "network",
-                "Holding an address of this network that the caller may read; each \
-                 interface then carries those addresses in `addresses`.",
+                "Holding an address of this network that the caller may read, each \
+                 interface then with those addresses in `addresses`; none for a network \
+                 the caller may not read.",
             ),
             ("q", "the name"),
         ],

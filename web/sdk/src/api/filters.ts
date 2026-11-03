@@ -167,6 +167,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "q", type: "string" },
     { name: "kind", type: "string" },
     { name: "host", type: "string" },
+    { name: "host:exists", type: "boolean" },
     { name: "cluster", type: "string" },
     { name: "owner", type: "string" },
     { name: "site", type: "string" },

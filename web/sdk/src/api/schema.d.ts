@@ -15369,7 +15369,7 @@ export interface operations {
         vlan?: string;
         /** @description Of this medium, a key of `machines.interface_media`. */
         media?: string;
-        /** @description Holding an address of this network that the caller may read; each interface then carries those addresses in `addresses`. */
+        /** @description Holding an address of this network that the caller may read, each interface then with those addresses in `addresses`; none for a network the caller may not read. */
         network?: string;
         /** @description Prefix of the name, ignoring case, 100 characters at most: a suggestion, 20 a page by default; only the objects the caller may read. */
         q?: string;
@@ -16213,13 +16213,15 @@ export interface operations {
         kind?: string;
         /** @description Hosted by this machine or this cluster. */
         host?: string;
+        /** @description Hosted by a machine or a cluster (`true`), or by none (`false`): the member of a cluster is not hosted by it. */
+        "host:exists"?: boolean;
         /** @description Hosted by or member of this cluster. */
         cluster?: string;
         /** @description Whose resolved owner is this entity. */
         owner?: string;
         /** @description Whose resolved site is this site. */
         site?: string;
-        /** @description Holding an address of this network. */
+        /** @description Holding an address of this network that the caller may read; none for a network the caller may not read. */
         network?: string;
         /** @description Valid time, RFC 3339 with its offset; now by default. */
         valid_at?: string;
