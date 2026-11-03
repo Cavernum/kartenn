@@ -351,7 +351,7 @@ par la maquette de la 026 (tâche 6). Les codes sont ceux du cœur.
 |---|---|---|---|---|
 | Machines | `/x/machines/machines`, `…/<id>` | inventaire, hébergement, propriétaire, adresses principales | place, form | `machines.name.duplicate`, `machines.host.invalid` |
 | Fiche et interfaces | `…/machines/<id>` (fiche en sections : attributs, interfaces, hébergées, ajout ; tâche 18a) | interfaces, VLAN, adresses rattachées | place, form | `machines.mac.duplicate`, `machines.address.vlan_mismatch` |
-| Hébergement et clusters | `/x/machines/clusters` (`TreeGrid` à parent déclaré : clusters et machines sans hébergeur, hébergées lues à l'ouverture ; tâche 18cd), `…/<id>` (fiche : propriétaire, site, membres et hébergées) | qui héberge quoi ; déplacer une machine | glisser, Ctrl+X puis Ctrl+V, « Déplacer vers… » (au brouillon par `draft.move`) | `machines.host.site_mismatch`, `machines.host.invalid` |
+| Hébergement et clusters | `/x/machines/clusters` (`TreeGrid` à parent déclaré : clusters et machines sans hébergeur, page à page par `/v1/machines?host:exists=false` (A28, tâche 18f), hébergées lues à l'ouverture ; tâche 18cd), `…/<id>` (fiche : propriétaire, site, membres et hébergées) | qui héberge quoi ; déplacer une machine | glisser, Ctrl+X puis Ctrl+V, « Déplacer vers… » (au brouillon par `draft.move`) | `machines.host.site_mismatch`, `machines.host.invalid` |
 | Interfaces | `/x/machines/interfaces` | recherche par MAC, adresse, VLAN (réponse à incident) | lecture | `machines.mac.invalid` |
 
 ### Plugin Politique (espace `policy`)
