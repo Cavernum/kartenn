@@ -725,14 +725,14 @@ passage complet.
 
 | Budget | Seuil | Mesure |
 |---|---|---|
-| Shell initial | ≤ 300 Ko gzip | `web/v2/shell/scripts/shell-size.ts` : entrée, imports statiques, CSS, modules partagés de l'import map (SDK, framework, `@kartenn/ui`) et leurs imports statiques, chaque fichier une fois |
+| Shell initial | ≤ 300 Ko gzip | `web/v2/shell/scripts/shell-size.ts` : ce que charge le document, entrée et ses imports statiques (framework, SDK, `@kartenn/ui` compris), CSS, scripts, préchargements de modules et feuilles nommés par `index.html` (fichiers d'amorce compris), chaque fichier une fois ; ni les polices, ni les entrées de l'import map que seul un plugin charge |
 | Plugin | ≤ 50 Ko gzip | `web/v2/tools/plugin-size.ts` par plugin (son test de paquet, Vitest), modules partagés exclus |
 | Premier écran utile | ≤ 2 s | `fetchStart` de la navigation après le rappel OIDC → première trame où les tuiles de l'accueil (`.k-home-tiles`) sont dans le document, relevée par le banc |
-| Page de 100 lignes | ≤ 100 ms | `responseEnd` d'une page de `/v1/addresses` → trame qui suit la première mutation de la grille, p95 de 20 pages |
+| Page de 100 lignes | ≤ 100 ms | `responseEnd` de la page de `/v1/addresses` demandée (sa propre ressource) → première trame où sa première ligne (`data-row`) est dans le DOM, p95 de 20 pages, médiane imprimée |
 | INP | ≤ 200 ms, p75 | Event Timing (`PerformanceObserver` `event`, `durationThreshold: 16`) sur 20 répétitions de : ouvrir un nœud, filtrer, éditer une cellule, changer d'onglet, ouvrir la palette |
-| Navigation en cache | ≤ 100 ms, p75 | clic sur un lien déjà préchargé (survol, lectures servies) → marque `k:view` (`shell/src/prefetch/viewMark.ts` : après chaque navigation sauf la première, première trame après le rendu), 10 fiches |
-| CLS | ≤ 0,05 | `layout-shift` sans entrée récente, premier écran et 10 navigations |
-| Arbre de 10⁵ | ≤ 2 % de trames perdues, aucune tâche longue | défilement scénarisé de 10⁴ lignes ; trames perdues = 1 − trames observées / (durée ÷ 16,67 ms), boucle `requestAnimationFrame` (protocole du prototype) ; tâches longues > 50 ms par `PerformanceObserver` |
+| Navigation en cache | ≤ 100 ms | clic sur un lien déjà préchargé → marque `k:view` |
+| CLS | ≤ 0,05 | premier écran : `layout-shift` sans entrée récente ; chaque navigation (10) : tous les `layout-shift` de la trame de `k:view` à 1 s après, ceux qui suivent le clic de moins de 500 ms compris (témoin : un bloc de 200 px inséré exprès doit être vu) |
+| Arbre de 10⁵ | ≤ 2 % de trames perdues, aucune tâche longue | défilement scénarisé de 10⁴ lignes, aller-retour sur les enfants gardés en cache (au plus `MAX_PAGES` × 100), toutes chargées avant, aucune lecture de `/children` pendant la fenêtre (comptée) ; trames perdues = 1 − trames observées / (durée ÷ 16,67 ms), boucle `requestAnimationFrame` (protocole du prototype) ; tâches longues > 50 ms par `PerformanceObserver` |
 | Flèche bas (arbre, grille) | ≤ 100 ms, p75 | 50 appuis ; du `timeStamp` du `keydown` au premier `requestAnimationFrame` après le focus attendu |
 | Mémoire | ≤ 64 Mo | CDP `Runtime.getHeapUsage` `usedSize` (comme les bancs de `@kartenn/ui`) après 10⁴ lignes défilées et 50 navigations, après `HeapProfiler.collectGarbage` |
 | Plugin lent | écarté à 5 s | existant |

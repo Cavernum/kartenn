@@ -2963,23 +2963,37 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     806 ms, navigation en cache p75 182 ms, INP filtre 304 et palette 272 ms, Flèche bas
     grille 238 ms, trames perdues de l'arbre 80 % et 114 tâches longues (plus longue
     169 ms).
+  - corrigé le 2026-11-03 (revue) : navigation en cache jugée sur la pire des 10, sans
+    centile ; CLS d'une navigation : tous les glissements de la trame de `k:view` à 1 s
+    après, `hadRecentInput` compris (le clic compte 500 ms comme entrée), prouvé par un
+    témoin (bloc de 200 px inséré 200 ms après `k:view` : 0,114 vu) ; page de 100 lignes :
+    `responseEnd` de la lecture de la page (par son URL) → première trame où sa première
+    ligne (`data-row`) est dans le DOM, médiane et p95 ; arbre : lectures de `/children`
+    comptées pendant le défilement (0), défilement arrêté avant la ligne qui lit la page
+    suivante ; INP : cible de la plus longue interaction imprimée ; médiane et pire de
+    chaque mesure répétée ; préchargement absent → échec ; `bench-web small` sans graine ;
+    build de `web/v2` fait une fois (`K_WEB2_BUILT`) ; shell initial : ce que charge le
+    document (entrée, ses imports, ce que nomme `index.html`, amorce comprise), sans les
+    entrées de l'import map que seul un plugin charge : 300,3 Ko, au-delà.
   - reste : mesure complète (`devenv shell -- bench-web`, graine 42, machine libre) par
     l'orchestrateur ; dépassements de la passe réduite à traiter ou à arbitrer (aucun
-    seuil relâché) ; le cache garde 10 pages d'une liste (`MAX_PAGES`) : l'arbre n'a
-    jamais 10⁴ enfants en mémoire (266 lus à la passe réduite, chargement arrêté après 3 s
-    sans croissance), le défilement de 10⁴ lignes fait des allers-retours sur ceux-là ;
-    shell initial à 0,2 Ko de son plafond ; `.claude/agents/bench-runner.md` décrit encore
-    l'ancien `bench-web` (taille par `size.mjs`) ; le projet `budgets` de l'ancien shell
+    seuil relâché) ; 10⁴ enfants ne tiennent pas en cache : 100 par page (taille par
+    défaut du serveur), `MAX_PAGES` = 10, et `treePages.ts` ne redemande une page que si
+    le nombre d'enfants a changé (la onzième page laisse ce nombre égal) — le défilement
+    de 10⁴ lignes fait des allers-retours sur ceux en mémoire, à arbitrer ; à la passe
+    réduite, la lecture s'est arrêtée bien avant (2 puis 6 pages, plus de ligne « suite »
+    au bout), cause non élucidée ; la page de 100 lignes n'a pas encore rendu de chiffre
+    (une lecture de `/v1/addresses` sans corps lu : revalidation probable ; comptée à part
+    depuis, sans passe pour le vérifier) ; le projet `budgets` de l'ancien shell
     (`web/e2e/`) n'a plus de script et part à la bascule (tâche 27).
   - choix : `bench-web` vise le nouveau shell (plus de banc pour l'ancien) ; premier écran
-    et page de 100 lignes relevés par le banc (tuiles `.k-home-tiles`, mutation de la
-    grille après `responseEnd`) plutôt que par des marques `k:ready`/`k:rows` dans les
-    écrans, hors périmètre ; tas par `Runtime.getHeapUsage` comme les bancs de
-    `@kartenn/ui` ; INP d'une répétition : la plus longue des interactions qu'elle
-    contient (un filtre en compte six), 0 sous 16 ms ; CLS d'une navigation : décalages
-    dans la seconde qui suit le clic ; navigation en cache au 75ᵉ centile ; `alice`
-    administratrice pour éditer, au brouillon seulement ; arguments Playwright passés
-    après la graine et `small`.
+    et page de 100 lignes relevés par le banc (tuiles `.k-home-tiles`, première ligne de
+    la page dans le DOM) plutôt que par des marques `k:ready`/`k:rows` dans les écrans,
+    hors périmètre ; tas par `Runtime.getHeapUsage` comme les bancs de `@kartenn/ui` ;
+    INP d'une répétition : la plus longue des interactions qu'elle contient (un filtre en
+    compte six), 0 sous 16 ms ; CLS du premier écran sans les glissements après une
+    entrée (définition des navigateurs) ; `alice` administratrice pour éditer, au
+    brouillon seulement ; arguments Playwright passés après la graine et `small`.
 - [ ] 26. Liste de parité `web/v2/PARITE.md` : chaque route, écran, action, point
   d'extension et parcours de l'ancien shell et de ses plugins, avec son équivalent, son
   parcours porté et son état ; tenue à jour à chaque tâche de P2 et P3 et à chaque
