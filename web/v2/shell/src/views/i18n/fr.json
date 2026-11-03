@@ -272,7 +272,8 @@
       "capped": {
         "prefixes": "L'arbre s'arrête à {n} nœuds : Entrée ouvre la liste des préfixes dans {within}",
         "addresses": "L'arbre s'arrête à {n} nœuds : Entrée ouvre la liste des adresses dans {within}",
-        "roots": "L'arbre s'arrête à {n} nœuds : Entrée ouvre la liste des préfixes du domaine {name}"
+        "roots": "L'arbre s'arrête à {n} nœuds : Entrée ouvre la liste des préfixes du domaine {name}",
+        "nowhere": "L'arbre s'arrête à {n} nœuds"
       }
     },
     "anomalies": {

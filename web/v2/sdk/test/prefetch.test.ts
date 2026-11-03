@@ -25,18 +25,40 @@ describe("prefetch on intent (REQ-021-22)", () => {
     const link = new EventTarget();
     const stop = s.prefetch.intent(link, s.queries);
     link.dispatchEvent(new Event("pointerenter"));
+    link.dispatchEvent(new Event("pointermove"));
     await vi.advanceTimersByTimeAsync(INTENT_DELAY - 10);
     link.dispatchEvent(new Event("pointerleave"));
     await vi.advanceTimersByTimeAsync(100);
     expect(s.seen).toHaveLength(0);
     link.dispatchEvent(new Event("pointerenter"));
-    await vi.advanceTimersByTimeAsync(INTENT_DELAY);
+    link.dispatchEvent(new Event("pointermove"));
+    await vi.advanceTimersByTimeAsync(INTENT_DELAY - 10);
+    // The next moves on the link keep the delay of the hover under way.
+    link.dispatchEvent(new Event("pointermove"));
+    await vi.advanceTimersByTimeAsync(10);
     expect(s.seen.map((r) => r.url)).toEqual([`/v1/prefixes/${P1}`, `/v1/prefixes?domain=${D1}`]);
     // Fresh in the cache: a second intent reads nothing.
     link.dispatchEvent(new Event("focusin"));
     await vi.advanceTimersByTimeAsync(0);
     expect(s.seen).toHaveLength(2);
     stop();
+  });
+
+  it("reads nothing for a link scrolled under a still pointer, until the pointer moves", async () => {
+    const s = setup((): Response => json({ id: P1, items: [], links: {} }));
+    const link = new EventTarget();
+    s.prefetch.intent(link, s.queries);
+    // Scrolled under the pointer: the browsers send the entry and the exit, no move.
+    link.dispatchEvent(new Event("pointerenter"));
+    await vi.advanceTimersByTimeAsync(INTENT_DELAY * 2);
+    link.dispatchEvent(new Event("pointerleave"));
+    link.dispatchEvent(new Event("pointerenter"));
+    await vi.advanceTimersByTimeAsync(INTENT_DELAY * 2);
+    expect(s.seen).toHaveLength(0);
+    // Then the pointer moves on it, and stays: a hover.
+    link.dispatchEvent(new Event("pointermove"));
+    await vi.advanceTimersByTimeAsync(INTENT_DELAY);
+    expect(s.seen).toHaveLength(2);
   });
 
   it("reads at once on focus", async () => {

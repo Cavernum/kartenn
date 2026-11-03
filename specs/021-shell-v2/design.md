@@ -549,6 +549,9 @@ timeKey({ validAt, asOf })             // { valid_at: validAt ?? null, as_of: as
   vue affiche la donnée en cache ou un squelette.
 - Listes : page suivante préchargée quand la fenêtre virtualisée approche de la fin
   (2 écrans) ; arbre : enfants d'un nœud fermé survolé.
+- Le survol naît d'un mouvement du pointeur (`pointermove`), jamais de l'entrée seule :
+  un lien ou une ligne qui défile sous un pointeur immobile reçoit `pointerover` et
+  `pointerenter`, pas `pointermove` (Chromium et Firefox), et ne lit rien (tâche 7a).
 - Après le premier écran, `requestIdleCallback` précharge les entrées des plugins (007).
 
 ### Flux d'événements (REQ-021-23)

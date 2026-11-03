@@ -1,5 +1,6 @@
 import { CHILDREN_PAGES, type Operation, type Simulated } from "@kartenn/sdk";
 import type { TreeNode, TreeNodeState } from "@kartenn/ui";
+import type { CollectionId } from "./collections.ts";
 
 // The nodes of the tree of the topography from its levels read (task 24, REQ-021-34): the
 // children of a prefix are those its own list gives, read again after a change level by
@@ -49,6 +50,40 @@ export const cappedKey = (parent: string | null): string => `${CAPPED}${parent ?
 export const isCapped = (key: string): boolean => key.startsWith(CAPPED);
 /** The parent of a notice (`null`: the first level). */
 export const cappedParent = (key: string): string | null => key.slice(CAPPED.length) || null;
+
+/** A node of the tree as `kindsIn` and `restOf` read it. */
+export interface Holder {
+  kind: string;
+  nature?: string | null;
+  value?: string;
+}
+
+/** The kinds a node may hold: a network its addresses and ranges, else prefixes. */
+export const kindsIn = (node: Holder | undefined): CollectionId[] =>
+  node?.kind === "prefix" && node.nature === "network" ? ["addresses", "ranges"] : ["prefixes"];
+
+/** A list of the core, filtered: where the rest of a capped level is listed. */
+export interface Rest {
+  name: CollectionId;
+  query: Record<string, string>;
+}
+
+/**
+ * Where the rest of a capped level is listed (021/A34): under a prefix, the list of the
+ * first kind it holds (`kindsIn`) `within` its value — the prefixes of a container, the
+ * addresses of a network —; for the first level (`parent` `null`), the prefixes of the
+ * domain. `null` when the prefix or the domain is not known: never a list without filter
+ * (task 021-7a).
+ */
+export function restOf(
+  parent: string | null,
+  node: Holder | undefined,
+  domain: string | undefined,
+): Rest | null {
+  if (parent === null) return domain ? { name: "prefixes", query: { domain } } : null;
+  if (node?.kind !== "prefix" || !node.value) return null;
+  return { name: kindsIn(node)[0]!, query: { within: node.value } };
+}
 
 /**
  * The nodes under `parent`, each placed once; after the children of a level capped, the

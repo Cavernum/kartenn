@@ -3,6 +3,8 @@ import { setFetch } from "@kartenn/sdk/host";
 import type { TreeNode } from "@kartenn/ui";
 import { InfiniteQueryObserver } from "@tanstack/query-core";
 import { afterEach, describe, expect, it } from "vitest";
+import { createMemoryHistory, createRouter, RouterView } from "vue-router";
+import { frameRoutes } from "../src/frame/routes.ts";
 import {
   cappedKey,
   cappedParent,
@@ -12,7 +14,9 @@ import {
   nodesOf,
   overlay,
   previewOf,
+  restOf,
   type Preview,
+  type Rest,
   type Shift,
 } from "../src/views/topology.ts";
 
@@ -383,5 +387,53 @@ describe("the children of a node, page by page up to the cap", () => {
       (parent) => ({ id: cappedKey(parent), label: "rest" }),
     );
     expect(nodes.map((n) => n.id)).toEqual([P, "capped:"]);
+  });
+});
+
+// The destination of the notice (task 021-7a): the list of the core « dans ce préfixe »,
+// opened through the routes of the frame, which read it filtered; never a list without
+// filter when the parent or the domain is not known.
+describe("the list the notice of a capped level leads to", () => {
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [{ path: "/", component: RouterView, children: frameRoutes }],
+  });
+  /** The address of the list opened, and the read its screen declares. */
+  async function opened(rest: Rest | null) {
+    expect(rest).not.toBeNull();
+    await router.push(rest!);
+    const to = router.currentRoute.value;
+    const [read] = to.matched.at(-1)!.meta.queries!(to.params, {}, to.query);
+    return { path: to.fullPath, read: read!.queryKey };
+  }
+  const list = (path: "/v1/prefixes" | "/v1/addresses", filters: Record<string, string>) =>
+    reads.list(path, filters as never, null).queryKey;
+
+  it("leads under a container to its prefixes, under a network to its addresses", async () => {
+    const container = { kind: "prefix", nature: "container", value: "198.51.100.0/24" };
+    expect(await opened(restOf(P, container, DOMAIN))).toEqual({
+      path: "/prefixes?within=198.51.100.0/24",
+      read: list("/v1/prefixes", { within: "198.51.100.0/24" }),
+    });
+    const network = { kind: "prefix", nature: "network", value: "2001:db8:3::/64" };
+    expect(await opened(restOf(C1, network, DOMAIN))).toEqual({
+      path: "/addresses?within=2001:db8:3::/64",
+      read: list("/v1/addresses", { within: "2001:db8:3::/64" }),
+    });
+  });
+
+  it("leads from the first level to the prefixes of the domain", async () => {
+    expect(await opened(restOf(null, undefined, DOMAIN))).toEqual({
+      path: `/prefixes?domain=${DOMAIN}`,
+      read: list("/v1/prefixes", { domain: DOMAIN }),
+    });
+  });
+
+  it("leads nowhere without the parent or the domain", () => {
+    expect(restOf(P, undefined, DOMAIN)).toBeNull();
+    expect(restOf(P, { kind: "range" }, DOMAIN)).toBeNull();
+    expect(restOf(P, { kind: "prefix", nature: "container", value: "" }, DOMAIN)).toBeNull();
+    expect(restOf(null, undefined, undefined)).toBeNull();
+    expect(restOf(null, undefined, "")).toBeNull();
   });
 });
