@@ -185,8 +185,9 @@ test("a refusal of the server (403) keeps the input and says the alert", async (
   await page.goto(`/prefixes/${listed.items[0]!.id}`);
   // The right withdrawn between the read and the write: the shell, read before, shows the
   // form; the server, the judge, refuses. Its answer given by the route, as kartenn-server
-  // words a 403 (urn:kartenn:problem:forbidden, its Request-Id).
-  const requestId = "00000000-0000-4000-8000-000000000403";
+  // words a 403: urn:kartenn:problem:forbidden, its Request-Id a UUID v7 (request_id.rs),
+  // also its `instance` (urn:uuid:…).
+  const requestId = "01934f2a-7c3e-7b8a-9c1d-000000000403";
   await page.route(/\/v1\/prefixes\/[0-9a-f-]{36}\?approval=self$/, (route) =>
     route.request().method() === "PATCH"
       ? route.fulfill({
@@ -198,6 +199,7 @@ test("a refusal of the server (403) keeps the input and says the alert", async (
             title: "The action is not permitted",
             status: 403,
             detail: "core.prefix.edit is not granted on this domain",
+            instance: `urn:uuid:${requestId}`,
           }),
         })
       : route.fallback(),

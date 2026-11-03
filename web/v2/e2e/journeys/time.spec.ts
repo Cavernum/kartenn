@@ -7,7 +7,7 @@ import { atRest, DATA, expect, expectAccessible, loginIn, test } from "../fixtur
 // web/e2e/journeys/time.spec.ts. The writes (task 12c): under `as_of`, the editors and the
 // actions of a record off, each saying why; under `valid_at` alone, its edit panel opens to
 // the dated draft, « Appliquer » refused with its reason. The draft's own submission at
-// that date is the journey `draft`'s (task 14d).
+// that date is the journey `draft`'s (task 14e).
 
 const VALID_AT = "2026-01-01T00:00:00Z";
 const AS_OF = "2026-06-30T12:00:00Z";
