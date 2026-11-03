@@ -149,6 +149,14 @@ export const draft = {
   move(op: Operation, node: MoveSubject): Promise<DraftMove> {
     return moveInDraft(op, node, drafts.addToActive, (saved) => onAdd?.(saved));
   },
+  /**
+   * Each change of the active draft of the tab: another one, or none (`null`: left, deleted,
+   * submitted, taken over elsewhere); returns the function that stops. What a plugin marks
+   * as « in the draft » no longer holds then.
+   */
+  onActive(listener: (id: string | null) => void): () => void {
+    return drafts.onActive(listener);
+  },
 };
 
 /** The shell's side: what an addition by a plugin does. */

@@ -164,13 +164,31 @@ test("the views of the machines, their links, the tabs and the column of the cor
   await record.getByRole("link", { name: tag, exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/x/machines/clusters/${written.cluster}$`));
   const cluster = page.locator("machines-clusters");
-  await expect(cluster.getByRole("heading", { level: 1, name: tag })).toBeVisible();
+  // In Vue (task 18cd): the focus on its heading, its machines in a grid.
+  await expect(cluster.getByRole("heading", { level: 1, name: tag })).toBeFocused();
   await expect(
-    cluster
-      .getByRole("table", { name: "Machines du cluster" })
-      .getByRole("row", { name: /membre/ }),
+    cluster.getByRole("grid", { name: "Machines du cluster" }).getByRole("row", { name: /membre/ }),
   ).toContainText(tag);
   await expectAccessible(page);
+
+  // The tree « Hébergement et clusters », from the navigation: the cluster and its member
+  // machine (no host: a member is not hosted) at the first level; Enter opens the record.
+  await navigation(page).getByRole("link", { name: "Clusters", exact: true }).click();
+  await expect(page).toHaveURL(/\/x\/machines\/clusters$/);
+  const tree = cluster.getByRole("treegrid", { name: "Hébergement et clusters" });
+  const node = (label: string) =>
+    tree.locator("[role='row'][data-node]").filter({
+      has: page.locator(".k-tree-grid__label", { hasText: new RegExp(`^${label}$`) }),
+    });
+  await expect(node(tag)).toHaveCount(2);
+  await expect(node(tag).first()).toHaveAttribute("aria-level", "1");
+  await expect(node(tag).last()).toHaveAttribute("aria-level", "1");
+  await expectAccessible(page);
+  const clusterRow = tree.locator(`[role='row'][data-node='${written.cluster}']`);
+  await clusterRow.locator("[data-column='']").click();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(new RegExp(`/x/machines/clusters/${written.cluster}$`));
+  await expect(cluster.getByRole("heading", { level: 1, name: tag })).toBeFocused();
 
   // The search of the interfaces by MAC (incident response), its criteria in the address.
   await navigation(page).getByRole("link", { name: "Interfaces", exact: true }).click();

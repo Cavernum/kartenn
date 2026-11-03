@@ -466,12 +466,15 @@ test.describe("a slowed answer", () => {
   });
 });
 
-// The hosting of a machine (task 18b; plugin Machines, without framework): its host changed
-// from its record, each host offered checked by `canMove` of the SDK, the move to the draft
-// by `draft.move` and its simulation. No tree of the hosting is drawn (the `TreeGrid` is a
-// component of Vue): the list of the hosts is the alternative of a drop, at the keyboard.
+// The hosting of a machine (task 18b; plugin Machines, in Vue since the 18cb and the 18cd):
+// its host changed from its record, or in the tree « Hébergement et clusters » (a
+// `TreeGrid` whose parent is declared: Ctrl+X then Ctrl+V), each host checked by `canMove`
+// of the SDK, the move to the draft by `draft.move` and its simulation, never a changeset.
 test.describe("the host of a machine", () => {
-  /** Two sites; a physical host on the first with its virtual guest; a virtual machine on the second. */
+  /**
+   * Two sites; a physical host on the first with its virtual guest; a virtual machine on the
+   * second; a cluster without a site.
+   */
   async function hosting(page: Page, tag: string) {
     const entity = (
       (await call(page, "GET", `/v1/entities?slug=${DATA.entity}`)).body as {
@@ -506,6 +509,7 @@ test.describe("the host of a machine", () => {
           owner: { id: entity },
           site: { local: 1 },
         },
+        { op: "machines.create_cluster", slug: `${tag}-c`, owner: { id: entity } },
       ],
     });
     expect(created.status, JSON.stringify(created.body)).toBe(201);
@@ -515,12 +519,149 @@ test.describe("the host of a machine", () => {
           items: { id: string }[];
         }
       ).items[0]!.id;
+    const clusters = (await call(page, "GET", `/v1/clusters?slug=${tag}-c`)).body as {
+      items: { id: string }[];
+    };
     return {
       host: await id(`${tag}-host`),
       guest: await id(`${tag}-guest`),
       away: await id(`${tag}-away`),
+      cluster: clusters.items[0]!.id,
     };
   }
+
+  /** The tree of the hosting, its rows by their label, the focus moved by the arrows only. */
+  function hostingTree(page: Page) {
+    const view = page.locator("machines-clusters");
+    const tree = view.getByRole("treegrid", { name: "Hébergement et clusters" });
+    const row = (label: string) =>
+      tree.locator("[role='row'][data-node]").filter({
+        has: page.locator(".k-tree-grid__label", { hasText: new RegExp(`^${label}$`) }),
+      });
+    /** Up or Down from the row of the focus to the row of `label`. */
+    async function arrowTo(label: string): Promise<void> {
+      const keys = await tree
+        .locator("[role='row'][data-node]")
+        .evaluateAll((rows) => rows.map((r) => (r as HTMLElement).dataset.node));
+      const from = await page.evaluate(
+        () => (document.activeElement?.closest("[role='row']") as HTMLElement | null)?.dataset.node,
+      );
+      const to = await row(label).getAttribute("data-node");
+      const delta = keys.indexOf(to!) - keys.indexOf(from);
+      for (let i = 0; i < Math.abs(delta); i++) {
+        await page.keyboard.press(delta > 0 ? "ArrowDown" : "ArrowUp");
+      }
+      await expect(row(label).locator("[data-column='']")).toBeFocused();
+    }
+    /** What the view or the tree says in a status region. */
+    const says = (text: string) => view.getByRole("status").filter({ hasText: text });
+    return { view, tree, row, arrowTo, says };
+  }
+
+  test("in the tree, to a cluster at the keyboard: « en attente » at its place, then in the draft; no changeset", async ({
+    page,
+    login,
+    browserName,
+  }) => {
+    await login("alice");
+    const tag = unique("tree", browserName);
+    const { away, cluster } = await hosting(page, tag);
+    const changesets: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && request.url().includes("/v1/changesets")) {
+        changesets.push(request.url());
+      }
+    });
+    let release!: () => void;
+    const held = new Promise<void>((done) => (release = done));
+    const simulation = (url: URL) => /^\/v1\/drafts\/[0-9a-f-]+\/simulation$/.test(url.pathname);
+    await page.route(simulation, async (route) => {
+      await held;
+      await route.continue();
+    });
+    await page.goto("/x/machines/clusters");
+    const { tree, row, arrowTo, says } = hostingTree(page);
+    await expect(row(`${tag}-away`)).toHaveAttribute("aria-level", "1");
+    await expectAccessible(page);
+    // The focus put on the machine once; from there, the keyboard only.
+    await row(`${tag}-away`).locator("[data-column='']").click();
+    await page.keyboard.press("Control+x");
+    await expect(row(`${tag}-away`)).toHaveAttribute("data-move", "cut");
+    await arrowTo(`${tag}-c`);
+    const sent = page.waitForRequest((r) => simulation(new URL(r.url())));
+    await page.keyboard.press("Control+v");
+    await sent;
+    // Its simulation held: the move waits at its place.
+    await expect(row(`${tag}-away`)).toHaveAttribute("data-move", "pending");
+    await expect(row(`${tag}-away`)).toContainText("en attente");
+    await expect(says(`Déplacement de ${tag}-away dans ${tag}-c demandé`)).toHaveCount(1);
+    await expect(row(`${tag}-away`)).toHaveAttribute("aria-level", "1");
+    release();
+    await expect(
+      says(`Déplacement de ${tag}-away vers ${tag}-c au brouillon, tenu par sa simulation`),
+    ).toHaveCount(1);
+    // At its place, marked as moved in the draft; nothing under the cluster yet.
+    await expect(row(`${tag}-away`)).toHaveAttribute("data-state", "draft");
+    await expect(row(`${tag}-away`)).toHaveAttribute("aria-level", "1");
+    await expect(tree.locator(`[role='row'][data-node='${away}']`)).toHaveCount(1);
+    await expectAccessible(page);
+    await page.unroute(simulation);
+    expect(changesets).toEqual([]);
+    const drafts = (await call(page, "GET", "/v1/drafts")).body as { items: { id: string }[] };
+    const operations = await Promise.all(
+      drafts.items.map(
+        async (d) =>
+          ((await call(page, "GET", `/v1/drafts/${d.id}`)).body as { operations: unknown[] })
+            .operations,
+      ),
+    );
+    expect(operations.flat()).toContainEqual({
+      op: "machines.update_machine",
+      id: { id: away },
+      host: { cluster: { id: cluster } },
+    });
+  });
+
+  test("in the tree, a host under its guest refused by the client; to a host on another site, the server warns", async ({
+    page,
+    login,
+    browserName,
+  }) => {
+    await login("alice");
+    const tag = unique("treesite", browserName);
+    await hosting(page, tag);
+    const writes: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() !== "GET" && request.url().includes("/v1/")) writes.push(request.url());
+    });
+    await page.goto("/x/machines/clusters");
+    const { row, arrowTo, says } = hostingTree(page);
+    // The host opened: its guest under it.
+    await row(`${tag}-host`).locator("[data-column='']").click();
+    await page.keyboard.press("ArrowRight");
+    await expect(row(`${tag}-guest`)).toHaveAttribute("aria-level", "2");
+    // Cut, then pasted into its own guest: refused by `canMove`, with the rule; nothing sent.
+    await page.keyboard.press("Control+x");
+    await arrowTo(`${tag}-guest`);
+    await page.keyboard.press("Control+v");
+    await expect(says("elle l'héberge, ou c'est elle (machines.host.invalid)")).toHaveCount(1);
+    await expect(row(`${tag}-host`)).toHaveAttribute("data-move", "cut");
+    await page.keyboard.press("Escape");
+    await expect(row(`${tag}-host`)).not.toHaveAttribute("data-move");
+    expect(writes).toEqual([]);
+    // The machine of the other site, to the host: held by the simulation, the site warned of.
+    await arrowTo(`${tag}-away`);
+    await page.keyboard.press("Control+x");
+    await arrowTo(`${tag}-host`);
+    await page.keyboard.press("Control+v");
+    await expect(
+      says(`Déplacement de ${tag}-away vers ${tag}-host au brouillon, tenu par sa simulation`),
+    ).toHaveCount(1);
+    await expect(says("machines.host.site_mismatch")).toHaveCount(1);
+    await expect(row(`${tag}-away`)).toHaveAttribute("aria-level", "1");
+    await expectAccessible(page);
+    expect(writes.filter((url) => url.includes("/v1/changesets"))).toEqual([]);
+  });
 
   test("a host cannot go under itself nor its guest: refused by the client, with the rule", async ({
     page,

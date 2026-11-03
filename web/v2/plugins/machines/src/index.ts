@@ -6,22 +6,20 @@
 // spec 009, REQ-009-20). Under the space `hosts`: the lists and records of the machines,
 // clusters and interfaces; on the screens of the core, the « Interfaces » tab of an address,
 // a network and a VLAN, the machine column of the addresses, and the action that attaches an
-// address to an interface. Being moved to Vue 3 and @kartenn/ui, shared with the shell
-// (A19, A23), element by element: the column, the action (task 18ca), the view of the
-// machines (task 18cb), the view of the interfaces and the tab (task 18cc) are applications
-// of `vue` mounted in their light DOM by the thin host (`host.ts`); the view of the clusters
-// is still a Custom Element without a framework, in its shadow root (`element.ts`). Reads go
-// through the shared cache; writes are operations added to the draft of the shell
-// (`draft.add`, `draft.move`), offered at the present only (W9).
+// address to an interface. In Vue 3 and @kartenn/ui, shared with the shell (A19, A23): each
+// element is an application of `vue` mounted in its light DOM by the thin host (`host.ts`;
+// tasks 18ca to 18cd), without a sheet of its own. Reads go through the shared cache; writes
+// are operations added to the draft of the shell (`draft.add`, `draft.move`), offered at the
+// present only (W9).
 
 import AttachAction from "./AttachAction.vue";
+import ClustersView from "./ClustersView.vue";
 import { defined } from "./dom.ts";
 import { pluginHost } from "./host.ts";
 import InterfacesTab from "./InterfacesTab.vue";
 import InterfacesView from "./InterfacesView.vue";
 import MachineColumn from "./MachineColumn.vue";
 import MachinesView from "./MachinesView.vue";
-import { ClustersView } from "./views.ts";
 
 const host = pluginHost();
 
@@ -29,7 +27,7 @@ defined.handle = host.define({
   name: "machines",
   elements: {
     "machines-machines": host.element(MachinesView),
-    "machines-clusters": ClustersView,
+    "machines-clusters": host.element(ClustersView),
     "machines-interfaces": host.element(InterfacesView),
     "machines-tab": host.element(InterfacesTab),
     "machines-column": host.element(MachineColumn),

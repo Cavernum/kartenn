@@ -4,7 +4,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { afterEach, describe, expect, it } from "vitest";
-import { moveInDraft, type Operation } from "../src/draft.ts";
+import { draft, moveInDraft, type Operation } from "../src/draft.ts";
 import { setFetch } from "../src/host.ts";
 import { drafts, queryClient } from "../src/instance.ts";
 import { fakeFetch } from "../src/testing/index.ts";
@@ -124,5 +124,18 @@ describe("moveInDraft", () => {
     expect(outcome.kind === "drafted" && outcome.verdict === "unknown" && outcome.problem).not.toBe(
       null,
     );
+  });
+});
+
+describe("draft.onActive", () => {
+  it("tells each change of the active draft, none included, until stopped", () => {
+    const seen: (string | null)[] = [];
+    const stop = draft.onActive((id) => seen.push(id));
+    drafts.setActive(D);
+    drafts.setActive(D);
+    drafts.setActive(null);
+    stop();
+    drafts.setActive(D);
+    expect(seen).toEqual([D, null]);
   });
 });
