@@ -2384,7 +2384,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
 Chacune porte les lignes `[ ]` de `web/v2/PARITE.md` qui la nomment, et les coche quand un
 parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cités.
 
-- [ ] 11i. Anomalies et déclarations prouvées par le parcours : onglet Anomalies de la
+- [x] 11i. Anomalies et déclarations prouvées par le parcours : onglet Anomalies de la
   fiche, `/anomalies` (ouvertes, filtres, `?tab=gaps`, acquittement avec motif),
   `/property-declarations` (cardinalité, anomalies ouvertes d'une clé) — verify : parcours
   `records` (ou un parcours `anomalies`) sous les deux navigateurs ; lignes 46 à 48 de la
@@ -2392,6 +2392,44 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/shell/src/views/{AnomaliesView,PropertiesView}.vue`, `views/record/` ;
     ancien parcours `web/e2e/journeys/records.spec.ts`
   - dépend de : 11
+  - fait le 2026-11-03 — l'ancien parcours `records` n'avait aucun cas d'anomalie ni de
+    propriété (l'ancien `accessibility` visitait seulement `/anomalies` et `/properties`) :
+    parcours neuf `web/v2/e2e/journeys/anomalies.spec.ts`, trois tests, chacun dans un
+    domaine à lui dont le réseau 198.51.100.0/24 (RFC 5737) ouvre l'avertissement
+    `core.addr.documentation` : l'onglet Anomalies d'un domaine (l'anomalie et son objet,
+    lien vers le réseau) puis du réseau (sans la colonne de l'objet) ; `/anomalies` filtré
+    par domaine au clavier dans la barre (l'URL le garde), « Acquitter… » refusé sans motif
+    (erreur sur le champ, focus rendu au champ), envoyé par Entrée, toast, état vide qui
+    prend le focus, plus rien au serveur pour le domaine ; onglet Lacunes dans l'URL, les
+    filtres des anomalies laissés ; `/property-declarations` : `core.owner` « Une valeur »,
+    « Adressage », la clé attendue `policy.environment` et « Voir les lacunes de… » vers
+    `/anomalies?tab=gaps&property=policy.environment`, sa pastille de filtre. Lignes 46 à
+    48 de `web/v2/PARITE.md` cochées. Manques portés au plus petit : cardinalité et
+    héritage en mots (`words("cardinality", …)` heurtait le titre de colonne, la valeur
+    brute `single` s'affichait ; groupes `cardinalities` et `inheritance`), cellule vide
+    dite par `NoValue` ; focus perdu après l'acquittement (l'invalidation attendue avant la
+    fermeture désarmait la remise du focus de `AnomalyGrid` ; la dernière anomalie
+    emportait la grille) : invalidation non attendue, événement `acknowledged`,
+    `useFocusWhenEmptied` (`views/anomalies/anomaly.ts`) qui met le focus sur l'état vide
+    de `AnomalyList` et de `AnomaliesTab` ; l'onglet dit l'échec d'une page suivante
+    (`NextPageAlert`, au lieu de la taire) et ne la redemande plus en boucle ; vide
+    partiel dit « dans les pages lues » ; lacunes : phrase de l'état vide, propriété
+    absente par `NoValue`. Test `shell/test/anomalies.test.ts` (composable : armé et vide,
+    non armé, désarmé par des lignes restantes, focus déjà ailleurs).
+  - choix : un parcours `anomalies` à lui plutôt qu'un ajout à `records` (d'autres tâches
+    y travaillent) ; l'état vide enveloppé d'un `div tabindex="-1"` (comme
+    `DraftOperations`) plutôt que le focus sur « Ajouter un filtre » (il dit ce qui reste) ;
+    mots « Une valeur », « Plusieurs valeurs », « Adressage », « Entités », « Sites » (un
+    arbre de module reste sa clé).
+  - reste : aucune lacune réelle dans le parcours — `prop.resolution.expected_mismatch`
+    ne naît que d'une source attendue (l'inférence de la politique, ses règles et sa tâche
+    de fond), trop lourde pour un parcours : l'onglet Lacunes y est prouvé vide ou listé,
+    filtré, pas une ligne ; le filtre `object` absent de `GET /v1/anomalies` (relevé par
+    la 11, contourné par l'onglet : anomalies du domaine, dix pages, triées ; rien hors
+    domaine) attend toujours son arbitrage de contrat (006) ; relecture `a11y-auditor`,
+    hors du shell : la raison d'un « Acquitter… » refusé seulement dans une infobulle
+    (`Button`, `web/v2/ui`), une alerte du dialogue insérée remplie peut-être peu annoncée
+    (à juger au lecteur d'écran).
 - [ ] 12c. Réponses d'une écriture et écritures coupées sous `as_of`, prouvées : 202 sous
   une politique d'approbation avec le lien « Voir le changeset » ; 403 du serveur qui garde
   la saisie et dit l'alerte ; éditeurs et actions de la fiche coupés sous `as_of`, le
