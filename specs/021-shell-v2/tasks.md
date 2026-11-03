@@ -2024,24 +2024,27 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     Parcours `admin`, « a person pseudonymised at once, confirmed, then found in the audit
     by object and period » : « Pseudonymiser… » (dans « Plus d'actions » à la largeur du
     panneau), motif vide refusé sans requête, puis une seule requête avec son motif ; nom
-    remplacé par `personne #…`, aucun brouillon ; 409 du serveur sur le compte de secours
-    (« only a person is pseudonymised ») ; l'événement `person.identity.pseudonymised`
-    trouvé par « Ajouter un filtre » : objet (l'identifiant), « Depuis le » aujourd'hui,
-    lu dans le panneau ; « Jusqu'au » hier : recherche vide, filtres retirés, le focus sur
-    « Ajouter un filtre ». Dana (« an administrator of one entity ») : l'entrée refusée
-    avec sa raison, 403 du serveur avant toute lecture. `AuditView.vue` : « Retirer les
-    filtres » levait une exception (`$el` du `FilterPicker` n'est pas un élément : sa
-    racine est celle du popover) ; le focus passe par le parent. Vitest : `audit.test.ts`
-    (période typée en jours, envoyée en instants ; objet ; un jour invalide hors de la
-    requête), `access.test.ts` (409 dit tel quel). `PARITE.md` : trois lignes cochées.
+    remplacé par `personne #…`, aucun brouillon ; 409 du serveur sur un compte de service
+    créé par le parcours (« only a person is pseudonymised ») ; l'événement
+    `person.identity.pseudonymised` trouvé par « Ajouter un filtre » : objet
+    (l'identifiant), « Depuis le » aujourd'hui (jours lus avant la pseudonymisation), lu
+    dans le panneau ; « Jusqu'au » hier : recherche vide, filtres retirés, le focus sur
+    « Ajouter un filtre ». Compte de secours : aucune de ses actions, barre et « Plus
+    d'actions », n'est « Pseudonymiser… ». Dana (« an administrator of one entity ») :
+    l'entrée refusée avec sa raison, 403 du serveur sur un identifiant inconnu (avant toute
+    lecture). `IdentityDetail.vue` : « Pseudonymiser… » offert aussi à un demandeur
+    (`requester`, 016), comme le serveur (`pseudonymisable`, `access.ts`), la sorte
+    `requester` nommée. `AuditView.vue` : « Retirer les filtres » levait une exception
+    (`$el` du `FilterPicker` n'est pas un élément : sa racine est celle du popover) ; le
+    focus passe par le parent, en attendant la méthode exposée de la 11h. Vitest :
+    `audit.test.ts` (période typée en jours, envoyée en instants ; objet ; un jour invalide
+    hors de la requête), `access.test.ts` (409 dit tel quel ; personne et demandeur
+    pseudonymisables, nulle autre sorte). `PARITE.md` : trois lignes cochées.
   - choix : une personne par navigateur plutôt qu'un `global-setup.ts` (une personne ne
     naît que d'une connexion, que le setup ne fait que par l'API) ; 403 et 409 prouvés
     sur le serveur par `apiCall` et, à l'écran, par l'entrée refusée et son absence hors
     d'une personne : l'interface n'envoie jamais ces requêtes, ni un faux serveur.
-  - reste : `ListView.vue` et `ChangesetsView.vue` ont le même `clearFilters` qui lève
-    l'exception (hors périmètre) ; « Pseudonymiser… » d'un demandeur (`requester`, 016),
-    que le serveur accepte, n'est pas offert (le panneau ne l'offre qu'à `person`) ;
-    relectures (mineurs) : l'avertissement d'irréversibilité n'est pas la description du
+  - reste : relectures (mineurs) : l'avertissement d'irréversibilité n'est pas la description du
     dialogue (lu dans son corps, pas annoncé à l'ouverture) ; un motif vide laisse le
     focus sur « Pseudonymiser » (erreur dite par la région polie du champ).
 - [x] 16b. Fin de session annoncée et requêtes de fond : avis deux minutes avant
