@@ -28,15 +28,8 @@ import { useProblems } from "../../problems/index.ts";
 import { useTime } from "../../time/index.ts";
 import { collectionById, nameOf, type Item } from "../collections.ts";
 import { useKeyLabel } from "../data.ts";
-import { useWriteAction } from "./action.ts";
-import {
-  CASCADING,
-  closeOperation,
-  closeVerdict,
-  CONFLICT_RULE,
-  DEPENDENTS_RULE,
-  typeOfKind,
-} from "./close.ts";
+import { isConflict, useWriteAction } from "./action.ts";
+import { CASCADING, closeOperation, closeVerdict, DEPENDENTS_RULE, typeOfKind } from "./close.ts";
 import { editRight } from "./fields.ts";
 import { closeEdit, type CloseRequest } from "./panel.ts";
 import RefusalAlert from "./RefusalAlert.vue";
@@ -108,7 +101,7 @@ const simulating = computed(() =>
 );
 
 // The split button, the motive prefilled, the idempotency key and the outcome said
-// (`action.ts`): the operation is the submission, a cascade or a version read again a new one.
+// (`action.ts`): the key follows the body sent, a cascade or a version read again a new one.
 const {
   action,
   actions,
@@ -123,7 +116,6 @@ const {
 } = useWriteAction({
   rights: () => [editRight(collection.value.type)],
   motive: () => t("edit.close.motive", { kind: kindWords.value, name: name.value }),
-  submission: () => operation.value,
   words: { draft: "edit.close.toDraft", apply: "edit.close.apply", past: "edit.close.past" },
   refused: () => {
     if (conflicted.value) void readAgain();
@@ -136,11 +128,7 @@ const what = computed(() => t("edit.close.what", { kind: kindWords.value, name: 
 const motiveError = ref<string | undefined>();
 
 /** The object changed since its read: the closure is written again on the version read again. */
-const conflicted = computed(() => {
-  const r = refusal.value;
-  if (r?.kind === "conflict") return true;
-  return r?.problem?.violations.some((v) => v.rule === CONFLICT_RULE) ?? false;
-});
+const conflicted = computed(() => isConflict(refusal.value));
 async function readAgain(): Promise<void> {
   await record.refetch();
   const read = item.value;
@@ -148,8 +136,8 @@ async function readAgain(): Promise<void> {
 }
 
 async function run(id: string = action.value): Promise<void> {
-  if (!writing.begin(id)) return;
   motiveError.value = undefined;
+  if (!writing.begin(id)) return;
   if (id === "apply" && motive.value.trim() === "") {
     motiveError.value = t("edit.motiveMissing");
     await nextTick();
@@ -157,13 +145,13 @@ async function run(id: string = action.value): Promise<void> {
     return;
   }
   const operations = [operation.value];
-  await writing.write(what.value, () =>
-    id === "draft"
-      ? addToActiveDraft(operations)
-      : changesets.submit({ motive: motive.value.trim(), operations }, idempotencyKey(), {
-          approvalSelf: true,
-        }),
-  );
+  if (id === "draft") {
+    await writing.write(what.value, () => addToActiveDraft(operations));
+    return;
+  }
+  const submission = { motive: motive.value.trim(), operations };
+  const key = idempotencyKey(submission);
+  await writing.write(what.value, () => changesets.submit(submission, key, { approvalSelf: true }));
 }
 
 function onKeydown(event: KeyboardEvent): void {

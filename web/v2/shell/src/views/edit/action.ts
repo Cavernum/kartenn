@@ -1,9 +1,10 @@
-import { ApiProblem, type WriteOutcome } from "@kartenn/sdk";
+import { ApiProblem, type Submission, type WriteOutcome } from "@kartenn/sdk";
 import { injectToasts, type SplitAction } from "@kartenn/ui";
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSession } from "../../rights/index.ts";
 import { useTime } from "../../time/index.ts";
+import { CONFLICT_RULE } from "./close.ts";
 import { lackingRight } from "./fields.ts";
 import type { Refusal } from "./inline.ts";
 import { closeEdit } from "./panel.ts";
@@ -24,16 +25,19 @@ export interface WriteActionOptions {
   rights: () => readonly string[];
   /** The motive prefilled, until the user writes one of their own. */
   motive: () => string;
-  /**
-   * What the write sends, but its motive: another one (a value typed, a cascade, a version
-   * read again after a conflict) is a new submission, under a new idempotency key.
-   */
-  submission: () => unknown;
   /** The words of the panel: its two actions, and what is said off the present. */
   words: { draft: string; apply: string; past: string };
   /** A refusal of the server, kept in the panel: what the panel does with it besides. */
   refused?: (refusal: Refusal) => void;
 }
+
+/**
+ * Whether the object changed since its read: a 412 of a patch, or a changeset refused for an
+ * operation written on a version no longer current (`changeset.operation.conflict`).
+ */
+export const isConflict = (refusal: Refusal | null): boolean =>
+  refusal?.kind === "conflict" ||
+  (refusal?.problem?.violations.some((v) => v.rule === CONFLICT_RULE) ?? false);
 
 /** A write rejected outright: the problem kept, its code and `Request-Id` said with it. */
 export const failed = (error: unknown): Refusal => ({
@@ -82,13 +86,14 @@ export function useWriteAction(options: WriteActionOptions) {
   }
 
   /**
-   * The key of a write applied at once (REQ-006-15), kept while nothing it sends changes: a
-   * try again after a lost answer replays the same submission. A new operation, or a new
-   * motive, takes a new key — compared when the key is taken, so that no change is missed.
+   * The key of `submission`, the very body a write applied at once sends (REQ-006-15): the
+   * same body again — a try again after a lost answer — replays under the same key; another
+   * one (a value typed, a cascade, a new motive, the version read again after a conflict)
+   * takes a new key. Compared when the key is taken, so that no change is missed.
    */
   let keyed = { of: "", key: "" };
-  function idempotencyKey(): string {
-    const of = JSON.stringify([options.submission(), motive.value.trim()]);
+  function idempotencyKey(submission: Submission): string {
+    const of = JSON.stringify(submission);
     if (of !== keyed.of) keyed = { of, key: crypto.randomUUID() };
     return keyed.key;
   }
@@ -96,6 +101,9 @@ export function useWriteAction(options: WriteActionOptions) {
   const busy = ref(false);
   /** The sentence of the status of the panel. */
   const notice = ref<string | null>(null);
+  /** The sentence the page shows, once rendered. */
+  let shown: string | null = null;
+  watch(notice, (text) => (shown = text), { flush: "post" });
   const refusal = ref<Refusal | null>(null);
 
   /**
@@ -119,9 +127,12 @@ export function useWriteAction(options: WriteActionOptions) {
     refusal.value = null;
     return true;
   }
-  /** A sentence of the status; the same again, emptied first so that it is said again. */
+  /**
+   * A sentence of the status; the same as the one shown, emptied first so that it is said
+   * again (cleared and set again in one tick, the page would not change).
+   */
   function tell(text: string): void {
-    if (notice.value !== text) {
+    if (shown !== text) {
       notice.value = text;
       return;
     }
@@ -169,6 +180,7 @@ export function useWriteAction(options: WriteActionOptions) {
     busy,
     notice,
     refusal,
+    tell,
     begin,
     settle,
     write,

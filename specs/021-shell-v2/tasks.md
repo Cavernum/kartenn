@@ -2269,9 +2269,17 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     rend le bouton et dit le problème — les deux en échec sur l'`EditPanel` d'avant) ;
     `edit.test.ts` et `close.test.ts` inchangés et verts (conflit de la 11g compris).
   - choix : la clé se compare quand on la prend (l'envoi sérialisé avec son motif), au lieu
-    d'un `watch` qui la renouvelait — aucun changement manqué entre deux ticks ; la
-    soumission d'`EditPanel` est la sorte, les valeurs et la version lue ; `write.quick` en
-    échec garde son problème (avant : `problem: null`).
+    d'un `watch` qui la renouvelait — aucun changement manqué entre deux ticks ;
+    `write.quick` en échec garde son problème (avant : `problem: null`).
+  - corrections de revue : `idempotencyKey(submission)` prend le corps même qui part (le
+    changement de parent le demande à `useMoves`, `MoveOptions.idempotencyKey`, avec
+    l'opération et son `expected`) ; un conflit d'un changeset (`changeset.operation.conflict`,
+    `isConflict`, servi sans `current`) fait relire l'objet dans `EditPanel` comme dans
+    `ClosePanel` ; `useMoves.move` rejeté ne laisse plus le nœud `pending` ; `edit.unchanged`
+    dit par `tell`, qui compare à la phrase rendue ; l'erreur du motif de `ClosePanel`
+    effacée avant `begin` ; tests montés : clôture (même clé après un 503, une autre et la
+    version relue après un conflit), déplacement appliqué (conflit, relecture, second envoi
+    à `V2` sous une autre clé — en échec sur le code d'avant la correction).
   - reste : une alerte `warn` (conflit 412) de `RefusalAlert` est un `role="status"` inséré
     avec son contenu, peu annoncé par les lecteurs d'écran (antérieur, `InlineAlert` de
     `web/v2/ui`, hors de cette tâche ; revue `a11y-auditor`).

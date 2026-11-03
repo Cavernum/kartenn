@@ -46,7 +46,7 @@ import {
 import ProblemState from "../../problems/ProblemState.vue";
 import { problemCode, useProblems } from "../../problems/index.ts";
 import { rowsOf, useKeyLabel } from "../data.ts";
-import { failed, useWriteAction } from "./action.ts";
+import { failed, isConflict, useWriteAction } from "./action.ts";
 import {
   ANCHOR_KINDS,
   changesOf,
@@ -315,8 +315,8 @@ const destination = computed(() => {
   return optionsOf(fields.value[0]!).find((o) => o.value === parent)?.label ?? parent;
 });
 // The split button, the generic motive prefilled, the idempotency key and the outcome said
-// (`action.ts`): an input of the user, another kind, or the version read again after a 412
-// is a new submission.
+// (`action.ts`): the key follows the body sent — an input of the user, another kind, the
+// version read again after a conflict, a new one.
 const {
   action,
   actions,
@@ -338,7 +338,6 @@ const {
         ? t("edit.motiveCreate", words)
         : t(moving.value ? "edit.move.motive" : "edit.motiveModify", words);
   },
-  submission: () => [chosenKind.value, values.value, version.value],
   words: { draft: "edit.toDraft", apply: "edit.apply", past: "edit.why.past" },
   refused,
 });
@@ -414,14 +413,19 @@ function refused(answer: Refusal): void {
     );
     void toFirstError();
   }
-  if (answer.kind === "conflict") {
-    // Applying again writes on the version read again; the input stays.
-    const current = answer.current?.data as Item | undefined;
-    if (current) {
-      before.value = initialValues(fields.value, current);
-      version.value = typeof current.version === "string" ? current.version : version.value;
-    }
-  }
+  // Applying again writes on the version read again; the input stays. A 412 gives it; a
+  // changeset refused for a version no longer current (a move) does not: read again here.
+  const current = answer.kind === "conflict" ? (answer.current?.data as Item | undefined) : null;
+  if (current) readAt(current);
+  else if (isConflict(answer)) void readAgain();
+}
+function readAt(current: Item): void {
+  before.value = initialValues(fields.value, current);
+  version.value = typeof current.version === "string" ? current.version : version.value;
+}
+async function readAgain(): Promise<void> {
+  await record.refetch();
+  if (item.value) readAt(item.value);
 }
 
 async function run(id: string = action.value): Promise<void> {
@@ -450,7 +454,7 @@ async function run(id: string = action.value): Promise<void> {
     ? values.value
     : changesOf(fields.value, before.value, values.value);
   if (!creating.value && Object.keys(changes).length === 0) {
-    notice.value = t("edit.unchanged");
+    writing.tell(t("edit.unchanged"));
     return;
   }
   // A VLAN for a network: its creation and the setting of `core.vlan` by its local name —
@@ -470,7 +474,7 @@ async function run(id: string = action.value): Promise<void> {
       motive: motive.value.trim(),
       operations: network.value ? vlanForNetwork(op, network.value, 0) : [op],
     };
-    const key = idempotencyKey();
+    const key = idempotencyKey(submission);
     await writing.write(what, () => changesets.submit(submission, key, { approvalSelf: true }));
     return;
   }
@@ -497,7 +501,7 @@ async function moveTo(parent: string, now: boolean, what: string): Promise<void>
     return;
   }
   if (parent === (before.value.parent ?? "")) {
-    notice.value = t("edit.unchanged");
+    writing.tell(t("edit.unchanged"));
     return;
   }
   busy.value = true;
@@ -506,7 +510,7 @@ async function moveTo(parent: string, now: boolean, what: string): Promise<void>
   const outcome: MoveOutcome | Refusal = await moves
     .move(
       { node: movedNode.value, target: parent ? { id: parent, label } : null },
-      { now, motive: motive.value.trim(), idempotencyKey: idempotencyKey() },
+      { now, motive: motive.value.trim(), idempotencyKey },
     )
     .catch(failed);
   const refuse = (check: { reason: string; code?: string }) => {
@@ -516,7 +520,7 @@ async function moveTo(parent: string, now: boolean, what: string): Promise<void>
   };
   if (outcome.kind === "unchanged") {
     busy.value = false;
-    notice.value = t("edit.unchanged");
+    writing.tell(t("edit.unchanged"));
   } else if (outcome.kind === "refused") refuse(outcome.check);
   else if (outcome.kind === "drafted") {
     const state = moves.moveState(movedNode.value);

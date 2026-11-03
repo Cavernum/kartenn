@@ -11,6 +11,7 @@ import {
   type MoveSubject,
   type MoveVerdict,
   type Operation,
+  type Submission,
   type WriteOutcome,
 } from "@kartenn/sdk";
 import type { MoveCheck, MoveIntent, MoveState, TreeNode } from "@kartenn/ui";
@@ -85,6 +86,14 @@ export interface MoveModel {
   subject(node: TreeNode): MoveNode | undefined;
   /** The ancestors of a node the host has read, from its parent up. */
   ancestors(id: string): readonly string[];
+}
+
+/** A move to the draft, or applied now (`now`) with its motive. */
+export interface MoveOptions {
+  now?: boolean;
+  motive?: string;
+  /** The idempotency key of the very submission applied now; a new key each by default. */
+  idempotencyKey?: (submission: Submission) => string;
 }
 
 /**
@@ -195,13 +204,21 @@ export function useMoves(model: MoveModel) {
    * Moves `intent.node` under `intent.target`, checked again first: to the draft by default,
    * applied now (`now`, with its motive) otherwise. Nothing of the tree is written here.
    */
-  async function move(
-    intent: MoveIntent,
-    options: { now?: boolean; motive?: string; idempotencyKey?: string } = {},
-  ): Promise<MoveOutcome> {
-    const { node, target } = intent;
+  async function move(intent: MoveIntent, options: MoveOptions = {}): Promise<MoveOutcome> {
+    const { node } = intent;
     // A second intent while one is in flight: ignored, whatever the target.
     if (states.get(node.id) === "pending") return { kind: "unchanged" };
+    try {
+      return await moved(intent, options);
+    } catch (error) {
+      // Rejected outright (the network, an unreadable answer): the node is no longer in
+      // flight, so that a move of it is tried again; the rejection is the caller's to say.
+      if (states.get(node.id) === "pending") states.delete(node.id);
+      throw error;
+    }
+  }
+  async function moved(intent: MoveIntent, options: MoveOptions): Promise<MoveOutcome> {
+    const { node, target } = intent;
     const subject = model.subject(node);
     const to = target ? model.subject(target) : null;
     const verdict = canMove(node, target);
@@ -217,9 +234,10 @@ export function useMoves(model: MoveModel) {
     if (expected === null) return refuse(node.id, { ok: false, reason: t("edit.move.noVersion") });
     const op = operation(subject, expected, to ?? null);
     if (options.now) {
+      const submission: Submission = { motive: options.motive ?? "", operations: [op] };
       const outcome = await changesets.submit(
-        { motive: options.motive ?? "", operations: [op] },
-        options.idempotencyKey ?? crypto.randomUUID(),
+        submission,
+        options.idempotencyKey?.(submission) ?? crypto.randomUUID(),
         { approvalSelf: true },
       );
       // Applied: the reads of the tree were invalidated and read again before the answer
