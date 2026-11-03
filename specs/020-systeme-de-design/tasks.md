@@ -1280,15 +1280,22 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     distincts, pour les deux arbres), `ui/test/components-base.test.ts` (`Heading`,
     `AttributeList`). Corrigé après les relectures (ui-reviewer, a11y-auditor) : le
     liseré de l'aperçu de `TreeGrid` ne passe plus sur l'anneau de focus d'une cellule.
+    Corrigé après la revue de la branche : le contour d'une cible de dépôt l'emporte sur
+    le tireté de l'aperçu (règle de l'aperçu sous `:where()`, `Tree` et `TreeGrid` ;
+    états de catalogue `drop-accepted-preview`, `drop-refused-preview`) ; un emplacement
+    fourni qui ne rend rien est dit « non renseigné » ; la disposition en tuiles est la
+    prop `tile` (plus de classe publique `k-attribute-list-tiles` à poser) ; le test des
+    marques compte aussi celles à modificateur.
   - choix : états aussi rendus par `Tree` (le type `TreeNodeState` leur est commun) ;
     `AttributeList` gardé sous son nom, déplacé plutôt que doublé (classes renommées au
-    format `k-<composant>`, `k-attribute-list-tiles` pour la grille des blocs) ; valeur
-    absente = `undefined`, `null` ou `""` sans emplacement ; taille par défaut du titre
+    format `k-<composant>`) ; valeur absente = `undefined`, `null`, `""` ou emplacement
+    qui ne rend que des commentaires ou des blancs ; taille par défaut du titre
     tirée du niveau ; le titre va à la ligne sur un nom sans espace (`overflow-wrap:
     anywhere`), la valeur d'une liste aussi.
   - reste : usages à brancher par une tâche suivante — `TopologyView.vue` (ligne au
     présent `moved`, ligne d'aperçu `preview` au lieu de `draft` pour les deux),
-    `MachineRecord`, `InterfaceRecord`, `ClusterRecord` du plugin Machines (`Grid
+    `web/v2/plugins/machines/src/HostingTree.vue` (`nodeState` : `draft` → `moved` ou
+    `preview`), `MachineRecord`, `InterfaceRecord`, `ClusterRecord` du plugin Machines (`Grid
     as="dl"` et `h1`/`h2` nus → `AttributeList`, `Heading`), titres recopiés du shell
     (`k-login__title`, `k-about__title`, `k-plugin-view__title`, `k-pending__title`,
     `k-help__title`, `k-edit-panel__title`, `k-network-vlan__title`) → `Heading` ;
