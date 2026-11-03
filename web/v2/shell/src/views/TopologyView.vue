@@ -59,7 +59,7 @@ import { childrenIntent } from "../prefetch/tree.ts";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
 import { useTime } from "../time/index.ts";
-import { collectionById, pageOfObject, type CollectionId, type Item } from "./collections.ts";
+import { collectionById, pageOfObject, type Item } from "./collections.ts";
 import { draftedValues, editRight } from "./edit/fields.ts";
 import EditHint from "./edit/EditHint.vue";
 import { whyWords } from "./edit/inline.ts";
@@ -74,6 +74,8 @@ import { shareOf } from "./occupancy.ts";
 import {
   cappedKey,
   cappedParent,
+  kindsIn,
+  restOf,
   draftStateOf,
   isCapped,
   isPreview,
@@ -273,29 +275,28 @@ const roots = computed(() => results.get(null));
 
 // Past the pages the cache keeps of a level (021/A34, 10⁴ children), the row under its
 // last child says so and leads to the list « dans ce préfixe » — the kind a node holds
-// (`kindsIn`), filtered by `within` —, or for the first level to the prefixes of the domain.
-/** Where the rest of a level capped is listed: a list of the core, filtered. */
-function restOf(parent: string | null): { name: CollectionId; query: Record<string, string> } {
-  if (parent === null)
-    return { name: "prefixes", query: domain.value ? { domain: domain.value } : {} };
-  const node = nodeById(parent);
-  return { name: kindsIn(node)[0]!, query: { within: node ? valueOf(node) : "" } };
-}
+// (`kindsIn`), filtered by `within` —, or for the first level to the prefixes of the domain
+// (`restOf`); a parent or a domain not known, to none.
+const restAt = (parent: string | null) =>
+  restOf(parent, parent === null ? undefined : nodeById(parent), domain.value);
 function noticeOf(parent: string | null): TreeNode {
   const count = new Intl.NumberFormat(locale.value).format(levelOf(parent)?.items.length ?? 0);
-  const rest = restOf(parent);
+  const rest = restAt(parent);
   return {
     id: cappedKey(parent),
     label:
-      parent === null
-        ? t("views.topology.capped.roots", { n: count, name: domainSlug.value })
-        : t(`views.topology.capped.${rest.name}`, { n: count, within: rest.query.within }),
+      rest === null
+        ? t("views.topology.capped.nowhere", { n: count })
+        : parent === null
+          ? t("views.topology.capped.roots", { n: count, name: domainSlug.value })
+          : t(`views.topology.capped.${rest.name}`, { n: count, within: rest.query.within }),
     icon: "info",
   };
 }
-/** The row of a notice chosen or activated: its list. */
+/** The row of a notice chosen or activated: its list, when it has one. */
 function openRest(key: string): void {
-  void router.push(restOf(cappedParent(key)));
+  const rest = restAt(cappedParent(key));
+  if (rest !== null) void router.push(rest);
 }
 
 // Parents deduced (D34, REQ-021-17): no move is offered; a node whose value the active
@@ -484,9 +485,6 @@ function onActivate(id: string): void {
 // panel refuses, visibly, what the rights do not allow. `c` adds in the node of the focus
 // in the tree, else in the chosen one (021/A20).
 const session = useSession();
-/** The kinds a node may hold: a network its addresses and ranges, else prefixes. */
-const kindsIn = (node: Shown | undefined): CollectionId[] =>
-  node?.kind === "prefix" && node.nature === "network" ? ["addresses", "ranges"] : ["prefixes"];
 /**
  * Why adding in `node` (the first level without one) is refused: off the present, or
  * without the right to write any kind it may hold — the first one named, as served.

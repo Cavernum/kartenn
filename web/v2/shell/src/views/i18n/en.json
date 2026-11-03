@@ -272,7 +272,8 @@
       "capped": {
         "prefixes": "The tree stops at {n} nodes: Enter opens the list of the prefixes within {within}",
         "addresses": "The tree stops at {n} nodes: Enter opens the list of the addresses within {within}",
-        "roots": "The tree stops at {n} nodes: Enter opens the list of the prefixes of the domain {name}"
+        "roots": "The tree stops at {n} nodes: Enter opens the list of the prefixes of the domain {name}",
+        "nowhere": "The tree stops at {n} nodes"
       }
     },
     "anomalies": {

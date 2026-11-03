@@ -3377,7 +3377,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     l'avis compte dans `aria-setsize` (10 001 au lieu d'inconnu) : il faudrait à `TreeGrid`
     une marque `capped` qui l'en sorte (020) ; sous un réseau plafonné, l'avis mène aux
     adresses, pas aux plages.
-- [ ] 7a. Préchargement au survol sans lecture pendant un défilement (relevé par la revue
+- [x] 7a. Préchargement au survol sans lecture pendant un défilement (relevé par la revue
   de la 24e) : `childrenIntent` (`web/v2/shell/src/prefetch/tree.ts` vers la ligne 30) lit
   les enfants de chaque ligne qui passe sous le pointeur immobile pendant un défilement
   (une centaine de lectures `/children` vides pour 50 pages) ; l'intention ne naît que d'un
@@ -3391,6 +3391,29 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/shell/src/prefetch/tree.ts`, `web/v2/shell/src/views/TopologyView.vue`,
     `web/v2/shell/test/prefetch.test.ts`
   - dépend de : 7, 24e
+  - fait : Chromium et Firefox envoient `pointerover` et `pointerenter` à une ligne ou un
+    lien qui défile sous un pointeur immobile, jamais `pointermove` (essai mesuré, à
+    `scrollTop` et à la molette) ; la même faille tenait les liens. `childrenIntent`
+    (`tree.ts`) arme le délai sur `pointermove`, et `pointerover` d'une autre ligne
+    sans mouvement met fin au survol en cours ; `prefetch.intent` (`sdk/src/data/
+    prefetch.ts`, derrière `KLink`) arme sur le premier `pointermove` du lien, les
+    suivants gardent le délai, `pointerleave` le remet à zéro ; 60 ms et focus
+    inchangés. `restOf` et `kindsIn` passent dans `topology.ts` (purs) : `null` sans le
+    préfixe parent lu (ou sa valeur) ou sans domaine, l'avis dit alors « L'arbre s'arrête
+    à N nœuds » sans destination et Entrée n'ouvre rien. Vitest :
+    `shell/test/prefetch.test.ts` (lignes défilées sous le pointeur, chacune 120 ms :
+    aucune lecture ; survol commencé puis remplacé par défilement : aucune ; mouvement
+    sur la ligne venue : une lecture ; lien défilé sous le pointeur : aucune),
+    `sdk/test/prefetch.test.ts` (entrée sans mouvement : rien, puis mouvement : lecture ;
+    mouvements suivants gardent le délai), `shell/test/topology.test.ts` (destinations
+    résolues par les routes du cadre et lectures déclarées : préfixes `within` sous un
+    conteneur, adresses `within` sous un réseau, `domain` au premier niveau ; `null`
+    sans parent, sans valeur ou sans domaine) ; parcours `tree` : molette sous le
+    pointeur posé sur le nœud ouvert, aucune lecture de `/children` d'une ligne passée,
+    sous les deux navigateurs. Banc (22a) non lancé.
+  - choix : le mouvement se reconnaît à `pointermove` seul, sans comparer les
+    coordonnées (aucun navigateur n'en envoie au défilement) ; clé `capped.nowhere` pour
+    l'avis sans destination (état de course, parent relu ailleurs) plutôt que pas d'avis.
 - [ ] 22a. Mesures restantes du banc web : la page de 100 lignes rend son chiffre (lectures
   servies en 304 comptées à part, déjà codé, pas encore passé) ; l'arbre chargé jusqu'au
   bout avant le défilement, une fois la 24e faite, sur 10⁴ lignes ; navigation en cache au
