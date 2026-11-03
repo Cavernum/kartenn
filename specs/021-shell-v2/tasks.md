@@ -2430,6 +2430,21 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     hors du shell : la raison d'un « Acquitter… » refusé seulement dans une infobulle
     (`Button`, `web/v2/ui`), une alerte du dialogue insérée remplie peut-être peu annoncée
     (à juger au lecteur d'écran).
+- [ ] 11j. Une ligne de lacune prouvée (relevé par la revue de la 11i) : l'onglet Lacunes
+  de `/anomalies` rend une vraie lacune (clé en `KeyLabel`, objet, message, `NoValue` pour
+  une propriété absente), produite par une source attendue dans le jeu des parcours
+  (règle d'inférence de la politique et sa passe, ou une déclaration attendue posée par le
+  `global-setup.ts`, au plus léger) ; au passage, l'onglet Anomalies d'une fiche traite un
+  curseur refusé (`invalid-cursor`) comme `list.ts` (`nextFailed`, `resetQueries`) au lieu
+  de le renvoyer à chaque « Réessayer », et montre l'état vide « dans les pages lues »
+  quand la page suivante est refusée — verify : parcours `anomalies` (une ligne de lacune
+  lue) sous les deux navigateurs ; Vitest du curseur refusé ; ligne 47 de la liste dite
+  sans réserve
+  - où : `web/v2/shell/src/views/anomalies/GapList.vue`,
+    `web/v2/shell/src/views/record/AnomaliesTab.vue` (vers les lignes 83 et 94),
+    `web/v2/shell/src/views/list.ts` (forme) ; `web/v2/e2e/journeys/anomalies.spec.ts`,
+    `web/v2/e2e/journeys/global-setup.ts`
+  - dépend de : 11i
 - [ ] 12c. Réponses d'une écriture et écritures coupées sous `as_of`, prouvées : 202 sous
   une politique d'approbation avec le lien « Voir le changeset » ; 403 du serveur qui garde
   la saisie et dit l'alerte ; éditeurs et actions de la fiche coupés sous `as_of`, le
