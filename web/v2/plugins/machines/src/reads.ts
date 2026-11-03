@@ -4,14 +4,13 @@
 
 // What the elements read beside their own lists: the names of the objects they cite (an
 // owner, a host, a VLAN), read once each through the shared cache, a few at a time; and
-// what they compute from it (802.1Q mode, an address within a network).
+// what they compute from it (802.1Q mode).
 
 import { queryClient, reads, type components, type Entry } from "@kartenn/sdk";
 import { t } from "./dom.ts";
 
 export type Machine = components["schemas"]["Machine"];
 export type MachineCard = components["schemas"]["MachineCard"];
-export type MachineAddress = components["schemas"]["MachineAddress"];
 export type Interface = components["schemas"]["Interface"];
 export type Cluster = components["schemas"]["Cluster"];
 export type Vlan = components["schemas"]["Vlan"];
@@ -103,48 +102,4 @@ export function modeOf(iface: Interface, names: Names): string {
     default:
       return t("mode.none");
   }
-}
-
-/** An address as a number and its family; `null` if it is not one. */
-function parse(value: string): { family: 4 | 6; value: bigint } | null {
-  if (value.includes(".") && !value.includes(":")) {
-    const parts = value.split(".");
-    if (parts.length !== 4 || parts.some((p) => !/^\d{1,3}$/.test(p) || Number(p) > 255)) {
-      return null;
-    }
-    return { family: 4, value: parts.reduce((n, p) => (n << 8n) | BigInt(p), 0n) };
-  }
-  // IPv6, with `::` and a dotted IPv4 tail (RFC 4291 §2.2).
-  let text = value.toLowerCase();
-  const tail = /(\d+\.\d+\.\d+\.\d+)$/.exec(text);
-  if (tail) {
-    const v4 = parse(tail[1]!);
-    if (!v4) return null;
-    const high = Number(v4.value >> 16n).toString(16);
-    const low = Number(v4.value & 0xffffn).toString(16);
-    text = `${text.slice(0, -tail[1]!.length)}${high}:${low}`;
-  }
-  const halves = text.split("::");
-  if (halves.length > 2) return null;
-  const groups = (half: string) => (half ? half.split(":") : []);
-  const head = groups(halves[0]!);
-  const rest = halves.length === 2 ? groups(halves[1]!) : [];
-  const missing = 8 - head.length - rest.length;
-  if (missing < 0 || (halves.length === 1 && missing !== 0)) return null;
-  const all = [...head, ...Array<string>(missing).fill("0"), ...rest];
-  if (all.some((g) => !/^[0-9a-f]{1,4}$/.test(g))) return null;
-  return { family: 6, value: all.reduce((n, g) => (n << 16n) | BigInt(`0x${g}`), 0n) };
-}
-
-/** Whether `address` lies in `prefix` (`192.0.2.0/24`, `2001:db8::/32`). */
-export function within(address: string, prefix: string): boolean {
-  const [network, length] = prefix.split("/");
-  const a = parse(address);
-  const p = network === undefined ? null : parse(network);
-  if (!a || !p || a.family !== p.family) return false;
-  const width = a.family === 4 ? 32 : 128;
-  const bits = length === undefined ? width : Number(length);
-  if (!Number.isInteger(bits) || bits < 0 || bits > width) return false;
-  const shift = BigInt(width - bits);
-  return a.value >> shift === p.value >> shift;
 }

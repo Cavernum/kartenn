@@ -23,7 +23,7 @@ const IFACE = "6a1d3e70-58c4-4f0b-9e2a-1c7d5b3f9e42";
 const VLAN = "7e2b1c90-1d4a-4c3e-8b5f-0a9d8c7b6e53";
 const VLAN_B = "7e2b1c90-1d4a-4c3e-8b5f-0a9d8c7b6e54";
 const ADDRESS = "8f3c2da1-2e5b-4d4f-9c60-1b0e9d8c7f64";
-const OUTSIDE = "8f3c2da1-2e5b-4d4f-9c60-1b0e9d8c7f65";
+const ADDRESS_B = "8f3c2da1-2e5b-4d4f-9c60-1b0e9d8c7f65";
 const PREFIX = "9a4d3eb2-3f6c-4e50-8d71-2c1f0e9d8a75";
 const DRAFT = "1b5e4fc3-4071-4f61-9e82-3d2a1f0e9b86";
 const MAC = "00:00:5e:00:53:01";
@@ -458,46 +458,37 @@ describe("the record of an interface (task 18cc)", () => {
 });
 
 describe("the « Interfaces » tab (task 18cc)", () => {
-  const addresses = () =>
-    ({
-      items: [
-        {
-          address: { id: ADDRESS },
-          value: "192.0.2.10",
-          interface: { id: IFACE },
-          interface_name: "eth0",
-          primary: true,
-          href: "",
-        },
-        {
-          address: { id: OUTSIDE },
-          value: "198.51.100.1",
-          interface: { id: IFACE },
-          interface_name: "eth0",
-          primary: false,
-          href: "",
-        },
-      ],
-      links: {},
-    }) as never;
+  /** An interface of the network with its addresses in it, as `?network=` serves it. */
+  const held = (addresses: Interface["addresses"], id = IFACE, name = "eth0") =>
+    ({ ...iface(), id, name, href: `/v1/interfaces/${id}`, addresses }) as Interface;
 
-  it("of a network: the interfaces of its machines that hold one of its addresses", async () => {
+  it("of a network: each address of the network held by an interface, in one list (18e)", async () => {
+    const asked: string[] = [];
     mounted = mount("machines-tab", {
       object: { type: "prefix", id: PREFIX, href: `/v1/prefixes/${PREFIX}` },
       context: { locale: "en" },
       fetch: fakeFetch({
-        "GET /v1/prefixes/{id}": () => ({ id: PREFIX, value: "192.0.2.0/24" }) as never,
-        "GET /v1/machines": ({ query }) => {
-          expect(query.get("network")).toBe(PREFIX);
-          return page([machine()]);
+        "GET /v1/interfaces": ({ query }) => {
+          asked.push(query.toString());
+          return page([
+            held([
+              { id: ADDRESS, value: "192.0.2.10", primary: true },
+              { id: ADDRESS_B, value: "192.0.2.11", primary: false },
+            ]),
+          ]);
         },
-        "GET /v1/machines/{id}/addresses": addresses,
+        "GET /v1/machines/{id}": () => machine() as never,
       }),
     });
     const { element } = mounted;
     await vi.waitFor(() =>
-      expect(rows(element, "Interfaces")).toEqual([["eth0", "srv-a", "192.0.2.10", "yes"]]),
+      expect(rows(element, "Interfaces")).toEqual([
+        ["eth0", "srv-a", "192.0.2.10", "yes"],
+        ["eth0", "srv-a", "192.0.2.11", "no"],
+      ]),
     );
+    // One list, by the network: no read of the network nor of each machine's addresses.
+    expect(asked).toEqual([`network=${PREFIX}`]);
     const links = [...element.querySelectorAll("[role=gridcell] a")].map((a) =>
       a.getAttribute("href"),
     );
@@ -505,64 +496,44 @@ describe("the « Interfaces » tab (task 18cc)", () => {
       `/x/machines/interfaces/${IFACE}`,
       `/x/machines/machines/${MACHINE}`,
       `/addresses/${ADDRESS}`,
+      `/x/machines/interfaces/${IFACE}`,
+      `/x/machines/machines/${MACHINE}`,
+      `/addresses/${ADDRESS_B}`,
     ]);
     // No heading of its own: the tab of the shell names its panel.
     expect(element.querySelector("h1, h2")).toBeNull();
   });
 
-  it("of a network: the addresses read a few at a time, the next page after them, each once", async () => {
-    const asked = new Map<string, number>();
-    let reading = 0;
-    let most = 0;
-    let answered = 0;
-    /** How many addresses were answered when the second page of machines was asked. */
-    let answeredAtPage2: number | null = null;
+  it("of a network: the next page as the window nears its end, each machine named once", async () => {
+    const pages: string[] = [];
+    const named = new Map<string, number>();
     const many = (from: number, n: number) =>
       Array.from({ length: n }, (_, i) => ({
-        ...machine(),
-        id: `m${from + i}`,
-        name: `srv-${from + i}`,
+        ...held([{ id: `addr-${from + i}`, value: `192.0.2.${from + i + 1}`, primary: true }]),
+        id: `i${from + i}`,
+        machine: { id: `m${(from + i) % 3}` },
       }));
     mounted = mount("machines-tab", {
       object: { type: "prefix", id: PREFIX, href: `/v1/prefixes/${PREFIX}` },
       context: { locale: "en" },
       fetch: fakeFetch({
-        "GET /v1/prefixes/{id}": () => ({ id: PREFIX, value: "192.0.2.0/24" }) as never,
-        "GET /v1/machines": ({ query }: { query: URLSearchParams }) => {
-          if (!query.get("cursor")) return page(many(0, 6), "/v1/machines?cursor=p2");
-          answeredAtPage2 = answered;
+        "GET /v1/interfaces": ({ query }: { query: URLSearchParams }) => {
+          pages.push(query.get("cursor") ?? "first");
+          if (!query.get("cursor")) return page(many(0, 6), "/v1/interfaces?cursor=p2");
           return page(many(6, 1));
         },
-        "GET /v1/machines/{id}/addresses": async ({ params }: { params: { id: string } }) => {
-          asked.set(params.id, (asked.get(params.id) ?? 0) + 1);
-          most = Math.max(most, ++reading);
-          await new Promise((done) => setTimeout(done, 5));
-          reading--;
-          answered++;
-          const i = Number(params.id.slice(1));
-          return {
-            items: [
-              {
-                address: { id: `addr-${i}` },
-                value: `192.0.2.${i + 1}`,
-                interface: { id: IFACE },
-                interface_name: "eth0",
-                primary: true,
-                href: "",
-              },
-            ],
-            links: {},
-          } as never;
+        "GET /v1/machines/{id}": ({ params }: { params: { id: string } }) => {
+          named.set(params.id, (named.get(params.id) ?? 0) + 1);
+          return { ...machine(), id: params.id, name: `srv-${params.id}` } as never;
         },
       } as never),
     });
     const { element } = mounted;
     await vi.waitFor(() => expect(rows(element, "Interfaces")).toHaveLength(7));
-    // Never more than four at once; the page 2 once the six of the first answered.
-    expect(most).toBeLessThanOrEqual(4);
-    expect(answeredAtPage2).toBe(6);
-    // The observers of the first page kept with the second: each machine read once.
-    expect([...asked.values()]).toEqual([1, 1, 1, 1, 1, 1, 1]);
+    await vi.waitFor(() => expect(rows(element, "Interfaces")[6]![1]).toBe("srv-m0"));
+    expect(pages).toEqual(["first", "p2"]);
+    // Three machines for seven interfaces: each named once, through the shared cache.
+    expect([...named.values()]).toEqual([1, 1, 1]);
     // Let go once the tab is gone: an invalidation reads nothing again.
     mounted.unmount();
     mounted = null;
@@ -575,7 +546,8 @@ describe("the « Interfaces » tab (task 18cc)", () => {
     expect(observed.map((q) => q.queryKey)).toEqual([]);
     await queryClient.invalidateQueries();
     await new Promise((done) => setTimeout(done, 20));
-    expect([...asked.values()]).toEqual([1, 1, 1, 1, 1, 1, 1]);
+    expect(pages).toEqual(["first", "p2"]);
+    expect([...named.values()]).toEqual([1, 1, 1]);
   });
 
   it("of an address and of a VLAN: the interfaces that hold or carry it", async () => {

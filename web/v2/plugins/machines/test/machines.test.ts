@@ -17,7 +17,6 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import en from "../public/i18n/en.json";
 import fr from "../public/i18n/fr.json";
 import manifest from "../public/manifest.json";
-import { within } from "../src/reads.ts";
 
 // The machines plugin in the sandbox of the SDK (spec 021, task 18a): announced as the shell
 // would, its module loaded, each element mounted with a context and a simulated `fetch`. Its
@@ -486,14 +485,5 @@ describe("the machines plugin", () => {
       await lightText(element, "The draft takes operations at the present only.");
       expect(element.querySelector("form")).toBeNull();
     });
-  });
-
-  it("tells an address within a network, in IPv4 and IPv6", () => {
-    expect(within("192.0.2.10", "192.0.2.0/24")).toBe(true);
-    expect(within("198.51.100.1", "192.0.2.0/24")).toBe(false);
-    expect(within("2001:db8::1", "2001:db8::/32")).toBe(true);
-    expect(within("2001:db9::1", "2001:db8::/32")).toBe(false);
-    expect(within("::ffff:192.0.2.1", "::ffff:192.0.2.0/120")).toBe(true);
-    expect(within("192.0.2.10", "2001:db8::/32")).toBe(false);
   });
 });
