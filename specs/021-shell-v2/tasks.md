@@ -2487,6 +2487,25 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/shell/src/draft/` (`DraftSubmit`, `LostSubmissions`) ; ancien parcours
     `web/e2e/journeys/draft.spec.ts`
   - dépend de : 14, 12b
+- [ ] 14e. Brouillon daté sous `valid_at` seul (REQ-021-5, X5 ; relevé par la revue de la
+  12c) : « Ajouter au brouillon » sous une date de validité préremplit `valid_from` du
+  brouillon ; le panneau et la page du brouillon laissent retirer une opération et
+  soumettre à la date lue (aujourd'hui refusés hors présent : `draft/state.ts` vers la
+  ligne 118, `DraftOperations.vue` vers les lignes 75 et 145, `DraftsView.vue` vers la
+  ligne 99) ; sous `as_of`, tout reste en lecture seule (14d) — verify : Vitest de l'état
+  du brouillon par période ; parcours `draft` et `time` (une opération ajoutée sous
+  `valid_at`, retirée puis soumise à la date lue) sous les deux navigateurs
+  - où : `web/v2/shell/src/draft/`, `writesOf` de `web/v2/shell/src/time/index.ts`
+  - dépend de : 12c, 14d
+- [ ] 12d. Créer sous `valid_at` seul (REQ-021-5, X5 ; relevé par la revue de la 12c) :
+  « Créer » (`c`) des listes et « + » de la Topographie mènent au brouillon daté sous une
+  date de validité, comme « Modifier » de la fiche ; « Appliquer » refusé avec sa raison ;
+  rien sous `as_of` ; la raison d'une cellule sous `valid_at` dit le brouillon daté, et
+  non « revenez au présent » — verify : Vitest des raccourcis par période ; parcours
+  `time` (création au brouillon sous `valid_at`) sous les deux navigateurs
+  - où : `web/v2/shell/src/views/{ListView,TopologyView}.vue`, `shortcuts/view.ts`
+    (`dated`), `views/edit/` ; `writesOf`
+  - dépend de : 12c
 - [x] 16h. « À propos » et actions des plugins, reste prouvé : versions (shell, SDK,
   `@kartenn/ui`, Vue, serveur) et fuseau horaire affichés ; une action de plugin absente
   sans sa permission — verify : parcours `shell` et `plugins` sous les deux navigateurs ;
