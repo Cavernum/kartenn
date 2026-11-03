@@ -3455,6 +3455,25 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - étendue le 2026-11-03 (A33) : les gardes du parcours `smoke` de l'ancien shell (une
     violation axe et un script en ligne font chacun échouer un parcours) prouvées par un
     test des fixtures de `web/v2/e2e/`
+  - découpée le 2026-11-03 en 21a et 21b
+- [ ] 21a. Accessibilité, portage et gardes : le parcours `accessibility` de l'ancien shell
+  porté sous `web/v2/e2e/journeys/` (« every journey runs axe », « every screen of the shell
+  passes axe » avec les listes `/ranges`, `/entities`, `/sites`, « the tree, a table, an
+  action menu and a dialog by the keyboard alone ») ; les gardes des fixtures prouvées par
+  un test (une violation axe et un script en ligne font chacun échouer un parcours) —
+  verify : `k-web2-e2e journeys/accessibility.spec.ts` sous les deux navigateurs ; les six
+  lignes de `web/v2/PARITE.md` qui nomment la 21 cochées ; `parity.test.ts` sans `todo` de
+  parcours sans pendant
+  - où : `web/e2e/journeys/accessibility.spec.ts` et `smoke.spec.ts` (anciens),
+    `web/v2/e2e/fixtures/` (gardes axe et CSP), `web/v2/e2e/journeys/`
+  - dépend de : 16
+- [ ] 21b. Accessibilité étendue, parcours clavier et reflow : parcours clavier complet
+  (palette, barre repliée, panneau du brouillon, édition en place) ; reflow à 320 px des
+  écrans de consultation ; message d'édition sous 1024 px — REQ-021-29 — verify :
+  `k-web2-e2e` (parcours `accessibility`) ; revue `a11y-auditor` avec lecteur d'écran en
+  mode navigation
+  - où : `web/v2/e2e/journeys/accessibility.spec.ts` (de la 21a), `web/v2/shell/src/frame/`
+  - dépend de : 21a
 - [x] 22. `bench-web` étendu : INP (Event Timing), navigation en cache, CLS, trames
   perdues de l'arbre (≤ 2 %), Flèche bas (≤ 100 ms p75), tas JS (≤ 64 Mo), plafond par
   plugin, shell avec modules partagés ; protocole de mesure du prototype D-1 repris —
