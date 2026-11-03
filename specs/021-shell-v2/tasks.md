@@ -2400,7 +2400,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/shell/src/views/edit/` (`useWriteAction`, 12b), `views/RecordView.vue`,
     contexte temporel ; anciens parcours `web/e2e/journeys/{edit,time}.spec.ts`
   - dépend de : 12, 12b
-- [ ] 14c. Changesets, reste prouvé : filtres de `/changesets` (auteur choisi, période
+- [x] 14c. Changesets, reste prouvé : filtres de `/changesets` (auteur choisi, période
   `from`/`to`, état) ; « Retirer » un changeset en attente, exercé ; différentiel aux valeurs
   masquées par les droits et violations d'un changeset ; retour à « Mes changesets » avec
   « Appliqué » après une proposition validée puis annulée — verify : parcours `changesets`
@@ -2408,6 +2408,25 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/shell/src/changesets/`, `DiffList` ; ancien parcours
     `web/e2e/journeys/changesets.spec.ts`
   - dépend de : 14
+  - fait le 2026-11-03 : rien à porter à l'écran, le parcours seul
+    (`web/v2/e2e/journeys/changesets.spec.ts`) : le premier test garde Carol jusqu'à son
+    retour à « Mes changesets », sa proposition « Appliqué » après la validation et
+    l'annulation d'Alice (renommé « …, then undone, applied in her list ») ; « a proposal
+    withdrawn by its author, then found by its author, its state and its period » (Carol
+    retire, Alice filtre par l'identifiant de l'autrice, l'état « Retiré » de la liste
+    fermée, « Soumis depuis » aujourd'hui puis « Soumis jusqu'au » hier, l'état vide et
+    « Retirer les filtres ») ; « a sensitive value masked in the differential to a reader
+    without its right » (une propriété sensible propre au test, `declare_property` puis
+    `set_sensitivity`, une valeur posée sur un réseau : Alice la lit, Carol lit « masqué ») ;
+    « the violations of a refused changeset, each by its rule » (un réseau en double, 422 :
+    « Refusé », l'onglet Violations compté, chaque règle servie) ; `web/v2/PARITE.md`,
+    lignes 67, 70, 71 et 171 cochées, `parity.test.ts` vert
+  - choix : le lecteur sans droit sur la valeur est Carol (`core.changeset.read` sans
+    `prop.<clé>.read`), aucun compte ajouté ; la propriété sensible est déclarée par le
+    test (une clé par navigateur), pas par `global-setup.ts` ; le typage de `state` par le
+    shell (`CLOSED` de `views/filters.ts`) gardé
+  - reste : l'onglet Opérations d'une opération masquée montre `masked : true` et tait
+    `values` (`operationLine`, `draft/operations.ts`) au lieu de dire « masqué »
 - [ ] 14d. Brouillon, reste prouvé : période de la soumission (`valid_from`, `valid_to`,
   dates d'effet du pied) ; réponse perdue à la soumission, « Réessayer » qui renvoie la même
   clé et ne donne qu'un changeset ; brouillon en lecture seule sous `as_of` — verify :
