@@ -17,6 +17,7 @@ import DataGrid from "../DataGrid/DataGrid.vue";
 import type { CellState, GridColumn, GridSort, RowState } from "../DataGrid/grid.ts";
 import Dialog from "../Dialog/Dialog.vue";
 import IconButton from "../IconButton/IconButton.vue";
+import NoValue from "../NoValue/NoValue.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -92,7 +93,11 @@ const shownCount = computed(() =>
           @filter="emit('filter', $event)"
         >
           <template #cell="scope">
-            <slot name="cell" v-bind="scope">{{ scope.value }}</slot>
+            <slot name="cell" v-bind="scope"
+              ><NoValue v-if="scope.value === null" /><template v-else>{{
+                scope.value
+              }}</template></slot
+            >
           </template>
         </DataGrid>
       </Dialog>
@@ -110,7 +115,11 @@ const shownCount = computed(() =>
       @filter="emit('filter', $event)"
     >
       <template #cell="scope">
-        <slot name="cell" v-bind="scope">{{ scope.value }}</slot>
+        <slot name="cell" v-bind="scope"
+          ><NoValue v-if="scope.value === null" /><template v-else>{{
+            scope.value
+          }}</template></slot
+        >
       </template>
     </DataGrid>
   </div>

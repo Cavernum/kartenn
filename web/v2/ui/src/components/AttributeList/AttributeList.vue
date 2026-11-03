@@ -9,8 +9,8 @@
 // replaced by a slot named after its term key; a value absent (`undefined`, `null`, `""`,
 // or a slot that renders nothing) is said, never blank (`NoValue`): a dash shown,
 // « non renseigné » for the screen readers. One grid: the columns are set once on the
-// list, every item is a subgrid of it (design « Adaptation à la largeur »); the columns stay in fractions, so
-// that blocks of the same width, stacked, align their values. `tile`: blocks side by side
+// list, every item is a subgrid of it (design « Adaptation à la largeur »); the columns
+// stay in fractions, so that blocks of the same width, stacked, align their values. `tile`: blocks side by side
 // in a grid (`Grid columns="auto"`) share its rows (row subgrid), the n-th property of
 // each block on the same line. With `columns` (a wide panel, the bottom panel of E1), the
 // pairs of tracks repeat as many times as the width holds: properties in several columns,

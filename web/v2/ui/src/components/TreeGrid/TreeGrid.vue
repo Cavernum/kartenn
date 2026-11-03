@@ -350,6 +350,11 @@ function toggle(id: string): void {
 const isEditing = (key: string, column: string) =>
   editing.value?.row === key && editing.value.column === column;
 const canEdit = (node: TreeNode, column: GridColumn) => !!props.editable?.(node, column);
+/** The value of a cell: `null` absent (`NoValue`), a cell not given blank. */
+function cellOf(node: TreeNode, column: GridColumn): string | null {
+  const value = node.cells?.[column.id];
+  return value === undefined ? "" : value;
+}
 const textOf = (cell: CellRef) => {
   const node = nodeOf(cell.row);
   return cell.column === "" ? (node?.label ?? "") : (node?.cells?.[cell.column] ?? "");
@@ -959,8 +964,8 @@ onBeforeUnmount(() => observer?.disconnect());
               </div>
               <template v-else>
                 <span class="k-tree-grid__value"
-                  ><NoValue v-if="part.row.node.cells?.[column.id] === null" /><template v-else>{{
-                    part.row.node.cells?.[column.id] ?? ""
+                  ><NoValue v-if="cellOf(part.row.node, column) === null" /><template v-else>{{
+                    cellOf(part.row.node, column)
                   }}</template></span
                 >
                 <Icon
