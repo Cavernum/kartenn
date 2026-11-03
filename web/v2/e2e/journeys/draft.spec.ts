@@ -357,7 +357,11 @@ async function assertReadOnly(scope: Locator): Promise<void> {
   ).toHaveAttribute("aria-disabled", "true");
   await expect(scope.locator(".k-split-button__main")).toHaveText(/^Enregistrer le brouillon/);
   await expect(scope.locator(".k-split-button__main")).toHaveAttribute("aria-disabled", "true");
-  await expect(scope.getByRole("textbox", { name: /^Résumé/ })).toBeDisabled();
+  // The motive read only, in the tab order, its reason said (024/M14).
+  const summary = scope.getByRole("textbox", { name: /^Résumé/ });
+  await expect(summary).toBeEnabled();
+  await expect(summary).not.toBeEditable();
+  await expect(summary).toHaveAccessibleDescription(/date passée/);
   await expect(scope.getByRole("button", { name: "Choisir les dates d'effet" })).toHaveAttribute(
     "aria-disabled",
     "true",

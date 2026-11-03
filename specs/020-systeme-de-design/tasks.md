@@ -1359,7 +1359,7 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     `cell` à `DataGrid` ; son contenu par défaut rend `NoValue` pour une cellule `null`,
     dans la grille compacte et dans le dialogue (`ui/test/no-value-mounted.test.ts`) ;
     `TreeGrid` lit la cellule une fois (`cellOf`).
-- [ ] 31. Refus dit par toutes les pièces d'action (relevé par la revue de la 021-14d) :
+- [x] 31. Refus dit par toutes les pièces d'action (relevé par la revue de la 021-14d) :
   `Menu` ne tient pour refusée qu'une entrée `disabled` ou `forbidden`, alors que `Button`
   refuse aussi sur `reason` ; `Toolbar` replie dans « … » une action marquée `reason` sans
   la désactiver ; `SplitButton` a la même faille. Une `reason` seule vaut refus partout,
@@ -1374,6 +1374,37 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     `admin/` (`RolesView`, `GroupsView`, `ImportDetail`, `IssuersView`, `GroupDetail`,
     `RoleDetail`, `IdentityDetail`)
   - dépend de : 30
+  - fait : `Menu` tient pour refusée une entrée `disabled`, `forbidden` ou `reason` seul
+    (`aria-disabled`, motif en description et infobulle, `select` annulé) ; `Toolbar` en
+    hérite pour ses actions repliées ; `SplitButton` refuse le bouton sur un `reason` seul
+    et désactive (`disabled` natif) une action choisie `disabled` sans motif, qui passait
+    jusqu'ici ; `CommitForm` gagne `readonly` et `reason` (un `reason` seul vaut lecture
+    seule) : champs `readonly` gardés dans l'ordre de tabulation, motif sous le résumé
+    (`hint`) et lu avec la description (copie masquée), « Ajouter une description » refusé
+    avec lui, rien n'est soumis ; `DraftSubmit` le branche sous `as_of` à la place de
+    `disabled`. Appelants relevés (`ChangesetView`, vues `admin/`) : aucun ne posait
+    `disabled` en double d'une `reason`, laissés tels quels. Catalogue : `Menu` (entrée
+    « Déplacer vers… » à motif seul, captures inchangées), `SplitButton` (`held` à motif
+    seul, `held-chosen`), `Toolbar` (`folded-refused`), `CommitForm` (`readonly`,
+    `readonly-collapsible`) ; inventaire du design (lignes 11, 31 à 33) et skill. Tests :
+    `ui/test/refusal-mounted.test.ts` (entrée à motif seul refusée et motif dit, pour les
+    quatre composants), `shell/test/changesets.test.ts` (résumé en lecture seule sous
+    `as_of`), parcours `changesets` (fenêtre de 420 px : « Retirer » replié refusé à Alice
+    avec son motif, choisi au clavier sans effet) et `draft` (`assertReadOnly`), sous
+    Chromium et Firefox.
+  - choix : un `reason` seul rend `CommitForm` en lecture seule (comme il refuse un
+    `Button`) ; le motif s'affiche une fois, sous le résumé, et la description le lit par
+    une copie masquée plutôt qu'en double à l'écran ; en lecture seule sans motif,
+    « Ajouter une description » sort de l'ordre de tabulation (`disabled`) ; la
+    description en lecture seule prend l'aspect d'un `TextField` en lecture seule (fond
+    creusé, tirets, sans survol). Relectures : `a11y-auditor` sans écart bloquant ni
+    important ; `ui-reviewer` : ligne 11 du design, survol de la description en lecture
+    seule et `disabled` sans motif de `SplitButton` dans la skill corrigés.
+  - reste : Ctrl+Entrée dans un `CommitForm` en lecture seule ne dit rien (le motif est
+    déjà affiché ; à voir au lecteur d'écran) ; les entrées à cocher et radio de `Menu`
+    n'ont pas de refus à motif ; doublons `disabled: true` + `reason` hors des appelants
+    relevés, inoffensifs (`draft/DraftsView.vue:107` et `:116`, `draft/state.ts:180`,
+    `views/RecordView.vue:145`).
 - [ ] 28. Synchronisation : `docs/spec/` (architecture web : `@kartenn/ui`, couches,
   catalogue) ; ADR 0036, 0038, 0039 acceptées ;
   `specs/README.md` ; audit `spec-keeper` — verify : liens croisés ; aucun écart

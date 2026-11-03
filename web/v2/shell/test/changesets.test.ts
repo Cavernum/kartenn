@@ -706,7 +706,12 @@ describe("the screens of the changesets and the drafts", () => {
     expect(main(root).getAttribute("aria-disabled")).toBe("true");
     const remove = root.querySelector<HTMLButtonElement>("[data-k-remove]")!;
     expect(remove.getAttribute("aria-disabled")).toBe("true");
-    expect(root.querySelector<HTMLInputElement>(".k-commit-form input")!.disabled).toBe(true);
+    // The motive read only, in the tab order, its reason said (task 020-31, 024/M14).
+    const summary = root.querySelector<HTMLInputElement>(".k-commit-form input")!;
+    expect(summary.disabled).toBe(false);
+    expect(summary.readOnly).toBe(true);
+    const why = summary.getAttribute("aria-describedby")!;
+    expect(document.getElementById(why)?.textContent).toContain("date passée");
     expect(button(root, "Choisir les dates d'effet")!.getAttribute("aria-disabled")).toBe("true");
   });
 

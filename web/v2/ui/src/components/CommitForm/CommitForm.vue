@@ -8,7 +8,10 @@
 // Ctrl+Enter (or ⌘+Enter) in either field submits: `submit` is emitted, unless the summary
 // is required and empty, in which case the error is said under it and the focus goes
 // back to it. The host runs the action chosen beside it (`SplitButton`, which shows the
-// shortcut).
+// shortcut). Read only (`readonly`, or a `reason` alone: nothing is written under `as_of`;
+// 024/M14), both fields stay in the tab order, `readonly`, and say why: the reason under
+// the summary and in the description of each field; « Ajouter une description » is
+// refused with it; nothing is submitted.
 import { computed, nextTick, ref, useId } from "vue";
 import { t } from "../../i18n.ts";
 import Button from "../Button/Button.vue";
@@ -23,14 +26,19 @@ const props = withDefaults(
     required?: boolean;
     /** An error from the host, under the summary. */
     error?: string | undefined;
+    /** Out of the tab order (native `disabled`), without a reason. */
     disabled?: boolean;
+    /** Read only: the fields stay focusable, their text can be read and copied. */
+    readonly?: boolean;
+    /** Why the motive cannot be written (a past date read): read only, and said. */
+    reason?: string | undefined;
     /**
      * An empty description stays behind a button « Ajouter une description » until asked
      * for (a form in a short footer: the panel keeps its height for the draft).
      */
     collapsible?: boolean;
   }>(),
-  { summaryLabel: undefined, descriptionLabel: undefined, error: undefined },
+  { summaryLabel: undefined, descriptionLabel: undefined, error: undefined, reason: undefined },
 );
 const summary = defineModel<string>("summary", { default: "" });
 const description = defineModel<string>("description", { default: "" });
@@ -38,6 +46,9 @@ const emit = defineEmits<{ submit: [] }>();
 
 const id = useId();
 const form = ref<HTMLElement | null>(null);
+/** Read only: asked for, or refused with a reason (a reason alone refuses, 024/M14). */
+const locked = computed(() => props.readonly || !!props.reason);
+const reasonId = `${id}-reason`;
 /** A submission was refused for an empty summary: say it until the summary is filled. */
 const missing = ref(false);
 const shownError = computed(
@@ -61,7 +72,7 @@ function focusSummary(): void {
 
 /** Submits if the summary allows it; the host calls it from its action button too. */
 function submit(): boolean {
-  if (props.disabled) return false;
+  if (props.disabled || locked.value) return false;
   if (props.required && !summary.value.trim()) {
     missing.value = true;
     focusSummary();
@@ -89,6 +100,8 @@ defineExpose({ submit, focus: focusSummary });
       :label="props.summaryLabel ?? t('summary')"
       :required="props.required"
       :error="shownError"
+      :hint="props.reason"
+      :readonly="locked"
       :disabled="props.disabled"
       autocomplete="off"
     />
@@ -97,7 +110,8 @@ defineExpose({ submit, focus: focusSummary });
         variant="ghost"
         size="sm"
         icon="plus"
-        :disabled="props.disabled"
+        :disabled="props.disabled || locked"
+        :reason="props.reason"
         @click="openDescription"
         >{{ t("descriptionAdd") }}</Button
       >
@@ -113,9 +127,13 @@ defineExpose({ submit, focus: focusSummary });
         v-model="description"
         class="k-commit-form__description"
         rows="3"
+        :readonly="locked"
         :disabled="props.disabled"
+        :aria-describedby="props.reason ? reasonId : undefined"
         spellcheck="true"
       ></textarea>
+      <!-- Said under the summary already: read with this field too, not shown twice. -->
+      <span v-if="props.reason" :id="reasonId" class="k-visually-hidden">{{ props.reason }}</span>
     </FormField>
   </div>
 </template>
@@ -150,6 +168,13 @@ defineExpose({ submit, focus: focusSummary });
   .k-commit-form__description:focus-visible {
     outline: var(--k-focus-width) solid var(--k-focus-ring);
     outline-offset: var(--k-focus-offset);
+  }
+
+  /* As a read-only `TextField` (shared.css): the look wins over hovering. */
+  .k-commit-form__description:read-only:not(:disabled) {
+    background-color: var(--k-surface-sunken);
+    border-color: var(--k-border-control);
+    border-style: dashed;
   }
 
   .k-commit-form__description:disabled {

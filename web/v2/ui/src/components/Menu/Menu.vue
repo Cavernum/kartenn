@@ -10,7 +10,8 @@
 // it and go on from the button (APG Menu: Reka, not modal, would leave the focus at the
 // end of the page). Entries carry their icon and their shortcut at the end
 // (`ShortcutHint`: a combination, also in `aria-keyshortcuts`; a sequence, « g puis p »,
-// in the entry's description). A disabled entry stays listed and reachable by the arrows
+// in the entry's description). A refused entry (`disabled`, or a `reason` or a
+// `forbidden` alone, as `Button`) stays listed and reachable by the arrows
 // (`aria-disabled`; choosing it does nothing): its reason, or « Il faut <permission> »,
 // is its description and a tooltip beside it while it has the focus (024/M14). The
 // trigger is a `Button`, or an `IconButton` when `iconOnly`. A checkbox entry
@@ -80,8 +81,9 @@ function onOpen(now: boolean): void {
 const isEntry = (item: MenuItem): item is MenuEntry => !item.kind || item.kind === "item";
 /** The items, each run of radio entries in a group of its own. */
 const blocks = computed(() => menuBlocks(props.items));
-const isBlocked = (entry: MenuEntry) => !!(entry.disabled || entry.forbidden);
-const hasReason = (entry: MenuEntry) => isBlocked(entry) && !!(entry.forbidden || entry.reason);
+/** Refused: disabled, or a reason alone (a permission, a policy), as `Button` (024/M14). */
+const isBlocked = (entry: MenuEntry) => !!(entry.disabled || entry.forbidden || entry.reason);
+const hasReason = (entry: MenuEntry) => !!(entry.forbidden || entry.reason);
 const reasonId = (entry: MenuEntry) => `${base}-${entry.id}-why`;
 const isSequence = (entry: MenuEntry) =>
   !!entry.shortcut && shortcutSteps(entry.shortcut).length > 1;

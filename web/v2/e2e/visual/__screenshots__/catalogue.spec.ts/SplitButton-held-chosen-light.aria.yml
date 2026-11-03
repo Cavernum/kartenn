@@ -1,0 +1,11 @@
+- main:
+  - tooltip "Une politique d'approbation retient ce changeset."
+  - region "SplitButton":
+    - heading "SplitButton" [level=1]
+    - paragraph: "Motif : Button + Menu Button (entrées désactivées avec motif)"
+    - 'figure "held-chosen — Action choisie retenue par un motif seul : grisée, focalisable, le motif en infobulle"':
+      - button "Appliquer" [disabled]
+      - button "Choisir l'action"
+      - status
+      - code: held-chosen
+      - text: ""

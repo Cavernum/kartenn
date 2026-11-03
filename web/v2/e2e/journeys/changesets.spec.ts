@@ -14,7 +14,8 @@ import {
 // refused with the permission she lacks (REQ-024-11), « Retirer » offered; Alice finds it in
 // « À instruire », counted in the sidebar, validates it, then undoes it — a new changeset —
 // and Carol finds hers applied in « Mes changesets »; another proposal rejected with its
-// motive, asked in a dialog; one withdrawn by Carol, then found by Alice by its author, its
+// motive, asked in a dialog; on a narrow window, « Retirer » folded in « … », refused to
+// Alice with its reason (task 020-31); one withdrawn by Carol, then found by Alice by its author, its
 // state and its period (task 14c); a sensitive value masked in the differential to Carol,
 // who may not read it (REQ-005-21); the violations of a refused changeset. Each test writes
 // in a domain of its own (RFC 5737, TEST-NET-2).
@@ -197,6 +198,47 @@ test("a proposal rejected with its motive, asked in a dialog", async ({
   await expect(page.getByRole("main")).toContainText("Le réseau change de site d'abord.");
   // Nothing more to decide.
   await expect(actions(page).getByRole("button", { name: /^Valider/ })).toHaveCount(0);
+});
+
+test("on a narrow window, an action folded in « … » keeps its refusal and its reason", async ({
+  page,
+  login,
+  browser,
+  browserName,
+}) => {
+  // Task 020-31 (REQ-021-37, 024/M14): « Retirer », refused to Alice by a reason alone
+  // (only its author withdraws it), folds into « … » and stays refused there, said.
+  await page.setViewportSize({ width: 420, height: 800 });
+  await login("alice");
+  const { slug } = await ownedDomain(page, unique(browserName));
+  const motive = `étroit ${browserName} ${Date.now()}`;
+  const { context, id } = await propose(browser, slug, "198.51.100.40", motive);
+  await context.close();
+
+  await page.goto(`/changesets/${id}`);
+  await expect(state(page, "En attente")).toBeVisible();
+  await expect(actions(page).getByRole("button", { name: "Retirer" })).toHaveCount(0);
+  const more = actions(page).getByRole("button", { name: "Plus d'actions" });
+  await more.press("Enter");
+  const menu = page.getByRole("menu", { name: "Plus d'actions" });
+  await expect(menu).toBeVisible();
+  const withdraw = menu.getByRole("menuitem", { name: "Retirer" });
+  await expect(withdraw).toHaveAttribute("aria-disabled", "true");
+  await expect(withdraw).toHaveAccessibleDescription("Seul l'auteur retire son changeset.");
+  // Reached by the arrows, chosen at the keyboard: the menu stays, nothing is withdrawn.
+  const entries = await menu.getByRole("menuitem").count();
+  for (let i = 0; i < entries; i++) {
+    if (await withdraw.evaluate((el) => el === document.activeElement)) break;
+    await page.keyboard.press("ArrowDown");
+  }
+  await expect(withdraw).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(menu).toBeVisible();
+  await expectAccessible(page);
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(more).toBeFocused();
+  await expect(state(page, "En attente")).toBeVisible();
 });
 
 test("a proposal withdrawn by its author, then found by its author, its state and its period", async ({

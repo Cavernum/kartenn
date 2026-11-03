@@ -1,0 +1,14 @@
+- main:
+  - region "CommitForm":
+    - heading "CommitForm" [level=1]
+    - paragraph: "Motif : champs étiquetés ; Ctrl+Entrée émet submit"
+    - 'figure "readonly — Lecture seule avec motif (sous « connu au ») : champs focalisables, motif sous le résumé et lu avec chaque champ"':
+      - text: Résumé (obligatoire)
+      - textbox "Résumé (obligatoire)": Bascule des adresses de la salle B
+      - paragraph: "État connu à une date passée : rien ne s'écrit, revenez au présent."
+      - text: Description (facultative)
+      - textbox "Description (facultative)": Les passerelles changent de plage ; les VIP suivent.
+      - text: "État connu à une date passée : rien ne s'écrit, revenez au présent."
+      - status
+      - code: readonly
+      - text: ""

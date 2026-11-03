@@ -18,7 +18,10 @@ export interface ToolbarAction {
   priority?: number;
   shortcut?: string[];
   disabled?: boolean;
-  /** Why it is refused (a policy), its tooltip. */
+  /**
+   * Why it is refused (a policy), its tooltip: a reason alone refuses it, in the bar as
+   * folded in « … » (024/M14).
+   */
   reason?: string;
   /** The permission the user lacks (024/M14). */
   forbidden?: string;

@@ -273,7 +273,8 @@ const failedSimulation = computed(() =>
         v-model:description="description"
         required
         collapsible
-        :disabled="!writable"
+        :readonly="!writable"
+        v-bind="writable ? {} : { reason: t('drafts.why.past') }"
         @submit="run"
       />
       <span v-if="!periodShown">

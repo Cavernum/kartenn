@@ -7,7 +7,8 @@
 // REQ-020-36): one stop in the tab order, the arrows (and Home, End) between its actions.
 // It never wraps: a ResizeObserver measures it, and the actions that no longer fit go,
 // from the lowest priority and from the end, into a « … » menu at its end. A refused
-// action stays, focusable, with its reason (024/M14).
+// action (a `reason` or a `forbidden` alone is enough) stays, focusable, with its reason,
+// in the bar as folded in « … » (024/M14).
 import { computed, nextTick, onBeforeUnmount, onMounted, onUpdated, ref, watch } from "vue";
 import { t } from "../../i18n.ts";
 import Button from "../Button/Button.vue";

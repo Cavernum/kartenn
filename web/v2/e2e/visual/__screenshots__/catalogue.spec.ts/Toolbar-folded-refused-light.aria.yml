@@ -1,0 +1,17 @@
+- main:
+  - menu "Plus d'actions":
+    - menuitem "Modifier"
+    - menuitem "Importer" [disabled]
+    - menuitem "Exporter"
+    - menuitem "Historique"
+    - menuitem "Supprimer" [disabled]
+  - region "Toolbar":
+    - heading "Toolbar" [level=1]
+    - paragraph: "Motif : Toolbar ; actions repliées dans « … » par priorité"
+    - 'figure /folded-refused — \d+ px, « … » ouvert : une action repliée retenue par un motif seul reste refusée, avec son motif/':
+      - toolbar "Actions sur les préfixes":
+        - button "Créer"
+        - button "Plus d'actions" [expanded]
+      - status
+      - code: folded-refused
+      - text: ""

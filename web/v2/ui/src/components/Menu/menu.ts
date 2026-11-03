@@ -19,7 +19,10 @@ export interface MenuEntry {
   shortcut?: Shortcut;
   /** Disabled: it stays in the menu and focusable (`aria-disabled`), with its reason. */
   disabled?: boolean;
-  /** Why the entry is disabled: its tooltip and its description. */
+  /**
+   * Why the entry is refused (a policy): its tooltip and its description. A reason alone
+   * refuses the entry, as it refuses a `Button` (024/M14).
+   */
   reason?: string;
   /** The permission the user lacks: disabled, « Il faut <permission> » (024/M14). */
   forbidden?: string;
