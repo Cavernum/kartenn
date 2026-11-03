@@ -123,7 +123,7 @@
     "objects": "{n} object | {n} objects",
     "cascaded": "{n} object closed by cascade | {n} objects closed by cascade",
     "why": {
-      "past": "Nothing is written out of the present: go back to the present.",
+      "past": "State known at a past date: nothing is written, go back to the present.",
       "empty": "The draft is empty.",
       "simulating": "The simulation is not finished.",
       "simulationFailed": "The simulation failed.",
@@ -142,7 +142,20 @@
     "violations": "{n} violation | {n} violations",
     "violationsText": "Correct or remove the operations at fault to apply or submit; the draft saves as it is, violations included.",
     "valid": "Valid simulation",
-    "validText": "{n} warning · effective now | {n} warnings · effective now",
+    "validText": "{n} warning · {effect} | {n} warnings · {effect}",
+    "readOnly": "Read only: under a past state, the draft is neither modified nor submitted.",
+    "period": {
+      "ask": "Choose the dates of effect",
+      "from": "Effective from",
+      "fromHint": "Empty: as soon as applied.",
+      "to": "Effective until",
+      "toHint": "Empty: no end.",
+      "order": "The end of the effect must follow its start.",
+      "now": "effective now",
+      "since": "effective from {from}",
+      "until": "effective until {to}",
+      "between": "effective from {from} to {to}"
+    },
     "field": {
       "title": "Title",
       "operations": "Operations",

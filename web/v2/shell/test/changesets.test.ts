@@ -4,7 +4,7 @@ import { addToActiveDraft, draftHost, resetContext, setFetch } from "@kartenn/sd
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, defineComponent, h, nextTick, onScopeDispose, ref, type App } from "vue";
 import DraftOperations from "../src/draft/DraftOperations.vue";
-import { lostSubmissions } from "../src/draft/state.ts";
+import { draftPeriods, lostSubmissions } from "../src/draft/state.ts";
 import { pageCount } from "../src/frame/spaces.ts";
 import { instantOfDay, listFilterModel } from "../src/views/filters.ts";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
@@ -251,6 +251,7 @@ describe("the screens of the changesets and the drafts", () => {
     sessionStorage.clear();
     setFetch(null);
     for (const lost of lostSubmissions.all()) lostSubmissions.drop(lost.id);
+    draftPeriods.drop(D1);
     draftHost.onAdd(null);
   });
 
@@ -635,6 +636,78 @@ describe("the screens of the changesets and the drafts", () => {
     expect(again!.key).toBe(first!.key);
     expect(again!.url).toBe(first!.url);
     await expect.poll(() => lostSubmissions.all().length).toBe(0);
+  });
+
+  it("under valid_at alone, submitted from that date: valid_from set, simulated, replayed as sent", async () => {
+    const at = "2031-03-01T08:00:00Z";
+    const end = "2031-06-30T22:00:00Z";
+    draftPeriods.set(D1, { valid_from: at, valid_to: end });
+    let submissions = 0;
+    const { seen, root } = await mounted(
+      `/drafts/${D1}?valid_at=${at}`,
+      ["core.prefix.edit", "core.prefix.approval.self"],
+      (call) => {
+        if (call.url.endsWith("/simulation")) return { body: valid };
+        if (call.url.includes("/submission")) {
+          submissions += 1;
+          if (submissions === 1) return "lost";
+          return {
+            status: 201,
+            body: { changeset: { id: C1, href: "h" }, state: "applied", warnings: [] },
+          };
+        }
+        if (call.method === "PATCH") {
+          return { body: draft(OPS, 2, (call.body as { reason: object }).reason), etag: '"2"' };
+        }
+        return { body: draft(OPS), etag: '"1"' };
+      },
+    );
+    await expect
+      .poll(() => main(root)?.getAttribute("aria-disabled"), { timeout: 3000 })
+      .toBeNull();
+    // The fields show, the sentence of the result says the period.
+    expect(root.querySelectorAll(".k-draft-submit .k-date-field").length).toBe(2);
+    expect(root.querySelector(".k-draft-submit__result")?.textContent).toContain("effet du ");
+    const simulated = seen.find((s) => s.url.endsWith("/simulation"))!;
+    expect(simulated.body).toEqual({ valid_from: at, valid_to: end });
+    main(root).click();
+    await expect.poll(() => button(root, "Réessayer")).toBeDefined();
+    // Changed after the lost answer: the replay sends what was sent, under its key.
+    draftPeriods.set(D1, { valid_from: at });
+    button(root, "Réessayer")!.click();
+    await expect.poll(() => submissions).toBe(2);
+    const [first, again] = seen.filter((s) => s.url.includes("/submission"));
+    expect(first!.body).toEqual({ valid_from: at, valid_to: end });
+    expect(again!.body).toEqual(first!.body);
+    expect(again!.key).toBe(first!.key);
+  });
+
+  it("without a chosen period, valid_from follows valid_at; under as_of the draft is read only", async () => {
+    const answer = (call: Seen): Answer =>
+      call.url.endsWith("/simulation") ? { body: valid } : { body: draft(OPS), etag: '"1"' };
+    const dated = await mounted(
+      `/drafts/${D1}?valid_at=2031-03-01T08:00:00Z`,
+      ["core.prefix.edit", "core.prefix.approval.self"],
+      answer,
+    );
+    await expect
+      .poll(() => dated.seen.find((s) => s.url.endsWith("/simulation"))?.body, { timeout: 3000 })
+      .toEqual({ valid_from: "2031-03-01T08:00:00Z" });
+    app?.unmount();
+    queryClient.clear();
+
+    const { root } = await mounted(
+      `/drafts/${D1}?as_of=2026-01-01T00:00:00Z`,
+      ["core.prefix.edit", "core.prefix.approval.self"],
+      answer,
+    );
+    await expect.poll(() => root.textContent, { timeout: 3000 }).toContain("Lecture seule");
+    await expect.poll(() => label(root), { timeout: 3000 }).toBe("Enregistrer le brouillon");
+    expect(main(root).getAttribute("aria-disabled")).toBe("true");
+    const remove = root.querySelector<HTMLButtonElement>("[data-k-remove]")!;
+    expect(remove.getAttribute("aria-disabled")).toBe("true");
+    expect(root.querySelector<HTMLInputElement>(".k-commit-form input")!.disabled).toBe(true);
+    expect(button(root, "Choisir les dates d'effet")!.getAttribute("aria-disabled")).toBe("true");
   });
 
   it("a plugin's draft.add opens the draft; the shell's own additions do not", async () => {

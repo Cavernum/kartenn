@@ -29,7 +29,7 @@ import { useChangesetWords } from "../changesets/words.ts";
 import { useQuery } from "../data/query.ts";
 import KLink from "../prefetch/KLink.vue";
 import ProblemState from "../problems/ProblemState.vue";
-import { useTime } from "../time/index.ts";
+import { useTime, writesOf } from "../time/index.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import type { Refusal } from "../views/edit/inline.ts";
 import ViewPanel from "../views/parts/ViewPanel.vue";
@@ -96,14 +96,15 @@ function onActivate(cell: CellRef): void {
   if (row) void router.push(pageOf(row));
 }
 
-const writable = computed(() => time.value.present);
+/** Drafts are created and deleted but under `as_of` (REQ-021-5): `valid_at` alone keeps them. */
+const writable = computed(() => writesOf(time.value).draft);
 const refusal = shallowRef<Refusal>();
 const menu = (row: Row): MenuItem[] => [
   {
     id: "resume",
     label: t("drafts.resume"),
     icon: "undo-2",
-    ...(row.id === active.value ? { reason: t("drafts.why.active") } : {}),
+    ...(row.id === active.value ? { disabled: true, reason: t("drafts.why.active") } : {}),
   },
   { id: "copy", label: t("changesets.copyId"), icon: "copy" },
   { kind: "separator" },
@@ -112,7 +113,7 @@ const menu = (row: Row): MenuItem[] => [
     label: t("drafts.delete", { title: row.title }),
     icon: "trash",
     danger: true,
-    ...(writable.value ? {} : { reason: t("drafts.why.past") }),
+    ...(writable.value ? {} : { disabled: true, reason: t("drafts.why.past") }),
   },
 ];
 const deleting = shallowRef<Row | null>(null);
