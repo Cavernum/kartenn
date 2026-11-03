@@ -6,9 +6,14 @@
 // its `index.js` as its own build makes it, in memory (nothing written to `dist`), gzipped
 // at level 9; the shared modules of the import map left out — they are imported, never
 // bundled. 1 Ko = 1 000 bytes. Read by the package test of each plugin
-// (`plugins/<name>/test/package.test.ts`), hence by `k-web2-check` (Vitest).
+// (`plugins/<name>/test/package.test.ts`), hence by `k-web2-check` (Vitest), and run as a
+// script by `bench-web` over every plugin of web/v2/plugins:
+// `node web/v2/tools/plugin-size.ts`, one line `PASS|FAIL plugin <name> …` each, exit 1 if
+// one weighs more than its budget or bundles a shared module.
 
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { build, type Rollup } from "vite";
 
@@ -59,4 +64,29 @@ export async function pluginWeight(root: string): Promise<PluginWeight> {
     bundled: entry.moduleIds.filter((id) => SHARED_SOURCES.test(id)),
     sheets: files.map((file) => file.fileName).filter((name) => name.endsWith(".css")),
   };
+}
+
+/** The line of the bench for one plugin, and whether it holds. */
+export function pluginLine(name: string, weight: PluginWeight): { line: string; ok: boolean } {
+  const ok = weight.bytes <= PLUGIN_BUDGET && weight.bundled.length === 0;
+  const bundled = weight.bundled.length > 0 ? `, ${weight.bundled.length} shared bundled` : "";
+  const measured = `${(weight.bytes / 1000).toFixed(1)} Ko${bundled}`;
+  return {
+    line: `${ok ? "PASS" : "FAIL"} plugin ${name}, gzip -9: ${measured} (limit ${PLUGIN_BUDGET / 1000} Ko)`,
+    ok,
+  };
+}
+
+// Run as a script (Node 24: `import.meta.main`), never a silent exit 0 when imported.
+if (import.meta.main) {
+  const plugins = fileURLToPath(new URL("../plugins/", import.meta.url));
+  let ok = true;
+  for (const name of readdirSync(plugins).sort()) {
+    const root = join(plugins, name);
+    if (!existsSync(join(root, "vite.config.ts"))) continue;
+    const verdict = pluginLine(name, await pluginWeight(root));
+    console.log(verdict.line);
+    ok &&= verdict.ok;
+  }
+  if (!ok) process.exit(1);
 }
