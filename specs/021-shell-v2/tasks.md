@@ -3479,6 +3479,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     l'avis compte dans `aria-setsize` (10 001 au lieu d'inconnu) : il faudrait à `TreeGrid`
     une marque `capped` qui l'en sorte (020) ; sous un réseau plafonné, l'avis mène aux
     adresses, pas aux plages.
+  - repris le 2026-11-03 par la 7a : les lectures d'enfants au survol pendant un défilement
 - [x] 7a. Préchargement au survol sans lecture pendant un défilement (relevé par la revue
   de la 24e) : `childrenIntent` (`web/v2/shell/src/prefetch/tree.ts` vers la ligne 30) lit
   les enfants de chaque ligne qui passe sous le pointeur immobile pendant un défilement
@@ -3519,9 +3520,10 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
 - [ ] 22a. Mesures restantes du banc web : la page de 100 lignes rend son chiffre (lectures
   servies en 304 comptées à part, déjà codé, pas encore passé) ; l'arbre chargé jusqu'au
   bout avant le défilement, une fois la 24e faite, sur 10⁴ lignes ; navigation en cache au
-  p75, le pire imprimé (A35) ; `.claude/agents/bench-runner.md` à jour (fait par la session
-  principale à la fusion de la 22) — verify : une passe réduite où chaque mesure rend un
-  chiffre ; la passe complète lancée par la session principale sur machine libre
+  p75, le pire imprimé (A35) ; le compte des lectures `/children` pendant le défilement de
+  l'arbre imprimé et tenu à 0 (7a) ; `.claude/agents/bench-runner.md` à jour (fait par la
+  session principale à la fusion de la 22) — verify : une passe réduite où chaque mesure rend
+  un chiffre ; la passe complète lancée par la session principale sur machine libre
   - où : `web/v2/e2e/budgets/budgets.spec.ts`, `web/v2/e2e/budgets/global-setup.ts`
   - dépend de : 22, 24e
 
