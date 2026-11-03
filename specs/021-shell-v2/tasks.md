@@ -2846,6 +2846,33 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/shell/src/router.ts` (routes), `web/e2e/journeys/*.spec.ts`,
     `web/plugins/*/public/manifest.json`
   - dépend de : 25 (créée tôt, cochée au fil des tâches)
+  - en cours : fait le 2026-11-03 — `web/v2/PARITE.md` complète : cadre, session et temps ;
+    référentiel ; édition ; changesets et brouillon ; hôte des plugins ; plugin d'exemple ;
+    VLAN (écrans du cœur, 026) ; Politique et Flux (017 : absents de l'ancien shell, rien à
+    porter, la bascule ne les attend pas, design § « Migration », phase 6) ; « Parcours de
+    bout en bout », une ligne par test de `web/e2e/journeys/` (43). Vitest
+    `web/v2/shell/test/parity.test.ts` : une ligne par ancien test et aucune pour un test
+    disparu ; le pendant nommé existe et tient les titres cités ; une ligne à porter nomme
+    sa tâche ou « aucune tâche », une ligne retirée sa référence ; un `todo` par parcours
+    sans pendant (`accessibility`, tâche 21) et par test à porter.
+  - corrigé le 2026-11-03 (revue, arbitrages A30 à A33) : liens de la 007, opération en
+    JSON brut et compte du brouillon de la vue d'exemple en `[-]` (021/A30, A32, A33) ;
+    « Clore » à la 11g ; interface et mode 802.1Q à la 18g ; gardes du parcours `smoke` à
+    la 21 ; pseudonymisation (15b) et filtres de période et d'objet de l'audit (15c) en
+    lignes à porter, la ligne du parcours `admin` et celle de « then undone » des
+    changesets (14 : « Appliqué » dans « Mes changesets ») décochées. Le test confronte
+    aussi les lignes cochées des autres sections aux parcours qu'elles citent (fichier,
+    test ou `describe`), lit la tâche d'une ligne à porter dans sa dernière colonne, et
+    met un `todo` par ligne à porter de toutes les sections. État : 81 lignes cochées, 35
+    à porter, 6 retirées ; aucune ligne sans tâche.
+  - reste : la liste entièrement cochée, au fil des tâches 11, 11g, 12, 14, 15b, 15c, 16,
+    18g, 21.
+  - choix : une ligne n'est cochée que si un parcours de `web/v2/e2e/` tient tout son
+    scénario (une étape manquante la laisse à porter ; une donnée de hasard, comme
+    l'événement cherché dans l'audit, ne compte pas) ; ce que seul Vitest prouve reste à
+    porter (« Ajout d'une interface » des Machines décoché) ; le test vit dans le projet
+    Vitest `shell` (un fichier de `tools/` relancerait toutes les captures) ; un parcours
+    est « sans pendant » quand aucune de ses lignes ne nomme un parcours de `web/v2/e2e/`.
 - [ ] 27. Commit de bascule : `web/v2/*` à la place de `web/*`, build branché dans
   `[web] root`, paquets Nix et OCI, `bench-web` et `scripts/ci.sh` ; ancien shell, SDK
   0.1 et anciens plugins supprimés ; un seul commit — REQ-021-31 — verify : liste de
