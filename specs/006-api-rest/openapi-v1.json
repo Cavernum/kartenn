@@ -25665,6 +25665,15 @@
             }
           },
           {
+            "description": "Hosted by a machine or a cluster (`true`), or by none (`false`): the member of a cluster is not hosted by it.",
+            "in": "query",
+            "name": "host:exists",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Hosted by or member of this cluster.",
             "in": "query",
             "name": "cluster",

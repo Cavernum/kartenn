@@ -194,6 +194,11 @@ static MIGRATIONS: &[ModuleMigration] = &[
         name: "interface_suggestions",
         sql: include_str!("../migrations/0004_interface_suggestions.sql"),
     },
+    ModuleMigration {
+        version: 5,
+        name: "machine_unhosted",
+        sql: include_str!("../migrations/0005_machine_unhosted.sql"),
+    },
 ];
 
 macro_rules! permissions {
