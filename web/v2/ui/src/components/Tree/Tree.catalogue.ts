@@ -61,7 +61,8 @@ const previewed: TreeNode[] = nodes.map((site) =>
     : site,
 );
 
-const dragged = (target: string) =>
+/** A drag held over a target; with `preview`, the target is a preview row. */
+const dragged = (target: string, preview = false) =>
   defineComponent({
     setup() {
       const host = moveHost(keyboardTree());
@@ -76,6 +77,7 @@ const dragged = (target: string) =>
             parentMode: "declared",
             canMove: host.canMove,
             moveState: host.moveState,
+            nodeState: preview ? stateBy({ [target]: "preview" }) : undefined,
           }),
         ]);
     },
@@ -267,6 +269,20 @@ export default {
         "Glisser sur un descendant : cible refusée, jamais mise en évidence, motif et code",
       props: {},
       demo: dragged("n111"),
+    },
+    {
+      name: "drop-accepted-preview",
+      description:
+        "Glisser au-dessus d'une ligne d'aperçu acceptée : le contour de la cible remplace le tireté de l'aperçu",
+      props: {},
+      demo: dragged("n2", true),
+    },
+    {
+      name: "drop-refused-preview",
+      description:
+        "Glisser au-dessus d'une ligne d'aperçu refusée : le tireté de la cible refusée, motif et code",
+      props: {},
+      demo: dragged("n111", true),
     },
     {
       name: "move-states",

@@ -679,8 +679,9 @@ function onKeydown(event: KeyboardEvent): void {
     color: var(--k-text-muted);
   }
 
-  /* Under the focus ring, never in its place. */
-  .k-tree__row[data-state="preview"]:not(:focus-visible) {
+  /* Under the focus ring, never in its place; the outline of a target during a drag wins
+   * over it (`:where`: no more weight than the row's class). */
+  .k-tree__row:where([data-state="preview"]:not(:focus-visible)) {
     outline: var(--k-border-width) dashed var(--k-accent);
     outline-offset: calc(var(--k-border-width) * -1);
   }

@@ -2,7 +2,7 @@
   - region "AttributeList":
     - heading "AttributeList" [level=1]
     - paragraph: "Motif : liste de descriptions (dl : dt, dd)"
-    - 'figure "tiles — Blocs côte à côte (k-attribute-list-tiles) : leurs lignes partagées"':
+    - 'figure "tiles — Blocs côte à côte (tile, dans une Grid) : leurs lignes partagées"':
       - term: État
       - definition: Soumis
       - term: Auteur

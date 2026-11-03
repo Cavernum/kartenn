@@ -4,11 +4,11 @@
 // draw the same list.
 import { AttributeList, type AttributeItem } from "@kartenn/ui";
 
-const props = defineProps<{ items: AttributeItem[]; columns?: boolean }>();
+const props = defineProps<{ items: AttributeItem[]; columns?: boolean; tile?: boolean }>();
 </script>
 
 <template>
-  <AttributeList :items="props.items" :columns="props.columns">
+  <AttributeList :items="props.items" :columns="props.columns" :tile="props.tile">
     <template v-for="(_, name) in $slots" #[name]="scope">
       <slot :name="name" v-bind="scope ?? {}" />
     </template>

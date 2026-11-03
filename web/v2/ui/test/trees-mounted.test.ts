@@ -321,7 +321,8 @@ describe.each(components)("%s mounted: the contract follows its props", (_, comp
       root.querySelector<HTMLElement>(`${rowSelector(component)}[data-node="${id}"]`)!;
     const words = (id: string) =>
       [...row(id).querySelectorAll(".k-visually-hidden")].map((el) => el.textContent).join(" ");
-    const marks = (id: string) => row(id).querySelectorAll("[class$='__mark']");
+    // Every mark, with a modifier or not (`k-tree-grid__mark--ko`).
+    const marks = (id: string) => row(id).querySelectorAll(".k-tree-grid__mark, .k-tree__mark");
     expect(row("a1").getAttribute("data-state")).toBe("moved");
     expect(row("preview:a1").getAttribute("data-state")).toBe("preview");
     // Told apart by their words, not their level only; « en brouillon » said by neither.

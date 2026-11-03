@@ -6,29 +6,48 @@
 // A list of properties (term, value) in two columns (spec 021/A27): the panels of a record
 // in the shell, the records of a plugin written in Vue without a sheet of its own (A23).
 // Taken from the shell (task 021-11, its mock-ups `EcranAttributs`). A value may be
-// replaced by a slot named after its term key; a value absent (`undefined`, `null`, `""`)
-// without its slot is said, never blank: a dash shown, « non renseigné » for the screen
-// readers. One grid: the columns are set once on the list, every item is a subgrid of it
-// (design « Adaptation à la largeur »); the columns stay in fractions, so that blocks of
-// the same width, stacked, align their values. Blocks side by side in a
-// `.k-attribute-list-tiles` grid share its rows (row subgrid): the n-th property of each
-// block sits on the same line. With `columns` (a wide panel, the bottom panel of E1), the
+// replaced by a slot named after its term key; a value absent (`undefined`, `null`, `""`,
+// or a slot that renders nothing) is said, never blank: a dash shown, « non renseigné »
+// for the screen readers. One grid: the columns are set once on the list, every item is a
+// subgrid of it (design « Adaptation à la largeur »); the columns stay in fractions, so
+// that blocks of the same width, stacked, align their values. `tile`: blocks side by side
+// in a grid (`Grid columns="auto"`) share its rows (row subgrid), the n-th property of
+// each block on the same line. With `columns` (a wide panel, the bottom panel of E1), the
 // pairs of tracks repeat as many times as the width holds: properties in several columns,
 // each still a subgrid, terms and values of a column aligned.
-import { computed, useSlots } from "vue";
+import { Comment, Fragment, Text, computed, useSlots, type VNode } from "vue";
 import { t } from "../../i18n.ts";
 import type { AttributeItem } from "./attributes.ts";
 
-const props = defineProps<{ items: AttributeItem[]; columns?: boolean }>();
+const props = defineProps<{ items: AttributeItem[]; columns?: boolean; tile?: boolean }>();
 const slots = useSlots();
 /** The rows a block takes in a grid of tiles (CSSOM, REQ-020-14). */
 const rows = computed(() => ({ "--k-attribute-list-rows": String(props.items.length) }));
-const empty = (item: AttributeItem) =>
-  !slots[item.key] && (item.value === undefined || item.value === null || item.value === "");
+/** Nodes that show nothing: comments, blank text, fragments of them. */
+const blank = (nodes: VNode[]): boolean =>
+  nodes.every((node) =>
+    node.type === Comment
+      ? true
+      : node.type === Text
+        ? !String(node.children ?? "").trim()
+        : node.type === Fragment
+          ? blank(Array.isArray(node.children) ? (node.children as VNode[]) : [])
+          : false,
+  );
+const empty = (item: AttributeItem) => {
+  const slot = slots[item.key];
+  if (slot) return blank(slot());
+  return item.value === undefined || item.value === null || item.value === "";
+};
 </script>
 
 <template>
-  <dl class="k-attribute-list" :style="rows" :data-columns="props.columns ? 'true' : undefined">
+  <dl
+    class="k-attribute-list"
+    :style="rows"
+    :data-columns="props.columns ? 'true' : undefined"
+    :data-tile="props.tile ? 'true' : undefined"
+  >
     <div v-for="item in props.items" :key="item.key" class="k-attribute-list__item">
       <dt class="k-attribute-list__term">{{ item.label }}</dt>
       <dd v-if="empty(item)" class="k-attribute-list__value" data-empty="true">
@@ -74,8 +93,8 @@ const empty = (item: AttributeItem) =>
     grid-column: span 2;
   }
 
-  /* Side by side in a grid of tiles: the rows of the tiles are shared. */
-  .k-attribute-list-tiles > .k-attribute-list {
+  /* A tile of a grid: the rows of the tiles side by side are shared. */
+  .k-attribute-list[data-tile] {
     grid-row: span var(--k-attribute-list-rows);
     grid-template-rows: subgrid;
     row-gap: var(--k-space-1);

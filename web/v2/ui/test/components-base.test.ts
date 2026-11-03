@@ -2,7 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { createSSRApp, h, type Component } from "vue";
+import {
+  createCommentVNode,
+  createSSRApp,
+  createTextVNode,
+  Fragment,
+  h,
+  type Component,
+} from "vue";
 import { renderToString } from "vue/server-renderer";
 import { afterEach, describe, expect, it } from "vitest";
 import { copyText } from "../src/clipboard.ts";
@@ -547,5 +554,44 @@ describe("AttributeList (021/A27)", () => {
     );
     expect(html).not.toContain("data-empty");
     expect(html).toContain('<span class="chosen">Virtuelle</span>');
+  });
+
+  it("a slot given but rendering nothing is said absent, as a missing value", async () => {
+    const html = await renderToString(
+      createSSRApp({
+        render: () =>
+          h(
+            AttributeList,
+            {
+              items: [
+                { key: "none", label: "Rien" },
+                { key: "blank", label: "Blanc" },
+                { key: "nested", label: "Imbriqué" },
+              ],
+            },
+            {
+              none: () => [],
+              blank: () => [createTextVNode("  "), createCommentVNode("v-if")],
+              nested: () => [h(Fragment, null, [createCommentVNode("v-if")])],
+            },
+          ),
+      }),
+    );
+    expect(html.match(/data-empty="true"/g)).toHaveLength(3);
+    expect(html.match(/non renseigné/g)).toHaveLength(3);
+  });
+
+  it("a tile shares the rows of its grid: its own rows counted, marked", async () => {
+    const html = bare(
+      await render(AttributeList, {
+        tile: true,
+        items: [
+          { key: "a", label: "A", value: "1" },
+          { key: "b", label: "B", value: "2" },
+        ],
+      }),
+    );
+    expect(html).toMatch(/^<dl class="k-attribute-list" style="--k-attribute-list-rows:2;"/);
+    expect(html).toMatch(/^<dl[^>]* data-tile="true"/);
   });
 });

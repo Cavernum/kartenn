@@ -446,14 +446,14 @@ const counted = computed(() =>
             : []),
         ]"
       />
-      <Grid columns="auto" gap="3" class="k-attribute-list-tiles">
-        <AttributeList :items="attributes.who">
+      <Grid columns="auto" gap="3">
+        <AttributeList tile :items="attributes.who">
           <template #kind>
             <KeyLabel :value="changeset.kind" :label="words.kind(changeset.kind)" />
           </template>
         </AttributeList>
-        <AttributeList :items="attributes.when" />
-        <AttributeList :items="attributes.what">
+        <AttributeList tile :items="attributes.when" />
+        <AttributeList tile :items="attributes.what">
           <template #id><CodeBadge :code="props.id" /></template>
         </AttributeList>
       </Grid>

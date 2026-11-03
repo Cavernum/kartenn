@@ -24,8 +24,9 @@ const withSlot: FunctionalComponent = (props) =>
 
 /** Two blocks side by side in a grid of tiles: the n-th property on the same line. */
 const tiles: FunctionalComponent = () =>
-  h(Grid, { columns: "auto", gap: "3", class: "k-attribute-list-tiles" }, () => [
+  h(Grid, { columns: "auto", gap: "3" }, () => [
     h(AttributeList as Component, {
+      tile: true,
       items: [
         { key: "state", label: "État", value: "Soumis" },
         { key: "author", label: "Auteur", value: "Opérateur réseau" },
@@ -33,6 +34,7 @@ const tiles: FunctionalComponent = () =>
       ],
     }),
     h(AttributeList as Component, {
+      tile: true,
       items: [
         { key: "valid", label: "Valide à partir du", value: "2026-11-04 00:00", mono: true },
         { key: "retro", label: "Rétroactif", value: "Non" },
@@ -95,7 +97,7 @@ export default {
     },
     {
       name: "tiles",
-      description: "Blocs côte à côte (k-attribute-list-tiles) : leurs lignes partagées",
+      description: "Blocs côte à côte (tile, dans une Grid) : leurs lignes partagées",
       props: {},
       demo: tiles,
       wide: true,

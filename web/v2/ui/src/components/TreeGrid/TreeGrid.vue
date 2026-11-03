@@ -1249,8 +1249,9 @@ onBeforeUnmount(() => observer?.disconnect());
     position: relative;
   }
 
-  /* Never over the focus ring of one of its cells (as in `Tree`). */
-  .k-tree-grid__row[data-state="preview"]:not(:has(:focus-visible))::after {
+  /* Never over the focus ring of one of its cells (as in `Tree`); the outline of a target
+   * during a drag wins over it (`:where`: no more weight than the row's class). */
+  .k-tree-grid__row:where([data-state="preview"]:not(:has(:focus-visible)))::after {
     outline: var(--k-border-width) dashed var(--k-accent);
     outline-offset: calc(var(--k-border-width) * -1);
   }
