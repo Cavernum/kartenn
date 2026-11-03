@@ -17,6 +17,7 @@ import {
   Cluster,
   Combobox,
   EmptyState,
+  Heading,
   InlineAlert,
   Skeleton,
   Stack,
@@ -273,9 +274,9 @@ async function remove(): Promise<void> {
       @submit.prevent="pose"
     >
       <Stack gap="2">
-        <h2 :id="`k-network-vlan-set-${props.id}`" class="k-network-vlan__title">
+        <Heading :id="`k-network-vlan-set-${props.id}`" :level="2">
           {{ t("views.vlan.setTitle") }}
-        </h2>
+        </Heading>
         <Combobox
           v-model="setText"
           v-model:value="setValue"
@@ -322,11 +323,6 @@ async function remove(): Promise<void> {
 
 <style>
 @layer components {
-  .k-network-vlan__title {
-    font-size: var(--k-text-md);
-    font-weight: var(--k-weight-semibold);
-  }
-
   .k-network-vlan__field {
     max-inline-size: var(--k-size-field);
   }

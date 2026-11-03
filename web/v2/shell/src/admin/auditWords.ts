@@ -46,6 +46,6 @@ export function useAuditWords(names: () => boolean) {
             kind: event.target_kind,
             n: event.target_ids?.length ?? 0,
           })
-        : "—",
+        : null,
   };
 }

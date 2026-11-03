@@ -4,7 +4,7 @@
 // for another path under the view (its records), kept when only the query changes. Before the
 // capabilities are read, or while the plugin loads, a skeleton; set aside, the encart of
 // its reason with its code; unknown, or its permission not held, nothing at this address.
-import { EmptyState, Skeleton, Stack } from "@kartenn/ui";
+import { EmptyState, Heading, Skeleton, Stack } from "@kartenn/ui";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
@@ -35,9 +35,9 @@ const failed = ref(false);
   <template v-if="found">
     <!-- The element writes the heading of its page; until it does, or in its place when
          it failed, the shell's. -->
-    <h1 v-if="found.entry.status.state !== 'loaded' || failed" class="k-plugin-view__title">
+    <Heading v-if="found.entry.status.state !== 'loaded' || failed" :level="1">
       {{ title }}
-    </h1>
+    </Heading>
     <!-- One element per address of the view (`/x/<plugin>/<id>/<rest>`): a record of the
          plugin reads its page at its creation, as a screen of the shell. -->
     <ExtensionElement
@@ -50,23 +50,13 @@ const failed = ref(false);
     />
   </template>
   <template v-else-if="!read">
-    <h1 class="k-plugin-view__title">{{ t("plugins.loading") }}</h1>
+    <Heading :level="1">{{ t("plugins.loading") }}</Heading>
     <Stack gap="2" aria-busy="true">
       <Skeleton variant="text" :rows="3" />
     </Stack>
   </template>
   <template v-else>
-    <h1 class="k-plugin-view__title">{{ t("app.notFound") }}</h1>
+    <Heading :level="1">{{ t("app.notFound") }}</Heading>
     <EmptyState :title="t('app.notFoundTitle')">{{ t("app.notFoundText") }}</EmptyState>
   </template>
 </template>
-
-<style>
-@layer components {
-  .k-plugin-view__title {
-    font-size: var(--k-text-lg);
-    line-height: var(--k-text-lg-line);
-    font-weight: var(--k-weight-semibold);
-  }
-}
-</style>

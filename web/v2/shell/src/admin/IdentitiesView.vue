@@ -8,6 +8,7 @@
 import {
   DataGrid,
   EmptyState,
+  NoValue,
   StatusBadge,
   type CellRef,
   type GridColumn,
@@ -113,7 +114,8 @@ const total = computed(() =>
           :state="row.disabled ? 'neutral' : 'ok'"
           :label="row.disabled ? t('admin.identities.disabled') : t('admin.identities.enabled')"
         />
-        <template v-else>{{ value ?? "—" }}</template>
+        <NoValue v-else-if="value === null || value === undefined" />
+        <template v-else>{{ value }}</template>
       </template>
     </DataGrid>
   </ViewPanel>

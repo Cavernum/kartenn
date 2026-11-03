@@ -9,6 +9,7 @@ import {
   Button,
   CodeBadge,
   EmptyState,
+  Heading,
   InlineAlert,
   ShortcutHint,
   Skeleton,
@@ -48,7 +49,7 @@ function retry(): void {
 
 <template>
   <Stack gap="6" class="k-about">
-    <h1 class="k-about__title">{{ t("about.title") }}</h1>
+    <Heading :level="1">{{ t("about.title") }}</Heading>
     <section aria-labelledby="k-about-versions">
       <Stack gap="3">
         <h2 id="k-about-versions" class="k-about__heading">{{ t("about.versions") }}</h2>
@@ -133,12 +134,6 @@ function retry(): void {
 @layer components {
   .k-about {
     max-inline-size: var(--k-size-dialog-lg);
-  }
-
-  .k-about__title {
-    font-size: var(--k-text-lg);
-    line-height: var(--k-text-lg-line);
-    font-weight: var(--k-weight-semibold);
   }
 
   .k-about__heading {

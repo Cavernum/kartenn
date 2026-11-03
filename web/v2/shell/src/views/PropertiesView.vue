@@ -10,6 +10,7 @@ import {
   IconButton,
   InlineAlert,
   KeyLabel,
+  NoValue,
   Popover,
   type GridColumn,
 } from "@kartenn/ui";
@@ -71,7 +72,7 @@ const flags = (row: Row) =>
     row.sensitive ? t("views.properties.sensitive") : null,
   ]
     .filter(Boolean)
-    .join(", ") || "—";
+    .join(", ") || null;
 const gaps = (key: string) =>
   void router.push({ path: "/anomalies", query: { tab: "gaps", property: key } });
 </script>
@@ -116,10 +117,13 @@ const gaps = (key: string) =>
           words("cardinality", String((row as Row).cardinality ?? ""))
         }}</template>
         <template v-else-if="column.id === 'carriers'">{{ carriers(row as Row) }}</template>
-        <template v-else-if="column.id === 'inherit'">{{
-          (row as Row).inherit ? words("inheritance", String((row as Row).inherit)) : "—"
+        <template v-else-if="column.id === 'inherit' && (row as Row).inherit">{{
+          words("inheritance", String((row as Row).inherit))
         }}</template>
-        <template v-else-if="column.id === 'flags'">{{ flags(row as Row) }}</template>
+        <template v-else-if="column.id === 'flags' && flags(row as Row)">{{
+          flags(row as Row)
+        }}</template>
+        <NoValue v-else-if="column.id === 'inherit' || column.id === 'flags'" />
         <Cluster v-else gap="1" :wrap="false">
           <Popover
             v-if="(row as Row).type === 'enum'"

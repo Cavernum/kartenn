@@ -211,9 +211,12 @@ export function nameOf(item: Item): string {
   return String(item.id ?? "—");
 }
 
-/** The text of a field: a summary by its slug, a boolean, nothing as `—`. */
-export function fieldText(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "—";
+/**
+ * The text of a field: a summary by its slug, a boolean; `null` when it has none, said by
+ * the place that shows it (`AttributeList`, `NoValue`: a dash shown, « non renseigné » read).
+ */
+export function fieldText(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
   if (isSummary(value)) return value.slug ?? value.id;
   if (typeof value === "string" || typeof value === "number") return String(value);
   if (typeof value === "boolean") return value ? "true" : "false";

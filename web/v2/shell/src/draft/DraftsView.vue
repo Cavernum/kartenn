@@ -12,6 +12,7 @@ import {
   DataGrid,
   EmptyState,
   Menu,
+  NoValue,
   StatusBadge,
   injectToasts,
   type CellRef,
@@ -237,7 +238,7 @@ async function create(): Promise<void> {
             state="warn"
             :label="t('drafts.expiresOn', { when: words.when(row.expires_at) })"
           />
-          <span v-else class="k-drafts__muted">—</span>
+          <NoValue v-else />
         </template>
         <Menu
           v-else-if="column.id === 'actions'"

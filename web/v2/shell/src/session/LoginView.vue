@@ -4,7 +4,7 @@
 // break-glass account (`POST /v1/auth/breakglass`). Back, after the login, to the URL
 // kept (`?return=`), its dates and filters included.
 import type { ApiProblem } from "@kartenn/sdk";
-import { Button, EmptyState, InlineAlert, Skeleton, Stack, TextField } from "@kartenn/ui";
+import { Button, EmptyState, Heading, InlineAlert, Skeleton, Stack, TextField } from "@kartenn/ui";
 import { computed, onMounted, ref, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
@@ -71,7 +71,7 @@ async function breakglass(): Promise<void> {
 
 <template>
   <Stack gap="6" class="k-login">
-    <h1 class="k-login__title">{{ t("login.title") }}</h1>
+    <Heading :level="1">{{ t("login.title") }}</Heading>
     <section aria-labelledby="k-login-issuers">
       <Stack gap="3">
         <h2 id="k-login-issuers" ref="issuersHeading" class="k-login__heading" tabindex="-1">
@@ -141,12 +141,6 @@ async function breakglass(): Promise<void> {
 @layer components {
   .k-login {
     max-inline-size: var(--k-size-dialog-md);
-  }
-
-  .k-login__title {
-    font-size: var(--k-text-lg);
-    line-height: var(--k-text-lg-line);
-    font-weight: var(--k-weight-semibold);
   }
 
   .k-login__heading {

@@ -11,6 +11,7 @@ import { createShellI18n } from "../src/i18n/index.ts";
 import {
   anchorOf,
   COLLECTIONS,
+  fieldText,
   nameOf,
   pageOfHref,
   referenceOf,
@@ -197,6 +198,13 @@ describe("the collections", () => {
     expect(nameOf({ slug: "production" })).toBe("production");
     // A VLAN by its VID and name (026).
     expect(nameOf({ vid: 100, name: "serveurs" })).toBe("100 · serveurs");
+  });
+
+  it("write a field as text, an absent one as `null`, never a dash (020-30)", () => {
+    for (const absent of [null, undefined, ""]) expect(fieldText(absent)).toBeNull();
+    expect(fieldText({ id: "abc", slug: "production" })).toBe("production");
+    expect(fieldText(0)).toBe("0");
+    expect(fieldText(false)).toBe("false");
   });
 
   it("read the objects a VLAN names by their identifier only (026)", () => {

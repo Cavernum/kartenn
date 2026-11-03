@@ -2211,7 +2211,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     parent).
   - reste : une ligne `moved` qui lit ses enfants dit `loading-children` le temps de la
     lecture (comme `draft` avant).
-- [ ] 16g. Titres du shell par `Heading` (020-29) : les classes de titre recopiées
+- [x] 16g. Titres du shell par `Heading` (020-29) : les classes de titre recopiées
   (`k-login__title`, `k-about__title`, `k-plugin-view__title`, `k-pending__title`,
   `k-help__title`, `k-edit-panel__title`, `k-network-vlan__title`) remplacées par `Heading` ;
   `fieldText` passe une valeur absente à `AttributeList` au lieu d'un « — » lu « tiret »
@@ -2220,6 +2220,33 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : les fichiers des classes citées sous `web/v2/shell/src/` (grep), `fieldText`
     (`web/v2/shell/src/views/`) ; `Heading` et `AttributeList` de `web/v2/ui` (en lecture)
   - dépend de : 020-29
+  - fait le 2026-11-03 : `Heading` (niveau 1 : `LoginView`, `AboutView`, `PluginView`,
+    `PendingView`, `HelpView` ; niveau 2 : `EditPanel`, `ClosePanel`, `NetworkVlanTab`, son
+    `id` gardé pour `aria-labelledby`), les huit classes et leurs règles retirées ;
+    `fieldText` (`views/collections.ts`) rend `null` pour une valeur absente : la fiche
+    (`RecordView`) la passe à `AttributeList`, la liste (`ListView`) rend `NoValue` ; tirets
+    recopiés relevés par la 020-30 passés à `NoValue` : cellules d'`IdentitiesView`,
+    `RolesView`, `DraftsView` (échéance absente), `AuditView` (`targets` de
+    `auditWords.ts` rend `null`), `PropertiesView` (héritage et indicateurs absents) ;
+    `person` et `when` de `changesets/words.ts` rendent `null` pour un absent (attributs de
+    `ChangesetView` dits par `AttributeList`) ; `memberText` (`draft/operations.ts`) rend
+    `null`, un membre absent dit par `OperationText`. Tests `test/views.test.ts`
+    (`fieldText`), `test/changesets.test.ts` (`memberText`, `operationLine`). Corrigé après
+    la relecture (ui-reviewer) : `person` et `when` typés par surcharge, un texte requis
+    par le contrat reste un texte (pas de cellule blanche).
+  - choix : aussi `k-close-panel__title` (même copie que `k-edit-panel__title`, venue avec
+    la 11g) ; valeur absente sans mots propres à la vue : `NoValue` et « non renseigné »
+    (pas de nouveau texte, comme la 020-30) ; lien de la première colonne d'une liste à
+    valeur propre (`vid`) sans valeur : nommé par `nameOf` plutôt que par un tiret ; dans
+    `memberText`, un élément absent d'une liste s'écrit `null` (son JSON), une plage dont une
+    borne manque est nommée par sa première seule (le membre absent n'est pas écrit).
+  - reste : titres de section recopiés (`k-about__heading`, `k-login__heading`, sous
+    `ref` et `focus()` : `Heading` rendrait le composant, pas l'élément ;
+    `k-admin-heading`, `k-view-panel__heading`, `k-draft-ops__subtitle`) ; tirets gardés
+    hors de la liste : `shownText` d'`EditPanel` (`text || "—"`, valeurs relues après un
+    412), `nameOf` (`String(item.id ?? "—")`) et `op.op ?? "—"` de `operationLine`
+    (repli d'un nom ou d'un code manquant) ; « sans échéance », « aucun indicateur »
+    seraient plus justes que « non renseigné » (textes de la vue à écrire).
 
 - [x] 11g. « Clore » un objet depuis sa fiche (A31) : action de la fiche de chaque sorte du
   noyau (entité, site, domaine, préfixe, plage, adresse, VLAN, groupe de VLAN), au
