@@ -17,7 +17,18 @@ import { childrenIntent } from "../src/prefetch/tree.ts";
 
 const P1 = "0b5e3c1a-0000-4000-8000-000000000001";
 const P2 = "0b5e3c1a-0000-4000-8000-000000000002";
+const P3 = "0b5e3c1a-0000-4000-8000-000000000003";
 const Empty = { render: () => null };
+
+/**
+ * The pointer moved onto `target`: the entry, then the move. A row or a link that scrolls
+ * under a still pointer gets the entry alone (Chromium and Firefox; task 021-7a).
+ */
+function hover(target: Element): void {
+  target.dispatchEvent(new Event("pointerover", { bubbles: true }));
+  target.dispatchEvent(new Event("pointerenter"));
+  target.dispatchEvent(new Event("pointermove", { bubbles: true }));
+}
 
 /** The fetch of the SDK: what it was asked, answered by `answer` (after `delay` ms). */
 function serve(answer: (url: string) => unknown = () => ({ id: P1 }), delay = 0) {
@@ -84,15 +95,25 @@ describe("KLink", () => {
     const seen = serve();
     const a = await link(makeRouter(), `/prefixes/${P1}`);
     expect(a.getAttribute("href")).toBe(`/prefixes/${P1}`);
-    a.dispatchEvent(new Event("pointerenter"));
+    hover(a);
     await vi.advanceTimersByTimeAsync(INTENT_DELAY - 1);
     a.dispatchEvent(new Event("pointerleave"));
     await vi.advanceTimersByTimeAsync(100);
     expect(seen).toEqual([]);
-    a.dispatchEvent(new Event("pointerenter"));
+    hover(a);
     await vi.advanceTimersByTimeAsync(INTENT_DELAY);
     expect(seen).toEqual([`/v1/prefixes/${P1}`]);
     expect(queryClient.getQueryData(keys.object("core.prefix", P1, null))).toBeDefined();
+  });
+
+  it("reads nothing for a link scrolled under a still pointer", async () => {
+    const seen = serve();
+    const a = await link(makeRouter(), `/prefixes/${P1}`);
+    // The browsers send the entry of a link that scrolls under the pointer, no move.
+    a.dispatchEvent(new Event("pointerenter"));
+    await vi.advanceTimersByTimeAsync(INTENT_DELAY * 2);
+    a.dispatchEvent(new Event("pointerleave"));
+    expect(seen).toEqual([]);
   });
 
   it("reads its target at once on focus", async () => {
@@ -153,7 +174,7 @@ describe("KLink", () => {
         l.getAttribute("href"),
         l.integrity,
       ]);
-    a.dispatchEvent(new Event("pointerenter"));
+    hover(a);
     await vi.advanceTimersByTimeAsync(INTENT_DELAY);
     expect(preloads()).toEqual([
       ["/plugins/vlans/1.0.0/index.js", "sha384-entry"],
@@ -370,28 +391,55 @@ describe("children of a closed node", () => {
   const nodes = [
     { id: P1, label: "198.51.100.0/24", hasChildren: true },
     { id: P2, label: "203.0.113.0/24", children: [{ id: "leaf", label: "203.0.113.0/25" }] },
+    { id: P3, label: "192.0.2.0/24", hasChildren: true },
   ];
 
   const tree = () =>
     mount(() => h(TreeGrid, { label: "Préfixes", treeLabel: "Préfixe", nodes, expanded: [P2] }));
   const rowOf = (root: HTMLElement, id: string) =>
     root.querySelector(`[role="row"][data-node="${id}"] .k-tree-grid__node`)!;
-  const over = (target: Element) =>
+  /** A row scrolled under the still pointer: the browsers send `pointerover`, no move. */
+  const scrolledUnder = (target: Element) =>
     target.dispatchEvent(new Event("pointerover", { bubbles: true }));
 
   it("reads the children of a closed node held 60 ms under the pointer", async () => {
     const seen = serve(() => ({ items: [], links: {} }));
     const root = tree();
     const stop = childrenIntent(root, (id) => [reads.subPages("core.prefix", id, "children")]);
-    over(rowOf(root, P1));
+    hover(rowOf(root, P1));
     await vi.advanceTimersByTimeAsync(INTENT_DELAY - 1);
     root.dispatchEvent(new Event("pointerleave"));
     await vi.advanceTimersByTimeAsync(100);
     expect(seen).toEqual([]);
-    over(rowOf(root, P1));
-    await vi.advanceTimersByTimeAsync(INTENT_DELAY);
+    hover(rowOf(root, P1));
+    // The moves within the row keep its delay.
+    await vi.advanceTimersByTimeAsync(INTENT_DELAY / 2);
+    rowOf(root, P1).dispatchEvent(new Event("pointermove", { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(INTENT_DELAY / 2);
     expect(seen).toEqual([`/v1/prefixes/${P1}/children`]);
     stop();
+  });
+
+  it("reads nothing for the rows that scroll under a still pointer", async () => {
+    const seen = serve(() => ({ items: [], links: {} }));
+    const root = tree();
+    childrenIntent(root, (id) => [reads.subPages("core.prefix", id, "children")]);
+    // The rows pass under the pointer, each long enough for an intent: no read.
+    for (const id of [P1, P2, "leaf", P3]) {
+      scrolledUnder(rowOf(root, id));
+      await vi.advanceTimersByTimeAsync(INTENT_DELAY * 2);
+    }
+    expect(seen).toEqual([]);
+    // A hover begun, then a row scrolled in its place before 60 ms: the hover ends there.
+    hover(rowOf(root, P1));
+    await vi.advanceTimersByTimeAsync(INTENT_DELAY / 2);
+    scrolledUnder(rowOf(root, P3));
+    await vi.advanceTimersByTimeAsync(INTENT_DELAY * 2);
+    expect(seen).toEqual([]);
+    // The pointer moves on the row now under it, and stays: one read, for that row.
+    rowOf(root, P3).dispatchEvent(new Event("pointermove", { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(INTENT_DELAY);
+    expect(seen).toEqual([`/v1/prefixes/${P3}/children`]);
   });
 
   it("reads the children of a closed node where the focus rests 60 ms", async () => {
@@ -410,11 +458,11 @@ describe("children of a closed node", () => {
     const seen = serve(() => ({ items: [], links: {} }));
     const root = tree();
     childrenIntent(root, (id) => [reads.subPages("core.prefix", id, "children")]);
-    over(rowOf(root, P2));
+    hover(rowOf(root, P2));
     await vi.advanceTimersByTimeAsync(INTENT_DELAY);
-    over(rowOf(root, P1));
+    hover(rowOf(root, P1));
     await vi.advanceTimersByTimeAsync(INTENT_DELAY / 2);
-    over(rowOf(root, "leaf"));
+    hover(rowOf(root, "leaf"));
     await vi.advanceTimersByTimeAsync(INTENT_DELAY);
     expect(seen).toEqual([]);
   });

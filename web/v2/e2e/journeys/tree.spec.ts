@@ -50,8 +50,16 @@ test("the tree opens on demand, reads pages as it scrolls, and goes by the keybo
   await expect(first).toHaveAttribute("aria-setsize", "-1");
   await expectAccessible(page);
 
-  // Scrolling reads the pages after it; the DOM keeps a few hundred rows at most.
-  await tree.hover();
+  // Scrolling reads the pages after it; the DOM keeps a few hundred rows at most. The
+  // pointer rests on the open node: the closed rows that scroll under it are no intent, and
+  // none reads its children (task 021-7a), only the pages of the open node are read.
+  const open = new URL(page.url()).searchParams.get("node")!;
+  const passed: string[] = [];
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path.endsWith("/children") && !path.includes(open)) passed.push(path);
+  });
+  await wide.hover();
   await expect(async () => {
     await page.mouse.wheel(0, 3_000);
     const ranks = await tree
@@ -60,6 +68,7 @@ test("the tree opens on demand, reads pages as it scrolls, and goes by the keybo
     expect(Math.max(...ranks)).toBeGreaterThan(200);
   }).toPass({ timeout: 30_000 });
   expect(await tree.locator("[role='row']").count()).toBeLessThanOrEqual(MAX_ROWS);
+  expect(passed).toEqual([]);
 
   // The focus stayed on the wide node (kept rendered): Ctrl+Home back to the first row,
   // Enter opens the record of its node.

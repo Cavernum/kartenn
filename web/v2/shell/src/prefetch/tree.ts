@@ -4,6 +4,11 @@ import { INTENT_DELAY, prefetch, type Prefetchable } from "@kartenn/sdk";
 // pointer held 60 ms on its row, or the focus resting there as long (the arrows of the
 // keyboard pass over many rows). One listener on the tree, for every row, rendered or
 // not yet: the rows of `TreeGrid` carry `data-node` and `aria-expanded`.
+//
+// The hover starts with a move of the pointer (`pointermove`), never with a row that
+// scrolls under a still pointer (task 021-7a): the browsers then send `pointerover` to the
+// row, no `pointermove` (Chromium and Firefox alike). Such a row only ends the hover of the
+// one it replaces.
 
 const CLOSED = '[role="row"][data-node][aria-expanded="false"]';
 
@@ -16,6 +21,8 @@ export function childrenIntent(
   children: (id: string) => readonly Prefetchable[],
   delay: number = INTENT_DELAY,
 ): () => void {
+  const rowOf = (event: Event) =>
+    event.target instanceof Element ? event.target.closest(CLOSED) : null;
   // The pointer and the focus each have their own row and delay: one leaving the tree
   // does not cancel the other.
   function rest() {
@@ -27,7 +34,7 @@ export function childrenIntent(
       row = null;
     };
     const enter = (event: Event) => {
-      const next = event.target instanceof Element ? event.target.closest(CLOSED) : null;
+      const next = rowOf(event);
       // Moving within the same row keeps the delay running.
       if (next !== null && next === row) return;
       stop();
@@ -39,18 +46,24 @@ export function childrenIntent(
         void prefetch.prefetch(children(id));
       }, delay);
     };
-    return { enter, stop };
+    /** Another row came under the pointer without a move: the hover of the last one ends. */
+    const pass = (event: Event) => {
+      if (rowOf(event) !== row) stop();
+    };
+    return { enter, pass, stop };
   }
   const pointer = rest();
   const focus = rest();
-  root.addEventListener("pointerover", pointer.enter);
+  root.addEventListener("pointermove", pointer.enter);
+  root.addEventListener("pointerover", pointer.pass);
   root.addEventListener("pointerleave", pointer.stop);
   root.addEventListener("focusin", focus.enter);
   root.addEventListener("focusout", focus.stop);
   return () => {
     pointer.stop();
     focus.stop();
-    root.removeEventListener("pointerover", pointer.enter);
+    root.removeEventListener("pointermove", pointer.enter);
+    root.removeEventListener("pointerover", pointer.pass);
     root.removeEventListener("pointerleave", pointer.stop);
     root.removeEventListener("focusin", focus.enter);
     root.removeEventListener("focusout", focus.stop);

@@ -55,6 +55,10 @@ export function createPrefetch({ queryClient, ...timers }: PrefetchDeps) {
     /**
      * Prefetches the queries of a link's target on intent: hover held `delay` ms, or
      * focus. Returns the function that stops listening.
+     *
+     * The hover starts with a move of the pointer on the target (`pointermove`), not with
+     * its entry: a link that scrolls under a still pointer gets `pointerenter`, never
+     * `pointermove` (Chromium and Firefox alike), and is no intent (task 021-7a).
      */
     intent(
       target: EventTarget,
@@ -62,12 +66,16 @@ export function createPrefetch({ queryClient, ...timers }: PrefetchDeps) {
       delay: number = INTENT_DELAY,
     ): () => void {
       let timer: unknown = null;
+      // The hover under way is counted: the next moves on the target keep its delay.
+      let held = false;
       const stop = () => {
         if (timer !== null) cancel(timer);
         timer = null;
+        held = false;
       };
-      const enter = () => {
-        stop();
+      const move = () => {
+        if (held) return;
+        held = true;
         timer = later(() => {
           timer = null;
           void prefetch(queries());
@@ -77,12 +85,12 @@ export function createPrefetch({ queryClient, ...timers }: PrefetchDeps) {
         stop();
         void prefetch(queries());
       };
-      target.addEventListener("pointerenter", enter);
+      target.addEventListener("pointermove", move);
       target.addEventListener("pointerleave", stop);
       target.addEventListener("focusin", focus);
       return () => {
         stop();
-        target.removeEventListener("pointerenter", enter);
+        target.removeEventListener("pointermove", move);
         target.removeEventListener("pointerleave", stop);
         target.removeEventListener("focusin", focus);
       };
