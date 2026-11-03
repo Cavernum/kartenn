@@ -44,10 +44,13 @@ budgets)
   # `kartenn-bench seed` (the dataset of bench-core and a container of 10⁵ networks, whose
   # ids go to .state/budgets-v2.env), with the plugins of web/v2/plugins and one that
   # defines itself too late (web/v2/e2e/budgets/plugins); the break-glass account `e2e`
-  # as above, for budgets/global-setup.ts.
+  # as above, for budgets/global-setup.ts. The build of web/v2 is bench-web's when it says
+  # so (K_WEB2_BUILT: the one it weighed). `kartenn-server migrate` deploys the core and the
+  # modules; the migrations of the core `kartenn-bench seed` runs again find them applied.
   release=${CARGO_TARGET_DIR:-target}/release
   cargo build -q --release -p kartenn-server -p kartenn-bench
-  pnpm -C web/v2 --filter @kartenn/shell --filter "./plugins/*" build >/dev/null
+  [ -n "${K_WEB2_BUILT:-}" ] ||
+    pnpm -C web/v2 --filter @kartenn/shell --filter "./plugins/*" build >/dev/null
   rm -rf "$state/plugins-v2"
   mkdir -p "$state/plugins-v2"
   cp -R web/v2/e2e/budgets/plugins/. web/v2/dist/plugins/. "$state/plugins-v2/"

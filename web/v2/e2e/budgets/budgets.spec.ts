@@ -41,14 +41,17 @@ function seeded(): { domain: string; container: string } {
 
 /** What the page records from its first script: interactions, shifts, clicks, first screen. */
 interface Probe {
-  /** Event Timing entries of interactions (`interactionId` > 0), 16 ms and longer. */
-  events: { id: number; start: number; duration: number }[];
-  /** Layout shifts without a recent input. */
-  shifts: { start: number; value: number }[];
+  /**
+   * Event Timing entries of interactions (`interactionId` > 0), 16 ms and longer: the type
+   * of the event and what it reached (tag, role, accessible name or text, cut short).
+   */
+  events: { id: number; start: number; duration: number; name: string; target: string }[];
+  /** Every layout shift, `recent` when the browser flags an input in the 500 ms before. */
+  shifts: { start: number; value: number; recent: boolean }[];
   /** The `timeStamp` of each click. */
   clicks: number[];
-  /** Mutations of the element watched by `watch`, each at the frame after it. */
-  drawn: number[];
+  /** The first frame each `data-row` was in the document, once `watchRows` runs. */
+  rows: Record<string, number>;
   /** The first frame where `USEFUL` is in the document. */
   useful?: number;
 }
@@ -60,16 +63,28 @@ declare global {
 }
 
 function probe({ origin, useful }: { origin: string; useful: string }): void {
-  const p: Probe = { events: [], shifts: [], clicks: [], drawn: [] };
+  const p: Probe = { events: [], shifts: [], clicks: [], rows: {} };
   window.__kProbe = p;
   performance.setResourceTimingBufferSize(100_000);
+  const describe = (node: Node | null): string => {
+    if (!(node instanceof Element)) return node ? node.nodeName : "none";
+    const named = node.closest("[role],button,a,input,[aria-label]") ?? node;
+    const role = named.getAttribute("role") ?? named.tagName.toLowerCase();
+    const name = (named.getAttribute("aria-label") ?? named.textContent ?? "").trim();
+    return `${role} « ${name.slice(0, 40)} »`;
+  };
   new PerformanceObserver((list) => {
-    for (const entry of list.getEntries() as (PerformanceEntry & { interactionId?: number })[])
+    for (const entry of list.getEntries() as (PerformanceEntry & {
+      interactionId?: number;
+      target?: Node | null;
+    })[])
       if (entry.interactionId)
         p.events.push({
           id: entry.interactionId,
           start: entry.startTime,
           duration: entry.duration,
+          name: entry.name,
+          target: describe(entry.target ?? null),
         });
   }).observe({ type: "event", buffered: true, durationThreshold: 16 } as PerformanceObserverInit);
   new PerformanceObserver((list) => {
@@ -77,7 +92,7 @@ function probe({ origin, useful }: { origin: string; useful: string }): void {
       value: number;
       hadRecentInput: boolean;
     })[])
-      if (!entry.hadRecentInput) p.shifts.push({ start: entry.startTime, value: entry.value });
+      p.shifts.push({ start: entry.startTime, value: entry.value, recent: entry.hadRecentInput });
   }).observe({ type: "layout-shift", buffered: true });
   window.addEventListener("click", (event) => p.clicks.push(event.timeStamp), true);
   if (location.origin !== origin) return;
@@ -140,8 +155,16 @@ async function openContainer(page: Page): Promise<Locator> {
   return root;
 }
 
-/** The 75th percentile of `PRESSES` presses of Arrow down, each until the focus moves. */
-async function arrowDown(page: Page): Promise<number> {
+/** The median and the worst of `samples`, printed for reading. */
+function spread(name: string, samples: number[], unit: "ms" | ""): void {
+  const shown = (v: number) => (unit === "ms" ? `${v.toFixed(1)} ms` : v.toFixed(3));
+  console.log(
+    `INFO ${name}: median ${shown(quantile(samples, 0.5))}, worst ${shown(Math.max(...samples))} (${samples.length} samples)`,
+  );
+}
+
+/** `PRESSES` presses of Arrow down, each until the focus moves: their latencies. */
+async function arrowDown(page: Page): Promise<number[]> {
   const latencies: number[] = [];
   for (let i = 0; i < PRESSES; i++) {
     const { latency } = await timed(page, { on: ["keydown"], until: { focusMoved: true } }, () =>
@@ -149,39 +172,52 @@ async function arrowDown(page: Page): Promise<number> {
     );
     latencies.push(latency);
   }
-  return quantile(latencies, 0.75);
+  return latencies;
+}
+
+/** The longest interaction of a run: its duration, its event and what it reached. */
+interface Longest {
+  value: number;
+  name: string;
+  target: string;
 }
 
 /**
  * The INP of what `act` does (Event Timing): of each interaction that started during it,
  * its longest entry; the longest of them. An interaction under 16 ms reports nothing: 0.
  */
-async function inp(page: Page, act: () => Promise<unknown>): Promise<number> {
+async function inp(page: Page, act: () => Promise<unknown>): Promise<Longest> {
   const from = await page.evaluate(() => performance.now());
   await act();
   await settle(page);
   // The entries come after the next paint.
   await page.waitForTimeout(150);
   return page.evaluate((since) => {
-    const worst = new Map<number, number>();
+    let longest = { value: 0, name: "none", target: "none (under 16 ms)" };
     for (const e of window.__kProbe.events)
-      if (e.start >= since) worst.set(e.id, Math.max(worst.get(e.id) ?? 0, e.duration));
-    return Math.max(0, ...worst.values());
+      if (e.start >= since && e.duration > longest.value)
+        longest = { value: e.duration, name: e.name, target: e.target };
+    return longest;
   }, from);
 }
 
-/** The 75th percentile of the INP of `REPEATS` runs of `act`, after `before` each time. */
+/**
+ * `REPEATS` runs of `act`, after `before` each time: the 75th percentile of their INP, the
+ * INP of each, and the longest interaction of all.
+ */
 async function interaction(
   page: Page,
   act: (run: number) => Promise<unknown>,
   before: (run: number) => Promise<unknown> = async () => undefined,
-): Promise<number> {
-  const values: number[] = [];
+): Promise<{ p75: number; samples: number[]; longest: Longest }> {
+  const runs: Longest[] = [];
   for (let run = 0; run < REPEATS; run++) {
     await before(run);
-    values.push(await inp(page, () => act(run)));
+    runs.push(await inp(page, () => act(run)));
   }
-  return quantile(values, 0.75);
+  const samples = runs.map((r) => r.value);
+  const longest = runs.reduce((a, b) => (b.value > a.value ? b : a));
+  return { p75: quantile(samples, 0.75), samples, longest };
 }
 
 /** The `k:view` marks after the last click, and that click (clock of the page). */
@@ -192,17 +228,28 @@ const viewAfterClick = (page: Page) =>
     return { click, view: marks[0]?.startTime };
   });
 
-/** Clicks `link` and waits for the `k:view` of the navigation; its delay from the click. */
-async function navigate(page: Page, link: Locator): Promise<{ click: number; delay: number }> {
+/**
+ * Clicks `link` and waits for the `k:view` of the navigation: the click, the mark (clock
+ * of the page) and the delay between them.
+ */
+async function navigate(
+  page: Page,
+  link: Locator,
+): Promise<{ click: number; view: number; delay: number }> {
   await link.click();
   await expect
     .poll(async () => (await viewAfterClick(page)).view, { timeout: 30_000 })
     .toBeDefined();
   const { click, view } = await viewAfterClick(page);
-  return { click, delay: view! - click };
+  return { click, view: view!, delay: view! - click };
 }
 
-/** The sum of the layout shifts between `from` and `to` (clock of the page). */
+/**
+ * The sum of every layout shift between `from` and `to` (clock of the page), those the
+ * browser flags as after an input included: the click of a navigation counts as an input
+ * for 500 ms (Layout Instability, `hadRecentInput`), which would leave out the shifts of
+ * the screen it draws.
+ */
 const shiftsBetween = (page: Page, from: number, to: number) =>
   page.evaluate(
     ([f, t]) =>
@@ -226,7 +273,8 @@ test("first useful screen within 2 s of the callback, without shift; a slow plug
     const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming;
     return {
       elapsed: window.__kProbe.useful! - navigation.fetchStart,
-      shifts: window.__kProbe.shifts.reduce((sum, s) => sum + s.value, 0),
+      // A load: CLS as browsers report it, the shifts after an input left out.
+      shifts: window.__kProbe.shifts.filter((s) => !s.recent).reduce((sum, s) => sum + s.value, 0),
     };
   });
   check("first useful screen", elapsed, 2_000, "ms");
@@ -246,46 +294,108 @@ test("a page of 100 rows drawn within 100 ms of its response", async ({ page }) 
   await page.goto("/addresses");
   const grid = page.getByRole("grid", { name: "Adresses" });
   await expect(grid.locator("[role='gridcell']").first()).toBeVisible();
+  // The first frame each row of the grid is in the document: a row is its cells'
+  // `data-row`, the key of its object (`row-key="id"`); those already drawn are not new.
   await grid.evaluate((el) => {
-    new MutationObserver(() =>
-      requestAnimationFrame(() => window.__kProbe.drawn.push(performance.now())),
-    ).observe(el, { subtree: true, childList: true, characterData: true });
+    const seen = window.__kProbe.rows;
+    const scan = () => {
+      const now = performance.now();
+      for (const cell of el.querySelectorAll<HTMLElement>("[data-row]")) {
+        const key = cell.dataset.row;
+        if (key && !(key in seen)) seen[key] = now;
+      }
+    };
+    scan();
+    let pending = false;
+    new MutationObserver(() => {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(() => {
+        pending = false;
+        scan();
+      });
+    }).observe(el, { subtree: true, childList: true, attributes: true });
   });
-  // One page at a time: the end of the grid in the window, then its read, then a pause, so
-  // that what the grid draws after a response is that page.
-  const pages = () =>
-    page.evaluate(
-      () =>
-        performance
-          .getEntriesByType("resource")
-          .filter((entry) => new URL(entry.name).pathname === "/v1/addresses").length,
+  // One page at a time: the end of the grid in the window, the read it sets off, then the
+  // frame where the first row of that page is in the document, from the end of its own
+  // response (its resource timing, by its URL).
+  // The first row of each page the grid reads, by the URL of its read (cursor included).
+  const firstRow = new Map<string, string>();
+  page.on("response", (r) => {
+    if (new URL(r.url()).pathname !== "/v1/addresses" || r.request().method() !== "GET") return;
+    void r
+      .json()
+      .then((body: { items?: { id: string }[] }) => {
+        const id = body.items?.[0]?.id;
+        if (id) firstRow.set(r.url(), id);
+      })
+      .catch(() => undefined);
+  });
+  const reads = () =>
+    page.evaluate(() =>
+      performance
+        .getEntriesByType("resource")
+        .filter((e) => new URL(e.name).pathname === "/v1/addresses")
+        .map((e) => e.name),
     );
-  for (let read = await pages(); read <= PAGES;) {
-    // The grid scrolls once virtualised, the surface of the frame before (records.spec.ts).
-    await grid.evaluate((el) => {
-      el.scrollTo(0, el.scrollHeight);
-      document.getElementById("k-surface")?.scrollTo(0, 1e9);
-    });
-    await expect.poll(pages, { timeout: 30_000 }).toBeGreaterThan(read);
-    read = await pages();
+  const delays: number[] = [];
+  let undrawn = 0;
+  let withoutRows = 0;
+  let measured = new Set(await reads());
+  while (delays.length + undrawn < PAGES && withoutRows < PAGES) {
+    // The grid scrolls once virtualised, the surface of the frame before (records.spec.ts);
+    // out of the end a moment, then at the end, so that the approach of the end is seen.
+    const before = measured.size;
+    await expect
+      .poll(
+        async () => {
+          await grid.evaluate((el) => {
+            el.scrollTo(0, Math.max(0, el.scrollHeight - 3 * el.clientHeight));
+            el.scrollTo(0, el.scrollHeight);
+            document.getElementById("k-surface")?.scrollTo(0, 1e9);
+          });
+          return (await reads()).length;
+        },
+        { timeout: 30_000, intervals: [500] },
+      )
+      .toBeGreaterThan(before);
+    const now = await reads();
+    for (const url of now.filter((u) => !measured.has(u))) {
+      // A read without rows (a revalidation answered 304, an empty page) is no page drawn.
+      const deadline = Date.now() + 10_000;
+      while (!firstRow.has(url) && Date.now() < deadline) await page.waitForTimeout(100);
+      if (!firstRow.has(url)) {
+        withoutRows++;
+        continue;
+      }
+      const delay = await page.evaluate(
+        async ([u, key]) => {
+          const deadline = performance.now() + 5_000;
+          while (performance.now() < deadline) {
+            const timing = performance.getEntriesByName(u).at(-1) as
+              PerformanceResourceTiming | undefined;
+            const drawn = window.__kProbe.rows[key];
+            if (timing && drawn !== undefined) return Math.max(0, drawn - timing.responseEnd);
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          }
+          return null;
+        },
+        [url, firstRow.get(url)!] as const,
+      );
+      if (delay === null) undrawn++;
+      else delays.push(delay);
+    }
+    measured = new Set(now);
     await settle(page);
     await page.waitForTimeout(300);
   }
-  const delays = await page.evaluate(() => {
-    const ends = performance
-      .getEntriesByType("resource")
-      .filter((entry) => new URL(entry.name).pathname === "/v1/addresses")
-      .map((entry) => (entry as PerformanceResourceTiming).responseEnd);
-    const drawn = window.__kProbe.drawn;
-    // Each page after the first (the warm-up of the view), to the first frame after it.
-    return ends.slice(1).flatMap((end) => {
-      const at = drawn.find((t) => t >= end);
-      return at === undefined ? [] : [at - end];
-    });
-  });
-  expect(delays.length).toBeGreaterThanOrEqual(PAGES);
+  console.log(
+    `INFO reads of /v1/addresses without rows: ${withoutRows}; pages whose first row was not` +
+      ` drawn within 5 s of its response: ${undrawn}`,
+  );
+  expect(delays.length).toBeGreaterThanOrEqual(PAGES - 2);
   check(`page of 100 rows, p95 of ${delays.length}`, quantile(delays, 0.95), 100, "ms");
-  console.log(`INFO page of 100 rows, median: ${quantile(delays, 0.5).toFixed(1)} ms`);
+  spread("page of 100 rows", delays, "ms");
 });
 
 test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the heap after 50 navigations", async ({
@@ -294,42 +404,77 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
   const cdp = await benchOf(page);
   await loginIn(page, "alice");
   await openContainer(page);
-  // The rows loaded first, at full speed: the end of the tree in the window until its height
-  // holds the rows to scroll, or grows no more for 3 s — the cache keeps 10 pages of a list
-  // at most (`MAX_PAGES`, design « Cache »): about 10³ children in memory, a window that
-  // slides as further pages come.
-  const loaded = await tree(page).evaluate(async (el, rows) => {
+  // Every row the tree will hold, read first at full speed: the end of the tree in the
+  // window until no page of the container has been read for 10 s. A page is 100 children
+  // (the server's default, the tree names no `limit`); the cache keeps 10 pages of a list
+  // (`MAX_PAGES`), dropping the first when an eleventh comes; and the tree asks for a page
+  // again only when its count of children has changed (`treePages.ts`): once ten pages
+  // are kept, the eleventh leaves the count as it was and the reads stop. About 10³
+  // children, never 10⁴, can be in memory.
+  const { container } = seeded();
+  const children = `/v1/prefixes/${container}/children`;
+  const loading = await tree(page).evaluate(async (el, path) => {
     let scroller = el as HTMLElement | null;
     while (scroller && !(scroller.scrollHeight > scroller.clientHeight))
       scroller = scroller.parentElement;
     if (!scroller) throw new Error("nothing scrolls");
     const row = el.querySelector("[data-node]")!.getBoundingClientRect().height;
+    const reads = () =>
+      performance
+        .getEntriesByType("resource")
+        .filter((e) => new URL(e.name).pathname === path) as PerformanceResourceTiming[];
     const deadline = performance.now() + 600_000;
-    let height = 0;
-    let grown = performance.now();
-    while (scroller.scrollHeight < (rows + 50) * row && performance.now() - grown < 3_000) {
-      if (performance.now() > deadline) break;
-      if (scroller.scrollHeight > height) {
-        height = scroller.scrollHeight;
-        grown = performance.now();
+    let count = -1;
+    let changed = performance.now();
+    // The last child reached: the greatest `aria-posinset` of the second level drawn.
+    let reached = 0;
+    const position = () => {
+      for (const r of el.querySelectorAll("[role='row'][aria-level='2'][aria-posinset]"))
+        reached = Math.max(reached, Number(r.getAttribute("aria-posinset")));
+    };
+    while (performance.now() - changed < 10_000 && performance.now() < deadline) {
+      position();
+      const now = reads().length;
+      if (now !== count) {
+        count = now;
+        changed = performance.now();
       }
+      // The row that reads the next page asks when it comes into view: out of view a
+      // moment, then in again at the end.
+      scroller.scrollTop = Math.max(0, scroller.scrollHeight - 3 * scroller.clientHeight);
+      await new Promise((resolve) => setTimeout(resolve, 100));
       scroller.scrollTop = scroller.scrollHeight;
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 300));
     }
-    return Math.floor(scroller.scrollHeight / row);
-  }, ROWS);
-  console.log(`INFO rows of the container in memory: ${loaded}`);
+    const durations = reads().map((e) => e.responseEnd - e.startTime);
+    return {
+      rows: Math.floor(scroller.scrollHeight / row) - 1,
+      reached,
+      durations,
+      more: el.querySelector("[data-more]") !== null,
+    };
+  }, children);
+  const sorted = [...loading.durations].sort((a, b) => a - b);
+  console.log(
+    `INFO rows the tree holds (its height): ${loading.rows}; last child reached: ${loading.reached};` +
+      ` after ${sorted.length} pages read` +
+      ` (median ${(sorted[Math.floor(sorted.length / 2)] ?? 0).toFixed(0)} ms, slowest` +
+      ` ${(sorted.at(-1) ?? 0).toFixed(0)} ms each), a row for more: ${loading.more}`,
+  );
   await settle(page);
   await slowDown(cdp);
   // 10⁴ rows in 10 s: down and up the rows in memory, the position by the clock (the
-  // protocol of the prototype: a dropped frame does not lengthen the run).
+  // protocol of the prototype: a dropped frame does not lengthen the run), short of the
+  // last rows, so that the row which reads the next page never comes into view: the window
+  // measures the drawing alone, and the reads it would set off are counted.
+  let span: [number, number] = [0, 0];
   const frames = await framed(page, async () => {
-    await tree(page).evaluate(
+    span = await tree(page).evaluate(
       async (el, [rows, duration]) => {
         let scroller = el as HTMLElement;
         while (!(scroller.scrollHeight > scroller.clientHeight)) scroller = scroller.parentElement!;
         const row = el.querySelector("[data-node]")!.getBoundingClientRect().height;
-        const extent = scroller.scrollHeight - scroller.clientHeight;
+        const extent = scroller.scrollHeight - scroller.clientHeight - 4 * row;
         const distance = rows * row;
         scroller.scrollTop = 0;
         await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -344,18 +489,35 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
           };
           requestAnimationFrame(tick);
         });
+        return [start, performance.now()] as [number, number];
       },
       [ROWS, 10_000] as const,
     );
     return [];
   });
+  const during = await page.evaluate(
+    ([from, to]) =>
+      performance
+        .getEntriesByType("resource")
+        .filter((e) => new URL(e.name).pathname.startsWith("/v1/"))
+        .filter((e) => e.startTime >= from && e.startTime <= to)
+        .map((e) => new URL(e.name).pathname),
+    span,
+  );
+  const childrenDuring = during.filter((p) => p.endsWith("/children")).length;
+  console.log(
+    `INFO reads while scrolling: ${childrenDuring} /children, ${during.length} under /v1/ in all`,
+  );
+  check("reads of children while scrolling", childrenDuring, 0, "");
   check(`dropped frames over ${ROWS} rows in 10 s`, frames.dropped, 0.02, "%");
   check("long tasks while scrolling", frames.longTasks, 0, "");
   console.log(`INFO longest task while scrolling: ${frames.longest.toFixed(1)} ms`);
 
   await tree(page).locator("[role='row'][aria-level='2'] [role='gridcell']").first().click();
   await settle(page);
-  check(`Arrow down in the tree, p75 of ${PRESSES}`, await arrowDown(page), 100, "ms");
+  const treeArrows = await arrowDown(page);
+  check(`Arrow down in the tree, p75 of ${PRESSES}`, quantile(treeArrows, 0.75), 100, "ms");
+  spread("Arrow down in the tree", treeArrows, "ms");
 
   // Fifty navigations through the entries of the frame, one after the other.
   const links = page
@@ -378,30 +540,67 @@ test("navigations to a prefetched target within 100 ms, without layout shift", a
   const grid = page.getByRole("grid", { name: "Préfixes" });
   const records = grid.locator("[role='gridcell'][data-column='value'] a");
   await expect(records.first()).toBeVisible();
-  const delays: number[] = [];
-  let worstShift = 0;
-  for (let i = 0; i < CACHED; i++) {
+  // The shifts of a navigation: every one, from the frame of its `k:view` (the screen
+  // drawn) to a second after, none left out for the input of the click (`shiftsBetween`).
+  const navigationShifts = async (i: number, witness = false) => {
     const link = records.nth(i);
     await link.scrollIntoViewIfNeeded();
-    // Its reads on intent (60 ms of hover), awaited before the click.
+    // Its reads on intent (60 ms of hover), awaited before the click: without them, the
+    // navigation is not one in cache, and the measure fails.
     const read = page
       .waitForResponse((r) => /\/v1\/prefixes\/[0-9a-f-]+\/properties/.test(r.url()), {
         timeout: 10_000,
       })
-      .catch(() => undefined);
+      .then(() => true)
+      .catch(() => false);
     await link.hover();
-    await read;
+    const prefetched = await read;
+    if (!prefetched) console.log(`FAIL navigation in cache: record ${i} not prefetched on hover`);
+    expect.soft(prefetched, `record ${i} prefetched on hover`).toBe(true);
     await settle(page);
-    const { click, delay } = await navigate(page, link);
-    delays.push(delay);
-    await page.waitForTimeout(SHIFT_WINDOW);
-    worstShift = Math.max(worstShift, await shiftsBetween(page, click, click + SHIFT_WINDOW));
+    if (witness) {
+      // The witness: 200 ms after the screen is drawn, a block of 200 px pushes the content
+      // of `main` down — within the 500 ms the click counts as an input.
+      await page.evaluate(() => {
+        const observer = new PerformanceObserver((list) => {
+          if (list.getEntriesByName("k:view").length === 0) return;
+          observer.disconnect();
+          setTimeout(() => {
+            const block = document.createElement("div");
+            block.style.height = "200px";
+            document.querySelector("main")?.prepend(block);
+          }, 200);
+        });
+        observer.observe({ type: "mark" });
+      });
+    }
+    const { view, delay } = await navigate(page, link);
+    await page.waitForTimeout(SHIFT_WINDOW + 200);
+    const shift = await shiftsBetween(page, view, view + SHIFT_WINDOW);
     await page.goBack();
     await expect(records.nth(i + 1)).toBeVisible();
+    return { delay, shift };
+  };
+  const delays: number[] = [];
+  const shifts: number[] = [];
+  for (let i = 0; i < CACHED; i++) {
+    const { delay, shift } = await navigationShifts(i);
+    delays.push(delay);
+    shifts.push(shift);
   }
-  check(`navigation in cache to k:view, p75 of ${CACHED}`, quantile(delays, 0.75), 100, "ms");
-  console.log(`INFO navigation in cache, worst of ${CACHED}: ${Math.max(...delays).toFixed(1)} ms`);
-  check(`CLS of a navigation, worst of ${CACHED}`, worstShift, 0.05, "");
+  check(`navigation in cache to k:view, worst of ${CACHED}`, Math.max(...delays), 100, "ms");
+  spread("navigation in cache", delays, "ms");
+  check(`CLS of a navigation, worst of ${CACHED}`, Math.max(...shifts), 0.05, "");
+  spread("CLS of a navigation", shifts, "");
+  // The method sees a shift provoked on purpose, which a measure of the shifts without a
+  // recent input would leave out.
+  const witness = await navigationShifts(CACHED, true);
+  const flagged = await page.evaluate(() => window.__kProbe.shifts.some((s) => s.recent));
+  console.log(
+    `INFO witness: a block of 200 px 200 ms after k:view seen as a CLS of ${witness.shift.toFixed(3)}` +
+      ` (shifts flagged after an input seen: ${flagged})`,
+  );
+  expect(witness.shift, "the shift of the witness is seen").toBeGreaterThan(0.05);
 });
 
 test("INP of the scripted interactions within 200 ms at their 75th percentile", async ({
@@ -411,8 +610,17 @@ test("INP of the scripted interactions within 200 ms at their 75th percentile", 
   await loginIn(page, "alice");
   const domain = await benchDomain(page);
   await slowDown(cdp);
-  const limit = 200;
-  const name = (what: string) => `INP, ${what}, p75 of ${REPEATS}`;
+  /** The verdict of a scenario, its spread, and its longest interaction and its target. */
+  const report = (
+    what: string,
+    { p75, samples, longest }: Awaited<ReturnType<typeof interaction>>,
+  ) => {
+    check(`INP, ${what}, p75 of ${REPEATS}`, p75, 200, "ms");
+    spread(`INP, ${what}`, samples, "ms");
+    console.log(
+      `INFO INP, ${what}, longest: ${longest.value.toFixed(0)} ms, ${longest.name} on ${longest.target}`,
+    );
+  };
 
   // Open a node: the container of 10⁵, closed again between two runs.
   const root = await openContainer(page);
@@ -431,7 +639,7 @@ test("INP of the scripted interactions within 200 ms at their 75th percentile", 
       await settle(page);
     },
   );
-  check(name("open a node"), open, limit, "ms");
+  report("open a node", open);
 
   // Filter: the value of the addresses within a prefix, from the header of the column.
   const addresses = page.getByRole("grid", { name: "Adresses" });
@@ -455,7 +663,7 @@ test("INP of the scripted interactions within 200 ms at their 75th percentile", 
       await settle(page);
     },
   );
-  check(name("filter a list"), filter, limit, "ms");
+  report("filter a list", filter);
 
   // Edit a cell: the value of the first prefix, into the draft.
   const prefixes = page.getByRole("grid", { name: "Préfixes" });
@@ -474,7 +682,7 @@ test("INP of the scripted interactions within 200 ms at their 75th percentile", 
     await expect(cell).toHaveAttribute("data-state", "draft");
     await expect(cell).toContainText(value);
   });
-  check(name("edit a cell"), edit, limit, "ms");
+  report("edit a cell", edit);
 
   // Change the tab of a record.
   await prefixes.locator("[role='gridcell'][data-column='value'] a").nth(1).click();
@@ -486,7 +694,7 @@ test("INP of the scripted interactions within 200 ms at their 75th percentile", 
     await target.click();
     await expect(target).toHaveAttribute("aria-selected", "true");
   });
-  check(name("change of tab"), tab, limit, "ms");
+  report("change of tab", tab);
 
   // Open the command palette, closed again between two runs.
   const palette = page.getByRole("dialog", { name: "Palette de commandes" });
@@ -503,7 +711,7 @@ test("INP of the scripted interactions within 200 ms at their 75th percentile", 
       await settle(page);
     },
   );
-  check(name("open the palette"), opened, limit, "ms");
+  report("open the palette", opened);
 });
 
 test("Arrow down in a grid within 100 ms at its 75th percentile", async ({ page }) => {
@@ -516,5 +724,7 @@ test("Arrow down in a grid within 100 ms at its 75th percentile", async ({ page 
   await grid.getByRole("columnheader", { name: /Valeur/ }).click({ position: { x: 4, y: 4 } });
   await page.keyboard.press("ArrowDown");
   await settle(page);
-  check(`Arrow down in a grid, p75 of ${PRESSES}`, await arrowDown(page), 100, "ms");
+  const gridArrows = await arrowDown(page);
+  check(`Arrow down in a grid, p75 of ${PRESSES}`, quantile(gridArrows, 0.75), 100, "ms");
+  spread("Arrow down in a grid", gridArrows, "ms");
 });

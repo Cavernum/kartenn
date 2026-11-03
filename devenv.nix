@@ -1368,13 +1368,23 @@ in {
       [ -n "''${K_BENCH_HELD:-}" ] && [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --bench --pg ${dash} "$0" "$@"
       cd "$(git rev-parse --show-toplevel)" || exit 1
       k-pg-bench || exit 1
-      export NO_COLOR=1 FORCE_COLOR=0 BENCH_SEED=''${1:-42}
-      [ "$#" -eq 0 ] || shift
+      export NO_COLOR=1 FORCE_COLOR=0 BENCH_SEED=42
+      # A seed only if the first argument is a number; `small` in either place before the
+      # arguments of Playwright.
+      case "''${1:-}" in
+      "" | *[!0-9]*) ;;
+      *)
+        BENCH_SEED=$1
+        shift
+        ;;
+      esac
       if [ "''${1:-}" = small ]; then
         export BENCH_SMALL=1
         shift
       fi
-      pnpm -C web/v2 --filter @kartenn/shell build >/dev/null || exit 1
+      # Built once: serve.sh budgets serves this build (K_WEB2_BUILT).
+      pnpm -C web/v2 --filter @kartenn/shell --filter "./plugins/*" build >/dev/null || exit 1
+      export K_WEB2_BUILT=1
       status=0
       node web/v2/shell/scripts/shell-size.ts || status=1
       node web/v2/tools/plugin-size.ts || status=1
