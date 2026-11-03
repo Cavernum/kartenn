@@ -2147,6 +2147,24 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     rapprochement d'une création suit l'ordre du contrat (un `Placement` portant l'indice
     de son opération le rendrait exact).
 
+- [ ] 24d. États `moved` et `preview` dans la Topographie (020-29) : la ligne au présent
+  d'un objet que le brouillon déplace en `moved`, sa ligne d'aperçu en `preview`, au lieu
+  de `draft` sur les deux — verify : Vitest de l'aperçu (états par ligne) ; parcours
+  `moves` (préfixe inséré au brouillon : ligne au présent et ligne d'aperçu dites
+  différemment) sous les deux navigateurs
+  - où : `web/v2/shell/src/views/TopologyView.vue`, `topology.ts` ; `TreeNodeState` de
+    `web/v2/ui/src/components/TreeGrid/tree.ts` (en lecture)
+  - dépend de : 24c, 020-29
+- [ ] 16g. Titres du shell par `Heading` (020-29) : les classes de titre recopiées
+  (`k-login__title`, `k-about__title`, `k-plugin-view__title`, `k-pending__title`,
+  `k-help__title`, `k-edit-panel__title`, `k-network-vlan__title`) remplacées par `Heading` ;
+  `fieldText` passe une valeur absente à `AttributeList` au lieu d'un « — » lu « tiret »
+  — verify : Vitest ; `k-web2-check --base main` (captures touchées listées) ; revue
+  `ui-reviewer`
+  - où : les fichiers des classes citées sous `web/v2/shell/src/` (grep), `fieldText`
+    (`web/v2/shell/src/views/`) ; `Heading` et `AttributeList` de `web/v2/ui` (en lecture)
+  - dépend de : 020-29
+
 ## P3 — Plugins (phase 5)
 
 - [ ] 17. Écrans VLAN du cœur (amendée par la 026 : plus un plugin, des écrans du shell)
@@ -2777,6 +2795,14 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `crates/kartenn-machines/src/rest.rs` (filtres de `/v1/machines`),
     `web/v2/plugins/machines/src/HostingTree.vue`
   - dépend de : 18cd
+
+- [ ] 18g. Plugin Machines sur `Heading`, `AttributeList` et les états d'arbre (020-29) :
+  fiches (`MachineRecord`, `InterfaceRecord`, `ClusterRecord`) en `AttributeList` et
+  `Heading` au lieu de `Grid as="dl"` et de `h1`/`h2` nus ; `HostingTree` en
+  `moved`/`preview` au lieu de `draft` — verify : Vitest du plugin ; parcours
+  `machines` et `moves` sous les deux navigateurs ; poids du plugin
+  - où : `web/v2/plugins/machines/src/{MachineRecord,InterfaceRecord,ClusterRecord,HostingTree}.vue`
+  - dépend de : 18cd, 020-29
 
 ## P4 — Budgets et clôture
 
