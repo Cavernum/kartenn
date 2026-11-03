@@ -2854,13 +2854,19 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `web/v2/shell/test/parity.test.ts` : une ligne par ancien test et aucune pour un test
     disparu ; le pendant nommé existe et tient les titres cités ; une ligne à porter nomme
     sa tâche ou « aucune tâche », une ligne retirée sa référence ; un `todo` par parcours
-    sans pendant (`accessibility`, tâche 21) et par test à porter. État : 82 lignes
-    cochées, 35 à porter, 3 retirées ; 11 sans tâche (liens de la 007 sans renvoi,
-    « Clore » d'une fiche, opération en JSON du brouillon, compte du brouillon dans la vue
-    d'exemple, interface et mode 802.1Q posés par l'interface Machines, gardes axe et CSP
-    du parcours `smoke`).
-  - reste : la liste entièrement cochée, au fil des tâches 11, 12, 14, 16, 21 ; les
-    lignes sans tâche, à attribuer ou à retirer par une spec.
+    sans pendant (`accessibility`, tâche 21) et par test à porter.
+  - corrigé le 2026-11-03 (revue, arbitrages A30 à A33) : liens de la 007, opération en
+    JSON brut et compte du brouillon de la vue d'exemple en `[-]` (021/A30, A32, A33) ;
+    « Clore » à la 11g ; interface et mode 802.1Q à la 18g ; gardes du parcours `smoke` à
+    la 21 ; pseudonymisation (15b) et filtres de période et d'objet de l'audit (15c) en
+    lignes à porter, la ligne du parcours `admin` et celle de « then undone » des
+    changesets (14 : « Appliqué » dans « Mes changesets ») décochées. Le test confronte
+    aussi les lignes cochées des autres sections aux parcours qu'elles citent (fichier,
+    test ou `describe`), lit la tâche d'une ligne à porter dans sa dernière colonne, et
+    met un `todo` par ligne à porter de toutes les sections. État : 81 lignes cochées, 35
+    à porter, 6 retirées ; aucune ligne sans tâche.
+  - reste : la liste entièrement cochée, au fil des tâches 11, 11g, 12, 14, 15b, 15c, 16,
+    18g, 21.
   - choix : une ligne n'est cochée que si un parcours de `web/v2/e2e/` tient tout son
     scénario (une étape manquante la laisse à porter ; une donnée de hasard, comme
     l'événement cherché dans l'audit, ne compte pas) ; ce que seul Vitest prouve reste à
