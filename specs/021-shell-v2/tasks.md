@@ -2803,6 +2803,27 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - où : `web/shell/src/router.ts` (routes), `web/e2e/journeys/*.spec.ts`,
     `web/plugins/*/public/manifest.json`
   - dépend de : 25 (créée tôt, cochée au fil des tâches)
+  - en cours : fait le 2026-11-03 — `web/v2/PARITE.md` complète : cadre, session et temps ;
+    référentiel ; édition ; changesets et brouillon ; hôte des plugins ; plugin d'exemple ;
+    VLAN (écrans du cœur, 026) ; Politique et Flux (017 : absents de l'ancien shell, rien à
+    porter, la bascule ne les attend pas, design § « Migration », phase 6) ; « Parcours de
+    bout en bout », une ligne par test de `web/e2e/journeys/` (43). Vitest
+    `web/v2/shell/test/parity.test.ts` : une ligne par ancien test et aucune pour un test
+    disparu ; le pendant nommé existe et tient les titres cités ; une ligne à porter nomme
+    sa tâche ou « aucune tâche », une ligne retirée sa référence ; un `todo` par parcours
+    sans pendant (`accessibility`, tâche 21) et par test à porter. État : 82 lignes
+    cochées, 35 à porter, 3 retirées ; 11 sans tâche (liens de la 007 sans renvoi,
+    « Clore » d'une fiche, opération en JSON du brouillon, compte du brouillon dans la vue
+    d'exemple, interface et mode 802.1Q posés par l'interface Machines, gardes axe et CSP
+    du parcours `smoke`).
+  - reste : la liste entièrement cochée, au fil des tâches 11, 12, 14, 16, 21 ; les
+    lignes sans tâche, à attribuer ou à retirer par une spec.
+  - choix : une ligne n'est cochée que si un parcours de `web/v2/e2e/` tient tout son
+    scénario (une étape manquante la laisse à porter ; une donnée de hasard, comme
+    l'événement cherché dans l'audit, ne compte pas) ; ce que seul Vitest prouve reste à
+    porter (« Ajout d'une interface » des Machines décoché) ; le test vit dans le projet
+    Vitest `shell` (un fichier de `tools/` relancerait toutes les captures) ; un parcours
+    est « sans pendant » quand aucune de ses lignes ne nomme un parcours de `web/v2/e2e/`.
 - [ ] 27. Commit de bascule : `web/v2/*` à la place de `web/*`, build branché dans
   `[web] root`, paquets Nix et OCI, `bench-web` et `scripts/ci.sh` ; ancien shell, SDK
   0.1 et anciens plugins supprimés ; un seul commit — REQ-021-31 — verify : liste de
