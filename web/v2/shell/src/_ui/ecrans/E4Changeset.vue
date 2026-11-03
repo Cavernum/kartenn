@@ -160,8 +160,9 @@ const actions: ToolbarAction[] = author
           },
         ]"
       />
-      <Grid columns="auto" gap="3" class="k-attrs-tiles">
+      <Grid columns="auto" gap="3">
         <Attributs
+          tile
           :items="[
             { key: 'nature', label: 'Nature' },
             { key: 'author', label: 'Auteur', value: 'Lou Bernard' },
@@ -170,12 +171,14 @@ const actions: ToolbarAction[] = author
           <template #nature><KeyLabel value="approval" label="Avec approbation" /></template>
         </Attributs>
         <Attributs
+          tile
           :items="[
             { key: 'submitted', label: 'Soumis', value: '2026-01-14 16:02', mono: true },
             { key: 'effect', label: 'Effet au', value: 'présent' },
           ]"
         />
         <Attributs
+          tile
           :items="[
             { key: 'retro', label: 'Rétroactif', value: 'non' },
             { key: 'id', label: 'Identifiant' },

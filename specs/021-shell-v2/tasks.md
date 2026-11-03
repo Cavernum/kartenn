@@ -1131,7 +1131,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (anomalies et lacunes, `?tab=gaps`, acquittement avec motif), `PropertiesView.vue`
     (déclarations, valeurs d'une liste fermée, lien aux lacunes) ; `parts/ViewPanel.vue`,
     `parts/AttributeList.vue` (repris d'`EcranPanneau`, `EcranAttributs`, qui les
-    enveloppent) ; catalogues `views/i18n/{fr,en}.json`. `@kartenn/ui` : `FilterPicker`
+    enveloppent ; déplacé dans `@kartenn/ui` par la 020-29) ; catalogues `views/i18n/{fr,en}.json`. `@kartenn/ui` : `FilterPicker`
     expose `openFor(clé, origine)` et `openAdd()`, état de catalogue `columns`. Vitest
     `shell/test/views.test.ts` (modèle, URL aller-retour, valeur hors type gardée et non
     envoyée, lien copié = même clé de cache, colonnes filtrables seulement si servies,

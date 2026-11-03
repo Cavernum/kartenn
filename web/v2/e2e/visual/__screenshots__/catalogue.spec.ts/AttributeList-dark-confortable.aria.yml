@@ -1,0 +1,67 @@
+- main:
+  - region "AttributeList":
+    - heading "AttributeList" [level=1]
+    - paragraph: "Motif : liste de descriptions (dl : dt, dd)"
+    - figure "default — Clé et valeur, une valeur par son emplacement (clé et libellé), chasse fixe":
+      - term: Genre
+      - definition:
+        - button "Machine virtuelle"
+        - status
+      - term: Adresse de gestion
+      - definition: /\d+\.\d+\.\d+\.\d+/
+      - term: Adresse MAC
+      - definition: /\d+-\d+-5E-\d+-\d+-\d+/
+      - term: Site
+      - definition: Site A
+      - code: default
+      - text: ""
+    - 'figure "empty — Valeurs absentes : un tiret montré, « non renseigné » pour les lecteurs d''écran"':
+      - term: Responsable
+      - definition: non renseigné
+      - term: Hôte
+      - definition: non renseigné
+      - term: Site
+      - definition: Site A
+      - code: empty
+      - text: ""
+    - 'figure "long — Valeur longue sans espace : elle va à la ligne dans sa colonne"':
+      - term: Adresse
+      - definition: /\d+:db8:0:1:0:0:0:abcd\/\d+/
+      - term: Nom
+      - definition: /srv-supervision-collecteur-principal-nord-\d+\.example\.net/
+      - code: long
+      - text: ""
+    - 'figure "columns — En colonnes : autant de paires clé, valeur que la largeur en tient"':
+      - term: Adresse de gestion
+      - definition: /\d+\.\d+\.\d+\.\d+/
+      - term: Adresse MAC
+      - definition: /\d+-\d+-5E-\d+-\d+-\d+/
+      - term: Site
+      - definition: Site A
+      - term: Responsable
+      - definition: Équipe infrastructure
+      - term: Hôte
+      - definition: /hv-nord-\d+/
+      - term: Grappe
+      - definition: non renseigné
+      - term: Système
+      - definition: Linux
+      - term: Processeurs
+      - definition: "4"
+      - code: columns
+      - text: ""
+    - 'figure "tiles — Blocs côte à côte (tile, dans une Grid) : leurs lignes partagées"':
+      - term: État
+      - definition: Soumis
+      - term: Auteur
+      - definition: Opérateur réseau
+      - term: Soumis le
+      - definition: /\d+-\d+-\d+ \d+:\d+/
+      - term: Valide à partir du
+      - definition: /\d+-\d+-\d+ \d+:\d+/
+      - term: Rétroactif
+      - definition: Non
+      - term: Politique
+      - definition: non renseigné
+      - code: tiles
+      - text: ""

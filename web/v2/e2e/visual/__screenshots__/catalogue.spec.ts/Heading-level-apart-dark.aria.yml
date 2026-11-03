@@ -1,0 +1,8 @@
+- main:
+  - region "Heading":
+    - heading "Heading" [level=1]
+    - paragraph: "Motif : heading (h1 à h6 ; niveau et taille séparés)"
+    - 'figure "level-apart — Niveau 3 à la taille de la page : le niveau suit le plan, la taille la vue"':
+      - heading "Hébergement" [level=3]
+      - code: level-apart
+      - text: ""

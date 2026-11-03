@@ -1,0 +1,11 @@
+- main:
+  - region "AttributeList":
+    - heading "AttributeList" [level=1]
+    - paragraph: "Motif : liste de descriptions (dl : dt, dd)"
+    - 'figure "long — Valeur longue sans espace : elle va à la ligne dans sa colonne"':
+      - term: Adresse
+      - definition: /\d+:db8:0:1:0:0:0:abcd\/\d+/
+      - term: Nom
+      - definition: /srv-supervision-collecteur-principal-nord-\d+\.example\.net/
+      - code: long
+      - text: ""

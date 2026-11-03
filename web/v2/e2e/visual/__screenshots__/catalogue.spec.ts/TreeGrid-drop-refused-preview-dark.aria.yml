@@ -1,0 +1,50 @@
+- main:
+  - region "TreeGrid":
+    - heading "TreeGrid" [level=1]
+    - paragraph: "Motif : Treegrid"
+    - 'figure "drop-refused-preview — Glisser au-dessus d''une ligne d''aperçu refusée : le tireté de la cible refusée, motif et code"':
+      - treegrid "Entités":
+        - rowgroup:
+          - row "Entité Responsable":
+            - columnheader "Entité"
+            - columnheader "Responsable"
+        - rowgroup:
+          - row "Infrastructure Équipe réseau" [expanded] [level=1]:
+            - gridcell "Infrastructure"
+            - gridcell "Équipe réseau"
+          - row "Réseaux Équipe réseau" [expanded] [level=2]:
+            - gridcell "Réseaux"
+            - gridcell "Équipe réseau"
+          - row "Cœur (aperçu du brouillon, cible refusée) Un nœud ne peut pas aller sous l'un de ses descendants. Copier tree.cycle Équipe réseau" [level=3]:
+            - gridcell "Cœur (aperçu du brouillon, cible refusée) Un nœud ne peut pas aller sous l'un de ses descendants. Copier tree.cycle":
+              - text: ""
+              - button "Copier tree.cycle":
+                - text: ""
+                - code: tree.cycle
+              - status
+            - gridcell "Équipe réseau"
+          - row "Accès Équipe réseau" [level=3]:
+            - gridcell "Accès"
+            - gridcell "Équipe réseau"
+          - row "Serveurs Équipe système" [level=2]:
+            - gridcell "Serveurs"
+            - gridcell "Équipe système"
+          - row "Stockage Équipe système" [level=2]:
+            - gridcell "Stockage"
+            - gridcell "Équipe système"
+          - row "Postes de travail Support" [expanded] [level=1]:
+            - gridcell "Postes de travail"
+            - gridcell "Support"
+          - row "Assistance Support" [level=2]:
+            - gridcell "Assistance"
+            - gridcell "Support"
+          - row "Ateliers Support" [level=2]:
+            - gridcell "Ateliers"
+            - gridcell "Support"
+          - row "Archives Documentation" [level=1]:
+            - gridcell "Archives"
+            - gridcell "Documentation"
+      - status: "Cible refusée : Un nœud ne peut pas aller sous l'un de ses descendants. (tree.cycle)"
+      - alert
+      - code: drop-refused-preview
+      - text: ""

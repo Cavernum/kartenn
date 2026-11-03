@@ -9,6 +9,7 @@
 // on the parent alone (task 24, REQ-021-32).
 import { reads } from "@kartenn/sdk";
 import {
+  AttributeList,
   Button,
   CodeBadge,
   KeyLabel,
@@ -55,7 +56,6 @@ import {
 import ProblemState from "../problems/ProblemState.vue";
 import { useKeyLabel } from "./data.ts";
 import { keepRecordName } from "./names.ts";
-import AttributeList from "./parts/AttributeList.vue";
 import ViewPanel from "./parts/ViewPanel.vue";
 import { VLAN_STATES } from "./parts/vlan.ts";
 import AnomaliesTab from "./record/AnomaliesTab.vue";

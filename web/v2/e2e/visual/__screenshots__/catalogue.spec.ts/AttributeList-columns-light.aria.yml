@@ -1,0 +1,23 @@
+- main:
+  - region "AttributeList":
+    - heading "AttributeList" [level=1]
+    - paragraph: "Motif : liste de descriptions (dl : dt, dd)"
+    - 'figure "columns — En colonnes : autant de paires clé, valeur que la largeur en tient"':
+      - term: Adresse de gestion
+      - definition: /\d+\.\d+\.\d+\.\d+/
+      - term: Adresse MAC
+      - definition: /\d+-\d+-5E-\d+-\d+-\d+/
+      - term: Site
+      - definition: Site A
+      - term: Responsable
+      - definition: Équipe infrastructure
+      - term: Hôte
+      - definition: /hv-nord-\d+/
+      - term: Grappe
+      - definition: non renseigné
+      - term: Système
+      - definition: Linux
+      - term: Processeurs
+      - definition: "4"
+      - code: columns
+      - text: ""

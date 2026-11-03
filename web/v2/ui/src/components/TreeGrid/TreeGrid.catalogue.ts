@@ -80,11 +80,42 @@ const stateBy =
   (node: TreeNode): TreeNodeState | undefined =>
     states[node.id];
 
+/**
+ * A draft moves « Supervision » under « Invités » (its value changed): its row at its
+ * present place, and a preview row under its parent after the draft, as a host draws it.
+ */
+const previewed: TreeNode[] = nodes.map((domain) =>
+  domain.children
+    ? {
+        ...domain,
+        children: domain.children.map((node) =>
+          node.id === "p5"
+            ? {
+                ...node,
+                children: [
+                  {
+                    id: "preview:p3",
+                    label: "Supervision",
+                    objectKey: "203.0.113.64/26",
+                    icon: "prefix",
+                    cells: { env: "Recette", used: "45 %" },
+                  },
+                ],
+              }
+            : node,
+        ),
+      }
+    : domain,
+);
+
 /** The entities of a declared tree: a parent chosen by the user. */
 const entityColumns: GridColumn[] = [{ id: "owner", label: "Responsable", width: "md" }];
 
-/** A drag held over a target, for the capture: the tree checks it, then marks it. */
-const dragged = (target: string) =>
+/**
+ * A drag held over a target, for the capture: the tree checks it, then marks it; with
+ * `preview`, the target is a preview row, its outline under the target's.
+ */
+const dragged = (target: string, preview = false) =>
   defineComponent({
     setup() {
       const host = moveHost(keyboardTree());
@@ -101,6 +132,7 @@ const dragged = (target: string) =>
             parentMode: "declared",
             canMove: host.canMove,
             moveState: host.moveState,
+            nodeState: preview ? stateBy({ [target]: "preview" }) : undefined,
           }),
         ]);
     },
@@ -331,6 +363,18 @@ export default {
       wide: true,
     },
     {
+      name: "moved-preview",
+      description:
+        "Nœud que le brouillon déplace : sa ligne au présent (déplacé dans le brouillon) et sa ligne d'aperçu à la place d'après",
+      props: {
+        ...base,
+        nodes: previewed,
+        expanded: ["d1", "p1", "p5"],
+        nodeState: stateBy({ p3: "moved", "preview:p3": "preview" }),
+      },
+      wide: true,
+    },
+    {
       name: "editing",
       description:
         "Édition en place : éditeur ouvert, cellule en attente, en revue, en erreur (motif et code)",
@@ -351,6 +395,22 @@ export default {
         "Glisser sur un descendant : cible refusée, jamais mise en évidence, motif et code",
       props: {},
       demo: dragged("n111"),
+      wide: true,
+    },
+    {
+      name: "drop-accepted-preview",
+      description:
+        "Glisser au-dessus d'une ligne d'aperçu acceptée : le contour de la cible remplace le tireté de l'aperçu",
+      props: {},
+      demo: dragged("n2", true),
+      wide: true,
+    },
+    {
+      name: "drop-refused-preview",
+      description:
+        "Glisser au-dessus d'une ligne d'aperçu refusée : le tireté de la cible refusée, motif et code",
+      props: {},
+      demo: dragged("n111", true),
       wide: true,
     },
     {

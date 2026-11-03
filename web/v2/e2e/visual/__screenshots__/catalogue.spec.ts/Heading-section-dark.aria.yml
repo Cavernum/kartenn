@@ -1,0 +1,8 @@
+- main:
+  - region "Heading":
+    - heading "Heading" [level=1]
+    - paragraph: "Motif : heading (h1 à h6 ; niveau et taille séparés)"
+    - 'figure "section — Titre de section : niveau 2, taille d''une section (défaut sous le niveau 1)"':
+      - heading "Interfaces" [level=2]
+      - code: section
+      - text: ""
