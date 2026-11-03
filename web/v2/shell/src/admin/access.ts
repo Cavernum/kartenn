@@ -34,6 +34,11 @@ export const IDENTITIES_READ = "core.rbac.read";
 export const ISSUER_ADMIN = "core.issuer.admin";
 /** Who pseudonymises a person at once (global, 005, REQ-004-33). */
 export const PSEUDONYMISE = "core.identity.pseudonymise";
+/**
+ * Whether an identity of `kind` is pseudonymised: a person, or a requester (016, a person
+ * named by a service account), as the server takes them; any other answers 409.
+ */
+export const pseudonymisable = (kind: string): boolean => kind === "person" || kind === "requester";
 /** The name of a service account: the Basic user, without `:` (RFC 7617 § 2). */
 export const ACCOUNT_NAME = /^[^:\s][^:]*$/;
 

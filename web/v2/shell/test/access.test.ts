@@ -10,6 +10,7 @@ import {
   globalRefusal,
   holdsGlobally,
   idpGroupRows,
+  pseudonymisable,
   refusalOf,
   secretRows,
   type IdentityDetail,
@@ -84,6 +85,16 @@ describe("identities", () => {
       { name: "ops", groups: ["admins", "lecteurs"] },
       { name: "compta", groups: [] },
     ]);
+  });
+
+  it("offers the pseudonymisation to a person and a requester, as the server takes them", () => {
+    expect(pseudonymisable("person")).toBe(true);
+    // A requester (016): a person named by a service account, pseudonymised alike.
+    expect(pseudonymisable("requester")).toBe(true);
+    // Any other identity: the server answers 409.
+    for (const kind of ["service_account", "breakglass", "system"]) {
+      expect(pseudonymisable(kind), kind).toBe(false);
+    }
   });
 });
 

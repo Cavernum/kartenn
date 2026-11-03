@@ -75,6 +75,7 @@
         "person": "person",
         "service_account": "service account",
         "breakglass": "break-glass account",
+        "requester": "requester",
         "identity": "identity",
         "idp_group": "IdP group"
       },
