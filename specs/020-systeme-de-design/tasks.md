@@ -1249,7 +1249,7 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     tâches longues de son défilement varient d'une passe à l'autre (une passe chargée
     suffit à faire échouer « aucune tâche longue ») : à relire sur une machine libre
     (`k-heavy --status` tout libre) avant d'y voir un défaut du composant.
-- [ ] 29. États et composants manquants (021/A27) : `TreeGrid` gagne les états de nœud
+- [x] 29. États et composants manquants (021/A27) : `TreeGrid` gagne les états de nœud
   « déplacé dans le brouillon » (la ligne au présent d'un objet que le brouillon déplace)
   et « aperçu » (sa ligne à la place d'après), chacun avec sa marque visible et son texte
   pour les lecteurs d'écran ; un composant de titre (niveau, taille de la page ou d'une
@@ -1263,6 +1263,43 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     `web/v2/shell/src/views/TopologyView.vue` (aperçu de la 24b),
     `web/v2/plugins/machines/src/{MachineRecord,InterfaceRecord,ClusterRecord}.vue`
   - dépend de : —
+  - fait le 2026-11-03 : `TreeNodeState` gagne `moved` et `preview` (`tree.ts`), leurs
+    mots cachés dans `rowWords` (`internal/treeStates.ts` : « déplacé dans le
+    brouillon », « aperçu du brouillon »), leurs marques et styles dans `TreeGrid.vue` et
+    `Tree.vue` (`moved` : ligne estompée, marque `move` ; `preview` : liseré tireté
+    sur toute la ligne, retiré quand le focus y est, marque `circle-dashed` ; les deux avec
+    le liseré d'accent du brouillon) ; `Heading` (`level`, `size` `page`/`section`) ;
+    `AttributeList` repris du shell (`views/parts/AttributeList.vue` déplacé dans
+    `@kartenn/ui`, classes `k-attribute-list*`, type `AttributeItem`, valeur absente
+    dite : tiret caché aux lecteurs, « non renseigné » lu), ses huit usages du shell
+    importés de `@kartenn/ui` ; chaînes `movedInDraft`, `draftPreview`, `valueNone` ;
+    catalogue (`moved-preview` de `TreeGrid` et `Tree`, `Heading` : `page`, `section`,
+    `level-apart`, `long` ; `AttributeList` : `default`, `empty`, `long`, `columns`,
+    `tiles`) ; inventaire du design (ligne 21, lignes 39 et 40) et skill ; tests
+    `ui/test/trees-mounted.test.ts` (deux lignes d'un objet déplacé : mots et marques
+    distincts, pour les deux arbres), `ui/test/components-base.test.ts` (`Heading`,
+    `AttributeList`). Corrigé après les relectures (ui-reviewer, a11y-auditor) : le
+    liseré de l'aperçu de `TreeGrid` ne passe plus sur l'anneau de focus d'une cellule.
+  - choix : états aussi rendus par `Tree` (le type `TreeNodeState` leur est commun) ;
+    `AttributeList` gardé sous son nom, déplacé plutôt que doublé (classes renommées au
+    format `k-<composant>`, `k-attribute-list-tiles` pour la grille des blocs) ; valeur
+    absente = `undefined`, `null` ou `""` sans emplacement ; taille par défaut du titre
+    tirée du niveau ; le titre va à la ligne sur un nom sans espace (`overflow-wrap:
+    anywhere`), la valeur d'une liste aussi.
+  - reste : usages à brancher par une tâche suivante — `TopologyView.vue` (ligne au
+    présent `moved`, ligne d'aperçu `preview` au lieu de `draft` pour les deux),
+    `MachineRecord`, `InterfaceRecord`, `ClusterRecord` du plugin Machines (`Grid
+    as="dl"` et `h1`/`h2` nus → `AttributeList`, `Heading`), titres recopiés du shell
+    (`k-login__title`, `k-about__title`, `k-plugin-view__title`, `k-pending__title`,
+    `k-help__title`, `k-edit-panel__title`, `k-network-vlan__title`) → `Heading` ;
+    `fieldText` du shell rend « — » comme valeur (lu « tiret ») : passer la valeur
+    absente pour qu'`AttributeList` la dise ; la maquette `EcranAttributs` n'est plus
+    qu'un relais du composant ; relectures, mineurs gardés : `moved` estompé comme
+    `pending` et `cut` (séparé d'eux par sa marque, ses mots et le liseré d'accent du
+    brouillon), marque sans libellé visible ni infobulle ; dans `Tree`, un libellé en
+    brouillon d'un nœud `moved` porte deux marques ; le pointillé de l'aperçu et celui
+    d'une cible refusée ne diffèrent que par la couleur (marques et mots les séparent) ;
+    lecture au lecteur d'écran (NVDA, VoiceOver) des deux lignes à faire.
 - [ ] 28. Synchronisation : `docs/spec/` (architecture web : `@kartenn/ui`, couches,
   catalogue) ; ADR 0036, 0038, 0039 acceptées ;
   `specs/README.md` ; audit `spec-keeper` — verify : liens croisés ; aucun écart
