@@ -3657,7 +3657,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     compte six), 0 sous 16 ms ; CLS du premier écran sans les glissements après une
     entrée (définition des navigateurs) ; `alice` administratrice pour éditer, au
     brouillon seulement ; arguments Playwright passés après la graine et `small`.
-- [ ] 26. Liste de parité `web/v2/PARITE.md` : chaque route, écran, action, point
+- [x] 26. Liste de parité `web/v2/PARITE.md` : chaque route, écran, action, point
   d'extension et parcours de l'ancien shell et de ses plugins, avec son équivalent, son
   parcours porté et son état ; tenue à jour à chaque tâche de P2 et P3 et à chaque
   correctif de l'ancien shell — REQ-021-31 — verify : chaque fichier de
@@ -3692,6 +3692,8 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     porter (« Ajout d'une interface » des Machines décoché) ; le test vit dans le projet
     Vitest `shell` (un fichier de `tools/` relancerait toutes les captures) ; un parcours
     est « sans pendant » quand aucune de ses lignes ne nomme un parcours de `web/v2/e2e/`.
+  - cochée le 2026-11-03 : 116 lignes portées, 6 retirées par une spec, aucune à porter ;
+    `web/v2/shell/test/parity.test.ts` vert sans `todo` (chaque parcours ancien a son pendant)
 - [ ] 27. Commit de bascule : `web/v2/*` à la place de `web/*`, build branché dans
   `[web] root`, paquets Nix et OCI, `bench-web` et `scripts/ci.sh` ; ancien shell, SDK
   0.1 et anciens plugins supprimés ; un seul commit — REQ-021-31 — verify : liste de
