@@ -744,20 +744,12 @@ async fn machines_page(
     // otherwise, task 010-19). The network and its addresses count only if the caller may
     // read them (ADR 0021, task 021-18e).
     let network = format!(
-        "x.id IN (SELECT i.machine_id FROM {p} p
-                    CROSS JOIN LATERAL {a} a
-                    CROSS JOIN LATERAL {t} t
+        "x.id IN (SELECT i.machine_id FROM {h} h
                     CROSS JOIN LATERAL {i} i
                    WHERE $3::jsonb IS NULL OR {visible})",
-        p = readable_network("$13"),
-        a = dated_where(
-            "public.address",
-            "id, domain_id, address",
-            "domain_id = p.domain_id AND address <<= p.prefix"
-        ),
-        t = dated_where("machines.attachment", "interface_id", "address_id = a.id"),
-        i = dated_where("machines.interface", "machine_id", "id = t.interface_id"),
-        visible = address_visible("a"),
+        h = held_in_network("$13"),
+        i = dated_where("machines.interface", "machine_id", "id = h.interface_id"),
+        visible = address_visible("h"),
     );
     // A machine is the root of its tree and inherits neither owner nor site
     // (`module::TYPES`): its resolved owner and site are its own assignments of
@@ -977,24 +969,39 @@ fn media_is(param: &str) -> String {
 /// as the filter `network` of the machines.
 fn in_network() -> String {
     format!(
-        "x.id IN (SELECT t.interface_id FROM {p} p
-                    CROSS JOIN LATERAL {a} a
-                    CROSS JOIN LATERAL {t} t
-                   WHERE $3::jsonb IS NULL OR {visible})",
-        p = readable_network("$15"),
+        "x.id IN (SELECT h.interface_id FROM {} h
+                   WHERE $3::jsonb IS NULL OR {})",
+        held_in_network("$15"),
+        address_visible("h"),
+    )
+}
+
+/// The addresses of the network `param` the caller may read held by an interface at
+/// (`$1`, `$2`), as a relation `(id, domain_id, address, interface_id)` to filter by
+/// [`address_visible`]: correlated in `LATERAL` joins from the network down, the generic
+/// plan keeps to the indexes (task 010-19). `OFFSET 0` keeps the read predicate above the
+/// join on the attachments, so that it is evaluated on the attached addresses only, not on
+/// each address of the network.
+fn held_in_network(param: &str) -> String {
+    format!(
+        "(SELECT a.id, a.domain_id, a.address, t.interface_id FROM {p} p
+            CROSS JOIN LATERAL {a} a
+            CROSS JOIN LATERAL {t} t
+          OFFSET 0)",
+        p = readable_network(param),
         a = dated_where(
             "public.address",
             "id, domain_id, address",
             "domain_id = p.domain_id AND address <<= p.prefix"
         ),
         t = dated_where("machines.attachment", "interface_id", "address_id = a.id"),
-        visible = address_visible("a"),
     )
 }
 
 /// The addresses of the network `$15` held by the interface `x` that the caller may read,
 /// by value, as a JSON array of [`CardAddress`]; null without `$15`. Evaluated on the rows
-/// of the page only, in the query of the page.
+/// of the page only, in the query of the page, once [`in_network`] kept them: the network
+/// is then one the caller reads, its read predicate not evaluated again on each row.
 fn network_addresses() -> String {
     format!(
         "CASE WHEN $15::uuid IS NULL THEN NULL ELSE coalesce(
@@ -1006,7 +1013,7 @@ fn network_addresses() -> String {
               CROSS JOIN LATERAL {a} a
              WHERE $3::jsonb IS NULL OR {visible}),
            '[]'::jsonb) END",
-        p = readable_network("$15"),
+        p = dated_where("public.prefix", "id, domain_id, prefix", "id = $15"),
         t = dated_where(
             "machines.attachment",
             "address_id, primary_for_family",
