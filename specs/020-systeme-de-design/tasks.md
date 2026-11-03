@@ -1307,6 +1307,17 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     brouillon d'un nœud `moved` porte deux marques ; le pointillé de l'aperçu et celui
     d'une cible refusée ne diffèrent que par la couleur (marques et mots les séparent) ;
     lecture au lecteur d'écran (NVDA, VoiceOver) des deux lignes à faire.
+- [ ] 30. Valeur absente dans une cellule (relevé par la revue de la 021-18g ; prolonge
+  021/A27) : une pièce exportée de `@kartenn/ui` pour une valeur absente (tiret visible,
+  « non renseigné » pour les lecteurs d'écran), employée par `AttributeList`, et rendue par
+  `DataGrid` et `TreeGrid` pour une cellule sans valeur ; puis retrait des copies :
+  `web/v2/plugins/machines/src/NotSet.vue` et la clé `notSet`,
+  `web/v2/shell/src/views/parts/NetworkVlan.vue` (l. 66 et 83) — verify : Vitest des
+  composants ; captures des seules entrées ajoutées ; Vitest du plugin et parcours
+  `machines` ; revue `a11y-auditor` ; seul agent sur `web/v2/ui`
+  - où : `web/v2/ui/src/components/AttributeList/AttributeList.vue` (vers la ligne 54,
+    balisage actuel), `DataGrid`, `TreeGrid` (cellules en chaînes) ; usages cités
+  - dépend de : 29
 - [ ] 28. Synchronisation : `docs/spec/` (architecture web : `@kartenn/ui`, couches,
   catalogue) ; ADR 0036, 0038, 0039 acceptées ;
   `specs/README.md` ; audit `spec-keeper` — verify : liens croisés ; aucun écart
