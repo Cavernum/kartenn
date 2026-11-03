@@ -2486,10 +2486,16 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     manquant l'emporte sur la raison datée d'« Appliquer » (comme les refus de la 12b) ;
     `as_of` d'il y a une seconde et `valid_at` d'un mois après dans le parcours (l'objet du
     jeu existe aux deux dates ; `VALID_AT`, en 2026-01-01, le précède).
+  - passe de corrections (revue) : la règle de période lue une fois, `writesOf`
+    (`time/index.ts`), par `action.ts`, `runnable` (qui prend le `Time`), `RecordView.vue`
+    et `ClosePanel.vue` ; `moveEntryRefusal` (`moves.ts`) porte le refus de « Changer de
+    parent… », son Vitest dans `moves.test.ts` (`edit.move.dated` sous `valid_at` seul et
+    sous `as_of`, le droit manquant gardé) ; le 403 simulé a la forme du serveur
+    (`instance` `urn:uuid:…`, `Request-Id` en UUID v7).
   - reste : la soumission du brouillon sous `valid_at` seul (`valid_from` prérempli, le
-    bouton du brouillon encore coupé par `drafts.why.past`, `draft/state.ts`) revient à la
-    14d ; « Créer » d'une liste (`c`) et le « + » de la Topographie restent au présent
-    seul sous `valid_at` (brouillon daté permis par REQ-021-5, non porté ici) ; la raison
+    bouton du brouillon encore coupé par `drafts.why.past`, `draft/state.ts`, le retrait
+    d'une opération) revient à la 14e ; « Créer » d'une liste (`c`) et le « + » de la
+    Topographie sous `valid_at` seul reviennent à la 12d ; la raison
     d'une cellule sous `valid_at` seul dit encore « revenez au présent pour modifier »
     alors que « Modifier » mène au brouillon daté ; `e`, `c` sans effet ni phrase sous
     `as_of` (la raison sur le bouton seulement ; relecture `a11y-auditor`, cadre).
