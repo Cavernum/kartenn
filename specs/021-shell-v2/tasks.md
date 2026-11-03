@@ -2007,6 +2007,14 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     celui d'un autre onglet en cours ; filtres de période et d'objet sans parcours ; « Exporter » sans icône (aucune icône de téléchargement
     dans la liste fermée de `@kartenn/ui`) ; le fichier d'OPFS d'un très gros export est
     effacé une minute après sa remise au navigateur, qui pourrait ne pas l'avoir copié.
+- [ ] 15d. Reste de l'administration prouvé par le parcours (relevé par la liste de parité,
+  26) : pseudonymisation d'une identité (confirmation, motif, refus 403 et 409), sur une
+  identité créée pour le parcours, afin de ne consommer aucune personne du jeu ; filtres de
+  période et d'objet du journal d'audit — verify : parcours `admin` sous les deux
+  navigateurs ; lignes de `web/v2/PARITE.md` cochées
+  - où : `web/v2/shell/src/admin/{IdentityDetail,AuditView}.vue` ;
+    `web/v2/e2e/journeys/admin.spec.ts`, `web/v2/e2e/journeys/global-setup.ts`
+  - dépend de : 15b, 15c
 - [x] 16b. Fin de session annoncée et requêtes de fond : avis deux minutes avant
   `absolute_expires_at` (sans « Rester connecté », qui ne la repousse pas) ; en-tête
   `Kartenn-Background: ?1` posé par le SDK sur les relectures sans geste (événements,
