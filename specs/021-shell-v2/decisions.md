@@ -315,7 +315,25 @@ Tranchés le 2026-11-02, après les tâches 11b et 18b :
   l'objet (`null` pour un objet déplacé par effet, enfant d'un préfixe inséré par
   exemple). Le client rapproche une création de son opération exactement, et non par
   l'ordre des opérations, qui se trompe sur une création de module ou sous `within`
-  (24c).
+  (24c). Précisé par la 24c (session principale) : `operation` est l'indice de la
+  première opération qui écrit l'objet ; `null` reste réservé aux objets qu'aucune
+  opération n'écrit (un objet modifié par une opération et déplacé par une autre garde
+  l'indice de la première).
+
+- **A27 — Pièces manquantes de `@kartenn/ui`** (utilisateur, 2026-11-03) : une tâche de la
+  020 (29) ajoute au `TreeGrid` les états « déplacé dans le brouillon » et « aperçu »
+  (demandés par le design, relevés par la 24b), et à la bibliothèque un composant de
+  titre et un composant de liste de propriétés pour les plugins Vue sans feuille propre
+  (A23, relevé par les 18cb et 18cc).
+- **A28 — Lectures servies du module Machines** (utilisateur, 2026-11-03) :
+  `GET /v1/interfaces?network=<id>` rend les interfaces d'un réseau avec leurs adresses
+  en une liste paginée (fin de la lecture par machine de l'onglet « Interfaces », 18cc),
+  et `/v1/machines` gagne un filtre « sans hôte » (premier niveau de l'arbre de
+  l'hébergement en une page, 18cd) ; ajouts au contrat du module (18e, 18f).
+- **A29 — Plancher des événements** (utilisateur, 2026-11-03) : il garde l'horizon de
+  tout le cluster PostgreSQL ; sur un cluster partagé, les pages d'événements et les
+  points de reprise prennent du retard (la remise n'attend pas). Limite connue, écrite
+  dans l'ADR 0018, à revoir si kartenn doit partager son cluster (022-20).
 
 ## Questions (closes le 2026-10-23)
 

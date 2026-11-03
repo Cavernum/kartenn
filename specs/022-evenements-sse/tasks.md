@@ -343,7 +343,7 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
 | INV-69 | Le coût du flux en base ne dépend pas du nombre de connexions | Lecteur partagé | Tâche 7 |
 | INV-70 | Un abonné lent ne retarde ni le lecteur ni les autres abonnés | Tampon borné, `reset` | Tâche 8 |
 | INV-71 | Latence validation → client p95 < 500 ms à 50 écritures/s et 2 000 flux ; 5 000 flux par instance, < 64 Kio par flux | Banc `bench-events` | Tâche 17 |
-- [ ] 20. Tests du flux sous charge : `events::a_page_holds_only_what_the_caller_may_read`
+- [x] 20. Tests du flux sous charge : `events::a_page_holds_only_what_the_caller_may_read`
   et `events::a_page_starts_over_on_a_cursor_it_cannot_follow` échouent dans un `k-check`
   complet sur une machine chargée (trois branches les 2026-11-01 et 02 : 021-11c, 021-24a,
   021-14a), à l'attente du lecteur de l'outbox (`settled`, `WAIT` de 5 s,
@@ -354,4 +354,47 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
   compilent) sans échec de `events::`
   - où : `crates/kartenn-rest/tests/it/events.rs` (`settled`, `WAIT`), le lecteur de
     l'outbox (`crates/kartenn-rest/src/events/`)
+  - dépend de : —
+  - fait : cause trouvée. Le plancher du lecteur (`kartenn_store_pg::events::raise`)
+    monte quand `pg_snapshot_xmin(pg_current_snapshot())` a passé le `pg_snapshot_xmax`
+    noté ; les numéros de transaction sont ceux de la grappe, et l'instantané d'une base
+    compte les transactions de toutes les autres (vérifié : une transaction ouverte dans
+    la base `postgres` retient le `xmin` lu depuis la base `kartenn`). Échantillonnage de
+    `pg_stat_activity` toutes les 100 ms pendant des `k-check` complets : sur machine
+    libre, une transaction de plus de 0,5 s détient un numéro 55 s sur 120, jusqu'à 9,5 s
+    pour un `DROP DATABASE … WITH (FORCE)` du harnais (`kartenn_testing::drop_database`),
+    8,4 s pour une importation ; sous la charge d'autres agents, jusqu'à 13,7 s. Le
+    plancher peut en attendre deux d'affilée (celle en cours quand il note son numéro,
+    puis celle en cours à la passe suivante) : `WAIT` (5 s) ne suffit pas. Éliminés :
+    créneau de connexion (pool de 5, chaque connexion tenue le temps d'une passe,
+    l'écoute hors pool), intervalle de sondage (200 ms dans `quick()`), `NOTIFY` raté
+    (le sondage le rattrape en 200 ms), base partagée (une base clonée par test).
+    `settled` attend jusqu'à `SETTLE` (45 s) et, au-delà, échoue en nommant la plus
+    vieille transaction de la grappe (base, âge, instruction). Trois `k-check` complets
+    de suite sous la charge de trois autres agents (charge 11 à 17) : 1 252 tests passés
+    à chaque fois.
+  - choix : borne de 45 s, deux transactions de ~14 s mesurées sous charge avec de la
+    marge ; sans coût quand le test passe ; `WAIT` inchangé ailleurs (la remise d'un
+    événement n'attend pas le plancher, seules les pages et `settled` l'attendent) ;
+    rien de changé côté lecteur.
+  - reste : (1) à arbitrer : un plancher borné à la base courante (numéros des sessions
+    de `current_database()` dans `pg_stat_activity.backend_xid`, plus
+    `pg_prepared_xacts`) ôterait la dépendance aux autres bases, en test comme en
+    production sur une grappe partagée ; il touche l'ADR 0018, REQ-022-7 et
+    `crates/kartenn-store-pg/src/floor.rs` (relais d'audit), et la garantie « jamais
+    sauté » repose alors sur la visibilité de `backend_xid` pour le rôle du lecteur.
+    (2) `stats::the_etag_and_the_snapshot_follow_the_outbox` n'attend pas le lecteur
+    (`outbox::revision` lit `max(seq)`) : autre cause, probablement la fenêtre de
+    400 ms (`refresh`) entre le premier calcul et la lecture « trop récente » qui suit un
+    `apply` lent ; non reproduit ici.
+- [ ] 21. `stats::the_etag_and_the_snapshot_follow_the_outbox` instable sous charge (vu le
+  2026-11-02 par la 16f, le 2026-11-03 par la vérification complète de main) : 200 au
+  lieu de 304 attendu (« served, recomputed behind », `crates/kartenn-rest/tests/it/stats.rs`
+  vers la ligne 358) ; seul, il passe. Piste de la 022-20 : `outbox::revision` lit
+  `max(seq)`, et la fenêtre de 400 ms du rafraîchissement est dépassée quand `apply`
+  ralentit sous charge. Chercher la cause comme la 022-20, puis la régler sans affaiblir
+  ce que le test prouve — verify : `k-check` complet trois fois de suite sous charge sans
+  échec de `stats::`
+  - où : `crates/kartenn-rest/tests/it/stats.rs`, rafraîchissement de `GET /v1/stats`
+    (`crates/kartenn-rest/src/stats.rs`)
   - dépend de : —

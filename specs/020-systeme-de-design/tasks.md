@@ -1249,6 +1249,20 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     tâches longues de son défilement varient d'une passe à l'autre (une passe chargée
     suffit à faire échouer « aucune tâche longue ») : à relire sur une machine libre
     (`k-heavy --status` tout libre) avant d'y voir un défaut du composant.
+- [ ] 29. États et composants manquants (021/A27) : `TreeGrid` gagne les états de nœud
+  « déplacé dans le brouillon » (la ligne au présent d'un objet que le brouillon déplace)
+  et « aperçu » (sa ligne à la place d'après), chacun avec sa marque visible et son texte
+  pour les lecteurs d'écran ; un composant de titre (niveau, taille de la page ou d'une
+  section) et un composant de liste de propriétés (`dl` en grille, clé et valeur, vide
+  dit) pour les plugins Vue sans feuille propre (A23) ; entrées au catalogue, captures,
+  inventaire du design et skill `kartenn-ui` — verify : Vitest des composants ; captures
+  `k-web-shots --update` des seules entrées ajoutées ; revues `ui-reviewer` et
+  `a11y-auditor` ; seul agent sur `web/v2/ui`
+  - où : `web/v2/ui/src/components/TreeGrid/` (`nodeState`), forme de `AttributeList`
+    ou de `Grid` pour la liste de propriétés ; usages à reprendre après la tâche :
+    `web/v2/shell/src/views/TopologyView.vue` (aperçu de la 24b),
+    `web/v2/plugins/machines/src/{MachineRecord,InterfaceRecord,ClusterRecord}.vue`
+  - dépend de : —
 - [ ] 28. Synchronisation : `docs/spec/` (architecture web : `@kartenn/ui`, couches,
   catalogue) ; ADR 0036, 0038, 0039 acceptées ;
   `specs/README.md` ; audit `spec-keeper` — verify : liens croisés ; aucun écart

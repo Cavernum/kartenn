@@ -2164,7 +2164,7 @@ async fn stages<S: Store, A: Authorizer>(
         subject: author,
     };
     let prior = if req.simulate {
-        match crate::placements::prior(&mut tx, modules, &reader, &planned).await {
+        match crate::placements::prior(&mut tx, modules, &reader, &planned, &origins).await {
             Ok(prior) => Some(prior),
             Err(e) => {
                 tx.rollback().await?;

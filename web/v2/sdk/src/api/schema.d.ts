@@ -7440,6 +7440,14 @@ export interface components {
        * @description The object.
        */
       object: string;
+      /**
+       * @description The index of the operation that places it, numbered as the `operation` of a
+       *     violation (an operation under `within` has the index of its envelope, a module
+       *     operation its own): the first operation that writes the object; `null` for an
+       *     object no operation writes, placed by effect (a child of a prefix inserted, for
+       *     instance) (spec 021, A26).
+       */
+      operation: number | null;
     };
     /** @description The values of an endpoint on an axis, and where they come from (REQ-010-31). */
     PolicyAxisResolution: {

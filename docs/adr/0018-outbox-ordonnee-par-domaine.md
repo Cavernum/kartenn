@@ -72,6 +72,13 @@ des modules (tâche 016-8) passent par la même outbox, sous les clés de leur c
 ceux d'une tâche de fond, sans changeset (`changeset_id` nul, migration 0052), sous la clé
 `<module>:<tâche>`.
 
+Limite connue (2026-11-03, 022-20, 021/A29) : le plancher suit `pg_snapshot_xmin` du
+cluster entier, les identifiants de transaction étant communs à toutes ses bases ; une
+transaction longue d'une autre base retarde donc les pages d'événements et les points de
+reprise (la remise des événements n'attend pas). Gardé tant que kartenn a son cluster ;
+à revoir (transactions de la seule base, `backend_xid` de `pg_stat_activity`) s'il doit
+en partager un.
+
 ## Alternatives
 
 - Lecture par numéro seul : risque de trou.
