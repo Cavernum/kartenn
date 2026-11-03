@@ -53,6 +53,7 @@ const columns = computed<GridColumn[]>(() => [
   { id: "flags", label: t("views.properties.flags"), width: "md", priority: 3 },
   { id: "actions", label: t("views.actions"), width: "sm", actions: true },
 ]);
+/** A value of the contract in words (`cardinalities`, `inheritance`), else the value itself. */
 const words = (group: string, value: string) => {
   const key = `views.properties.${group}.${value}`;
   return te(key) ? t(key) : value;
@@ -113,8 +114,8 @@ const gaps = (key: string) =>
           :value="(row as Row).type"
           :label="typeWords((row as Row).type)"
         />
-        <template v-else-if="column.id === 'cardinality'">{{
-          words("cardinality", String((row as Row).cardinality ?? ""))
+        <template v-else-if="column.id === 'cardinality' && (row as Row).cardinality">{{
+          words("cardinalities", String((row as Row).cardinality ?? ""))
         }}</template>
         <template v-else-if="column.id === 'carriers'">{{ carriers(row as Row) }}</template>
         <template v-else-if="column.id === 'inherit' && (row as Row).inherit">{{
@@ -123,7 +124,7 @@ const gaps = (key: string) =>
         <template v-else-if="column.id === 'flags' && flags(row as Row)">{{
           flags(row as Row)
         }}</template>
-        <NoValue v-else-if="column.id === 'inherit' || column.id === 'flags'" />
+        <NoValue v-else-if="['cardinality', 'inherit', 'flags'].includes(column.id)" />
         <Cluster v-else gap="1" :wrap="false">
           <Popover
             v-if="(row as Row).type === 'enum'"

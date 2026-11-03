@@ -5,7 +5,7 @@
 // its outcomes in itself, never by a toast); success closes it and says so by a toast.
 import { api, queryClient } from "@kartenn/sdk";
 import { Button, Dialog, TextField, injectToasts } from "@kartenn/ui";
-import { ref, watch } from "vue";
+import { nextTick, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useMutation } from "../../data/query.ts";
 import ProblemState from "../../problems/ProblemState.vue";
@@ -32,17 +32,23 @@ const acknowledge = useMutation({
       path: { id },
       body: { motive: motive.value.trim() },
     }),
-  onSuccess: () =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["v1", "/v1/anomalies"] }),
-      queryClient.invalidateQueries({ queryKey: ["v1", "/v1/stats"] }),
-    ]),
+  // Not awaited: the dialog closes and says so first, the lists then read again without the
+  // anomaly (the grid places the focus as they come, `AnomalyGrid`).
+  onSuccess: () => {
+    void queryClient.invalidateQueries({ queryKey: ["v1", "/v1/anomalies"] });
+    void queryClient.invalidateQueries({ queryKey: ["v1", "/v1/stats"] });
+  },
 });
+const form = useTemplateRef<HTMLFormElement>("form");
+/** The motive refused: the focus back on it, its error said there. */
+const toMotive = () =>
+  void nextTick(() => form.value?.querySelector<HTMLInputElement>("input")?.focus());
 
 async function submit(): Promise<void> {
   if (!props.id || acknowledge.isPending.value) return;
   if (motive.value.trim() === "") {
     missing.value = t("views.anomalies.motiveMissing");
+    toMotive();
     return;
   }
   missing.value = undefined;
@@ -59,7 +65,7 @@ async function submit(): Promise<void> {
 
 <template>
   <Dialog v-model:open="open" :title="t('views.anomalies.acknowledgeTitle')" size="md">
-    <form class="k-acknowledge" novalidate @submit.prevent="submit">
+    <form ref="form" class="k-acknowledge" novalidate @submit.prevent="submit">
       <p>{{ t("views.anomalies.acknowledgeText", { rule: props.rule }) }}</p>
       <TextField v-model="motive" :label="t('views.anomalies.motive')" :error="missing" required />
       <ProblemState

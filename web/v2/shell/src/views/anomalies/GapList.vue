@@ -2,7 +2,15 @@
 // The gaps (REQ-021-9; 016): the properties an object should carry and lacks, filtered by
 // property, domain and entity in the URL, page by page. Three states.
 import type { components } from "@kartenn/sdk";
-import { DataGrid, EmptyState, FilterPicker, KeyLabel, Stack, type GridColumn } from "@kartenn/ui";
+import {
+  DataGrid,
+  EmptyState,
+  FilterPicker,
+  KeyLabel,
+  NoValue,
+  Stack,
+  type GridColumn,
+} from "@kartenn/ui";
 import { computed, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSettings } from "../../frame/settings.ts";
@@ -59,7 +67,9 @@ const gapOf = (row: Record<string, unknown>) => row as unknown as Gap;
       v-else-if="list.isSuccess.value && rows.length === 0"
       icon="circle-check"
       :title="t('views.anomalies.noGaps')"
-    />
+    >
+      {{ t("views.anomalies.noGapsText") }}
+    </EmptyState>
     <DataGrid
       v-else
       :label="t('views.anomalies.gaps')"
@@ -77,6 +87,7 @@ const gapOf = (row: Record<string, unknown>) => row as unknown as Gap;
           :label="keyLabel('property', gapOf(row).property!)"
           show-key
         />
+        <NoValue v-else-if="column.id === 'property'" />
         <template v-else-if="column.id === 'message'">{{ gapOf(row).message }}</template>
         <ObjectName
           v-else-if="column.id === 'object'"

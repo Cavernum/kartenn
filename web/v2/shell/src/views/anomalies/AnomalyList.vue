@@ -11,13 +11,14 @@ import NextPageAlert from "../../problems/NextPageAlert.vue";
 import ProblemState from "../../problems/ProblemState.vue";
 import { useFilteredList } from "../list.ts";
 import AnomalyGrid from "./AnomalyGrid.vue";
-import type { Anomaly } from "./anomaly.ts";
+import { useFocusWhenEmptied, type Anomaly } from "./anomaly.ts";
 
 const { t } = useI18n();
 const settings = useSettings();
 const { model, filters, onFilters, list, rows, failed, nextFailed, onWindow } =
   useFilteredList<Anomaly>(() => "/v1/anomalies");
 const picker = useTemplateRef<InstanceType<typeof FilterPicker>>("picker");
+const emptied = useFocusWhenEmptied(() => rows.value, useTemplateRef<HTMLElement>("empty"));
 useViewAction("filter", {
   label: () => t("views.list.filterAction", { name: t("nav.anomalies") }),
   run: () => picker.value?.openAdd(),
@@ -41,13 +42,11 @@ useViewAction("filter", {
       :error="list.error.value"
       :retry="list.refetch"
     />
-    <EmptyState
-      v-else-if="list.isSuccess.value && rows.length === 0"
-      icon="circle-check"
-      :title="t('views.anomalies.none')"
-    >
-      {{ t("views.anomalies.noneText") }}
-    </EmptyState>
+    <div v-else-if="list.isSuccess.value && rows.length === 0" ref="empty" tabindex="-1">
+      <EmptyState icon="circle-check" :title="t('views.anomalies.none')">
+        {{ t("views.anomalies.noneText") }}
+      </EmptyState>
+    </div>
     <AnomalyGrid
       v-else
       :label="t('nav.anomalies')"
@@ -55,6 +54,7 @@ useViewAction("filter", {
       :loading="list.isPending.value"
       with-object
       @window="onWindow"
+      @acknowledged="emptied.arm()"
     />
   </Stack>
 </template>
