@@ -26,6 +26,7 @@ import { envHue } from "../src/components/EnvChip/env.ts";
 import FormField from "../src/components/FormField/FormField.vue";
 import IconButton from "../src/components/IconButton/IconButton.vue";
 import Kbd from "../src/components/Kbd/Kbd.vue";
+import NoValue from "../src/components/NoValue/NoValue.vue";
 import { keyLabel } from "../src/components/Kbd/kbd.ts";
 import KeyLabel from "../src/components/KeyLabel/KeyLabel.vue";
 import Select from "../src/components/Select/Select.vue";
@@ -593,5 +594,27 @@ describe("AttributeList (021/A27)", () => {
     );
     expect(html).toMatch(/^<dl class="k-attribute-list" style="--k-attribute-list-rows:2;"/);
     expect(html).toMatch(/^<dl[^>]* data-tile="true"/);
+  });
+});
+
+describe("NoValue (task 30)", () => {
+  it("a dash shown, hidden to the screen readers, « non renseigné » read in its place", async () => {
+    expect(await render(NoValue)).toBe(
+      '<span class="k-no-value"><span aria-hidden="true">—</span><span class="k-visually-hidden">non renseigné</span></span>',
+    );
+    setLocale("en");
+    expect(await render(NoValue)).toContain('<span class="k-visually-hidden">not set</span>');
+  });
+
+  it("the words of a view replace the default ones, the dash kept", async () => {
+    const html = await render(NoValue, { label: "Aucun VLAN" });
+    expect(html).toContain('<span aria-hidden="true">—</span>');
+    expect(html).toContain('<span class="k-visually-hidden">Aucun VLAN</span>');
+    expect(html).not.toContain("non renseigné");
+  });
+
+  it("is the absent value of an AttributeList", async () => {
+    const html = await render(AttributeList, { items: [{ key: "a", label: "A" }] });
+    expect(html).toContain('data-empty="true"><span class="k-no-value">');
   });
 });

@@ -7,12 +7,18 @@
 // the « Interfaces » tab of an address and of a VLAN. Each row: the interface, a link to its
 // record; its machine, cited by its name; its MAC; its 802.1Q mode, its VLAN by their VID;
 // its state, a `StatusBadge`. Enter on a cell without link opens the record of its row.
-import { DataGrid, StatusBadge, type CellRef, type GridColumn, type GridWindow } from "@kartenn/ui";
+import {
+  DataGrid,
+  NoValue,
+  StatusBadge,
+  type CellRef,
+  type GridColumn,
+  type GridWindow,
+} from "@kartenn/ui";
 import { computed } from "vue";
 import CitedName from "./CitedName.vue";
 import { arrival, followLink, hrefOf, PAGES } from "./dom.ts";
 import { useHosted, useTexts } from "./host.ts";
-import NotSet from "./NotSet.vue";
 import { modeOf, type Interface, type Names } from "./reads.ts";
 
 const props = defineProps<{
@@ -83,7 +89,7 @@ function onActivate(cell: CellRef): void {
       />
       <template v-else-if="column.id === 'mac'">
         <template v-if="row.mac">{{ row.mac }}</template>
-        <NotSet v-else />
+        <NoValue v-else />
       </template>
       <StatusBadge
         v-else-if="column.id === 'state'"

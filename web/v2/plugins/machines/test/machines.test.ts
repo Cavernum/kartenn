@@ -181,7 +181,9 @@ describe("the machines plugin", () => {
         }),
       });
       const element = mounted.element;
-      await lightText(element, "not set");
+      // No machine: the absent value of the library (`NoValue`), in its language, the one
+      // the shell sets for the page (French by default here), not the context's.
+      await lightText(element, "—non renseigné");
       expect(element.shadowRoot).toBeNull();
       // No sheet of its own: the document's @kartenn/ui applies (A23).
       expect(element.querySelector("link, style")).toBeNull();

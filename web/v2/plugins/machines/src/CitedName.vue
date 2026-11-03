@@ -6,13 +6,12 @@
 // An object an element of the plugin cites by its identifier (an owner, a site, a host;
 // task 18cb): its name once read through the shared cache (`Names` of the page), a link to
 // its record if it has one; while read, a cell skeleton; unreadable, its identifier in fixed
-// pitch; none, said as an absent value of a grid (`NotSet`). In a record, an `AttributeList`
-// says the absence: the record cites a name only when there is one.
-import { Skeleton } from "@kartenn/ui";
+// pitch; none, said as an absent value (`NoValue`). In a record, an `AttributeList` says
+// the absence: the record cites a name only when there is one.
+import { NoValue, Skeleton } from "@kartenn/ui";
 import { computed } from "vue";
 import { hrefOf } from "./dom.ts";
 import { useHosted } from "./host.ts";
-import NotSet from "./NotSet.vue";
 import type { Names } from "./reads.ts";
 
 const props = defineProps<{
@@ -33,7 +32,7 @@ const href = computed(() => {
 </script>
 
 <template>
-  <NotSet v-if="!name" />
+  <NoValue v-if="!name" />
   <Skeleton v-else-if="name.state === 'reading'" variant="cell" />
   <template v-else-if="name.state === 'failed'">
     <a v-if="href" :href="href" class="k-mono">{{ props.id }}</a>

@@ -1307,7 +1307,7 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     brouillon d'un nœud `moved` porte deux marques ; le pointillé de l'aperçu et celui
     d'une cible refusée ne diffèrent que par la couleur (marques et mots les séparent) ;
     lecture au lecteur d'écran (NVDA, VoiceOver) des deux lignes à faire.
-- [ ] 30. Valeur absente dans une cellule (relevé par la revue de la 021-18g ; prolonge
+- [x] 30. Valeur absente dans une cellule (relevé par la revue de la 021-18g ; prolonge
   021/A27) : une pièce exportée de `@kartenn/ui` pour une valeur absente (tiret visible,
   « non renseigné » pour les lecteurs d'écran), employée par `AttributeList`, et rendue par
   `DataGrid` et `TreeGrid` pour une cellule sans valeur ; puis retrait des copies :
@@ -1318,6 +1318,47 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
   - où : `web/v2/ui/src/components/AttributeList/AttributeList.vue` (vers la ligne 54,
     balisage actuel), `DataGrid`, `TreeGrid` (cellules en chaînes) ; usages cités
   - dépend de : 29
+  - fait le 2026-11-03 : `NoValue` (`components/NoValue/`, exporté) : tiret
+    `aria-hidden` en `--k-text-muted`, mots cachés à la vue (`valueNone`, « non
+    renseigné », ou `label`) ; `AttributeList` le rend pour une valeur absente (son
+    `data-empty` gardé) ; `DataGrid` (contenu par défaut de l'emplacement `cell`) et
+    `TreeGrid` le rendent pour une cellule `null` (type `TreeNode.cells` :
+    `Record<string, string | null>`) ; plugin Machines : `NotSet.vue` et la clé `notSet`
+    retirés, `NoValue` dans `CitedName`, `InterfaceGrid`, `MachineColumn`,
+    `MachineRecord`, `ClusterRecord`, site absent de `HostingTree` passé `null` (tiret et
+    mots au lieu du texte en clair) ; `NetworkVlan.vue` du shell : `NoValue` avec ses
+    mots (« Sans objet : un conteneur », « Aucun VLAN ») ; catalogue `NoValue` (`default`,
+    `label`, `grids`) ; inventaire du design (lignes 20, 21, 40, nouvelle ligne 41) et
+    skill ; tests `ui/test/components-base.test.ts` (`NoValue`, son usage par
+    `AttributeList`), `ui/test/components-data.test.ts` (cellule `null` dite, `""` et
+    non donnée vides, pour les deux grilles), `plugins/machines/test/machines.test.ts`
+    (la colonne vide dit la phrase de la bibliothèque, dans sa langue).
+  - choix : nom `NoValue` ; absent = `null` seul dans les grilles (`undefined`, clé
+    absente et `""` gardent leur cellule vide : une ligne de domaine sans cellule, un
+    sans-objet `""` de `TopologyView` ne changent pas) ; prop `label` pour les mots d'une
+    vue, le tiret et sa couleur gardés ; tiret estompé partout (comme dans
+    `AttributeList`), aussi dans les cellules de `NetworkVlan` ; la colonne des machines
+    sans machine garde « non renseigné » (pas de nouveau texte) ; dans le plugin, les mots
+    suivent la langue de la bibliothèque (celle que le shell règle pour la page), comme
+    déjà ceux d'`AttributeList`, et non plus celle du contexte du plugin. Relecture
+    `a11y-auditor` : aucun écart bloquant ni important (contraste du tiret estompé ≥ 4,5:1
+    en clair et en sombre, ligne choisie comprise).
+  - reste : tirets simulés des maquettes (`E1Topographie`, `E5Brouillon`, `E11Flux`,
+    `E12Vlan`, `E14Regles`, `donnees.ts`) et `fieldText` de `views/collections.ts` à
+    passer à `NoValue` (hors du périmètre : seul `NetworkVlan.vue` touché côté shell) ;
+    relations vides du plugin dites « non renseigné » (`MachineColumn` sans machine,
+    `MachineRecord` sans adresse, `ClusterRecord` sans relation) : « aucune machine »,
+    « aucune adresse » seraient plus justes, textes de la vue à écrire. Tirets recopiés du
+    shell que la règle vise aussi (`web/v2/shell/src/`) : `admin/IdentitiesView.vue:116`,
+    `admin/RolesView.vue:184`, `draft/DraftsView.vue:240`, `draft/operations.ts:26`,
+    `views/PropertiesView.vue:74` et `:120`, `changesets/words.ts:25` et `:27`,
+    `admin/auditWords.ts:49`. L'outil d'impact (`web/v2/tools/impact/`) échoue sur un
+    fichier supprimé de l'arbre de travail (« no such file, nor a deleted one ») et force
+    alors une passe complète des captures.
+  - corrigé après la revue de la branche : `ExpandableGrid` passe toujours son emplacement
+    `cell` à `DataGrid` ; son contenu par défaut rend `NoValue` pour une cellule `null`,
+    dans la grille compacte et dans le dialogue (`ui/test/no-value-mounted.test.ts`) ;
+    `TreeGrid` lit la cellule une fois (`cellOf`).
 - [ ] 28. Synchronisation : `docs/spec/` (architecture web : `@kartenn/ui`, couches,
   catalogue) ; ADR 0036, 0038, 0039 acceptées ;
   `specs/README.md` ; audit `spec-keeper` — verify : liens croisés ; aucun écart

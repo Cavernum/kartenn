@@ -6,7 +6,6 @@
   "code": "Code",
   "request": "Requête",
   "network": "Le serveur n'a pas répondu.",
-  "notSet": "non renseigné",
   "kind": {
     "physical": "physique",
     "virtual": "virtuelle",

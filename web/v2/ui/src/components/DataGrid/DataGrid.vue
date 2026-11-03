@@ -29,6 +29,8 @@
 // Columns resizable by the keyboard (`resizable`: F2 on a header reaches its handle, a
 // Window Splitter: arrows, Home, End) and the pointer (drag, or a click for the next
 // token width, WCAG 2.5.7). A column of an extension holds a custom element per row.
+// A cell whose value is `null` (without a `cell` slot) is absent, said by `NoValue` (a
+// dash shown, « non renseigné » read); `undefined` and `""` stay blank, as before.
 // Adaptation to the width (design « Adaptation à la largeur »): the root is a container;
 // the grid scrolls in its own region (`scrollbar-gutter: stable`), its key column sticks
 // at the inline start, and under a container `md` (`lg`) the columns of priority 2 (3)
@@ -57,6 +59,7 @@ import { t } from "../../i18n.ts";
 import Checkbox from "../Checkbox/Checkbox.vue";
 import Icon from "../Icon/Icon.vue";
 import ColumnChooser from "../internal/ColumnChooser.vue";
+import NoValue from "../NoValue/NoValue.vue";
 import CellError from "./CellError.vue";
 import { useCellEditor, useCellErrors, useCommitWatch } from "../internal/cellEditor.ts";
 import { isRtl, moveInGrid } from "../internal/gridKeys.ts";
@@ -1261,7 +1264,9 @@ onBeforeUnmount(() => observer?.disconnect());
                     :row="part.row"
                     :column="column"
                     :value="part.row[column.id]"
-                    >{{ part.row[column.id] }}</slot
+                    ><NoValue v-if="part.row[column.id] === null" /><template v-else>{{
+                      part.row[column.id]
+                    }}</template></slot
                   >
                 </span>
                 <Icon
