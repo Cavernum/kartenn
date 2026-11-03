@@ -123,7 +123,7 @@
     "objects": "{n} objet | {n} objets",
     "cascaded": "{n} objet fermé en cascade | {n} objets fermés en cascade",
     "why": {
-      "past": "Hors du présent, rien ne s'écrit : revenez au présent.",
+      "past": "État connu à une date passée : rien ne s'écrit, revenez au présent.",
       "empty": "Le brouillon est vide.",
       "simulating": "La simulation n'est pas finie.",
       "simulationFailed": "La simulation n'a pas abouti.",
@@ -142,7 +142,20 @@
     "violations": "{n} violation | {n} violations",
     "violationsText": "Corriger ou retirer les opérations en cause pour appliquer ou soumettre ; le brouillon s'enregistre tel quel, violations comprises.",
     "valid": "Simulation valide",
-    "validText": "{n} avertissement · effet au présent | {n} avertissements · effet au présent",
+    "validText": "{n} avertissement · {effect} | {n} avertissements · {effect}",
+    "readOnly": "Lecture seule : sous un état passé, le brouillon ne se modifie ni ne se soumet.",
+    "period": {
+      "ask": "Choisir les dates d'effet",
+      "from": "Effet à partir du",
+      "fromHint": "Vide : dès l'application.",
+      "to": "Effet jusqu'au",
+      "toHint": "Vide : sans fin.",
+      "order": "La fin de l'effet doit suivre son début.",
+      "now": "effet au présent",
+      "since": "effet à partir du {from}",
+      "until": "effet jusqu'au {to}",
+      "between": "effet du {from} au {to}"
+    },
     "field": {
       "title": "Titre",
       "operations": "Opérations",

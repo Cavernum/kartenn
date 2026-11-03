@@ -5,35 +5,112 @@
 // draft), and the split button: « Appliquer » (`?approval=self`) when the user holds
 // `approval.self` on all it touches, « Soumettre en revue », « Enregistrer le brouillon »;
 // an impossible one disabled with its reason or its permission. Ctrl+Entrée runs the
-// chosen action. « Appliquer » prefills a generic summary. The submission keeps its
-// idempotency key until an answer: a retry after a lost answer replays it (REQ-006-15). An
-// answer is said by a toast (applied, in review with its reason), a refusal here.
+// chosen action. « Appliquer » prefills a generic summary. The dates of effect (`valid_from`,
+// `valid_to`) stay behind a button until asked for or set — `valid_from` set from the date
+// read under `valid_at` (REQ-021-5) —; the simulation and the submission read them, the
+// sentence of the result says them. The submission keeps its idempotency key and its period
+// until an answer: a retry after a lost answer replays them (REQ-006-15). An answer is said
+// by a toast (applied, in review with its reason), a refusal here. Under `as_of` nothing is
+// written: the fields and the actions are refused with their reason.
 import { drafts, type DraftSubmitOutcome } from "@kartenn/sdk";
 import {
   Button,
   Cluster,
   CommitForm,
+  DateTimeField,
   Icon,
   InlineAlert,
   SplitButton,
+  Stack,
   StatusBadge,
   injectToasts,
 } from "@kartenn/ui";
-import { computed, ref, shallowRef, useTemplateRef, watch } from "vue";
+import { computed, nextTick, ref, shallowRef, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { useChangesetWords } from "../changesets/words.ts";
 import { useProblems } from "../problems/index.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import type { Refusal } from "../views/edit/inline.ts";
 import { useSay } from "../views/edit/say.ts";
-import { lostSubmissions, submitDraft, useDraftQueries, type DraftAction } from "./state.ts";
+import {
+  draftPeriods,
+  lostSubmissions,
+  submitDraft,
+  useDraftQueries,
+  type DraftAction,
+} from "./state.ts";
 
 const props = defineProps<{ id: string | null }>();
 const { t } = useI18n();
 const toasts = injectToasts();
 const say = useSay();
 const { lines } = useProblems();
-const { draft, operations, simulated, simulation, simulating, errors, actions, preferred } =
-  useDraftQueries(() => props.id);
+const changesetWords = useChangesetWords();
+const {
+  draft,
+  operations,
+  writable,
+  period,
+  simulated,
+  simulation,
+  simulating,
+  errors,
+  actions,
+  preferred,
+} = useDraftQueries(() => props.id);
+
+// The dates of effect, kept by draft for the page's life (`draftPeriods`).
+const validFrom = computed<string | null>({
+  get: () => period.value.valid_from ?? null,
+  set: (value) => {
+    if (props.id) draftPeriods.set(props.id, { ...period.value, valid_from: value });
+  },
+});
+const validTo = computed<string | null>({
+  get: () => period.value.valid_to ?? null,
+  set: (value) => {
+    if (props.id) draftPeriods.set(props.id, { ...period.value, valid_to: value });
+  },
+});
+/** The fields show once asked for, or when a date is set. */
+const periodAsked = ref(false);
+watch(
+  () => props.id,
+  () => (periodAsked.value = false),
+);
+const periodShown = computed(
+  () => periodAsked.value || validFrom.value !== null || validTo.value !== null,
+);
+const fromField = useTemplateRef<InstanceType<typeof DateTimeField>>("fromField");
+const toField = useTemplateRef<InstanceType<typeof DateTimeField>>("toField");
+async function askPeriod(): Promise<void> {
+  periodAsked.value = true;
+  await nextTick();
+  fromField.value?.focus();
+}
+/** An end that does not follow the start, said on the end. */
+const orderError = computed(() =>
+  validFrom.value && validTo.value && Date.parse(validTo.value) <= Date.parse(validFrom.value)
+    ? t("drafts.period.order")
+    : undefined,
+);
+/** The entries complete and in order; otherwise the focus goes to the one at fault. */
+function periodChecked(): boolean {
+  const from = fromField.value?.check() ?? true;
+  const to = toField.value?.check() ?? true;
+  if (!from) fromField.value?.focus();
+  else if (!to || orderError.value) toField.value?.focus();
+  return from && to && !orderError.value;
+}
+/** What the result says of the period: at the present, from, until, or between. */
+const effect = computed(() => {
+  const from = changesetWords.when(validFrom.value);
+  const to = changesetWords.when(validTo.value);
+  if (from && to) return t("drafts.period.between", { from, to });
+  if (from) return t("drafts.period.since", { from });
+  if (to) return t("drafts.period.until", { to });
+  return t("drafts.period.now");
+});
 
 // The motive, as the draft keeps it; read again when another draft, or another version
 // of its reason, comes.
@@ -110,6 +187,7 @@ async function run(): Promise<void> {
   const id = props.id;
   const action = choices.value.find((a) => a.id === chosen.value);
   if (!id || busy.value || !action || action.disabled) return;
+  if (action.id !== "save" && !periodChecked()) return;
   busy.value = true;
   refusal.value = undefined;
   try {
@@ -118,7 +196,7 @@ async function run(): Promise<void> {
       toasts?.show({ tone: "ok", title: t("drafts.saved", { title: draft.value?.title ?? "" }) });
       return;
     }
-    settle(await submitDraft(id, action.id === "apply", draft.value?.title ?? ""));
+    settle(await submitDraft(id, action.id === "apply", draft.value?.title ?? "", period.value));
   } finally {
     busy.value = false;
   }
@@ -128,7 +206,7 @@ async function run(): Promise<void> {
 const lostOne = computed(() => (props.id ? lostSubmissions.get(props.id) : undefined));
 async function retry(): Promise<void> {
   const replay = lostOne.value;
-  if (!replay || busy.value) return;
+  if (!replay || busy.value || !writable.value) return;
   busy.value = true;
   refusal.value = undefined;
   try {
@@ -173,7 +251,11 @@ const failedSimulation = computed(() =>
       <template v-else-if="simulated">
         <StatusBadge state="ok" :label="t('drafts.valid')" />
         <span>{{
-          t("drafts.validText", { n: simulated.violations.length }, simulated.violations.length)
+          t(
+            "drafts.validText",
+            { n: simulated.violations.length, effect },
+            simulated.violations.length,
+          )
         }}</span>
       </template>
     </p>
@@ -191,12 +273,48 @@ const failedSimulation = computed(() =>
         v-model:description="description"
         required
         collapsible
+        :disabled="!writable"
         @submit="run"
       />
+      <span v-if="!periodShown">
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="calendar"
+          v-bind="writable ? {} : { reason: t('drafts.why.past') }"
+          @click="writable && askPeriod()"
+          >{{ t("drafts.period.ask") }}</Button
+        >
+      </span>
+      <Stack v-else gap="2">
+        <DateTimeField
+          ref="fromField"
+          v-model="validFrom"
+          :label="t('drafts.period.from')"
+          :hint="writable ? t('drafts.period.fromHint') : t('drafts.why.past')"
+          :readonly="!writable"
+          size="sm"
+        />
+        <DateTimeField
+          ref="toField"
+          v-model="validTo"
+          :label="t('drafts.period.to')"
+          :hint="writable ? t('drafts.period.toHint') : t('drafts.why.past')"
+          :error="orderError"
+          :readonly="!writable"
+          size="sm"
+        />
+      </Stack>
       <Cluster justify="end" gap="2">
-        <Button v-if="lostOne" variant="ghost" icon="refresh-cw" :loading="busy" @click="retry">{{
-          t("views.retry")
-        }}</Button>
+        <Button
+          v-if="lostOne"
+          variant="ghost"
+          icon="refresh-cw"
+          :loading="busy"
+          v-bind="writable ? {} : { reason: t('drafts.why.past') }"
+          @click="retry"
+          >{{ t("views.retry") }}</Button
+        >
         <SplitButton
           :action="chosen"
           :actions="choices"

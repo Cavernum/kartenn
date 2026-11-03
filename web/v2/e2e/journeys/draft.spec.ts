@@ -16,7 +16,11 @@ import {
 // stays in the menu, refused with its permission, and the draft goes to review. A draft
 // with a violation says it on its operation, with its code; removed, the draft is valid. A
 // draft resumed from another browser of the same identity, with what was written in the
-// first, then deleted there. Each test writes in a domain of its own (RFC 5737, TEST-NET-2 and 3).
+// first, then deleted there. Under `valid_at` alone the draft is submitted from that date,
+// its dates of effect in the foot; an answer lost at the submission, « Réessayer » sends the
+// same key and the server replays its answer: one changeset (REQ-006-15). Under `as_of` the
+// draft is read only (REQ-021-5). Each test writes in a domain of its own (RFC 5737,
+// TEST-NET-2 and 3).
 
 const unique = (browser: string) => `zz-draft-${browser}-${Date.now().toString(36)}`;
 
@@ -208,3 +212,154 @@ test("a violation on its operation; removed, the draft is valid; resumed and del
     await context.close();
   }
 });
+
+/** A draft of the server changing the nature of `prefix`: its identifier. */
+async function serverDraft(page: Page, title: string, prefix: string): Promise<string> {
+  const created = await apiCall(page, "POST", "/v1/drafts", {
+    title,
+    operations: [{ op: "update_prefix", id: { id: prefix }, nature: "container" }],
+  });
+  expect(created.status, JSON.stringify(created.body)).toBe(201);
+  return (created.body as { id: string }).id;
+}
+
+/** A segment of a date field of the foot, by the label of the field. */
+const segment = (scope: Locator, field: string, name: string) =>
+  scope.getByRole("group", { name: field }).getByRole("spinbutton", { name, exact: true });
+
+test("under valid_at, submitted from that date: valid_from set, valid_to chosen, both on the changeset", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const { prefixes: ids } = await ownedDomain(page, unique(browserName));
+  const id = await serverDraft(page, `daté ${browserName} ${Date.now()}`, ids[0]!);
+  const at = "2031-03-01T08:00:00.000Z";
+  await page.goto(`/drafts/${id}?valid_at=${encodeURIComponent(at)}`);
+  const main = page.getByRole("main");
+  const result = main.locator(".k-draft-submit__result");
+  // Not under `as_of`: the draft is submitted, its period from the date read.
+  await expect(result).toContainText("Simulation valide");
+  await expect(result).toContainText("effet à partir du");
+  await expect(main.getByRole("group", { name: "Effet à partir du" })).toBeVisible();
+  await expect(main.locator(".k-split-button__main")).toHaveText(/^Appliquer/);
+
+  // The end of the effect, typed in its segments: in the zone of the browser.
+  await segment(main, "Effet jusqu'au", "Année").click();
+  await page.keyboard.type("203106302200");
+  await expect(result).toContainText("effet du ");
+  const end = await page.evaluate(() => new Date(2031, 5, 30, 22, 0).toISOString());
+  await expectAccessible(page);
+
+  await main.locator(".k-split-button__main").click();
+  await expect(page.getByRole("status").filter({ hasText: "Appliqué :" }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Voir le changeset" }).click();
+  await expect(page).toHaveURL(/\/changesets\/[0-9a-f-]+/);
+  const changeset = new URL(page.url()).pathname.split("/").pop()!;
+  const read = (await apiCall(page, "GET", `/v1/changesets/${changeset}`)).body as {
+    valid_from: string;
+    valid_to: string | null;
+  };
+  expect(new Date(read.valid_from).toISOString()).toBe(at);
+  expect(new Date(read.valid_to ?? "").toISOString()).toBe(end);
+});
+
+test("an answer lost at the submission, then « Réessayer »: the same key, one changeset", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const { slug } = await ownedDomain(page, unique(browserName));
+  await page.goto(`/prefixes?domain=${slug}`);
+  await draftNature(page, "container");
+  await counter(page).click();
+  await expect(
+    panel(page).getByRole("status").filter({ hasText: "Simulation valide" }),
+  ).toBeVisible();
+  const motive = `réponse perdue ${browserName} ${Date.now()}`;
+  await panel(page)
+    .getByRole("textbox", { name: /^Résumé/ })
+    .fill(motive);
+
+  // The server applies the changeset; its answer never reaches the page.
+  const keys: string[] = [];
+  await page.route(/\/v1\/drafts\/[^/]+\/submission/, async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    keys.push(route.request().headers()["idempotency-key"] ?? "");
+    if (keys.length > 1) return route.fallback();
+    await route.fetch();
+    await route.abort("connectionreset");
+  });
+  await split(page).click();
+  // In the foot, or past it when the draft has left the tab (its event come first).
+  const retry = panel(page).getByRole("button", { name: "Réessayer" });
+  await expect(retry).toBeVisible();
+  await retry.click();
+  await expect(page.getByRole("status").filter({ hasText: "Appliqué :" }).first()).toBeVisible();
+  await expect(retry).toHaveCount(0);
+  expect(keys).toHaveLength(2);
+  expect(keys[0]).not.toBe("");
+  expect(keys[1]).toBe(keys[0]);
+  // The replay is the answer of the first: one changeset with this motive.
+  const listed = (await apiCall(page, "GET", "/v1/changesets?page_size=200")).body as {
+    items: { motive: string }[];
+  };
+  expect(listed.items.filter((item) => item.motive.startsWith(motive))).toHaveLength(1);
+  await expect(cellOf(page, "nature")).toContainText("Conteneur");
+});
+
+test("under as_of the draft is read only: said at its head, each write refused", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const { prefixes: ids } = await ownedDomain(page, unique(browserName));
+  const title = `passé ${browserName} ${Date.now()}`;
+  const id = await serverDraft(page, title, ids[0]!);
+  const past = new Date(Date.now() - 30_000).toISOString();
+  const dated = `as_of=${encodeURIComponent(past)}`;
+  // Resumed all the same (a choice of the tab, nothing written), from « Mes brouillons »,
+  // where deleting it is refused; then the panel, then its page.
+  await page.goto(`/drafts?${dated}`);
+  const row = page.getByRole("grid", { name: "Mes brouillons" }).getByRole("row").filter({
+    hasText: title,
+  });
+  await choose(page, row, title, "Reprendre");
+  // The list read again by the other browser's drafts may close the menu: opened again then.
+  const remove = page.getByRole("menuitem", { name: `Supprimer « ${title} »…` });
+  await expect(async () => {
+    if (!(await remove.isVisible())) {
+      await row.getByRole("button", { name: `Actions sur « ${title} »` }).click();
+    }
+    await expect(remove).toHaveAttribute("aria-disabled", "true", { timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
+  await page.keyboard.press("Escape");
+  await counter(page).click();
+  await assertReadOnly(panel(page));
+  await page.goto(`/drafts/${id}?${dated}`);
+  await assertReadOnly(page.getByRole("main"));
+  await expectAccessible(page);
+  // Nothing was written: the draft keeps its operation.
+  const read = (await apiCall(page, "GET", `/v1/drafts/${id}`)).body as { operations: unknown[] };
+  expect(read.operations).toHaveLength(1);
+});
+
+/** A draft read only: said at its head, its removal, motive, dates and actions refused. */
+async function assertReadOnly(scope: Locator): Promise<void> {
+  await expect(
+    scope.getByRole("status").filter({ hasText: "Lecture seule : sous un état passé" }),
+  ).toBeVisible();
+  await expect(
+    scope.getByRole("button", { name: /^Retirer l'opération 1 : update_prefix/ }),
+  ).toHaveAttribute("aria-disabled", "true");
+  await expect(scope.locator(".k-split-button__main")).toHaveText(/^Enregistrer le brouillon/);
+  await expect(scope.locator(".k-split-button__main")).toHaveAttribute("aria-disabled", "true");
+  await expect(scope.getByRole("textbox", { name: /^Résumé/ })).toBeDisabled();
+  await expect(scope.getByRole("button", { name: "Choisir les dates d'effet" })).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+}

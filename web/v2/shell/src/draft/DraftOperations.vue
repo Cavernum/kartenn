@@ -5,7 +5,8 @@
 // it and, after the simulation, its violations in plain words with their codes; the
 // violations of the result, then what the simulation counts (differential, cascades). The
 // deletion of an inactive draft is announced (`expires_at`). A removal refused is said here
-// (`problems/`), the focus kept in the list.
+// (`problems/`), the focus kept in the list. Under `as_of` the draft is read only, said at
+// its head (design 021 « Écrans » : lecture seule annoncée en tête), each removal refused.
 import { drafts } from "@kartenn/sdk";
 import { DiffValue, Icon, IconButton, InlineAlert, Skeleton, Stack } from "@kartenn/ui";
 import { computed, nextTick, ref, shallowRef, watch } from "vue";
@@ -13,7 +14,6 @@ import { useI18n } from "vue-i18n";
 import { useChangesetWords } from "../changesets/words.ts";
 import KLink from "../prefetch/KLink.vue";
 import ProblemState from "../problems/ProblemState.vue";
-import { useTime } from "../time/index.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import type { Refusal } from "../views/edit/inline.ts";
 import { useKeyLabel } from "../views/data.ts";
@@ -26,10 +26,11 @@ const props = withDefaults(defineProps<{ id: string | null; page?: boolean }>(),
   page: false,
 });
 const { t } = useI18n();
-const time = useTime();
 const words = useChangesetWords();
 const keyLabel = useKeyLabel();
-const { query, draft, operations, simulated, violations } = useDraftQueries(() => props.id);
+const { query, draft, operations, writable, simulated, violations } = useDraftQueries(
+  () => props.id,
+);
 
 const general = computed(() => violations.value.get(-1) ?? []);
 const counts = computed(() => simulated.value?.diff ?? []);
@@ -72,7 +73,7 @@ const refusalWords = computed(() =>
  * one before, else the list.
  */
 async function remove(index: number): Promise<void> {
-  if (!props.id || removing.value !== null || !time.value.present) return;
+  if (!props.id || removing.value !== null || !writable.value) return;
   removing.value = index;
   refusal.value = undefined;
   const kept = operations.value.filter((_, i) => i !== index);
@@ -114,6 +115,7 @@ const value = (text: string | null | undefined) =>
     />
     <Skeleton v-else-if="!draft" variant="rows" :rows="3" />
     <template v-else>
+      <InlineAlert v-if="!writable" tone="warn" icon="lock" :title="t('drafts.readOnly')" />
       <InlineAlert
         v-if="draft.expires_at"
         tone="warn"
@@ -142,7 +144,7 @@ const value = (text: string | null | undefined) =>
               variant="ghost"
               :label="removeLabel(index)"
               :loading="removing === index"
-              v-bind="time.present ? {} : { reason: t('drafts.why.past') }"
+              v-bind="writable ? {} : { reason: t('drafts.why.past') }"
               @click="remove(index)"
             />
           </div>

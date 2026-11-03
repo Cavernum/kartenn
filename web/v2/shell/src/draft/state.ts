@@ -1,6 +1,7 @@
 import {
   drafts,
   type Draft,
+  type DraftPeriod,
   type DraftSubmitOutcome,
   type Simulated,
   type Violation,
@@ -10,7 +11,7 @@ import { computed, shallowReactive, toValue, type MaybeRefOrGetter } from "vue";
 import { lacking } from "../changesets/model.ts";
 import { useQuery } from "../data/query.ts";
 import { useSession } from "../rights/index.ts";
-import { useTime } from "../time/index.ts";
+import { useTime, writesOf, type Time } from "../time/index.ts";
 
 // A draft of the server as its tab and its page read it (REQ-021-6, 11; spec 024 § A; design
 // 021 « Cadre » : pied de l'onglet Brouillon): the draft by its identifier, its simulation —
@@ -18,21 +19,46 @@ import { useTime } from "../time/index.ts";
 // footer, which both observe it, share one —, the violations by operation, and the actions
 // of the split button by the rights and the simulation: « Appliquer » (`approval.self` on
 // all it touches), « Soumettre en revue », « Enregistrer le brouillon »; an impossible one
-// stays, disabled, with its reason or its permission (REQ-021-37).
+// stays, disabled, with its reason or its permission (REQ-021-37). Under `as_of` the
+// draft is read only; under `valid_at` alone it is submitted, its period from that date
+// (REQ-021-5).
 
 export type DraftAction = "apply" | "review" | "save";
+
+/**
+ * The period of the changeset a draft submits (its dates of effect, `valid_from` and
+ * `valid_to`): not the server's draft but the foot's choice, kept by draft for the page's
+ * life so that its simulation and its submission read the same. Not chosen, `valid_from`
+ * follows the date read (`valid_at`), else now; `valid_to` is unbounded.
+ */
+const periods = shallowReactive(new Map<string, DraftPeriod>());
+export const draftPeriods = {
+  get: (id: string, time: Time): DraftPeriod =>
+    periods.get(id) ?? (time.validAt ? { valid_from: time.validAt } : {}),
+  set: (id: string, period: DraftPeriod): void => void periods.set(id, period),
+  drop: (id: string): void => void periods.delete(id),
+};
+
+/** The period as sent: its dates set, nothing for the defaults of the server. */
+export function periodBody(period: DraftPeriod): DraftPeriod {
+  return {
+    ...(period.valid_from ? { valid_from: period.valid_from } : {}),
+    ...(period.valid_to ? { valid_to: period.valid_to } : {}),
+  };
+}
 
 /**
  * A submission that got no answer (REQ-006-15): its key, kept for the page's life beyond
  * the foot that sent it — the draft may leave the tab meanwhile (the server applied it and
  * deleted it, its event `draft` come first) — so that « Réessayer » replays it, the same
- * URL, the same key, and the server answers what it did.
+ * URL, the same key, the same period, and the server answers what it did.
  */
 export interface LostSubmission {
   id: string;
   key: string;
   approvalSelf: boolean;
   title: string;
+  period: DraftPeriod;
 }
 const lost = shallowReactive(new Map<string, LostSubmission>());
 export const lostSubmissions = {
@@ -50,14 +76,29 @@ export async function submitDraft(
   id: string,
   approvalSelf: boolean,
   title: string,
+  period: DraftPeriod = {},
 ): Promise<DraftSubmitOutcome> {
   const replay = lostSubmissions.get(id);
   const key = replay?.key ?? crypto.randomUUID();
   const self = replay?.approvalSelf ?? approvalSelf;
-  const outcome = await drafts.submit(id, { approvalSelf: self, idempotencyKey: key });
+  const sent = replay?.period ?? periodBody(period);
+  const outcome = await drafts.submit(id, {
+    approvalSelf: self,
+    idempotencyKey: key,
+    period: sent,
+  });
   if (outcome.kind === "failed" && outcome.problem === null) {
-    lostSubmissions.keep({ id, key, approvalSelf: self, title: replay?.title ?? title });
-  } else lostSubmissions.drop(id);
+    lostSubmissions.keep({
+      id,
+      key,
+      approvalSelf: self,
+      title: replay?.title ?? title,
+      period: sent,
+    });
+  } else {
+    lostSubmissions.drop(id);
+    if (outcome.kind === "applied" || outcome.kind === "proposed") draftPeriods.drop(id);
+  }
   return outcome;
 }
 
@@ -74,8 +115,15 @@ export function useDraftQueries(id: MaybeRefOrGetter<string | null>) {
       : undefined,
   );
   const operations = computed(() => draft.value?.operations ?? []);
+  /** The draft may be written: not under `as_of` (REQ-021-5). */
+  const writable = computed(() => writesOf(time.value).draft);
+  /** The period of its changeset, as the foot chose it (or its default). */
+  const period = computed<DraftPeriod>(() => {
+    const at = toValue(id);
+    return at === null ? {} : draftPeriods.get(at, time.value);
+  });
   const simulation = useQuery(() => ({
-    ...drafts.simulate(draft.value ?? { id: "-", version: 0 }),
+    ...drafts.simulate(draft.value ?? { id: "-", version: 0 }, periodBody(period.value)),
     enabled: operations.value.length > 0,
   }));
   const simulated = computed<Simulated | undefined>(() =>
@@ -109,14 +157,15 @@ export function useDraftQueries(id: MaybeRefOrGetter<string | null>) {
 
   /**
    * The actions of the split button, each with why it is impossible now: an empty draft,
-   * a simulation still to come or with errors, a permission lacking (« Appliquer »), the
-   * past (nothing is submitted out of the present).
+   * a simulation still to come or with errors, a permission lacking (« Appliquer »), a
+   * state known at a past date (`as_of`: nothing written, the draft not saved either).
    */
   function actions(
     words: (key: string, values?: Record<string, unknown>) => string,
   ): SplitAction[] {
-    const blocked = !time.value.present
-      ? words("drafts.why.past")
+    const past = writable.value ? undefined : words("drafts.why.past");
+    const blocked = past
+      ? past
       : operations.value.length === 0
         ? words("drafts.why.empty")
         : simulating.value
@@ -140,17 +189,17 @@ export function useDraftQueries(id: MaybeRefOrGetter<string | null>) {
         ...refused(blocked, applyLacking.value),
       },
       { id: "review", label: words("drafts.action.review"), icon: "send", ...refused(blocked) },
-      { id: "save", label: words("drafts.action.save"), icon: "draft" },
+      { id: "save", label: words("drafts.action.save"), icon: "draft", ...refused(past) },
     ];
   }
 
   /**
    * The action by default: « Appliquer » when possible, else « Soumettre », else save. A
    * simulation still to come does not change it (« Appliquer » waits, maquette E5): the
-   * rights and the present choose meanwhile.
+   * rights and the time choose meanwhile.
    */
   function preferred(list: readonly SplitAction[]): DraftAction {
-    if (simulating.value && time.value.present) {
+    if (simulating.value && writable.value) {
       return applyLacking.value === undefined ? "apply" : "review";
     }
     const possible = (id: DraftAction) => list.some((a) => a.id === id && !a.disabled);
@@ -161,6 +210,8 @@ export function useDraftQueries(id: MaybeRefOrGetter<string | null>) {
     query,
     draft,
     operations,
+    writable,
+    period,
     simulation,
     simulated,
     simulating,

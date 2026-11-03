@@ -2480,13 +2480,40 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     shell (`CLOSED` de `views/filters.ts`) gardé
   - reste : l'onglet Opérations d'une opération masquée montre `masked : true` et tait
     `values` (`operationLine`, `draft/operations.ts`) au lieu de dire « masqué »
-- [ ] 14d. Brouillon, reste prouvé : période de la soumission (`valid_from`, `valid_to`,
+- [x] 14d. Brouillon, reste prouvé : période de la soumission (`valid_from`, `valid_to`,
   dates d'effet du pied) ; réponse perdue à la soumission, « Réessayer » qui renvoie la même
   clé et ne donne qu'un changeset ; brouillon en lecture seule sous `as_of` — verify :
   parcours `draft` sous les deux navigateurs ; lignes 76 à 78 et 173 cochées
   - où : `web/v2/shell/src/draft/` (`DraftSubmit`, `LostSubmissions`) ; ancien parcours
     `web/e2e/journeys/draft.spec.ts`
   - dépend de : 14, 12b
+  - fait le 2026-11-03 — `draft/state.ts` : `draftPeriods` (période par brouillon, pour la
+    vie de la page ; sans choix, `valid_from` suit `valid_at`), `periodBody`, simulation à
+    cette période, `submitDraft` qui l'envoie et la garde dans `LostSubmission` (rejouée
+    telle quelle avec la clé) ; `writable` (`writesOf`) remplace `present` : sous
+    `valid_at` seul le brouillon se soumet (REQ-021-5), sous `as_of` tout est refusé,
+    « Enregistrer le brouillon » compris ; `DraftSubmit.vue` : « Choisir les dates d'effet »
+    (motif de « Ajouter une description »), deux `DateTimeField` (`readonly` sous `as_of`),
+    erreur d'ordre sur la fin, phrase du résultat qui dit la période, `CommitForm` désactivé
+    sous `as_of` ; `DraftOperations.vue` : encart « Lecture seule » (`warn`, cadenas) en
+    tête ; `DraftsView.vue` : entrées du menu refusées avec `disabled` (« Reprendre » de
+    l'actif, « Supprimer » sous `as_of`, qui n'étaient pas marquées) ; chaînes
+    `drafts.period.*`, `drafts.readOnly` ; Vitest `changesets.test.ts` (période envoyée,
+    simulée et rejouée sous sa clé ; `valid_from` par défaut ; lecture seule sous `as_of`) ;
+    parcours `draft` : « under valid_at, submitted from that date… », « an answer lost at
+    the submission, then « Réessayer »: the same key, one changeset » (`page.route` coupe la
+    réponse après l'envoi ; deux envois, même clé, un changeset), « under as_of the draft is
+    read only… » (liste, panneau, page) ; `PARITE.md` lignes 76 à 78 et 173 cochées.
+  - choix : la clé gardée est celle de `submitDraft`/`lostSubmissions` (14), pas
+    `useWriteAction` (12b), qui porte l'écriture d'un panneau d'édition, non la soumission
+    d'un brouillon ; la période vit côté shell (le brouillon du serveur n'en a pas, elle
+    n'est que le corps de la simulation et de la soumission) ; motif de `CommitForm`
+    désactivé nativement sous `as_of`, faute de `readonly` dans la bibliothèque (reste
+    ci-dessous).
+  - reste : `CommitForm` sans `readonly` ni `reason` : sous `as_of` le résumé et la
+    description sortent de l'ordre de tabulation sans motif (relecture `a11y-auditor`, M14),
+    à ouvrir dans `web/v2/ui` ; maquette `EcranSoumission` sans dates d'effet ni lecture
+    seule.
 - [ ] 14e. Brouillon daté sous `valid_at` seul (REQ-021-5, X5 ; relevé par la revue de la
   12c) : « Ajouter au brouillon » sous une date de validité préremplit `valid_from` du
   brouillon ; le panneau et la page du brouillon laissent retirer une opération et
