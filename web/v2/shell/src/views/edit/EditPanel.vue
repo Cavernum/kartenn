@@ -26,6 +26,7 @@ import {
   type WriteOutcome,
 } from "@kartenn/sdk";
 import {
+  AttributeList,
   Button,
   Checkbox,
   Cluster,
@@ -70,7 +71,6 @@ import {
   type EditField,
   type Values,
 } from "./fields.ts";
-import AttributeList from "../parts/AttributeList.vue";
 import { VLAN_PROPERTY } from "../parts/vlan.ts";
 import type { Refusal } from "./inline.ts";
 import { useMoves, type MoveOutcome } from "./moves.ts";

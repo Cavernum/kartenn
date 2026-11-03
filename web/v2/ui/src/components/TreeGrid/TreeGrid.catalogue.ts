@@ -80,6 +80,34 @@ const stateBy =
   (node: TreeNode): TreeNodeState | undefined =>
     states[node.id];
 
+/**
+ * A draft moves « Supervision » under « Invités » (its value changed): its row at its
+ * present place, and a preview row under its parent after the draft, as a host draws it.
+ */
+const previewed: TreeNode[] = nodes.map((domain) =>
+  domain.children
+    ? {
+        ...domain,
+        children: domain.children.map((node) =>
+          node.id === "p5"
+            ? {
+                ...node,
+                children: [
+                  {
+                    id: "preview:p3",
+                    label: "Supervision",
+                    objectKey: "203.0.113.64/26",
+                    icon: "prefix",
+                    cells: { env: "Recette", used: "45 %" },
+                  },
+                ],
+              }
+            : node,
+        ),
+      }
+    : domain,
+);
+
 /** The entities of a declared tree: a parent chosen by the user. */
 const entityColumns: GridColumn[] = [{ id: "owner", label: "Responsable", width: "md" }];
 
@@ -328,6 +356,18 @@ export default {
       name: "draft",
       description: "Nœud en brouillon",
       props: { ...base, nodeState: stateBy({ p3: "draft" }) },
+      wide: true,
+    },
+    {
+      name: "moved-preview",
+      description:
+        "Nœud que le brouillon déplace : sa ligne au présent (déplacé dans le brouillon) et sa ligne d'aperçu à la place d'après",
+      props: {
+        ...base,
+        nodes: previewed,
+        expanded: ["d1", "p1", "p5"],
+        nodeState: stateBy({ p3: "moved", "preview:p3": "preview" }),
+      },
       wide: true,
     },
     {

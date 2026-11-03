@@ -47,6 +47,8 @@ function useRegion() {
 const ROW_WORDS = {
   draft: "inDraft",
   "loading-children": "childrenLoading",
+  moved: "movedInDraft",
+  preview: "draftPreview",
   pending: "movePending",
   refused: "moveRefused",
   cut: "cutMark",

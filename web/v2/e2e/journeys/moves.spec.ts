@@ -449,7 +449,7 @@ test.describe("a slowed answer", () => {
     const sent = page.waitForRequest((r) => submission(new URL(r.url())));
     await motive.press("Control+Enter");
     await sent;
-    const attributes = page.locator(".k-attrs").first();
+    const attributes = page.locator(".k-attribute-list").first();
     await expect(attributes).not.toContainText(`${slug}-c`);
     release();
     await expect(

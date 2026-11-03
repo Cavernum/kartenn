@@ -44,6 +44,23 @@ const stateBy =
   (node: TreeNode): TreeNodeState | undefined =>
     states[node.id];
 
+/** A draft moves « Baie 2-02 » into « Salle 1 »: its present row, its preview row. */
+const previewed: TreeNode[] = nodes.map((site) =>
+  site.children
+    ? {
+        ...site,
+        children: site.children.map((room) =>
+          room.id === "s11"
+            ? {
+                ...room,
+                children: [{ id: "preview:s122", label: "Baie 2-02", objectKey: "B2-02" }],
+              }
+            : room,
+        ),
+      }
+    : site,
+);
+
 const dragged = (target: string) =>
   defineComponent({
     setup() {
@@ -221,6 +238,17 @@ export default {
       name: "draft",
       description: "Nœud en brouillon",
       props: { ...base, nodeState: stateBy({ s11: "draft" }) },
+    },
+    {
+      name: "moved-preview",
+      description:
+        "Nœud que le brouillon déplace : sa ligne au présent (déplacé dans le brouillon) et sa ligne d'aperçu sous son parent d'après",
+      props: {
+        ...base,
+        nodes: previewed,
+        expanded: ["s1", "s11", "s12"],
+        nodeState: stateBy({ s122: "moved", "preview:s122": "preview" }),
+      },
     },
     {
       name: "editing",

@@ -4,14 +4,13 @@
 // in percent beside the title, and the next free address (a network) or prefix (a
 // container). Three states.
 import { reads, type components } from "@kartenn/sdk";
-import { Skeleton } from "@kartenn/ui";
+import { AttributeList, Skeleton } from "@kartenn/ui";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useQuery } from "../../data/query.ts";
 import { useTime } from "../../time/index.ts";
 import ProblemState from "../../problems/ProblemState.vue";
 import { shareOf, whole } from "../occupancy.ts";
-import AttributeList from "../parts/AttributeList.vue";
 import ViewPanel from "../parts/ViewPanel.vue";
 
 type Occupancy = components["schemas"]["Occupancy"];

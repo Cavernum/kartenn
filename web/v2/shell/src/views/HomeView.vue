@@ -8,7 +8,7 @@
 // its tile. The instant of the computation at the foot. Three states, for the counters as a
 // whole: they are one read.
 import { stats as statsQuery, type components } from "@kartenn/sdk";
-import { BarChart, Grid, Skeleton, type ChartPoint } from "@kartenn/ui";
+import { AttributeList, BarChart, Grid, Skeleton, type ChartPoint } from "@kartenn/ui";
 import { computed, onBeforeUnmount, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useQuery } from "../data/query.ts";
@@ -21,7 +21,6 @@ import { useSession } from "../rights/index.ts";
 import { COLLECTIONS, navOf } from "./collections.ts";
 import ProblemState from "../problems/ProblemState.vue";
 import { useKeyLabel } from "./data.ts";
-import AttributeList from "./parts/AttributeList.vue";
 import ViewPanel from "./parts/ViewPanel.vue";
 
 type Stats = components["schemas"]["Stats"];

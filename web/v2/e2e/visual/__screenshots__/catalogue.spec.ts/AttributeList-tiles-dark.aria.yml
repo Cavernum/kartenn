@@ -1,0 +1,19 @@
+- main:
+  - region "AttributeList":
+    - heading "AttributeList" [level=1]
+    - paragraph: "Motif : liste de descriptions (dl : dt, dd)"
+    - 'figure "tiles — Blocs côte à côte (k-attribute-list-tiles) : leurs lignes partagées"':
+      - term: État
+      - definition: Soumis
+      - term: Auteur
+      - definition: Opérateur réseau
+      - term: Soumis le
+      - definition: /\d+-\d+-\d+ \d+:\d+/
+      - term: Valide à partir du
+      - definition: /\d+-\d+-\d+ \d+:\d+/
+      - term: Rétroactif
+      - definition: Non
+      - term: Politique
+      - definition: non renseigné
+      - code: tiles
+      - text: ""

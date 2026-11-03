@@ -302,6 +302,38 @@ describe.each(components)("%s mounted: the contract follows its props", (_, comp
     await nextTick();
     expect(row.getAttribute("data-move")).toBe("pending");
   });
+
+  it("a node a draft moves: its present row and its preview row, each its mark and words (021/A27)", async () => {
+    // « A1 » moved by a draft under « B »: its row at its present place, its preview row.
+    const { root } = mount(component, {
+      label: "Arbre",
+      treeLabel: "Nœud",
+      nodes: [
+        { id: "a", label: "A", children: [{ id: "a1", label: "A1" }] },
+        { id: "b", label: "B", children: [{ id: "preview:a1", label: "A1" }] },
+      ],
+      expanded: ["a", "b"],
+      nodeState: (node: TreeNode) =>
+        node.id === "a1" ? "moved" : node.id === "preview:a1" ? "preview" : undefined,
+    });
+    await nextTick();
+    const row = (id: string) =>
+      root.querySelector<HTMLElement>(`${rowSelector(component)}[data-node="${id}"]`)!;
+    const words = (id: string) =>
+      [...row(id).querySelectorAll(".k-visually-hidden")].map((el) => el.textContent).join(" ");
+    const marks = (id: string) => row(id).querySelectorAll("[class$='__mark']");
+    expect(row("a1").getAttribute("data-state")).toBe("moved");
+    expect(row("preview:a1").getAttribute("data-state")).toBe("preview");
+    // Told apart by their words, not their level only; « en brouillon » said by neither.
+    expect(words("a1")).toContain("(déplacé dans le brouillon)");
+    expect(words("preview:a1")).toContain("(aperçu du brouillon)");
+    expect(words("a1")).not.toContain("aperçu");
+    expect(words("preview:a1")).not.toContain("déplacé");
+    // A visible mark each, of different shapes (not a colour alone).
+    expect(marks("a1")).toHaveLength(1);
+    expect(marks("preview:a1")).toHaveLength(1);
+    expect(marks("a1")[0]!.innerHTML).not.toBe(marks("preview:a1")[0]!.innerHTML);
+  });
 });
 
 describe("TreeGrid: the node cell and its « + » (021/A20, REQ-021-37)", () => {

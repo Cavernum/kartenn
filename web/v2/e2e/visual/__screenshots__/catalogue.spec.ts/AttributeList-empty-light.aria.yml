@@ -1,0 +1,13 @@
+- main:
+  - region "AttributeList":
+    - heading "AttributeList" [level=1]
+    - paragraph: "Motif : liste de descriptions (dl : dt, dd)"
+    - 'figure "empty — Valeurs absentes : un tiret montré, « non renseigné » pour les lecteurs d''écran"':
+      - term: Responsable
+      - definition: non renseigné
+      - term: Hôte
+      - definition: non renseigné
+      - term: Site
+      - definition: Site A
+      - code: empty
+      - text: ""
