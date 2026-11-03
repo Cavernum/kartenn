@@ -1108,7 +1108,7 @@ in {
   # often stale (`git fetch origin` first). `--list` prints the selection and runs
   # nothing. In doubt it runs more (kartenn-bench, `affected`): a path in the fingerprint
   # of a bench runs it whole, otherwise the measures whose paths cover it; devenv.nix and
-  # devenv.lock run nothing but call for a full run; a diff of web/v2/, web/ or
+  # devenv.lock run nothing but call for a full run; a diff of web/v2/ui/, web/v2/ or
   # clients/python/ proposes bench-ui, bench-web or bench-cli, not run.
   scripts.bench-affected = {
     description = "Run at the reduced scale the bench measures a change touches";
@@ -1352,21 +1352,44 @@ in {
     '';
   };
 
-  # The budgets of the browser (spec 007, REQ-007-32): the size of the initial shell, then
-  # the Playwright project `budgets` against kartenn-server in release on the dataset of
-  # bench-core (web/e2e/serve.sh budgets): `bench-web [seed] [small]`. It also takes the
-  # PostgreSQL lock: the journeys of k-web-e2e use the same fixed ports and web/e2e/.state.
+  # The budgets of the browser for the new shell (spec 021, REQ-021-30, design « Budgets »):
+  # the weight of the initial shell with the shared modules (web/v2/shell/scripts/
+  # shell-size.ts) and of each plugin of web/v2/plugins (web/v2/tools/plugin-size.ts),
+  # then the Playwright project `budgets` (web/v2/e2e/budgets.config.ts) against
+  # kartenn-server in release on the dataset of bench-core (web/v2/e2e/serve.sh budgets),
+  # Chromium, the CPU slowed down four times: `bench-web [seed] [small] [playwright args…]`.
+  # It also takes the PostgreSQL lock: the journeys of k-web-e2e and k-web2-e2e use the same
+  # fixed ports and web/e2e/.state. Every part runs and prints its lines; a budget exceeded
+  # in any exits 1. The old shell's project (web/e2e/budgets.config.ts) goes at the cutover.
   scripts.bench-web = lib.mkIf hasWeb {
     description = "Check the budgets of the browser on a fresh kartenn_bench database";
     exec = ''
-      set -euo pipefail
+      set -uo pipefail
       [ -n "''${K_BENCH_HELD:-}" ] && [ -n "''${K_PG_HELD:-}" ] || exec k-heavy --bench --pg ${dash} "$0" "$@"
-      k-pg-bench
-      export NO_COLOR=1 FORCE_COLOR=0 BENCH_SEED=''${1:-42}
-      [ "''${2:-}" != small ] || export BENCH_SMALL=1
-      pnpm -C web --filter @kartenn/shell build >/dev/null
-      node web/shell/scripts/size.mjs
-      pnpm -C web/e2e exec playwright test -c budgets.config.ts --reporter=line
+      cd "$(git rev-parse --show-toplevel)" || exit 1
+      k-pg-bench || exit 1
+      export NO_COLOR=1 FORCE_COLOR=0 BENCH_SEED=42
+      # A seed only if the first argument is a number; `small` in either place before the
+      # arguments of Playwright.
+      case "''${1:-}" in
+      "" | *[!0-9]*) ;;
+      *)
+        BENCH_SEED=$1
+        shift
+        ;;
+      esac
+      if [ "''${1:-}" = small ]; then
+        export BENCH_SMALL=1
+        shift
+      fi
+      # Built once: serve.sh budgets serves this build (K_WEB2_BUILT).
+      pnpm -C web/v2 --filter @kartenn/shell --filter "./plugins/*" build >/dev/null || exit 1
+      export K_WEB2_BUILT=1
+      status=0
+      node web/v2/shell/scripts/shell-size.ts || status=1
+      node web/v2/tools/plugin-size.ts || status=1
+      pnpm -C web/v2/e2e exec playwright test -c budgets.config.ts --reporter=line "$@" || status=1
+      exit "$status"
     '';
   };
 

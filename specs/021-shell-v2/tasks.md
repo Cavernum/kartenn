@@ -3199,7 +3199,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - étendue le 2026-11-03 (A33) : les gardes du parcours `smoke` de l'ancien shell (une
     violation axe et un script en ligne font chacun échouer un parcours) prouvées par un
     test des fixtures de `web/v2/e2e/`
-- [ ] 22. `bench-web` étendu : INP (Event Timing), navigation en cache, CLS, trames
+- [x] 22. `bench-web` étendu : INP (Event Timing), navigation en cache, CLS, trames
   perdues de l'arbre (≤ 2 %), Flèche bas (≤ 100 ms p75), tas JS (≤ 64 Mo), plafond par
   plugin, shell avec modules partagés ; protocole de mesure du prototype D-1 repris —
   REQ-021-30 — verify : tableau rendu par `bench-runner` ; un budget dépassé → sortie non
@@ -3208,6 +3208,61 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `web/shell/scripts/size.mjs`, `devenv.nix` `scripts.bench-web` (vers la ligne 641) ;
     design § « Budgets »
   - dépend de : 18, 19
+  - fait le 2026-11-03 — `bench-web [graine] [small] [args playwright…]` mesure le nouveau
+    shell (verrous `--bench --pg`, ADR 0032) : poids du shell initial avec les modules
+    partagés (`web/v2/shell/scripts/shell-size.ts`, clôture de chaque entrée du build,
+    chaque fichier une fois), poids de chaque plugin de `web/v2/plugins`
+    (`web/v2/tools/plugin-size.ts` lancé en script, échec aussi si un module partagé est
+    empaqueté), puis le projet Playwright `budgets` (`web/v2/e2e/budgets.config.ts`,
+    `budgets/budgets.spec.ts`, `budgets/global-setup.ts`) contre `serve.sh budgets`
+    (release, `kartenn-bench seed`, plugin `slow` de `budgets/plugins`). Mesures, CPU ×4,
+    protocole de `bench/measure.ts` : premier écran utile et son CLS ; plugin lent écarté ;
+    page de 100 lignes (p95 de 20) ; arbre de 10⁵ (trames perdues, tâches longues), Flèche
+    bas dans l'arbre et dans une grille (p75 de 50), tas après 10⁴ lignes et 50
+    navigations ; navigation en cache vers `k:view` (p75 de 10 fiches survolées) et CLS de
+    chaque navigation ; INP p75 de 20 pour ouvrir un nœud, filtrer, éditer une cellule,
+    changer d'onglet, ouvrir la palette. Toutes les parties tournent, une seule en échec →
+    sortie 1. Marque `k:view` : `shell/src/prefetch/viewMark.ts` (après chaque navigation
+    sauf la première, trame après le rendu), posée dans `main.ts`. Vitest :
+    `shell/test/viewMark.test.ts`, `shell/test/shell-size.test.ts`. `kartenn-bench
+    affected` : `web/v2/ui/` propose `bench-ui`, le reste de `web/v2/` `bench-web`.
+    Passe réduite (`bench-web 42 small`) : shell 299,8 Ko, plugins 3,5 et 23,2 Ko,
+    premier écran 1 431 ms, CLS 0,002 et 0, Flèche bas arbre 72,9 ms, tas 18,2 Mo, INP
+    nœud 80, cellule 200, onglet 88 ms : sous budget ; au-delà : page de 100 lignes p95
+    806 ms, navigation en cache p75 182 ms, INP filtre 304 et palette 272 ms, Flèche bas
+    grille 238 ms, trames perdues de l'arbre 80 % et 114 tâches longues (plus longue
+    169 ms).
+  - corrigé le 2026-11-03 (revue) : navigation en cache jugée sur la pire des 10, sans
+    centile ; CLS d'une navigation : tous les glissements de la trame de `k:view` à 1 s
+    après, `hadRecentInput` compris (le clic compte 500 ms comme entrée), prouvé par un
+    témoin (bloc de 200 px inséré 200 ms après `k:view` : 0,114 vu) ; page de 100 lignes :
+    `responseEnd` de la lecture de la page (par son URL) → première trame où sa première
+    ligne (`data-row`) est dans le DOM, médiane et p95 ; arbre : lectures de `/children`
+    comptées pendant le défilement (0), défilement arrêté avant la ligne qui lit la page
+    suivante ; INP : cible de la plus longue interaction imprimée ; médiane et pire de
+    chaque mesure répétée ; préchargement absent → échec ; `bench-web small` sans graine ;
+    build de `web/v2` fait une fois (`K_WEB2_BUILT`) ; shell initial : ce que charge le
+    document (entrée, ses imports, ce que nomme `index.html`, amorce comprise), sans les
+    entrées de l'import map que seul un plugin charge : 300,3 Ko, au-delà.
+  - reste : mesure complète (`devenv shell -- bench-web`, graine 42, machine libre) par
+    l'orchestrateur ; dépassements de la passe réduite à traiter ou à arbitrer (aucun
+    seuil relâché) ; 10⁴ enfants ne tiennent pas en cache : 100 par page (taille par
+    défaut du serveur), `MAX_PAGES` = 10, et `treePages.ts` ne redemande une page que si
+    le nombre d'enfants a changé (la onzième page laisse ce nombre égal) — le défilement
+    de 10⁴ lignes fait des allers-retours sur ceux en mémoire, à arbitrer ; à la passe
+    réduite, la lecture s'est arrêtée bien avant (2 puis 6 pages, plus de ligne « suite »
+    au bout), cause non élucidée ; la page de 100 lignes n'a pas encore rendu de chiffre
+    (une lecture de `/v1/addresses` sans corps lu : revalidation probable ; comptée à part
+    depuis, sans passe pour le vérifier) ; le projet `budgets` de l'ancien shell
+    (`web/e2e/`) n'a plus de script et part à la bascule (tâche 27).
+  - choix : `bench-web` vise le nouveau shell (plus de banc pour l'ancien) ; premier écran
+    et page de 100 lignes relevés par le banc (tuiles `.k-home-tiles`, première ligne de
+    la page dans le DOM) plutôt que par des marques `k:ready`/`k:rows` dans les écrans,
+    hors périmètre ; tas par `Runtime.getHeapUsage` comme les bancs de `@kartenn/ui` ;
+    INP d'une répétition : la plus longue des interactions qu'elle contient (un filtre en
+    compte six), 0 sous 16 ms ; CLS du premier écran sans les glissements après une
+    entrée (définition des navigateurs) ; `alice` administratrice pour éditer, au
+    brouillon seulement ; arguments Playwright passés après la graine et `small`.
 - [ ] 26. Liste de parité `web/v2/PARITE.md` : chaque route, écran, action, point
   d'extension et parcours de l'ancien shell et de ses plugins, avec son équivalent, son
   parcours porté et son état ; tenue à jour à chaque tâche de P2 et P3 et à chaque

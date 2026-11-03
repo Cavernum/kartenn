@@ -18,7 +18,7 @@
 //! A path in no fingerprint nor in the table: the crate root, the manifest and the build
 //! script of `kartenn-bench` and the manifest of the workspace run every bench; the
 //! configuration of the benches (`devenv.nix`, `devenv.lock`) runs nothing but calls for a
-//! full run; under `web/v2/`, `web/` or `clients/python/`, the bench script outside
+//! full run; under `web/v2/ui/`, `web/v2/` or `clients/python/`, the bench script outside
 //! `kartenn-bench` it concerns is proposed, not run ([`PROPOSED`]); anything else
 //! (documentation, specs, tests, crates no bench exercises) runs nothing.
 
@@ -63,8 +63,10 @@ pub const CONFIG_WARNING: &str = "configuration des bancs touchée : un passage 
 /// The bench scripts outside `kartenn-bench` (Playwright, Python): the start of the paths
 /// that concern them, and the script. The first match wins.
 pub const PROPOSED: &[(&str, &str)] = &[
-    ("web/v2/", "bench-ui"),
-    ("web/", "bench-web"),
+    ("web/v2/ui/", "bench-ui"),
+    // The browser bench measures the new shell (spec 021, task 22); the old one, under
+    // `web/` until the cutover, has no bench any more.
+    ("web/v2/", "bench-web"),
     ("clients/python/", "bench-cli"),
 ];
 
@@ -1006,7 +1008,7 @@ mod tests {
     fn web_documentation_and_configuration_run_nothing() {
         let a = affected([
             "web/v2/ui/src/components/Button.vue",
-            "web/shell/src/main.ts",
+            "web/v2/shell/src/main.ts",
             "clients/python/bench/cli.py",
             "docs/adr/0041-bancs-cibles.md",
             "specs/028-bancs-cibles/tasks.md",
