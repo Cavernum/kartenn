@@ -2831,10 +2831,31 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     6 sur 6 dans les deux navigateurs.
   - choix : seules les adresses du réseau sont servies, pas toutes celles de l'interface ;
     une interface dont aucune adresse du réseau n'est lisible n'est pas listée (chaque
-    interface servie a donc au moins une ligne dans l'onglet) ; le réseau lui-même n'est pas
-    contrôlé en lecture, comme `/v1/machines?network=` ; `useReads` reste dans `data.ts`
+    interface servie a donc au moins une ligne dans l'onglet) ; `useReads` reste dans `data.ts`
     (API du design 021 § « API des plugins »), sans usage dans le plugin ; nom de machine
     par `CitedName`, squelette de cellule pendant sa lecture comme dans `InterfaceGrid`.
+  - corrections de la revue (ADR 0021) : un réseau que l'appelant ne lit pas répond comme un
+    réseau inconnu, sur `/v1/interfaces?network=` comme sur `/v1/machines?network=`
+    (`readable_network`, prédicat évalué une fois sur la ligne du réseau) ;
+    `/v1/machines?network=` ne compte plus une machine que par les adresses du réseau que l'appelant lit
+    (il les comptait toutes) : pour ses appelants (colonne et fiches du plugin, parcours),
+    rien ne change sous les droits du jeu de données, un lecteur sans `core.address.read`
+    ou `core.prefix.read` sur le réseau n'y trouve plus rien. `held_in_network` (commun aux
+    deux) garde le prédicat des adresses au-dessus de la jointure des rattachements
+    (`OFFSET 0`) : évalué sur les seules adresses rattachées. Tests :
+    `rest::a_list_by_network_serves_only_what_the_caller_reads` (adresse lue et non lue
+    d'une même interface par une portée de préfixe plus étroite que le réseau, écrite en
+    base ; le test échoue sans le prédicat des adresses ; réseau illisible = réseau inconnu
+    sur les deux listes), lecture journalisée des adresses servies ; Vitest du plugin 52
+    (erreur, « Réessayer » et vide de l'onglet d'un réseau). `EXPLAIN (ANALYZE, BUFFERS)` de la
+    requête de page (première page de 100, base jetable, test temporaire non gardé) : réseau
+    10.1.0.0/16 de 20 000 adresses dont 10 000 rattachées à autant d'interfaces, lecteur
+    d'entité (propriétaire résolu de chaque adresse) : plan générique 231 ms, 213 309
+    tampons, personnalisé 1 164 ms (première exécution) ; lecteur global : 100 ms, 88 700
+    tampons, dans les deux plans. Avant `OFFSET 0`, à 5 000 adresses dont 2 500 rattachées :
+    605 ms (prédicat sur les 5 000), 318 ms personnalisé et 57 ms générique après. Chaque
+    page relit l'appartenance de tout le réseau (sous-plan haché) : coût linéaire en
+    adresses rattachées du réseau, à reprendre si un banc pleine échelle le demande.
 - [x] 18f. Filtre « sans hôte » sur `/v1/machines` (A28) : un paramètre qui ne garde que
   les machines sans hôte ; le premier niveau de l'arbre de l'hébergement se lit en une
   liste paginée au lieu de toutes les machines — verify : `k-check -p kartenn-machines` ;
