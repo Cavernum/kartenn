@@ -16,9 +16,17 @@ use crate::port::{DiffCount, StoreError, WriteTx};
 /// The objects `planned` writes, of every type, each once, in the order of the
 /// operations.
 pub(crate) fn touched(planned: &[Planned]) -> Vec<(ObjectKind, Uuid)> {
+    touched_at(planned)
+        .into_iter()
+        .map(|(_, kind, id)| (kind, id))
+        .collect()
+}
+
+/// [`touched`], each object with the position in `planned` of the first write to it.
+pub(crate) fn touched_at(planned: &[Planned]) -> Vec<(usize, ObjectKind, Uuid)> {
     let mut seen = BTreeSet::new();
     let mut out = Vec::new();
-    for p in planned {
+    for (at, p) in planned.iter().enumerate() {
         let target = match p {
             Planned::Module { plan, .. } => {
                 Some((ObjectKind::from_qualified(plan.kind), plan.object))
@@ -46,10 +54,10 @@ pub(crate) fn touched(planned: &[Planned]) -> Vec<(ObjectKind, Uuid)> {
             | Planned::EnumLabels { property: id, .. } => Some((ObjectKind::Property, *id)),
             _ => None,
         };
-        if let Some(target) = target
-            && seen.insert(target.1)
+        if let Some((kind, id)) = target
+            && seen.insert(id)
         {
-            out.push(target);
+            out.push((at, kind, id));
         }
     }
     out

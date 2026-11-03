@@ -752,7 +752,7 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     `a_request_dropped_during_the_exchange_leaves_its_result_kept` (`sessions.rs`),
     `the_purge_task_deletes_the_exchanges_past_their_end` (`kartenn-server/tests/it/jobs.rs`).
   - reste : rien de la 16f.
-- [ ] 24c. Indice d'opération dans un placement (A26) : `Placement.operation` (indice de
+- [x] 24c. Indice d'opération dans un placement (A26) : `Placement.operation` (indice de
   l'opération source, `null` pour un objet placé par effet), au contrat et dans la
   simulation d'un changeset et d'un brouillon, y compris sous `within` et pour une
   opération de module ; le shell (`previewOf`, `web/v2/shell/src/views/topology.ts`)
@@ -766,6 +766,15 @@ régénère le contrat de référence et les types du SDK. `k-check` pour chacun
     `crates/kartenn-rest/src/changesets.rs` ; `web/v2/shell/src/views/topology.ts`
     (`targetOf`, `previewOf`), `web/v2/shell/test/topology.test.ts`
   - dépend de : 24a, 24b
+  - choix : l'indice d'un objet des opérations est celui de la première opération qui
+    l'écrit (`sections::touched_at`, rapporté à l'opération de la requête par les
+    origines du plan, cascade comprise) : pour une création, la création ; un objet écrit
+    par une opération mais déplacé par une autre (un préfixe modifié sans changer de
+    valeur, sous un préfixe inséré) garde l'indice de l'opération qui l'écrit, `null`
+    restant réservé aux objets qu'aucune opération n'écrit ; côté shell, `targetOf`
+    disparaît : `creationOf` déballe `within` et une création se rapproche par
+    indice × genre × `before: null` ; test de module dans `kartenn-rest`
+    (`placements.rs`, routeur de la construction, modules synchronisés)
 - [x] 16e. Comparaison du contrat à travers les `$ref` : `contract::breaches` résout les
   références locales vers `components.parameters` avant de comparer (aujourd'hui une
   `$ref` reçoit la clé `("", "")` : rendre `Kartenn-Background` requis passerait

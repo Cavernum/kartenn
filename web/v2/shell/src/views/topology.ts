@@ -89,25 +89,18 @@ export interface Preview {
 export const PREVIEW = "draft:";
 export const isPreview = (key: string): boolean => key.startsWith(PREVIEW);
 
-type Target = { id: string } | { kind: string; creation: Creation | undefined };
-
-/** What an operation writes, in the order of the draft: an object, or one it creates. */
-function targetOf(operation: Operation, index: number): Target | undefined {
-  const op = operation as Record<string, unknown>;
-  const name = typeof op.op === "string" ? op.op : "";
-  if (name.startsWith("create_")) {
-    const kind = name.slice("create_".length);
-    return { kind, creation: creationOf(op, index, kind) };
+/**
+ * The node of the tree operation `index` of the draft creates, if any: under `within`, the
+ * creation it wraps, with the index of its envelope (as the contract numbers them).
+ */
+function creationOf(operation: Operation, index: number): Creation | undefined {
+  let op = operation as Record<string, unknown>;
+  while (op.op === "within" && typeof op.operation === "object" && op.operation !== null) {
+    op = op.operation as Record<string, unknown>;
   }
-  const named = (op.id ?? op.object) as { id?: unknown } | undefined;
-  return typeof named?.id === "string" ? { id: named.id } : undefined;
-}
-
-function creationOf(
-  op: Record<string, unknown>,
-  index: number,
-  kind: string,
-): Creation | undefined {
+  const name = typeof op.op === "string" ? op.op : "";
+  if (!name.startsWith("create_")) return undefined;
+  const kind = name.slice("create_".length);
   const text = (member: string) => (typeof op[member] === "string" ? op[member] : null);
   const domain = (op.domain as { id?: unknown } | undefined)?.id;
   const label =
@@ -130,11 +123,10 @@ function creationOf(
 
 /**
  * The preview of `simulated` in the tree of `domain`, `operations` the draft simulated and
- * `known` whether an object is read in this tree. `placements` names objects only: an object
- * the draft creates has an identifier of the simulation alone, matched with its creation by
- * the order the contract gives — the objects of the operations first, in their order (an
- * object created always placed, from no parent), then those they move. A parent the author
- * may not read comes `null`: shown at the first level, as the top of the tree it reads.
+ * `known` whether an object is read in this tree. An object the draft creates has an
+ * identifier of the simulation alone: its placement, from no parent, names the index of its
+ * operation (`operation`, 021/A26), which gives its creation. A parent the author may not read
+ * comes `null`: shown at the first level, as the top of the tree it reads.
  */
 export function previewOf(
   simulated: Pick<Simulated, "placements" | "placements_truncated">,
@@ -142,36 +134,18 @@ export function previewOf(
   known: (id: string) => boolean,
   domain: string,
 ): Preview {
-  const targets: Target[] = [];
-  const written = new Set<string>();
+  const creations = new Map<number, Creation>();
   operations.forEach((operation, index) => {
-    const target = targetOf(operation, index);
-    if (!target) return;
-    if ("id" in target) {
-      if (written.has(target.id)) return;
-      written.add(target.id);
-    }
-    targets.push(target);
+    const creation = creationOf(operation, index);
+    if (creation) creations.set(index, creation);
   });
-  // The identifiers of the simulation of the objects created, by the order of the targets.
+  // The identifiers of the simulation of the objects created, by the index of their operation.
   const created = new Map<string, Creation>();
-  let next = 0;
   for (const placement of simulated.placements) {
-    if (next >= targets.length) break;
-    const at = targets.findIndex(
-      (target, i) =>
-        i >= next &&
-        ("id" in target
-          ? target.id === placement.object
-          : target.kind === placement.kind &&
-            placement.before === null &&
-            !written.has(placement.object)),
-    );
-    // None: the objects the operations move begin.
-    if (at < 0) break;
-    const target = targets[at]!;
-    if (!("id" in target) && target.creation) created.set(placement.object, target.creation);
-    next = at + 1;
+    const creation = placement.operation === null ? undefined : creations.get(placement.operation);
+    if (creation?.kind === placement.kind && placement.before === null) {
+      created.set(placement.object, creation);
+    }
   }
 
   const keyOf = (object: string) => {

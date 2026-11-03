@@ -9064,13 +9064,22 @@
             "description": "The object.",
             "format": "uuid",
             "type": "string"
+          },
+          "operation": {
+            "description": "The index of the operation that places it, numbered as the `operation` of a\nviolation (an operation under `within` has the index of its envelope, a module\noperation its own): the first operation that writes the object; `null` for an\nobject no operation writes, placed by effect (a child of a prefix inserted, for\ninstance) (spec 021, A26).",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [
           "object",
           "kind",
           "before",
-          "after"
+          "after",
+          "operation"
         ],
         "type": "object"
       },

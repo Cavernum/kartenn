@@ -315,7 +315,10 @@ Tranchés le 2026-11-02, après les tâches 11b et 18b :
   l'objet (`null` pour un objet déplacé par effet, enfant d'un préfixe inséré par
   exemple). Le client rapproche une création de son opération exactement, et non par
   l'ordre des opérations, qui se trompe sur une création de module ou sous `within`
-  (24c).
+  (24c). Précisé par la 24c (session principale) : `operation` est l'indice de la
+  première opération qui écrit l'objet ; `null` reste réservé aux objets qu'aucune
+  opération n'écrit (un objet modifié par une opération et déplacé par une autre garde
+  l'indice de la première).
 
 - **A27 — Pièces manquantes de `@kartenn/ui`** (utilisateur, 2026-11-03) : une tâche de la
   020 (29) ajoute au `TreeGrid` les états « déplacé dans le brouillon » et « aperçu »

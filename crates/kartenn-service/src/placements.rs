@@ -48,6 +48,10 @@ pub struct Placement {
     pub before: Option<Uuid>,
     /// Its parent after; `None` at the root, or not readable.
     pub after: Option<Uuid>,
+    /// The index of the operation of the request that places it, as a violation counts
+    /// them (that of its `Within`, of its module operation): the first that writes it; `None`
+    /// for an object the changeset does not write, placed by effect (spec 021, A26).
+    pub operation: Option<usize>,
 }
 
 /// The placements of a simulation: those of the objects of the changeset first, in the
@@ -73,6 +77,8 @@ pub(crate) struct Reader<'a, A> {
 #[derive(Debug, Default)]
 pub(crate) struct Prior {
     touched: Vec<Uuid>,
+    /// The index of the operation that first writes each of `touched`.
+    operations: HashMap<Uuid, usize>,
     places: HashMap<Uuid, TreePlace>,
     /// Among those objects and their parents, before the writes, those the reader may not
     /// read.
@@ -258,17 +264,25 @@ fn shown(found: Vec<(Placement, bool)>, hidden: &HashSet<Uuid>) -> Vec<Placement
 }
 
 /// The objects of `planned` in a tree, read before the writes, with what `reader` may not
-/// read among them and their parents.
+/// read among them and their parents; `origins` the index of the operation of the request
+/// each of `planned` comes from.
 pub(crate) async fn prior<T: WriteTx + Send, A: Authorizer>(
     tx: &mut T,
     modules: &ModuleRegistry,
     reader: &Reader<'_, A>,
     planned: &[Planned],
+    origins: &[usize],
 ) -> Result<Prior, StoreError> {
-    let touched: Vec<Uuid> = crate::sections::touched(planned)
+    let mut operations = HashMap::new();
+    let touched: Vec<Uuid> = crate::sections::touched_at(planned)
         .into_iter()
-        .filter(|(kind, _)| in_tree(*kind))
-        .map(|(_, id)| id)
+        .filter(|(_, kind, _)| in_tree(*kind))
+        .map(|(at, _, id)| {
+            if let Some(origin) = origins.get(at) {
+                operations.insert(id, *origin);
+            }
+            id
+        })
         .collect();
     let places = places(tx, modules, &touched, Supposed::default()).await?;
     let parents: Vec<Uuid> = places.values().filter_map(|p| p.parent).collect();
@@ -278,6 +292,7 @@ pub(crate) async fn prior<T: WriteTx + Send, A: Authorizer>(
     let hidden = hidden_ids(tx, reader, &known, ids).await?;
     Ok(Prior {
         touched,
+        operations,
         places,
         hidden,
     })
@@ -293,6 +308,7 @@ pub(crate) async fn placements<T: WriteTx + Send, A: Authorizer>(
 ) -> Result<Placements, StoreError> {
     let Prior {
         touched,
+        operations,
         places: before,
         hidden: hidden_before,
     } = prior;
@@ -309,6 +325,7 @@ pub(crate) async fn placements<T: WriteTx + Send, A: Authorizer>(
                 kind: now.kind,
                 before: then.flatten(),
                 after: now.parent,
+                operation: operations.get(id).copied(),
             };
             found.push((placement, then.is_none()));
         }
@@ -367,6 +384,7 @@ pub(crate) async fn placements<T: WriteTx + Send, A: Authorizer>(
                     kind,
                     before: *before,
                     after: *after,
+                    operation: None,
                 };
                 found.push((placement, false));
             }
