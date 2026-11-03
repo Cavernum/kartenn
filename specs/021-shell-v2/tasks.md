@@ -2322,6 +2322,50 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     ouvert (le clic au dehors le ferme sans rendre le focus, `focusAdd` l'emporte, lu dans
     le code) et un brouillon gardé après le retrait.
 
+### Sous-tâches de la liste de parité (26, 2026-11-03)
+
+Chacune porte les lignes `[ ]` de `web/v2/PARITE.md` qui la nomment, et les coche quand un
+parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cités.
+
+- [ ] 11i. Anomalies et déclarations prouvées par le parcours : onglet Anomalies de la
+  fiche, `/anomalies` (ouvertes, filtres, `?tab=gaps`, acquittement avec motif),
+  `/property-declarations` (cardinalité, anomalies ouvertes d'une clé) — verify : parcours
+  `records` (ou un parcours `anomalies`) sous les deux navigateurs ; lignes 46 à 48 de la
+  liste cochées
+  - où : `web/v2/shell/src/views/{AnomaliesView,PropertiesView}.vue`, `views/record/` ;
+    ancien parcours `web/e2e/journeys/records.spec.ts`
+  - dépend de : 11
+- [ ] 12c. Réponses d'une écriture et écritures coupées sous `as_of`, prouvées : 202 sous
+  une politique d'approbation avec le lien « Voir le changeset » ; 403 du serveur qui garde
+  la saisie et dit l'alerte ; éditeurs et actions de la fiche coupés sous `as_of`, le
+  brouillon daté laissé possible sous `valid_at` seul — verify : parcours `edit` et `time`
+  sous les deux navigateurs ; lignes 35, 58, 60, 176, 178 et 203 cochées
+  - où : `web/v2/shell/src/views/edit/` (`useWriteAction`, 12b), `views/RecordView.vue`,
+    contexte temporel ; anciens parcours `web/e2e/journeys/{edit,time}.spec.ts`
+  - dépend de : 12, 12b
+- [ ] 14c. Changesets, reste prouvé : filtres de `/changesets` (auteur choisi, période
+  `from`/`to`, état) ; « Retirer » un changeset en attente, exercé ; différentiel aux valeurs
+  masquées par les droits et violations d'un changeset ; retour à « Mes changesets » avec
+  « Appliqué » après une proposition validée puis annulée — verify : parcours `changesets`
+  sous les deux navigateurs ; lignes 67, 70, 71 et 171 cochées
+  - où : `web/v2/shell/src/changesets/`, `DiffList` ; ancien parcours
+    `web/e2e/journeys/changesets.spec.ts`
+  - dépend de : 14
+- [ ] 14d. Brouillon, reste prouvé : période de la soumission (`valid_from`, `valid_to`,
+  dates d'effet du pied) ; réponse perdue à la soumission, « Réessayer » qui renvoie la même
+  clé et ne donne qu'un changeset ; brouillon en lecture seule sous `as_of` — verify :
+  parcours `draft` sous les deux navigateurs ; lignes 76 à 78 et 173 cochées
+  - où : `web/v2/shell/src/draft/` (`DraftSubmit`, `LostSubmissions`) ; ancien parcours
+    `web/e2e/journeys/draft.spec.ts`
+  - dépend de : 14, 12b
+- [ ] 16h. « À propos » et actions des plugins, reste prouvé : versions (shell, SDK,
+  `@kartenn/ui`, Vue, serveur) et fuseau horaire affichés ; une action de plugin absente
+  sans sa permission — verify : parcours `shell` et `plugins` sous les deux navigateurs ;
+  lignes 31, 92, 187 et 198 cochées
+  - où : `web/v2/shell/src/views/AboutView.vue`, `plugins/` (`PluginAction`) ; anciens
+    parcours `web/e2e/journeys/{shell,plugins}.spec.ts`
+  - dépend de : 16
+
 ## P3 — Plugins (phase 5)
 
 - [ ] 17. Écrans VLAN du cœur (amendée par la 026 : plus un plugin, des écrans du shell)
