@@ -2241,6 +2241,19 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     qu'une clôture de l'objet attend au brouillon ; les maquettes nomment encore
     `core.<sorte>.apply` sur « Clore… » (E2, E12, E27).
 
+- [ ] 12b. Action d'écriture partagée par les panneaux (relevé par la revue de la 11g) :
+  un composable du type `useWriteAction` porte l'action scindée (brouillon ou
+  application), le motif prérempli, la clé d'idempotence et `settle`, employé par
+  `EditPanel` et `ClosePanel` ; la règle « opération nouvelle, clé nouvelle » y est écrite
+  une fois ; au passage, les deux défauts d'`EditPanel` de même cause (Ctrl+Entrée muet sur
+  une action refusée ; `addToActiveDraft` sans `.catch`, `busy` resté vrai) — verify :
+  Vitest du composable (clé renouvelée quand l'opération change, rejet qui rend la main,
+  refus dit) ; Vitest d'`EditPanel` et de `ClosePanel` inchangés ; parcours `edit` et
+  `records` sous les deux navigateurs
+  - où : `web/v2/shell/src/views/edit/{EditPanel,ClosePanel}.vue`, forme de
+    `web/v2/shell/src/views/edit/` ; tests `web/v2/shell/test/{edit,close}.test.ts`
+  - dépend de : 11g
+
 ## P3 — Plugins (phase 5)
 
 - [ ] 17. Écrans VLAN du cœur (amendée par la 026 : plus un plugin, des écrans du shell)
