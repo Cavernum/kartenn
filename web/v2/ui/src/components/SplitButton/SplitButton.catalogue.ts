@@ -12,8 +12,9 @@ const APPLY: SplitAction = { id: "apply", label: "Appliquer", icon: "circle-chec
 const REVIEW: SplitAction = { id: "review", label: "Soumettre en revue", icon: "send" };
 const SAVE: SplitAction = { id: "save", label: "Enregistrer le brouillon", icon: "draft" };
 const actions = [APPLY, REVIEW, SAVE];
+/** Held by a policy: a reason alone refuses the action, in the menu as on the button. */
 const held = [
-  { ...APPLY, disabled: true, reason: "Une politique d'approbation retient ce changeset." },
+  { ...APPLY, reason: "Une politique d'approbation retient ce changeset." },
   REVIEW,
   SAVE,
 ];
@@ -67,6 +68,14 @@ export default {
       name: "forbidden",
       description: "Action choisie interdite : grisée, focalisable, infobulle « Il faut … »",
       props: { actions: forbidden, action: "apply" },
+      demo,
+      interaction: "focus",
+    },
+    {
+      name: "held-chosen",
+      description:
+        "Action choisie retenue par un motif seul : grisée, focalisable, le motif en infobulle",
+      props: { actions: held, action: "apply" },
       demo,
       interaction: "focus",
     },

@@ -18,7 +18,7 @@ const items: MenuItem[] = [
     id: "move",
     label: "Déplacer vers…",
     icon: "move",
-    disabled: true,
+    // A reason alone refuses the entry, as it refuses a button.
     reason: "Parent déduit de l'inclusion",
   },
   { kind: "separator" },

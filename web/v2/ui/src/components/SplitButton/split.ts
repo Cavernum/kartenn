@@ -11,7 +11,7 @@ export interface SplitAction {
   icon?: IconName;
   /** Impossible now: listed in the menu, disabled, with its reason. */
   disabled?: boolean;
-  /** Why it is impossible (a policy that holds the changeset). */
+  /** Why it is impossible (a policy that holds the changeset): a reason alone refuses it. */
   reason?: string;
   /** The permission the user lacks (024/M14). */
   forbidden?: string;

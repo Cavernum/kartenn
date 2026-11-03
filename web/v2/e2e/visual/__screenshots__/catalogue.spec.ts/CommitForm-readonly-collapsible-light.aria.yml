@@ -1,0 +1,13 @@
+- main:
+  - 'tooltip "État connu à une date passée : rien ne s''écrit, revenez au présent."'
+  - region "CommitForm":
+    - heading "CommitForm" [level=1]
+    - paragraph: "Motif : champs étiquetés ; Ctrl+Entrée émet submit"
+    - 'figure "readonly-collapsible — Pied court en lecture seule : « Ajouter une description » refusé, focalisable, le motif en infobulle"':
+      - text: Résumé (obligatoire)
+      - textbox "Résumé (obligatoire)": Maintenance du référentiel
+      - paragraph: "État connu à une date passée : rien ne s'écrit, revenez au présent."
+      - button "Ajouter une description" [disabled]
+      - status
+      - code: readonly-collapsible
+      - text: ""

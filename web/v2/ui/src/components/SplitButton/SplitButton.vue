@@ -47,12 +47,16 @@ const items = computed<MenuItem[]>(() =>
     ...(a.forbidden ? { forbidden: a.forbidden } : {}),
   })),
 );
-/** Why the chosen action is impossible, if it is. */
+/**
+ * Why the chosen action is impossible, if it is: its permission, else its reason (a reason
+ * alone refuses, as in the menu); disabled without a reason, the button is disabled.
+ */
 const blocked = computed(() => {
   const a = chosen.value;
   if (!a) return {};
   if (a.forbidden) return { forbidden: a.forbidden };
-  if (a.disabled || a.reason) return { reason: a.reason ?? "" };
+  if (a.reason) return { reason: a.reason };
+  if (a.disabled) return { disabled: true };
   return {};
 });
 

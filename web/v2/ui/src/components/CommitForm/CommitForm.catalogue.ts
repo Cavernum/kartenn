@@ -7,6 +7,9 @@ import type { CatalogueEntry } from "../../catalogue.ts";
 import DemoColumn from "../../demo/DemoColumn.vue";
 import CommitForm from "./CommitForm.vue";
 
+/** The reason of the shell under `as_of` (nothing is written at a past date). */
+const PAST = "État connu à une date passée : rien ne s'écrit, revenez au présent.";
+
 /** The form at the width of the panel; a submission is said under it. */
 const demo = defineComponent({
   props: {
@@ -15,6 +18,7 @@ const demo = defineComponent({
     required: Boolean,
     collapsible: Boolean,
     error: { type: String, default: undefined },
+    reason: { type: String, default: undefined },
   },
   setup(props) {
     const summary = ref(props.summary);
@@ -30,6 +34,7 @@ const demo = defineComponent({
           required: props.required,
           collapsible: props.collapsible,
           error: props.error,
+          reason: props.reason,
           onSubmit: () => (sent.value = `Soumis : ${summary.value}`),
         }),
         h("p", { role: "status", class: "k-cat-note" }, sent.value),
@@ -64,6 +69,32 @@ export default {
         "Pied court (onglet Brouillon) : la description vide reste derrière « Ajouter une description »",
       props: { required: true, collapsible: true, summary: "Maintenance du référentiel" },
       demo,
+    },
+    {
+      name: "readonly",
+      description:
+        "Lecture seule avec motif (sous « connu au ») : champs focalisables, motif sous le résumé et lu avec chaque champ",
+      props: {
+        required: true,
+        summary: "Bascule des adresses de la salle B",
+        description: "Les passerelles changent de plage ; les VIP suivent.",
+        reason: PAST,
+      },
+      demo,
+    },
+    {
+      name: "readonly-collapsible",
+      description:
+        "Pied court en lecture seule : « Ajouter une description » refusé, focalisable, le motif en infobulle",
+      props: {
+        required: true,
+        collapsible: true,
+        summary: "Maintenance du référentiel",
+        reason: PAST,
+      },
+      demo,
+      interaction: "focus",
+      target: "button",
     },
     {
       name: "missing",

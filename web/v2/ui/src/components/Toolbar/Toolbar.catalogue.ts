@@ -86,6 +86,20 @@ export default {
       wide: true,
     },
     {
+      name: "folded-refused",
+      description:
+        "240 px, « … » ouvert : une action repliée retenue par un motif seul reste refusée, avec son motif",
+      props: {
+        actions: actions.map((a) =>
+          a.id === "import" ? { ...a, reason: "Un import est déjà en cours." } : a,
+        ),
+        size: "sm",
+      },
+      demo,
+      interaction: "press",
+      target: "[aria-haspopup='menu']",
+    },
+    {
       name: "forbidden",
       description: "Action interdite : focalisable, infobulle « Il faut … »",
       props: { actions },
