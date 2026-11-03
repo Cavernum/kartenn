@@ -113,6 +113,7 @@
     "drafted": "Move of {machine} to {host} in the draft.",
     "kept": "The operation stays in the draft; another move of {machine} replaces it.",
     "failed": "The hosting could not be read",
+    "guestsFailed": "The machines hosted by {host} could not be read",
     "none": "No cluster and no machine",
     "noneText": "A machine is created from the view Machines; a cluster, by the API or an import.",
     "partial": "Only the first pages of the lists are read: the tree is incomplete."

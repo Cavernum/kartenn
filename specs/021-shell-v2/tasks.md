@@ -2743,10 +2743,18 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     des états de la vue, phrase « en attente » en trop, troncature des hébergées dite,
     lecture datée dite, « Chargement… » au lieu de « … », Entrée et sélection dans
     l'introduction, raisons du cluster harmonisées.
-  - reste : la marque « en brouillon » survit à l'abandon du brouillon (le SDK ne dit pas
-    le brouillon actif de façon réactive) ; nœud dont les hébergées sont refusées sans
-    marque propre (seul le `RetryAlert` au-dessus de l'arbre le dit, sans le nommer) ;
-    focus après « Déplacer vers… » rendu au bouton (comportement du composant), loin de la
+  - passe de corrections (revue de branche) : places de `limited` rendues à la réponse,
+    le nœud ouvert ou refermé (sa liste suivie jusque-là), nœud refermé avant son tour
+    jamais admis ; cible d'une nature qui n'héberge rien refusée par le client
+    (`MoveSubject.kind`, `PARENT_KINDS` du SDK : `container`, `appliance` →
+    `machines.host.invalid`, aussi dans la section « Hébergement » de la fiche) ;
+    `draft.onActive` au SDK (design 021 § « API des plugins »), les marques « en
+    brouillon » effacées quand le brouillon actif change ou disparaît ; un seul `watch` de
+    la date ; un `RetryAlert` par liste d'hébergées refusée, nommée par son hôte
+    (`retry(i)`) ; `loading-children` sur un hôte ouvert pas encore admis. Vitest : 51 du
+    plugin (refermé avant la réponse, cible `container`, brouillon quitté) ; SDK
+    (`PARENT_KINDS`, `draft.onActive`).
+  - reste : focus après « Déplacer vers… » rendu au bouton (comportement du composant), loin de la
     ligne « en attente » ; nature d'un cluster en texte (cellules de `TreeGrid` en
     chaînes, pas de `KeyLabel`) ; la grille de la fiche porte le nom de son titre. À
     arbitrer côté API : le premier niveau lit toutes les machines pour garder celles sans

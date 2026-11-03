@@ -3,7 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { queryClient, type components, type Extension, type User } from "@kartenn/sdk";
+import { drafts, queryClient, type components, type Extension, type User } from "@kartenn/sdk";
 import { resetContext } from "@kartenn/sdk/host";
 import { announcePlugin, fakeFetch, mount, type Mounted } from "@kartenn/sdk/testing";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -233,7 +233,8 @@ describe("the tree « Hébergement et clusters » (task 18cd)", () => {
     const { element } = mounted;
     await text(element, "srv-a");
     press(element, HOST, "ArrowRight");
-    await text(element, "The hosting could not be read");
+    // Named by its host, read again by its own « Retry ».
+    await text(element, "The machines hosted by srv-a could not be read");
     await new Promise((done) => setTimeout(done, 50));
     expect(reads).toBe(1);
     refuse = false;
@@ -264,6 +265,85 @@ describe("the tree « Hébergement et clusters » (task 18cd)", () => {
     // Said by the tree (its own words, in the language of @kartenn/ui), with the rule.
     await text(element, ": it hosts it, or it is it (machines.host.invalid)");
     expect(writes).toEqual([]);
+  });
+
+  it("refuses a target that hosts nothing (M5) at the client, with the rule: nothing written", async () => {
+    history.replaceState(null, "", "/x/machines/clusters");
+    const CONTAINER = "5d0a3b61-1f2e-4a66-8b54-7a2e3c2d8b24";
+    const writes: string[] = [];
+    mounted = mount("machines-clusters", {
+      context: { locale: "en", user: user() },
+      fetch: fakeFetch({
+        ...READS,
+        "GET /v1/machines": (request) =>
+          request.query.get("host")
+            ? READS["GET /v1/machines"](request)
+            : page([...MACHINES, machine(CONTAINER, "ct-a", "container")]),
+        "POST /v1/drafts": () => {
+          writes.push("draft");
+          return draftOf([]);
+        },
+      }),
+    });
+    const { element } = mounted;
+    await text(element, "ct-a");
+    press(element, AWAY, "x", true);
+    press(element, CONTAINER, "v", true);
+    await text(element, ": a host of a type not admitted (machines.host.invalid)");
+    await new Promise((done) => setTimeout(done, 20));
+    expect(writes).toEqual([]);
+  });
+
+  it("gives back the place of a list answered once its node closed; never reads a node closed before its turn", async () => {
+    history.replaceState(null, "", "/x/machines/clusters");
+    const ids = [1, 2, 3, 4, 5, 6].map((i) => `5d0a3b61-1f2e-4a66-8b54-7a2e3c2d8c0${i}`);
+    const asked: string[] = [];
+    let release!: () => void;
+    const held = new Promise<void>((done) => (release = done));
+    mounted = mount("machines-clusters", {
+      context: { locale: "en", user: user() },
+      fetch: fakeFetch({
+        "GET /v1/clusters": () =>
+          page(
+            ids.map((id, i) => ({
+              id,
+              href: `/v1/clusters/${id}`,
+              slug: `c${i + 1}`,
+              owner: { id: ENTITY },
+            })),
+          ),
+        "GET /v1/machines": async ({ query }) => {
+          const host = query.get("host");
+          if (!host) return page([]);
+          asked.push(host);
+          // The first four lists are slow: they hold every place.
+          if (ids.slice(0, 4).includes(host)) await held;
+          return page([]);
+        },
+      }),
+    });
+    const { element } = mounted;
+    await text(element, "c6");
+    /** Opens or closes a node, the tree drawn again before the next key. */
+    const toggle = async (id: string, open: boolean) => {
+      press(element, id, open ? "ArrowRight" : "ArrowLeft");
+      await new Promise((done) => setTimeout(done, 10));
+    };
+    for (const id of ids.slice(0, 5)) await toggle(id, true);
+    await vi.waitFor(() => expect(asked).toEqual(ids.slice(0, 4)));
+    // The fifth waits for a place, shown as loading.
+    await vi.waitFor(() =>
+      expect(rowOf(element, ids[4]!)?.dataset["state"]).toBe("loading-children"),
+    );
+    // All closed before any answer; then the four lists answer.
+    for (const id of ids.slice(0, 5)) await toggle(id, false);
+    release();
+    await new Promise((done) => setTimeout(done, 50));
+    // The fifth, closed before its turn: never read.
+    expect(asked).toEqual(ids.slice(0, 4));
+    // The places came back: another node opened is read.
+    await toggle(ids[5]!, true);
+    await vi.waitFor(() => expect(asked).toEqual([...ids.slice(0, 4), ids[5]]));
   });
 
   it("moves to a cluster in the draft: pending until simulated, never written in the cache; the warnings said", async () => {
@@ -335,6 +415,9 @@ describe("the tree « Hébergement et clusters » (task 18cd)", () => {
     // No key of the tree written (X33): the draft's own entry only, by the SDK.
     const keys = setQueryData.mock.calls.map(([key]) => String((key as unknown[])[1]));
     expect(keys.filter((key) => /^\/v1\/(machines|clusters)/.test(key))).toEqual([]);
+    // The draft no longer active (left, deleted, submitted): no longer marked.
+    drafts.setActive(null);
+    await vi.waitFor(() => expect(rowOf(element, AWAY)?.hasAttribute("data-state")).toBe(false));
   });
 
   it("refused by the simulation: the node at its place, refused with the code of the rule", async () => {

@@ -113,6 +113,7 @@
     "drafted": "Déplacement de {machine} vers {host} au brouillon.",
     "kept": "L'opération reste au brouillon ; un autre déplacement de {machine} la remplace.",
     "failed": "Lecture de l'hébergement impossible",
+    "guestsFailed": "Lecture des machines hébergées par {host} impossible",
     "none": "Aucun cluster ni aucune machine",
     "noneText": "Une machine se crée depuis la vue Machines ; un cluster, par l'API ou un import.",
     "partial": "Seules les premières pages des listes sont lues : l'arbre est incomplet."

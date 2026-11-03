@@ -83,11 +83,16 @@ const machines = useList<Machine, never>(() => reads.list("/v1/machines") as nev
 const expanded = ref<string[]>([]);
 const selected = ref<string | undefined>();
 
-// The guests of each node opened, a few lists at a time (`limited`, as the names): the list
-// of a node is enabled once it has its place, which it holds until its first answer.
+// The guests of each node opened, a few lists at a time (`limited`, shared with the names):
+// the list of a node is enabled once it has its place, which it holds until its first
+// answer, the node open or closed meanwhile (its list followed until then). A node closed
+// before its turn is not admitted: its place goes to the next one, it is asked again if
+// opened again.
 const admitted = shallowRef<ReadonlySet<string>>(new Set());
+/** The nodes holding a place: their list awaited. */
+const holding = shallowRef<ReadonlySet<string>>(new Set());
 let asked = new Set<string>();
-let places = new Map<string, () => void>();
+const places = new Map<string, () => void>();
 let alive = true;
 let round = 0;
 function admit(ids: readonly string[]): void {
@@ -96,57 +101,56 @@ function admit(ids: readonly string[]): void {
     if (asked.has(id)) continue;
     asked.add(id);
     void limited(
-      () => alive && mine === round,
+      () => alive && mine === round && expanded.value.includes(id),
       () =>
         new Promise<void>((resolve) => {
           places.set(id, resolve);
+          holding.value = new Set(places.keys());
           admitted.value = new Set(admitted.value).add(id);
         }),
-    );
+    ).then((read) => {
+      // Closed before its turn: not read, asked again once opened again.
+      if (read === null && mine === round && !admitted.value.has(id)) asked.delete(id);
+    });
   }
 }
+/** The place of `id` given back: its list answered, or the view gone. */
+function release(id: string): void {
+  places.get(id)?.();
+  places.delete(id);
+  holding.value = new Set(places.keys());
+}
 function giveBack(): void {
-  for (const release of places.values()) release();
-  places = new Map();
+  for (const id of [...places.keys()]) release(id);
 }
 onScopeDispose(() => {
   alive = false;
   giveBack();
 });
 watch(expanded, admit, { immediate: true });
-// Other dates: every list read again, a few at a time.
-watch(
-  () => `${context.value.time.validAt ?? ""} ${context.value.time.asOf ?? ""}`,
-  () => {
-    round++;
-    giveBack();
-    asked = new Set();
-    admitted.value = new Set();
-    admit(expanded.value);
-  },
-);
 
-/** The guests of the opened nodes, aligned on `expanded` (nothing else: no loop). */
+/** The lists followed: of the nodes opened, and of those still holding a place. */
+const followed = computed(() => [
+  ...expanded.value,
+  ...[...holding.value].filter((id) => !expanded.value.includes(id)),
+]);
 const guests = useLists<Machine, never>(
   () =>
-    expanded.value.map((id) => ({
+    followed.value.map((id) => ({
       ...(reads.list("/v1/machines", { host: id }) as object),
       enabled: admitted.value.has(id),
     })) as never,
 );
-// A list answered (read or refused): its place goes to the next one.
+// A list answered (read or refused), its node open or not: its place goes to the next one.
 watch(guests.states, (states) => {
-  expanded.value.forEach((id, i) => {
-    const release = places.get(id);
-    if (release && admitted.value.has(id) && states[i] && !states[i].pending) {
-      places.delete(id);
-      release();
-    }
+  followed.value.forEach((id, i) => {
+    if (places.has(id) && admitted.value.has(id) && states[i] && !states[i].pending) release(id);
   });
 });
+const indexOf = (id: string) => followed.value.indexOf(id);
 const guestsOf = (id: string) => {
-  const i = expanded.value.indexOf(id);
-  return i < 0 ? undefined : guests.states.value[i];
+  const i = indexOf(id);
+  return i < 0 || !expanded.value.includes(id) ? undefined : guests.states.value[i];
 };
 
 // ----------------------------------------------------------------------------- the tree
@@ -167,6 +171,9 @@ function siteOf(id: string | undefined): string {
 const model = computed(() => {
   const parents = new Map<string, string | null>();
   const types = new Map<string, string>();
+  /** The kind of each machine (M5: who may host), the label of each node. */
+  const kinds = new Map<string, string>();
+  const labels = new Map<string, string>();
   const up = new Map<string, string>();
   for (const m of machines.state.value.items ?? []) {
     if (m.host) up.set(m.id, "machine" in m.host ? m.host.machine.id : m.host.cluster.id);
@@ -183,6 +190,8 @@ const model = computed(() => {
     // Once only: a list read again before another may hold a machine moved meanwhile.
     if (types.has(m.id)) return [];
     types.set(m.id, MACHINE);
+    kinds.set(m.id, m.kind);
+    labels.set(m.id, m.name);
     parents.set(m.id, parent);
     if (parent) up.set(m.id, parent);
     const node: TreeNode = {
@@ -197,6 +206,7 @@ const model = computed(() => {
   for (const c of clusters.state.value.items ?? []) {
     if (types.has(c.id)) continue;
     types.set(c.id, CLUSTER);
+    labels.set(c.id, c.slug);
     parents.set(c.id, null);
     const node: TreeNode = {
       id: c.id,
@@ -209,7 +219,7 @@ const model = computed(() => {
   for (const m of machines.state.value.items ?? []) {
     if (!m.host) nodes.push(...machineNode(m, null));
   }
-  return { nodes, parents, types, up, roots: nodes.length };
+  return { nodes, parents, types, kinds, labels, up, roots: nodes.length };
 });
 
 /** Pages of the first level left to read, within `MAX_PAGES`. */
@@ -237,7 +247,7 @@ watch(
 /** The tree asks the next page of a list: of the first level (`null`), or of a node. */
 function onLoad(parent: string | null): void {
   if (parent !== null) {
-    const i = expanded.value.indexOf(parent);
+    const i = indexOf(parent);
     if (i >= 0) guests.next(i);
     return;
   }
@@ -256,17 +266,20 @@ const firstFailure = computed(() => {
   return c.items === undefined && m.items === undefined ? (c.error ?? m.error ?? null) : null;
 });
 const laterFailure = computed(
-  () =>
-    clusters.state.value.error ??
-    machines.state.value.error ??
-    guests.states.value.find((s) => s.error)?.error ??
-    null,
+  () => clusters.state.value.error ?? machines.state.value.error ?? null,
 );
 function retry(): void {
   if (clusters.state.value.error) clusters.retry();
   if (machines.state.value.error) machines.retry();
-  guests.retry();
 }
+/** The guests of an opened node that could not be read, each with its host and its list. */
+const guestFailures = computed(() =>
+  expanded.value.flatMap((id) => {
+    const i = indexOf(id);
+    const error = guests.states.value[i]?.error;
+    return error ? [{ id, index: i, error, host: model.value.labels.get(id) ?? id }] : [];
+  }),
+);
 const loading = computed(
   () =>
     !firstFailure.value &&
@@ -281,7 +294,6 @@ const problemOf = (error: unknown) => (error instanceof ApiProblem ? error : und
 function onActivate(id: string): void {
   const type = model.value.types.get(id);
   if (!type) return;
-  void context.value.time;
   arrival.byLink = true;
   followLink(element, hrefOf(type === CLUSTER ? PAGES.cluster(id) : PAGES.machine(id)));
 }
@@ -315,7 +327,7 @@ const refusalOf = (verdict: Extract<MoveVerdict, { ok: false }>): MoveCheck => (
 
 /** Whether `node` may go under `target` (`null`: no host), for each target hovered or listed. */
 function check(node: TreeNode, target: TreeNode | null): MoveCheck {
-  const { types, parents } = model.value;
+  const { types, kinds, parents } = model.value;
   const type = types.get(node.id);
   if (type === CLUSTER) return { ok: false, reason: t("hosting.fixed") };
   const to = target ? types.get(target.id) : null;
@@ -323,9 +335,11 @@ function check(node: TreeNode, target: TreeNode | null): MoveCheck {
   if ((parents.get(node.id) ?? null) === (target?.id ?? null)) {
     return { ok: false, reason: t("hosting.current") };
   }
+  // The kind of the target too: a container or an appliance hosts nothing (M5).
+  const kind = target ? kinds.get(target.id) : undefined;
   const verdict = canMove(
     { id: node.id, type },
-    target && to ? { id: target.id, type: to } : null,
+    target && to ? { id: target.id, type: to, ...(kind ? { kind } : {}) } : null,
     env.value,
   );
   return verdict.ok ? { ok: true } : refusalOf(verdict);
@@ -340,15 +354,24 @@ const warnings = shallowRef<AlertLine[]>([]);
 /** The simulation of the draft could not be done: an alert. */
 const unsimulated = shallowRef<AlertLine[] | null>(null);
 
-// Other dates: no move is offered there, what the last one said no longer holds.
+// Other dates: every list of guests read again, a few at a time; no move is offered there,
+// what the last one said no longer holds.
 watch(
   () => `${context.value.time.validAt ?? ""} ${context.value.time.asOf ?? ""}`,
   () => {
+    round++;
+    giveBack();
+    asked = new Set();
+    admitted.value = new Set();
+    admit(expanded.value);
     said.value = "";
     warnings.value = [];
     unsimulated.value = null;
   },
 );
+// Another active draft, or none (left, deleted, submitted): the marks « en brouillon » no
+// longer hold.
+onScopeDispose(draft.onActive(() => drafted.clear()));
 
 const moveState = (node: TreeNode): MoveState | undefined => states.get(node.id);
 function nodeState(node: TreeNode): TreeNodeState | undefined {
@@ -356,7 +379,11 @@ function nodeState(node: TreeNode): TreeNodeState | undefined {
   if (drafted.has(node.id) && drafted.get(node.id) === (model.value.parents.get(node.id) ?? null)) {
     return "draft";
   }
-  return guestsOf(node.id)?.pending && !node.children ? "loading-children" : undefined;
+  // Opened, its list awaited: not admitted yet, or read.
+  if (!expanded.value.includes(node.id) || node.children) return undefined;
+  return !admitted.value.has(node.id) || guestsOf(node.id)?.pending
+    ? "loading-children"
+    : undefined;
 }
 
 /** A refusal of the API, as the node shows it: its first rule, else its problem. */
@@ -477,6 +504,14 @@ function moveTo(): void {
         :title="t('hosting.failed')"
         :error="laterFailure"
         @retry="retry"
+      />
+      <!-- Each list of guests refused, named by its host, read again by itself only. -->
+      <RetryAlert
+        v-for="f in guestFailures"
+        :key="f.id"
+        :title="t('hosting.guestsFailed', { host: f.host })"
+        :error="f.error"
+        @retry="guests.retry(f.index)"
       />
       <Inline v-if="present" gap="2">
         <Button
