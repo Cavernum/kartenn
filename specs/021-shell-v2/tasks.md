@@ -2445,7 +2445,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `web/v2/shell/src/views/list.ts` (forme) ; `web/v2/e2e/journeys/anomalies.spec.ts`,
     `web/v2/e2e/journeys/global-setup.ts`
   - dépend de : 11i
-- [ ] 12c. Réponses d'une écriture et écritures coupées sous `as_of`, prouvées : 202 sous
+- [x] 12c. Réponses d'une écriture et écritures coupées sous `as_of`, prouvées : 202 sous
   une politique d'approbation avec le lien « Voir le changeset » ; 403 du serveur qui garde
   la saisie et dit l'alerte ; éditeurs et actions de la fiche coupés sous `as_of`, le
   brouillon daté laissé possible sous `valid_at` seul — verify : parcours `edit` et `time`
@@ -2453,6 +2453,46 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/shell/src/views/edit/` (`useWriteAction`, 12b), `views/RecordView.vue`,
     contexte temporel ; anciens parcours `web/e2e/journeys/{edit,time}.spec.ts`
   - dépend de : 12, 12b
+  - fait le 2026-11-03 — porté au plus petit, le brouillon daté de la fiche (REQ-021-5 ;
+    jusque-là tout était coupé hors du présent, `valid_at` seul compris) : `action.ts`
+    (`useWriteAction`) ne coupe tout que sous `as_of` ; sous `valid_at` seul, « Appliquer »
+    est listé refusé avec sa raison (`edit.why.dated`), dite aussi par le statut au
+    Ctrl+Entrée, le brouillon permis ; `RecordView.vue` : « Modifier », « Clore… » et la
+    création d'un VLAN coupés sous `as_of` seulement (`blockedBy`), « Changer de parent… »
+    toujours au présent seul (`edit.move.dated`, `moves.ts` ne déplace qu'au présent ;
+    relecture `ui-reviewer`, qui a aussi aligné `edit.why.dated` sur « Lecture datée ») ;
+    `shortcuts/view.ts` : `runnable(id, période)` et `ViewAction.dated` (l'action `e` de
+    la fiche joue sous `valid_at` seul, jamais sous `as_of`), `ShellFrame.vue` lui passe
+    la période ; `ClosePanel.vue` simule sous `valid_at` seul (au présent, la version que
+    la clôture nomme) ; `panel.ts` : `closeEditWithPage` ferme aussi le panneau ouvert
+    sous `valid_at` quand `as_of` arrive (relecture `a11y-auditor`). Parcours
+    `web/v2/e2e/journeys/edit.spec.ts` : « under an approval policy, Ctrl+Enter with its
+    motive: « en revue », never applied, its changeset linked » (le `Link` du 202 lu,
+    « Voir la proposition » du toast mène à `/changesets/<id>`, son motif affiché) ; « a
+    refusal of the server (403) keeps the input and says the alert » ;
+    `web/v2/e2e/journeys/time.spec.ts` : « under as_of, the editors and the actions of the
+    record are off, each saying why » (« Modifier », `e`, « Clore… », la cellule de la
+    liste) ; « a validity date alone leaves the dated draft possible » (étendu : la fiche
+    un mois après, panneau ouvert par `e`, « Appliquer » refusé, Ctrl+Entrée au brouillon,
+    compteur à 1). Vitest : `action.test.ts` (`valid_at` seul), `shortcuts.test.ts`
+    (action `dated`), `edit.test.ts` (fermeture quand `as_of` arrive).
+  - choix : le 403 provoqué par `page.route` (réponse `urn:kartenn:problem:forbidden` avec
+    son `Request-Id`, comme le serveur la rédige) plutôt qu'un droit retiré entre la
+    lecture et l'envoi : les comptes des parcours sont partagés par les tests en
+    parallèle, retirer un rôle d'un groupe en casserait d'autres ; le lien du 202 garde le
+    mot « Voir la proposition » du shell (`edit.seeProposal`, un 202 est une proposition),
+    la ligne 58 le dit ; sous `valid_at` seul, le panneau lit l'objet au présent (la
+    version sur laquelle le brouillon daté écrit), pas à la date de la fiche ; un droit
+    manquant l'emporte sur la raison datée d'« Appliquer » (comme les refus de la 12b) ;
+    `as_of` d'il y a une seconde et `valid_at` d'un mois après dans le parcours (l'objet du
+    jeu existe aux deux dates ; `VALID_AT`, en 2026-01-01, le précède).
+  - reste : la soumission du brouillon sous `valid_at` seul (`valid_from` prérempli, le
+    bouton du brouillon encore coupé par `drafts.why.past`, `draft/state.ts`) revient à la
+    14d ; « Créer » d'une liste (`c`) et le « + » de la Topographie restent au présent
+    seul sous `valid_at` (brouillon daté permis par REQ-021-5, non porté ici) ; la raison
+    d'une cellule sous `valid_at` seul dit encore « revenez au présent pour modifier »
+    alors que « Modifier » mène au brouillon daté ; `e`, `c` sans effet ni phrase sous
+    `as_of` (la raison sur le bouton seulement ; relecture `a11y-auditor`, cadre).
 - [x] 14c. Changesets, reste prouvé : filtres de `/changesets` (auteur choisi, période
   `from`/`to`, état) ; « Retirer » un changeset en attente, exercé ; différentiel aux valeurs
   masquées par les droits et violations d'un changeset ; retour à « Mes changesets » avec
