@@ -7,7 +7,9 @@
 #   web/v2/dist), gathers them with the test plugins of web/v2/e2e/plugins under
 #   web/e2e/.state/plugins-v2, recreates the kartenn_e2e_v2 database, migrates it, creates the
 #   break-glass account `e2e` (its proofs in web/e2e/.state/breakglass-v2.txt), then
-#   serves kartenn-server on 9443 with web/v2/e2e/kartenn.toml.
+#   serves kartenn-server on 9443 with web/v2/e2e/kartenn.toml;
+# - `serve.sh budgets`: the same instance in release on the dataset of bench-core, for
+#   the browser bench (web/v2/e2e/budgets.config.ts, `bench-web`).
 # Same ports as web/e2e: k-web-e2e and k-web2-e2e hold every slot of k-heavy, never side
 # by side.
 set -euo pipefail
@@ -36,8 +38,33 @@ kartenn)
   exec env SSL_CERT_FILE="$state/ca.pem" \
     "$bin/kartenn-server" run "$database" web/v2/e2e/kartenn.toml
   ;;
+budgets)
+  # The instance of the browser bench (REQ-021-30, `bench-web`): kartenn-server in release
+  # on the kartenn_bench database of `k-pg-bench` (ADR 0032), migrated then loaded by
+  # `kartenn-bench seed` (the dataset of bench-core and a container of 10⁵ networks, whose
+  # ids go to .state/budgets-v2.env), with the plugins of web/v2/plugins and one that
+  # defines itself too late (web/v2/e2e/budgets/plugins); the break-glass account `e2e`
+  # as above, for budgets/global-setup.ts.
+  release=${CARGO_TARGET_DIR:-target}/release
+  cargo build -q --release -p kartenn-server -p kartenn-bench
+  pnpm -C web/v2 --filter @kartenn/shell --filter "./plugins/*" build >/dev/null
+  rm -rf "$state/plugins-v2"
+  mkdir -p "$state/plugins-v2"
+  cp -R web/v2/e2e/budgets/plugins/. web/v2/dist/plugins/. "$state/plugins-v2/"
+  database=${K_BENCH_DATABASE_URL:-postgres://kartenn@127.0.0.1:5433/kartenn_bench}
+  PGOPTIONS='-c client_min_messages=warning' psql "${database%/*}/postgres" -q \
+    -c "DROP DATABASE IF EXISTS \"${database##*/}\" WITH (FORCE)" \
+    -c "CREATE DATABASE \"${database##*/}\""
+  "$release/kartenn-server" migrate "$database" >/dev/null
+  "$release/kartenn-bench" seed "$database" "${BENCH_SEED:-42}" ${BENCH_SMALL:+small} \
+    >"$state/budgets-v2.env"
+  "$release/kartenn-server" breakglass create "$database" e2e 24 "$state/kartenn-keys" \
+    >"$state/breakglass-v2.txt"
+  exec env SSL_CERT_FILE="$state/ca.pem" \
+    "$release/kartenn-server" run "$database" web/v2/e2e/kartenn.toml
+  ;;
 *)
-  echo "usage: serve.sh idp|kartenn" >&2
+  echo "usage: serve.sh idp|kartenn|budgets" >&2
   exit 2
   ;;
 esac

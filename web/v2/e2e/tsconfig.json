@@ -11,6 +11,8 @@
     "components",
     "journeys",
     "bench.config.ts",
-    "bench"
+    "bench",
+    "budgets.config.ts",
+    "budgets"
   ]
 }
