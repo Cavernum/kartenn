@@ -2514,15 +2514,19 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     description sortent de l'ordre de tabulation sans motif (relecture `a11y-auditor`, M14),
     à ouvrir dans `web/v2/ui` ; maquette `EcranSoumission` sans dates d'effet ni lecture
     seule.
-- [ ] 14e. Brouillon daté sous `valid_at` seul (REQ-021-5, X5 ; relevé par la revue de la
-  12c) : « Ajouter au brouillon » sous une date de validité préremplit `valid_from` du
-  brouillon ; le panneau et la page du brouillon laissent retirer une opération et
-  soumettre à la date lue (aujourd'hui refusés hors présent : `draft/state.ts` vers la
-  ligne 118, `DraftOperations.vue` vers les lignes 75 et 145, `DraftsView.vue` vers la
-  ligne 99) ; sous `as_of`, tout reste en lecture seule (14d) — verify : Vitest de l'état
-  du brouillon par période ; parcours `draft` et `time` (une opération ajoutée sous
-  `valid_at`, retirée puis soumise à la date lue) sous les deux navigateurs
-  - où : `web/v2/shell/src/draft/`, `writesOf` de `web/v2/shell/src/time/index.ts`
+- [ ] 14e. Brouillon daté sous `valid_at` seul, reste (REQ-021-5, X5 ; relevé par la revue
+  de la 12c, réduit après la 14d, qui a levé le retrait et la soumission hors présent et
+  préremplit `valid_from` au pied) : « Ajouter au brouillon » sous une date de validité
+  simule à cette date (`web/v2/sdk/src/draft.ts` vers la ligne 100, aujourd'hui sans
+  période) ; la date de l'ajout est gardée avec le brouillon, et non plus dans une carte
+  de la page (perdue au rechargement, suivie par le `valid_at` courant) ; tant qu'une
+  soumission attend sa reprise, les dates du pied sont figées ; la reprise de l'encart
+  (`LostSubmissions.vue`) est refusée sous `as_of` comme celle du pied ; un retrait sous
+  `valid_at` prouvé — verify : Vitest de l'état du brouillon par période ; parcours `draft`
+  et `time` (une opération ajoutée sous `valid_at`, retirée, puis une autre soumise à la
+  date de son ajout après un retour au présent) sous les deux navigateurs
+  - où : `web/v2/shell/src/draft/` (`state.ts` : `draftPeriods`, `periodBody` ;
+    `DraftSubmit.vue`, `LostSubmissions.vue`), `web/v2/sdk/src/draft.ts`, `writesOf`
   - dépend de : 12c, 14d
 - [ ] 12d. Créer sous `valid_at` seul (REQ-021-5, X5 ; relevé par la revue de la 12c) :
   « Créer » (`c`) des listes et « + » de la Topographie mènent au brouillon daté sous une

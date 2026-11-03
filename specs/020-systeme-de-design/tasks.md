@@ -1359,6 +1359,21 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     `cell` à `DataGrid` ; son contenu par défaut rend `NoValue` pour une cellule `null`,
     dans la grille compacte et dans le dialogue (`ui/test/no-value-mounted.test.ts`) ;
     `TreeGrid` lit la cellule une fois (`cellOf`).
+- [ ] 31. Refus dit par toutes les pièces d'action (relevé par la revue de la 021-14d) :
+  `Menu` ne tient pour refusée qu'une entrée `disabled` ou `forbidden`, alors que `Button`
+  refuse aussi sur `reason` ; `Toolbar` replie dans « … » une action marquée `reason` sans
+  la désactiver ; `SplitButton` a la même faille. Une `reason` seule vaut refus partout,
+  dite à l'entrée (REQ-021-37, 024-M14) ; `CommitForm` gagne `readonly` et `reason` (resté
+  hors de l'ordre de tabulation sans motif sous `as_of`, 021-14d) — verify : Vitest de
+  `Menu`, `Toolbar`, `SplitButton` et `CommitForm` (entrée à motif seul refusée, motif
+  dit) ; captures des seules entrées touchées ; parcours `changesets` sur une fenêtre
+  étroite (action repliée refusée avec son motif) ; revue `a11y-auditor` ; seul agent sur
+  `web/v2/ui`
+  - où : `web/v2/ui/src/components/{Menu,Toolbar,SplitButton,CommitForm}/` ; appelants
+    relevés : `web/v2/shell/src/changesets/ChangesetView.vue` (vers la ligne 141), les vues
+    `admin/` (`RolesView`, `GroupsView`, `ImportDetail`, `IssuersView`, `GroupDetail`,
+    `RoleDetail`, `IdentityDetail`)
+  - dépend de : 30
 - [ ] 28. Synchronisation : `docs/spec/` (architecture web : `@kartenn/ui`, couches,
   catalogue) ; ADR 0036, 0038, 0039 acceptées ;
   `specs/README.md` ; audit `spec-keeper` — verify : liens croisés ; aucun écart
