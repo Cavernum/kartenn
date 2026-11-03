@@ -3,7 +3,8 @@
 // REQ-021-12; design 021 « Administration »; maquette E7, vue `identite`): its name, its
 // kind (person, service account, break-glass account) and its state; « Désactiver » (or
 // « Réactiver ») and « Révoquer les sessions », to the draft (`set_identity_state`), and
-// « Pseudonymiser… » for a person, at once and confirmed (004, REQ-004-33: irreversible).
+// « Pseudonymiser… » for a person or a requester (016), at once and confirmed (004,
+// REQ-004-33: irreversible).
 // In read: its groups of kartenn with « via » (direct, or the group of its IdP that makes
 // it a member), its effective rights (role, scope, the group that gives it), and the
 // groups of its IdP at its last login, without date (025, Q-025-1), each with the group of
@@ -38,6 +39,7 @@ import {
   globalRefusal,
   idpGroupRows,
   PSEUDONYMISE,
+  pseudonymisable,
   refusalOf,
   type IdentityDetail,
 } from "./access.ts";
@@ -127,7 +129,7 @@ const actions = computed<ToolbarAction[]>(() => {
       priority: 1,
       ...stateRefusal.value,
     },
-    ...(shown.kind === "person"
+    ...(pseudonymisable(shown.kind)
       ? [
           {
             id: "pseudonymise",

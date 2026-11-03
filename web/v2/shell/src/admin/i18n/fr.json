@@ -75,6 +75,7 @@
         "person": "personne",
         "service_account": "compte de service",
         "breakglass": "compte de secours",
+        "requester": "demandeur",
         "identity": "identité",
         "idp_group": "groupe de l'IdP"
       },

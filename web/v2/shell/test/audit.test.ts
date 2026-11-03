@@ -1,4 +1,5 @@
 import { ApiProblem, keys, NetworkError } from "@kartenn/sdk";
+import { checkFilter, type Filter } from "@kartenn/ui";
 import { QueryClient } from "@tanstack/query-core";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -21,6 +22,12 @@ import {
   type ImportItem,
 } from "../src/admin/imports.ts";
 import { frameRoutes } from "../src/frame/routes.ts";
+import {
+  filtersOfQuery,
+  instantOfDay,
+  listFilterModel,
+  sentFilters,
+} from "../src/views/filters.ts";
 
 // The audit journal and the imports in the administration (task 021-15c; REQ-021-12): the
 // export written to a file as its body comes, never held whole by the page (a body cut
@@ -180,6 +187,42 @@ describe("the events of the journal", () => {
     });
     expect(cachedEvent(queryClient, "e2")?.name).toBe("authn.login.succeeded");
     expect(cachedEvent(queryClient, "e3")).toBeUndefined();
+  });
+
+  it("types the period as days and the object as a value, sent as the journal takes them", () => {
+    const words = {
+      field: () => undefined,
+      value: () => undefined,
+      property: () => undefined,
+      propertyValue: () => undefined,
+    };
+    const model = listFilterModel("/v1/audit-events", [], words);
+    const type = (key: string) => model.find((p) => p.key === key)?.type;
+    expect([type("from"), type("to"), type("object"), type("actor")]).toEqual([
+      "date",
+      "date",
+      "text",
+      "enum",
+    ]);
+    const object = "0190a000-0000-7000-8000-000000000001";
+    const filters: Filter[] = [
+      { key: "from", operator: "eq", values: ["2026-11-01"] },
+      { key: "to", operator: "eq", values: ["2026-11-02"] },
+      { key: "object", operator: "eq", values: [object] },
+    ];
+    // The URL keeps the days; the request, the instants that bound them.
+    expect(filtersOfQuery(model, { from: "2026-11-01", to: "2026-11-02", object })).toEqual(
+      filters,
+    );
+    expect(sentFilters("/v1/audit-events", model, filters, [])).toEqual({
+      from: instantOfDay("2026-11-01", "start"),
+      to: instantOfDay("2026-11-02", "end"),
+      object,
+    });
+    // A day that is none stays on its chip, out of the request.
+    const wrong: Filter[] = [{ key: "from", operator: "eq", values: ["1 novembre"] }];
+    expect(checkFilter(model, wrong[0]!)).toBeDefined();
+    expect(sentFilters("/v1/audit-events", model, wrong, [])).toEqual({});
   });
 
   it("shows an outcome by its state", () => {

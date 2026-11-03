@@ -10,6 +10,7 @@ import {
   globalRefusal,
   holdsGlobally,
   idpGroupRows,
+  pseudonymisable,
   refusalOf,
   secretRows,
   type IdentityDetail,
@@ -85,6 +86,16 @@ describe("identities", () => {
       { name: "compta", groups: [] },
     ]);
   });
+
+  it("offers the pseudonymisation to a person and a requester, as the server takes them", () => {
+    expect(pseudonymisable("person")).toBe(true);
+    // A requester (016): a person named by a service account, pseudonymised alike.
+    expect(pseudonymisable("requester")).toBe(true);
+    // Any other identity: the server answers 409.
+    for (const kind of ["service_account", "breakglass", "system"]) {
+      expect(pseudonymisable(kind), kind).toBe(false);
+    }
+  });
 });
 
 describe("service accounts", () => {
@@ -118,6 +129,14 @@ describe("service accounts", () => {
   it("says a refusal of the server by its kind", () => {
     const forbidden = new ApiProblem({ status: 403, type: "t", title: "t" });
     expect(refusalOf(forbidden).kind).toBe("forbidden");
+    // The pseudonymisation of another than a person (409): the problem said as it came.
+    const conflict = new ApiProblem({
+      status: 409,
+      type: "urn:kartenn:problem:conflict",
+      title: "Conflict",
+      detail: "only a person is pseudonymised",
+    });
+    expect(refusalOf(conflict)).toMatchObject({ kind: "failed", problem: conflict });
     const invalid = new ApiProblem({
       status: 422,
       type: "t",

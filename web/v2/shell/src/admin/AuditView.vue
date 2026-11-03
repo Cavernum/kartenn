@@ -150,8 +150,11 @@ const countText = computed(() =>
 const hasFilters = computed(() => filters.value.some((filter) => !filter.draft));
 function clearFilters(): void {
   onFilters(filters.value.filter((filter) => filter.draft));
+  // The picker's first node is no element (its root is the popover's, renderless): its
+  // parent, the bar, holds « Ajouter un filtre ». Until a method exposed by `FilterPicker`
+  // replaces this lookup of its DOM, here and in ListView and ChangesetsView (task 021-11h).
   void nextTick(() =>
-    (picker.value?.$el as HTMLElement | undefined)
+    (picker.value?.$el as Node | undefined)?.parentElement
       ?.querySelector<HTMLElement>(".k-filter-picker__add")
       ?.focus(),
   );

@@ -48,6 +48,22 @@ name = "Erwan Exemple"
 email = "erwan@kartenn.invalid"
 groups = ["auditeurs"]
 
+# People pseudonymised by the journey `admin` of the new shell (task 021-15d), one per
+# browser, both run at once: the identity each login creates is the journey's own, never a
+# person another journey reads. Pseudonymised, it loses its subject: the next login of the
+# same user creates a new identity.
+[[users]]
+sub = "oubli-chromium"
+name = "Oubli Chromium"
+email = "oubli-chromium@kartenn.invalid"
+groups = ["lecteurs"]
+
+[[users]]
+sub = "oubli-firefox"
+name = "Oubli Firefox"
+email = "oubli-firefox@kartenn.invalid"
+groups = ["lecteurs"]
+
 [[users]]
 sub = "carol"
 name = "Carol Exemple"
