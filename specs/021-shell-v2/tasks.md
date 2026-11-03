@@ -2286,7 +2286,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `web/v2/shell/src/views/edit/` ; tests `web/v2/shell/test/{edit,close}.test.ts`
   - dépend de : 11g
 
-- [ ] 11h. « Retirer les filtres » sans exception (relevé par la 15d) : `FilterPicker`
+- [x] 11h. « Retirer les filtres » sans exception (relevé par la 15d) : `FilterPicker`
   expose une méthode qui met le focus sur « Ajouter un filtre » (à la forme de `openAdd`) ;
   `ListView`, `ChangesetsView` et `AuditView` l'appellent au lieu de chercher le bouton
   dans le DOM depuis `$el` (un nœud texte, la racine du composant étant un fragment :
@@ -2299,6 +2299,28 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `web/v2/shell/src/changesets/ChangesetsView.vue` (vers la ligne 102),
     `web/v2/shell/src/admin/AuditView.vue` (vers la ligne 153)
   - dépend de : 15d ; après la 020-30 (`web/v2/ui`)
+  - fait le 2026-11-03 — `FilterPicker` expose `focusAdd()` (à côté d'`openAdd` et
+    `openFor`), qui met le focus sur « Ajouter un filtre » par la référence qu'il tient déjà
+    de sa barre (`addButton`). `ListView`, `ChangesetsView` et `AuditView` prennent la même
+    forme : `clearFilters` retire les filtres appliqués (les brouillons gardés) puis
+    `nextTick(() => picker.value?.focusAdd())` ; le contournement d'`AuditView`
+    (`$el.parentElement`) et son commentaire ont disparu. Lignes d'inventaire de
+    `FilterPicker` (020 `design.md`, skill `kartenn-ui`) complétées. Tests :
+    `shell/test/clear-filters.test.ts` (les trois vues montées sur une liste filtrée vide :
+    filtres retirés de l'URL, focus sur « Ajouter un filtre », ni erreur de Vue ni rejet
+    non traité ; échoue sur l'ancien code de `ListView` et `ChangesetsView`),
+    `ui/test/filter-picker-mounted.test.ts` (`focusAdd` avec et sans pastilles, `$el` qui
+    n'est pas un élément, popover fermé).
+  - choix : nom `focusAdd` ; méthode synchrone, le `nextTick` reste chez l'hôte (il attend
+    le rendu des filtres retirés, comme avant) ; un fichier de test commun aux trois vues
+    plutôt qu'un cas dans chacun de leurs fichiers (même forme, même vérification ;
+    `audit.test.ts` tourne sous `node`) ; aucune entrée de catalogue ni capture : la
+    méthode ne se montre pas.
+  - reste (revue `a11y-auditor`, mineurs) : le retrait des filtres n'est dit que par le
+    compte de la liste, aucune phrase « Filtres retirés » dans la région `polite` (à juger
+    au lecteur d'écran) ; non couverts par un test : « Retirer les filtres » le popover
+    ouvert (le clic au dehors le ferme sans rendre le focus, `focusAdd` l'emporte, lu dans
+    le code) et un brouillon gardé après le retrait.
 
 ## P3 — Plugins (phase 5)
 
