@@ -2415,13 +2415,29 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/shell/src/draft/` (`DraftSubmit`, `LostSubmissions`) ; ancien parcours
     `web/e2e/journeys/draft.spec.ts`
   - dépend de : 14, 12b
-- [ ] 16h. « À propos » et actions des plugins, reste prouvé : versions (shell, SDK,
+- [x] 16h. « À propos » et actions des plugins, reste prouvé : versions (shell, SDK,
   `@kartenn/ui`, Vue, serveur) et fuseau horaire affichés ; une action de plugin absente
   sans sa permission — verify : parcours `shell` et `plugins` sous les deux navigateurs ;
   lignes 31, 92, 187 et 198 cochées
-  - où : `web/v2/shell/src/views/AboutView.vue`, `plugins/` (`PluginAction`) ; anciens
+  - où : `web/v2/shell/src/frame/AboutView.vue`, `plugins/` (`PluginAction`) ; anciens
     parcours `web/e2e/journeys/{shell,plugins}.spec.ts`
   - dépend de : 16
+  - fait le 2026-11-03 : parcours seulement, le code était livré par la 16 (`AboutView`,
+    `extensionsOf` filtré par les droits). `shell` (« the about page names the versions of
+    the build and of the server, and the time zone ») : Bob ouvre « À propos » par le menu
+    du compte ; les six lignes de `Versions` comparées à ce que le build et le serveur
+    servent, aucune écrite à la main — `package.json` du shell, du SDK et de `@kartenn/ui`,
+    celui de `vue` résolu depuis le shell, `version` de `GET /v1/capabilities` — et le
+    fuseau du contexte (`timezoneId`), un autre que celui de la machine. `plugins` (« an
+    action is absent without its permission ») : Bob (lecteur) sur la fiche du préfixe des
+    données, l'onglet « Exemple » du plugin d'exemple placé, le menu « Actions » ouvert avec
+    « Clore… » (refusé) et sans « Ajouter une adresse au brouillon » (`core.address.edit`,
+    celle d'Alice dans `example`). `PARITE.md` : lignes 31, 92, 187 et 198 cochées.
+  - choix : l'action absente est celle du plugin d'exemple sur `prefix`, pas `review` du
+    plugin `notes` (sur `changeset`, dont la fiche demande déjà `core.changeset.read`, la
+    permission de l'action : aucun compte ne verrait la fiche sans elle) ; le serveur
+    comparé au champ `version` des capacités, que le shell lit dans `modules[core]` (même
+    `CARGO_PKG_VERSION` de `kartenn-rest`).
 
 ## P3 — Plugins (phase 5)
 
