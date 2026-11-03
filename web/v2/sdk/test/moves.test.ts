@@ -189,6 +189,19 @@ describe("canMove (REQ-021-32)", () => {
     expect(asked).toEqual(["machines.edit", "machines.cluster.edit"]);
   });
 
+  it("refuses a target of a kind that hosts nothing (M5), the kind of the pair left to the server", () => {
+    const of = (kind: string): MoveSubject => ({ id: kind, type: "machines.machine", kind });
+    const incompatible = { ok: false, refusal: "incompatible", code: "machines.host.invalid" };
+    expect(canMove(machine("vm"), of("container"), env())).toEqual(incompatible);
+    expect(canMove(machine("vm"), of("appliance"), env())).toEqual(incompatible);
+    expect(canMove(machine("vm"), of("physical"), env())).toEqual({ ok: true });
+    // A virtual one hosts a container only: the pair stays the server's.
+    expect(canMove(machine("vm"), of("virtual"), env())).toEqual({ ok: true });
+    // Its kind unknown, or a target without kinds: not judged here.
+    expect(canMove(machine("vm"), machine("x"), env())).toEqual({ ok: true });
+    expect(canMove(machine("vm"), { ...cluster("c"), kind: "any" }, env())).toEqual({ ok: true });
+  });
+
   it("refuses every move off the present", () => {
     expect(canMove(entity("a"), entity("b"), env({}, { present: false }))).toEqual({
       ok: false,

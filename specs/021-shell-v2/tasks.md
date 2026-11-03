@@ -2685,7 +2685,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (adresses lues au plus quatre à la fois, page 2 après les six adresses de la page 1,
     chaque machine lue une fois, observateurs libérés au démontage ; objets au-delà des
     pages résolues et couples au-delà de la borne dits, compte « incomplet »).
-- [ ] 18cd. Vue « Hébergement et clusters » en `TreeGrid` à parent déclaré
+- [x] 18cd. Vue « Hébergement et clusters » en `TreeGrid` à parent déclaré
   (`parentMode: "declared"`) : clusters et machines hôtes, machines hébergées chargées
   sous eux ; fiche d'un cluster ; déplacement par glisser, Ctrl+X puis Ctrl+V et
   « Déplacer vers… », par `canMove` et `draft.move` ; `moveState: "pending"` jusqu'au
@@ -2699,6 +2699,66 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     lecture) ; design 021 § « Déplacements dans les arbres » et § « Catalogue » (plugin
     Machines, « Hébergement et clusters »)
   - dépend de : 18ca, 18cb
+  - fait le 2026-11-02 — `machines-clusters` = `host.element(ClustersView.vue)` : arbre
+    (`HostingTree.vue`) ou fiche (`ClusterRecord.vue`) selon le chemin. Arbre : `TreeGrid`
+    à parent déclaré au présent (`derived` à une autre date, dit), au premier niveau les
+    clusters puis les machines sans hébergeur (pages de `/v1/machines` lues jusqu'à ce
+    qu'une racine nouvelle paraisse, au plus `MAX_PAGES`, le reste dit), sous un cluster
+    ou une machine qui peut héberger (physique, virtuelle : M5) ses hébergées
+    (`/v1/machines?host=`), lues à l'ouverture, quatre listes au plus à la fois
+    (`limited`), jamais relues seules après un refus (`RetryAlert`) ; colonnes nature et
+    site ; Entrée ouvre la fiche (focus au titre). Déplacement par glisser, Ctrl+X puis
+    Ctrl+V et « Déplacer vers… » (`openMove` du nœud sélectionné ; refusé avec sa raison
+    sans sélection, sur un cluster, sans `machines.edit`), chaque cible jugée par `canMove`
+    du SDK (cycle par les hébergeurs lus, type, droits, présent ; hébergeur actuel refusé)
+    avec le code de la règle ; au brouillon par `draft.move` (`machines.update_machine`) :
+    `moveState: "pending"` jusqu'au verdict, puis nœud « en brouillon » à sa place tant
+    que ses lectures l'y montrent, ou refusé avec la règle de la simulation ; aucun
+    `setQueryData` des clés de l'arbre. Région `status` présente dès l'origine : issue du
+    déplacement et avertissements avec leur code (`machines.host.site_mismatch`).
+    Fiche : propriétaire et site en `dl`, membres et hébergées en `DataGrid` (lien,
+    nature, lien au cluster). `data.ts` : `next(i)`, `retry(i)` de `useLists` (design 021
+    § « API des plugins »). Retirés : `src/views.ts`, `src/element.ts`,
+    `public/styles.css` ; `dom.ts` réduit à ce que servent les éléments Vue (`defined`, `t`,
+    `hrefOf`, `arrival`, `followLink`, `PAGES`, `pageId`). Poids : `index.js` 22,7 Ko gzip
+    -9 (20,8 avant), aucune feuille. Vitest : 49 (`test/clusters-view.test.ts`, 8 :
+    premier niveau et hébergées à l'ouverture, Entrée ; premier niveau refusé et vide ;
+    liste d'hébergées refusée lue une fois puis par « Réessayer » ; cycle refusé sans
+    envoi ; vers un cluster, en attente puis au brouillon, avertissement dans la région,
+    aucune clé de l'arbre écrite, aucun changeset ; refus de la simulation avec sa règle ;
+    sans droit, autre date ; fiche et son refus). Parcours `moves` (deux tests de l'arbre :
+    vers un cluster au clavier, aucun changeset ; cycle refusé puis avertissement d'un
+    autre site) et `machines` (arbre depuis la navigation, Entrée vers la fiche, grille
+    `Machines du cluster`) : 21 sur 21 dans les deux navigateurs.
+  - choix : racines = clusters et machines sans hébergeur (un membre physique d'un cluster
+    reste à la racine : il n'est pas hébergé) ; « en attente » dit par la ligne et le
+    « demandé » de l'arbre, pas une troisième fois par la vue ; le refus annoncé par
+    l'arbre, la vue ajoutant seulement que l'opération reste au brouillon ; site lu par
+    `Names` dans une cellule texte (« Chargement… » le temps de la lecture) ; clés
+    `hosting.*` ; clés mortes retirées (`list.more`, `error`, `required`,
+    `clusters.title`, `intro`, `slug`, `failed`, `none`, `noneText`).
+  - relectures : `ui-reviewer` et `a11y-auditor` sur le code (sans rendu : serveur et base
+    partagés), aucun bloquant ; corrigés : messages d'un déplacement précédent effacés au
+    suivant et à une autre date, échec d'envoi dit dans la région, région `status` sortie
+    des états de la vue, phrase « en attente » en trop, troncature des hébergées dite,
+    lecture datée dite, « Chargement… » au lieu de « … », Entrée et sélection dans
+    l'introduction, raisons du cluster harmonisées.
+  - passe de corrections (revue de branche) : places de `limited` rendues à la réponse,
+    le nœud ouvert ou refermé (sa liste suivie jusque-là), nœud refermé avant son tour
+    jamais admis ; cible d'une nature qui n'héberge rien refusée par le client
+    (`MoveSubject.kind`, `PARENT_KINDS` du SDK : `container`, `appliance` →
+    `machines.host.invalid`, aussi dans la section « Hébergement » de la fiche) ;
+    `draft.onActive` au SDK (design 021 § « API des plugins »), les marques « en
+    brouillon » effacées quand le brouillon actif change ou disparaît ; un seul `watch` de
+    la date ; un `RetryAlert` par liste d'hébergées refusée, nommée par son hôte
+    (`retry(i)`) ; `loading-children` sur un hôte ouvert pas encore admis. Vitest : 51 du
+    plugin (refermé avant la réponse, cible `container`, brouillon quitté) ; SDK
+    (`PARENT_KINDS`, `draft.onActive`).
+  - reste : focus après « Déplacer vers… » rendu au bouton (comportement du composant), loin de la
+    ligne « en attente » ; nature d'un cluster en texte (cellules de `TreeGrid` en
+    chaînes, pas de `KeyLabel`) ; la grille de la fiche porte le nom de son titre. À
+    arbitrer côté API : le premier niveau lit toutes les machines pour garder celles sans
+    hébergeur (un filtre « sans hébergeur » de `/v1/machines` le ferait en une page).
 
 - [ ] 18e. `GET /v1/interfaces?network=<id>` (A28) : interfaces d'un réseau avec leurs
   adresses, paginées, sous le filtre de lecture ; l'onglet « Interfaces » d'un réseau
