@@ -360,6 +360,17 @@ Tranchés le 2026-11-03 par l'utilisateur, d'après le banc web étendu (22) :
 - **A35 — Navigation en cache** : le budget de ≤ 100 ms porte sur le p75 de dix
   navigations, le pire imprimé, comme les autres mesures répétées (INP, Flèche bas).
 
+Tranchés le 2026-11-03 par l'utilisateur, d'après les 11g, 11i et 11j :
+
+- **A36 — `Gap` structuré (006)** : le schéma `Gap` sert `rule` (code de la règle,
+  `prop.resolution.expected_mismatch`), `resolved`, `expected` (valeurs brutes), `source` et
+  sa révision ; `message` reste un texte lisible, sans représentation interne (`{:?}`).
+  L'écran compose sa phrase avec les libellés (clé → libellé) et montre le code (11l, 11m).
+- **A37 — Filtre `object` des anomalies (006)** : `GET /v1/anomalies?object=<uuid>`, sous le
+  même filtre de lecture ; l'onglet Anomalies d'une fiche le lit directement (11k).
+- **A38 — Droits de « Clore… »** : les maquettes E2, E12 et E27 passent aux noms servis
+  (`<sorte>.edit`, `<sorte>.approval.self`) à leur prochaine retouche ; le code ne change pas.
+
 ## Questions (closes le 2026-10-23)
 
 - **Q-021-1** — Édition en place : brouillon par défaut, en lot avec un motif ;

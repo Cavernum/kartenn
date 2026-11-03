@@ -2479,6 +2479,28 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     non traduit — à reprendre si la 006 le structure ; `a11y-auditor`, à juger au lecteur
     d'écran : le statut « la liste repart du début » suivi de près par l'alerte de la page
     suivante si le curseur est refusé deux fois.
+- [ ] 11k. Filtre `object` des anomalies (A37) : `GET /v1/anomalies?object=<uuid>` sous le
+  filtre de lecture des anomalies (objet illisible : liste vide, comme un objet inconnu) ;
+  l'onglet Anomalies d'une fiche le lit directement, sans lire les pages du domaine, et
+  montre les anomalies d'un objet hors domaine — verify : `k-check -p kartenn-rest`
+  (anomalies d'un objet, objet illisible, pagination) ; Vitest de l'onglet ; parcours
+  `anomalies` sous les deux navigateurs ; contrat et schémas régénérés
+  - où : route des anomalies de `crates/kartenn-rest/src/` (grep `anomalies`),
+    `web/v2/shell/src/views/record/AnomaliesTab.vue`
+  - dépend de : 11j
+- [ ] 11l. `Gap` structuré côté serveur (A36) : `rule`, `resolved`, `expected`, `source` et
+  révision au schéma ; `message` lisible, sans `{:?}` (`crates/kartenn-service/src/expected.rs`
+  vers la ligne 471) — verify : `k-check -p kartenn-rest -p kartenn-service` (lacune
+  servie avec ses membres ; message sans représentation interne) ; contrat et schémas
+  régénérés
+  - où : `crates/kartenn-service/src/expected.rs`, DTO `Gap` de `crates/kartenn-rest/src/`
+  - dépend de : —
+- [ ] 11m. Lacune composée par l'écran (A36) : `GapList` dit la règle par son code, les
+  valeurs attendue et résolue par leur libellé (`KeyLabel`), la source et sa révision ; le
+  parcours `anomalies` n'assertit plus le texte anglais du serveur — verify : Vitest de
+  `GapList` ; parcours `anomalies` sous les deux navigateurs
+  - où : `web/v2/shell/src/views/anomalies/GapList.vue`, `web/v2/e2e/journeys/anomalies.spec.ts`
+  - dépend de : 11l
 - [x] 12c. Réponses d'une écriture et écritures coupées sous `as_of`, prouvées : 202 sous
   une politique d'approbation avec le lien « Voir le changeset » ; 403 du serveur qui garde
   la saisie et dit l'alerte ; éditeurs et actions de la fiche coupés sous `as_of`, le
