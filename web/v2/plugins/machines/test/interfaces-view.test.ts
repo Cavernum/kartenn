@@ -623,4 +623,28 @@ describe("the « Interfaces » tab (task 18cc)", () => {
       "An address is attached to an interface from its record.",
     );
   });
+
+  it("of a network: a refused read said with its codes, « Retry », then none in the network", async () => {
+    let refused = true;
+    mounted = mount("machines-tab", {
+      object: { type: "prefix", id: PREFIX, href: `/v1/prefixes/${PREFIX}` },
+      context: { locale: "en" },
+      fetch: fakeFetch({
+        "GET /v1/interfaces": ({ query }) => {
+          expect(query.get("network")).toBe(PREFIX);
+          return refused ? problem(403, "forbidden") : page([]);
+        },
+      }),
+    });
+    const { element } = mounted;
+    await text(element, "The interfaces could not be read");
+    await text(element, "req-42");
+    refused = false;
+    buttonOf(element, "Retry").click();
+    await text(element, "No interface in this network");
+    expect(element.textContent).toContain(
+      "An address is attached to an interface from its record.",
+    );
+    expect(element.querySelector("[role=grid]")).toBeNull();
+  });
 });
