@@ -1374,6 +1374,16 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     `admin/` (`RolesView`, `GroupsView`, `ImportDetail`, `IssuersView`, `GroupDetail`,
     `RoleDetail`, `IdentityDetail`)
   - dépend de : 30
+- [ ] 32. Ligne d'avis d'un niveau plafonné dans les arbres (relevé par la revue de la
+  021-24e) : un nœud marqué comme avis (par exemple `kind: "notice"` ou `capped`) ne compte
+  ni dans `aria-setsize` ni dans l'annonce des enfants arrivés (`treePages.ts` vers la
+  ligne 38), ne se sélectionne ni ne se déplace, et s'active par Entrée ; la Topographie
+  (021-24e) passe dessus au lieu de sa ligne `capped:` — verify : Vitest de `TreeGrid`
+  et `Tree` (setsize sans l'avis, annonce juste, activation) ; captures des seules entrées
+  touchées ; seul agent sur `web/v2/ui`
+  - où : `web/v2/ui/src/components/TreeGrid/`, `Tree/`, `internal/treePages.ts` ;
+    `web/v2/shell/src/views/{topology.ts,TopologyView.vue}` (`capped:`)
+  - dépend de : 31
 - [ ] 28. Synchronisation : `docs/spec/` (architecture web : `@kartenn/ui`, couches,
   catalogue) ; ADR 0036, 0038, 0039 acceptées ;
   `specs/README.md` ; audit `spec-keeper` — verify : liens croisés ; aucun écart

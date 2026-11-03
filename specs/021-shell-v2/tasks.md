@@ -3377,6 +3377,20 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     l'avis compte dans `aria-setsize` (10 001 au lieu d'inconnu) : il faudrait à `TreeGrid`
     une marque `capped` qui l'en sorte (020) ; sous un réseau plafonné, l'avis mène aux
     adresses, pas aux plages.
+- [ ] 7a. Préchargement au survol sans lecture pendant un défilement (relevé par la revue
+  de la 24e) : `childrenIntent` (`web/v2/shell/src/prefetch/tree.ts` vers la ligne 30) lit
+  les enfants de chaque ligne qui passe sous le pointeur immobile pendant un défilement
+  (une centaine de lectures `/children` vides pour 50 pages) ; l'intention ne naît que d'un
+  mouvement du pointeur ou d'un focus, jamais d'une ligne qui défile sous lui. Le budget
+  « Arbre de 10⁵ » exige aucune lecture de `/children` pendant la fenêtre — verify :
+  Vitest (défilement sous un pointeur immobile : aucune lecture ; survol réel de 60 ms :
+  une lecture) ; compte des lectures du banc à 0 (22a). Au passage : `restOf`
+  (`TopologyView.vue` vers la ligne 282) ne renvoie jamais une liste sans filtre quand le
+  parent manque, et la destination de l'avis du plafond est prouvée (Vitest : préfixes
+  `within` sous un conteneur, adresses `within` sous un réseau, `domain` au premier niveau)
+  - où : `web/v2/shell/src/prefetch/tree.ts`, `web/v2/shell/src/views/TopologyView.vue`,
+    `web/v2/shell/test/prefetch.test.ts`
+  - dépend de : 7, 24e
 - [ ] 22a. Mesures restantes du banc web : la page de 100 lignes rend son chiffre (lectures
   servies en 304 comptées à part, déjà codé, pas encore passé) ; l'arbre chargé jusqu'au
   bout avant le défilement, une fois la 24e faite, sur 10⁴ lignes ; navigation en cache au
