@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { expectAccessible } from "../fixtures/index.ts";
 
 // The test instance serves the builds of web/v2 (spec 021, REQ-021-31; task 25):
 // `[web] root` on web/v2/dist/shell, under the CSP of kartenn-server with the digest of
@@ -19,6 +20,7 @@ test("kartenn-server serves the new shell under its CSP", async ({ page }) => {
   await expect(page).toHaveURL(/\/login\?return=(%2F|\/)$/);
   await expect(page.getByRole("heading", { level: 1, name: "Connexion" })).toBeVisible();
   await expect(page.getByRole("banner")).toBeVisible();
+  await expectAccessible(page);
   // The import map of the new shell shares @kartenn/ui with the plugins (ADR 0038).
   const map = JSON.parse(
     (await page.locator('script[type="importmap"]').textContent()) ?? "{}",
