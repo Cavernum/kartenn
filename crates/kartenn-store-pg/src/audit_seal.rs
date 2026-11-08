@@ -93,8 +93,9 @@ pub async fn seal_once(
             // Rolled back before returning, not when the pool takes the connection back
             // (which may come late, under load): the next pass, on another connection,
             // would find the seal lock still held and seal nothing (task 012-24). Only an
-            // error raised here (an event without canonical form) leaves it held: on a
-            // database error, the server aborts the transaction and releases its locks.
+            // error raised by the client leaves it held (an event without canonical form,
+            // a row that does not decode, a seal hash of the wrong length): on a database
+            // error, the server aborts the transaction and releases its locks.
             if let Err(rollback) = tx.rollback().await {
                 tracing::warn!(error = %rollback, "audit seal: rollback after a failed pass");
             }

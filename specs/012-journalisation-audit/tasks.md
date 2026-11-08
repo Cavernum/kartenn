@@ -188,7 +188,8 @@ en fournit le mécanisme et les teste avec des appels directs.
   `after_release` retient les connexions rendues, comme sous charge ; sans le correctif
   la passe suivante rend 0, à chaque fois
   - choix : annulation explicite sur toute erreur après l'ouverture, pas seulement sur
-    `RelayError::Sink` (une erreur de base laissait le même verrou) ; une seule
+    `RelayError::Sink` (toute erreur levée côté client après la prise laisse le même
+    verrou ; une erreur de base, elle, le libère, constat de la 24) ; une seule
     validation, dans `relay_once`, y compris quand le verrou est pris ailleurs (une
     transaction en lecture seule, sans effet) ; le test vit dans `audit_export.rs`, à
     côté du puits `Flaky`, et `audit_otlp.rs` reste inchangé
@@ -220,7 +221,8 @@ en fournit le mécanisme et les teste avec des appels directs.
   `lock_timeout` passait sans le correctif
   - choix : le test vit avec les autres tests du scellement (`kartenn-service`), pas dans
     `kartenn-telemetry`, d'où le `verify` corrigé ; l'erreur provoquée est l'événement
-    sans forme canonique, la seule qui garde le verrou ; une seule validation, dans
+    sans forme canonique, une erreur levée côté client comme le décodage d'une ligne ou
+    une empreinte de mauvaise longueur, qui gardent toutes le verrou ; une seule validation, dans
     `seal_once`, y compris quand le verrou est pris ailleurs (transaction en lecture
     seule, sans effet)
   - où : `crates/kartenn-store-pg/src/audit_seal.rs` (`seal_once`, `seal_in`),
@@ -230,6 +232,5 @@ en fournit le mécanisme et les teste avec des appels directs.
     (`a_pass_right_after_a_rejection_relays`)
   - dépend de : 23
   - reste : le pool qui retient les connexions rendues est copié de la 23 (et l'est
-    peut-être aussi par la 006-30) : à mettre en commun dans `kartenn-testing` ; le
-    `choix :` de la 23 (« une erreur de base laissait le même verrou ») est inexact, à
-    corriger au passage (le correctif reste juste, pour les erreurs côté client)
+    peut-être aussi par la 006-30) : à mettre en commun dans `kartenn-testing` (le
+    `choix :` de la 23, inexact sur les erreurs de base, est corrigé à la fusion)
