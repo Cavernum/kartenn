@@ -273,8 +273,10 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * `GET /v1/anomalies?rule=…&domain=…&entity=…`: the open anomalies whose object the caller
-     *     may read now, oldest first (REQ-002-36), by pages (task 021-29).
+     * `GET /v1/anomalies?rule=…&domain=…&entity=…&object=…`: the open anomalies whose object
+     *     the caller may read now, oldest first (REQ-002-36), by pages (task 021-29). Those of one
+     *     object (021/A37) under the same filter of reading: an object the caller may not read
+     *     gives an empty list, as an unknown one (ADR 0021).
      */
     get: operations["list_anomalies"];
     put?: never;
@@ -9803,6 +9805,8 @@ export interface operations {
         domain?: string;
         /** @description The entity of the object. */
         entity?: string;
+        /** @description The object. */
+        object?: string;
         /** @description The next page, from `links.next`; it freezes the dates and the filters. */
         cursor?: string;
         /** @description The size of a page, 1 to 1 000; 100 by default. */

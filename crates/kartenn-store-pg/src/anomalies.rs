@@ -174,6 +174,8 @@ pub struct AnomalyFilter<'a> {
     /// One property: the anomalies whose detail names it, as those of
     /// `prop.resolution.expected_mismatch` do (spec 006, `GET /v1/property-gaps`; 021/A39).
     pub property: Option<&'a str>,
+    /// One object: its own anomalies (021/A37), whatever its domain, if it has one.
+    pub object: Option<Uuid>,
 }
 
 /// Open anomalies matching `filter`: unacknowledged ones, and acknowledged ones whose object
@@ -248,6 +250,7 @@ pub async fn open_page(
                      AND p.property_id IN (SELECT id FROM property_declaration WHERE key = 'core.owner')
                      AND v.v_uuid IN (SELECT id FROM sub)))
            AND ($5::text IS NULL OR a.detail ->> 'property' = $5)
+           AND ($9::uuid IS NULL OR a.object_id = $9)
            {keyset}
          ORDER BY a.opened_at, a.id
          LIMIT $8::bigint",
@@ -262,6 +265,7 @@ pub async fn open_page(
         .bind(after.map(|(at, _)| at))
         .bind(after.map(|(_, id)| id))
         .bind(limit)
+        .bind(filter.object)
         .fetch_all(pool)
         .await
         .map(|rows: Vec<Row>| rows.into_iter().map(listed).collect())

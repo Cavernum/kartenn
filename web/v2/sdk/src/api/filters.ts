@@ -65,6 +65,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "rule", type: "string" },
     { name: "domain", type: "string" },
     { name: "entity", type: "string" },
+    { name: "object", type: "string" },
   ],
   "/v1/audit-events": [
     { name: "from", type: "string" },
