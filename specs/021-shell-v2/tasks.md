@@ -2705,7 +2705,15 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     d'un `DateTimeField` en lecture seule ne portent pas l'aide (sa raison) dans leur
     `aria-describedby`, seul le groupe la porte (à ouvrir dans `web/v2/ui`) ; « Réessayer »
     disparu après une reprise réussie laisse le focus sur `body` (d'avant cette tâche) ;
-    le passage aux dates figées n'est pas annoncé (`a11y-auditor`).
+    le passage aux dates figées n'est pas annoncé (`a11y-auditor`). Relevés par la revue :
+    `replace` de `shell/src/admin/draft.ts` (vers la ligne 63) ne date pas le brouillon,
+    alors que `moveInDraft` le fait (sans effet si l'administration n'est pas datée, à
+    vérifier) ; un brouillon garni au présent puis complété sous `valid_at` prend cette
+    date pour toutes ses opérations, conforme au design mais que la ligne `choix :` laisse
+    lire à l'inverse ; `dateAddition` lit le contexte après la réponse du serveur, si bien
+    qu'une date changée pendant l'écriture date le brouillon à la nouvelle ; une clé de
+    période reste dans l'onglet si le brouillon est supprimé hors de ses événements (sans
+    effet, l'identifiant n'étant pas réutilisé).
 - [x] 12d. Créer sous `valid_at` seul (REQ-021-5, X5 ; relevé par la revue de la 12c) :
   « Créer » (`c`) des listes et « + » de la Topographie mènent au brouillon daté sous une
   date de validité, comme « Modifier » de la fiche ; « Appliquer » refusé avec sa raison ;
