@@ -2585,7 +2585,14 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - reste : la distinction « masquée » repose sur l'invariant « une lacune évaluée porte
     `expected` » décrit par le contrat sans être un membre ; un membre explicite (`masked`)
     s'ajouterait si un cas l'enfreignait ; `declarationOf`/`targetOf` doublés avec
-    `record/PropertiesTab.vue`, à extraire dans `views/data.ts` à la troisième vue
+    `record/PropertiesTab.vue`, à extraire dans `views/data.ts` à la troisième vue.
+    Relevés par la revue : la seule colonne `fill` (`object`) porte `priority: 2` et
+    disparaît sous `md` avec le lien vers l'objet (débordement ou largeur non remplie
+    possibles) ; un `expected` à `[]` se lit « non renseigné », sans test (une source
+    peut-elle attendre l'ensemble vide ?) ; le test du cas masqué ne prouve que le rendu,
+    l'absence de fuite reste garantie par `mask_gaps` sans test qui relie les deux ;
+    commentaire d'en-tête de `GapList.vue` dense. Hors périmètre : `record/PropertyValue.vue`
+    (vers la ligne 29) recopie un tiret au lieu de `NoValue` pour ses autres appelants
 - [x] 12c. Réponses d'une écriture et écritures coupées sous `as_of`, prouvées : 202 sous
   une politique d'approbation avec le lien « Voir le changeset » ; 403 du serveur qui garde
   la saisie et dit l'alerte ; éditeurs et actions de la fiche coupés sous `as_of`, le
