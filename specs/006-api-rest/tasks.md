@@ -626,3 +626,13 @@ routeur complet, sauf mention « vrai TCP ».
   validation (`lock_changeset`, `authorize_in`) couvertes aussi (même verrou tardif, sur
   la ligne du changeset) ; `commit` laissé tel quel (un `COMMIT` en échec clôt la
   transaction)
+  reste (revue) : deux conduites sur un échec d'annulation dans `stages` (`rolled_back`
+  le journalise et rend l'erreur d'origine, les `tx.rollback().await?` voisins rendent
+  l'erreur d'annulation) ; rien n'empêche un `?` ajouté plus tard après `begin` de
+  réintroduire le défaut (une ligne au commentaire de tête de `stages` le dirait) ;
+  l'attente `while slow.num_idle() < size` du test n'a pas de borne ; le test s'insère
+  entre `line_409_…` et `line_412_…` de `errors.rs` au lieu de suivre leur suite ; le
+  pool qui retient les connexions rendues est copié une troisième fois (012-23, 012-24),
+  à mettre en commun dans `kartenn-testing` ; hors du pipeline, `expected.rs`,
+  `module.rs`, `declarations.rs` et `rbac.rs` lâchent aussi leurs transactions par `?`,
+  sans clé d'idempotence ni verrou consultatif non bloquant à libérer
