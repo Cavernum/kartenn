@@ -423,3 +423,95 @@ describe("TreeGrid: the node cell and its « + » (021/A20, REQ-021-37)", () => 
     expect(seen.add).toEqual([]);
   });
 });
+
+// A level capped (task 32): the row of a notice after the children read, activated by
+// Enter or a click, never selected nor moved, out of the count a page says.
+describe.each(components)("%s mounted: the notice of a level capped (task 32)", (_, component) => {
+  const notice: TreeNode = {
+    id: "capped:a",
+    label: "La suite dans la liste",
+    icon: "info",
+    notice: true,
+  };
+  const nodes: TreeNode[] = [
+    { id: "a", label: "A", children: [{ id: "a1", label: "A1" }, notice] },
+    { id: "b", label: "B" },
+  ];
+  /** The focusable element of row `id`: the node cell of TreeGrid, the treeitem of Tree. */
+  const stopOf = (root: HTMLElement, id: string) =>
+    root.querySelector<HTMLElement>(
+      component === TreeGrid ? `[data-row="${id}"][data-column=""]` : `[data-node="${id}"]`,
+    )!;
+  const press = (el: HTMLElement, key: string, init: KeyboardEventInit = {}) => {
+    el.focus();
+    const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init });
+    el.dispatchEvent(event);
+    return event.defaultPrevented;
+  };
+
+  it("Enter or a click activates it; Space and a click select nothing; it is neither cut nor dragged", async () => {
+    const activated: string[] = [];
+    const { props, intents, root } = mount(component, {
+      label: "Arbre",
+      treeLabel: "Nœud",
+      nodes,
+      expanded: ["a"],
+      parentMode: "declared",
+      canMove: (): MoveCheck => ({ ok: true }),
+      onActivate: (id: string) => activated.push(id),
+    });
+    await nextTick();
+    const row = stopOf(root, "capped:a");
+    expect(press(row, "Enter")).toBe(true);
+    expect(activated).toEqual(["capped:a"]);
+    press(row, " ");
+    row.click();
+    await nextTick();
+    expect(activated).toEqual(["capped:a", "capped:a"]);
+    expect(props.selected).toBeUndefined();
+    // No drag from it, no drop on it, no cut: the paste moves nothing.
+    expect(root.querySelector('[data-node="capped:a"][draggable]')).toBeNull();
+    drag(root, component, "capped:a", "b");
+    drag(root, component, "b", "capped:a");
+    press(row, "x", { ctrlKey: true });
+    press(stopOf(root, "b"), "v", { ctrlKey: true });
+    expect(intents).toEqual([]);
+    // Down passes from it as from any row.
+    press(stopOf(root, "capped:a"), "ArrowDown");
+    await nextTick();
+    await nextTick();
+    const focused = (document.activeElement as HTMLElement).closest<HTMLElement>("[data-node]");
+    expect(focused?.dataset.node).toBe("b");
+  });
+
+  it("the page that brings it says its new children, then the notice, never « fin de la liste »", async () => {
+    const loads: (string | null)[] = [];
+    const { props, root } = mount(component, {
+      label: "Arbre",
+      treeLabel: "Nœud",
+      nodes: [{ id: "a", label: "A", children: [{ id: "a1", label: "A1" }], more: true }],
+      expanded: ["a"],
+      onLoad: (parent: string | null) => loads.push(parent),
+    });
+    await nextTick();
+    expect(press(stopOf(root, "more:a"), "Enter")).toBe(true);
+    expect(loads).toEqual(["a"]);
+    props.nodes = [
+      {
+        id: "a",
+        label: "A",
+        children: [
+          { id: "a1", label: "A1" },
+          { id: "a2", label: "A2" },
+          { id: "a3", label: "A3" },
+          notice,
+        ],
+      },
+    ];
+    await nextTick();
+    await nextTick();
+    await nextTick();
+    const said = root.querySelector("[role='status']")!.textContent;
+    expect(said).toBe("2 éléments de plus chargés. La suite dans la liste");
+  });
+});

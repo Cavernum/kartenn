@@ -25,8 +25,9 @@
 //   order).
 // Children read page by page, moves (`parentMode`, `canMove`, `moveState`, an intent only;
 // a node whose move is pending is neither dragged nor cut) and the display guard on the
-// rows rendered, as `TreeGrid`. The tree consumes the printable keys
-// (`data-k-typeahead`: the one-key shortcuts of the shell leave them to it).
+// rows rendered, as `TreeGrid`; a notice (`TreeNode.notice`, a level capped) as there too,
+// out of the set of its siblings, activated by Enter or a click. The tree consumes the
+// printable keys (`data-k-typeahead`: the one-key shortcuts of the shell leave them to it).
 import { TreeItem, TreeRoot } from "reka-ui";
 import {
   computed,
@@ -138,7 +139,7 @@ const isExpanded = (id: string) => open.value.has(id);
 /** What Reka holds: raw nodes, and for a row that reads a page a node of its own. */
 const sentinels = new Map<string, TreeNode>();
 function rekaValue(row: TreeRow): TreeNode {
-  if (row.kind === "node") return markRaw(toRaw(row.node));
+  if (row.kind !== "more") return markRaw(toRaw(row.node));
   let node = sentinels.get(row.key);
   if (!node) sentinels.set(row.key, (node = markRaw({ id: row.key, label: t("moreRows") })));
   return node;
@@ -154,7 +155,8 @@ const selectedNode = computed(() => {
 });
 function onSelect(value: unknown): void {
   const id = (value as TreeNode | undefined)?.id;
-  if (id !== undefined && !sentinels.has(id) && nodeOf(id)) selected.value = id;
+  if (id !== undefined && !sentinels.has(id) && nodeOf(id) && !nodeOf(id)!.notice)
+    selected.value = id;
 }
 
 // ——— Focus ———
@@ -343,6 +345,12 @@ function onKeydown(event: KeyboardEvent): void {
     pages.request(row.parent, true);
     return;
   }
+  // A notice is activated, never selected: Space does nothing on it (nor reaches Reka).
+  if (row.kind === "notice" && (event.key === "Enter" || event.key === " ")) {
+    handled();
+    if (event.key === "Enter") emit("activate", row.key);
+    return;
+  }
   if (row.kind === "node" && (event.key === "Enter" || event.key === "F2")) {
     if (props.editable?.(row.node)) {
       handled();
@@ -456,6 +464,25 @@ function onKeydown(event: KeyboardEvent): void {
               aria-hidden="true"
             ></span>
             <span v-else class="k-tree__more-label">{{ t("moreRows") }}</span>
+          </TreeItem>
+          <!-- A notice after its siblings: out of their set, never selected, activated. -->
+          <TreeItem
+            v-else-if="part.row.kind === 'notice'"
+            :ref="virtual.measure"
+            as="div"
+            class="k-tree__row k-tree__notice"
+            :value="rekaValue(part.row)"
+            :level="part.row.level"
+            :data-node="part.row.key"
+            :data-index="part.index"
+            :data-active="part.row.key === stop ? '' : undefined"
+            :tabindex="part.row.key === stop ? 0 : -1"
+            :style="{ '--k-tree-depth': String(part.row.level - 1) }"
+            @click="emit('activate', part.row.key)"
+          >
+            <span class="k-tree__twisty" aria-hidden="true"></span>
+            <Icon v-if="part.row.node.icon" :name="part.row.node.icon" class="k-tree__icon" />
+            <span class="k-tree__more-label">{{ part.row.node.label }}</span>
           </TreeItem>
           <TreeItem
             v-else
@@ -656,6 +683,12 @@ function onKeydown(event: KeyboardEvent): void {
 
   .k-tree__row:hover {
     background-color: var(--k-hover);
+  }
+
+  /* A notice says where the rest is: it wraps rather than lose its end. */
+  .k-tree__notice {
+    padding-block: var(--k-space-1);
+    white-space: normal;
   }
 
   .k-tree__row:focus-visible {

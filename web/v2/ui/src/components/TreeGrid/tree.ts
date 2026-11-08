@@ -31,6 +31,12 @@ export interface TreeNode {
   cells?: Record<string, string | null>;
   /** What the node is, beside its label (a description of the row, not its name). */
   detail?: string;
+  /**
+   * A row of notice after its siblings (a level capped: where the rest is listed), not an
+   * object: out of `aria-setsize` and of the count a page says, neither selected nor
+   * moved, activated by Enter or a click (`activate`). Its children are not read.
+   */
+  notice?: boolean;
 }
 
 /** How the parent of a node is known (REQ-020-31): deduced from the data, or chosen. */
@@ -56,7 +62,10 @@ export type MoveState = "idle" | "pending" | { refused: MoveCheck };
  */
 export type TreeNodeState = "draft" | "loading-children" | "moved" | "preview";
 
-/** One rendered row of the flattened tree: a node, or the row that reads a next page. */
+/**
+ * One rendered row of the flattened tree: a node, a notice (`TreeNode.notice`), or the row
+ * that reads a next page.
+ */
 export type TreeRow =
   | {
       kind: "node";
@@ -68,6 +77,7 @@ export type TreeRow =
       posInSet: number;
       parent: string | null;
     }
+  | { kind: "notice"; key: string; node: TreeNode; level: number; parent: string | null }
   | { kind: "more"; key: string; level: number; parent: string | null };
 
 /** The key of the row that reads the next page of the children of `parent`. */
@@ -79,8 +89,9 @@ export const hasChildren = (node: TreeNode): boolean =>
 
 /**
  * The rows of the tree as shown: depth first, the children of expanded nodes only, a
- * `more` row after a list that has pages left (`more`: the first level's). Each row keeps
- * the parent of the model (REQ-020-32), what the display guard compares.
+ * `more` row after a list that has pages left (`more`: the first level's). A notice is a
+ * row of its own, out of the set of its siblings. Each row keeps the parent of the model
+ * (REQ-020-32), what the display guard compares.
  */
 export function flatten(
   nodes: readonly TreeNode[],
@@ -89,9 +100,15 @@ export function flatten(
 ): TreeRow[] {
   const rows: TreeRow[] = [];
   const walk = (list: readonly TreeNode[], level: number, parent: string | null, rest: boolean) => {
-    const setSize = rest ? -1 : list.length;
-    list.forEach((node, i) => {
-      rows.push({ kind: "node", key: node.id, node, level, setSize, posInSet: i + 1, parent });
+    const setSize = rest ? -1 : list.filter((node) => !node.notice).length;
+    let posInSet = 0;
+    list.forEach((node) => {
+      if (node.notice) {
+        rows.push({ kind: "notice", key: node.id, node, level, parent });
+        return;
+      }
+      posInSet += 1;
+      rows.push({ kind: "node", key: node.id, node, level, setSize, posInSet, parent });
       if (!expanded.has(node.id)) return;
       // Open with its children still to read: the row that reads their first page.
       if (node.children) walk(node.children, level + 1, node.id, Boolean(node.more));

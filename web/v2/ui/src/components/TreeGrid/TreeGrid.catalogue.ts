@@ -80,6 +80,32 @@ const stateBy =
   (node: TreeNode): TreeNodeState | undefined =>
     states[node.id];
 
+/** « Serveurs » capped: its children read, then the notice of where the rest is listed. */
+const capped: TreeNode[] = nodes.map((domain) =>
+  domain.children
+    ? {
+        ...domain,
+        children: domain.children.map((node) =>
+          node.id === "p1"
+            ? {
+                ...node,
+                children: [
+                  ...node.children!,
+                  {
+                    id: "capped:p1",
+                    label:
+                      "L'arbre s'arrête à 2 nœuds : Entrée ouvre la liste des préfixes dans 192.0.2.0/24",
+                    icon: "info",
+                    notice: true,
+                  },
+                ],
+              }
+            : node,
+        ),
+      }
+    : domain,
+);
+
 /**
  * A draft moves « Supervision » under « Invités » (its value changed): its row at its
  * present place, and a preview row under its parent after the draft, as a host draws it.
@@ -354,6 +380,13 @@ export default {
         "Enfants paginés : leur nombre inconnu (aria-setsize -1), la ligne de la suite lit la page suivante en venant en vue",
       props: {},
       demo: paged,
+      wide: true,
+    },
+    {
+      name: "capped",
+      description:
+        "Niveau plafonné : une ligne d'avis après les enfants lus, sur toute la ligne, hors de leur ensemble, activée par Entrée, jamais sélectionnée",
+      props: { ...base, nodes: capped },
       wide: true,
     },
     {

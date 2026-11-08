@@ -38,6 +38,8 @@
 // selected row only.
 // A cell whose value is `null` is absent, said by `NoValue` (a dash shown, « non
 // renseigné » read); a cell not given (a domain row) and `""` stay blank, as before.
+// A notice (`TreeNode.notice`, a level capped) is a row of one cell, its icon and label,
+// out of the set of its siblings: Enter or a click activates it, nothing selects or moves it.
 import {
   computed,
   nextTick,
@@ -493,6 +495,12 @@ function onKeydown(event: KeyboardEvent): void {
     pages.request(row.parent, true);
     return;
   }
+  // A notice is activated, never selected: Space does nothing on it (nor scrolls the page).
+  if (row.kind === "notice" && (event.key === "Enter" || event.key === " ")) {
+    event.preventDefault();
+    if (event.key === "Enter") emit("activate", row.key);
+    return;
+  }
   // The node cell (021/A20): Enter activates the row, Tab goes into its « + », if any;
   // from there Tab leaves the tree (the « + » is out of the tab order).
   const nodeCell = ref.column === "";
@@ -575,7 +583,7 @@ function fromCell(cell: CellRef, at: number, event: KeyboardEvent, rtl: boolean)
   );
   if (!to) return null;
   const row = rows.value[to.row]!;
-  return { row: row.key, column: row.kind === "more" ? "" : columns[to.column]! };
+  return { row: row.key, column: row.kind === "node" ? columns[to.column]! : "" };
 }
 
 function onFocusin(event: FocusEvent): void {
@@ -593,12 +601,16 @@ function onFocusout(event: FocusEvent): void {
   editor.onFocusout(event);
 }
 
-/** A click on a row selects it; on its chevron, opens or closes it. */
+/** A click on a row selects it; on its chevron, opens or closes it; on a notice, activates it. */
 function onRowClick(row: TreeRow, event: MouseEvent): void {
   const target = event.target as HTMLElement;
   if (target.closest(".k-tree-grid__editor, button, a, input")) return;
   if (row.kind === "more") {
     pages.request(row.parent, true);
+    return;
+  }
+  if (row.kind === "notice") {
+    emit("activate", row.key);
     return;
   }
   if (target.closest(".k-tree-grid__twisty")) toggle(row.key);
@@ -609,7 +621,7 @@ function onDblclick(event: MouseEvent): void {
   if (!cell?.dataset.row || (event.target as HTMLElement).closest(".k-tree-grid__editor")) return;
   const node = nodeOf(cell.dataset.row);
   const column = columnOf(cell.dataset.column!);
-  if (node && column && canEdit(node, column))
+  if (node && !node.notice && column && canEdit(node, column))
     void startEditing({ row: node.id, column: column.id });
 }
 
@@ -759,6 +771,37 @@ onBeforeUnmount(() => observer?.disconnect());
                 <span class="k-visually-hidden">{{ t("childrenLoading") }}</span>
               </template>
               <span v-else class="k-tree-grid__more-label">{{ t("moreRows") }}</span>
+            </div>
+          </div>
+          <!-- A notice after its siblings: out of their set, never selected, activated. -->
+          <div
+            v-else-if="part.row.kind === 'notice'"
+            :ref="virtual.measure"
+            role="row"
+            class="k-tree-grid__row k-tree-grid__notice"
+            :data-index="part.index"
+            :data-node="part.row.key"
+            :aria-level="part.row.level"
+            :aria-rowindex="part.index + 2"
+            @click="onRowClick(part.row, $event)"
+          >
+            <div
+              role="gridcell"
+              class="k-tree-grid__cell k-tree-grid__node"
+              :data-row="part.row.key"
+              data-column=""
+              aria-colindex="1"
+              :aria-colspan="shown.length + 1"
+              :tabindex="isStop(part.row.key, '') ? 0 : -1"
+              :style="depth(part.row)"
+            >
+              <span class="k-tree-grid__twisty" aria-hidden="true"></span>
+              <Icon
+                v-if="part.row.node.icon"
+                :name="part.row.node.icon"
+                class="k-tree-grid__icon"
+              />
+              <span class="k-tree-grid__more-label">{{ part.row.node.label }}</span>
             </div>
           </div>
           <div
@@ -1129,9 +1172,16 @@ onBeforeUnmount(() => observer?.disconnect());
     transition-timing-function: var(--k-ease-standard);
   }
 
-  /* The row that reads a page: one cell over the whole row. */
-  .k-tree-grid__more > .k-tree-grid__node {
+  /* The row that reads a page, a notice: one cell over the whole row. */
+  .k-tree-grid__more > .k-tree-grid__node,
+  .k-tree-grid__notice > .k-tree-grid__node {
     grid-column: 1 / -1;
+  }
+
+  /* A notice says where the rest is: it wraps rather than lose its end. */
+  .k-tree-grid__notice > .k-tree-grid__node {
+    padding-block: var(--k-space-1);
+    white-space: normal;
   }
 
   .k-tree-grid__more-label {
