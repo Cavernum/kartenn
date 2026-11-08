@@ -2556,7 +2556,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `"prop.resolution."` et non `PROP_EXPECTED_MISMATCH.id` comme le code réel ; une
     lacune antérieure à 0075 a désormais un `detail` (`{property}`), la 11m ne la
     reconnaît qu'à l'absence de `source`
-- [ ] 11m. Lacune composée par l'écran (A36) : `GapList` dit la règle par son code, les
+- [x] 11m. Lacune composée par l'écran (A36) : `GapList` dit la règle par son code, les
   valeurs attendue et résolue par leur libellé (`KeyLabel`), la source et sa révision ; le
   parcours `anomalies` n'assertit plus le texte anglais du serveur — verify : Vitest de
   `GapList` ; parcours `anomalies` sous les deux navigateurs
@@ -2566,6 +2566,26 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     valeur » sur ce seul membre. Si l'écran a besoin de les distinguer, c'est un ajout au
     contrat, à arbitrer avant le code
   - dépend de : 11l
+  - fait : `GapList` compose chaque lacune de ses membres, sans le `message` du serveur :
+    propriété, valeur attendue et valeur résolue (`PropertyValue`, libellé d'une valeur de
+    liste fermée), source (`KeyLabel`) et sa révision, objet, règle par son code
+    (`KeyLabel`), ouverture ; Vitest `web/v2/shell/test/gaps.test.ts` (évaluée, sans valeur
+    résolue, masquée, antérieure à 0075) ; le parcours `anomalies` assertit la valeur
+    attendue par son libellé, l'absence de valeur résolue, la source et sa révision, et
+    plus le texte anglais
+  - choix : aucun ajout au contrat ; les trois cas se lisent sur les membres servis, tels
+    que le contrat les décrit : `source` nul, lacune antérieure à 0075 (« Non détaillée »
+    dans les deux cellules de valeur ; depuis 0076 son `detail` vaut `{property}`, seule
+    l'absence de `source` la reconnaît) ; `source` posé et `expected` nul, masquée
+    (« Masquée », une lacune évaluée porte toujours une valeur attendue, `RawInput` n'a pas
+    de forme nulle) ; seul un `resolved` nul (ou un ensemble vide) à côté d'une valeur
+    attendue dit « non renseigné » (`NoValue`) ; règle en dernière colonne, priorité 3
+    (la même sur toute la liste, contrairement à `AnomalyGrid`) ; révision en chasse fixe
+    après le mot « révision » ; source sans libellé (aucun espace `source` au dictionnaire)
+  - reste : la distinction « masquée » repose sur l'invariant « une lacune évaluée porte
+    `expected` » décrit par le contrat sans être un membre ; un membre explicite (`masked`)
+    s'ajouterait si un cas l'enfreignait ; `declarationOf`/`targetOf` doublés avec
+    `record/PropertiesTab.vue`, à extraire dans `views/data.ts` à la troisième vue
 - [x] 12c. Réponses d'une écriture et écritures coupées sous `as_of`, prouvées : 202 sous
   une politique d'approbation avec le lien « Voir le changeset » ; 403 du serveur qui garde
   la saisie et dit l'alerte ; éditeurs et actions de la fiche coupés sous `as_of`, le
