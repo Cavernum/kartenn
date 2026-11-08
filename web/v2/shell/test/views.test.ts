@@ -126,8 +126,14 @@ describe("the model of the filters of a list", () => {
 
   it("asks the identifier of a domain or an entity on the anomalies", () => {
     const anomalies = listFilterModel("/v1/anomalies", [], WORDS);
-    expect(anomalies.map((p) => p.key)).toEqual(["rule", "domain", "entity"]);
+    expect(anomalies.map((p) => p.key)).toEqual(["rule", "domain", "entity", "object"]);
     expect(anomalies.find((p) => p.key === "entity")).toMatchObject({ type: "enum" });
+    // The object (021/A37), a text filter: the URL that holds it keeps it in the request.
+    expect(anomalies.find((p) => p.key === "object")).toMatchObject({ type: "text" });
+    const object = "0190a000-0000-7000-8000-000000000001";
+    const filters = filtersOfQuery(anomalies, { object });
+    expect(filters).toEqual([{ key: "object", operator: "eq", values: [object] }]);
+    expect(sentFilters("/v1/anomalies", anomalies, filters, [])).toEqual({ object });
     const gaps = listFilterModel("/v1/property-gaps", DECLARATIONS, WORDS);
     expect(gaps.find((p) => p.key === "property")!.options!.map((o) => o.value)).toContain(
       "dns.ttl",
@@ -538,16 +544,24 @@ describe("the routes of the referential", () => {
     expect(alone.some((text) => text?.includes("novel"))).toBe(true);
   });
 
-  it("says why the anomalies of a site cannot be read, not that it has none", async () => {
+  it("keeps the object of the URL of the anomalies in its read (REQ-021-18)", async () => {
+    const object = "0b5e3c1a-0000-4000-8000-0000000000f2";
+    const { seen } = await mounted(`/anomalies?object=${object}`, () => page([]));
+    await expect.poll(() => seen.find((url) => url.startsWith("/v1/anomalies"))).toBeDefined();
+    const read = seen.find((url) => url.startsWith("/v1/anomalies"))!;
+    expect(new URL(read, "http://localhost").searchParams.get("object")).toBe(object);
+  });
+
+  it("reads the anomalies of a site, outside any domain, by its filter `object`", async () => {
     const site = "0b5e3c1a-0000-4000-8000-0000000000f1";
     const { seen, root } = await mounted(`/sites/${site}?tab=anomalies`, (url) =>
       url.startsWith(`/v1/sites/${site}`) && !url.includes("/properties")
         ? { id: site, slug: "nord", links: { self: `/v1/sites/${site}` } }
         : page([]),
     );
-    await expect.poll(() => root.textContent).toContain("Lecture non disponible");
-    expect(root.textContent).not.toContain("Aucune anomalie ouverte");
-    expect(seen.some((url) => url.startsWith("/v1/anomalies"))).toBe(false);
+    await expect.poll(() => root.textContent).toContain("Aucune anomalie ouverte sur cet objet");
+    const read = seen.find((url) => url.startsWith("/v1/anomalies"));
+    expect(new URL(read!, "http://localhost").searchParams.get("object")).toBe(site);
   });
 
   it("shows the occupancy of each prefix of the tree from its page, no read for a row", async () => {

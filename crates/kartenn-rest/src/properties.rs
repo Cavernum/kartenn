@@ -927,6 +927,7 @@ async fn gaps(
         domain,
         entity,
         property: property.as_deref(),
+        object: None,
     };
     let limit = i64::from(page.size) + 1;
     let mut found = anomalies::open_page(&api.pool, &wanted, &scope, after, Some(limit))

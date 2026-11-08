@@ -47,18 +47,25 @@ pub fn routes() -> OpenApiRouter<Api> {
     )
 }
 
-/// The filter of the list: rule, domain, entity.
-type Wanted = (Option<String>, Option<Uuid>, Option<Uuid>);
+/// The filter of the list: rule, domain, entity, object.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct Wanted {
+    rule: Option<String>,
+    domain: Option<Uuid>,
+    entity: Option<Uuid>,
+    object: Option<Uuid>,
+}
 
-/// `rule`, `domain` and `entity` among the parameters left by the page, each at most
-/// once; anything else → 400.
+/// `rule`, `domain`, `entity` and `object` among the parameters left by the page, each at
+/// most once; anything else → 400.
 fn filter(params: &[(String, String)]) -> Result<Wanted, Problem> {
-    let (mut rule, mut domain, mut entity) = (None, None, None);
+    let (mut rule, mut domain, mut entity, mut object) = (None, None, None, None);
     for (name, value) in params {
         let slot = match name.as_str() {
             "rule" => &mut rule,
             "domain" => &mut domain,
             "entity" => &mut entity,
+            "object" => &mut object,
             other => return Err(bad(format!("unknown parameter {other}"))),
         };
         if slot.replace(value.clone()).is_some() {
@@ -71,7 +78,12 @@ fn filter(params: &[(String, String)]) -> Result<Wanted, Problem> {
             .transpose()
             .map_err(|_| bad(format!("{name} must be a UUID")))
     };
-    Ok((rule, id("domain", domain)?, id("entity", entity)?))
+    Ok(Wanted {
+        rule,
+        domain: id("domain", domain)?,
+        entity: id("entity", entity)?,
+        object: id("object", object)?,
+    })
 }
 
 /// An open anomaly.
@@ -180,8 +192,10 @@ pub(crate) fn anomaly_next(
     })
 }
 
-/// `GET /v1/anomalies?rule=…&domain=…&entity=…`: the open anomalies whose object the caller
-/// may read now, oldest first (REQ-002-36), by pages (task 021-29).
+/// `GET /v1/anomalies?rule=…&domain=…&entity=…&object=…`: the open anomalies whose object
+/// the caller may read now, oldest first (REQ-002-36), by pages (task 021-29). Those of one
+/// object (021/A37) under the same filter of reading: an object the caller may not read
+/// gives an empty list, as an unknown one (ADR 0021).
 #[utoipa::path(
     get,
     path = "/anomalies",
@@ -191,6 +205,7 @@ pub(crate) fn anomaly_next(
         ("rule" = Option<String>, Query, description = "The rule."),
         ("domain" = Option<Uuid>, Query, description = "The domain of the object."),
         ("entity" = Option<Uuid>, Query, description = "The entity of the object."),
+        ("object" = Option<Uuid>, Query, description = "The object."),
         PageParams,
     ),
     responses((status = 200, description = "The open anomalies.", body = Listing<AnomalyDto>))
@@ -204,7 +219,12 @@ async fn list(
 ) -> Result<Response, Problem> {
     const NAME: &str = "anomalies";
     let (page, after) = anomaly_page(&api, query.as_deref(), NAME)?;
-    let (rule, domain, entity) = filter(&page.filters)?;
+    let Wanted {
+        rule,
+        domain,
+        entity,
+        object,
+    } = filter(&page.filters)?;
     let now = read::now(&api.pool).await.map_err(|e| store(&e))?;
     let moment = Dates::default().at(now, api.bound)?;
     let scope = api
@@ -216,6 +236,7 @@ async fn list(
         domain,
         entity,
         property: None,
+        object,
     };
     let limit = i64::from(page.size) + 1;
     let mut found = anomalies::open_page(&api.pool, &wanted, &scope, after, Some(limit))
@@ -225,7 +246,9 @@ async fn list(
     crate::properties::mask_gaps(&api, &context, &mut found).await?;
     let items: Vec<AnomalyDto> = found.iter().map(|(a, k)| represent(a, *k)).collect();
     let ids: Vec<Uuid> = found.iter().map(|(a, _)| a.object_id).collect();
-    let criteria = json!({ "anomalies": { "rule": rule, "domain": domain, "entity": entity } });
+    let criteria = json!({
+        "anomalies": { "rule": rule, "domain": domain, "entity": entity, "object": object }
+    });
     let event = objects_read(&context, "object", &ids, criteria, api.audit).map_err(audited)?;
     api.journal
         .record(&event)
@@ -338,20 +361,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_filter_takes_a_rule_a_domain_and_an_entity() {
+    fn the_filter_takes_a_rule_a_domain_an_entity_and_an_object() {
         let pairs = |query: &str| -> Vec<(String, String)> {
             form_urlencoded::parse(query.as_bytes())
                 .map(|(n, v)| (n.into_owned(), v.into_owned()))
                 .collect()
         };
-        let domain = Uuid::now_v7();
-        let (rule, found, entity) =
-            filter(&pairs(&format!("rule=core.x&domain={domain}"))).unwrap();
+        let (domain, object) = (Uuid::now_v7(), Uuid::now_v7());
         assert_eq!(
-            (rule.as_deref(), found, entity),
-            (Some("core.x"), Some(domain), None)
+            filter(&pairs(&format!(
+                "rule=core.x&domain={domain}&object={object}"
+            )))
+            .unwrap(),
+            Wanted {
+                rule: Some("core.x".to_owned()),
+                domain: Some(domain),
+                object: Some(object),
+                ..Wanted::default()
+            }
         );
         assert!(filter(&pairs("domain=x")).is_err());
+        assert!(filter(&pairs("object=x")).is_err());
+        assert!(filter(&pairs(&format!("object={object}&object={object}"))).is_err());
         assert!(filter(&pairs("rule=a&rule=b")).is_err());
         assert!(filter(&pairs("colour=red")).is_err());
     }

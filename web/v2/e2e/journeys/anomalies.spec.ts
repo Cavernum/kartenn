@@ -54,9 +54,16 @@ test("the anomalies of a record in its tab: a domain's with their object, a netw
   await expectAccessible(page);
   await warning.getByRole("link", { name: NETWORK }).click();
 
-  // The network's own, without the column of the object: it is the record's.
+  // The network's own, without the column of the object: it is the record's, read by its
+  // filter `object` (A37), not in its domain's pages.
   await expect(page.getByRole("heading", { level: 1, name: titled(NETWORK) })).toBeVisible();
+  const network = new URL(page.url()).pathname.split("/").pop()!;
+  const read = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return url.pathname === "/v1/anomalies" && url.searchParams.get("object") === network;
+  });
   await tabs(page).getByRole("tab", { name: "Anomalies" }).click();
+  expect(new URL((await read).url()).searchParams.has("domain")).toBe(false);
   const own = page.getByRole("grid", { name: `Anomalies de ${NETWORK}` });
   await expect(own.getByRole("row").filter({ hasText: RULE })).toHaveCount(1);
   await expect(own.getByRole("columnheader", { name: "Objet" })).toHaveCount(0);

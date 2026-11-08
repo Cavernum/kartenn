@@ -1402,6 +1402,68 @@ async fn anomalies_and_deviations_page_by_cursor(pool: PgPool) {
     }
 }
 
+#[kartenn_testing::pg_test]
+async fn the_anomalies_of_one_object_read_by_its_filter(pool: PgPool) {
+    let lab = domain(&pool, "lab").await;
+    let dmz = domain(&pool, "dmz").await;
+    let net = prefix(&pool, lab, "10.1.2.0/24").await;
+    let neighbour = prefix(&pool, lab, "10.1.3.0/24").await;
+    let hidden = prefix(&pool, dmz, "10.9.0.0/24").await;
+    let site = node(&pool, "site", "north", None).await;
+    let author = person(&pool, &READ_ALL, ("global", None)).await.identity;
+    let mut own = Vec::new();
+    for rule in ["core.test.a", "core.test.b", "core.test.c"] {
+        own.push(anomaly(&pool, author, net, rule).await);
+    }
+    let of_b = own[1];
+    anomaly(&pool, author, neighbour, "core.test.a").await;
+    anomaly(&pool, author, hidden, "core.test.a").await;
+    let outside = anomaly(&pool, author, site, "core.test.a").await;
+    // The same opening for all: the identifier orders them.
+    sqlx::query("UPDATE anomaly SET opened_at = '2026-01-01T00:00:00Z'")
+        .execute(&pool)
+        .await
+        .unwrap();
+    own.sort();
+    let strings = |ids: &[Uuid]| ids.iter().map(Uuid::to_string).collect::<Vec<_>>();
+    let lab_reader = app(
+        &pool,
+        person(
+            &pool,
+            &["core.prefix.read", "core.site.read"],
+            ("domain", Some(lab)),
+        )
+        .await,
+    );
+    let global = app(&pool, person(&pool, &READ_ALL, ("global", None)).await);
+
+    // Those of the object only, page by page, under the other filters.
+    let uri = format!("/v1/anomalies?object={net}&page_size=1");
+    assert_eq!(walk(&lab_reader, &uri).await, strings(&own));
+    let uri = format!("/v1/anomalies?object={net}&rule=core.test.b");
+    assert_eq!(ids_of(&ok(&lab_reader, &uri).await), [of_b.to_string()]);
+    // An object outside any domain (a site).
+    let uri = format!("/v1/anomalies?object={site}");
+    assert_eq!(ids_of(&ok(&global, &uri).await), [outside.to_string()]);
+    // An object the caller may not read: an empty list, as an unknown one.
+    let unreadable = ok(&lab_reader, &format!("/v1/anomalies?object={hidden}")).await;
+    let unknown = ok(
+        &lab_reader,
+        &format!("/v1/anomalies?object={}", Uuid::now_v7()),
+    )
+    .await;
+    assert_eq!(unreadable["items"], serde_json::json!([]));
+    assert_eq!(unreadable["items"], unknown["items"]);
+    assert_eq!(unreadable["links"], unknown["links"]);
+    assert_eq!(
+        ids_of(&ok(&global, &format!("/v1/anomalies?object={hidden}")).await).len(),
+        1
+    );
+    // Not a UUID: 400.
+    let response = get(&global, "/v1/anomalies?object=north").await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
 /// The identifiers of every page of the list at `uri`, following `next`.
 async fn walk(app: &Router, uri: &str) -> Vec<String> {
     let (mut ids, mut uri) = (Vec::new(), uri.to_owned());
