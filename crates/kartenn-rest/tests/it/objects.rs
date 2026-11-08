@@ -1262,20 +1262,29 @@ async fn a_deviation_of_a_sensitive_property_hides_its_value(pool: PgPool) {
     declare(&pool, "policy.zone", false).await;
     let author = person(&pool, &READ_ALL, ("global", None)).await.identity;
     // One open deviation per object (the rule and the object key an anomaly).
-    for (net, message) in [
+    let detail = |key: &str, resolved: &str, expected: &str| {
+        json!({
+            "property": key, "resolved": resolved, "expected": expected,
+            "source": "src", "revision": "1",
+        })
+    };
+    for (net, message, detail) in [
         (
             net,
-            "site.secret: resolved s3, expected [Text(\"s4\")] by src@1 (rule)",
+            "site.secret: resolved \"s3\", expected \"s4\" by src@1 (rule)",
+            detail("site.secret", "s3", "s4"),
         ),
         (
             other,
-            "policy.zone: resolved red, expected [Text(\"blue\")] by src@1 (rule)",
+            "policy.zone: resolved \"red\", expected \"blue\" by src@1 (rule)",
+            detail("policy.zone", "red", "blue"),
         ),
     ] {
         let id = anomaly(&pool, author, net, "prop.resolution.expected_mismatch").await;
-        sqlx::query("UPDATE anomaly SET message = $2 WHERE id = $1")
+        sqlx::query("UPDATE anomaly SET message = $2, detail = $3 WHERE id = $1")
             .bind(id)
             .bind(message)
+            .bind(detail)
             .execute(&pool)
             .await
             .unwrap();
@@ -1294,6 +1303,26 @@ async fn a_deviation_of_a_sensitive_property_hides_its_value(pool: PgPool) {
     };
     assert!(!message("site.secret").contains("s3"), "{body}");
     assert!(message("policy.zone").contains("red"), "{body}");
+    // Its members, the values left out for the sensitive one (021/A36).
+    let item = |key: &str| items.iter().find(|i| i["property"] == key).unwrap();
+    let zone = item("policy.zone");
+    assert_eq!(zone["rule"], "prop.resolution.expected_mismatch", "{body}");
+    assert_eq!(
+        (&zone["resolved"], &zone["expected"]),
+        (&json!("red"), &json!("blue")),
+        "{body}"
+    );
+    assert_eq!(
+        (&zone["source"], &zone["revision"]),
+        (&json!("src"), &json!("1"))
+    );
+    let secret = item("site.secret");
+    assert!(!secret.to_string().contains("s3") && !secret.to_string().contains("s4"));
+    assert_eq!(
+        (&secret["resolved"], &secret["expected"]),
+        (&Value::Null, &Value::Null)
+    );
+    assert_eq!(secret["source"], "src", "{body}");
     let body = ok(&app, "/v1/property-gaps?property=policy.zone").await;
     assert_eq!(body["items"].as_array().unwrap().len(), 1, "{body}");
     // The list of the anomalies masks it as well.

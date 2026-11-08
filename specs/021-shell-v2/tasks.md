@@ -2488,7 +2488,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : route des anomalies de `crates/kartenn-rest/src/` (grep `anomalies`),
     `web/v2/shell/src/views/record/AnomaliesTab.vue`
   - dépend de : 11j
-- [ ] 11l. `Gap` structuré côté serveur (A36) : `rule`, `resolved`, `expected`, `source` et
+- [x] 11l. `Gap` structuré côté serveur (A36) : `rule`, `resolved`, `expected`, `source` et
   révision au schéma ; `message` lisible, sans `{:?}` (`crates/kartenn-service/src/expected.rs`
   vers la ligne 471) — verify : `k-check -p kartenn-rest -p kartenn-service` (lacune
   servie avec ses membres ; message sans représentation interne) ; contrat et schémas
@@ -2498,6 +2498,29 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     (`Violation`), `crates/kartenn-store-pg/src/{anomalies,write,idempotency}.rs`, une
     migration (`anomaly.detail`) ; verify étendu à `-p kartenn-store-pg -p kartenn-core`
   - dépend de : —
+  - fait : `Violation.detail` (`with_detail`), journalisé avec la violation et rejoué par
+    l'idempotence (`write.rs`, test `a_replayed_violation_keeps_its_detail`) ; migration
+    0075 (`anomaly.detail jsonb`, droit `UPDATE (detail)`), écrit et rafraîchi avec le
+    message (`anomalies::record`), lu par `open_page` et `find` ; `expected::Gap` compose
+    message et détail `{property, resolved, expected, source, revision}`, valeurs en
+    texte JSON dans le message (test `a_deviation_reads_without_internal_representation`,
+    `deviations_become_anomalies` : message exact et détail en base) ; DTO `Gap` avec
+    `rule`, `resolved`, `expected`, `source`, `revision` (`Gap::of`), le masquage d'une
+    propriété sensible retire aussi `resolved` et `expected` du détail
+    (`a_deviation_of_a_sensitive_property_hides_its_value`) ; contrat, `schema.d.ts` de
+    `web/sdk` et `web/v2/sdk` régénérés ; `docs/spec/data.md`
+  - choix : `resolved` et `expected` sont servis en JSON libre (`unknown` côté client),
+    non `Object` comme `Explanation.value`, qu'une chaîne contredirait ; `expected` prend
+    la forme du résolu, une valeur seule ou un tableau pour un ensemble (d'après la valeur
+    analysée) ; masquée, une lacune garde `source` et `revision`, sans valeurs ;
+    l'explication de la source reste dans le message seul (A39 ne la range pas au détail)
+  - reste (relevés par la revue) : `source` et `revision` hors de `required` dans le
+    contrat (`?:` côté client) alors que le serveur les émet toujours, à l'inverse de
+    `resolved` et `expected` ; `resolved: null` confond « aucune valeur », « masquée » et
+    « antérieure à 0075 » (voir la 11m) ; aucun test REST ne relie une lacune évaluée à sa
+    réponse (le `detail` y est posé par un `UPDATE`), ni ne sert les valeurs d'une
+    propriété sensible à qui a le droit de la lire ; l'exemple de la 11j (vers la
+    ligne 2478) cite encore l'ancien format `expected [Text("prod")]`
 - [ ] 11n. Une lacune par (objet, propriété) (A39, relevé par la 11l) : l'identité d'une
   anomalie `prop.resolution.expected_mismatch` porte la clé de la propriété, pour que deux
   propriétés en écart sur un même objet ouvrent deux lacunes (index `anomaly_one_open`,
@@ -2512,6 +2535,10 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   parcours `anomalies` n'assertit plus le texte anglais du serveur — verify : Vitest de
   `GapList` ; parcours `anomalies` sous les deux navigateurs
   - où : `web/v2/shell/src/views/anomalies/GapList.vue`, `web/v2/e2e/journeys/anomalies.spec.ts`
+  - attention (revue de la 11l) : `resolved: null` ne distingue pas une valeur absente
+    d'une valeur masquée ou d'une lacune antérieure à 0075 ; ne pas composer « aucune
+    valeur » sur ce seul membre. Si l'écran a besoin de les distinguer, c'est un ajout au
+    contrat, à arbitrer avant le code
   - dépend de : 11l
 - [x] 12c. Réponses d'une écriture et écritures coupées sous `as_of`, prouvées : 202 sous
   une politique d'approbation avec le lien « Voir le changeset » ; 403 du serveur qui garde
