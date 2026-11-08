@@ -62,6 +62,11 @@ export function useTreeStates(
   emit: { load(parent: string | null): void; move(intent: MoveIntent): void },
 ) {
   const nodeOf = (id: string) => index.value.get(id)?.node;
+  /** A node that may move or be a target: a notice is neither. */
+  const objectOf = (id: string) => {
+    const node = nodeOf(id);
+    return node?.notice ? undefined : node;
+  };
   /** The status region (moves, pages) and the alert region (refused edits). */
   const status = useRegion();
   const alerts = useRegion();
@@ -72,7 +77,7 @@ export function useTreeStates(
     mode: () => props.parentMode ?? "derived",
     // Read at each call: the host may change its check, or take it away, after mounting.
     canMove: (node, target) => props.canMove?.(node, target),
-    nodeOf,
+    nodeOf: objectOf,
     pending: (id) => {
       const node = nodeOf(id);
       return !!node && props.moveState?.(node) === "pending";
@@ -141,7 +146,7 @@ export function useTreeStates(
   const movingLabel = computed(() => (moving.value ? (nodeOf(moving.value)?.label ?? "") : ""));
   /** « Déplacer vers… » for the node `id`: the host's action on the chosen node. */
   function openMove(id: string): boolean {
-    if (!moves.movable(id) || !nodeOf(id)) return false;
+    if (!moves.movable(id) || !objectOf(id)) return false;
     moving.value = id;
     return true;
   }
@@ -150,7 +155,7 @@ export function useTreeStates(
       ? []
       : moves.targets(
           moving.value,
-          [...index.value.values()].map((entry) => entry.node),
+          [...index.value.values()].flatMap((entry) => (entry.node.notice ? [] : [entry.node])),
           text,
         );
   function onMoveTo(target: string | null): void {
@@ -160,11 +165,14 @@ export function useTreeStates(
   const childrenOf = (parent: string | null) =>
     parent === null ? props.nodes : (nodeOf(parent)?.children ?? []);
   const pages = useTreePages(scroller, {
-    children: (parent) => childrenOf(parent).map((node) => node.id),
+    children: (parent) => childrenOf(parent).flatMap((node) => (node.notice ? [] : [node.id])),
+    notice: (parent) => childrenOf(parent).find((node) => node.notice)?.label,
     movedIn: (parent) => movedInto.get(parent ?? "") ?? new Set(),
     load: (parent) => emit.load(parent),
-    arrived: (count, whole) =>
-      void status.say(fill(whole ? "pageLoadedLast" : "pageLoaded", { count })),
+    arrived: (count, whole, notice) => {
+      const said = fill(whole ? "pageLoadedLast" : "pageLoaded", { count });
+      void status.say(notice === undefined ? said : `${said} ${notice}`);
+    },
     rest: (parent) => (parent === null ? !!props.more : !!nodeOf(parent)?.more),
   });
   /** The next page of a list is coming: the host's state of its parent, or of the roots. */

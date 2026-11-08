@@ -9,7 +9,9 @@
 // and per number of children read: a page that has not come yet is never asked twice.
 // The page that comes is said (its count, and whether the list is whole), WCAG 4.1.3:
 // only the children new to the list since the ask, the nodes the tree asked to move into
-// it left out; a list that shrinks (a node moved away) says nothing and keeps waiting.
+// it left out; a list that shrinks (a node moved away) says nothing and keeps waiting. A
+// notice (`TreeNode.notice`, a level capped) is no child: out of the count, it is said
+// after it, and the list is not said whole.
 
 import { onBeforeUnmount, onMounted, onUpdated, type Ref } from "vue";
 
@@ -18,13 +20,18 @@ export const MORE_ATTRIBUTE = "data-more";
 
 /** What a tree gives its pages. */
 export interface TreePagesHost {
-  /** The ids of the children of `parent` read so far (`null`: the first level). */
+  /** The ids of the children of `parent` read so far (`null`: the first level), notices out. */
   children(parent: string | null): readonly string[];
+  /** The label of the notice under the children of `parent`, if any. */
+  notice(parent: string | null): string | undefined;
   /** The nodes the tree asked to move into `parent` (they are no page). */
   movedIn(parent: string | null): ReadonlySet<string>;
   load(parent: string | null): void;
-  /** A page came: `count` children more; `whole`, the list has no page left. */
-  arrived(count: number, whole: boolean): void;
+  /**
+   * A page came: `count` children more; `whole`, the list has no page left and no notice;
+   * `notice`, the label of the notice that ends it.
+   */
+  arrived(count: number, whole: boolean, notice?: string): void;
   /** Whether pages remain after the children of `parent` read so far. */
   rest(parent: string | null): boolean;
 }
@@ -62,7 +69,8 @@ export function useTreePages(scroller: Ref<HTMLElement | null>, host: TreePagesH
       const count = pageGrowth(known, host.children(parent), host.movedIn(parent));
       if (count === 0) continue;
       awaited.delete(key);
-      host.arrived(count, !host.rest(parent));
+      const notice = host.notice(parent);
+      host.arrived(count, !host.rest(parent) && notice === undefined, notice);
     }
   }
 

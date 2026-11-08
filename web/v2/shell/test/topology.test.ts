@@ -229,7 +229,7 @@ describe("the preview of the draft in the tree of the prefixes", () => {
       known,
       DOMAIN,
     );
-    const notice = { id: cappedKey(P), label: "rest" };
+    const notice = { id: cappedKey(P), label: "rest", notice: true };
     const capped = { ...served[0]!, children: [...served[0]!.children!, notice] };
     const open: TreeNode[] = [capped, { ...served[1]!, hasChildren: false, children: [] }];
     const { nodes } = overlay(open, preview, nodeOf);

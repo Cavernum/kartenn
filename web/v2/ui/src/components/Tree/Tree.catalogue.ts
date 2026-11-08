@@ -39,6 +39,32 @@ const nodes: TreeNode[] = [
   { id: "s3", label: "Site C", icon: "domain" },
 ];
 const base = { label: "Sites", nodes, expanded: ["s1", "s12"] };
+
+/** « Salle 2 » capped: its racks read, then the notice of where the rest is listed. */
+const capped: TreeNode[] = nodes.map((site) =>
+  site.children
+    ? {
+        ...site,
+        children: site.children.map((room) =>
+          room.id === "s12"
+            ? {
+                ...room,
+                children: [
+                  ...room.children!,
+                  {
+                    id: "capped:s12",
+                    label:
+                      "L'arbre s'arrête à 2 nœuds : Entrée ouvre la liste des baies de Salle 2",
+                    icon: "info",
+                    notice: true,
+                  },
+                ],
+              }
+            : room,
+        ),
+      }
+    : site,
+);
 const stateBy =
   (states: Record<string, TreeNodeState>) =>
   (node: TreeNode): TreeNodeState | undefined =>
@@ -235,6 +261,12 @@ export default {
       description: "Enfants paginés : aria-setsize -1, la ligne de la suite lit la page suivante",
       props: {},
       demo: paged,
+    },
+    {
+      name: "capped",
+      description:
+        "Niveau plafonné : une ligne d'avis après les enfants lus, hors de leur ensemble, activée par Entrée, jamais sélectionnée",
+      props: { ...base, nodes: capped },
     },
     {
       name: "draft",

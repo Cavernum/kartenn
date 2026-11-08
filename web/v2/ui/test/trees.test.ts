@@ -111,6 +111,81 @@ const dragEvent = () => {
   return event as unknown as DragEvent & { defaultPrevented: boolean };
 };
 
+// A level capped (task 32): the row of a notice after the children read, out of their set.
+const capped: TreeNode[] = [
+  {
+    id: "a",
+    label: "Alpha",
+    children: [
+      { id: "a1", label: "Alpha un" },
+      { id: "a2", label: "Alpha deux" },
+      { id: "capped:a", label: "La suite dans la liste", icon: "info", notice: true },
+    ],
+  },
+  { id: "b", label: "Bravo" },
+];
+
+describe("a notice of a level capped (task 32)", () => {
+  it("a row of its own after its siblings, out of their set; Left goes to its parent", () => {
+    const rows = flatten(capped, new Set(["a"]));
+    expect(
+      rows.map((row) => [
+        row.key,
+        row.kind,
+        row.kind === "node" ? `${row.posInSet}/${row.setSize}` : row.parent,
+      ]),
+    ).toEqual([
+      ["a", "node", "1/2"],
+      ["a1", "node", "1/2"],
+      ["a2", "node", "2/2"],
+      ["capped:a", "notice", "a"],
+      ["b", "node", "2/2"],
+    ]);
+    expect(treeStep(rows, 3, "ArrowLeft", new Set(["a"]))).toEqual({ to: 0 });
+    expect(treeStep(rows, 3, "ArrowRight", new Set(["a"]))).toBeNull();
+    expect(
+      misplacedRendered(rows, [0, 1, 2, 3, 4], (key) => indexNodes(capped).get(key)!.parent),
+    ).toEqual([]);
+    // Neither searched by typing nor opened by `*`.
+    expect(searchRow(rows, 0, "la")).toBe(-1);
+    expect(closedSiblings(rows, 3, new Set(["a"]))).toEqual([]);
+  });
+
+  it("Tree: the notice a treeitem with no set, its siblings counted without it", async () => {
+    const html = await render(Tree, { label: "Arbre", nodes: capped, expanded: ["a"] });
+    expect(html).toMatch(/data-node="a2"[^>]*aria-setsize="2" aria-posinset="2"/);
+    const notice = /<div[^>]*data-node="capped:a"[^>]*>/.exec(html)![0];
+    expect(notice).toContain('role="treeitem"');
+    expect(notice).toContain("k-tree__notice");
+    expect(notice).not.toContain("aria-setsize");
+    // Never selected (Reka still writes its `aria-selected="false"`, as on the `more` row).
+    expect(notice).toContain('aria-selected="false"');
+    expect(notice).not.toContain("draggable");
+    expect(html).toContain("La suite dans la liste");
+  });
+
+  it("TreeGrid: the notice a row of one cell over the columns, its siblings counted without it", async () => {
+    const html = await render(TreeGrid, {
+      label: "Arbre",
+      treeLabel: "Nœud",
+      nodes: capped,
+      expanded: ["a"],
+      columns: [{ id: "env", label: "Environnement" }],
+      parentMode: "declared",
+    });
+    expect(html).toMatch(/role="row"[^>]*data-node="a2"[^>]*aria-setsize="2" aria-posinset="2"/);
+    const notice = /<div[^>]*data-node="capped:a"[^>]*>/.exec(html)![0];
+    expect(notice).toContain("k-tree-grid__notice");
+    expect(notice).toContain('aria-rowindex="5"');
+    expect(notice).not.toContain("aria-setsize");
+    expect(notice).not.toContain("aria-selected");
+    expect(notice).not.toContain("draggable");
+    expect(html).toMatch(/data-row="capped:a"[^>]*aria-colspan="2"/);
+    // Every row known, none to read: the count of rows is whole.
+    expect(html).toContain('aria-rowcount="6"');
+  });
+});
+
 describe("the contract of moves (REQ-020-31)", () => {
   const host = (mode: "derived" | "declared", model = tree) => {
     const intents: MoveIntent[] = [];

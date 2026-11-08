@@ -303,7 +303,7 @@ export function overlay(
   // notice of a level capped stays under the row at its present place.
   const kept = (list: readonly TreeNode[]): TreeNode[] =>
     list
-      .filter((node) => !shifting.has(node.id) && !isCapped(node.id))
+      .filter((node) => !shifting.has(node.id) && !node.notice)
       .map((node) => {
         const copied = kept(node.children ?? []);
         const copy: TreeNode = { ...node, id: `${PREVIEW}${node.id}` };
