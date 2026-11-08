@@ -117,11 +117,17 @@ export function useTime(): ComputedRef<Time> {
   return computed(() => timeOf(route.query));
 }
 
+/** What may be written at a date: at once (in place, applied), to the draft. */
+export interface Writes {
+  quickEdit: boolean;
+  draft: boolean;
+}
+
 /**
  * What may be written (REQ-021-5, 007/W9): nothing under `as_of`, the draft included; a
  * `valid_at` off the present leaves the draft only (its changes take effect at that date).
  */
-export function writesOf(time: Time): { quickEdit: boolean; draft: boolean } {
+export function writesOf(time: Time): Writes {
   return { quickEdit: time.present, draft: time.asOf === null };
 }
 

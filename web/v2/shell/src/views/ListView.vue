@@ -151,10 +151,13 @@ const edit = useInlineEdit({
 });
 const active = ref<CellRef | undefined>();
 const mayEdit = () => session.value.rights.has(editRight(props.collection.type));
+// `c` and `e` open the edit panel: under `valid_at` alone too, to the dated draft only
+// (REQ-021-5; `action.ts`), as « Modifier » of the record; never under `as_of`.
 useViewAction("create", {
   label: () => t("edit.createAction", { kind: kindWords.value }),
   allowed: mayEdit,
   run: () => openEdit({ mode: "create", collection: props.collection.id }),
+  dated: true,
 });
 /** The row of the cell that has the focus, if a row (not the header). */
 const activeRow = computed(() =>
@@ -170,6 +173,7 @@ useViewAction("edit", {
       openEdit({ mode: "edit", collection: props.collection.id, id: String(activeRow.value.id) });
     }
   },
+  dated: true,
 });
 const kindWords = computed(() => t(`labels.kind.${props.collection.type}`));
 /** Why the cell of the focus offers no editor, said at the foot of the list. */

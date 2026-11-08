@@ -53,6 +53,10 @@ import {
 // the input kept beside the value read again, no apply without `X.approval.self`.
 
 const PREFIXES = collectionById("prefixes")!;
+/** What may be written at the present, under `valid_at` alone, under `as_of` (`writesOf`). */
+const NOW = { quickEdit: true, draft: true };
+const DATED = { quickEdit: false, draft: true };
+const AS_OF = { quickEdit: false, draft: false };
 const P1 = "0b5e3c1a-0000-4000-8000-0000000000a1";
 const V1 = "0b5e3c1a-0000-4000-8000-0000000000c1";
 const V2 = "0b5e3c1a-0000-4000-8000-0000000000c2";
@@ -63,31 +67,46 @@ describe("the fields of an edit", () => {
   const reader = new Rights(["core.prefix.read"]);
 
   it("let a cell be edited with the right, at the present, when the patch takes it", () => {
-    expect(editability(author, true, PREFIXES, "value")).toEqual({ editable: true });
-    expect(editability(author, true, PREFIXES, "nature")).toEqual({ editable: true });
+    expect(editability(author, NOW, PREFIXES, "value")).toEqual({ editable: true });
+    expect(editability(author, NOW, PREFIXES, "nature")).toEqual({ editable: true });
     // A reader: no editor, the permission named as served.
-    expect(editability(reader, true, PREFIXES, "value")).toEqual({
+    expect(editability(reader, NOW, PREFIXES, "value")).toEqual({
       editable: false,
       why: { kind: "forbidden", permission: "core.prefix.edit" },
     });
-    expect(editability(author, false, PREFIXES, "value")).toEqual({
+    // Under `as_of`, nothing is written; under `valid_at` alone, the dated draft by the
+    // edit panel (« Modifier »), never in place.
+    expect(editability(author, AS_OF, PREFIXES, "value")).toEqual({
+      editable: false,
+      why: { kind: "past" },
+    });
+    expect(editability(author, DATED, PREFIXES, "value")).toEqual({
+      editable: false,
+      why: { kind: "dated" },
+    });
+    // A reader is told the permission there, not a dated draft he may not write.
+    expect(editability(reader, DATED, PREFIXES, "value")).toEqual({
+      editable: false,
+      why: { kind: "forbidden", permission: "core.prefix.edit" },
+    });
+    expect(editability(reader, AS_OF, PREFIXES, "value")).toEqual({
       editable: false,
       why: { kind: "past" },
     });
     // The domain never changes after creation; a computed value never does.
-    expect(editability(author, true, PREFIXES, "domain")).toMatchObject({
+    expect(editability(author, NOW, PREFIXES, "domain")).toMatchObject({
       why: { kind: "fixed", reason: "immutable" },
     });
-    expect(editability(author, true, PREFIXES, "public")).toMatchObject({
+    expect(editability(author, NOW, PREFIXES, "public")).toMatchObject({
       why: { kind: "fixed", reason: "computed" },
     });
-    expect(editability(author, true, PREFIXES, "id")).toMatchObject({ why: { kind: "none" } });
+    expect(editability(author, NOW, PREFIXES, "id")).toMatchObject({ why: { kind: "none" } });
   });
 
   it("ask `prop.<key>.edit` too for a property", () => {
     // The rule (a list offers no editor until it writes properties: `useInlineEdit.why`).
-    expect(editability(author, true, PREFIXES, "prop.core.owner")).toEqual({ editable: true });
-    expect(editability(author, true, PREFIXES, "prop.dns.ttl")).toEqual({
+    expect(editability(author, NOW, PREFIXES, "prop.core.owner")).toEqual({ editable: true });
+    expect(editability(author, NOW, PREFIXES, "prop.dns.ttl")).toEqual({
       editable: false,
       why: { kind: "forbidden", permission: "prop.dns.ttl.edit" },
     });
@@ -199,11 +218,11 @@ describe("the fields of an edit", () => {
       patchOf(EDITS["vlan-groups"].modification, { anchor: `entity:${D1}`, vid_max: "150" }),
     ).toEqual({ anchor: { entity: { id: D1 } }, vid_max: 150 });
     const author = new Rights(["core.vlan.edit", "core.vlan_group.edit"]);
-    expect(editability(author, true, VLANS, "vid")).toEqual({ editable: true });
-    expect(editability(author, true, VLANS, "group")).toMatchObject({
+    expect(editability(author, NOW, VLANS, "vid")).toEqual({ editable: true });
+    expect(editability(author, NOW, VLANS, "group")).toMatchObject({
       why: { kind: "fixed", reason: "reference" },
     });
-    expect(editability(author, true, GROUPS, "anchor")).toMatchObject({
+    expect(editability(author, NOW, GROUPS, "anchor")).toMatchObject({
       why: { kind: "fixed", reason: "reference" },
     });
     const [, vid] = EDITS.vlans.creation;
@@ -539,8 +558,9 @@ describe("a list edited in place", () => {
   });
 
   it("off the present: no editor, no draft, and the line of the motive closes unwritten", async () => {
+    // Under `valid_at` alone the cell says the dated draft (« Modifier »), not the present.
     const past = await mounted(APPLY, () => lists, "/?valid_at=2026-01-01T00:00:00Z");
-    expect(past.edit().why("value")).toEqual({ kind: "past" });
+    expect(past.edit().why("value")).toEqual({ kind: "dated" });
     past.edit().onCommit({ row: P1, column: "value", value: "192.0.2.0/25" });
     await nextTick();
     expect(past.seen.filter((s) => s.method !== "GET")).toEqual([]);
@@ -550,6 +570,7 @@ describe("a list edited in place", () => {
     expect(now.edit().asking.value).not.toBeNull();
     await now.router.push("/?as_of=2026-01-01T00:00:00Z");
     await nextTick();
+    expect(now.edit().why("value")).toEqual({ kind: "past" });
     expect(now.edit().asking.value).toBeNull();
     expect(await now.edit().confirm("essai", "192.0.2.0/25")).toBe(false);
     expect(now.seen.filter((s) => s.method !== "GET")).toEqual([]);
