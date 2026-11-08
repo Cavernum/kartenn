@@ -377,7 +377,7 @@ Tranchés le 2026-11-03 par l'utilisateur, d'après les 11g, 11i et 11j :
   (`Violation.detail`), rejoué par l'idempotence ; pour une lacune, `{property, resolved,
   expected, source, revision}`. Retenu contre un recalcul à la lecture (valeurs d'aujourd'hui
   et non celles de l'ouverture, sources externes appelées à chaque page). Une anomalie
-  ouverte avant la migration garde `detail` vide jusqu'à sa réévaluation. Une anomalie
+  ouverte avant la migration 0075 n'a ses valeurs qu'à sa réévaluation. Une anomalie
   est une par (règle, objet, propriété de son `detail`) depuis la 11n (index
   `anomaly_one_open`, migration 0076) : deux propriétés en écart sur un même objet
   ouvrent deux lacunes ; une lacune antérieure à 0075 y reçoit `{property}`, la clé que

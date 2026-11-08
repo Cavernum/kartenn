@@ -2548,6 +2548,14 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     elle), une règle qui n'en nomme pas garde une anomalie par objet. `gap_property`
     retombe sur le préfixe du message sans détail, pour que le masquage d'une propriété
     sensible tienne en toute circonstance
+  - reste (relevés par la revue) : le rattrapage de 0076 n'a pas de test (le harnais
+    migre jusqu'au bout avant un test), et rien ne prouve qu'une lacune antérieure à 0075
+    garde identité et acquittement à sa réévaluation ; `property_of` lit
+    `as_str().unwrap_or_default()`, qui diverge de `->>` pour une `property` non textuelle
+    (théorique, `expected.rs` écrit toujours une chaîne) ; le test du store passe la portée
+    `"prop.resolution."` et non `PROP_EXPECTED_MISMATCH.id` comme le code réel ; une
+    lacune antérieure à 0075 a désormais un `detail` (`{property}`), la 11m ne la
+    reconnaît qu'à l'absence de `source`
 - [ ] 11m. Lacune composée par l'écran (A36) : `GapList` dit la règle par son code, les
   valeurs attendue et résolue par leur libellé (`KeyLabel`), la source et sa révision ; le
   parcours `anomalies` n'assertit plus le texte anglais du serveur — verify : Vitest de
