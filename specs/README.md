@@ -7,7 +7,7 @@
 | [003-proprietes](003-proprietes/) | implémentées | implémentée | [tasks](003-proprietes/tasks.md) (19/19, amendement P17) |
 | [004-changesets-bitemporel](004-changesets-bitemporel/) | implémentées | implémentée | [tasks](004-changesets-bitemporel/tasks.md) (25/25) |
 | [005-authn-rbac](005-authn-rbac/) | implémentées | implémentée | [tasks](005-authn-rbac/tasks.md) (19/19) |
-| [006-api-rest](006-api-rest/) | implémentées | implémentée | [tasks](006-api-rest/tasks.md) (34/35) |
+| [006-api-rest](006-api-rest/) | implémentées | implémentée | [tasks](006-api-rest/tasks.md) (35/35) |
 | [007-web-shell-plugins](007-web-shell-plugins/) | implémentées (REQ-007-32 mesurée le 2026-10-21) ; partie client remplacée par la 021 à sa bascule | implémentée | [tasks](007-web-shell-plugins/tasks.md) (27/27) |
 | [008-vlan](008-vlan/) | implémentées, sauf REQ-008-22 en écart (422 au lieu de 403) ; parties B à F reprises par la 026 (le VLAN dans le noyau) | implémentée (ADR 0026, amendement 1) | [tasks](008-vlan/tasks.md) (20/20) |
 | [009-machines-interfaces](009-machines-interfaces/) | implémentées (banc complet de REQ-009-21 tenu le 2026-10-22) | implémentée | [tasks](009-machines-interfaces/tasks.md) (15/15) |
