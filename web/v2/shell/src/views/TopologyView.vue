@@ -58,7 +58,7 @@ import { useProblems } from "../problems/index.ts";
 import { childrenIntent } from "../prefetch/tree.ts";
 import { useSession } from "../rights/index.ts";
 import { useViewAction } from "../shortcuts/view.ts";
-import { useTime } from "../time/index.ts";
+import { useTime, writesOf } from "../time/index.ts";
 import { collectionById, pageOfObject, type Item } from "./collections.ts";
 import { draftedValues, editRight } from "./edit/fields.ts";
 import EditHint from "./edit/EditHint.vue";
@@ -482,16 +482,17 @@ function onActivate(id: string): void {
 
 // Direct addition (024/M10, REQ-021-36): the « + » of a prefix, and `c`, open the edit
 // panel of the kinds it may hold — a network its addresses and ranges, a container its
-// prefixes — the domain given; `e` modifies the chosen node. At the present only; the
-// panel refuses, visibly, what the rights do not allow. `c` adds in the node of the focus
-// in the tree, else in the chosen one (021/A20).
+// prefixes — the domain given; `e` modifies the chosen node. Under `valid_at` alone too, to
+// the dated draft only (REQ-021-5; `action.ts`), never under `as_of`; the panel refuses,
+// visibly, what the rights do not allow. `c` adds in the node of the focus in the tree,
+// else in the chosen one (021/A20).
 const session = useSession();
 /**
- * Why adding in `node` (the first level without one) is refused: off the present, or
+ * Why adding in `node` (the first level without one) is refused: under `as_of`, or
  * without the right to write any kind it may hold — the first one named, as served.
  */
 function addRefusal(node: Shown | undefined): { forbidden: string } | { reason: string } | null {
-  if (!time.value.present) return { reason: t("edit.why.past") };
+  if (!writesOf(time.value).draft) return { reason: t("edit.why.past") };
   const types = kindsIn(node).map((id) => collectionById(id)!.type);
   if (types.some((type) => session.value.rights.has(editRight(type)))) return null;
   return { forbidden: editRight(types[0]!) };
@@ -522,6 +523,7 @@ useViewAction("create", {
       : t("edit.createAction", { kind: t("labels.kind.core.prefix") }),
   allowed: () => addRefusal(targetPrefix.value) === null && domain.value !== undefined,
   run: () => addIn(targetPrefix.value?.id),
+  dated: true,
 });
 /**
  * « Ajouter dans » of the chosen prefix: visible, refused with its permission; `c` shown
@@ -554,6 +556,7 @@ useViewAction("edit", {
       });
     }
   },
+  dated: true,
 });
 
 // The foot of the tree speaks of the cell of the focus (the tree's `active`, kept when the

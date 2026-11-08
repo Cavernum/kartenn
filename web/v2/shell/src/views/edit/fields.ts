@@ -1,5 +1,6 @@
 import type { components, Operation } from "@kartenn/sdk";
 import type { Rights } from "../../rights/permissions.ts";
+import type { Writes } from "../../time/index.ts";
 import { anchorOf, type CollectionId, type Item } from "../collections.ts";
 
 // What an edit of an object of the referential writes (REQ-021-15, 36; design 021 « Édition
@@ -442,8 +443,10 @@ const PROPERTY_COLUMN = /^prop\.(.+)$/;
 export type NotEditable =
   /** A right is missing: the permission, as served. */
   | { kind: "forbidden"; permission: string }
-  /** The view is not at the present. */
+  /** The view is read as known at a past time (`as_of`): nothing is written. */
   | { kind: "past" }
+  /** The view is at a validity date alone: the change goes by the edit panel, to the dated draft. */
+  | { kind: "dated" }
   /** The field never changes by an edit. */
   | { kind: "fixed"; reason: FixedReason }
   /** The field is not an attribute an edit writes (the identifier, a column of a plugin). */
@@ -453,13 +456,14 @@ export type Editability = { editable: true } | { editable: false; why: NotEditab
 
 /**
  * Whether the cell `column` of an object of `collection` may be edited in place: the field
- * is one of its patch (or a property of a `prop.<key>` column), the view at the present,
- * and the user holds `X.edit` of the type and, for a property, `prop.<key>.edit`. The
- * server stays the judge (a 403 is still shown as a refusal).
+ * is one of its patch (or a property of a `prop.<key>` column), the view at the present
+ * (`writes.quickEdit`; under `valid_at` alone, the dated draft by the edit panel only), and
+ * the user holds `X.edit` of the type and, for a property, `prop.<key>.edit`. The server
+ * stays the judge (a 403 is still shown as a refusal).
  */
 export function editability(
   rights: Rights,
-  present: boolean,
+  writes: Writes,
   collection: { id: CollectionId; type: string },
   column: string,
 ): Editability {
@@ -470,13 +474,16 @@ export function editability(
   if (!property && !edit.modification.some((field) => field.name === column)) {
     return { editable: false, why: { kind: "none" } };
   }
-  if (!present) return { editable: false, why: { kind: "past" } };
+  // Under `as_of` nothing is written, whatever the rights; the dated draft (`valid_at`
+  // alone) is said only to whom may write it, a missing right named first.
+  if (!writes.draft) return { editable: false, why: { kind: "past" } };
   for (const permission of [
     editRight(collection.type),
     ...(property ? [propertyRight(property)] : []),
   ]) {
     if (!rights.has(permission)) return { editable: false, why: { kind: "forbidden", permission } };
   }
+  if (!writes.quickEdit) return { editable: false, why: { kind: "dated" } };
   return { editable: true };
 }
 

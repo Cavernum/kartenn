@@ -33,6 +33,7 @@ const { t } = useI18n();
       {{ t("edit.why.forbidden") }} <CodeBadge :code="props.why.permission" />
     </template>
     <template v-else-if="props.why.kind === 'past'">{{ t("edit.why.past") }}</template>
+    <template v-else-if="props.why.kind === 'dated'">{{ t("edit.why.inPlaceDated") }}</template>
     <template v-else>{{ t(`edit.why.${props.why.reason}`) }}</template>
   </span>
 </template>

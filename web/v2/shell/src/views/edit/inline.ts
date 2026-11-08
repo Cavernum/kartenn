@@ -15,7 +15,7 @@ import { computed, onScopeDispose, ref, shallowReactive, shallowRef, watch } fro
 import { useQuery } from "../../data/query.ts";
 import { problemCode } from "../../problems/index.ts";
 import { useSession } from "../../rights/index.ts";
-import { useTime } from "../../time/index.ts";
+import { useTime, writesOf } from "../../time/index.ts";
 import { nameOf, type Collection, type Item } from "../collections.ts";
 import {
   applyRight,
@@ -127,7 +127,9 @@ export function cellErrorOf(
 export function whyWords(why: NotEditable | null, t: (key: string) => string): string | undefined {
   if (!why || why.kind === "none") return undefined;
   if (why.kind === "forbidden") return `${t("edit.why.forbidden")} ${why.permission}`;
-  return t(why.kind === "past" ? "edit.why.past" : `edit.why.${why.reason}`);
+  if (why.kind === "past") return t("edit.why.past");
+  if (why.kind === "dated") return t("edit.why.inPlaceDated");
+  return t(`edit.why.${why.reason}`);
 }
 
 export function useInlineEdit({
@@ -236,7 +238,7 @@ export function useInlineEdit({
   /** Why the field `name` of an object of `of` offers no editor, or `null` when it does. */
   function whyField(of: Collection, name: string | undefined): NotEditable | null {
     if (name === undefined) return { kind: "none" };
-    const editable = editability(rights.value, present.value, of, name);
+    const editable = editability(rights.value, writesOf(time.value), of, name);
     if (!editable.editable) return editable.why;
     // A column this list cannot write yet (a property): no editor rather than a lost input.
     return modificationField(of.id, name) ? null : { kind: "none" };

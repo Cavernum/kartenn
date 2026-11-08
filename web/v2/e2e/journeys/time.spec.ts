@@ -161,6 +161,64 @@ test("a validity date alone leaves the dated draft possible", async ({ page, log
   await expect(page.getByRole("button", { name: /^Brouillon 1 opération/ })).toBeVisible();
 });
 
+test("under a validity date alone, « Créer » of a list and the « + » of the topography go to the dated draft", async ({
+  page,
+  login,
+}) => {
+  await login("alice");
+  const ahead = encodeURIComponent(new Date(Date.now() + 30 * 86_400_000).toISOString());
+  await page.goto(`/addresses?domain=${DATA.domain}&valid_at=${ahead}`);
+  await expect(band(page)).toContainText("brouillon daté possible");
+  // A cell has no editor there, and says where the change goes: not back to the present.
+  const cell = page
+    .getByRole("grid", { name: "Adresses" })
+    .locator('[role="gridcell"][data-column="usage"]')
+    .first();
+  await expect(cell).toHaveAttribute("aria-readonly", "true");
+  await expect(cell).toHaveAccessibleDescription(/rien ne se modifie en place/);
+
+  // `c` opens the edit panel, to the draft only: « Appliquer » refused, its reason said.
+  await page.keyboard.press("c");
+  const created = page.getByRole("form", { name: "Créer : Adresse" });
+  await expect(created).toBeVisible();
+  await created.getByRole("button", { name: "Choisir l'action" }).click();
+  const apply = page.getByRole("menuitem", { name: /^Appliquer/ });
+  await expect(apply).toHaveAttribute("aria-disabled", "true");
+  await expect(apply).toHaveAccessibleDescription(/va au brouillon daté/);
+  await page.keyboard.press("Escape");
+  await created.getByRole("button", { name: "Annuler" }).click();
+  await expect(created).toHaveCount(0);
+
+  // The « + » of a network of the tree: an address added to the dated draft.
+  await atRest(page);
+  await page.goto(`/topology?valid_at=${ahead}`);
+  const tree = page.getByRole("treegrid", { name: `Arbre des préfixes du domaine ${DATA.domain}` });
+  const plus = tree.getByRole("button", { name: `Ajouter dans ${DATA.prefix}` });
+  await expect(plus).toBeAttached();
+  await expect(plus).not.toHaveAttribute("aria-disabled");
+  await tree.getByText(DATA.prefix, { exact: true }).click();
+  await page.keyboard.press("Tab");
+  await expect(plus).toBeFocused();
+  await page.keyboard.press("Enter");
+  const form = page.getByRole("form", { name: `Ajouter dans ${DATA.prefix}` });
+  await expect(form.getByRole("button", { name: "Adresse", pressed: true })).toBeVisible();
+  await form.getByRole("textbox", { name: "Valeur" }).fill("192.0.2.77");
+  await form.getByRole("combobox", { name: /^Usage/ }).click();
+  await page.getByRole("option", { name: /^Hôte/ }).click();
+  await form.getByRole("button", { name: "Ajouter au brouillon" }).click();
+  await expect(form).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Brouillon 1 opération/ })).toBeVisible();
+
+  // Under `as_of`, the « + » stays visible, refused, its reason said (`c` refused there:
+  // `dated-create.test.ts`).
+  await atRest(page);
+  await page.goto(
+    `/topology?as_of=${encodeURIComponent(new Date(Date.now() - 1_000).toISOString())}`,
+  );
+  await expect(plus).toHaveAttribute("aria-disabled", "true");
+  await expect(plus).toHaveAccessibleDescription(/revenez au présent/);
+});
+
 test("the date pill applies a period to the URL; Back returns to the present", async ({
   page,
   login,
