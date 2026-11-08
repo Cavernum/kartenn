@@ -2488,8 +2488,12 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : route des anomalies de `crates/kartenn-rest/src/` (grep `anomalies`),
     `web/v2/shell/src/views/record/AnomaliesTab.vue`
   - dépend de : 11j
-  - fait : `AnomalyFilter.object` (`store-pg/src/anomalies.rs`, condition `$9` de
-    `open_page`, sous l'index `anomaly_by_object`, sans migration) ; paramètre `object` de
+  - fait : `AnomalyFilter.object` (`store-pg/src/anomalies.rs`) : la condition `$9` de
+    `open_page` n'est écrite qu'avec un objet, comme le keyset, sans migration — mesuré en
+    plan générique (`plan_cache_mode = force_generic_plan`, 2·10⁵ anomalies ouvertes sur
+    5·10⁴ objets, base de test) : `($9 IS NULL OR a.object_id = $9)` donnait un
+    `Seq Scan on anomaly` (199 996 lignes écartées, 42 ms) ; écrite seule,
+    `Index Scan using anomaly_by_object`, `Index Cond: (object_id = $9)`, 1,0 ms ; paramètre `object` de
     `GET /v1/anomalies` (`Wanted` nommé, UUID au plus une fois, sinon 400 ; journalisé dans
     les critères de lecture) ; test `the_anomalies_of_one_object_read_by_its_filter`
     (pages d'un objet, avec `rule`, site hors domaine, objet illisible = objet inconnu,
@@ -2499,14 +2503,18 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     peut-être incomplète » et l'état vide « dans les pages lues » (clés `unreadable`,
     `unreadableText`, `partialTitle`, `partial`, `noneRead`), la prop `domain` de l'onglet ;
     Vitest (`anomalies.test.ts` : filtre `object`, site, vide, page suivante par la fenêtre,
-    curseur refusé ; `views.test.ts` : un site lu par `object`) ; parcours `anomalies`
-    (lecture par `object`, sans `domain`) sous les deux navigateurs ; contrat,
-    `schema.d.ts` et `filters.ts` des deux SDK régénérés
-  - choix : `object` hors de la barre de filtres de `/anomalies` (`LEFT_OUT_OF` de
-    `views/filters.ts`) : un identifiant que personne ne tape, filtre de l'onglet ; la
-    relance d'un curseur refusé reste unique (puis l'alerte), pour un objet comme pour un
-    domaine ; dans le Vitest de l'onglet, une mise en page simulée (`clientHeight`,
-    `getBoundingClientRect`) fait demander la page suivante par la fenêtre
+    curseur refusé ; `views.test.ts` : un site lu par `object`, `object` filtre texte de la
+    barre, gardé de l'URL à la requête, REQ-021-18) ; parcours `anomalies` (lecture par
+    `object`, sans `domain`) sous les deux navigateurs ; contrat, `schema.d.ts` et
+    `filters.ts` des deux SDK régénérés
+  - choix : `object` filtre texte de la barre de `/anomalies`, comme celui de
+    `/v1/audit-events` ; la relance d'un curseur refusé reste unique (puis l'alerte), pour
+    un objet comme pour un domaine ; dans le Vitest de l'onglet, une mise en page simulée
+    (`clientHeight`, `getBoundingClientRect`) fait demander la page suivante par la fenêtre
+  - reste : le filtre `$2` (domaine) de `open_page` garde la forme `$2 IS NULL OR …` (déjà
+    là avant la 11k), à mesurer en plan générique de même ; aucun test n'affirme qu'`object`
+    est écrit dans les critères de l'événement de lecture ; la mise en page simulée de
+    `anomalies.test.ts` dépend du balisage d'`AnomalyGrid` (`data-index` des lignes)
 - [x] 11l. `Gap` structuré côté serveur (A36) : `rule`, `resolved`, `expected`, `source` et
   révision au schéma ; `message` lisible, sans `{:?}` (`crates/kartenn-service/src/expected.rs`
   vers la ligne 471) — verify : `k-check -p kartenn-rest -p kartenn-service` (lacune
