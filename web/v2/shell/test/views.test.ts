@@ -126,8 +126,14 @@ describe("the model of the filters of a list", () => {
 
   it("asks the identifier of a domain or an entity on the anomalies", () => {
     const anomalies = listFilterModel("/v1/anomalies", [], WORDS);
-    expect(anomalies.map((p) => p.key)).toEqual(["rule", "domain", "entity"]);
+    expect(anomalies.map((p) => p.key)).toEqual(["rule", "domain", "entity", "object"]);
     expect(anomalies.find((p) => p.key === "entity")).toMatchObject({ type: "enum" });
+    // The object (021/A37), a text filter: the URL that holds it keeps it in the request.
+    expect(anomalies.find((p) => p.key === "object")).toMatchObject({ type: "text" });
+    const object = "0190a000-0000-7000-8000-000000000001";
+    const filters = filtersOfQuery(anomalies, { object });
+    expect(filters).toEqual([{ key: "object", operator: "eq", values: [object] }]);
+    expect(sentFilters("/v1/anomalies", anomalies, filters, [])).toEqual({ object });
     const gaps = listFilterModel("/v1/property-gaps", DECLARATIONS, WORDS);
     expect(gaps.find((p) => p.key === "property")!.options!.map((o) => o.value)).toContain(
       "dns.ttl",
@@ -536,6 +542,14 @@ describe("the routes of the referential", () => {
     // A type the catalogs lack: its key alone, never an empty cell.
     const alone = [...root.querySelectorAll("[data-state='key-only']")].map((el) => el.textContent);
     expect(alone.some((text) => text?.includes("novel"))).toBe(true);
+  });
+
+  it("keeps the object of the URL of the anomalies in its read (REQ-021-18)", async () => {
+    const object = "0b5e3c1a-0000-4000-8000-0000000000f2";
+    const { seen } = await mounted(`/anomalies?object=${object}`, () => page([]));
+    await expect.poll(() => seen.find((url) => url.startsWith("/v1/anomalies"))).toBeDefined();
+    const read = seen.find((url) => url.startsWith("/v1/anomalies"))!;
+    expect(new URL(read, "http://localhost").searchParams.get("object")).toBe(object);
   });
 
   it("reads the anomalies of a site, outside any domain, by its filter `object`", async () => {
