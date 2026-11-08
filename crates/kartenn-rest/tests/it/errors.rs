@@ -5,6 +5,7 @@
 //! of HTTP; the same 404 for an invisible object as for an absent one.
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use axum::Router;
@@ -593,6 +594,63 @@ async fn line_409_a_conflict(pool: PgPool) {
     expect(second, ProblemKind::IdempotencyInProgress).await;
     hold.commit().await.unwrap();
     assert_eq!(first.await.unwrap(), StatusCode::CREATED);
+}
+
+/// A write that fails after taking its idempotency key releases it before it answers
+/// (REQ-006-15, task 006-30): a pool slow to take its connections back, as under load,
+/// hands the replay another connection, and the replay must not find the key still held
+/// by the failed write, a 409 « in progress ».
+#[kartenn_testing::pg_test]
+async fn a_replay_right_after_a_failed_write_is_not_in_progress(pool: PgPool) {
+    let held = Arc::new(AtomicBool::new(false));
+    let slow = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(8)
+        .after_release({
+            let held = held.clone();
+            move |_, _| {
+                let held = held.clone();
+                Box::pin(async move {
+                    while held.load(Ordering::SeqCst) {
+                        tokio::time::sleep(Duration::from_millis(5)).await;
+                    }
+                    Ok(true)
+                })
+            }
+        })
+        .connect_with((*pool.connect_options()).clone())
+        .await
+        .unwrap();
+    // A failure the database does not see, so it does not end the transaction itself: an
+    // approval policy that does not decode (a null among its keys), read after the key is
+    // taken. (A failed statement aborts the transaction and releases its locks at once.)
+    sqlx::query(
+        "INSERT INTO approval_policy (id, name, property_keys)
+         VALUES (gen_random_uuid(), 'undecodable', ARRAY[NULL]::text[])",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let app = admin(&slow).await;
+    let body = lab(&["10.0.0.0/24"]);
+    // Every connection back in the pool; from now on, one given back stays out of it.
+    while slow.num_idle() < usize::try_from(slow.size()).unwrap() {
+        tokio::task::yield_now().await;
+    }
+    held.store(true, Ordering::SeqCst);
+    let failed = send(&app, keyed("same", &body)).await;
+    sqlx::query("DELETE FROM approval_policy")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let replayed = send(&app, keyed("same", &body)).await;
+    held.store(false, Ordering::SeqCst);
+    expect(failed, ProblemKind::Unavailable).await;
+    assert_eq!(
+        replayed.status(),
+        StatusCode::CREATED,
+        "the key released at once"
+    );
+    slow.close().await;
 }
 
 /// 412: an `ETag` gone stale, on a write of a sensitive value.
