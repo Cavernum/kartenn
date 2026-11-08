@@ -2655,7 +2655,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     description sortent de l'ordre de tabulation sans motif (relecture `a11y-auditor`, M14),
     à ouvrir dans `web/v2/ui` ; maquette `EcranSoumission` sans dates d'effet ni lecture
     seule.
-- [ ] 14e. Brouillon daté sous `valid_at` seul, reste (REQ-021-5, X5 ; relevé par la revue
+- [x] 14e. Brouillon daté sous `valid_at` seul, reste (REQ-021-5, X5 ; relevé par la revue
   de la 12c, réduit après la 14d, qui a levé le retrait et la soumission hors présent et
   préremplit `valid_from` au pied) : « Ajouter au brouillon » sous une date de validité
   simule à cette date (`web/v2/sdk/src/draft.ts` vers la ligne 100, aujourd'hui sans
@@ -2669,6 +2669,43 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/shell/src/draft/` (`state.ts` : `draftPeriods`, `periodBody` ;
     `DraftSubmit.vue`, `LostSubmissions.vue`), `web/v2/sdk/src/draft.ts`, `writesOf`
   - dépend de : 12c, 14d
+  - fait le 2026-11-08 — SDK (`data/drafts.ts`) : la période d'un brouillon gardée en
+    `sessionStorage` sous `PERIOD_KEY` + son identifiant (`period`, `setPeriod`, `onPeriod`,
+    `periodOf`) ; un ajout sous `valid_at` seul (`addOperations`, la création par
+    `addToActive`) date le brouillon qui n'a pas encore de période (`dateAddition`) ; la
+    période oubliée avec le brouillon (soumis, supprimé, parti) ; `instance.ts` lit le
+    contexte daté ; `draft.ts` : `moveInDraft` simule à `periodOf` (la même clé de cache
+    que le pied), un déplacement remplacé en place date aussi ; `host.ts` : `draftPeriod`
+    (hors API des plugins). Shell : `draftPeriods` (`state.ts`) lit et écrit par
+    `draftPeriod`, réactif par `onPeriod` ; `awaiting` (la soumission perdue du brouillon) :
+    sa période est celle envoyée, les dates du pied figées avec leur raison
+    (`drafts.period.frozen`) ; `LostSubmissions.vue` : « Réessayer » refusé sous `as_of`
+    (`drafts.why.past`). Vitest : `drafts.test.ts` (daté par l'ajout sous `valid_at`, gardé
+    au présent ; choix du pied gardé ; rien sous `as_of` ; oublié à la soumission et à la
+    suppression), `draft-move.test.ts` (simulé à la date de l'ajout, remplacé au présent),
+    `changesets.test.ts` (dates figées en attente de reprise ; période relue après un
+    rechargement, au présent ; « Réessayer » de l'encart refusé sous `as_of`). Parcours
+    `draft` : « under valid_at, an operation added then removed, another submitted at the
+    date of its addition back at the present » (`valid_from` du changeset à cette date).
+    `design.md` (`sdk.drafts`) dit la période gardée.
+  - choix : la période vit en `sessionStorage`, à côté du brouillon actif (le brouillon du
+    serveur n'en a pas, ajouter un champ serait un contrat) ; elle date du premier ajout et
+    ne suit plus le `valid_at` courant ; un brouillon vidé par un retrait la garde (le choix
+    du pied aussi) ; l'accès passe par `@kartenn/sdk/host`, non par `drafts` public ; un
+    ajout sous `as_of` ne date rien (refusé de toute façon) ; le scénario du parcours vit
+    dans `draft` (domaine propre, écritures isolées), `time` rejoué sans changement ; la
+    phrase des dates figées dit l'état puis la sortie (relectures).
+  - reste : sous `valid_at`, l'aperçu et l'état de brouillon des nœuds de la Topographie
+    (`TopologyView.vue`, `preview` et `nodeState`) restent réservés au présent : les ouvrir
+    demande une règle (la période du brouillon égale à la date lue, sinon l'aperçu mêlerait
+    deux dates), l'adresse ajoutée par « + » ne se voit qu'au compteur ; un brouillon repris
+    d'un autre onglet n'a pas la période de celui qui l'a daté (`sessionStorage` est par
+    onglet). Relevés par les relectures : en attente de reprise, le motif (`CommitForm`)
+    reste modifiable alors que « Réessayer » ne l'envoie pas (`ui-reviewer`) ; les segments
+    d'un `DateTimeField` en lecture seule ne portent pas l'aide (sa raison) dans leur
+    `aria-describedby`, seul le groupe la porte (à ouvrir dans `web/v2/ui`) ; « Réessayer »
+    disparu après une reprise réussie laisse le focus sur `body` (d'avant cette tâche) ;
+    le passage aux dates figées n'est pas annoncé (`a11y-auditor`).
 - [x] 12d. Créer sous `valid_at` seul (REQ-021-5, X5 ; relevé par la revue de la 12c) :
   « Créer » (`c`) des listes et « + » de la Topographie mènent au brouillon daté sous une
   date de validité, comme « Modifier » de la fiche ; « Appliquer » refusé avec sa raison ;
