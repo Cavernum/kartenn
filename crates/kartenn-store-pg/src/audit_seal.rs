@@ -84,6 +84,32 @@ pub async fn seal_once(
     instance: &Instance,
 ) -> Result<Option<Sealed>, StoreError> {
     let mut tx = pool.begin().await.map_err(store_err)?;
+    match seal_in(&mut tx, key, instance).await {
+        Ok(sealed) => {
+            tx.commit().await.map_err(store_err)?;
+            Ok(sealed)
+        }
+        Err(error) => {
+            // Rolled back before returning, not when the pool takes the connection back
+            // (which may come late, under load): the next pass, on another connection,
+            // would find the seal lock still held and seal nothing (task 012-24). Only an
+            // error raised here (an event without canonical form) leaves it held: on a
+            // database error, the server aborts the transaction and releases its locks.
+            if let Err(rollback) = tx.rollback().await {
+                tracing::warn!(error = %rollback, "audit seal: rollback after a failed pass");
+            }
+            Err(error)
+        }
+    }
+}
+
+/// [`seal_once`] inside its transaction, which commits on success (also when nothing is
+/// sealed: it keeps the floor raised by the pass).
+async fn seal_in(
+    tx: &mut PgConnection,
+    key: Option<&SealKey>,
+    instance: &Instance,
+) -> Result<Option<Sealed>, StoreError> {
     let locked: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock(hashtext($1))")
         .bind(SEAL_LOCK)
         .fetch_one(&mut *tx)
@@ -92,7 +118,7 @@ pub async fn seal_once(
     if !locked {
         return Ok(None);
     }
-    let floor = crate::floor::floor(&mut tx, "audit.seal", "seal", &UNSEALED)
+    let floor = crate::floor::floor(&mut *tx, "audit.seal", "seal", &UNSEALED)
         .await
         .map_err(store_err)?;
     let rows: Vec<EventRow> = sqlx::query_as(
@@ -107,11 +133,9 @@ pub async fn seal_once(
     .await
     .map_err(store_err)?;
     if rows.is_empty() {
-        // Keeps the floor raised by this pass.
-        tx.commit().await.map_err(store_err)?;
         return Ok(None);
     }
-    let previous = last_hash(&mut tx).await?;
+    let previous = last_hash(&mut *tx).await?;
     let members = hashes(&rows)?;
     let hash = batch_hash(&previous, &members);
     let id = Uuid::now_v7();
@@ -150,7 +174,6 @@ pub async fn seal_once(
         .iter()
         .all(|(_, _, _, json)| json["name"] == AUDIT_SEALED.name);
     if only_seals {
-        tx.commit().await.map_err(store_err)?;
         return Ok(Some(Sealed {
             seq,
             id,
@@ -171,7 +194,6 @@ pub async fn seal_once(
         event = event.detail(k, v).map_err(store_err)?;
     }
     crate::audit_journal::insert(&mut *tx, &event, instance).await?;
-    tx.commit().await.map_err(store_err)?;
     Ok(Some(Sealed {
         seq,
         id,
