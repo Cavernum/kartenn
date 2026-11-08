@@ -749,11 +749,19 @@ async fn suggestion(
 
 // ---------------------------------------------------------------- deviations
 
-/// The property a deviation is about: its message starts with its key.
+/// The property a deviation is about: the one its detail names, as the `property` filter
+/// reads it (021/A39); failing a detail, the key its message starts with, so that the
+/// message of a sensitive property stays masked.
 fn gap_property(anomaly: &Anomaly) -> Option<&str> {
-    (anomaly.rule_id == PROP_EXPECTED_MISMATCH.id)
-        .then(|| anomaly.message.split_once(':').map(|(key, _)| key))
-        .flatten()
+    if anomaly.rule_id != PROP_EXPECTED_MISMATCH.id {
+        return None;
+    }
+    anomaly
+        .detail
+        .as_ref()
+        .and_then(|d| d.get("property"))
+        .and_then(Value::as_str)
+        .or_else(|| anomaly.message.split_once(':').map(|(key, _)| key))
 }
 
 /// Replaces the message of each deviation of a sensitive property that the caller may not
@@ -966,6 +974,12 @@ mod tests {
         );
         assert_eq!(gap_property(&gap), Some("dns.ttl"));
         assert_eq!(gap_property(&anomaly("core.other", "dns.ttl: …")), None);
+        // Its detail first, as the `property` filter reads it.
+        let detailed = Anomaly {
+            detail: Some(json!({ "property": "dns.zone" })),
+            ..gap
+        };
+        assert_eq!(gap_property(&detailed), Some("dns.zone"));
     }
 
     #[test]

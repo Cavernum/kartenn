@@ -23,9 +23,22 @@ const VERSIONED: [&str; 8] = [
     "vlan",
 ];
 
+/// The property a violation is about, the `property` member of its detail; `""` for one
+/// that names none. With its rule and its object, the identity of its anomaly: the key of
+/// `anomaly_one_open` (migration 0076, 021/A39), which this mirrors.
+fn property_of(v: &Violation) -> &str {
+    v.detail
+        .as_ref()
+        .and_then(|d| d.get("property"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+}
+
 /// Records the warnings of an applied changeset: anomalies that fire are opened or
 /// refreshed; on the `(object, rule-id prefix)` pairs it evaluated anew, those that no
 /// longer fire are closed. An anomaly of a rule the changeset did not evaluate stays open.
+/// An anomaly is one per rule, object and property ([`property_of`]): two properties in
+/// deviation on one object are two anomalies, closed one by one.
 ///
 /// # Errors
 ///
@@ -40,36 +53,40 @@ pub async fn record(
         .iter()
         .map(|(o, prefix)| (*o, (*prefix).to_owned()))
         .unzip();
-    let mut firing: BTreeMap<(Uuid, &str), &Violation> = BTreeMap::new();
+    let mut firing: BTreeMap<(Uuid, &str, &str), &Violation> = BTreeMap::new();
     for v in violations
         .iter()
         .filter(|v| v.rule.severity == Severity::Warning)
     {
         if let Some(&object) = v.subjects.first() {
-            firing.insert((object, v.rule.id), v);
+            firing.insert((object, v.rule.id, property_of(v)), v);
         }
     }
-    let rules: Vec<String> = firing.keys().map(|(_, r)| (*r).to_owned()).collect();
-    let objects: Vec<Uuid> = firing.keys().map(|(o, _)| *o).collect();
+    let objects: Vec<Uuid> = firing.keys().map(|(o, _, _)| *o).collect();
+    let rules: Vec<String> = firing.keys().map(|(_, r, _)| (*r).to_owned()).collect();
+    let properties: Vec<String> = firing.keys().map(|(_, _, p)| (*p).to_owned()).collect();
     // Only the rules evaluated anew on an object can tell that its anomaly is gone.
     sqlx::query(
         "UPDATE anomaly a SET closed_at = now()
          FROM unnest($1::uuid[], $2::text[]) AS s(object_id, prefix)
          WHERE a.closed_at IS NULL AND a.object_id = s.object_id
            AND starts_with(a.rule_id, s.prefix)
-           AND (a.object_id, a.rule_id) NOT IN (SELECT * FROM unnest($3::uuid[], $4::text[]))",
+           AND (a.object_id, a.rule_id, coalesce(a.detail ->> 'property', '')) NOT IN
+               (SELECT * FROM unnest($3::uuid[], $4::text[], $5::text[]))",
     )
     .bind(&scope_objects)
     .bind(&scope_rules)
     .bind(&objects)
     .bind(&rules)
+    .bind(&properties)
     .execute(&mut **tx)
     .await?;
-    for ((object, rule), v) in firing {
+    for ((object, rule, _), v) in firing {
         sqlx::query(
             "INSERT INTO anomaly (rule_id, object_id, message, detail, opened_by)
              VALUES ($1, $2, $3, $4, $5)
-             ON CONFLICT (rule_id, object_id) WHERE closed_at IS NULL
+             ON CONFLICT (rule_id, object_id, (coalesce(detail ->> 'property', '')))
+                 WHERE closed_at IS NULL
              DO UPDATE SET message = EXCLUDED.message, detail = EXCLUDED.detail",
         )
         .bind(rule)
@@ -154,8 +171,8 @@ pub struct AnomalyFilter<'a> {
     /// One entity: the entity, its descendants, and the objects whose resolved owner
     /// (`core.owner`) is one of them now.
     pub entity: Option<Uuid>,
-    /// One property: the anomalies whose message starts with `<key>:`, as those of
-    /// `prop.resolution.expected_mismatch` do (spec 006, `GET /v1/property-gaps`).
+    /// One property: the anomalies whose detail names it, as those of
+    /// `prop.resolution.expected_mismatch` do (spec 006, `GET /v1/property-gaps`; 021/A39).
     pub property: Option<&'a str>,
 }
 
@@ -230,7 +247,7 @@ pub async fn open_page(
                    WHERE p.object_id = a.object_id AND p.valid_period @> now()
                      AND p.property_id IN (SELECT id FROM property_declaration WHERE key = 'core.owner')
                      AND v.v_uuid IN (SELECT id FROM sub)))
-           AND ($5::text IS NULL OR left(a.message, length($5) + 1) = $5 || ':')
+           AND ($5::text IS NULL OR a.detail ->> 'property' = $5)
            {keyset}
          ORDER BY a.opened_at, a.id
          LIMIT $8::bigint",

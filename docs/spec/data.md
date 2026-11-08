@@ -165,7 +165,9 @@ l'audit garde les anciens noms.
   avec un motif, rouvert quand l'objet change, clos quand la règle ne se déclenche plus ;
   listées par règle, domaine et entité (REQ-002-36). Leur `detail` (`jsonb`, migration
   0075 ; 021/A39) structure les valeurs que cite le message, écrit et rafraîchi avec lui ;
-  pour une lacune, `{property, resolved, expected, source, revision}`.
+  pour une lacune, `{property, resolved, expected, source, revision}`. Une seule anomalie
+  ouverte par règle, objet et propriété de son `detail` (`anomaly_one_open`, migration
+  0076) : deux propriétés en écart sur un objet sont deux lacunes.
 - L'**outbox** reçoit, dans la même transaction, un événement CloudEvents 1.0 par
   changeset appliqué (`org.kartenn.changeset.applied`, `id` = UUID du changeset ;
   données : changeset, domaines, objets, auteur, valideur, résumé du différentiel) et un

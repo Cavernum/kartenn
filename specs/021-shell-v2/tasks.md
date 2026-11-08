@@ -2521,7 +2521,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     réponse (le `detail` y est posé par un `UPDATE`), ni ne sert les valeurs d'une
     propriété sensible à qui a le droit de la lire ; l'exemple de la 11j (vers la
     ligne 2478) cite encore l'ancien format `expected [Text("prod")]`
-- [ ] 11n. Une lacune par (objet, propriété) (A39, relevé par la 11l) : l'identité d'une
+- [x] 11n. Une lacune par (objet, propriété) (A39, relevé par la 11l) : l'identité d'une
   anomalie `prop.resolution.expected_mismatch` porte la clé de la propriété, pour que deux
   propriétés en écart sur un même objet ouvrent deux lacunes (index `anomaly_one_open`,
   `BTreeMap` de `anomalies::record`) ; le filtre `property` lit `detail` et non plus le
@@ -2530,6 +2530,32 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `crates/kartenn-store-pg/migrations/` (index), `crates/kartenn-store-pg/src/anomalies.rs`,
     `crates/kartenn-rest/src/properties.rs`
   - dépend de : 11l
+  - fait : migration 0076 (`anomaly_one_open` sur `(rule_id, object_id,
+    coalesce(detail ->> 'property', ''))`) ; `anomalies::record` clé son `BTreeMap` et sa
+    fermeture par (objet, règle, propriété) (`property_of`, miroir de l'index), son
+    `ON CONFLICT` nomme la même expression ; filtre `property` sur
+    `detail ->> 'property'` ; `gap_property` lit le détail d'abord. Tests
+    `two_properties_in_deviation_are_two_gaps` (`kartenn-store-pg`, nouveau module
+    `tests/it/anomalies.rs` : deux lacunes, filtre, l'une corrigée close, l'autre reste
+    rafraîchie), `a_deviation_of_a_sensitive_property_hides_its_value` (deux lacunes sur
+    un même objet, l'une masquée), `a_deviation_names_its_property` ; `docs/spec/data.md`,
+    A39
+  - choix : une lacune ouverte avant 0075 (sans `detail`) reçoit dans la migration
+    `{property}`, la clé que son message cite en tête (une clé n'a pas de `:`, REQ-003-2) :
+    elle garde son identité, son acquittement et son ouverture à sa réévaluation, et le
+    filtre `property` la trouve ; ses valeurs restent `null` jusque-là. Index d'expression
+    plutôt qu'une colonne de plus ; la clé est générique (`property` du détail, `''` sans
+    elle), une règle qui n'en nomme pas garde une anomalie par objet. `gap_property`
+    retombe sur le préfixe du message sans détail, pour que le masquage d'une propriété
+    sensible tienne en toute circonstance
+  - reste (relevés par la revue) : le rattrapage de 0076 n'a pas de test (le harnais
+    migre jusqu'au bout avant un test), et rien ne prouve qu'une lacune antérieure à 0075
+    garde identité et acquittement à sa réévaluation ; `property_of` lit
+    `as_str().unwrap_or_default()`, qui diverge de `->>` pour une `property` non textuelle
+    (théorique, `expected.rs` écrit toujours une chaîne) ; le test du store passe la portée
+    `"prop.resolution."` et non `PROP_EXPECTED_MISMATCH.id` comme le code réel ; une
+    lacune antérieure à 0075 a désormais un `detail` (`{property}`), la 11m ne la
+    reconnaît qu'à l'absence de `source`
 - [ ] 11m. Lacune composée par l'écran (A36) : `GapList` dit la règle par son code, les
   valeurs attendue et résolue par leur libellé (`KeyLabel`), la source et sa révision ; le
   parcours `anomalies` n'assertit plus le texte anglais du serveur — verify : Vitest de
