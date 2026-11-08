@@ -2,7 +2,8 @@
 //! late commit; file and syslog outputs (spec 012, REQ-012-15, 26; task 012-11).
 
 use std::future::Future;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use kartenn_core::audit::{OBJECTS_READ, Outcome};
 use kartenn_service::audit::{AuditJournal, AuditSink, Instance, RequestContext, SinkError};
@@ -94,6 +95,48 @@ async fn an_outage_delays_without_loss_or_gap(pool: PgPool) {
         (7, 7),
         "each event once, all of them"
     );
+}
+
+/// A rejected pass releases its relay lock before it returns (task 012-23): a pool slow
+/// to take its connections back, as under load, hands the next pass another connection,
+/// and that pass must not find the lock still held by the rejected one.
+#[kartenn_testing::pg_test]
+async fn a_pass_right_after_a_rejection_relays(pool: PgPool) {
+    let held = Arc::new(AtomicBool::new(false));
+    let slow = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(2)
+        .after_release({
+            let held = held.clone();
+            move |_, _| {
+                let held = held.clone();
+                Box::pin(async move {
+                    while held.load(Ordering::SeqCst) {
+                        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                    }
+                    Ok(true)
+                })
+            }
+        })
+        .connect_with((*pool.connect_options()).clone())
+        .await
+        .unwrap();
+    let sink = Flaky::default();
+    *sink.down.lock().unwrap() = true;
+    record(&slow, 2).await;
+    // Every connection back in the pool; from now on, one given back stays out of it.
+    while slow.num_idle() < usize::try_from(slow.size()).unwrap() {
+        tokio::task::yield_now().await;
+    }
+    held.store(true, Ordering::SeqCst);
+    assert!(matches!(
+        relay_once(&slow, &sink, 500).await,
+        Err(RelayError::Sink { .. })
+    ));
+    *sink.down.lock().unwrap() = false;
+    let relayed = relay_once(&slow, &sink, 500).await;
+    held.store(false, Ordering::SeqCst);
+    assert_eq!(relayed.unwrap(), 2, "offered again at once");
+    slow.close().await;
 }
 
 #[kartenn_testing::pg_test]

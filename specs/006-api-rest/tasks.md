@@ -594,3 +594,18 @@ routeur complet, sauf mention « vrai TCP ».
   dans l'historique et les explications) ; un flux en revue d'une page ne porte pas de
   version (il montre l'état proposé) ; une requête de plus par page (`object_version` par
   clé primaire au présent) ; banc non relancé
+- [ ] 30. Clé d'idempotence libérée dès l'échec d'une écriture (REQ-006-15 ; relevé par la
+  revue de la 012-23, à vérifier) : si une écriture échoue pendant que sa clé est tenue
+  par `pg_try_advisory_xact_lock` (`replay`, `crates/kartenn-store-pg/src/write.rs` vers
+  la ligne 1187) et que la transaction est lâchée sans annulation explicite, sqlx ne fait
+  que mettre le `ROLLBACK` en file : un client qui rejoue aussitôt la même clé peut lire
+  un 409 « en cours » à tort. `pipeline.rs` annule explicitement sur certaines branches
+  (vers les lignes 2024 à 2049) ; vérifier toutes les sorties en erreur après la prise de
+  la clé, annuler explicitement là où il le faut, et le prouver — verify :
+  `k-check -p kartenn-store-pg -p kartenn-rest` (un rejeu immédiat après une écriture en
+  erreur n'est pas un 409, sous un pool dont `after_release` retient les connexions
+  rendues)
+  - où : `crates/kartenn-store-pg/src/{write,pipeline}.rs` ; imiter `audit_relay.rs`
+    (`relay_once`, 012-23) et `crates/kartenn-telemetry/tests/it/audit_export.rs`
+    (`a_pass_right_after_a_rejection_relays`)
+  - dépend de : —
