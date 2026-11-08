@@ -2642,7 +2642,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/shell/src/draft/` (`state.ts` : `draftPeriods`, `periodBody` ;
     `DraftSubmit.vue`, `LostSubmissions.vue`), `web/v2/sdk/src/draft.ts`, `writesOf`
   - dépend de : 12c, 14d
-- [ ] 12d. Créer sous `valid_at` seul (REQ-021-5, X5 ; relevé par la revue de la 12c) :
+- [x] 12d. Créer sous `valid_at` seul (REQ-021-5, X5 ; relevé par la revue de la 12c) :
   « Créer » (`c`) des listes et « + » de la Topographie mènent au brouillon daté sous une
   date de validité, comme « Modifier » de la fiche ; « Appliquer » refusé avec sa raison ;
   rien sous `as_of` ; la raison d'une cellule sous `valid_at` dit le brouillon daté, et
@@ -2651,6 +2651,35 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/shell/src/views/{ListView,TopologyView}.vue`, `shortcuts/view.ts`
     (`dated`), `views/edit/` ; `writesOf`
   - dépend de : 12c
+  - fait le 2026-11-08 — `ListView.vue` : `c` (« Créer ») et `e` (la ligne) marqués `dated`,
+    joués sous `valid_at` seul (le panneau d'édition, `useWriteAction` de la 12c refuse
+    « Appliquer » avec `edit.why.dated`), jamais sous `as_of` ; `TopologyView.vue` :
+    `addRefusal` (« + » de l'arbre et « Ajouter dans » du contenu) ne refuse plus que sous
+    `as_of` (`writesOf(...).draft`, raison `edit.why.past`), `c` et `e` marqués `dated` ;
+    `fields.ts` : `editability` prend les `Writes` (`time/index.ts`, type exporté) et
+    distingue `past` (`as_of`, avant les droits) de `dated` (`valid_at` seul, après les
+    droits : un lecteur lit la permission qui lui manque, non un brouillon qu'il ne peut
+    écrire) ; `whyWords` (`inline.ts`) et `EditHint.vue` disent `edit.why.inPlaceDated`
+    (« Lecture datée : rien ne se modifie en place, « Modifier » mène au brouillon daté. »).
+    Vitest : `dated-create.test.ts` (la liste et la Topographie montées sous `valid_at`,
+    `as_of`, les deux, le présent : `runnable` de `c` et `e`, le « + » et « Ajouter dans »
+    ouverts puis refusés avec leur raison, la demande `create` du panneau) ;
+    `edit.test.ts` (`editability` par période, lecteur compris ; la cellule `dated` sous
+    `valid_at`, `past` sous `as_of`). Parcours `time` : « under a validity date alone,
+    « Créer » of a list and the « + » of the topography go to the dated draft » (la cellule
+    qui dit le brouillon daté, `c` sur `/addresses` et « Appliquer » refusé, le « + » d'un
+    réseau au clavier jusqu'à « Brouillon 1 opération », le « + » refusé sous `as_of`).
+  - choix : `e` des lignes d'une liste et du nœud choisi de la Topographie marqués `dated`
+    aussi (la raison de la cellule renvoie à « Modifier », qui doit alors jouer) ; la
+    phrase de la cellule nomme « Modifier » sans la touche `e` (dans l'onglet Contenu d'une
+    fiche, `e` modifie la fiche, non la ligne) ; sous `as_of`, `past` l'emporte sur un droit
+    manquant (comme avant) ; aucun changement à `draft/` ni au SDK (14e).
+  - reste : `c` et `e` refusés restent muets au clavier (sous `as_of`, ou sans le droit) :
+    la liste n'a pas de bouton « Créer » qui porte la raison, et aucun statut ne la dit
+    (relecture `a11y-auditor`, déjà notée par la 12c) ; dans l'onglet Contenu d'une fiche
+    et le contenu d'un nœud, « Modifier » de la phrase désigne la fiche ou le nœud choisi,
+    non la ligne (relecture `ui-reviewer`) ; la simulation d'un ajout sous `valid_at` reste
+    au présent (14e).
 - [x] 16h. « À propos » et actions des plugins, reste prouvé : versions (shell, SDK,
   `@kartenn/ui`, Vue, serveur) et fuseau horaire affichés ; une action de plugin absente
   sans sa permission — verify : parcours `shell` et `plugins` sous les deux navigateurs ;
