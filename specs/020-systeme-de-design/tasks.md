@@ -1438,7 +1438,11 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     navigateurs pour un `treeitem` sans `aria-setsize` parmi des frères qui en ont un est
     à écouter au lecteur d'écran ; dans un `TreeGrid` qui défile en largeur, l'avis passe à
     la ligne à la largeur de la ligne entière (borner à la largeur visible demanderait un
-    jeton `100cqi`).
+    jeton `100cqi`). Relevés par la revue : une page qui n'apporterait que l'avis
+    (`count === 0`, `treePages.ts` vers la ligne 70) ne serait pas dite et laisserait la
+    liste en attente (impossible dans la Topographie, non couvert par le contrat
+    générique) ; `pending` (`treeStates.ts` vers la ligne 85) passe encore par `nodeOf` et
+    non `objectOf` ; le test monté ne vérifie pas `defaultPrevented` sur l'Espace d'un avis.
 - [ ] 28. Synchronisation : `docs/spec/` (architecture web : `@kartenn/ui`, couches,
   catalogue) ; ADR 0036, 0038, 0039 acceptées ;
   `specs/README.md` ; audit `spec-keeper` — verify : liens croisés ; aucun écart
