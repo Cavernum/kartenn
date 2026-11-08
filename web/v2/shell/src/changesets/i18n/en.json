@@ -151,6 +151,7 @@
       "to": "Effective until",
       "toHint": "Empty: no end.",
       "order": "The end of the effect must follow its start.",
+      "frozen": "Dates fixed: “Retry” replays the unanswered submission as sent; they change once it is answered.",
       "now": "effective now",
       "since": "effective from {from}",
       "until": "effective until {to}",

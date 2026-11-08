@@ -672,8 +672,19 @@ describe("the screens of the changesets and the drafts", () => {
     expect(simulated.body).toEqual({ valid_from: at, valid_to: end });
     main(root).click();
     await expect.poll(() => button(root, "Réessayer")).toBeDefined();
-    // Changed after the lost answer: the replay sends what was sent, under its key.
+    // Awaiting its retry, the dates of the foot are fixed, their reason said.
+    const segments = [...root.querySelectorAll(".k-draft-submit [role='spinbutton']")];
+    expect(segments.length).toBeGreaterThan(0);
+    for (const segment of segments) expect(segment.getAttribute("aria-readonly")).toBe("true");
+    expect(root.querySelector(".k-draft-submit")?.textContent).toContain(
+      "Dates figées : « Réessayer » rejoue telle quelle",
+    );
+    // Changed after the lost answer: the foot keeps showing, and the replay sends, what was
+    // sent, under its key.
     draftPeriods.set(D1, { valid_from: at });
+    await expect
+      .poll(() => root.querySelector(".k-draft-submit__result")?.textContent, { timeout: 3000 })
+      .toContain("effet du ");
     button(root, "Réessayer")!.click();
     await expect.poll(() => submissions).toBe(2);
     const [first, again] = seen.filter((s) => s.url.includes("/submission"));
@@ -713,6 +724,48 @@ describe("the screens of the changesets and the drafts", () => {
     const why = summary.getAttribute("aria-describedby")!;
     expect(document.getElementById(why)?.textContent).toContain("date passée");
     expect(button(root, "Choisir les dates d'effet")!.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("the period kept with the draft, a reload included: back at the present, simulated at it", async () => {
+    const at = "2031-03-01T08:00:00Z";
+    // As the SDK keeps it for the tab after an addition under `valid_at` (`PERIOD_KEY`).
+    sessionStorage.setItem(`kartenn.draft.period.${D1}`, JSON.stringify({ valid_from: at }));
+    const { seen, root } = await mounted(
+      `/drafts/${D1}`,
+      ["core.prefix.edit", "core.prefix.approval.self"],
+      (call) =>
+        call.url.endsWith("/simulation") ? { body: valid } : { body: draft(OPS), etag: '"1"' },
+    );
+    await expect
+      .poll(() => seen.find((s) => s.url.endsWith("/simulation"))?.body, { timeout: 3000 })
+      .toEqual({ valid_from: at });
+    await expect
+      .poll(() => root.querySelector(".k-draft-submit__result")?.textContent)
+      .toContain("effet à partir du");
+  });
+
+  it("under as_of, « Réessayer » of a submission lost past the foot is refused with its reason", async () => {
+    lostSubmissions.keep({
+      id: D1,
+      key: "0b5e3c1a-0000-4000-8000-0000000000f1",
+      approvalSelf: true,
+      title: "perdu",
+      period: {},
+    });
+    const { seen, root } = await mounted(
+      "/panel?as_of=2026-01-01T00:00:00Z",
+      ["core.prefix.edit", "core.prefix.approval.self"],
+      () => ({ body: draft(OPS), etag: '"1"' }),
+    );
+    await expect.poll(() => root.textContent).toContain("n'a pas eu de réponse");
+    const retry = button(root, "Réessayer")!;
+    expect(retry.getAttribute("aria-disabled")).toBe("true");
+    const why = retry.getAttribute("aria-describedby")!;
+    expect(document.getElementById(why)?.textContent).toContain("date passée");
+    retry.click();
+    await nextTick();
+    expect(seen.filter((s) => s.url.includes("/submission"))).toHaveLength(0);
+    expect(lostSubmissions.get(D1)).toBeDefined();
   });
 
   it("a plugin's draft.add opens the draft; the shell's own additions do not", async () => {

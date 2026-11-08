@@ -9,7 +9,9 @@
 // `valid_to`) stay behind a button until asked for or set — `valid_from` set from the date
 // read under `valid_at` (REQ-021-5) —; the simulation and the submission read them, the
 // sentence of the result says them. The submission keeps its idempotency key and its period
-// until an answer: a retry after a lost answer replays them (REQ-006-15). An answer is said
+// until an answer: a retry after a lost answer replays them (REQ-006-15), the dates fixed
+// meanwhile, with their reason. The dates are kept with the draft, from the date of its first
+// addition under `valid_at`, back at the present too (`draftPeriods`). An answer is said
 // by a toast (applied, in review with its reason), a refusal here. Under `as_of` nothing is
 // written: the fields and the actions are refused with their reason.
 import { drafts, type DraftSubmitOutcome } from "@kartenn/sdk";
@@ -32,13 +34,7 @@ import { useProblems } from "../problems/index.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
 import type { Refusal } from "../views/edit/inline.ts";
 import { useSay } from "../views/edit/say.ts";
-import {
-  draftPeriods,
-  lostSubmissions,
-  submitDraft,
-  useDraftQueries,
-  type DraftAction,
-} from "./state.ts";
+import { draftPeriods, submitDraft, useDraftQueries, type DraftAction } from "./state.ts";
 
 const props = defineProps<{ id: string | null }>();
 const { t } = useI18n();
@@ -50,6 +46,7 @@ const {
   draft,
   operations,
   writable,
+  awaiting,
   period,
   simulated,
   simulation,
@@ -59,7 +56,11 @@ const {
   preferred,
 } = useDraftQueries(() => props.id);
 
-// The dates of effect, kept by draft for the page's life (`draftPeriods`).
+// The dates of effect, kept with the draft (`draftPeriods`); fixed while a submission
+// without an answer awaits its retry, which replays them as sent.
+const periodWhy = computed(() =>
+  !writable.value ? t("drafts.why.past") : awaiting.value ? t("drafts.period.frozen") : undefined,
+);
 const validFrom = computed<string | null>({
   get: () => period.value.valid_from ?? null,
   set: (value) => {
@@ -202,10 +203,9 @@ async function run(): Promise<void> {
   }
 }
 
-/** The submission that got no answer, if one: « Réessayer » replays it as it was. */
-const lostOne = computed(() => (props.id ? lostSubmissions.get(props.id) : undefined));
+/** The submission that got no answer, if one (`awaiting`): « Réessayer » replays it as it was. */
 async function retry(): Promise<void> {
-  const replay = lostOne.value;
+  const replay = awaiting.value;
   if (!replay || busy.value || !writable.value) return;
   busy.value = true;
   refusal.value = undefined;
@@ -282,8 +282,8 @@ const failedSimulation = computed(() =>
           variant="ghost"
           size="sm"
           icon="calendar"
-          v-bind="writable ? {} : { reason: t('drafts.why.past') }"
-          @click="writable && askPeriod()"
+          v-bind="periodWhy ? { reason: periodWhy } : {}"
+          @click="!periodWhy && askPeriod()"
           >{{ t("drafts.period.ask") }}</Button
         >
       </span>
@@ -292,23 +292,23 @@ const failedSimulation = computed(() =>
           ref="fromField"
           v-model="validFrom"
           :label="t('drafts.period.from')"
-          :hint="writable ? t('drafts.period.fromHint') : t('drafts.why.past')"
-          :readonly="!writable"
+          :hint="periodWhy ?? t('drafts.period.fromHint')"
+          :readonly="periodWhy !== undefined"
           size="sm"
         />
         <DateTimeField
           ref="toField"
           v-model="validTo"
           :label="t('drafts.period.to')"
-          :hint="writable ? t('drafts.period.toHint') : t('drafts.why.past')"
+          :hint="periodWhy ?? t('drafts.period.toHint')"
           :error="orderError"
-          :readonly="!writable"
+          :readonly="periodWhy !== undefined"
           size="sm"
         />
       </Stack>
       <Cluster justify="end" gap="2">
         <Button
-          v-if="lostOne"
+          v-if="awaiting"
           variant="ghost"
           icon="refresh-cw"
           :loading="busy"

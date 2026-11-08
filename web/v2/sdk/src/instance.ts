@@ -42,7 +42,10 @@ export const invalidation = createInvalidation(queryClient, reads);
 
 export const writes = createWrites({ client: api, queryClient, invalidation });
 
-/** The drafts of the server (spec 024 § A); the active one of the tab in `sessionStorage`. */
+/**
+ * The drafts of the server (spec 024 § A); the active one of the tab in `sessionStorage`,
+ * the period of each too, dated by an addition under the `valid_at` of the context.
+ */
 export const drafts = createDrafts({
   client: api,
   queryClient,
@@ -50,6 +53,7 @@ export const drafts = createDrafts({
   invalidation,
   writes,
   storage: () => (typeof sessionStorage === "undefined" ? null : sessionStorage),
+  time: () => context.get().time,
 });
 
 /** The counters of the home page (`GET /v1/stats`, spec 024 § C), read again on `stats`. */

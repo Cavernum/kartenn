@@ -94,10 +94,13 @@ export async function moveInDraft(
         })
       : await add([op]);
   if (added.kind !== "saved") return added;
+  // A move replaced in place is an addition too: under `valid_at` alone it dates the draft.
+  if (earlier >= 0) drafts.dateAddition(added.draft.id);
   saved?.(added.draft);
   const index = earlier >= 0 ? earlier : (added.draft.operations?.length ?? 1) - 1;
+  // Simulated at the period of the draft, as its foot does: from the date of its addition.
   const simulated = await queryClient
-    .fetchQuery(drafts.simulate(added.draft))
+    .fetchQuery(drafts.simulate(added.draft, drafts.periodOf(added.draft.id)))
     .then((answer) => ({ answer }))
     .catch((error: unknown) => ({ error }));
   if ("error" in simulated) {

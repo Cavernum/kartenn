@@ -151,6 +151,7 @@
       "to": "Effet jusqu'au",
       "toHint": "Vide : sans fin.",
       "order": "La fin de l'effet doit suivre son début.",
+      "frozen": "Dates figées : « Réessayer » rejoue telle quelle la soumission sans réponse ; elles se changent une fois sa réponse reçue.",
       "now": "effet au présent",
       "since": "effet à partir du {from}",
       "until": "effet jusqu'au {to}",

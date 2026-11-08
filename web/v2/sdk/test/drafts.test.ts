@@ -8,6 +8,7 @@ import { FRESHNESS, type Entry } from "../src/data/cache.ts";
 import {
   ACTIVE_KEY,
   createDrafts,
+  PERIOD_KEY,
   SIMULATION_WAIT,
   type Draft,
   type Gone,
@@ -98,11 +99,14 @@ function setup(answer: (request: Seen) => Response | undefined = () => undefined
   const invalidation = createInvalidation(cache.queryClient, cache.reads);
   const writes = createWrites({ ...cache, invalidation, pause: async () => undefined });
   const storage = memory();
+  /** The dated context of the tab, as the shell pushes it. */
+  const time = { validAt: null as string | null, asOf: null as string | null };
   const drafts = createDrafts({
     ...cache,
     invalidation,
     writes,
     storage: () => storage,
+    time: () => time,
     title: () => "untitled",
   });
   /** Another tab changes the draft. */
@@ -111,7 +115,7 @@ function setup(answer: (request: Seen) => Response | undefined = () => undefined
   };
   const stale = (key: readonly unknown[]) =>
     cache.queryClient.getQueryState(key)?.isInvalidated ?? false;
-  return { ...cache, held, drafts, storage, touch, stale };
+  return { ...cache, held, drafts, storage, time, touch, stale };
 }
 
 const close = { op: "close", target: { id: P1 } } as never;
@@ -246,6 +250,7 @@ describe("the active draft of the tab (sessionStorage) and draft.add", () => {
       ...s,
       invalidation: createInvalidation(s.queryClient, s.reads),
       writes: { submitted: async () => undefined },
+      time: () => s.time,
       storage: () => {
         throw new DOMException("denied", "SecurityError");
       },
@@ -253,6 +258,56 @@ describe("the active draft of the tab (sessionStorage) and draft.add", () => {
     expect(drafts.active()).toBeNull();
     expect(await drafts.addToActive([close])).toMatchObject({ kind: "saved" });
     expect(drafts.active()).toBeNull();
+  });
+});
+
+describe("the period of a draft, kept with it (REQ-021-5)", () => {
+  const AT = "2031-03-01T08:00:00Z";
+
+  it("an addition under valid_at alone dates its draft: kept in sessionStorage, back at the present", async () => {
+    const s = setup();
+    const changed: string[] = [];
+    s.drafts.onPeriod((id) => changed.push(id));
+    // At the present: no date kept, the draft follows the date read.
+    await s.drafts.addToActive([close]);
+    expect(s.drafts.period(D1)).toBeNull();
+    s.time.validAt = AT;
+    expect(s.drafts.periodOf(D1)).toEqual({ valid_from: AT });
+    // Under `valid_at`: the date of the addition stays, the time read changed after it.
+    await s.drafts.addToActive([close]);
+    expect(JSON.parse(s.storage.map.get(PERIOD_KEY + D1)!)).toEqual({ valid_from: AT });
+    s.time.validAt = "2032-01-01T00:00:00Z";
+    await s.drafts.addToActive([close]);
+    s.time.validAt = null;
+    expect(s.drafts.periodOf(D1)).toEqual({ valid_from: AT });
+    expect(changed).toEqual([D1]);
+  });
+
+  it("the foot's choice is kept as set, its empty dates left out; under as_of nothing dates", async () => {
+    const s = setup();
+    s.time.validAt = AT;
+    s.time.asOf = "2026-01-01T00:00:00Z";
+    await s.drafts.addToActive([close]);
+    expect(s.drafts.period(D1)).toBeNull();
+    s.time.asOf = null;
+    s.drafts.setPeriod(D1, { valid_from: null, valid_to: "2031-06-30T22:00:00Z" });
+    expect(s.drafts.period(D1)).toEqual({ valid_to: "2031-06-30T22:00:00Z" });
+    // A choice made, the next dated addition leaves it.
+    await s.drafts.addToActive([close]);
+    expect(s.drafts.periodOf(D1)).toEqual({ valid_to: "2031-06-30T22:00:00Z" });
+  });
+
+  it("forgotten with its draft: submitted, or deleted", async () => {
+    const s = setup();
+    s.time.validAt = AT;
+    await s.drafts.addToActive([close]);
+    expect(s.drafts.period(D1)).toEqual({ valid_from: AT });
+    await s.drafts.submit(D1, { approvalSelf: true, period: { valid_from: AT } });
+    expect(s.storage.map.has(PERIOD_KEY + D1)).toBe(false);
+    await s.drafts.addToActive([close]);
+    expect(s.drafts.period(D2)).toEqual({ valid_from: AT });
+    await s.drafts.remove(D2);
+    expect(s.drafts.period(D2)).toBeNull();
   });
 });
 
