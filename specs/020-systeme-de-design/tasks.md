@@ -1405,7 +1405,7 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
     n'ont pas de refus à motif ; doublons `disabled: true` + `reason` hors des appelants
     relevés, inoffensifs (`draft/DraftsView.vue:107` et `:116`, `draft/state.ts:180`,
     `views/RecordView.vue:145`).
-- [ ] 32. Ligne d'avis d'un niveau plafonné dans les arbres (relevé par la revue de la
+- [x] 32. Ligne d'avis d'un niveau plafonné dans les arbres (relevé par la revue de la
   021-24e) : un nœud marqué comme avis (par exemple `kind: "notice"` ou `capped`) ne compte
   ni dans `aria-setsize` ni dans l'annonce des enfants arrivés (`treePages.ts` vers la
   ligne 38), ne se sélectionne ni ne se déplace, et s'active par Entrée ; la Topographie
@@ -1415,6 +1415,30 @@ Pour chaque famille : tous les états de l'inventaire, script clavier APG
   - où : `web/v2/ui/src/components/TreeGrid/`, `Tree/`, `internal/treePages.ts` ;
     `web/v2/shell/src/views/{topology.ts,TopologyView.vue}` (`capped:`)
   - dépend de : 31
+  - fait : `TreeNode.notice` (`tree.ts`) ; `flatten` en fait une ligne `kind: "notice"` hors
+    de `setSize`/`posInSet` ; `Tree.vue` et `TreeGrid.vue` la rendent (icône et libellé,
+    une cellule sur toute la ligne de `TreeGrid`, à la ligne plutôt que tronquée), Entrée
+    ou un clic émettent `activate`, Espace ne fait rien, ni sélection, ni glisser, ni
+    dépôt, ni Ctrl+X ; `treeStates.ts` l'écarte des déplacements et des cibles,
+    `treePages.ts` du compte dit d'une page (le libellé dit après, jamais « fin de la
+    liste ») ; états de catalogue `capped` des deux ; la Topographie marque son avis
+    `notice: true` (plus de garde `isCapped` dans `selected`, l'aperçu l'écarte par
+    `notice`). Tests : `trees.test.ts` (modèle, rendu serveur des deux),
+    `trees-mounted.test.ts` (activation, rien de sélectionné ni déplacé, annonce),
+    `shell/test/topology.test.ts`.
+  - choix : un drapeau `notice?: boolean` sur `TreeNode` plutôt qu'un nouveau type de nœud
+    (l'hôte garde ses clés, `capped:` compris) et une variante `kind: "notice"` de
+    `TreeRow` ; l'avis garde ses enfants non lus ; le libellé de l'hôte dit où mène
+    l'activation ; pas de pointeur au survol, comme la ligne « Afficher la suite ».
+    Relectures : `a11y-auditor` sans écart bloquant, Espace explicite dans `Tree` repris ;
+    `ui-reviewer` (lecture seule, serveur absent) : marge verticale de l'avis à la ligne
+    reprise.
+  - reste : Reka pose `aria-selected="false"` sur l'avis de `Tree` (comme sur la ligne de
+    la suite), sans surcharge possible par attribut ; la position calculée par les
+    navigateurs pour un `treeitem` sans `aria-setsize` parmi des frères qui en ont un est
+    à écouter au lecteur d'écran ; dans un `TreeGrid` qui défile en largeur, l'avis passe à
+    la ligne à la largeur de la ligne entière (borner à la largeur visible demanderait un
+    jeton `100cqi`).
 - [ ] 28. Synchronisation : `docs/spec/` (architecture web : `@kartenn/ui`, couches,
   catalogue) ; ADR 0036, 0038, 0039 acceptées ;
   `specs/README.md` ; audit `spec-keeper` — verify : liens croisés ; aucun écart
