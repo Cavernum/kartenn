@@ -118,6 +118,13 @@ export function instantOfDay(day: string, bound: "start" | "end"): string {
 }
 /** The parameters a list keeps out of its bar: `q` is the search of the palette. */
 const LEFT_OUT = new Set(["q"]);
+/**
+ * The parameters of one list kept out of its bar: `object` of the anomalies is the filter of
+ * the Anomalies tab of a record (021/A37), an identifier no one types.
+ */
+const LEFT_OUT_OF: Partial<Record<string, ReadonlySet<string>>> = {
+  "/v1/anomalies": new Set(["object"]),
+};
 /** The declared types whose values the model types (003, `TypeSpec::id`). */
 const DECLARED: Readonly<Record<string, FilterType>> = {
   int: "number",
@@ -258,7 +265,7 @@ export function listFilterModel(
       else byKey.set(field.property.key, [field]);
       continue;
     }
-    if (LEFT_OUT.has(field.name)) continue;
+    if (LEFT_OUT.has(field.name) || LEFT_OUT_OF[path]?.has(field.name)) continue;
     // `within` is an operator of the value of the list (« Adresse dans 192.0.2.0/24 »).
     if (field.name === "within" && valued) continue;
     const label = words.field(field.name);

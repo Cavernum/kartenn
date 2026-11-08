@@ -93,7 +93,6 @@ watchEffect(() => {
   if (item.value) keepRecordName(props.id, nameOf(item.value));
 });
 const kindWords = computed(() => keyLabel("kind", props.collection.type) ?? props.collection.kind);
-const domain = computed(() => (isSummary(item.value?.domain) ? item.value!.domain : undefined));
 
 /** A key of a closed list of the core in words (`network` → « Réseau »). */
 const valueWords = (field: string, value: unknown) => {
@@ -333,12 +332,7 @@ const linkOf = (field: string) => {
           <HistoryTab :id="props.id" :kind="props.collection.kind" :name="name" />
         </template>
         <template #anomalies>
-          <AnomaliesTab
-            :id="props.id"
-            :kind="props.collection.kind"
-            :domain="domain?.id"
-            :name="name"
-          />
+          <AnomaliesTab :id="props.id" :kind="props.collection.kind" :name="name" />
         </template>
         <template v-for="extension in pluginTabs" :key="placeId(extension)" #[placeId(extension)]>
           <ExtensionElement

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { queryClient } from "@kartenn/sdk";
 import { resetContext, setFetch } from "@kartenn/sdk/host";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp, h, nextTick, ref, type App } from "vue";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
 import { frameRoutes } from "../src/frame/routes.ts";
@@ -71,13 +71,13 @@ describe("useFocusWhenEmptied", () => {
   });
 });
 
-// The Anomalies tab of an object of a domain (task 021-11j): its domain's pages read by
-// themselves, a refused cursor starts them again from the first, as the lists do (`list.ts`),
-// never resent; a next page refused, the empty state says « in the pages read ».
-describe("the Anomalies tab of a record, its next page refused", () => {
+// The Anomalies tab of a record (tasks 021-11j, 11k): an object's own by its filter `object`
+// (A37), within a domain or outside any, never its domain's pages; the next page as the
+// grid's window nears the end; a refused cursor starts them again from the first, as the
+// lists do (`list.ts`), never resent; a next page refused, the rows kept under its alert.
+describe("the Anomalies tab of a record", () => {
   const PREFIX = "0b5e3c1a-0000-4000-8000-0000000000a1";
-  const OTHER = "0b5e3c1a-0000-4000-8000-0000000000a2";
-  const DOMAIN = "0b5e3c1a-0000-4000-8000-0000000000d1";
+  const SITE = "0b5e3c1a-0000-4000-8000-0000000000b1";
   let app: App | undefined;
   afterEach(() => {
     app?.unmount();
@@ -101,8 +101,24 @@ describe("the Anomalies tab of a record, its next page refused", () => {
       headers: { "Content-Type": "application/problem+json" },
     });
 
-  /** The tab of the prefix PREFIX of DOMAIN, the API answered by `answer`. */
-  async function mounted(answer: (url: string) => object | Response) {
+  // A layout for the grid, which happy-dom does not compute: a scroller of 600 pixels, each
+  // row in it, so that the window reaches the end of the rows read and asks the next page.
+  beforeEach(() => {
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(600);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const top = this.dataset.index === undefined ? 0 : 40 + Number(this.dataset.index) * 32;
+      return DOMRect.fromRect({ x: 0, y: top, width: 800, height: top ? 32 : 600 });
+    });
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  /** The tab of the object `id` of `kind`, the API answered by `answer`. */
+  async function mounted(
+    answer: (url: string) => object | Response,
+    { kind, id }: { kind: string; id: string } = { kind: "prefix", id: PREFIX },
+  ) {
     const seen: string[] = [];
     setFetch((async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -124,9 +140,10 @@ describe("the Anomalies tab of a record, its next page refused", () => {
     await router.push("/");
     const root = document.createElement("div");
     app = createApp({
-      render: () => h(AnomaliesTab, { kind: "prefix", id: PREFIX, domain: DOMAIN, name: "net" }),
+      render: () => h(AnomaliesTab, { kind, id, name: "net" }),
     });
     app.use(createShellI18n("fr")).use(router);
+    document.body.append(root);
     app.mount(root);
     await router.isReady();
     const asked = (cursor: string) => seen.filter((url) => url.includes(`cursor=${cursor}`));
@@ -134,6 +151,46 @@ describe("the Anomalies tab of a record, its next page refused", () => {
       seen.filter((url) => url.startsWith("/v1/anomalies") && !url.includes("cursor="));
     return { root, asked, first };
   }
+
+  it("an object of a domain: its own by its filter, never its domain's", async () => {
+    const { root, first } = await mounted(() => page([anomaly("a1", PREFIX)]));
+    await expect.poll(() => root.textContent, { timeout: 8_000 }).toContain("message a1");
+    expect(first()).toHaveLength(1);
+    const url = new URL(first()[0]!, "http://localhost");
+    expect(url.searchParams.get("object")).toBe(PREFIX);
+    expect(url.searchParams.has("domain")).toBe(false);
+    // The object is the record's: no column of the object.
+    const headers = [...root.querySelectorAll("[role='columnheader']")].map((el) => el.textContent);
+    expect(headers.length).toBeGreaterThan(0);
+    expect(headers.some((text) => text?.includes("Objet"))).toBe(false);
+  }, 10_000);
+
+  it("an object outside any domain (a site): its own, read", async () => {
+    const { root, first } = await mounted(() => page([anomaly("a1", SITE)]), {
+      kind: "site",
+      id: SITE,
+    });
+    await expect.poll(() => root.textContent, { timeout: 8_000 }).toContain("message a1");
+    expect(new URL(first()[0]!, "http://localhost").searchParams.get("object")).toBe(SITE);
+  }, 10_000);
+
+  it("none read (an object unknown or unreadable): the empty state", async () => {
+    const { root } = await mounted(() => page([]));
+    await expect
+      .poll(() => root.textContent, { timeout: 8_000 })
+      .toContain("Aucune anomalie ouverte sur cet objet");
+  }, 10_000);
+
+  it("the next page as the window nears the end", async () => {
+    const { root, asked } = await mounted((url) =>
+      url.includes("cursor=c2")
+        ? page([anomaly("a2", PREFIX)])
+        : page([anomaly("a1", PREFIX)], "/v1/anomalies?cursor=c2"),
+    );
+    await expect.poll(() => root.textContent, { timeout: 8_000 }).toContain("message a2");
+    expect(root.textContent).toContain("message a1");
+    expect(asked("c2")).toHaveLength(1);
+  }, 10_000);
 
   it("a refused cursor: the pages read again from the first, never resent, and said", async () => {
     let restarted = false;
@@ -144,7 +201,7 @@ describe("the Anomalies tab of a record, its next page refused", () => {
       }
       if (url.includes("cursor=c3")) return page([anomaly("a2", PREFIX)]);
       return page(
-        [anomaly("a1", OTHER)],
+        [anomaly("a1", PREFIX)],
         restarted ? "/v1/anomalies?cursor=c3" : "/v1/anomalies?cursor=c2",
       );
     });
@@ -160,7 +217,7 @@ describe("the Anomalies tab of a record, its next page refused", () => {
     const { root, asked, first } = await mounted((url) =>
       url.includes("cursor=c2")
         ? problem(400, "invalid-cursor")
-        : page([anomaly("a1", OTHER)], "/v1/anomalies?cursor=c2"),
+        : page([anomaly("a1", PREFIX)], "/v1/anomalies?cursor=c2"),
     );
     await expect
       .poll(() => root.textContent, { timeout: 8_000 })
@@ -168,22 +225,23 @@ describe("the Anomalies tab of a record, its next page refused", () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(first()).toHaveLength(2);
     expect(asked("c2")).toHaveLength(2);
-    expect(root.textContent).toContain("Aucune anomalie de cet objet dans les pages lues");
+    expect(root.textContent).toContain("message a1");
     // « Réessayer » starts from the first page, not the cursor refused.
     [...root.querySelectorAll("button")].find((b) => b.textContent?.includes("Réessayer"))!.click();
     await expect.poll(() => first().length, { timeout: 8_000 }).toBe(3);
   }, 10_000);
 
-  it("a next page refused: the empty state « in the pages read », the refusal above", async () => {
+  it("a next page refused: the rows kept, the refusal above, never asked again", async () => {
     const { root, asked, first } = await mounted((url) =>
       url.includes("cursor=c2")
         ? problem(403, "forbidden")
-        : page([anomaly("a1", OTHER)], "/v1/anomalies?cursor=c2"),
+        : page([anomaly("a1", PREFIX)], "/v1/anomalies?cursor=c2"),
     );
     await expect
       .poll(() => root.textContent, { timeout: 8_000 })
       .toContain("La suite de la liste n'a pas pu être lue");
-    expect(root.textContent).toContain("Aucune anomalie de cet objet dans les pages lues");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(root.textContent).toContain("message a1");
     expect(root.textContent).not.toContain("Aucune anomalie ouverte sur cet objet");
     expect(first()).toHaveLength(1);
     expect(asked("c2")).toHaveLength(1);
