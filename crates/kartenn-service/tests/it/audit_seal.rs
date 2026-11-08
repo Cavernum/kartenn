@@ -1,5 +1,8 @@
 //! Sealing the audit journal in chained batches (spec 012, REQ-012-13; task 012-9).
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use kartenn_core::audit::seal::{SealKey, verify};
 use kartenn_core::audit::{OBJECTS_READ, Outcome};
 use kartenn_service::audit::{AuditJournal, Instance, RequestContext};
@@ -104,4 +107,60 @@ async fn an_event_committed_late_enters_the_next_batch(pool: PgPool) {
         "only the second seal's own event, for the next batch"
     );
     assert!(seals(&pool).await.iter().all(|s| s.3.is_none()));
+}
+
+/// A failed pass releases its seal lock before it returns (task 012-24): a pool slow to
+/// take its connections back, as under load, hands the next pass another connection, and
+/// that pass must not find the lock still held by the failed one.
+#[kartenn_testing::pg_test]
+async fn a_pass_right_after_a_failed_one_seals(pool: PgPool) {
+    let held = Arc::new(AtomicBool::new(false));
+    // Copied from `audit_export::a_pass_right_after_a_rejection_relays` (task 012-23).
+    let slow = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(2)
+        .after_release({
+            let held = held.clone();
+            move |_, _| {
+                let held = held.clone();
+                Box::pin(async move {
+                    while held.load(Ordering::SeqCst) {
+                        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                    }
+                    Ok(true)
+                })
+            }
+        })
+        .connect_with((*pool.connect_options()).clone())
+        .await
+        .unwrap();
+    for _ in 0..2 {
+        record(&slow).await;
+    }
+    // Every connection back in the pool; from now on, one given back stays out of it.
+    while slow.num_idle() < usize::try_from(slow.size()).unwrap() {
+        tokio::task::yield_now().await;
+    }
+    held.store(true, Ordering::SeqCst);
+    // An event without canonical form (a floating-point number) fails the pass after it
+    // took the lock. Not a database error: on one, the server ends the transaction and
+    // releases its locks on its own, rollback or not.
+    let tamper = |details: &'static str| {
+        sqlx::query(
+            "UPDATE audit.event SET details = $1::jsonb
+             WHERE seq = (SELECT max(seq) FROM audit.event)",
+        )
+        .bind(details)
+        .execute(&pool)
+    };
+    tamper(r#"{"ratio": 0.5}"#).await.unwrap();
+    assert!(seal_once(&slow, None, &instance()).await.is_err());
+    tamper("{}").await.unwrap();
+    let sealed = seal_once(&slow, None, &instance()).await;
+    held.store(false, Ordering::SeqCst);
+    assert_eq!(
+        sealed.unwrap().map(|s| s.count),
+        Some(2),
+        "sealed again at once"
+    );
+    slow.close().await;
 }
