@@ -40,13 +40,13 @@ pub async fn record(
         .iter()
         .map(|(o, prefix)| (*o, (*prefix).to_owned()))
         .unzip();
-    let mut firing: BTreeMap<(Uuid, &str), &str> = BTreeMap::new();
+    let mut firing: BTreeMap<(Uuid, &str), &Violation> = BTreeMap::new();
     for v in violations
         .iter()
         .filter(|v| v.rule.severity == Severity::Warning)
     {
         if let Some(&object) = v.subjects.first() {
-            firing.insert((object, v.rule.id), &v.message);
+            firing.insert((object, v.rule.id), v);
         }
     }
     let rules: Vec<String> = firing.keys().map(|(_, r)| (*r).to_owned()).collect();
@@ -65,14 +65,17 @@ pub async fn record(
     .bind(&rules)
     .execute(&mut **tx)
     .await?;
-    for ((object, rule), message) in firing {
+    for ((object, rule), v) in firing {
         sqlx::query(
-            "INSERT INTO anomaly (rule_id, object_id, message, opened_by) VALUES ($1, $2, $3, $4)
-             ON CONFLICT (rule_id, object_id) WHERE closed_at IS NULL DO UPDATE SET message = EXCLUDED.message",
+            "INSERT INTO anomaly (rule_id, object_id, message, detail, opened_by)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (rule_id, object_id) WHERE closed_at IS NULL
+             DO UPDATE SET message = EXCLUDED.message, detail = EXCLUDED.detail",
         )
         .bind(rule)
         .bind(object)
-        .bind(message)
+        .bind(&v.message)
+        .bind(&v.detail)
         .bind(changeset)
         .execute(&mut **tx)
         .await?;
@@ -91,6 +94,9 @@ pub struct Anomaly {
     pub object_id: Uuid,
     /// Message.
     pub message: String,
+    /// The values the message cites, structured ([`Violation::detail`]); `None` for a rule
+    /// that structures nothing, or an anomaly not re-evaluated since 021/A39.
+    pub detail: Option<serde_json::Value>,
     /// Opening time.
     pub opened_at: OffsetDateTime,
 }
@@ -208,7 +214,7 @@ pub async fn open_page(
              JOIN entity c ON c.parent_id = sub.id AND c.valid_period @> now()
              WHERE sub.depth < 1000
          )
-         SELECT a.id, a.rule_id, a.object_id, a.message, a.opened_at,
+         SELECT a.id, a.rule_id, a.object_id, a.message, a.detail, a.opened_at,
                 (SELECT x.kind FROM carrier_object x
                  WHERE x.id = a.object_id AND x.valid_period @> now() LIMIT 1)
          FROM anomaly a
@@ -245,15 +251,26 @@ pub async fn open_page(
 }
 
 /// Row of [`open_within`] and [`find`]: an anomaly and the kind of its object.
-type Row = (Uuid, String, Uuid, String, OffsetDateTime, Option<String>);
+type Row = (
+    Uuid,
+    String,
+    Uuid,
+    String,
+    Option<serde_json::Value>,
+    OffsetDateTime,
+    Option<String>,
+);
 
-fn listed((id, rule_id, object_id, message, opened_at, kind): Row) -> (Anomaly, Option<Kind>) {
+fn listed(
+    (id, rule_id, object_id, message, detail, opened_at, kind): Row,
+) -> (Anomaly, Option<Kind>) {
     let kind = kind.and_then(|kind| Kind::ALL.into_iter().find(|k| k.as_str() == kind));
     let anomaly = Anomaly {
         id,
         rule_id,
         object_id,
         message,
+        detail,
         opened_at,
     };
     (anomaly, kind)
@@ -267,7 +284,8 @@ fn listed((id, rule_id, object_id, message, opened_at, kind): Row) -> (Anomaly, 
 /// Database errors.
 pub async fn find(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<(Anomaly, Kind)>> {
     let row: Option<Row> = sqlx::query_as(
-        "SELECT a.id, a.rule_id, a.object_id, a.message, a.opened_at, x.kind FROM anomaly a
+        "SELECT a.id, a.rule_id, a.object_id, a.message, a.detail, a.opened_at, x.kind
+         FROM anomaly a
          JOIN carrier_object x ON x.id = a.object_id AND x.valid_period @> now()
          WHERE a.id = $1 AND a.closed_at IS NULL",
     )

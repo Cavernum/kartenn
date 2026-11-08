@@ -163,7 +163,9 @@ l'audit garde les anciens noms.
 - Chaque version d'objet référence le changeset qui l'a produite (audit complet).
 - **Anomalies** (`anomaly`, migration 0007) : avertissement ouvert sur un objet, acquitté
   avec un motif, rouvert quand l'objet change, clos quand la règle ne se déclenche plus ;
-  listées par règle, domaine et entité (REQ-002-36).
+  listées par règle, domaine et entité (REQ-002-36). Leur `detail` (`jsonb`, migration
+  0075 ; 021/A39) structure les valeurs que cite le message, écrit et rafraîchi avec lui ;
+  pour une lacune, `{property, resolved, expected, source, revision}`.
 - L'**outbox** reçoit, dans la même transaction, un événement CloudEvents 1.0 par
   changeset appliqué (`org.kartenn.changeset.applied`, `id` = UUID du changeset ;
   données : changeset, domaines, objets, auteur, valideur, résumé du différentiel) et un

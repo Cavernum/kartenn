@@ -3280,13 +3280,16 @@
       "Gap": {
         "description": "A deviation between a resolved and an expected value.",
         "properties": {
+          "expected": {
+            "description": "The value the source expects, raw, in the form of the resolved one (an array for\na set); `null` when masked, or for a deviation not evaluated since its values are\nstored."
+          },
           "id": {
             "description": "Identifier of its anomaly.",
             "format": "uuid",
             "type": "string"
           },
           "message": {
-            "description": "The message; generic for a sensitive property the caller may not see.",
+            "description": "A readable message; generic for a sensitive property the caller may not see.",
             "type": "string"
           },
           "object": {
@@ -3303,11 +3306,35 @@
               "string",
               "null"
             ]
+          },
+          "resolved": {
+            "description": "The resolved value, raw (closed-list keys); `null` without a value, when masked,\nor for a deviation not evaluated since its values are stored."
+          },
+          "revision": {
+            "description": "The revision of the source it was evaluated against; `null` as `source`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rule": {
+            "description": "The code of its rule, `prop.resolution.expected_mismatch` (021/A36).",
+            "type": "string"
+          },
+          "source": {
+            "description": "The source that expects it; `null` for a deviation not evaluated since its values\nare stored.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
           "id",
           "object",
+          "rule",
+          "resolved",
+          "expected",
           "message",
           "opened_at"
         ],
@@ -4937,13 +4964,16 @@
             "items": {
               "description": "A deviation between a resolved and an expected value.",
               "properties": {
+                "expected": {
+                  "description": "The value the source expects, raw, in the form of the resolved one (an array for\na set); `null` when masked, or for a deviation not evaluated since its values are\nstored."
+                },
                 "id": {
                   "description": "Identifier of its anomaly.",
                   "format": "uuid",
                   "type": "string"
                 },
                 "message": {
-                  "description": "The message; generic for a sensitive property the caller may not see.",
+                  "description": "A readable message; generic for a sensitive property the caller may not see.",
                   "type": "string"
                 },
                 "object": {
@@ -4960,11 +4990,35 @@
                     "string",
                     "null"
                   ]
+                },
+                "resolved": {
+                  "description": "The resolved value, raw (closed-list keys); `null` without a value, when masked,\nor for a deviation not evaluated since its values are stored."
+                },
+                "revision": {
+                  "description": "The revision of the source it was evaluated against; `null` as `source`.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "rule": {
+                  "description": "The code of its rule, `prop.resolution.expected_mismatch` (021/A36).",
+                  "type": "string"
+                },
+                "source": {
+                  "description": "The source that expects it; `null` for a deviation not evaluated since its values\nare stored.",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 }
               },
               "required": [
                 "id",
                 "object",
+                "rule",
+                "resolved",
+                "expected",
                 "message",
                 "opened_at"
               ],

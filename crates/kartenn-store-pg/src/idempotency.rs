@@ -54,7 +54,8 @@ fn entries(stored: &serde_json::Value) -> Result<&Vec<serde_json::Value>, StoreE
         .ok_or_else(|| store_err("a list of the journal is not an array"))
 }
 
-/// The violations as journaled by the store (`rule`, `message`, `subjects`, `operation`).
+/// The violations as journaled by the store (`rule`, `message`, `subjects`, `operation`,
+/// `detail`).
 pub(crate) fn violations(stored: &serde_json::Value) -> Result<Vec<Violation>, StoreError> {
     entries(stored)?
         .iter()
@@ -77,6 +78,8 @@ pub(crate) fn violations(stored: &serde_json::Value) -> Result<Vec<Violation>, S
                     .map(usize::try_from)
                     .transpose()
                     .map_err(store_err)?,
+                // `null` for a rule that structures nothing.
+                detail: entry.get("detail").filter(|d| !d.is_null()).cloned(),
             })
         })
         .collect()

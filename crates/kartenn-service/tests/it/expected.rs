@@ -332,7 +332,29 @@ async fn deviations_become_anomalies(pool: PgPool) {
         .fetch_optional(&f.pool)
     };
     let details = open().await.unwrap().expect("an open anomaly");
-    assert!(details.contains("objects under 10.66."), "{details}");
+    // A readable message, without internal representation; its values structured
+    // (021/A36, A39).
+    assert_eq!(
+        details,
+        "custom.environment: resolved \"prod\", expected \"dev\" by by-prefix@1 \
+         (objects under 10.66. are dev)"
+    );
+    let detail: Option<serde_json::Value> =
+        sqlx::query_scalar("SELECT detail FROM anomaly WHERE object_id = $1 AND closed_at IS NULL")
+            .bind(object)
+            .fetch_one(&f.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        detail,
+        Some(serde_json::json!({
+            "property": "custom.environment",
+            "resolved": "prod",
+            "expected": "dev",
+            "source": "by-prefix",
+            "revision": "1",
+        }))
+    );
     // The resolved value stays `prod` (D23); correcting it closes the anomaly.
     assert_eq!(
         f.assignment("10.66.0.0/16").await.map(|a| a.0),

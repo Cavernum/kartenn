@@ -785,6 +785,11 @@ pub(crate) async fn mask_gaps(
                 && !disclosed.contains(&anomaly.object_id)
             {
                 anomaly.message = masked_gap(&key);
+                // Its detail cites both values as well.
+                if let Some(Value::Object(detail)) = &mut anomaly.detail {
+                    detail.remove("resolved");
+                    detail.remove("expected");
+                }
             }
         }
     }
@@ -832,10 +837,51 @@ struct Gap {
     property: Option<String>,
     /// Its object.
     object: ObjectRef,
-    /// The message; generic for a sensitive property the caller may not see.
+    /// The code of its rule, `prop.resolution.expected_mismatch` (021/A36).
+    rule: String,
+    /// The resolved value, raw (closed-list keys); `null` without a value, when masked,
+    /// or for a deviation not evaluated since its values are stored.
+    resolved: Value,
+    /// The value the source expects, raw, in the form of the resolved one (an array for
+    /// a set); `null` when masked, or for a deviation not evaluated since its values are
+    /// stored.
+    expected: Value,
+    /// The source that expects it; `null` for a deviation not evaluated since its values
+    /// are stored.
+    source: Option<String>,
+    /// The revision of the source it was evaluated against; `null` as `source`.
+    revision: Option<String>,
+    /// A readable message; generic for a sensitive property the caller may not see.
     message: String,
     /// Its opening, RFC 3339.
     opened_at: String,
+}
+
+impl Gap {
+    /// The deviation of `anomaly`, its values taken from its detail (021/A39).
+    fn of(anomaly: &Anomaly, kind: Option<Kind>) -> Self {
+        let member = |name: &str| {
+            anomaly
+                .detail
+                .as_ref()
+                .and_then(|d| d.get(name))
+                .cloned()
+                .unwrap_or_default()
+        };
+        let text = |name: &str| member(name).as_str().map(str::to_owned);
+        Self {
+            id: anomaly.id,
+            property: gap_property(anomaly).map(str::to_owned),
+            object: ObjectRef::new(kind, anomaly.object_id),
+            rule: anomaly.rule_id.clone(),
+            resolved: member("resolved"),
+            expected: member("expected"),
+            source: text("source"),
+            revision: text("revision"),
+            message: anomaly.message.clone(),
+            opened_at: rfc3339(instant(anomaly.opened_at)),
+        }
+    }
 }
 
 /// `GET /v1/property-gaps?property=…&domain=…&entity=…`: the open deviations between
@@ -890,13 +936,7 @@ async fn gaps(
     mask_gaps(&api, &context, &mut found).await?;
     let items: Vec<Gap> = found
         .iter()
-        .map(|(anomaly, kind)| Gap {
-            id: anomaly.id,
-            property: gap_property(anomaly).map(str::to_owned),
-            object: ObjectRef::new(*kind, anomaly.object_id),
-            message: anomaly.message.clone(),
-            opened_at: rfc3339(instant(anomaly.opened_at)),
-        })
+        .map(|(anomaly, kind)| Gap::of(anomaly, *kind))
         .collect();
     Ok(respond_page(&headers, &moment, &items, next.as_deref()))
 }
@@ -913,6 +953,7 @@ mod tests {
             rule_id: rule.to_owned(),
             object_id: Uuid::nil(),
             message: message.to_owned(),
+            detail: None,
             opened_at: OffsetDateTime::UNIX_EPOCH,
         }
     }

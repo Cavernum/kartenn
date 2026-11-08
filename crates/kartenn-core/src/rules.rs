@@ -53,6 +53,11 @@ pub struct Violation {
     /// Index of the operation of the changeset it comes from; `None` for a rule of the
     /// final state, which no single operation causes (REQ-004-7).
     pub operation: Option<usize>,
+    /// The values the message cites, structured for a client that composes its own
+    /// sentence (021/A36, A39); `None` for a rule that structures nothing. Its shape is the
+    /// rule's: `{property, resolved, expected, source, revision}` for
+    /// `prop.resolution.expected_mismatch`.
+    pub detail: Option<serde_json::Value>,
 }
 
 impl Violation {
@@ -64,7 +69,15 @@ impl Violation {
             subjects: Vec::new(),
             message: message.into(),
             operation: None,
+            detail: None,
         }
+    }
+
+    /// Adds the structured values the message cites.
+    #[must_use]
+    pub fn with_detail(mut self, detail: serde_json::Value) -> Self {
+        self.detail = Some(detail);
+        self
     }
 
     /// Ascribes the violation to operation `index`, unless it is ascribed already.

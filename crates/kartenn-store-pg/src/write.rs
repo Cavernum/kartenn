@@ -788,6 +788,7 @@ fn violations_json(violations: &[Violation]) -> serde_json::Value {
                     "message": v.message,
                     "subjects": v.subjects,
                     "operation": v.operation,
+                    "detail": v.detail,
                 })
             })
             .collect(),
@@ -3156,5 +3157,30 @@ fn object_kind(name: &str) -> Result<ObjectKind, StoreError> {
             Err(store_err(format!("unknown object kind {name}")))
         }
         Some(kind) => Ok(kind),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use kartenn_core::rules::{self, Violation};
+    use sqlx::types::Uuid;
+
+    use super::violations_json;
+    use crate::idempotency;
+
+    #[test]
+    fn a_replayed_violation_keeps_its_detail() {
+        // Replayed from the journal of an idempotency key, as first written (021/A39).
+        let detail = serde_json::json!({"property": "dns.ttl", "resolved": 60, "expected": 300});
+        let written = [
+            Violation::new(&rules::PROP_EXPECTED_MISMATCH, "dns.ttl: …")
+                .with_subjects([Uuid::nil()])
+                .with_detail(detail.clone()),
+            Violation::new(&rules::PROP_EXPECTED_MISMATCH, "plain").at(2),
+        ];
+        let replayed = idempotency::violations(&violations_json(&written)).unwrap();
+        assert_eq!(replayed[0].detail, Some(detail));
+        assert_eq!(replayed[1].detail, None);
+        assert_eq!(replayed[1].operation, Some(2));
     }
 }

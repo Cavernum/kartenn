@@ -5294,11 +5294,17 @@ export interface components {
     /** @description A deviation between a resolved and an expected value. */
     Gap: {
       /**
+       * @description The value the source expects, raw, in the form of the resolved one (an array for
+       *     a set); `null` when masked, or for a deviation not evaluated since its values are
+       *     stored.
+       */
+      expected: unknown;
+      /**
        * Format: uuid
        * @description Identifier of its anomaly.
        */
       id: string;
-      /** @description The message; generic for a sensitive property the caller may not see. */
+      /** @description A readable message; generic for a sensitive property the caller may not see. */
       message: string;
       /** @description Its object. */
       object: components["schemas"]["ObjectRef"];
@@ -5306,6 +5312,20 @@ export interface components {
       opened_at: string;
       /** @description The property. */
       property?: string | null;
+      /**
+       * @description The resolved value, raw (closed-list keys); `null` without a value, when masked,
+       *     or for a deviation not evaluated since its values are stored.
+       */
+      resolved: unknown;
+      /** @description The revision of the source it was evaluated against; `null` as `source`. */
+      revision?: string | null;
+      /** @description The code of its rule, `prop.resolution.expected_mismatch` (021/A36). */
+      rule: string;
+      /**
+       * @description The source that expects it; `null` for a deviation not evaluated since its values
+       *     are stored.
+       */
+      source?: string | null;
     };
     /** @description An edge of the topology graph (ADR 0026, clause 11). */
     GraphEdge: {
@@ -5934,11 +5954,17 @@ export interface components {
       /** @description The elements of the page. */
       items: {
         /**
+         * @description The value the source expects, raw, in the form of the resolved one (an array for
+         *     a set); `null` when masked, or for a deviation not evaluated since its values are
+         *     stored.
+         */
+        expected: unknown;
+        /**
          * Format: uuid
          * @description Identifier of its anomaly.
          */
         id: string;
-        /** @description The message; generic for a sensitive property the caller may not see. */
+        /** @description A readable message; generic for a sensitive property the caller may not see. */
         message: string;
         /** @description Its object. */
         object: components["schemas"]["ObjectRef"];
@@ -5946,6 +5972,20 @@ export interface components {
         opened_at: string;
         /** @description The property. */
         property?: string | null;
+        /**
+         * @description The resolved value, raw (closed-list keys); `null` without a value, when masked,
+         *     or for a deviation not evaluated since its values are stored.
+         */
+        resolved: unknown;
+        /** @description The revision of the source it was evaluated against; `null` as `source`. */
+        revision?: string | null;
+        /** @description The code of its rule, `prop.resolution.expected_mismatch` (021/A36). */
+        rule: string;
+        /**
+         * @description The source that expects it; `null` for a deviation not evaluated since its values
+         *     are stored.
+         */
+        source?: string | null;
       }[];
       /** @description The links of the page. */
       links: components["schemas"]["ListingLinks"];

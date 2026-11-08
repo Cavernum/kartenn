@@ -15,7 +15,7 @@ use std::sync::Arc;
 use kartenn_core::period::{Instant, Period};
 use kartenn_core::properties::{Declaration, ExpectedMode};
 use kartenn_core::rules::{self, Violation};
-use kartenn_core::values::Raw;
+use kartenn_core::values::{Raw, Value};
 use uuid::Uuid;
 
 use crate::module::{BoxFuture, ModuleTx};
@@ -230,6 +230,61 @@ fn provenance(source: &str, revision: &str, suggestion: &Suggestion) -> String {
     match &suggestion.detail {
         Some(detail) => format!("source:{source}@{revision}#{detail}"),
         None => format!("source:{source}@{revision}"),
+    }
+}
+
+/// A deviation between the resolved value of a property and the one its source expects
+/// (REQ-003-24), before it becomes a warning.
+struct Gap<'a> {
+    /// Key of the property.
+    key: &'a str,
+    /// Resolved value, as JSON text (closed-list keys); `None` for no value.
+    resolved: Option<&'a str>,
+    /// The raw values the source expects.
+    expected: &'a [RawInput],
+    /// Whether the property takes a set: the expected value is then an array, as the
+    /// resolved one.
+    set: bool,
+    /// The source and its revision.
+    source: &'a str,
+    revision: &'a str,
+}
+
+impl Gap<'_> {
+    /// The expected value as JSON, in the form of the resolved one: one raw value, or an
+    /// array of them for a set.
+    fn expected_json(&self) -> serde_json::Value {
+        match self.expected {
+            [one] if !self.set => serde_json::json!(one),
+            all => serde_json::json!(all),
+        }
+    }
+
+    /// The warning on `object`: a readable message, both values as JSON texts, and its
+    /// detail structured for a client that composes its own sentence (021/A36, A39). The
+    /// message starts with the key of the property.
+    fn violation(&self, explanation: &str, object: Uuid) -> Violation {
+        let expected = self.expected_json();
+        // A JSON text the store wrote; kept as a string should it not parse.
+        let resolved = self
+            .resolved
+            .map(|text| serde_json::from_str(text).unwrap_or_else(|_| serde_json::json!(text)));
+        let (key, source, revision) = (self.key, self.source, self.revision);
+        Violation::new(
+            &rules::PROP_EXPECTED_MISMATCH,
+            format!(
+                "{key}: resolved {}, expected {expected} by {source}@{revision} ({explanation})",
+                self.resolved.unwrap_or("no value"),
+            ),
+        )
+        .with_subjects([object])
+        .with_detail(serde_json::json!({
+            "property": key,
+            "resolved": resolved,
+            "expected": expected,
+            "source": source,
+            "revision": revision,
+        }))
     }
 }
 
@@ -464,19 +519,15 @@ pub(crate) async fn check<T: WriteTx>(
                 .await?;
             if resolved.as_ref() != Some(&expected) {
                 let shown = view.properties.get(&key).cloned().flatten();
-                violations.push(
-                    Violation::new(
-                        &rules::PROP_EXPECTED_MISMATCH,
-                        format!(
-                            "{key}: resolved {}, expected {:?} by {}@{revision} ({})",
-                            shown.as_deref().unwrap_or("no value"),
-                            suggestion.values,
-                            source.id(),
-                            suggestion.explanation
-                        ),
-                    )
-                    .with_subjects([view.id]),
-                );
+                let gap = Gap {
+                    key: &key,
+                    resolved: shown.as_deref(),
+                    expected: &suggestion.values,
+                    set: matches!(expected, Value::Set(_)),
+                    source: source.id(),
+                    revision: &revision,
+                };
+                violations.push(gap.violation(&suggestion.explanation, view.id));
             }
         }
     }
@@ -641,7 +692,53 @@ pub async fn reevaluate_outdated<S: Store>(
 
 #[cfg(test)]
 mod tests {
-    use super::{Raw, RawInput, raws};
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use super::{Gap, Raw, RawInput, raws};
+
+    #[test]
+    fn a_deviation_reads_without_internal_representation() {
+        let expected = [RawInput::Text("dev".into())];
+        let mut gap = Gap {
+            key: "custom.environment",
+            resolved: Some("\"prod\""),
+            expected: &expected,
+            set: false,
+            source: "by-prefix",
+            revision: "1",
+        };
+        let v = gap.violation("objects under 10.66. are dev", Uuid::nil());
+        assert_eq!(
+            v.message,
+            "custom.environment: resolved \"prod\", expected \"dev\" by by-prefix@1 \
+             (objects under 10.66. are dev)"
+        );
+        assert_eq!(
+            v.detail,
+            Some(json!({
+                "property": "custom.environment",
+                "resolved": "prod",
+                "expected": "dev",
+                "source": "by-prefix",
+                "revision": "1",
+            }))
+        );
+        // A set expects an array, as it resolves to one; no value resolves to `null`.
+        gap.set = true;
+        gap.resolved = None;
+        let v = gap.violation("why", Uuid::nil());
+        assert!(
+            v.message.contains("resolved no value, expected [\"dev\"]"),
+            "{}",
+            v.message
+        );
+        let detail = v.detail.unwrap();
+        assert_eq!(
+            (&detail["resolved"], &detail["expected"]),
+            (&json!(null), &json!(["dev"]))
+        );
+    }
 
     #[test]
     fn a_suggestion_with_a_local_reference_proposes_nothing() {
