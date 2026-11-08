@@ -276,7 +276,8 @@ const roots = computed(() => results.get(null));
 // Past the pages the cache keeps of a level (021/A34, 10⁴ children), the row under its
 // last child says so and leads to the list « dans ce préfixe » — the kind a node holds
 // (`kindsIn`), filtered by `within` —, or for the first level to the prefixes of the domain
-// (`restOf`); a parent or a domain not known, to none.
+// (`restOf`); a parent or a domain not known, to none. A notice of the tree (020-32): out of
+// the set of its siblings and of the count said, never selected, Enter or a click activates it.
 const restAt = (parent: string | null) =>
   restOf(parent, parent === null ? undefined : nodeById(parent), domain.value);
 function noticeOf(parent: string | null): TreeNode {
@@ -291,9 +292,10 @@ function noticeOf(parent: string | null): TreeNode {
           ? t("views.topology.capped.roots", { n: count, name: domainSlug.value })
           : t(`views.topology.capped.${rest.name}`, { n: count, within: rest.query.within }),
     icon: "info",
+    notice: true,
   };
 }
-/** The row of a notice chosen or activated: its list, when it has one. */
+/** The row of a notice activated: its list, when it has one. */
 function openRest(key: string): void {
   const rest = restAt(cappedParent(key));
   if (rest !== null) void router.push(rest);
@@ -415,7 +417,6 @@ const selected = computed({
       ? previewChoice.value
       : node.value,
   set: (id: string | undefined) => {
-    if (id !== undefined && isCapped(id)) return openRest(id);
     const object = id !== undefined && isPreview(id) ? objectOf(id) : id;
     if (object === null) return;
     previewChoice.value = id !== undefined && isPreview(id) ? id : undefined;
