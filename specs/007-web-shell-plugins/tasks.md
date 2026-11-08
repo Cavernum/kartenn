@@ -660,4 +660,25 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   `grep 'happy-dom@'` ne rend que 21.0.4 ; `k-web-check` vert (170 tests). Reste à la
   session principale : constater la fermeture de l'alerte Dependabot n° 1 après le push.
   choix : `package.json` édités à la main puis `pnpm install` (plutôt que `pnpm up -r`),
-  ce qui borne la résolution à `happy-dom`.
+  ce qui borne la résolution à `happy-dom`. Fermeture de l'alerte n° 1 constatée après le
+  push (état `fixed`, 2026-11-08).
+- [ ] 28. Alerte de sécurité sur `minimatch` (GHSA-g3hv-75wg-m249, sévérité moyenne,
+  alertes Dependabot n° 4 et 5, vues le 2026-11-08) : déni de service par amplification
+  des `globparts`, versions 7.0.0 à 11.0.0 ; premier correctif 11.0.1, une majeure.
+  Dépendance de développement seule, dans `web/` et `web/v2` : `minimatch` 10.2.6 est
+  tiré par `eslint` 10.13.0 (`^10.2.5`), `@eslint/config-array` et
+  `@typescript-eslint/typescript-estree` 8.72.0 (`^10.2.2`) ; la 5.1.9 de
+  `@redocly/openapi-core` est hors de la plage. Exposition : les motifs passés à
+  `minimatch` sont ceux des configurations ESLint du dépôt, pas une entrée extérieure.
+  **En attente d'arbitrage** (dépendance) : (a) attendre qu'`eslint` et
+  `typescript-eslint` passent à `minimatch` 11, puis monter ; (b) forcer
+  `minimatch@^10` vers 11.0.1 par un override pnpm (`pnpm.overrides` des deux
+  espaces), au risque d'une rupture d'API sous les outils de lint ; (c) fermer les deux
+  alertes comme risque accepté (motifs internes), avec la raison écrite. Recommandation
+  de la session principale : (a), avec (c) d'ici là si les alertes gênent — verify selon
+  l'option : (b) `grep 'minimatch@' web/pnpm-lock.yaml web/v2/pnpm-lock.yaml` sans
+  version de 7.0.0 à 11.0.0, `k-web-check` et `k-web2-check --all` verts ; (a) et (c)
+  alertes n° 4 et 5 fermées
+  - où : `web/package.json`, `web/v2/package.json` (ou `pnpm-workspace.yaml`),
+    `web/pnpm-lock.yaml`, `web/v2/pnpm-lock.yaml`
+  - dépend de : arbitrage de l'utilisateur
