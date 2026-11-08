@@ -1980,6 +1980,29 @@ fn log_outcome(
     }
 }
 
+/// `error`, once `tx` is rolled back. Dropping the transaction would only queue its
+/// rollback, sent when the pool takes the connection back (which may come late, under
+/// load): meanwhile its locks hold, among them the idempotency key, which a replay would
+/// find in progress, a 409 (REQ-006-15, task 006-30). A failed statement ends the
+/// transaction in the database at once; a failure outside it (decoding, a module, the
+/// audit) does not.
+async fn rolled_back<T: WriteTx>(tx: T, error: RequestError) -> RequestError {
+    if let Err(rollback) = tx.rollback().await {
+        tracing::warn!(error = %rollback, "pipeline: rollback after a failed stage");
+    }
+    error
+}
+
+/// The value of `$result`, or the return of its error once `$tx` is rolled back.
+macro_rules! or_roll_back {
+    ($tx:ident, $result:expr) => {
+        match $result {
+            Ok(value) => value,
+            Err(error) => return Err(rolled_back($tx, RequestError::from(error)).await),
+        }
+    };
+}
+
 /// The stages of a changeset (004/design, § Pipeline d'un changeset).
 #[allow(clippy::too_many_lines, clippy::too_many_arguments)] // one linear pipeline
 async fn stages<S: Store, A: Authorizer>(
@@ -2018,7 +2041,7 @@ async fn stages<S: Store, A: Authorizer>(
     });
     match mode {
         Mode::Submission if req.idempotency_key.is_some() && !req.simulate => {
-            match tx.replay(req).await? {
+            match or_roll_back!(tx, tx.replay(req).await) {
                 Replay::Fresh => {}
                 Replay::Same { changeset, state } => {
                     tx.rollback().await?;
@@ -2037,7 +2060,7 @@ async fn stages<S: Store, A: Authorizer>(
         Mode::Submission => {}
         // Validations of one changeset are serialised; only a pending one is decided.
         Mode::Validation { id, .. } => {
-            if tx.lock_changeset(id).await?.as_deref() != Some("pending") {
+            if or_roll_back!(tx, tx.lock_changeset(id).await).as_deref() != Some("pending") {
                 tx.rollback().await?;
                 return Err(RequestError::Review(not_pending(id)));
             }
@@ -2061,30 +2084,37 @@ async fn stages<S: Store, A: Authorizer>(
     // REQ-004-26: closures in cascade, expanded before the locks.
     // REQ-004-2: each operation on its own period, or the changeset's; the property stage
     // covers them all.
-    let periods: Vec<Option<Period>> = req
-        .operations
-        .iter()
-        .map(|op| to_period(op.own_period()).map(|own| own.or(period)))
-        .collect::<Result<_, _>>()?;
+    let periods: Vec<Option<Period>> = or_roll_back!(
+        tx,
+        req.operations
+            .iter()
+            .map(|op| to_period(op.own_period()).map(|own| own.or(period)))
+            .collect::<Result<_, _>>()
+    );
     let window = window(period, &periods);
     // One period per planned operation: that of the operation it comes from, unless a core
     // operation added by a module carries its own.
-    let periods: Vec<Option<Period>> = origins
-        .iter()
-        .zip(&derived)
-        .map(|(&o, own)| match own {
-            Some(spec) => to_period(Some(*spec)).map(|p| p.or(periods[o])),
-            None => Ok(periods[o]),
-        })
-        .collect::<Result<_, _>>()?;
-    let (planned, origins, periods, cascaded) =
-        crate::cascade::expand(&mut tx, modules, planned, origins, periods).await?;
-    let (domains, public, keys) = lock_targets(&mut tx, &planned).await?;
-    tx.lock(&domains, public).await?;
-    tx.lock_keys(&keys).await?;
+    let periods: Vec<Option<Period>> = or_roll_back!(
+        tx,
+        origins
+            .iter()
+            .zip(&derived)
+            .map(|(&o, own)| match own {
+                Some(spec) => to_period(Some(*spec)).map(|p| p.or(periods[o])),
+                None => Ok(periods[o]),
+            })
+            .collect::<Result<_, _>>()
+    );
+    let (planned, origins, periods, cascaded) = or_roll_back!(
+        tx,
+        crate::cascade::expand(&mut tx, modules, planned, origins, periods).await
+    );
+    let (domains, public, keys) = or_roll_back!(tx, lock_targets(&mut tx, &planned).await);
+    or_roll_back!(tx, tx.lock(&domains, public).await);
+    or_roll_back!(tx, tx.lock_keys(&keys).await);
     // The policies in force at submission, before the changeset changes them.
     let policies = match mode {
-        Mode::Submission => tx.approval_policies().await?,
+        Mode::Submission => or_roll_back!(tx, tx.approval_policies().await),
         Mode::Validation { .. } => Vec::new(),
     };
     let validator_subject = context
@@ -2299,17 +2329,20 @@ async fn stages<S: Store, A: Authorizer>(
         Mode::Submission => {
             // Spec 024, REQ-024-10, 12, 13: always pending, unless its author asks to apply
             // it and may: under `approval.self`, held by no policy, reviewed by no module.
-            let policy = crate::review::holding_policy(
-                &mut tx,
-                &policies,
-                req,
-                author,
-                &planned,
-                (&diff, &effects),
-                &domains,
-                &module_findings.measures,
-            )
-            .await?;
+            let policy = or_roll_back!(
+                tx,
+                crate::review::holding_policy(
+                    &mut tx,
+                    &policies,
+                    req,
+                    author,
+                    &planned,
+                    (&diff, &effects),
+                    &domains,
+                    &module_findings.measures,
+                )
+                .await
+            );
             let reason = if !req.approval_self {
                 None
             } else if policy.is_some() {
@@ -2371,11 +2404,12 @@ async fn stages<S: Store, A: Authorizer>(
             // now exist in the transaction.
             let mut denied: Vec<Uuid> = unapplied.iter().flat_map(|v| v.subjects.clone()).collect();
             for (permission, objects) in &reviewed {
-                denied.extend(
+                denied.extend(or_roll_back!(
+                    tx,
                     authorizer
                         .authorize_in(&mut tx, &validator_subject, permission, objects)
-                        .await?,
-                );
+                        .await
+                ));
             }
             if !denied.is_empty() {
                 tx.rollback().await?;
@@ -2421,7 +2455,7 @@ async fn stages<S: Store, A: Authorizer>(
             draft: context.draft,
         };
         events.extend(
-            crate::audit::changeset_events(context, &journal, &[])?
+            or_roll_back!(tx, crate::audit::changeset_events(context, &journal, &[]))
                 .into_iter()
                 .take(1),
         );
@@ -2444,12 +2478,16 @@ async fn stages<S: Store, A: Authorizer>(
         on_behalf_of: context.on_behalf_of,
         draft: context.draft,
     };
-    events.extend(crate::audit::changeset_events(context, &journal, &planned)?);
+    events.extend(or_roll_back!(
+        tx,
+        crate::audit::changeset_events(context, &journal, &planned)
+    ));
     let journal = Journal {
         audit: &events,
         ..journal
     };
-    tx.journal_applied(&journal).await?;
+    or_roll_back!(tx, tx.journal_applied(&journal).await);
+    // A failed commit has ended the transaction: nothing left to roll back.
     tx.commit().await?;
     Ok(Outcome::Applied {
         changeset,
