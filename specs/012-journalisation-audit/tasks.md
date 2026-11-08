@@ -193,5 +193,23 @@ en fournit le mécanisme et les teste avec des appels directs.
     transaction en lecture seule, sans effet) ; le test vit dans `audit_export.rs`, à
     côté du puits `Flaky`, et `audit_otlp.rs` reste inchangé
   - où : `crates/kartenn-store-pg/src/audit_relay.rs` (`relay_once`, livraison au
-    puits), `crates/kartenn-telemetry/tests/it/audit_otlp.rs`
+    puits), `crates/kartenn-telemetry/tests/it/audit_export.rs` (le test), `audit_otlp.rs`
+    (l'échec d'origine, inchangé)
   - dépend de : —
+  - reste (revue) : si le `COMMIT` lui-même échoue, l'annulation retombe sur le `Drop`
+    différé (sans conséquence pratique : connexion rompue ou transaction déjà close)
+- [ ] 24. Scellement qui annule sa transaction avant de rendre une erreur (relevé par la
+  revue de la 23) : `seal_once` (`crates/kartenn-store-pg/src/audit_seal.rs` vers les
+  lignes 86 à 140) sort par `?` après `pg_try_advisory_xact_lock` sur une erreur de base
+  ou un événement sans forme canonique (`hashes`) ; tant que sqlx n'a pas envoyé le
+  `ROLLBACK` différé, la passe suivante lit `None` (« une autre instance scelle ») et le
+  scellement prend du retard, sans perte. Même correctif que la 23 (corps dans une
+  fonction sur `&mut PgConnection`, annulation explicite sur toute erreur, une seule
+  validation) et même forme de test (pool dont `after_release` retient les connexions
+  rendues) — verify : `k-check -p kartenn-store-pg -p kartenn-telemetry` (une passe qui
+  suit une passe en erreur scelle)
+  - où : `crates/kartenn-store-pg/src/audit_seal.rs` (`seal_once`) ; imiter
+    `audit_relay.rs` (`relay_once`, `relay_in`) et
+    `crates/kartenn-telemetry/tests/it/audit_export.rs`
+    (`a_pass_right_after_a_rejection_relays`)
+  - dépend de : 23

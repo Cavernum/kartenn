@@ -7,12 +7,12 @@
 | [003-proprietes](003-proprietes/) | implémentées | implémentée | [tasks](003-proprietes/tasks.md) (19/19, amendement P17) |
 | [004-changesets-bitemporel](004-changesets-bitemporel/) | implémentées | implémentée | [tasks](004-changesets-bitemporel/tasks.md) (25/25) |
 | [005-authn-rbac](005-authn-rbac/) | implémentées | implémentée | [tasks](005-authn-rbac/tasks.md) (19/19) |
-| [006-api-rest](006-api-rest/) | implémentées | implémentée | [tasks](006-api-rest/tasks.md) (34/34) |
+| [006-api-rest](006-api-rest/) | implémentées | implémentée | [tasks](006-api-rest/tasks.md) (34/35) |
 | [007-web-shell-plugins](007-web-shell-plugins/) | implémentées (REQ-007-32 mesurée le 2026-10-21) ; partie client remplacée par la 021 à sa bascule | implémentée | [tasks](007-web-shell-plugins/tasks.md) (27/27) |
 | [008-vlan](008-vlan/) | implémentées, sauf REQ-008-22 en écart (422 au lieu de 403) ; parties B à F reprises par la 026 (le VLAN dans le noyau) | implémentée (ADR 0026, amendement 1) | [tasks](008-vlan/tasks.md) (20/20) |
 | [009-machines-interfaces](009-machines-interfaces/) | implémentées (banc complet de REQ-009-21 tenu le 2026-10-22) | implémentée | [tasks](009-machines-interfaces/tasks.md) (15/15) |
 | [010-politique-flux](010-politique-flux/), [011-registre-flux](011-registre-flux/) | révisées par l'expression du besoin (D28, D30 amendées) ; v0.2. 010 implémentée, budgets REQ-010-28, 54 tenus au banc complet (2026-10-23, 24, 29) ; exigences envers le noyau portées par la 016 | 010 implémentée (ADR 0030) ; 011 implémentée, budgets de REQ-011-19 tenus au banc complet (réévaluation de fond retirée le 2026-10-29), ADR 0031 | [010](010-politique-flux/tasks.md) (22/22 ; amendements 21 `If-Match` de la matrice, S35, et 22 aperçu d'inférence, S36, livrés), [011](011-registre-flux/tasks.md) (14/14 ; amendements F19, F20 livrés ; REQ-011-4 amendée vers le refus `flow.update.identity` le 2026-10-29) |
-| [012-journalisation-audit](012-journalisation-audit/) | implémentées | implémentée | [tasks](012-journalisation-audit/tasks.md) (22/22) |
+| [012-journalisation-audit](012-journalisation-audit/) | implémentées | implémentée | [tasks](012-journalisation-audit/tasks.md) (23/24) |
 | [013-binaires-de-tests](013-binaires-de-tests/) | — (outillage, [ADR 0027](../docs/adr/0027-un-binaire-de-tests-par-crate.md)) | ADR 0027 | [tasks](013-binaires-de-tests/tasks.md) (9/9) |
 | [014-base-de-test-gabarit](014-base-de-test-gabarit/) | — (outillage, [ADR 0028](../docs/adr/0028-base-de-test-gabarit.md)) | ADR 0028 | [tasks](014-base-de-test-gabarit/tasks.md) (7/7) |
 | [015-paquetage-deploiement](015-paquetage-deploiement/) | implémentées ([ADR 0029](../docs/adr/0029-paquetage-nix-oci.md), D35 amendée) | implémentée | [tasks](015-paquetage-deploiement/tasks.md) (10/10) |
