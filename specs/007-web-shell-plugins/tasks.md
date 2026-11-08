@@ -640,7 +640,7 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   `spec-keeper` disponible dans ce contexte) ; budgets du banc web laissés à la tâche 24 ;
   écarts restants listés au point d'étape de `specs/README.md` (422 hors périmètre,
   premier administrateur, `plugins_dir` de développement).
-- [ ] 27. Alerte de sécurité sur `happy-dom` (GHSA-834v-8h66-3h79, CVE-2026-115895,
+- [x] 27. Alerte de sécurité sur `happy-dom` (GHSA-834v-8h66-3h79, CVE-2026-115895,
   sévérité haute, vue le 2026-11-08) : un alias d'import non assaini mène à l'exécution
   de code sur l'hôte (correctif incomplet de CVE-2026-33943), versions 17.0.0 à 21.0.3 ;
   corrigé en 21.0.4. Dépendance de développement seule (environnement de Vitest), jamais
@@ -654,3 +654,10 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   - où : `web/sdk/package.json`, `web/plugins/{example,machines,vlan}/package.json`,
     `web/pnpm-lock.yaml`
   - dépend de : —
+  — plages `^21.0.4` dans `web/sdk` et `web/plugins/{example,machines,vlan}` ;
+  `web/pnpm-lock.yaml` régénéré par `pnpm install` : `happy-dom` 21.0.3 → 21.0.4 seul
+  (même empreinte que dans `web/v2/pnpm-lock.yaml`), aucune autre version changée ;
+  `grep 'happy-dom@'` ne rend que 21.0.4 ; `k-web-check` vert (170 tests). Reste à la
+  session principale : constater la fermeture de l'alerte Dependabot n° 1 après le push.
+  choix : `package.json` édités à la main puis `pnpm install` (plutôt que `pnpm up -r`),
+  ce qui borne la résolution à `happy-dom`.
