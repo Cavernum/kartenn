@@ -2679,7 +2679,14 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     (relecture `a11y-auditor`, déjà notée par la 12c) ; dans l'onglet Contenu d'une fiche
     et le contenu d'un nœud, « Modifier » de la phrase désigne la fiche ou le nœud choisi,
     non la ligne (relecture `ui-reviewer`) ; la simulation d'un ajout sous `valid_at` reste
-    au présent (14e).
+    au présent (14e). Relevés par la revue : `dated-create.test.ts` monte la liste vide, si
+    bien que `e` d'une ligne n'y est jamais prouvé `runnable` sous `valid_at`, et le cas
+    `valid_at` et `as_of` ensemble n'y est tenu que pour la liste, pas pour la Topographie ;
+    sous `valid_at`, l'aperçu et l'état de brouillon des nœuds de la Topographie
+    (`TopologyView.vue` vers les lignes 324 et 390) restent réservés au présent, l'adresse
+    ajoutée par « + » ne se voit qu'au compteur du brouillon (avec la 14e) ;
+    `record/NetworkVlanTab.vue` (vers la ligne 121) refuse encore sous `valid_at` par
+    « revenez au présent ».
 - [x] 16h. « À propos » et actions des plugins, reste prouvé : versions (shell, SDK,
   `@kartenn/ui`, Vue, serveur) et fuseau horaire affichés ; une action de plugin absente
   sans sa permission — verify : parcours `shell` et `plugins` sous les deux navigateurs ;
