@@ -594,7 +594,7 @@ routeur complet, sauf mention « vrai TCP ».
   dans l'historique et les explications) ; un flux en revue d'une page ne porte pas de
   version (il montre l'état proposé) ; une requête de plus par page (`object_version` par
   clé primaire au présent) ; banc non relancé
-- [ ] 30. Clé d'idempotence libérée dès l'échec d'une écriture (REQ-006-15 ; relevé par la
+- [x] 30. Clé d'idempotence libérée dès l'échec d'une écriture (REQ-006-15 ; relevé par la
   revue de la 012-23, à vérifier) : si une écriture échoue pendant que sa clé est tenue
   par `pg_try_advisory_xact_lock` (`replay`, `crates/kartenn-store-pg/src/write.rs` vers
   la ligne 1187) et que la transaction est lâchée sans annulation explicite, sqlx ne fait
@@ -609,3 +609,20 @@ routeur complet, sauf mention « vrai TCP ».
     (`relay_once`, 012-23) et `crates/kartenn-telemetry/tests/it/audit_export.rs`
     (`a_pass_right_after_a_rejection_relays`)
   - dépend de : —
+  constat : défaut réel, pour les seules erreurs levées hors de la base après la prise de
+  la clé (décodage, modules, construction de l'audit) ; une instruction en échec abandonne
+  la transaction dans PostgreSQL et libère ses verrous aussitôt (vérifié avec `pg_locks`).
+  Les sorties de `stages` (`kartenn-service/src/pipeline.rs`, et non `store-pg`) sans
+  annulation passent par `or_roll_back!` (`rolled_back`) : `replay`, `lock_changeset`,
+  périodes, `cascade::expand`, `lock_targets`, `lock`, `lock_keys`,
+  `approval_policies`, `holding_policy`, `authorize_in`, `changeset_events`,
+  `journal_applied` ; test `rest/tests/it/errors.rs`
+  (`a_replay_right_after_a_failed_write_is_not_in_progress` : 409 avant le correctif,
+  201 après)
+  choix : erreur provoquée par une politique d'approbation indécodable (un `NULL` dans
+  `property_keys`), lue après la prise de la clé ; macro locale plutôt qu'un découpage de
+  `stages` (diff minimal, les branches déjà annulées restent telles quelles) ; échec
+  d'annulation journalisé en `warn`, l'erreur d'origine rendue ; les sorties propres à la
+  validation (`lock_changeset`, `authorize_in`) couvertes aussi (même verrou tardif, sur
+  la ligne du changeset) ; `commit` laissé tel quel (un `COMMIT` en échec clôt la
+  transaction)
