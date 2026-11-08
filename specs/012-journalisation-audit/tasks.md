@@ -198,7 +198,7 @@ en fournit le mécanisme et les teste avec des appels directs.
   - dépend de : —
   - reste (revue) : si le `COMMIT` lui-même échoue, l'annulation retombe sur le `Drop`
     différé (sans conséquence pratique : connexion rompue ou transaction déjà close)
-- [ ] 24. Scellement qui annule sa transaction avant de rendre une erreur (relevé par la
+- [x] 24. Scellement qui annule sa transaction avant de rendre une erreur (relevé par la
   revue de la 23) : `seal_once` (`crates/kartenn-store-pg/src/audit_seal.rs` vers les
   lignes 86 à 140) sort par `?` après `pg_try_advisory_xact_lock` sur une erreur de base
   ou un événement sans forme canonique (`hashes`) ; tant que sqlx n'a pas envoyé le
@@ -206,10 +206,30 @@ en fournit le mécanisme et les teste avec des appels directs.
   scellement prend du retard, sans perte. Même correctif que la 23 (corps dans une
   fonction sur `&mut PgConnection`, annulation explicite sur toute erreur, une seule
   validation) et même forme de test (pool dont `after_release` retient les connexions
-  rendues) — verify : `k-check -p kartenn-store-pg -p kartenn-telemetry` (une passe qui
-  suit une passe en erreur scelle)
-  - où : `crates/kartenn-store-pg/src/audit_seal.rs` (`seal_once`) ; imiter
+  rendues) — verify : `k-check -p kartenn-store-pg -p kartenn-service audit_seal` (une
+  passe qui suit une passe en erreur scelle) — `seal_once` passe son corps dans
+  `seal_in` et, sur toute erreur, annule la transaction avant de la rendre (l'échec de
+  l'annulation est journalisé). Test `audit_seal::a_pass_right_after_a_failed_one_seals`
+  (`crates/kartenn-service/tests/it/audit_seal.rs`) : le dernier événement reçoit un
+  détail flottant, sans forme canonique, la passe échoue, le détail est rétabli et la
+  passe suivante, sur une autre connexion, scelle les deux événements ; sans le
+  correctif elle rend `None`, à chaque fois. Constat en route : seule une erreur levée
+  côté client garde le verrou ; sur une erreur de base, PostgreSQL abandonne la
+  transaction et libère aussitôt ses verrous (vérifié : connexion « idle in transaction
+  (aborted) », aucun verrou consultatif dans `pg_locks`), si bien qu'un test par
+  `lock_timeout` passait sans le correctif
+  - choix : le test vit avec les autres tests du scellement (`kartenn-service`), pas dans
+    `kartenn-telemetry`, d'où le `verify` corrigé ; l'erreur provoquée est l'événement
+    sans forme canonique, la seule qui garde le verrou ; une seule validation, dans
+    `seal_once`, y compris quand le verrou est pris ailleurs (transaction en lecture
+    seule, sans effet)
+  - où : `crates/kartenn-store-pg/src/audit_seal.rs` (`seal_once`, `seal_in`),
+    `crates/kartenn-service/tests/it/audit_seal.rs` (le test) ; imité de
     `audit_relay.rs` (`relay_once`, `relay_in`) et
     `crates/kartenn-telemetry/tests/it/audit_export.rs`
     (`a_pass_right_after_a_rejection_relays`)
   - dépend de : 23
+  - reste : le pool qui retient les connexions rendues est copié de la 23 (et l'est
+    peut-être aussi par la 006-30) : à mettre en commun dans `kartenn-testing` ; le
+    `choix :` de la 23 (« une erreur de base laissait le même verrou ») est inexact, à
+    corriger au passage (le correctif reste juste, pour les erreurs côté client)
