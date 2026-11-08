@@ -206,8 +206,9 @@ pub async fn open_within(
 
 /// A page of [`open_within`], by opening then identifier (task 021-29): the anomalies
 /// after `after` (`(opened_at, id)` of the last one read), `limit` at most (all when
-/// `None`). The key condition is written only after a first page, so that it stays a
-/// condition of the scan rather than a filter of a generic plan.
+/// `None`). The key condition is written only after a first page, and the object's only
+/// with one, so that each stays a condition of the scan rather than a filter of a generic
+/// plan.
 ///
 /// # Errors
 ///
@@ -223,6 +224,13 @@ pub async fn open_page(
         "AND (a.opened_at, a.id) > ($6::timestamptz, $7::uuid)"
     } else {
         "AND $6::timestamptz IS NULL AND $7::uuid IS NULL"
+    };
+    // The same for the object (021/A37): written as `$9 IS NULL OR …`, the generic plan
+    // scanned the whole table (42 ms for 2·10⁵ anomalies, `anomaly_by_object` unused).
+    let object = if filter.object.is_some() {
+        "AND a.object_id = $9::uuid"
+    } else {
+        "AND $9::uuid IS NULL"
     };
     let sql = format!(
         "WITH RECURSIVE s AS MATERIALIZED (SELECT * FROM kartenn_scopes($4)),
@@ -250,7 +258,7 @@ pub async fn open_page(
                      AND p.property_id IN (SELECT id FROM property_declaration WHERE key = 'core.owner')
                      AND v.v_uuid IN (SELECT id FROM sub)))
            AND ($5::text IS NULL OR a.detail ->> 'property' = $5)
-           AND ($9::uuid IS NULL OR a.object_id = $9)
+           {object}
            {keyset}
          ORDER BY a.opened_at, a.id
          LIMIT $8::bigint",
