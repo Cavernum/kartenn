@@ -184,7 +184,8 @@ test("a gap read: its key, its object and the deviation, from a source of the bu
   expect(network.status, JSON.stringify(network.body)).toBe(201);
 
   // Its row in the tab of the gaps filtered by the key: the key and its label, the network,
-  // the deviation in the server's words.
+  // the deviation composed by the screen (task 11m, A36): the value expected by its label,
+  // none resolved, the source and its revision; never the server's sentence.
   await page.goto(`/anomalies?tab=gaps&property=${key}`);
   await expect(page.getByRole("heading", { level: 1, name: "Anomalies" })).toBeVisible();
   const grid = page.getByRole("grid", { name: "Lacunes" });
@@ -192,7 +193,11 @@ test("a gap read: its key, its object and the deviation, from a source of the bu
   await expect(gap).toHaveCount(1);
   await expect(gap).toContainText("Zone du parcours");
   await expect(gap).toContainText(key);
-  await expect(gap).toContainText(`${key}: resolved no value, expected`);
+  await expect(gap).toContainText("Production");
+  await expect(gap).toContainText("non renseigné");
+  await expect(gap).toContainText("policy.inference");
+  await expect(gap).toContainText(/révision \d+/);
+  await expect(gap).not.toContainText("resolved");
   await expect(gap.getByRole("link", { name: NETWORK })).toBeVisible();
   await expectAccessible(page);
 });
