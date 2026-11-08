@@ -1257,11 +1257,11 @@ async fn properties_resolve_explain_and_mask(pool: PgPool) {
 async fn a_deviation_of_a_sensitive_property_hides_its_value(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
     let net = prefix(&pool, lab, "10.1.2.0/24").await;
-    let other = prefix(&pool, lab, "10.1.3.0/24").await;
     declare(&pool, "site.secret", true).await;
     declare(&pool, "policy.zone", false).await;
     let author = person(&pool, &READ_ALL, ("global", None)).await.identity;
-    // One open deviation per object (the rule and the object key an anomaly).
+    // Two deviations on one object: the rule, the object and the property of its detail
+    // key an anomaly (021/A39, task 11n).
     let detail = |key: &str, resolved: &str, expected: &str| {
         json!({
             "property": key, "resolved": resolved, "expected": expected,
@@ -1275,7 +1275,7 @@ async fn a_deviation_of_a_sensitive_property_hides_its_value(pool: PgPool) {
             detail("site.secret", "s3", "s4"),
         ),
         (
-            other,
+            net,
             "policy.zone: resolved \"red\", expected \"blue\" by src@1 (rule)",
             detail("policy.zone", "red", "blue"),
         ),
@@ -1349,9 +1349,10 @@ async fn anomalies_and_deviations_page_by_cursor(pool: PgPool) {
         } else {
             "policy.env"
         };
-        sqlx::query("UPDATE anomaly SET message = $2 WHERE id = $1")
+        sqlx::query("UPDATE anomaly SET message = $2, detail = $3 WHERE id = $1")
             .bind(gap)
             .bind(format!("{key}: resolved a, expected b"))
+            .bind(json!({ "property": key }))
             .execute(&pool)
             .await
             .unwrap();

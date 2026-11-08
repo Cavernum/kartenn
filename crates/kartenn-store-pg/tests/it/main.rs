@@ -1,6 +1,7 @@
 //! The integration tests of kartenn-store-pg, one binary for the crate (ADR 0027): a
 //! module per subject.
 
+mod anomalies;
 mod audit_schema;
 mod changesets;
 mod core_objects;
