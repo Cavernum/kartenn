@@ -5,7 +5,9 @@
 // The drafts of the server (spec 024 § A, 021 design « Écritures »): reads as queries of
 // the cache (family `drafts`), writes under `If-Match` with the `ETag` of the draft read,
 // the simulation as a query waited 400 ms, the submission as one changeset. The active
-// draft of a tab is its identifier in `sessionStorage`; nothing is kept in IndexedDB.
+// draft of a tab is its identifier in `sessionStorage`, the period of a draft (the date of
+// its first addition under `valid_at`, or the foot's choice) too; nothing is kept in
+// IndexedDB.
 
 import type { QueryClient } from "@tanstack/query-core";
 import type { Client } from "../api/client.ts";
@@ -40,6 +42,12 @@ export const SIMULATION_WAIT = 400;
 
 /** The key of `sessionStorage` that holds the active draft of the tab. */
 export const ACTIVE_KEY = "kartenn.draft.active";
+
+/**
+ * The prefix of the keys of `sessionStorage` that hold the period of a draft, by its
+ * identifier: the server's draft has none (spec 024 § A), the changeset it submits does.
+ */
+export const PERIOD_KEY = "kartenn.draft.period.";
 
 /** What the SDK needs of `sessionStorage`. */
 export type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -89,6 +97,8 @@ export interface DraftDeps {
   writes: Pick<Writes, "submitted">;
   /** `sessionStorage`, looked up at each use; `null` when the browser refuses it. */
   storage: () => StorageLike | null;
+  /** The dated context of the tab: an addition under `valid_at` alone dates its draft. */
+  time?: () => { validAt: string | null; asOf: string | null };
   /** The title of a draft created by `addToActive`. */
   title?: () => string;
   pause?: (ms: number, signal?: AbortSignal) => Promise<void>;
@@ -117,6 +127,7 @@ export function createDrafts(deps: DraftDeps) {
   const { client, queryClient, reads, invalidation, writes } = deps;
   const wait = deps.pause ?? sleep;
   const activeListeners = new Set<(id: string | null) => void>();
+  const periodListeners = new Set<(id: string) => void>();
   const goneListeners = new Set<(gone: Gone) => void>();
   /** Drafts this tab is deleting or submitting: their `draft` event is no news. */
   const ending = new Set<string>();
@@ -152,6 +163,60 @@ export function createDrafts(deps: DraftDeps) {
     for (const listener of [...activeListeners]) listener(id);
   }
 
+  // The period of a draft, kept with it for the tab, a reload included.
+  /** The period kept for the draft `id`, `null` when none (unparsable, or no storage). */
+  function period(id: string): DraftPeriod | null {
+    try {
+      const kept = deps.storage()?.getItem(PERIOD_KEY + id);
+      if (!kept) return null;
+      const parsed = JSON.parse(kept) as Record<string, unknown> | null;
+      if (typeof parsed !== "object" || parsed === null) return null;
+      const { valid_from: from, valid_to: to } = parsed;
+      // Only its dates, as strings: anything else kept there is no period.
+      return {
+        ...(typeof from === "string" ? { valid_from: from } : {}),
+        ...(typeof to === "string" ? { valid_to: to } : {}),
+      };
+    } catch {
+      return null;
+    }
+  }
+  /** Keeps the period of the draft `id` (its dates set only); `null` forgets it. */
+  function setPeriod(id: string, next: DraftPeriod | null): void {
+    try {
+      const storage = deps.storage();
+      if (next === null) storage?.removeItem(PERIOD_KEY + id);
+      else {
+        const body: DraftPeriod = {
+          ...(next.valid_from ? { valid_from: next.valid_from } : {}),
+          ...(next.valid_to ? { valid_to: next.valid_to } : {}),
+        };
+        storage?.setItem(PERIOD_KEY + id, JSON.stringify(body));
+      }
+    } catch {
+      // Without `sessionStorage`, the period lasts as long as the foot shows it.
+    }
+    for (const listener of [...periodListeners]) listener(id);
+  }
+  /**
+   * The period the draft `id` is simulated and submitted at: the one kept, else from the
+   * date read (`valid_at`), else now.
+   */
+  function periodOf(id: string): DraftPeriod {
+    const validAt = deps.time?.().validAt ?? null;
+    return period(id) ?? (validAt ? { valid_from: validAt } : {});
+  }
+  /**
+   * An addition to the draft `id` under `valid_at` alone dates it, when it has no period
+   * yet: the date of that addition stays its `valid_from`, back at the present too.
+   */
+  function dateAddition(id: string): void {
+    const time = deps.time?.();
+    if (time?.validAt && !time.asOf && period(id) === null) {
+      setPeriod(id, { valid_from: time.validAt });
+    }
+  }
+
   /** The `ETag` of the draft read, read first if the cache has none. */
   async function etagOf(id: string): Promise<string> {
     const cached = queryClient.getQueryData<Entry<Draft>>(get(id).queryKey)?.etag;
@@ -178,6 +243,7 @@ export function createDrafts(deps: DraftDeps) {
   async function forget(id: string): Promise<boolean> {
     const wasActive = active() === id;
     if (wasActive) setActive(null);
+    if (period(id) !== null) setPeriod(id, null);
     queryClient.removeQueries({ queryKey: get(id).queryKey, exact: true });
     queryClient.removeQueries({ queryKey: ["simulate", "draft", id] });
     await invalidation.path("/v1/drafts");
@@ -242,6 +308,7 @@ export function createDrafts(deps: DraftDeps) {
         body: { operations: added },
         ifMatch,
       });
+      dateAddition(id);
       return saved(answer.data as Draft, answer.etag);
     };
     try {
@@ -347,6 +414,7 @@ export function createDrafts(deps: DraftDeps) {
     if (created.kind !== "saved") {
       return { ...created, input: first } as Refusal<readonly Operation[]>;
     }
+    dateAddition(created.draft.id);
     setActive(created.draft.id);
     return created;
   };
@@ -388,6 +456,15 @@ export function createDrafts(deps: DraftDeps) {
     addToActive,
     active,
     setActive,
+    period,
+    setPeriod,
+    periodOf,
+    dateAddition,
+    /** Each change of the period kept for a draft; returns the function that stops. */
+    onPeriod(listener: (id: string) => void): () => void {
+      periodListeners.add(listener);
+      return () => periodListeners.delete(listener);
+    },
     /** Each change of the active draft of the tab; returns the function that stops. */
     onActive(listener: (id: string | null) => void): () => void {
       activeListeners.add(listener);

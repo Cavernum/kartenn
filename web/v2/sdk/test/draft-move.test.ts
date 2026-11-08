@@ -5,6 +5,7 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { draft, moveInDraft, type Operation } from "../src/draft.ts";
+import { resetContext, setContext } from "../src/context.ts";
 import { setFetch } from "../src/host.ts";
 import { drafts, queryClient } from "../src/instance.ts";
 import { fakeFetch } from "../src/testing/index.ts";
@@ -46,7 +47,7 @@ const violation = (rule: string, severity: string, at: number | null, subjects: 
 });
 
 /** A server holding the active draft `operations`, simulated as `simulation` answers. */
-function server(operations: unknown[], simulation: () => unknown) {
+function server(operations: unknown[], simulation: (period: unknown) => unknown) {
   const seen: string[] = [];
   let version = 1;
   setFetch(
@@ -62,7 +63,7 @@ function server(operations: unknown[], simulation: () => unknown) {
         operations = [...operations, ...(added as { operations: unknown[] }).operations];
         return body(operations, ++version);
       },
-      "POST /v1/drafts/{id}/simulation": () => simulation() as never,
+      "POST /v1/drafts/{id}/simulation": ({ body: period }) => simulation(period) as never,
     }),
   );
   drafts.setActive(D);
@@ -73,6 +74,7 @@ afterEach(() => {
   setFetch(null);
   queryClient.clear();
   sessionStorage.clear();
+  resetContext();
 });
 
 describe("moveInDraft", () => {
@@ -124,6 +126,24 @@ describe("moveInDraft", () => {
     expect(outcome.kind === "drafted" && outcome.verdict === "unknown" && outcome.problem).not.toBe(
       null,
     );
+  });
+
+  it("under valid_at alone, simulated at the date of the addition, kept with the draft (REQ-021-5)", async () => {
+    const at = "2031-03-01T08:00:00Z";
+    const periods: unknown[] = [];
+    server([other], (period) => {
+      periods.push(period);
+      return simulated(true, []);
+    });
+    setContext({ time: { validAt: at, asOf: null } });
+    await moveInDraft(to("c1"), node, drafts.addToActive);
+    expect(periods).toEqual([{ valid_from: at }]);
+    expect(drafts.period(D)).toEqual({ valid_from: at });
+    // Back at the present, replaced in place: still simulated at the date of its addition.
+    setContext({ time: { validAt: null, asOf: null } });
+    queryClient.clear();
+    await moveInDraft(to("c2"), node, drafts.addToActive);
+    expect(periods).toEqual([{ valid_from: at }, { valid_from: at }]);
   });
 });
 

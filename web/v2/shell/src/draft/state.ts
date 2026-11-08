@@ -6,8 +6,9 @@ import {
   type Simulated,
   type Violation,
 } from "@kartenn/sdk";
+import { draftPeriod } from "@kartenn/sdk/host";
 import type { SplitAction } from "@kartenn/ui";
-import { computed, shallowReactive, toValue, type MaybeRefOrGetter } from "vue";
+import { computed, ref, shallowReactive, toValue, type MaybeRefOrGetter } from "vue";
 import { lacking } from "../changesets/model.ts";
 import { useQuery } from "../data/query.ts";
 import { useSession } from "../rights/index.ts";
@@ -27,16 +28,21 @@ export type DraftAction = "apply" | "review" | "save";
 
 /**
  * The period of the changeset a draft submits (its dates of effect, `valid_from` and
- * `valid_to`): not the server's draft but the foot's choice, kept by draft for the page's
- * life so that its simulation and its submission read the same. Not chosen, `valid_from`
- * follows the date read (`valid_at`), else now; `valid_to` is unbounded.
+ * `valid_to`), kept with the draft by the SDK for the tab, a reload included (the server's
+ * draft has none): the date of its first addition under `valid_at` alone, or the foot's
+ * choice, so that its simulation and its submission read the same, back at the present
+ * too. Neither, `valid_from` follows the date read (`valid_at`), else now; `valid_to` is
+ * unbounded.
  */
-const periods = shallowReactive(new Map<string, DraftPeriod>());
+const periodsChanged = ref(0);
+draftPeriod.on(() => (periodsChanged.value += 1));
 export const draftPeriods = {
-  get: (id: string, time: Time): DraftPeriod =>
-    periods.get(id) ?? (time.validAt ? { valid_from: time.validAt } : {}),
-  set: (id: string, period: DraftPeriod): void => void periods.set(id, period),
-  drop: (id: string): void => void periods.delete(id),
+  get: (id: string, time: Time): DraftPeriod => {
+    void periodsChanged.value;
+    return draftPeriod.get(id) ?? (time.validAt ? { valid_from: time.validAt } : {});
+  },
+  set: (id: string, period: DraftPeriod): void => draftPeriod.set(id, period),
+  drop: (id: string): void => draftPeriod.set(id, null),
 };
 
 /** The period as sent: its dates set, nothing for the defaults of the server. */
@@ -96,8 +102,8 @@ export async function submitDraft(
       period: sent,
     });
   } else {
+    // Accepted, the SDK forgets the draft and its period with it.
     lostSubmissions.drop(id);
-    if (outcome.kind === "applied" || outcome.kind === "proposed") draftPeriods.drop(id);
   }
   return outcome;
 }
@@ -117,10 +123,19 @@ export function useDraftQueries(id: MaybeRefOrGetter<string | null>) {
   const operations = computed(() => draft.value?.operations ?? []);
   /** The draft may be written: not under `as_of` (REQ-021-5). */
   const writable = computed(() => writesOf(time.value).draft);
-  /** The period of its changeset, as the foot chose it (or its default). */
+  /**
+   * A submission of the draft awaits its retry (no answer): its period is the one sent,
+   * fixed until an answer (REQ-006-15).
+   */
+  const awaiting = computed(() => {
+    const at = toValue(id);
+    return at === null ? undefined : lostSubmissions.get(at);
+  });
+  /** The period of its changeset: as sent and awaiting, else as kept (or its default). */
   const period = computed<DraftPeriod>(() => {
     const at = toValue(id);
-    return at === null ? {} : draftPeriods.get(at, time.value);
+    if (at === null) return {};
+    return awaiting.value?.period ?? draftPeriods.get(at, time.value);
   });
   const simulation = useQuery(() => ({
     ...drafts.simulate(draft.value ?? { id: "-", version: 0 }, periodBody(period.value)),
@@ -211,6 +226,7 @@ export function useDraftQueries(id: MaybeRefOrGetter<string | null>) {
     draft,
     operations,
     writable,
+    awaiting,
     period,
     simulation,
     simulated,

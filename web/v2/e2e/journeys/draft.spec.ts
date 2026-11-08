@@ -1,6 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 import {
   apiCall,
+  atRest,
   expect,
   expectAccessible,
   loginIn,
@@ -17,7 +18,8 @@ import {
 // with a violation says it on its operation, with its code; removed, the draft is valid. A
 // draft resumed from another browser of the same identity, with what was written in the
 // first, then deleted there. Under `valid_at` alone the draft is submitted from that date,
-// its dates of effect in the foot; an answer lost at the submission, « Réessayer » sends the
+// its dates of effect in the foot; an addition under `valid_at` dates its draft, kept with it
+// back at the present (task 14e); an answer lost at the submission, « Réessayer » sends the
 // same key and the server replays its answer: one changeset (REQ-006-15). Under `as_of` the
 // draft is read only (REQ-021-5). Each test writes in a domain of its own (RFC 5737,
 // TEST-NET-2 and 3).
@@ -345,6 +347,68 @@ test("under as_of the draft is read only: said at its head, each write refused",
   // Nothing was written: the draft keeps its operation.
   const read = (await apiCall(page, "GET", `/v1/drafts/${id}`)).body as { operations: unknown[] };
   expect(read.operations).toHaveLength(1);
+});
+
+test("under valid_at, an operation added then removed, another submitted at the date of its addition back at the present", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const { prefixes: ids } = await ownedDomain(page, unique(browserName));
+  // A month ahead, to the second: the prefix exists then, the present is another date.
+  const at = new Date(Math.floor(Date.now() / 1000 + 30 * 86_400) * 1000).toISOString();
+  const record = `/prefixes/${ids[0]}`;
+  const form = page.getByRole("form", { name: "Modifier : Préfixe 198.51.100.0/24" });
+  const toDraft = async (value: string) => {
+    await page.getByRole("main").getByRole("button", { name: "Modifier" }).click();
+    await form.getByRole("textbox", { name: "Valeur" }).fill(value);
+    await page.keyboard.press("Control+Enter");
+    await expect(form).toHaveCount(0);
+  };
+  // The draft in front of the right panel: its tab when the panel is open (the edit panel
+  // leaves it so), else the counter, which opens it there (and would close an open one).
+  const draftTab = panel(page).getByRole("tab", { name: /Brouillon/ });
+  const showDraft = async () => {
+    if (await draftTab.isVisible()) await draftTab.click();
+    else await counter(page).click();
+    await expect(draftTab).toHaveAttribute("aria-selected", "true");
+  };
+  await page.goto(`${record}?valid_at=${encodeURIComponent(at)}`);
+  await toDraft("198.51.100.0/25");
+  await expect(counter(page)).toHaveAccessibleName(/^Brouillon 1 opération/);
+
+  // Simulated at the date of its addition; removed there, the draft keeps that date.
+  await showDraft();
+  const result = panel(page).locator(".k-draft-submit__result");
+  await expect(result).toContainText("Simulation valide");
+  await expect(result).toContainText("effet à partir du");
+  await panel(page)
+    .getByRole("button", { name: /^Retirer l'opération 1 : update_prefix/ })
+    .click();
+  await expect(counter(page)).toHaveAccessibleName(/^Brouillon 0 opération/);
+  await toDraft("198.51.100.0/26");
+  await expect(counter(page)).toHaveAccessibleName(/^Brouillon 1 opération/);
+
+  // Back at the present, the page loaded again: the draft is simulated and submitted at the
+  // date of its addition, not now.
+  await atRest(page);
+  await page.goto(record);
+  await expect(page.getByRole("status").filter({ hasText: /Lecture au/ })).toHaveCount(0);
+  await expect(counter(page)).toHaveAccessibleName(/^Brouillon 1 opération/);
+  await showDraft();
+  await expect(result).toContainText("Simulation valide");
+  await expect(result).toContainText("effet à partir du");
+  await expect(split(page)).toHaveText(/^Appliquer/);
+  await split(page).click();
+  await expect(page.getByRole("status").filter({ hasText: "Appliqué :" }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Voir le changeset" }).click();
+  await expect(page).toHaveURL(/\/changesets\/[0-9a-f-]+/);
+  const changeset = new URL(page.url()).pathname.split("/").pop()!;
+  const read = (await apiCall(page, "GET", `/v1/changesets/${changeset}`)).body as {
+    valid_from: string;
+  };
+  expect(new Date(read.valid_from).toISOString()).toBe(at);
 });
 
 /** A draft read only: said at its head, its removal, motive, dates and actions refused. */

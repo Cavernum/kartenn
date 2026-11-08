@@ -61,6 +61,17 @@ export function moveInActiveDraft(
   return moveInDraft(op, node, drafts.addToActive);
 }
 
+/**
+ * The period of a draft (its dates of effect), kept with it for the tab, a reload included:
+ * the date of its first addition under `valid_at` alone, or the foot's choice. Read by the
+ * shell's foot for its simulation and its submission; not offered to the plugins.
+ */
+export const draftPeriod = {
+  get: drafts.period,
+  set: drafts.setPeriod,
+  on: drafts.onPeriod,
+};
+
 /** The title of the drafts a plugin's `draft.add` creates, in the shell's language. */
 export function setDraftTitle(title: (() => string) | null): void {
   drafts.setTitle(title);
