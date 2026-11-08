@@ -61,6 +61,30 @@ pub async fn relay_once<S: AuditSink>(
     batch: i64,
 ) -> Result<usize, RelayError> {
     let mut tx = pool.begin().await.map_err(store_err)?;
+    match relay_in(&mut tx, sink, batch).await {
+        Ok(relayed) => {
+            tx.commit().await.map_err(store_err)?;
+            Ok(relayed)
+        }
+        Err(error) => {
+            // Rolled back before returning, not when the pool takes the connection back
+            // (which may come late, under load): the next pass, on another connection,
+            // would find the relay lock still held (task 012-23).
+            if let Err(rollback) = tx.rollback().await {
+                tracing::warn!(error = %rollback, "audit relay: rollback after a failed pass");
+            }
+            Err(error)
+        }
+    }
+}
+
+/// [`relay_once`] inside its transaction, which commits on success (also when nothing is
+/// delivered: it keeps the floor raised by the pass).
+async fn relay_in<S: AuditSink>(
+    tx: &mut sqlx::PgConnection,
+    sink: &S,
+    batch: i64,
+) -> Result<usize, RelayError> {
     let locked: bool = sqlx::query_scalar(
         "SELECT pg_try_advisory_xact_lock(hashtext('kartenn.audit.relay.' || $1))",
     )
@@ -72,7 +96,7 @@ pub async fn relay_once<S: AuditSink>(
         return Ok(0);
     }
     let floor = crate::floor::floor(
-        &mut tx,
+        &mut *tx,
         &format!("audit.relay/{}", sink.name()),
         sink.name(),
         &RELAYED,
@@ -92,8 +116,6 @@ pub async fn relay_once<S: AuditSink>(
     .await
     .map_err(store_err)?;
     if rows.is_empty() {
-        // Keeps the floor raised by this pass.
-        tx.commit().await.map_err(store_err)?;
         return Ok(0);
     }
     let events: Vec<serde_json::Value> = rows.iter().map(|r| r.3.clone()).collect();
@@ -117,7 +139,6 @@ pub async fn relay_once<S: AuditSink>(
     .execute(&mut *tx)
     .await
     .map_err(store_err)?;
-    tx.commit().await.map_err(store_err)?;
     Ok(rows.len())
 }
 
