@@ -169,3 +169,17 @@ en fournit le mécanisme et les teste avec des appels directs.
   bornés (REQ-012-26), schéma JSON publié absent (REQ-012-10,
   `evenements-audit.schema.json`), test de fuzzing du cadrage absent (REQ-012-29,
   `tests/framing.rs`) ; et des écarts de documentation, corrigés
+- [ ] 23. `audit_otlp::audit_events_reach_an_otlp_collector_acknowledged` instable sous
+  charge (vu le 2026-11-08 par la vérification complète de main, pendant
+  `k-web2-check --all`) : la reprise après un rejet du collecteur rend 0 au lieu de 1
+  (`crates/kartenn-telemetry/tests/it/audit_otlp.rs` vers la ligne 109) ; seul, il passe.
+  Cause probable : sur `RelayError::Sink`, `relay_once` sort par `?` sans annuler sa
+  transaction ; sqlx l'annule en différé au retour de la connexion au pool, et la passe
+  suivante, sur une autre connexion, trouve le verrou `pg_try_advisory_xact_lock` encore
+  tenu et rend `Ok(0)`. Confirmer la cause, annuler explicitement (`tx.rollback()`) avant
+  de rendre l'erreur, et prouver qu'une passe qui suit immédiatement un rejet relaie —
+  verify : `k-check -p kartenn-store-pg -p kartenn-telemetry` ; `k-check` complet sous
+  charge sans échec de `audit_otlp::`
+  - où : `crates/kartenn-store-pg/src/audit_relay.rs` (`relay_once`, livraison au
+    puits), `crates/kartenn-telemetry/tests/it/audit_otlp.rs`
+  - dépend de : —
