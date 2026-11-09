@@ -16,7 +16,7 @@ l'**instruction** de l'équipe sécurité, qui l'approuve, le rejette en documen
 de fin : sa validité est **dérivée en continu** de la politique (D30 amendée) ; tout
 changement de politique, de classification ou de rattachement **réévalue les flux
 touchés**, et le changeset qui le porte les nomme avant d'être appliqué. C'est le socle
-de l'audit des flux constatés (v0.3) et de l'atteignabilité future (D20).
+de l'audit des flux constatés (v0.4, D31 amendée par la 019) et de l'atteignabilité future (D20).
 
 Sources : besoin [`../010-politique-flux/besoin/`](../010-politique-flux/besoin/)
 (UC-2 à UC-4, UC-10, UC-13 ; EB-14 à EB-18, EB-25 à EB-27 ; Q3, Q8, Q16 à Q18, Q24) ;
@@ -28,7 +28,7 @@ décisions [`decisions.md`](decisions.md) (F1 à F18) ; D20, D22, D25, D28 à D3
 
 - **Flux** : demande enregistrée (source, destination, service, dossier, demandeur,
   entité), avec son évaluation courante et son historique.
-- **Sorte** : `requested` (demandé, v0.2) ou `observed` (constaté, réservé à la v0.3).
+- **Sorte** : `requested` (demandé, v0.2) ou `observed` (constaté, réservé à la v0.4).
 - **Extrémité** : adresse, préfixe (sous-réseau) ou interface ; jamais une machine (F21).
 - **Flux ouvert** : couvert, à une date, par un flux du registre `active` ou `waived`
   dont la source contient l'adresse source, la destination l'adresse destination, et
@@ -345,12 +345,12 @@ une tâche de fond si un besoin apparaît.
 ## Non-objectifs
 
 - Flux constatés : import des exports de pare-feux et d'infrastructure as code, audit a
-  posteriori des flux déjà ouverts (v0.3, sorte réservée).
-- Campagnes de revue comme objet propre (v0.3) ; la v0.2 livre les filtres.
+  posteriori des flux déjà ouverts (v0.4, sorte réservée ; D31 amendée, 019/Q-019-13).
+- Campagnes de revue comme objet propre (v0.4) ; la v0.2 livre les filtres.
 - Atteignabilité effective (D20 étape 2), observation du trafic, flux sans trafic.
 - Services exposés par une machine (D29, plus tard).
 - Génération de règles de pare-feu à partir du registre.
-- Connecteurs vers le ticketing et la revue de code (v0.3, hors kartenn) ; la v0.2 en
+- Connecteurs vers le ticketing et la revue de code (v0.4, hors kartenn) ; la v0.2 en
   pose le contrat (pré-vérification 010, demande pour le compte de, événements).
 - Interface Web : plugin `web/plugins/flow/` (007/W6).
 

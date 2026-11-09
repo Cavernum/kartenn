@@ -634,15 +634,15 @@ politique d'un changeset de règles < 1 s ; rapport d'audit < 10 min (S20, D14).
 
 - Le registre de flux déclarés, leurs dérogations, leur réévaluation et les
   non-conformités : spec 011.
-- Flux constatés et audit a posteriori des flux déjà ouverts (v0.3, place réservée par
-  la 011).
+- Flux constatés et audit a posteriori des flux déjà ouverts (v0.4, place réservée par
+  la 011 ; D31 amendée, 019/Q-019-13).
 - Lecture des exports de pare-feux et d'infrastructure as code, connecteurs vers le
-  ticketing et la revue de code (v0.3) ; la v0.2 en pose le contrat (pré-vérification,
+  ticketing et la revue de code (v0.4) ; la v0.2 en pose le contrat (pré-vérification,
   enregistrement pour le compte d'un demandeur, événements sortants).
-- Atteignabilité effective, NAT, routes, passerelles (D20 étape 2, v0.3 et suite).
+- Atteignabilité effective, NAT, routes, passerelles (D20 étape 2, v0.4 et suite).
 - Observation du trafic réel ; services exposés déclarés par une machine (D29).
 - Inférence sur les machines (I2).
-- Campagnes de revue comme objet propre (v0.3) ; la v0.2 livre les filtres.
+- Campagnes de revue comme objet propre (v0.4) ; la v0.2 livre les filtres.
 - Score de risque décisionnel : le score reste informatif.
 - Les extrémités hors du référentiel (Internet) : à modéliser comme préfixes d'un
   domaine dédié.

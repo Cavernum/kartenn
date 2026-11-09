@@ -57,7 +57,8 @@ Non-objectifs :
 |---|---|
 | v0.1 | Noyau d'adressage (002), propriétés (003), changesets et bitemporel (004), authentification et RBAC (005), API REST (006), shell Web et plugins (007), VLAN (008), machines et interfaces (009) |
 | v0.2 | Politique de flux (010), registre de flux (011) — spécifiés avant de figer le noyau |
-| v0.3 | Passerelles, routes, NAT |
+| v0.3 | Modèle de calcul : hyperviseurs, VM, conteneurs, Kubernetes (019) |
+| v0.4 | Passerelles, routes, NAT ; flux constatés, connecteurs de ticketing, campagnes de revue (D31 amendée, 019/Q-019-13) |
 | ensuite | Atteignabilité, connecteur de la source historique, CLI, TUI, MCP |
 
 ## Glossaire

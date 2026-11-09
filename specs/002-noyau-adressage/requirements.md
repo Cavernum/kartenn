@@ -437,7 +437,7 @@ Acceptation :
 - Propriétés (typées, héritables ou non) et environnements (003, v0.2), y compris tous
   les attributs descriptifs : noms affichés, FQDN, descriptions (A10).
 - VLAN, machines, interfaces (008, 009), DNS (module futur), DHCP (module futur),
-  passerelles, routes et NAT (v0.3).
+  passerelles, routes et NAT (v0.4, D31 amendée).
 - Masques non contigus et notation `adresse masque`.
 - Découverte ou synchronisation automatique.
 

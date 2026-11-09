@@ -258,7 +258,7 @@ Celles de la 010 (design 010, § Exigences : N1 à N37, M1 à M10) s'appliquent,
 - Dépend de N4, N21, N22, M7 (fournis) et de N5, N14, N15, N38 (points différés ou à
   ajouter) : sans eux, la réévaluation et les événements devraient passer par l'outbox,
   hors de la transaction.
-- La sorte `observed` (v0.3) ajoutera des flux sans demandeur ni instruction ; les
+- La sorte `observed` (v0.4) ajoutera des flux sans demandeur ni instruction ; les
   colonnes du demandeur restent donc facultatives au niveau du schéma, obligatoires par
   règle pour `requested`.
 
