@@ -3916,7 +3916,27 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     scrolling`) ne sont pas lancées par l'agent : à la session principale, avec la 22b.
     `HostingTree.vue` (plugin `machines`, `onLoad` → `next()` de `data.ts`) semble exposé
     à la même perte (une invalidation qui annule la page en cours, le nombre d'enfants
-    inchangé ensuite) : à vérifier, hors du périmètre de la tâche.
+    inchangé ensuite) : à vérifier, hors du périmètre de la tâche, tâche 22k.
+  - reste (revue) : `onBeforeUnmount` (`TopologyView.vue` vers la ligne 183) arrête les
+    observateurs sans vider `observers`, si bien que `live()` reste vrai après le
+    démontage (une page de plus au plus, sans abonné) ; `settle()` de `topology.test.ts`
+    (vers la ligne 447) tourne vingt fois à vide au lieu de boucler tant que `waiting`
+    n'est pas vide ; le double transtypage `as unknown as LevelReader<Node>`
+    (`TopologyView.vue` vers la ligne 202) masque tout écart avec
+    `InfiniteQueryObserver`. La cause est reproduite en Vitest, pas encore mesurée au banc :
+    la tâche ne se tient en entier qu'après les sept passes de la 22b.
+
+- [ ] 22k. Arbre d'hébergement des machines contre les lectures d'une invalidation
+  (relevé par la 22d) : `HostingTree.vue` (`onLoad` → `next()` de `data.ts`) perd sans
+  doute la page demandée quand une invalidation annule sa lecture, comme la topographie
+  avant la 22d ; le contrat de `TreePagesHost.load` (`treePages.ts`, une demande tient
+  jusqu'à sa page, la fin de la liste ou un échec) n'y est pas tenu. Reprendre
+  `askNextPage` de `topology.ts` (le partager si les deux hôtes s'y prêtent) — verify :
+  Vitest du plugin sur le modèle du describe « a page the tree asks for, against the
+  reads of an invalidation » de `web/v2/shell/test/topology.test.ts`
+  - où : `web/v2/plugins/machines/src/HostingTree.vue`, `web/v2/plugins/machines/src/data.ts`
+    (`next`), `web/v2/shell/src/views/topology.ts` (`askNextPage`, `LevelReader`)
+  - dépend de : 22d
 
 - [ ] 22e. Défilement de l'arbre de 10⁴ lignes : 77 % de trames perdues et 137 tâches
   longues (la plus longue 151 ms) sans aucune lecture ; profil de trame, puis correction
