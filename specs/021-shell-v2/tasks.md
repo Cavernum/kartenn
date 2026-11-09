@@ -3778,10 +3778,83 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     compensation du défilement quand le cache lâche la première, `DataGrid`). Deux
     navigations sur dix (enregistrements 6 et 10, à chaque passe) sans lecture de
     `/properties` au survol, malgré deux mouvements dans le lien : cause non trouvée. Le
-    shell initial dépasse de 2,2 Ko. Arbitrage : toute modification d'un préfixe, d'une
-    plage ou d'une adresse invalide toutes les lectures d'enfants de tous les arbres (X24,
-    `invalidate.ts`) ; un arbre ouvert de 10⁴ lignes se relit alors en 100 lectures et
-    100 reconstructions à chaque changeset, même hors de son domaine.
+    shell initial dépasse de 2,2 Ko. Toute modification d'un préfixe, d'une plage ou
+    d'une adresse invalidait toutes les lectures d'enfants de tous les arbres (X24,
+    `invalidate.ts`) : arbitré le 2026-11-09 (A40), tâche 22c. Ces restes sont découpés
+    en 22b à 22h.
+  - reste (revue) : commentaire de `web/v2/e2e/serve.sh` (vers la ligne 65) inexact :
+    c'est `migrate` (`declare_module_jobs`, `kartenn-store-pg/src/maintenance.rs` vers la
+    ligne 84) qui réactive les tâches des modules, et `run` remet `public-drift` à
+    échéance (`app.rs` vers la ligne 515), si bien que seul `enabled = false` la tient ;
+    `budgets.spec.ts` : `firsts` (vers la ligne 504) compte la lecture initiale (valeur
+    normale 1, que l'`INFO` ne dit pas) ; `started` (vers la ligne 394) suit un événement
+    côté Node, avec retard, le commentaire promet plus ; les navigations non préchargées
+    entrent dans le p75 de la navigation en cache (vers la ligne 647), à exclure ou à
+    noter (22g).
+
+- [ ] 22b. Passe pleine échelle du banc web, par la session principale, seule sur la
+  machine (`k-heavy --status` tout libre) — verify : `K_BENCH_SCALE=full bench-web`,
+  chaque mesure rend son chiffre ; chiffres reportés dans la note de la tâche
+  - où : `web/v2/e2e/budgets/budgets.spec.ts`, `.claude/agents/bench-runner.md` (à
+    remettre à jour si les lignes du verdict ont changé)
+  - dépend de : 22a ; de préférence après 22c et 22d
+
+- [ ] 22c. Invalidation des arbres bornée aux domaines (A40) : l'événement `changes` lu
+  avec ses `domains` ; `objects` de `createInvalidation` n'invalide plus que les lectures
+  `core.domain/roots` et `core.prefix/children` des domaines nommés (clé de lecture à
+  relier à son domaine) ; une écriture propre sans domaines dans sa réponse garde
+  l'invalidation de tous les arbres ; `machines.machine/hosted` inchangé — verify :
+  Vitest `a change in one domain leaves the trees of the others` et `a change without
+  domains reads every tree again` ; le banc (passe réduite, tâches périodiques remises)
+  tient 0 lecture `/children` pendant le défilement d'un arbre d'un autre domaine
+  - où : `web/v2/sdk/src/data/invalidate.ts` (`TREES`, `objects` vers la ligne 70),
+    `web/v2/sdk/src/events/apply.ts` (vers la ligne 44), `web/v2/sdk/src/data/write.ts`
+    (vers la ligne 172) ; tests voisins `web/v2/sdk/test/events.test.ts`,
+    `web/v2/sdk/test/write.test.ts` ; contrat de l'événement : `specs/022-evenements-sse/design.md`
+    (vers la ligne 73)
+  - dépend de : 22a
+
+- [ ] 22d. Chargement de l'arbre arrêté à deux pages (une passe sur sept, 22a et 24e) :
+  après la deuxième page, ni ligne « suite » ni avis, 100 enfants dessinés ;
+  `treePages.ts` ne redemande jamais à la même taille et `onLoad` ne lit rien quand
+  `levelOf(parent).more` est faux à ce moment — verify : un test Vitest qui reproduit
+  l'ordre (réponse de la page 2 après la demande de la page 3) ; le banc, sept passes
+  réduites, la ligne `children loaded before scrolling` en PASS à chaque fois
+  - où : `web/v2/ui/src/components/internal/treePages.ts`,
+    `web/v2/shell/src/views/TopologyView.vue` (`onLoad`, `levelOf`)
+  - dépend de : 22a
+
+- [ ] 22e. Défilement de l'arbre de 10⁴ lignes : 77 % de trames perdues et 137 tâches
+  longues (la plus longue 151 ms) sans aucune lecture ; profil de trame, puis correction
+  dans le rendu virtuel de l'arbre — verify : passe réduite du banc, trames perdues
+  ≤ 2 % et aucune tâche longue pendant le défilement
+  - où : `web/v2/ui/src/components/` (`Tree`, `TreeGrid`, rendu virtuel),
+    `web/v2/e2e/budgets/budgets.spec.ts` (mesure du défilement)
+  - dépend de : 22c, 22d
+
+- [ ] 22f. Listes au-delà de dix pages : la page de 100 lignes à 212 ms au p95 (budget
+  100 ms) ; quand le cache lâche la première page (`MAX_PAGES`), la liste saute d'une
+  page sous la fenêtre faute de compensation du défilement — verify : Vitest de
+  `DataGrid` (une page lâchée ne déplace pas la ligne sous le pointeur) ; passe réduite,
+  page de 100 lignes ≤ 100 ms au p95
+  - où : `DataGrid` de `web/v2/ui/src/components/`, `MAX_PAGES` de `web/v2/sdk/src`
+  - dépend de : 22a
+
+- [ ] 22g. Navigation en cache à 127 ms au p75 (budget 100 ms) : deux navigations sur
+  dix (enregistrements 6 et 10) ne lisent pas `/properties` au survol ; trouver
+  pourquoi le préchargement manque, puis exclure du p75 toute navigation non
+  préchargée (ou l'imprimer à part) — verify : passe réduite, dix navigations
+  préchargées et p75 ≤ 100 ms
+  - où : `KLink` et `meta.queries` (tâche 7), `web/v2/e2e/budgets/budgets.spec.ts`
+    (vers la ligne 647)
+  - dépend de : 22a
+
+- [ ] 22h. Shell initial à 302,2 Ko gzip (budget 300 Ko) : trouver les 2,2 Ko en trop
+  (import statique devenu lourd, module à charger à la demande) — verify :
+  `web/v2/shell/scripts/shell-size.ts` ≤ 300 Ko
+  - où : `web/v2/shell/scripts/shell-size.ts`, `web/v2/shell/src/main.ts` et ses imports
+    statiques
+  - dépend de : 22a
 
 - [ ] 21. Accessibilité étendue : parcours clavier complet (palette, barre repliée,
   panneau du brouillon, édition en place), reflow 320 px des écrans de consultation,
