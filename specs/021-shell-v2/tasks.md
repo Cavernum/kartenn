@@ -3931,7 +3931,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     pendant le chargement** : la cause corrigée ici est réelle mais n'est pas celle du
     banc. Suite en 22l.
 
-- [ ] 22l. Chargement de l'arbre arrêté à deux pages, seconde cause (relevé par les passes
+- [x] 22l. Chargement de l'arbre arrêté à deux pages, seconde cause (relevé par les passes
   du banc après la 22d) : passe 3 sur 7, son journal : « after 2
   pages read, 1 of them the first (median 38 ms), a row for more: false, aria-setsize -1 »,
   « event stream while loading: nothing ». Sans invalidation, le niveau passe à « plus de
@@ -3949,6 +3949,39 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `/v1/prefixes/{id}/children` (curseur) ; mesure : `web/v2/e2e/budgets/budgets.spec.ts`
     (vers la ligne 504)
   - dépend de : 22d
+  - fait le 2026-11-09 — cause : le banc, pas l'arbre. Personne ne met `more` à faux :
+    `aria-setsize` -1 dit que le niveau a encore des pages, la ligne « suite » existe dans
+    le modèle mais n'est pas dans le document, virtualisée hors de la fenêtre de l'arbre.
+    La boucle de chargement de `budgets.spec.ts` cherchait une seule fois, au départ,
+    l'élément qui défile (le premier ancêtre qui déborde). Jusqu'à 200 lignes l'arbre
+    n'est pas virtualisé et n'a pas de hauteur à lui (`.k-tree-grid[data-virtual]` seul
+    porte `max-block-size`) : c'est le cadre (`.k-frame__surface`) qui défile. Sa ligne
+    « suite » coupe la racine de l'observateur (l'arbre lui-même, déroulé en entier), donc
+    la deuxième page est demandée d'emblée, sans défilement. Quand la boucle démarre avant
+    l'arrivée de cette page (38 ms ce jour-là), elle retient le cadre ; la page arrive,
+    l'arbre passe à 202 lignes, se virtualise, prend la hauteur d'une liste et défile
+    lui-même, mais la boucle fait défiler le cadre jusqu'à la fin : `scrollTop` de l'arbre
+    reste à 0, aucune ligne au-delà de la centième n'est rendue (`last child reached:
+    100`), la ligne « suite » jamais (`a row for more: false`), et la hauteur imprimée est
+    celle du cadre (265 lignes, pas les 202 de l'arbre). Quand la page arrive avant, la
+    boucle retient l'arbre (passes réussies : 10 002 lignes de hauteur, celle de l'arbre).
+    Preuve : reproduit dans le catalogue (état `paged` de `TreeGrid`, modifié le temps de
+    l'essai : 400 enfants par pages de 100, la deuxième donnée après le choix de l'élément
+    qui défile), la boucle du banc recopiée : cherché une fois, l'élément retenu est
+    `<html>`, l'arbre virtualisé à `scrollTop` 0, dernier enfant atteint 100, aucune ligne
+    « suite », `aria-setsize` -1 (la signature de la passe 3) ; cherché à chaque tour,
+    400 sur 400. Correction : `scrollerOf()` cherché à chaque tour de la boucle, et la
+    ligne INFO dit si l'arbre défile lui-même à la fin (`scrolled by the tree itself`).
+    `k-web2-check --base main` : 949 Vitest ; 2 719 captures sur 2 719 (tout :
+    `budgets.spec.ts` est un fichier du projet Playwright des captures).
+  - choix : correction dans le banc seul. Que l'arbre change d'élément qui défile en
+    passant 200 lignes est voulu (`TreeGrid.vue`, « Virtualised: the rows scroll in the
+    tree, a list's height at most ») et ne bloque pas un utilisateur, qui fait défiler
+    l'arbre une fois borné. Le script de reproduction n'est pas versionné : il demande
+    un état de catalogue de 400 enfants (de nouvelles captures) pour un défaut du banc ;
+    le banc lui-même est le test de l'ordre trouvé.
+  - reste : les sept passes réduites du banc (`children loaded before scrolling` en PASS
+    à chaque fois, `scrolled by the tree itself: true`) par la session principale.
 
 - [ ] 22m. Scénario du banc pour A40 (relevé à la clôture de la 22c) : le verify de la 22c
   (0 lecture `/children` pendant le défilement d'un arbre d'un autre domaine, tâches
