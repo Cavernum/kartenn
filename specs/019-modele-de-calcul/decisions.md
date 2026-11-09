@@ -1,6 +1,6 @@
 # 019 — Modèle de calcul et Kubernetes : journal des décisions
 
-**Statut : proposée, en attente de validation.** Brouillon du 2026-10-22, sans entretien.
+**Statut : arbitrages rendus le 2026-11-09 (Q-019-1 à 13, toutes sur la recommandation, Q-019-4 avec garde-fous) ; X1 à X15, requirements et design à remettre en accord, puis à valider.** Brouillon du 2026-10-22, sans entretien, rebasé sur main le 2026-11-09.
 Le sujet (machines physiques, hyperviseurs, VM, conteneurs, pods et nœuds Kubernetes,
 interaction avec Kubernetes) a été retenu par l'utilisateur pour la v0.3 ; D31 est amendée
 en conséquence (passerelles, routes et NAT passent en v0.4). Les choix réversibles sont
@@ -34,7 +34,7 @@ les autres peuvent être tranchées au fil de la relecture.
   comme premier adaptateur.
 - Recommandation : **A**. Le contrat de module (ADR 0026) est fait pour ça ; une build
   sans Kubernetes garde la 009 intacte ; C abstrait avant d'avoir un second cas.
-- Décision : *en attente*.
+- Décision : **A**, module `kube` dépendant de `machines` (l'utilisateur, 2026-11-09).
 
 ### Q-019-2 — Qui fait foi pour les objets Kubernetes (D1, D23)
 - Constat : D1 fait de kartenn la source de vérité, sans découverte ni pilotage actif
@@ -49,7 +49,8 @@ les autres peuvent être tranchées au fil de la relecture.
 - Recommandation : **A**, comme précision de D1 (une source qui fait foi pour sa propre
   portion) et non comme découverte : rien n'est deviné, tout est lu d'une API déclarative.
   B laisse le référentiel toujours en retard ; C rend l'origine d'un champ illisible.
-- Décision : *en attente* (amende D1 si A).
+- Décision : **A**, objets miroirs écrits par le seul connecteur, classifications
+  déclarées dans kartenn ; amende D1 (l'utilisateur, 2026-11-09).
 
 ### Q-019-3 — Granularité des pods et de leurs adresses
 - Constat : un pod est éphémère (réf. § Pod) ; son IP change à chaque recréation. Un
@@ -65,7 +66,8 @@ les autres peuvent être tranchées au fil de la relecture.
 - Recommandation : **A**. B dépasse D2 et D14 ; C rend impossible l'enquête sur un flux
   constaté (« quelle application avait cette IP ? »), besoin de la sorte `observed` (D30
   amendée).
-- Décision : *en attente*.
+- Décision : **A**, le workload pour unité stable, les IP de pods au journal
+  d'observation (l'utilisateur, 2026-11-09).
 
 ### Q-019-4 — Le journal d'observation hors changesets (D8, D11)
 - Constat : si Q-019-3 = A, le journal reçoit des milliers de lignes par heure. Le faire
@@ -77,7 +79,34 @@ les autres peuvent être tranchées au fil de la relecture.
   table non versionnée ; (C) pas de journal (revient à Q-019-3 C).
 - Recommandation : **A**, à graver dans une ADR (« Observations : hors référentiel, hors
   changesets »), qui servira aussi aux flux constatés (sorte `observed`).
-- Décision : *en attente* (amende D8 et D11 si A : les observations n'en relèvent pas).
+- Enjeux (développés à la demande de l'utilisateur, 2026-11-09) : A abandonne, pour ce
+  journal seul, l'approbation, le bitemporel (ni correction ni `as_of`) et l'événement
+  par ligne, et ouvre une seconde voie d'écriture. B n'évite pas d'amender : un
+  changeset est du temps système immuable (D10), que la purge à échéance violerait, et
+  sans purge l'historique croît sans fin (≈ 3,6·10⁷ opérations par an à 10 clusters) ;
+  une politique d'approbation large retiendrait les lots. Le journal ne fonde aucun
+  verdict, mais il sert à l'attribution en enquête : un connecteur compromis pourrait
+  faire porter un flux à la mauvaise application ; d'où les garde-fous ci-dessous.
+- Décision : **A avec garde-fous** (l'utilisateur, 2026-11-09) ; amende D8 et D11 (les
+  observations n'en relèvent pas) ; ADR « Observations : hors référentiel, hors
+  changesets », qui vaudra aussi pour les flux constatés (sorte `observed`) et toute
+  télémétrie future. Garde-fous, à graver dans l'ADR et dans X7 :
+  - un droit propre (`kube.observations.write` ou équivalent), réservé au compte de
+    service du connecteur et borné à son cluster ;
+  - validation à l'entrée : une IP hors des plages de pods ou de nœuds du cluster est
+    refusée ;
+  - ajout seul : droits de base limités à l'insertion et à la fermeture de période,
+    jamais de réécriture ;
+  - chaque lot inscrit à l'audit scellé (012) avec l'empreinte de son contenu, pour
+    qu'une altération ultérieure se détecte ;
+  - lecture filtrée par le périmètre du cluster (la correspondance IP → workload dévoile
+    la topologie applicative) ;
+  - séparation stricte : une observation n'écrit jamais dans le référentiel ; passer
+    d'un fait observé à un objet déclaré se fait par un changeset ;
+  - limite assumée : au-delà de la rétention (30 jours par défaut, de 1 à 400), l'enquête
+    n'est plus possible ; l'audit garde la trace du lot, pas son contenu ;
+  - exploitation : table partitionnée par temps (purge par détachement de partition),
+    index GiST sur (IP, période).
 
 ### Q-019-5 — Domaine d'adressage des pods et des services
 - Constat : les plages de pods et de services se recouvrent souvent d'un cluster à l'autre
@@ -89,7 +118,7 @@ les autres peuvent être tranchées au fil de la relecture.
   (C) un domaine partagé par tous les clusters.
 - Recommandation : **A** (D4 : un domaine par espace qui peut se recouvrir), avec un
   domaine par cluster proposé par défaut.
-- Décision : *en attente*.
+- Décision : **A**, un domaine par cluster, désigné à sa déclaration (l'utilisateur, 2026-11-09).
 
 ### Q-019-6 — Forme du connecteur (D7)
 - Constat : D7 range les connecteurs parmi les clients de l'API REST, hors processus ;
@@ -103,7 +132,7 @@ les autres peuvent être tranchées au fil de la relecture.
   des clusters par chaque instance du serveur et contredit D7 ; C laisse le référentiel
   en retard de N minutes et coûte une liste complète à chaque passe. Le mode C reste le
   repli du connecteur quand le watch est indisponible.
-- Décision : *en attente*.
+- Décision : **A**, processus distinct client REST, list puis watch, liste périodique en repli (l'utilisateur, 2026-11-09).
 
 ### Q-019-7 — Les labels Kubernetes et les axes de la politique (D21, D23, D28)
 - Constat : une règle doit viser un workload par ses labels et son namespace. D21 a
@@ -120,7 +149,7 @@ les autres peuvent être tranchées au fil de la relecture.
   D21 ; la borne par namespace empêche l'escalade. B est sûr mais oblige à recopier
   chaque classification ; C réintroduit l'étiquette libre et contourne l'obligation par
   axe (REQ-010-21).
-- Décision : *en attente*.
+- Décision : **A**, correspondance label → valeur d'axe déclarée dans kartenn, bornée par namespace (l'utilisateur, 2026-11-09).
 
 ### Q-019-8 — Unité de verdict pour un workload (D22)
 - Constat : D22 évalue chaque paire d'adresses. Les adresses d'un workload sont
@@ -131,7 +160,7 @@ les autres peuvent être tranchées au fil de la relecture.
   dépend du journal) ; (C) développer en plages de pods des nœuds où il tourne.
 - Recommandation : **A**, comme précision de D22 pour les workloads ; les extrémités
   adresse, préfixe, interface et machine gardent la règle de D22.
-- Décision : *en attente* (amende D22 si A).
+- Décision : **A**, extrémité logique ; amende D22 pour les workloads, namespaces et services (l'utilisateur, 2026-11-09).
 
 ### Q-019-9 — Objet disparu du cluster mais cité dans kartenn
 - Constat : la 011 refuse la clôture d'une extrémité d'un flux actif (REQ-011-3) ; le
@@ -141,7 +170,7 @@ les autres peuvent être tranchées au fil de la relecture.
   cascade ou attend son retour (recréation de même nom) ; (B) cascade automatique (les
   flux disparaissent en silence) ; (C) refus (le connecteur reste bloqué).
 - Recommandation : **A**.
-- Décision : *en attente*.
+- Décision : **A**, état « absent » pour un objet cité, clôture pour un objet sans dépendant (l'utilisateur, 2026-11-09).
 
 ### Q-019-10 — Interactions avec le cluster (NetworkPolicy)
 - Constat : traduire les flux autorisés en NetworkPolicy est tentant, mais D1 exclut le
@@ -155,7 +184,7 @@ les autres peuvent être tranchées au fil de la relecture.
   (C) aucune interaction, jamais.
 - Recommandation : **A**. L'écriture directe exige des droits d'écriture sur le cluster
   (rupture de « lecture seule par défaut ») et une nouvelle décision sur D1.
-- Décision : *en attente*.
+- Décision : **A**, hors de la 019 ; lecture des NetworkPolicy puis production de manifestes par des specs ultérieures, kartenn n'écrivant jamais dans le cluster (l'utilisateur, 2026-11-09).
 
 ### Q-019-11 — Hyperviseur
 - Constat : un hyperviseur est une machine `physical` qui héberge des VM ou est membre
@@ -165,7 +194,7 @@ les autres peuvent être tranchées au fil de la relecture.
   livrée vide) ; (B) nouveau `kind` `hypervisor` (migration de `kind`, table de vérité de
   M5 à refaire).
 - Recommandation : **A** (M2 : le type porte des invariants, le reste est propriété).
-- Décision : *en attente*.
+- Décision : **A**, rôle dérivé et propriété facultative `machines.platform` (l'utilisateur, 2026-11-09).
 
 ### Q-019-12 — Dépendance : client Kubernetes en Rust
 - Constat : lister, surveiller (watch), reprendre après `410 Gone` et paginer demandent un
@@ -175,7 +204,7 @@ les autres peuvent être tranchées au fil de la relecture.
   le client HTTP déjà présent (list, watch, pagination en JSON, types écrits à la main pour
   les seuls champs lus).
 - Recommandation : **A** si l'évaluation est bonne, sinon B ; décision à la tâche 2.
-- Décision : *en attente*.
+- Décision : **A** si l'évaluation `crate-scout` est bonne, sinon B ; la fiche revient à l'arbitrage à la tâche 2 (nouvelle dépendance) (l'utilisateur, 2026-11-09).
 
 ### Q-019-13 — Ce qui glisse avec passerelles, routes et NAT
 - Constat : l'amendement de D31 déplace « passerelles, routes, NAT » en v0.4. La 010 et
@@ -186,7 +215,7 @@ les autres peuvent être tranchées au fil de la relecture.
   calcul.
 - Recommandation : **A** (une v0.3 consacrée au calcul) ; les mentions de la 010 et de la
   011 sont corrigées après l'arbitrage.
-- Décision : *en attente*.
+- Décision : **A**, flux constatés, connecteurs de ticketing et campagnes de revue glissent en v0.4 ; mentions de la 010 et de la 011 à corriger (l'utilisateur, 2026-11-09).
 
 ## Synthèse (choix proposés, sous réserve des arbitrages)
 - X1 périmètre : hôte physique, hyperviseur, VM, cluster d'hyperviseurs (009) ; cluster,
