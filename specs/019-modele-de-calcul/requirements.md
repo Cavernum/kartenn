@@ -1,14 +1,14 @@
 ---
 status: proposed
-updated: 2026-10-22
+updated: 2026-11-09
 ---
 
 # 019 — Modèle de calcul et Kubernetes : exigences
 
-**Statut : proposée, en attente de validation.** Treize questions sont **à arbitrer**
-avant toute implémentation : [`decisions.md`](decisions.md) § À arbitrer (Q-019-1 à 13).
-Les exigences ci-dessous suivent les recommandations ; chacune cite la question dont elle
-dépend.
+**Statut : à valider (tâche 0b).** Les treize questions sont arbitrées par l'utilisateur
+(2026-11-09, [`decisions.md`](decisions.md) § Arbitrages, Q-019-1 à 13) ; les exigences
+ci-dessous en suivent les décisions, chacune citant la question qui la fonde, et sont
+remises en accord avec les specs 022, 024 à 027 (tâche 0a).
 
 ## Résumé
 
@@ -22,10 +22,14 @@ bitemporel, et fait des workloads des extrémités de la politique (010) et des 
 visés par leurs classifications, leur namespace et leurs labels. L'écriture dans le
 cluster (NetworkPolicy) est une évolution hors de cette spec.
 
-Décisions : [`decisions.md`](decisions.md) (X1 à X15, Q-019-1 à 13) ; D1, D4, D7, D8,
+Décisions : [`decisions.md`](decisions.md) (X1 à X16, Q-019-1 à 13) ; D1, D4, D7, D8,
 D10, D11, D13, D21 à D23, D28, D30, D31, D33, D36
-([`../001-cadrage/decisions.md`](../001-cadrage/decisions.md)) ; ADR 0023, 0026, 0030,
-0031 ; specs 009, 010, 011. Référence :
+([`../001-cadrage/decisions.md`](../001-cadrage/decisions.md) ; D1, D8, D11, D22 et D31
+amendées par la 019) ; ADR 0019, 0023, 0026, 0030, 0031,
+[0043](../../docs/adr/0043-observations-hors-referentiel.md) (observations) et
+[0044](../../docs/adr/0044-connecteur-kubernetes.md) (connecteur) ; specs 009, 010, 011,
+022 (événements), 024 (grammaire des permissions), 025 (droits par groupes), 026 (VLAN
+dans le cœur), 027 (paramètres). Référence :
 [`docs/reference/kubernetes-calcul.md`](../../docs/reference/kubernetes-calcul.md).
 
 ### Ce que Kubernetes impose et ce que kartenn choisit
@@ -50,14 +54,21 @@ D10, D11, D13, D21 à D23, D28, D30, D31, D33, D36
 - **Objet miroir** : objet `kube.*` dont les champs suivis sont écrits par le seul
   connecteur (Q-019-2).
 - **Champs suivis** : champs d'un objet Kubernetes versionnés par kartenn (X4).
-- **Observation** : ligne du journal des pods, hors référentiel (Q-019-4).
+- **Observation** : ligne du journal des pods, hors référentiel, hors bitemporel et hors
+  changesets (Q-019-4, ADR 0043).
+- **Lot d'observations** : ensemble d'ouvertures et de fermetures d'observations envoyé
+  en une requête, accepté ou refusé en entier, audité avec l'empreinte de son contenu.
+- **Groupe du connecteur** : groupe kartenn (025) que désigne un cluster ; ses membres
+  comptes de service sont les seuls auteurs admis des champs suivis et des observations
+  du cluster.
 - **Absent** : état d'un objet miroir disparu du cluster mais cité dans kartenn (Q-019-9).
 - **Hyperviseur** : machine `physical` qui héberge une VM ou est membre d'un cluster de
   virtualisation (Q-019-11).
 - Conventions EARS, « écriture », « période », sévérités : comme dans
   [`002/requirements.md`](../002-noyau-adressage/requirements.md#conventions) ;
-  « objet de module », « ancre » : comme dans la 008 ; machines, interfaces,
-  rattachements : comme dans la 009.
+  « objet de module », « ancre », « ancrage de domaine » : comme dans l'ADR 0026
+  (clause 4) ; machines, interfaces, rattachements : comme dans la 009 ; le VLAN est un
+  objet du cœur (026/C1), il n'y a pas de module `vlan`.
 
 ## Exigences
 
@@ -104,12 +115,19 @@ kartenn doit gérer des clusters Kubernetes munis d'un slug unique à tout insta
 `core.owner` (obligatoire) et `core.site` (facultatif), d'un domaine des pods et d'un
 domaine des services (Q-019-5), de leurs plages de pods (conteneurs) et de services
 (réseaux) déclarées par un administrateur, d'une rétention d'observation (1 à 400 jours,
-30 par défaut), et d'une liste de clés de labels suivies.
+30 par défaut), d'une liste de clés de labels suivies propre au cluster, d'une fenêtre
+de lot du connecteur (10 s et 500 opérations par défaut) et du groupe du connecteur
+(groupe kartenn, 025) ; tous ces champs s'écrivent par changeset sous
+`kube.cluster.edit`.
 
 Acceptation :
 - Deux clusters de même slug : refus ; une plage de pods hors du domaine des pods :
   refus (`kube.cluster.range_domain`).
 - Les objets d'un cluster héritent de son propriétaire et de son site (arbre du module).
+- Le cluster désigne un groupe, jamais une identité ; un groupe inexistant ou clos sur
+  la période : refus (`kube.cluster.connector_group`).
+- Un changement de fenêtre de lot est pris par le connecteur à son lot suivant, sans
+  redémarrage.
 
 #### REQ-019-6 — Nœud
 kartenn doit gérer des nœuds, chacun lié à un cluster fixe, nommés comme dans
@@ -174,13 +192,15 @@ Acceptation :
 
 #### REQ-019-12 — Objets miroirs (Q-019-2)
 Si un changeset modifie un champ suivi d'un objet `kube.*` et que son auteur n'est pas
-le compte de service connecteur du cluster de l'objet, alors kartenn doit refuser
-l'écriture (`kube.object.managed`) ; les propriétés portées par ces objets restent
-écrites sous les droits ordinaires.
+un compte de service membre du groupe du connecteur du cluster de l'objet, alors
+kartenn doit refuser l'écriture (`kube.object.managed`) ; les propriétés portées par ces
+objets restent écrites sous les droits ordinaires.
 
 Acceptation :
 - Un administrateur renomme un workload : refus ; il pose un environnement sur le même
   workload : accepté.
+- Une personne ajoutée au groupe du connecteur renomme un workload : refus (seul un
+  compte de service est admis).
 
 ### C. Adressage
 
@@ -204,17 +224,52 @@ kartenn ne doit créer aucune adresse du noyau pour l'IP d'un pod ; une adresse 
 doit se résoudre en classification par l'arbre d'adressage (plage du nœud) et en
 workload par le journal d'observation.
 
-#### REQ-019-16 — Journal d'observation (Q-019-4, X7)
+#### REQ-019-16 — Journal d'observation (Q-019-4, X7, ADR 0043)
 kartenn doit tenir, par cluster, un journal des pods observés (namespace, nom, UID,
-workload, nœud, IP par famille, `hostNetwork`, période observée), écrit par lots par le
-connecteur hors changeset, sous la permission `kube.observation.write`, audité par lot,
-et purgé au-delà de la rétention du cluster.
+workload, nœud, IP par famille, `hostNetwork`, période observée), hors référentiel,
+écrit par lots par le connecteur hors changeset, et purgé au-delà de la rétention du
+cluster, avec les garde-fous suivants :
+- **droit propre** : écrire exige `kube.observation.record`, lire
+  `kube.observation.read`, chacun sur le périmètre du cluster ; un lot n'est accepté que
+  d'un compte de service membre du groupe du connecteur du cluster ;
+- **validation à l'entrée** : un lot dont une IP est hors des plages de pods du cluster
+  et des adresses de ses nœuds, ou qui cite un workload ou un nœud d'un autre cluster,
+  est refusé en entier ;
+- **ajout seul** : un lot n'ouvre que des observations et ne ferme que des périodes
+  ouvertes ; aucune autre mise à jour ni suppression ligne à ligne n'est permise, ni par
+  l'API ni par les droits PostgreSQL de l'application ;
+- **audit par lot** : chaque lot accepté inscrit `observation.batch.recorded` au journal
+  scellé (012) avec l'empreinte SHA-256 de son contenu ; une vérification périodique
+  inscrit `observation.batch.altered` pour un lot dont le contenu stocké ne correspond
+  plus à l'empreinte ;
+- **séparation** : une observation n'écrit rien dans le référentiel et n'émet aucun
+  événement `changes` ;
+- **rétention** : la purge supprime des partitions entières, jamais une observation
+  encore ouverte.
 
 Acceptation :
 - « Qui avait `10.64.3.17` le 2026-11-02 à 10 h ? » rend le pod, son workload et son
   nœud ; après la rétention, la même question rend une réponse vide et le motif
   `retention`.
 - Le journal n'a pas de lecture `as_of` ; aucune observation n'entre dans un verdict.
+- Droit propre : un lot du compte du connecteur du cluster A sur la route du cluster B,
+  ou d'une personne qui a `kube.observation.record` : refus (403), rien n'est écrit.
+- Validation : un lot dont une ligne porte `192.0.2.10`, hors des plages du cluster :
+  refus (422, `kube.observation.invalid`, la ligne nommée), aucune ligne du lot écrite.
+- Ajout seul : réécrire l'IP ou le workload d'une observation, rouvrir une période
+  fermée, supprimer une ligne, par l'API ou en SQL sous le rôle de l'application :
+  refus.
+- Audit : un lot accepté produit un et un seul `observation.batch.recorded`, dont
+  l'empreinte se recalcule du contenu stocké ; une ligne modifiée hors de l'application
+  (propriétaire du schéma) est détectée à la vérification suivante
+  (`observation.batch.altered`, le lot nommé).
+- Lecture bornée : un lecteur qui n'a `kube.observation.read` que sur le périmètre du
+  cluster A ne voit aucune observation du cluster B.
+- Séparation : un lot ne crée, ne modifie ni ne clôt aucun objet du référentiel, et
+  aucun abonné au flux d'événements ne reçoit de `changes` pour lui.
+- Rétention : un pod vivant depuis plus longtemps que la rétention garde son
+  observation ouverte ; la purge ne supprime que des partitions dont toutes les
+  observations sont fermées depuis plus que la rétention de leur cluster.
 
 #### REQ-019-17 — Workloads d'une adresse
 kartenn doit rendre, pour une adresse ou un réseau à une date dans la rétention, les
@@ -242,7 +297,7 @@ Acceptation :
 
 #### REQ-019-20 — Lots et idempotence (X8)
 Le connecteur doit regrouper les changements d'un cluster en changesets par fenêtre
-(10 s ou 500 opérations par défaut, réglables), idempotents (`Idempotency-Key` dérivée
+(celle du cluster, REQ-019-5 : 10 s ou 500 opérations par défaut), idempotents (`Idempotency-Key` dérivée
 du cluster et de la fenêtre), en ne transmettant que les champs suivis.
 
 Acceptation :
@@ -305,13 +360,22 @@ secret de son compte kartenn) dans des fichiers relus à leur renouvellement, re
 serveur d'API dont la CA n'est pas configurée, et ne jamais écrire un identifiant dans
 ses logs ni ses traces.
 
-#### REQ-019-30 — Confinement côté kartenn
-kartenn doit livrer un rôle `kube.connector` qui n'accorde que l'écriture des objets
-`kube.*` d'un cluster, des réseaux et adresses de ses domaines désignés, et des
-observations de ce cluster, lié par portée au cluster.
+#### REQ-019-30 — Confinement côté kartenn (X10, ADR 0044)
+kartenn doit livrer, avec le module, un rôle `kube_connector` qui n'accorde que la
+lecture des clusters, l'écriture des objets `kube.*` (hors clusters), des réseaux et
+adresses et des propriétés de son périmètre, et l'écriture des observations ; ce rôle
+doit se lier au groupe du connecteur d'un cluster (025/G1 : aucune liaison nominale) sur
+le périmètre des domaines désignés du cluster. Si un changeset d'un compte membre d'un
+groupe de connecteur porte une autre opération que `kube.sync`, kartenn doit le refuser
+(`kube.connector.direct`).
 
 Acceptation :
-- Le compte du connecteur du cluster A écrit un workload du cluster B : refus.
+- Le compte du connecteur du cluster A écrit un workload du cluster B, même quand les
+  deux clusters partagent un domaine : refus (`kube.object.managed`).
+- Le même compte pose directement un axe sur une adresse de son domaine
+  (`AssignProperty` hors `kube.sync`) : refus (`kube.connector.direct`).
+- `GET /v1/roles` liste `kube_connector` comme rôle livré ; aucune liaison ne nomme le
+  compte du connecteur.
 
 #### REQ-019-31 — Minimisation
 Le connecteur ne doit garder, transmettre ou journaliser que les champs suivis ; les
@@ -337,9 +401,10 @@ par le connecteur sur chaque workload, utilisable dans une contrainte « même v
 (REQ-010-8).
 
 #### REQ-019-34 — Labels vers axes (Q-019-7)
-kartenn doit permettre à un administrateur de la politique de déclarer des
+kartenn doit tenir comme paramètres du module (`kube.settings.*`, 027/P4, P5) des
 correspondances (clé de label, valeur de label) → valeur d'axe, et, par namespace, les
-valeurs d'axe admises ; quand un workload porte un label correspondant, le connecteur
+valeurs d'axe admises, écrites par changeset sous `kube.settings.edit` (`apply`,
+`approval.self`) sans permission propre ; quand un workload porte un label correspondant, le connecteur
 doit poser la valeur d'axe si elle est admise dans son namespace, avec la provenance du
 label, et sinon l'ignorer en levant `kube.label.not_admitted`.
 
@@ -347,6 +412,9 @@ Acceptation :
 - `tier=db` → `policy.exposure: interne` admise dans `payments` : posée ; la même
   correspondance dans un namespace où `interne` n'est pas admise : ignorée, anomalie.
 - Une valeur posée par label ouvre un flux : le différentiel de politique le montre.
+- Une équipe qui n'a que `policy.settings.*` crée l'axe et ses valeurs mais ne peut
+  pas écrire de correspondance (refus, `kube.settings.edit` nommée) ; l'inverse
+  aussi (REQ-027-5).
 
 #### REQ-019-35 — Extrémités logiques (Q-019-8 ; amende REQ-010-13, REQ-011-2)
 La politique et le registre de flux doivent accepter comme extrémité un workload, un
@@ -373,19 +441,36 @@ l'avertissement `flow.endpoint.absent` jusqu'à la clôture ou au retour de l'ex
 
 #### REQ-019-38 — Listes et lectures datées
 kartenn doit lister clusters, nœuds, namespaces, workloads, services et ingress avec les
-conventions de la 006 (filtres par cluster, namespace, nom, sorte, label suivi, machine,
-état absent ; lectures à `valid_at` et `as_of`).
+conventions de la 006 (objets désignés par `{id}`, clé naturelle en filtre, 006/H3 :
+`GET /v1/kube-clusters?slug=` ; filtres par cluster, namespace, nom, sorte, label suivi,
+machine, état absent ; lectures à `valid_at` et `as_of`).
 
-#### REQ-019-39 — Permissions
-kartenn doit contrôler le module par `kube.<type>.read|write|propose`, sur le périmètre
-hérité du cluster, plus `kube.observation.read` et `kube.observation.write`, et
-`kube.label_mapping.admin` pour les correspondances de labels.
+#### REQ-019-39 — Permissions et rôles livrés (X16)
+kartenn doit contrôler le module par `kube.<type>.read|edit|apply|approval.self` pour
+chacun des six types (grammaire de la 024, M7), sur le périmètre hérité du cluster ; par
+`kube.observation.read` et `kube.observation.record` pour le journal ; par
+`kube.settings.edit|apply|approval.self`, globales, pour les paramètres du module.
+Les rôles livrés doivent recevoir : lecteur, éditeur et approbateur, les
+`kube.<type>.read` ; l'approbateur, en plus, les `kube.<type>.apply` ; aucun des trois,
+`kube.observation.read`.
 
-#### REQ-019-40 — Plugin d'interface
+Acceptation :
+- Le catalogue généré (`docs/spec/permissions.md`) liste ces permissions ;
+  `catalogue_problems` n'en signale aucune ; aucune ne figure parmi les anciens noms.
+- Un lecteur lit les workloads de son périmètre, pas le journal d'observation.
+
+#### REQ-019-40 — Plugin d'interface et événements
 Où le shell web est livré, kartenn doit fournir un plugin `kube` : vues des clusters,
 namespaces, workloads et services ; chaîne d'exécution d'un workload ; onglet
 « Workloads » sur une adresse et un réseau ; maquettes validées avant le développement
-(comme 017/U14).
+(comme 017/U14). Les objets `kube.*` écrits par un changeset doivent figurer dans les
+événements `changes` (022) et se filtrer par `types` ; un lot d'observations ne doit
+produire aucun événement.
+
+Acceptation :
+- Un abonné filtré sur `types=kube.workload` reçoit un événement `changes` par lot du
+  connecteur qui touche un workload visible, aucun pour un lot qui ne touche que des
+  services, aucun pour un lot d'observations.
 
 ### H. Budgets
 
@@ -411,4 +496,8 @@ cluster à kartenn < 60 s au p95 et une liste initiale d'un cluster de 10⁴ pod
 
 ## Questions ouvertes
 
-Q-019-1 à 13, en tête de [`decisions.md`](decisions.md), toutes en attente.
+Aucune : Q-019-1 à 13 sont arbitrées ([`decisions.md`](decisions.md) § Arbitrages).
+Restent à relire par l'utilisateur à la validation (tâche 0b) : le confinement du
+connecteur côté kartenn (X10, ADR 0044), la lecture des observations hors des rôles
+livrés (X16) et les chiffres de X14. Le client Kubernetes (Q-019-12) revient à
+l'arbitrage avec sa fiche, à la tâche 9.

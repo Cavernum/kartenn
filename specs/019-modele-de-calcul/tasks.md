@@ -1,6 +1,6 @@
 ---
 status: proposed
-updated: 2026-10-22
+updated: 2026-11-09
 ---
 
 # 019 — Modèle de calcul et Kubernetes : tâches
@@ -12,9 +12,9 @@ finir avant. Tests en `tests/it/` (ADR 0027) avec `#[kartenn_testing::pg_test]`
 (ADR 0028).
 
 **Préalable bloquant** : Q-019-1 à 13 arbitrées par l'utilisateur le 2026-11-09, toutes
-selon la recommandation (Q-019-4 avec garde-fous, [`decisions.md`](decisions.md)) ; reste
-la remise en accord (tâche 0a) et la validation de la spec par l'utilisateur (tâche 0b),
-avant toute implémentation.
+selon la recommandation (Q-019-4 avec garde-fous, [`decisions.md`](decisions.md)) ; spec
+remise en accord le 2026-11-09 (tâche 0a) ; reste la validation de la spec par
+l'utilisateur (tâche 0b), avant toute implémentation.
 
 Parallélisme : après 0, la file A (module, 1 à 8) et la file B (connecteur, 9 à 11)
 avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) attendent 7 ;
@@ -22,7 +22,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
 
 ## P0 — Arbitrage et décisions
 
-- [ ] 0. Arbitrage et ADR — Q-019-1 à 13 — verify : `decisions.md` porte les décisions ;
+- [x] 0. Arbitrage et ADR — Q-019-1 à 13 — verify : `decisions.md` porte les décisions ;
   D1, D8, D11, D22 et D31 amendées selon les réponses ; ADR « observations hors
   référentiel » et « connecteur Kubernetes » rédigées (statut `proposed`) ; mentions
   « v0.3 » de la 010 et de la 011 corrigées (Q-019-13)
@@ -32,8 +32,8 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     § Non-objectifs
   - dépend de : —
   - fait (2026-11-09) : Q-019-1 à 13 portées dans `decisions.md` ; le reste de la tâche
-    (amendements, ADR, mentions « v0.3 ») passe à la 0a.
-- [ ] 0a. Remise en accord de la spec, rebasée sans réécriture sur une main qui a avancé
+    (amendements, ADR, mentions « v0.3 ») passe à la 0a, qui l'achève.
+- [x] 0a. Remise en accord de la spec, rebasée sans réécriture sur une main qui a avancé
   depuis le 2026-10-22 (audit du 2026-11-09, citations de lignes approximatives, à
   recouper par `grep`) — verify : relecture par la session principale ; aucun
   « en attente », « si Q-019-n = A » ni « proposée » dans la 019 ; `grep -rn "v0\.3"
@@ -90,6 +90,29 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `specs/011-registre-flux/{requirements,decisions}.md`, `docs/spec/{README,data,regles-modules,evenements-audit}.md`,
     `docs/adr/` (modèle `0031-evaluations-de-flux-materialisees.md`)
   - dépend de : 0
+  - fait (2026-11-09) : requirements, design, decisions (X1 à X16, nouvelle X16
+    permissions, rôles livrés, événements) et tâches remis en accord ; D1, D8, D11, D22
+    et D31 amendées avec la synthèse ; ADR 0043 et 0044 rédigées (`proposed`) ;
+    « v0.3 » → « v0.4 » dans la 002, la 010, la 011, la 017 et `docs/spec/` (avec la
+    chaîne de la règle `flow.kind.reserved` dans `kartenn-flow`, d'où le catalogue
+    généré `regles-modules.md`).
+  - choix : permission d'écriture du journal `kube.observation.record` ; rôle livré
+    `kube_connector` (une clé de rôle n'admet pas de point), déclaré par le module
+    (ajout au contrat, ADR 0044) ; confinement par ancrage de domaine de tous les types
+    sauf le cluster et liaison sur les domaines désignés, plus la règle
+    `kube.connector.direct` ; le cluster désigne un groupe (`connector_group_id`), pas
+    une identité ; lot d'observations refusé en entier (`kube.observation.invalid`) ;
+    événements d'audit `observation.batch.recorded` et `observation.batch.altered`,
+    empreinte SHA-256 sur JSON canonique (RFC 8785) ; partitionnement du journal laissé
+    à la tâche 6 sous contraintes (observation ouverte jamais purgée, rétention comptée
+    depuis la fin) ; `kube.observation.read` hors des rôles livrés ; paramètres lus
+    sous `kube.cluster.read` ; liste de labels suivis du module en paramètre
+    (`kube.set_tracked_labels`) ; feature `kube` active par défaut ; fenêtre de lot
+    bornée à 1-300 s et 1-10 000 opérations.
+  - reste : les mentions « v0.3 » de `specs/010-politique-flux/besoin/` (expression du
+    besoin, journal d'entretien, écarts) sont laissées telles quelles, comme trace datée
+    du recueil ; X10 (confinement), X16 (lecture des observations) et X14 (chiffres)
+    sont relus à la 0b.
 - [ ] 0b. Validation de la spec par l'utilisateur, puis fusion de la branche dans main —
   verify : statut `validée` dans les quatre fichiers et dans `specs/README.md`
   - dépend de : 0a
@@ -131,38 +154,56 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - où : design « Données », « Références » ; `kartenn-machines/src/handler.rs`
     (références et cascades de la tâche 009-8) ; ADR 0026 clauses 11, 12
   - dépend de : 3
-- [ ] 5. Objets miroirs et absence : règle `kube.object.managed`, `mark_absent`,
-  `clear_absent`, anomalie `kube.object.absent`, section `kube.objects` —
-  REQ-019-12, 22 — verify : `managed_field_refused_for_human`,
-  `property_on_mirror_accepted`, `cited_workload_goes_absent`, `absent_cleared_on_return`,
-  `section_lists_changed_objects`
+- [ ] 5. Objets miroirs et absence : règles `kube.object.managed` (auteur compte de
+  service membre du groupe du connecteur du cluster), `kube.connector.direct` et
+  `kube.cluster.connector_group`, `mark_absent`, `clear_absent`, anomalie
+  `kube.object.absent`, section `kube.objects`, permissions
+  `kube.<type>.{read,edit,apply,approval.self}` déclarées (grammaire de la 024) —
+  REQ-019-5, 12, 22, 30 (règles) — verify : `managed_field_refused_for_human`,
+  `managed_field_refused_for_person_in_connector_group`,
+  `property_on_mirror_accepted`, `connector_direct_operation_refused`,
+  `cited_workload_goes_absent`, `absent_cleared_on_return`,
+  `section_lists_changed_objects`, `catalogue_problems` vide pour `kube.*`
   - où : design « Règles », « Section de différentiel » ; `CheckContext::changeset`
     (`crates/kartenn-service/src/module.rs`) ; section `machines.attachments`
     (`crates/kartenn-machines/src/handler.rs`) à imiter
   - dépend de : 4
-- [ ] 6. Journal d'observation : table partitionnée, route de lot sous
-  `kube.observation.write` (audit par lot), purge en tâche de fond, lectures `who_had` et
-  observations d'un workload — REQ-019-15 à 17 — verify : `who_had_ip_at_time`,
+- [ ] 6. Journal d'observation et ses garde-fous : tables `observation_batch` et
+  `pod_observation` partitionnée, droits PostgreSQL d'ajout seul et déclencheur, route
+  de lot sous `kube.observation.record` (validation à l'entrée, refus du lot entier),
+  inscription d'audit par le noyau (`observation.batch.recorded` avec l'empreinte,
+  `observation.batch.altered`, catalogue d'audit régénéré), tâches de fond de
+  vérification et de purge, lectures `who_had` et observations d'un workload bornées au
+  périmètre — REQ-019-15 à 17 — verify : `who_had_ip_at_time`,
   `retention_answers_empty_with_reason`, `purge_drops_old_partitions`,
-  `batch_is_audited_once`
-  - où : design « Données » (journal), « Routes » ; ADR 0023 et
-    `crates/kartenn-server/src/jobs.rs` (tâches de module, 016/G6) ; ADR « observations »
-    (tâche 0)
+  `open_observation_never_purged`, `batch_is_audited_once_with_hash`,
+  `batch_outside_pod_ranges_refused_whole`, `batch_from_other_cluster_connector_refused`,
+  `app_role_cannot_rewrite_or_delete`, `altered_batch_detected`,
+  `observations_read_bounded_to_cluster`, `batch_emits_no_changes_event`
+  - où : design « Données » (journal et garde-fous), « Droits, rôles et audit »,
+    « Routes » ; ADR 0043 ; ADR 0023 et `crates/kartenn-server/src/jobs.rs` (tâches de
+    module, 016/G6) ; catalogue d'audit `kartenn-core` (`audit::catalogue_markdown`,
+    `docs/spec/evenements-audit.md`, `evenements-audit.schema.json`) ; ADR 0019
   - dépend de : 3
 - [ ] 7. Port de lecture et propriétés : porteurs `kube.*`, axe `kube.namespace`,
   `axis_values` (composition workload → namespace → cluster → arbre), `workloads_of`,
-  `execution_chain`, correspondances de labels et valeurs admises (tables et opérations)
+  `execution_chain`, correspondances de labels, valeurs admises et labels suivis du
+  module (paramètres `kube.settings.*`, tables et opérations, `operation_permissions`)
   — REQ-019-32 à 34 (côté module), REQ-019-3 — verify :
   `axis_from_namespace_then_tree`, `axis_values_one_query`, `label_mapping_admitted`,
-  `looks_like_pod_warns`
+  `label_mapping_needs_kube_settings`, `looks_like_pod_warns`
   - où : design « Propriétés », « Port de lecture » ;
     `crates/kartenn-machines/src/read.rs` (`machine_values_of_addresses`) ;
     `crates/kartenn-core/src/properties.rs` (`InheritTree`, un arbre par déclaration)
   - dépend de : 4
-- [ ] 8. Routes REST et imports : collections du module, filtres, chaîne d'exécution,
-  correspondances (`If-Match`), contrat de référence et types du SDK régénérés —
-  REQ-019-38, 39 — verify : tests HTTP des routes, `connector_role_confined`,
-  contrat de référence (ajout seul)
+- [ ] 8. Routes REST et imports : collections du module par `{id}` (clé naturelle en
+  filtre, `?slug=`), filtres, chaîne d'exécution, paramètres (`If-Match`), permissions
+  de lecture ajoutées aux rôles livrés (lecteur, éditeur, approbateur ; `apply` à
+  l'approbateur ; pas `kube.observation.read`), types `kube.*` filtrables dans les
+  événements `changes`, contrat de référence et types du SDK régénérés — REQ-019-38 à
+  40 (API) — verify : tests HTTP des routes, `reader_reads_workloads_not_observations`,
+  `changes_filtered_by_kube_type`, `docs/spec/permissions.md` régénéré, contrat de
+  référence (ajout seul)
   - où : design « Routes » ; `crates/kartenn-machines/src/rest.rs` ;
     `kartenn-server openapi`
   - dépend de : 5, 6, 7
@@ -187,12 +228,19 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - dépend de : 9, 8
 - [ ] 11. Nœuds et machines, sécurité au démarrage : rapprochement par `InternalIP` puis
   nom, `create_node_machines`, revue de ses droits et refus de démarrer, manifeste de
-  ClusterRole livré, rôle `kube.connector` — REQ-019-23, 26 à 28, 30 — verify :
+  ClusterRole livré ; rôle livré par le module `kube_connector` (ajout au contrat de
+  module, ADR 0044) ; création du groupe du connecteur, du compte de service membre du
+  groupe et de la liaison groupe × `kube_connector` × domaines désignés du cluster
+  (procédure documentée et test, aucune liaison nominale) ; contrôle au démarrage que
+  le compte est membre du groupe désigné — REQ-019-23, 26 à 28, 30 — verify :
   `node_matched_by_internal_ip`, `ambiguous_node_unmatched`,
-  `refuses_with_secret_rights`, `only_read_verbs_sent`, manifeste relu par un test
-  (verbes et ressources)
-  - où : design « Connecteur » (démarrage) ; X10 ; `docs/exploitation/` (nouvelle page) ;
-    rôles livrés de la 005 (`crates/kartenn-service`, rôles K12) à imiter
+  `refuses_with_secret_rights`, `only_read_verbs_sent`, `connector_role_confined`
+  (cluster B refusé, même domaine partagé), `refuses_when_not_in_connector_group`,
+  manifeste relu par un test (verbes et ressources)
+  - où : design « Connecteur » (démarrage), « Droits, rôles et audit » ; X10 ; ADR 0044 ;
+    `docs/exploitation/` (nouvelle page) ; rôles livrés de la 005
+    (`crates/kartenn-core/src/authz.rs`, `READER`, `APPROVER`, K12) et groupes de la 025
+    (`crates/kartenn-service/src/rbac.rs`) à imiter
   - dépend de : 10, 2
 
 ## P3 — Politique et flux
@@ -229,8 +277,13 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   dans `docs/spec/invariants.md` § Performance
   - où : `crates/kartenn-bench` (jeu de la 009, tâche 12) ; sémaphore `k-heavy`
   - dépend de : 10, 13
-- [ ] 17. Synchronisation : `docs/spec/` (data : schéma `kube` ; interfaces : routes,
-  connecteur ; règles des modules régénérées), ADR acceptées, `docs/exploitation/`
-  (déployer le connecteur, RBAC, rotation des jetons), audit `spec-keeper`
-  - où : `docs/spec/data.md`, `interfaces.md`, `regles-modules.md` ; tâche 009-14
+- [ ] 17. Synchronisation : `docs/spec/` (data : schéma `kube` et journal ; interfaces :
+  routes, connecteur ; règles des modules, permissions et événements d'audit
+  régénérés, `observation.batch.recorded` et `.altered` présents), ADR 0043 et 0044
+  acceptées (ADR 0026 amendée : rôle livré par un module, journal d'observations),
+  `docs/exploitation/` (déployer le connecteur, groupe et liaison, RBAC, rotation des
+  jetons), audit `spec-keeper`
+  - où : `docs/spec/data.md`, `interfaces.md`, `regles-modules.md`, `permissions.md`,
+    `evenements-audit.md`, `evenements-audit.schema.json` ; `docs/adr/0026-contrat-de-module.md` ;
+    tâche 009-14
   - dépend de : 11, 13, 15, 16
