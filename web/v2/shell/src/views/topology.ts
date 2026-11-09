@@ -44,6 +44,46 @@ export function levelOfPages<I>(
   };
 }
 
+/** The observer of a level's pages as the tree asks it (`InfiniteQueryObserver`). */
+export interface LevelReader<I> {
+  getCurrentResult(): LevelPages<I> & { isFetching: boolean; isError: boolean };
+  fetchNextPage(options?: {
+    cancelRefetch?: boolean;
+  }): Promise<LevelPages<I> & { isFetching: boolean; isError: boolean }>;
+  refetch(): Promise<unknown>;
+}
+
+/**
+ * The tree asks for the next page of a level (`onLoad`, task 021-22d). The tree asks once
+ * per number of children read (`treePages.ts` of `@kartenn/ui`): the ask holds until its
+ * page comes, or until the level fails or says it has no page more. A read under way — the
+ * page itself, or the level read again after an invalidation (`ready`, a change) — is never
+ * cancelled nor doubled: the page is asked once it is done. An invalidation that comes
+ * while the page is under way cancels it (`invalidateQueries`) and reads the level again
+ * as it was: the page is asked again after that read. A level whose first page failed is
+ * read again (its row activated). `live`: whether the level is still the tree's (a domain
+ * or dates changed start every level again). The level counts its pages up to `cap`, the
+ * `maxPages` of its query (`levelOfPages`).
+ */
+export function askNextPage<I>(
+  reader: LevelReader<I>,
+  live: () => boolean = () => true,
+  cap: number = CHILDREN_PAGES,
+): void {
+  const now = reader.getCurrentResult();
+  const level = levelOfPages(now, cap);
+  if (level === undefined) {
+    if (!now.isFetching) void reader.refetch();
+    return;
+  }
+  if (!level.more) return;
+  const pages = now.data?.pages.length ?? 0;
+  void reader.fetchNextPage({ cancelRefetch: false }).then((after) => {
+    const came = (after.data?.pages.length ?? 0) > pages;
+    if (!came && !after.isError && live()) askNextPage(reader, live, cap);
+  });
+}
+
 /** The key of the notice under a level capped: its parent's (`""`, the first level). */
 export const CAPPED = "capped:";
 export const cappedKey = (parent: string | null): string => `${CAPPED}${parent ?? ""}`;

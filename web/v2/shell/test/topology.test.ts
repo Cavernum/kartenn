@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
 import { frameRoutes } from "../src/frame/routes.ts";
 import {
+  askNextPage,
   cappedKey,
   cappedParent,
   draftStateOf,
@@ -15,6 +16,7 @@ import {
   overlay,
   previewOf,
   restOf,
+  type LevelReader,
   type Preview,
   type Rest,
   type Shift,
@@ -387,6 +389,130 @@ describe("the children of a node, page by page up to the cap", () => {
       (parent) => ({ id: cappedKey(parent), label: "rest" }),
     );
     expect(nodes.map((n) => n.id)).toEqual([P, "capped:"]);
+  });
+});
+
+// A page the tree asks for, against the reads of an invalidation (task 021-22d): the tree
+// asks once per number of children read (`treePages.ts`), so the ask must end with its
+// page. `ready` (022) and every change read the trees again (`invalidateQueries`), which
+// cancels a read under way: one pass of the bench in seven stopped there, the page asked
+// lost, the level left as it was and never asked again.
+describe("a page the tree asks for, against the reads of an invalidation", () => {
+  afterEach(() => {
+    setFetch(null);
+    queryClient.clear();
+  });
+
+  type Child = { id: string; kind: "prefix" };
+  type Page = { data: { items: Child[] } };
+  /**
+   * 10 children by page, a `next` always, each answer held until `release`; a read aborted
+   * rejects. Each child names the read that served it; `fail` answers 404 to the first.
+   */
+  function held(fail = false) {
+    const seen: string[] = [];
+    const flying = new Map<string, number>();
+    let most = 0;
+    const waiting: (() => void)[] = [];
+    setFetch((async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const read = seen.push(url);
+      flying.set(url, (flying.get(url) ?? 0) + 1);
+      most = Math.max(most, flying.get(url)!);
+      try {
+        await new Promise<void>((resolve, reject) => {
+          waiting.push(resolve);
+          init?.signal?.addEventListener("abort", () => reject(init.signal!.reason));
+        });
+      } finally {
+        flying.set(url, flying.get(url)! - 1);
+      }
+      if (fail && read === 1)
+        return new Response(JSON.stringify({ title: "Not found", status: 404 }), {
+          status: 404,
+          headers: { "Content-Type": "application/problem+json" },
+        });
+      const n = Number(new URL(url, "http://x").searchParams.get("cursor") ?? 0);
+      const items = Array.from({ length: 10 }, (_, i) => ({
+        id: `c${n}-${i}@${read}`,
+        kind: "prefix",
+      }));
+      const next = `/v1/prefixes/${P}/children?cursor=${n + 1}`;
+      return new Response(JSON.stringify({ items, links: { next } }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch);
+    /** The reads answered until none waits, the cache's notices between them. */
+    async function settle(): Promise<void> {
+      for (let i = 0; i < 20; i++) {
+        for (const go of waiting.splice(0)) go();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    }
+    /** The reads of page `n` (0 the first). */
+    const of = (n: number) =>
+      seen.filter((url) => (new URL(url, "http://x").searchParams.get("cursor") ?? "0") === `${n}`);
+    return { seen, of, settle, most: () => most };
+  }
+
+  async function opened(fail = false) {
+    const net = held(fail);
+    const options = queryClient.defaultQueryOptions(
+      reads.subPages<Child>("prefix", P, "children") as never,
+    );
+    const observer = new InfiniteQueryObserver<Page>(queryClient, options as never);
+    const stop = observer.subscribe(() => undefined);
+    await net.settle();
+    const level = () => levelOfPages<Child>(observer.getCurrentResult());
+    return { net, observer, stop, level, reader: observer as unknown as LevelReader<Child> };
+  }
+
+  it("asks again, once that read is done, a page an invalidation's read cancelled", async () => {
+    const { net, stop, level, reader } = await opened();
+    expect(level()?.items).toHaveLength(10);
+    askNextPage(reader);
+    await Promise.resolve();
+    // `ready` while the second page is under way: every read again.
+    void queryClient.invalidateQueries();
+    await net.settle();
+    stop();
+    expect(level()?.items).toHaveLength(20);
+    expect(level()?.more).toBe(true);
+    expect(net.most()).toBe(1);
+  });
+
+  it("reads a page asked twice while it is under way once", async () => {
+    const { net, stop, level, reader } = await opened();
+    askNextPage(reader);
+    askNextPage(reader);
+    await net.settle();
+    stop();
+    expect(net.of(1)).toHaveLength(1);
+    expect(level()?.items).toHaveLength(20);
+  });
+
+  it("asks a page during an invalidation's read once it is done, without cancelling it", async () => {
+    const { net, stop, level, reader } = await opened();
+    void queryClient.invalidateQueries();
+    await Promise.resolve();
+    askNextPage(reader);
+    await net.settle();
+    stop();
+    // The first page read again, then the second: the level is the one read again.
+    expect(net.of(0)).toHaveLength(2);
+    expect(net.of(1)).toHaveLength(1);
+    expect(level()?.items[0]?.id).toBe("c0-0@2");
+    expect(level()?.items).toHaveLength(20);
+  });
+
+  it("reads the first page again when it failed and the row is activated", async () => {
+    const { net, stop, level, reader } = await opened(true);
+    expect(level()).toBeUndefined();
+    askNextPage(reader);
+    await net.settle();
+    stop();
+    expect(net.of(0)).toHaveLength(2);
+    expect(level()?.items).toHaveLength(10);
   });
 });
 

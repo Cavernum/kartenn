@@ -26,6 +26,12 @@ export interface TreePagesHost {
   notice(parent: string | null): string | undefined;
   /** The nodes the tree asked to move into `parent` (they are no page). */
   movedIn(parent: string | null): ReadonlySet<string>;
+  /**
+   * Reads the next page of `parent`. Asked once per number of children read, the ask holds
+   * for the host until its page comes, or the list says it has none left or fails: a read
+   * under way that cancels it (the list read again) is followed by the page asked again,
+   * never by nothing (task 021-22d).
+   */
   load(parent: string | null): void;
   /**
    * A page came: `count` children more; `whole`, the list has no page left and no notice;
