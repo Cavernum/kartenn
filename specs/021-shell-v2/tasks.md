@@ -4079,6 +4079,16 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     (`hasListeners`, la requête courante) plutôt qu'un drapeau de portée.
   - reste : aucun relecteur d'interface lancé (ni gabarit ni style touchés, aucune
     capture tirée).
+  - reste (revue) : la raison écrite au `choix :` contre le partage d'`askNextPage`
+    exagère ; la vraie raison est le contrat public du SDK (un export de plus pour les
+    plugins) ; la liste des appelants de `next()` oublie `MachineList.vue` (vers la ligne
+    289) et `MachineRecord.vue` (vers la ligne 126), qui gardent bien `pages <
+    MAX_PAGES` ; le refus sur `isError` (`data.ts` vers la ligne 181) change `useList.next`
+    pour ces deux appelants (après une relecture en échec qui garde ses données, le
+    défilement ne demande plus la page suivante), non dit à la clôture ; aucun cas ne
+    prouve la garde de vie (démontage, changement de clé pendant la chaîne) ni l'arrêt sur
+    échec d'une page ; `/^r0-0@[3-9]/` (`hosting-pages.test.ts` vers la ligne 169) dépend
+    de la numérotation des lectures et d'un seul chiffre.
 
 - [ ] 22e. Défilement de l'arbre de 10⁴ lignes : 77 % de trames perdues et 137 tâches
   longues (la plus longue 151 ms) sans aucune lecture ; profil de trame, puis correction
