@@ -61,6 +61,13 @@ budgets)
   "$release/kartenn-server" migrate "$database" >/dev/null
   "$release/kartenn-bench" seed "$database" "${BENCH_SEED:-42}" ${BENCH_SMALL:+small} \
     >"$state/budgets-v2.env"
+  # The periodic tasks off for the bench (task 021-22a): after the load, the check of the
+  # public flags (due at each start) writes changesets of 10³ addresses for minutes, and
+  # each of them invalidates every read of children in the trees (X24) — the container
+  # under measure read again, page after page, while it scrolls. The bench measures the
+  # browser on a quiet instance: the tasks disabled (the start enables again those of the
+  # modules only), and postponed past the bench.
+  psql "$database" -q -c "UPDATE job SET enabled = false, due_at = now() + interval '1 day'"
   "$release/kartenn-server" breakglass create "$database" e2e 24 "$state/kartenn-keys" \
     >"$state/breakglass-v2.txt"
   exec env SSL_CERT_FILE="$state/ca.pem" \

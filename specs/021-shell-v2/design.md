@@ -723,7 +723,8 @@ Manifeste (ajouts) :
 
 Projet Playwright `budgets` de `bench-web` (`web/v2/e2e/budgets.config.ts`, contre
 `serve.sh budgets` : kartenn-server en release, `kartenn-bench seed`), Chromium, CPU
-ralenti ×4 par CDP, jeu à 10⁶ objets ; le protocole des mesures est celui de
+ralenti ×4 par CDP, jeu à 10⁶ objets, tâches périodiques du serveur coupées (leurs
+écritures après le chargement invalideraient les arbres mesurés, 22a) ; le protocole des mesures est celui de
 `web/v2/e2e/bench/measure.ts` (bancs de `@kartenn/ui`, prototype D-1). Les seuils de trames perdues, de flèches et de mémoire viennent du
 prototype D-1 (sans ralenti : 0,2 % de trames perdues, Flèche bas p75 ≈ 15 ms, tas de 19 à
 25 Mo par écran) : 2 % et 100 ms laissent la marge du ralenti ×4 ; 64 Mo couvrent
@@ -735,7 +736,7 @@ passage complet.
 | Shell initial | ≤ 300 Ko gzip | `web/v2/shell/scripts/shell-size.ts` : ce que charge le document, entrée et ses imports statiques (framework, SDK, `@kartenn/ui` compris), CSS, scripts, préchargements de modules et feuilles nommés par `index.html` (fichiers d'amorce compris), chaque fichier une fois ; ni les polices, ni les entrées de l'import map que seul un plugin charge |
 | Plugin | ≤ 50 Ko gzip | `web/v2/tools/plugin-size.ts` par plugin (son test de paquet, Vitest), modules partagés exclus |
 | Premier écran utile | ≤ 2 s | `fetchStart` de la navigation après le rappel OIDC → première trame où les tuiles de l'accueil (`.k-home-tiles`) sont dans le document, relevée par le banc |
-| Page de 100 lignes | ≤ 100 ms | `responseEnd` de la page de `/v1/addresses` demandée (sa propre ressource) → première trame où sa première ligne (`data-row`) est dans le DOM, p95 de 20 pages, médiane imprimée |
+| Page de 100 lignes | ≤ 100 ms | `responseEnd` de la page de `/v1/addresses` demandée (sa propre ressource) → première trame où l'une de ses lignes (`data-row`) est dans le DOM (pas forcément la première : passé dix pages, le cache lâche la première et les lignes montent d'une page sous la fenêtre, *précisé le 2026-11-09*, 22a), p95 de 20 pages, médiane imprimée ; lectures sans lignes (304) comptées à part |
 | INP | ≤ 200 ms, p75 | Event Timing (`PerformanceObserver` `event`, `durationThreshold: 16`) sur 20 répétitions de : ouvrir un nœud, filtrer, éditer une cellule, changer d'onglet, ouvrir la palette |
 | Navigation en cache | ≤ 100 ms au p75, le pire imprimé (*précisé le 2026-11-03*, A35) | clic sur un lien déjà préchargé → marque `k:view` |
 | CLS | ≤ 0,05 | premier écran : `layout-shift` sans entrée récente ; chaque navigation (10) : tous les `layout-shift` de la trame de `k:view` à 1 s après, ceux qui suivent le clic de moins de 500 ms compris (témoin : un bloc de 200 px inséré exprès doit être vu) |
