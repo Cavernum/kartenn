@@ -6,16 +6,19 @@
 //! `Job` and `CronJob`; `StatefulSet` is a workload resource too.
 //!
 //! Decided by 019/X3: only the reference marked `controller: true` is followed; a
-//! `Deployment` (through its `ReplicaSet`), a `StatefulSet`, a `DaemonSet`, a `CronJob`
-//! (through its `Job`), a `Job` or a `ReplicaSet` without owner are workloads; a pod
-//! without owner is its own workload, of kind `pod`.
+//! `Deployment` (through its `ReplicaSet`), a `StatefulSet`, a `DaemonSet` and a `CronJob`
+//! (through its `Job`) are workloads whatever controls them, and the climb stops there (a
+//! `StatefulSet` created by an operator is the workload); a `Job` or a `ReplicaSet`
+//! without controller is a workload; a pod without controller, or controlled by its `v1`
+//! `Node` (the mirror of a static pod), is its own workload, of kind `pod`.
 //!
 //! Chosen by kartenn: a kind is recognised by its API group and kind together (`apps` for
 //! `Deployment`, `StatefulSet`, `DaemonSet`, `ReplicaSet`; `batch` for `Job` and `CronJob`;
 //! the core group for `Pod`), so that a custom resource of the same kind name is not mistaken for
-//! one; an owner is the one referenced only if its UID is the reference's; a chain that
-//! reaches a controller kartenn does not know, an owner not at hand or more than
-//! [`MAX_DEPTH`] steps is an error the caller decides on, never a guessed workload.
+//! one; an owner is the one referenced only if its UID is the reference's; a controller of
+//! a kind kartenn does not know (above a `ReplicaSet`, a `Job` or a pod), an owner not at
+//! hand or more than [`MAX_DEPTH`] steps is an error the caller decides on (task 019-10),
+//! never a guessed workload.
 
 use std::fmt;
 
@@ -67,6 +70,17 @@ impl WorkloadKind {
             Self::ReplicaSet => "replicaset",
             Self::Pod => "pod",
         }
+    }
+
+    /// Whether the kind is a workload whatever controls it (019/X3): `Deployment`,
+    /// `StatefulSet`, `DaemonSet`, `CronJob`. A `Job`, a `ReplicaSet` or a pod is one only
+    /// without a controller to climb to.
+    #[must_use]
+    pub const fn is_root(self) -> bool {
+        matches!(
+            self,
+            Self::Deployment | Self::StatefulSet | Self::DaemonSet | Self::CronJob
+        )
     }
 
     /// Reads the kartenn spelling.
@@ -209,9 +223,18 @@ pub fn workload_of<'a>(
             name: current.name.clone(),
             uid: current.uid,
         };
+        // A Deployment, a StatefulSet, a DaemonSet or a CronJob is a workload whatever
+        // controls it (an operator, for instance): the climb stops there.
+        if kind.is_root() {
+            return Ok(here());
+        }
         let Some(controller) = current.owner_references.iter().find(|r| r.controller) else {
             return Ok(here());
         };
+        // The mirror of a static pod is controlled by its node: it is its own workload.
+        if kind == WorkloadKind::Pod && is_node(controller) {
+            return Ok(here());
+        }
         if WorkloadKind::of_api(&controller.api_version, &controller.kind).is_none() {
             return Err(OwnerChainError::ForeignController {
                 controller: Box::new(controller.clone()),
@@ -224,6 +247,11 @@ pub fn workload_of<'a>(
         }
     }
     Err(OwnerChainError::TooDeep)
+}
+
+/// Whether a reference names a `v1` `Node`, the controller of a mirror pod.
+fn is_node(reference: &OwnerReference) -> bool {
+    reference.api_version == "v1" && reference.kind == "Node"
 }
 
 #[cfg(test)]
@@ -350,21 +378,71 @@ mod tests {
     }
 
     #[test]
+    fn operator_owned_statefulset_is_the_workload() {
+        // An operator's resource controls a StatefulSet: the StatefulSet is the workload,
+        // and the operator's resource is never looked up.
+        let cluster = object("example.org/v1", "Database", "orders", 1);
+        let set = owned_by(
+            object("apps/v1", "StatefulSet", "orders-db", 2),
+            &cluster,
+            true,
+        );
+        let pod = owned_by(object("v1", "Pod", "orders-db-0", 3), &set, true);
+        let store = Store::new([set]);
+        assert_eq!(
+            store.climb(&pod),
+            Ok(workload(WorkloadKind::StatefulSet, "orders-db", 2))
+        );
+        // Likewise a Deployment, a DaemonSet and a CronJob stop the climb, whatever
+        // controls them (here even a known kind).
+        let above = object("apps/v1", "Deployment", "above", 4);
+        for (api, kind, workload_kind) in [
+            ("apps/v1", "Deployment", WorkloadKind::Deployment),
+            ("apps/v1", "DaemonSet", WorkloadKind::DaemonSet),
+            ("batch/v1", "CronJob", WorkloadKind::CronJob),
+        ] {
+            let root = owned_by(object(api, kind, "root", 5), &above, true);
+            let store = Store::new([above.clone()]);
+            assert_eq!(store.climb(&root), Ok(workload(workload_kind, "root", 5)));
+        }
+    }
+
+    #[test]
+    fn mirror_pod_is_its_own_workload() {
+        // The mirror of a static pod is controlled by its node.
+        let node = object("v1", "Node", "node-1", 1);
+        let pod = owned_by(object("v1", "Pod", "store-node-1", 2), &node, true);
+        assert_eq!(
+            Store::new([]).climb(&pod),
+            Ok(workload(WorkloadKind::Pod, "store-node-1", 2))
+        );
+    }
+
+    #[test]
     fn unresolved_chains_are_errors() {
-        // A controller of another API group with a workload kind name is foreign.
-        let rollout = object("argoproj.io/v1alpha1", "Rollout", "web", 1);
+        // A controller of a kind kartenn does not know, above a ReplicaSet or a Job, is
+        // foreign.
+        let release = object("example.org/v1", "Release", "web", 1);
         let rs = owned_by(
             object("apps/v1", "ReplicaSet", "web-6c9", 2),
-            &rollout,
+            &release,
             true,
         );
         let pod = owned_by(object("v1", "Pod", "web-6c9-a1", 3), &rs, true);
-        let store = Store::new([rollout, rs]);
+        let store = Store::new([release.clone(), rs]);
         assert!(matches!(
             store.climb(&pod),
             Err(OwnerChainError::ForeignController { below, .. })
                 if below == workload(WorkloadKind::ReplicaSet, "web-6c9", 2)
         ));
+        let job = owned_by(object("batch/v1", "Job", "run-1", 13), &release, true);
+        let pod = owned_by(object("v1", "Pod", "run-1-a", 14), &job, true);
+        assert!(matches!(
+            Store::new([release, job]).climb(&pod),
+            Err(OwnerChainError::ForeignController { below, .. })
+                if below == workload(WorkloadKind::Job, "run-1", 13)
+        ));
+        // A custom resource that borrows a workload kind name is foreign too.
         let custom = object("example.org/v1", "Deployment", "web", 4);
         let pod = owned_by(object("v1", "Pod", "web-1", 5), &custom, true);
         assert!(matches!(

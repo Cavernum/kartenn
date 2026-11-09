@@ -143,7 +143,9 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     fonction de recherche du propriétaire), `tracked.rs` (`TrackedKeys`, projections
     `Observed*` → `Tracked*` du workload, du namespace, du nœud, du service et de
     l'ingress, `ObservedService::selects`), `rules.rs` (`KUBE_RULES`, les 18 règles du
-    design) ; 17 unitaires dont ceux du verify ; réf. `kubernetes-calcul.md` complétée
+    design) ; 19 unitaires dont ceux du verify, plus
+    `operator_owned_statefulset_is_the_workload` et `mirror_pod_is_its_own_workload`
+    (revue : remontée arrêtée aux quatre sortes racines, pod miroir, précision de X3) ; réf. `kubernetes-calcul.md` complétée
     (syntaxe citée des pages Names et Labels, relues le 2026-11-09, et choix de kartenn) ;
     hakari : aucun changement.
   - choix : la syntaxe contrôlée n'ajoute rien à la documentation (un miroir ne refuse
@@ -152,7 +154,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     préfixes réservés admis, valeurs d'`Exists`/`DoesNotExist` ignorées ; noms d'étiquette
     pour namespace et service, de sous-domaine pour nœud, workload, ingress et compte de
     service ; sorte reconnue par groupe d'API et `kind` ; un contrôleur inconnu (ressource
-    propre), un propriétaire absent ou d'un autre UID, une chaîne de plus de 4 maillons
+    propre) au-dessus d'un ReplicaSet, d'un Job ou d'un pod, un propriétaire absent ou d'un autre UID, une chaîne de plus de 4 maillons
     sont des erreurs (`OwnerChainError`) que le connecteur tranche (tâche 10), jamais un
     workload deviné ; sélecteur vide = tout, un service sans sélecteur ne sélectionne
     rien ; sélection calculée sur tous les labels du gabarit, pas les seuls suivis ;
@@ -160,6 +162,11 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     version) ; l'UID est versionné (X3) ; zone du nœud lue de
     `topology.kubernetes.io/zone` ; noms de ports, hôtes, classe et nom externe non
     contrôlés.
+  - reste : RFC 1123 §2.1 absente de la table des sources de `kubernetes-calcul.md` ;
+    citation « start with an alphabetic character » de « RFC 1123 Label Names » à
+    vérifier sur la page ; `ObservedService::selects` relit le sélecteur à chaque couple
+    service-workload ; `IngressBackend` sans la forme `resource` ; « label name » ambigu
+    dans l'en-tête de `names.rs` (nom d'étiquette DNS ou segment de clé de label).
 - [ ] 2. Ajouts à la 009 : `machines.platform`, filtre `hypervisor`, lectures
   `machines_of_addresses` et `machine_by_name` — REQ-019-1, 2, 23 (lecture) — verify :
   `hypervisor_follows_hosting`, `platform_is_a_closed_list`,
@@ -249,12 +256,19 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `crates/kartenn-server/src/config.rs` (`url_file`) à imiter ; `kartenn-workspace-hack`
   - dépend de : 0
 - [ ] 10. Boucle list/watch et rapprochement : pagination, reprise, reliste sur `410`,
-  projection, lots idempotents, ordre des lots, observations, dates — REQ-019-19 à 21,
-  24, 25, 31 — verify : `converges_after_410` (oracle état projeté = état kartenn),
+  projection, lots idempotents, ordre des lots, observations, dates, conduite devant une
+  remontée sans workload (`OwnerChainError::ForeignController` : contrôleur de sorte
+  inconnue au-dessus d'un ReplicaSet, d'un Job ou d'un pod ; `Missing` : propriétaire pas encore
+  lu ou d'un autre UID ; ignorer le pod, le différer au lot suivant, ou retenir l'objet
+  `below`, à trancher ici, X3) — REQ-019-19 à 21, 24, 25, 31 — verify :
+  `converges_after_410` (oracle état projeté = état kartenn),
   `replayed_window_no_duplicate`, `image_change_no_changeset`,
   `endpoints_deduplicated_across_slices`, `fallback_full_list`,
-  `env_vars_never_leave`
-  - où : design « Connecteur », étapes 1 à 6 ; client REST tiré du contrat (tâche 8)
+  `env_vars_never_leave`, `pod_without_resolved_workload` (un pod sous un contrôleur
+  inconnu et un pod dont le ReplicaSet n'est pas encore lu : conduite retenue tenue,
+  convergence une fois le propriétaire lu)
+  - où : design « Connecteur », étapes 1 à 6 ; client REST tiré du contrat (tâche 8) ;
+    `kartenn_kube::owner::workload_of` (tâche 1)
   - dépend de : 9, 8
 - [ ] 11. Nœuds et machines, sécurité au démarrage : rapprochement par `InternalIP` puis
   nom, `create_node_machines`, revue de ses droits et refus de démarrer, manifeste de
