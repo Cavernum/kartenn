@@ -19,6 +19,7 @@ mod declared;
 mod diff_sections;
 mod drafts;
 mod errors;
+mod event_domains;
 mod events;
 mod filter;
 mod imports;
