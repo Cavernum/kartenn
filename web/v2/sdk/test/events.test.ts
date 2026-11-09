@@ -323,6 +323,55 @@ describe("events applied to the cache (022, amended by the 021)", () => {
     ]);
   });
 
+  it("a bare-typed read is invalidated by its type and its id", async () => {
+    const s = await setup();
+    // Read by the bare kind, as the topography and the VLAN of a network read them.
+    const objects = {
+      p1: s.reads.object("prefix", P1, null),
+      p2: s.reads.object("prefix", P2, null),
+    };
+    const subs = {
+      p1Sub: s.reads.sub("prefix", P1, "properties"),
+      p2Sub: s.reads.sub("prefix", P2, "properties"),
+    };
+    await Promise.all([
+      ...Object.values(objects).map((q) => s.queryClient.fetchQuery(q)),
+      ...Object.values(subs).map((q) => s.queryClient.fetchQuery(q)),
+    ]);
+    const bare = { ...objects, ...subs };
+    const stale = () =>
+      Object.fromEntries(Object.entries(bare).map(([name, q]) => [name, s.stale(q.queryKey)]));
+    const fresh = () => s.queryClient.refetchQueries();
+
+    // By its id: the object already at the revision is spared, its sub-resource is not.
+    await s.apply("changes", {
+      changeset: "c2",
+      objects: [{ type: "core.prefix", id: P2 }],
+      domains: [],
+    });
+    expect(stale()).toEqual({ p1: false, p2: false, p1Sub: false, p2Sub: true });
+    await fresh();
+    await s.apply("changes", {
+      changeset: "c3",
+      objects: [{ type: "core.prefix", id: P1 }],
+      domains: [],
+    });
+    expect(stale()).toEqual({ p1: true, p2: false, p1Sub: true, p2Sub: false });
+
+    // By its type (`truncated`), and by no other.
+    await fresh();
+    await s.apply("changes", {
+      changeset: "c4",
+      truncated: true,
+      types: ["core.prefix"],
+      domains: [],
+    });
+    expect(stale()).toEqual({ p1: true, p2: true, p1Sub: true, p2Sub: true });
+    await fresh();
+    await s.apply("changes", { changeset: "c5", truncated: true, types: ["core.vlan"] });
+    expect(Object.values(stale()).some(Boolean)).toBe(false);
+  });
+
   it("changeset: the changeset and the proposals; labels: the dictionary", async () => {
     const s = await setup();
     await s.apply("changeset", { changeset: "c5", state: "applied" });

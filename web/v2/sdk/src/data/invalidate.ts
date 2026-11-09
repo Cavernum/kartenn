@@ -50,6 +50,15 @@ function treeOf(key: readonly unknown[]): string | null {
   return typeof type === "string" && typeof sub === "string" ? `${qualify(type)}/${sub}` : null;
 }
 
+/**
+ * The type a key of an object or a sub-resource names, qualified like `treeOf` (a key
+ * keeping the type it was read by), else `null`: a key by path holds no identifier.
+ */
+function typeOf(key: readonly unknown[]): string | null {
+  const [, type, id] = key;
+  return typeof type === "string" && typeof id === "string" ? qualify(type) : null;
+}
+
 /** The identifiers of the items of the pages a query holds (`ListData`). */
 function itemsOf(data: unknown): string[] {
   const pages = (data as { pages?: unknown } | undefined)?.pages;
@@ -171,7 +180,8 @@ export function createInvalidation(queryClient: QueryClient, reads: Queries) {
       const inTree = treeRule(trees, domains);
       return invalidate((query) => {
         const [, resource, id] = query.queryKey as readonly unknown[];
-        if (typeof id === "string" && ids.get(id) === resource) return !upToDate(query, revision);
+        const type = typeOf(query.queryKey);
+        if (type !== null && ids.get(id as string) === type) return !upToDate(query, revision);
         if (typeof resource === "string" && lists.has(resource)) return true;
         const tree = treeOf(query.queryKey);
         if (tree !== null && inTree(query.queryKey, tree)) return true;
@@ -198,7 +208,7 @@ export function createInvalidation(queryClient: QueryClient, reads: Queries) {
       const matches = (query: Query) => {
         const tree = treeOf(query.queryKey);
         if (tree !== null && BY_DOMAIN.has(tree)) return inTree(query.queryKey, tree);
-        return names.has(query.queryKey[1] as string);
+        return names.has(typeOf(query.queryKey) ?? (query.queryKey[1] as string));
       };
       reads.unconditional((query) => !isImmutable(query.queryKey) && matches(query));
       return invalidate(matches);
