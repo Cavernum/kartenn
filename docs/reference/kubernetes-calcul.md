@@ -116,13 +116,34 @@ la version 1.37 pour NetworkPolicy, modifiée le 2026-04-14).
 - « Names of resources need to be unique within a namespace, but not across namespaces.
   Namespaces cannot be nested » ; label immuable `kubernetes.io/metadata.name` sur tout
   namespace (Namespaces).
-- Clé de label : préfixe facultatif (sous-domaine DNS, 253 caractères au plus), `/`, nom
-  de 63 caractères au plus ; valeur de 63 au plus, vide permise ; préfixes
-  `kubernetes.io/` et `k8s.io/` réservés ; « labels do not provide uniqueness » (Labels,
-  « Syntax and character set »).
-- Sélecteurs : égalité (`=`, `!=`) et ensembles (`In`, `NotIn`, `Exists`,
-  `DoesNotExist`), combinés par ET ; le sens d'un sélecteur vide dépend du contexte
-  (Labels, « Label selectors »).
+- Noms (Names, relue le 2026-11-09, modifiée le 2026-01-27) : un sous-domaine DNS doit
+  « contain no more than 253 characters », « contain only lowercase alphanumeric
+  characters, '-' or '.' », « start with an alphanumeric character », « end with an
+  alphanumeric character » (« DNS Subdomain Names ») ; une étiquette RFC 1123 « contain at
+  most 63 characters », « contain only lowercase alphanumeric characters or '-' »,
+  « start with an alphabetic character », « end with an alphanumeric character » (« RFC
+  1123 Label Names »), avec la note « While RFC 1123 technically allows labels to start
+  with digits, the current Kubernetes implementation requires both RFC 1035 and RFC 1123
+  labels to start with an alphabetic character » (« RFC 1035 Label Names »).
+- Clé de label (Labels, « Syntax and character set », relue le 2026-11-09, modifiée le
+  2026-03-15) : « an optional prefix and name, separated by a slash (`/`) » ; le nom
+  « must be 63 characters or less, beginning and ending with an alphanumeric character
+  (`[a-z0-9A-Z]`) with dashes (`-`), underscores (`_`), dots (`.`), and alphanumerics
+  between » ; le préfixe « must be a DNS subdomain: a series of DNS labels separated by
+  dots (`.`), not longer than 253 characters in total » ; préfixes `kubernetes.io/` et
+  `k8s.io/` « reserved for Kubernetes core components » ; « labels do not provide
+  uniqueness ».
+- Valeur de label : « must be 63 characters or less (can be empty) », « unless empty,
+  must begin and end with an alphanumeric character (`[a-z0-9A-Z]`) », « could contain
+  dashes (`-`), underscores (`_`), dots (`.`), and alphanumerics between » (même section).
+- Sélecteurs (Labels, « Label selectors ») : égalité (`=`, `==`, `!=`) et ensembles
+  (`in`, `notin`, `exists`) ; « all must be satisfied so the comma separator acts as a
+  logical AND » ; `!=` et `notin` retiennent aussi « all resources with no labels with
+  the `tier` key » ; « The semantics of empty or non-specified selectors are dependent on
+  the context ». `matchLabels` : un couple vaut une exigence `In` à une valeur ;
+  opérateurs de `matchExpressions` : `In`, `NotIn`, `Exists`, `DoesNotExist` ; « The
+  values set must be non-empty in the case of In and NotIn » ; le sélecteur d'un Service
+  n'admet que l'égalité (« Resources that support set-based requirements »).
 - « Only one object of a given kind can have a given name at a time. However, if you
   delete the object, you can make a new object with the same name. » ; « Every object
   created over the whole lifetime of a Kubernetes cluster has a distinct UID. » (Names) ;
@@ -192,6 +213,17 @@ la version 1.37 pour NetworkPolicy, modifiée le 2026-04-14).
 
 - Identifiant de cluster choisi par kartenn ; identité d'un objet par (cluster,
   namespace, sorte, nom), UID en attribut (019/X3).
+- Syntaxe des noms et des labels (choix de kartenn, tâche 019-1) : un miroir ne refuse
+  jamais ce que le cluster a admis, il contrôle donc la syntaxe documentée sans y
+  ajouter. Étiquette (namespace, service) : 63 caractères, minuscules,
+  chiffres et `-`, alphanumérique aux deux bouts, premier caractère chiffre admis comme
+  le permet RFC 1123 §2.1 (Kubernetes demande une lettre ; RFC 1035 pour les services).
+  Sous-domaine (nœud, workload, ingress) : 253 caractères, lu comme « a series of DNS
+  labels separated by dots » (la définition du préfixe d'une clé de label) : étiquettes
+  non vides, chacune alphanumérique aux deux bouts ; la page ne borne pas la longueur
+  d'une étiquette, kartenn non plus. Pas de passage en minuscules : un nom en majuscules ne
+  vient pas d'un cluster et est refusé (`kube.name.invalid`). Préfixes réservés admis en
+  lecture (`kubernetes.io/metadata.name`, `app.kubernetes.io/name`).
 - Boucle : liste paginée, watch avec signets, reliste sur 410 ; `resourceVersion`
   conservée telle quelle, servant à reprendre (019/X8).
 - Pods éphémères : pas d'objet versionné par pod, journal d'observation (019/X7, Q-019-3).

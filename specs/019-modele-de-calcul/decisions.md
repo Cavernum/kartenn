@@ -305,6 +305,17 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
   (REQ-002-41) ; l'UID Kubernetes est un attribut. Un objet supprimé puis recréé sous le
   même nom (nouvel UID, réf. § Noms et UID) reste le même workload kartenn : une version
   nouvelle note le changement d'UID.
+- Précision (tâche 019-1) : la remontée s'arrête à un Deployment, un StatefulSet, un
+  DaemonSet ou un CronJob, même quand il a lui-même un contrôleur (un StatefulSet créé par
+  un opérateur est le workload) ; un Job ou un ReplicaSet n'est workload que sans
+  contrôleur ; un pod dont le contrôleur est son `v1 Node` (pod miroir d'un pod statique)
+  est son propre workload, comme un pod nu. Une sorte est reconnue par son groupe d'API et
+  son `kind`. Un contrôleur de sorte inconnue au-dessus d'un ReplicaSet, d'un Job ou d'un
+  pod (autre que son nœud), un
+  propriétaire introuvable ou d'un autre UID, une chaîne trop longue ne désignent aucun
+  workload : le domaine rend une erreur (`ForeignController`, `Missing`, `TooDeep`) et le
+  connecteur en décide (tâche 10).
+  Décidé par : Claude, revue de la 019-1, 2026-11-09.
 - Pourquoi : les flux citent une application, pas une instance ; une recréation par
   « supprimer puis appliquer » ne doit pas rompre les flux.
 - Rejeté : identité par UID (chaque recréation casserait les flux) ; ReplicaSet comme
