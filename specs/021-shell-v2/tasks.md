@@ -3792,12 +3792,23 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     entrent dans le p75 de la navigation en cache (vers la ligne 647), à exclure ou à
     noter (22g).
 
-- [ ] 22b. Passe pleine échelle du banc web, par la session principale, seule sur la
+- [x] 22b. Passe pleine échelle du banc web, par la session principale, seule sur la
   machine (`k-heavy --status` tout libre) — verify : `K_BENCH_SCALE=full bench-web`,
   chaque mesure rend son chiffre ; chiffres reportés dans la note de la tâche
   - où : `web/v2/e2e/budgets/budgets.spec.ts`, `.claude/agents/bench-runner.md` (à
     remettre à jour si les lignes du verdict ont changé)
   - dépend de : 22a ; de préférence après 22c et 22d
+  - fait le 2026-11-10 (session principale, main 34abb5a1, seule sur la machine, 8 min
+    20 s) : chaque mesure rend son chiffre. Passent : plugins 3,5 et 22,1 Ko ; premier
+    écran 768 ms, CLS 0,002 ; 10⁴ enfants chargés avant le défilement, 0 lecture
+    `/children` pendant ; flèche bas dans l'arbre 41,6 ms et dans une grille 48,7 ms au
+    p75 ; tas 23,4 Mo ; CLS d'une navigation 0,001 (témoin vu à 0,114) ; INP au p75 :
+    nœud 128, filtre 96, cellule 64, onglet 32, palette 72 ms. Échouent : shell initial
+    302,6 Ko (22h) ; page de 100 lignes 177 ms au p95, médiane 132, pire 251 (22f) ;
+    défilement de l'arbre 76,8 % de trames perdues et 138 tâches longues, la plus longue
+    131 ms (22e) ; navigation en cache 131 ms au p75, médiane 125, pire 199, et des
+    enregistrements non préchargés au survol (6, 7 et 9) (22g). `bench-runner.md`
+    inchangé (il ne cite pas les lignes du verdict).
 
 - [x] 22c. Invalidation des arbres bornée aux domaines (A40) : l'événement `changes` lu
   avec ses `domains` ; `objects` de `createInvalidation` n'invalide plus que les lectures
@@ -4027,8 +4038,10 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     l'arbre une fois borné. Le script de reproduction n'est pas versionné : il demande
     un état de catalogue de 400 enfants (de nouvelles captures) pour un défaut du banc ;
     le banc lui-même est le test de l'ordre trouvé.
-  - reste : les sept passes réduites du banc (`children loaded before scrolling` en PASS
-    à chaque fois, `scrolled by the tree itself: true`) par la session principale.
+  - passes du banc (session principale, 2026-11-10, main 34abb5a1) : sept passes
+    réduites, `children loaded before scrolling` en PASS à chaque fois, `scrolled by the
+    tree itself: true`, 0 lecture `/children` pendant le défilement. Tient aussi la partie
+    banc de la 22d.
 
 - [ ] 22m. Scénario du banc pour A40 (relevé à la clôture de la 22c) : le verify de la 22c
   (0 lecture `/children` pendant le défilement d'un arbre d'un autre domaine, tâches
