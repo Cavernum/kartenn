@@ -3873,6 +3873,14 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     lu, aucun appelant réécrit) ; sous `changes`, une lecture `children` nue d'un préfixe
     changé suit désormais la règle de l'identifiant, comme la clé qualifiée l'était déjà,
     avant celle des arbres.
+  - reste (revue) : `typeOf` (`invalidate.ts` vers la ligne 57) ne vérifie pas
+    `key[0] === "v1"`, si bien qu'une clé hors `v1` à deux chaînes
+    (`["simulate","draft",id,…]`, `drafts.ts` vers la ligne 348) reçoit le type
+    `core.draft` (faux positif latent, sans effet aujourd'hui) ; `id` déstructuré puis
+    redéstructuré par `typeOf` (vers les lignes 182 à 184, cast `id as string`) ; le test
+    ne vérifie pas que les lectures nues sont relues sans `If-None-Match` sous `truncated`
+    (`conditional(...)` du test voisin), ni la relecture du `children` nu d'un préfixe
+    changé hors des domaines nommés.
 
 - [ ] 22j. Domaines d'un changeset publiés au flux (A40 en dépend, relevé par la revue de
   la 22c) : les `domains` de `changes` sont les domaines de verrouillage
