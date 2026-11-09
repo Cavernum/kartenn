@@ -11,9 +11,10 @@ qu'elle implémente. « verify » = test qui prouve la tâche ; « dépend de »
 finir avant. Tests en `tests/it/` (ADR 0027) avec `#[kartenn_testing::pg_test]`
 (ADR 0028).
 
-**Préalable bloquant** : arbitrage de Q-019-1 à 13 par l'utilisateur
-([`decisions.md`](decisions.md) § À arbitrer) ; les tâches sont écrites selon les
-recommandations et seront corrigées après arbitrage.
+**Préalable bloquant** : Q-019-1 à 13 arbitrées par l'utilisateur le 2026-11-09, toutes
+selon la recommandation (Q-019-4 avec garde-fous, [`decisions.md`](decisions.md)) ; reste
+la remise en accord (tâche 0a) et la validation de la spec par l'utilisateur (tâche 0b),
+avant toute implémentation.
 
 Parallélisme : après 0, la file A (module, 1 à 8) et la file B (connecteur, 9 à 11)
 avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) attendent 7 ;
@@ -30,6 +31,68 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `specs/010-politique-flux/requirements.md` et `specs/011-registre-flux/requirements.md`,
     § Non-objectifs
   - dépend de : —
+  - fait (2026-11-09) : Q-019-1 à 13 portées dans `decisions.md` ; le reste de la tâche
+    (amendements, ADR, mentions « v0.3 ») passe à la 0a.
+- [ ] 0a. Remise en accord de la spec, rebasée sans réécriture sur une main qui a avancé
+  depuis le 2026-10-22 (audit du 2026-11-09, citations de lignes approximatives, à
+  recouper par `grep`) — verify : relecture par la session principale ; aucun
+  « en attente », « si Q-019-n = A » ni « proposée » dans la 019 ; `grep -rn "v0\.3"
+  specs/010-politique-flux specs/011-registre-flux docs/spec` ne rend que des mentions du
+  modèle de calcul
+  - écarts au dépôt actuel :
+    - permissions : `kube.<type>.read|edit|apply|approval.self` et non `read|write|propose`
+      (024/M7, ADR 0026 amendement 5, `docs/spec/permissions.md`), REQ-019-39, design
+      (vers les lignes 169 et 304), tâche 5 ;
+    - paramètres d'un module sous `kube.settings.*` (027/P4, REQ-027-5) pour les
+      correspondances label → axe, les valeurs admises et les labels suivis, sauf une
+      action propre assumée, à trancher ; les axes eux-mêmes relèvent de
+      `policy.settings.*` ; la fenêtre de lot et les clés suivies d'un cluster sont des
+      propriétés du `kube.cluster`, en changeset (X4, REQ vers la ligne 106) ;
+    - compte de service du connecteur : membre d'un groupe kartenn, rôle `kube.connector`
+      lié au groupe sur un périmètre, sans liaison nominale (025/G1 à G3) ; REQ-019-30,
+      design B7, X10, et la création du groupe et de la liaison dans la tâche 11 ;
+    - plus de module `vlan` (026/C1, C2) : renvoyer à ADR 0026 et à la 009 amendée
+      (design vers la ligne 39, requirements vers la ligne 59) ;
+    - statut des requirements et du design, et synthèse X1 à X15 de `decisions.md` :
+      retirer « proposée », « sous réserve » et « si Q-019-n = A », et noter « Décidé
+      par : l'utilisateur (2026-11-09) » aux X concernés ;
+    - route d'un cluster : `{id}` partout (006), ou un filtre `?slug=` (design vers les
+      lignes 247 et 303) ;
+    - rôles livrés (K12, ADR 0026 clause 8) : `kube.*.read` et la lecture des
+      observations ajoutés au lecteur, à l'éditeur et à l'approbateur, ou exclus, dit ;
+    - événements (022, ADR 0026 clause 10) : les types `kube.*` filtrables dans les
+      événements `changes` ; une observation n'en produit aucun (REQ-019-40, design de
+      l'interface).
+  - garde-fous de Q-019-4 à porter dans X7, REQ-019-16 (une acceptation chacun) et le
+    design (Données, Routes) : droit propre au nom admis par `catalogue_problems` et hors
+    de `RENAMED_PERMISSIONS` (par exemple `kube.observation.read|record`, l'action `write`
+    n'existant plus) ; IP hors des plages du cluster refusée ; ajout seul (une mise à jour
+    hors fermeture de période refusée aux droits de base) ; nouvel événement d'audit par
+    lot avec l'empreinte du contenu (`docs/spec/evenements-audit.md`,
+    `evenements-audit.schema.json`, tâche 17), un lot altéré détecté ; lecture bornée au
+    périmètre du cluster ; jamais d'écriture dans le référentiel ; limite de rétention
+    assumée ; partitions par temps et index GiST (IP, période).
+  - amendements : D1 (miroir écrit en changeset par le seul compte du connecteur de son
+    cluster, découverte toujours exclue ailleurs) ; D8 et D11 (observations hors
+    bitemporel et hors changesets, écrites par lots sous un droit propre, auditées par
+    lot, jamais dans le référentiel) ; D22 (extrémité logique workload, namespace,
+    service, résolue en adresses ou en valeurs d'axes ; préciser `hostNetwork`) ; D31
+    (Q-019-13 : flux constatés, ticketing et campagnes de revue en v0.4) ; « v0.3 » →
+    « v0.4 » dans la 010 (`requirements.md` vers les lignes 637 à 645), la 011
+    (`requirements.md` lignes 19, 31, 348, 349, 353 ; `decisions.md` lignes 41, 58, 251,
+    254), `docs/spec/data.md` (vers la ligne 335), `docs/spec/regles-modules.md` (vers la
+    ligne 69, `flow.kind.reserved`) et la feuille de route de `docs/spec/README.md`
+    (vers la ligne 60) ;
+  - ADR à rédiger, statut `proposed` : 0043 « Observations : hors référentiel, hors
+    changesets », avec les garde-fous ; 0044 « Connecteur Kubernetes » (Q-019-6, X8, X10)
+  - où : `specs/019-modele-de-calcul/{requirements,design,decisions,tasks}.md`,
+    `specs/001-cadrage/decisions.md`, `specs/010-politique-flux/requirements.md`,
+    `specs/011-registre-flux/{requirements,decisions}.md`, `docs/spec/{README,data,regles-modules,evenements-audit}.md`,
+    `docs/adr/` (modèle `0031-evaluations-de-flux-materialisees.md`)
+  - dépend de : 0
+- [ ] 0b. Validation de la spec par l'utilisateur, puis fusion de la branche dans main —
+  verify : statut `validée` dans les quatre fichiers et dans `specs/README.md`
+  - dépend de : 0a
 
 ## File A — Module `kube` (P1 domaine pur, P2 module)
 
