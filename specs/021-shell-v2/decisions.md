@@ -382,6 +382,16 @@ Tranchés le 2026-11-03 par l'utilisateur, d'après les 11g, 11i et 11j :
   `anomaly_one_open`, migration 0076) : deux propriétés en écart sur un même objet
   ouvrent deux lacunes ; une lacune antérieure à 0075 y reçoit `{property}`, la clé que
   son message cite en tête.
+- **A40 — Invalidation des arbres bornée aux domaines** (l'utilisateur, 2026-11-09,
+  relevé par la 22a ; précise X24) : un changement d'un préfixe, d'une plage ou d'une
+  adresse n'invalide plus que les lectures d'arbre (`roots`, `children`) des domaines que
+  l'événement `changes` nomme (`domains`, contrat de la 022) ; un déplacement reste sûr,
+  le nouveau parent étant dans un domaine nommé. Dans un domaine touché, l'arbre se relit
+  encore en entier ; ne relire que l'ancien et le nouveau parent demanderait le parent
+  calculé côté client (D34) ou servi par la 022, et n'est pas retenu. Une écriture propre
+  dont la réponse ne nomme pas ses domaines garde l'invalidation de tous les arbres.
+  Retenu contre le statu quo : un arbre ouvert de 10⁴ lignes relisait ses 100 pages à
+  chaque changeset, même hors de son domaine (80 % de trames perdues au banc, 22a).
 
 ## Questions (closes le 2026-10-23)
 
