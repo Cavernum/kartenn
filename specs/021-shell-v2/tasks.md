@@ -3839,7 +3839,41 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     comparent le type de la clé tel que lu (`queryKey[1]`) au type qualifié, si bien
     qu'une clé lue par le nom nu (`prefix`, comme la topographie) échappe à
     l'invalidation par type et par identifiant (les lectures d'arbre, qualifiées par
-    `treeOf`, n'y échappent pas).
+    `treeOf`, n'y échappent pas) : tâche 22i.
+  - reste (revue) : `domainsOf` (`invalidate.ts` vers la ligne 75) balaie tout le cache à
+    chaque événement borné, même sans lecture d'arbre en cache (O(cache) par changeset) ;
+    sous `truncated`, `types: ["core.domain"]` ne relit plus une lecture `roots` de clé
+    qualifiée (`TREES` sans entrée `core.domain`, sans effet aujourd'hui, à dire au
+    `choix :`) ; le `[]` explicite de `write.ts` (vers la ligne 175) répète le défaut ; le
+    tuple typé à la main de `events.test.ts` (vers la ligne 350), plus idiomatique en
+    `as const`. Deux propriétés du serveur dont A40 dépend : tâche 22j.
+
+- [ ] 22i. Lectures d'objets sous le nom de type nu (relevé par la 22c, antérieur) :
+  `types()` et `objects()` de `invalidate.ts` comparent `queryKey[1]` tel quel au type
+  qualifié ; une lecture d'objet nue (`TopologyView.vue` vers la ligne 453) n'est relue que
+  par `dependents.showing` et perd le court-circuit de révision ; une sous-ressource nue
+  (`reads.sub("prefix", id, "properties")`, `NetworkVlan.vue` vers la ligne 45,
+  `record/NetworkVlanTab.vue` vers la ligne 64) échappe entièrement sous `truncated` : la
+  VLAN affichée d'un réseau peut rester périmée. Qualifier le type des clés à la
+  comparaison (comme `treeOf`), ou à la lecture — verify : Vitest `a bare-typed read is
+  invalidated by its type and its id` (objet et sous-ressource, `changes` et `truncated`)
+  - où : `web/v2/sdk/src/data/invalidate.ts` (`types`, `objects`, `treeOf`, `qualify` de
+    `types.ts`) ; test voisin `web/v2/sdk/test/events.test.ts`
+  - dépend de : 22c
+
+- [ ] 22j. Domaines d'un changeset publiés au flux (A40 en dépend, relevé par la revue de
+  la 22c) : les `domains` de `changes` sont les domaines de verrouillage
+  (`kartenn-service/src/pipeline.rs` vers la ligne 1163, `lock_targets`) ; vérifier
+  qu'aucune opération de module n'écrit dans un domaine de préfixes sans le porter dans
+  `plan.domains` (vers la ligne 1171) ; vérifier le filtre de visibilité
+  (`kartenn-service/src/events.rs` vers la ligne 591) pour un sujet qui voit des préfixes
+  d'un domaine sans voir le domaine (ses arbres ne seraient pas relus si un autre domaine
+  visible est nommé). Correction si l'un ou l'autre manque ; un changement du contrat de
+  la 022 attend un arbitrage — verify : test d'intégration `every written domain is
+  named` sur les opérations de module (`kartenn-rest/tests/it`) et un test du filtre
+  - où : `crates/kartenn-service/src/pipeline.rs`, `crates/kartenn-service/src/events.rs` ;
+    tests voisins des événements dans `crates/kartenn-rest/tests/it/`
+  - dépend de : 22c
 
 - [ ] 22d. Chargement de l'arbre arrêté à deux pages (une passe sur sept, 22a et 24e) :
   après la deuxième page, ni ligne « suite » ni avis, 100 enfants dessinés ;
