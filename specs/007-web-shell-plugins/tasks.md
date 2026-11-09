@@ -670,7 +670,8 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   `@typescript-eslint/typescript-estree` 8.72.0 (`^10.2.2`) ; la 5.1.9 de
   `@redocly/openapi-core` est hors de la plage. Exposition : les motifs passés à
   `minimatch` sont ceux des configurations ESLint du dépôt, pas une entrée extérieure.
-  **En attente d'arbitrage** (dépendance) : (a) attendre qu'`eslint` et
+  **Arbitré le 2026-11-09 (l'utilisateur) : option (a)**, attendre l'amont ; les alertes
+  restent ouvertes d'ici là. Options pesées : (a) attendre qu'`eslint` et
   `typescript-eslint` passent à `minimatch` 11, puis monter ; (b) forcer
   `minimatch@^10` vers 11.0.1 par un override pnpm (`pnpm.overrides` des deux
   espaces), au risque d'une rupture d'API sous les outils de lint ; (c) fermer les deux
@@ -681,4 +682,4 @@ Vitest) et `k-web-e2e` (Playwright, Chromium et Firefox) dès la tâche 10. Les 
   alertes n° 4 et 5 fermées
   - où : `web/package.json`, `web/v2/package.json` (ou `pnpm-workspace.yaml`),
     `web/pnpm-lock.yaml`, `web/v2/pnpm-lock.yaml`
-  - dépend de : arbitrage de l'utilisateur
+  - dépend de : `eslint` et `typescript-eslint` sur `minimatch` 11 (arbitrage (a))
