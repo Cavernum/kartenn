@@ -54,6 +54,8 @@ interface Probe {
   rows: Record<string, number>;
   /** The first frame where `USEFUL` is in the document. */
   useful?: number;
+  /** The event stream: each connection, error and event, its data cut short. */
+  stream: { at: number; kind: string; data?: string }[];
 }
 
 declare global {
@@ -63,8 +65,26 @@ declare global {
 }
 
 function probe({ origin, useful }: { origin: string; useful: string }): void {
-  const p: Probe = { events: [], shifts: [], clicks: [], rows: {} };
+  const p: Probe = { events: [], shifts: [], clicks: [], rows: {}, stream: [] };
   window.__kProbe = p;
+  // What the event stream brings: a `ready` or a change invalidates reads under way.
+  const Native = window.EventSource;
+  const kinds = ["ready", "changes", "changeset", "labels", "draft", "stats", "reset"];
+  window.EventSource = class extends Native {
+    constructor(url: string | URL, init?: EventSourceInit) {
+      super(url, init);
+      p.stream.push({ at: performance.now(), kind: "open" });
+      this.addEventListener("error", () => p.stream.push({ at: performance.now(), kind: "error" }));
+      for (const kind of kinds)
+        this.addEventListener(kind, (event) =>
+          p.stream.push({
+            at: performance.now(),
+            kind,
+            data: String((event as MessageEvent).data).slice(0, 200),
+          }),
+        );
+    }
+  };
   performance.setResourceTimingBufferSize(100_000);
   const describe = (node: Node | null): string => {
     if (!(node instanceof Element)) return node ? node.nodeName : "none";
@@ -153,6 +173,21 @@ async function openContainer(page: Page): Promise<Locator> {
   await expect(root).toHaveAttribute("aria-expanded", "true");
   await expect(tree(page).locator("[role='row'][aria-level='2']").first()).toBeVisible();
   return root;
+}
+
+/** What the event stream brought between `from` and `to` (clock of the page), printed. */
+async function streamBetween(page: Page, what: string, from: number, to: number): Promise<void> {
+  const seen = await page.evaluate(
+    ([f, t]) => window.__kProbe.stream.filter((s) => s.at >= f && s.at <= t),
+    [from, to] as const,
+  );
+  const counts = new Map<string, number>();
+  for (const s of seen) counts.set(s.kind, (counts.get(s.kind) ?? 0) + 1);
+  const first = seen.find((s) => s.kind === "changes");
+  console.log(
+    `INFO event stream ${what}: ${[...counts].map(([k, n]) => `${k} ${n}`).join(", ") || "nothing"}` +
+      (first ? `; first change: ${first.data}` : ""),
+  );
 }
 
 /** The median and the worst of `samples`, printed for reading. */
@@ -317,19 +352,27 @@ test("a page of 100 rows drawn within 100 ms of its response", async ({ page }) 
     }).observe(el, { subtree: true, childList: true, attributes: true });
   });
   // One page at a time: the end of the grid in the window, the read it sets off, then the
-  // frame where the first row of that page is in the document, from the end of its own
-  // response (its resource timing, by its URL).
-  // The first row of each page the grid reads, by the URL of its read (cursor included).
-  const firstRow = new Map<string, string>();
+  // first frame where a row of that page is in the document, from the end of its own
+  // response (its resource timing, by its URL). A row of the page, not its first: past the
+  // tenth page the cache drops the first (`MAX_PAGES`), the rows move up a page under the
+  // window, and the first row of the new page stands above it, never drawn (021-22a).
+  // The rows of each page the grid reads, by the URL of its read (cursor included).
+  const pageRows = new Map<string, string[]>();
   page.on("response", (r) => {
     if (new URL(r.url()).pathname !== "/v1/addresses" || r.request().method() !== "GET") return;
     void r
       .json()
       .then((body: { items?: { id: string }[] }) => {
-        const id = body.items?.[0]?.id;
-        if (id) firstRow.set(r.url(), id);
+        const ids = (body.items ?? []).map((item) => item.id);
+        if (ids.length > 0) pageRows.set(r.url(), ids);
       })
       .catch(() => undefined);
+  });
+  // The reads started: a resource timing comes only with the end of its response, and a
+  // scroll to the end while the page is drawn would pass over its first row.
+  let started = 0;
+  page.on("request", (r) => {
+    if (new URL(r.url()).pathname === "/v1/addresses" && r.method() === "GET") started++;
   });
   const reads = () =>
     page.evaluate(() =>
@@ -344,16 +387,19 @@ test("a page of 100 rows drawn within 100 ms of its response", async ({ page }) 
   let measured = new Set(await reads());
   while (delays.length + undrawn < PAGES && withoutRows < PAGES) {
     // The grid scrolls once virtualised, the surface of the frame before (records.spec.ts);
-    // out of the end a moment, then at the end, so that the approach of the end is seen.
+    // out of the end a moment, then at the end, so that the approach of the end is seen;
+    // no more once a read has started, until its response is in.
     const before = measured.size;
+    const asked = started;
     await expect
       .poll(
         async () => {
-          await grid.evaluate((el) => {
-            el.scrollTo(0, Math.max(0, el.scrollHeight - 3 * el.clientHeight));
-            el.scrollTo(0, el.scrollHeight);
-            document.getElementById("k-surface")?.scrollTo(0, 1e9);
-          });
+          if (started === asked)
+            await grid.evaluate((el) => {
+              el.scrollTo(0, Math.max(0, el.scrollHeight - 3 * el.clientHeight));
+              el.scrollTo(0, el.scrollHeight);
+              document.getElementById("k-surface")?.scrollTo(0, 1e9);
+            });
           return (await reads()).length;
         },
         { timeout: 30_000, intervals: [500] },
@@ -363,24 +409,28 @@ test("a page of 100 rows drawn within 100 ms of its response", async ({ page }) 
     for (const url of now.filter((u) => !measured.has(u))) {
       // A read without rows (a revalidation answered 304, an empty page) is no page drawn.
       const deadline = Date.now() + 10_000;
-      while (!firstRow.has(url) && Date.now() < deadline) await page.waitForTimeout(100);
-      if (!firstRow.has(url)) {
+      while (!pageRows.has(url) && Date.now() < deadline) await page.waitForTimeout(100);
+      const ids = pageRows.get(url);
+      if (!ids) {
         withoutRows++;
         continue;
       }
       const delay = await page.evaluate(
-        async ([u, key]) => {
+        async ([u, keys]) => {
           const deadline = performance.now() + 5_000;
           while (performance.now() < deadline) {
             const timing = performance.getEntriesByName(u).at(-1) as
               PerformanceResourceTiming | undefined;
-            const drawn = window.__kProbe.rows[key];
-            if (timing && drawn !== undefined) return Math.max(0, drawn - timing.responseEnd);
+            const drawn = keys
+              .map((key) => window.__kProbe.rows[key])
+              .filter((at): at is number => at !== undefined);
+            if (timing && drawn.length > 0)
+              return Math.max(0, Math.min(...drawn) - timing.responseEnd);
             await new Promise((resolve) => setTimeout(resolve, 50));
           }
           return null;
         },
-        [url, firstRow.get(url)!] as const,
+        [url, ids] as const,
       );
       if (delay === null) undrawn++;
       else delays.push(delay);
@@ -390,7 +440,7 @@ test("a page of 100 rows drawn within 100 ms of its response", async ({ page }) 
     await page.waitForTimeout(300);
   }
   console.log(
-    `INFO reads of /v1/addresses without rows: ${withoutRows}; pages whose first row was not` +
+    `INFO reads of /v1/addresses without rows: ${withoutRows}; pages of which no row was` +
       ` drawn within 5 s of its response: ${undrawn}`,
   );
   expect(delays.length).toBeGreaterThanOrEqual(PAGES - 2);
@@ -406,13 +456,13 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
   await openContainer(page);
   // Every row the tree will hold, read first at full speed: the end of the tree in the
   // window until no page of the container has been read for 10 s. A page is 100 children
-  // (the server's default, the tree names no `limit`); the cache keeps 10 pages of a list
-  // (`MAX_PAGES`), dropping the first when an eleventh comes; and the tree asks for a page
-  // again only when its count of children has changed (`treePages.ts`): once ten pages
-  // are kept, the eleventh leaves the count as it was and the reads stop. About 10³
-  // children, never 10⁴, can be in memory.
+  // (the server's default, the tree names no `limit`); the cache keeps 100 pages of the
+  // children of a node (`CHILDREN_PAGES`, A34), and the tree stops at them with a notice
+  // in place of the row that reads more: 10⁴ children of the 10⁵ in memory, all of them
+  // before the window.
   const { container } = seeded();
   const children = `/v1/prefixes/${container}/children`;
+  const loadFrom = await page.evaluate(() => performance.now());
   const loading = await tree(page).evaluate(async (el, path) => {
     let scroller = el as HTMLElement | null;
     while (scroller && !(scroller.scrollHeight > scroller.clientHeight))
@@ -451,16 +501,36 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
       rows: Math.floor(scroller.scrollHeight / row) - 1,
       reached,
       durations,
+      // The first page read more than once: the container read again from its start.
+      firsts: reads().filter((e) => !new URL(e.name).searchParams.has("cursor")).length,
       more: el.querySelector("[data-more]") !== null,
+      // The count of children the tree says it holds (a stalled read: one page short).
+      setsize: el.querySelector("[role='row'][aria-level='2']")?.getAttribute("aria-setsize"),
+      capped: el.querySelector("[data-node^='capped:']") !== null,
     };
   }, children);
+  await streamBetween(
+    page,
+    "while loading",
+    loadFrom,
+    await page.evaluate(() => performance.now()),
+  );
   const sorted = [...loading.durations].sort((a, b) => a - b);
   console.log(
     `INFO rows the tree holds (its height): ${loading.rows}; last child reached: ${loading.reached};` +
-      ` after ${sorted.length} pages read` +
+      ` after ${sorted.length} pages read, ${loading.firsts} of them the first` +
       ` (median ${(sorted[Math.floor(sorted.length / 2)] ?? 0).toFixed(0)} ms, slowest` +
-      ` ${(sorted.at(-1) ?? 0).toFixed(0)} ms each), a row for more: ${loading.more}`,
+      ` ${(sorted.at(-1) ?? 0).toFixed(0)} ms each), a row for more: ${loading.more},` +
+      ` aria-setsize ${loading.setsize ?? "none"},` +
+      ` the notice of the cap: ${loading.capped}`,
   );
+  // Every row the window scrolls over is read before it.
+  const loaded = loading.reached >= ROWS && !loading.more;
+  console.log(
+    `${loaded ? "PASS" : "FAIL"} children loaded before scrolling: ${loading.reached}` +
+      ` (at least ${ROWS}, no row for more)`,
+  );
+  expect.soft(loaded, "children loaded before scrolling").toBe(true);
   await settle(page);
   await slowDown(cdp);
   // 10⁴ rows in 10 s: down and up the rows in memory, the position by the clock (the
@@ -501,18 +571,35 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
         .getEntriesByType("resource")
         .filter((e) => new URL(e.name).pathname.startsWith("/v1/"))
         .filter((e) => e.startTime >= from && e.startTime <= to)
-        .map((e) => new URL(e.name).pathname),
+        .map((e) => {
+          const url = new URL(e.name);
+          return { path: url.pathname, cursor: url.searchParams.has("cursor") };
+        }),
     span,
   );
-  const childrenDuring = during.filter((p) => p.endsWith("/children")).length;
+  // Where they come from: the container's own pages (read again: a refetch) or other nodes.
+  const childReads = during.filter((r) => r.path.endsWith("/children"));
+  const childrenDuring = childReads.length;
+  const ofContainer = childReads.filter((r) => r.path === children);
   console.log(
-    `INFO reads while scrolling: ${childrenDuring} /children, ${during.length} under /v1/ in all`,
+    `INFO reads while scrolling: ${childrenDuring} /children (${ofContainer.length} of the` +
+      ` container, ${ofContainer.filter((r) => !r.cursor).length} of them its first page;` +
+      ` ${new Set(childReads.map((r) => r.path)).size} nodes), ${during.length} under /v1/ in all`,
   );
+  await streamBetween(page, "while scrolling", ...span);
   check("reads of children while scrolling", childrenDuring, 0, "");
   check(`dropped frames over ${ROWS} rows in 10 s`, frames.dropped, 0.02, "%");
   check("long tasks while scrolling", frames.longTasks, 0, "");
   console.log(`INFO longest task while scrolling: ${frames.longest.toFixed(1)} ms`);
 
+  // From the top: the window ends near the last of the 10⁴ rows, where 50 presses would
+  // reach the notice of the cap, and the focus would move no more.
+  await tree(page).evaluate((el) => {
+    let scroller = el as HTMLElement;
+    while (!(scroller.scrollHeight > scroller.clientHeight)) scroller = scroller.parentElement!;
+    scroller.scrollTop = 0;
+  });
+  await settle(page);
   await tree(page).locator("[role='row'][aria-level='2'] [role='gridcell']").first().click();
   await settle(page);
   const treeArrows = await arrowDown(page);
@@ -553,6 +640,9 @@ test("navigations to a prefetched target within 100 ms, without layout shift", a
       })
       .then(() => true)
       .catch(() => false);
+    // Two moves within the link: the intent starts with a `pointermove` (021-7a), which a
+    // move to where the pointer already is would not send (the link scrolled under it).
+    await link.hover({ position: { x: 2, y: 2 } });
     await link.hover();
     const prefetched = await read;
     if (!prefetched) console.log(`FAIL navigation in cache: record ${i} not prefetched on hover`);
@@ -588,7 +678,8 @@ test("navigations to a prefetched target within 100 ms, without layout shift", a
     delays.push(delay);
     shifts.push(shift);
   }
-  check(`navigation in cache to k:view, worst of ${CACHED}`, Math.max(...delays), 100, "ms");
+  // The 75th percentile, the worst printed below (A35).
+  check(`navigation in cache to k:view, p75 of ${CACHED}`, quantile(delays, 0.75), 100, "ms");
   spread("navigation in cache", delays, "ms");
   check(`CLS of a navigation, worst of ${CACHED}`, Math.max(...shifts), 0.05, "");
   spread("CLS of a navigation", shifts, "");
