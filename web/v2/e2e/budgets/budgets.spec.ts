@@ -464,10 +464,18 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
   const children = `/v1/prefixes/${container}/children`;
   const loadFrom = await page.evaluate(() => performance.now());
   const loading = await tree(page).evaluate(async (el, path) => {
-    let scroller = el as HTMLElement | null;
-    while (scroller && !(scroller.scrollHeight > scroller.clientHeight))
-      scroller = scroller.parentElement;
-    if (!scroller) throw new Error("nothing scrolls");
+    // What scrolls the rows, found again at each turn (task 021-22l): up to 200 rows the
+    // tree is not virtualised and has no height of its own, so the frame scrolls; past
+    // them it is held to a list's height and scrolls itself. Found once, before the
+    // second page came, it would be the frame for good, the tree never scrolled, the row
+    // that reads the next page never in view.
+    const scrollerOf = () => {
+      let found = el as HTMLElement | null;
+      while (found && !(found.scrollHeight > found.clientHeight)) found = found.parentElement;
+      if (!found) throw new Error("nothing scrolls");
+      return found;
+    };
+    let scroller = scrollerOf();
     const row = el.querySelector("[data-node]")!.getBoundingClientRect().height;
     const reads = () =>
       performance
@@ -491,6 +499,7 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
       }
       // The row that reads the next page asks when it comes into view: out of view a
       // moment, then in again at the end.
+      scroller = scrollerOf();
       scroller.scrollTop = Math.max(0, scroller.scrollHeight - 3 * scroller.clientHeight);
       await new Promise((resolve) => setTimeout(resolve, 100));
       scroller.scrollTop = scroller.scrollHeight;
@@ -499,6 +508,8 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
     const durations = reads().map((e) => e.responseEnd - e.startTime);
     return {
       rows: Math.floor(scroller.scrollHeight / row) - 1,
+      // The tree scrolls its rows itself at the end (virtualised), not the frame.
+      own: scroller === el,
       reached,
       durations,
       // The first page read more than once: the container read again from its start.
@@ -517,7 +528,8 @@ test("a container of 10⁵ scrolled over 10⁴ rows, Arrow down in the tree, the
   );
   const sorted = [...loading.durations].sort((a, b) => a - b);
   console.log(
-    `INFO rows the tree holds (its height): ${loading.rows}; last child reached: ${loading.reached};` +
+    `INFO rows the tree holds (its height): ${loading.rows}, scrolled by the tree itself:` +
+      ` ${loading.own}; last child reached: ${loading.reached};` +
       ` after ${sorted.length} pages read, ${loading.firsts} of them the first` +
       ` (median ${(sorted[Math.floor(sorted.length / 2)] ?? 0).toFixed(0)} ms, slowest` +
       ` ${(sorted.at(-1) ?? 0).toFixed(0)} ms each), a row for more: ${loading.more},` +
