@@ -154,6 +154,39 @@ function again(observer: Pager | null, list: List<unknown>): void {
   else void observer?.fetchNextPage?.();
 }
 
+/** The pages of a list as an infinite observer gives them. */
+type Pages = { data?: { pages: readonly unknown[] } | undefined; isError: boolean };
+/** The members of an infinite observer `askPage` uses. */
+interface PageReader {
+  getCurrentQuery(): unknown;
+  getCurrentResult(): Pages & { hasNextPage: boolean };
+  hasListeners(): boolean;
+  fetchNextPage(options: { cancelRefetch: boolean }): Promise<Pages>;
+}
+
+/**
+ * The next page of a list, once read (none past `MAX_PAGES`: a later one would drop the
+ * first). The ask holds until its page comes, or until the list fails, says it has none
+ * left, or is let go (no one follows it, its options changed): a tree asks once per number
+ * of children read (`treePages.ts` of `@kartenn/ui`, task 021-22k). A read under way — the
+ * page itself, or the list read again after an invalidation — is never cancelled nor
+ * doubled: the page is asked once it is done. An invalidation that comes while the page is
+ * under way cancels it (`invalidateQueries`) and reads the list again as it was: the page
+ * is asked again after that read. The page counted by the number of pages, not by its
+ * cursor, which a list read again may change (as `askNextPage` of the shell's topography).
+ */
+function askPage(observer: PageReader): void {
+  const now = observer.getCurrentResult();
+  const pages = now.data?.pages.length ?? 0;
+  if (!now.hasNextPage || now.isError || pages >= MAX_PAGES) return;
+  const query = observer.getCurrentQuery();
+  void observer.fetchNextPage({ cancelRefetch: false }).then((after) => {
+    const came = (after.data?.pages.length ?? 0) > pages;
+    const live = observer.hasListeners() && observer.getCurrentQuery() === query;
+    if (!came && !after.isError && live) askPage(observer);
+  });
+}
+
 /** The list of `options()` (`reads.list`; `null`: none), followed page by page. */
 export function useList<T, K extends Key>(
   options: () => ListOptions<T, K> | null,
@@ -167,9 +200,10 @@ export function useList<T, K extends Key>(
   );
   return {
     state,
+    /** The next page, held until it comes (`askPage`). */
     next() {
-      const observer = current() as { fetchNextPage?: () => Promise<unknown> } | null;
-      void observer?.fetchNextPage?.();
+      const observer = current() as PageReader | null;
+      if (observer) askPage(observer);
     },
     /** After a failure: the first page read again, or the next page that failed. */
     retry() {
@@ -285,12 +319,13 @@ export function useLists<T, K extends Key>(
   };
   return {
     states,
-    /** The next page of each list (or of the one at `index`) that has one, not read nor refused yet. */
+    /**
+     * The next page of each list (or of the one at `index`) that has one, not read nor
+     * refused yet, held until it comes (`askPage`).
+     */
     next(index?: number) {
       each(index, (observer, list) => {
-        if (list.more && !list.fetching && !list.error && list.pages < MAX_PAGES) {
-          void (observer as Pager).fetchNextPage?.();
-        }
+        if (list.more && !list.fetching && !list.error) askPage(observer as PageReader);
       });
     },
     /** After a failure: each list (or the one at `index`) that failed read again, as `useList().retry`. */
