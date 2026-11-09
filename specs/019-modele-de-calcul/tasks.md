@@ -198,6 +198,15 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `machine_by_name` rend une machine au plus (nom unique par propriétaire, M3), lue
     sur l'affectation propre de `core.owner` (la machine est racine de son arbre),
     datée par instantanés comme le reste du port ; libellé « Plateforme » / « Platform ».
+  - reste (revue) : la doc de `machines_of_addresses` (`read.rs` vers la ligne 260) ne dit
+    pas qu'elle lit tous les domaines sans droits, réservée à un appelant interne (le
+    connecteur de la tâche 9 ne doit pas la brancher derrière une route) ;
+    `name.to_lowercase()` côté Rust et `lower()` côté SQL peuvent diverger hors ASCII
+    (sans effet pour un nom RFC 1123) ; sous `as_of` passé, l'index
+    `address_host_suggested` ne sert pas `address_history` (à mesurer par un `EXPLAIN`) ;
+    `hypervisor=true` évalue l'`EXISTS` pour chaque machine `physical` de la page, plan non
+    mesuré à 10⁵ machines ; le cas `hypervisor=false` pour le lecteur restreint (l'hôte
+    dont l'invité est illisible parmi les non-hyperviseurs) n'est pas testé.
 - [ ] 3. Clusters, nœuds, namespaces : migration `0001_kube.sql` (`cluster`, `node`,
   `namespace`), gestionnaire `create/update_cluster`, opération `kube.sync` réduite à ces
   types, module au registre (dépendance `machines`), feature `kube` — REQ-019-4 à 7, 13 —
