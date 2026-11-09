@@ -125,7 +125,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
 
 ## File A — Module `kube` (P1 domaine pur, P2 module)
 
-- [ ] 1. Crate `kartenn-kube`, domaine pur : noms (étiquette et sous-domaine DNS), clés et
+- [x] 1. Crate `kartenn-kube`, domaine pur : noms (étiquette et sous-domaine DNS), clés et
   valeurs de labels, sélecteurs (égalité, `In`, `NotIn`, `Exists`, `DoesNotExist`),
   remontée `ownerReferences` au workload, projection des champs suivis, règles (`Rule`
   statiques) — REQ-019-6 à 10 (contrôles locaux), X3, X4 — verify : unitaires
@@ -136,6 +136,30 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     § Namespace, labels, noms et UID, § Pod ; modèle `crates/kartenn-machines/src/name.rs`,
     `rules.rs`
   - dépend de : 0
+  - fait (2026-11-09) : `crates/kartenn-kube` (dépendances `kartenn-core`, `uuid`) —
+    `names.rs` (`DnsLabel`, `DnsSubdomain`, `LabelKey`, `LabelValue`, `parse_labels`),
+    `selector.rs` (`Requirement::parse` des `matchExpressions`, `Selector::of_labels`,
+    `matches`, `matches_read`), `owner.rs` (`WorkloadKind`, `workload_of` sur une
+    fonction de recherche du propriétaire), `tracked.rs` (`TrackedKeys`, projections
+    `Observed*` → `Tracked*` du workload, du namespace, du nœud, du service et de
+    l'ingress, `ObservedService::selects`), `rules.rs` (`KUBE_RULES`, les 18 règles du
+    design) ; 17 unitaires dont ceux du verify ; réf. `kubernetes-calcul.md` complétée
+    (syntaxe citée des pages Names et Labels, relues le 2026-11-09, et choix de kartenn) ;
+    hakari : aucun changement.
+  - choix : la syntaxe contrôlée n'ajoute rien à la documentation (un miroir ne refuse
+    pas ce que le cluster a admis) : étiquette à premier caractère chiffre admise (RFC 1123
+    §2.1), sous-domaine sans borne par étiquette, pas de passage en minuscules (refus),
+    préfixes réservés admis, valeurs d'`Exists`/`DoesNotExist` ignorées ; noms d'étiquette
+    pour namespace et service, de sous-domaine pour nœud, workload, ingress et compte de
+    service ; sorte reconnue par groupe d'API et `kind` ; un contrôleur inconnu (ressource
+    propre), un propriétaire absent ou d'un autre UID, une chaîne de plus de 4 maillons
+    sont des erreurs (`OwnerChainError`) que le connecteur tranche (tâche 10), jamais un
+    workload deviné ; sélecteur vide = tout, un service sans sélecteur ne sélectionne
+    rien ; sélection calculée sur tous les labels du gabarit, pas les seuls suivis ;
+    ports, adresses, plages et routes en ensembles (un réordonnancement ne fait pas de
+    version) ; l'UID est versionné (X3) ; zone du nœud lue de
+    `topology.kubernetes.io/zone` ; noms de ports, hôtes, classe et nom externe non
+    contrôlés.
 - [ ] 2. Ajouts à la 009 : `machines.platform`, filtre `hypervisor`, lectures
   `machines_of_addresses` et `machine_by_name` — REQ-019-1, 2, 23 (lecture) — verify :
   `hypervisor_follows_hosting`, `platform_is_a_closed_list`,
