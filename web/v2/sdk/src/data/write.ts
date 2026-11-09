@@ -166,10 +166,13 @@ export interface WriteDeps {
 export function createWrites({ client, queryClient, invalidation, pause }: WriteDeps) {
   const wait = pause ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)));
 
-  /** What a changeset applied invalidates: the objects named, their lists, dependents. */
+  /**
+   * What a changeset applied invalidates: the objects named, their lists, dependents. Its
+   * answer names no domain: every tree is read again, as an event naming none (A40).
+   */
   function afterApplied(named: { type: string; id: string }[], body: Applied | undefined) {
     const cascaded = (body?.cascaded ?? []).map((c) => ({ type: qualify(c.kind), id: c.id }));
-    return invalidation.objects([...named, ...cascaded], body?.changeset.id ?? null);
+    return invalidation.objects([...named, ...cascaded], body?.changeset.id ?? null, []);
   }
 
   /**

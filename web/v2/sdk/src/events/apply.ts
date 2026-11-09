@@ -29,9 +29,12 @@ export async function applyEvent(event: KartennEvent, { invalidation, labels, dr
       await invalidation.all();
       return;
     case "changes": {
+      // The domains of the event bound the prefix trees read again (A40).
+      const domains = list(data["domains"]).filter((d): d is string => typeof d === "string");
       if (data["truncated"] === true) {
         await invalidation.types(
           list(data["types"]).filter((t): t is string => typeof t === "string"),
+          domains,
         );
         return;
       }
@@ -41,7 +44,7 @@ export async function applyEvent(event: KartennEvent, { invalidation, labels, dr
       );
       // A task of a module has no revision: read again without condition.
       const revision = typeof data["changeset"] === "string" ? data["changeset"] : null;
-      await invalidation.objects(objects, revision);
+      await invalidation.objects(objects, revision, domains);
       return;
     }
     case "changeset": {

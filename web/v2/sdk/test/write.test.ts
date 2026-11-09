@@ -94,6 +94,22 @@ describe("quick edit (REQ-021-16, 24; D-7)", () => {
     expect(cache.queryClient.getQueryState(cache.options.queryKey)?.isInvalidated).toBe(true);
   });
 
+  it("200: every prefix tree read again, the answer naming no domain (A40)", async () => {
+    const cache = setup(() => applied());
+    const other = "00000000-0000-4000-8000-0000000000d2";
+    const roots = cache.reads.subPages("domain", other, "roots", null, null);
+    const children = cache.reads.subPages("prefix", P2, "children", null, null);
+    await cache.queryClient.fetchQuery(cache.options);
+    await Promise.all([roots, children].map((q) => cache.queryClient.fetchInfiniteQuery(q)));
+    await cache.writes.quick({
+      key: cache.options.queryKey,
+      patch: { value: "10.0.1.0/24" },
+      motive: "resize",
+    });
+    const stale = (key: readonly unknown[]) => cache.queryClient.getQueryState(key)?.isInvalidated;
+    expect([stale(roots.queryKey), stale(children.queryKey)]).toEqual([true, true]);
+  });
+
   it("202: proposed, back to the value read, never shown applied", async () => {
     const cache = setup(() =>
       json(

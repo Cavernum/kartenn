@@ -3799,7 +3799,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     remettre à jour si les lignes du verdict ont changé)
   - dépend de : 22a ; de préférence après 22c et 22d
 
-- [ ] 22c. Invalidation des arbres bornée aux domaines (A40) : l'événement `changes` lu
+- [x] 22c. Invalidation des arbres bornée aux domaines (A40) : l'événement `changes` lu
   avec ses `domains` ; `objects` de `createInvalidation` n'invalide plus que les lectures
   `core.domain/roots` et `core.prefix/children` des domaines nommés (clé de lecture à
   relier à son domaine) ; une écriture propre sans domaines dans sa réponse garde
@@ -3813,6 +3813,33 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `web/v2/sdk/test/write.test.ts` ; contrat de l'événement : `specs/022-evenements-sse/design.md`
     (vers la ligne 73)
   - dépend de : 22a
+  - fait le 2026-11-09 — `invalidate.ts` : `objects(changed, revision, domains)` et
+    `types(types, domains)` passent les lectures d'arbre par une même règle
+    (`treeRule`) : `roots` d'un domaine nommé, `children` d'un préfixe dont le domaine
+    est nommé ; le domaine se déduit du cache sans lecture (`domainsOf` : `roots` du
+    domaine, puis enfants de parent en parent, ou `domain` du corps d'un préfixe, d'une
+    plage, d'une adresse lus seuls) ; inconnu, la lecture est relue ; `apply.ts` lit
+    `domains` pour `changes` et `truncated` ; `write.ts` passe `[]` (réponse sans
+    domaines : tous les arbres). Design « Déplacements dans les arbres » mis à jour.
+    Vitest `a change in one domain leaves the trees of the others` (avec `truncated`, relu
+    sans `If-None-Match`, et une machine qui ne touche que `hosted`), `a change without
+    domains reads every tree again` (`domains` vide, absent, écriture propre) et
+    `200: every prefix tree read again, the answer naming no domain (A40)`.
+    `k-web2-check --base main` : 945 Vitest ; tout, 2 719 captures sur 2 719
+    (`invalidate.ts` est chargé par l'entrée du shell).
+  - choix : `domains` vide traité comme absent (tous les arbres), un changement de préfixe
+    nommant toujours son domaine côté serveur, un vide ne venant que d'un domaine
+    invisible ; sous `truncated`, les lectures d'arbre de préfixes ne suivent plus que la
+    règle des domaines (avant, seules celles lues par type qualifié l'étaient, toutes
+    domaines confondus, et `roots` jamais) ; profondeur de remontée bornée à 129 (/0 à
+    /128) contre un cycle du cache.
+  - reste : la passe réduite du banc (tâches périodiques remises, 0 lecture `/children`
+    pendant le défilement d'un arbre d'un autre domaine) n'est pas lancée par l'agent :
+    à la session principale (ou avec 22b). Hors périmètre : `types()` et `objects()`
+    comparent le type de la clé tel que lu (`queryKey[1]`) au type qualifié, si bien
+    qu'une clé lue par le nom nu (`prefix`, comme la topographie) échappe à
+    l'invalidation par type et par identifiant (les lectures d'arbre, qualifiées par
+    `treeOf`, n'y échappent pas).
 
 - [ ] 22d. Chargement de l'arbre arrêté à deux pages (une passe sur sept, 22a et 24e) :
   après la deuxième page, ni ligne « suite » ni avis, 100 enfants dessinés ;
