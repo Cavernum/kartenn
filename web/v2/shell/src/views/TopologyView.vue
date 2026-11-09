@@ -72,6 +72,7 @@ import { rowsOf, useKeyLabel } from "./data.ts";
 import ViewPanel from "./parts/ViewPanel.vue";
 import { shareOf } from "./occupancy.ts";
 import {
+  askNextPage,
   cappedKey,
   cappedParent,
   kindsIn,
@@ -84,6 +85,7 @@ import {
   overlay,
   PREVIEW,
   previewOf,
+  type LevelReader,
   type Preview,
   type Shift,
 } from "./topology.ts";
@@ -181,14 +183,25 @@ watch([domain, () => time.value.validAt, () => time.value.asOf], reset, { immedi
 onBeforeUnmount(() => {
   for (const { stop } of observers.values()) stop();
 });
-/** The tree asks for the children of a node, or the next page of a level. */
+/**
+ * The tree asks for the children of a node, or the next page of a level: read from the
+ * observer itself (its result here comes a moment later), within the cap only (021/A34:
+ * past it, the cache would drop the first page), never twice under way, and asked again
+ * after a read of the level an invalidation made meanwhile (`askNextPage`, task 22d).
+ */
 function onLoad(parent: string | null): void {
   // A row of the preview has its children given (`topology.ts`): nothing to read.
   if (parent !== null && isPreview(parent)) return;
   const known = observers.get(parent);
-  if (!known) observe(parent);
-  // Within the cap only (021/A34): past it, the cache would drop the first page.
-  else if (levelOf(parent)?.more) void known.observer.fetchNextPage();
+  if (!known) {
+    observe(parent);
+    return;
+  }
+  const { observer } = known;
+  askNextPage(
+    observer as unknown as LevelReader<Node>,
+    () => observers.get(parent)?.observer === observer,
+  );
 }
 
 const ICONS: Record<Node["kind"], IconName> = {
