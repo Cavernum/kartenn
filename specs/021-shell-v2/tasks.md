@@ -3814,7 +3814,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     (vers la ligne 73)
   - dépend de : 22a
 
-- [ ] 22d. Chargement de l'arbre arrêté à deux pages (une passe sur sept, 22a et 24e) :
+- [x] 22d. Chargement de l'arbre arrêté à deux pages (une passe sur sept, 22a et 24e) :
   après la deuxième page, ni ligne « suite » ni avis, 100 enfants dessinés ;
   `treePages.ts` ne redemande jamais à la même taille et `onLoad` ne lit rien quand
   `levelOf(parent).more` est faux à ce moment — verify : un test Vitest qui reproduit
@@ -3823,6 +3823,39 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/ui/src/components/internal/treePages.ts`,
     `web/v2/shell/src/views/TopologyView.vue` (`onLoad`, `levelOf`)
   - dépend de : 22a
+  - fait le 2026-11-09 — cause : une invalidation pendant la lecture d'une page. `ready`
+    (022, à chaque connexion du flux, donc au chargement de l'écran) et tout `changes`
+    passent par `invalidateQueries`, qui annule la lecture en cours (`cancelRefetch`) et
+    relit le niveau tel qu'il était : la page demandée est perdue, le niveau garde le même
+    nombre d'enfants et l'arbre, qui ne demande qu'une fois par nombre d'enfants lus
+    (`treePages.ts`, conçu ainsi), ne redemande plus. Deux défauts voisins : une seconde
+    demande pendant la lecture d'une page l'annulait et la relisait (`fetchNextPage`
+    annule par défaut), et une demande pendant la relecture d'une invalidation
+    l'annulait, gardant les pages périmées ; une première page en échec, la ligne activée
+    ne relisait rien (`levelOf(parent)` indéfini, `more` faux). Correction :
+    `askNextPage` (`topology.ts`), appelé par `onLoad` sur l'observateur lui-même
+    (`getCurrentResult`, pas le résultat recopié un instant plus tard) : page suivante
+    sans annuler une lecture en cours (`cancelRefetch: false`, la lecture en cours
+    attendue), redemandée quand la lecture finie n'a pas apporté de page, sans erreur, et
+    tant que le niveau est celui de l'arbre (`live`) ; première page en échec relue. Le
+    contrat est écrit sur `load` de `TreePagesHost` (`treePages.ts`, commentaire
+    seulement). Vitest (`shell/test/topology.test.ts`, « a page the tree asks for,
+    against the reads of an invalidation ») : quatre cas, les quatre en échec avant la
+    correction (10 enfants au lieu de 20, page 2 lue deux fois, première page de la
+    première lecture gardée, aucune relecture après l'échec). `k-web2-check --base
+    main` : 946 Vitest ; ciblé : 1 254 captures sur 2 719.
+  - choix : la logique d'`onLoad` sortie dans `askNextPage` (`topology.ts`, à côté de
+    `levelOfPages`) pour être testée sur un `InfiniteQueryObserver` réel, comme la 24e ;
+    `treePages.ts` garde sa règle d'une demande par nombre d'enfants (la corriger côté
+    composant aurait demandé un état « en échec » par liste, faute de quoi un échec
+    relancerait la lecture en boucle) ; page arrivée jugée au nombre de pages (le plafond
+    `cap` égal au `maxPages` de la requête, comme `levelOfPages`), pas au curseur, qui
+    peut changer d'une lecture à l'autre.
+  - reste : les sept passes réduites du banc (`bench-web`, ligne `children loaded before
+    scrolling`) ne sont pas lancées par l'agent : à la session principale, avec la 22b.
+    `HostingTree.vue` (plugin `machines`, `onLoad` → `next()` de `data.ts`) semble exposé
+    à la même perte (une invalidation qui annule la page en cours, le nombre d'enfants
+    inchangé ensuite) : à vérifier, hors du périmètre de la tâche.
 
 - [ ] 22e. Défilement de l'arbre de 10⁴ lignes : 77 % de trames perdues et 137 tâches
   longues (la plus longue 151 ms) sans aucune lecture ; profil de trame, puis correction
