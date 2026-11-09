@@ -44,8 +44,8 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
       (024/M7, ADR 0026 amendement 5, `docs/spec/permissions.md`), REQ-019-39, design
       (vers les lignes 169 et 304), tâche 5 ;
     - paramètres d'un module sous `kube.settings.*` (027/P4, REQ-027-5) pour les
-      correspondances label → axe, les valeurs admises et les labels suivis, sauf une
-      action propre assumée, à trancher ; les axes eux-mêmes relèvent de
+      correspondances label → axe, les valeurs admises et les labels suivis (arbitré
+      par l'utilisateur le 2026-11-09 : paramètres génériques, pas d'action propre) ; les axes eux-mêmes relèvent de
       `policy.settings.*` ; la fenêtre de lot et les clés suivies d'un cluster sont des
       propriétés du `kube.cluster`, en changeset (X4, REQ vers la ligne 106) ;
     - compte de service du connecteur : membre d'un groupe kartenn, rôle `kube.connector`
