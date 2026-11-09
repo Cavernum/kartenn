@@ -371,8 +371,8 @@ Tranchés le 2026-11-03 par l'utilisateur, d'après les 11g, 11i et 11j :
 - **A38 — Droits de « Clore… »** : les maquettes E2, E12 et E27 passent aux noms servis
   (`<sorte>.edit`, `<sorte>.approval.self`) à leur prochaine retouche ; le code ne change pas.
 
-- **A39 — Détail d'une anomalie stocké** (session principale, *provisoire, à confirmer
-  par l'utilisateur* ; il a demandé d'avancer sans lui le 2026-11-03) : pour servir A36,
+- **A39 — Détail d'une anomalie stocké** (session principale le 2026-11-03, confirmé par
+  l'utilisateur le 2026-11-09) : pour servir A36,
   la table `anomaly` gagne `detail jsonb` (facultatif, additif), écrit avec la violation
   (`Violation.detail`), rejoué par l'idempotence ; pour une lacune, `{property, resolved,
   expected, source, revision}`. Retenu contre un recalcul à la lecture (valeurs d'aujourd'hui

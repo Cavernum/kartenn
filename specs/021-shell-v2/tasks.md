@@ -2769,7 +2769,8 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     date of its addition back at the present » (`valid_from` du changeset à cette date).
     `design.md` (`sdk.drafts`) dit la période gardée.
   - choix : la période vit en `sessionStorage`, à côté du brouillon actif (le brouillon du
-    serveur n'en a pas, ajouter un champ serait un contrat) ; elle date du premier ajout et
+    serveur n'en a pas, ajouter un champ serait un contrat ; maintenu par l'utilisateur
+    le 2026-11-09 : la période reste côté shell, sans champ au brouillon de la 024) ; elle date du premier ajout et
     ne suit plus le `valid_at` courant ; un brouillon vidé par un retrait la garde (le choix
     du pied aussi) ; l'accès passe par `@kartenn/sdk/host`, non par `drafts` public ; un
     ajout sous `as_of` ne date rien (refusé de toute façon) ; le scénario du parcours vit
