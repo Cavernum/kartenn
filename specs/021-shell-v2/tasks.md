@@ -4016,7 +4016,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `web/v2/e2e/serve.sh` (branche `budgets`)
   - dépend de : 22c
 
-- [ ] 22k. Arbre d'hébergement des machines contre les lectures d'une invalidation
+- [x] 22k. Arbre d'hébergement des machines contre les lectures d'une invalidation
   (relevé par la 22d) : `HostingTree.vue` (`onLoad` → `next()` de `data.ts`) perd sans
   doute la page demandée quand une invalidation annule sa lecture, comme la topographie
   avant la 22d ; le contrat de `TreePagesHost.load` (`treePages.ts`, une demande tient
@@ -4027,6 +4027,32 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/plugins/machines/src/HostingTree.vue`, `web/v2/plugins/machines/src/data.ts`
     (`next`), `web/v2/shell/src/views/topology.ts` (`askNextPage`, `LevelReader`)
   - dépend de : 22d
+  - fait le 2026-11-09 — la perte confirmée : `next()` de `useList` et `useLists`
+    (`data.ts`) appelait `fetchNextPage()` une fois, sans suite quand une invalidation
+    annulait la page, et annulait (`cancelRefetch` par défaut) la relecture d'une
+    invalidation en cours, gardant la première page périmée. Correction : `askPage`
+    (`data.ts`), appelé par les deux `next()` : page suivante sans annuler une lecture en
+    cours (`cancelRefetch: false`), redemandée quand la lecture finie n'a pas apporté de
+    page, sans erreur, tant que la liste est suivie (`hasListeners`) et sous la même
+    requête (`getCurrentQuery`), jamais au-delà de `MAX_PAGES`. `HostingTree.vue`
+    inchangé. Vitest (`plugins/machines/test/hosting-pages.test.ts`, « a page the hosting
+    tree asks for, against the reads of an invalidation ») : quatre cas sur l'arbre monté
+    (premier niveau et invités d'un hôte, page demandée par Entrée sur la ligne qui la
+    lit), trois en échec avant la correction (10 machines au lieu de 20 aux deux niveaux,
+    première page de la première lecture gardée) ; la page demandée deux fois en vol
+    était déjà lue une fois (garde `!fetching` d'`onLoad`). `k-web2-check --base main` :
+    954 Vitest ; ciblé : 0 capture sur 2 719.
+  - choix : version locale au plugin plutôt qu'`askNextPage` partagé par `@kartenn/sdk` :
+    celle du shell relit une première page absente (ligne activée), ce que le plugin
+    laisse à l'admission des listes d'invités (`limited`) et à « Réessayer », et plafonne à
+    `CHILDREN_PAGES` quand les listes du plugin s'arrêtent à `MAX_PAGES` ; le partage
+    aurait demandé plus de paramètres que la fonction n'a de lignes. La règle mise dans
+    `next()` et non dans `onLoad` : tous ses appelants (`HostSection`, `AttachAction`,
+    `ClusterRecord`, `InterfacesTab`, `InterfaceSearch`) gardent déjà `pages < MAX_PAGES`
+    et gagnent la même tenue ; la vie de la demande lue sur l'observateur
+    (`hasListeners`, la requête courante) plutôt qu'un drapeau de portée.
+  - reste : aucun relecteur d'interface lancé (ni gabarit ni style touchés, aucune
+    capture tirée).
 
 - [ ] 22e. Défilement de l'arbre de 10⁴ lignes : 77 % de trames perdues et 137 tâches
   longues (la plus longue 151 ms) sans aucune lecture ; profil de trame, puis correction
