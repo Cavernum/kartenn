@@ -1051,6 +1051,26 @@ mod tests {
         assert!(render(&notices[0], &Filters::default(), &Only(vec![id(300)]), 10).is_none());
     }
 
+    /// Task 021-22j: a subscriber who reads a prefix of the domain 300 without reading that
+    /// domain, and reads the domain 301, is told of 301 only. Its client, which reads again
+    /// only the trees of the domains named (021, A40), keeps the children of a prefix of
+    /// 300 it had read: the domain of a visible object unseen is not named (REQ-022-16, the
+    /// domains follow the rule of the objects). Pending an arbitration.
+    #[test]
+    fn a_domain_unseen_is_not_named_beside_one_seen() {
+        let payload = applied_payload(&[id(1), id(2)], json!([]));
+        let domains = [id(300), id(301)];
+        let notices = translate(row(&payload, &domains, &[]), &kinds);
+        let sight = Only(vec![id(1), id(2), id(301)]);
+        let rendered = render(&notices[0], &Filters::default(), &sight, 10).unwrap();
+        let data: Value = serde_json::from_str(&rendered.data).unwrap();
+        assert_eq!(
+            data["objects"],
+            json!([{"type": "core.prefix", "id": id(1)}, {"type": "core.prefix", "id": id(2)}])
+        );
+        assert_eq!(data["domains"], json!([id(301)]));
+    }
+
     #[test]
     fn filters_combine_and_never_widen() {
         let known = |t: &str| ["core.prefix", "machines.machine"].contains(&t);
