@@ -3718,7 +3718,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - choix : le mouvement se reconnaît à `pointermove` seul, sans comparer les
     coordonnées (aucun navigateur n'en envoie au défilement) ; clé `capped.nowhere` pour
     l'avis sans destination (état de course, parent relu ailleurs) plutôt que pas d'avis.
-- [ ] 22a. Mesures restantes du banc web : la page de 100 lignes rend son chiffre (lectures
+- [x] 22a. Mesures restantes du banc web : la page de 100 lignes rend son chiffre (lectures
   servies en 304 comptées à part, déjà codé, pas encore passé) ; l'arbre chargé jusqu'au
   bout avant le défilement, une fois la 24e faite, sur 10⁴ lignes ; navigation en cache au
   p75, le pire imprimé (A35) ; le compte des lectures `/children` pendant le défilement de
@@ -3727,6 +3727,61 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   un chiffre ; la passe complète lancée par la session principale sur machine libre
   - où : `web/v2/e2e/budgets/budgets.spec.ts`, `web/v2/e2e/budgets/global-setup.ts`
   - dépend de : 22, 24e
+  - fait le 2026-11-09 — trois causes trouvées au banc, sept passes réduites
+    (`bench-web`, `K_BENCH_SCALE` par défaut) :
+    - les tâches périodiques du serveur écrivaient pendant le banc : `public-drift`, due à
+      chaque démarrage (`app.rs`), réécrit les drapeaux publics des adresses chargées par
+      changesets de 10³ objets pendant des minutes ; chacun invalide toutes les lectures
+      d'enfants des arbres (X24) et le conteneur ouvert relisait ses 100 pages (jusqu'à 325
+      lectures au chargement, 33 à 41 pendant la fenêtre, 80 % de trames perdues).
+      `serve.sh budgets` coupe et repousse les tâches (`UPDATE job SET enabled = false,
+      due_at = now() + 1 jour`) après le chargement : instance calme, lectures `/children`
+      pendant la fenêtre à 0 ;
+    - la page de 100 lignes ne rendait aucun chiffre (11 à 19 pages « non dessinées ») :
+      passé dix pages, le cache lâche la première (`MAX_PAGES`), les lignes montent d'une
+      page sous la fenêtre et la première ligne de la nouvelle page reste au-dessus, jamais
+      rendue ; la mesure prend la première de ses lignes dessinée (design, table des
+      budgets) ; le défilement vers la fin s'arrête dès qu'une lecture est partie
+      (événement `request`), la ressource n'arrivant qu'avec la fin de la réponse ;
+    - Flèche bas dans l'arbre s'arrêtait sur l'avis du plafond (la fenêtre finit près de la
+      dernière des 10⁴ lignes) : l'arbre remonte en haut avant les 50 appuis ; le tas, qui
+      venait après, rend aussi son chiffre.
+    Navigation en cache au p75 de dix, le pire imprimé (A35) ; arbre chargé jusqu'au bout
+    vérifié (`children loaded before scrolling`, au moins 10⁴ et pas de ligne « suite ») ;
+    lectures `/children` pendant la fenêtre comptées (du conteneur, de sa première page, de
+    combien de nœuds) ; flux d'événements relevé pendant le chargement et la fenêtre (sonde
+    sur `EventSource`). Dernière passe réduite (Chromium, CPU ×4) : shell initial 302,2 Ko
+    (FAIL, 300), plugins 3,5 et 22,0 Ko ; premier écran 731 ms, CLS 0,002 ; page de 100
+    lignes p95 212 ms (FAIL, 100 ; médiane 129, pire 319), 0 lecture sans lignes ; arbre
+    10⁴ enfants en 100 pages, 0 lecture `/children` pendant la fenêtre, trames perdues
+    77,3 % (FAIL, 2 %), 137 tâches longues (FAIL, 0 ; la plus longue 151 ms) ; Flèche bas
+    arbre p75 42,7 ms, grille 100,0 ms (à la limite) ; tas 23,5 Mo ; navigation en cache
+    p75 126,9 ms (FAIL, 100 ; médiane 117, pire 195), CLS 0,001, témoin vu (0,114) ; INP
+    p75 : nœud 128, filtre 96, cellule 72, onglet 32, palette 72 ms. `k-web2-check --base
+    main` : 942 Vitest ; tout, 2 719 captures sur 2 719 (`budgets.spec.ts` est un fichier du
+    projet des captures).
+  - choix : instance du banc sans tâches périodiques (elle mesure le navigateur ; le coût
+    des invalidations d'arbre reste ouvert ci-dessous) ; page mesurée à sa première ligne
+    dessinée plutôt que réduite à dix pages ; sonde du flux d'événements et décompte des
+    lectures d'enfants gardés en `INFO` pour la passe complète ; `bench-runner.md` laissé à
+    la session principale.
+  - reste (passe complète) : la passe pleine échelle, par la session principale sur machine
+    libre (`K_BENCH_SCALE=full bench-web`).
+  - reste : arrêt du chargement de l'arbre à deux pages, une passe sur sept (après la
+    deuxième page, ni ligne « suite » ni avis, 100 enfants seulement dessinés ; vu aussi
+    par la 24e) : `treePages.ts` (`web/v2/ui`) ne redemande jamais à la même taille, et
+    `onLoad` (`TopologyView.vue`) ne lit rien quand `levelOf(parent).more` est faux à ce
+    moment ; le banc l'imprime en FAIL (`aria-setsize` à l'appui). Défilement de l'arbre à
+    77 % de trames perdues, la page de 100 lignes à 212 ms et la navigation en cache à
+    127 ms au p75 : budgets dépassés, à reprendre en tâches de performance. Passé dix
+    pages, une liste saute d'une page sous la fenêtre à chaque page lue (pas de
+    compensation du défilement quand le cache lâche la première, `DataGrid`). Deux
+    navigations sur dix (enregistrements 6 et 10, à chaque passe) sans lecture de
+    `/properties` au survol, malgré deux mouvements dans le lien : cause non trouvée. Le
+    shell initial dépasse de 2,2 Ko. Arbitrage : toute modification d'un préfixe, d'une
+    plage ou d'une adresse invalide toutes les lectures d'enfants de tous les arbres (X24,
+    `invalidate.ts`) ; un arbre ouvert de 10⁴ lignes se relit alors en 100 lectures et
+    100 reconstructions à chaque changeset, même hors de son domaine.
 
 - [ ] 21. Accessibilité étendue : parcours clavier complet (palette, barre repliée,
   panneau du brouillon, édition en place), reflow 320 px des écrans de consultation,
