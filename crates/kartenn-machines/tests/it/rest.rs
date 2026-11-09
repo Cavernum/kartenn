@@ -1401,3 +1401,146 @@ async fn a_new_interface_changes_the_etag_of_the_card(pool: PgPool) {
     assert_eq!(status, StatusCode::OK, "the card shows the new interface");
     assert_eq!(body["interfaces"].as_array().unwrap().len(), 2);
 }
+
+/// REQ-019-1 (task 019-2): `hypervisor=true` keeps the physical machines that host a
+/// virtual machine or are members of a cluster, at the dates of the read: a host leaves the
+/// list when its virtual machine moves away. A container makes no hypervisor, and a guest
+/// the caller may not read does not count; `false` keeps the others; a `QUERY` says it as an
+/// equality.
+#[kartenn_testing::pg_test]
+async fn hypervisor_follows_hosting(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    let other = env.entity("other").await;
+    let owner = json!({"id": acme});
+    env.applied(vec![
+        op(
+            "create_cluster",
+            json!({"local": 1, "slug": "c1", "owner": owner}),
+        ),
+        op(
+            "create_machine",
+            json!({"local": 2, "name": "h1", "kind": "physical", "owner": owner}),
+        ),
+        op(
+            "create_machine",
+            json!({"name": "h2", "kind": "physical", "owner": owner, "member_of": {"local": 1}}),
+        ),
+        op(
+            "create_machine",
+            json!({"local": 3, "name": "h3", "kind": "physical", "owner": owner}),
+        ),
+        op(
+            "create_machine",
+            json!({"local": 4, "name": "h4", "kind": "physical", "owner": owner}),
+        ),
+        op(
+            "create_machine",
+            json!({"name": "vm1", "kind": "virtual", "owner": owner,
+                   "host": {"machine": {"local": 2}}}),
+        ),
+        op(
+            "create_machine",
+            json!({"name": "vm2", "kind": "virtual", "owner": owner,
+                   "host": {"cluster": {"local": 1}}}),
+        ),
+        op(
+            "create_machine",
+            json!({"name": "ct1", "kind": "container", "owner": owner,
+                   "host": {"machine": {"local": 3}}}),
+        ),
+        op(
+            "create_machine",
+            json!({"name": "hidden", "kind": "virtual", "owner": {"id": other},
+                   "host": {"machine": {"local": 4}}}),
+        ),
+        op(
+            "create_machine",
+            json!({"name": "app1", "kind": "appliance", "owner": owner}),
+        ),
+    ])
+    .await;
+    let admin = env.app(env.admin().await);
+    let names = |body: &Value| ids(body, "name");
+    let (status, _, body) = call(&admin, "GET", "/v1/machines?hypervisor=true", None, &[]).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(names(&body), ["h1", "h2", "h4"]);
+    let (_, _, body) = call(&admin, "GET", "/v1/machines?hypervisor=false", None, &[]).await;
+    assert_eq!(
+        names(&body),
+        ["app1", "ct1", "h3", "hidden", "vm1", "vm2"],
+        "{body}"
+    );
+    // A reader of acme does not see the guest of `other`: `h4` hosts nothing for them.
+    let reader = env.person(&["machines.read"], Some(acme)).await;
+    let (_, _, body) = call(
+        &env.app(reader),
+        "GET",
+        "/v1/machines?hypervisor=true",
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(names(&body), ["h1", "h2"], "{body}");
+    // The virtual machine moves from h1 to h3.
+    let before: time::OffsetDateTime = sqlx::query_scalar("SELECT clock_timestamp()")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    let vm1 = env
+        .id(
+            "SELECT id FROM machines.machine WHERE name = $1 AND valid_period @> now()",
+            "vm1",
+        )
+        .await;
+    let h3 = env
+        .id(
+            "SELECT id FROM machines.machine WHERE name = $1 AND valid_period @> now()",
+            "h3",
+        )
+        .await;
+    env.applied(vec![op(
+        "update_machine",
+        json!({"id": {"id": vm1}, "host": {"machine": {"id": h3}}}),
+    )])
+    .await;
+    let (_, _, body) = call(&admin, "GET", "/v1/machines?hypervisor=true", None, &[]).await;
+    assert_eq!(names(&body), ["h2", "h3", "h4"], "{body}");
+    let at = before
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap();
+    let (status, _, body) = call(
+        &admin,
+        "GET",
+        &format!("/v1/machines?hypervisor=true&valid_at={at}"),
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(names(&body), ["h1", "h2", "h4"], "{body}");
+    // In conjunction with the other filters, and in a `QUERY`.
+    let (_, _, body) = call(
+        &admin,
+        "GET",
+        "/v1/machines?hypervisor=false&kind=physical",
+        None,
+        &[],
+    )
+    .await;
+    assert_eq!(names(&body), ["h1"], "{body}");
+    let query = json!({"filters": [{"field": "hypervisor", "value": true}]});
+    let (status, _, body) = call(
+        &admin,
+        "QUERY",
+        "/v1/machines",
+        Some(("application/json", query)),
+        &[],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(names(&body), ["h2", "h3", "h4"]);
+    let (status, _, body) = call(&admin, "GET", "/v1/machines?hypervisor=yes", None, &[]).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+}

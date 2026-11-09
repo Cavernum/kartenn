@@ -170,6 +170,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "host", type: "string" },
     { name: "host:exists", type: "boolean" },
     { name: "cluster", type: "string" },
+    { name: "hypervisor", type: "boolean" },
     { name: "owner", type: "string" },
     { name: "site", type: "string" },
     { name: "network", type: "string" },

@@ -25763,6 +25763,15 @@
             }
           },
           {
+            "description": "A hypervisor (`true`), a physical machine that hosts a virtual machine the caller may read or is member of a cluster, or not (`false`).",
+            "in": "query",
+            "name": "hypervisor",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Whose resolved owner is this entity.",
             "in": "query",
             "name": "owner",

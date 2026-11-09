@@ -29,6 +29,9 @@ pub const INTERFACE_ROLE: &str = "machines.interface_role";
 pub const INTERFACE_MEDIA: &str = "machines.interface_media";
 /// The FQDN of a machine.
 pub const FQDN: &str = "machines.fqdn";
+/// The technology of a machine, a hypervisor among others (REQ-019-1, 019/Q-019-11): a
+/// closed list shipped empty, which an administrator fills.
+pub const PLATFORM: &str = "machines.platform";
 /// The roles of an interface the module ships; an administrator adds others.
 pub const INTERFACE_ROLES: &[&str] = &[
     "administration",
@@ -74,6 +77,7 @@ const LABELS: &[(&str, &str, &str)] = &[
     ("machines.interface_media/aggregate", "Agrégat", "Aggregate"),
     ("machines.interface_media/virtual", "Virtuelle", "Virtual"),
     ("machines.interface_media/loopback", "Bouclage", "Loopback"),
+    (PLATFORM, "Plateforme", "Platform"),
 ];
 
 /// A property of the module carried by `carrier`, single-valued and not inherited.
@@ -338,7 +342,9 @@ impl Module for Machines {
         TYPES
     }
     /// `machines.interface_role` (M10) and `machines.interface_media` (M17), closed lists
-    /// an administrator extends, and `machines.fqdn`. Machines and interfaces carry any other property too (REQ-009-24).
+    /// an administrator extends, `machines.fqdn`, and `machines.platform`, a closed list
+    /// shipped empty (REQ-019-1). Machines and interfaces carry any other property too
+    /// (REQ-009-24).
     fn declarations(&self) -> Option<ModuleDeclarations> {
         Some(ModuleDeclarations {
             module: "machines".into(),
@@ -353,6 +359,7 @@ impl Module for Machines {
                     INTERFACE_MEDIAS.iter().map(|&v| v.to_owned()).collect(),
                 ),
                 (declaration(FQDN, TypeSpec::Fqdn, MACHINE), Vec::new()),
+                (declaration(PLATFORM, TypeSpec::ENUM, MACHINE), Vec::new()),
             ],
             labels: LABELS
                 .iter()
