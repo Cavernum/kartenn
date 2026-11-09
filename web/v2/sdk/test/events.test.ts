@@ -343,6 +343,132 @@ describe("events applied to the cache (022, amended by the 021)", () => {
   });
 });
 
+describe("the prefix trees read again, bounded to the domains of a change (A40)", () => {
+  const id = (n: string) => `00000000-0000-4000-8000-0000000000${n}`;
+  const [D2, P3, P4, P5, P6, R1] = ["d2", "03", "04", "05", "06", "a1"].map(id) as [
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
+  const page = (...ids: string[]) => ({
+    items: ids.map((i) => ({ id: i, kind: "prefix" })),
+    links: {},
+  });
+
+  /**
+   * Two domains: D1 holds P1 (root) and P3 (child of P1), D2 holds P2 (root) and P4 (child
+   * of P2); P6 is read by itself, in D2; P5 is in no tree the cache holds.
+   */
+  async function setup() {
+    const bodies: Record<string, unknown> = {
+      [`/v1/domains/${D1}/roots`]: page(P1),
+      [`/v1/domains/${D2}/roots`]: page(P2),
+      [`/v1/prefixes/${P1}/children`]: page(P3),
+      [`/v1/prefixes/${P2}/children`]: page(P4),
+      [`/v1/prefixes/${P3}/children`]: page(),
+      [`/v1/prefixes/${P4}/children`]: page(),
+      [`/v1/prefixes/${P5}/children`]: page(),
+      [`/v1/prefixes/${P6}/children`]: page(),
+      [`/v1/prefixes/${P6}`]: { id: P6, domain: { id: D2, href: "d" } },
+    };
+    const cache = fakeCache((r) => json(bodies[r.url.split("?")[0]!] ?? {}, { etag: '"e"' }));
+    const invalidation = createInvalidation(cache.queryClient, cache.reads);
+    const apply = (data: Record<string, unknown>) =>
+      applyEvent(
+        { kind: "changes", data, id: null },
+        { invalidation, labels: { changed: vi.fn() }, drafts: { changed: vi.fn() } },
+      );
+    // Read by the bare kinds, as the topography reads them, or qualified.
+    const trees = {
+      d1: cache.reads.subPages("domain", D1, "roots", null, null),
+      p1: cache.reads.subPages("prefix", P1, "children", null, null),
+      p3: cache.reads.subPages("core.prefix", P3, "children", null, null),
+      d2: cache.reads.subPages("core.domain", D2, "roots", null, null),
+      p2: cache.reads.subPages("prefix", P2, "children", null, null),
+      p4: cache.reads.subPages("prefix", P4, "children", null, null),
+      p6: cache.reads.subPages("prefix", P6, "children", null, null),
+      p5: cache.reads.subPages("prefix", P5, "children", null, null),
+    };
+    await Promise.all(Object.values(trees).map((q) => cache.queryClient.fetchInfiniteQuery(q)));
+    await cache.queryClient.fetchQuery(cache.reads.object("core.prefix", P6, null));
+    const stale = () =>
+      Object.fromEntries(
+        Object.entries(trees).map(([name, q]) => [
+          name,
+          cache.queryClient.getQueryState(q.queryKey)?.isInvalidated ?? false,
+        ]),
+      );
+    const fresh = () => cache.queryClient.refetchQueries();
+    return { ...cache, invalidation, apply, stale, fresh };
+  }
+
+  it("a change in one domain leaves the trees of the others", async () => {
+    const s = await setup();
+    await s.apply({ changeset: "c1", objects: [{ type: "core.range", id: R1 }], domains: [D1] });
+    // Those of D1, and P5 whose domain the cache cannot tell; none of D2.
+    expect(s.stale()).toEqual({
+      d1: true,
+      p1: true,
+      p3: true,
+      d2: false,
+      p2: false,
+      p4: false,
+      p6: false,
+      p5: true,
+    });
+
+    // A truncated change follows the same rule, read again unconditionally.
+    await s.fresh();
+    await s.apply({ changeset: "c2", truncated: true, types: ["core.address"], domains: [D2] });
+    expect(s.stale()).toEqual({
+      d1: false,
+      p1: false,
+      p3: false,
+      d2: true,
+      p2: true,
+      p4: true,
+      p6: true,
+      p5: true,
+    });
+    const before = s.seen.length;
+    await s.fresh();
+    const conditional = (path: string) =>
+      s.seen
+        .slice(before)
+        .find((r) => r.url.startsWith(path))
+        ?.headers.has("If-None-Match");
+    expect(conditional(`/v1/domains/${D2}/roots`)).toBe(false);
+    expect(conditional(`/v1/prefixes/${P4}/children`)).toBe(false);
+    expect(conditional(`/v1/domains/${D1}/roots`)).toBe(true);
+
+    // A change of a machine reads its own tree only.
+    await s.apply({
+      changeset: "c3",
+      objects: [{ type: "machines.machine", id: R1 }],
+      domains: [],
+    });
+    expect(Object.values(s.stale()).some(Boolean)).toBe(false);
+  });
+
+  it("a change without domains reads every tree again", async () => {
+    const all = { d1: true, p1: true, p3: true, d2: true, p2: true, p4: true, p6: true, p5: true };
+    const s = await setup();
+    // An event naming none, or without the member.
+    await s.apply({ changeset: "c1", objects: [{ type: "core.prefix", id: P5 }], domains: [] });
+    expect(s.stale()).toEqual(all);
+    await s.fresh();
+    await s.apply({ task: "m:t", event: "e1", objects: [{ type: "core.address", id: R1 }] });
+    expect(s.stale()).toEqual(all);
+    // An own write, whose answer names no domain (`afterApplied`).
+    await s.fresh();
+    await s.invalidation.objects([{ type: "prefix", id: P3 }], "c2");
+    expect(s.stale()).toEqual(all);
+  });
+});
+
 describe("the data layer of the page (bfcache, fallback)", () => {
   it("opens the stream, gives it up on pagehide, reopens and revalidates on pageshow", async () => {
     const opened: FakeSource[] = [];

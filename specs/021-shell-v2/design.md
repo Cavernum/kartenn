@@ -428,7 +428,11 @@ sequenceDiagram
 - **Parent déduit** (préfixes, D34) : `parentMode: 'derived'`, aucun déplacement. Changer
   la place d'un préfixe = modifier sa valeur par le brouillon (le domaine est immuable :
   pas de « Changer de domaine »). L'arbre au présent n'est jamais retouché
-  par le client : il est relu après application (invalidation, X24) ; l'aperçu du
+  par le client : il est relu après application (invalidation, X24), dans les seuls
+  domaines que nomme l'événement `changes` (A40 : le domaine d'une lecture d'enfants se
+  déduit du cache, `roots` du domaine puis enfants de parent en parent, ou corps du
+  préfixe ; inconnu ou aucun domaine nommé, comme une écriture propre : tous les
+  arbres) ; l'aperçu du
   brouillon est un arbre distinct, marqué « aperçu », construit à partir du différentiel
   de la simulation (`POST /v1/changesets?simulate=true`), jamais d'un calcul CIDR local.
 - **Parent déclaré, par glisser** : hébergement d'une machine (machine ou cluster) et
