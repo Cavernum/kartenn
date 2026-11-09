@@ -723,7 +723,8 @@ Manifeste (ajouts) :
 
 Projet Playwright `budgets` de `bench-web` (`web/v2/e2e/budgets.config.ts`, contre
 `serve.sh budgets` : kartenn-server en release, `kartenn-bench seed`), Chromium, CPU
-ralenti ×4 par CDP, jeu à 10⁶ objets ; le protocole des mesures est celui de
+ralenti ×4 par CDP, jeu à 10⁶ objets, tâches périodiques du serveur coupées (leurs
+écritures après le chargement invalideraient les arbres mesurés, 22a) ; le protocole des mesures est celui de
 `web/v2/e2e/bench/measure.ts` (bancs de `@kartenn/ui`, prototype D-1). Les seuils de trames perdues, de flèches et de mémoire viennent du
 prototype D-1 (sans ralenti : 0,2 % de trames perdues, Flèche bas p75 ≈ 15 ms, tas de 19 à
 25 Mo par écran) : 2 % et 100 ms laissent la marge du ralenti ×4 ; 64 Mo couvrent
