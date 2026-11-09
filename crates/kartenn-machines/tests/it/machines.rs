@@ -2561,3 +2561,170 @@ async fn machine_values_of_addresses_batch(pool: PgPool) {
     assert_eq!(found[1], (alone, Vec::new()));
     assert!(found[2..].iter().all(|(_, machines)| machines.is_empty()));
 }
+
+/// REQ-019-1 (task 019-2): the platform of a machine, a closed list shipped empty that an
+/// administrator fills, on machines only, not inherited by their guests.
+#[kartenn_testing::pg_test]
+async fn platform_is_a_closed_list(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let platform = env.property(kartenn_machines::module::PLATFORM).await;
+    assert!(env.values(platform).await.is_empty());
+    let host = env.create("h1", "physical", json!({})).await;
+    let vm = env
+        .create("vm1", "virtual", json!({"host": {"machine": {"id": host}}}))
+        .await;
+    assert_eq!(env.explained(host, platform).await, (None, None));
+    // Nothing is admitted before the administrator adds a value.
+    let refused = env
+        .submit(vec![assign(host, "machines.machine", platform, "kvm")])
+        .await;
+    assert!(matches!(refused, Outcome::Refused { .. }), "{refused:?}");
+    env.applied(vec![Operation::AddEnumValue {
+        local: None,
+        property: Ref::Id(platform),
+        key: "kvm".into(),
+        labels: std::collections::BTreeMap::new(),
+    }])
+    .await;
+    env.applied(vec![assign(host, "machines.machine", platform, "kvm")])
+        .await;
+    let (value, origin) = env.explained(host, platform).await;
+    assert!(value.is_some_and(|v| v.contains("kvm")));
+    assert_eq!(origin, Some(host));
+    // Not inherited by the guest; outside the list, or on an interface: refused.
+    assert_eq!(env.explained(vm, platform).await, (None, None));
+    let refused = env
+        .submit(vec![assign(host, "machines.machine", platform, "xen")])
+        .await;
+    assert!(matches!(refused, Outcome::Refused { .. }), "{refused:?}");
+    env.applied(vec![op(
+        "create_interface",
+        json!({"machine": {"id": host}, "name": "eth0"}),
+    )])
+    .await;
+    let eth0 = env.interface(host, "eth0").await;
+    let refused = env
+        .submit(vec![assign(eth0, "machines.interface", platform, "kvm")])
+        .await;
+    assert!(matches!(refused, Outcome::Refused { .. }), "{refused:?}");
+    // A new sync of the declarations keeps the value of the administrator.
+    sync(&env.store, &env.registry).await;
+    assert_eq!(env.values(platform).await, ["kvm"]);
+}
+
+/// REQ-019-23 (task 019-2): the machine of a node by its `InternalIP` values, in any
+/// domain, one query for the batch (none, one, or several holders, which the caller calls
+/// ambiguous), at the dates of the read; by its name under an owner otherwise.
+#[kartenn_testing::pg_test]
+async fn machine_of_internal_ip(pool: PgPool) {
+    use std::net::IpAddr;
+    let env = Env::new(&pool).await;
+    let acme = env.entity("acme").await;
+    let lab = env.domain("lab", acme, "192.0.2.0/24").await;
+    let dc = env.domain("dc", acme, "192.0.2.0/24").await;
+    env.applied(vec![network_op(Ref::Id(lab), "2001:db8::/64")])
+        .await;
+    let node = env.address(lab, "192.0.2.10", AddressUsage::Host).await;
+    let six = env.address(lab, "2001:db8::a", AddressUsage::Host).await;
+    let in_lab = env.address(lab, "192.0.2.20", AddressUsage::Host).await;
+    let in_dc = env.address(dc, "192.0.2.20", AddressUsage::Host).await;
+    let (e1, e2, e3) = (
+        env.eth0("node1").await,
+        env.eth0("m2").await,
+        env.eth0("m3").await,
+    );
+    env.applied(vec![
+        attach(e1, node, true),
+        attach(e1, six, true),
+        attach(e2, in_lab, true),
+        attach(e3, in_dc, true),
+    ])
+    .await;
+    let [m1, m2, m3] = [
+        env.machine("node1", acme).await,
+        env.machine("m2", acme).await,
+        env.machine("m3", acme).await,
+    ];
+    let then = env.now().await;
+    let values: Vec<IpAddr> = ["192.0.2.10", "2001:db8::a", "192.0.2.20", "198.51.100.7"]
+        .iter()
+        .map(|v| v.parse().unwrap())
+        .collect();
+    let mut conn = pool.acquire().await.unwrap();
+    let read = kartenn_machines::read::machines_of_addresses;
+    let found = read(&mut conn, &values, then, None).await.unwrap();
+    let held = |found: &[(IpAddr, Vec<kartenn_machines::read::HolderOf>)]| {
+        found
+            .iter()
+            .map(|(v, holders)| {
+                let mut seen: Vec<(Uuid, Uuid, Uuid, Uuid)> = holders
+                    .iter()
+                    .map(|h| (h.machine, h.interface, h.address, h.domain))
+                    .collect();
+                seen.sort();
+                (v.to_string(), seen)
+            })
+            .collect::<Vec<_>>()
+    };
+    let mut ambiguous = vec![(m2, e2, in_lab, lab), (m3, e3, in_dc, dc)];
+    ambiguous.sort();
+    assert_eq!(
+        held(&found),
+        [
+            ("192.0.2.10".to_owned(), vec![(m1, e1, node, lab)]),
+            ("2001:db8::a".to_owned(), vec![(m1, e1, six, lab)]),
+            ("192.0.2.20".to_owned(), ambiguous),
+            ("198.51.100.7".to_owned(), Vec::new()),
+        ]
+    );
+    // The address moves to m2: read now, m2 holds it; as asserted then, node1 did.
+    drop(conn);
+    env.applied(vec![detach(e1, node), attach(e2, node, false)])
+        .await;
+    let now = env.now().await;
+    let mut conn = pool.acquire().await.unwrap();
+    let first = |found: Vec<(IpAddr, Vec<kartenn_machines::read::HolderOf>)>| {
+        found[0].1.iter().map(|h| h.machine).collect::<Vec<_>>()
+    };
+    let current = read(&mut conn, &values[..1], now, None).await.unwrap();
+    assert_eq!(first(current), [m2]);
+    let past = read(&mut conn, &values[..1], then, Some(then))
+        .await
+        .unwrap();
+    assert_eq!(first(past), [m1]);
+    // By name, under its owner, without case; not under another owner.
+    let other = env.entity("other").await;
+    let by_name = kartenn_machines::read::machine_by_name;
+    assert_eq!(
+        by_name(&mut conn, acme, "Node1", now, None).await.unwrap(),
+        Some(m1)
+    );
+    assert_eq!(
+        by_name(&mut conn, other, "node1", now, None).await.unwrap(),
+        None
+    );
+    assert_eq!(
+        by_name(&mut conn, acme, "node9", now, None).await.unwrap(),
+        None
+    );
+    drop(conn);
+    env.applied(vec![op(
+        "create_machine",
+        json!({"name": "node1", "kind": "physical", "owner": {"id": other}}),
+    )])
+    .await;
+    let theirs = env.machine("node1", other).await;
+    let mut conn = pool.acquire().await.unwrap();
+    let now = env.now().await;
+    assert_eq!(
+        by_name(&mut conn, other, "node1", now, None).await.unwrap(),
+        Some(theirs)
+    );
+    assert_eq!(
+        by_name(&mut conn, other, "node1", now, Some(then))
+            .await
+            .unwrap(),
+        None,
+        "not yet asserted then"
+    );
+}

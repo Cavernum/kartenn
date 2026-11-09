@@ -720,6 +720,9 @@ struct MachineFilter<'a> {
     hosted: Option<bool>,
     /// Hosted by or member of this cluster.
     cluster: Option<Uuid>,
+    /// A hypervisor (`true`) or not (`false`): a physical machine that hosts a virtual
+    /// machine the caller may read or is member of a cluster (REQ-019-1).
+    hypervisor: Option<bool>,
     owner: Option<Uuid>,
     site: Option<Uuid>,
     /// Holding an address of this network.
@@ -777,6 +780,22 @@ async fn machines_page(
         Some(false) => "AND x.host_machine_id IS NULL AND x.host_cluster_id IS NULL",
         Some(true) => "AND (x.host_machine_id IS NOT NULL OR x.host_cluster_id IS NOT NULL)",
     };
+    // The role is derived from the hosting at the dates of the read (REQ-019-1, Q-019-11):
+    // a guest counts only if the caller may read it, as an address of a network
+    // (ADR 0021, task 021-18e); membership is a column of the machine itself.
+    let hypervisor = filter.hypervisor.map_or_else(String::new, |wanted| {
+        format!(
+            "AND {not}(x.kind = 'physical' AND (x.member_cluster_id IS NOT NULL OR EXISTS (
+                 SELECT 1 FROM {guests} g WHERE $3::jsonb IS NULL OR {visible})))",
+            not = if wanted { "" } else { "NOT " },
+            guests = dated_where(
+                "machines.machine",
+                "id",
+                "host_machine_id = x.id AND kind = 'virtual'"
+            ),
+            visible = visible("g", MACHINE),
+        )
+    });
     let sql = format!(
         "WITH s AS MATERIALIZED (SELECT * FROM kartenn_scopes($3))
          SELECT {MACHINE_SELECT}
@@ -787,6 +806,7 @@ async fn machines_page(
             AND ($7::uuid IS NULL OR x.host_machine_id = $7 OR x.host_cluster_id = $7)
             {hosted}
             AND ($8::uuid IS NULL OR x.host_cluster_id = $8 OR x.member_cluster_id = $8)
+            {hypervisor}
             AND ($9::uuid IS NULL OR x.id IN ({owned}))
             AND ($10::uuid IS NULL OR x.id IN ({sited}))
             AND ($11::text IS NULL OR (x.name, x.id) > ($11, $12::uuid))
@@ -842,9 +862,28 @@ async fn machines_page(
 /// the query string, `{"field": "host", "op": "exists", "value": false}` of a `QUERY`.
 const HOSTED: &str = "host:exists";
 
+/// The filter of the hypervisors (`true`) or the other machines (`false`), REQ-019-1: a
+/// boolean equality, `{"field": "hypervisor", "value": true}` of a `QUERY`.
+const HYPERVISOR: &str = "hypervisor";
+
+/// The boolean filter `name`, if given.
+fn optional_bool(
+    wanted: &std::collections::BTreeMap<&str, &str>,
+    name: &str,
+) -> Result<Option<bool>, Problem> {
+    wanted
+        .get(name)
+        .map(|v| match *v {
+            "true" => Ok(true),
+            "false" => Ok(false),
+            _ => Err(kit::bad(format!("{name} expects true or false"))),
+        })
+        .transpose()
+}
+
 /// `GET`/`QUERY /v1/machines`: by name, filtered by `name`, `name_prefix`, `kind`, `host`,
-/// `host:exists`, `cluster`, `owner`, `site` and `network`, in conjunction (REQ-009-15,
-/// 16).
+/// `host:exists`, `cluster`, `hypervisor`, `owner`, `site` and `network`, in conjunction
+/// (REQ-009-15, 16; REQ-019-1).
 async fn list_machines(
     State(api): State<Api>,
     Extension(principal): Extension<Principal>,
@@ -864,6 +903,7 @@ async fn list_machines(
             "host",
             HOSTED,
             "cluster",
+            HYPERVISOR,
             "owner",
             "site",
             "network",
@@ -882,15 +922,9 @@ async fn list_machines(
         suggestion: prefix.as_deref(),
         kind: wanted.get("kind").copied(),
         host: optional_uuid(&wanted, "host")?,
-        hosted: wanted
-            .get(HOSTED)
-            .map(|v| match *v {
-                "true" => Ok(true),
-                "false" => Ok(false),
-                _ => Err(kit::bad(format!("{HOSTED} expects true or false"))),
-            })
-            .transpose()?,
+        hosted: optional_bool(&wanted, HOSTED)?,
         cluster: optional_uuid(&wanted, "cluster")?,
+        hypervisor: optional_bool(&wanted, HYPERVISOR)?,
         owner: optional_uuid(&wanted, "owner")?,
         site: optional_uuid(&wanted, "site")?,
         network: optional_uuid(&wanted, "network")?,
@@ -1462,7 +1496,7 @@ fn collection_routes(
     for (filter, description) in filters {
         list_op = if *filter == "q" {
             list_op.suggestion(description)
-        } else if filter.ends_with(":exists") {
+        } else if filter.ends_with(":exists") || *filter == HYPERVISOR {
             list_op.filter(filter, description, bool::schema(), None)
         } else {
             list_op.query(filter, description)
@@ -1697,6 +1731,11 @@ pub fn routes() -> ModuleRouter {
                  the member of a cluster is not hosted by it.",
             ),
             ("cluster", "Hosted by or member of this cluster."),
+            (
+                HYPERVISOR,
+                "A hypervisor (`true`), a physical machine that hosts a virtual machine the \
+                 caller may read or is member of a cluster, or not (`false`).",
+            ),
             ("owner", "Whose resolved owner is this entity."),
             ("site", "Whose resolved site is this site."),
             (

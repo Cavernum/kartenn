@@ -16261,6 +16261,8 @@ export interface operations {
         "host:exists"?: boolean;
         /** @description Hosted by or member of this cluster. */
         cluster?: string;
+        /** @description A hypervisor (`true`), a physical machine that hosts a virtual machine the caller may read or is member of a cluster, or not (`false`). */
+        hypervisor?: boolean;
         /** @description Whose resolved owner is this entity. */
         owner?: string;
         /** @description Whose resolved site is this site. */

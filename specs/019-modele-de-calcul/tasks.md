@@ -167,7 +167,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     vérifier sur la page ; `ObservedService::selects` relit le sélecteur à chaque couple
     service-workload ; `IngressBackend` sans la forme `resource` ; « label name » ambigu
     dans l'en-tête de `names.rs` (nom d'étiquette DNS ou segment de clé de label).
-- [ ] 2. Ajouts à la 009 : `machines.platform`, filtre `hypervisor`, lectures
+- [x] 2. Ajouts à la 009 : `machines.platform`, filtre `hypervisor`, lectures
   `machines_of_addresses` et `machine_by_name` — REQ-019-1, 2, 23 (lecture) — verify :
   `hypervisor_follows_hosting`, `platform_is_a_closed_list`,
   `machine_of_internal_ip`, tests de la 009 inchangés
@@ -175,6 +175,29 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     (`attachments_of_address` à imiter), `rest.rs` (filtres de `/v1/machines`) ;
     `crates/kartenn-machines/tests/it/`
   - dépend de : 0
+  - fait (2026-11-09) : `module.rs` (`PLATFORM`, déclaration `TypeSpec::ENUM` portée par
+    `machines.machine`, non héritée, livrée vide, libellés fr/en) ; `read.rs`
+    (`machines_of_addresses` : pour chaque valeur d'un lot d'`IpAddr`, les détenteurs
+    `HolderOf` machine, interface, adresse, domaine, dans tout domaine, une requête par
+    l'index `address_host_suggested` ; `machine_by_name` : machine d'un nom, sans casse,
+    sous un propriétaire, datée) ; `rest.rs` (filtre booléen `hypervisor` de
+    `GET`/`QUERY /v1/machines`, SQL écrit dans le texte comme `host:exists`, helper
+    `optional_bool` partagé) ; contrat `openapi-v1.json` et filtres des deux SDK
+    (`web/sdk`, `web/v2/sdk`) régénérés ; tests `platform_is_a_closed_list`,
+    `machine_of_internal_ip` (`tests/it/machines.rs`), `hypervisor_follows_hosting`
+    (`tests/it/rest.rs`), ceux de la 009 inchangés.
+  - choix : hyperviseur = machine `physical` membre d'un cluster ou hôte d'une machine
+    `virtual` (un conteneur n'en fait pas un) ; l'invité ne compte que si l'appelant le
+    lit (ADR 0021, comme les adresses d'un réseau, 021-18e), l'appartenance au cluster
+    est une colonne de la machine ; `hypervisor=false` est le complément ; filtre booléen
+    d'égalité (`{"field": "hypervisor", "value": true}` en `QUERY`), pas un
+    `:exists` ; `machines_of_addresses` prend des valeurs (l'`InternalIP` lue) et non des
+    identifiants d'adresse (ce que `machine_values_of_addresses` couvre déjà), sans
+    filtre de domaine ni d'espèce : l'ambiguïté (plusieurs détenteurs ou domaines) et
+    l'espèce `physical|virtual` (`kube.node.machine_kind`) sont à l'appelant ;
+    `machine_by_name` rend une machine au plus (nom unique par propriétaire, M3), lue
+    sur l'affectation propre de `core.owner` (la machine est racine de son arbre),
+    datée par instantanés comme le reste du port ; libellé « Plateforme » / « Platform ».
 - [ ] 3. Clusters, nœuds, namespaces : migration `0001_kube.sql` (`cluster`, `node`,
   `namespace`), gestionnaire `create/update_cluster`, opération `kube.sync` réduite à ces
   types, module au registre (dépendance `machines`), feature `kube` — REQ-019-4 à 7, 13 —

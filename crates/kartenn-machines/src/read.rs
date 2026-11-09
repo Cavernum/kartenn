@@ -1,11 +1,15 @@
 //! The port of reading of the module (feature `pg`; REQ-009-16, 22, 25; design « Port de
 //! lecture »): the addresses of a machine or of an interface with the role of each
 //! interface, the interfaces and machines of an address, the machines of a network, of a
-//! host or of a cluster, and the values of the machines of a batch of addresses. Each
+//! host or of a cluster, and the values of the machines of a batch of addresses; for the
+//! matching of a Kubernetes node (spec 019, REQ-019-23), the machines that hold a batch of
+//! address values in any domain and the machine of a name under an owner. Each
 //! function reads at (`valid_at`, `as_of`) on a connection: that of a changeset, through
 //! [`kartenn_service::module::ModuleTx`], sees the state the changeset leaves; a past
 //! `as_of` reads the versions then asserted, from the tables and their history. Rights are
 //! the caller's to apply (the routes filter by them, REQ-009-16).
+
+use std::net::IpAddr;
 
 use kartenn_core::period::Instant;
 use kartenn_service::port::StoreError;
@@ -42,6 +46,19 @@ pub struct AttachmentOf {
     pub machine: Uuid,
     /// The resolved role of the interface, by key.
     pub role: Option<String>,
+}
+
+/// A machine that holds an address of a given value, in some domain (REQ-019-23).
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct HolderOf {
+    /// The machine.
+    pub machine: Uuid,
+    /// Its interface that holds the address.
+    pub interface: Uuid,
+    /// The address of the core.
+    pub address: Uuid,
+    /// Its addressing domain.
+    pub domain: Uuid,
 }
 
 /// The resolved value of a property for a machine, with the object it comes from
@@ -236,6 +253,106 @@ pub async fn attachments_of_address(
     .bind(as_of.map(time))
     .bind(address)
     .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// For each of `values`, in their order, the machines that hold an address of that value at
+/// (`valid_at`, `as_of`), in any domain, with the interface, the address and its domain:
+/// the `InternalIP` of a Kubernetes node designates its machine (REQ-019-23). A value held
+/// by no machine has an empty list; one held by several, or in several domains, is the
+/// caller's to call ambiguous. One query for the batch.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn machines_of_addresses(
+    conn: &mut PgConnection,
+    values: &[IpAddr],
+    valid_at: Instant,
+    as_of: Option<Instant>,
+) -> Result<Vec<(IpAddr, Vec<HolderOf>)>, StoreError> {
+    #[derive(sqlx::FromRow)]
+    struct Row {
+        rank: i64,
+        #[sqlx(flatten)]
+        holder: HolderOf,
+    }
+    let address = snapshot("public.address", "id, domain_id, address");
+    let attachment = snapshot("machines.attachment", "interface_id, address_id");
+    let interface = snapshot("machines.interface", "id, machine_id");
+    let texts: Vec<String> = values.iter().map(ToString::to_string).collect();
+    // The addresses by their text in the collation `C`, the index of the suggestions
+    // (`address_host_suggested`), never a scan of the addresses of every domain.
+    let rows: Vec<Row> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+        "SELECT q.rank, i.machine_id AS machine, i.id AS interface, x.id AS address,
+                x.domain_id AS domain
+           FROM unnest($3::text[]) WITH ORDINALITY AS q(value, rank)
+           JOIN LATERAL (
+               SELECT * FROM {address} y
+                WHERE (host(y.address) COLLATE \"C\") = (host(q.value::inet) COLLATE \"C\")
+               OFFSET 0) x ON TRUE
+           JOIN {attachment} a ON a.address_id = x.id
+           JOIN {interface} i ON i.id = a.interface_id
+          ORDER BY q.rank, i.machine_id, i.id, x.domain_id"
+    )))
+    .bind(time(valid_at))
+    .bind(as_of.map(time))
+    .bind(&texts)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))?;
+    let mut out: Vec<(IpAddr, Vec<HolderOf>)> = values.iter().map(|&v| (v, Vec::new())).collect();
+    for row in rows {
+        // `WITH ORDINALITY` counts from 1.
+        let found = usize::try_from(row.rank - 1)
+            .ok()
+            .and_then(|rank| out.get_mut(rank));
+        if let Some((_, holders)) = found {
+            holders.push(row.holder);
+        }
+    }
+    Ok(out)
+}
+
+/// The machine named `name` (compared without case, 009/M3) whose owner is `owner` at
+/// (`valid_at`, `as_of`), if any: the fallback by which a Kubernetes node designates its
+/// machine, under the owner of its cluster (REQ-019-23). A name is unique per owner at
+/// each instant (M3), so one machine at most.
+///
+/// # Errors
+///
+/// Database errors.
+pub async fn machine_by_name(
+    conn: &mut PgConnection,
+    owner: Uuid,
+    name: &str,
+    valid_at: Instant,
+    as_of: Option<Instant>,
+) -> Result<Option<Uuid>, StoreError> {
+    let machine = snapshot("machines.machine", "id, name");
+    let declaration = snapshot("public.property_declaration", "id, key");
+    let assignment = snapshot(
+        "public.property_assignment",
+        "object_id, property_id, kind, v_uuid",
+    );
+    // A machine is the root of its tree (`module::TYPES`): its owner is its own assignment
+    // of `core.owner`.
+    sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+        "SELECT m.id FROM {machine} m
+           JOIN {declaration} d ON d.key = 'core.owner'
+           JOIN LATERAL (
+               SELECT * FROM {assignment} x
+                WHERE x.object_id = m.id AND x.property_id = d.id OFFSET 0) a ON TRUE
+          WHERE m.name = $3 AND a.kind = 'value' AND a.v_uuid = $4
+          ORDER BY m.id
+          LIMIT 1"
+    )))
+    .bind(time(valid_at))
+    .bind(as_of.map(time))
+    .bind(name.to_lowercase())
+    .bind(owner)
+    .fetch_optional(conn)
     .await
     .map_err(|e| store(&e))
 }
