@@ -216,6 +216,49 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `crates/kartenn-machines/src/handler.rs` (`plan`, affectations planifiées,
     clés de verrou) et `migrations/0001_machines.sql` ; `crates/kartenn-server/src/modules.rs`
   - dépend de : 1
+  - découpée le 2026-11-10 (relevé par l'agent de la tâche, avant tout code) en 3a, 3b
+    et 3c. Un module ne connaît pas les identifiants des objets du noyau qu'il planifie :
+    `plan` (`kartenn-service/src/pipeline.rs` vers les lignes 955 à 1020) les tire
+    (`Uuid::now_v7()`) après le plan du module et les applique dans l'ordre planifié (vers
+    la ligne 1715) ; `ModuleHandler` n'a aucun crochet qui les lui rende. Le nœud ne peut
+    donc pas citer dans `range_ids` les réseaux de ses plages de pods (REQ-019-13, B2),
+    pas plus que la tâche 4 ses adresses `vip`. L'avertissement `kube.node.range_outside`
+    n'a rien dans l'état final dont partir : le schéma ne garde pas les plages observées.
+- [ ] 3a. Identifiants créés rendus au plan d'un module — **en attente d'arbitrage**
+  (contrat des modules, ADR 0026, et schéma). Options relevées : (A, recommandée par
+  l'agent) après que le pipeline a tiré les identifiants des opérations du noyau d'un
+  module, il les lui rend (crochet par défaut, par exemple
+  `ModuleHandler::planned(&mut ModulePlan, created: &[Uuid])`) pour que ses données les
+  citent ; amendement additif de la clause 6 de l'ADR 0026 ; colonne des plages observées
+  sur le nœud (par exemple `pod_cidrs cidr[]`), écart au design « Données », pour que
+  `check` lève et close `range_outside`. (B) le connecteur envoie des `create_prefix`
+  avec des locaux avant `kube.sync` dans le même lot, et le nœud cite `{"local": n}`
+  (déjà résolu) : « crée et clôt les réseaux » passe du module au connecteur, contre la
+  table « Opérations » ; `range_outside` demande encore une colonne, ou se vérifie au
+  connecteur et la règle serveur se perd. (C) opération de module mise en file après les
+  `CreatePrefix`, ou `range_ids` réécrits dans `check` : expédients (collisions de
+  locaux, droits vérifiés sur un nœud qui n'existe pas encore), écartés — verify (si A) :
+  test unitaire où un faux module planifie un `CreatePrefix` et ses données en citent
+  l'identifiant
+  - où : `crates/kartenn-service/src/module.rs` (`ModuleHandler`),
+    `crates/kartenn-service/src/pipeline.rs` (`plan`), `docs/adr/0026-*.md` clause 6
+  - dépend de : arbitrage de l'utilisateur
+- [ ] 3b. Clusters, nœuds et namespaces sans plages : migration `0001_kube.sql`
+  (`cluster`, `node`, `namespace`, comme le design « Données »), `create/update_cluster`
+  (fenêtre de lot 1–300 s et 1–10 000 opérations, règle `kube.cluster.connector_group`
+  vérifiée contre `rbac_group`, migration 0066), `kube.sync` qui crée, met à jour et clôt
+  nœuds et namespaces sans leurs plages, module au registre (dépendance `machines`),
+  feature `kube` active par défaut — REQ-019-4 à 7 — verify : `kube_needs_machines`,
+  `cluster_slug_unique`, `range_in_designated_domain`, `node_name_unique_per_cluster`,
+  `node_machine_kind`
+  - où : comme la tâche 3
+  - dépend de : 1
+- [ ] 3c. Réseaux des plages de pods d'un nœud créés et clos par `kube.sync`,
+  avertissement `kube.node.range_outside` (migration 0002 si la colonne des plages
+  observées est retenue) — REQ-019-13 — verify : `node_range_created_and_closed`, un
+  test de `range_outside`
+  - où : comme la tâche 3 ; selon l'arbitrage de la 3a
+  - dépend de : 3a, 3b
 - [ ] 4. Workloads, services, ingress : tables, `kube.sync` complet, adresses `vip`
   planifiées, sélection d'un service, références et cascades, arêtes — REQ-019-8 à 11,
   14 — verify : `workload_recreated_keeps_identity`, `service_vip_refuses_close`,
