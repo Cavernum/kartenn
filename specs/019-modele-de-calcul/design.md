@@ -1,11 +1,11 @@
 ---
-status: proposed
+status: approved
 updated: 2026-11-09
 ---
 
 # 019 — Modèle de calcul et Kubernetes : conception
 
-**Statut : à valider (tâche 0b).** La conception suit les décisions de l'utilisateur sur
+**Statut : validée le 2026-11-09 par l'utilisateur (tâche 0b).** La conception suit les décisions de l'utilisateur sur
 Q-019-1 à 13 ([`decisions.md`](decisions.md) § Arbitrages, 2026-11-09) et X1 à X16 ;
 elle est remise en accord avec les specs 022, 024 à 027 (tâche 0a). ADR
 [0043](../../docs/adr/0043-observations-hors-referentiel.md) (observations) et

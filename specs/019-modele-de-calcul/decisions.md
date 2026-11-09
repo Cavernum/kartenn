@@ -1,6 +1,6 @@
 # 019 — Modèle de calcul et Kubernetes : journal des décisions
 
-**Statut : à valider (tâche 0b).** Arbitrages rendus le 2026-11-09 (Q-019-1 à 13, toutes
+**Statut : validée le 2026-11-09 par l'utilisateur (tâche 0b).** Arbitrages rendus le 2026-11-09 (Q-019-1 à 13, toutes
 sur la recommandation, Q-019-4 avec garde-fous) ; X1 à X16, requirements et design remis
 en accord le 2026-11-09 (tâche 0a) avec les arbitrages et avec les specs 022, 024 à 027
 livrées depuis le brouillon du 2026-10-22. D1, D8, D11, D22 et D31 sont amendées
@@ -493,8 +493,9 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
   doit rien pouvoir modifier.
 - Décidé par : Claude ; forme du connecteur (processus distinct, lecture seule) :
   l'utilisateur (2026-11-09, Q-019-6, Q-019-10). Le confinement côté kartenn (groupe,
-  périmètre par domaines, `prop.*` borné par `kube.connector.direct`) est relu par
-  l'utilisateur à la validation de la spec (tâche 0b, sécurité).
+  périmètre par domaines, `prop.*` borné par `kube.object.managed` et
+  `kube.connector.direct`, ancrage de domaine de tous les types sauf le cluster) :
+  validé par l'utilisateur le 2026-11-09 (tâche 0b).
 
 ## X11 — Politique : workloads porteurs d'axes
 - Décision (Q-019-7 = A) : `kube.cluster`, `kube.namespace`,
@@ -547,8 +548,8 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
   workload, 16 × 16, < 300 ms (comme REQ-011-19) ; délai d'un changement du cluster à
   kartenn < 60 s au p95 hors liste initiale ; liste initiale d'un cluster de 10⁴ pods
   < 5 min ; lot du connecteur de 500 opérations < 2 s.
-- Décidé par : Claude ; chiffres relus à la validation (0b) et mesurés au banc
-  (tâche 16).
+- Décidé par : Claude ; chiffres validés par l'utilisateur le 2026-11-09 (tâche 0b),
+  mesurés au banc (tâche 16).
 
 ## X15 — Ordre de travail
 - Décision : arbitrages et remise en accord, puis domaine pur et module (sans connecteur, testable
@@ -587,11 +588,12 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
   les rôles livrés lisent les modules ; un lot de 500 opérations reste un seul événement
   `changes` (REQ-022-5).
 - Décidé par : Claude (remise en accord, 2026-11-09) ; l'exclusion de la lecture des
-  observations des rôles livrés est relue à la validation (0b)
+  observations des rôles livrés, le rôle livré par un module et l'audit des lots tenu par
+  le noyau : validés par l'utilisateur le 2026-11-09 (tâche 0b)
 
 ## Choix structurants
-État au 2026-11-09, après les arbitrages et la remise en accord ; tous sont relus à la
-validation de la spec (tâche 0b).
+État au 2026-11-09, après les arbitrages et la remise en accord ; tous validés par
+l'utilisateur le 2026-11-09 (tâche 0b).
 1. **Décisions de cadrage amendées** : D1 (Q-019-2, objets miroirs), D8 et D11
    (Q-019-4, observations hors bitemporel et hors changesets), D22 (Q-019-8, extrémité
    logique), D31 (Q-019-13) ; D21 tenue par Q-019-7 A (valeurs d'axes en liste fermée).

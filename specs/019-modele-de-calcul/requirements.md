@@ -1,11 +1,11 @@
 ---
-status: proposed
+status: approved
 updated: 2026-11-09
 ---
 
 # 019 — Modèle de calcul et Kubernetes : exigences
 
-**Statut : à valider (tâche 0b).** Les treize questions sont arbitrées par l'utilisateur
+**Statut : validée le 2026-11-09 par l'utilisateur (tâche 0b).** Les treize questions sont arbitrées par l'utilisateur
 (2026-11-09, [`decisions.md`](decisions.md) § Arbitrages, Q-019-1 à 13) ; les exigences
 ci-dessous en suivent les décisions, chacune citant la question qui la fonde, et sont
 remises en accord avec les specs 022, 024 à 027 (tâche 0a).

@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: approved
 updated: 2026-11-09
 ---
 
@@ -113,9 +113,15 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     besoin, journal d'entretien, écarts) sont laissées telles quelles, comme trace datée
     du recueil ; X10 (confinement), X16 (lecture des observations) et X14 (chiffres)
     sont relus à la 0b.
-- [ ] 0b. Validation de la spec par l'utilisateur, puis fusion de la branche dans main —
+- [x] 0b. Validation de la spec par l'utilisateur, puis fusion de la branche dans main —
   verify : statut `validée` dans les quatre fichiers et dans `specs/README.md`
   - dépend de : 0a
+  - fait le 2026-11-09 : l'utilisateur valide les quatre points laissés par la 0a, tous
+    sur la recommandation : confinement du connecteur (X10, ADR 0044), lecture des
+    observations hors des rôles livrés (X16), rôle livré par un module et audit des lots
+    par le noyau (contrat), budgets de X14. Les ADR 0043 et 0044 restent `proposed`
+    jusqu'à la tâche 17 (design, § ADR). Les mentions « v0.3 » de
+    `specs/010-politique-flux/besoin/` restent : elles datent l'entretien de besoin.
 
 ## File A — Module `kube` (P1 domaine pur, P2 module)
 
