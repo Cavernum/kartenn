@@ -3925,6 +3925,42 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     (`TopologyView.vue` vers la ligne 202) masque tout écart avec
     `InfiniteQueryObserver`. La cause est reproduite en Vitest, pas encore mesurée au banc :
     la tâche ne se tient en entier qu'après les sept passes de la 22b.
+  - passes du banc (session principale, 2026-11-09, faaac613, échelle réduite) : six sur
+    sept en PASS ; la troisième s'arrête encore à deux pages (100 enfants, `aria-setsize`
+    -1, pas de ligne « suite », pas d'avis du plafond) **sans aucun événement du flux
+    pendant le chargement** : la cause corrigée ici est réelle mais n'est pas celle du
+    banc. Suite en 22l.
+
+- [ ] 22l. Chargement de l'arbre arrêté à deux pages, seconde cause (relevé par les passes
+  du banc après la 22d) : passe 3 sur 7, son journal : « after 2
+  pages read, 1 of them the first (median 38 ms), a row for more: false, aria-setsize -1 »,
+  « event stream while loading: nothing ». Sans invalidation, le niveau passe à « plus de
+  page » après la deuxième : chercher qui met `more` à faux (réponse de la deuxième page
+  sans curseur suivant côté serveur, `levelOfPages` sur un nombre de pages ou un
+  `hasNextPage` lu trop tôt, `aria-setsize` inconnu à -1 alors que le total est servi) ;
+  reproduire avant de corriger — verify : un test qui reproduit l'ordre trouvé (Vitest, ou
+  test d'intégration de la route `children` si la cause est côté serveur) ; sept passes
+  réduites du banc par la session principale, `children loaded before scrolling` en PASS
+  à chaque fois
+  - où : `web/v2/shell/src/views/topology.ts` (`levelOfPages`, `askNextPage`),
+    `web/v2/shell/src/views/TopologyView.vue` (`onLoad`, `levelOf`),
+    `web/v2/ui/src/components/internal/treePages.ts`, `web/v2/sdk/src/data/cache.ts`
+    (lectures `children`, `getNextPageParam`), et côté serveur la route
+    `/v1/prefixes/{id}/children` (curseur) ; mesure : `web/v2/e2e/budgets/budgets.spec.ts`
+    (vers la ligne 504)
+  - dépend de : 22d
+
+- [ ] 22m. Scénario du banc pour A40 (relevé à la clôture de la 22c) : le verify de la 22c
+  (0 lecture `/children` pendant le défilement d'un arbre d'un autre domaine, tâches
+  périodiques remises) n'est pas tenable en l'état, le banc n'ayant ni second domaine
+  écrit pendant la mesure ni moyen de remettre les tâches ; ajouter un écrivain de fond
+  sur un autre domaine pendant le défilement (changesets réguliers) et imprimer les
+  lectures `/children` du conteneur mesuré — verify : passe réduite par la session
+  principale, 0 lecture `/children` du conteneur pendant la fenêtre, les changesets de
+  l'autre domaine vus au flux
+  - où : `web/v2/e2e/budgets/budgets.spec.ts`, `web/v2/e2e/budgets/global-setup.ts`,
+    `web/v2/e2e/serve.sh` (branche `budgets`)
+  - dépend de : 22c
 
 - [ ] 22k. Arbre d'hébergement des machines contre les lectures d'une invalidation
   (relevé par la 22d) : `HostingTree.vue` (`onLoad` → `next()` de `data.ts`) perd sans
