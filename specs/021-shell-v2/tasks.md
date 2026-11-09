@@ -3848,7 +3848,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     tuple typé à la main de `events.test.ts` (vers la ligne 350), plus idiomatique en
     `as const`. Deux propriétés du serveur dont A40 dépend : tâche 22j.
 
-- [ ] 22i. Lectures d'objets sous le nom de type nu (relevé par la 22c, antérieur) :
+- [x] 22i. Lectures d'objets sous le nom de type nu (relevé par la 22c, antérieur) :
   `types()` et `objects()` de `invalidate.ts` comparent `queryKey[1]` tel quel au type
   qualifié ; une lecture d'objet nue (`TopologyView.vue` vers la ligne 453) n'est relue que
   par `dependents.showing` et perd le court-circuit de révision ; une sous-ressource nue
@@ -3860,6 +3860,19 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/sdk/src/data/invalidate.ts` (`types`, `objects`, `treeOf`, `qualify` de
     `types.ts`) ; test voisin `web/v2/sdk/test/events.test.ts`
   - dépend de : 22c
+  - fait : `invalidate.ts`, `typeOf` (le type d'une clé d'objet ou de sous-ressource,
+    qualifié comme `treeOf`), comparé par `objects()` à l'identifiant changé (le
+    court-circuit `upToDate` inchangé) et par `types()` aux types nommés ; une clé par
+    chemin garde sa comparaison au chemin ; la règle des arbres (A40) n'est pas touchée.
+    Vitest `a bare-typed read is invalidated by its type and its id` (`events.test.ts` :
+    objet et sous-ressource `properties` lus par `prefix`, sous `changes`, objet déjà à la
+    révision épargné, et sous `truncated`, un autre type n'en relisant aucun), en échec
+    sur l'ancienne comparaison. `k-web2-check --base main` : 950 Vitest ; tout, 2 719
+    captures sur 2 719 (`invalidate.ts` est chargé par l'entrée du shell).
+  - choix : qualifier à la comparaison plutôt qu'à la lecture (les clés gardent le type
+    lu, aucun appelant réécrit) ; sous `changes`, une lecture `children` nue d'un préfixe
+    changé suit désormais la règle de l'identifiant, comme la clé qualifiée l'était déjà,
+    avant celle des arbres.
 
 - [ ] 22j. Domaines d'un changeset publiés au flux (A40 en dépend, relevé par la revue de
   la 22c) : les `domains` de `changes` sont les domaines de verrouillage
