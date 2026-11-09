@@ -66,7 +66,7 @@ spécification du module.
 | `flow.reference.missing` | erreur | Un flux porte au moins une référence externe. | REQ-011-1 | 011/F2, Q3 |
 | `flow.reference.system` | erreur | Une référence externe nomme son système par la clé d'une valeur de la liste fermée des systèmes externes (ou par son identifiant) valide au début de l'opération. | REQ-011-1, REQ-016-3 | 011/F2, 016/G9 |
 | `flow.field.invalid` | erreur | Une justification a de 1 à 4 000 caractères ; une référence externe a un identifiant de 1 à 256 caractères ; sans caractère de contrôle. | REQ-011-1 | 011/F2 |
-| `flow.kind.reserved` | erreur | La sorte « constaté » est réservée à la v0.3. | REQ-011-20 | 011/F16, Q18 |
+| `flow.kind.reserved` | erreur | La sorte « constaté » est réservée à la v0.4. | REQ-011-20 | 011/F16, Q18 |
 | `flow.update.identity` | erreur | Changer une extrémité ou le service d'un flux en crée un nouveau : la modification est refusée. | REQ-011-4 | 011/F2 |
 | `flow.update.ended` | erreur | Un flux terminé ne se prolonge pas : une nouvelle demande le remplace. | REQ-011-4 | 011/F20 |
 | `flow.review.required` | erreur | Un flux dont l'issue n'est pas automatique ne s'applique qu'après instruction. | REQ-011-8, REQ-011-21 | 011/F5, F6 |
