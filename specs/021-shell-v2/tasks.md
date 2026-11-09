@@ -3894,7 +3894,33 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   named` sur les opérations de module (`kartenn-rest/tests/it`) et un test du filtre
   - où : `crates/kartenn-service/src/pipeline.rs`, `crates/kartenn-service/src/events.rs` ;
     tests voisins des événements dans `crates/kartenn-rest/tests/it/`
-  - dépend de : 22c
+  - dépend de : 22c ; **en attente d'arbitrage** (contrat de la 022, visibilité)
+  - en cours (branche `tache/021-22j`, non fusionnée, 2026-11-09) : premier point tenu,
+    prouvé par `every_written_domain_is_named` (`kartenn-rest/tests/it/event_domains.rs` :
+    création, modification, attribution, VLAN, restauration, clôture en cascade, sur deux
+    domaines ; `lock_targets` est calculé après `cascade::expand` et à l'approbation ;
+    aucun module n'écrit d'adressage hors des opérations du noyau). Second point non tenu :
+    `render` (`events.rs` vers la ligne 591) ne garde que les domaines que le sujet lit
+    lui-même ; un sujet qui lit des préfixes de D1 par une liaison sur un sous-arbre, sans
+    lire D1, et qui lit D2, reçoit `domains: [D2]` pour un changeset écrit dans D1 et D2, et
+    ne relit pas ses `children` de D1 (A40). Seul D1 écrit : `domains: []`, déjà « relire
+    tout ». Le test unitaire `a_domain_unseen_is_not_named_beside_one_seen` fixe le
+    comportement actuel, à inverser une fois tranché.
+  - arbitrage demandé : (A, recommandé) nommer aussi le domaine de tout préfixe, plage ou
+    adresse visible même si le sujet ne lit pas le domaine : l'identifiant est déjà exposé
+    par `GET /v1/prefixes/{id}` (`domain.id`), rien de neuf ne fuit ; amender REQ-022-16
+    (« les domaines suivent la même règle ») et porter le domaine de chaque objet dans la
+    requête `visible` du hub (elle joint déjà `carrier_object.domain_id`). (B) garder la
+    règle et envoyer `domains: []` dès qu'un objet visible est dans un domaine non lu :
+    rien de plus n'est montré, mais cela contredit REQ-022-4 (« les domaines visibles ») et
+    perd le gain d'A40 pour ce sujet. Écarté : `[]` dès que le changeset touche un domaine
+    non lu, un oracle contraire à REQ-022-16. Hors d'A40 : `update_vlan_group`
+    (`kartenn-service/src/vlan.rs` vers la ligne 467) ne nomme que le nouvel ancrage d'un
+    groupe déplacé, et une règle `policy.inference`, ancrée dans un domaine
+    (`kartenn-policy/src/handler.rs` vers la ligne 584), laisse `plan.domains` vide (ligne
+    256, sérialisée par la clé S17) ; ni l'un ni l'autre n'est dans un arbre de préfixes,
+    mais les corriger change `domains` et le verrouillage : à décider avec A ou B (tâche à
+    part).
 
 - [x] 22d. Chargement de l'arbre arrêté à deux pages (une passe sur sept, 22a et 24e) :
   après la deuxième page, ni ligne « suite » ni avis, 100 enfants dessinés ;
