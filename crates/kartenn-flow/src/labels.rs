@@ -54,7 +54,7 @@ pub(crate) static ENGLISH: English = English {
         ),
         (
             "flow.kind.reserved",
-            "The « observed » kind is reserved to v0.3.",
+            "The « observed » kind is reserved to v0.4.",
         ),
         (
             "flow.update.identity",

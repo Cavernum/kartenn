@@ -332,7 +332,7 @@ l'audit garde les anciens noms.
     attendues `policy.inference` (provenance `source:policy.inference@<révision>#<règle>`).
   - `flow` (spec 011, migrations du module 0001 et 0002, [ADR 0031](../adr/0031-evaluations-de-flux-materialisees.md)) :
     `flow` (type `flow.flow` ancré sur l'entité par `core.owner` ; sorte `declared`,
-    `observed` réservée v0.3 ; extrémités et service polymorphes, sans clé étrangère,
+    `observed` réservée v0.4 ; extrémités et service polymorphes, sans clé étrangère,
     contrôlés par les règles du module ; référence externe obligatoire, justification
     facultative ; fin facultative), `flow_waiver` (motif, risque, fin obligatoire, accordée
     par un autre que le demandeur), `flow_endpoint_address` (extrémités développées en

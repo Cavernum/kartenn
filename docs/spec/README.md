@@ -57,7 +57,8 @@ Non-objectifs :
 |---|---|
 | v0.1 | Noyau d'adressage (002), propriétés (003), changesets et bitemporel (004), authentification et RBAC (005), API REST (006), shell Web et plugins (007), VLAN (008), machines et interfaces (009) |
 | v0.2 | Politique de flux (010), registre de flux (011) — spécifiés avant de figer le noyau |
-| v0.3 | Passerelles, routes, NAT |
+| v0.3 | Modèle de calcul : hyperviseurs, VM, conteneurs, Kubernetes (019) |
+| v0.4 | Passerelles, routes, NAT ; flux constatés, connecteurs de ticketing, campagnes de revue (D31 amendée, 019/Q-019-13) |
 | ensuite | Atteignabilité, connecteur de la source historique, CLI, TUI, MCP |
 
 ## Glossaire
@@ -153,6 +154,8 @@ Non-objectifs :
 | [0038](../adr/0038-partage-des-composants-avec-les-plugins.md) | `vue` et `@kartenn/ui` partagés avec les plugins par l'import map, DOM léger en première partie ; amende l'ADR 0025 (specs 020, 021) | accepted |
 | [0039](../adr/0039-outillage-claude-qualite-interface.md) | Outillage Claude pour la qualité de l'interface : `ui-reviewer`, `a11y-auditor`, skill `kartenn-ui`, hook après édition, `bench-web` dans `bench-runner` | accepted |
 | [0040](../adr/0040-dictionnaire-de-libelles.md) | Dictionnaire de libellés : corps neutres en langue, `labels` sur les tables propriétaires, libellés compilés des codes, `GET /v1/labels` négocié, révision et ETag, événement `labels`, filtrage par droits (spec 018) | accepted |
+| [0043](../adr/0043-observations-hors-referentiel.md) | Observations hors référentiel, hors bitemporel et hors changesets : lots en ajout seul sous un droit propre, validés à l'entrée, audités avec l'empreinte du contenu, lecture bornée, purge par partition ; amende D8 et D11 (spec 019) | proposed |
+| [0044](../adr/0044-connecteur-kubernetes.md) | Connecteur Kubernetes : processus distinct client REST, list puis watch, lecture seule et droits vérifiés au démarrage, confinement par groupe et rôle `kube_connector` sur les domaines du cluster (spec 019) | proposed |
 
 ## Questions ouvertes
 

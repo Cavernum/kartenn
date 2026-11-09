@@ -34,7 +34,7 @@ rules! {
     FIELD_INVALID = "flow.field.invalid", Error, ["REQ-011-1"], "011/F2",
         "Une justification a de 1 à 4 000 caractères ; une référence externe a un identifiant de 1 à 256 caractères ; sans caractère de contrôle.";
     KIND_RESERVED = "flow.kind.reserved", Error, ["REQ-011-20"], "011/F16, Q18",
-        "La sorte « constaté » est réservée à la v0.3.";
+        "La sorte « constaté » est réservée à la v0.4.";
     UPDATE_IDENTITY = "flow.update.identity", Error, ["REQ-011-4"], "011/F2",
         "Changer une extrémité ou le service d'un flux en crée un nouveau : la modification est refusée.";
     UPDATE_ENDED = "flow.update.ended", Error, ["REQ-011-4"], "011/F20",

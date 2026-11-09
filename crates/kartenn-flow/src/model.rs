@@ -27,7 +27,7 @@ pub const EXTERNAL_ID_MAX: usize = 256;
 pub enum FlowKind {
     /// Requested by someone (v0.2).
     Requested,
-    /// Observed on the network: reserved for v0.3, refused in v0.2.
+    /// Observed on the network: reserved for v0.4, refused until then.
     Observed,
 }
 
@@ -129,7 +129,7 @@ pub fn check(flow: &Flow, facts: &Facts) -> Vec<Violation> {
     if flow.kind == FlowKind::Observed {
         out.push(Violation::new(
             &KIND_RESERVED,
-            "an observed flow is reserved for v0.3",
+            "an observed flow is reserved for v0.4",
         ));
     }
     for (side, endpoint, versions) in [

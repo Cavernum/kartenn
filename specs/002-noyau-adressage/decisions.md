@@ -36,7 +36,7 @@ Interrogatoire ciblé avant `requirements.md`. Contexte : décisions D1–D37
   publics qui se chevauchent dans deux domaines sont refusés. Exception explicite et
   justifiée pour l'anycast.
 - Pourquoi : une adresse publique est unique sur Internet ; un doublon est une erreur
-  de saisie ou un NAT à modéliser comme tel (v0.3).
+  de saisie ou un NAT à modéliser comme tel (v0.4, D31 amendée).
 - Amende D4 : le domaine « global » n'est pas obligatoire pour l'adressage public ; une
   DMZ publique reste dans le domaine où elle est routée.
 - Rejeté : unicité par domaine seulement (doublons publics silencieux), domaine Internet

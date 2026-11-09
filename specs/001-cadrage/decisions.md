@@ -5,13 +5,13 @@ Chaque décision indique ce qui a été décidé, pourquoi, ce qui a été rejet
 Les specs ultérieures référencent ces décisions par leur identifiant (`D<k>`).
 
 ## Synthèse des décisions (détail dans le journal ci-dessous)
-- **Produit** : kartenn, un référentiel réseau **déclaratif**, source de vérité, avec une validation de cohérence **bloquante** (D1). Environ 10⁶ objets, budgets jusqu'à 10⁷ (D2). Une organisation, éventuellement un groupe d'entités, avec des opérateurs externes (D3).
-- **Modèle** : domaines d'adressage obligatoires (D4) ; v4 et v6, familles d'adresses extensibles en vue d'IPv8 (D5) ; ancres entité, site et domaine (D12) ; arbre de préfixes déduit de l'inclusion CIDR (D34) ; **bitemporel** natif (D8, D10) ; écritures par **changesets** avec revue optionnelle (D11) ; suppression refusée par défaut, cascade explicite (D33) ; **propriétés héritables** dans le noyau (D19).
+- **Produit** : kartenn, un référentiel réseau **déclaratif**, source de vérité, avec une validation de cohérence **bloquante** ; une source qui fait foi pour sa portion (un cluster Kubernetes) y est reflétée par des objets miroirs que seul son connecteur écrit, sans découverte (D1 amendée par la 019). Environ 10⁶ objets, budgets jusqu'à 10⁷ (D2). Une organisation, éventuellement un groupe d'entités, avec des opérateurs externes (D3).
+- **Modèle** : domaines d'adressage obligatoires (D4) ; v4 et v6, familles d'adresses extensibles en vue d'IPv8 (D5) ; ancres entité, site et domaine (D12) ; arbre de préfixes déduit de l'inclusion CIDR (D34) ; **bitemporel** natif (D8, D10) ; écritures par **changesets** avec revue optionnelle (D11) ; les **observations** (journal des pods, plus tard flux constatés) hors du référentiel, du bitemporel et des changesets, en lots audités et purgés à échéance (D8 et D11 amendées par la 019, ADR 0043) ; suppression refusée par défaut, cascade explicite (D33) ; **propriétés héritables** dans le noyau (D19).
 - **Architecture** : hexagonale. Modules métier compilés (crates), plugins UI à chaud (Web Components), connecteurs hors processus (D6) ; le VLAN est un objet du noyau, Machines et interfaces un module (D18 amendée par la 026) ; **API HTTP `/v1` (REST et flux d'événements), seule frontière publique** (D7 amendée) ; N instances sans état, PostgreSQL ≥ 18 en primaire unique pour les écritures (D9, D15) ; Rust (D16) ; Vue 3 + TS (D17).
 - **Sécurité d'accès** : OIDC multi-émetteurs (humains) et Basic sur TLS (machines, secours) (D13) ; RBAC composable avec liaisons portées, sur des groupes kartenn (D36, amendée par la 025).
 - **Qualité** : budgets p95 chiffrés et bancs d'essai en CI (D14) ; OCI, module NixOS, OpenTelemetry (D35) ; AGPL-3.0 (D37).
-- **Sécurité métier, objectif final** : conformité à la politique, puis atteignabilité (D20) ; environnements en ensembles, combinaison permissive (D21, D25) ; résolution par adresse (D22) ; le déclaré fait foi, l'inféré contrôle (D23) ; règles d'inférence avec exceptions et priorité explicite (D24) ; remplacement de l'ensemble hérité (D26) ; classification obligatoire réglée par domaine (D27) ; politique en règles par attributs multi-axes, sans ordre, où l'interdiction l'emporte, avec autorisations conditionnelles sous motif et conditions d'admissibilité (D28 amendée) ; catalogue de services nommés (D29) ; registre de flux à validité dérivée de la politique (D30 amendée).
-- **Feuille de route** (D31) : v0.1 = noyau, VLAN, Machines et interfaces, REST et Web ; v0.2 = Politique et Flux ; v0.3 = passerelles, routes, NAT ; ensuite atteignabilité, connecteur historique, MCP, TUI ; les événements poussés (022) précèdent la réécriture du web (020, 021) ; la bibliothèque Python et la CLI (023) s'implémentent dès maintenant (D31 amendée).
+- **Sécurité métier, objectif final** : conformité à la politique, puis atteignabilité (D20) ; environnements en ensembles, combinaison permissive (D21, D25) ; résolution par adresse, ou par extrémité logique pour un workload, un namespace ou un service Kubernetes (D22 amendée par la 019) ; le déclaré fait foi, l'inféré contrôle (D23) ; règles d'inférence avec exceptions et priorité explicite (D24) ; remplacement de l'ensemble hérité (D26) ; classification obligatoire réglée par domaine (D27) ; politique en règles par attributs multi-axes, sans ordre, où l'interdiction l'emporte, avec autorisations conditionnelles sous motif et conditions d'admissibilité (D28 amendée) ; catalogue de services nommés (D29) ; registre de flux à validité dérivée de la politique (D30 amendée).
+- **Feuille de route** (D31 amendée) : v0.1 = noyau, VLAN, Machines et interfaces, REST et Web ; v0.2 = Politique et Flux ; v0.3 = modèle de calcul (hyperviseurs, VM, conteneurs, Kubernetes) ; v0.4 = passerelles, routes, NAT, flux constatés, connecteurs de ticketing, campagnes de revue ; ensuite atteignabilité, connecteur historique, MCP, TUI ; les événements poussés (022) précèdent la réécriture du web (020, 021) ; la bibliothèque Python et la CLI (023) s'implémentent dès maintenant.
 
 ## D1 — Source de vérité et sens de « contrôler »
 - Décision : l'outil est déclaratif et constitue la source de vérité. « Contrôler » veut dire qu'une validation de cohérence est bloquante : aucune incohérence n'est acceptée en écriture. Pas de découverte ni de pilotage actif pour l'instant.
@@ -19,6 +19,18 @@ Les specs ultérieures référencent ces décisions par leur identifiant (`D<k>`
 - Conséquence : on prévoit une architecture de **connecteurs modulaires** pour les sources de données futures (import ou synchronisation). Le premier connecteur à écrire sera celui de la source historique.
 - Rejeté : découverte automatique (données bruitées, va contre la validation stricte), intention et observé dès le départ (périmètre doublé), pilotage actif (autre classe de produit).
 - Décidé par : l'utilisateur
+- Amendement (spec 019, Q-019-2, 2026-11-09) : une source externe qui **fait foi pour sa
+  propre portion** (premier cas : les objets d'un cluster Kubernetes) y est reflétée par
+  des **objets miroirs**, écrits par changesets, validés comme toute écriture, par le
+  seul compte de service du connecteur de cette source (pour un cluster : un compte
+  membre du groupe kartenn que le cluster désigne, 025/G1) ; tout autre auteur n'en écrit
+  que les propriétés portées (classifications), jamais les champs reflétés. Ce n'est pas
+  de la découverte : rien n'est deviné, tout est lu d'une API déclarative, en lecture
+  seule. La découverte (balayage, inférence d'objets à partir du trafic) et le pilotage
+  actif (écriture dans la source) restent exclus partout ailleurs.
+- Pourquoi (amendement) : pour un namespace, un workload ou un service, la vérité est
+  l'API du cluster ; un objet déclaré à la main serait faux dès le déploiement suivant.
+- Décidé par (amendement) : l'utilisateur (2026-11-09)
 
 ## D2 — Volumétrie cible
 - Décision : environ 10⁶ objets (IP et interfaces), environ 10⁵ subnets, environ 10⁴ VLAN pour le plus gros SI. Les budgets de performance sont dimensionnés avec une marge ×10, donc jusqu'à 10⁷.
@@ -68,6 +80,15 @@ Les specs ultérieures référencent ces décisions par leur identifiant (`D<k>`
 - À préciser : temps applicatif seul, temps système seul, ou bitemporel (voir D10).
 - Rejeté : audit simple (perd la reconstitution), journal plus rejeu (reconstitution lente, pas de requêtes directes).
 - Décidé par : l'utilisateur
+- Amendement (spec 019, Q-019-4, 2026-11-09) : les **observations** (journal des pods de
+  la 019, puis flux constatés et toute télémétrie future) ne sont pas des objets du
+  référentiel et ne sont **pas versionnées** : une observation porte sa seule période
+  observée, sans temps système ni lecture `as_of`, sans correction, et elle est purgée à
+  l'échéance de sa rétention. Elle ne fonde aucun verdict. Voir D11 (amendée) et
+  l'[ADR 0043](../../docs/adr/0043-observations-hors-referentiel.md).
+- Pourquoi (amendement) : un cluster de 10⁴ pods renouvelés chaque jour écrirait
+  3,6·10⁶ versions par an ; dix clusters sur trois ans dépasseraient dix fois D2.
+- Décidé par (amendement) : l'utilisateur (2026-11-09, avec garde-fous)
 
 ## D9 — Mise à l'échelle horizontale
 - Décision : le serveur applicatif doit pouvoir tourner en **N instances** derrière un répartiteur de charge.
@@ -87,6 +108,21 @@ Les specs ultérieures référencent ces décisions par leur identifiant (`D<k>`
 - Conséquences : un changeset en attente est validé à la soumission **puis revalidé à l'application** (l'état a pu changer : contrôle optimiste et rejet si conflit) ; le changeset porte l'auteur, le motif et le temps applicatif visé ; c'est l'unité du temps système (D10) et de l'outbox.
 - Rejeté : écriture directe (revue impossible plus tard sans refonte), branches façon Git (fusion bitemporelle trop complexe).
 - Décidé par : recommandation acceptée
+- Amendement (spec 019, Q-019-4, 2026-11-09) : les **observations** (D8 amendée) ne
+  passent pas par les changesets. Elles s'écrivent par **lots**, par une route dédiée,
+  sous un **droit propre** (pour la 019 : `kube.observation.record`, réservé au compte
+  du connecteur et borné à son cluster), en **ajout seul** (insertion et fermeture de
+  période, jamais de réécriture), avec une validation à l'entrée ; chaque lot est
+  inscrit à l'**audit scellé** (012) avec l'**empreinte** de son contenu, pour qu'une
+  altération ultérieure se détecte ; leur lecture est bornée au périmètre de la source ;
+  elles n'écrivent **jamais** dans le référentiel : passer d'un fait observé à un objet
+  déclaré se fait par un changeset. Ni approbation, ni différentiel, ni événement par
+  ligne. [ADR 0043](../../docs/adr/0043-observations-hors-referentiel.md).
+- Pourquoi (amendement) : une observation ne se refuse pas ; la faire passer par le
+  pipeline coûterait sans rien contrôler, et la purge à échéance violerait le temps
+  système immuable d'un changeset (D10). Le journal sert à l'attribution en enquête :
+  d'où les garde-fous.
+- Décidé par (amendement) : l'utilisateur (2026-11-09, avec garde-fous)
 
 ## D12 — Ancres du noyau
 - Décision : le noyau contient trois axes d'organisation : **entité** (propriétaire), **domaine d'adressage** (routabilité) et **site** (emplacement hiérarchique : région > site > bâtiment…). Ils servent d'ancres de périmètre au RBAC et de portée aux groupes de VLAN. Le détail physique (baies, étages, coordonnées) va dans un module.
@@ -158,6 +194,20 @@ Les specs ultérieures référencent ces décisions par leur identifiant (`D<k>`
 - Conséquence sur le noyau : l'arbre d'héritage, c'est l'arbre des préfixes plus les adresses, par domaine d'adressage. Les machines sont rattachées aux adresses, elles ne sont pas des nœuds de l'arbre. Le rôle d'interface est un attribut du module Machines et interfaces, exploitable par le module politique.
 - Rejeté : un environnement unique par machine (interdit bastions et sauvegarde), ensemble d'environnements (un bastion devient un pont).
 - Décidé par : recommandation acceptée
+- Amendement (spec 019, Q-019-8, 2026-11-09) : une extrémité **logique** (workload,
+  namespace ou service Kubernetes) ne se résout pas par ses adresses, interchangeables
+  et changeantes : un workload s'évalue sur ses **axes résolus** (affectation propre,
+  sinon namespace, puis cluster, sinon arbre d'adressage sur la plage de pods), et l'on
+  rend **un verdict par paire d'extrémités logiques**. Un namespace se développe en ses
+  workloads (un verdict chacun, plus une synthèse) ; un service en ses workloads
+  sélectionnés pour une source dans le cluster, en ses adresses `vip` pour une source
+  hors du cluster (règle par adresse ci-dessus). Un workload `hostNetwork` partage
+  l'espace réseau de ses nœuds : il n'est pas une extrémité logique mais s'évalue par
+  adresse, sur les adresses des machines de ses nœuds, avec la règle de D22. Les
+  extrémités adresse, préfixe, interface et machine gardent la règle de D22.
+- Pourquoi (amendement) : un verdict par IP de pod serait instable (il dépendrait du
+  journal d'observation, D8 amendée) et sans portée : une règle vise une application.
+- Décidé par (amendement) : l'utilisateur (2026-11-09)
 
 ## D23 — Le déclaré fait foi, l'inféré contrôle
 - Décision : les verdicts de flux se fondent **uniquement sur l'environnement déclaré** (explicite ou hérité). Les règles d'inférence produisent un environnement **attendu** : un écart donne une anomalie, avec la règle en cause. Pour un nœud non déclaré, l'inférence donne une **suggestion** acceptable par changeset ; elle n'écrit jamais seule.
@@ -234,7 +284,8 @@ L'utilisateur précise que D24 à D26 décrivaient **la pratique actuelle**, que
   règle réévalue les flux » vaut pour la politique (règles, motifs, conditions, services)
   et les classifications ; une règle d'inférence ne change aucun verdict et ne réévalue
   que les anomalies (D23). Le registre réserve une **sorte** « constaté » (flux déjà
-  ouvert, audité a posteriori) pour la v0.3.
+  ouvert, audité a posteriori) pour la v0.4 (v0.3 avant l'amendement de D31 par la
+  019, Q-019-13).
 
 ## D31 — Feuille de route
 - Décision : **v0.1 (MVP), orientée réseau** : noyau (dont le mécanisme de **propriétés héritables**, construit et testé dès v0.1 même sans le module Politique), VLAN, Machines et interfaces, REST et Web. **v0.2, sécurité** : Politique (environnements, règles, matrice, garde-fous, services, conformité, anomalies) et Flux. **v0.3** : passerelles, routes, NAT. **Ensuite** : atteignabilité effective, connecteur de la source historique, MCP, CLI, TUI.
@@ -242,6 +293,26 @@ L'utilisateur précise que D24 à D26 décrivaient **la pratique actuelle**, que
 - Garde-fou : les specs de Politique et Flux sont **écrites avant de figer le noyau** de v0.1, pour que le noyau les accueille sans refonte. Un prototype de résolution d'héritage sur 10⁶ nœuds est fait en v0.1.
 - Rejeté : Politique dans le MVP, tout dans le MVP.
 - Décidé par : l'utilisateur
+- Amendement (spec 019, 2026-10-22) : la **v0.3** devient le **modèle de calcul** :
+  machines physiques, hyperviseurs, VM, conteneurs, pods et nœuds Kubernetes, et
+  l'interaction avec Kubernetes (synchronisation en lecture d'abord). **Passerelles,
+  routes et NAT** glissent d'un cran, en **v0.4** ; l'ordre de la suite est inchangé
+  (atteignabilité effective, connecteur de la source historique, MCP, TUI). Les autres
+  mentions « v0.3 » de la 010 et de la 011 sont tranchées par l'amendement suivant
+  (Q-019-13).
+- Pourquoi (amendement) : sujet retenu par l'utilisateur pour la v0.3. Lecture de
+  Claude : la politique de la v0.2 vise des adresses et des machines ; elle doit pouvoir
+  viser les charges conteneurisées, dont l'adresse change sans cesse, avant que
+  l'atteignabilité (routes, NAT) ne les traverse.
+- Décidé par (amendement) : l'utilisateur (2026-10-22)
+- Amendement (spec 019, Q-019-13, 2026-11-09) : les **flux constatés** (sorte
+  `observed`, audit a posteriori des flux déjà ouverts), les **connecteurs de
+  ticketing** et de revue de code, et les **campagnes de revue** comme objet propre
+  glissent eux aussi en **v0.4** ; la v0.3 est consacrée au calcul. La 019 réserve
+  seulement ce que les flux constatés devront lire : le journal d'observation (D8 et D11
+  amendées, ADR 0043). Mentions de la 002, de la 010, de la 011, de la 017 et de
+  `docs/spec/` corrigées.
+- Décidé par (amendement) : l'utilisateur (2026-11-09)
 - Amendement (spec 022, A7, 2026-10-23) : les **événements poussés** (spec 022, flux SSE alimenté par l'outbox) sont une brique transverse qui précède les specs de réécriture du web (020, 021, à venir) ; la bibliothèque cliente et ses commandes `watch` en consomment le contrat.
 - Décidé par (amendement) : l'utilisateur
 - Amendement (spec 023, A6, 2026-10-23) : la **bibliothèque cliente Python et la CLI** (spec 023) s'implémentent **dès maintenant**, en parallèle de la v0.2, et non « ensuite ». Le MCP et la TUI restent « ensuite ».

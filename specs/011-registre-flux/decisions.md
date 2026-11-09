@@ -38,7 +38,7 @@ l'amendement de D30 (validité dérivée).
   réévaluation.
 - F14 budgets chiffrés, réévaluation de 10⁵ flux comprise (amendée).
 - F15 API selon l'ADR 0026 (amendée).
-- F16 sorte de flux : `requested`, `observed` réservée à la v0.3.
+- F16 sorte de flux : `requested`, `observed` réservée à la v0.4.
 - F17 non-conformités consultables.
 - F18 rien ne se prolonge seul.
 - F19 demandes en attente servies par la lecture des flux (`state=requested`), avec le
@@ -55,7 +55,7 @@ l'amendement de D30 (validité dérivée).
 - Décidé par : Claude (délégation de l'utilisateur, 2026-10-20)
 - Amendé le 2026-10-21 (Q2, Q18, complément après Q9) : s'ajoutent le triage à
   l'enregistrement et l'instruction, les non-conformités consultables (F17), la sorte
-  « constaté » réservée (F16) ; campagnes de revue en v0.3 (filtres seulement en v0.2).
+  « constaté » réservée (F16) ; campagnes de revue en v0.4 (filtres seulement en v0.2).
 
 ## F2 — Contenu d'un flux
 - Décision : un flux a une extrémité source, une extrémité destination, **un** service
@@ -248,10 +248,11 @@ l'amendement de D30 (validité dérivée).
 ## F16 — Sorte de flux
 - Décision : chaque flux porte une **sorte** : `requested` (demandé, v0.2) ou
   `observed` (constaté : flux déjà ouvert, lu dans un export de pare-feu ou
-  d'infrastructure as code, évalué a posteriori), réservée à la v0.3 et refusée en v0.2.
+  d'infrastructure as code, évalué a posteriori), réservée à la v0.4 et refusée en v0.2
+  (D31 amendée par la 019, Q-019-13, 2026-11-09).
   Évaluation, filtres et non-conformités l'admettent déjà ; demandeur et références
   sont obligatoires par règle pour `requested` seulement.
-- Pourquoi : Q18 et complément après Q9 ; la v0.3 ajoute l'audit a posteriori sans
+- Pourquoi : Q18 et complément après Q9 ; la v0.4 ajoute l'audit a posteriori sans
   refonte.
 - Décidé par : l'utilisateur (Q18)
 

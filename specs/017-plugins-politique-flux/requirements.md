@@ -527,7 +527,7 @@ REQ-010-28, 52, 54, REQ-011-19 (valeur par défaut d'inférence, budgets serveur
 - Fiches shell des objets de module (machine, interface, objets de politique) (U3).
 - Classification des nœuds : faite par le panneau des propriétés du shell (003, 007).
 - Notifications d'échéance : événements sortants du serveur (U11).
-- Campagnes de revue, flux constatés (v0.3, 010 et 011).
+- Campagnes de revue, flux constatés (v0.4, 010 et 011).
 
 ## Questions ouvertes
 
