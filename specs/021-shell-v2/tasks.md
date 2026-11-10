@@ -4069,7 +4069,25 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     le sujet du refus se replie sur `Uuid::nil()` ; la création d'un VLAN dans un groupe
     déplacé par un changeset ouvert plus tard n'est pas vue (l'objet n'existe pas, le
     groupe est lu à `now()` par `prepare_vlan`) ; le risque général d'une écriture datée
-    du début de transaction qui écrase une version plus récente est une tâche à part.
+    du début de transaction qui écrase une version plus récente est une tâche à part, 22p.
+- [ ] 22p. Écritures datées du début de leur transaction (relevé par la revue de la 22o) :
+  une écriture de version valide à partir de `now()` (instant du début de la
+  transaction, `FOR PORTION OF`) rencontre une version plus récente commise entre-temps
+  par un changeset ouvert plus tard. Sans la relecture de la 22o, le cas des VLAN
+  tombait en « range lower bound must be less than or equal to range upper bound » (500)
+  plutôt qu'en écrasement silencieux. Diagnostic d'abord : pour chaque écriture du
+  noyau et des modules, établir s'il y a écrasement silencieux, erreur brute ou refus
+  propre. Ensuite, sans arbitrage s'il n'y a que des erreurs brutes, les traduire en
+  conflit (`changeset.operation.conflict`, rejeu de la 22o) ; un écrasement silencieux,
+  ou un changement de l'instant des écritures (`clock_timestamp()` au lieu de `now()`,
+  D8, D10), attend un arbitrage — verify : test d'intégration à deux transactions sur
+  une modification de préfixe ordinaire, avec le verrou de ligne de la 22o
+  (`a_move_that_started_first_and_locked_last_replays`) comme point d'arrêt ; le
+  diagnostic noté à la clôture
+  - où : `crates/kartenn-store-pg/src/write.rs`, `crates/kartenn-store-pg/migrations/0002_versioning.sql`
+    (`kartenn_portion`), `crates/kartenn-service/src/pipeline.rs` (boucle de rejeu),
+    `crates/kartenn-rest/tests/it/event_domains.rs`
+  - dépend de : 22o
 
 - [x] 22d. Chargement de l'arbre arrêté à deux pages (une passe sur sept, 22a et 24e) :
   après la deuxième page, ni ligne « suite » ni avis, 100 enfants dessinés ;
