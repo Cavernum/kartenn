@@ -1,6 +1,6 @@
 //! The storage of the module in PostgreSQL (feature `pg`): the tables of the schema `kube`
-//! (migrations `0001_kube.sql`, `0002_node_pod_cidrs.sql`), on the connection of the
-//! changeset.
+//! (migrations `0001_kube.sql`, `0002_node_pod_cidrs.sql`, `0003_workload.sql`), on the
+//! connection of the changeset.
 
 use kartenn_core::period::{Instant, Period};
 use kartenn_core::rules::{Rule, Violation};
@@ -16,6 +16,8 @@ pub(crate) const CLUSTER_TABLE: &str = "kube.cluster";
 pub(crate) const NODE_TABLE: &str = "kube.node";
 /// The table of the namespaces.
 pub(crate) const NAMESPACE_TABLE: &str = "kube.namespace";
+/// The table of the workloads.
+pub(crate) const WORKLOAD_TABLE: &str = "kube.workload";
 
 /// An instant as PostgreSQL reads it.
 fn time(i: Instant) -> OffsetDateTime {
@@ -139,25 +141,54 @@ pub(crate) async fn named(
         .map_err(|e| store(&e))
 }
 
-/// Whether another object of `table` than `id` matches `condition` (on the texts `$1`,
-/// `$2`) over `period`.
+/// The workload of `kind` named `name` in `namespace`, living at `at`: its identity in the
+/// namespace (019/X3).
+pub(crate) async fn workload_named(
+    conn: &mut PgConnection,
+    namespace: Uuid,
+    kind: &str,
+    name: &str,
+    at: Option<OffsetDateTime>,
+) -> Result<Option<Uuid>, StoreError> {
+    sqlx::query_scalar(
+        "SELECT id FROM kube.workload
+          WHERE namespace_id = $1 AND kind = $2 AND name = $3
+            AND valid_period @> coalesce($4::timestamptz, now())",
+    )
+    .bind(namespace)
+    .bind(kind)
+    .bind(name)
+    .bind(at)
+    .fetch_optional(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// Whether another object of `table` than `id` matches `condition` (on the texts `$1`
+/// to `$n` of `keys`) over `period`.
 async fn taken(
     conn: &mut PgConnection,
     table: &str,
     condition: &str,
-    keys: (Option<&str>, Option<&str>),
+    keys: &[&str],
     id: Uuid,
     period: Option<Period>,
 ) -> Result<bool, StoreError> {
     let (from, to) = bounds(period);
+    let n = keys.len();
     let sql = format!(
         "SELECT EXISTS (SELECT 1 FROM {table}
-                         WHERE {condition} AND id <> $3
-                           AND valid_period && tstzrange(coalesce($4::timestamptz, now()), $5))"
+                         WHERE {condition} AND id <> ${}
+                           AND valid_period && tstzrange(coalesce(${}::timestamptz, now()), ${}))",
+        n + 1,
+        n + 2,
+        n + 3,
     );
-    sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
-        .bind(keys.0)
-        .bind(keys.1)
+    let mut query = sqlx::query_scalar(sqlx::AssertSqlSafe(sql));
+    for key in keys {
+        query = query.bind(*key);
+    }
+    query
         .bind(id)
         .bind(from)
         .bind(to)
@@ -168,8 +199,8 @@ async fn taken(
 
 /// The refusals of the unique identities of `row` (the full row of `table`, or the
 /// columns a patch changes merged over the current ones), before they hit the exclusion
-/// constraints: a cluster slug, a node or namespace name in its cluster, a machine
-/// designated by one node.
+/// constraints: a cluster slug, a node or namespace name in its cluster, a workload kind
+/// and name in its namespace, a machine designated by one node.
 pub(crate) async fn identities(
     conn: &mut PgConnection,
     table: &str,
@@ -180,19 +211,32 @@ pub(crate) async fn identities(
     let field = |name: &str| row.get(name).and_then(Value::as_str);
     if table == CLUSTER_TABLE {
         if let Some(slug) = field("slug")
+            && taken(conn, table, "slug = $1", &[slug], id, period).await?
+        {
+            return Err(refused(
+                &kartenn_core::rules::SLUG_DUPLICATE,
+                format!("the slug {slug} of a Kubernetes cluster is taken over the period"),
+                &[id],
+            ));
+        }
+        return Ok(());
+    }
+    if table == WORKLOAD_TABLE {
+        if let (Some(namespace), Some(kind), Some(name)) =
+            (field("namespace_id"), field("kind"), field("name"))
             && taken(
                 conn,
                 table,
-                "slug = $1 AND $2::text IS NULL",
-                (Some(slug), None),
+                "namespace_id = $1::uuid AND kind = $2 AND name = $3",
+                &[namespace, kind, name],
                 id,
                 period,
             )
             .await?
         {
             return Err(refused(
-                &kartenn_core::rules::SLUG_DUPLICATE,
-                format!("the slug {slug} of a Kubernetes cluster is taken over the period"),
+                &crate::rules::WORKLOAD_DUPLICATE,
+                format!("the {kind} {name} is taken in the namespace over the period"),
                 &[id],
             ));
         }
@@ -203,7 +247,7 @@ pub(crate) async fn identities(
             conn,
             table,
             "cluster_id = $1::uuid AND name = $2",
-            (Some(cluster), Some(name)),
+            &[cluster, name],
             id,
             period,
         )
@@ -222,15 +266,7 @@ pub(crate) async fn identities(
     }
     if table == NODE_TABLE
         && let Some(machine) = field("machine_id")
-        && taken(
-            conn,
-            table,
-            "machine_id = $1::uuid AND $2::text IS NULL",
-            (Some(machine), None),
-            id,
-            period,
-        )
-        .await?
+        && taken(conn, table, "machine_id = $1::uuid", &[machine], id, period).await?
     {
         return Err(refused(
             &crate::rules::NODE_MACHINE_KIND,
@@ -291,8 +327,9 @@ pub(crate) async fn pod_domain_moved(
     .map_err(|e| store(&e))
 }
 
-/// The cluster of the node or namespace `id` of `table` and the pod domain of that
-/// cluster, at the start of `period`: its place in the tree of the module and its anchor.
+/// The parent of the node, namespace or workload `id` of `table` (its cluster, or the
+/// namespace of a workload) and the pod domain of its cluster, at the start of `period`:
+/// its place in the tree of the module and its anchor.
 pub(crate) async fn placement(
     conn: &mut PgConnection,
     table: &str,
@@ -300,13 +337,24 @@ pub(crate) async fn placement(
     period: Option<Period>,
 ) -> Result<Option<(Uuid, Option<Uuid>)>, StoreError> {
     let (from, _) = bounds(period);
-    let sql = format!(
-        "SELECT o.cluster_id, c.pod_domain_id
-           FROM {table} o
+    let sql = if table == WORKLOAD_TABLE {
+        "SELECT w.namespace_id, c.pod_domain_id
+           FROM kube.workload w
+           LEFT JOIN kube.namespace n
+             ON n.id = w.namespace_id AND n.valid_period @> coalesce($2::timestamptz, now())
            LEFT JOIN kube.cluster c
-             ON c.id = o.cluster_id AND c.valid_period @> coalesce($2::timestamptz, now())
-          WHERE o.id = $1 AND o.valid_period @> coalesce($2::timestamptz, now())"
-    );
+             ON c.id = n.cluster_id AND c.valid_period @> coalesce($2::timestamptz, now())
+          WHERE w.id = $1 AND w.valid_period @> coalesce($2::timestamptz, now())"
+            .to_owned()
+    } else {
+        format!(
+            "SELECT o.cluster_id, c.pod_domain_id
+               FROM {table} o
+               LEFT JOIN kube.cluster c
+                 ON c.id = o.cluster_id AND c.valid_period @> coalesce($2::timestamptz, now())
+              WHERE o.id = $1 AND o.valid_period @> coalesce($2::timestamptz, now())"
+        )
+    };
     sqlx::query_as(sqlx::AssertSqlSafe(sql))
         .bind(id)
         .bind(from)
@@ -507,11 +555,14 @@ pub(crate) async fn referrers(
     target: Uuid,
     at: Option<OffsetDateTime>,
 ) -> Result<Vec<Uuid>, StoreError> {
-    use crate::module::{CLUSTER, DOMAIN, MACHINE, NAMESPACE, NODE, PREFIX};
+    use crate::module::{CLUSTER, DOMAIN, MACHINE, NAMESPACE, NODE, PREFIX, WORKLOAD};
     let sql = match (from, to) {
         (NODE, CLUSTER) => "SELECT DISTINCT id FROM kube.node WHERE cluster_id = $1 AND {live}",
         (NAMESPACE, CLUSTER) => {
             "SELECT DISTINCT id FROM kube.namespace WHERE cluster_id = $1 AND {live}"
+        }
+        (WORKLOAD, NAMESPACE) => {
+            "SELECT DISTINCT id FROM kube.workload WHERE namespace_id = $1 AND {live}"
         }
         (NODE, MACHINE) => "SELECT DISTINCT id FROM kube.node WHERE machine_id = $1 AND {live}",
         (NODE, PREFIX) => {

@@ -19,6 +19,8 @@ pub const CLUSTER: &str = "kube.cluster";
 pub const NODE: &str = "kube.node";
 /// The qualified type of a namespace.
 pub const NAMESPACE: &str = "kube.namespace";
+/// The qualified type of a workload.
+pub const WORKLOAD: &str = "kube.workload";
 /// A machine of the 009, as a reference names it.
 pub const MACHINE: &str = "machines.machine";
 /// An addressing domain of the core.
@@ -27,8 +29,8 @@ pub const DOMAIN: &str = "domain";
 pub const PREFIX: &str = "prefix";
 
 /// The types of the module so far (design « Types d'objets »): the cluster, root of the
-/// tree `kube`, carries `core.owner` and `core.site`; its nodes and namespaces inherit
-/// them and are anchored in its pod domain.
+/// tree `kube`, carries `core.owner` and `core.site`; its nodes and namespaces, and the
+/// workloads of its namespaces, inherit them and are anchored in its pod domain.
 static TYPES: &[ObjectType] = &[
     ObjectType {
         kind: CLUSTER,
@@ -50,6 +52,14 @@ static TYPES: &[ObjectType] = &[
         kind: NAMESPACE,
         collection: "kube-namespaces",
         parent: Some(CLUSTER),
+        owner_required: false,
+        carries_site: false,
+        domain_anchored: true,
+    },
+    ObjectType {
+        kind: WORKLOAD,
+        collection: "workloads",
+        parent: Some(NAMESPACE),
         owner_required: false,
         carries_site: false,
         domain_anchored: true,
@@ -84,6 +94,11 @@ static MIGRATIONS: &[ModuleMigration] = &[
         name: "node_pod_cidrs",
         sql: include_str!("../migrations/0002_node_pod_cidrs.sql"),
     },
+    ModuleMigration {
+        version: 3,
+        name: "workload",
+        sql: include_str!("../migrations/0003_workload.sql"),
+    },
 ];
 
 macro_rules! permissions {
@@ -115,6 +130,10 @@ permissions! {
     NAMESPACE_EDIT = "kube.namespace.edit", "Créer, modifier ou clore un namespace Kubernetes dans un changeset et le soumettre.";
     NAMESPACE_APPLY = "kube.namespace.apply", "Appliquer ou rejeter le changeset d'un autre qui touche un namespace Kubernetes.";
     NAMESPACE_APPROVAL_SELF = "kube.namespace.approval.self", "Appliquer son propre changeset qui touche un namespace Kubernetes.";
+    WORKLOAD_READ = "kube.workload.read", "Lire les workloads Kubernetes.";
+    WORKLOAD_EDIT = "kube.workload.edit", "Créer, modifier ou clore un workload Kubernetes dans un changeset et le soumettre.";
+    WORKLOAD_APPLY = "kube.workload.apply", "Appliquer ou rejeter le changeset d'un autre qui touche un workload Kubernetes.";
+    WORKLOAD_APPROVAL_SELF = "kube.workload.approval.self", "Appliquer son propre changeset qui touche un workload Kubernetes.";
 }
 
 /// What closing an object does to the objects of the module that cite it (D33; design
@@ -129,6 +148,12 @@ static REFERENCES: &[Reference] = &[
     Reference {
         from: NAMESPACE,
         to: CLUSTER,
+        on_close: OnClose::Cascade,
+    },
+    // A workload lives in its namespace: closed with it.
+    Reference {
+        from: WORKLOAD,
+        to: NAMESPACE,
         on_close: OnClose::Cascade,
     },
     // The machine a node designates: no longer designated.

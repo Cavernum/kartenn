@@ -45,6 +45,19 @@ pub(crate) static ENGLISH: English = English {
             "kube.namespace.approval.self",
             "Apply one's own changeset that touches a Kubernetes namespace.",
         ),
+        ("kube.workload.read", "Read the Kubernetes workloads."),
+        (
+            "kube.workload.edit",
+            "Create, change or close a Kubernetes workload in a changeset and submit it.",
+        ),
+        (
+            "kube.workload.apply",
+            "Apply or reject the changeset of someone else that touches a Kubernetes workload.",
+        ),
+        (
+            "kube.workload.approval.self",
+            "Apply one's own changeset that touches a Kubernetes workload.",
+        ),
     ],
     rules: &[
         (
@@ -131,6 +144,11 @@ pub(crate) static ENGLISH: English = English {
             "kube.namespace",
             "Namespace Kubernetes",
             "Kubernetes namespace",
+        ),
+        (
+            "kube.workload",
+            "Workload Kubernetes",
+            "Kubernetes workload",
         ),
     ],
     states: &[],
