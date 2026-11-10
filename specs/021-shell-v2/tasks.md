@@ -3952,6 +3952,8 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     porte le domaine de chaque objet visible, le test
     `a_domain_unseen_is_not_named_beside_one_seen` s'inverse. `update_vlan_group` et
     `policy.inference` : tâche à part, 22n.
+  - filtre `domains=` resserré aux domaines nommés (choix de l'agent, au-delà de A) :
+    gardé par l'utilisateur le 2026-11-10.
   - reste (revue) : la description OpenAPI de `domains` (`kartenn-rest/src/events/mod.rs`
     vers la ligne 214, recopiée dans les deux `schema.d.ts`) dit encore « the addressing
     domains written, those the subscriber may read » ; la requête de visibilité tourne
@@ -3999,8 +4001,8 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     vue) pour la règle ni pour le groupe déplacé ; le test unitaire du groupe ne couvre
     pas le passage d'un ancrage de domaine à un site ou une entité, ni l'inverse ; un
     `completed.domain` mal formé est ignoré en silence (`infer.rs` vers la ligne 813).
-- [ ] 22o. Domaines lus avant les verrous (relevé par la revue de la 22n) — **en attente
-  d'arbitrage** (précision de l'ADR 0015, concurrence) : `prepare` (`prepare_group`,
+- [ ] 22o. Domaines lus avant les verrous (relevé par la revue de la 22n) — **arbitrée le
+  2026-11-10 : option A** (précision de l'ADR 0015, concurrence) : `prepare` (`prepare_group`,
   `prepare_vlan`) et `lock_targets` (clôture d'un `VlanGroup` ou d'un `Vlan`,
   `pipeline.rs` vers la ligne 1222) lisent le domaine d'un objet avant
   `tx.lock` (`pipeline.rs` vers la ligne 2131), et rien ne le relit sous verrou. Deux
@@ -4019,7 +4021,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `crates/kartenn-service/src/pipeline.rs` (`lock_targets`, l'appel de
     `tx.lock`), `crates/kartenn-store-pg/src/vlan.rs` (`prepare_group`, `prepare_vlan`),
     `docs/adr/0015-serialisation-ecritures-par-domaine.md` (précision)
-  - dépend de : 22n ; arbitrage de l'utilisateur
+  - dépend de : 22n
 
 - [x] 22d. Chargement de l'arbre arrêté à deux pages (une passe sur sept, 22a et 24e) :
   après la deuxième page, ni ligne « suite » ni avis, 100 enfants dessinés ;
