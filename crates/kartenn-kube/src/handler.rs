@@ -28,7 +28,7 @@ use serde_json::{Map, Value, json};
 use sqlx::PgConnection;
 use uuid::Uuid;
 
-use crate::module::{CLUSTER, MACHINE, NAMESPACE, NODE};
+use crate::module::{CLUSTER, MACHINE, NAMESPACE, NODE, PREFIX};
 use crate::names::{DnsLabel, DnsSubdomain, LabelKey, LabelValue, parse_labels};
 use crate::pg::{self, CLUSTER_TABLE, NAMESPACE_TABLE, NODE_TABLE};
 use crate::rules::{
@@ -716,15 +716,14 @@ impl Handler {
                 let existing = completed.existing.ok_or_else(|| {
                     invalid(format!("no living {kind} {name} in the cluster {cluster}"))
                 })?;
-                // The networks of its pod ranges close with the node, once it no longer
-                // cites them (design « Références »).
-                let mut core = vec![Operation::Close {
+                // The networks of its pod ranges are owned by the node: the core closes
+                // them with it (design « Références », `OnClose::Owned`).
+                let core = vec![Operation::Close {
                     kind: ObjectKind::Module(kind),
                     id: Ref::Id(existing),
                     expected: None,
                     cascade: false,
                 }];
-                core.extend(completed.ranges.iter().map(|(_, id)| close_prefix(*id)));
                 Ok(ModulePlan {
                     kind,
                     object: existing,
@@ -980,6 +979,24 @@ impl ModuleHandler for Handler {
         Box::pin(async move {
             let (at, _) = pg::bounds(period);
             pg::referrers(connection(tx)?, reference.from, reference.to, target, at).await
+        })
+    }
+
+    /// The networks of the pod ranges a node owns (`range_ids`), closed with it.
+    fn targets<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        reference: &'a Reference,
+        source: Uuid,
+        period: Option<Period>,
+    ) -> BoxFuture<'a, Result<Vec<Uuid>, StoreError>> {
+        Box::pin(async move {
+            if (reference.from, reference.to) != (NODE, PREFIX) {
+                return Ok(Vec::new());
+            }
+            let (at, _) = pg::bounds(period);
+            let ranges = pg::node_ranges(connection(tx)?, source, at).await?;
+            Ok(ranges.into_iter().map(|(_, id)| id).collect())
         })
     }
 

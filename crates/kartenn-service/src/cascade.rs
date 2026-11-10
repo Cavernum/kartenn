@@ -8,6 +8,10 @@
 //! the policy of each reference says; everything then goes through the same rules and
 //! rights. Without the cascade, or under a policy of refusal, a closure that leaves a
 //! living object of a module referencing the object is refused, listing them.
+//!
+//! Every closure, in a cascade or not, is followed by that of the objects the closed
+//! object owns (references under [`OnClose::Owned`]; ADR 0026, amendment 9), unless
+//! another living object still cites them.
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -87,10 +91,11 @@ pub(crate) async fn expand<T: WriteTx>(
     origins: Vec<usize>,
     periods: Vec<Option<Period>>,
 ) -> Result<Expanded, StoreError> {
-    if !planned
-        .iter()
-        .any(|p| matches!(p, Planned::Close { cascade: true, .. }))
-    {
+    // Without a cascade nor a closure of an owner, nothing to add.
+    if !planned.iter().any(|p| match p {
+        Planned::Close { kind, cascade, .. } => *cascade || !owned(tx, modules, *kind).is_empty(),
+        _ => false,
+    }) {
         return Ok((planned, origins, periods, Vec::new()));
     }
     // Objects the changeset closes already, then those the cascade adds.
@@ -166,7 +171,129 @@ pub(crate) async fn expand<T: WriteTx>(
         out_origins.push(origin);
         out_periods.push(period);
     }
+    let (out, out_origins, out_periods) = close_owned(
+        tx,
+        modules,
+        (out, out_origins, out_periods),
+        &mut closed,
+        &mut added,
+    )
+    .await?;
     Ok((out, out_origins, out_periods, added))
+}
+
+/// The references under [`OnClose::Owned`] from objects of `kind`, with the handler that
+/// lists their targets: those of the VLANs of the core, then those of the modules.
+fn owned<T: WriteTx>(
+    tx: &T,
+    modules: &ModuleRegistry,
+    kind: ObjectKind,
+) -> Vec<(Arc<dyn ModuleHandler>, &'static Reference)> {
+    let from = kind.name();
+    let mut found = Vec::new();
+    if let Some(handler) = tx.core_handler() {
+        for reference in crate::vlan::REFERENCES
+            .iter()
+            .filter(|r| r.from == from && r.on_close == OnClose::Owned)
+        {
+            found.push((Arc::clone(&handler), reference));
+        }
+    }
+    for module in modules.modules() {
+        let Some(handler) = module.handler() else {
+            continue;
+        };
+        for reference in module
+            .references()
+            .iter()
+            .filter(|r| r.from == from && r.on_close == OnClose::Owned)
+        {
+            found.push((Arc::clone(&handler), reference));
+        }
+    }
+    found
+}
+
+/// Operations, the index of the operation each comes from, and their periods.
+type Ops = (Vec<Planned>, Vec<usize>, Vec<Option<Period>>);
+
+/// The operations with, after each closure, that of the objects the closed object owns
+/// (ADR 0026, amendment 9), recursively, on the period of the closure and ascribed to its
+/// operation: those the changeset does not close already, and that no other living object
+/// cites (kept otherwise, the closure of their owner going on).
+async fn close_owned<T: WriteTx>(
+    tx: &mut T,
+    modules: &ModuleRegistry,
+    (planned, origins, periods): Ops,
+    closed: &mut BTreeSet<Uuid>,
+    added: &mut Vec<(ObjectKind, Uuid)>,
+) -> Result<Ops, StoreError> {
+    let mut out = Vec::with_capacity(planned.len());
+    let mut out_origins = Vec::with_capacity(planned.len());
+    let mut out_periods = Vec::with_capacity(planned.len());
+    for ((p, origin), period) in planned.into_iter().zip(origins).zip(periods) {
+        let source = match &p {
+            Planned::Close { kind, id, .. } => Some((*kind, *id)),
+            _ => None,
+        };
+        out.push(p);
+        out_origins.push(origin);
+        out_periods.push(period);
+        let mut stack: Vec<(ObjectKind, Uuid)> = source.into_iter().collect();
+        while let Some((kind, id)) = stack.pop() {
+            for (handler, reference) in owned(tx, modules, kind) {
+                let Some(to) = ObjectKind::from_name(reference.to) else {
+                    continue;
+                };
+                for target in handler
+                    .targets(tx.module_tx(), reference, id, period)
+                    .await?
+                {
+                    if closed.contains(&target)
+                        || cited(tx, modules, to, target, period, closed).await?
+                    {
+                        continue;
+                    }
+                    closed.insert(target);
+                    out.push(Planned::Close {
+                        kind: to,
+                        id: target,
+                        expected: None,
+                        cascade: false,
+                    });
+                    out_origins.push(origin);
+                    out_periods.push(period);
+                    added.push((to, target));
+                    stack.push((to, target));
+                }
+            }
+        }
+    }
+    Ok((out, out_origins, out_periods))
+}
+
+/// Whether an object the changeset leaves living cites `id`, of kind `kind`, from the
+/// start of `period` on: an assignment of a reference property, or an object of a module.
+async fn cited<T: WriteTx>(
+    tx: &mut T,
+    modules: &ModuleRegistry,
+    kind: ObjectKind,
+    id: Uuid,
+    period: Option<Period>,
+    closed: &BTreeSet<Uuid>,
+) -> Result<bool, StoreError> {
+    if tx
+        .referencing(id, period)
+        .await?
+        .iter()
+        .any(|(object, _, _)| !closed.contains(object))
+    {
+        return Ok(true);
+    }
+    Ok(referrers(tx, modules, kind, id, period)
+        .await?
+        .iter()
+        .any(|(_, _, source)| !closed.contains(source)))
 }
 
 /// The dependents of `(kind, id)`, deepest first, skipping those already closed: those of

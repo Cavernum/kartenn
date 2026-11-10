@@ -10,7 +10,7 @@ use kartenn_core::period::Period;
 use kartenn_core::rules::{Rule, Severity, Violation};
 use kartenn_service::module::{
     BoxFuture, Module, ModuleActors, ModuleHandler, ModuleObjectRow, ModulePlan, ModuleRegistry,
-    ModuleTx, ObjectType, OperationType,
+    ModuleTx, ObjectType, OnClose, OperationType, Reference,
 };
 use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, Ref};
 use kartenn_service::port::WriteError;
@@ -119,6 +119,14 @@ pub(crate) fn actors_of(object: Uuid) -> Option<ModuleActors> {
 }
 static RULES: &[&Rule] = &[&INVALID];
 
+/// An item would own an address, but the handler does not list what it owns
+/// (`ModuleHandler::targets` left to its default): closing an item fails (task 019-3d).
+static REFERENCES: &[Reference] = &[Reference {
+    from: "kit.item",
+    to: "address",
+    on_close: OnClose::Owned,
+}];
+
 /// The module.
 #[derive(Debug)]
 pub(crate) struct Kit;
@@ -138,6 +146,9 @@ impl Module for Kit {
     }
     fn rules(&self) -> &'static [&'static Rule] {
         RULES
+    }
+    fn references(&self) -> &'static [Reference] {
+        REFERENCES
     }
     fn operations(&self) -> &'static [OperationType] {
         OPERATIONS

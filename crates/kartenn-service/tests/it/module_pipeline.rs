@@ -613,6 +613,131 @@ async fn cascade_closes_module_dependents(pool: PgPool) {
     assert_eq!(live, 0);
 }
 
+/// The address `address` of the domain `lab`, if it lives.
+async fn living_address(pool: &PgPool, address: &str) -> Option<Uuid> {
+    sqlx::query_scalar(
+        "SELECT a.id FROM address a JOIN addressing_domain d ON d.id = a.domain_id
+          WHERE d.slug = 'lab' AND a.address = $1::inet AND a.valid_period @> now()",
+    )
+    .bind(address)
+    .fetch_optional(pool)
+    .await
+    .unwrap()
+}
+
+/// ADR 0026, amendment 9 (task 019-3d): an address owned by a thing closes with it, by a
+/// closure of the thing or in a cascade, unless another living thing cites it; closed
+/// alone, it is refused while its owner lives.
+#[kartenn_testing::pg_test]
+async fn owned_policy_closes_the_target_with_its_source(pool: PgPool) {
+    use kartenn_core::objects::AddressUsage;
+    use kartenn_service::ObjectKind;
+    let store = dummy::store(&pool).await;
+    let author = person(&pool).await;
+    let (_, _, a) = referenced(&store, &pool, author).await;
+    let lab: Uuid = sqlx::query_scalar("SELECT id FROM addressing_domain WHERE slug = 'lab'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let address = |local: u32, address: &str| Operation::CreateAddress {
+        local: Some(local),
+        domain: Ref::Id(lab),
+        address: address.into(),
+        usage: AddressUsage::Host,
+    };
+    // `b` owns `.5`; `c` and `d` own `.6`; `e`, on a network of its own, owns `.7`, outside it.
+    applied(
+        &store,
+        author,
+        vec![
+            Operation::CreatePrefix {
+                local: Some(9),
+                domain: Ref::Id(lab),
+                prefix: "10.0.1.0/24".into(),
+                nature: Nature::Network,
+                point_to_point: false,
+                anycast: false,
+            },
+            address(1, "10.0.0.5"),
+            address(2, "10.0.0.6"),
+            address(3, "10.0.0.7"),
+            dummy::create_thing(json!({"label": "b", "address_ref": {"local": 1}})),
+            dummy::create_thing(json!({"label": "c", "address_ref": {"local": 2}})),
+            dummy::create_thing(json!({"label": "d", "address_ref": {"local": 2}})),
+            dummy::create_thing(
+                json!({"label": "e", "prefix": {"local": 9}, "address_ref": {"local": 3}}),
+            ),
+        ],
+    )
+    .await;
+    let (five, six, seven) = (
+        living_address(&pool, "10.0.0.5").await.unwrap(),
+        living_address(&pool, "10.0.0.6").await.unwrap(),
+        living_address(&pool, "10.0.0.7").await.unwrap(),
+    );
+    let (b, c, e) = (
+        thing(&pool, "b").await,
+        thing(&pool, "c").await,
+        thing(&pool, "e").await,
+    );
+    // Closed alone, an owned address is refused while its owner lives.
+    let outcome = submit(
+        &store,
+        &Unrestricted,
+        &request(author, vec![close_kind(ObjectKind::Address, five, false)]),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    assert_eq!(subjects(&outcome, "core.object.dependents"), [five, b]);
+    // A direct closure of its owner closes it, listed with the closures the core added.
+    let close = |id| close_kind(dummy::thing_kind(), id, false);
+    let outcome = submit(
+        &store,
+        &Unrestricted,
+        &request(author, vec![close(b)]),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    let Outcome::Applied { cascaded, .. } = outcome else {
+        panic!("not applied: {outcome:?}")
+    };
+    assert_eq!(cascaded, [(ObjectKind::Address, five)]);
+    assert_eq!(living_address(&pool, "10.0.0.5").await, None);
+    // Still cited by `d`, `.6` outlives `c`.
+    applied(&store, author, vec![close(c)]).await;
+    assert_eq!(living_address(&pool, "10.0.0.6").await, Some(six));
+    // In a cascade: the network of `e` closes `e`, and `e` its address.
+    let network_of_e: Uuid =
+        sqlx::query_scalar("SELECT id FROM prefix WHERE prefix = '10.0.1.0/24'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let outcome = submit(
+        &store,
+        &Unrestricted,
+        &request(
+            author,
+            vec![close_kind(ObjectKind::Prefix, network_of_e, true)],
+        ),
+        MAX_OPERATIONS,
+    )
+    .await
+    .unwrap();
+    let Outcome::Applied { cascaded, .. } = outcome else {
+        panic!("not applied: {outcome:?}")
+    };
+    assert!(
+        cascaded.contains(&(ObjectKind::Address, seven)),
+        "{cascaded:?}"
+    );
+    assert_eq!(current_label(&pool, e).await, None);
+    assert_eq!(living_address(&pool, "10.0.0.7").await, None);
+    // The thing `a`, on the other network, is untouched.
+    assert_eq!(current_label(&pool, a).await.as_deref(), Some("a"));
+}
+
 #[kartenn_testing::pg_test]
 async fn nullify_policy_unassigns(pool: PgPool) {
     use kartenn_service::ObjectKind;

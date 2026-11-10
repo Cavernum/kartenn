@@ -131,8 +131,8 @@ Forme dans le code (`kartenn-service::module`) :
 - `Module` décrit statiquement le module : nom, version, dépendances, types d'objets
   (`ObjectType` : parent, propriétaire obligatoire, site, ancrage de domaine),
   déclarations de propriétés, permissions, règles, références (`Reference`, politique
-  `OnClose` : refus, cascade, mise à nul), types d'arêtes, migrations, opérations ;
-  `handler()` rend son gestionnaire.
+  `OnClose` : refus, cascade, mise à nul, cible possédée close avec sa source), types
+  d'arêtes, migrations, opérations ; `handler()` rend son gestionnaire.
 - `ModuleHandler` agit dans la transaction du changeset par `ModuleTx` : `prepare`
   (complète l'opération sur l'état courant), `plan` (sans base : objet, domaines, clés
   de verrou, opérations du noyau planifiées), `planned` (amendement 8 : reçoit les
