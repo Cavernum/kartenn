@@ -164,6 +164,35 @@ pub(crate) async fn workload_named(
     .map_err(|e| store(&e))
 }
 
+/// The workload of `kind` named `name` in `namespace` closed last before `at`, if none of
+/// its versions lives from `at` on: the one a recreation in Kubernetes opens again
+/// (019/X3).
+pub(crate) async fn workload_closed(
+    conn: &mut PgConnection,
+    namespace: Uuid,
+    kind: &str,
+    name: &str,
+    at: Option<OffsetDateTime>,
+) -> Result<Option<Uuid>, StoreError> {
+    sqlx::query_scalar(
+        "SELECT w.id FROM kube.workload w
+          WHERE w.namespace_id = $1 AND w.kind = $2 AND w.name = $3
+            AND upper(w.valid_period) <= coalesce($4::timestamptz, now())
+            AND NOT EXISTS (SELECT 1 FROM kube.workload l
+                             WHERE l.id = w.id
+                               AND l.valid_period && tstzrange(coalesce($4::timestamptz, now()), NULL))
+          ORDER BY upper(w.valid_period) DESC
+          LIMIT 1",
+    )
+    .bind(namespace)
+    .bind(kind)
+    .bind(name)
+    .bind(at)
+    .fetch_optional(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
 /// Whether another object of `table` than `id` matches `condition` (on the texts `$1`
 /// to `$n` of `keys`) over `period`.
 async fn taken(

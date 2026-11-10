@@ -487,9 +487,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `kube.name.invalid`), ensemble trié (un réordonnancement ne fait pas de version) ;
     compte de service en sous-domaine DNS ou `null` ; labels contrôlés en syntaxe
     seulement, comme ceux d'un namespace (le filtrage aux clés suivies est celui du
-    connecteur, X4) ; l'UID change par `upsert` sur l'objet vivant de même identité : une
-    recréation garde l'identité tant que le workload n'est pas clos (un workload clos
-    puis recréé en prend une nouvelle ; le garder alors, c'est l'absence de la tâche 5) ;
+    connecteur, X4) ; l'UID change par `upsert` sur l'objet vivant de même identité ;
     le `close` d'un namespace par `kube.sync` reste sans cascade : refusé
     (`core.object.dependents`) tant que ses workloads vivent, accepté s'ils sont clos
     avant dans le même lot ; la cascade est celle d'un `Close` explicite ; `taken`
@@ -501,6 +499,27 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     écrit avec une période propre n'est pas confrontée à celle de son namespace ;
     `pod_domain_moved` ne compte pas les workloads (couverts par leurs namespaces
     vivants) ; rien ne vérifie que les labels écrits sont des clés suivies.
+  - correction (revue) : un workload clos (disparu sans dépendant, X9) puis recréé sous
+    la même identité rouvre le même identifiant (X3, REQ-019-8) : `prepare` lit la
+    dernière identité close du namespace vivant (`pg::workload_closed`, aucune version
+    vivante à partir de l'instant) et l'`upsert` crée sous cet identifiant une version
+    nouvelle après le trou (`creates`, droits vérifiés après l'écriture comme pour une
+    création), le noyau rouvrant son enregistrement par `register` ; pas de `Restore` du
+    noyau, ses opérations planifiées passant après l'écriture du module et rendant l'état
+    d'avant la clôture plutôt que celui de la recréation ; les champs non donnés
+    reprennent leur défaut ; deux réouvertures dans un lot : `kube.workload.duplicate`.
+    Test `workload_recreated_keeps_identity` : clôture puis recréation, UID
+    `[first, second, third]`, parent et propriétaire hérité.
+  - reste (revue) : la même règle pour les nœuds et namespaces (tâche 5 ou 10) ; les
+    affectations de propriétés d'un workload clos ne reviennent pas à sa réouverture ; le
+    refus du `close` d'un workload inconnu donne l'UUID du namespace, non son nom ;
+    `mirror_row` masque son paramètre `workload` et `kind` y double `workload.is_some()` ;
+    un même nom de port sur deux ports est accepté (Kubernetes l'exige unique) ; pas de
+    test d'un `service_account` invalide ou nul, d'un `host_network` non booléen, ni
+    d'un réordonnancement de ports sans version ; l'ordre « namespaces avant workloads »
+    (design « Connecteur ») vaut pour la création, pas la suppression : le connecteur ne
+    peut faire de `Close` en cascade (`kube.connector.direct`), il clôt les workloads
+    avant leur namespace (tâche 10).
 - [ ] 4b. Services : table `kube.service`, `upsert` et `close` dans `kube.sync`, ports
   (port, port cible, protocole, `appProtocol`, port de nœud), `external_name` ; IP de
   cluster dans le domaine des services et adresses externes dans le domaine externe du

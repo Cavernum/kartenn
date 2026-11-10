@@ -35,7 +35,7 @@ use crate::owner::WorkloadKind;
 use crate::pg::{self, CLUSTER_TABLE, NAMESPACE_TABLE, NODE_TABLE, WORKLOAD_TABLE};
 use crate::rules::{
     CLUSTER_CONNECTOR_GROUP, CLUSTER_RANGE_DOMAIN, NAME_INVALID, NODE_MACHINE_KIND,
-    NODE_RANGE_OUTSIDE, OPERATION_INVALID,
+    NODE_RANGE_OUTSIDE, OPERATION_INVALID, WORKLOAD_DUPLICATE,
 };
 use crate::tracked::Protocol;
 
@@ -111,6 +111,10 @@ struct Completed {
     /// The living namespace a `sync` of a workload names, by its name in the cluster.
     #[serde(default)]
     namespace: Option<Uuid>,
+    /// The last closed workload of the identity a `sync` names, when none lives: the one
+    /// an `upsert` opens again (019/X3).
+    #[serde(default)]
+    reopened: Option<Uuid>,
     /// The pod domain of the cluster of a `sync`: the anchor of its objects.
     #[serde(default)]
     pod_domain: Option<Uuid>,
@@ -859,9 +863,13 @@ impl Handler {
                 let (target, creates, data) = if let Some(existing) = completed.existing {
                     (existing, false, json!({ "update": columns }))
                 } else {
-                    let mut row = mirror_row(kind, object, cluster, &name, workload);
+                    // A workload deleted then created again under the same name stays the
+                    // same workload (019/X3), closed meanwhile or not (X9): its identifier
+                    // opens again, a new version after the gap.
+                    let id = completed.reopened.unwrap_or(object);
+                    let mut row = mirror_row(kind, id, cluster, &name, workload);
                     row.extend(columns);
-                    (object, true, json!({ "create": row }))
+                    (id, true, json!({ "create": row }))
                 };
                 let mut data = data;
                 data["reads"] = reads(&cited);
@@ -917,6 +925,14 @@ async fn apply_mirror(
     let (id, table) = (plan.object, table(plan.kind));
     let conn = connection(tx)?;
     if let Some(row) = plan.data.get("create") {
+        // A closed workload opened twice in a batch: the second finds the first.
+        if table == WORKLOAD_TABLE && pg::current(conn, table, id, period).await?.is_some() {
+            return Err(pg::refused(
+                &WORKLOAD_DUPLICATE,
+                format!("the workload {id} is opened again twice over the period"),
+                &[id],
+            ));
+        }
         pg::identities(conn, table, id, row, period).await?;
         pg::insert(conn, table, row, period, changeset).await?;
     } else {
@@ -993,6 +1009,10 @@ impl ModuleHandler for Handler {
                         {
                             completed.existing =
                                 pg::workload_named(conn, namespace, kind, name, at).await?;
+                            if completed.existing.is_none() {
+                                completed.reopened =
+                                    pg::workload_closed(conn, namespace, kind, name, at).await?;
+                            }
                         }
                     } else if let (Some(table), Some(name)) = (table, name) {
                         completed.existing = pg::named(conn, table, cluster, name, at).await?;

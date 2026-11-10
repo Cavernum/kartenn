@@ -970,6 +970,51 @@ async fn workload_recreated_keeps_identity(pool: PgPool) {
     env.applied(vec![web(json!({"uid": second}))]).await;
     assert_eq!(env.workloads(payments).await, ids);
     assert_eq!(env.workload_uids(ids[0]).await, [Some(first), Some(second)]);
+    // Deleted in one window (closed, X9), created again in the next: the same workload
+    // opens again after the gap, with the new UID, under its namespace.
+    env.applied(vec![workload(
+        "close",
+        prod,
+        "payments",
+        "deployment",
+        "web",
+        json!({}),
+    )])
+    .await;
+    assert!(env.workloads(payments).await.is_empty());
+    let third = Uuid::now_v7();
+    env.applied(vec![web(json!({"uid": third}))]).await;
+    assert_eq!(env.workloads(payments).await, ids);
+    assert_eq!(
+        env.workload_uids(ids[0]).await,
+        [Some(first), Some(second), Some(third)]
+    );
+    let (parent, owner): (Option<Uuid>, Option<Uuid>) = sqlx::query_as(
+        "SELECT o.parent_id, kartenn_owner(o.id, now())
+           FROM module_object o WHERE o.id = $1 AND o.valid_period @> now()",
+    )
+    .bind(ids[0])
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!((parent, owner), (Some(payments), Some(env.acme)));
+    // Opened again twice in a batch: the second is a duplicate.
+    env.applied(vec![workload(
+        "close",
+        prod,
+        "payments",
+        "deployment",
+        "web",
+        json!({}),
+    )])
+    .await;
+    env.refused(
+        vec![web(json!({})), web(json!({}))],
+        "kube.workload.duplicate",
+    )
+    .await;
+    env.applied(vec![web(json!({}))]).await;
+    assert_eq!(env.workloads(payments).await, ids);
     // The same kind and name twice in a batch: the second is a duplicate.
     env.refused(
         vec![
