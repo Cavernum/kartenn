@@ -83,3 +83,36 @@ Conséquences :
   changesets de tailles différentes.
 - Les verrous de domaine restent un par domaine : un changeset ne touche que des
   domaines de l'instance, en nombre réduit.
+
+## Précision (2026-11-10) — domaines lus avant les verrous
+
+Le pipeline lit les domaines à verrouiller avant de prendre les verrous : la complétion
+des opérations de modules (`prepare` : l'ancrage d'un groupe de VLAN, le groupe d'un
+VLAN) et le domaine des objets fermés, modifiés, restaurés ou affectés
+(`lock_targets`). Le domaine d'un groupe de VLAN, d'un VLAN ou d'un objet de module peut
+changer d'une version à l'autre ; celui d'un préfixe, d'une plage ou d'une adresse
+jamais. Sans précaution, deux déplacements concurrents d'un même groupe depuis D1
+attendent tous deux D1 ; le second, servi après le premier, sort le groupe de D2 sans
+tenir D2, et l'événement qu'il publie ne nomme pas D2.
+
+Décision (option A de la tâche 021-22o) :
+- **Relire sous verrou.** Une fois les verrous pris, le pipeline relit le domaine des
+  objets dont le domaine peut changer, et complète de nouveau les opérations des VLAN du
+  noyau et celles des modules dont le plan verrouille un domaine. Un domaine relu hors
+  de l'ensemble tenu, ou une complétion qui diffère de la première, signale une lecture
+  périmée.
+- **Rejouer depuis le début.** La transaction est annulée et les étapes reprennent
+  depuis `prepare`, dans une transaction neuve, deux fois au plus ; à la troisième
+  lecture périmée, le changeset est refusé en conflit (`changeset.operation.conflict`,
+  REQ-004-11), à soumettre de nouveau.
+- **Ordre intact.** Aucun verrou n'est pris après coup : chaque tentative prend tous les
+  siens d'un coup, dans l'ordre canonique (domaines, puis seaux croissants), ce qui
+  exclut toujours l'interblocage. Prendre le verrou manquant à la volée (ordre non
+  déterministe) est écarté.
+- **Version lue.** Le domaine d'un objet dont le domaine peut changer est celui de sa
+  version en vigueur à la date de la transaction, à défaut de sa dernière version.
+
+Conséquences : un changeset relit, sous ses verrous, une ligne par objet de ces trois
+sortes et la complétion de ses opérations de VLAN ; les opérations de modules sans
+domaine (flux, machines) ne sont pas complétées de nouveau. Le refus après deux rejeux
+est visible au client, comme tout conflit de version.

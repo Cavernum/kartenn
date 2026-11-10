@@ -4,9 +4,13 @@
 //! of a module, names its domain. The event copies the domains of its row of the outbox
 //! (`events::translate`): the row is checked here.
 
+use std::time::Duration;
+
 use crate::vlan::env::{Env, op};
+use kartenn_service::authz::Unrestricted;
 use kartenn_service::operations::RawInput;
-use kartenn_service::{ObjectKind, Operation, Outcome, Ref};
+use kartenn_service::pipeline::MAX_OPERATIONS;
+use kartenn_service::{ObjectKind, Operation, Outcome, Ref, submit};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use sqlx::types::Uuid;
@@ -203,4 +207,131 @@ async fn every_written_domain_is_named(pool: PgPool) {
     let changesets: std::collections::BTreeSet<Uuid> = placed.iter().map(|(c, ..)| *c).collect();
     // The creation of the VLANs names no prefix: the seven others.
     assert_eq!(changesets.len(), 7, "every changeset checked: {placed:?}");
+}
+
+/// The domains created and owned by `acme`, by slug.
+async fn domains(env: &Env, slugs: &[&str]) -> Vec<Uuid> {
+    let acme = env.id("entity", "acme").await;
+    let owner = env.property("core.owner").await;
+    let mut operations = Vec::new();
+    for (local, slug) in (1..).zip(slugs) {
+        operations.push(core(
+            json!({"op": "create_domain", "local": local, "slug": slug}),
+        ));
+        operations.push(Operation::AssignProperty {
+            object: Ref::Local(local),
+            kind: ObjectKind::Domain,
+            property: Ref::Id(owner),
+            values: vec![RawInput::Text(acme.to_string())],
+        });
+    }
+    env.applied(operations).await;
+    let mut ids = Vec::new();
+    for slug in slugs {
+        ids.push(env.id("addressing_domain", slug).await);
+    }
+    ids
+}
+
+/// The domain a group of VLANs is anchored on now.
+async fn anchored(pool: &PgPool, group: Uuid) -> Option<Uuid> {
+    sqlx::query_scalar(
+        "SELECT anchor_id FROM vlan_group
+          WHERE id = $1 AND anchor_kind = 'domain' AND valid_period @> now()",
+    )
+    .bind(group)
+    .fetch_optional(pool)
+    .await
+    .unwrap()
+}
+
+/// Two moves of one group out of `lab` at once (task 22o, ADR 0015, precision of
+/// 2026-11-10): both read `lab` as its anchor, then wait for the lock of `lab`. The second
+/// to take it finds the group moved by the first: it replays, locks and names the domain
+/// the group really leaves, never `lab` it no longer writes.
+#[kartenn_testing::pg_test]
+async fn a_group_moved_twice_at_once_locks_the_domain_it_really_leaves(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env.id("addressing_domain", "lab").await;
+    let targets = domains(&env, &["annex", "third"]).await;
+    env.applied(vec![op(
+        "create_vlan_group",
+        json!({"slug": "contested", "anchor": {"domain": {"id": lab}}}),
+    )])
+    .await;
+    let group = env.id("vlan_group", "contested").await;
+    env.applied(vec![op(
+        "create_vlan",
+        json!({"group": {"id": group}, "vid": 10, "name": "users"}),
+    )])
+    .await;
+
+    // Another writer holds the lock of `lab` (same key as the store, ADR 0015).
+    let mut holder = pool.begin().await.unwrap();
+    sqlx::query("SELECT pg_advisory_xact_lock($1)")
+        .bind(lab.as_u64_pair().0.cast_signed())
+        .execute(&mut *holder)
+        .await
+        .unwrap();
+    let mut moves = Vec::new();
+    for target in &targets {
+        let store = env.store.clone();
+        let request = env.request(
+            vec![op(
+                "update_vlan_group",
+                json!({"id": {"id": group}, "anchor": {"domain": {"id": target}}}),
+            )],
+            None,
+        );
+        moves.push(tokio::spawn(async move {
+            submit(&store, &Unrestricted, &request, MAX_OPERATIONS)
+                .await
+                .unwrap()
+        }));
+        // The moves queue on the lock of `lab` one after the other.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    assert!(
+        moves.iter().all(|m| !m.is_finished()),
+        "both wait for `lab`"
+    );
+    holder.rollback().await.unwrap();
+    let mut applied = Vec::new();
+    for m in moves {
+        let outcome = tokio::time::timeout(Duration::from_secs(10), m)
+            .await
+            .expect("both moves end once `lab` is free")
+            .unwrap();
+        applied.push(changeset(&outcome));
+    }
+
+    // One left `lab`, the other the domain the first moved the group to.
+    let mut names = Vec::new();
+    for c in &applied {
+        names.push(named(&pool, *c).await);
+    }
+    let first = names
+        .iter()
+        .position(|n| n.contains(&lab))
+        .expect("one move leaves `lab`");
+    let second = 1 - first;
+    let mut left = vec![lab, targets[first]];
+    left.sort_unstable();
+    assert_eq!(names[first], left);
+    let mut replayed = vec![targets[first], targets[second]];
+    replayed.sort_unstable();
+    assert_eq!(names[second], replayed, "the second names what it writes");
+    // The anchoring holds: the group, and so its VLAN, is in the domain of the last move.
+    assert_eq!(anchored(&pool, group).await, Some(targets[second]));
+    let vlan = current(&pool, "vlan", "vid", "10").await;
+    let vlan_domain: Option<Uuid> = sqlx::query_scalar(
+        "SELECT g.anchor_id FROM vlan v
+           JOIN vlan_group g ON g.id = v.group_id AND g.valid_period @> now()
+          WHERE v.id = $1 AND v.valid_period @> now()",
+    )
+    .bind(vlan)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(vlan_domain, Some(targets[second]));
 }
