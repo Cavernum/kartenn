@@ -416,6 +416,8 @@ struct SubjectSight<'a> {
     identity: Uuid,
     everywhere: &'a HashSet<String>,
     kinds: &'a HashMap<Uuid, String>,
+    /// The addressing domain of each object of the batch, whoever reads it.
+    domains: &'a HashMap<Uuid, Uuid>,
     visible: HashSet<Uuid>,
     follows: HashSet<Uuid>,
 }
@@ -427,6 +429,10 @@ impl Sight for SubjectSight<'_> {
                 .kinds
                 .get(&id)
                 .is_some_and(|k| self.everywhere.contains(k))
+    }
+
+    fn domain(&self, id: Uuid) -> Option<Uuid> {
+        self.domains.get(&id).copied()
     }
 
     fn follows(&self, changeset: Uuid) -> bool {
@@ -811,14 +817,21 @@ impl Hub {
     }
 
     /// What each of `subjects`, under its scope in `scopes`, may see of `notices` now:
-    /// one query for all of them (design « Visibilité par lot »).
+    /// one query for all of them (design « Visibilité par lot »), with the addressing
+    /// domain of each object (REQ-022-16, task 021-22j).
     async fn sights(
         &self,
         subjects: &[SubjectKey],
         scopes: Vec<Scope>,
         notices: &[Arc<Notice>],
         kinds: &HashMap<Uuid, String>,
-    ) -> Result<Vec<(Scope, HashSet<Uuid>, HashSet<Uuid>)>, StoreError> {
+    ) -> Result<
+        (
+            Vec<(Scope, HashSet<Uuid>, HashSet<Uuid>)>,
+            HashMap<Uuid, Uuid>,
+        ),
+        StoreError,
+    > {
         let objects: Vec<Uuid> = kinds.keys().copied().collect();
         let asked: Vec<(i32, serde_json::Value)> = scopes
             .iter()
@@ -827,17 +840,22 @@ impl Hub {
             .map(|(i, s)| (i32::try_from(i).unwrap_or(i32::MAX), s.json.clone()))
             .collect();
         let mut visible: Vec<HashSet<Uuid>> = vec![HashSet::new(); subjects.len()];
-        if !asked.is_empty() && !objects.is_empty() {
+        let mut domains = HashMap::new();
+        // A subject who reads a kind everywhere is told of the domains too.
+        let reads = !asked.is_empty() || scopes.iter().any(|s| !s.everywhere.is_empty());
+        if reads && !objects.is_empty() {
             let mut conn = self
                 .pool
                 .acquire()
                 .await
                 .map_err(|e| StoreError(e.to_string()))?;
-            for (n, id) in kartenn_store_pg::events::visible(&mut conn, &asked, &objects).await? {
+            let found = kartenn_store_pg::events::visible(&mut conn, &asked, &objects).await?;
+            for (n, id) in found.pairs {
                 if let Some(v) = usize::try_from(n).ok().and_then(|n| visible.get_mut(n)) {
                     v.insert(id);
                 }
             }
+            domains = found.domains;
         }
         // The pending changesets: their author, and who could decide them (REQ-022-17).
         let mut follows: Vec<HashSet<Uuid>> = vec![HashSet::new(); subjects.len()];
@@ -874,12 +892,15 @@ impl Hub {
                 }
             }
         }
-        Ok(scopes
-            .into_iter()
-            .zip(visible)
-            .zip(follows)
-            .map(|((s, v), f)| (s, v, f))
-            .collect())
+        Ok((
+            scopes
+                .into_iter()
+                .zip(visible)
+                .zip(follows)
+                .map(|((s, v), f)| (s, v, f))
+                .collect(),
+            domains,
+        ))
     }
 
     /// The events of `notices` for `conn`, their floors set so that a cursor never passes
@@ -938,7 +959,7 @@ impl Hub {
         }
         let subjects = std::slice::from_ref(&conn.subject);
         let scopes = self.scopes(subjects).await?;
-        let mut sights = self.sights(subjects, scopes, notices, &kinds).await?;
+        let (mut sights, domains) = self.sights(subjects, scopes, notices, &kinds).await?;
         let (scope, visible, follows) = sights.pop().unwrap_or_else(|| {
             (
                 Scope {
@@ -954,6 +975,7 @@ impl Hub {
             identity: conn.subject.identity,
             everywhere: &scope.everywhere,
             kinds: &kinds,
+            domains: &domains,
             visible,
             follows,
         };
@@ -1015,15 +1037,17 @@ impl Hub {
             for n in slice {
                 named(n, &mut kinds);
             }
-            let (scope, visible, follows) = self
+            let (mut sights, domains) = self
                 .sights(subjects, vec![scope.clone()], slice, &kinds)
-                .await?
+                .await?;
+            let (scope, visible, follows) = sights
                 .pop()
                 .ok_or_else(|| StoreError("no sight for the subject of a page".into()))?;
             let sight = SubjectSight {
                 identity: subject.identity,
                 everywhere: &scope.everywhere,
                 kinds: &kinds,
+                domains: &domains,
                 visible,
                 follows,
             };
@@ -1083,7 +1107,7 @@ impl Hub {
                 Err(e) => Err(e),
             };
             match sights {
-                Ok(sights) => {
+                Ok((sights, domains)) => {
                     let by_subject: HashMap<&SubjectKey, SubjectSight<'_>> = subjects
                         .iter()
                         .zip(sights.iter())
@@ -1094,6 +1118,7 @@ impl Hub {
                                     identity: k.identity,
                                     everywhere: &scope.everywhere,
                                     kinds: &kinds,
+                                    domains: &domains,
                                     visible: visible.clone(),
                                     follows: follows.clone(),
                                 },

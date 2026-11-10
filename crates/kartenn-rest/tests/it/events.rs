@@ -1971,6 +1971,89 @@ async fn a_page_holds_only_what_the_caller_may_read(pool: PgPool) {
     );
 }
 
+/// REQ-022-16 (task 021-22j): the domain of a prefix delivered is named, even to who does
+/// not read the domain; a domain that no prefix delivered carries, and that is not read,
+/// is not, and a filter on it gives nothing.
+#[kartenn_testing::pg_test]
+async fn the_domain_of_a_delivered_object_is_named(pool: PgPool) {
+    let ring = KeyRing::parse(&KeyRing::generate_line("k1")).unwrap();
+    let i = instance(&pool, &ring, quick()).await;
+    let writer = author(&pool).await;
+    let lab = domain(&pool, writer, "lab").await;
+    let prod = domain(&pool, writer, "prod").await;
+    let hidden = domain(&pool, writer, "hidden").await;
+    apply(&pool, writer, vec![prefix_in(lab, "192.0.2.0/24")]).await;
+    let container: Uuid = sqlx::query_scalar("SELECT id FROM prefix WHERE prefix = '192.0.2.0/24'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    // The subtree of the container, without its domain, and the domain prod.
+    let subtree = person(&pool, &READ_ALL, ("prefix", Some(container))).await;
+    let role: Uuid = sqlx::query_scalar(
+        "SELECT b.role_id FROM binding b JOIN group_member m ON m.group_id = b.group_id
+         WHERE m.identity_id = $1",
+    )
+    .bind(subtree.identity)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    sqlx::query(kartenn_testing::BIND_IDENTITY)
+        .bind(subtree.identity)
+        .bind(role)
+        .bind("domain")
+        .bind(prod)
+        .execute(&pool)
+        .await
+        .unwrap();
+    // The prefixes everywhere, and no domain: decided without the visibility query.
+    let prefixes = person(&pool, &["core.prefix.read"], ("global", None)).await;
+    let apps = [
+        app(&pool, &ring, &i.hub, subtree),
+        app(&pool, &ring, &i.hub, prefixes),
+    ];
+    settled(&pool, &i.hub).await;
+    let mut starts = Vec::new();
+    for app in &apps {
+        starts.push(cursor_of(&page(app, "/v1/events", None).await.1));
+    }
+    let changeset = apply(
+        &pool,
+        writer,
+        vec![
+            prefix_in(lab, "192.0.2.0/25"),
+            prefix_in(prod, "198.51.100.0/24"),
+            prefix_in(hidden, "203.0.113.0/24"),
+        ],
+    )
+    .await;
+    settled(&pool, &i.hub).await;
+    let expected = [
+        std::collections::BTreeSet::from([lab, prod]),
+        std::collections::BTreeSet::from([lab, prod, hidden]),
+    ];
+    for ((app, start), expected) in apps.iter().zip(&starts).zip(expected) {
+        let (status, body, _) = page(app, "/v1/events", Some(start)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(paged(&body), [changeset]);
+        let item = body["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|i| i["event"] == "changes")
+            .unwrap();
+        let named: std::collections::BTreeSet<Uuid> =
+            serde_json::from_value(item["data"]["domains"].clone()).unwrap();
+        assert_eq!(named, expected);
+    }
+    let (_, body, _) = page(
+        &apps[0],
+        &format!("/v1/events?domains={hidden}"),
+        Some(&starts[0]),
+    )
+    .await;
+    assert!(paged(&body).is_empty(), "nothing of a domain unseen");
+}
+
 /// REQ-022-28, REQ-022-8: a cursor altered, of another identity or older than the ring
 /// gives a page of one `reset` at the current cursor, never 400; the page after it
 /// goes on; `page_size` out of bounds → 400, a filter unknown → 400.

@@ -211,12 +211,23 @@ pub async fn kinds(
     Ok(rows.into_iter().collect())
 }
 
+/// What [`visible`] finds of the objects of a batch.
+#[derive(Debug, Default)]
+pub struct Visible {
+    /// (subject index, object) for each object a subject reads now.
+    pub pairs: Vec<(i32, Uuid)>,
+    /// The addressing domain of each object that has one, on the version judged.
+    pub domains: HashMap<Uuid, Uuid>,
+}
+
 /// Which subjects read which objects now (REQ-022-16; design « Visibilité par lot »): one
 /// query for every subject and object of a batch, the predicates of the RBAC (ADR 0021)
 /// joined subjects × objects. `scopes` holds, per subject (its index), the JSON of its
 /// read scope (`ReadScope::to_json`) without the kinds it reads everywhere, which the
 /// caller decides without the base. An object no longer valid is judged on its last
-/// version, one to come on its first.
+/// version, one to come on its first. The same query gives the addressing domain of each
+/// object on that version: a subscriber who reads the object is told of its domain
+/// (REQ-022-16, task 021-22j), whatever its scope, so even with `scopes` empty.
 ///
 /// # Errors
 ///
@@ -225,9 +236,9 @@ pub async fn visible(
     conn: &mut PgConnection,
     scopes: &[(i32, serde_json::Value)],
     objects: &[Uuid],
-) -> Result<Vec<(i32, Uuid)>, StoreError> {
-    if scopes.is_empty() || objects.is_empty() {
-        return Ok(Vec::new());
+) -> Result<Visible, StoreError> {
+    if objects.is_empty() {
+        return Ok(Visible::default());
     }
     // Subjects of the same scope (the same role on the same perimeter) are asked once.
     let mut distinct: Vec<&serde_json::Value> = Vec::new();
@@ -242,7 +253,8 @@ pub async fn visible(
     }
     let subjects: Vec<i32> = (0..i32::try_from(distinct.len()).unwrap_or(i32::MAX)).collect();
     let jsons: Vec<serde_json::Value> = distinct.into_iter().cloned().collect();
-    let pairs: Vec<(i32, Uuid)> = sqlx::query_as(
+    // A row is a pair (subject, object), or the domain of an object (subject null).
+    let rows: Vec<(Option<i32>, Uuid, Option<Uuid>)> = sqlx::query_as(
         "WITH s AS MATERIALIZED (
              SELECT t.n, k.* FROM unnest($1::int[], $2::jsonb[]) AS t(n, scope),
                   LATERAL kartenn_scopes(t.scope) k),
@@ -255,10 +267,12 @@ pub async fn visible(
              FROM unnest($3::uuid[]) AS x(id) JOIN carrier_object c ON c.id = x.id
              ORDER BY c.id, c.valid_period @> now() DESC,
                       upper(c.valid_period) DESC NULLS FIRST)
-         SELECT s.n, o.id FROM o JOIN s ON s.kind = o.kind
+         SELECT s.n, o.id, NULL::uuid FROM o JOIN s ON s.kind = o.kind
          WHERE kartenn_visible(o.id, o.domain_id, o.value, o.at, s.global, s.entities,
                                s.sites, s.domains, s.prefix_domains, s.prefixes,
-                               s.confinement)",
+                               s.confinement)
+         UNION ALL
+         SELECT NULL::int, o.id, o.domain_id FROM o WHERE o.domain_id IS NOT NULL",
     )
     .bind(&subjects)
     .bind(&jsons)
@@ -266,17 +280,24 @@ pub async fn visible(
     .fetch_all(&mut *conn)
     .await
     .map_err(store_err)?;
-    Ok(pairs
-        .into_iter()
-        .flat_map(|(k, id)| {
-            usize::try_from(k)
-                .ok()
-                .and_then(|k| of_scope.get(k))
-                .into_iter()
-                .flatten()
-                .map(move |n| (*n, id))
-        })
-        .collect())
+    let mut found = Visible::default();
+    for (k, id, domain) in rows {
+        match (k, domain) {
+            (Some(k), _) => found.pairs.extend(
+                usize::try_from(k)
+                    .ok()
+                    .and_then(|k| of_scope.get(k))
+                    .into_iter()
+                    .flatten()
+                    .map(|n| (*n, id)),
+            ),
+            (None, Some(domain)) => {
+                found.domains.insert(id, domain);
+            }
+            (None, None) => {}
+        }
+    }
+    Ok(found)
 }
 
 /// The state of each identity among `ids` (REQ-005-3): disabled, and its sessions
