@@ -1,15 +1,16 @@
 //! The handler of the module in the write pipeline (feature `pg`; ADR 0026, clause 6):
 //! the declaration of a cluster by an administrator (`create_cluster`, `update_cluster`,
 //! REQ-019-5) and the batch of the connector (`sync`, 019/X9), one node, namespace,
-//! workload or service of a cluster per operation, found by its identity in the cluster,
-//! or in its namespace for a workload or a service (REQ-019-6 to 9). `owner` and `site` of
-//! a cluster are assignments of `core.owner` and `core.site` the handler adds to the
-//! changeset; its nodes, namespaces, workloads and services inherit them (tree `kube`) and
-//! are anchored in its pod domain. The pod ranges of a node (`pod_cidrs`, REQ-019-13) are
-//! networks of that domain, the cluster IPs and external addresses of a service
-//! (REQ-019-14) addresses of usage `vip` of its service and external domains, which the
-//! `sync` creates and closes as operations of the core, cited by their owner once their
-//! identifiers come back (`planned`, ADR 0026 amendment 8).
+//! workload, service or ingress of a cluster per operation, found by its identity in the
+//! cluster, or in its namespace for a workload, a service or an ingress (REQ-019-6 to 10).
+//! `owner` and `site` of a cluster are assignments of `core.owner` and `core.site` the
+//! handler adds to the changeset; its other objects inherit them (tree `kube`) and are
+//! anchored in one of its domains (design « Types d'objets »). The pod ranges of a node
+//! (`pod_cidrs`, REQ-019-13) are networks of its pod domain, the cluster IPs and external
+//! addresses of a service and the addresses of an ingress (REQ-019-14) addresses of usage
+//! `vip` of its service and external domains, which the `sync` creates and closes as
+//! operations of the core, cited by their owner once their identifiers come back
+//! (`planned`, ADR 0026 amendment 8).
 
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
@@ -31,15 +32,20 @@ use serde_json::{Map, Value, json};
 use sqlx::PgConnection;
 use uuid::Uuid;
 
-use crate::module::{ADDRESS, CLUSTER, MACHINE, NAMESPACE, NODE, PREFIX, SERVICE, WORKLOAD};
+use crate::module::{
+    ADDRESS, CLUSTER, INGRESS, MACHINE, NAMESPACE, NODE, PREFIX, SERVICE, WORKLOAD,
+};
 use crate::names::{DnsLabel, DnsSubdomain, LabelKey, LabelValue, parse_labels};
 use crate::owner::WorkloadKind;
-use crate::pg::{self, CLUSTER_TABLE, NAMESPACE_TABLE, NODE_TABLE, SERVICE_TABLE, WORKLOAD_TABLE};
-use crate::rules::{
-    CLUSTER_CONNECTOR_GROUP, CLUSTER_RANGE_DOMAIN, NAME_INVALID, NODE_MACHINE_KIND,
-    NODE_RANGE_OUTSIDE, OPERATION_INVALID, SERVICE_DUPLICATE, WORKLOAD_DUPLICATE,
+use crate::pg::{
+    self, CLUSTER_TABLE, INGRESS_TABLE, NAMESPACE_TABLE, NODE_TABLE, SERVICE_TABLE, WORKLOAD_TABLE,
 };
-use crate::tracked::{Protocol, ServiceType};
+use crate::rules::{
+    CLUSTER_CONNECTOR_GROUP, CLUSTER_RANGE_DOMAIN, INGRESS_BACKEND_MISSING, INGRESS_DUPLICATE,
+    NAME_INVALID, NODE_MACHINE_KIND, NODE_RANGE_OUTSIDE, OPERATION_INVALID, SERVICE_DUPLICATE,
+    WORKLOAD_DUPLICATE,
+};
+use crate::tracked::{PathType, Protocol, ServiceType};
 
 /// The handler of the module.
 #[derive(Debug, Clone, Copy, Default)]
@@ -74,6 +80,11 @@ fn service_kind() -> ModuleKind {
     kind(SERVICE, &KIND)
 }
 
+fn ingress_kind() -> ModuleKind {
+    static KIND: OnceLock<ModuleKind> = OnceLock::new();
+    kind(INGRESS, &KIND)
+}
+
 /// The table of the objects of `kind`.
 fn table(kind: ModuleKind) -> &'static str {
     if kind == node_kind() {
@@ -84,6 +95,8 @@ fn table(kind: ModuleKind) -> &'static str {
         WORKLOAD_TABLE
     } else if kind == service_kind() {
         SERVICE_TABLE
+    } else if kind == ingress_kind() {
+        INGRESS_TABLE
     } else {
         CLUSTER_TABLE
     }
@@ -126,14 +139,14 @@ struct Completed {
     #[serde(default)]
     reopened: Option<Uuid>,
     /// The service domain and the external domain of the cluster of a `sync` of a
-    /// service: where its cluster IPs and its external addresses live (019/X6); the
-    /// external addresses of a cluster without an external domain live in its service
-    /// domain.
+    /// service or an ingress: where its cluster IPs and its external addresses live
+    /// (019/X6); the external addresses of a cluster without an external domain live in
+    /// its service domain.
     #[serde(default)]
     service_domain: Option<Uuid>,
     #[serde(default)]
     external_domain: Option<Uuid>,
-    /// The living addresses the service of a `sync` cites.
+    /// The living addresses the service or the ingress of a `sync` cites.
     #[serde(default)]
     addresses: Vec<pg::HeldAddress>,
     /// The living services that select the workload a `sync` closes: it leaves their
@@ -463,6 +476,27 @@ const SERVICE_FIELDS: &[&str] = &[
     "workloads",
 ];
 
+/// An ingress is named in its namespace (`namespace`, by name); `class` is its
+/// `ingressClassName`, `rules` its routes (the default backend is the route without host
+/// nor path), `addresses` the IP of its `status.loadBalancer.ingress`.
+const INGRESS_FIELDS: &[&str] = &[
+    "namespace",
+    "uid",
+    "class",
+    "rules",
+    "tls_hosts",
+    "addresses",
+];
+
+/// The fields of the types `sync` takes, beside the identity.
+const ALL_FIELDS: [&[&str]; 5] = [
+    NODE_FIELDS,
+    NAMESPACE_FIELDS,
+    WORKLOAD_FIELDS,
+    SERVICE_FIELDS,
+    INGRESS_FIELDS,
+];
+
 /// The fields `sync` takes for the type `kind`.
 fn fields_of(kind: ModuleKind) -> &'static [&'static str] {
     if kind == node_kind() {
@@ -471,6 +505,8 @@ fn fields_of(kind: ModuleKind) -> &'static [&'static str] {
         WORKLOAD_FIELDS
     } else if kind == service_kind() {
         SERVICE_FIELDS
+    } else if kind == ingress_kind() {
+        INGRESS_FIELDS
     } else {
         NAMESPACE_FIELDS
     }
@@ -608,6 +644,18 @@ struct Selected {
     name: String,
 }
 
+/// The workloads a `sync` of a service selects (`workloads`), by kind and name, as
+/// [`Handler::prepare`] looks for them; none if malformed (refused by the plan).
+fn selected(body: &Map<String, Value>) -> Vec<(String, String)> {
+    body.get("workloads")
+        .cloned()
+        .and_then(|w| serde_json::from_value::<Vec<Selected>>(w).ok())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|s| (s.kind, s.name))
+        .collect()
+}
+
 /// The selection of `value`: the living workloads of the namespace it names, among those
 /// `prepare` found (`completed.selection`), as a sorted set.
 fn selection(value: &Value, completed: &Completed) -> Result<Vec<Uuid>, Violation> {
@@ -631,8 +679,104 @@ fn selection(value: &Value, completed: &Completed) -> Result<Vec<Uuid>, Violatio
     Ok(ids.into_iter().collect())
 }
 
-/// One sort of addresses of a service (REQ-019-14): its field in a `sync`, its column, and
-/// the domain its addresses live in.
+/// A route of an ingress (`spec.rules[].http.paths[]`, `spec.defaultBackend`, REQ-019-10):
+/// the host and the path of a rule to a service of the namespace, named, and one of its
+/// ports, by number or by name; the default backend is the route without host, path nor
+/// path type.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct Route {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    host: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    path: Option<String>,
+    /// `exact`, `prefix` or `implementation_specific` (`pathType`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    path_type: Option<String>,
+    /// The name of a service of the namespace: not a reference, the service may be absent
+    /// (`kube.ingress.backend_missing` warns).
+    service: String,
+    port: TargetPort,
+}
+
+/// A host of an ingress in `field` (a rule, a TLS host): a DNS subdomain whose first label
+/// may be `*` (a wildcard), not an IP address (Kubernetes, `IngressRule.host`).
+fn checked_host(name: &str, field: &str) -> Result<(), Violation> {
+    if Addr::parse_any(&family::ALL, name).is_ok() {
+        return Err(Violation::new(
+            &NAME_INVALID,
+            format!("{field}: {name} is an IP address, not a host"),
+        ));
+    }
+    DnsSubdomain::parse(name.strip_prefix("*.").unwrap_or(name)).map(drop)
+}
+
+/// The class of an ingress in `value` (`ingressClassName`, the name of an `IngressClass`),
+/// `null` for none.
+fn ingress_class(value: &Value) -> Result<Option<String>, Violation> {
+    match value.as_str() {
+        Some(class) => Ok(Some(DnsSubdomain::parse(class)?.as_str().to_owned())),
+        None if value.is_null() => Ok(None),
+        None => Err(invalid("class: a string")),
+    }
+}
+
+/// The TLS hosts of an ingress in `value` (`spec.tls[].hosts`), a sorted set.
+fn tls_hosts(value: &Value) -> Result<BTreeSet<String>, Violation> {
+    let hosts: Vec<String> = decode(value.clone(), "tls_hosts")?;
+    for host in &hosts {
+        checked_host(host, "tls_hosts")?;
+    }
+    // A set: a reordering makes no version (019/X4).
+    Ok(hosts.into_iter().collect())
+}
+
+/// The routes of an ingress in `value`, a sorted set: a path begins with `/`, a path of
+/// type `exact` or `prefix` is given, only the default backend has no path type.
+fn routes(value: &Value) -> Result<Vec<Route>, Violation> {
+    let routes: Vec<Route> = decode(value.clone(), "rules")?;
+    for route in &routes {
+        if let Some(host) = &route.host {
+            checked_host(host, "rules")?;
+        }
+        let path_type = match route.path_type.as_deref() {
+            Some(text) => Some(PathType::parse(text).ok_or_else(|| {
+                invalid(format!(
+                    "rules: {text} is not exact, prefix or implementation_specific"
+                ))
+            })?),
+            None => None,
+        };
+        match (route.path.as_deref(), path_type) {
+            (Some(path), Some(_)) if !path.starts_with('/') => {
+                return Err(invalid(format!(
+                    "rules: the path {path} does not begin with /"
+                )));
+            }
+            (None, Some(PathType::Exact | PathType::Prefix)) => {
+                return Err(invalid("rules: an exact or prefix path type takes a path"));
+            }
+            (Some(_), None) => return Err(invalid("rules: a path takes its path type")),
+            (None, None) if route.host.is_some() => {
+                return Err(invalid(
+                    "rules: a route of a host takes a path type; only the default backend has none",
+                ));
+            }
+            _ => {}
+        }
+        DnsLabel::parse(&route.service)?;
+        match &route.port {
+            TargetPort::Number(n) => port_number(*n, "rules")?,
+            TargetPort::Name(n) => checked_port_name(n, "rules")?,
+        }
+    }
+    // A set: a reordering makes no version (019/X4).
+    let routes: BTreeSet<Route> = routes.into_iter().collect();
+    Ok(routes.into_iter().collect())
+}
+
+/// One sort of addresses of a service or an ingress (REQ-019-14): its field in a `sync`,
+/// its column, and the domain its addresses live in.
 struct Sort {
     field: &'static str,
     column: &'static str,
@@ -649,34 +793,53 @@ struct Held {
     id: Uuid,
 }
 
-/// What a `sync` does to the addresses of a service, into `columns`: the addresses of
-/// each sort it gives (`cluster_ips`, `external_ips`, lists of IP) against those the
-/// service cites (`completed.addresses`). A value unchanged creates nothing; a new value
-/// gets one address of usage `vip` in the domain of its sort, cited by every sort that
-/// gives it (a cluster IP that is also an external address, when the two domains are one,
-/// is one address); an address no sort cites any more closes. Returns the operations of
-/// the core and, for each, the columns that cite what it creates (`data.slots`).
+/// The sorts of addresses of an object of `kind`: the cluster IPs and the external
+/// addresses of a service, the addresses of an ingress, external (REQ-019-14). Without an
+/// external domain, the external addresses live in the service domain (design « Données »,
+/// 2026-11-10).
+fn sorts(kind: ModuleKind, completed: &Completed) -> Vec<Sort> {
+    let external = completed.external_domain.or(completed.service_domain);
+    if kind == service_kind() {
+        vec![
+            Sort {
+                field: "cluster_ips",
+                column: "cluster_address_ids",
+                cluster_ip: true,
+                domain: completed.service_domain,
+            },
+            Sort {
+                field: "external_ips",
+                column: "external_address_ids",
+                cluster_ip: false,
+                domain: external,
+            },
+        ]
+    } else if kind == ingress_kind() {
+        vec![Sort {
+            field: "addresses",
+            column: "address_ids",
+            cluster_ip: false,
+            domain: external,
+        }]
+    } else {
+        Vec::new()
+    }
+}
+
+/// What a `sync` does to the addresses of a service or an ingress, into `columns`: the
+/// addresses of each of its `sorts` it gives (`cluster_ips`, `external_ips`, `addresses`,
+/// lists of IP) against those the object cites (`completed.addresses`). A value unchanged
+/// creates nothing; a new value gets one address of usage `vip` in the domain of its
+/// sort, cited by every sort that gives it (a cluster IP that is also an external address,
+/// when the two domains are one, is one address); an address no sort cites any more
+/// closes. Returns the operations of the core and, for each, the columns that cite what it
+/// creates (`data.slots`).
 fn vips(
     body: &Map<String, Value>,
     completed: &Completed,
+    sorts: &[Sort],
     columns: &mut Map<String, Value>,
 ) -> Result<(Vec<Operation>, Vec<Value>), Violation> {
-    let sorts = [
-        Sort {
-            field: "cluster_ips",
-            column: "cluster_address_ids",
-            cluster_ip: true,
-            domain: completed.service_domain,
-        },
-        // Without an external domain, the external addresses live in the service domain
-        // (design « Données », 2026-11-10).
-        Sort {
-            field: "external_ips",
-            column: "external_address_ids",
-            cluster_ip: false,
-            domain: completed.external_domain.or(completed.service_domain),
-        },
-    ];
     let held: Vec<Held> = completed
         .addresses
         .iter()
@@ -698,7 +861,7 @@ fn vips(
     // The (domain, value) each sort cites after the write: those it gives, or those it
     // cites already.
     let mut wanted: Vec<(&Sort, BTreeSet<(Uuid, Addr)>)> = Vec::new();
-    for sort in &sorts {
+    for sort in sorts {
         let Some(value) = body.get(sort.field) else {
             let cited = held
                 .iter()
@@ -873,7 +1036,7 @@ fn mirror_columns(
                 let uid: Option<Uuid> = decode(value.clone(), field)?;
                 ("uid", json!(uid))
             }
-            "addresses" => {
+            "addresses" if kind == node_kind() => {
                 let addresses: Vec<NodeAddress> = decode(value.clone(), field)?;
                 if addresses
                     .iter()
@@ -952,7 +1115,11 @@ fn mirror_columns(
                     .ok_or_else(|| invalid("host_network: a boolean"))?;
                 ("host_network", json!(host))
             }
-            // The identity of a workload (`namespace`, `kind`), not a column it changes.
+            "class" => ("class", json!(ingress_class(value)?)),
+            "rules" => ("rules", json!(routes(value)?)),
+            "tls_hosts" => ("tls_hosts", json!(tls_hosts(value)?)),
+            // The identity of a workload (`namespace`, `kind`), not a column it changes; the
+            // addresses of an ingress, written by `owned_columns`.
             _ => continue,
         };
         columns.insert(column.into(), value);
@@ -967,33 +1134,37 @@ fn mirror_kind(body: &Map<String, Value>) -> Result<ModuleKind, Violation> {
         Some(NAMESPACE) => Ok(namespace_kind()),
         Some(WORKLOAD) => Ok(workload_kind()),
         Some(SERVICE) => Ok(service_kind()),
+        Some(INGRESS) => Ok(ingress_kind()),
         Some(other) => Err(invalid(format!("type: {other} is not synced yet"))),
         None => Err(invalid("type: required")),
     }
 }
 
-/// The name a `sync` names, checked for its type: a DNS subdomain for a node or a
-/// workload, a DNS label for a namespace (réf. `kubernetes-calcul.md` § Namespace, labels,
-/// noms et UID).
+/// The name a `sync` names, checked for its type: a DNS subdomain for a node, a workload or
+/// an ingress, a DNS label for a namespace or a service (réf. `kubernetes-calcul.md`
+/// § Namespace, labels, noms et UID).
 fn mirror_name(kind: ModuleKind, body: &Map<String, Value>) -> Result<String, Violation> {
     let name = body
         .get("name")
         .and_then(Value::as_str)
         .ok_or_else(|| invalid("name: required"))?;
-    Ok(if kind == node_kind() || kind == workload_kind() {
-        DnsSubdomain::parse(name)?.as_str().to_owned()
-    } else {
-        DnsLabel::parse(name)?.as_str().to_owned()
-    })
+    Ok(
+        if kind == node_kind() || kind == workload_kind() || kind == ingress_kind() {
+            DnsSubdomain::parse(name)?.as_str().to_owned()
+        } else {
+            DnsLabel::parse(name)?.as_str().to_owned()
+        },
+    )
 }
 
 /// Where the object of a `sync` lives: in its cluster (a node, a namespace), or in a
-/// namespace (a workload, of its kind, or a service).
+/// namespace (a workload, of its kind, a service or an ingress).
 #[derive(Debug, Clone, Copy)]
 enum Home {
     Cluster(Uuid),
     Workload(Uuid, WorkloadKind),
     Service(Uuid),
+    Ingress(Uuid),
 }
 
 /// The row of a new object `object` of `kind` named `name` in `home`, every tracked field
@@ -1003,14 +1174,19 @@ fn mirror_row(kind: ModuleKind, object: Uuid, home: Home, name: &str) -> Map<Str
     row.insert("id".into(), json!(object));
     match home {
         Home::Cluster(cluster) => row.insert("cluster_id".into(), json!(cluster)),
-        Home::Workload(namespace, _) | Home::Service(namespace) => {
+        Home::Workload(namespace, _) | Home::Service(namespace) | Home::Ingress(namespace) => {
             row.insert("namespace_id".into(), json!(namespace))
         }
     };
     row.insert("name".into(), json!(name));
     row.insert("uid".into(), Value::Null);
     row.insert("absent_since".into(), Value::Null);
-    if let Home::Service(_) = home {
+    if let Home::Ingress(_) = home {
+        row.insert("class".into(), Value::Null);
+        row.insert("rules".into(), json!([]));
+        row.insert("tls_hosts".into(), json!([]));
+        row.insert("address_ids".into(), json!([]));
+    } else if let Home::Service(_) = home {
         row.insert("type".into(), json!(ServiceType::ClusterIp.as_str()));
         row.insert("headless".into(), json!(false));
         row.insert("external_name".into(), Value::Null);
@@ -1037,15 +1213,15 @@ fn mirror_row(kind: ModuleKind, object: Uuid, home: Home, name: &str) -> Map<Str
 }
 
 /// Where the object of `kind` a `sync` names lives (019/X3: the identity of a workload is
-/// (namespace, kind, name), that of a service (namespace, name)): the namespace by its
-/// name in `cluster`, living then.
+/// (namespace, kind, name), that of a service or an ingress (namespace, name)): the
+/// namespace by its name in `cluster`, living then.
 fn home_of(
     kind: ModuleKind,
     body: &Map<String, Value>,
     completed: &Completed,
     cluster: Uuid,
 ) -> Result<Home, Violation> {
-    if kind != workload_kind() && kind != service_kind() {
+    if kind != workload_kind() && kind != service_kind() && kind != ingress_kind() {
         return Ok(Home::Cluster(cluster));
     }
     let namespace = body
@@ -1073,7 +1249,11 @@ fn home_of(
             namespace.as_str()
         ))
     })?;
-    Ok(workload.map_or(Home::Service(id), |w| Home::Workload(id, w)))
+    Ok(match workload {
+        Some(w) => Home::Workload(id, w),
+        None if kind == ingress_kind() => Home::Ingress(id),
+        None => Home::Service(id),
+    })
 }
 
 /// The refusal of the `close` of an object of `kind` named `name` in `home` that does not
@@ -1085,6 +1265,9 @@ fn missing(kind: ModuleKind, home: Home, name: &str) -> Violation {
         )),
         Home::Service(namespace) => invalid(format!(
             "no living service {name} in the namespace {namespace}"
+        )),
+        Home::Ingress(namespace) => invalid(format!(
+            "no living ingress {name} in the namespace {namespace}"
         )),
         Home::Cluster(cluster) => {
             invalid(format!("no living {kind} {name} in the cluster {cluster}"))
@@ -1137,7 +1320,8 @@ fn unselect_operation(service: Uuid, workload: Uuid, domain: Uuid) -> Operation 
 }
 
 /// The columns of an `upsert` that cite objects the `sync` creates or reads (the pod ranges
-/// of a node, the addresses and the selection of a service), into `columns`; the
+/// of a node, the addresses and the selection of a service, the addresses of an ingress),
+/// into `columns`; the
 /// operations of the core it adds, and for each the columns that cite what it creates
 /// (`data.slots`).
 fn owned_columns(
@@ -1156,8 +1340,9 @@ fn owned_columns(
         slots.extend(ranges.core.iter().map(|op| slot(op, &["range_ids"])));
         core.extend(ranges.core);
     }
-    if kind == service_kind() {
-        let (vips, cited) = vips(body, completed, columns)?;
+    let sorts = sorts(kind, completed);
+    if !sorts.is_empty() {
+        let (vips, cited) = vips(body, completed, &sorts, columns)?;
         core.extend(vips);
         slots.extend(cited);
     }
@@ -1246,10 +1431,7 @@ impl Handler {
             operation,
             &[
                 &["action", "type", "cluster", "name"][..],
-                NODE_FIELDS,
-                NAMESPACE_FIELDS,
-                WORKLOAD_FIELDS,
-                SERVICE_FIELDS,
+                &ALL_FIELDS.concat(),
             ]
             .concat(),
         )?;
@@ -1258,15 +1440,7 @@ impl Handler {
         let own = fields_of(kind);
         if let Some(foreign) = body.keys().find(|k| {
             let k = k.as_str();
-            [
-                NODE_FIELDS,
-                NAMESPACE_FIELDS,
-                WORKLOAD_FIELDS,
-                SERVICE_FIELDS,
-            ]
-            .iter()
-            .any(|fields| fields.contains(&k))
-                && !own.contains(&k)
+            ALL_FIELDS.iter().any(|fields| fields.contains(&k)) && !own.contains(&k)
         }) {
             return Err(invalid(format!("{kind}: unknown field `{foreign}`")));
         }
@@ -1282,10 +1456,16 @@ impl Handler {
         let name = mirror_name(kind, &body)?;
         let home = home_of(kind, &body, &completed, cluster)?;
         let keys = vec![cluster_key(cluster)];
-        // A service is anchored in the service domain of its cluster (design « Types
-        // d'objets »), the other objects in its pod domain.
+        // A service is anchored in the service domain of its cluster, an ingress in its
+        // external domain, else its service domain (design « Types d'objets »), the other
+        // objects in its pod domain: as `pg::placement` registers them.
         let anchor = if kind == service_kind() {
             completed.service_domain.unwrap_or(domain)
+        } else if kind == ingress_kind() {
+            completed
+                .external_domain
+                .or(completed.service_domain)
+                .unwrap_or(domain)
         } else {
             domain
         };
@@ -1380,9 +1560,9 @@ fn patch_of(plan: &ModulePlan, current: &Value) -> Result<Value, StoreError> {
     Ok(json!({ "workload_ids": kept }))
 }
 
-/// Writes the node, namespace, workload or service of `plan` and registers it under its
-/// cluster (a workload or a service under its namespace), anchored in the pod domain of
-/// the cluster.
+/// Writes the node, namespace, workload, service or ingress of `plan` and registers it
+/// under its cluster (a workload, a service or an ingress under its namespace), anchored in
+/// a domain of the cluster (`pg::placement`).
 async fn apply_mirror(
     tx: &mut dyn ModuleTx,
     plan: &ModulePlan,
@@ -1392,11 +1572,12 @@ async fn apply_mirror(
     let (id, table) = (plan.object, table(plan.kind));
     let conn = connection(tx)?;
     if let Some(row) = plan.data.get("create") {
-        // A closed workload or service opened twice in a batch: the second finds the
-        // first.
+        // A closed workload, service or ingress opened twice in a batch: the second finds
+        // the first.
         let duplicate = match table {
             WORKLOAD_TABLE => Some(&WORKLOAD_DUPLICATE),
             SERVICE_TABLE => Some(&SERVICE_DUPLICATE),
+            INGRESS_TABLE => Some(&INGRESS_DUPLICATE),
             _ => None,
         };
         if let Some(rule) = duplicate
@@ -1459,24 +1640,28 @@ impl ModuleHandler for Handler {
                     Some(NAMESPACE) => Some(NAMESPACE_TABLE),
                     Some(WORKLOAD) => Some(WORKLOAD_TABLE),
                     Some(SERVICE) => Some(SERVICE_TABLE),
+                    Some(INGRESS) => Some(INGRESS_TABLE),
                     _ => None,
                 };
                 let text = |field: &str| operation.body.get(field).and_then(Value::as_str);
                 let name = text("name");
                 if let Some(Ref::Id(cluster)) = cluster {
                     completed.pod_domain = pg::pod_domain(conn, cluster, at).await?;
-                    if table == Some(WORKLOAD_TABLE) || table == Some(SERVICE_TABLE) {
-                        // A workload or a service is named in its namespace, itself named in
-                        // the cluster.
+                    if let Some(namespaced @ (WORKLOAD_TABLE | SERVICE_TABLE | INGRESS_TABLE)) =
+                        table
+                    {
+                        // A workload, a service or an ingress is named in its namespace,
+                        // itself named in the cluster.
                         if let Some(namespace) = text("namespace") {
                             completed.namespace =
                                 pg::named(conn, NAMESPACE_TABLE, cluster, namespace, at).await?;
                         }
-                        let kind = text("kind").filter(|_| table == Some(WORKLOAD_TABLE));
+                        let kind = text("kind").filter(|_| namespaced == WORKLOAD_TABLE);
                         if let (Some(namespace), Some(name)) = (completed.namespace, name)
-                            && (kind.is_some() || table == Some(SERVICE_TABLE))
+                            && (kind.is_some() || namespaced != WORKLOAD_TABLE)
                         {
                             let identity = pg::InNamespace {
+                                table: namespaced,
                                 namespace,
                                 kind,
                                 name,
@@ -1508,26 +1693,26 @@ impl ModuleHandler for Handler {
                             completed.ranges = pg::node_ranges(conn, node, at).await?;
                         }
                     }
-                    if table == Some(SERVICE_TABLE) {
+                    // The domains of the addresses of a service or an ingress, and those it
+                    // cites.
+                    if let Some(addressed @ (SERVICE_TABLE | INGRESS_TABLE)) = table {
                         if let Some((service, external)) =
                             pg::service_domains(conn, cluster, at).await?
                         {
                             completed.service_domain = Some(service);
                             completed.external_domain = external;
                         }
-                        if let Some(service) = completed.existing {
-                            completed.addresses = pg::service_addresses(conn, service, at).await?;
+                        if let Some(object) = completed.existing {
+                            completed.addresses = if addressed == SERVICE_TABLE {
+                                pg::service_addresses(conn, object, at).await?
+                            } else {
+                                pg::ingress_addresses(conn, object, at).await?
+                            };
                         }
+                    }
+                    if table == Some(SERVICE_TABLE) {
                         // The workloads it selects, by kind and name in its namespace.
-                        let wanted: Vec<(String, String)> = operation
-                            .body
-                            .get("workloads")
-                            .cloned()
-                            .and_then(|w| serde_json::from_value::<Vec<Selected>>(w).ok())
-                            .unwrap_or_default()
-                            .into_iter()
-                            .map(|s| (s.kind, s.name))
-                            .collect();
+                        let wanted = selected(&operation.body);
                         if let (Some(namespace), false) = (completed.namespace, wanted.is_empty()) {
                             completed.selection =
                                 pg::workloads_named(conn, namespace, &wanted, at).await?;
@@ -1698,7 +1883,8 @@ impl ModuleHandler for Handler {
     }
 
     /// The networks of the pod ranges a node owns (`range_ids`), the addresses a service
-    /// owns (`cluster_address_ids`, `external_address_ids`), closed with it.
+    /// owns (`cluster_address_ids`, `external_address_ids`), the addresses an ingress owns
+    /// (`address_ids`), closed with it.
     fn targets<'a>(
         &'a self,
         tx: &'a mut dyn ModuleTx,
@@ -1715,6 +1901,10 @@ impl ModuleHandler for Handler {
                 }
                 (SERVICE, ADDRESS) => {
                     let addresses = pg::service_addresses(connection(tx)?, source, at).await?;
+                    Ok(addresses.into_iter().map(|(.., id)| id).collect())
+                }
+                (INGRESS, ADDRESS) => {
+                    let addresses = pg::ingress_addresses(connection(tx)?, source, at).await?;
                     Ok(addresses.into_iter().map(|(.., id)| id).collect())
                 }
                 _ => Ok(Vec::new()),
@@ -1740,8 +1930,9 @@ impl ModuleHandler for Handler {
         }
     }
 
-    /// The rules of the module on the final state of the clusters and nodes the changeset
-    /// writes, over all their versions.
+    /// The rules of the module on the final state of the clusters, nodes and ingresses the
+    /// changeset writes, over all their versions, and of the ingresses whose routes name a
+    /// service it writes.
     fn check<'a>(
         &'a self,
         tx: &'a mut dyn ModuleTx,
@@ -1757,10 +1948,21 @@ impl ModuleHandler for Handler {
                     .collect()
             };
             let (clusters, nodes) = (of(cluster_kind()), of(node_kind()));
-            if clusters.is_empty() && nodes.is_empty() {
+            let (mut ingresses, services) = (of(ingress_kind()), of(service_kind()));
+            if clusters.is_empty()
+                && nodes.is_empty()
+                && ingresses.is_empty()
+                && services.is_empty()
+            {
                 return Ok(Findings::default());
             }
             let conn = connection(tx)?;
+            // A service written, created or closed, may be the one an ingress routes to.
+            if !services.is_empty() {
+                ingresses.extend(pg::ingresses_routing_to(conn, &services).await?);
+                ingresses.sort_unstable();
+                ingresses.dedup();
+            }
             let mut found = Vec::new();
             if !clusters.is_empty() {
                 for (cluster, range) in pg::ranges_outside(conn, &clusters).await? {
@@ -1816,12 +2018,26 @@ impl ModuleHandler for Handler {
                     .with_subjects([node]),
                 );
             }
+            for (ingress, service) in pg::backends_missing(conn, &ingresses).await? {
+                found.push(
+                    Violation::new(
+                        &INGRESS_BACKEND_MISSING,
+                        format!(
+                            "a route of the ingress targets the service {service}, absent from its namespace"
+                        ),
+                    )
+                    .with_subjects([ingress]),
+                );
+            }
             let mut findings = Findings::from(found);
             // A node written anew is checked anew: its anomaly closes once its ranges are
-            // inside the containers.
+            // inside the containers; an ingress too, once its services are present.
             findings
                 .reevaluated
                 .extend(nodes.iter().map(|n| (*n, NODE_RANGE_OUTSIDE.id)));
+            findings
+                .reevaluated
+                .extend(ingresses.iter().map(|i| (*i, INGRESS_BACKEND_MISSING.id)));
             Ok(findings)
         })
     }

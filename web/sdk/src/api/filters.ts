@@ -149,6 +149,7 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
     { name: "parent", type: "string" },
   ],
   "/v1/inference-rules/{id}/history": [],
+  "/v1/ingresses/{id}/history": [],
   "/v1/interfaces": [
     { name: "machine", type: "string" },
     { name: "name", type: "string" },

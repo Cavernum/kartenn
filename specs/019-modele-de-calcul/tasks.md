@@ -605,13 +605,56 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     connecteur (tâche 10) ; `kube.connector.direct` (tâche 5) devra laisser passer les
     opérations `unselect` et les plans de mise à nul du gestionnaire ; la mise à nul en
     cascade (`nullify`) ne déclare pas de domaine à verrouiller.
-- [ ] 4c. Ingress : table `kube.ingress` (classe, règles, hôtes TLS, adresses `vip`
+- [x] 4c. Ingress : table `kube.ingress` (classe, règles, hôtes TLS, adresses `vip`
   en `Owned` comme la 4b), `upsert` et `close` dans `kube.sync`, avertissement
   `kube.ingress.backend_missing` pour une règle qui vise un service absent du
   namespace (pas de refus) — REQ-019-10, 14 — verify : `ingress_backend_missing_warns`,
   un ingress clos qui clôt ses adresses
   - où : comme la 4b ; `rules.rs` (avertissement `range_outside` de la 3c à imiter)
   - dépend de : 4b
+  - fait (2026-11-10) : migration `0005_ingress.sql` (exclusion (namespace, nom), index
+    `ingress_by_namespace`, `ingress_by_uid`, GIN `ingress_addresses`) ; `module.rs`
+    (type `kube.ingress`, collection `ingresses`, parent namespace ; droits
+    `kube.ingress.read`, `edit`, `apply`, `approval.self` ; références → `kube.namespace`
+    en `Cascade`, → `address` en `Owned`) ; `rules.rs` et `labels.rs`
+    (`kube.ingress.duplicate`, type, droits) ; `tracked.rs` (`PathType::parse`,
+    `as_str`) ; `handler.rs` (`kube.sync` de `type` `kube.ingress`, routes et hôtes TLS
+    contrôlés, `vips` générique par ses `sorts`, ancrage et domaine verrouillé dans le
+    domaine externe à défaut des services, `targets` des adresses, `check` de
+    `backend_missing` sur les ingress écrits et sur ceux dont une route nomme un service
+    écrit, réévalué pour clore l'anomalie) ; `pg.rs` (`InNamespace` porte sa table,
+    `ingress_addresses`, `kube.ingress.duplicate` avant la contrainte, `placement`,
+    `referrers`, `ingresses_routing_to`, `backends_missing`) ; tests
+    `ingress_backend_missing_warns`, `ingress_closed_closes_its_addresses`,
+    `ingress_addresses_fall_back_to_service_domain` (`tests/it/clusters.rs`) ; contrat,
+    `docs/spec/permissions.md`, `docs/spec/regles-modules.md` et types des deux SDK
+    régénérés par leurs outils ; design « Données » et « Règles » précisés.
+  - choix : champs du `sync` d'un ingress : `namespace` (par son nom), `uid`, `class`
+    (`ingressClassName`, sous-domaine DNS ou nul), `rules` (les routes
+    `{host, path, path_type, service, port}` de `tracked::IngressRoute`, ensemble trié ;
+    le backend par défaut est la route sans hôte, chemin ni type ; `path_type` `exact`,
+    `prefix` ou `implementation_specific`, un chemin commence par `/`, `exact` et
+    `prefix` exigent un chemin, une route d'hôte exige un type ; hôte en sous-domaine
+    DNS, premier label `*` admis, une IP refusée en `kube.name.invalid` ; service en
+    étiquette DNS ; port nombre ou nom `IANA_SVC_NAME`), `tls_hosts` (ensemble trié,
+    hôtes contrôlés comme ceux des routes), `addresses` (IP de
+    `status.loadBalancer.ingress`, une sorte unique, colonne `address_ids`) ; nom d'un
+    ingress en sous-domaine DNS ; règle `kube.ingress.duplicate` ajoutée (la famille des
+    doublons du design l'omettait ; même contrôle avant la contrainte que le service) ;
+    `backend_missing` compare le seul nom du service (pas son port), sur la version de
+    l'ingress vivante à partir de maintenant, et l'écriture d'un service (créé, modifié,
+    clos) réévalue les ingress du namespace qui le nomment, pour que l'anomalie s'ouvre
+    et se close sans réécrire l'ingress ; réouverture d'identité (X3) comme la 4b.
+  - reste : pas de partage d'adresse entre un ingress et un service (l'IP d'un ingress
+    est souvent celle du service LoadBalancer de son contrôleur, refusée en doublon
+    `core.address.duplicate` quand les domaines se confondent : à trancher avant le
+    connecteur, tâche 10), ni entre deux ingress d'une même classe ; adresses en nom
+    d'hôte (`status.loadBalancer.ingress[].hostname`) ignorées ; backend `resource`
+    (non service) non représenté ; un port de route absent du service n'avertit pas ;
+    `kube.ingress.backend_missing` ne voit qu'à partir de maintenant (comme
+    `range_outside`) ; ni `/v1/ingresses` ni lecture du port `kartenn_kube::read`
+    (tâche 8) ; arêtes `kube.routes_to`, `kube.ingress_address` (4d) ; pas de test d'IP
+    IPv6 ni de réordonnancement de routes sans version.
 - [ ] 4d. Arêtes : `kube.runs_on`, `kube.node_range`, `kube.selects`,
   `kube.service_address`, `kube.routes_to`, `kube.ingress_address` déclarées par le
   module (ADR 0026 clauses 11, 12) ; chaîne d'exécution d'un workload (nœuds, machines,

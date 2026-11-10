@@ -71,6 +71,19 @@ pub(crate) static ENGLISH: English = English {
             "kube.service.approval.self",
             "Apply one's own changeset that touches a Kubernetes service.",
         ),
+        ("kube.ingress.read", "Read the Kubernetes ingresses."),
+        (
+            "kube.ingress.edit",
+            "Create, change or close a Kubernetes ingress in a changeset and submit it.",
+        ),
+        (
+            "kube.ingress.apply",
+            "Apply or reject the changeset of someone else that touches a Kubernetes ingress.",
+        ),
+        (
+            "kube.ingress.approval.self",
+            "Apply one's own changeset that touches a Kubernetes ingress.",
+        ),
     ],
     rules: &[
         (
@@ -108,6 +121,10 @@ pub(crate) static ENGLISH: English = English {
         (
             "kube.service.duplicate",
             "Two living services of a namespace do not carry the same name over overlapping periods.",
+        ),
+        (
+            "kube.ingress.duplicate",
+            "Two living ingresses of a namespace do not carry the same name over overlapping periods.",
         ),
         (
             "kube.node.machine_kind",
@@ -164,6 +181,7 @@ pub(crate) static ENGLISH: English = English {
             "Kubernetes workload",
         ),
         ("kube.service", "Service Kubernetes", "Kubernetes service"),
+        ("kube.ingress", "Ingress Kubernetes", "Kubernetes ingress"),
     ],
     states: &[],
 };
