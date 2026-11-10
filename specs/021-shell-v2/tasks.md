@@ -3993,7 +3993,33 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     celui de `kartenn-policy` installe déjà la politique ; une règle créée dans le même
     changeset (référence locale) est verrouillée par sa création, `prepare_rule` ne lit
     que les identifiants.
-  - reste : aucun.
+  - reste (revue) : l'ancrage lu par `prepare_group` précède les verrous (course traitée
+    par la 22o) ; le helper `named` de `kartenn-policy/tests/it/inference.rs` recopie
+    celui d'`event_domains.rs` ; aucun test des `domains` livrés à un abonné (rendu par
+    vue) pour la règle ni pour le groupe déplacé ; le test unitaire du groupe ne couvre
+    pas le passage d'un ancrage de domaine à un site ou une entité, ni l'inverse ; un
+    `completed.domain` mal formé est ignoré en silence (`infer.rs` vers la ligne 813).
+- [ ] 22o. Domaines lus avant les verrous (relevé par la revue de la 22n) — **en attente
+  d'arbitrage** (précision de l'ADR 0015, concurrence) : `prepare` (`prepare_group`,
+  `prepare_vlan`) et `lock_targets` (clôture d'un `VlanGroup` ou d'un `Vlan`,
+  `pipeline.rs` vers la ligne 1222) lisent le domaine d'un objet avant
+  `tx.lock` (`pipeline.rs` vers la ligne 2131), et rien ne le relit sous verrou. Deux
+  déplacements concurrents d'un même groupe G depuis D1 (vers D2 et vers D3) : le second
+  attend D1, puis sort G de D2 sans tenir D2 ; un troisième changeset lie sous le verrou
+  de D2 un préfixe de D2 à un VLAN de G ; les deux contrôles passent (READ COMMITTED) et
+  l'invariant d'ancrage est violé ; l'outbox du second nomme `[D1, D3]` sans D2. Options :
+  (A, recommandée) après la prise des verrous, relire les domaines des objets lus avant ;
+  si l'ensemble diffère de celui tenu, annuler la transaction et rejouer l'étape depuis
+  `prepare`, une ou deux fois au plus, puis refuser en conflit ; l'ordre déterministe
+  des verrous reste intact ; (B) refuser aussitôt en conflit (409) et laisser le client
+  rejouer : plus simple, mais visible au contrat ; (C) prendre le verrou du domaine
+  manquant après coup : ordre non déterministe, risque d'interblocage, écartée — verify :
+  test d'intégration à deux transactions (déplacements concurrents d'un groupe), le
+  second rejoue ou refuse, l'invariant d'ancrage tient, l'outbox nomme les trois domaines
+  - où : `crates/kartenn-service/src/pipeline.rs` (`lock_targets`, l'appel de
+    `tx.lock`), `crates/kartenn-store-pg/src/vlan.rs` (`prepare_group`, `prepare_vlan`),
+    `docs/adr/0015-serialisation-ecritures-par-domaine.md` (précision)
+  - dépend de : 22n ; arbitrage de l'utilisateur
 
 - [x] 22d. Chargement de l'arbre arrêté à deux pages (une passe sur sept, 22a et 24e) :
   après la deuxième page, ni ligne « suite » ni avis, 100 enfants dessinés ;
