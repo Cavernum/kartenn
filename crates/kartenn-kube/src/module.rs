@@ -73,11 +73,18 @@ static OPERATIONS: &[OperationType] = &[
     },
 ];
 
-static MIGRATIONS: &[ModuleMigration] = &[ModuleMigration {
-    version: 1,
-    name: "kube",
-    sql: include_str!("../migrations/0001_kube.sql"),
-}];
+static MIGRATIONS: &[ModuleMigration] = &[
+    ModuleMigration {
+        version: 1,
+        name: "kube",
+        sql: include_str!("../migrations/0001_kube.sql"),
+    },
+    ModuleMigration {
+        version: 2,
+        name: "node_pod_cidrs",
+        sql: include_str!("../migrations/0002_node_pod_cidrs.sql"),
+    },
+];
 
 macro_rules! permissions {
     ($list:ident; $($name:ident = $id:literal, $summary:literal;)*) => {
@@ -129,6 +136,13 @@ static REFERENCES: &[Reference] = &[
         from: NODE,
         to: MACHINE,
         on_close: OnClose::Nullify,
+    },
+    // The networks of the pod ranges of a node: kept while it cites them; the connector
+    // closes them with the node, or once the range leaves it (`kube.sync`).
+    Reference {
+        from: NODE,
+        to: PREFIX,
+        on_close: OnClose::Refuse,
     },
     // The domains, containers and networks a cluster designates: kept while it lives.
     Reference {

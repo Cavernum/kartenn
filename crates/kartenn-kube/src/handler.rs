@@ -4,12 +4,16 @@
 //! cluster per operation, found by its identity in the cluster (REQ-019-6, 7). `owner` and
 //! `site` of a cluster are assignments of `core.owner` and `core.site` the handler adds to
 //! the changeset; its nodes and namespaces inherit them (tree `kube`) and are anchored in
-//! its pod domain. The pod ranges of a node come with task 019-3c.
+//! its pod domain. The pod ranges of a node (`pod_cidrs`, REQ-019-13) are networks of that
+//! domain the `sync` creates and closes as operations of the core, cited by the node
+//! (`range_ids`) once their identifiers come back (`planned`, ADR 0026 amendment 8).
 
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
 
-use kartenn_core::objects::Slug;
+use kartenn_core::addr::Prefix;
+use kartenn_core::family;
+use kartenn_core::objects::{Nature, Slug};
 use kartenn_core::period::Period;
 use kartenn_core::rules::Violation;
 use kartenn_service::ObjectKind;
@@ -28,7 +32,8 @@ use crate::module::{CLUSTER, MACHINE, NAMESPACE, NODE};
 use crate::names::{DnsLabel, DnsSubdomain, LabelKey, LabelValue, parse_labels};
 use crate::pg::{self, CLUSTER_TABLE, NAMESPACE_TABLE, NODE_TABLE};
 use crate::rules::{
-    CLUSTER_CONNECTOR_GROUP, CLUSTER_RANGE_DOMAIN, NODE_MACHINE_KIND, OPERATION_INVALID,
+    CLUSTER_CONNECTOR_GROUP, CLUSTER_RANGE_DOMAIN, NODE_MACHINE_KIND, NODE_RANGE_OUTSIDE,
+    OPERATION_INVALID,
 };
 
 /// The handler of the module.
@@ -96,6 +101,12 @@ struct Completed {
     /// The pod domain of the cluster of a `sync`: the anchor of its objects.
     #[serde(default)]
     pod_domain: Option<Uuid>,
+    /// The pod containers of the cluster of a `sync`, as prefixes (task 019-3c).
+    #[serde(default)]
+    pod_containers: Vec<String>,
+    /// The networks the node of a `sync` cites, with their prefixes.
+    #[serde(default)]
+    ranges: Vec<(String, Uuid)>,
 }
 
 fn decode<T: serde::de::DeserializeOwned>(value: Value, field: &str) -> Result<T, Violation> {
@@ -372,8 +383,86 @@ fn cluster_defaults() -> Map<String, Value> {
 }
 
 /// The fields `sync` takes for each type, beside the identity.
-const NODE_FIELDS: &[&str] = &["uid", "addresses", "zone", "machine"];
+const NODE_FIELDS: &[&str] = &["uid", "addresses", "zone", "machine", "pod_cidrs"];
 const NAMESPACE_FIELDS: &[&str] = &["uid", "labels"];
+
+/// What a `sync` does to the pod ranges of a node (REQ-019-13).
+struct PodRanges {
+    /// The ranges as read, a sorted set (`pod_cidrs`).
+    cidrs: Vec<String>,
+    /// The networks the node keeps citing: those of the ranges it still holds.
+    kept: Vec<Uuid>,
+    /// A network created in the pod domain for each new range inside a pod container of
+    /// the cluster, a closure for each network of a range the node no longer holds; the
+    /// identifiers of the created ones come back by [`ModuleHandler::planned`].
+    core: Vec<Operation>,
+}
+
+/// A prefix of `field`, strictly parsed (no host bits, REQ-002-5).
+fn cidr(text: &str, field: &str) -> Result<Prefix, Violation> {
+    Prefix::parse_any(&family::ALL, text).map_err(|e| invalid(format!("{field}: {text}: {e}")))
+}
+
+/// The ranges of `value` (`spec.podCIDRs`) against the networks the node cites and the pod
+/// containers of its cluster (`completed`): a range unchanged creates nothing, a new one
+/// gets a network of `domain` if a container strictly contains it (else none, and
+/// `kube.node.range_outside` warns), a range gone closes its network.
+fn pod_ranges(value: &Value, completed: &Completed, domain: Uuid) -> Result<PodRanges, Violation> {
+    let texts: Vec<String> = decode(value.clone(), "pod_cidrs")?;
+    let wanted: BTreeSet<Prefix> = texts
+        .iter()
+        .map(|t| cidr(t, "pod_cidrs"))
+        .collect::<Result<_, _>>()?;
+    let held: Vec<(Prefix, Uuid)> = completed
+        .ranges
+        .iter()
+        .filter_map(|(t, id)| Some((cidr(t, "ranges").ok()?, *id)))
+        .collect();
+    let containers: Vec<Prefix> = completed
+        .pod_containers
+        .iter()
+        .filter_map(|t| cidr(t, "pod_containers").ok())
+        .collect();
+    let mut kept: Vec<Uuid> = held
+        .iter()
+        .filter(|(p, _)| wanted.contains(p))
+        .map(|(_, id)| *id)
+        .collect();
+    kept.sort_unstable();
+    let mut core: Vec<Operation> = wanted
+        .iter()
+        .filter(|p| !held.iter().any(|(h, _)| h == *p))
+        .filter(|p| containers.iter().any(|c| c.strictly_contains(**p)))
+        .map(|p| Operation::CreatePrefix {
+            local: None,
+            domain: Ref::Id(domain),
+            prefix: p.to_string(),
+            nature: Nature::Network,
+            point_to_point: false,
+            anycast: false,
+        })
+        .collect();
+    core.extend(
+        held.iter()
+            .filter(|(p, _)| !wanted.contains(p))
+            .map(|(_, id)| close_prefix(*id)),
+    );
+    Ok(PodRanges {
+        cidrs: wanted.iter().map(ToString::to_string).collect(),
+        kept,
+        core,
+    })
+}
+
+/// The closure of the network `id` of a pod range.
+fn close_prefix(id: Uuid) -> Operation {
+    Operation::Close {
+        kind: ObjectKind::Prefix,
+        id: Ref::Id(id),
+        expected: None,
+        cascade: false,
+    }
+}
 
 /// An address of a node, as read (`status.addresses`).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
@@ -582,7 +671,14 @@ impl Handler {
         let keys = vec![cluster_key(cluster)];
         match body.get("action").and_then(Value::as_str) {
             Some("upsert") => {
-                let (columns, cited) = mirror_columns(kind, &body, resolve)?;
+                let (mut columns, cited) = mirror_columns(kind, &body, resolve)?;
+                let mut core = Vec::new();
+                if let Some(value) = body.get("pod_cidrs") {
+                    let ranges = pod_ranges(value, &completed, domain)?;
+                    columns.insert("pod_cidrs".into(), json!(ranges.cidrs));
+                    columns.insert("range_ids".into(), json!(ranges.kept));
+                    core = ranges.core;
+                }
                 let (target, creates, data) = if let Some(existing) = completed.existing {
                     (existing, false, json!({ "update": columns }))
                 } else {
@@ -595,8 +691,8 @@ impl Handler {
                     if kind == node_kind() {
                         row.insert("machine_id".into(), Value::Null);
                         row.insert("addresses".into(), json!([]));
-                        // Filled by task 019-3c.
                         row.insert("range_ids".into(), json!([]));
+                        row.insert("pod_cidrs".into(), json!([]));
                         row.insert("zone".into(), Value::Null);
                     } else {
                         row.insert("labels".into(), json!({}));
@@ -612,7 +708,7 @@ impl Handler {
                     creates,
                     domains: vec![domain],
                     keys,
-                    core: Vec::new(),
+                    core,
                     data,
                 })
             }
@@ -620,18 +716,22 @@ impl Handler {
                 let existing = completed.existing.ok_or_else(|| {
                     invalid(format!("no living {kind} {name} in the cluster {cluster}"))
                 })?;
+                // The networks of its pod ranges close with the node, once it no longer
+                // cites them (design « Références »).
+                let mut core = vec![Operation::Close {
+                    kind: ObjectKind::Module(kind),
+                    id: Ref::Id(existing),
+                    expected: None,
+                    cascade: false,
+                }];
+                core.extend(completed.ranges.iter().map(|(_, id)| close_prefix(*id)));
                 Ok(ModulePlan {
                     kind,
                     object: existing,
                     creates: false,
                     domains: vec![domain],
                     keys,
-                    core: vec![Operation::Close {
-                        kind: ObjectKind::Module(kind),
-                        id: Ref::Id(existing),
-                        expected: None,
-                        cascade: false,
-                    }],
+                    core,
                     data: json!({ "noop": true }),
                 })
             }
@@ -718,6 +818,12 @@ impl ModuleHandler for Handler {
                     if let (Some(table), Some(name)) = (table, name) {
                         completed.existing = pg::named(conn, table, cluster, name, at).await?;
                     }
+                    if table == Some(NODE_TABLE) {
+                        completed.pod_containers = pg::pod_containers(conn, cluster, at).await?;
+                        if let Some(node) = completed.existing {
+                            completed.ranges = pg::node_ranges(conn, node, at).await?;
+                        }
+                    }
                 }
             } else {
                 let (owner_property, site_property) = pg::owner_and_site(conn, at).await?;
@@ -744,6 +850,34 @@ impl ModuleHandler for Handler {
             "sync" => Self::plan_sync(operation, object, resolve),
             other => Err(invalid(format!("kube.{other}: unknown operation"))),
         }
+    }
+
+    /// A node cites the networks created for its new pod ranges (ADR 0026, amendment 8).
+    fn planned(&self, plan: &mut ModulePlan, created: &[Uuid]) {
+        let mut new: Vec<Uuid> = plan
+            .core
+            .iter()
+            .zip(created)
+            .filter(|(op, _)| matches!(op, Operation::CreatePrefix { .. }))
+            .map(|(_, id)| *id)
+            .collect();
+        if new.is_empty() {
+            return;
+        }
+        let row = if plan.data.get("create").is_some() {
+            "create"
+        } else {
+            "update"
+        };
+        let Some(ids) = plan.data.get_mut(row).and_then(|r| r.get_mut("range_ids")) else {
+            return;
+        };
+        let mut all: Vec<Uuid> = serde_json::from_value(ids.take()).unwrap_or_default();
+        all.append(&mut new);
+        // A set: the same ranges make the same column.
+        all.sort_unstable();
+        all.dedup();
+        *ids = json!(all);
     }
 
     fn reads(&self, plan: &ModulePlan) -> Vec<(String, Uuid)> {
@@ -927,7 +1061,24 @@ impl ModuleHandler for Handler {
                     .with_subjects([node, machine]),
                 );
             }
-            Ok(Findings::from(found))
+            for (node, range) in pg::pod_ranges_outside(conn, &nodes).await? {
+                found.push(
+                    Violation::new(
+                        &NODE_RANGE_OUTSIDE,
+                        format!(
+                            "the pod range {range} is not inside a pod container of the cluster: no network is created for it"
+                        ),
+                    )
+                    .with_subjects([node]),
+                );
+            }
+            let mut findings = Findings::from(found);
+            // A node written anew is checked anew: its anomaly closes once its ranges are
+            // inside the containers.
+            findings
+                .reevaluated
+                .extend(nodes.iter().map(|n| (*n, NODE_RANGE_OUTSIDE.id)));
+            Ok(findings)
         })
     }
 }

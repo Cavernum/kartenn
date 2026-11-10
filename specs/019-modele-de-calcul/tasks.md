@@ -331,12 +331,47 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     l'espèce d'une machine changée par la 009 après sa désignation n'est pas revérifiée ;
     ni `mark_absent` ni `clear_absent` (tâche 5) ; identifiant externe
     `kube:<cluster>/…` non lié (tâche 8 ou 10).
-- [ ] 3c. Réseaux des plages de pods d'un nœud créés et clos par `kube.sync`,
+- [x] 3c. Réseaux des plages de pods d'un nœud créés et clos par `kube.sync`,
   avertissement `kube.node.range_outside` (migration 0002, colonne `pod_cidrs`,
   Q-019-14) — REQ-019-13 — verify : `node_range_created_and_closed`, un
   test de `range_outside`
   - où : comme la tâche 3 ; le crochet `planned` de la 3a
   - dépend de : 3a, 3b
+  - fait (2026-11-10) : `crates/kartenn-kube` — `migrations/0002_node_pod_cidrs.sql`
+    (`pod_cidrs cidr[]` par `kartenn_add_versioned_column`, index GIN `node_ranges` sur
+    `range_ids`) ; `module.rs` (migration 2, référence `kube.node` → `prefix` en refus) ;
+    `handler.rs` (champ `pod_cidrs` de `kube.sync` pour un nœud ; `prepare` lit les
+    conteneurs de pods du cluster et les réseaux que cite le nœud ; `pod_ranges` : une
+    plage nouvelle strictement dans un conteneur → `CreatePrefix` réseau du domaine des
+    pods, une plage disparue → `Close` de son réseau, une plage inchangée garde le sien ;
+    `close` d'un nœud clôt aussi ses réseaux ; `planned` ajoute à `range_ids` les
+    identifiants des `CreatePrefix` ; `check` lève `kube.node.range_outside` et le
+    réévalue pour chaque nœud écrit) ; `pg.rs` (`pod_containers`, `node_ranges`,
+    `pod_ranges_outside`, référents `node` → `prefix`) ; tests
+    `node_range_created_and_closed` et `node_range_outside_warns`
+    (`tests/it/clusters.rs`).
+  - choix : champ `pod_cidrs` (comme la colonne et `spec.podCIDRs`), ensemble trié de
+    préfixes stricts (bits d'hôte refusés, `kube.operation.invalid`), absent = plages
+    inchangées ; `range_ids` trié par identifiant (ensemble, pas de version pour un
+    réordonnancement) ; « dans un conteneur » = strictement contenu (`>>`) : une plage
+    égale au conteneur n'a pas de réseau et avertit, plutôt que de refuser le lot par
+    `core.prefix.duplicate` ; la plage hors conteneur est gardée dans `pod_cidrs` (la
+    règle en part) mais sans réseau (REQ-019-13) ; la règle ne lit que les versions du
+    nœud vivantes à partir de maintenant (pas d'avertissement à la clôture d'un nœud) ;
+    un réseau cité ne se clôt pas seul (`core.object.dependents`, référence en refus),
+    le module le clôt avec le nœud ou la plage ; aucune règle ni droit nouveau : les
+    `CreatePrefix` et `Close` passent sous `core.prefix.edit` du domaine des pods
+    (opérations du noyau, ADR 0026 clause 6) ; index GIN `node_ranges` pour la
+    recherche des référents à chaque clôture de préfixe.
+  - reste : un nœud clos par la cascade de son cluster (`close` du cluster avec
+    `cascade`) laisse ses réseaux vivants, orphelins (le module ne planifie rien dans
+    une cascade, `nullify` seul) ; un changement des conteneurs d'un cluster ne
+    réévalue pas `range_outside` sur ses nœuds tant qu'ils ne sont pas réécrits, et ne
+    crée les réseaux devenus possibles qu'au `kube.sync` suivant du nœud ; les droits
+    `core.prefix.edit` sur le domaine des pods ne sont pas testés pour un compte
+    restreint (tests sous `Unrestricted`) ; le commentaire de `0001_kube.sql`
+    (« `range_ids` stays empty until task 019-3c ») reste, la migration n'étant pas
+    réécrite.
 - [ ] 4. Workloads, services, ingress : tables, `kube.sync` complet, adresses `vip`
   planifiées, sélection d'un service, références et cascades, arêtes — REQ-019-8 à 11,
   14 — verify : `workload_recreated_keeps_identity`, `service_vip_refuses_close`,

@@ -1,5 +1,6 @@
 //! The storage of the module in PostgreSQL (feature `pg`): the tables of the schema `kube`
-//! (migration `0001_kube.sql`), on the connection of the changeset.
+//! (migrations `0001_kube.sql`, `0002_node_pod_cidrs.sql`), on the connection of the
+//! changeset.
 
 use kartenn_core::period::{Instant, Period};
 use kartenn_core::rules::{Rule, Violation};
@@ -67,6 +68,51 @@ pub(crate) async fn pod_domain(
     .bind(cluster)
     .bind(at)
     .fetch_optional(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The pod containers of `cluster` at `at`, as prefixes (`address/length`).
+pub(crate) async fn pod_containers(
+    conn: &mut PgConnection,
+    cluster: Uuid,
+    at: Option<OffsetDateTime>,
+) -> Result<Vec<String>, StoreError> {
+    sqlx::query_scalar(
+        "SELECT p.prefix::text
+           FROM kube.cluster c
+           JOIN public.prefix p
+             ON p.id = ANY(c.pod_container_ids)
+            AND p.valid_period @> coalesce($2::timestamptz, now())
+          WHERE c.id = $1 AND c.valid_period @> coalesce($2::timestamptz, now())
+          ORDER BY p.prefix",
+    )
+    .bind(cluster)
+    .bind(at)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The networks the node `node` cites at `at` (`range_ids`), with their prefixes: the
+/// pod ranges it holds a network for.
+pub(crate) async fn node_ranges(
+    conn: &mut PgConnection,
+    node: Uuid,
+    at: Option<OffsetDateTime>,
+) -> Result<Vec<(String, Uuid)>, StoreError> {
+    sqlx::query_as(
+        "SELECT p.prefix::text, p.id
+           FROM kube.node n
+           JOIN public.prefix p
+             ON p.id = ANY(n.range_ids)
+            AND p.valid_period @> coalesce($2::timestamptz, now())
+          WHERE n.id = $1 AND n.valid_period @> coalesce($2::timestamptz, now())
+          ORDER BY p.prefix",
+    )
+    .bind(node)
+    .bind(at)
+    .fetch_all(conn)
     .await
     .map_err(|e| store(&e))
 }
@@ -425,6 +471,33 @@ pub(crate) async fn bad_machines(
     .map_err(|e| store(&e))
 }
 
+/// The pod ranges of the nodes among `ids`, living from now on, that no pod container of
+/// their cluster strictly contains over their version (`kube.node.range_outside`):
+/// `(node, range)`.
+pub(crate) async fn pod_ranges_outside(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<(Uuid, String)>, StoreError> {
+    sqlx::query_as(
+        "SELECT DISTINCT n.id, r.cidr::text
+           FROM kube.node n
+           CROSS JOIN LATERAL unnest(n.pod_cidrs) AS r(cidr)
+          WHERE n.id = ANY($1) AND n.valid_period && tstzrange(now(), NULL)
+            AND NOT EXISTS (
+                SELECT 1 FROM kube.cluster c
+                  JOIN public.prefix p ON p.id = ANY(c.pod_container_ids)
+                 WHERE c.id = n.cluster_id
+                   AND c.valid_period && n.valid_period
+                   AND p.valid_period && n.valid_period
+                   AND p.prefix >> r.cidr)
+          ORDER BY 1, 2",
+    )
+    .bind(ids)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
 /// The living objects of the module that cite `target` by the reference `from` → `to`
 /// from `at` on.
 pub(crate) async fn referrers(
@@ -441,6 +514,9 @@ pub(crate) async fn referrers(
             "SELECT DISTINCT id FROM kube.namespace WHERE cluster_id = $1 AND {live}"
         }
         (NODE, MACHINE) => "SELECT DISTINCT id FROM kube.node WHERE machine_id = $1 AND {live}",
+        (NODE, PREFIX) => {
+            "SELECT DISTINCT id FROM kube.node WHERE range_ids @> ARRAY[$1::uuid] AND {live}"
+        }
         (CLUSTER, DOMAIN) => {
             "SELECT DISTINCT id FROM kube.cluster
               WHERE (pod_domain_id = $1 OR service_domain_id = $1 OR external_domain_id = $1)
