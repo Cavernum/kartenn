@@ -372,6 +372,40 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     restreint (tests sous `Unrestricted`) ; le commentaire de `0001_kube.sql`
     (« `range_ids` stays empty until task 019-3c ») reste, la migration n'étant pas
     réécrite.
+  - reste (revue) : `.ok()?` (`handler.rs` vers les lignes 419 et 424) omet sans erreur
+    une plage tenue ou un conteneur illisible, la plage passe pour nouvelle et donne un
+    `CreatePrefix` en double ; la règle compte un conteneur dont la période chevauche
+    (`&&`, `pg.rs` vers la ligne 490) quand la création ne le voit qu'à l'instant `at`
+    (`@>`, vers la ligne 76) : un conteneur déclaré à une date future ne donne ni réseau
+    ni avertissement ; « au plus une plage par famille » (X6) n'est pas contrôlée ; les
+    droits `core.prefix.edit` sur le domaine des pods sont à rattacher au rôle
+    `kube_connector` (X10, tâche 11) sans quoi le connecteur réel est refusé. Le constat
+    important (cascade) est la tâche 3d.
+- [ ] 3d. Réseaux des nœuds clos avec la cascade de leur cluster (constat important de la
+  revue de la 3c) — **en attente d'arbitrage** (contrat de module, ADR 0026) : le design
+  « Références » (« nœud | réseau de plage | refus ; cascade : clôt le réseau avec le
+  nœud ») et l'acceptation de REQ-019-13 ne sont pas tenus quand le nœud est clos par la
+  cascade de son cluster : `cascade.rs` clôt les objets de module dépendants
+  (`Planned::Close`) sans demander au module ce qu'ils emportent, et la référence
+  `node` → `prefix` ne joue que dans le sens « le préfixe se clôt ». Les réseaux restent
+  vivants et orphelins ; un cluster redéclaré sur le même domaine voit son premier lot
+  refusé (`core.prefix.duplicate`). Le même besoin revient à la tâche 4 (« service,
+  ingress | adresse `vip` | cascade : clôt l'adresse »). Options : (A, recommandée) une
+  politique déclarative sur la référence, par exemple `Reference::owned` (ou
+  `OnClose::…` du sens inverse) : quand la source se clôt, en cascade ou non, le noyau
+  clôt aussi la cible ; amendement additif de l'ADR 0026 (clause des références), sans
+  code de module ; (B) un crochet `ModuleHandler::closing(kind, id) -> Option<ModulePlan>`
+  appelé par la cascade pour chaque objet de module clos, dont les opérations du noyau
+  sont développées ; plus général, mais impératif et à répéter par module ; (C) refuser
+  la clôture d'un cluster tant que ses nœuds citent des réseaux (le connecteur vide
+  d'abord) : sans changement du noyau, mais contraire au design — verify : test
+  d'intégration, `close` du cluster en `cascade` clôt nœuds et réseaux ; redéclaration
+  du cluster puis `kube.sync` acceptée
+  - où : `crates/kartenn-service/src/cascade.rs` (vers la ligne 142),
+    `crates/kartenn-service/src/module.rs` (`Reference`, `OnClose`),
+    `crates/kartenn-kube/src/module.rs` (référence `node` → `prefix`),
+    `docs/adr/0026-contrat-de-module.md`
+  - dépend de : 3c ; arbitrage de l'utilisateur
 - [ ] 4. Workloads, services, ingress : tables, `kube.sync` complet, adresses `vip`
   planifiées, sélection d'un service, références et cascades, arêtes — REQ-019-8 à 11,
   14 — verify : `workload_recreated_keeps_identity`, `service_vip_refuses_close`,
