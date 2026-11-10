@@ -1,0 +1,212 @@
+//! The kube module as the core sees it (ADR 0026): its types of objects, permissions,
+//! rules, operations, references and migrations, and its handler in the write pipeline
+//! (feature `pg`). It depends on the machines module (REQ-019-4): a node designates a
+//! machine of the 009.
+
+use std::sync::Arc;
+
+use kartenn_core::authz::Permission;
+use kartenn_core::rules::Rule;
+use kartenn_service::module::{
+    Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, OperationType, Reference,
+};
+
+use crate::rules::KUBE_RULES;
+
+/// The qualified type of a cluster.
+pub const CLUSTER: &str = "kube.cluster";
+/// The qualified type of a node.
+pub const NODE: &str = "kube.node";
+/// The qualified type of a namespace.
+pub const NAMESPACE: &str = "kube.namespace";
+/// A machine of the 009, as a reference names it.
+pub const MACHINE: &str = "machines.machine";
+/// An addressing domain of the core.
+pub const DOMAIN: &str = "domain";
+/// A prefix of the core: a container of pod ranges, a network of services.
+pub const PREFIX: &str = "prefix";
+
+/// The types of the module so far (design « Types d'objets »): the cluster, root of the
+/// tree `kube`, carries `core.owner` and `core.site`; its nodes and namespaces inherit
+/// them and are anchored in its pod domain.
+static TYPES: &[ObjectType] = &[
+    ObjectType {
+        kind: CLUSTER,
+        collection: "kube-clusters",
+        parent: None,
+        owner_required: true,
+        carries_site: true,
+        domain_anchored: false,
+    },
+    ObjectType {
+        kind: NODE,
+        collection: "kube-nodes",
+        parent: Some(CLUSTER),
+        owner_required: false,
+        carries_site: false,
+        domain_anchored: true,
+    },
+    ObjectType {
+        kind: NAMESPACE,
+        collection: "kube-namespaces",
+        parent: Some(CLUSTER),
+        owner_required: false,
+        carries_site: false,
+        domain_anchored: true,
+    },
+];
+
+static OPERATIONS: &[OperationType] = &[
+    OperationType {
+        name: "create_cluster",
+        defines: Some(CLUSTER),
+    },
+    OperationType {
+        name: "update_cluster",
+        defines: None,
+    },
+    // The batch of the connector: one object of a cluster per operation, created, changed
+    // or closed by its identity in the cluster (019/X9).
+    OperationType {
+        name: "sync",
+        defines: None,
+    },
+];
+
+static MIGRATIONS: &[ModuleMigration] = &[ModuleMigration {
+    version: 1,
+    name: "kube",
+    sql: include_str!("../migrations/0001_kube.sql"),
+}];
+
+macro_rules! permissions {
+    ($list:ident; $($name:ident = $id:literal, $summary:literal;)*) => {
+        $(
+            static $name: Permission = Permission {
+                name: $id,
+                summary: $summary,
+                global_only: false,
+            };
+        )*
+        static $list: &[&Permission] = &[$(&$name),*];
+    };
+}
+
+// The grammar of the 024 (M7) for each type of the module so far (design « Droits, rôles
+// et audit »).
+permissions! {
+    PERMISSIONS;
+    CLUSTER_READ = "kube.cluster.read", "Lire les clusters Kubernetes.";
+    CLUSTER_EDIT = "kube.cluster.edit", "Créer, modifier ou clore un cluster Kubernetes dans un changeset et le soumettre.";
+    CLUSTER_APPLY = "kube.cluster.apply", "Appliquer ou rejeter le changeset d'un autre qui touche un cluster Kubernetes.";
+    CLUSTER_APPROVAL_SELF = "kube.cluster.approval.self", "Appliquer son propre changeset qui touche un cluster Kubernetes.";
+    NODE_READ = "kube.node.read", "Lire les nœuds Kubernetes.";
+    NODE_EDIT = "kube.node.edit", "Créer, modifier ou clore un nœud Kubernetes dans un changeset et le soumettre.";
+    NODE_APPLY = "kube.node.apply", "Appliquer ou rejeter le changeset d'un autre qui touche un nœud Kubernetes.";
+    NODE_APPROVAL_SELF = "kube.node.approval.self", "Appliquer son propre changeset qui touche un nœud Kubernetes.";
+    NAMESPACE_READ = "kube.namespace.read", "Lire les namespaces Kubernetes.";
+    NAMESPACE_EDIT = "kube.namespace.edit", "Créer, modifier ou clore un namespace Kubernetes dans un changeset et le soumettre.";
+    NAMESPACE_APPLY = "kube.namespace.apply", "Appliquer ou rejeter le changeset d'un autre qui touche un namespace Kubernetes.";
+    NAMESPACE_APPROVAL_SELF = "kube.namespace.approval.self", "Appliquer son propre changeset qui touche un namespace Kubernetes.";
+}
+
+/// What closing an object does to the objects of the module that cite it (D33; design
+/// « Références »).
+static REFERENCES: &[Reference] = &[
+    // A node and a namespace live in their cluster: closed with it.
+    Reference {
+        from: NODE,
+        to: CLUSTER,
+        on_close: OnClose::Cascade,
+    },
+    Reference {
+        from: NAMESPACE,
+        to: CLUSTER,
+        on_close: OnClose::Cascade,
+    },
+    // The machine a node designates: no longer designated.
+    Reference {
+        from: NODE,
+        to: MACHINE,
+        on_close: OnClose::Nullify,
+    },
+    // The domains, containers and networks a cluster designates: kept while it lives.
+    Reference {
+        from: CLUSTER,
+        to: DOMAIN,
+        on_close: OnClose::Refuse,
+    },
+    Reference {
+        from: CLUSTER,
+        to: PREFIX,
+        on_close: OnClose::Refuse,
+    },
+];
+
+/// The Kubernetes module (spec 019).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Kube;
+
+impl Module for Kube {
+    fn name(&self) -> &'static str {
+        "kube"
+    }
+    fn version(&self) -> &'static str {
+        env!("CARGO_PKG_VERSION")
+    }
+    fn depends_on(&self) -> &'static [&'static str] {
+        &["machines"]
+    }
+    fn object_types(&self) -> &'static [ObjectType] {
+        TYPES
+    }
+    fn permissions(&self) -> &'static [&'static Permission] {
+        PERMISSIONS
+    }
+    fn rules(&self) -> &'static [&'static Rule] {
+        KUBE_RULES
+    }
+    fn labels(&self) -> Vec<kartenn_core::labels::CodeLabel> {
+        kartenn_core::code_labels::of_module(PERMISSIONS, KUBE_RULES, &crate::labels::ENGLISH)
+    }
+    fn operations(&self) -> &'static [OperationType] {
+        OPERATIONS
+    }
+    fn references(&self) -> &'static [Reference] {
+        REFERENCES
+    }
+    fn migrations(&self) -> &'static [ModuleMigration] {
+        MIGRATIONS
+    }
+    fn handler(&self) -> Option<Arc<dyn ModuleHandler>> {
+        #[cfg(feature = "pg")]
+        {
+            Some(Arc::new(crate::handler::Handler))
+        }
+        #[cfg(not(feature = "pg"))]
+        {
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use kartenn_service::module::ModuleRegistry;
+
+    use super::*;
+
+    /// REQ-019-4: a build with `kube` and without `machines` does not start, and says why.
+    #[test]
+    fn kube_needs_machines() {
+        let refused = ModuleRegistry::new(vec![Arc::new(Kube)]).expect_err("kube alone");
+        let message = refused.to_string();
+        assert!(message.contains("kube"), "{message}");
+        assert!(message.contains("machines"), "{message}");
+        let registry =
+            ModuleRegistry::new(vec![Arc::new(Kube), Arc::new(kartenn_machines::Machines)])
+                .expect("kube with machines");
+        let names: Vec<&str> = registry.modules().map(|m| m.name()).collect();
+        assert_eq!(names, ["machines", "kube"], "machines first");
+    }
+}

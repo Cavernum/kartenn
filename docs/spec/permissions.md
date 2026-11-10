@@ -97,14 +97,26 @@ module) relèvent de `<déclarant>.settings.*`, le déclarant lu dans la clé
 | `flow.edit` | — | Écrire directement un flux (maintenance) dans un changeset et le soumettre, avec la lecture de ses deux extrémités. |
 | `flow.apply` | — | Appliquer ou rejeter le changeset d'un autre qui écrit directement un flux. |
 | `flow.approval.self` | — | Appliquer son propre changeset qui écrit directement un flux. |
+| `kube.cluster.read` | — | Lire les clusters Kubernetes. |
+| `kube.cluster.edit` | — | Créer, modifier ou clore un cluster Kubernetes dans un changeset et le soumettre. |
+| `kube.cluster.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche un cluster Kubernetes. |
+| `kube.cluster.approval.self` | — | Appliquer son propre changeset qui touche un cluster Kubernetes. |
+| `kube.node.read` | — | Lire les nœuds Kubernetes. |
+| `kube.node.edit` | — | Créer, modifier ou clore un nœud Kubernetes dans un changeset et le soumettre. |
+| `kube.node.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche un nœud Kubernetes. |
+| `kube.node.approval.self` | — | Appliquer son propre changeset qui touche un nœud Kubernetes. |
+| `kube.namespace.read` | — | Lire les namespaces Kubernetes. |
+| `kube.namespace.edit` | — | Créer, modifier ou clore un namespace Kubernetes dans un changeset et le soumettre. |
+| `kube.namespace.apply` | — | Appliquer ou rejeter le changeset d'un autre qui touche un namespace Kubernetes. |
+| `kube.namespace.approval.self` | — | Appliquer son propre changeset qui touche un namespace Kubernetes. |
 
 ## Rôles livrés
 
 | Rôle | Clé | Contenu |
 |---|---|---|
-| Lecteur | `reader` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.vlan_group.read`, `core.vlan.read`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read` |
-| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.vlan_group.read`, `core.vlan.read`, `core.entity.edit`, `core.site.edit`, `core.domain.edit`, `core.prefix.edit`, `core.range.edit`, `core.address.edit`, `core.vlan_group.edit`, `core.vlan.edit`, `prop.*.edit`, `core.entity.approval.self`, `core.site.approval.self`, `core.domain.approval.self`, `core.prefix.approval.self`, `core.range.approval.self`, `core.address.approval.self`, `core.vlan_group.approval.self`, `core.vlan.approval.self`, `prop.*.approval.self`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read` |
-| Approbateur | `approver` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.vlan_group.read`, `core.vlan.read`, `core.entity.apply`, `core.site.apply`, `core.domain.apply`, `core.prefix.apply`, `core.range.apply`, `core.address.apply`, `core.vlan_group.apply`, `core.vlan.apply`, `prop.*.apply`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read`, `machines.cluster.apply`, `machines.apply`, `machines.interface.apply`, `flow.apply` |
+| Lecteur | `reader` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.vlan_group.read`, `core.vlan.read`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read`, `kube.cluster.read`, `kube.node.read`, `kube.namespace.read` |
+| Éditeur | `editor` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.vlan_group.read`, `core.vlan.read`, `core.entity.edit`, `core.site.edit`, `core.domain.edit`, `core.prefix.edit`, `core.range.edit`, `core.address.edit`, `core.vlan_group.edit`, `core.vlan.edit`, `prop.*.edit`, `core.entity.approval.self`, `core.site.approval.self`, `core.domain.approval.self`, `core.prefix.approval.self`, `core.range.approval.self`, `core.address.approval.self`, `core.vlan_group.approval.self`, `core.vlan.approval.self`, `prop.*.approval.self`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read`, `kube.cluster.read`, `kube.node.read`, `kube.namespace.read` |
+| Approbateur | `approver` | `core.entity.read`, `core.site.read`, `core.domain.read`, `core.prefix.read`, `core.range.read`, `core.address.read`, `core.vlan_group.read`, `core.vlan.read`, `core.entity.apply`, `core.site.apply`, `core.domain.apply`, `core.prefix.apply`, `core.range.apply`, `core.address.apply`, `core.vlan_group.apply`, `core.vlan.apply`, `prop.*.apply`, `machines.cluster.read`, `machines.read`, `machines.interface.read`, `policy.catalogue.read`, `policy.verdict.read`, `flow.read`, `kube.cluster.read`, `kube.node.read`, `kube.namespace.read`, `machines.cluster.apply`, `machines.apply`, `machines.interface.apply`, `flow.apply`, `kube.cluster.apply`, `kube.node.apply`, `kube.namespace.apply` |
 | Administrateur | `administrator` | `*` |
 
 ## Anciens noms
@@ -161,6 +173,15 @@ l'historique et le journal d'audit.
 | `flow.write` | `flow.edit`, `flow.approval.self` |
 | `flow.propose` | `flow.edit` |
 | `flow.apply_own` | `flow.approval.self` |
+| `kube.cluster.write` | `kube.cluster.edit`, `kube.cluster.approval.self` |
+| `kube.cluster.propose` | `kube.cluster.edit` |
+| `kube.cluster.apply_own` | `kube.cluster.approval.self` |
+| `kube.node.write` | `kube.node.edit`, `kube.node.approval.self` |
+| `kube.node.propose` | `kube.node.edit` |
+| `kube.node.apply_own` | `kube.node.approval.self` |
+| `kube.namespace.write` | `kube.namespace.edit`, `kube.namespace.approval.self` |
+| `kube.namespace.propose` | `kube.namespace.edit` |
+| `kube.namespace.apply_own` | `kube.namespace.approval.self` |
 | `prop.*.write` | `prop.*.edit`, `prop.*.approval.self` |
 | `prop.*.propose` | `prop.*.edit` |
 | `prop.*.apply_own` | `prop.*.approval.self` |
@@ -201,4 +222,4 @@ l'historique et le journal d'audit.
 | `policy.environment.admin` | `policy.settings.edit`, `policy.settings.apply`, `policy.settings.approval.self` |
 | `policy.flow_type.admin` | `policy.settings.edit`, `policy.settings.apply`, `policy.settings.approval.self` |
 | `policy.service.admin` | `policy.settings.edit`, `policy.settings.apply`, `policy.settings.approval.self` |
-| `core.changeset.approve` | `core.entity.apply`, `core.site.apply`, `core.domain.apply`, `core.prefix.apply`, `core.range.apply`, `core.address.apply`, `core.vlan_group.apply`, `core.vlan.apply`, `machines.cluster.apply`, `machines.apply`, `machines.interface.apply`, `flow.apply`, `prop.*.apply` |
+| `core.changeset.approve` | `core.entity.apply`, `core.site.apply`, `core.domain.apply`, `core.prefix.apply`, `core.range.apply`, `core.address.apply`, `core.vlan_group.apply`, `core.vlan.apply`, `machines.cluster.apply`, `machines.apply`, `machines.interface.apply`, `flow.apply`, `kube.cluster.apply`, `kube.node.apply`, `kube.namespace.apply`, `prop.*.apply` |

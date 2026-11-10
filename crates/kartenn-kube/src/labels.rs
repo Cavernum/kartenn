@@ -1,0 +1,137 @@
+//! The English of the codes of the module (spec 018, R8 b): its permissions and rules
+//! beside their French definitions, its kinds.
+
+use kartenn_core::code_labels::English;
+
+/// The English of the module.
+pub(crate) static ENGLISH: English = English {
+    permissions: &[
+        ("kube.cluster.read", "Read the Kubernetes clusters."),
+        (
+            "kube.cluster.edit",
+            "Create, change or close a Kubernetes cluster in a changeset and submit it.",
+        ),
+        (
+            "kube.cluster.apply",
+            "Apply or reject the changeset of someone else that touches a Kubernetes cluster.",
+        ),
+        (
+            "kube.cluster.approval.self",
+            "Apply one's own changeset that touches a Kubernetes cluster.",
+        ),
+        ("kube.node.read", "Read the Kubernetes nodes."),
+        (
+            "kube.node.edit",
+            "Create, change or close a Kubernetes node in a changeset and submit it.",
+        ),
+        (
+            "kube.node.apply",
+            "Apply or reject the changeset of someone else that touches a Kubernetes node.",
+        ),
+        (
+            "kube.node.approval.self",
+            "Apply one's own changeset that touches a Kubernetes node.",
+        ),
+        ("kube.namespace.read", "Read the Kubernetes namespaces."),
+        (
+            "kube.namespace.edit",
+            "Create, change or close a Kubernetes namespace in a changeset and submit it.",
+        ),
+        (
+            "kube.namespace.apply",
+            "Apply or reject the changeset of someone else that touches a Kubernetes namespace.",
+        ),
+        (
+            "kube.namespace.approval.self",
+            "Apply one's own changeset that touches a Kubernetes namespace.",
+        ),
+    ],
+    rules: &[
+        (
+            "kube.operation.invalid",
+            "An operation of the module carries the fields it expects, with admitted values and objects that exist.",
+        ),
+        (
+            "kube.object.managed",
+            "The tracked fields of a Kubernetes object are written only by a service account member of the connector group of its cluster.",
+        ),
+        (
+            "kube.connector.direct",
+            "A member of a connector group writes only through the kube.sync operation.",
+        ),
+        (
+            "kube.cluster.range_domain",
+            "A range of a cluster is in the domain the cluster designates for it.",
+        ),
+        (
+            "kube.cluster.connector_group",
+            "The connector group of a cluster exists and lives over the whole period.",
+        ),
+        (
+            "kube.node.duplicate",
+            "Two living nodes of a cluster do not carry the same name over overlapping periods.",
+        ),
+        (
+            "kube.namespace.duplicate",
+            "Two living namespaces of a cluster do not carry the same name over overlapping periods.",
+        ),
+        (
+            "kube.workload.duplicate",
+            "Two living workloads of a namespace do not carry the same kind and name over overlapping periods.",
+        ),
+        (
+            "kube.service.duplicate",
+            "Two living services of a namespace do not carry the same name over overlapping periods.",
+        ),
+        (
+            "kube.node.machine_kind",
+            "A node designates a physical or virtual machine that no other living node designates.",
+        ),
+        (
+            "kube.name.invalid",
+            "The name of a Kubernetes object is a lower-case DNS label or subdomain.",
+        ),
+        (
+            "kube.label.invalid",
+            "A label key, its value and a selector follow the syntax of Kubernetes.",
+        ),
+        (
+            "kube.node.range_outside",
+            "The pod range of a node is inside a pod range container of its cluster.",
+        ),
+        (
+            "kube.node.unmatched",
+            "A node designates a machine found without ambiguity.",
+        ),
+        (
+            "kube.object.absent",
+            "A Kubernetes object cited by a dependent is present in its cluster.",
+        ),
+        (
+            "kube.ingress.backend_missing",
+            "An ingress rule targets a service present in its namespace.",
+        ),
+        (
+            "kube.label.not_admitted",
+            "The axis value of a label is admitted in the namespace of the workload that carries it.",
+        ),
+        (
+            "kube.machine.looks_like_pod",
+            "A container machine hosted by the machine of a node does not carry the name of an observed pod.",
+        ),
+        (
+            "kube.sync.stale",
+            "A cluster receives a batch or a bookmark from its connector at least every 10 minutes.",
+        ),
+    ],
+    kinds: &[
+        ("kube.cluster", "Cluster Kubernetes", "Kubernetes cluster"),
+        ("kube.node", "Nœud Kubernetes", "Kubernetes node"),
+        (
+            "kube.namespace",
+            "Namespace Kubernetes",
+            "Kubernetes namespace",
+        ),
+    ],
+    states: &[],
+};

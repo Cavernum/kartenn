@@ -1,0 +1,919 @@
+//! The handler of the module in the write pipeline (feature `pg`; ADR 0026, clause 6):
+//! the declaration of a cluster by an administrator (`create_cluster`, `update_cluster`,
+//! REQ-019-5) and the batch of the connector (`sync`, 019/X9), one node or namespace of a
+//! cluster per operation, found by its identity in the cluster (REQ-019-6, 7). `owner` and
+//! `site` of a cluster are assignments of `core.owner` and `core.site` the handler adds to
+//! the changeset; its nodes and namespaces inherit them (tree `kube`) and are anchored in
+//! its pod domain. The pod ranges of a node come with task 019-3c.
+
+use std::collections::BTreeSet;
+use std::sync::OnceLock;
+
+use kartenn_core::objects::Slug;
+use kartenn_core::period::Period;
+use kartenn_core::rules::Violation;
+use kartenn_service::ObjectKind;
+use kartenn_service::module::{
+    BoxFuture, CheckContext, Findings, ModuleHandler, ModuleObjectRow, ModulePlan, ModuleTx,
+    Reference,
+};
+use kartenn_service::operations::{ModuleKind, ModuleOperation, Operation, RawInput, Ref};
+use kartenn_service::port::{StoreError, WriteError};
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value, json};
+use sqlx::PgConnection;
+use uuid::Uuid;
+
+use crate::module::{CLUSTER, MACHINE, NAMESPACE, NODE};
+use crate::names::{DnsLabel, DnsSubdomain, LabelKey, LabelValue, parse_labels};
+use crate::pg::{self, CLUSTER_TABLE, NAMESPACE_TABLE, NODE_TABLE};
+use crate::rules::{
+    CLUSTER_CONNECTOR_GROUP, CLUSTER_RANGE_DOMAIN, NODE_MACHINE_KIND, OPERATION_INVALID,
+};
+
+/// The handler of the module.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Handler;
+
+fn kind(name: &'static str, cell: &'static OnceLock<ModuleKind>) -> ModuleKind {
+    *cell.get_or_init(|| ModuleKind::parse(name).expect("a valid kind"))
+}
+
+fn cluster_kind() -> ModuleKind {
+    static KIND: OnceLock<ModuleKind> = OnceLock::new();
+    kind(CLUSTER, &KIND)
+}
+
+fn node_kind() -> ModuleKind {
+    static KIND: OnceLock<ModuleKind> = OnceLock::new();
+    kind(NODE, &KIND)
+}
+
+fn namespace_kind() -> ModuleKind {
+    static KIND: OnceLock<ModuleKind> = OnceLock::new();
+    kind(NAMESPACE, &KIND)
+}
+
+/// The table of the objects of `kind`.
+fn table(kind: ModuleKind) -> &'static str {
+    if kind == node_kind() {
+        NODE_TABLE
+    } else if kind == namespace_kind() {
+        NAMESPACE_TABLE
+    } else {
+        CLUSTER_TABLE
+    }
+}
+
+fn connection(tx: &mut dyn ModuleTx) -> Result<&mut PgConnection, StoreError> {
+    tx.connection()
+        .downcast_mut()
+        .ok_or_else(|| StoreError("not a PostgreSQL transaction".into()))
+}
+
+fn invalid(message: impl Into<String>) -> Violation {
+    Violation::new(&OPERATION_INVALID, message.into())
+}
+
+/// The lock key of the writes of a cluster: two batches of a cluster do not cross
+/// (design « Opérations »).
+fn cluster_key(cluster: Uuid) -> String {
+    format!("kube.cluster:{cluster}")
+}
+
+/// What [`Handler::prepare`] reads for the plan, which reads no database.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Completed {
+    /// `core.owner` and `core.site`, which a cluster is assigned.
+    #[serde(default)]
+    owner_property: Option<Uuid>,
+    #[serde(default)]
+    site_property: Option<Uuid>,
+    /// The living object of the identity a `sync` names (019/X9).
+    #[serde(default)]
+    existing: Option<Uuid>,
+    /// The pod domain of the cluster of a `sync`: the anchor of its objects.
+    #[serde(default)]
+    pod_domain: Option<Uuid>,
+}
+
+fn decode<T: serde::de::DeserializeOwned>(value: Value, field: &str) -> Result<T, Violation> {
+    serde_json::from_value(value).map_err(|e| invalid(format!("{field}: {e}")))
+}
+
+/// The body of `operation`, refused if it carries a field out of `fields`.
+fn body(operation: &ModuleOperation, fields: &[&str]) -> Result<Map<String, Value>, Violation> {
+    if let Some(unknown) = operation
+        .body
+        .keys()
+        .find(|k| !fields.contains(&k.as_str()) && k.as_str() != "completed")
+    {
+        return Err(invalid(format!(
+            "{}: unknown field `{unknown}`",
+            operation.tag()
+        )));
+    }
+    Ok(operation.body.clone())
+}
+
+fn completed(body: &Map<String, Value>) -> Completed {
+    body.get("completed")
+        .cloned()
+        .and_then(|c| serde_json::from_value(c).ok())
+        .unwrap_or_default()
+}
+
+/// The reference `value` resolved.
+fn reference(
+    value: &Value,
+    field: &str,
+    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+) -> Result<Uuid, Violation> {
+    let r: Ref = decode(value.clone(), field)?;
+    resolve(r).ok_or_else(|| invalid(format!("{field}: unknown object")))
+}
+
+/// The reference `value` resolved, `null` for none.
+fn optional_reference(
+    value: &Value,
+    field: &str,
+    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+) -> Result<Option<Uuid>, Violation> {
+    if value.is_null() {
+        Ok(None)
+    } else {
+        reference(value, field, resolve).map(Some)
+    }
+}
+
+/// The references of the array `value`, as a set.
+fn references(
+    value: &Value,
+    field: &str,
+    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+) -> Result<Vec<Uuid>, Violation> {
+    let refs: Vec<Ref> = decode(value.clone(), field)?;
+    let ids: BTreeSet<Uuid> = refs
+        .into_iter()
+        .map(|r| resolve(r).ok_or_else(|| invalid(format!("{field}: unknown object"))))
+        .collect::<Result<_, _>>()?;
+    Ok(ids.into_iter().collect())
+}
+
+/// An integer of `field` within `bounds`.
+fn bounded(value: &Value, field: &str, bounds: (i64, i64)) -> Result<i64, Violation> {
+    value
+        .as_i64()
+        .filter(|n| (bounds.0..=bounds.1).contains(n))
+        .ok_or_else(|| {
+            invalid(format!(
+                "{field}: an integer from {} to {}",
+                bounds.0, bounds.1
+            ))
+        })
+}
+
+/// The assignment of the reference `value` to the property `property` of `object`.
+fn assign(kind: ModuleKind, object: Uuid, property: Uuid, value: Uuid) -> Operation {
+    Operation::AssignProperty {
+        object: Ref::Id(object),
+        kind: ObjectKind::Module(kind),
+        property: Ref::Id(property),
+        values: vec![RawInput::Text(value.to_string())],
+    }
+}
+
+/// What an operation does to the site of a cluster.
+#[derive(Debug, Clone, Copy)]
+enum Site {
+    /// Nothing.
+    Keep,
+    /// Assigns it.
+    Set(Uuid),
+    /// Removes it (`null`).
+    Remove,
+}
+
+impl Site {
+    /// The site of `body`.
+    fn of(
+        body: &Map<String, Value>,
+        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    ) -> Result<Self, Violation> {
+        Ok(match body.get("site") {
+            None => Self::Keep,
+            Some(v) => optional_reference(v, "site", resolve)?.map_or(Self::Remove, Self::Set),
+        })
+    }
+}
+
+/// The columns an operation writes, and the rights it needs on what it cites.
+type Columns = (Map<String, Value>, Vec<(&'static str, Uuid)>);
+
+/// The operations of the core for the `owner` and `site` of a cluster: an assignment for
+/// a value, a removal for a `null` site.
+fn anchors(
+    object: Uuid,
+    owner: Option<Uuid>,
+    site: Site,
+    completed: &Completed,
+) -> Result<Vec<Operation>, Violation> {
+    let undeclared = |key: &str| invalid(format!("{key} is not declared"));
+    let mut core = Vec::new();
+    if let Some(owner) = owner {
+        let property = completed
+            .owner_property
+            .ok_or_else(|| undeclared("core.owner"))?;
+        core.push(assign(cluster_kind(), object, property, owner));
+    }
+    if !matches!(site, Site::Keep) {
+        let property = completed
+            .site_property
+            .ok_or_else(|| undeclared("core.site"))?;
+        core.push(match site {
+            Site::Set(site) => assign(cluster_kind(), object, property, site),
+            _ => Operation::UnassignProperty {
+                object: Ref::Id(object),
+                kind: ObjectKind::Module(cluster_kind()),
+                property: Ref::Id(property),
+            },
+        });
+    }
+    Ok(core)
+}
+
+/// The rights a plan needs on the objects it cites (`plan.data.reads`).
+fn reads(pairs: &[(&str, Uuid)]) -> Value {
+    Value::Array(
+        pairs
+            .iter()
+            .map(|(permission, id)| json!([permission, id]))
+            .collect(),
+    )
+}
+
+/// The fields of a cluster an administrator writes, beside `owner` and `site`.
+const CLUSTER_FIELDS: &[&str] = &[
+    "slug",
+    "pod_domain",
+    "service_domain",
+    "external_domain",
+    "pod_containers",
+    "service_networks",
+    "machines_cluster",
+    "retention_days",
+    "tracked_label_keys",
+    "batch_window_seconds",
+    "batch_max_operations",
+    "create_node_machines",
+    "connector_group",
+];
+
+/// The columns of the cluster fields of `body` (REQ-019-5), and the rights they need.
+fn cluster_columns(
+    body: &Map<String, Value>,
+    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+) -> Result<Columns, Violation> {
+    let mut columns = Map::new();
+    let mut cited = Vec::new();
+    for (field, value) in body {
+        let (column, value) = match field.as_str() {
+            "slug" => {
+                let slug = value.as_str().ok_or_else(|| invalid("slug: a string"))?;
+                ("slug", json!(Slug::parse(slug)?.as_str()))
+            }
+            "pod_domain" | "service_domain" => {
+                if value.is_null() {
+                    return Err(invalid(format!("{field}: a cluster keeps it")));
+                }
+                let domain = reference(value, field, resolve)?;
+                cited.push(("core.domain.read", domain));
+                let column = if field == "pod_domain" {
+                    "pod_domain_id"
+                } else {
+                    "service_domain_id"
+                };
+                (column, json!(domain))
+            }
+            "external_domain" => {
+                let domain = optional_reference(value, field, resolve)?;
+                cited.extend(domain.map(|d| ("core.domain.read", d)));
+                ("external_domain_id", json!(domain))
+            }
+            "pod_containers" | "service_networks" => {
+                let ranges = references(value, field, resolve)?;
+                cited.extend(ranges.iter().map(|r| ("core.prefix.read", *r)));
+                let column = if field == "pod_containers" {
+                    "pod_container_ids"
+                } else {
+                    "service_network_ids"
+                };
+                (column, json!(ranges))
+            }
+            "machines_cluster" => {
+                let cluster = optional_reference(value, field, resolve)?;
+                cited.extend(cluster.map(|c| ("machines.cluster.read", c)));
+                ("machines_cluster_id", json!(cluster))
+            }
+            "connector_group" => (
+                "connector_group_id",
+                json!(optional_reference(value, field, resolve)?),
+            ),
+            "retention_days" => ("retention_days", json!(bounded(value, field, (1, 400))?)),
+            "batch_window_seconds" => (
+                "batch_window_seconds",
+                json!(bounded(value, field, (1, 300))?),
+            ),
+            "batch_max_operations" => (
+                "batch_max_operations",
+                json!(bounded(value, field, (1, 10_000))?),
+            ),
+            "tracked_label_keys" => {
+                let keys: Vec<String> = decode(value.clone(), field)?;
+                let keys: BTreeSet<String> = keys
+                    .iter()
+                    .map(|k| LabelKey::parse(k).map(|k| k.as_str().to_owned()))
+                    .collect::<Result<_, _>>()?;
+                ("tracked_label_keys", json!(keys))
+            }
+            "create_node_machines" => (
+                "create_node_machines",
+                json!(
+                    value
+                        .as_bool()
+                        .ok_or_else(|| invalid("create_node_machines: a boolean"))?
+                ),
+            ),
+            _ => continue,
+        };
+        columns.insert(column.into(), value);
+    }
+    Ok((columns, cited))
+}
+
+/// The defaults of a new cluster (design « Données »).
+fn cluster_defaults() -> Map<String, Value> {
+    let Value::Object(defaults) = json!({
+        "external_domain_id": null,
+        "pod_container_ids": [],
+        "service_network_ids": [],
+        "machines_cluster_id": null,
+        "retention_days": 30,
+        "tracked_label_keys": [],
+        "batch_window_seconds": 10,
+        "batch_max_operations": 500,
+        "create_node_machines": false,
+        "connector_group_id": null,
+    }) else {
+        unreachable!("an object literal")
+    };
+    defaults
+}
+
+/// The fields `sync` takes for each type, beside the identity.
+const NODE_FIELDS: &[&str] = &["uid", "addresses", "zone", "machine"];
+const NAMESPACE_FIELDS: &[&str] = &["uid", "labels"];
+
+/// An address of a node, as read (`status.addresses`).
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct NodeAddress {
+    #[serde(rename = "type")]
+    kind: String,
+    value: String,
+}
+
+/// The columns of the tracked fields of a node or a namespace in `body`.
+fn mirror_columns(
+    kind: ModuleKind,
+    body: &Map<String, Value>,
+    resolve: &dyn Fn(Ref) -> Option<Uuid>,
+) -> Result<Columns, Violation> {
+    let fields = if kind == node_kind() {
+        NODE_FIELDS
+    } else {
+        NAMESPACE_FIELDS
+    };
+    let mut columns = Map::new();
+    let mut cited = Vec::new();
+    for (field, value) in body {
+        if !fields.contains(&field.as_str()) {
+            continue;
+        }
+        let (column, value) = match field.as_str() {
+            "uid" => {
+                let uid: Option<Uuid> = decode(value.clone(), field)?;
+                ("uid", json!(uid))
+            }
+            "addresses" => {
+                let addresses: Vec<NodeAddress> = decode(value.clone(), field)?;
+                if addresses
+                    .iter()
+                    .any(|a| a.kind.is_empty() || a.value.is_empty())
+                {
+                    return Err(invalid("addresses: a type and a value each"));
+                }
+                // A set: a reordering makes no version (019/X4).
+                let addresses: BTreeSet<NodeAddress> = addresses.into_iter().collect();
+                ("addresses", json!(addresses))
+            }
+            "zone" => {
+                let zone = match value.as_str() {
+                    Some(zone) => Some(LabelValue::parse(zone)?.as_str().to_owned()),
+                    None if value.is_null() => None,
+                    None => return Err(invalid("zone: a string")),
+                };
+                ("zone", json!(zone))
+            }
+            "machine" => {
+                let machine = optional_reference(value, field, resolve)?;
+                cited.extend(machine.map(|m| ("machines.read", m)));
+                ("machine_id", json!(machine))
+            }
+            "labels" => {
+                let labels: std::collections::BTreeMap<String, String> =
+                    decode(value.clone(), field)?;
+                let labels = parse_labels(labels.iter().map(|(k, v)| (k.as_str(), v.as_str())))?;
+                let labels: Map<String, Value> = labels
+                    .iter()
+                    .map(|(k, v)| (k.as_str().to_owned(), json!(v.as_str())))
+                    .collect();
+                ("labels", Value::Object(labels))
+            }
+            _ => continue,
+        };
+        columns.insert(column.into(), value);
+    }
+    Ok((columns, cited))
+}
+
+/// The kind of the type a `sync` names.
+fn mirror_kind(body: &Map<String, Value>) -> Result<ModuleKind, Violation> {
+    match body.get("type").and_then(Value::as_str) {
+        Some(NODE) => Ok(node_kind()),
+        Some(NAMESPACE) => Ok(namespace_kind()),
+        Some(other) => Err(invalid(format!("type: {other} is not synced yet"))),
+        None => Err(invalid("type: required")),
+    }
+}
+
+/// The name a `sync` names, checked for its type: a DNS subdomain for a node, a DNS label
+/// for a namespace (réf. `kubernetes-calcul.md` § Namespace, labels, noms et UID).
+fn mirror_name(kind: ModuleKind, body: &Map<String, Value>) -> Result<String, Violation> {
+    let name = body
+        .get("name")
+        .and_then(Value::as_str)
+        .ok_or_else(|| invalid("name: required"))?;
+    Ok(if kind == node_kind() {
+        DnsSubdomain::parse(name)?.as_str().to_owned()
+    } else {
+        DnsLabel::parse(name)?.as_str().to_owned()
+    })
+}
+
+impl Handler {
+    fn plan_create_cluster(
+        operation: &ModuleOperation,
+        object: Uuid,
+        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    ) -> Result<ModulePlan, Violation> {
+        let body = body(
+            operation,
+            &[CLUSTER_FIELDS, &["local", "owner", "site"]].concat(),
+        )?;
+        let completed = completed(&body);
+        for required in ["slug", "pod_domain", "service_domain"] {
+            if !body.contains_key(required) {
+                return Err(invalid(format!("{required}: required")));
+            }
+        }
+        let (columns, cited) = cluster_columns(&body, resolve)?;
+        let mut row = cluster_defaults();
+        row.extend(columns);
+        row.insert("id".into(), json!(object));
+        let owner = body
+            .get("owner")
+            .map(|v| reference(v, "owner", resolve))
+            .transpose()?;
+        let site = Site::of(&body, resolve)?;
+        Ok(ModulePlan {
+            kind: cluster_kind(),
+            object,
+            creates: true,
+            domains: Vec::new(),
+            keys: Vec::new(),
+            core: anchors(object, owner, site, &completed)?,
+            data: json!({ "create": row, "reads": reads(&cited) }),
+        })
+    }
+
+    fn plan_update_cluster(
+        operation: &ModuleOperation,
+        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    ) -> Result<ModulePlan, Violation> {
+        let body = body(
+            operation,
+            &[CLUSTER_FIELDS, &["id", "owner", "site"]].concat(),
+        )?;
+        let completed = completed(&body);
+        let cluster = reference(
+            body.get("id").ok_or_else(|| invalid("id: required"))?,
+            "id",
+            resolve,
+        )?;
+        let (patch, cited) = cluster_columns(&body, resolve)?;
+        let owner = match body.get("owner") {
+            None => None,
+            Some(Value::Null) => return Err(invalid("owner: a cluster keeps an owner")),
+            Some(v) => Some(reference(v, "owner", resolve)?),
+        };
+        let site = Site::of(&body, resolve)?;
+        Ok(ModulePlan {
+            kind: cluster_kind(),
+            object: cluster,
+            creates: false,
+            domains: Vec::new(),
+            keys: vec![cluster_key(cluster)],
+            core: anchors(cluster, owner, site, &completed)?,
+            data: json!({ "update": patch, "reads": reads(&cited) }),
+        })
+    }
+
+    /// `kube.sync`: `upsert` creates the object of the identity (cluster, name) or changes
+    /// the tracked fields given; `close` ends it, by the core (`Close`).
+    fn plan_sync(
+        operation: &ModuleOperation,
+        object: Uuid,
+        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    ) -> Result<ModulePlan, Violation> {
+        let body = body(
+            operation,
+            &[
+                &["action", "type", "cluster", "name"][..],
+                NODE_FIELDS,
+                NAMESPACE_FIELDS,
+            ]
+            .concat(),
+        )?;
+        let completed = completed(&body);
+        let kind = mirror_kind(&body)?;
+        let own = if kind == node_kind() {
+            NODE_FIELDS
+        } else {
+            NAMESPACE_FIELDS
+        };
+        if let Some(foreign) = body.keys().find(|k| {
+            (NODE_FIELDS.contains(&k.as_str()) || NAMESPACE_FIELDS.contains(&k.as_str()))
+                && !own.contains(&k.as_str())
+        }) {
+            return Err(invalid(format!("{kind}: unknown field `{foreign}`")));
+        }
+        let cluster = reference(
+            body.get("cluster")
+                .ok_or_else(|| invalid("cluster: required"))?,
+            "cluster",
+            resolve,
+        )?;
+        let domain = completed
+            .pod_domain
+            .ok_or_else(|| invalid(format!("cluster: {cluster} is not a living cluster")))?;
+        let name = mirror_name(kind, &body)?;
+        let keys = vec![cluster_key(cluster)];
+        match body.get("action").and_then(Value::as_str) {
+            Some("upsert") => {
+                let (columns, cited) = mirror_columns(kind, &body, resolve)?;
+                let (target, creates, data) = if let Some(existing) = completed.existing {
+                    (existing, false, json!({ "update": columns }))
+                } else {
+                    let mut row = Map::new();
+                    row.insert("id".into(), json!(object));
+                    row.insert("cluster_id".into(), json!(cluster));
+                    row.insert("name".into(), json!(name));
+                    row.insert("uid".into(), Value::Null);
+                    row.insert("absent_since".into(), Value::Null);
+                    if kind == node_kind() {
+                        row.insert("machine_id".into(), Value::Null);
+                        row.insert("addresses".into(), json!([]));
+                        // Filled by task 019-3c.
+                        row.insert("range_ids".into(), json!([]));
+                        row.insert("zone".into(), Value::Null);
+                    } else {
+                        row.insert("labels".into(), json!({}));
+                    }
+                    row.extend(columns);
+                    (object, true, json!({ "create": row }))
+                };
+                let mut data = data;
+                data["reads"] = reads(&cited);
+                Ok(ModulePlan {
+                    kind,
+                    object: target,
+                    creates,
+                    domains: vec![domain],
+                    keys,
+                    core: Vec::new(),
+                    data,
+                })
+            }
+            Some("close") => {
+                let existing = completed.existing.ok_or_else(|| {
+                    invalid(format!("no living {kind} {name} in the cluster {cluster}"))
+                })?;
+                Ok(ModulePlan {
+                    kind,
+                    object: existing,
+                    creates: false,
+                    domains: vec![domain],
+                    keys,
+                    core: vec![Operation::Close {
+                        kind: ObjectKind::Module(kind),
+                        id: Ref::Id(existing),
+                        expected: None,
+                        cascade: false,
+                    }],
+                    data: json!({ "noop": true }),
+                })
+            }
+            Some(other) => Err(invalid(format!("action: {other} is not an action of sync"))),
+            None => Err(invalid("action: required")),
+        }
+    }
+}
+
+/// Writes the node or namespace of `plan` and registers it under its cluster, anchored in
+/// its pod domain.
+async fn apply_mirror(
+    tx: &mut dyn ModuleTx,
+    plan: &ModulePlan,
+    period: Option<Period>,
+    changeset: Uuid,
+) -> Result<(), WriteError> {
+    let (id, table) = (plan.object, table(plan.kind));
+    let conn = connection(tx)?;
+    if let Some(row) = plan.data.get("create") {
+        pg::identities(conn, table, id, row, period).await?;
+        pg::insert(conn, table, row, period, changeset).await?;
+    } else {
+        let patch = plan
+            .data
+            .get("update")
+            .cloned()
+            .or_else(|| {
+                plan.data
+                    .get("unlink")
+                    .map(|_| json!({ "machine_id": null }))
+            })
+            .ok_or_else(|| StoreError("a planned write".into()))?;
+        let mut merged = pg::current(conn, table, id, period)
+            .await?
+            .ok_or(WriteError::NoVersion(id))?;
+        if let (Value::Object(merged), Value::Object(patch)) = (&mut merged, &patch) {
+            merged.extend(patch.clone());
+        }
+        pg::identities(conn, table, id, &merged, period).await?;
+        pg::portion(conn, table, id, &patch, period, changeset).await?;
+    }
+    let (cluster, domain) = pg::placement(conn, table, id, period)
+        .await?
+        .ok_or(WriteError::NoVersion(id))?;
+    tx.register(
+        ModuleObjectRow {
+            id,
+            kind: plan.kind,
+            parent: Some(cluster),
+            domain,
+        },
+        period,
+        changeset,
+    )
+    .await
+}
+
+impl ModuleHandler for Handler {
+    fn prepare<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        operation: &'a mut ModuleOperation,
+        period: Option<Period>,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        Box::pin(async move {
+            let (at, _) = pg::bounds(period);
+            let conn = connection(tx)?;
+            let mut completed = Completed::default();
+            if operation.name == "sync" {
+                let cluster = operation
+                    .body
+                    .get("cluster")
+                    .cloned()
+                    .and_then(|c| serde_json::from_value::<Ref>(c).ok());
+                let table = match operation.body.get("type").and_then(Value::as_str) {
+                    Some(NODE) => Some(NODE_TABLE),
+                    Some(NAMESPACE) => Some(NAMESPACE_TABLE),
+                    _ => None,
+                };
+                let name = operation.body.get("name").and_then(Value::as_str);
+                if let Some(Ref::Id(cluster)) = cluster {
+                    completed.pod_domain = pg::pod_domain(conn, cluster, at).await?;
+                    if let (Some(table), Some(name)) = (table, name) {
+                        completed.existing = pg::named(conn, table, cluster, name, at).await?;
+                    }
+                }
+            } else {
+                let (owner_property, site_property) = pg::owner_and_site(conn, at).await?;
+                completed.owner_property = owner_property;
+                completed.site_property = site_property;
+            }
+            operation.body.insert(
+                "completed".into(),
+                serde_json::to_value(&completed).expect("a JSON object"),
+            );
+            Ok(())
+        })
+    }
+
+    fn plan(
+        &self,
+        operation: &ModuleOperation,
+        object: Uuid,
+        resolve: &dyn Fn(Ref) -> Option<Uuid>,
+    ) -> Result<ModulePlan, Violation> {
+        match operation.name.as_str() {
+            "create_cluster" => Self::plan_create_cluster(operation, object, resolve),
+            "update_cluster" => Self::plan_update_cluster(operation, resolve),
+            "sync" => Self::plan_sync(operation, object, resolve),
+            other => Err(invalid(format!("kube.{other}: unknown operation"))),
+        }
+    }
+
+    fn reads(&self, plan: &ModulePlan) -> Vec<(String, Uuid)> {
+        plan.data
+            .get("reads")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|pair| {
+                let permission = pair.get(0)?.as_str()?.to_owned();
+                let object = pair.get(1)?.as_str()?.parse().ok()?;
+                Some((permission, object))
+            })
+            .collect()
+    }
+
+    fn apply<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        plan: &'a ModulePlan,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> BoxFuture<'a, Result<(), WriteError>> {
+        Box::pin(async move {
+            // A closure: the core ends the object, then the module's rows (`close`).
+            if plan.data.get("noop").is_some() {
+                return Ok(());
+            }
+            if plan.kind != cluster_kind() {
+                return apply_mirror(tx, plan, period, changeset).await;
+            }
+            let id = plan.object;
+            let conn = connection(tx)?;
+            if let Some(row) = plan.data.get("create") {
+                pg::identities(conn, CLUSTER_TABLE, id, row, period).await?;
+                pg::insert(conn, CLUSTER_TABLE, row, period, changeset).await?;
+            } else {
+                let patch = &plan.data["update"];
+                pg::identities(conn, CLUSTER_TABLE, id, patch, period).await?;
+                pg::portion(conn, CLUSTER_TABLE, id, patch, period, changeset).await?;
+            }
+            tx.register(
+                ModuleObjectRow {
+                    id,
+                    kind: plan.kind,
+                    parent: None,
+                    domain: None,
+                },
+                period,
+                changeset,
+            )
+            .await
+        })
+    }
+
+    fn close<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        kind: ModuleKind,
+        id: Uuid,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> BoxFuture<'a, Result<(), WriteError>> {
+        tx.close_versioned(table(kind), id, period, changeset)
+    }
+
+    fn restore<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        kind: ModuleKind,
+        id: Uuid,
+        before: Uuid,
+        period: Option<Period>,
+        changeset: Uuid,
+    ) -> BoxFuture<'a, Result<(), WriteError>> {
+        tx.restore_versioned(table(kind), id, before, period, changeset)
+    }
+
+    fn referrers<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        reference: &'a Reference,
+        target: Uuid,
+        period: Option<Period>,
+    ) -> BoxFuture<'a, Result<Vec<Uuid>, StoreError>> {
+        Box::pin(async move {
+            let (at, _) = pg::bounds(period);
+            pg::referrers(connection(tx)?, reference.from, reference.to, target, at).await
+        })
+    }
+
+    /// A closed machine is no longer designated by its node (design « Références »).
+    fn nullify(&self, reference: &Reference, source: Uuid, target: Uuid) -> Option<ModulePlan> {
+        (reference.from == NODE && reference.to == MACHINE).then(|| ModulePlan {
+            kind: node_kind(),
+            object: source,
+            creates: false,
+            domains: Vec::new(),
+            keys: Vec::new(),
+            core: Vec::new(),
+            data: json!({ "unlink": target }),
+        })
+    }
+
+    /// The rules of the module on the final state of the clusters and nodes the changeset
+    /// writes, over all their versions.
+    fn check<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        context: &'a CheckContext<'a>,
+    ) -> BoxFuture<'a, Result<Findings, StoreError>> {
+        Box::pin(async move {
+            let of = |wanted: ModuleKind| -> Vec<Uuid> {
+                context
+                    .touched
+                    .iter()
+                    .filter(|(kind, _)| *kind == wanted)
+                    .map(|(_, id)| *id)
+                    .collect()
+            };
+            let (clusters, nodes) = (of(cluster_kind()), of(node_kind()));
+            if clusters.is_empty() && nodes.is_empty() {
+                return Ok(Findings::default());
+            }
+            let conn = connection(tx)?;
+            let mut found = Vec::new();
+            if !clusters.is_empty() {
+                for (cluster, range) in pg::ranges_outside(conn, &clusters).await? {
+                    found.push(
+                        Violation::new(
+                            &CLUSTER_RANGE_DOMAIN,
+                            format!(
+                                "the range {range} is not a living container of the pod domain, or network of the service domain, of the cluster over its period"
+                            ),
+                        )
+                        .with_subjects([cluster, range]),
+                    );
+                }
+                for (cluster, domain) in pg::dead_domains(conn, &clusters).await? {
+                    found.push(
+                        invalid(format!(
+                            "the domain {domain} does not live over the period of the cluster"
+                        ))
+                        .with_subjects([cluster, domain]),
+                    );
+                }
+                for (cluster, group) in pg::dead_groups(conn, &clusters).await? {
+                    found.push(
+                        Violation::new(
+                            &CLUSTER_CONNECTOR_GROUP,
+                            format!(
+                                "the connector group {group} does not live over the period of the cluster"
+                            ),
+                        )
+                        .with_subjects([cluster, group]),
+                    );
+                }
+            }
+            for (node, machine) in pg::bad_machines(conn, &nodes).await? {
+                found.push(
+                    Violation::new(
+                        &NODE_MACHINE_KIND,
+                        format!(
+                            "the machine {machine} is not a physical or virtual machine living over the period of the node"
+                        ),
+                    )
+                    .with_subjects([node, machine]),
+                );
+            }
+            Ok(Findings::from(found))
+        })
+    }
+}

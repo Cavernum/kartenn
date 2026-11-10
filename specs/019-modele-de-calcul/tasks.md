@@ -243,7 +243,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - où : `crates/kartenn-service/src/module.rs` (`ModuleHandler`),
     `crates/kartenn-service/src/pipeline.rs` (`plan`), `docs/adr/0026-*.md` clause 6
   - dépend de : arbitrage de l'utilisateur
-- [ ] 3b. Clusters, nœuds et namespaces sans plages : migration `0001_kube.sql`
+- [x] 3b. Clusters, nœuds et namespaces sans plages : migration `0001_kube.sql`
   (`cluster`, `node`, `namespace`, comme le design « Données »), `create/update_cluster`
   (fenêtre de lot 1–300 s et 1–10 000 opérations, règle `kube.cluster.connector_group`
   vérifiée contre `rbac_group`, migration 0066), `kube.sync` qui crée, met à jour et clôt
@@ -253,6 +253,45 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   `node_machine_kind`
   - où : comme la tâche 3
   - dépend de : 1
+  - fait (2026-11-10) : `crates/kartenn-kube` — `migrations/0001_kube.sql` (`cluster`,
+    `node`, `namespace` comme le design, `range_ids` gardée, vide jusqu'à la 3c ;
+    index `node_by_machine`, `node_by_uid`, `namespace_by_uid`, GIN `namespace_labels`) ;
+    `module.rs` (`Kube`, dépendance `machines`, types `kube-clusters`, `kube-nodes`,
+    `kube-namespaces`, opérations `create_cluster`, `update_cluster`, `sync`,
+    références du design sauf réseaux de plage et cibles de la tâche 4, permissions
+    `kube.{cluster,node,namespace}.{read,edit,apply,approval.self}`), `labels.rs`,
+    `handler.rs` (`prepare` : propriétés `core.owner`/`core.site`, objet vivant de
+    l'identité (cluster, nom) et domaine des pods ; `plan` ; `apply` ; `close`,
+    `restore`, `referrers`, `nullify` du nœud vers sa machine ; `check` :
+    `kube.cluster.range_domain`, domaines désignés vivants, `kube.cluster.connector_group`
+    sur `rbac_group`, `kube.node.machine_kind`), `pg.rs` ; `kartenn-server` (feature
+    `kube` par défaut, module au registre) ; contrat `openapi-v1.json`, types des deux
+    SDK, `docs/spec/permissions.md` et `regles-modules.md` régénérés ; `kube_needs_machines`
+    (unitaire de `module.rs`), `cluster_slug_unique`, `range_in_designated_domain`,
+    `node_name_unique_per_cluster`, `node_machine_kind` (`tests/it/clusters.rs`).
+  - choix : règle `kube.operation.invalid` ajoutée (corps mal formé, bornes de rétention
+    et de fenêtre, objet inconnu, domaine désigné mort ; ligne ajoutée à la table
+    « Règles » du design), `KUBE_RULES` à 19 ; slug de cluster en double :
+    `core.slug.duplicate` (REQ-002-47, unique par type), pas de règle `kube.cluster.*`
+    nouvelle ; un `kube.sync` par objet (`action` `upsert` ou `close`, `type`
+    `kube.node`|`kube.namespace`, `cluster`, `name`, champs suivis), l'objet retrouvé par
+    (cluster, nom) vivant au début de la période, dans `prepare` (pas d'identifiant
+    externe du noyau) ; `upsert` d'un objet existant = fusion des champs donnés ; `close`
+    = `Close` du noyau planifié, sans cascade ; adresses d'un nœud en ensemble trié,
+    zone en valeur de label, labels du namespace contrôlés en syntaxe mais pas filtrés
+    par les clés suivies (projection du connecteur, X4) ; machine déjà désignée refusée
+    avant l'écriture (`kube.node.machine_kind`) plutôt que par l'exclusion ; espèce et
+    vie de la machine sur toutes les versions du nœud dans `check` ; droits de lecture
+    demandés sur les domaines, conteneurs, réseaux (`core.*.read`) et la machine
+    (`machines.read`) cités ; `gen.mjs` du SDK v2 : un nom de parent que deux modules
+    déclarent (`cluster`) se lit dans le module du type ; `kartenn-kube/` ajouté aux
+    chemins de la mesure de télémétrie (`kartenn-bench/src/affected.rs`).
+  - reste : changer le domaine des pods d'un cluster qui a des nœuds ou des namespaces ne
+    met pas à jour leur ancrage (`module_object.domain_id`) ; un groupe du connecteur clos
+    après le cluster n'est pas refusé (pas de référence cluster → groupe au design) ;
+    l'espèce d'une machine changée par la 009 après sa désignation n'est pas revérifiée ;
+    ni `mark_absent` ni `clear_absent` (tâche 5) ; identifiant externe
+    `kube:<cluster>/…` non lié (tâche 8 ou 10).
 - [ ] 3c. Réseaux des plages de pods d'un nœud créés et clos par `kube.sync`,
   avertissement `kube.node.range_outside` (migration 0002 si la colonne des plages
   observées est retenue) — REQ-019-13 — verify : `node_range_created_and_closed`, un
