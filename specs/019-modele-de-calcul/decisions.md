@@ -251,6 +251,19 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
 - Décision : **A**, le refus livré par la tâche 3b reste la règle ; pas de ré-ancrage
   (l'utilisateur, 2026-11-10).
 
+### Q-019-16 — Objets du noyau possédés par un objet de module (revue de la tâche 3c)
+- Constat : un nœud clos par la cascade de son cluster laisse vivants les réseaux de ses
+  plages de pods ; la référence `node` → `prefix` en refus ne joue que quand le préfixe
+  se clôt. Les adresses `vip` des services (tâche 4) ont le même besoin.
+- Options : (A) une politique déclarative sur la référence (objet du noyau possédé) :
+  quand la source se clôt, en cascade ou non, le noyau clôt la cible ; (B) un crochet
+  `ModuleHandler::closing` appelé par la cascade, impératif, à écrire par module ;
+  (C) refuser la clôture d'un cluster dont les nœuds citent des réseaux, contraire au
+  design.
+- Recommandation : **A**.
+- Décision : **A**, amendement additif de l'ADR 0026 (clause des références)
+  (l'utilisateur, 2026-11-10).
+
 ## Synthèse
 - X1 périmètre : hôte physique, hyperviseur, VM, cluster d'hyperviseurs (009) ; cluster,
   nœud, namespace, workload, service, ingress Kubernetes ; pod en observation seulement ;
@@ -650,7 +663,8 @@ l'utilisateur le 2026-11-09 (tâche 0b).
 5. **Contrat de module** : rôle livré par un module (ADR 0044) ; inscription d'audit
    d'un lot d'observations par le noyau, deux événements d'audit nouveaux (ADR 0043) ;
    identifiants créés rendus au module par `ModuleHandler::planned`, amendement additif de
-   la clause 6 de l'ADR 0026 (Q-019-14, 2026-11-10).
+   la clause 6 de l'ADR 0026 (Q-019-14, 2026-11-10) ;
+   référence possédante, amendement additif de l'ADR 0026 (Q-019-16, 2026-11-10).
 6. **Dépendance** : client Kubernetes (Q-019-12), fiche à la tâche 9.
 7. **ADR** : [0043](../../docs/adr/0043-observations-hors-referentiel.md)
    (observations hors référentiel) et

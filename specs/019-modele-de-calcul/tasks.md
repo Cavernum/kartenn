@@ -382,7 +382,8 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `kube_connector` (X10, tâche 11) sans quoi le connecteur réel est refusé. Le constat
     important (cascade) est la tâche 3d.
 - [ ] 3d. Réseaux des nœuds clos avec la cascade de leur cluster (constat important de la
-  revue de la 3c) — **en attente d'arbitrage** (contrat de module, ADR 0026) : le design
+  revue de la 3c) — **arbitrée le 2026-11-10 : option A** (Q-019-16 ; contrat de module,
+  ADR 0026) : le design
   « Références » (« nœud | réseau de plage | refus ; cascade : clôt le réseau avec le
   nœud ») et l'acceptation de REQ-019-13 ne sont pas tenus quand le nœud est clos par la
   cascade de son cluster : `cascade.rs` clôt les objets de module dépendants
@@ -405,7 +406,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `crates/kartenn-service/src/module.rs` (`Reference`, `OnClose`),
     `crates/kartenn-kube/src/module.rs` (référence `node` → `prefix`),
     `docs/adr/0026-contrat-de-module.md`
-  - dépend de : 3c ; arbitrage de l'utilisateur
+  - dépend de : 3c
 - [ ] 4. Workloads, services, ingress : tables, `kube.sync` complet, adresses `vip`
   planifiées, sélection d'un service, références et cascades, arêtes — REQ-019-8 à 11,
   14 — verify : `workload_recreated_keeps_identity`, `service_vip_refuses_close`,
