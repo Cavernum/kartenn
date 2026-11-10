@@ -461,6 +461,18 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         resolve: &dyn Fn(Ref) -> Option<Uuid>,
     ) -> Result<ModulePlan, Violation>;
 
+    /// Gives `plan` the identifiers the pipeline drew for its operations of the core, once
+    /// planned (ADR 0026, clause 6, amendment 8): `created[i]` is the identifier of the
+    /// object `plan.core[i]` creates, unused for an operation that creates none. The
+    /// module completes its `data` with them, so that its object cites, in the same
+    /// changeset, the objects of the core it creates (019/B9). The pipeline calls it on
+    /// every planning, a validation of a pending changeset included (REQ-004-21), whose
+    /// identifiers are drawn anew. `plan.core` is planned already: changing it changes
+    /// nothing. Nothing by default.
+    fn planned(&self, plan: &mut ModulePlan, created: &[Uuid]) {
+        let _ = (plan, created);
+    }
+
     /// The rights `plan` needs besides the right to write its object: `(permission,
     /// object)` pairs for the objects it cites without writing them, such as an address
     /// of the core attached to an interface (009/M16). The core checks them like a guard,

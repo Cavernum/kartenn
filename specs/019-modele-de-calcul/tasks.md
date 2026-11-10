@@ -224,7 +224,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     donc pas citer dans `range_ids` les réseaux de ses plages de pods (REQ-019-13, B2),
     pas plus que la tâche 4 ses adresses `vip`. L'avertissement `kube.node.range_outside`
     n'a rien dans l'état final dont partir : le schéma ne garde pas les plages observées.
-- [ ] 3a. Identifiants créés rendus au plan d'un module — **arbitrée le 2026-11-10 :
+- [x] 3a. Identifiants créés rendus au plan d'un module — **arbitrée le 2026-11-10 :
   option A** (Q-019-14 ; crochet `planned`, amendement additif de la clause 6 de l'ADR
   0026, colonne `kube.node.pod_cidrs` posée par la 3c). Options relevées : (A, recommandée par
   l'agent) après que le pipeline a tiré les identifiants des opérations du noyau d'un
@@ -244,6 +244,26 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - où : `crates/kartenn-service/src/module.rs` (`ModuleHandler`),
     `crates/kartenn-service/src/pipeline.rs` (`plan`), `docs/adr/0026-*.md` clause 6
   - dépend de : rien (arbitrée)
+  - fait (2026-11-10) : `kartenn-service` — `module.rs` (`ModuleHandler::planned(&mut
+    ModulePlan, created: &[Uuid])`, défaut sans effet) ; `pipeline.rs` (`plan` : la file
+    des opérations du noyau ajoutées porte le plan de module qui les ajoute, les
+    identifiants tirés lui sont rendus une fois la file vidée ; test
+    `pipeline::tests::module_data_cite_the_core_objects_it_creates`, un faux module
+    `shelf` dont le plan ajoute deux `CreatePrefix` et cite leurs identifiants dans ses
+    `data`) ; ADR 0026 amendement 8 ; `docs/spec/architecture.md` ; B9 du design fourni.
+    La validation d'un changeset `pending` replanifie la requête enregistrée par le même
+    `plan` (`review.rs` → `run` → `stages`) : le crochet y tient sans autre code, avec
+    des identifiants tirés de nouveau.
+  - choix : crochet infaillible (pas de `Result`) : citer un identifiant ne se refuse
+    pas, la validation reste à `plan` et `check` ; `created` aligné sur `plan.core`
+    (`created[i]` pour `core[i]`, un identifiant sans emploi pour une opération qui ne
+    crée rien) plutôt que réduit aux seules créations, pour que le module indexe sans
+    compter ; crochet appelé seulement pour un plan qui ajoute des opérations du noyau ;
+    un plan de module ajouté par un autre reçoit les siens de même (file en largeur, les
+    ajouts d'un plan restent contigus).
+  - reste : le plan rendu par `ModuleHandler::nullify` (cascade, `cascade.rs`) garde son
+    `core` ignoré, comme avant, donc pas de crochet ; la colonne `kube.node.pod_cidrs` et la
+    création des réseaux des plages restent à la 3c.
 - [x] 3b. Clusters, nœuds et namespaces sans plages : migration `0001_kube.sql`
   (`cluster`, `node`, `namespace`, comme le design « Données »), `create/update_cluster`
   (fenêtre de lot 1–300 s et 1–10 000 opérations, règle `kube.cluster.connector_group`
