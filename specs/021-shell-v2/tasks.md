@@ -3952,6 +3952,16 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     porte le domaine de chaque objet visible, le test
     `a_domain_unseen_is_not_named_beside_one_seen` s'inverse. `update_vlan_group` et
     `policy.inference` : tâche à part, 22n.
+  - reste (revue) : la description OpenAPI de `domains` (`kartenn-rest/src/events/mod.rs`
+    vers la ligne 214, recopiée dans les deux `schema.d.ts`) dit encore « the addressing
+    domains written, those the subscriber may read » ; la requête de visibilité tourne
+    pour un sujet qui lit tout, même s'il lit aussi `core.domain` partout (`hub.rs` vers
+    la ligne 845) ; `bench-events` ne mesure pas le cas « portées vides, objets présents »,
+    nouveau chemin chaud du hub ; seul le chemin par pages a un test d'intégration, pas la
+    diffusion en direct (`hub.rs` vers la ligne 1107) ; `module_object.domain_id` est
+    générique : à vérifier que la lecture de chaque objet de module expose bien son
+    domaine (par exemple le domaine des pods d'un `kube.cluster`), sans quoi le nommer
+    serait un oracle.
 - [ ] 22n. Domaines de verrouillage de `update_vlan_group` et de `policy.inference`
   (arbitrage de la 22j, 2026-11-10) : un groupe de VLAN déplacé ne nomme et ne verrouille
   que son nouvel ancrage, l'ancien domaine doit l'être aussi ; une règle
