@@ -4136,6 +4136,12 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     intercalées) ; seule la modification de préfixe a un test de course, les autres
     familles reposent sur le même déclencheur ; une version d'un module dont la ligne n'a
     ni `id` ni `object_id` n'est pas nommée (sujet absent).
+  - reste (revue) : `is_stale_version` (`port.rs` vers la ligne 36) reconnaît la marque
+    n'importe où dans le message, un texte saisi qui la contient déclencherait des rejeux
+    (exiger le préfixe de l'erreur de base) ; `is_stale_version` et `stale_object` sans
+    test unitaire ; les boucles de la 22o et de la 22p se multiplient, jusqu'à neuf
+    passages de `stages`, borne totale à dire dans l'ADR 0015 ; une horloge système qui
+    recule fait refuser en conflit jusqu'au rattrapage, non documenté.
 
 - [x] 22d. Chargement de l'arbre arrêté à deux pages (une passe sur sept, 22a et 24e) :
   après la deuxième page, ni ligne « suite » ni avis, 100 enfants dessinés ;
