@@ -161,6 +161,12 @@ Les tableaux d'identifiants suivent le précédent de `tagged_vlan_ids` (009) : 
 petits, lus en bloc, références contrôlées par le gestionnaire. `labels` ne contient que
 les clés suivies (X4).
 
+Précision (2026-11-10, tâche 4b) : un cluster sans domaine externe
+(`external_domain_id` nul) tient les adresses externes de ses services dans son domaine
+des services, comme l'ancrage de l'ingress ; une même IP à la fois IP de cluster et
+adresse externe, les deux domaines confondus, est une seule adresse du noyau, citée par
+`cluster_address_ids` et `external_address_ids`.
+
 **Journal d'observation** (non versionné, hors référentiel, Q-019-4, X7,
 [ADR 0043](../../docs/adr/0043-observations-hors-referentiel.md)) :
 
@@ -307,6 +313,11 @@ sans changer le noyau. L'explication cite le porteur qui a servi.
 | service | workload | mise à nul (retrait de la sélection) |
 | cluster | domaines, conteneurs, réseaux | refus |
 | flux (011) | workload, namespace, service | refus ; le connecteur passe l'objet absent (REQ-019-22) |
+
+La mise à nul service → workload vaut sans cascade pour la clôture d'un workload par
+`kube.sync` : le gestionnaire y ajoute le retrait du workload de la sélection de chaque
+service qui le cite ; une clôture directe sans cascade reste refusée (D33, le noyau ne
+met à nul qu'en cascade).
 
 ### Section de différentiel `kube.objects`
 

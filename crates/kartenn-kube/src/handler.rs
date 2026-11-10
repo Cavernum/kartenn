@@ -1,20 +1,22 @@
 //! The handler of the module in the write pipeline (feature `pg`; ADR 0026, clause 6):
 //! the declaration of a cluster by an administrator (`create_cluster`, `update_cluster`,
-//! REQ-019-5) and the batch of the connector (`sync`, 019/X9), one node, namespace or
-//! workload of a cluster per operation, found by its identity in the cluster, or in its
-//! namespace for a workload (REQ-019-6 to 8). `owner` and `site` of a cluster are
-//! assignments of `core.owner` and `core.site` the handler adds to the changeset; its
-//! nodes, namespaces and workloads inherit them (tree `kube`) and are anchored in its pod
-//! domain. The pod ranges of a node (`pod_cidrs`, REQ-019-13) are networks of that
-//! domain the `sync` creates and closes as operations of the core, cited by the node
-//! (`range_ids`) once their identifiers come back (`planned`, ADR 0026 amendment 8).
+//! REQ-019-5) and the batch of the connector (`sync`, 019/X9), one node, namespace,
+//! workload or service of a cluster per operation, found by its identity in the cluster,
+//! or in its namespace for a workload or a service (REQ-019-6 to 9). `owner` and `site` of
+//! a cluster are assignments of `core.owner` and `core.site` the handler adds to the
+//! changeset; its nodes, namespaces, workloads and services inherit them (tree `kube`) and
+//! are anchored in its pod domain. The pod ranges of a node (`pod_cidrs`, REQ-019-13) are
+//! networks of that domain, the cluster IPs and external addresses of a service
+//! (REQ-019-14) addresses of usage `vip` of its service and external domains, which the
+//! `sync` creates and closes as operations of the core, cited by their owner once their
+//! identifiers come back (`planned`, ADR 0026 amendment 8).
 
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
 
-use kartenn_core::addr::Prefix;
+use kartenn_core::addr::{Addr, Prefix};
 use kartenn_core::family;
-use kartenn_core::objects::{Nature, Slug};
+use kartenn_core::objects::{AddressUsage, Nature, Slug};
 use kartenn_core::period::Period;
 use kartenn_core::rules::Violation;
 use kartenn_service::ObjectKind;
@@ -29,15 +31,15 @@ use serde_json::{Map, Value, json};
 use sqlx::PgConnection;
 use uuid::Uuid;
 
-use crate::module::{CLUSTER, MACHINE, NAMESPACE, NODE, PREFIX, WORKLOAD};
+use crate::module::{ADDRESS, CLUSTER, MACHINE, NAMESPACE, NODE, PREFIX, SERVICE, WORKLOAD};
 use crate::names::{DnsLabel, DnsSubdomain, LabelKey, LabelValue, parse_labels};
 use crate::owner::WorkloadKind;
-use crate::pg::{self, CLUSTER_TABLE, NAMESPACE_TABLE, NODE_TABLE, WORKLOAD_TABLE};
+use crate::pg::{self, CLUSTER_TABLE, NAMESPACE_TABLE, NODE_TABLE, SERVICE_TABLE, WORKLOAD_TABLE};
 use crate::rules::{
     CLUSTER_CONNECTOR_GROUP, CLUSTER_RANGE_DOMAIN, NAME_INVALID, NODE_MACHINE_KIND,
-    NODE_RANGE_OUTSIDE, OPERATION_INVALID, WORKLOAD_DUPLICATE,
+    NODE_RANGE_OUTSIDE, OPERATION_INVALID, SERVICE_DUPLICATE, WORKLOAD_DUPLICATE,
 };
-use crate::tracked::Protocol;
+use crate::tracked::{Protocol, ServiceType};
 
 /// The handler of the module.
 #[derive(Debug, Clone, Copy, Default)]
@@ -67,6 +69,11 @@ fn workload_kind() -> ModuleKind {
     kind(WORKLOAD, &KIND)
 }
 
+fn service_kind() -> ModuleKind {
+    static KIND: OnceLock<ModuleKind> = OnceLock::new();
+    kind(SERVICE, &KIND)
+}
+
 /// The table of the objects of `kind`.
 fn table(kind: ModuleKind) -> &'static str {
     if kind == node_kind() {
@@ -75,6 +82,8 @@ fn table(kind: ModuleKind) -> &'static str {
         NAMESPACE_TABLE
     } else if kind == workload_kind() {
         WORKLOAD_TABLE
+    } else if kind == service_kind() {
+        SERVICE_TABLE
     } else {
         CLUSTER_TABLE
     }
@@ -108,13 +117,38 @@ struct Completed {
     /// The living object of the identity a `sync` names (019/X9).
     #[serde(default)]
     existing: Option<Uuid>,
-    /// The living namespace a `sync` of a workload names, by its name in the cluster.
+    /// The living namespace a `sync` of a workload or a service names, by its name in the
+    /// cluster.
     #[serde(default)]
     namespace: Option<Uuid>,
-    /// The last closed workload of the identity a `sync` names, when none lives: the one
-    /// an `upsert` opens again (019/X3).
+    /// The last closed workload or service of the identity a `sync` names, when none
+    /// lives: the one an `upsert` opens again (019/X3).
     #[serde(default)]
     reopened: Option<Uuid>,
+    /// The service domain and the external domain of the cluster of a `sync` of a
+    /// service: where its cluster IPs and its external addresses live (019/X6); the
+    /// external addresses of a cluster without an external domain live in its service
+    /// domain.
+    #[serde(default)]
+    service_domain: Option<Uuid>,
+    #[serde(default)]
+    external_domain: Option<Uuid>,
+    /// The living addresses the service of a `sync` cites.
+    #[serde(default)]
+    addresses: Vec<pg::HeldAddress>,
+    /// The living services that select the workload a `sync` closes: it leaves their
+    /// selection in the same batch (design « Références »).
+    #[serde(default)]
+    selecting: Vec<Uuid>,
+    /// The service, the workload and the domain the service is anchored in, of an
+    /// `unselect`, which only the handler plans (a `completed` sent by a client is
+    /// replaced by `prepare`).
+    #[serde(default)]
+    unselect: Option<(Uuid, Uuid, Uuid)>,
+    /// The living workloads of the namespace among those a `sync` of a service selects:
+    /// kind, name, identifier.
+    #[serde(default)]
+    selection: Vec<(String, String, Uuid)>,
     /// The pod domain of the cluster of a `sync`: the anchor of its objects.
     #[serde(default)]
     pod_domain: Option<Uuid>,
@@ -413,12 +447,30 @@ const WORKLOAD_FIELDS: &[&str] = &[
     "host_network",
 ];
 
+/// A service is named in its namespace (`namespace`, by name); its Kubernetes type is
+/// `service_type` (`type` names the type of object of the `sync`), its addresses are lists
+/// of IP (`cluster_ips`, `external_ips`), its selection a list of workloads of the
+/// namespace by kind and name (`workloads`).
+const SERVICE_FIELDS: &[&str] = &[
+    "namespace",
+    "uid",
+    "service_type",
+    "headless",
+    "external_name",
+    "ports",
+    "cluster_ips",
+    "external_ips",
+    "workloads",
+];
+
 /// The fields `sync` takes for the type `kind`.
 fn fields_of(kind: ModuleKind) -> &'static [&'static str] {
     if kind == node_kind() {
         NODE_FIELDS
     } else if kind == workload_kind() {
         WORKLOAD_FIELDS
+    } else if kind == service_kind() {
+        SERVICE_FIELDS
     } else {
         NAMESPACE_FIELDS
     }
@@ -455,31 +507,264 @@ fn port_name(name: &str) -> bool {
         && !name.contains("--")
 }
 
+/// A port number of `field`, from 1 to 65535.
+fn port_number(port: u16, field: &str) -> Result<(), Violation> {
+    if port == 0 {
+        return Err(invalid(format!("{field}: a port from 1 to 65535")));
+    }
+    Ok(())
+}
+
+/// A port name of `field` (`IANA_SVC_NAME`).
+fn checked_port_name(name: &str, field: &str) -> Result<(), Violation> {
+    if !port_name(name) {
+        return Err(Violation::new(
+            &NAME_INVALID,
+            format!("{field}: {name} is not a port name (IANA_SVC_NAME)"),
+        ));
+    }
+    Ok(())
+}
+
+/// The number, protocol and name of a port of a workload or a service.
+fn checked_port(port: u16, protocol: &str, name: Option<&str>) -> Result<(), Violation> {
+    port_number(port, "ports")?;
+    if Protocol::parse(protocol).is_none() {
+        return Err(invalid(format!(
+            "ports: {protocol} is not tcp, udp or sctp"
+        )));
+    }
+    name.map_or(Ok(()), |n| checked_port_name(n, "ports"))
+}
+
 /// The declared ports of `value`, a sorted set.
 fn workload_ports(value: &Value) -> Result<Vec<WorkloadPort>, Violation> {
     let ports: Vec<WorkloadPort> = decode(value.clone(), "ports")?;
     for port in &ports {
-        if port.port == 0 {
-            return Err(invalid("ports: a port from 1 to 65535"));
-        }
-        if Protocol::parse(&port.protocol).is_none() {
-            return Err(invalid(format!(
-                "ports: {} is not tcp, udp or sctp",
-                port.protocol
-            )));
-        }
-        if let Some(name) = &port.name
-            && !port_name(name)
-        {
-            return Err(Violation::new(
-                &NAME_INVALID,
-                format!("ports: {name} is not a port name (IANA_SVC_NAME)"),
-            ));
-        }
+        checked_port(port.port, &port.protocol, port.name.as_deref())?;
     }
     // A set: a reordering makes no version (019/X4).
     let ports: BTreeSet<WorkloadPort> = ports.into_iter().collect();
     Ok(ports.into_iter().collect())
+}
+
+/// The port a service targets on its pods (`targetPort`): a number or a port name.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(untagged)]
+enum TargetPort {
+    Number(u16),
+    Name(String),
+}
+
+/// A port of a service (`spec.ports`, REQ-019-9).
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ServicePort {
+    port: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    target_port: Option<TargetPort>,
+    /// `tcp` when absent, as in Kubernetes.
+    #[serde(default = "tcp")]
+    protocol: String,
+    /// `appProtocol`, in the syntax of a label key (an IANA service name, or a prefixed
+    /// name).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    app_protocol: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    node_port: Option<u16>,
+    /// The name an ingress may target.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+}
+
+/// The ports of a service in `value`, a sorted set.
+fn service_ports(value: &Value) -> Result<Vec<ServicePort>, Violation> {
+    let ports: Vec<ServicePort> = decode(value.clone(), "ports")?;
+    for port in &ports {
+        checked_port(port.port, &port.protocol, port.name.as_deref())?;
+        match &port.target_port {
+            Some(TargetPort::Number(n)) => port_number(*n, "target_port")?,
+            Some(TargetPort::Name(n)) => checked_port_name(n, "target_port")?,
+            None => {}
+        }
+        if let Some(n) = port.node_port {
+            port_number(n, "node_port")?;
+        }
+        if let Some(app) = &port.app_protocol {
+            LabelKey::parse(app)?;
+        }
+    }
+    // A set: a reordering makes no version (019/X4).
+    let ports: BTreeSet<ServicePort> = ports.into_iter().collect();
+    Ok(ports.into_iter().collect())
+}
+
+/// A workload a `sync` of a service selects, by its kind and name in the namespace of the
+/// service: a workload of the pods of its `EndpointSlice`s (design « Connecteur »).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Selected {
+    kind: String,
+    name: String,
+}
+
+/// The selection of `value`: the living workloads of the namespace it names, among those
+/// `prepare` found (`completed.selection`), as a sorted set.
+fn selection(value: &Value, completed: &Completed) -> Result<Vec<Uuid>, Violation> {
+    let wanted: Vec<Selected> = decode(value.clone(), "workloads")?;
+    let ids: BTreeSet<Uuid> = wanted
+        .iter()
+        .map(|s| {
+            completed
+                .selection
+                .iter()
+                .find(|(kind, name, _)| *kind == s.kind && *name == s.name)
+                .map(|(_, _, id)| *id)
+                .ok_or_else(|| {
+                    invalid(format!(
+                        "workloads: no living {} {} in the namespace of the service",
+                        s.kind, s.name
+                    ))
+                })
+        })
+        .collect::<Result<_, _>>()?;
+    Ok(ids.into_iter().collect())
+}
+
+/// One sort of addresses of a service (REQ-019-14): its field in a `sync`, its column, and
+/// the domain its addresses live in.
+struct Sort {
+    field: &'static str,
+    column: &'static str,
+    cluster_ip: bool,
+    domain: Option<Uuid>,
+}
+
+/// An address a service cites, as [`vips`] reads it.
+struct Held {
+    cluster_ip: bool,
+    external: bool,
+    domain: Uuid,
+    value: Addr,
+    id: Uuid,
+}
+
+/// What a `sync` does to the addresses of a service, into `columns`: the addresses of
+/// each sort it gives (`cluster_ips`, `external_ips`, lists of IP) against those the
+/// service cites (`completed.addresses`). A value unchanged creates nothing; a new value
+/// gets one address of usage `vip` in the domain of its sort, cited by every sort that
+/// gives it (a cluster IP that is also an external address, when the two domains are one,
+/// is one address); an address no sort cites any more closes. Returns the operations of
+/// the core and, for each, the columns that cite what it creates (`data.slots`).
+fn vips(
+    body: &Map<String, Value>,
+    completed: &Completed,
+    columns: &mut Map<String, Value>,
+) -> Result<(Vec<Operation>, Vec<Value>), Violation> {
+    let sorts = [
+        Sort {
+            field: "cluster_ips",
+            column: "cluster_address_ids",
+            cluster_ip: true,
+            domain: completed.service_domain,
+        },
+        // Without an external domain, the external addresses live in the service domain
+        // (design « Données », 2026-11-10).
+        Sort {
+            field: "external_ips",
+            column: "external_address_ids",
+            cluster_ip: false,
+            domain: completed.external_domain.or(completed.service_domain),
+        },
+    ];
+    let held: Vec<Held> = completed
+        .addresses
+        .iter()
+        .filter_map(|(cluster_ip, external, domain, text, id)| {
+            Some(Held {
+                cluster_ip: *cluster_ip,
+                external: *external,
+                domain: *domain,
+                value: Addr::parse_any(&family::ALL, text).ok()?,
+                id: *id,
+            })
+        })
+        .collect();
+    let found = |key: &(Uuid, Addr)| {
+        held.iter()
+            .find(|h| (h.domain, h.value) == *key)
+            .map(|h| h.id)
+    };
+    // The (domain, value) each sort cites after the write: those it gives, or those it
+    // cites already.
+    let mut wanted: Vec<(&Sort, BTreeSet<(Uuid, Addr)>)> = Vec::new();
+    for sort in &sorts {
+        let Some(value) = body.get(sort.field) else {
+            let cited = held
+                .iter()
+                .filter(|h| {
+                    if sort.cluster_ip {
+                        h.cluster_ip
+                    } else {
+                        h.external
+                    }
+                })
+                .map(|h| (h.domain, h.value))
+                .collect();
+            wanted.push((sort, cited));
+            continue;
+        };
+        let field = sort.field;
+        let texts: Vec<String> = decode(value.clone(), field)?;
+        let set: BTreeSet<(Uuid, Addr)> = texts
+            .iter()
+            .map(|t| {
+                let value = Addr::parse_any(&family::ALL, t)
+                    .map_err(|e| invalid(format!("{field}: {t}: {e}")))?;
+                let domain = sort.domain.ok_or_else(|| {
+                    invalid(format!(
+                        "{field}: the cluster designates no domain for them"
+                    ))
+                })?;
+                Ok((domain, value))
+            })
+            .collect::<Result<_, Violation>>()?;
+        let mut kept: Vec<Uuid> = set.iter().filter_map(found).collect();
+        kept.sort_unstable();
+        columns.insert(sort.column.into(), json!(kept));
+        wanted.push((sort, set));
+    }
+    let all: BTreeSet<(Uuid, Addr)> = wanted.iter().flat_map(|(_, s)| s.iter().copied()).collect();
+    let mut core = Vec::new();
+    let mut slots = Vec::new();
+    for key in all.iter().filter(|k| found(k).is_none()) {
+        let citing: Vec<&str> = wanted
+            .iter()
+            .filter(|(_, s)| s.contains(key))
+            .map(|(sort, _)| sort.column)
+            .collect();
+        core.push(Operation::CreateAddress {
+            local: None,
+            domain: Ref::Id(key.0),
+            address: key.1.to_string(),
+            usage: AddressUsage::Vip,
+        });
+        slots.push(json!(citing));
+    }
+    for h in held.iter().filter(|h| !all.contains(&(h.domain, h.value))) {
+        core.push(close_core(ObjectKind::Address, h.id));
+        slots.push(Value::Null);
+    }
+    Ok((core, slots))
+}
+
+/// The columns of the object of a plan that cite what `operation` creates, if it creates
+/// something (`data.slots`, read by [`ModuleHandler::planned`]).
+fn slot(operation: &Operation, columns: &[&str]) -> Value {
+    match operation {
+        Operation::CreatePrefix { .. } | Operation::CreateAddress { .. } => json!(columns),
+        _ => Value::Null,
+    }
 }
 
 /// What a `sync` does to the pod ranges of a node (REQ-019-13).
@@ -541,7 +826,7 @@ fn pod_ranges(value: &Value, completed: &Completed, domain: Uuid) -> Result<PodR
     core.extend(
         held.iter()
             .filter(|(p, _)| !wanted.contains(p))
-            .map(|(_, id)| close_prefix(*id)),
+            .map(|(_, id)| close_core(ObjectKind::Prefix, *id)),
     );
     Ok(PodRanges {
         cidrs: wanted.iter().map(ToString::to_string).collect(),
@@ -550,10 +835,11 @@ fn pod_ranges(value: &Value, completed: &Completed, domain: Uuid) -> Result<PodR
     })
 }
 
-/// The closure of the network `id` of a pod range.
-fn close_prefix(id: Uuid) -> Operation {
+/// The closure of the object `id` of the core: the network of a pod range, an address of
+/// a service.
+fn close_core(kind: ObjectKind, id: Uuid) -> Operation {
     Operation::Close {
-        kind: ObjectKind::Prefix,
+        kind,
         id: Ref::Id(id),
         expected: None,
         cascade: false,
@@ -630,7 +916,36 @@ fn mirror_columns(
                 };
                 ("service_account", json!(account))
             }
+            "ports" if kind == service_kind() => ("ports", json!(service_ports(value)?)),
             "ports" => ("ports", json!(workload_ports(value)?)),
+            "service_type" => {
+                let text = value.as_str().unwrap_or_default();
+                let service = ServiceType::parse(text).ok_or_else(|| {
+                    invalid(format!(
+                        "service_type: {value} is not cluster_ip, node_port, load_balancer or \
+                         external_name"
+                    ))
+                })?;
+                ("type", json!(service.as_str()))
+            }
+            "headless" => {
+                let headless = value
+                    .as_bool()
+                    .ok_or_else(|| invalid("headless: a boolean"))?;
+                ("headless", json!(headless))
+            }
+            "external_name" => {
+                // A DNS name, absolute (a final dot) or not.
+                let name = match value.as_str() {
+                    Some(name) => {
+                        DnsSubdomain::parse(name.strip_suffix('.').unwrap_or(name))?;
+                        Some(name)
+                    }
+                    None if value.is_null() => None,
+                    None => return Err(invalid("external_name: a string")),
+                };
+                ("external_name", json!(name))
+            }
             "host_network" => {
                 let host = value
                     .as_bool()
@@ -651,6 +966,7 @@ fn mirror_kind(body: &Map<String, Value>) -> Result<ModuleKind, Violation> {
         Some(NODE) => Ok(node_kind()),
         Some(NAMESPACE) => Ok(namespace_kind()),
         Some(WORKLOAD) => Ok(workload_kind()),
+        Some(SERVICE) => Ok(service_kind()),
         Some(other) => Err(invalid(format!("type: {other} is not synced yet"))),
         None => Err(invalid("type: required")),
     }
@@ -671,27 +987,39 @@ fn mirror_name(kind: ModuleKind, body: &Map<String, Value>) -> Result<String, Vi
     })
 }
 
-/// The row of a new object `object` of `kind` named `name`, every tracked field at its
-/// default: in `cluster`, or in the namespace of `workload` for a workload.
-fn mirror_row(
-    kind: ModuleKind,
-    object: Uuid,
-    cluster: Uuid,
-    name: &str,
-    workload: Option<(Uuid, WorkloadKind)>,
-) -> Map<String, Value> {
+/// Where the object of a `sync` lives: in its cluster (a node, a namespace), or in a
+/// namespace (a workload, of its kind, or a service).
+#[derive(Debug, Clone, Copy)]
+enum Home {
+    Cluster(Uuid),
+    Workload(Uuid, WorkloadKind),
+    Service(Uuid),
+}
+
+/// The row of a new object `object` of `kind` named `name` in `home`, every tracked field
+/// at its default.
+fn mirror_row(kind: ModuleKind, object: Uuid, home: Home, name: &str) -> Map<String, Value> {
     let mut row = Map::new();
     row.insert("id".into(), json!(object));
-    if let Some((namespace, workload)) = workload {
-        row.insert("namespace_id".into(), json!(namespace));
-        row.insert("kind".into(), json!(workload.as_str()));
-    } else {
-        row.insert("cluster_id".into(), json!(cluster));
-    }
+    match home {
+        Home::Cluster(cluster) => row.insert("cluster_id".into(), json!(cluster)),
+        Home::Workload(namespace, _) | Home::Service(namespace) => {
+            row.insert("namespace_id".into(), json!(namespace))
+        }
+    };
     row.insert("name".into(), json!(name));
     row.insert("uid".into(), Value::Null);
     row.insert("absent_since".into(), Value::Null);
-    if workload.is_some() {
+    if let Home::Service(_) = home {
+        row.insert("type".into(), json!(ServiceType::ClusterIp.as_str()));
+        row.insert("headless".into(), json!(false));
+        row.insert("external_name".into(), Value::Null);
+        row.insert("ports".into(), json!([]));
+        row.insert("cluster_address_ids".into(), json!([]));
+        row.insert("external_address_ids".into(), json!([]));
+        row.insert("workload_ids".into(), json!([]));
+    } else if let Home::Workload(_, workload) = home {
+        row.insert("kind".into(), json!(workload.as_str()));
         row.insert("labels".into(), json!({}));
         row.insert("service_account".into(), Value::Null);
         row.insert("ports".into(), json!([]));
@@ -708,35 +1036,135 @@ fn mirror_row(
     row
 }
 
-/// The namespace and kind of the workload a `sync` names (019/X3: its identity is
-/// (namespace, kind, name)): the namespace by its name in `cluster`, living then.
-fn workload_identity(
+/// Where the object of `kind` a `sync` names lives (019/X3: the identity of a workload is
+/// (namespace, kind, name), that of a service (namespace, name)): the namespace by its
+/// name in `cluster`, living then.
+fn home_of(
+    kind: ModuleKind,
     body: &Map<String, Value>,
     completed: &Completed,
     cluster: Uuid,
-) -> Result<(Uuid, WorkloadKind), Violation> {
+) -> Result<Home, Violation> {
+    if kind != workload_kind() && kind != service_kind() {
+        return Ok(Home::Cluster(cluster));
+    }
     let namespace = body
         .get("namespace")
         .and_then(Value::as_str)
         .ok_or_else(|| invalid("namespace: required, the name of the namespace"))?;
     let namespace = DnsLabel::parse(namespace)?;
-    let kind = body
-        .get("kind")
-        .and_then(Value::as_str)
-        .ok_or_else(|| invalid("kind: required"))?;
-    let kind = WorkloadKind::parse(kind).ok_or_else(|| {
-        invalid(format!(
-            "kind: {kind} is not deployment, statefulset, daemonset, cronjob, job, replicaset \
-             or pod"
-        ))
-    })?;
+    let workload = (kind == workload_kind())
+        .then(|| {
+            let text = body
+                .get("kind")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid("kind: required"))?;
+            WorkloadKind::parse(text).ok_or_else(|| {
+                invalid(format!(
+                    "kind: {text} is not deployment, statefulset, daemonset, cronjob, job, \
+                     replicaset or pod"
+                ))
+            })
+        })
+        .transpose()?;
     let id = completed.namespace.ok_or_else(|| {
         invalid(format!(
             "namespace: no living namespace {} in the cluster {cluster}",
             namespace.as_str()
         ))
     })?;
-    Ok((id, kind))
+    Ok(workload.map_or(Home::Service(id), |w| Home::Workload(id, w)))
+}
+
+/// The refusal of the `close` of an object of `kind` named `name` in `home` that does not
+/// live.
+fn missing(kind: ModuleKind, home: Home, name: &str) -> Violation {
+    match home {
+        Home::Workload(namespace, workload) => invalid(format!(
+            "no living {workload} {name} in the namespace {namespace}"
+        )),
+        Home::Service(namespace) => invalid(format!(
+            "no living service {name} in the namespace {namespace}"
+        )),
+        Home::Cluster(cluster) => {
+            invalid(format!("no living {kind} {name} in the cluster {cluster}"))
+        }
+    }
+}
+
+/// The plan of an `unselect`: the selection a workload closed by `kube.sync` leaves,
+/// planned by its closure (`completed.unselect`), refused from a client.
+fn plan_unselect(operation: &ModuleOperation) -> Result<ModulePlan, Violation> {
+    let (service, workload, domain) = completed(&operation.body)
+        .unselect
+        .ok_or_else(|| invalid("action: unselect is not an action of sync"))?;
+    let mut plan = unselect(service, workload);
+    // Under the lock of the domain of the service, as the closure that adds it.
+    plan.domains = vec![domain];
+    Ok(plan)
+}
+
+/// The write that takes `workload` out of the selection of `service` (applied by
+/// `patch_of`).
+fn unselect(service: Uuid, workload: Uuid) -> ModulePlan {
+    ModulePlan {
+        kind: service_kind(),
+        object: service,
+        creates: false,
+        domains: Vec::new(),
+        keys: Vec::new(),
+        core: Vec::new(),
+        data: json!({ "unselect": workload }),
+    }
+}
+
+/// The operation, added by the closure of `workload` by `kube.sync`, that takes it out of
+/// the selection of `service`: a `sync` of action `unselect` whose service and workload
+/// are in `completed`, which `prepare` replaces in an operation of a client (refused
+/// then).
+fn unselect_operation(service: Uuid, workload: Uuid, domain: Uuid) -> Operation {
+    let Value::Object(body) = json!({
+        "action": "unselect",
+        "completed": {"unselect": [service, workload, domain]},
+    }) else {
+        unreachable!("an object literal")
+    };
+    Operation::Module(ModuleOperation {
+        module: "kube".into(),
+        name: "sync".into(),
+        body,
+    })
+}
+
+/// The columns of an `upsert` that cite objects the `sync` creates or reads (the pod ranges
+/// of a node, the addresses and the selection of a service), into `columns`; the
+/// operations of the core it adds, and for each the columns that cite what it creates
+/// (`data.slots`).
+fn owned_columns(
+    kind: ModuleKind,
+    body: &Map<String, Value>,
+    completed: &Completed,
+    pod_domain: Uuid,
+    columns: &mut Map<String, Value>,
+) -> Result<(Vec<Operation>, Vec<Value>), Violation> {
+    let mut core = Vec::new();
+    let mut slots = Vec::new();
+    if let Some(value) = body.get("pod_cidrs") {
+        let ranges = pod_ranges(value, completed, pod_domain)?;
+        columns.insert("pod_cidrs".into(), json!(ranges.cidrs));
+        columns.insert("range_ids".into(), json!(ranges.kept));
+        slots.extend(ranges.core.iter().map(|op| slot(op, &["range_ids"])));
+        core.extend(ranges.core);
+    }
+    if kind == service_kind() {
+        let (vips, cited) = vips(body, completed, columns)?;
+        core.extend(vips);
+        slots.extend(cited);
+    }
+    if let Some(value) = body.get("workloads") {
+        columns.insert("workload_ids".into(), json!(selection(value, completed)?));
+    }
+    Ok((core, slots))
 }
 
 impl Handler {
@@ -821,6 +1249,7 @@ impl Handler {
                 NODE_FIELDS,
                 NAMESPACE_FIELDS,
                 WORKLOAD_FIELDS,
+                SERVICE_FIELDS,
             ]
             .concat(),
         )?;
@@ -829,9 +1258,14 @@ impl Handler {
         let own = fields_of(kind);
         if let Some(foreign) = body.keys().find(|k| {
             let k = k.as_str();
-            [NODE_FIELDS, NAMESPACE_FIELDS, WORKLOAD_FIELDS]
-                .iter()
-                .any(|fields| fields.contains(&k))
+            [
+                NODE_FIELDS,
+                NAMESPACE_FIELDS,
+                WORKLOAD_FIELDS,
+                SERVICE_FIELDS,
+            ]
+            .iter()
+            .any(|fields| fields.contains(&k))
                 && !own.contains(&k)
         }) {
             return Err(invalid(format!("{kind}: unknown field `{foreign}`")));
@@ -846,63 +1280,70 @@ impl Handler {
             .pod_domain
             .ok_or_else(|| invalid(format!("cluster: {cluster} is not a living cluster")))?;
         let name = mirror_name(kind, &body)?;
-        let workload = (kind == workload_kind())
-            .then(|| workload_identity(&body, &completed, cluster))
-            .transpose()?;
+        let home = home_of(kind, &body, &completed, cluster)?;
         let keys = vec![cluster_key(cluster)];
+        // A service is anchored in the service domain of its cluster (design « Types
+        // d'objets »), the other objects in its pod domain.
+        let anchor = if kind == service_kind() {
+            completed.service_domain.unwrap_or(domain)
+        } else {
+            domain
+        };
         match body.get("action").and_then(Value::as_str) {
             Some("upsert") => {
                 let (mut columns, cited) = mirror_columns(kind, &body, resolve)?;
-                let mut core = Vec::new();
-                if let Some(value) = body.get("pod_cidrs") {
-                    let ranges = pod_ranges(value, &completed, domain)?;
-                    columns.insert("pod_cidrs".into(), json!(ranges.cidrs));
-                    columns.insert("range_ids".into(), json!(ranges.kept));
-                    core = ranges.core;
-                }
+                let (core, slots) = owned_columns(kind, &body, &completed, domain, &mut columns)?;
                 let (target, creates, data) = if let Some(existing) = completed.existing {
                     (existing, false, json!({ "update": columns }))
                 } else {
-                    // A workload deleted then created again under the same name stays the
-                    // same workload (019/X3), closed meanwhile or not (X9): its identifier
-                    // opens again, a new version after the gap.
+                    // A workload or a service deleted then created again under the same name
+                    // stays the same object (019/X3), closed meanwhile or not (X9): its
+                    // identifier opens again, a new version after the gap.
                     let id = completed.reopened.unwrap_or(object);
-                    let mut row = mirror_row(kind, id, cluster, &name, workload);
+                    let mut row = mirror_row(kind, id, home, &name);
                     row.extend(columns);
                     (id, true, json!({ "create": row }))
                 };
                 let mut data = data;
                 data["reads"] = reads(&cited);
+                data["slots"] = Value::Array(slots);
                 Ok(ModulePlan {
                     kind,
                     object: target,
                     creates,
-                    domains: vec![domain],
+                    domains: vec![anchor],
                     keys,
                     core,
                     data,
                 })
             }
             Some("close") => {
-                let existing = completed.existing.ok_or_else(|| match workload {
-                    Some((namespace, workload)) => invalid(format!(
-                        "no living {workload} {name} in the namespace {namespace}"
-                    )),
-                    None => invalid(format!("no living {kind} {name} in the cluster {cluster}")),
-                })?;
-                // The networks of its pod ranges are owned by the node: the core closes
-                // them with it (design « Références », `OnClose::Owned`).
-                let core = vec![Operation::Close {
+                let existing = completed
+                    .existing
+                    .ok_or_else(|| missing(kind, home, &name))?;
+                // A closed workload leaves the selection of its services, without refusal
+                // (design « Références », mise à nul): the core clears a reference only in
+                // a cascade, which would close other dependents.
+                let services = completed.service_domain.unwrap_or(domain);
+                let mut core: Vec<Operation> = completed
+                    .selecting
+                    .iter()
+                    .map(|service| unselect_operation(*service, existing, services))
+                    .collect();
+                // The networks of the pod ranges of a node, the addresses of a service, are
+                // owned by it: the core closes them with it (design « Références »,
+                // `OnClose::Owned`).
+                core.push(Operation::Close {
                     kind: ObjectKind::Module(kind),
                     id: Ref::Id(existing),
                     expected: None,
                     cascade: false,
-                }];
+                });
                 Ok(ModulePlan {
                     kind,
                     object: existing,
                     creates: false,
-                    domains: vec![domain],
+                    domains: vec![anchor],
                     keys,
                     core,
                     data: json!({ "noop": true }),
@@ -914,8 +1355,34 @@ impl Handler {
     }
 }
 
-/// Writes the node, namespace or workload of `plan` and registers it under its cluster (a
-/// workload under its namespace), anchored in the pod domain of the cluster.
+/// The columns a write of `plan` changes on `current`: those of an `upsert`, the machine
+/// a node no longer designates (`unlink`), the selection a closed workload leaves
+/// (`unselect`).
+fn patch_of(plan: &ModulePlan, current: &Value) -> Result<Value, StoreError> {
+    if let Some(update) = plan.data.get("update") {
+        return Ok(update.clone());
+    }
+    if plan.data.get("unlink").is_some() {
+        return Ok(json!({ "machine_id": null }));
+    }
+    let target: Uuid = plan
+        .data
+        .get("unselect")
+        .cloned()
+        .and_then(|t| serde_json::from_value(t).ok())
+        .ok_or_else(|| StoreError("a planned write".into()))?;
+    let selected: Vec<Uuid> = current
+        .get("workload_ids")
+        .cloned()
+        .and_then(|w| serde_json::from_value(w).ok())
+        .unwrap_or_default();
+    let kept: Vec<Uuid> = selected.into_iter().filter(|w| *w != target).collect();
+    Ok(json!({ "workload_ids": kept }))
+}
+
+/// Writes the node, namespace, workload or service of `plan` and registers it under its
+/// cluster (a workload or a service under its namespace), anchored in the pod domain of
+/// the cluster.
 async fn apply_mirror(
     tx: &mut dyn ModuleTx,
     plan: &ModulePlan,
@@ -925,30 +1392,29 @@ async fn apply_mirror(
     let (id, table) = (plan.object, table(plan.kind));
     let conn = connection(tx)?;
     if let Some(row) = plan.data.get("create") {
-        // A closed workload opened twice in a batch: the second finds the first.
-        if table == WORKLOAD_TABLE && pg::current(conn, table, id, period).await?.is_some() {
+        // A closed workload or service opened twice in a batch: the second finds the
+        // first.
+        let duplicate = match table {
+            WORKLOAD_TABLE => Some(&WORKLOAD_DUPLICATE),
+            SERVICE_TABLE => Some(&SERVICE_DUPLICATE),
+            _ => None,
+        };
+        if let Some(rule) = duplicate
+            && pg::current(conn, table, id, period).await?.is_some()
+        {
             return Err(pg::refused(
-                &WORKLOAD_DUPLICATE,
-                format!("the workload {id} is opened again twice over the period"),
+                rule,
+                format!("the object {id} is opened again twice over the period"),
                 &[id],
             ));
         }
         pg::identities(conn, table, id, row, period).await?;
         pg::insert(conn, table, row, period, changeset).await?;
     } else {
-        let patch = plan
-            .data
-            .get("update")
-            .cloned()
-            .or_else(|| {
-                plan.data
-                    .get("unlink")
-                    .map(|_| json!({ "machine_id": null }))
-            })
-            .ok_or_else(|| StoreError("a planned write".into()))?;
         let mut merged = pg::current(conn, table, id, period)
             .await?
             .ok_or(WriteError::NoVersion(id))?;
+        let patch = patch_of(plan, &merged)?;
         if let (Value::Object(merged), Value::Object(patch)) = (&mut merged, &patch) {
             merged.extend(patch.clone());
         }
@@ -992,27 +1458,46 @@ impl ModuleHandler for Handler {
                     Some(NODE) => Some(NODE_TABLE),
                     Some(NAMESPACE) => Some(NAMESPACE_TABLE),
                     Some(WORKLOAD) => Some(WORKLOAD_TABLE),
+                    Some(SERVICE) => Some(SERVICE_TABLE),
                     _ => None,
                 };
                 let text = |field: &str| operation.body.get(field).and_then(Value::as_str);
                 let name = text("name");
                 if let Some(Ref::Id(cluster)) = cluster {
                     completed.pod_domain = pg::pod_domain(conn, cluster, at).await?;
-                    if table == Some(WORKLOAD_TABLE) {
-                        // A workload is named in its namespace, itself named in the cluster.
+                    if table == Some(WORKLOAD_TABLE) || table == Some(SERVICE_TABLE) {
+                        // A workload or a service is named in its namespace, itself named in
+                        // the cluster.
                         if let Some(namespace) = text("namespace") {
                             completed.namespace =
                                 pg::named(conn, NAMESPACE_TABLE, cluster, namespace, at).await?;
                         }
-                        if let (Some(namespace), Some(kind), Some(name)) =
-                            (completed.namespace, text("kind"), name)
+                        let kind = text("kind").filter(|_| table == Some(WORKLOAD_TABLE));
+                        if let (Some(namespace), Some(name)) = (completed.namespace, name)
+                            && (kind.is_some() || table == Some(SERVICE_TABLE))
                         {
-                            completed.existing =
-                                pg::workload_named(conn, namespace, kind, name, at).await?;
+                            let identity = pg::InNamespace {
+                                namespace,
+                                kind,
+                                name,
+                            };
+                            completed.existing = pg::namespaced(conn, identity, at).await?;
                             if completed.existing.is_none() {
                                 completed.reopened =
-                                    pg::workload_closed(conn, namespace, kind, name, at).await?;
+                                    pg::namespaced_closed(conn, identity, at).await?;
                             }
+                        }
+                        // The services a closed workload leaves.
+                        if let (Some(workload), true, Some("close")) = (
+                            completed.existing,
+                            table == Some(WORKLOAD_TABLE),
+                            text("action"),
+                        ) {
+                            completed.selecting =
+                                pg::referrers(conn, SERVICE, WORKLOAD, workload, at).await?;
+                            completed.service_domain = pg::service_domains(conn, cluster, at)
+                                .await?
+                                .map(|(service, _)| service);
                         }
                     } else if let (Some(table), Some(name)) = (table, name) {
                         completed.existing = pg::named(conn, table, cluster, name, at).await?;
@@ -1021,6 +1506,31 @@ impl ModuleHandler for Handler {
                         completed.pod_containers = pg::pod_containers(conn, cluster, at).await?;
                         if let Some(node) = completed.existing {
                             completed.ranges = pg::node_ranges(conn, node, at).await?;
+                        }
+                    }
+                    if table == Some(SERVICE_TABLE) {
+                        if let Some((service, external)) =
+                            pg::service_domains(conn, cluster, at).await?
+                        {
+                            completed.service_domain = Some(service);
+                            completed.external_domain = external;
+                        }
+                        if let Some(service) = completed.existing {
+                            completed.addresses = pg::service_addresses(conn, service, at).await?;
+                        }
+                        // The workloads it selects, by kind and name in its namespace.
+                        let wanted: Vec<(String, String)> = operation
+                            .body
+                            .get("workloads")
+                            .cloned()
+                            .and_then(|w| serde_json::from_value::<Vec<Selected>>(w).ok())
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|s| (s.kind, s.name))
+                            .collect();
+                        if let (Some(namespace), false) = (completed.namespace, wanted.is_empty()) {
+                            completed.selection =
+                                pg::workloads_named(conn, namespace, &wanted, at).await?;
                         }
                     }
                 }
@@ -1046,37 +1556,42 @@ impl ModuleHandler for Handler {
         match operation.name.as_str() {
             "create_cluster" => Self::plan_create_cluster(operation, object, resolve),
             "update_cluster" => Self::plan_update_cluster(operation, resolve),
+            "sync" if operation.body.get("action").and_then(Value::as_str) == Some("unselect") => {
+                plan_unselect(operation)
+            }
             "sync" => Self::plan_sync(operation, object, resolve),
             other => Err(invalid(format!("kube.{other}: unknown operation"))),
         }
     }
 
-    /// A node cites the networks created for its new pod ranges (ADR 0026, amendment 8).
+    /// A node cites the networks created for its new pod ranges, a service the addresses
+    /// created for its new cluster IPs and external addresses (ADR 0026, amendment 8): each
+    /// in the columns `data.slots` names for its operation.
     fn planned(&self, plan: &mut ModulePlan, created: &[Uuid]) {
-        let mut new: Vec<Uuid> = plan
-            .core
-            .iter()
-            .zip(created)
-            .filter(|(op, _)| matches!(op, Operation::CreatePrefix { .. }))
-            .map(|(_, id)| *id)
-            .collect();
-        if new.is_empty() {
-            return;
-        }
+        let slots: Vec<Option<Vec<String>>> = plan
+            .data
+            .get("slots")
+            .cloned()
+            .and_then(|s| serde_json::from_value(s).ok())
+            .unwrap_or_default();
         let row = if plan.data.get("create").is_some() {
             "create"
         } else {
             "update"
         };
-        let Some(ids) = plan.data.get_mut(row).and_then(|r| r.get_mut("range_ids")) else {
-            return;
-        };
-        let mut all: Vec<Uuid> = serde_json::from_value(ids.take()).unwrap_or_default();
-        all.append(&mut new);
-        // A set: the same ranges make the same column.
-        all.sort_unstable();
-        all.dedup();
-        *ids = json!(all);
+        for (columns, id) in slots.iter().zip(created) {
+            for column in columns.iter().flatten() {
+                let Some(ids) = plan.data.get_mut(row).and_then(|r| r.get_mut(column)) else {
+                    continue;
+                };
+                let mut all: Vec<Uuid> = serde_json::from_value(ids.take()).unwrap_or_default();
+                all.push(*id);
+                // A set: the same values make the same column.
+                all.sort_unstable();
+                all.dedup();
+                *ids = json!(all);
+            }
+        }
     }
 
     fn reads(&self, plan: &ModulePlan) -> Vec<(String, Uuid)> {
@@ -1182,7 +1697,8 @@ impl ModuleHandler for Handler {
         })
     }
 
-    /// The networks of the pod ranges a node owns (`range_ids`), closed with it.
+    /// The networks of the pod ranges a node owns (`range_ids`), the addresses a service
+    /// owns (`cluster_address_ids`, `external_address_ids`), closed with it.
     fn targets<'a>(
         &'a self,
         tx: &'a mut dyn ModuleTx,
@@ -1191,26 +1707,37 @@ impl ModuleHandler for Handler {
         period: Option<Period>,
     ) -> BoxFuture<'a, Result<Vec<Uuid>, StoreError>> {
         Box::pin(async move {
-            if (reference.from, reference.to) != (NODE, PREFIX) {
-                return Ok(Vec::new());
-            }
             let (at, _) = pg::bounds(period);
-            let ranges = pg::node_ranges(connection(tx)?, source, at).await?;
-            Ok(ranges.into_iter().map(|(_, id)| id).collect())
+            match (reference.from, reference.to) {
+                (NODE, PREFIX) => {
+                    let ranges = pg::node_ranges(connection(tx)?, source, at).await?;
+                    Ok(ranges.into_iter().map(|(_, id)| id).collect())
+                }
+                (SERVICE, ADDRESS) => {
+                    let addresses = pg::service_addresses(connection(tx)?, source, at).await?;
+                    Ok(addresses.into_iter().map(|(.., id)| id).collect())
+                }
+                _ => Ok(Vec::new()),
+            }
         })
     }
 
-    /// A closed machine is no longer designated by its node (design « Références »).
+    /// A closed machine is no longer designated by its node, a closed workload no longer
+    /// selected by its services (design « Références »).
     fn nullify(&self, reference: &Reference, source: Uuid, target: Uuid) -> Option<ModulePlan> {
-        (reference.from == NODE && reference.to == MACHINE).then(|| ModulePlan {
-            kind: node_kind(),
-            object: source,
-            creates: false,
-            domains: Vec::new(),
-            keys: Vec::new(),
-            core: Vec::new(),
-            data: json!({ "unlink": target }),
-        })
+        match (reference.from, reference.to) {
+            (NODE, MACHINE) => Some(ModulePlan {
+                kind: node_kind(),
+                object: source,
+                creates: false,
+                domains: Vec::new(),
+                keys: Vec::new(),
+                core: Vec::new(),
+                data: json!({ "unlink": target }),
+            }),
+            (SERVICE, WORKLOAD) => Some(unselect(source, target)),
+            _ => None,
+        }
     }
 
     /// The rules of the module on the final state of the clusters and nodes the changeset

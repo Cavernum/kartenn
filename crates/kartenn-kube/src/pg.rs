@@ -1,6 +1,6 @@
 //! The storage of the module in PostgreSQL (feature `pg`): the tables of the schema `kube`
-//! (migrations `0001_kube.sql`, `0002_node_pod_cidrs.sql`, `0003_workload.sql`), on the
-//! connection of the changeset.
+//! (migrations `0001_kube.sql` to `0004_service.sql`), on the connection of the
+//! changeset.
 
 use kartenn_core::period::{Instant, Period};
 use kartenn_core::rules::{Rule, Violation};
@@ -18,6 +18,8 @@ pub(crate) const NODE_TABLE: &str = "kube.node";
 pub(crate) const NAMESPACE_TABLE: &str = "kube.namespace";
 /// The table of the workloads.
 pub(crate) const WORKLOAD_TABLE: &str = "kube.workload";
+/// The table of the services.
+pub(crate) const SERVICE_TABLE: &str = "kube.service";
 
 /// An instant as PostgreSQL reads it.
 fn time(i: Instant) -> OffsetDateTime {
@@ -141,54 +143,149 @@ pub(crate) async fn named(
         .map_err(|e| store(&e))
 }
 
-/// The workload of `kind` named `name` in `namespace`, living at `at`: its identity in the
-/// namespace (019/X3).
-pub(crate) async fn workload_named(
+/// The identity of an object of a namespace: the workload of a kind, or the service, named
+/// `name` in `namespace` (019/X3).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct InNamespace<'a> {
+    pub(crate) namespace: Uuid,
+    /// The kind of a workload; `None` for a service.
+    pub(crate) kind: Option<&'a str>,
+    pub(crate) name: &'a str,
+}
+
+impl InNamespace<'_> {
+    /// The table of the object and the condition on `w` of its identity, on `$1` to `$3`.
+    fn of(self) -> (&'static str, &'static str) {
+        if self.kind.is_some() {
+            (
+                WORKLOAD_TABLE,
+                "w.namespace_id = $1 AND w.kind = $2 AND w.name = $3",
+            )
+        } else {
+            (
+                SERVICE_TABLE,
+                "w.namespace_id = $1 AND $2::text IS NULL AND w.name = $3",
+            )
+        }
+    }
+}
+
+/// The object of `identity`, living at `at` (019/X3).
+pub(crate) async fn namespaced(
     conn: &mut PgConnection,
-    namespace: Uuid,
-    kind: &str,
-    name: &str,
+    identity: InNamespace<'_>,
     at: Option<OffsetDateTime>,
 ) -> Result<Option<Uuid>, StoreError> {
-    sqlx::query_scalar(
-        "SELECT id FROM kube.workload
-          WHERE namespace_id = $1 AND kind = $2 AND name = $3
-            AND valid_period @> coalesce($4::timestamptz, now())",
+    let (table, condition) = identity.of();
+    let sql = format!(
+        "SELECT w.id FROM {table} w
+          WHERE {condition} AND w.valid_period @> coalesce($4::timestamptz, now())"
+    );
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+        .bind(identity.namespace)
+        .bind(identity.kind)
+        .bind(identity.name)
+        .bind(at)
+        .fetch_optional(conn)
+        .await
+        .map_err(|e| store(&e))
+}
+
+/// The object of `identity` closed last before `at`, if none of its versions lives from
+/// `at` on: the one a recreation in Kubernetes opens again (019/X3).
+pub(crate) async fn namespaced_closed(
+    conn: &mut PgConnection,
+    identity: InNamespace<'_>,
+    at: Option<OffsetDateTime>,
+) -> Result<Option<Uuid>, StoreError> {
+    let (table, condition) = identity.of();
+    let sql = format!(
+        "SELECT w.id FROM {table} w
+          WHERE {condition}
+            AND upper(w.valid_period) <= coalesce($4::timestamptz, now())
+            AND NOT EXISTS (SELECT 1 FROM {table} l
+                             WHERE l.id = w.id
+                               AND l.valid_period && tstzrange(coalesce($4::timestamptz, now()), NULL))
+          ORDER BY upper(w.valid_period) DESC
+          LIMIT 1"
+    );
+    sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+        .bind(identity.namespace)
+        .bind(identity.kind)
+        .bind(identity.name)
+        .bind(at)
+        .fetch_optional(conn)
+        .await
+        .map_err(|e| store(&e))
+}
+
+/// The service domain and the external domain of `cluster` at `at`.
+pub(crate) async fn service_domains(
+    conn: &mut PgConnection,
+    cluster: Uuid,
+    at: Option<OffsetDateTime>,
+) -> Result<Option<(Uuid, Option<Uuid>)>, StoreError> {
+    sqlx::query_as(
+        "SELECT service_domain_id, external_domain_id FROM kube.cluster
+          WHERE id = $1 AND valid_period @> coalesce($2::timestamptz, now())",
     )
-    .bind(namespace)
-    .bind(kind)
-    .bind(name)
+    .bind(cluster)
     .bind(at)
     .fetch_optional(conn)
     .await
     .map_err(|e| store(&e))
 }
 
-/// The workload of `kind` named `name` in `namespace` closed last before `at`, if none of
-/// its versions lives from `at` on: the one a recreation in Kubernetes opens again
-/// (019/X3).
-pub(crate) async fn workload_closed(
+/// An address a service cites: as a cluster IP, as an external address (both when the two
+/// domains are one), its domain, its value and its identifier.
+pub(crate) type HeldAddress = (bool, bool, Uuid, String, Uuid);
+
+/// The living addresses the service `service` cites at `at`.
+pub(crate) async fn service_addresses(
+    conn: &mut PgConnection,
+    service: Uuid,
+    at: Option<OffsetDateTime>,
+) -> Result<Vec<HeldAddress>, StoreError> {
+    sqlx::query_as(
+        "SELECT a.id = ANY(s.cluster_address_ids), a.id = ANY(s.external_address_ids),
+                a.domain_id, host(a.address), a.id
+           FROM kube.service s
+           JOIN public.address a
+             ON (a.id = ANY(s.cluster_address_ids) OR a.id = ANY(s.external_address_ids))
+            AND a.valid_period @> coalesce($2::timestamptz, now())
+          WHERE s.id = $1 AND s.valid_period @> coalesce($2::timestamptz, now())
+          ORDER BY a.address",
+    )
+    .bind(service)
+    .bind(at)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The workloads of `namespace` living at `at` among `wanted` (kind, name), with their
+/// identifiers: the selection a `sync` of a service names.
+pub(crate) async fn workloads_named(
     conn: &mut PgConnection,
     namespace: Uuid,
-    kind: &str,
-    name: &str,
+    wanted: &[(String, String)],
     at: Option<OffsetDateTime>,
-) -> Result<Option<Uuid>, StoreError> {
-    sqlx::query_scalar(
-        "SELECT w.id FROM kube.workload w
-          WHERE w.namespace_id = $1 AND w.kind = $2 AND w.name = $3
-            AND upper(w.valid_period) <= coalesce($4::timestamptz, now())
-            AND NOT EXISTS (SELECT 1 FROM kube.workload l
-                             WHERE l.id = w.id
-                               AND l.valid_period && tstzrange(coalesce($4::timestamptz, now()), NULL))
-          ORDER BY upper(w.valid_period) DESC
-          LIMIT 1",
+) -> Result<Vec<(String, String, Uuid)>, StoreError> {
+    let (kinds, names): (Vec<&str>, Vec<&str>) =
+        wanted.iter().map(|(k, n)| (k.as_str(), n.as_str())).unzip();
+    sqlx::query_as(
+        "SELECT w.kind, w.name, w.id
+           FROM kube.workload w
+           JOIN unnest($2::text[], $3::text[]) AS r(kind, name)
+             ON w.kind = r.kind AND w.name = r.name
+          WHERE w.namespace_id = $1 AND w.valid_period @> coalesce($4::timestamptz, now())
+          ORDER BY w.kind, w.name",
     )
     .bind(namespace)
-    .bind(kind)
-    .bind(name)
+    .bind(kinds)
+    .bind(names)
     .bind(at)
-    .fetch_optional(conn)
+    .fetch_all(conn)
     .await
     .map_err(|e| store(&e))
 }
@@ -266,6 +363,26 @@ pub(crate) async fn identities(
             return Err(refused(
                 &crate::rules::WORKLOAD_DUPLICATE,
                 format!("the {kind} {name} is taken in the namespace over the period"),
+                &[id],
+            ));
+        }
+        return Ok(());
+    }
+    if table == SERVICE_TABLE {
+        if let (Some(namespace), Some(name)) = (field("namespace_id"), field("name"))
+            && taken(
+                conn,
+                table,
+                "namespace_id = $1::uuid AND name = $2",
+                &[namespace, name],
+                id,
+                period,
+            )
+            .await?
+        {
+            return Err(refused(
+                &crate::rules::SERVICE_DUPLICATE,
+                format!("the service {name} is taken in the namespace over the period"),
                 &[id],
             ));
         }
@@ -366,15 +483,23 @@ pub(crate) async fn placement(
     period: Option<Period>,
 ) -> Result<Option<(Uuid, Option<Uuid>)>, StoreError> {
     let (from, _) = bounds(period);
-    let sql = if table == WORKLOAD_TABLE {
-        "SELECT w.namespace_id, c.pod_domain_id
-           FROM kube.workload w
-           LEFT JOIN kube.namespace n
-             ON n.id = w.namespace_id AND n.valid_period @> coalesce($2::timestamptz, now())
-           LEFT JOIN kube.cluster c
-             ON c.id = n.cluster_id AND c.valid_period @> coalesce($2::timestamptz, now())
-          WHERE w.id = $1 AND w.valid_period @> coalesce($2::timestamptz, now())"
-            .to_owned()
+    // A service is anchored in the service domain of its cluster (design « Types
+    // d'objets »), the other objects in its pod domain.
+    let anchor = if table == SERVICE_TABLE {
+        "service_domain_id"
+    } else {
+        "pod_domain_id"
+    };
+    let sql = if table == WORKLOAD_TABLE || table == SERVICE_TABLE {
+        format!(
+            "SELECT w.namespace_id, c.{anchor}
+               FROM {table} w
+               LEFT JOIN kube.namespace n
+                 ON n.id = w.namespace_id AND n.valid_period @> coalesce($2::timestamptz, now())
+               LEFT JOIN kube.cluster c
+                 ON c.id = n.cluster_id AND c.valid_period @> coalesce($2::timestamptz, now())
+              WHERE w.id = $1 AND w.valid_period @> coalesce($2::timestamptz, now())"
+        )
     } else {
         format!(
             "SELECT o.cluster_id, c.pod_domain_id
@@ -584,8 +709,22 @@ pub(crate) async fn referrers(
     target: Uuid,
     at: Option<OffsetDateTime>,
 ) -> Result<Vec<Uuid>, StoreError> {
-    use crate::module::{CLUSTER, DOMAIN, MACHINE, NAMESPACE, NODE, PREFIX, WORKLOAD};
+    use crate::module::{
+        ADDRESS, CLUSTER, DOMAIN, MACHINE, NAMESPACE, NODE, PREFIX, SERVICE, WORKLOAD,
+    };
     let sql = match (from, to) {
+        (SERVICE, NAMESPACE) => {
+            "SELECT DISTINCT id FROM kube.service WHERE namespace_id = $1 AND {live}"
+        }
+        (SERVICE, ADDRESS) => {
+            "SELECT DISTINCT id FROM kube.service
+              WHERE (cluster_address_ids @> ARRAY[$1::uuid]
+                     OR external_address_ids @> ARRAY[$1::uuid])
+                AND {live}"
+        }
+        (SERVICE, WORKLOAD) => {
+            "SELECT DISTINCT id FROM kube.service WHERE workload_ids @> ARRAY[$1::uuid] AND {live}"
+        }
         (NODE, CLUSTER) => "SELECT DISTINCT id FROM kube.node WHERE cluster_id = $1 AND {live}",
         (NAMESPACE, CLUSTER) => {
             "SELECT DISTINCT id FROM kube.namespace WHERE cluster_id = $1 AND {live}"
