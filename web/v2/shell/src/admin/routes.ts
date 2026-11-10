@@ -1,6 +1,7 @@
 import { reads, type TimeArg } from "@kartenn/sdk";
 import { defineAsyncComponent } from "vue";
 import type { LocationQuery, RouteParams } from "vue-router";
+import { lazyCatalog } from "../i18n/index.ts";
 import { prefetchFilters, type ScreenRoute } from "../views/routes.ts";
 
 // The screens of the space `admin` (design 021 « Administration », « Routes »; spec 025,
@@ -13,18 +14,26 @@ import { prefetchFilters, type ScreenRoute } from "../views/routes.ts";
 // the event chosen found again among the pages the cache holds (the API serves none
 // alone), the import followed by its own read.
 
-const GroupsView = () => import("./GroupsView.vue");
-const RolesView = () => import("./RolesView.vue");
-const IdentitiesView = () => import("./IdentitiesView.vue");
-const AccountsView = () => import("./AccountsView.vue");
-const AuditView = () => import("./AuditView.vue");
-const ImportsView = () => import("./ImportsView.vue");
-const GroupDetail = defineAsyncComponent(() => import("./GroupDetail.vue"));
-const RoleDetail = defineAsyncComponent(() => import("./RoleDetail.vue"));
-const IdentityDetail = defineAsyncComponent(() => import("./IdentityDetail.vue"));
-const AccountDetail = defineAsyncComponent(() => import("./AccountDetail.vue"));
-const AuditDetail = defineAsyncComponent(() => import("./AuditDetail.vue"));
-const ImportDetail = defineAsyncComponent(() => import("./ImportDetail.vue"));
+// The words of the space, out of the initial shell (task 22h): each screen and each detail
+// loads them with its own chunk, both read before it renders.
+const words = lazyCatalog(() => import("./i18n/index.ts"));
+const worded =
+  <T>(load: () => Promise<T>) =>
+  (): Promise<T> =>
+    Promise.all([load(), words()]).then(([module]) => module);
+
+const GroupsView = worded(() => import("./GroupsView.vue"));
+const RolesView = worded(() => import("./RolesView.vue"));
+const IdentitiesView = worded(() => import("./IdentitiesView.vue"));
+const AccountsView = worded(() => import("./AccountsView.vue"));
+const AuditView = worded(() => import("./AuditView.vue"));
+const ImportsView = worded(() => import("./ImportsView.vue"));
+const GroupDetail = defineAsyncComponent(worded(() => import("./GroupDetail.vue")));
+const RoleDetail = defineAsyncComponent(worded(() => import("./RoleDetail.vue")));
+const IdentityDetail = defineAsyncComponent(worded(() => import("./IdentityDetail.vue")));
+const AccountDetail = defineAsyncComponent(worded(() => import("./AccountDetail.vue")));
+const AuditDetail = defineAsyncComponent(worded(() => import("./AuditDetail.vue")));
+const ImportDetail = defineAsyncComponent(worded(() => import("./ImportDetail.vue")));
 
 /** The entries whose objects open in the right panel. */
 export const ADMIN_RECORDS = [
@@ -55,7 +64,7 @@ export function adminScreen(id: string): ScreenRoute | undefined {
       return { component: AccountsView, queries: () => [reads.list("/v1/service-accounts")] };
     case "issuers":
       return {
-        component: () => import("./IssuersView.vue"),
+        component: worded(() => import("./IssuersView.vue")),
         queries: () => [reads.list("/v1/issuer-attachments")],
       };
     case "audit":

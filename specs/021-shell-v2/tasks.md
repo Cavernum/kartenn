@@ -4128,12 +4128,29 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     (vers la ligne 647)
   - dépend de : 22a
 
-- [ ] 22h. Shell initial à 302,2 Ko gzip (budget 300 Ko) : trouver les 2,2 Ko en trop
+- [x] 22h. Shell initial à 302,2 Ko gzip (budget 300 Ko) : trouver les 2,2 Ko en trop
   (import statique devenu lourd, module à charger à la demande) — verify :
   `web/v2/shell/scripts/shell-size.ts` ≤ 300 Ko
   - où : `web/v2/shell/scripts/shell-size.ts`, `web/v2/shell/src/main.ts` et ses imports
     statiques
   - dépend de : 22a
+  - fait le 2026-11-10 : 302,6 Ko avant (main c3fb056d), 295,6 Ko après. Mesure module
+    par module (build avec cartes de sources, octets gzip par source) : le premier poste
+    hors bibliothèques était les catalogues JSON du shell, ≈ 28 Ko gzip dans `index.js`,
+    FR et EN des quatre espaces de mots ; celui de l'administration (`admin`, ≈ 7 Ko) ne
+    sert qu'aux écrans de l'espace et grossissait à chaque tâche 15. Il sort de
+    `createShellI18n` : `lazyCatalog` (`shell/src/i18n/index.ts`) le lit à la première
+    demande et le fusionne dans l'i18n du shell ; chaque écran et chaque détail de
+    `admin/routes.ts` l'attend avec son propre chunk (`worded`), si bien qu'aucun écran
+    ne s'affiche sans ses mots. Budget et mesure inchangés. Vérification :
+    `k-web2-check --base main` (954 tests, 2719 captures sur 2719 : tout, `admin/routes.ts`
+    étant tiré par l'entrée).
+  - choix : les deux langues dans un seul chunk (`admin/i18n/index.ts`), pour qu'un
+    changement de langue n'ait rien à lire ; un catalogue lu avant la création de l'i18n
+    (tests) est gardé et fusionné à sa création ; les catalogues `views` et `changesets`
+    restent dans l'entrée (le cadre et le panneau du brouillon les lisent).
+  - reste : la marge n'est que de 4,4 Ko ; le catalogue `views` (≈ 11 Ko gzip) pourrait
+    suivre le même chemin pour ses clés propres aux écrans, s'il fallait de la place.
 
 - [ ] 21. Accessibilité étendue : parcours clavier complet (palette, barre repliée,
   panneau du brouillon, édition en place), reflow 320 px des écrans de consultation,
