@@ -111,6 +111,7 @@ CREATE TABLE kube.node (
     machine_id uuid,                    -- machines.machine physical|virtual
     addresses jsonb NOT NULL DEFAULT '[]',  -- [{type, value}] tels que lus
     range_ids uuid[] NOT NULL DEFAULT '{}', -- réseaux du noyau (plages de pods)
+    pod_cidrs cidr[] NOT NULL DEFAULT '{}', -- plages telles que lues (Q-019-14)
     zone text, absent_since timestamptz,
     …, EXCLUDE USING GIST (cluster_id WITH =, name WITH =, valid_period WITH &&),
     EXCLUDE USING GIST (machine_id WITH =, valid_period WITH &&) WHERE (machine_id IS NOT NULL)
@@ -434,6 +435,7 @@ X7 (Q-019-3 B), l'ordre de grandeur serait 10⁸.
 | B6 | porteur workload, extrémités logiques | amendements de la 010 et de la 011 (tâches 12, 13) |
 | B7 | rôle de connecteur confiné à un cluster | pas de périmètre « objet de module » (ADR 0026 clause 4) : groupe du connecteur (025/G1, G2) lié au rôle `kube_connector` sur les domaines désignés du cluster, types `kube.*` ancrés sur ces domaines, règles `kube.object.managed` et `kube.connector.direct` (X10, ADR 0044) |
 | B8 | rôle livré par un module | ajout additif au contrat de module (ADR 0026 clause 8, ADR 0044), à fournir (tâche 11) |
+| B9 | identifiants des objets du noyau créés par un lot, cités par ses données | crochet `ModuleHandler::planned`, amendement additif de la clause 6 de l'ADR 0026 (Q-019-14), à fournir (tâche 3a) |
 
 ## Erreurs et cas limites
 
@@ -450,6 +452,8 @@ X7 (Q-019-3 B), l'ordre de grandeur serait 10⁸.
   connecteur garde la différence, la renvoie à la fenêtre suivante, et lève
   `kube.sync.rejected` dans ses métriques ; il ne boucle pas plus d'une fois par minute.
 - Connecteur arrêté : `kube.sync.stale` ; les objets restent tels qu'au dernier lot.
+- Domaine des pods changé sur un cluster qui a des nœuds ou des namespaces vivants :
+  refusé (`kube.operation.invalid`, Q-019-15) ; pas de ré-ancrage.
 - Proposition forcée (016/G12) ou approbation exigée par un lot (mesure `policy.opens`
   dépassée par une valeur de label) : le lot reste un changeset `pending` (024 : le
   compte a `approval.self`, mais la politique le retient) ; le connecteur attend sa

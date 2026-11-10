@@ -3905,7 +3905,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   named` sur les opérations de module (`kartenn-rest/tests/it`) et un test du filtre
   - où : `crates/kartenn-service/src/pipeline.rs`, `crates/kartenn-service/src/events.rs` ;
     tests voisins des événements dans `crates/kartenn-rest/tests/it/`
-  - dépend de : 22c ; **en attente d'arbitrage** (contrat de la 022, visibilité)
+  - dépend de : 22c ; arbitrée le 2026-11-10 : **option A** (voir « arbitrage demandé »)
   - en cours (branche `tache/021-22j`, non fusionnée, 2026-11-09) : premier point tenu,
     prouvé par `every_written_domain_is_named` (`kartenn-rest/tests/it/event_domains.rs` :
     création, modification, attribution, VLAN, restauration, clôture en cascade, sur deux
@@ -3932,6 +3932,22 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     256, sérialisée par la clé S17) ; ni l'un ni l'autre n'est dans un arbre de préfixes,
     mais les corriger change `domains` et le verrouillage : à décider avec A ou B (tâche à
     part).
+  - arbitrage rendu (l'utilisateur, 2026-11-10) : **A**. REQ-022-16 est amendée (le
+    domaine d'un objet visible est nommé même si le sujet ne lit pas le domaine), le hub
+    porte le domaine de chaque objet visible, le test
+    `a_domain_unseen_is_not_named_beside_one_seen` s'inverse. `update_vlan_group` et
+    `policy.inference` : tâche à part, 22n.
+- [ ] 22n. Domaines de verrouillage de `update_vlan_group` et de `policy.inference`
+  (arbitrage de la 22j, 2026-11-10) : un groupe de VLAN déplacé ne nomme et ne verrouille
+  que son nouvel ancrage, l'ancien domaine doit l'être aussi ; une règle
+  `policy.inference` ancrée dans un domaine laisse `plan.domains` vide, elle doit porter
+  son domaine d'ancrage (clé de verrou et `domains` de `changes`) — verify : le test
+  `every_written_domain_is_named` étendu aux deux cas (deux domaines pour le groupe
+  déplacé, le domaine d'ancrage pour la règle) ; les tests de verrou voisins verts
+  - où : `crates/kartenn-service/src/vlan.rs` (`update_vlan_group`, vers la ligne 467),
+    `crates/kartenn-policy/src/handler.rs` (vers les lignes 256 et 584),
+    `crates/kartenn-rest/tests/it/event_domains.rs`
+  - dépend de : 22j
 
 - [x] 22d. Chargement de l'arbre arrêté à deux pages (une passe sur sept, 22a et 24e) :
   après la deuxième page, ni ligne « suite » ni avis, 100 enfants dessinés ;

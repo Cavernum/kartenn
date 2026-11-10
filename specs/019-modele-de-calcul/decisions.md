@@ -224,6 +224,33 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
   011 sont corrigées après l'arbitrage.
 - Décision : **A**, flux constatés, connecteurs de ticketing et campagnes de revue glissent en v0.4 ; mentions de la 010 et de la 011 à corriger (l'utilisateur, 2026-11-09).
 
+### Q-019-14 — Identifiants des objets du noyau créés par un module (tâche 3a)
+- Constat : le pipeline tire les identifiants des opérations du noyau qu'un module
+  planifie (ADR 0026 clause 6) après le plan du module. Les données du module ne peuvent
+  donc pas citer les objets créés dans le même changeset : un nœud ne cite pas les
+  réseaux de ses plages de pods, un service ne cite pas ses adresses `vip` (tâche 4).
+- Options : (A) le pipeline rend au module les identifiants créés par un crochet par
+  défaut (`ModuleHandler::planned`), amendement additif de la clause 6 de l'ADR 0026 ;
+  le nœud reçoit une colonne des plages observées (`pod_cidrs cidr[]`) pour que la règle
+  `kube.node.range_outside` reste au serveur ; (B) le connecteur crée lui-même les
+  réseaux par des `create_prefix` à locaux avant `kube.sync`, contre la table
+  « Opérations » du design ; (C) expédients (opération mise en file après les créations,
+  `range_ids` réécrits dans `check`), écartés.
+- Recommandation : **A**.
+- Décision : **A**, crochet `planned`, amendement additif de la clause 6 de l'ADR 0026,
+  colonne `kube.node.pod_cidrs` (l'utilisateur, 2026-11-10).
+
+### Q-019-15 — Domaine des pods d'un cluster peuplé (revue de la tâche 3b)
+- Constat : changer `pod_domain_id` d'un cluster qui a des nœuds ou des namespaces
+  vivants laisserait leurs plages et leurs objets ancrés dans l'ancien domaine.
+- Options : (A) refuser le changement tant que des objets vivent
+  (`kube.operation.invalid`) : le domaine des pods se fixe dès que le cluster est
+  peuplé, on le vide ou on en déclare un autre ; (B) un vrai ré-ancrage, sous les droits des deux
+  domaines et leurs deux verrous (ADR 0015).
+- Recommandation : **A**.
+- Décision : **A**, le refus livré par la tâche 3b reste la règle ; pas de ré-ancrage
+  (l'utilisateur, 2026-11-10).
+
 ## Synthèse
 - X1 périmètre : hôte physique, hyperviseur, VM, cluster d'hyperviseurs (009) ; cluster,
   nœud, namespace, workload, service, ingress Kubernetes ; pod en observation seulement ;
@@ -610,7 +637,8 @@ l'utilisateur le 2026-11-09 (tâche 0b).
    logique), D31 (Q-019-13) ; D21 tenue par Q-019-7 A (valeurs d'axes en liste fermée).
 2. **Schéma** : schéma `kube` (six types, table d'observation non versionnée,
    partitionnée) ; colonne d'état `absent_since` ; aucune modification du schéma du
-   noyau ; propriété `machines.platform` (009).
+   noyau ; propriété `machines.platform` (009) ; colonne `kube.node.pod_cidrs` (Q-019-14,
+   2026-11-10).
 3. **Contrat REST** (additif, 006/H12) : collections `/v1/kube-clusters`,
    `/v1/kube-nodes`, `/v1/kube-namespaces`, `/v1/workloads`, `/v1/kube-services`,
    `/v1/ingresses`, identifiées par `{id}`, la clé naturelle en filtre (006/H3) ; route
@@ -620,7 +648,9 @@ l'utilisateur le 2026-11-09 (tâche 0b).
    (écriture réservée au connecteur), X7 (garde-fous du journal), X11 (labels bornés
    par namespace), X16 (lecture des observations hors des rôles livrés).
 5. **Contrat de module** : rôle livré par un module (ADR 0044) ; inscription d'audit
-   d'un lot d'observations par le noyau, deux événements d'audit nouveaux (ADR 0043).
+   d'un lot d'observations par le noyau, deux événements d'audit nouveaux (ADR 0043) ;
+   identifiants créés rendus au module par `ModuleHandler::planned`, amendement additif de
+   la clause 6 de l'ADR 0026 (Q-019-14, 2026-11-10).
 6. **Dépendance** : client Kubernetes (Q-019-12), fiche à la tâche 9.
 7. **ADR** : [0043](../../docs/adr/0043-observations-hors-referentiel.md)
    (observations hors référentiel) et

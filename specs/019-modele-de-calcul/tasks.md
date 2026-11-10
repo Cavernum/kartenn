@@ -224,8 +224,9 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     donc pas citer dans `range_ids` les réseaux de ses plages de pods (REQ-019-13, B2),
     pas plus que la tâche 4 ses adresses `vip`. L'avertissement `kube.node.range_outside`
     n'a rien dans l'état final dont partir : le schéma ne garde pas les plages observées.
-- [ ] 3a. Identifiants créés rendus au plan d'un module — **en attente d'arbitrage**
-  (contrat des modules, ADR 0026, et schéma). Options relevées : (A, recommandée par
+- [ ] 3a. Identifiants créés rendus au plan d'un module — **arbitrée le 2026-11-10 :
+  option A** (Q-019-14 ; crochet `planned`, amendement additif de la clause 6 de l'ADR
+  0026, colonne `kube.node.pod_cidrs` posée par la 3c). Options relevées : (A, recommandée par
   l'agent) après que le pipeline a tiré les identifiants des opérations du noyau d'un
   module, il les lui rend (crochet par défaut, par exemple
   `ModuleHandler::planned(&mut ModulePlan, created: &[Uuid])`) pour que ses données les
@@ -242,7 +243,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   l'identifiant
   - où : `crates/kartenn-service/src/module.rs` (`ModuleHandler`),
     `crates/kartenn-service/src/pipeline.rs` (`plan`), `docs/adr/0026-*.md` clause 6
-  - dépend de : arbitrage de l'utilisateur
+  - dépend de : rien (arbitrée)
 - [x] 3b. Clusters, nœuds et namespaces sans plages : migration `0001_kube.sql`
   (`cluster`, `node`, `namespace`, comme le design « Données »), `create/update_cluster`
   (fenêtre de lot 1–300 s et 1–10 000 opérations, règle `kube.cluster.connector_group`
@@ -289,8 +290,8 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - revue (2026-11-10) : changer le domaine des pods d'un cluster qui a des nœuds ou des
     namespaces vivants est refusé (`kube.operation.invalid`, `pg::pod_domain_moved`), test
     `pod_domain_change_refused_with_living_objects` (accepté sans objet vivant).
-  - reste : le vrai ré-ancrage des objets d'un cluster dont le domaine des pods change
-    (droits sur les deux domaines, verrous ADR 0015), en attente d'arbitrage ; une
+  - reste : le ré-ancrage des objets d'un cluster dont le domaine des pods change est
+    écarté (Q-019-15, 2026-11-10 : le refus reste la règle) ; une
     violation des exclusions `cluster_slug_unique`, `node_name_unique` ou
     `node_machine_unique` qui passerait les contrôles préalables remonte en `StoreError`
     (500), sans traduction en règle comme `constraint_rule` du noyau
@@ -304,10 +305,10 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     ni `mark_absent` ni `clear_absent` (tâche 5) ; identifiant externe
     `kube:<cluster>/…` non lié (tâche 8 ou 10).
 - [ ] 3c. Réseaux des plages de pods d'un nœud créés et clos par `kube.sync`,
-  avertissement `kube.node.range_outside` (migration 0002 si la colonne des plages
-  observées est retenue) — REQ-019-13 — verify : `node_range_created_and_closed`, un
+  avertissement `kube.node.range_outside` (migration 0002, colonne `pod_cidrs`,
+  Q-019-14) — REQ-019-13 — verify : `node_range_created_and_closed`, un
   test de `range_outside`
-  - où : comme la tâche 3 ; selon l'arbitrage de la 3a
+  - où : comme la tâche 3 ; le crochet `planned` de la 3a
   - dépend de : 3a, 3b
 - [ ] 4. Workloads, services, ingress : tables, `kube.sync` complet, adresses `vip`
   planifiées, sélection d'un service, références et cascades, arêtes — REQ-019-8 à 11,
