@@ -264,6 +264,13 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - reste : le plan rendu par `ModuleHandler::nullify` (cascade, `cascade.rs`) garde son
     `core` ignoré, comme avant, donc pas de crochet ; la colonne `kube.node.pod_cidrs` et la
     création des réseaux des plages restent à la 3c.
+  - reste (revue) : la doc de `ModuleHandler::planned` (`module.rs` vers la ligne 467)
+    dit « on every planning » alors que le crochet n'est appelé que pour un `core` non
+    vide ; le test ne couvre ni une opération du `core` qui ne crée rien ni un plan de
+    module ajouté par un autre ; l'amendement 8 de l'ADR 0026 ne dit pas que le
+    différentiel montré à la proposition cite d'autres identifiants que l'écriture ; une
+    ligne de `docs/spec/architecture.md` (vers la ligne 140) dépasse la largeur de
+    repli.
 - [x] 3b. Clusters, nœuds et namespaces sans plages : migration `0001_kube.sql`
   (`cluster`, `node`, `namespace`, comme le design « Données »), `create/update_cluster`
   (fenêtre de lot 1–300 s et 1–10 000 opérations, règle `kube.cluster.connector_group`
