@@ -22,6 +22,28 @@ use crate::operations::{ChangesetRequest, ObjectKind, Operation};
 #[error("storage failure: {0}")]
 pub struct StoreError(pub String);
 
+/// The mark of the failure the versioning trigger raises when a write would replace a
+/// version asserted after the start of its transaction (migration 0077 of the store, task
+/// 021-22p): another changeset, started later, committed it while this one waited.
+pub const STALE_VERSION: &str = "kartenn.version.stale";
+
+impl StoreError {
+    /// Whether this failure is that of a write replacing a version asserted after the
+    /// start of its transaction ([`STALE_VERSION`]): the changeset is replayed in a new
+    /// transaction, then refused in conflict.
+    #[must_use]
+    pub fn is_stale_version(&self) -> bool {
+        self.0.contains(STALE_VERSION)
+    }
+
+    /// The object a [`STALE_VERSION`] failure names, if any.
+    #[must_use]
+    pub fn stale_object(&self) -> Option<Uuid> {
+        let (_, rest) = self.0.split_once(STALE_VERSION)?;
+        rest.split_whitespace().next()?.parse().ok()
+    }
+}
+
 /// A modification of an addressing object over a period (004-8): the fields given change.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Change {

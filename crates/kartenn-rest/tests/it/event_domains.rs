@@ -353,6 +353,83 @@ fn hold_all() -> Operation {
     }
 }
 
+/// A changeset of `operations` held for review, then the policy that held it switched off.
+async fn held(env: &Env, operations: Vec<Operation>) -> Uuid {
+    env.applied(vec![hold_all()]).await;
+    let pending = match env.submit(operations).await {
+        Outcome::Pending { changeset, .. } => changeset,
+        other => panic!("not pending: {other:?}"),
+    };
+    sqlx::query("UPDATE approval_policy SET enabled = false")
+        .execute(&env.pool)
+        .await
+        .unwrap();
+    pending
+}
+
+/// The outcomes of the validation of `pending` and of `meanwhile`, a changeset that starts
+/// after the validation and commits before it. The order is fixed by a lock held, never by
+/// a delay: the validation opens its transaction, then waits for the row of its changeset,
+/// held here until `meanwhile` is applied.
+async fn validated_after(
+    env: &Env,
+    pending: Uuid,
+    meanwhile: Vec<Operation>,
+) -> (Outcome, Outcome) {
+    let validator: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'v') RETURNING id",
+    )
+    .fetch_one(&env.pool)
+    .await
+    .unwrap();
+    let mut holder = env.pool.begin().await.unwrap();
+    sqlx::query("SELECT state FROM changeset WHERE id = $1 FOR UPDATE")
+        .bind(pending)
+        .execute(&mut *holder)
+        .await
+        .unwrap();
+    let validation = tokio::spawn({
+        let store = env.store.clone();
+        async move {
+            kartenn_service::review::validate_pending(
+                &store,
+                &Unrestricted,
+                &kartenn_service::expected::Sources::none(),
+                pending,
+                &validator.into(),
+                MAX_OPERATIONS,
+            )
+            .await
+            .unwrap()
+        }
+    });
+    // Its transaction is open once it waits for the row of its changeset, in the database
+    // of this test: the tests run at once in the same server.
+    let mut waiting = false;
+    for _ in 0..500 {
+        waiting = sqlx::query_scalar(
+            "SELECT count(*) > 0 FROM pg_stat_activity
+              WHERE wait_event_type = 'Lock' AND query LIKE 'SELECT state FROM changeset%'
+                AND datname = current_database() AND pid <> pg_backend_pid()",
+        )
+        .fetch_one(&env.pool)
+        .await
+        .unwrap();
+        if waiting {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert!(waiting, "the validation waits for its changeset");
+    let applied = env.applied(meanwhile).await;
+    holder.rollback().await.unwrap();
+    let outcome = tokio::time::timeout(Duration::from_secs(10), validation)
+        .await
+        .expect("the validation ends once its changeset is free")
+        .unwrap();
+    (outcome, applied)
+}
+
 /// A move whose transaction starts before another, but takes `lab` after it (task 22o,
 /// review): its completion reads the group at the start of its transaction, `lab`, an
 /// instant before the version the other committed from its later start. Under its locks
@@ -377,72 +454,13 @@ async fn a_move_that_started_first_and_locked_last_replays(pool: PgPool) {
             json!({"id": {"id": group}, "anchor": {"domain": {"id": domain}}}),
         )
     };
-    // The move to `third` waits for review; then the policy is switched off.
-    env.applied(vec![hold_all()]).await;
-    let pending = match env.submit(vec![to(third)]).await {
-        Outcome::Pending { changeset, .. } => changeset,
-        other => panic!("not pending: {other:?}"),
-    };
-    sqlx::query("UPDATE approval_policy SET enabled = false")
-        .execute(&pool)
-        .await
-        .unwrap();
-    let validator: Uuid = sqlx::query_scalar(
-        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'v') RETURNING id",
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-
-    let mut holder = pool.begin().await.unwrap();
-    sqlx::query("SELECT state FROM changeset WHERE id = $1 FOR UPDATE")
-        .bind(pending)
-        .execute(&mut *holder)
-        .await
-        .unwrap();
-    let validation = tokio::spawn({
-        let store = env.store.clone();
-        async move {
-            kartenn_service::review::validate_pending(
-                &store,
-                &Unrestricted,
-                &kartenn_service::expected::Sources::none(),
-                pending,
-                &validator.into(),
-                MAX_OPERATIONS,
-            )
-            .await
-            .unwrap()
-        }
-    });
-    // Its transaction is open once it waits for the row of its changeset.
-    let mut waiting = false;
-    for _ in 0..500 {
-        waiting = sqlx::query_scalar(
-            "SELECT count(*) > 0 FROM pg_stat_activity
-              WHERE wait_event_type = 'Lock' AND query LIKE 'SELECT state FROM changeset%'
-                AND pid <> pg_backend_pid()",
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-        if waiting {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
-    assert!(waiting, "the validation waits for its changeset");
-    // A later move takes `lab` first and commits.
-    let moved = changeset(&env.applied(vec![to(annex)]).await);
+    // The move to `third` waits for review; a later move takes `lab` first and commits.
+    let pending = held(&env, vec![to(third)]).await;
+    let (outcome, moved) = validated_after(&env, pending, vec![to(annex)]).await;
+    let moved = changeset(&moved);
     let mut left = vec![lab, annex];
     left.sort_unstable();
     assert_eq!(named(&pool, moved).await, left);
-    holder.rollback().await.unwrap();
-
-    let outcome = tokio::time::timeout(Duration::from_secs(10), validation)
-        .await
-        .expect("the validation ends once its changeset is free")
-        .unwrap();
     assert_eq!(changeset(&outcome), pending);
     let mut replayed = vec![annex, third];
     replayed.sort_unstable();
@@ -452,4 +470,49 @@ async fn a_move_that_started_first_and_locked_last_replays(pool: PgPool) {
         "it locks what it leaves"
     );
     assert_eq!(anchored(&pool, group).await, Some(third));
+}
+
+/// A modification of a prefix whose transaction starts before another one on the same
+/// prefix, but writes after it (task 22p): dated from its own start, it would end the
+/// version the other committed before that version began, an inverted system period (a
+/// raw error, 500). The trigger of the versions names the case, and the validation
+/// replays in a new transaction: the other version stays in force until it, nothing of it
+/// is lost.
+#[kartenn_testing::pg_test]
+async fn a_write_that_started_first_and_wrote_last_replays(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env.id("addressing_domain", "lab").await;
+    env.applied(vec![core(
+        json!({"op": "create_prefix", "domain": {"id": lab},
+                                 "prefix": "192.0.2.0/24", "nature": "network"}),
+    )])
+    .await;
+    let prefix = current(&pool, "prefix", "prefix", "192.0.2.0/24").await;
+    let to =
+        |value: &str| core(json!({"op": "update_prefix", "id": {"id": prefix}, "prefix": value}));
+    let pending = held(&env, vec![to("192.0.2.0/25")]).await;
+    let (outcome, later) = validated_after(&env, pending, vec![to("192.0.2.0/26")]).await;
+    changeset(&later);
+    assert_eq!(changeset(&outcome), pending);
+    // The created version, the other's, then the validated one, each ending where the next
+    // starts.
+    let versions: Vec<(String, bool)> = sqlx::query_as(
+        "SELECT prefix::text,
+                upper(valid_period) IS NOT DISTINCT FROM lead(lower(valid_period))
+                    OVER (ORDER BY lower(valid_period))
+           FROM prefix WHERE id = $1 ORDER BY lower(valid_period)",
+    )
+    .bind(prefix)
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        versions,
+        [
+            ("192.0.2.0/24".to_owned(), true),
+            ("192.0.2.0/26".to_owned(), true),
+            ("192.0.2.0/25".to_owned(), true)
+        ],
+        "the later version stays in force until the validated one"
+    );
 }

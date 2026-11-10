@@ -1470,6 +1470,24 @@ async fn conflict<T: WriteTx>(
     ))
 }
 
+/// The conflict that refuses a changeset whose writes found, at each of its attempts, a
+/// version asserted after the start of their transaction (task 22p, REQ-004-11): the
+/// object `failure` names, when it names one.
+fn stale_version(failure: &StoreError) -> Violation {
+    let object = failure.stale_object();
+    let message = format!(
+        "{} was written by another changeset while this one waited for its locks, {} times \
+         in a row: submit it again",
+        object.map_or_else(|| "an object".to_owned(), |id| id.to_string()),
+        MAX_REPLAYS + 1
+    );
+    let conflict = Violation::new(&rules::CHANGESET_CONFLICT, message);
+    match object {
+        Some(id) => conflict.with_subjects([id]),
+        None => conflict,
+    }
+}
+
 /// Writes a policy under the identifier of the existing one of the same name, if any.
 async fn write_policy<T: WriteTx>(tx: &mut T, policy: &ApprovalPolicy) -> Result<(), WriteError> {
     let id = tx.policy_named(&policy.name).await?.unwrap_or(policy.id);
@@ -1995,18 +2013,51 @@ pub(crate) async fn run<S: Store, A: Authorizer>(
         validation = matches!(mode, Mode::Validation { .. })
     );
     let started = std::time::Instant::now();
-    let result = stages(
-        store,
-        authorizer,
-        sources,
-        req,
-        max_operations,
-        mode,
-        context,
-        author,
-    )
-    .instrument(span.clone())
-    .await;
+    let mut replays = 0;
+    // Task 22p: a write that would replace a version another changeset, started later,
+    // committed while this one waited, fails in the database (migration 0077 of the
+    // store); in a new transaction, whose start comes after that version, it succeeds.
+    let result = loop {
+        let result = stages(
+            store,
+            authorizer,
+            sources,
+            req,
+            max_operations,
+            mode,
+            context,
+            author,
+        )
+        .instrument(span.clone())
+        .await;
+        match result {
+            Err(RequestError::Store(e)) if e.is_stale_version() => {
+                if replays < MAX_REPLAYS {
+                    replays += 1;
+                    tracing::debug!(
+                        replays,
+                        "pipeline: a version asserted after the start, stages replayed"
+                    );
+                    continue;
+                }
+                let changeset = match mode {
+                    Mode::Submission => Uuid::now_v7(),
+                    Mode::Validation { id, .. } => id,
+                };
+                break refuse(
+                    store,
+                    req,
+                    changeset,
+                    vec![stale_version(&e)],
+                    mode,
+                    context,
+                )
+                .instrument(span.clone())
+                .await;
+            }
+            other => break other,
+        }
+    };
     let _entered = span.enter();
     log_outcome(&result, operations, started.elapsed());
     result
