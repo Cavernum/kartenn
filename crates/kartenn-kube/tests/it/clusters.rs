@@ -625,3 +625,189 @@ async fn pod_domain_change_refused_with_living_objects(pool: PgPool) {
     .unwrap();
     assert_eq!(domain, other);
 }
+
+impl Env {
+    /// The pod ranges and the cited networks of the living node `node`.
+    async fn ranges(&self, node: Uuid) -> (Vec<String>, Vec<Uuid>) {
+        sqlx::query_as(
+            "SELECT pod_cidrs::text[], range_ids FROM kube.node
+              WHERE id = $1 AND valid_period @> now()",
+        )
+        .bind(node)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// The living networks of the pod domain, as `(id, prefix)`.
+    async fn pod_networks(&self) -> Vec<(Uuid, String)> {
+        sqlx::query_as(
+            "SELECT id, prefix::text FROM prefix
+              WHERE domain_id = $1 AND nature = 'network' AND valid_period @> now()
+              ORDER BY prefix",
+        )
+        .bind(self.pods)
+        .fetch_all(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// Every network the pod domain ever had.
+    async fn pod_networks_ever(&self) -> i64 {
+        sqlx::query_scalar(
+            "SELECT count(DISTINCT id) FROM prefix WHERE domain_id = $1 AND nature = 'network'",
+        )
+        .bind(self.pods)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// Whether an anomaly of `rule` is open on `object`.
+    async fn anomaly(&self, object: Uuid, rule: &str) -> bool {
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM anomaly
+                             WHERE object_id = $1 AND rule_id = $2 AND closed_at IS NULL)",
+        )
+        .bind(object)
+        .bind(rule)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+}
+
+/// The warnings of the module (the core warns of the documentation prefixes of the tests).
+fn warnings(outcome: &Outcome) -> Vec<&'static str> {
+    match outcome {
+        Outcome::Applied { warnings, .. } => warnings
+            .iter()
+            .map(|v| v.rule.id)
+            .filter(|id| id.starts_with("kube."))
+            .collect(),
+        other => panic!("not applied: {other:?}"),
+    }
+}
+
+/// REQ-019-13: the pod ranges of a node are networks of the pod domain, under a pod
+/// container, created and cited by the node in the same `kube.sync`; a range unchanged
+/// creates nothing, a range gone closes its network, a closed node closes its own; a
+/// cited network does not close alone.
+#[kartenn_testing::pg_test]
+async fn node_range_created_and_closed(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.new_cluster("prod").await;
+    let node = |cidrs: Value| {
+        sync(
+            "upsert",
+            "node",
+            prod,
+            "worker-1",
+            json!({"pod_cidrs": cidrs}),
+        )
+    };
+    env.applied(vec![node(json!(["198.51.100.0/26"]))]).await;
+    let worker = env.named("kube.node", prod, "worker-1").await[0];
+    let networks = env.pod_networks().await;
+    assert_eq!(networks.len(), 1, "{networks:?}");
+    let (first, value) = networks[0].clone();
+    assert_eq!(value, "198.51.100.0/26");
+    assert_eq!(
+        env.ranges(worker).await,
+        (vec!["198.51.100.0/26".to_owned()], vec![first])
+    );
+    // The same ranges again, any other field changed: nothing created.
+    env.applied(vec![sync(
+        "upsert",
+        "node",
+        prod,
+        "worker-1",
+        json!({"pod_cidrs": ["198.51.100.0/26"], "zone": "zone-a"}),
+    )])
+    .await;
+    assert_eq!(env.pod_networks().await, networks);
+    assert_eq!(env.pod_networks_ever().await, 1);
+    // A cited network does not close alone (D33).
+    env.refused(
+        vec![Operation::Close {
+            kind: ObjectKind::Prefix,
+            id: Ref::Id(first),
+            expected: None,
+            cascade: false,
+        }],
+        "core.object.dependents",
+    )
+    .await;
+    // A range replaced: its network closes, the new one is created and cited.
+    env.applied(vec![node(json!(["198.51.100.64/26", "2001:db8:0:1::/64"]))])
+        .await;
+    let networks = env.pod_networks().await;
+    assert_eq!(networks.len(), 1, "the IPv6 range is outside: {networks:?}");
+    let (second, value) = networks[0].clone();
+    assert_eq!(value, "198.51.100.64/26");
+    assert_ne!(second, first);
+    assert_eq!(
+        env.ranges(worker).await,
+        (
+            vec![
+                "198.51.100.64/26".to_owned(),
+                "2001:db8:0:1::/64".to_owned()
+            ],
+            vec![second]
+        )
+    );
+    // The node closed: its networks with it.
+    env.applied(vec![sync("close", "node", prod, "worker-1", json!({}))])
+        .await;
+    assert!(env.pod_networks().await.is_empty());
+    assert_eq!(env.pod_networks_ever().await, 2);
+    // A range out of syntax (host bits) refuses the batch.
+    env.refused(
+        vec![node(json!(["198.51.100.1/26"]))],
+        "kube.operation.invalid",
+    )
+    .await;
+}
+
+/// REQ-019-13: a pod range outside every pod container of the cluster gets no network and
+/// warns, an anomaly on the node until the range is gone or inside.
+#[kartenn_testing::pg_test]
+async fn node_range_outside_warns(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.new_cluster("prod").await;
+    let node = |cidrs: Value| {
+        sync(
+            "upsert",
+            "node",
+            prod,
+            "worker-1",
+            json!({"pod_cidrs": cidrs}),
+        )
+    };
+    let outcome = env
+        .submit(vec![node(json!(["192.0.2.0/26", "198.51.100.0/26"]))])
+        .await;
+    assert_eq!(warnings(&outcome), ["kube.node.range_outside"]);
+    let worker = env.named("kube.node", prod, "worker-1").await[0];
+    let networks = env.pod_networks().await;
+    assert_eq!(
+        networks.iter().map(|(_, p)| p.as_str()).collect::<Vec<_>>(),
+        ["198.51.100.0/26"]
+    );
+    assert_eq!(
+        env.ranges(worker).await,
+        (
+            vec!["192.0.2.0/26".to_owned(), "198.51.100.0/26".to_owned()],
+            vec![networks[0].0]
+        )
+    );
+    assert!(env.anomaly(worker, "kube.node.range_outside").await);
+    // The range equal to the container is not inside it either.
+    let outcome = env.submit(vec![node(json!(["198.51.100.0/24"]))]).await;
+    assert_eq!(warnings(&outcome), ["kube.node.range_outside"]);
+    assert!(env.pod_networks().await.is_empty());
+    // The range gone: no warning, the anomaly closes.
+    let outcome = env.submit(vec![node(json!(["198.51.100.128/26"]))]).await;
+    assert!(warnings(&outcome).is_empty(), "{outcome:?}");
+    assert!(!env.anomaly(worker, "kube.node.range_outside").await);
+}
