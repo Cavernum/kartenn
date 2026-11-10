@@ -461,6 +461,43 @@ async fn a_module_object_inherits_owner_from_its_parent(pool: PgPool) {
     .await;
 }
 
+/// ADR 0026, amendment 9 (task 019-3d): a module that declares an owned reference without
+/// listing its targets fails the closure of its source, rather than leave them living.
+#[kartenn_testing::pg_test]
+async fn an_owned_reference_without_its_targets_fails_the_closure(pool: PgPool) {
+    let k = Kit::new(&pool).await;
+    let request = ChangesetRequest {
+        author: k.author,
+        motive: "test".into(),
+        period: None,
+        operations: vec![Operation::Close {
+            kind: item(),
+            id: Ref::Id(k.ids["i-branch"]),
+            expected: None,
+            cascade: false,
+        }],
+        simulate: false,
+        idempotency_key: None,
+        approval_self: true,
+    };
+    let error = submit(&k.store, &Unrestricted, &request, MAX_OPERATIONS)
+        .await
+        .expect_err("the closure fails");
+    let message = error.to_string();
+    assert!(
+        message.contains("owned reference kit.item -> address"),
+        "{message}"
+    );
+    let living: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM module_object WHERE id = $1 AND valid_period @> now()",
+    )
+    .bind(k.ids["i-branch"])
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(living, 1);
+}
+
 #[kartenn_testing::pg_test]
 async fn ref_to_a_module_type(pool: PgPool) {
     let k = Kit::new(&pool).await;

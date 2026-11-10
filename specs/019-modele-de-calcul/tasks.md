@@ -434,7 +434,21 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - reste : l'annulation (undo) d'un changeset qui a clos un nœud et ses réseaux n'est
     pas testée pour les clôtures ajoutées ; le changement d'une plage par `kube.sync`
     clôt toujours son réseau par le module (la plage quitte le nœud, la source ne se clôt
-    pas) ; les adresses `vip` (tâche 4) sont à déclarer `Owned`.
+    pas) ; la tâche 4 doit déclarer `Owned` la référence service → adresse `vip` et
+    implémenter `targets` pour elle (le défaut fait échouer le changeset).
+  - correction (revue) : le `targets` par défaut rend une erreur pour une référence
+    `Owned` (message qui nomme la référence), test
+    `an_owned_reference_without_its_targets_fails_the_closure`
+    (`tests/it/module_anchors.rs`, module `kit` qui déclare `kit.item` → `address`
+    possédée sans `targets`).
+  - reste (revue) : la description OpenAPI de `Cascaded`
+    (`specs/006-api-rest/openapi-v1.json` vers les lignes 784 et 806) dit « closed by
+    cascade » alors que les clôtures `Owned` y figurent sans `cascade` ; `cited` n'a de
+    test ni de la branche `referencing` ni d'un référent `Refuse` ou `Nullify` ; `cited`
+    ne voit que l'état d'avant écriture : un objet du même changeset qui cite la cible
+    n'est pas vu, d'où un refus final peu clair (à vérifier pour un lot `kube.sync` qui
+    déplace une plage d'un nœud à l'autre) ; `targets` est lu avant les verrous (lié à
+    la 021-22o).
 - [ ] 4. Workloads, services, ingress : tables, `kube.sync` complet, adresses `vip`
   planifiées, sélection d'un service, références et cascades, arêtes — REQ-019-8 à 11,
   14 — verify : `workload_recreated_keeps_identity`, `service_vip_refuses_close`,

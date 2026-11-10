@@ -397,12 +397,13 @@ Un ajout additif, à défaut neutre (tâche 019-3d) : une quatrième politique d
 | Ajout | Clause | Raison |
 |---|---|---|
 | `OnClose::Owned` : clore la cible seule est refusé tant qu'une source vit, comme **refus** ; clore la source, en cascade ou par une clôture directe (requête, opération du noyau planifiée par un module), clôt aussi la cible, dans le même changeset, sur la période de la clôture et sous les droits de la cible, récursivement pour ce qu'elle possède à son tour. Une cible encore citée par un autre objet vivant (objet de module ou affectation d'une propriété de référence) ou déjà close par le changeset ne s'ajoute pas | 12 | 019/Q-019-16 : un nœud Kubernetes clos par la cascade de son cluster laissait vivants les réseaux de ses plages de pods (la cascade ne demande rien au module) ; même besoin pour les adresses `vip` des services (tâche 019-4) |
-| `ModuleHandler::targets(reference, source, period)` : les cibles vivantes que `source` cite par une référence possédante, au début de la période, sur l'état de la transaction ; le pendant de `referrers`. Par défaut, aucune | 12 | le noyau ne lit pas les tables d'un module |
+| `ModuleHandler::targets(reference, source, period)` : les cibles vivantes que `source` cite par une référence possédante, au début de la période, sur l'état de la transaction ; le pendant de `referrers`. Par défaut, aucune pour une autre politique, et une erreur pour une référence possédante : un module qui la déclare sans lister ses cibles fait échouer le changeset, plutôt que de les laisser vivantes | 12 | le noyau ne lit pas les tables d'un module |
 
 Les clôtures ajoutées figurent avec celles de la cascade (`cascaded`, REQ-004-26) ; le
 contrat REST et le schéma des déclarations ne changent pas. Une cible close ainsi ne
 l'est pas en cascade : ses propres dépendants la font refuser comme d'habitude. Tests :
-`kartenn-service` `module_pipeline::owned_policy_closes_the_target_with_its_source`,
+`kartenn-service` `module_pipeline::owned_policy_closes_the_target_with_its_source` et
+`module_anchors::an_owned_reference_without_its_targets_fails_the_closure`,
 `kartenn-kube` `clusters::cluster_cascade_closes_node_networks`.
 
 ## Alternatives

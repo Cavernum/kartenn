@@ -543,7 +543,13 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
 
     /// The living objects `source` cites by `reference` (one of the module's
     /// [`Module::references`] under [`OnClose::Owned`]) at the start of `period`, on the
-    /// state of the transaction: what the core closes with `source`. None by default.
+    /// state of the transaction: what the core closes with `source`.
+    ///
+    /// # Errors
+    ///
+    /// By default, none for a reference of another policy, and a [`StoreError`] for an
+    /// owned one: a module that declares an owned reference without listing its targets
+    /// fails the changeset rather than leave them living.
     fn targets<'a>(
         &'a self,
         tx: &'a mut dyn ModuleTx,
@@ -551,8 +557,17 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         source: Uuid,
         period: Option<Period>,
     ) -> BoxFuture<'a, Result<Vec<Uuid>, StoreError>> {
-        let _ = (tx, reference, source, period);
-        Box::pin(std::future::ready(Ok(Vec::new())))
+        let _ = (tx, source, period);
+        let found = if reference.on_close == OnClose::Owned {
+            Err(StoreError(format!(
+                "the module of {} declares the owned reference {} -> {} without listing its \
+                 targets (ModuleHandler::targets)",
+                reference.from, reference.from, reference.to
+            )))
+        } else {
+            Ok(Vec::new())
+        };
+        Box::pin(std::future::ready(found))
     }
 
     /// The declared parent of those of `objects` of the module whose tree is not that of
