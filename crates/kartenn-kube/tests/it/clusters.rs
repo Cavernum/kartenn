@@ -565,3 +565,63 @@ async fn node_machine_kind(pool: PgPool) {
     .unwrap();
     assert_eq!(machine, None);
 }
+
+/// The objects of a cluster are anchored in its pod domain: the domain does not change
+/// under living nodes or namespaces (review of 019-3b).
+#[kartenn_testing::pg_test]
+async fn pod_domain_change_refused_with_living_objects(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let other = env
+        .domain("pods-b", "192.0.2.0/24", Nature::Container)
+        .await;
+    let container = env.prefix(other).await;
+    let prod = env.new_cluster("prod").await;
+    let moved = || {
+        op(
+            "update_cluster",
+            json!({"id": {"id": prod}, "pod_domain": {"id": other},
+                   "pod_containers": [{"id": container}]}),
+        )
+    };
+    // Without living objects: accepted, and back.
+    env.applied(vec![moved()]).await;
+    env.applied(vec![op(
+        "update_cluster",
+        json!({"id": {"id": prod}, "pod_domain": {"id": env.pods},
+               "pod_containers": [{"id": env.container}]}),
+    )])
+    .await;
+    env.applied(vec![sync(
+        "upsert",
+        "namespace",
+        prod,
+        "payments",
+        json!({}),
+    )])
+    .await;
+    env.refused(vec![moved()], "kube.operation.invalid").await;
+    // The same domain given again is no change.
+    env.applied(vec![op(
+        "update_cluster",
+        json!({"id": {"id": prod}, "pod_domain": {"id": env.pods}, "retention_days": 60}),
+    )])
+    .await;
+    // Its objects closed, the domain may change.
+    env.applied(vec![sync(
+        "close",
+        "namespace",
+        prod,
+        "payments",
+        json!({}),
+    )])
+    .await;
+    env.applied(vec![moved()]).await;
+    let domain: Uuid = sqlx::query_scalar(
+        "SELECT pod_domain_id FROM kube.cluster WHERE id = $1 AND valid_period @> now()",
+    )
+    .bind(prod)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(domain, other);
+}

@@ -215,6 +215,36 @@ pub(crate) async fn current(
         .map_err(|e| store(&e))
 }
 
+/// Whether changing the pod domain of `cluster` to `domain` over `period` moves it under
+/// living nodes or namespaces of the cluster: a version of the cluster over the period has
+/// another pod domain, and an object of the cluster lives over the period.
+pub(crate) async fn pod_domain_moved(
+    conn: &mut PgConnection,
+    cluster: Uuid,
+    domain: &Value,
+    period: Option<Period>,
+) -> Result<bool, StoreError> {
+    let (from, to) = bounds(period);
+    sqlx::query_scalar(
+        "WITH portion AS (SELECT tstzrange(coalesce($3::timestamptz, now()), $4) AS p)
+         SELECT EXISTS (SELECT 1 FROM kube.cluster c, portion
+                         WHERE c.id = $1 AND c.valid_period && portion.p
+                           AND c.pod_domain_id <> ($2 #>> '{}')::uuid)
+            AND EXISTS (SELECT 1 FROM (SELECT cluster_id, valid_period FROM kube.node
+                                       UNION ALL
+                                       SELECT cluster_id, valid_period FROM kube.namespace) o,
+                               portion
+                         WHERE o.cluster_id = $1 AND o.valid_period && portion.p)",
+    )
+    .bind(cluster)
+    .bind(domain)
+    .bind(from)
+    .bind(to)
+    .fetch_one(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
 /// The cluster of the node or namespace `id` of `table` and the pod domain of that
 /// cluster, at the start of `period`: its place in the tree of the module and its anchor.
 pub(crate) async fn placement(

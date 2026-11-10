@@ -782,6 +782,20 @@ impl ModuleHandler for Handler {
                 pg::insert(conn, CLUSTER_TABLE, row, period, changeset).await?;
             } else {
                 let patch = &plan.data["update"];
+                // The objects of a cluster are anchored in its pod domain: moving it under
+                // them would leave their rights and locks on the old one (019-3b, reste).
+                if let Some(domain) = patch.get("pod_domain_id")
+                    && pg::pod_domain_moved(conn, id, domain, period).await?
+                {
+                    return Err(pg::refused(
+                        &OPERATION_INVALID,
+                        format!(
+                            "pod_domain: the cluster {id} has living nodes or namespaces, \
+                             anchored in its pod domain; close them before changing it"
+                        ),
+                        &[id],
+                    ));
+                }
                 pg::identities(conn, CLUSTER_TABLE, id, patch, period).await?;
                 pg::portion(conn, CLUSTER_TABLE, id, patch, period, changeset).await?;
             }

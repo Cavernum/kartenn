@@ -286,8 +286,19 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     (`machines.read`) cités ; `gen.mjs` du SDK v2 : un nom de parent que deux modules
     déclarent (`cluster`) se lit dans le module du type ; `kartenn-kube/` ajouté aux
     chemins de la mesure de télémétrie (`kartenn-bench/src/affected.rs`).
-  - reste : changer le domaine des pods d'un cluster qui a des nœuds ou des namespaces ne
-    met pas à jour leur ancrage (`module_object.domain_id`) ; un groupe du connecteur clos
+  - revue (2026-11-10) : changer le domaine des pods d'un cluster qui a des nœuds ou des
+    namespaces vivants est refusé (`kube.operation.invalid`, `pg::pod_domain_moved`), test
+    `pod_domain_change_refused_with_living_objects` (accepté sans objet vivant).
+  - reste : le vrai ré-ancrage des objets d'un cluster dont le domaine des pods change
+    (droits sur les deux domaines, verrous ADR 0015), en attente d'arbitrage ; une
+    violation des exclusions `cluster_slug_unique`, `node_name_unique` ou
+    `node_machine_unique` qui passerait les contrôles préalables remonte en `StoreError`
+    (500), sans traduction en règle comme `constraint_rule` du noyau
+    (`kartenn-store-pg/src/write.rs`) ; ni la création d'un cluster ni la désignation
+    d'une machine ne prennent de clé de verrou ; `kube.sync` ne demande pas
+    `kube.cluster.read` sur le cluster cité (à confronter à X10) ; l'index
+    `node_by_machine` double le GiST de `node_machine_unique` ; un cluster cité en
+    `local` dans `kube.sync` reçoit le message « not a living cluster » ; un groupe du connecteur clos
     après le cluster n'est pas refusé (pas de référence cluster → groupe au design) ;
     l'espèce d'une machine changée par la 009 après sa désignation n'est pas revérifiée ;
     ni `mark_absent` ni `clear_absent` (tâche 5) ; identifiant externe
