@@ -810,15 +810,37 @@ pub(crate) fn plan_rule(
                 }
             }
             let id = reference("id")?.ok_or_else(|| invalid(operation, "id is required"))?;
-            Ok(plan(
-                INFERENCE_RULE,
-                id,
-                false,
-                json!({ "update": columns }),
-            ))
+            let domain = body
+                .get("completed")
+                .and_then(|c| c.get("domain"))
+                .and_then(|d| serde_json::from_value::<Uuid>(d.clone()).ok());
+            let mut planned = plan(INFERENCE_RULE, id, false, json!({ "update": columns }));
+            planned.domains = domain.into_iter().collect();
+            Ok(planned)
         }
         _ => Err(invalid(operation, "unknown operation")),
     }
+}
+
+/// Completes `policy.inference_rule.update` with the domain the stored rule cites, which
+/// the operation cannot change nor repeat: the write locks it and names it on the stream
+/// (ADR 0015, REQ-022-4). A rule created in the same changeset is locked by its creation.
+pub(crate) async fn prepare_rule(
+    conn: &mut PgConnection,
+    operation: &mut ModuleOperation,
+) -> Result<(), StoreError> {
+    let rule = operation
+        .body
+        .get("id")
+        .and_then(|v| serde_json::from_value::<Ref>(v.clone()).ok());
+    let domain = match rule {
+        Some(Ref::Id(rule)) => domain_of(conn, rule).await?,
+        _ => None,
+    };
+    operation
+        .body
+        .insert("completed".into(), json!({ "domain": domain }));
+    Ok(())
 }
 
 /// The domain a stored rule cites, for its record in `module_object` (its scope).

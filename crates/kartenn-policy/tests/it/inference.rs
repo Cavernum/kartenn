@@ -292,3 +292,65 @@ async fn the_owners_of_many_nodes_are_read_with_their_lineage(pool: PgPool) {
     // The network below inherits beta: r-beta reached through its container.
     assert_eq!(expected_of("10.1.2.0/24").await.as_deref(), Some("r-beta"));
 }
+
+/// The domains the row of the outbox of the changeset `outcome` names, as `changes` does
+/// (REQ-022-4): the domains its write locked (ADR 0015).
+async fn named(pool: &PgPool, outcome: &Outcome) -> Vec<Uuid> {
+    let Outcome::Applied { changeset, .. } = outcome else {
+        panic!("not applied: {outcome:?}");
+    };
+    sqlx::query_scalar(
+        "SELECT domain_ids FROM outbox
+          WHERE changeset_id = $1 AND payload ->> 'type' = 'org.kartenn.changeset.applied'",
+    )
+    .bind(changeset)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+/// The current rule of inference `key`.
+async fn rule_id(pool: &PgPool, key: &str) -> Uuid {
+    sqlx::query_scalar(
+        "SELECT id FROM policy.policy_inference_rule WHERE key = $1 AND valid_period @> now()",
+    )
+    .bind(key)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+/// A rule of inference that cites a domain is anchored there (REQ-010-46): its creation
+/// and its modification, which does not repeat the domain, lock it and name it (task
+/// 021-22n); a rule without a domain names none.
+#[kartenn_testing::pg_test]
+async fn a_rule_anchored_in_a_domain_locks_and_names_it(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    environments(&env).await;
+    let created = env
+        .applied(vec![
+            op(
+                "inference_rule.create",
+                json!({ "key": "r-lab", "axis": "policy.environment", "values": ["prod"],
+                        "domain": { "id": env.domain } }),
+            ),
+            rule("r-any", "rec", 0, &json!([])),
+        ])
+        .await;
+    assert_eq!(named(&pool, &created).await, vec![env.domain]);
+    let (lab, any) = (rule_id(&pool, "r-lab").await, rule_id(&pool, "r-any").await);
+    let updated = env
+        .applied(vec![op(
+            "inference_rule.update",
+            json!({ "id": { "id": lab }, "priority": 2 }),
+        )])
+        .await;
+    assert_eq!(named(&pool, &updated).await, vec![env.domain]);
+    let elsewhere = env
+        .applied(vec![op(
+            "inference_rule.update",
+            json!({ "id": { "id": any }, "priority": 3 }),
+        )])
+        .await;
+    assert!(named(&pool, &elsewhere).await.is_empty());
+}
