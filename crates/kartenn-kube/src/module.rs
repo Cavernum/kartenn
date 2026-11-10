@@ -21,16 +21,21 @@ pub const NODE: &str = "kube.node";
 pub const NAMESPACE: &str = "kube.namespace";
 /// The qualified type of a workload.
 pub const WORKLOAD: &str = "kube.workload";
+/// The qualified type of a service.
+pub const SERVICE: &str = "kube.service";
 /// A machine of the 009, as a reference names it.
 pub const MACHINE: &str = "machines.machine";
 /// An addressing domain of the core.
 pub const DOMAIN: &str = "domain";
 /// A prefix of the core: a container of pod ranges, a network of services.
 pub const PREFIX: &str = "prefix";
+/// An address of the core: a cluster IP or an external address of a service.
+pub const ADDRESS: &str = "address";
 
 /// The types of the module so far (design « Types d'objets »): the cluster, root of the
 /// tree `kube`, carries `core.owner` and `core.site`; its nodes and namespaces, and the
-/// workloads of its namespaces, inherit them and are anchored in its pod domain.
+/// workloads and services of its namespaces, inherit them and are anchored in its pod
+/// domain.
 static TYPES: &[ObjectType] = &[
     ObjectType {
         kind: CLUSTER,
@@ -59,6 +64,14 @@ static TYPES: &[ObjectType] = &[
     ObjectType {
         kind: WORKLOAD,
         collection: "workloads",
+        parent: Some(NAMESPACE),
+        owner_required: false,
+        carries_site: false,
+        domain_anchored: true,
+    },
+    ObjectType {
+        kind: SERVICE,
+        collection: "kube-services",
         parent: Some(NAMESPACE),
         owner_required: false,
         carries_site: false,
@@ -99,6 +112,11 @@ static MIGRATIONS: &[ModuleMigration] = &[
         name: "workload",
         sql: include_str!("../migrations/0003_workload.sql"),
     },
+    ModuleMigration {
+        version: 4,
+        name: "service",
+        sql: include_str!("../migrations/0004_service.sql"),
+    },
 ];
 
 macro_rules! permissions {
@@ -134,6 +152,10 @@ permissions! {
     WORKLOAD_EDIT = "kube.workload.edit", "Créer, modifier ou clore un workload Kubernetes dans un changeset et le soumettre.";
     WORKLOAD_APPLY = "kube.workload.apply", "Appliquer ou rejeter le changeset d'un autre qui touche un workload Kubernetes.";
     WORKLOAD_APPROVAL_SELF = "kube.workload.approval.self", "Appliquer son propre changeset qui touche un workload Kubernetes.";
+    SERVICE_READ = "kube.service.read", "Lire les services Kubernetes.";
+    SERVICE_EDIT = "kube.service.edit", "Créer, modifier ou clore un service Kubernetes dans un changeset et le soumettre.";
+    SERVICE_APPLY = "kube.service.apply", "Appliquer ou rejeter le changeset d'un autre qui touche un service Kubernetes.";
+    SERVICE_APPROVAL_SELF = "kube.service.approval.self", "Appliquer son propre changeset qui touche un service Kubernetes.";
 }
 
 /// What closing an object does to the objects of the module that cite it (D33; design
@@ -155,6 +177,26 @@ static REFERENCES: &[Reference] = &[
         from: WORKLOAD,
         to: NAMESPACE,
         on_close: OnClose::Cascade,
+    },
+    // A service lives in its namespace: closed with it.
+    Reference {
+        from: SERVICE,
+        to: NAMESPACE,
+        on_close: OnClose::Cascade,
+    },
+    // The cluster IPs and external addresses of a service (usage `vip`): kept while it
+    // cites them, closed by the core with the service; the connector closes one once the
+    // service no longer holds it (`kube.sync`).
+    Reference {
+        from: SERVICE,
+        to: ADDRESS,
+        on_close: OnClose::Owned,
+    },
+    // A workload a service selects: left out of the selection.
+    Reference {
+        from: SERVICE,
+        to: WORKLOAD,
+        on_close: OnClose::Nullify,
     },
     // The machine a node designates: no longer designated.
     Reference {

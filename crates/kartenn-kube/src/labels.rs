@@ -58,6 +58,19 @@ pub(crate) static ENGLISH: English = English {
             "kube.workload.approval.self",
             "Apply one's own changeset that touches a Kubernetes workload.",
         ),
+        ("kube.service.read", "Read the Kubernetes services."),
+        (
+            "kube.service.edit",
+            "Create, change or close a Kubernetes service in a changeset and submit it.",
+        ),
+        (
+            "kube.service.apply",
+            "Apply or reject the changeset of someone else that touches a Kubernetes service.",
+        ),
+        (
+            "kube.service.approval.self",
+            "Apply one's own changeset that touches a Kubernetes service.",
+        ),
     ],
     rules: &[
         (
@@ -150,6 +163,7 @@ pub(crate) static ENGLISH: English = English {
             "Workload Kubernetes",
             "Kubernetes workload",
         ),
+        ("kube.service", "Service Kubernetes", "Kubernetes service"),
     ],
     states: &[],
 };

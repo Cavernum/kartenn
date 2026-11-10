@@ -1124,3 +1124,369 @@ async fn namespace_cascade_closes_workloads(pool: PgPool) {
     assert!(env.workloads(batch).await.is_empty());
     assert!(env.named("kube.namespace", prod, "batch").await.is_empty());
 }
+
+/// `kube.sync` of `action` on the service named `name` in the namespace `namespace` of
+/// `cluster`.
+fn service(action: &str, cluster: Uuid, namespace: &str, name: &str, extra: Value) -> Operation {
+    let mut fields = json!({"namespace": namespace});
+    merge(&mut fields, extra);
+    sync(action, "service", cluster, name, fields)
+}
+
+/// The closure of the address `id` of the core.
+fn close_address(id: Uuid) -> Operation {
+    Operation::Close {
+        kind: ObjectKind::Address,
+        id: Ref::Id(id),
+        expected: None,
+        cascade: false,
+    }
+}
+
+impl Env {
+    /// A cluster `slug` with the external domain `external`, and its namespace `payments`.
+    async fn service_cluster(&self, slug: &str, external: Uuid) -> (Uuid, Uuid) {
+        self.applied(vec![
+            self.cluster(slug, json!({"external_domain": {"id": external}})),
+        ])
+        .await;
+        let cluster = self.id("kube.cluster", "slug", slug).await;
+        self.applied(vec![sync(
+            "upsert",
+            "namespace",
+            cluster,
+            "payments",
+            json!({}),
+        )])
+        .await;
+        let payments = self.named("kube.namespace", cluster, "payments").await[0];
+        (cluster, payments)
+    }
+
+    /// The living services of `namespace` named `name`.
+    async fn services(&self, namespace: Uuid, name: &str) -> Vec<Uuid> {
+        sqlx::query_scalar(
+            "SELECT id FROM kube.service
+              WHERE namespace_id = $1 AND name = $2 AND valid_period @> now()",
+        )
+        .bind(namespace)
+        .bind(name)
+        .fetch_all(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// The cluster IPs and external addresses the living service `id` cites.
+    async fn service_address_ids(&self, id: Uuid) -> (Vec<Uuid>, Vec<Uuid>) {
+        sqlx::query_as(
+            "SELECT cluster_address_ids, external_address_ids FROM kube.service
+              WHERE id = $1 AND valid_period @> now()",
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// The living addresses of `domain`, as `(id, value, usage)`, by value.
+    async fn addresses(&self, domain: Uuid) -> Vec<(Uuid, String, String)> {
+        sqlx::query_as(
+            "SELECT id, host(address), usage FROM address
+              WHERE domain_id = $1 AND valid_period @> now() ORDER BY address",
+        )
+        .bind(domain)
+        .fetch_all(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// Every address `domain` ever had.
+    async fn addresses_ever(&self, domain: Uuid) -> i64 {
+        sqlx::query_scalar("SELECT count(DISTINCT id) FROM address WHERE domain_id = $1")
+            .bind(domain)
+            .fetch_one(&self.pool)
+            .await
+            .unwrap()
+    }
+
+    /// The workloads the living service `id` selects.
+    async fn selected(&self, id: Uuid) -> Vec<Uuid> {
+        sqlx::query_scalar(
+            "SELECT workload_ids FROM kube.service WHERE id = $1 AND valid_period @> now()",
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// The living services that select the workload `id`: the other way of the selection.
+    async fn selecting(&self, id: Uuid) -> Vec<Uuid> {
+        sqlx::query_scalar(
+            "SELECT id FROM kube.service
+              WHERE workload_ids @> ARRAY[$1::uuid] AND valid_period @> now() ORDER BY name",
+        )
+        .bind(id)
+        .fetch_all(&self.pool)
+        .await
+        .unwrap()
+    }
+}
+
+/// REQ-019-9, 14, design « Références »: the cluster IP of a service is an address of usage
+/// `vip` of the service domain, its external address one of the external domain of the
+/// cluster, created and cited in the same `kube.sync`; closing the cluster IP of a living
+/// service is refused and names the service; an address unchanged creates nothing, an
+/// address gone closes.
+#[kartenn_testing::pg_test]
+async fn service_vip_refuses_close(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let external = env
+        .domain("external", "192.0.2.0/24", Nature::Network)
+        .await;
+    let (prod, payments) = env.service_cluster("prod", external).await;
+    let web = |extra: Value| service("upsert", prod, "payments", "web", extra);
+    env.applied(vec![web(json!({
+        "uid": Uuid::now_v7(),
+        "service_type": "load_balancer",
+        "ports": [
+            {"port": 443, "target_port": "https", "node_port": 30443, "app_protocol": "https"},
+            {"port": 53, "target_port": 5353, "protocol": "udp", "name": "dns"},
+        ],
+        "cluster_ips": ["203.0.113.10"],
+        "external_ips": ["192.0.2.10"],
+    }))])
+    .await;
+    let ids = env.services(payments, "web").await;
+    assert_eq!(ids.len(), 1);
+    let (kind, ports, parent, domain): (String, Value, Option<Uuid>, Option<Uuid>) =
+        sqlx::query_as(
+            "SELECT s.type, s.ports, o.parent_id, o.domain_id
+               FROM kube.service s
+               JOIN module_object o ON o.id = s.id AND o.valid_period @> now()
+              WHERE s.id = $1 AND s.valid_period @> now()",
+        )
+        .bind(ids[0])
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(kind, "load_balancer");
+    // A set sorted by port, `tcp` by default.
+    assert_eq!(
+        ports,
+        json!([
+            {"port": 53, "target_port": 5353, "protocol": "udp", "name": "dns"},
+            {"port": 443, "target_port": "https", "protocol": "tcp", "app_protocol": "https",
+             "node_port": 30443},
+        ])
+    );
+    // Under its namespace, in the pod domain of the cluster.
+    assert_eq!((parent, domain), (Some(payments), Some(env.pods)));
+    let cluster_ip = env.addresses(env.services).await;
+    let external_ip = env.addresses(external).await;
+    assert_eq!(cluster_ip.len(), 1, "{cluster_ip:?}");
+    assert_eq!(
+        (cluster_ip[0].1.as_str(), cluster_ip[0].2.as_str()),
+        ("203.0.113.10", "vip")
+    );
+    assert_eq!(
+        (external_ip[0].1.as_str(), external_ip[0].2.as_str()),
+        ("192.0.2.10", "vip")
+    );
+    assert_eq!(
+        env.service_address_ids(ids[0]).await,
+        (vec![cluster_ip[0].0], vec![external_ip[0].0])
+    );
+    // The cluster IP of a living service does not close alone, and the refusal names the
+    // service.
+    let outcome = env.submit(vec![close_address(cluster_ip[0].0)]).await;
+    let Outcome::Refused { violations, .. } = &outcome else {
+        panic!("not refused: {outcome:?}");
+    };
+    let dependents = violations
+        .iter()
+        .find(|v| v.rule.id == "core.object.dependents")
+        .unwrap_or_else(|| panic!("{outcome:?}"));
+    assert!(dependents.subjects.contains(&ids[0]), "{dependents:?}");
+    // The same addresses again, another field changed: nothing created.
+    env.applied(vec![web(json!({
+        "cluster_ips": ["203.0.113.10"],
+        "external_ips": ["192.0.2.10"],
+        "headless": false,
+    }))])
+    .await;
+    assert_eq!(env.addresses_ever(env.services).await, 1);
+    assert_eq!(env.addresses_ever(external).await, 1);
+    // The external address replaced: the old one closes, the new one is cited.
+    env.applied(vec![web(json!({"external_ips": ["192.0.2.11"]}))])
+        .await;
+    let replaced = env.addresses(external).await;
+    assert_eq!(replaced.len(), 1, "{replaced:?}");
+    assert_eq!(replaced[0].1, "192.0.2.11");
+    assert_eq!(
+        env.service_address_ids(ids[0]).await,
+        (vec![cluster_ip[0].0], vec![replaced[0].0])
+    );
+    // An address out of syntax, a port out of bounds, or an external address without an
+    // external domain refuse the batch.
+    env.refused(
+        vec![web(json!({"cluster_ips": ["203.0.113.300"]}))],
+        "kube.operation.invalid",
+    )
+    .await;
+    env.refused(
+        vec![web(json!({"ports": [{"port": 80, "node_port": 0}]}))],
+        "kube.operation.invalid",
+    )
+    .await;
+    let dev = env.new_cluster("dev").await;
+    env.applied(vec![sync(
+        "upsert",
+        "namespace",
+        dev,
+        "payments",
+        json!({}),
+    )])
+    .await;
+    env.refused(
+        vec![service(
+            "upsert",
+            dev,
+            "payments",
+            "web",
+            json!({"external_ips": ["192.0.2.20"]}),
+        )],
+        "kube.operation.invalid",
+    )
+    .await;
+}
+
+/// REQ-019-14, design « Références » (`OnClose::Owned`): a closed service closes its
+/// addresses, by `kube.sync` or in the cascade of its namespace; deleted then created
+/// again under the same name, it is the same service (019/X3), with new addresses.
+#[kartenn_testing::pg_test]
+async fn service_closed_closes_its_addresses(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let external = env
+        .domain("external", "192.0.2.0/24", Nature::Network)
+        .await;
+    let (prod, payments) = env.service_cluster("prod", external).await;
+    let web = service(
+        "upsert",
+        prod,
+        "payments",
+        "web",
+        json!({
+            "service_type": "load_balancer",
+            "cluster_ips": ["203.0.113.10"],
+            "external_ips": ["192.0.2.10"],
+        }),
+    );
+    env.applied(vec![web.clone()]).await;
+    let ids = env.services(payments, "web").await;
+    assert_eq!(ids.len(), 1);
+    // Closed by the connector: its addresses with it.
+    env.applied(vec![service("close", prod, "payments", "web", json!({}))])
+        .await;
+    assert!(env.services(payments, "web").await.is_empty());
+    assert!(env.addresses(env.services).await.is_empty());
+    assert!(env.addresses(external).await.is_empty());
+    // Created again: the same service, new addresses.
+    env.applied(vec![web]).await;
+    assert_eq!(env.services(payments, "web").await, ids);
+    let (cluster_ips, external_ips) = env.service_address_ids(ids[0]).await;
+    assert_eq!((cluster_ips.len(), external_ips.len()), (1, 1));
+    assert_eq!(env.addresses_ever(env.services).await, 2);
+    assert_eq!(env.addresses_ever(external).await, 2);
+    // Its namespace closed in cascade: the service, then its addresses.
+    env.applied(vec![Operation::Close {
+        kind: ObjectKind::from_name("kube.namespace").unwrap(),
+        id: Ref::Id(payments),
+        expected: None,
+        cascade: true,
+    }])
+    .await;
+    assert!(env.services(payments, "web").await.is_empty());
+    assert!(env.addresses(env.services).await.is_empty());
+    assert!(env.addresses(external).await.is_empty());
+}
+
+/// REQ-019-9: a service selecting two workloads lists them, each workload lists the
+/// service; a workload closed in cascade leaves the selection (design « Références »,
+/// mise à nul), a workload unknown to the namespace refuses the batch.
+#[kartenn_testing::pg_test]
+async fn selection_lists_both_ways(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let external = env
+        .domain("external", "192.0.2.0/24", Nature::Network)
+        .await;
+    let (prod, payments) = env.service_cluster("prod", external).await;
+    env.applied(vec![
+        workload("upsert", prod, "payments", "deployment", "web", json!({})),
+        workload("upsert", prod, "payments", "cronjob", "report", json!({})),
+    ])
+    .await;
+    let workloads = env.workloads(payments).await;
+    let (report, web) = (workloads[0], workloads[1]);
+    let selecting = |name: &str, selection: Value| {
+        service(
+            "upsert",
+            prod,
+            "payments",
+            name,
+            json!({"workloads": selection}),
+        )
+    };
+    env.applied(vec![
+        selecting(
+            "frontend",
+            json!([
+                {"kind": "deployment", "name": "web"},
+                {"kind": "cronjob", "name": "report"},
+            ]),
+        ),
+        selecting("metrics", json!([{"kind": "deployment", "name": "web"}])),
+    ])
+    .await;
+    let frontend = env.services(payments, "frontend").await[0];
+    let metrics = env.services(payments, "metrics").await[0];
+    let mut both = vec![report, web];
+    both.sort_unstable();
+    assert_eq!(env.selected(frontend).await, both);
+    assert_eq!(env.selected(metrics).await, [web]);
+    assert_eq!(env.selecting(web).await, [frontend, metrics]);
+    assert_eq!(env.selecting(report).await, [frontend]);
+    // A workload the namespace does not hold: refused.
+    env.refused(
+        vec![selecting(
+            "metrics",
+            json!([{"kind": "statefulset", "name": "web"}]),
+        )],
+        "kube.operation.invalid",
+    )
+    .await;
+    // Closed by the connector while selected: refused (no cascade from `kube.sync`).
+    env.refused(
+        vec![workload(
+            "close",
+            prod,
+            "payments",
+            "deployment",
+            "web",
+            json!({}),
+        )],
+        "core.object.dependents",
+    )
+    .await;
+    // Closed in cascade: it leaves the selection of both services, which live on.
+    env.applied(vec![Operation::Close {
+        kind: ObjectKind::from_name("kube.workload").unwrap(),
+        id: Ref::Id(web),
+        expected: None,
+        cascade: true,
+    }])
+    .await;
+    assert_eq!(env.selected(frontend).await, [report]);
+    assert!(env.selected(metrics).await.is_empty());
+    assert!(env.selecting(web).await.is_empty());
+}

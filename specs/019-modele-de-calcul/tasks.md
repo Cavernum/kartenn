@@ -520,7 +520,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     (design « Connecteur ») vaut pour la création, pas la suppression : le connecteur ne
     peut faire de `Close` en cascade (`kube.connector.direct`), il clôt les workloads
     avant leur namespace (tâche 10).
-- [ ] 4b. Services : table `kube.service`, `upsert` et `close` dans `kube.sync`, ports
+- [x] 4b. Services : table `kube.service`, `upsert` et `close` dans `kube.sync`, ports
   (port, port cible, protocole, `appProtocol`, port de nœud), `external_name` ; IP de
   cluster dans le domaine des services et adresses externes dans le domaine externe du
   cluster, adresses `vip` du noyau planifiées par le lot (`CreateAddress`, identifiants
@@ -532,6 +532,55 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - où : comme la 4a ; `ModuleHandler::targets` de la 3d (`handler.rs`, nœud → réseau)
     à imiter ; `kartenn-machines/src/handler.rs` (références de la tâche 009-8)
   - dépend de : 4a
+  - fait (2026-11-10) : migration `0004_service.sql` (table du design, exclusion
+    (namespace, nom), index `service_by_namespace`, `service_by_uid`, GIN
+    `service_by_workload`, `service_cluster_addresses`, `service_external_addresses`) ;
+    `module.rs` (type `kube.service`, collection `kube-services`, parent namespace, ancré
+    dans le domaine des pods ; droits `kube.service.read`, `edit`, `apply`,
+    `approval.self` ; références `kube.service` → `kube.namespace` en `Cascade`,
+    → `address` en `Owned`, → `kube.workload` en `Nullify`) ; `labels.rs` ; `tracked.rs`
+    (`ServiceType::parse`) ; `handler.rs` (`kube.sync` de `type` `kube.service` ;
+    `CreateAddress` d'usage `vip` dans le domaine des services ou le domaine externe,
+    `Close` de l'adresse d'une valeur partie ; `targets` des adresses ; `nullify` qui
+    retire le workload clos de la sélection) ; `pg.rs` (`InNamespace`, `namespaced`,
+    `namespaced_closed`, `service_domains`, `service_addresses`, `workloads_named`,
+    `kube.service.duplicate` avant la contrainte, `placement` et `referrers` du
+    service) ; tests `service_vip_refuses_close`, `service_closed_closes_its_addresses`,
+    `selection_lists_both_ways` (`tests/it/clusters.rs`) ; contrat (`openapi-v1.json`),
+    `docs/spec/permissions.md` et types des deux SDK régénérés par leurs outils.
+  - choix : champs du `sync` d'un service : `namespace` (par son nom, comme un
+    workload), `service_type` (`type` nomme déjà le type d'objet du lot), `headless`,
+    `external_name` (sous-domaine DNS, point final admis, gardé tel quel), `ports`
+    `[{port, target_port, protocol, app_protocol, node_port, name}]` (port cible nombre
+    ou nom `IANA_SVC_NAME`, protocole `tcp` à défaut, `app_protocol` en syntaxe de clé de
+    label comme l'exige Kubernetes, `kube.label.invalid` sinon ; ports 0 refusés ;
+    ensemble trié), `cluster_ips` et `external_ips` (listes d'IP, noms de
+    `tracked::TrackedService`), `workloads` `[{kind, name}]` du namespace du service, lus
+    au `prepare` (workloads avant services, design « Connecteur »), un workload inconnu
+    refusant le lot (`kube.operation.invalid`) ; une valeur nouvelle crée toujours une
+    adresse (jamais de reprise d'une adresse existante du domaine, qu'un service clos
+    fermerait) : une valeur déjà prise dans le domaine est refusée par le noyau
+    (`core.address.duplicate`), une valeur hors de tout réseau du domaine aussi
+    (`core.address.outside_network`) ; des `external_ips` nouvelles sur un cluster sans
+    domaine externe : `kube.operation.invalid` ; une seule référence `Owned` vers
+    `address` couvre les deux colonnes ; `planned` devient générique (`data.slots` :
+    pour chaque opération du noyau, la colonne qui cite ce qu'elle crée), les plages de
+    nœud y passent ; la réouverture d'identité de la 4a vaut pour le service (X3, X9 :
+    `namespaced_closed`) ; `mirror_row` prend un `Home` (cluster, workload de sa sorte,
+    service) au lieu du couple optionnel de la 4a (son reste « `mirror_row` masque son
+    paramètre » est levé), `workload_identity` devient `home_of` ; la sélection ne
+    demande pas `kube.workload.read` (comme le namespace désigné par son nom) ; le `close`
+    par `kube.sync` d'un workload encore sélectionné est refusé
+    (`core.object.dependents`) : la mise à nul est celle d'un `Close` en cascade.
+  - reste : pas de partage d'adresse entre services (IP de LoadBalancer partagée :
+    refusée en doublon) ; aucune cohérence entre champs (headless sans IP de cluster,
+    `external_name` seulement pour ce type) ; le connecteur doit retirer un workload de
+    la sélection avant de le clore (tâche 10) ; la sélection n'est vérifiée qu'au début
+    de la période (un workload clos plus tôt qu'elle n'est pas vu) ; un nom de service est
+    contrôlé en étiquette DNS (RFC 1123), non en RFC 1035 (lettre en tête) ; ni
+    `/v1/kube-services`, ni la lecture `service_addresses` du port `kartenn_kube::read`
+    (tâche 8) ; arêtes `kube.selects`, `kube.service_address` (4d) ; pas de test d'IP de
+    cluster IPv6 ni d'un réordonnancement de ports sans version.
 - [ ] 4c. Ingress : table `kube.ingress` (classe, règles, hôtes TLS, adresses `vip`
   en `Owned` comme la 4b), `upsert` et `close` dans `kube.sync`, avertissement
   `kube.ingress.backend_missing` pour une règle qui vise un service absent du

@@ -319,6 +319,19 @@ impl ServiceType {
             Self::ExternalName => "external_name",
         }
     }
+
+    /// Reads the kartenn spelling.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        [
+            Self::ClusterIp,
+            Self::NodePort,
+            Self::LoadBalancer,
+            Self::ExternalName,
+        ]
+        .into_iter()
+        .find(|t| t.as_str() == text)
+    }
 }
 
 /// The port a service or an ingress targets: a number or a port name.
