@@ -612,6 +612,9 @@ impl ModuleHandler for Handler {
             if operation.name == "matrix.set" {
                 return crate::matrix::prepare_set(connection(tx)?, operation, at).await;
             }
+            if operation.name == "inference_rule.update" {
+                return crate::infer::prepare_rule(connection(tx)?, operation).await;
+            }
             Self::prepare_value(connection(tx)?, operation, at).await
         })
     }

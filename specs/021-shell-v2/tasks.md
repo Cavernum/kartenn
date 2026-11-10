@@ -3962,7 +3962,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     générique : à vérifier que la lecture de chaque objet de module expose bien son
     domaine (par exemple le domaine des pods d'un `kube.cluster`), sans quoi le nommer
     serait un oracle.
-- [ ] 22n. Domaines de verrouillage de `update_vlan_group` et de `policy.inference`
+- [x] 22n. Domaines de verrouillage de `update_vlan_group` et de `policy.inference`
   (arbitrage de la 22j, 2026-11-10) : un groupe de VLAN déplacé ne nomme et ne verrouille
   que son nouvel ancrage, l'ancien domaine doit l'être aussi ; une règle
   `policy.inference` ancrée dans un domaine laisse `plan.domains` vide, elle doit porter
@@ -3973,6 +3973,27 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `crates/kartenn-policy/src/handler.rs` (vers les lignes 256 et 584),
     `crates/kartenn-rest/tests/it/event_domains.rs`
   - dépend de : 22j
+  - fait (2026-11-10) : `Completed` (`kartenn-service/src/vlan.rs`) porte `anchor_domain`,
+    le domaine d'ancrage du groupe avant la modification, que `prepare_group`
+    (`kartenn-store-pg/src/vlan.rs`) lit avec son ancrage ; `plan_update_group` porte
+    dans `plan.domains` l'ancien et le nouveau domaine, triés. Une règle d'inférence : la
+    création portait déjà son domaine ; la modification (qui ne peut ni changer ni
+    répéter le domaine) le reçoit de `infer::prepare_rule` (`completed.domain`, lu par
+    `domain_of`) et le porte. L'ordre des verrous ne change pas : `lock_targets` réunit
+    les domaines de tous les plans dans un `BTreeSet` avant de les prendre (ADR 0015).
+    Tests : `every_written_domain_is_named` (déplacement de `lab` vers `annex` →
+    `[lab, annex]`, renommage sur place → `[annex]`),
+    `a_group_moved_writes_the_domain_it_leaves_and_the_one_it_joins` (unitaire),
+    `a_rule_anchored_in_a_domain_locks_and_names_it` (`kartenn-policy/tests/it/inference.rs` :
+    création et modification d'une règle ancrée → le domaine, règle sans domaine → `[]`).
+  - choix : une modification d'un groupe sans déplacement porte aussi son domaine
+    d'ancrage (elle écrit un objet de ce domaine, comme `update_vlan` porte celui de son
+    groupe) ; le cas de la règle est testé dans `kartenn-policy` et non dans
+    `event_domains.rs` : l'`Env` de `kartenn-rest` est une construction sans module, et
+    celui de `kartenn-policy` installe déjà la politique ; une règle créée dans le même
+    changeset (référence locale) est verrouillée par sa création, `prepare_rule` ne lit
+    que les identifiants.
+  - reste : aucun.
 
 - [x] 22d. Chargement de l'arbre arrêté à deux pages (une passe sur sept, 22a et 24e) :
   après la deuxième page, ni ligne « suite » ni avis, 100 enfants dessinés ;

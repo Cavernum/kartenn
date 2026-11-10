@@ -69,6 +69,18 @@ async fn placed(pool: &PgPool, from: i64) -> Vec<(Uuid, String, Uuid, bool)> {
     .unwrap()
 }
 
+/// The domains the row of the outbox of `changeset` names.
+async fn named(pool: &PgPool, changeset: Uuid) -> Vec<Uuid> {
+    sqlx::query_scalar(
+        "SELECT domain_ids FROM outbox
+          WHERE changeset_id = $1 AND payload ->> 'type' = 'org.kartenn.changeset.applied'",
+    )
+    .bind(changeset)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
 #[kartenn_testing::pg_test]
 async fn every_written_domain_is_named(pool: PgPool) {
     let env = Env::new(&pool).await;
@@ -154,6 +166,33 @@ async fn every_written_domain_is_named(pool: PgPool) {
         json!({"op": "close", "kind": "prefix", "id": {"id": network}, "cascade": true}),
     )])
     .await;
+
+    // A group of VLAN moved from one domain to another (task 22n): both are written,
+    // locked and named; renamed in place, the one it is anchored on.
+    env.applied(vec![op(
+        "create_vlan_group",
+        json!({"slug": "moved", "anchor": {"domain": {"id": lab}}, "owner": {"id": acme}}),
+    )])
+    .await;
+    let moved = env.id("vlan_group", "moved").await;
+    let to_annex = changeset(
+        &env.applied(vec![op(
+            "update_vlan_group",
+            json!({"id": {"id": moved}, "anchor": {"domain": {"id": annex}}}),
+        )])
+        .await,
+    );
+    let mut both = vec![lab, annex];
+    both.sort_unstable();
+    assert_eq!(named(&pool, to_annex).await, both);
+    let renamed = changeset(
+        &env.applied(vec![op(
+            "update_vlan_group",
+            json!({"id": {"id": moved}, "slug": "annex-vlans"}),
+        )])
+        .await,
+    );
+    assert_eq!(named(&pool, renamed).await, vec![annex]);
 
     let placed = placed(&pool, from).await;
     let unnamed: Vec<_> = placed.iter().filter(|(.., named)| !named).collect();
