@@ -1,8 +1,6 @@
 import { setContext, setTranslator } from "@kartenn/sdk/host";
 import { setLocale as setLibraryLocale } from "@kartenn/ui";
 import { createI18n } from "vue-i18n";
-import adminEn from "../admin/i18n/en.json";
-import adminFr from "../admin/i18n/fr.json";
 import changesetsEn from "../changesets/i18n/en.json";
 import changesetsFr from "../changesets/i18n/fr.json";
 import viewsEn from "../views/i18n/en.json";
@@ -77,6 +75,40 @@ export function mergePluginCatalog(
   namespaces.add(name);
 }
 
+/** A catalog the shell reads with the screens that use it, in each of its languages. */
+export type Catalog = Record<Locale, object>;
+
+type Merging = { global: { mergeLocaleMessage(locale: string, messages: object): void } };
+
+/** The i18n instance of the shell, once created: the catalogs read later merge into it. */
+let shell: Merging | undefined;
+/** The catalogs read on demand so far, merged again into an instance created after them. */
+const read: Catalog[] = [];
+
+function mergeCatalog(i18n: Merging, catalog: Catalog): void {
+  for (const locale of LOCALES) i18n.global.mergeLocaleMessage(locale, catalog[locale]);
+}
+
+/**
+ * A catalog kept out of the initial shell (task 22h, budget « Shell initial »): `load` at
+ * the first call, its words merged deep into the shell's, the screens that use it awaiting
+ * it with their own chunk; a load that fails is tried again at the next call.
+ */
+export function lazyCatalog(load: () => Promise<{ default: Catalog }>): () => Promise<void> {
+  let loading: Promise<void> | undefined;
+  return () =>
+    (loading ??= load().then(
+      ({ default: catalog }) => {
+        read.push(catalog);
+        if (shell) mergeCatalog(shell, catalog);
+      },
+      (error: unknown) => {
+        loading = undefined;
+        throw error;
+      },
+    ));
+}
+
 /** The i18n instance of the shell, plugged into the SDK (`t` of plugins, context). */
 export function createShellI18n(
   locale: Locale = chooseLocale(
@@ -96,9 +128,9 @@ export function createShellI18n(
   // The changesets and the drafts (task 14), merged deep: they add words under `views` too.
   i18n.global.mergeLocaleMessage("fr", changesetsFr);
   i18n.global.mergeLocaleMessage("en", changesetsEn);
-  // The administration (task 15a), under `admin`.
-  i18n.global.mergeLocaleMessage("fr", adminFr);
-  i18n.global.mergeLocaleMessage("en", adminEn);
+  // The catalogs read on demand (the administration's, `admin/routes.ts`), here and later.
+  for (const catalog of read) mergeCatalog(i18n, catalog);
+  shell = i18n;
   setTranslator((key, params, plugin) => {
     const full = shellKey(key, plugin);
     const text = i18n.global.t(full, params ?? {});
