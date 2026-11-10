@@ -34,6 +34,12 @@ required-features = ["pg"]
 [dev-dependencies]
 # Test databases cloned from a migrated template (ADR 0028).
 kartenn-testing = { version = "0.1.0", path = "../kartenn-testing" }
+# The edges of the module through the router (task 019-4d), as kartenn-machines tests it.
+axum = { version = "0.8.9", default-features = false, features = ["json"] }
+http-body-util = "0.1"
+kartenn-auth = { path = "../kartenn-auth" }
+kartenn-rest = { path = "../kartenn-rest" }
+tower = { version = "0.5", features = ["util"] }
 kartenn-machines = { path = "../kartenn-machines", features = ["pg"] }
 kartenn-store-pg = { path = "../kartenn-store-pg" }
 serde_json = { version = "1.0.154" }

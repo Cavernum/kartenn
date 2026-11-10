@@ -8,7 +8,7 @@ use std::sync::Arc;
 use kartenn_core::authz::Permission;
 use kartenn_core::rules::Rule;
 use kartenn_service::module::{
-    Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, OperationType, Reference,
+    EdgeType, Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, OperationType, Reference,
 };
 
 use crate::rules::KUBE_RULES;
@@ -258,6 +258,50 @@ static REFERENCES: &[Reference] = &[
     },
 ];
 
+/// The edges of the topology graph (REQ-019-11; ADR 0026, clause 11): with those of the
+/// machines module (`machines.hosted_on`, `hosted_in`, `member_of`), the chain « an
+/// ingress routes to a service, a service selects a workload, a node runs on a machine,
+/// a machine is hosted by a hypervisor ». The link from a workload to the nodes its pods
+/// run on is observed (journal of observations), not an edge of the versioned model.
+static EDGES: &[EdgeType] = &[
+    // The machine a node designates.
+    EdgeType {
+        name: "kube.runs_on",
+        from: NODE,
+        to: MACHINE,
+    },
+    // The networks of the pod ranges of a node.
+    EdgeType {
+        name: "kube.node_range",
+        from: NODE,
+        to: PREFIX,
+    },
+    // The workloads a service selects.
+    EdgeType {
+        name: "kube.selects",
+        from: SERVICE,
+        to: WORKLOAD,
+    },
+    // The cluster IPs and external addresses of a service.
+    EdgeType {
+        name: "kube.service_address",
+        from: SERVICE,
+        to: ADDRESS,
+    },
+    // The services of its namespace a route of an ingress names.
+    EdgeType {
+        name: "kube.routes_to",
+        from: INGRESS,
+        to: SERVICE,
+    },
+    // The addresses of an ingress.
+    EdgeType {
+        name: "kube.ingress_address",
+        from: INGRESS,
+        to: ADDRESS,
+    },
+];
+
 /// The Kubernetes module (spec 019).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Kube;
@@ -289,6 +333,9 @@ impl Module for Kube {
     }
     fn references(&self) -> &'static [Reference] {
         REFERENCES
+    }
+    fn edges(&self) -> &'static [EdgeType] {
+        EDGES
     }
     fn migrations(&self) -> &'static [ModuleMigration] {
         MIGRATIONS

@@ -1855,8 +1855,12 @@ dependencies = [
 name = "kartenn-kube"
 version = "0.1.0"
 dependencies = [
+ "axum",
+ "http-body-util",
+ "kartenn-auth",
  "kartenn-core",
  "kartenn-machines",
+ "kartenn-rest",
  "kartenn-service",
  "kartenn-store-pg",
  "kartenn-testing",
@@ -1865,6 +1869,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "tokio",
+ "tower",
  "uuid",
 ]
 
