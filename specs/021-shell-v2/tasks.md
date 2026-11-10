@@ -4070,7 +4070,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     déplacé par un changeset ouvert plus tard n'est pas vue (l'objet n'existe pas, le
     groupe est lu à `now()` par `prepare_vlan`) ; le risque général d'une écriture datée
     du début de transaction qui écrase une version plus récente est une tâche à part, 22p.
-- [ ] 22p. Écritures datées du début de leur transaction (relevé par la revue de la 22o) :
+- [x] 22p. Écritures datées du début de leur transaction (relevé par la revue de la 22o) :
   une écriture de version valide à partir de `now()` (instant du début de la
   transaction, `FOR PORTION OF`) rencontre une version plus récente commise entre-temps
   par un changeset ouvert plus tard. Sans la relecture de la 22o, le cas des VLAN
@@ -4088,6 +4088,54 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     (`kartenn_portion`), `crates/kartenn-service/src/pipeline.rs` (boucle de rejeu),
     `crates/kartenn-rest/tests/it/event_domains.rs`
   - dépend de : 22o
+  - diagnostic (2026-11-10) : aucun écrasement silencieux, des erreurs brutes seulement.
+    Le temps système d'une version est le début de sa transaction (`now()`, INV-12) ;
+    toute écriture qui remplace ou termine une version le fait par `UPDATE` ou `DELETE`,
+    et le déclencheur `kartenn_versioning` copie l'ancienne dans l'historique avec
+    `sys_end = now()`. Si un changeset ouvert plus tard l'a commise (`sys_start = T2`,
+    après le début `T1`), la période système serait inversée, et l'index GiST
+    `tstzrange(sys_start, sys_end)` de l'historique (migration 0019) lève « range lower
+    bound must be less than or equal to range upper bound » (500). Par famille :
+    modification (`kartenn_portion`, noyau, VLAN, registre, machines, kube, politiques,
+    flux) : erreur brute (constatée par le test, à la suppression de la version de
+    l'autre) ; clôture (`close_in`, `close_versioned` des modules) : erreur brute
+    (l'`UPDATE` ou le `DELETE` touche la version de l'autre, que `kartenn_portion` a
+    réécrite en morceaux datés `T2`) ; restauration (`kartenn_restore`) : erreur brute
+    (suppression des versions courantes sur la portion) ; affectation et retrait
+    (`kartenn_unassign` avant l'insertion) : erreur brute ; création : sans objet (un
+    doublon tombe sur les exclusions, REQ-004-12). Avec `expected` (et `expect`), refus
+    propre avant toute écriture (`changeset.operation.conflict`, REQ-004-11 :
+    `object_version` relu `FOR UPDATE` voit la version de l'autre), constaté aussi.
+  - fait (2026-11-10) : la migration 0077 refait `kartenn_versioning` : une version
+    remplacée dont `sys_start` dépasse `now()` lève `serialization_failure` (40001),
+    message `kartenn.version.stale <objet> of <table> …`, avant la copie dans
+    l'historique. `StoreError::is_stale_version` et `stale_object` (`port.rs`,
+    `STALE_VERSION`) la reconnaissent ; `run` (`pipeline.rs`) rejoue alors `stages`
+    entières, dans une transaction neuve dont le début suit la version de l'autre,
+    `MAX_REPLAYS` (2) fois au plus, puis refuse par `refuse` avec
+    `changeset.operation.conflict` (objet nommé). L'instant des écritures ne change pas
+    (D8, D10). Précision datée dans l'ADR 0015. Test :
+    `a_write_that_started_first_and_wrote_last_replays` (`event_domains.rs` : la
+    validation d'une modification de préfixe en attente ouvre sa transaction et attend la
+    ligne de son changeset ; une modification ouverte après elle commit ; la validation
+    rejoue et s'applique, la version de l'autre reste en vigueur jusqu'à la sienne ; sans
+    la correction, 500). Le point d'arrêt est extrait en `held` et `validated_after`, que
+    le test de la 22o réutilise ; la ligne attendue est cherchée dans la base du test
+    (`datname = current_database()`) : sans ce filtre, deux tests de ce genre lancés
+    ensemble voyaient l'attente l'un de l'autre et la course n'avait pas lieu.
+  - choix : le cas est nommé par le déclencheur (code et message à nous) plutôt que
+    reconnu au message de l'index (« range lower bound… », ambigu) ; il est reconnu à la
+    marque du message, qui traverse les conversions d'erreurs des modules, et non au code
+    SQLSTATE, que `StoreError` (texte) ne garde pas ; le rejeu entoure `stages` dans
+    `run`, puisque l'erreur survient à l'écriture, après la boucle de la 22o : une
+    tentative ratée a tout annulé, rien n'est écrit hors de sa transaction ; les deux
+    boucles comptent chacune leurs rejeux ; le refus d'une soumission prend un nouvel
+    identifiant, celui d'une validation le sien ; la violation n'a pas d'indice
+    d'opération (l'erreur ne le porte pas).
+  - reste : le refus après deux rejeux n'a pas de test d'intégration (trois écritures
+    intercalées) ; seule la modification de préfixe a un test de course, les autres
+    familles reposent sur le même déclencheur ; une version d'un module dont la ligne n'a
+    ni `id` ni `object_id` n'est pas nommée (sujet absent).
 
 - [x] 22d. Chargement de l'arbre arrêté à deux pages (une passe sur sept, 22a et 24e) :
   après la deuxième page, ni ligne « suite » ni avis, 100 enfants dessinés ;

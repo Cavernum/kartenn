@@ -121,3 +121,20 @@ Conséquences : un changeset relit, sous ses verrous, une ligne par objet de ces
 sortes et la complétion de ses opérations de VLAN ; les opérations de modules sans
 domaine (flux, machines) ne sont pas complétées de nouveau. Le refus après deux rejeux
 est visible au client, comme tout conflit de version.
+
+Écritures datées du début de leur transaction (tâche 021-22p, même jour). Le temps
+système d'une version est le début de sa transaction (`now()`, INV-12 de l'ADR 0017), et
+une écriture sans période propre vaut à partir de ce même instant. Un changeset qui
+attend ses verrous peut trouver une version d'un objet qu'un changeset ouvert après lui
+a commise entre-temps. Diagnostic : aucune écriture n'écrase cette version en silence.
+Modification, clôture, restauration et affectation, du noyau comme des modules, la
+remplacent ou la terminent par un `UPDATE` ou un `DELETE`. Le déclencheur des versions
+la copierait alors dans l'historique avec une période système inversée (début `T2`,
+fin `T1 < T2`), que l'index GiST de l'historique refuse : l'erreur était brute (500).
+Une opération qui précise sa version attendue (`expected`) est refusée proprement
+avant toute écriture (REQ-004-11). Décision : le déclencheur nomme le cas (migration
+0077, `serialization_failure`, message `kartenn.version.stale` et l'objet), et le
+pipeline rejoue alors le changeset entier dans une transaction neuve, dont le début
+vient après cette version : la version de l'autre reste en vigueur jusqu'à la sienne.
+Après deux rejeux, il le refuse en conflit (`changeset.operation.conflict`). L'instant
+des écritures ne change pas (D8, D10).
