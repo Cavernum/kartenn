@@ -4151,6 +4151,12 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     restent dans l'entrée (le cadre et le panneau du brouillon les lisent).
   - reste : la marge n'est que de 4,4 Ko ; le catalogue `views` (≈ 11 Ko gzip) pourrait
     suivre le même chemin pour ses clés propres aux écrans, s'il fallait de la place.
+  - reste (revue) : `lazyCatalog` (`i18n/index.ts` vers la ligne 97) sans test unitaire,
+    le nouvel essai après un échec et la fusion d'un catalogue lu avant la création n'étant
+    prouvés que par les captures ; rien dans `test/build.test.ts` n'empêche le retour du
+    catalogue `admin` dans l'entrée (un import statique hors de `src/admin/` le ferait
+    revenir, vu du seul budget global) ; `shell` (vers la ligne 132) ne retient que la
+    dernière instance créée, sans effet dans l'application.
 
 - [ ] 21. Accessibilité étendue : parcours clavier complet (palette, barre repliée,
   panneau du brouillon, édition en place), reflow 320 px des écrans de consultation,
