@@ -93,7 +93,7 @@ data: {"reason":"overflow"}
   objet listé ; une tâche de fond sans changeset (REQ-016-15) donne `"task":"<module>:
   <tâche>"`, `"event":"<id CloudEvents>"` et pas de révision : le client relit sans
   condition. `domains` : domaines
-  visibles de l'événement. `truncated` : invalidation large (REQ-022-5), avec `types`.
+  visibles de l'événement, ceux que l'abonné lit et ceux des objets remis (REQ-022-16). `truncated` : invalidation large (REQ-022-5), avec `types`.
 - `changeset` : état d'un changeset en attente (`pending`, `applied`, `rejected`,
   `withdrawn`, `expired`, `stale`), l'événement `org.kartenn.changeset.<état>` de la 004.
 - Point de reprise : `id:` seul suivi d'une ligne vide. Selon WHATWG § 9.2.6 (« dispatch
@@ -200,6 +200,9 @@ visibilité, puis pousse dans le `mpsc` borné de chaque connexion par `try_send
   `<type>.read` est-elle accordée maintenant ? Elle réutilise les prédicats de
   `kartenn-store-pg/src/rbac.rs` (`readable`, `authorize_many`) sous forme de jointure
   sujets × objets (ADR 0021). Un sujet qui a la lecture globale d'un type court-circuite.
+  La même requête rend le domaine d'adressage de chaque objet (version jugée) : un
+  domaine de l'événement est gardé si le sujet le lit, ou s'il est celui d'un objet remis
+  (021, tâche 22j) ; le filtre `domains` s'applique ensuite, sur les domaines gardés.
 - Un objet invisible est retiré ; un événement vide n'est pas remis ; le curseur de la
   connexion n'avance qu'avec un événement remis ou un point de reprise (au plus toutes
   les 30 s), ce qui efface le rythme des événements cachés (REQ-022-16).
