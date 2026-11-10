@@ -893,14 +893,26 @@ async fn prepare<'r, T: WriteTx>(
     let core = tx.core_handler();
     let mut prepared = req.clone();
     for op in &mut prepared.operations {
-        let own = to_period(op.own_period()).ok().flatten().or(period);
-        if let Operation::Module(operation) = op.inner_mut()
-            && let Some(handler) = handler_of(modules, core.as_ref(), operation)
-        {
-            handler.prepare(tx.module_tx(), operation, own).await?;
-        }
+        prepare_operation(tx, op, modules, core.as_ref(), period).await?;
     }
     Ok(std::borrow::Cow::Owned(prepared))
+}
+
+/// Completes `op`, if an operation of a module, on the state of the transaction.
+async fn prepare_operation<T: WriteTx>(
+    tx: &mut T,
+    op: &mut Operation,
+    modules: &ModuleRegistry,
+    core: Option<&Arc<dyn ModuleHandler>>,
+    period: Option<Period>,
+) -> Result<(), StoreError> {
+    let own = to_period(op.own_period()).ok().flatten().or(period);
+    if let Operation::Module(operation) = op.inner_mut()
+        && let Some(handler) = handler_of(modules, core, operation)
+    {
+        handler.prepare(tx.module_tx(), operation, own).await?;
+    }
+    Ok(())
 }
 
 /// Whether `op`, which defines a local name, creates an object: one of the core, or of the
@@ -1308,6 +1320,122 @@ async fn lock_targets<T: WriteTx>(
         public,
         keys.into_iter().collect(),
     ))
+}
+
+/// How many times a changeset replays its stages when a domain it read before its locks
+/// moved meanwhile, before it is refused (ADR 0015, precision of 2026-11-10).
+const MAX_REPLAYS: u8 = 2;
+
+/// Whether an object whose domain may change (a group of VLANs, a VLAN, an object of a
+/// module) changed it between the reads of `prepare` and `lock_targets` and the locks
+/// `held` (ADR 0015, precision of 2026-11-10): the conflict that refuses the changeset once
+/// its replays are spent, `None` when every domain read before the locks still holds.
+///
+/// Under the locks, `domain_of` is read again for those objects (the domains of prefixes,
+/// ranges and addresses never change), and the operations of modules that lock a domain
+/// complete themselves again from `original`; a completion that differs from `prepared`
+/// was read on a state another changeset has changed since.
+async fn moved<T: WriteTx>(
+    tx: &mut T,
+    original: &ChangesetRequest,
+    prepared: &ChangesetRequest,
+    (planned, origins): (&[Planned], &[usize]),
+    held: &[Uuid],
+    modules: &ModuleRegistry,
+    period: Option<Period>,
+) -> Result<Option<Violation>, StoreError> {
+    let stale = |index: usize, subject: Uuid| {
+        let mut conflict = Violation::new(
+            &rules::CHANGESET_CONFLICT,
+            format!(
+                "the domain of {subject} changed while the changeset waited for its locks, \
+                 {} times in a row: submit it again",
+                MAX_REPLAYS + 1
+            ),
+        )
+        .with_subjects([subject]);
+        conflict.operation = Some(index);
+        conflict
+    };
+    for (p, &origin) in planned.iter().zip(origins) {
+        let (kind, id) = match p {
+            Planned::Close { kind, id, .. }
+            | Planned::Modify { kind, id, .. }
+            | Planned::Restore { kind, id, .. } => (*kind, *id),
+            Planned::Assign { object, kind, .. } | Planned::Unassign { object, kind, .. } => {
+                (*kind, *object)
+            }
+            _ => continue,
+        };
+        if matches!(
+            kind,
+            ObjectKind::VlanGroup | ObjectKind::Vlan | ObjectKind::Module(_)
+        ) && let Some(domain) = tx.domain_of(kind, id).await?
+            && !held.contains(&domain)
+        {
+            return Ok(Some(stale(origin, id)));
+        }
+    }
+    if std::ptr::eq(original, prepared) {
+        return Ok(None);
+    }
+    // The operations of the VLANs of the core, and of the modules whose plans lock a
+    // domain: their domains come from their completion.
+    let mut again = BTreeSet::new();
+    for (p, &origin) in planned.iter().zip(origins) {
+        if let Planned::Module { plan, .. } = p
+            && !plan.domains.is_empty()
+        {
+            again.insert(origin);
+        }
+    }
+    for (index, op) in original.operations.iter().enumerate() {
+        if let Operation::Module(operation) = op.inner()
+            && operation.module == crate::module::CORE
+        {
+            again.insert(index);
+        }
+    }
+    // Their completion reads at the start of the transaction (`now()`): a version another
+    // changeset, started later, committed meanwhile is seen only by `domain_of`, which
+    // reads the last state. A plan whose domains miss the last domain of its object was
+    // made on an older version, which its writes would overwrite: replayed, even when
+    // another operation holds that domain.
+    for (p, origin) in planned.iter().zip(origins) {
+        if let Planned::Module { plan, .. } = p
+            && again.contains(origin)
+            && let Some(domain) = tx.domain_of(object_kind(plan.kind), plan.object).await?
+            && !plan.domains.contains(&domain)
+        {
+            return Ok(Some(stale(*origin, plan.object)));
+        }
+    }
+    let core = tx.core_handler();
+    for index in again {
+        let mut op = original.operations[index].clone();
+        prepare_operation(tx, &mut op, modules, core.as_ref(), period).await?;
+        if op != prepared.operations[index] {
+            let subject = planned
+                .iter()
+                .zip(origins)
+                .find(|(_, o)| **o == index)
+                .map_or(Uuid::nil(), |(p, _)| p.object());
+            return Ok(Some(stale(index, subject)));
+        }
+    }
+    Ok(None)
+}
+
+/// The kind of the object of a module plan: the groups of VLANs and the VLANs of the core
+/// have their own.
+fn object_kind(kind: ModuleKind) -> ObjectKind {
+    if kind == crate::vlan::group_kind() {
+        ObjectKind::VlanGroup
+    } else if kind == crate::vlan::vlan_kind() {
+        ObjectKind::Vlan
+    } else {
+        ObjectKind::Module(kind)
+    }
 }
 
 /// Writes the planned operations in order, collecting every violation (REQ-004-7).
@@ -2040,97 +2168,148 @@ async fn stages<S: Store, A: Authorizer>(
         Mode::Submission => Uuid::now_v7(),
         Mode::Validation { id, .. } => id,
     };
-    let mut tx = store.begin().await?;
-    // ADR 0026, amendment 3: what the modules may read of who stands behind it.
-    tx.set_module_actors(match mode {
-        Mode::Submission => crate::module::ModuleActors {
-            author: Some(author.id),
-            on_behalf_of: context.on_behalf_of,
-            validator: None,
-        },
-        Mode::Validation {
-            validator,
-            requester,
-            ..
-        } => crate::module::ModuleActors {
-            author: Some(author.id),
-            on_behalf_of: requester,
-            validator: Some(validator),
-        },
-    });
-    match mode {
-        Mode::Submission if req.idempotency_key.is_some() && !req.simulate => {
-            match or_roll_back!(tx, tx.replay(req).await) {
-                Replay::Fresh => {}
-                Replay::Same { changeset, state } => {
-                    tx.rollback().await?;
-                    return Ok(Outcome::Replayed { changeset, state });
+    let original = req;
+    let mut replays = 0;
+    // ADR 0015, precision of 2026-11-10: the domains read before the locks are read again
+    // under them; one that moved meanwhile replays the stages from the start.
+    let (
+        mut tx,
+        prepared,
+        planned,
+        origins,
+        periods,
+        cascaded,
+        window,
+        mut violations,
+        domains,
+        keys,
+    ) = loop {
+        let mut tx = store.begin().await?;
+        // ADR 0026, amendment 3: what the modules may read of who stands behind it.
+        tx.set_module_actors(match mode {
+            Mode::Submission => crate::module::ModuleActors {
+                author: Some(author.id),
+                on_behalf_of: context.on_behalf_of,
+                validator: None,
+            },
+            Mode::Validation {
+                validator,
+                requester,
+                ..
+            } => crate::module::ModuleActors {
+                author: Some(author.id),
+                on_behalf_of: requester,
+                validator: Some(validator),
+            },
+        });
+        match mode {
+            Mode::Submission if req.idempotency_key.is_some() && !req.simulate => {
+                match or_roll_back!(tx, tx.replay(req).await) {
+                    Replay::Fresh => {}
+                    Replay::Same { changeset, state } => {
+                        tx.rollback().await?;
+                        return Ok(Outcome::Replayed { changeset, state });
+                    }
+                    Replay::Conflict => {
+                        tx.rollback().await?;
+                        return Err(RequestError::IdempotencyConflict);
+                    }
+                    Replay::InProgress => {
+                        tx.rollback().await?;
+                        return Err(RequestError::IdempotencyInProgress);
+                    }
                 }
-                Replay::Conflict => {
+            }
+            Mode::Submission => {}
+            // Validations of one changeset are serialised; only a pending one is decided.
+            Mode::Validation { id, .. } => {
+                if or_roll_back!(tx, tx.lock_changeset(id).await).as_deref() != Some("pending") {
                     tx.rollback().await?;
-                    return Err(RequestError::IdempotencyConflict);
-                }
-                Replay::InProgress => {
-                    tx.rollback().await?;
-                    return Err(RequestError::IdempotencyInProgress);
+                    return Err(RequestError::Review(not_pending(id)));
                 }
             }
         }
-        Mode::Submission => {}
-        // Validations of one changeset are serialised; only a pending one is decided.
-        Mode::Validation { id, .. } => {
-            if or_roll_back!(tx, tx.lock_changeset(id).await).as_deref() != Some("pending") {
+        let prepared = match prepare(&mut tx, req, modules, period).await {
+            Ok(prepared) => prepared,
+            Err(e) => {
                 tx.rollback().await?;
-                return Err(RequestError::Review(not_pending(id)));
+                return Err(e.into());
             }
-        }
-    }
-    let prepared = match prepare(&mut tx, req, modules, period).await {
-        Ok(prepared) => prepared,
-        Err(e) => {
+        };
+        let req: &ChangesetRequest = &prepared;
+        let core = tx.core_handler();
+        let (planned, origins, derived, mut violations) = plan(req, modules, core.as_ref());
+        crate::expected::check_declared_sources(&planned, &origins, sources, &mut violations);
+        if has_errors(&violations) {
             tx.rollback().await?;
-            return Err(e.into());
+            return refuse(store, req, changeset, violations, mode, context).await;
+        }
+        // REQ-004-26: closures in cascade, expanded before the locks.
+        // REQ-004-2: each operation on its own period, or the changeset's; the property stage
+        // covers them all.
+        let periods: Vec<Option<Period>> = or_roll_back!(
+            tx,
+            req.operations
+                .iter()
+                .map(|op| to_period(op.own_period()).map(|own| own.or(period)))
+                .collect::<Result<_, _>>()
+        );
+        let window = window(period, &periods);
+        // One period per planned operation: that of the operation it comes from, unless a core
+        // operation added by a module carries its own.
+        let periods: Vec<Option<Period>> = or_roll_back!(
+            tx,
+            origins
+                .iter()
+                .zip(&derived)
+                .map(|(&o, own)| match own {
+                    Some(spec) => to_period(Some(*spec)).map(|p| p.or(periods[o])),
+                    None => Ok(periods[o]),
+                })
+                .collect::<Result<_, _>>()
+        );
+        let (planned, origins, periods, cascaded) = or_roll_back!(
+            tx,
+            crate::cascade::expand(&mut tx, modules, planned, origins, periods).await
+        );
+        let (domains, public, keys) = or_roll_back!(tx, lock_targets(&mut tx, &planned).await);
+        or_roll_back!(tx, tx.lock(&domains, public).await);
+        or_roll_back!(tx, tx.lock_keys(&keys).await);
+        let moved = or_roll_back!(
+            tx,
+            moved(
+                &mut tx,
+                original,
+                req,
+                (&planned, &origins),
+                &domains,
+                modules,
+                period
+            )
+            .await
+        );
+        match moved {
+            None => {
+                break (
+                    tx, prepared, planned, origins, periods, cascaded, window, violations, domains,
+                    keys,
+                );
+            }
+            Some(_) if replays < MAX_REPLAYS => {
+                tx.rollback().await?;
+                replays += 1;
+                tracing::debug!(
+                    replays,
+                    "pipeline: a domain moved before the locks, stages replayed"
+                );
+            }
+            Some(violation) => {
+                tx.rollback().await?;
+                return refuse(store, req, changeset, vec![violation], mode, context).await;
+            }
         }
     };
     let req: &ChangesetRequest = &prepared;
-    let core = tx.core_handler();
-    let (planned, origins, derived, mut violations) = plan(req, modules, core.as_ref());
-    crate::expected::check_declared_sources(&planned, &origins, sources, &mut violations);
-    if has_errors(&violations) {
-        tx.rollback().await?;
-        return refuse(store, req, changeset, violations, mode, context).await;
-    }
-    // REQ-004-26: closures in cascade, expanded before the locks.
-    // REQ-004-2: each operation on its own period, or the changeset's; the property stage
-    // covers them all.
-    let periods: Vec<Option<Period>> = or_roll_back!(
-        tx,
-        req.operations
-            .iter()
-            .map(|op| to_period(op.own_period()).map(|own| own.or(period)))
-            .collect::<Result<_, _>>()
-    );
-    let window = window(period, &periods);
-    // One period per planned operation: that of the operation it comes from, unless a core
-    // operation added by a module carries its own.
-    let periods: Vec<Option<Period>> = or_roll_back!(
-        tx,
-        origins
-            .iter()
-            .zip(&derived)
-            .map(|(&o, own)| match own {
-                Some(spec) => to_period(Some(*spec)).map(|p| p.or(periods[o])),
-                None => Ok(periods[o]),
-            })
-            .collect::<Result<_, _>>()
-    );
-    let (planned, origins, periods, cascaded) = or_roll_back!(
-        tx,
-        crate::cascade::expand(&mut tx, modules, planned, origins, periods).await
-    );
-    let (domains, public, keys) = or_roll_back!(tx, lock_targets(&mut tx, &planned).await);
-    or_roll_back!(tx, tx.lock(&domains, public).await);
-    or_roll_back!(tx, tx.lock_keys(&keys).await);
     // The policies in force at submission, before the changeset changes them.
     let policies = match mode {
         Mode::Submission => or_roll_back!(tx, tx.approval_policies().await),
