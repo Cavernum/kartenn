@@ -657,9 +657,9 @@ pub async fn run(
         let mut costs = Vec::new();
         for _ in 0..10 {
             let t = Instant::now();
-            let pairs = kartenn_store_pg::events::visible(&mut conn, &scopes, &objects).await?;
+            let found = kartenn_store_pg::events::visible(&mut conn, &scopes, &objects).await?;
             costs.push(t.elapsed());
-            if pairs.is_empty() {
+            if found.pairs.is_empty() {
                 bail!("the visibility query found nothing visible");
             }
         }

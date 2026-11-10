@@ -224,17 +224,27 @@ Acceptation :
   avec Bearer → 200.
 
 #### REQ-022-16 — Filtrage par les droits, sans oracle
+*Amendée le 2026-11-10 (021, tâche 22j) : le domaine d'un objet remis est nommé, même
+si l'abonné ne lit pas le domaine.*
 kartenn doit remettre à un abonné un objet d'un événement si et seulement si l'abonné a,
 **au moment de la remise**, la permission de lecture de ce type sur cet objet (D36,
 REQ-005-24) ; un événement dont aucun objet n'est visible ne doit laisser aucune trace
 (ni événement, ni curseur qui trahisse son existence, ni délai mesurable propre à lui).
-Les domaines d'un événement suivent la même règle. [R15, R16, REQ-006-23, INV-63]
+Un domaine de l'événement est nommé si l'abonné peut le lire, ou s'il est le domaine
+d'un objet que l'événement lui remet (la lecture de l'objet en donne déjà l'identifiant,
+`domain.id`) ; aucun autre. Le filtre `domains` (REQ-022-2) porte sur les domaines
+nommés : il ne dit rien d'un domaine que l'abonné ne voit pas. [R15, R16, REQ-006-23,
+INV-63]
 
 Acceptation :
 - Un opérateur externe lié à l'entité E ne reçoit rien d'un changeset qui ne touche que
   l'entité F ; son curseur n'avance qu'aux points de reprise.
 - Un changeset qui touche un objet visible et un objet caché : l'événement ne nomme que
   le visible.
+- Un abonné qui lit un sous-arbre de préfixes du domaine D1 sans lire D1, et qui lit D2,
+  reçoit `domains: [D1, D2]` d'un changeset qui écrit un préfixe visible dans chacun ;
+  un troisième domaine dont il ne voit aucun objet n'est pas nommé, et `domains=<D3>`
+  ne lui remet rien.
 - Test de propriété : pour un échantillon de changesets et d'abonnés, les objets remis
   coïncident avec la décision unitaire de lecture.
 

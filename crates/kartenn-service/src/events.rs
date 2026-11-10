@@ -526,6 +526,9 @@ pub struct Rendered {
 pub trait Sight {
     /// Whether the object or domain `id` is readable now.
     fn sees(&self, id: Uuid) -> bool;
+    /// The addressing domain of the object `id`, if it has one; asked only of an object
+    /// [`Self::sees`] (its reading already shows the domain, `domain.id`).
+    fn domain(&self, id: Uuid) -> Option<Uuid>;
     /// Whether the changeset `id` is theirs or theirs to validate.
     fn follows(&self, changeset: Uuid) -> bool;
     /// Whether the subscriber is the identity `id` (the author of a draft, spec 024,
@@ -573,11 +576,6 @@ pub fn render(
             if !filters.selects(Kind::Changes) {
                 return None;
             }
-            if let Some(wanted) = &filters.domains
-                && !changes.domains.iter().any(|d| wanted.contains(d))
-            {
-                return None;
-            }
             let objects: Vec<&Object> = changes
                 .objects
                 .iter()
@@ -588,12 +586,22 @@ pub fn render(
             if objects.is_empty() {
                 return None;
             }
+            // A domain readable, or that of an object named (REQ-022-16, task 021-22j): a
+            // domain that neither is stays unnamed, and the filter is matched on what is
+            // named, so that it tells nothing of a domain unseen.
             let domains: Vec<Uuid> = changes
                 .domains
                 .iter()
                 .copied()
-                .filter(|d| sight.sees(*d))
+                .filter(|d| {
+                    sight.sees(*d) || objects.iter().any(|o| sight.domain(o.id) == Some(*d))
+                })
                 .collect();
+            if let Some(wanted) = &filters.domains
+                && !domains.iter().any(|d| wanted.contains(d))
+            {
+                return None;
+            }
             let derived: BTreeSet<&str> = changes
                 .derived
                 .iter()
@@ -824,6 +832,9 @@ mod tests {
         fn sees(&self, _: Uuid) -> bool {
             true
         }
+        fn domain(&self, _: Uuid) -> Option<Uuid> {
+            None
+        }
         fn follows(&self, _: Uuid) -> bool {
             true
         }
@@ -836,6 +847,9 @@ mod tests {
     impl Sight for Only {
         fn sees(&self, id: Uuid) -> bool {
             self.0.contains(&id)
+        }
+        fn domain(&self, _: Uuid) -> Option<Uuid> {
+            None
         }
         fn follows(&self, id: Uuid) -> bool {
             self.0.contains(&id)
@@ -1049,6 +1063,53 @@ mod tests {
             json!([])
         );
         assert!(render(&notices[0], &Filters::default(), &Only(vec![id(300)]), 10).is_none());
+    }
+
+    /// What a subscriber sees, and the domain of each object.
+    struct Carrying {
+        seen: Vec<Uuid>,
+        domains: Vec<(Uuid, Uuid)>,
+    }
+    impl Sight for Carrying {
+        fn sees(&self, id: Uuid) -> bool {
+            self.seen.contains(&id)
+        }
+        fn domain(&self, id: Uuid) -> Option<Uuid> {
+            self.domains.iter().find(|(o, _)| *o == id).map(|(_, d)| *d)
+        }
+        fn follows(&self, _: Uuid) -> bool {
+            false
+        }
+        fn is(&self, _: Uuid) -> bool {
+            false
+        }
+    }
+
+    /// Task 021-22j: a subscriber who reads a prefix of the domain 300 without reading that
+    /// domain, and reads the domain 301, is told of both, so that its client reads again
+    /// the trees of 300 too (021, A40); the domain 302 of a prefix hidden, and 303 that no
+    /// object carries, stay unnamed, and a filter on 302 tells nothing (REQ-022-16).
+    #[test]
+    fn the_domain_of_a_visible_object_is_named_beside_one_seen() {
+        let payload = applied_payload(&[id(1), id(2), id(3)], json!([]));
+        let domains = [id(300), id(301), id(302), id(303)];
+        let notices = translate(row(&payload, &domains, &[]), &kinds);
+        let sight = Carrying {
+            seen: vec![id(1), id(2), id(301)],
+            domains: vec![(id(1), id(300)), (id(2), id(301)), (id(3), id(302))],
+        };
+        let rendered = render(&notices[0], &Filters::default(), &sight, 10).unwrap();
+        let data: Value = serde_json::from_str(&rendered.data).unwrap();
+        assert_eq!(
+            data["objects"],
+            json!([{"type": "core.prefix", "id": id(1)}, {"type": "core.prefix", "id": id(2)}])
+        );
+        assert_eq!(data["domains"], json!([id(300), id(301)]));
+        let known = |t: &str| t == "core.prefix";
+        let only = |d: u128| Filters::parse([("domains", &*id(d).to_string())], &known).unwrap();
+        assert!(render(&notices[0], &only(300), &sight, 10).is_some());
+        assert!(render(&notices[0], &only(302), &sight, 10).is_none());
+        assert!(render(&notices[0], &only(303), &sight, 10).is_none());
     }
 
     #[test]

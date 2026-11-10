@@ -3893,7 +3893,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     (`conditional(...)` du test voisin), ni la relecture du `children` nu d'un préfixe
     changé hors des domaines nommés.
 
-- [ ] 22j. Domaines d'un changeset publiés au flux (A40 en dépend, relevé par la revue de
+- [x] 22j. Domaines d'un changeset publiés au flux (A40 en dépend, relevé par la revue de
   la 22c) : les `domains` de `changes` sont les domaines de verrouillage
   (`kartenn-service/src/pipeline.rs` vers la ligne 1163, `lock_targets`) ; vérifier
   qu'aucune opération de module n'écrit dans un domaine de préfixes sans le porter dans
@@ -3906,17 +3906,32 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `crates/kartenn-service/src/pipeline.rs`, `crates/kartenn-service/src/events.rs` ;
     tests voisins des événements dans `crates/kartenn-rest/tests/it/`
   - dépend de : 22c ; arbitrée le 2026-11-10 : **option A** (voir « arbitrage demandé »)
-  - en cours (branche `tache/021-22j`, non fusionnée, 2026-11-09) : premier point tenu,
-    prouvé par `every_written_domain_is_named` (`kartenn-rest/tests/it/event_domains.rs` :
+  - fait (2026-11-10) : premier point tenu, prouvé par `every_written_domain_is_named` (`kartenn-rest/tests/it/event_domains.rs` :
     création, modification, attribution, VLAN, restauration, clôture en cascade, sur deux
     domaines ; `lock_targets` est calculé après `cascade::expand` et à l'approbation ;
-    aucun module n'écrit d'adressage hors des opérations du noyau). Second point non tenu :
-    `render` (`events.rs` vers la ligne 591) ne garde que les domaines que le sujet lit
-    lui-même ; un sujet qui lit des préfixes de D1 par une liaison sur un sous-arbre, sans
-    lire D1, et qui lit D2, reçoit `domains: [D2]` pour un changeset écrit dans D1 et D2, et
-    ne relit pas ses `children` de D1 (A40). Seul D1 écrit : `domains: []`, déjà « relire
-    tout ». Le test unitaire `a_domain_unseen_is_not_named_beside_one_seen` fixe le
-    comportement actuel, à inverser une fois tranché.
+    aucun module n'écrit d'adressage hors des opérations du noyau). Second point, constaté
+    puis corrigé après l'arbitrage (option A) : `render` ne gardait que les domaines que le
+    sujet lit lui-même ; un sujet qui lit des préfixes de D1 par une liaison sur un
+    sous-arbre, sans lire D1, et qui lit D2, recevait `domains: [D2]` et ne relisait pas
+    ses `children` de D1 (A40). Désormais `events::visible` (`kartenn-store-pg`) rend aussi
+    le domaine de chaque objet du lot (version jugée), le hub le donne au `Sight`
+    (`Sight::domain`), et `render` garde un domaine lu ou porté par un objet remis ;
+    REQ-022-16 et le design de la 022 (« Format », « Visibilité par lot ») amendés. Tests :
+    `the_domain_of_a_visible_object_is_named_beside_one_seen` (unitaire, remplace
+    `a_domain_unseen_is_not_named_beside_one_seen`, inversé) et
+    `the_domain_of_a_delivered_object_is_named` (`kartenn-rest/tests/it/events.rs`, par
+    pages : sous-arbre de D1 et D2 lus → `[D1, D2]` ; `core.prefix.read` global sans
+    domaine → les trois ; D3 non nommé au premier, `domains=D3` ne lui remet rien).
+  - choix : le domaine d'un objet vient de la requête de visibilité (une ligne de plus par
+    objet porteur, `UNION ALL`, le plan de la jointure sujets × objets inchangé), et la
+    requête part aussi quand tous les sujets lisent leurs types partout, pour qu'un sujet
+    qui lit les préfixes partout sans lire les domaines les reçoive ; seuls les objets
+    remis après les filtres `types` et `objects` portent leur domaine ; le filtre
+    `domains` est maintenant appliqué aux domaines nommés (avant : à tous les domaines
+    écrits, ce qui disait d'un changeset qu'il touchait un domaine invisible) ; un objet
+    changé de domaine ne porte que le domaine de sa version jugée.
+  - reste : le banc `bench-events` (budget de la requête de visibilité) n'est pas relancé
+    ici (session principale) ; `update_vlan_group` et `policy.inference` : 22n.
   - arbitrage demandé : (A, recommandé) nommer aussi le domaine de tout préfixe, plage ou
     adresse visible même si le sujet ne lit pas le domaine : l'identifiant est déjà exposé
     par `GET /v1/prefixes/{id}` (`domain.id`), rien de neuf ne fuit ; amender REQ-022-16
