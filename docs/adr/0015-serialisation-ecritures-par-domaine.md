@@ -99,8 +99,11 @@ Décision (option A de la tâche 021-22o) :
 - **Relire sous verrou.** Une fois les verrous pris, le pipeline relit le domaine des
   objets dont le domaine peut changer, et complète de nouveau les opérations des VLAN du
   noyau et celles des modules dont le plan verrouille un domaine. Un domaine relu hors
-  de l'ensemble tenu, ou une complétion qui diffère de la première, signale une lecture
-  périmée.
+  de l'ensemble tenu, le dernier domaine de l'objet d'un tel plan absent des domaines de
+  ce plan, ou une complétion qui diffère de la première, signale une lecture périmée.
+  Le dernier cas tient à la date : une complétion lit l'état au début de sa transaction
+  (`now()`) ; un changeset ouvert plus tard, servi avant elle, a pu écrire une version
+  plus récente, que seule une lecture à l'instant présent voit.
 - **Rejouer depuis le début.** La transaction est annulée et les étapes reprennent
   depuis `prepare`, dans une transaction neuve, deux fois au plus ; à la troisième
   lecture périmée, le changeset est refusé en conflit (`changeset.operation.conflict`,
@@ -110,7 +113,9 @@ Décision (option A de la tâche 021-22o) :
   exclut toujours l'interblocage. Prendre le verrou manquant à la volée (ordre non
   déterministe) est écarté.
 - **Version lue.** Le domaine d'un objet dont le domaine peut changer est celui de sa
-  version en vigueur à la date de la transaction, à défaut de sa dernière version.
+  version en vigueur à l'instant de la lecture (`clock_timestamp()`, non le début de la
+  transaction), à défaut de sa dernière version. La période propre d'un changeset daté
+  n'en change pas : elle règle ses écritures, non le choix des verrous.
 
 Conséquences : un changeset relit, sous ses verrous, une ligne par objet de ces trois
 sortes et la complétion de ses opérations de VLAN ; les opérations de modules sans

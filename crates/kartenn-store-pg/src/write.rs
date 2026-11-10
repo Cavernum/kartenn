@@ -1245,27 +1245,34 @@ impl WriteTx for PgTx {
             ObjectKind::Range => "SELECT domain_id FROM ip_range WHERE id = $1 LIMIT 1",
             ObjectKind::Address => "SELECT domain_id FROM address WHERE id = $1 LIMIT 1",
             // The domain of these may change from one version to the next: that of the
-            // version live now, else of the latest (ADR 0015, precision of 2026-11-10).
+            // version live at the instant of the read, else of the latest (ADR 0015,
+            // precision of 2026-11-10). `clock_timestamp()`, not `now()`, the start of the
+            // transaction: read again under the locks, the version another changeset
+            // committed meanwhile, from a later start, is the one seen.
             ObjectKind::Module(_) => {
                 "SELECT domain_id FROM (
                      SELECT domain_id FROM module_object WHERE id = $1
-                      ORDER BY valid_period @> now() DESC, lower(valid_period) DESC LIMIT 1) o
+                      ORDER BY valid_period @> clock_timestamp() DESC, lower(valid_period) DESC
+                      LIMIT 1) o
                   WHERE domain_id IS NOT NULL"
             }
             // A group anchored on a domain, a VLAN of such a group (V3).
             ObjectKind::VlanGroup => {
                 "SELECT anchor_id FROM (
                      SELECT anchor_kind, anchor_id FROM vlan_group WHERE id = $1
-                      ORDER BY valid_period @> now() DESC, lower(valid_period) DESC LIMIT 1) g
+                      ORDER BY valid_period @> clock_timestamp() DESC, lower(valid_period) DESC
+                      LIMIT 1) g
                   WHERE anchor_kind = 'domain'"
             }
             ObjectKind::Vlan => {
                 "SELECT g.anchor_id FROM (
                      SELECT group_id FROM vlan WHERE id = $1
-                      ORDER BY valid_period @> now() DESC, lower(valid_period) DESC LIMIT 1) v
+                      ORDER BY valid_period @> clock_timestamp() DESC, lower(valid_period) DESC
+                      LIMIT 1) v
                   CROSS JOIN LATERAL (
                      SELECT anchor_kind, anchor_id FROM vlan_group WHERE id = v.group_id
-                      ORDER BY valid_period @> now() DESC, lower(valid_period) DESC LIMIT 1) g
+                      ORDER BY valid_period @> clock_timestamp() DESC, lower(valid_period) DESC
+                      LIMIT 1) g
                   WHERE g.anchor_kind = 'domain'"
             }
             ObjectKind::Property

@@ -335,3 +335,121 @@ async fn a_group_moved_twice_at_once_locks_the_domain_it_really_leaves(pool: PgP
     .unwrap();
     assert_eq!(vlan_domain, Some(targets[second]));
 }
+
+/// A policy that holds every changeset for review.
+fn hold_all() -> Operation {
+    Operation::SetApprovalPolicy {
+        name: "all".into(),
+        min_operations: Some(1),
+        min_diff_objects: None,
+        property_keys: Vec::new(),
+        domains: Vec::new(),
+        scopes: Vec::new(),
+        author_roles: Vec::new(),
+        author_groups: Vec::new(),
+        bound_roles: Vec::new(),
+        module_triggers: Vec::new(),
+        enabled: true,
+    }
+}
+
+/// A move whose transaction starts before another, but takes `lab` after it (task 22o,
+/// review): its completion reads the group at the start of its transaction, `lab`, an
+/// instant before the version the other committed from its later start. Under its locks
+/// the last state is read: the group left `lab`, the move replays and leaves `annex`.
+/// The order is fixed by a lock held, never by a delay: the validation of the pending move
+/// opens its transaction, then waits for the row of its changeset.
+#[kartenn_testing::pg_test]
+async fn a_move_that_started_first_and_locked_last_replays(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let lab = env.id("addressing_domain", "lab").await;
+    let targets = domains(&env, &["annex", "third"]).await;
+    let (annex, third) = (targets[0], targets[1]);
+    env.applied(vec![op(
+        "create_vlan_group",
+        json!({"slug": "contested", "anchor": {"domain": {"id": lab}}}),
+    )])
+    .await;
+    let group = env.id("vlan_group", "contested").await;
+    let to = |domain: Uuid| {
+        op(
+            "update_vlan_group",
+            json!({"id": {"id": group}, "anchor": {"domain": {"id": domain}}}),
+        )
+    };
+    // The move to `third` waits for review; then the policy is switched off.
+    env.applied(vec![hold_all()]).await;
+    let pending = match env.submit(vec![to(third)]).await {
+        Outcome::Pending { changeset, .. } => changeset,
+        other => panic!("not pending: {other:?}"),
+    };
+    sqlx::query("UPDATE approval_policy SET enabled = false")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let validator: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'v') RETURNING id",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let mut holder = pool.begin().await.unwrap();
+    sqlx::query("SELECT state FROM changeset WHERE id = $1 FOR UPDATE")
+        .bind(pending)
+        .execute(&mut *holder)
+        .await
+        .unwrap();
+    let validation = tokio::spawn({
+        let store = env.store.clone();
+        async move {
+            kartenn_service::review::validate_pending(
+                &store,
+                &Unrestricted,
+                &kartenn_service::expected::Sources::none(),
+                pending,
+                &validator.into(),
+                MAX_OPERATIONS,
+            )
+            .await
+            .unwrap()
+        }
+    });
+    // Its transaction is open once it waits for the row of its changeset.
+    let mut waiting = false;
+    for _ in 0..500 {
+        waiting = sqlx::query_scalar(
+            "SELECT count(*) > 0 FROM pg_stat_activity
+              WHERE wait_event_type = 'Lock' AND query LIKE 'SELECT state FROM changeset%'
+                AND pid <> pg_backend_pid()",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        if waiting {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert!(waiting, "the validation waits for its changeset");
+    // A later move takes `lab` first and commits.
+    let moved = changeset(&env.applied(vec![to(annex)]).await);
+    let mut left = vec![lab, annex];
+    left.sort_unstable();
+    assert_eq!(named(&pool, moved).await, left);
+    holder.rollback().await.unwrap();
+
+    let outcome = tokio::time::timeout(Duration::from_secs(10), validation)
+        .await
+        .expect("the validation ends once its changeset is free")
+        .unwrap();
+    assert_eq!(changeset(&outcome), pending);
+    let mut replayed = vec![annex, third];
+    replayed.sort_unstable();
+    assert_eq!(
+        named(&pool, pending).await,
+        replayed,
+        "it locks what it leaves"
+    );
+    assert_eq!(anchored(&pool, group).await, Some(third));
+}

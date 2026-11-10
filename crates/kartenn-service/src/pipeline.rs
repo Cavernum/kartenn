@@ -1396,6 +1396,20 @@ async fn moved<T: WriteTx>(
             again.insert(index);
         }
     }
+    // Their completion reads at the start of the transaction (`now()`): a version another
+    // changeset, started later, committed meanwhile is seen only by `domain_of`, which
+    // reads the last state. A plan whose domains miss the last domain of its object was
+    // made on an older version, which its writes would overwrite: replayed, even when
+    // another operation holds that domain.
+    for (p, origin) in planned.iter().zip(origins) {
+        if let Planned::Module { plan, .. } = p
+            && again.contains(origin)
+            && let Some(domain) = tx.domain_of(object_kind(plan.kind), plan.object).await?
+            && !plan.domains.contains(&domain)
+        {
+            return Ok(Some(stale(*origin, plan.object)));
+        }
+    }
     let core = tx.core_handler();
     for index in again {
         let mut op = original.operations[index].clone();
@@ -1410,6 +1424,18 @@ async fn moved<T: WriteTx>(
         }
     }
     Ok(None)
+}
+
+/// The kind of the object of a module plan: the groups of VLANs and the VLANs of the core
+/// have their own.
+fn object_kind(kind: ModuleKind) -> ObjectKind {
+    if kind == crate::vlan::group_kind() {
+        ObjectKind::VlanGroup
+    } else if kind == crate::vlan::vlan_kind() {
+        ObjectKind::Vlan
+    } else {
+        ObjectKind::Module(kind)
+    }
 }
 
 /// Writes the planned operations in order, collecting every violation (REQ-004-7).
