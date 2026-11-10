@@ -4001,7 +4001,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     vue) pour la règle ni pour le groupe déplacé ; le test unitaire du groupe ne couvre
     pas le passage d'un ancrage de domaine à un site ou une entité, ni l'inverse ; un
     `completed.domain` mal formé est ignoré en silence (`infer.rs` vers la ligne 813).
-- [ ] 22o. Domaines lus avant les verrous (relevé par la revue de la 22n) — **arbitrée le
+- [x] 22o. Domaines lus avant les verrous (relevé par la revue de la 22n) — **arbitrée le
   2026-11-10 : option A** (précision de l'ADR 0015, concurrence) : `prepare` (`prepare_group`,
   `prepare_vlan`) et `lock_targets` (clôture d'un `VlanGroup` ou d'un `Vlan`,
   `pipeline.rs` vers la ligne 1222) lisent le domaine d'un objet avant
@@ -4022,6 +4022,37 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `tx.lock`), `crates/kartenn-store-pg/src/vlan.rs` (`prepare_group`, `prepare_vlan`),
     `docs/adr/0015-serialisation-ecritures-par-domaine.md` (précision)
   - dépend de : 22n
+  - fait (2026-11-10) : `stages` (`kartenn-service/src/pipeline.rs`) prend ses verrous
+    dans une boucle ; sous verrou, `moved` relit le domaine des objets dont le domaine
+    peut changer (groupe de VLAN, VLAN, objet de module : clôture, modification,
+    restauration, affectation) et complète de nouveau, depuis la requête d'origine
+    (`prepare_operation`, extrait de `prepare`), les opérations des VLAN du noyau et
+    celles des modules dont le plan verrouille un domaine. Un domaine hors de l'ensemble
+    tenu ou une complétion différente : annulation, et les étapes reprennent depuis
+    `begin` ; après `MAX_REPLAYS` (2) rejeux, refus par `refuse` avec
+    `changeset.operation.conflict` (opération et objet nommés). `domain_of`
+    (`kartenn-store-pg/src/write.rs`) lit, pour ces trois sortes, la version en vigueur à
+    la date de la transaction, à défaut la dernière (il lisait une version quelconque :
+    un groupe déplacé verrouillait et nommait son ancien domaine). Précision datée dans
+    l'ADR 0015. Test :
+    `a_group_moved_twice_at_once_locks_the_domain_it_really_leaves`
+    (`kartenn-rest/tests/it/event_domains.rs` : deux déplacements de `contested` depuis
+    `lab`, vers `annex` et `third`, en file sur le verrou de `lab` ; les deux appliqués,
+    le premier nomme `[lab, X]`, le second `[X, Y]` sans `lab`, le groupe et son VLAN
+    ancrés sur `Y`) ; avec les rejeux désactivés à l'essai, le second est refusé.
+  - choix : la complétion relue est comparée entière à la première (pas seulement ses
+    domaines) : un nouveau plan tirerait de nouveaux identifiants, et une complétion lue
+    sur un état changé rejoue de toute façon ; seules les opérations de VLAN du noyau et
+    celles dont un plan nomme un domaine sont complétées de nouveau, pour ne pas doubler
+    le triage des flux ; les domaines des préfixes, plages et adresses ne sont pas relus
+    (jamais modifiés) ; le refus réutilise `changeset.operation.conflict` (REQ-004-11)
+    sans nouveau code ; le test est une course à deux transactions et non à trois (aucun
+    point d'arrêt entre contrôle et commit d'un changeset).
+  - reste : le refus après deux rejeux n'a pas de test d'intégration (il faut trois
+    déplacements intercalés) ; `cascade::expand` lit aussi avant verrou les enfants d'un
+    objet fermé en cascade (un VLAN créé entre-temps dans un groupe fermé) ; `domain_of`
+    d'un objet changeant lit sa version à la date de la transaction, non sur la période
+    d'un changeset daté qui couvrirait plusieurs ancrages.
 
 - [x] 22d. Chargement de l'arbre arrêté à deux pages (une passe sur sept, 22a et 24e) :
   après la deuxième page, ni ligne « suite » ni avis, 100 enfants dessinés ;
