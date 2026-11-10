@@ -964,16 +964,24 @@ fn plan(
     for (index, requested) in req.operations.iter().enumerate() {
         let found = violations.len();
         // The operation, then the core operations a module operation adds (ADR 0026,
-        // clause 6), planned in turn under the same index.
-        let mut queue = std::collections::VecDeque::from([requested.clone()]);
+        // clause 6), planned in turn under the same index; each queued with the position,
+        // in `adding`, of the module plan that adds it.
+        let mut queue: std::collections::VecDeque<(Operation, Option<usize>)> =
+            std::collections::VecDeque::from([(requested.clone(), None)]);
+        // The module plans that add core operations, by their position in `planned`,
+        // with the identifiers drawn for those operations (amendment 8).
+        let mut adding: Vec<(usize, Vec<Uuid>)> = Vec::new();
         let mut first = true;
-        while let Some(owned) = queue.pop_front() {
+        while let Some((owned, by)) = queue.pop_front() {
             // An added core operation keeps its own period (a `Within`), so that a module
             // bounds it to the life of its object (REQ-004-2): the period of the requested
             // operation is applied to the others.
             let own = if first { None } else { owned.own_period() };
             first = false;
             let id = Uuid::now_v7();
+            if let Some(by) = by {
+                adding[by].1.push(id);
+            }
             if let Some(local) = owned.defines() {
                 ids.insert(local, id);
                 if creates_object(&owned, modules) {
@@ -1012,7 +1020,11 @@ fn plan(
                     });
                     match found {
                         Ok(module_plan) => {
-                            queue.extend(module_plan.core.iter().cloned());
+                            if !module_plan.core.is_empty() {
+                                let by = Some(adding.len());
+                                adding.push((planned.len(), Vec::new()));
+                                queue.extend(module_plan.core.iter().cloned().map(|c| (c, by)));
+                            }
                             planned.push(Planned::Module {
                                 handler,
                                 plan: Arc::new(module_plan),
@@ -1132,6 +1144,13 @@ fn plan(
                 }
             }
             derived.resize(planned.len(), own);
+        }
+        // Each module plan receives the identifiers of the core objects it adds, so that
+        // its data cite them (ADR 0026, amendment 8; 019/B9).
+        for (position, created) in adding {
+            if let Planned::Module { handler, plan, .. } = &mut planned[position] {
+                handler.planned(Arc::make_mut(plan), &created);
+            }
         }
         origins.resize(planned.len(), index);
         ascribe(&mut violations[found..], index);
@@ -3049,6 +3068,90 @@ mod tests {
         let at: Vec<Option<usize>> = violations.iter().map(|v| v.operation).collect();
         assert_eq!(at, vec![Some(0), Some(1), Some(2), Some(3)]);
         assert_eq!(origins, vec![2, 4]);
+    }
+
+    /// A module whose rack creates two networks of the core and cites them in its data.
+    #[derive(Debug)]
+    struct Racks;
+
+    impl crate::module::Module for Racks {
+        fn name(&self) -> &'static str {
+            "shelf"
+        }
+        fn version(&self) -> &'static str {
+            "0.0.0"
+        }
+        fn operations(&self) -> &'static [crate::module::OperationType] {
+            &[crate::module::OperationType {
+                name: "create_rack",
+                defines: Some("shelf.rack"),
+            }]
+        }
+        fn handler(&self) -> Option<Arc<dyn ModuleHandler>> {
+            Some(Arc::new(Racks))
+        }
+    }
+
+    impl ModuleHandler for Racks {
+        fn plan(
+            &self,
+            operation: &ModuleOperation,
+            object: Uuid,
+            _: &dyn Fn(Ref) -> Option<Uuid>,
+        ) -> Result<ModulePlan, Violation> {
+            let domain: Uuid = serde_json::from_value(operation.body["domain"].clone()).unwrap();
+            Ok(ModulePlan {
+                kind: ModuleKind::parse("shelf.rack").unwrap(),
+                object,
+                creates: true,
+                domains: vec![domain],
+                keys: Vec::new(),
+                core: vec![
+                    prefix(Ref::Id(domain), "192.0.2.0/25"),
+                    prefix(Ref::Id(domain), "192.0.2.128/25"),
+                ],
+                data: serde_json::json!({ "ranges": [] }),
+            })
+        }
+
+        fn planned(&self, plan: &mut ModulePlan, created: &[Uuid]) {
+            plan.data["ranges"] = serde_json::json!(created);
+        }
+
+        fn apply<'a>(
+            &'a self,
+            _: &'a mut dyn crate::module::ModuleTx,
+            _: &'a ModulePlan,
+            _: Option<Period>,
+            _: Uuid,
+        ) -> crate::module::BoxFuture<'a, Result<(), WriteError>> {
+            Box::pin(std::future::ready(Ok(())))
+        }
+    }
+
+    #[test]
+    fn module_data_cite_the_core_objects_it_creates() {
+        let modules = ModuleRegistry::new(vec![Arc::new(Racks)]).unwrap();
+        let domain = Uuid::now_v7();
+        let rack = serde_json::json!({"op": "shelf.create_rack", "local": 1, "domain": domain});
+        let (planned, origins, _, violations) = super::plan(
+            &req(vec![serde_json::from_value(rack).unwrap()]),
+            &modules,
+            None,
+        );
+        // Documentation blocks: warnings only.
+        assert!(!has_errors(&violations), "{violations:?}");
+        assert_eq!(origins, vec![0, 0, 0]);
+        let [Planned::Module { plan, .. }, first, second] = planned.as_slice() else {
+            panic!("{planned:?}")
+        };
+        assert!(matches!(first, Planned::Prefix { .. }));
+        assert!(matches!(second, Planned::Prefix { .. }));
+        // The rack cites, in its data, the networks planned after it, in their order.
+        assert_eq!(
+            plan.data["ranges"],
+            serde_json::json!([first.object(), second.object()])
+        );
     }
 
     #[test]

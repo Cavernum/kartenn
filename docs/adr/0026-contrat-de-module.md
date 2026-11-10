@@ -369,6 +369,24 @@ Ses tables versionnées dont les lignes possèdent des libellés (colonnes `key`
 dictionnaire (`<module>.<collection>`), servi à qui détient sur une portée quelconque la
 permission qu'elle nomme (018/R24).
 
+### Amendement 8 — 2026-11-10, identifiants des objets du noyau créés par un module (019/Q-019-14)
+
+Un ajout additif, à défaut neutre (tâche 019-3a) : un module reçoit les identifiants des
+objets du noyau que son opération planifie (clause 6). Source :
+`crates/kartenn-service/src/module.rs` (`ModuleHandler::planned`),
+`crates/kartenn-service/src/pipeline.rs` (`plan`).
+
+| Ajout | Clause | Raison |
+|---|---|---|
+| `ModuleHandler::planned(plan, created)` : une fois planifiées les opérations du noyau qu'un plan ajoute (`ModulePlan::core`), le pipeline lui rend les identifiants qu'il a tirés pour elles, dans leur ordre (`created[i]` pour `core[i]`, sans emploi pour une opération qui ne crée rien) ; le module en complète ses `data`, qu'`apply` écrit. Par défaut, rien | 6 | 019/B9 : `plan` reçoit l'identifiant de son objet mais pas ceux des objets du noyau qu'il crée, tirés après lui ; un nœud Kubernetes ne pouvait citer les réseaux de ses plages de pods dans le même changeset, ni un service ses adresses |
+
+Pas de changement du schéma des déclarations ni du contrat REST. Le crochet n'a pas de
+base sous la main, comme `plan`, et ne change pas les opérations du noyau déjà
+planifiées. Il s'appelle à chaque planification, dont la validation d'un changeset
+`pending`, qui replanifie la requête enregistrée et tire de nouveaux identifiants : les
+données du module citent toujours ceux de la transaction qui écrit. Test :
+`kartenn-service` `pipeline::tests::module_data_cite_the_core_objects_it_creates`.
+
 ## Alternatives
 
 - **Opérations de module dans l'énumération `Operation`, derrière des features** :

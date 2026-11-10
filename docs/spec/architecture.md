@@ -135,8 +135,9 @@ Forme dans le code (`kartenn-service::module`) :
   `handler()` rend son gestionnaire.
 - `ModuleHandler` agit dans la transaction du changeset par `ModuleTx` : `prepare`
   (complète l'opération sur l'état courant), `plan` (sans base : objet, domaines, clés
-  de verrou, opérations du noyau planifiées), `reads` (droits de lecture sur les objets
-  cités), `apply`, `close`/`restore`, `referrers`/`nullify` (dépendants), `diff`
+  de verrou, opérations du noyau planifiées), `planned` (amendement 8 : reçoit les
+  identifiants tirés pour ces opérations du noyau, que ses données citent), `reads`
+  (droits de lecture sur les objets cités), `apply`, `close`/`restore`, `referrers`/`nullify` (dépendants), `diff`
   (section du différentiel), `check` (règles sur l'état final, `Findings`), `measure`
   (mesures lues par les politiques d'approbation, sur la transaction et le même
   contexte), `ended` (fin d'une proposition : rejet, retrait, expiration, dans la même
