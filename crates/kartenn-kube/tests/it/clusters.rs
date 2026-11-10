@@ -2,7 +2,8 @@
 //! task 019-3b): a cluster slug unique at every instant, its ranges in the domains it
 //! designates, its batch window and connector group checked; the nodes and namespaces of
 //! the connector found by their name in the cluster, unique there, a node designating one
-//! physical or virtual machine.
+//! physical or virtual machine; the workloads of a namespace found by their kind and name
+//! there (task 019-4a).
 
 use std::sync::Arc;
 
@@ -860,4 +861,266 @@ async fn node_range_outside_warns(pool: PgPool) {
     let outcome = env.submit(vec![node(json!(["198.51.100.128/26"]))]).await;
     assert!(warnings(&outcome).is_empty(), "{outcome:?}");
     assert!(!env.anomaly(worker, "kube.node.range_outside").await);
+}
+
+/// `kube.sync` of `action` on the workload of `kind` named `name` in the namespace
+/// `namespace` of `cluster`.
+fn workload(
+    action: &str,
+    cluster: Uuid,
+    namespace: &str,
+    kind: &str,
+    name: &str,
+    extra: Value,
+) -> Operation {
+    let mut fields = json!({"namespace": namespace, "kind": kind});
+    merge(&mut fields, extra);
+    sync(action, "workload", cluster, name, fields)
+}
+
+impl Env {
+    /// The living workloads of the namespace `namespace`.
+    async fn workloads(&self, namespace: Uuid) -> Vec<Uuid> {
+        sqlx::query_scalar(
+            "SELECT id FROM kube.workload
+              WHERE namespace_id = $1 AND valid_period @> now() ORDER BY name, kind",
+        )
+        .bind(namespace)
+        .fetch_all(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// The UIDs of the versions of the workload `id`, oldest first.
+    async fn workload_uids(&self, id: Uuid) -> Vec<Option<Uuid>> {
+        sqlx::query_scalar(
+            "SELECT uid FROM kube.workload WHERE id = $1 ORDER BY lower(valid_period)",
+        )
+        .bind(id)
+        .fetch_all(&self.pool)
+        .await
+        .unwrap()
+    }
+}
+
+/// REQ-019-8, 019/X3: a workload is found by (namespace, kind, name); deleted and created
+/// again under the same name (new UID), it stays the same workload and its history shows
+/// the change of UID. Its tracked fields are the labels of its pod template, its service
+/// account, its declared ports and `hostNetwork`.
+#[kartenn_testing::pg_test]
+async fn workload_recreated_keeps_identity(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.new_cluster("prod").await;
+    env.applied(vec![sync(
+        "upsert",
+        "namespace",
+        prod,
+        "payments",
+        json!({}),
+    )])
+    .await;
+    let payments = env.named("kube.namespace", prod, "payments").await[0];
+    let web = |extra: Value| workload("upsert", prod, "payments", "deployment", "web", extra);
+    let (first, second) = (Uuid::now_v7(), Uuid::now_v7());
+    env.applied(vec![web(json!({
+        "uid": first,
+        "labels": {"app": "web"},
+        "service_account": "web",
+        "ports": [{"port": 8080, "name": "http"}, {"port": 53, "protocol": "udp"}],
+        "host_network": false,
+    }))])
+    .await;
+    let ids = env.workloads(payments).await;
+    assert_eq!(ids.len(), 1);
+    let (labels, account, ports, parent, domain): (
+        Value,
+        Option<String>,
+        Value,
+        Option<Uuid>,
+        Option<Uuid>,
+    ) = sqlx::query_as(
+        "SELECT w.labels, w.service_account, w.ports, o.parent_id, o.domain_id
+           FROM kube.workload w
+           JOIN module_object o ON o.id = w.id AND o.valid_period @> now()
+          WHERE w.id = $1 AND w.valid_period @> now()",
+    )
+    .bind(ids[0])
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(labels, json!({"app": "web"}));
+    assert_eq!(account.as_deref(), Some("web"));
+    // Declared ports, a set sorted by port, `tcp` by default.
+    assert_eq!(
+        ports,
+        json!([
+            {"port": 53, "protocol": "udp"},
+            {"port": 8080, "protocol": "tcp", "name": "http"},
+        ])
+    );
+    // Under its namespace, in the pod domain of the cluster, it inherits its owner.
+    assert_eq!((parent, domain), (Some(payments), Some(env.pods)));
+    let owner: Option<Uuid> = sqlx::query_scalar("SELECT kartenn_owner($1, now())")
+        .bind(ids[0])
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(owner, Some(env.acme));
+    // Deleted and created again in Kubernetes: a new UID, the same workload.
+    env.applied(vec![web(json!({"uid": second}))]).await;
+    assert_eq!(env.workloads(payments).await, ids);
+    assert_eq!(env.workload_uids(ids[0]).await, [Some(first), Some(second)]);
+    // Deleted in one window (closed, X9), created again in the next: the same workload
+    // opens again after the gap, with the new UID, under its namespace.
+    env.applied(vec![workload(
+        "close",
+        prod,
+        "payments",
+        "deployment",
+        "web",
+        json!({}),
+    )])
+    .await;
+    assert!(env.workloads(payments).await.is_empty());
+    let third = Uuid::now_v7();
+    env.applied(vec![web(json!({"uid": third}))]).await;
+    assert_eq!(env.workloads(payments).await, ids);
+    assert_eq!(
+        env.workload_uids(ids[0]).await,
+        [Some(first), Some(second), Some(third)]
+    );
+    let (parent, owner): (Option<Uuid>, Option<Uuid>) = sqlx::query_as(
+        "SELECT o.parent_id, kartenn_owner(o.id, now())
+           FROM module_object o WHERE o.id = $1 AND o.valid_period @> now()",
+    )
+    .bind(ids[0])
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!((parent, owner), (Some(payments), Some(env.acme)));
+    // Opened again twice in a batch: the second is a duplicate.
+    env.applied(vec![workload(
+        "close",
+        prod,
+        "payments",
+        "deployment",
+        "web",
+        json!({}),
+    )])
+    .await;
+    env.refused(
+        vec![web(json!({})), web(json!({}))],
+        "kube.workload.duplicate",
+    )
+    .await;
+    env.applied(vec![web(json!({}))]).await;
+    assert_eq!(env.workloads(payments).await, ids);
+    // The same kind and name twice in a batch: the second is a duplicate.
+    env.refused(
+        vec![
+            workload("upsert", prod, "payments", "job", "migrate", json!({})),
+            workload("upsert", prod, "payments", "job", "migrate", json!({})),
+        ],
+        "kube.workload.duplicate",
+    )
+    .await;
+    // Another kind under the same name is another workload.
+    env.applied(vec![workload(
+        "upsert",
+        prod,
+        "payments",
+        "statefulset",
+        "web",
+        json!({"host_network": true}),
+    )])
+    .await;
+    assert_eq!(env.workloads(payments).await.len(), 2);
+    // A namespace that does not live in the cluster, a kind, a port name, a protocol or a
+    // field out of the type.
+    let bad_kind = workload(
+        "upsert",
+        prod,
+        "payments",
+        "replicationcontroller",
+        "web",
+        json!({}),
+    );
+    for (operation, rule) in [
+        (
+            workload("upsert", prod, "billing", "deployment", "web", json!({})),
+            "kube.operation.invalid",
+        ),
+        (bad_kind, "kube.operation.invalid"),
+        (
+            web(json!({"ports": [{"port": 8080, "name": "http--alt"}]})),
+            "kube.name.invalid",
+        ),
+        (
+            web(json!({"ports": [{"port": 8080, "protocol": "icmp"}]})),
+            "kube.operation.invalid",
+        ),
+        (web(json!({"zone": "zone-a"})), "kube.operation.invalid"),
+        (
+            sync(
+                "upsert",
+                "namespace",
+                prod,
+                "payments",
+                json!({"kind": "pod"}),
+            ),
+            "kube.operation.invalid",
+        ),
+    ] {
+        env.refused(vec![operation], rule).await;
+    }
+}
+
+/// REQ-019-8, design « Références »: a namespace with living workloads does not close
+/// alone; closed in cascade, it closes them.
+#[kartenn_testing::pg_test]
+async fn namespace_cascade_closes_workloads(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.new_cluster("prod").await;
+    env.applied(vec![
+        sync("upsert", "namespace", prod, "payments", json!({})),
+        sync("upsert", "namespace", prod, "batch", json!({})),
+    ])
+    .await;
+    let payments = env.named("kube.namespace", prod, "payments").await[0];
+    let batch = env.named("kube.namespace", prod, "batch").await[0];
+    env.applied(vec![
+        workload("upsert", prod, "payments", "deployment", "web", json!({})),
+        workload("upsert", prod, "payments", "cronjob", "report", json!({})),
+        workload("upsert", prod, "batch", "job", "export", json!({})),
+    ])
+    .await;
+    assert_eq!(env.workloads(payments).await.len(), 2);
+    // The connector closes a namespace whose workloads live: refused.
+    env.refused(
+        vec![sync("close", "namespace", prod, "payments", json!({}))],
+        "core.object.dependents",
+    )
+    .await;
+    // In cascade, its workloads close with it.
+    env.applied(vec![Operation::Close {
+        kind: ObjectKind::from_name("kube.namespace").unwrap(),
+        id: Ref::Id(payments),
+        expected: None,
+        cascade: true,
+    }])
+    .await;
+    assert!(env.workloads(payments).await.is_empty());
+    assert!(
+        env.named("kube.namespace", prod, "payments")
+            .await
+            .is_empty()
+    );
+    // Its workloads closed first, a namespace closes in the same batch.
+    env.applied(vec![
+        workload("close", prod, "batch", "job", "export", json!({})),
+        sync("close", "namespace", prod, "batch", json!({})),
+    ])
+    .await;
+    assert!(env.workloads(batch).await.is_empty());
+    assert!(env.named("kube.namespace", prod, "batch").await.is_empty());
 }

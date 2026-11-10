@@ -1,10 +1,11 @@
 //! The handler of the module in the write pipeline (feature `pg`; ADR 0026, clause 6):
 //! the declaration of a cluster by an administrator (`create_cluster`, `update_cluster`,
-//! REQ-019-5) and the batch of the connector (`sync`, 019/X9), one node or namespace of a
-//! cluster per operation, found by its identity in the cluster (REQ-019-6, 7). `owner` and
-//! `site` of a cluster are assignments of `core.owner` and `core.site` the handler adds to
-//! the changeset; its nodes and namespaces inherit them (tree `kube`) and are anchored in
-//! its pod domain. The pod ranges of a node (`pod_cidrs`, REQ-019-13) are networks of that
+//! REQ-019-5) and the batch of the connector (`sync`, 019/X9), one node, namespace or
+//! workload of a cluster per operation, found by its identity in the cluster, or in its
+//! namespace for a workload (REQ-019-6 to 8). `owner` and `site` of a cluster are
+//! assignments of `core.owner` and `core.site` the handler adds to the changeset; its
+//! nodes, namespaces and workloads inherit them (tree `kube`) and are anchored in its pod
+//! domain. The pod ranges of a node (`pod_cidrs`, REQ-019-13) are networks of that
 //! domain the `sync` creates and closes as operations of the core, cited by the node
 //! (`range_ids`) once their identifiers come back (`planned`, ADR 0026 amendment 8).
 
@@ -28,13 +29,15 @@ use serde_json::{Map, Value, json};
 use sqlx::PgConnection;
 use uuid::Uuid;
 
-use crate::module::{CLUSTER, MACHINE, NAMESPACE, NODE, PREFIX};
+use crate::module::{CLUSTER, MACHINE, NAMESPACE, NODE, PREFIX, WORKLOAD};
 use crate::names::{DnsLabel, DnsSubdomain, LabelKey, LabelValue, parse_labels};
-use crate::pg::{self, CLUSTER_TABLE, NAMESPACE_TABLE, NODE_TABLE};
+use crate::owner::WorkloadKind;
+use crate::pg::{self, CLUSTER_TABLE, NAMESPACE_TABLE, NODE_TABLE, WORKLOAD_TABLE};
 use crate::rules::{
-    CLUSTER_CONNECTOR_GROUP, CLUSTER_RANGE_DOMAIN, NODE_MACHINE_KIND, NODE_RANGE_OUTSIDE,
-    OPERATION_INVALID,
+    CLUSTER_CONNECTOR_GROUP, CLUSTER_RANGE_DOMAIN, NAME_INVALID, NODE_MACHINE_KIND,
+    NODE_RANGE_OUTSIDE, OPERATION_INVALID, WORKLOAD_DUPLICATE,
 };
+use crate::tracked::Protocol;
 
 /// The handler of the module.
 #[derive(Debug, Clone, Copy, Default)]
@@ -59,12 +62,19 @@ fn namespace_kind() -> ModuleKind {
     kind(NAMESPACE, &KIND)
 }
 
+fn workload_kind() -> ModuleKind {
+    static KIND: OnceLock<ModuleKind> = OnceLock::new();
+    kind(WORKLOAD, &KIND)
+}
+
 /// The table of the objects of `kind`.
 fn table(kind: ModuleKind) -> &'static str {
     if kind == node_kind() {
         NODE_TABLE
     } else if kind == namespace_kind() {
         NAMESPACE_TABLE
+    } else if kind == workload_kind() {
+        WORKLOAD_TABLE
     } else {
         CLUSTER_TABLE
     }
@@ -98,6 +108,13 @@ struct Completed {
     /// The living object of the identity a `sync` names (019/X9).
     #[serde(default)]
     existing: Option<Uuid>,
+    /// The living namespace a `sync` of a workload names, by its name in the cluster.
+    #[serde(default)]
+    namespace: Option<Uuid>,
+    /// The last closed workload of the identity a `sync` names, when none lives: the one
+    /// an `upsert` opens again (019/X3).
+    #[serde(default)]
+    reopened: Option<Uuid>,
     /// The pod domain of the cluster of a `sync`: the anchor of its objects.
     #[serde(default)]
     pod_domain: Option<Uuid>,
@@ -385,6 +402,85 @@ fn cluster_defaults() -> Map<String, Value> {
 /// The fields `sync` takes for each type, beside the identity.
 const NODE_FIELDS: &[&str] = &["uid", "addresses", "zone", "machine", "pod_cidrs"];
 const NAMESPACE_FIELDS: &[&str] = &["uid", "labels"];
+/// A workload is named in its namespace (`namespace`, by name) with its `kind`.
+const WORKLOAD_FIELDS: &[&str] = &[
+    "namespace",
+    "kind",
+    "uid",
+    "labels",
+    "service_account",
+    "ports",
+    "host_network",
+];
+
+/// The fields `sync` takes for the type `kind`.
+fn fields_of(kind: ModuleKind) -> &'static [&'static str] {
+    if kind == node_kind() {
+        NODE_FIELDS
+    } else if kind == workload_kind() {
+        WORKLOAD_FIELDS
+    } else {
+        NAMESPACE_FIELDS
+    }
+}
+
+/// A port declared by the containers of a workload (`containers[].ports`, REQ-019-8):
+/// declared, never proven listening.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct WorkloadPort {
+    port: u16,
+    /// `tcp` when absent, as in Kubernetes.
+    #[serde(default = "tcp")]
+    protocol: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+}
+
+fn tcp() -> String {
+    Protocol::Tcp.as_str().to_owned()
+}
+
+/// Whether `name` is a port name of Kubernetes (`IANA_SVC_NAME`, RFC 6335 § 5.1, in lower
+/// case): 1 to 15 letters, digits and hyphens, at least one letter, no hyphen at either
+/// end nor two in a row.
+fn port_name(name: &str) -> bool {
+    (1..=15).contains(&name.len())
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        && name.bytes().any(|b| b.is_ascii_lowercase())
+        && !name.starts_with('-')
+        && !name.ends_with('-')
+        && !name.contains("--")
+}
+
+/// The declared ports of `value`, a sorted set.
+fn workload_ports(value: &Value) -> Result<Vec<WorkloadPort>, Violation> {
+    let ports: Vec<WorkloadPort> = decode(value.clone(), "ports")?;
+    for port in &ports {
+        if port.port == 0 {
+            return Err(invalid("ports: a port from 1 to 65535"));
+        }
+        if Protocol::parse(&port.protocol).is_none() {
+            return Err(invalid(format!(
+                "ports: {} is not tcp, udp or sctp",
+                port.protocol
+            )));
+        }
+        if let Some(name) = &port.name
+            && !port_name(name)
+        {
+            return Err(Violation::new(
+                &NAME_INVALID,
+                format!("ports: {name} is not a port name (IANA_SVC_NAME)"),
+            ));
+        }
+    }
+    // A set: a reordering makes no version (019/X4).
+    let ports: BTreeSet<WorkloadPort> = ports.into_iter().collect();
+    Ok(ports.into_iter().collect())
+}
 
 /// What a `sync` does to the pod ranges of a node (REQ-019-13).
 struct PodRanges {
@@ -479,11 +575,7 @@ fn mirror_columns(
     body: &Map<String, Value>,
     resolve: &dyn Fn(Ref) -> Option<Uuid>,
 ) -> Result<Columns, Violation> {
-    let fields = if kind == node_kind() {
-        NODE_FIELDS
-    } else {
-        NAMESPACE_FIELDS
-    };
+    let fields = fields_of(kind);
     let mut columns = Map::new();
     let mut cited = Vec::new();
     for (field, value) in body {
@@ -530,6 +622,22 @@ fn mirror_columns(
                     .collect();
                 ("labels", Value::Object(labels))
             }
+            "service_account" => {
+                let account = match value.as_str() {
+                    Some(account) => Some(DnsSubdomain::parse(account)?.as_str().to_owned()),
+                    None if value.is_null() => None,
+                    None => return Err(invalid("service_account: a string")),
+                };
+                ("service_account", json!(account))
+            }
+            "ports" => ("ports", json!(workload_ports(value)?)),
+            "host_network" => {
+                let host = value
+                    .as_bool()
+                    .ok_or_else(|| invalid("host_network: a boolean"))?;
+                ("host_network", json!(host))
+            }
+            // The identity of a workload (`namespace`, `kind`), not a column it changes.
             _ => continue,
         };
         columns.insert(column.into(), value);
@@ -542,23 +650,93 @@ fn mirror_kind(body: &Map<String, Value>) -> Result<ModuleKind, Violation> {
     match body.get("type").and_then(Value::as_str) {
         Some(NODE) => Ok(node_kind()),
         Some(NAMESPACE) => Ok(namespace_kind()),
+        Some(WORKLOAD) => Ok(workload_kind()),
         Some(other) => Err(invalid(format!("type: {other} is not synced yet"))),
         None => Err(invalid("type: required")),
     }
 }
 
-/// The name a `sync` names, checked for its type: a DNS subdomain for a node, a DNS label
-/// for a namespace (réf. `kubernetes-calcul.md` § Namespace, labels, noms et UID).
+/// The name a `sync` names, checked for its type: a DNS subdomain for a node or a
+/// workload, a DNS label for a namespace (réf. `kubernetes-calcul.md` § Namespace, labels,
+/// noms et UID).
 fn mirror_name(kind: ModuleKind, body: &Map<String, Value>) -> Result<String, Violation> {
     let name = body
         .get("name")
         .and_then(Value::as_str)
         .ok_or_else(|| invalid("name: required"))?;
-    Ok(if kind == node_kind() {
+    Ok(if kind == node_kind() || kind == workload_kind() {
         DnsSubdomain::parse(name)?.as_str().to_owned()
     } else {
         DnsLabel::parse(name)?.as_str().to_owned()
     })
+}
+
+/// The row of a new object `object` of `kind` named `name`, every tracked field at its
+/// default: in `cluster`, or in the namespace of `workload` for a workload.
+fn mirror_row(
+    kind: ModuleKind,
+    object: Uuid,
+    cluster: Uuid,
+    name: &str,
+    workload: Option<(Uuid, WorkloadKind)>,
+) -> Map<String, Value> {
+    let mut row = Map::new();
+    row.insert("id".into(), json!(object));
+    if let Some((namespace, workload)) = workload {
+        row.insert("namespace_id".into(), json!(namespace));
+        row.insert("kind".into(), json!(workload.as_str()));
+    } else {
+        row.insert("cluster_id".into(), json!(cluster));
+    }
+    row.insert("name".into(), json!(name));
+    row.insert("uid".into(), Value::Null);
+    row.insert("absent_since".into(), Value::Null);
+    if workload.is_some() {
+        row.insert("labels".into(), json!({}));
+        row.insert("service_account".into(), Value::Null);
+        row.insert("ports".into(), json!([]));
+        row.insert("host_network".into(), json!(false));
+    } else if kind == node_kind() {
+        row.insert("machine_id".into(), Value::Null);
+        row.insert("addresses".into(), json!([]));
+        row.insert("range_ids".into(), json!([]));
+        row.insert("pod_cidrs".into(), json!([]));
+        row.insert("zone".into(), Value::Null);
+    } else {
+        row.insert("labels".into(), json!({}));
+    }
+    row
+}
+
+/// The namespace and kind of the workload a `sync` names (019/X3: its identity is
+/// (namespace, kind, name)): the namespace by its name in `cluster`, living then.
+fn workload_identity(
+    body: &Map<String, Value>,
+    completed: &Completed,
+    cluster: Uuid,
+) -> Result<(Uuid, WorkloadKind), Violation> {
+    let namespace = body
+        .get("namespace")
+        .and_then(Value::as_str)
+        .ok_or_else(|| invalid("namespace: required, the name of the namespace"))?;
+    let namespace = DnsLabel::parse(namespace)?;
+    let kind = body
+        .get("kind")
+        .and_then(Value::as_str)
+        .ok_or_else(|| invalid("kind: required"))?;
+    let kind = WorkloadKind::parse(kind).ok_or_else(|| {
+        invalid(format!(
+            "kind: {kind} is not deployment, statefulset, daemonset, cronjob, job, replicaset \
+             or pod"
+        ))
+    })?;
+    let id = completed.namespace.ok_or_else(|| {
+        invalid(format!(
+            "namespace: no living namespace {} in the cluster {cluster}",
+            namespace.as_str()
+        ))
+    })?;
+    Ok((id, kind))
 }
 
 impl Handler {
@@ -642,19 +820,19 @@ impl Handler {
                 &["action", "type", "cluster", "name"][..],
                 NODE_FIELDS,
                 NAMESPACE_FIELDS,
+                WORKLOAD_FIELDS,
             ]
             .concat(),
         )?;
         let completed = completed(&body);
         let kind = mirror_kind(&body)?;
-        let own = if kind == node_kind() {
-            NODE_FIELDS
-        } else {
-            NAMESPACE_FIELDS
-        };
+        let own = fields_of(kind);
         if let Some(foreign) = body.keys().find(|k| {
-            (NODE_FIELDS.contains(&k.as_str()) || NAMESPACE_FIELDS.contains(&k.as_str()))
-                && !own.contains(&k.as_str())
+            let k = k.as_str();
+            [NODE_FIELDS, NAMESPACE_FIELDS, WORKLOAD_FIELDS]
+                .iter()
+                .any(|fields| fields.contains(&k))
+                && !own.contains(&k)
         }) {
             return Err(invalid(format!("{kind}: unknown field `{foreign}`")));
         }
@@ -668,6 +846,9 @@ impl Handler {
             .pod_domain
             .ok_or_else(|| invalid(format!("cluster: {cluster} is not a living cluster")))?;
         let name = mirror_name(kind, &body)?;
+        let workload = (kind == workload_kind())
+            .then(|| workload_identity(&body, &completed, cluster))
+            .transpose()?;
         let keys = vec![cluster_key(cluster)];
         match body.get("action").and_then(Value::as_str) {
             Some("upsert") => {
@@ -682,23 +863,13 @@ impl Handler {
                 let (target, creates, data) = if let Some(existing) = completed.existing {
                     (existing, false, json!({ "update": columns }))
                 } else {
-                    let mut row = Map::new();
-                    row.insert("id".into(), json!(object));
-                    row.insert("cluster_id".into(), json!(cluster));
-                    row.insert("name".into(), json!(name));
-                    row.insert("uid".into(), Value::Null);
-                    row.insert("absent_since".into(), Value::Null);
-                    if kind == node_kind() {
-                        row.insert("machine_id".into(), Value::Null);
-                        row.insert("addresses".into(), json!([]));
-                        row.insert("range_ids".into(), json!([]));
-                        row.insert("pod_cidrs".into(), json!([]));
-                        row.insert("zone".into(), Value::Null);
-                    } else {
-                        row.insert("labels".into(), json!({}));
-                    }
+                    // A workload deleted then created again under the same name stays the
+                    // same workload (019/X3), closed meanwhile or not (X9): its identifier
+                    // opens again, a new version after the gap.
+                    let id = completed.reopened.unwrap_or(object);
+                    let mut row = mirror_row(kind, id, cluster, &name, workload);
                     row.extend(columns);
-                    (object, true, json!({ "create": row }))
+                    (id, true, json!({ "create": row }))
                 };
                 let mut data = data;
                 data["reads"] = reads(&cited);
@@ -713,8 +884,11 @@ impl Handler {
                 })
             }
             Some("close") => {
-                let existing = completed.existing.ok_or_else(|| {
-                    invalid(format!("no living {kind} {name} in the cluster {cluster}"))
+                let existing = completed.existing.ok_or_else(|| match workload {
+                    Some((namespace, workload)) => invalid(format!(
+                        "no living {workload} {name} in the namespace {namespace}"
+                    )),
+                    None => invalid(format!("no living {kind} {name} in the cluster {cluster}")),
                 })?;
                 // The networks of its pod ranges are owned by the node: the core closes
                 // them with it (design « Références », `OnClose::Owned`).
@@ -740,8 +914,8 @@ impl Handler {
     }
 }
 
-/// Writes the node or namespace of `plan` and registers it under its cluster, anchored in
-/// its pod domain.
+/// Writes the node, namespace or workload of `plan` and registers it under its cluster (a
+/// workload under its namespace), anchored in the pod domain of the cluster.
 async fn apply_mirror(
     tx: &mut dyn ModuleTx,
     plan: &ModulePlan,
@@ -751,6 +925,14 @@ async fn apply_mirror(
     let (id, table) = (plan.object, table(plan.kind));
     let conn = connection(tx)?;
     if let Some(row) = plan.data.get("create") {
+        // A closed workload opened twice in a batch: the second finds the first.
+        if table == WORKLOAD_TABLE && pg::current(conn, table, id, period).await?.is_some() {
+            return Err(pg::refused(
+                &WORKLOAD_DUPLICATE,
+                format!("the workload {id} is opened again twice over the period"),
+                &[id],
+            ));
+        }
         pg::identities(conn, table, id, row, period).await?;
         pg::insert(conn, table, row, period, changeset).await?;
     } else {
@@ -809,12 +991,30 @@ impl ModuleHandler for Handler {
                 let table = match operation.body.get("type").and_then(Value::as_str) {
                     Some(NODE) => Some(NODE_TABLE),
                     Some(NAMESPACE) => Some(NAMESPACE_TABLE),
+                    Some(WORKLOAD) => Some(WORKLOAD_TABLE),
                     _ => None,
                 };
-                let name = operation.body.get("name").and_then(Value::as_str);
+                let text = |field: &str| operation.body.get(field).and_then(Value::as_str);
+                let name = text("name");
                 if let Some(Ref::Id(cluster)) = cluster {
                     completed.pod_domain = pg::pod_domain(conn, cluster, at).await?;
-                    if let (Some(table), Some(name)) = (table, name) {
+                    if table == Some(WORKLOAD_TABLE) {
+                        // A workload is named in its namespace, itself named in the cluster.
+                        if let Some(namespace) = text("namespace") {
+                            completed.namespace =
+                                pg::named(conn, NAMESPACE_TABLE, cluster, namespace, at).await?;
+                        }
+                        if let (Some(namespace), Some(kind), Some(name)) =
+                            (completed.namespace, text("kind"), name)
+                        {
+                            completed.existing =
+                                pg::workload_named(conn, namespace, kind, name, at).await?;
+                            if completed.existing.is_none() {
+                                completed.reopened =
+                                    pg::workload_closed(conn, namespace, kind, name, at).await?;
+                            }
+                        }
+                    } else if let (Some(table), Some(name)) = (table, name) {
                         completed.existing = pg::named(conn, table, cluster, name, at).await?;
                     }
                     if table == Some(NODE_TABLE) {

@@ -76,6 +76,27 @@ pub enum Protocol {
     Sctp,
 }
 
+impl Protocol {
+    /// Every protocol.
+    pub const ALL: [Self; 3] = [Self::Tcp, Self::Udp, Self::Sctp];
+
+    /// The kartenn spelling (`tcp`, `udp`, `sctp`), as the flows write it.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Tcp => "tcp",
+            Self::Udp => "udp",
+            Self::Sctp => "sctp",
+        }
+    }
+
+    /// Reads the kartenn spelling.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|p| p.as_str() == text)
+    }
+}
+
 /// A port declared by a container (`containers[].ports`): declared, never proven
 /// listening (REQ-019-8).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -324,4 +324,5 @@ export const FILTERS: Readonly<Record<string, readonly Filter[]>> = {
   ],
   "/v1/vlans/{id}/history": [],
   "/v1/vlans/{id}/prefixes": [],
+  "/v1/workloads/{id}/history": [],
 };

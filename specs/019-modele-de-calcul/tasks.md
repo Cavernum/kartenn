@@ -453,7 +453,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   planifiées, sélection d'un service, références et cascades, arêtes — REQ-019-8 à 11,
   14 ; découpée le 2026-11-10 en 4a à 4d (trois types et les arêtes ne tiennent pas dans
   un contexte), cochée avec la dernière.
-- [ ] 4a. Workloads : table `kube.workload` (design « Données », migration suivante),
+- [x] 4a. Workloads : table `kube.workload` (design « Données », migration suivante),
   `upsert` et `close` des workloads dans `kube.sync` par (namespace, sorte, nom),
   labels suivis du gabarit de pod (X4), compte de service, ports déclarés,
   `hostNetwork` ; référence workload → namespace (refus ; cascade : clôt) ; un
@@ -464,6 +464,62 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `crates/kartenn-kube/` ; design « Données », « Références » ; tests voisins
     `crates/kartenn-kube/tests/it/clusters.rs` (nœuds, namespaces de la 3b)
   - dépend de : 3d
+  - fait (2026-11-10) : migration `0003_workload.sql` (table versionnée du design,
+    exclusion (namespace, sorte, nom), index `workload_by_namespace`, `workload_by_uid`,
+    GIN `workload_labels`) ; `module.rs` (type `kube.workload`, collection `workloads`,
+    parent namespace, ancré dans le domaine des pods ; droits `kube.workload.read`,
+    `edit`, `apply`, `approval.self` ; référence `kube.workload` → `kube.namespace` en
+    `Cascade`) ; `labels.rs` (anglais des droits et de la sorte) ; `handler.rs`
+    (`kube.sync` de `type` `kube.workload` : identité `namespace`, `kind`, `name`, champs
+    `uid`, `labels`, `service_account`, `ports`, `host_network`) ; `pg.rs`
+    (`workload_named`, `kube.workload.duplicate` avant la contrainte, `placement` sous le
+    namespace, `referrers` du namespace) ; `tracked.rs` (`Protocol::as_str`, `parse`) ;
+    tests `workload_recreated_keeps_identity` et `namespace_cascade_closes_workloads`
+    (`tests/it/clusters.rs`) ; contrat (`openapi-v1.json`), `docs/spec/permissions.md` et
+    types des deux SDK régénérés par leurs outils.
+  - choix : le namespace d'un workload est désigné par son nom dans le cluster (comme
+    l'identifiant externe `kube:<cluster>/<namespace>/<sorte>/<nom>`, X3), lu au
+    `prepare` : il doit vivre avant le lot (namespaces avant workloads, design
+    « Connecteur »), sinon `kube.operation.invalid` ; nom du workload en sous-domaine DNS
+    (comme `tracked::TrackedWorkload`) ; ports `[{port, protocol, name}]`, protocole en
+    minuscules (`tcp`, `udp`, `sctp`, comme les flux ; `tcp` à défaut, comme Kubernetes),
+    port 0 refusé, nom de port contrôlé en `IANA_SVC_NAME` (RFC 6335 § 5.1, minuscules,
+    `kube.name.invalid`), ensemble trié (un réordonnancement ne fait pas de version) ;
+    compte de service en sous-domaine DNS ou `null` ; labels contrôlés en syntaxe
+    seulement, comme ceux d'un namespace (le filtrage aux clés suivies est celui du
+    connecteur, X4) ; l'UID change par `upsert` sur l'objet vivant de même identité ;
+    le `close` d'un namespace par `kube.sync` reste sans cascade : refusé
+    (`core.object.dependents`) tant que ses workloads vivent, accepté s'ils sont clos
+    avant dans le même lot ; la cascade est celle d'un `Close` explicite ; `taken`
+    (`pg.rs`) prend une liste de clés plutôt qu'un couple ; `mirror_row` extrait de
+    `plan_sync` (limite de longueur de clippy).
+  - reste : la propriété `kube.namespace` d'un workload (design « Propriétés ») n'est pas
+    posée (tâche 7) ; ni la collection `/v1/workloads` ni son historique ne sont testés
+    par REST (le test lit les versions en SQL ; tâche 8) ; la période d'un workload
+    écrit avec une période propre n'est pas confrontée à celle de son namespace ;
+    `pod_domain_moved` ne compte pas les workloads (couverts par leurs namespaces
+    vivants) ; rien ne vérifie que les labels écrits sont des clés suivies.
+  - correction (revue) : un workload clos (disparu sans dépendant, X9) puis recréé sous
+    la même identité rouvre le même identifiant (X3, REQ-019-8) : `prepare` lit la
+    dernière identité close du namespace vivant (`pg::workload_closed`, aucune version
+    vivante à partir de l'instant) et l'`upsert` crée sous cet identifiant une version
+    nouvelle après le trou (`creates`, droits vérifiés après l'écriture comme pour une
+    création), le noyau rouvrant son enregistrement par `register` ; pas de `Restore` du
+    noyau, ses opérations planifiées passant après l'écriture du module et rendant l'état
+    d'avant la clôture plutôt que celui de la recréation ; les champs non donnés
+    reprennent leur défaut ; deux réouvertures dans un lot : `kube.workload.duplicate`.
+    Test `workload_recreated_keeps_identity` : clôture puis recréation, UID
+    `[first, second, third]`, parent et propriétaire hérité.
+  - reste (revue) : la même règle pour les nœuds et namespaces (tâche 5 ou 10) ; les
+    affectations de propriétés d'un workload clos ne reviennent pas à sa réouverture ; le
+    refus du `close` d'un workload inconnu donne l'UUID du namespace, non son nom ;
+    `mirror_row` masque son paramètre `workload` et `kind` y double `workload.is_some()` ;
+    un même nom de port sur deux ports est accepté (Kubernetes l'exige unique) ; pas de
+    test d'un `service_account` invalide ou nul, d'un `host_network` non booléen, ni
+    d'un réordonnancement de ports sans version ; l'ordre « namespaces avant workloads »
+    (design « Connecteur ») vaut pour la création, pas la suppression : le connecteur ne
+    peut faire de `Close` en cascade (`kube.connector.direct`), il clôt les workloads
+    avant leur namespace (tâche 10).
 - [ ] 4b. Services : table `kube.service`, `upsert` et `close` dans `kube.sync`, ports
   (port, port cible, protocole, `appProtocol`, port de nœud), `external_name` ; IP de
   cluster dans le domaine des services et adresses externes dans le domaine externe du
