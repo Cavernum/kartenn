@@ -126,15 +126,25 @@ struct Completed {
     #[serde(default)]
     reopened: Option<Uuid>,
     /// The service domain and the external domain of the cluster of a `sync` of a
-    /// service: where its cluster IPs and its external addresses live (019/X6).
+    /// service: where its cluster IPs and its external addresses live (019/X6); the
+    /// external addresses of a cluster without an external domain live in its service
+    /// domain.
     #[serde(default)]
     service_domain: Option<Uuid>,
     #[serde(default)]
     external_domain: Option<Uuid>,
-    /// The living addresses the service of a `sync` cites: whether a cluster IP (else an
-    /// external address), the value, the identifier.
+    /// The living addresses the service of a `sync` cites.
     #[serde(default)]
-    addresses: Vec<(bool, String, Uuid)>,
+    addresses: Vec<pg::HeldAddress>,
+    /// The living services that select the workload a `sync` closes: it leaves their
+    /// selection in the same batch (design « Références »).
+    #[serde(default)]
+    selecting: Vec<Uuid>,
+    /// The service, the workload and the domain the service is anchored in, of an
+    /// `unselect`, which only the handler plans (a `completed` sent by a client is
+    /// replaced by `prepare`).
+    #[serde(default)]
+    unselect: Option<(Uuid, Uuid, Uuid)>,
     /// The living workloads of the namespace among those a `sync` of a service selects:
     /// kind, name, identifier.
     #[serde(default)]
@@ -621,70 +631,138 @@ fn selection(value: &Value, completed: &Completed) -> Result<Vec<Uuid>, Violatio
     Ok(ids.into_iter().collect())
 }
 
-/// What a `sync` does to the addresses of one sort of a service, its cluster IPs or its
-/// external addresses (REQ-019-14).
-struct Vips {
-    /// The addresses it keeps citing: those of the values it still holds.
-    kept: Vec<Uuid>,
-    /// An address of usage `vip` created for each new value, a closure for each address
-    /// of a value the service no longer holds; the identifiers of the created ones come
-    /// back by [`ModuleHandler::planned`].
-    core: Vec<Operation>,
-}
-
-/// The addresses of `value` (`field`, a list of IP) against those of that sort the service
-/// cites (`held`): a value unchanged creates nothing, a new one gets an address of usage
-/// `vip` in `domain` (refused without one), a value gone closes its address.
-fn vips(
-    value: &Value,
-    field: &str,
-    held: &[(Addr, Uuid)],
+/// One sort of addresses of a service (REQ-019-14): its field in a `sync`, its column, and
+/// the domain its addresses live in.
+struct Sort {
+    field: &'static str,
+    column: &'static str,
+    cluster_ip: bool,
     domain: Option<Uuid>,
-) -> Result<Vips, Violation> {
-    let texts: Vec<String> = decode(value.clone(), field)?;
-    let wanted: BTreeSet<Addr> = texts
-        .iter()
-        .map(|t| {
-            Addr::parse_any(&family::ALL, t).map_err(|e| invalid(format!("{field}: {t}: {e}")))
-        })
-        .collect::<Result<_, _>>()?;
-    let mut kept: Vec<Uuid> = held
-        .iter()
-        .filter(|(a, _)| wanted.contains(a))
-        .map(|(_, id)| *id)
-        .collect();
-    kept.sort_unstable();
-    let new: Vec<&Addr> = wanted
-        .iter()
-        .filter(|a| !held.iter().any(|(h, _)| h == *a))
-        .collect();
-    let mut core = Vec::new();
-    if !new.is_empty() {
-        let domain = domain.ok_or_else(|| {
-            invalid(format!(
-                "{field}: the cluster designates no domain for these addresses"
-            ))
-        })?;
-        core.extend(new.into_iter().map(|a| Operation::CreateAddress {
-            local: None,
-            domain: Ref::Id(domain),
-            address: a.to_string(),
-            usage: AddressUsage::Vip,
-        }));
-    }
-    core.extend(
-        held.iter()
-            .filter(|(a, _)| !wanted.contains(a))
-            .map(|(_, id)| close_core(ObjectKind::Address, *id)),
-    );
-    Ok(Vips { kept, core })
 }
 
-/// The column of the object of a plan that cites what `operation` creates, if it creates
+/// An address a service cites, as [`vips`] reads it.
+struct Held {
+    cluster_ip: bool,
+    external: bool,
+    domain: Uuid,
+    value: Addr,
+    id: Uuid,
+}
+
+/// What a `sync` does to the addresses of a service, into `columns`: the addresses of
+/// each sort it gives (`cluster_ips`, `external_ips`, lists of IP) against those the
+/// service cites (`completed.addresses`). A value unchanged creates nothing; a new value
+/// gets one address of usage `vip` in the domain of its sort, cited by every sort that
+/// gives it (a cluster IP that is also an external address, when the two domains are one,
+/// is one address); an address no sort cites any more closes. Returns the operations of
+/// the core and, for each, the columns that cite what it creates (`data.slots`).
+fn vips(
+    body: &Map<String, Value>,
+    completed: &Completed,
+    columns: &mut Map<String, Value>,
+) -> Result<(Vec<Operation>, Vec<Value>), Violation> {
+    let sorts = [
+        Sort {
+            field: "cluster_ips",
+            column: "cluster_address_ids",
+            cluster_ip: true,
+            domain: completed.service_domain,
+        },
+        // Without an external domain, the external addresses live in the service domain
+        // (design « Données », 2026-11-10).
+        Sort {
+            field: "external_ips",
+            column: "external_address_ids",
+            cluster_ip: false,
+            domain: completed.external_domain.or(completed.service_domain),
+        },
+    ];
+    let held: Vec<Held> = completed
+        .addresses
+        .iter()
+        .filter_map(|(cluster_ip, external, domain, text, id)| {
+            Some(Held {
+                cluster_ip: *cluster_ip,
+                external: *external,
+                domain: *domain,
+                value: Addr::parse_any(&family::ALL, text).ok()?,
+                id: *id,
+            })
+        })
+        .collect();
+    let found = |key: &(Uuid, Addr)| {
+        held.iter()
+            .find(|h| (h.domain, h.value) == *key)
+            .map(|h| h.id)
+    };
+    // The (domain, value) each sort cites after the write: those it gives, or those it
+    // cites already.
+    let mut wanted: Vec<(&Sort, BTreeSet<(Uuid, Addr)>)> = Vec::new();
+    for sort in &sorts {
+        let Some(value) = body.get(sort.field) else {
+            let cited = held
+                .iter()
+                .filter(|h| {
+                    if sort.cluster_ip {
+                        h.cluster_ip
+                    } else {
+                        h.external
+                    }
+                })
+                .map(|h| (h.domain, h.value))
+                .collect();
+            wanted.push((sort, cited));
+            continue;
+        };
+        let field = sort.field;
+        let texts: Vec<String> = decode(value.clone(), field)?;
+        let set: BTreeSet<(Uuid, Addr)> = texts
+            .iter()
+            .map(|t| {
+                let value = Addr::parse_any(&family::ALL, t)
+                    .map_err(|e| invalid(format!("{field}: {t}: {e}")))?;
+                let domain = sort.domain.ok_or_else(|| {
+                    invalid(format!(
+                        "{field}: the cluster designates no domain for them"
+                    ))
+                })?;
+                Ok((domain, value))
+            })
+            .collect::<Result<_, Violation>>()?;
+        let mut kept: Vec<Uuid> = set.iter().filter_map(found).collect();
+        kept.sort_unstable();
+        columns.insert(sort.column.into(), json!(kept));
+        wanted.push((sort, set));
+    }
+    let all: BTreeSet<(Uuid, Addr)> = wanted.iter().flat_map(|(_, s)| s.iter().copied()).collect();
+    let mut core = Vec::new();
+    let mut slots = Vec::new();
+    for key in all.iter().filter(|k| found(k).is_none()) {
+        let citing: Vec<&str> = wanted
+            .iter()
+            .filter(|(_, s)| s.contains(key))
+            .map(|(sort, _)| sort.column)
+            .collect();
+        core.push(Operation::CreateAddress {
+            local: None,
+            domain: Ref::Id(key.0),
+            address: key.1.to_string(),
+            usage: AddressUsage::Vip,
+        });
+        slots.push(json!(citing));
+    }
+    for h in held.iter().filter(|h| !all.contains(&(h.domain, h.value))) {
+        core.push(close_core(ObjectKind::Address, h.id));
+        slots.push(Value::Null);
+    }
+    Ok((core, slots))
+}
+
+/// The columns of the object of a plan that cite what `operation` creates, if it creates
 /// something (`data.slots`, read by [`ModuleHandler::planned`]).
-fn slot(operation: &Operation, column: &str) -> Value {
+fn slot(operation: &Operation, columns: &[&str]) -> Value {
     match operation {
-        Operation::CreatePrefix { .. } | Operation::CreateAddress { .. } => json!(column),
+        Operation::CreatePrefix { .. } | Operation::CreateAddress { .. } => json!(columns),
         _ => Value::Null,
     }
 }
@@ -998,11 +1076,72 @@ fn home_of(
     Ok(workload.map_or(Home::Service(id), |w| Home::Workload(id, w)))
 }
 
+/// The refusal of the `close` of an object of `kind` named `name` in `home` that does not
+/// live.
+fn missing(kind: ModuleKind, home: Home, name: &str) -> Violation {
+    match home {
+        Home::Workload(namespace, workload) => invalid(format!(
+            "no living {workload} {name} in the namespace {namespace}"
+        )),
+        Home::Service(namespace) => invalid(format!(
+            "no living service {name} in the namespace {namespace}"
+        )),
+        Home::Cluster(cluster) => {
+            invalid(format!("no living {kind} {name} in the cluster {cluster}"))
+        }
+    }
+}
+
+/// The plan of an `unselect`: the selection a workload closed by `kube.sync` leaves,
+/// planned by its closure (`completed.unselect`), refused from a client.
+fn plan_unselect(operation: &ModuleOperation) -> Result<ModulePlan, Violation> {
+    let (service, workload, domain) = completed(&operation.body)
+        .unselect
+        .ok_or_else(|| invalid("action: unselect is not an action of sync"))?;
+    let mut plan = unselect(service, workload);
+    // Under the lock of the domain of the service, as the closure that adds it.
+    plan.domains = vec![domain];
+    Ok(plan)
+}
+
+/// The write that takes `workload` out of the selection of `service` (applied by
+/// `patch_of`).
+fn unselect(service: Uuid, workload: Uuid) -> ModulePlan {
+    ModulePlan {
+        kind: service_kind(),
+        object: service,
+        creates: false,
+        domains: Vec::new(),
+        keys: Vec::new(),
+        core: Vec::new(),
+        data: json!({ "unselect": workload }),
+    }
+}
+
+/// The operation, added by the closure of `workload` by `kube.sync`, that takes it out of
+/// the selection of `service`: a `sync` of action `unselect` whose service and workload
+/// are in `completed`, which `prepare` replaces in an operation of a client (refused
+/// then).
+fn unselect_operation(service: Uuid, workload: Uuid, domain: Uuid) -> Operation {
+    let Value::Object(body) = json!({
+        "action": "unselect",
+        "completed": {"unselect": [service, workload, domain]},
+    }) else {
+        unreachable!("an object literal")
+    };
+    Operation::Module(ModuleOperation {
+        module: "kube".into(),
+        name: "sync".into(),
+        body,
+    })
+}
+
 /// The columns of an `upsert` that cite objects the `sync` creates or reads (the pod ranges
 /// of a node, the addresses and the selection of a service), into `columns`; the
-/// operations of the core it adds, and for each the column that cites what it creates
+/// operations of the core it adds, and for each the columns that cite what it creates
 /// (`data.slots`).
 fn owned_columns(
+    kind: ModuleKind,
     body: &Map<String, Value>,
     completed: &Completed,
     pod_domain: Uuid,
@@ -1014,36 +1153,13 @@ fn owned_columns(
         let ranges = pod_ranges(value, completed, pod_domain)?;
         columns.insert("pod_cidrs".into(), json!(ranges.cidrs));
         columns.insert("range_ids".into(), json!(ranges.kept));
-        slots.extend(ranges.core.iter().map(|op| slot(op, "range_ids")));
+        slots.extend(ranges.core.iter().map(|op| slot(op, &["range_ids"])));
         core.extend(ranges.core);
     }
-    for (field, column, cluster_ip, domain) in [
-        (
-            "cluster_ips",
-            "cluster_address_ids",
-            true,
-            completed.service_domain,
-        ),
-        (
-            "external_ips",
-            "external_address_ids",
-            false,
-            completed.external_domain,
-        ),
-    ] {
-        let Some(value) = body.get(field) else {
-            continue;
-        };
-        let held: Vec<(Addr, Uuid)> = completed
-            .addresses
-            .iter()
-            .filter(|(c, _, _)| *c == cluster_ip)
-            .filter_map(|(_, text, id)| Some((Addr::parse_any(&family::ALL, text).ok()?, *id)))
-            .collect();
-        let vips = vips(value, field, &held, domain)?;
-        columns.insert(column.into(), json!(vips.kept));
-        slots.extend(vips.core.iter().map(|op| slot(op, column)));
-        core.extend(vips.core);
+    if kind == service_kind() {
+        let (vips, cited) = vips(body, completed, columns)?;
+        core.extend(vips);
+        slots.extend(cited);
     }
     if let Some(value) = body.get("workloads") {
         columns.insert("workload_ids".into(), json!(selection(value, completed)?));
@@ -1166,10 +1282,17 @@ impl Handler {
         let name = mirror_name(kind, &body)?;
         let home = home_of(kind, &body, &completed, cluster)?;
         let keys = vec![cluster_key(cluster)];
+        // A service is anchored in the service domain of its cluster (design « Types
+        // d'objets »), the other objects in its pod domain.
+        let anchor = if kind == service_kind() {
+            completed.service_domain.unwrap_or(domain)
+        } else {
+            domain
+        };
         match body.get("action").and_then(Value::as_str) {
             Some("upsert") => {
                 let (mut columns, cited) = mirror_columns(kind, &body, resolve)?;
-                let (core, slots) = owned_columns(&body, &completed, domain, &mut columns)?;
+                let (core, slots) = owned_columns(kind, &body, &completed, domain, &mut columns)?;
                 let (target, creates, data) = if let Some(existing) = completed.existing {
                     (existing, false, json!({ "update": columns }))
                 } else {
@@ -1188,38 +1311,39 @@ impl Handler {
                     kind,
                     object: target,
                     creates,
-                    domains: vec![domain],
+                    domains: vec![anchor],
                     keys,
                     core,
                     data,
                 })
             }
             Some("close") => {
-                let existing = completed.existing.ok_or_else(|| match home {
-                    Home::Workload(namespace, workload) => invalid(format!(
-                        "no living {workload} {name} in the namespace {namespace}"
-                    )),
-                    Home::Service(namespace) => invalid(format!(
-                        "no living service {name} in the namespace {namespace}"
-                    )),
-                    Home::Cluster(_) => {
-                        invalid(format!("no living {kind} {name} in the cluster {cluster}"))
-                    }
-                })?;
+                let existing = completed
+                    .existing
+                    .ok_or_else(|| missing(kind, home, &name))?;
+                // A closed workload leaves the selection of its services, without refusal
+                // (design « Références », mise à nul): the core clears a reference only in
+                // a cascade, which would close other dependents.
+                let services = completed.service_domain.unwrap_or(domain);
+                let mut core: Vec<Operation> = completed
+                    .selecting
+                    .iter()
+                    .map(|service| unselect_operation(*service, existing, services))
+                    .collect();
                 // The networks of the pod ranges of a node, the addresses of a service, are
                 // owned by it: the core closes them with it (design « Références »,
                 // `OnClose::Owned`).
-                let core = vec![Operation::Close {
+                core.push(Operation::Close {
                     kind: ObjectKind::Module(kind),
                     id: Ref::Id(existing),
                     expected: None,
                     cascade: false,
-                }];
+                });
                 Ok(ModulePlan {
                     kind,
                     object: existing,
                     creates: false,
-                    domains: vec![domain],
+                    domains: vec![anchor],
                     keys,
                     core,
                     data: json!({ "noop": true }),
@@ -1363,6 +1487,18 @@ impl ModuleHandler for Handler {
                                     pg::namespaced_closed(conn, identity, at).await?;
                             }
                         }
+                        // The services a closed workload leaves.
+                        if let (Some(workload), true, Some("close")) = (
+                            completed.existing,
+                            table == Some(WORKLOAD_TABLE),
+                            text("action"),
+                        ) {
+                            completed.selecting =
+                                pg::referrers(conn, SERVICE, WORKLOAD, workload, at).await?;
+                            completed.service_domain = pg::service_domains(conn, cluster, at)
+                                .await?
+                                .map(|(service, _)| service);
+                        }
                     } else if let (Some(table), Some(name)) = (table, name) {
                         completed.existing = pg::named(conn, table, cluster, name, at).await?;
                     }
@@ -1420,6 +1556,9 @@ impl ModuleHandler for Handler {
         match operation.name.as_str() {
             "create_cluster" => Self::plan_create_cluster(operation, object, resolve),
             "update_cluster" => Self::plan_update_cluster(operation, resolve),
+            "sync" if operation.body.get("action").and_then(Value::as_str) == Some("unselect") => {
+                plan_unselect(operation)
+            }
             "sync" => Self::plan_sync(operation, object, resolve),
             other => Err(invalid(format!("kube.{other}: unknown operation"))),
         }
@@ -1427,9 +1566,9 @@ impl ModuleHandler for Handler {
 
     /// A node cites the networks created for its new pod ranges, a service the addresses
     /// created for its new cluster IPs and external addresses (ADR 0026, amendment 8): each
-    /// in the column `data.slots` names for its operation.
+    /// in the columns `data.slots` names for its operation.
     fn planned(&self, plan: &mut ModulePlan, created: &[Uuid]) {
-        let slots: Vec<Option<String>> = plan
+        let slots: Vec<Option<Vec<String>>> = plan
             .data
             .get("slots")
             .cloned()
@@ -1440,19 +1579,18 @@ impl ModuleHandler for Handler {
         } else {
             "update"
         };
-        for (column, id) in slots.iter().zip(created) {
-            let Some(column) = column else {
-                continue;
-            };
-            let Some(ids) = plan.data.get_mut(row).and_then(|r| r.get_mut(column)) else {
-                continue;
-            };
-            let mut all: Vec<Uuid> = serde_json::from_value(ids.take()).unwrap_or_default();
-            all.push(*id);
-            // A set: the same values make the same column.
-            all.sort_unstable();
-            all.dedup();
-            *ids = json!(all);
+        for (columns, id) in slots.iter().zip(created) {
+            for column in columns.iter().flatten() {
+                let Some(ids) = plan.data.get_mut(row).and_then(|r| r.get_mut(column)) else {
+                    continue;
+                };
+                let mut all: Vec<Uuid> = serde_json::from_value(ids.take()).unwrap_or_default();
+                all.push(*id);
+                // A set: the same values make the same column.
+                all.sort_unstable();
+                all.dedup();
+                *ids = json!(all);
+            }
         }
     }
 
@@ -1577,7 +1715,7 @@ impl ModuleHandler for Handler {
                 }
                 (SERVICE, ADDRESS) => {
                     let addresses = pg::service_addresses(connection(tx)?, source, at).await?;
-                    Ok(addresses.into_iter().map(|(_, _, id)| id).collect())
+                    Ok(addresses.into_iter().map(|(.., id)| id).collect())
                 }
                 _ => Ok(Vec::new()),
             }
@@ -1587,20 +1725,19 @@ impl ModuleHandler for Handler {
     /// A closed machine is no longer designated by its node, a closed workload no longer
     /// selected by its services (design « Références »).
     fn nullify(&self, reference: &Reference, source: Uuid, target: Uuid) -> Option<ModulePlan> {
-        let (kind, data) = match (reference.from, reference.to) {
-            (NODE, MACHINE) => (node_kind(), json!({ "unlink": target })),
-            (SERVICE, WORKLOAD) => (service_kind(), json!({ "unselect": target })),
-            _ => return None,
-        };
-        Some(ModulePlan {
-            kind,
-            object: source,
-            creates: false,
-            domains: Vec::new(),
-            keys: Vec::new(),
-            core: Vec::new(),
-            data,
-        })
+        match (reference.from, reference.to) {
+            (NODE, MACHINE) => Some(ModulePlan {
+                kind: node_kind(),
+                object: source,
+                creates: false,
+                domains: Vec::new(),
+                keys: Vec::new(),
+                core: Vec::new(),
+                data: json!({ "unlink": target }),
+            }),
+            (SERVICE, WORKLOAD) => Some(unselect(source, target)),
+            _ => None,
+        }
     }
 
     /// The rules of the module on the final state of the clusters and nodes the changeset

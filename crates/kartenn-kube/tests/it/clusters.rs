@@ -1280,8 +1280,8 @@ async fn service_vip_refuses_close(pool: PgPool) {
              "node_port": 30443},
         ])
     );
-    // Under its namespace, in the pod domain of the cluster.
-    assert_eq!((parent, domain), (Some(payments), Some(env.pods)));
+    // Under its namespace, in the service domain of the cluster.
+    assert_eq!((parent, domain), (Some(payments), Some(env.services)));
     let cluster_ip = env.addresses(env.services).await;
     let external_ip = env.addresses(external).await;
     assert_eq!(cluster_ip.len(), 1, "{cluster_ip:?}");
@@ -1327,8 +1327,7 @@ async fn service_vip_refuses_close(pool: PgPool) {
         env.service_address_ids(ids[0]).await,
         (vec![cluster_ip[0].0], vec![replaced[0].0])
     );
-    // An address out of syntax, a port out of bounds, or an external address without an
-    // external domain refuse the batch.
+    // An address out of syntax or a port out of bounds refuse the batch.
     env.refused(
         vec![web(json!({"cluster_ips": ["203.0.113.300"]}))],
         "kube.operation.invalid",
@@ -1339,6 +1338,14 @@ async fn service_vip_refuses_close(pool: PgPool) {
         "kube.operation.invalid",
     )
     .await;
+}
+
+/// REQ-019-14, design « Données » (2026-11-10): without an external domain, the external
+/// addresses of a service live in its service domain; a value that is both a cluster IP
+/// and an external address is one address, cited by both columns.
+#[kartenn_testing::pg_test]
+async fn external_ips_fall_back_to_service_domain(pool: PgPool) {
+    let env = Env::new(&pool).await;
     let dev = env.new_cluster("dev").await;
     env.applied(vec![sync(
         "upsert",
@@ -1348,17 +1355,45 @@ async fn service_vip_refuses_close(pool: PgPool) {
         json!({}),
     )])
     .await;
-    env.refused(
-        vec![service(
-            "upsert",
-            dev,
-            "payments",
-            "web",
-            json!({"external_ips": ["192.0.2.20"]}),
-        )],
-        "kube.operation.invalid",
-    )
+    let payments = env.named("kube.namespace", dev, "payments").await[0];
+    env.applied(vec![service(
+        "upsert",
+        dev,
+        "payments",
+        "web",
+        json!({
+            "service_type": "load_balancer",
+            "cluster_ips": ["203.0.113.20"],
+            "external_ips": ["203.0.113.20", "203.0.113.21"],
+        }),
+    )])
     .await;
+    let web = env.services(payments, "web").await[0];
+    let addresses = env.addresses(env.services).await;
+    let values: Vec<&str> = addresses.iter().map(|(_, v, _)| v.as_str()).collect();
+    assert_eq!(values, ["203.0.113.20", "203.0.113.21"]);
+    let (shared, other) = (addresses[0].0, addresses[1].0);
+    let mut external = vec![shared, other];
+    external.sort_unstable();
+    assert_eq!(env.service_address_ids(web).await, (vec![shared], external));
+    // The shared value no longer external: the address stays, cited as a cluster IP.
+    env.applied(vec![service(
+        "upsert",
+        dev,
+        "payments",
+        "web",
+        json!({"external_ips": ["203.0.113.21"]}),
+    )])
+    .await;
+    assert_eq!(env.addresses(env.services).await, addresses);
+    assert_eq!(
+        env.service_address_ids(web).await,
+        (vec![shared], vec![other])
+    );
+    // Closed: both addresses with it.
+    env.applied(vec![service("close", dev, "payments", "web", json!({}))])
+        .await;
+    assert!(env.addresses(env.services).await.is_empty());
 }
 
 /// REQ-019-14, design « Références » (`OnClose::Owned`): a closed service closes its
@@ -1412,8 +1447,9 @@ async fn service_closed_closes_its_addresses(pool: PgPool) {
 }
 
 /// REQ-019-9: a service selecting two workloads lists them, each workload lists the
-/// service; a workload closed in cascade leaves the selection (design « Références »,
-/// mise à nul), a workload unknown to the namespace refuses the batch.
+/// service; a workload closed by the connector, or in cascade, leaves the selection
+/// (design « Références », mise à nul), a workload unknown to the namespace refuses the
+/// batch.
 #[kartenn_testing::pg_test]
 async fn selection_lists_both_ways(pool: PgPool) {
     let env = Env::new(&pool).await;
@@ -1465,28 +1501,39 @@ async fn selection_lists_both_ways(pool: PgPool) {
         "kube.operation.invalid",
     )
     .await;
-    // Closed by the connector while selected: refused (no cascade from `kube.sync`).
+    // An `unselect` sent by a client is not an action of `sync`.
     env.refused(
-        vec![workload(
-            "close",
-            prod,
-            "payments",
-            "deployment",
-            "web",
-            json!({}),
+        vec![op(
+            "sync",
+            json!({"action": "unselect", "completed": {"unselect": [frontend, web, env.services]}}),
         )],
-        "core.object.dependents",
+        "kube.operation.invalid",
     )
     .await;
-    // Closed in cascade: it leaves the selection of both services, which live on.
-    env.applied(vec![Operation::Close {
-        kind: ObjectKind::from_name("kube.workload").unwrap(),
-        id: Ref::Id(web),
-        expected: None,
-        cascade: true,
-    }])
+    // Closed by the connector while selected: it leaves the selection of both services,
+    // which live on.
+    env.applied(vec![workload(
+        "close",
+        prod,
+        "payments",
+        "deployment",
+        "web",
+        json!({}),
+    )])
     .await;
     assert_eq!(env.selected(frontend).await, [report]);
     assert!(env.selected(metrics).await.is_empty());
     assert!(env.selecting(web).await.is_empty());
+    // A direct closure without cascade stays refused while a service selects it (D33).
+    let close = |cascade: bool| Operation::Close {
+        kind: ObjectKind::from_name("kube.workload").unwrap(),
+        id: Ref::Id(report),
+        expected: None,
+        cascade,
+    };
+    env.refused(vec![close(false)], "core.object.dependents")
+        .await;
+    // In cascade, it leaves the selection.
+    env.applied(vec![close(true)]).await;
+    assert!(env.selected(frontend).await.is_empty());
 }

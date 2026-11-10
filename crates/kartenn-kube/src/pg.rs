@@ -236,15 +236,19 @@ pub(crate) async fn service_domains(
     .map_err(|e| store(&e))
 }
 
-/// The living addresses the service `service` cites at `at`, with their values: whether
-/// each is a cluster IP (else an external address), its value and its identifier.
+/// An address a service cites: as a cluster IP, as an external address (both when the two
+/// domains are one), its domain, its value and its identifier.
+pub(crate) type HeldAddress = (bool, bool, Uuid, String, Uuid);
+
+/// The living addresses the service `service` cites at `at`.
 pub(crate) async fn service_addresses(
     conn: &mut PgConnection,
     service: Uuid,
     at: Option<OffsetDateTime>,
-) -> Result<Vec<(bool, String, Uuid)>, StoreError> {
+) -> Result<Vec<HeldAddress>, StoreError> {
     sqlx::query_as(
-        "SELECT a.id = ANY(s.cluster_address_ids), host(a.address), a.id
+        "SELECT a.id = ANY(s.cluster_address_ids), a.id = ANY(s.external_address_ids),
+                a.domain_id, host(a.address), a.id
            FROM kube.service s
            JOIN public.address a
              ON (a.id = ANY(s.cluster_address_ids) OR a.id = ANY(s.external_address_ids))
@@ -479,9 +483,16 @@ pub(crate) async fn placement(
     period: Option<Period>,
 ) -> Result<Option<(Uuid, Option<Uuid>)>, StoreError> {
     let (from, _) = bounds(period);
+    // A service is anchored in the service domain of its cluster (design « Types
+    // d'objets »), the other objects in its pod domain.
+    let anchor = if table == SERVICE_TABLE {
+        "service_domain_id"
+    } else {
+        "pod_domain_id"
+    };
     let sql = if table == WORKLOAD_TABLE || table == SERVICE_TABLE {
         format!(
-            "SELECT w.namespace_id, c.pod_domain_id
+            "SELECT w.namespace_id, c.{anchor}
                FROM {table} w
                LEFT JOIN kube.namespace n
                  ON n.id = w.namespace_id AND n.valid_period @> coalesce($2::timestamptz, now())
