@@ -1,5 +1,5 @@
 //! The storage of the module in PostgreSQL (feature `pg`): the tables of the schema `kube`
-//! (migrations `0001_kube.sql` to `0004_service.sql`), on the connection of the
+//! (migrations `0001_kube.sql` to `0005_ingress.sql`), on the connection of the
 //! changeset.
 
 use kartenn_core::period::{Instant, Period};
@@ -20,6 +20,8 @@ pub(crate) const NAMESPACE_TABLE: &str = "kube.namespace";
 pub(crate) const WORKLOAD_TABLE: &str = "kube.workload";
 /// The table of the services.
 pub(crate) const SERVICE_TABLE: &str = "kube.service";
+/// The table of the ingresses.
+pub(crate) const INGRESS_TABLE: &str = "kube.ingress";
 
 /// An instant as PostgreSQL reads it.
 fn time(i: Instant) -> OffsetDateTime {
@@ -143,12 +145,14 @@ pub(crate) async fn named(
         .map_err(|e| store(&e))
 }
 
-/// The identity of an object of a namespace: the workload of a kind, or the service, named
-/// `name` in `namespace` (019/X3).
+/// The identity of an object of a namespace: the workload of a kind, the service or the
+/// ingress, named `name` in `namespace` (019/X3).
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct InNamespace<'a> {
+    /// [`WORKLOAD_TABLE`], [`SERVICE_TABLE`] or [`INGRESS_TABLE`].
+    pub(crate) table: &'static str,
     pub(crate) namespace: Uuid,
-    /// The kind of a workload; `None` for a service.
+    /// The kind of a workload; `None` for a service or an ingress.
     pub(crate) kind: Option<&'a str>,
     pub(crate) name: &'a str,
 }
@@ -156,14 +160,14 @@ pub(crate) struct InNamespace<'a> {
 impl InNamespace<'_> {
     /// The table of the object and the condition on `w` of its identity, on `$1` to `$3`.
     fn of(self) -> (&'static str, &'static str) {
-        if self.kind.is_some() {
+        if self.table == WORKLOAD_TABLE {
             (
                 WORKLOAD_TABLE,
                 "w.namespace_id = $1 AND w.kind = $2 AND w.name = $3",
             )
         } else {
             (
-                SERVICE_TABLE,
+                self.table,
                 "w.namespace_id = $1 AND $2::text IS NULL AND w.name = $3",
             )
         }
@@ -257,6 +261,29 @@ pub(crate) async fn service_addresses(
           ORDER BY a.address",
     )
     .bind(service)
+    .bind(at)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The living addresses the ingress `ingress` cites at `at`, as [`HeldAddress`]es of the
+/// external sort: the addresses of an ingress are of one sort only.
+pub(crate) async fn ingress_addresses(
+    conn: &mut PgConnection,
+    ingress: Uuid,
+    at: Option<OffsetDateTime>,
+) -> Result<Vec<HeldAddress>, StoreError> {
+    sqlx::query_as(
+        "SELECT false, true, a.domain_id, host(a.address), a.id
+           FROM kube.ingress i
+           JOIN public.address a
+             ON a.id = ANY(i.address_ids)
+            AND a.valid_period @> coalesce($2::timestamptz, now())
+          WHERE i.id = $1 AND i.valid_period @> coalesce($2::timestamptz, now())
+          ORDER BY a.address",
+    )
+    .bind(ingress)
     .bind(at)
     .fetch_all(conn)
     .await
@@ -368,7 +395,12 @@ pub(crate) async fn identities(
         }
         return Ok(());
     }
-    if table == SERVICE_TABLE {
+    if table == SERVICE_TABLE || table == INGRESS_TABLE {
+        let (rule, what) = if table == SERVICE_TABLE {
+            (&crate::rules::SERVICE_DUPLICATE, "service")
+        } else {
+            (&crate::rules::INGRESS_DUPLICATE, "ingress")
+        };
         if let (Some(namespace), Some(name)) = (field("namespace_id"), field("name"))
             && taken(
                 conn,
@@ -381,8 +413,8 @@ pub(crate) async fn identities(
             .await?
         {
             return Err(refused(
-                &crate::rules::SERVICE_DUPLICATE,
-                format!("the service {name} is taken in the namespace over the period"),
+                rule,
+                format!("the {what} {name} is taken in the namespace over the period"),
                 &[id],
             ));
         }
@@ -473,9 +505,9 @@ pub(crate) async fn pod_domain_moved(
     .map_err(|e| store(&e))
 }
 
-/// The parent of the node, namespace or workload `id` of `table` (its cluster, or the
-/// namespace of a workload) and the pod domain of its cluster, at the start of `period`:
-/// its place in the tree of the module and its anchor.
+/// The parent of the node, namespace, workload, service or ingress `id` of `table` (its
+/// cluster, or its namespace) and the domain of its cluster it is anchored in, at the
+/// start of `period`: its place in the tree of the module and its anchor.
 pub(crate) async fn placement(
     conn: &mut PgConnection,
     table: &str,
@@ -483,16 +515,19 @@ pub(crate) async fn placement(
     period: Option<Period>,
 ) -> Result<Option<(Uuid, Option<Uuid>)>, StoreError> {
     let (from, _) = bounds(period);
-    // A service is anchored in the service domain of its cluster (design « Types
-    // d'objets »), the other objects in its pod domain.
+    // A service is anchored in the service domain of its cluster, an ingress in its
+    // external domain, else its service domain (design « Types d'objets »), the other
+    // objects in its pod domain.
     let anchor = if table == SERVICE_TABLE {
-        "service_domain_id"
+        "c.service_domain_id"
+    } else if table == INGRESS_TABLE {
+        "coalesce(c.external_domain_id, c.service_domain_id)"
     } else {
-        "pod_domain_id"
+        "c.pod_domain_id"
     };
-    let sql = if table == WORKLOAD_TABLE || table == SERVICE_TABLE {
+    let sql = if table == WORKLOAD_TABLE || table == SERVICE_TABLE || table == INGRESS_TABLE {
         format!(
-            "SELECT w.namespace_id, c.{anchor}
+            "SELECT w.namespace_id, {anchor}
                FROM {table} w
                LEFT JOIN kube.namespace n
                  ON n.id = w.namespace_id AND n.valid_period @> coalesce($2::timestamptz, now())
@@ -700,6 +735,55 @@ pub(crate) async fn pod_ranges_outside(
     .map_err(|e| store(&e))
 }
 
+/// The ingresses living from now on whose routes name one of the services among `ids`, in
+/// any of their versions: the ingresses a write of these services checks again
+/// (`kube.ingress.backend_missing`).
+pub(crate) async fn ingresses_routing_to(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<Uuid>, StoreError> {
+    sqlx::query_scalar(
+        "SELECT DISTINCT i.id
+           FROM kube.service s
+           JOIN kube.ingress i
+             ON i.namespace_id = s.namespace_id
+            AND i.rules @> jsonb_build_array(jsonb_build_object('service', s.name))
+            AND i.valid_period && tstzrange(now(), NULL)
+          WHERE s.id = ANY($1)
+          ORDER BY i.id",
+    )
+    .bind(ids)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
+/// The routes of the ingresses among `ids`, living from now on, whose service no service
+/// of their namespace living from now on bears over their version
+/// (`kube.ingress.backend_missing`): `(ingress, service name)`.
+pub(crate) async fn backends_missing(
+    conn: &mut PgConnection,
+    ids: &[Uuid],
+) -> Result<Vec<(Uuid, String)>, StoreError> {
+    sqlx::query_as(
+        "SELECT DISTINCT i.id, r.route->>'service'
+           FROM kube.ingress i
+           CROSS JOIN LATERAL jsonb_array_elements(i.rules) AS r(route)
+          WHERE i.id = ANY($1) AND i.valid_period && tstzrange(now(), NULL)
+            AND NOT EXISTS (
+                SELECT 1 FROM kube.service s
+                 WHERE s.namespace_id = i.namespace_id
+                   AND s.name = r.route->>'service'
+                   AND s.valid_period && i.valid_period
+                   AND s.valid_period && tstzrange(now(), NULL))
+          ORDER BY 1, 2",
+    )
+    .bind(ids)
+    .fetch_all(conn)
+    .await
+    .map_err(|e| store(&e))
+}
+
 /// The living objects of the module that cite `target` by the reference `from` → `to`
 /// from `at` on.
 pub(crate) async fn referrers(
@@ -710,9 +794,15 @@ pub(crate) async fn referrers(
     at: Option<OffsetDateTime>,
 ) -> Result<Vec<Uuid>, StoreError> {
     use crate::module::{
-        ADDRESS, CLUSTER, DOMAIN, MACHINE, NAMESPACE, NODE, PREFIX, SERVICE, WORKLOAD,
+        ADDRESS, CLUSTER, DOMAIN, INGRESS, MACHINE, NAMESPACE, NODE, PREFIX, SERVICE, WORKLOAD,
     };
     let sql = match (from, to) {
+        (INGRESS, NAMESPACE) => {
+            "SELECT DISTINCT id FROM kube.ingress WHERE namespace_id = $1 AND {live}"
+        }
+        (INGRESS, ADDRESS) => {
+            "SELECT DISTINCT id FROM kube.ingress WHERE address_ids @> ARRAY[$1::uuid] AND {live}"
+        }
         (SERVICE, NAMESPACE) => {
             "SELECT DISTINCT id FROM kube.service WHERE namespace_id = $1 AND {live}"
         }

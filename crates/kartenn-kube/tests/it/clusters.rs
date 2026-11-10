@@ -3,7 +3,8 @@
 //! designates, its batch window and connector group checked; the nodes and namespaces of
 //! the connector found by their name in the cluster, unique there, a node designating one
 //! physical or virtual machine; the workloads of a namespace found by their kind and name
-//! there (task 019-4a).
+//! there (task 019-4a), its services (task 019-4b) and ingresses (task 019-4c) by their
+//! name.
 
 use std::sync::Arc;
 
@@ -1536,4 +1537,267 @@ async fn selection_lists_both_ways(pool: PgPool) {
     // In cascade, it leaves the selection.
     env.applied(vec![close(true)]).await;
     assert!(env.selected(frontend).await.is_empty());
+}
+
+/// `kube.sync` of `action` on the ingress named `name` in the namespace `namespace` of
+/// `cluster`.
+fn ingress(action: &str, cluster: Uuid, namespace: &str, name: &str, extra: Value) -> Operation {
+    let mut fields = json!({"namespace": namespace});
+    merge(&mut fields, extra);
+    sync(action, "ingress", cluster, name, fields)
+}
+
+impl Env {
+    /// The living ingresses of `namespace` named `name`.
+    async fn ingresses(&self, namespace: Uuid, name: &str) -> Vec<Uuid> {
+        sqlx::query_scalar(
+            "SELECT id FROM kube.ingress
+              WHERE namespace_id = $1 AND name = $2 AND valid_period @> now()",
+        )
+        .bind(namespace)
+        .bind(name)
+        .fetch_all(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// The addresses the living ingress `id` cites.
+    async fn ingress_address_ids(&self, id: Uuid) -> Vec<Uuid> {
+        sqlx::query_scalar(
+            "SELECT address_ids FROM kube.ingress WHERE id = $1 AND valid_period @> now()",
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// The parent and the anchor of the living object `id` of the module.
+    async fn placed(&self, id: Uuid) -> (Option<Uuid>, Option<Uuid>) {
+        sqlx::query_as(
+            "SELECT parent_id, domain_id FROM module_object WHERE id = $1 AND valid_period @> now()",
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+}
+
+/// REQ-019-10: a route to a service absent from the namespace of the ingress warns
+/// (`kube.ingress.backend_missing`) and is kept, as the cluster accepts it; the anomaly
+/// closes once the service is created, opens again once it closes, closes once the route
+/// is gone. Routes and TLS hosts are sets; a malformed route refuses the batch.
+#[kartenn_testing::pg_test]
+async fn ingress_backend_missing_warns(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let external = env
+        .domain("external", "192.0.2.0/24", Nature::Network)
+        .await;
+    let (prod, payments) = env.service_cluster("prod", external).await;
+    env.applied(vec![service(
+        "upsert",
+        prod,
+        "payments",
+        "web",
+        json!({"ports": [{"port": 443, "name": "https"}]}),
+    )])
+    .await;
+    let shop = |extra: Value| ingress("upsert", prod, "payments", "shop", extra);
+    let outcome = env
+        .submit(vec![shop(json!({
+            "uid": Uuid::now_v7(),
+            "class": "public",
+            "rules": [
+                {"host": "shop.example.org", "path": "/api", "path_type": "prefix",
+                 "service": "api", "port": 8080},
+                {"host": "shop.example.org", "path": "/", "path_type": "prefix",
+                 "service": "web", "port": "https"},
+                {"service": "web", "port": 443},
+            ],
+            "tls_hosts": ["shop.example.org", "*.example.net"],
+        }))])
+        .await;
+    assert_eq!(warnings(&outcome), ["kube.ingress.backend_missing"]);
+    let ids = env.ingresses(payments, "shop").await;
+    assert_eq!(ids.len(), 1);
+    let shop_id = ids[0];
+    assert!(env.anomaly(shop_id, "kube.ingress.backend_missing").await);
+    let (class, rules, tls): (Option<String>, Value, Vec<String>) = sqlx::query_as(
+        "SELECT class, rules, tls_hosts FROM kube.ingress WHERE id = $1 AND valid_period @> now()",
+    )
+    .bind(shop_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(class.as_deref(), Some("public"));
+    // A set: the default backend, without host, first.
+    assert_eq!(
+        rules,
+        json!([
+            {"service": "web", "port": 443},
+            {"host": "shop.example.org", "path": "/", "path_type": "prefix",
+             "service": "web", "port": "https"},
+            {"host": "shop.example.org", "path": "/api", "path_type": "prefix",
+             "service": "api", "port": 8080},
+        ])
+    );
+    assert_eq!(tls, ["*.example.net", "shop.example.org"]);
+    // Under its namespace, in the external domain of the cluster.
+    assert_eq!(env.placed(shop_id).await, (Some(payments), Some(external)));
+    // The service created: no warning, the anomaly closes.
+    let outcome = env
+        .submit(vec![service("upsert", prod, "payments", "api", json!({}))])
+        .await;
+    assert!(warnings(&outcome).is_empty(), "{outcome:?}");
+    assert!(!env.anomaly(shop_id, "kube.ingress.backend_missing").await);
+    // The service closed: the warning again.
+    let outcome = env
+        .submit(vec![service("close", prod, "payments", "api", json!({}))])
+        .await;
+    assert_eq!(warnings(&outcome), ["kube.ingress.backend_missing"]);
+    assert!(env.anomaly(shop_id, "kube.ingress.backend_missing").await);
+    // The route gone: no warning, the anomaly closes.
+    let outcome = env
+        .submit(vec![shop(
+            json!({"rules": [{"service": "web", "port": 443}]}),
+        )])
+        .await;
+    assert!(warnings(&outcome).is_empty(), "{outcome:?}");
+    assert!(!env.anomaly(shop_id, "kube.ingress.backend_missing").await);
+    // A host that is an IP, a relative path, a route of a host without path type, a field
+    // of a service: refused.
+    let route = |route: Value| shop(json!({ "rules": [route] }));
+    env.refused(
+        vec![route(
+            json!({"host": "192.0.2.1", "path": "/", "path_type": "prefix",
+                          "service": "web", "port": 443}),
+        )],
+        "kube.name.invalid",
+    )
+    .await;
+    env.refused(
+        vec![route(
+            json!({"path": "api", "path_type": "exact", "service": "web", "port": 443}),
+        )],
+        "kube.operation.invalid",
+    )
+    .await;
+    env.refused(
+        vec![route(
+            json!({"host": "shop.example.org", "service": "web", "port": 443}),
+        )],
+        "kube.operation.invalid",
+    )
+    .await;
+    env.refused(
+        vec![shop(json!({"external_ips": ["192.0.2.40"]}))],
+        "kube.operation.invalid",
+    )
+    .await;
+}
+
+/// REQ-019-14, design « Références » (`OnClose::Owned`): the addresses of an ingress are
+/// addresses of usage `vip` of the external domain of its cluster, created and cited in the
+/// same `kube.sync`; one does not close alone while the ingress cites it; an address gone
+/// closes; a closed ingress closes its addresses, by `kube.sync` or in the cascade of its
+/// namespace; deleted then created again under the same name, it is the same ingress
+/// (019/X3), with new addresses.
+#[kartenn_testing::pg_test]
+async fn ingress_closed_closes_its_addresses(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let external = env
+        .domain("external", "192.0.2.0/24", Nature::Network)
+        .await;
+    let (prod, payments) = env.service_cluster("prod", external).await;
+    env.applied(vec![service("upsert", prod, "payments", "web", json!({}))])
+        .await;
+    let shop = |addresses: Value| {
+        ingress(
+            "upsert",
+            prod,
+            "payments",
+            "shop",
+            json!({"addresses": addresses, "rules": [{"service": "web", "port": 80}]}),
+        )
+    };
+    env.applied(vec![shop(json!(["192.0.2.30"]))]).await;
+    let ids = env.ingresses(payments, "shop").await;
+    assert_eq!(ids.len(), 1);
+    let held = env.addresses(external).await;
+    assert_eq!(held.len(), 1, "{held:?}");
+    assert_eq!(
+        (held[0].1.as_str(), held[0].2.as_str()),
+        ("192.0.2.30", "vip")
+    );
+    assert_eq!(env.ingress_address_ids(ids[0]).await, [held[0].0]);
+    // Its address does not close alone, and the refusal names the ingress.
+    let outcome = env.submit(vec![close_address(held[0].0)]).await;
+    let Outcome::Refused { violations, .. } = &outcome else {
+        panic!("not refused: {outcome:?}");
+    };
+    let dependents = violations
+        .iter()
+        .find(|v| v.rule.id == "core.object.dependents")
+        .unwrap_or_else(|| panic!("{outcome:?}"));
+    assert!(dependents.subjects.contains(&ids[0]), "{dependents:?}");
+    // The same address: nothing created; replaced: the old one closes.
+    env.applied(vec![shop(json!(["192.0.2.30"]))]).await;
+    assert_eq!(env.addresses_ever(external).await, 1);
+    env.applied(vec![shop(json!(["192.0.2.31"]))]).await;
+    let replaced = env.addresses(external).await;
+    assert_eq!(replaced.len(), 1, "{replaced:?}");
+    assert_eq!(replaced[0].1, "192.0.2.31");
+    assert_eq!(env.ingress_address_ids(ids[0]).await, [replaced[0].0]);
+    // Closed by the connector: its address with it.
+    env.applied(vec![ingress("close", prod, "payments", "shop", json!({}))])
+        .await;
+    assert!(env.ingresses(payments, "shop").await.is_empty());
+    assert!(env.addresses(external).await.is_empty());
+    // Created again: the same ingress, a new address.
+    env.applied(vec![shop(json!(["192.0.2.31"]))]).await;
+    assert_eq!(env.ingresses(payments, "shop").await, ids);
+    assert_eq!(env.ingress_address_ids(ids[0]).await.len(), 1);
+    assert_eq!(env.addresses_ever(external).await, 3);
+    // Its namespace closed in cascade: the ingress, then its address.
+    env.applied(vec![Operation::Close {
+        kind: ObjectKind::from_name("kube.namespace").unwrap(),
+        id: Ref::Id(payments),
+        expected: None,
+        cascade: true,
+    }])
+    .await;
+    assert!(env.ingresses(payments, "shop").await.is_empty());
+    assert!(env.addresses(external).await.is_empty());
+}
+
+/// REQ-019-14, design « Types d'objets »: without an external domain, the addresses of an
+/// ingress live in the service domain of its cluster, where the ingress is anchored.
+#[kartenn_testing::pg_test]
+async fn ingress_addresses_fall_back_to_service_domain(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let dev = env.new_cluster("dev").await;
+    env.applied(vec![sync(
+        "upsert",
+        "namespace",
+        dev,
+        "payments",
+        json!({}),
+    )])
+    .await;
+    let payments = env.named("kube.namespace", dev, "payments").await[0];
+    env.applied(vec![ingress(
+        "upsert",
+        dev,
+        "payments",
+        "shop",
+        json!({"addresses": ["203.0.113.40"]}),
+    )])
+    .await;
+    let shop = env.ingresses(payments, "shop").await[0];
+    let addresses = env.addresses(env.services).await;
+    assert_eq!(addresses.len(), 1, "{addresses:?}");
+    assert_eq!(addresses[0].1, "203.0.113.40");
+    assert_eq!(env.ingress_address_ids(shop).await, [addresses[0].0]);
+    assert_eq!(env.placed(shop).await, (Some(payments), Some(env.services)));
 }

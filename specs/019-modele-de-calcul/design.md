@@ -167,6 +167,12 @@ des services, comme l'ancrage de l'ingress ; une même IP à la fois IP de clust
 adresse externe, les deux domaines confondus, est une seule adresse du noyau, citée par
 `cluster_address_ids` et `external_address_ids`.
 
+Précision (2026-11-10, tâche 4c) : `kube.ingress.rules` est l'ensemble trié des routes
+`{host, path, path_type, service, port}` (le backend par défaut est la route sans hôte,
+chemin ni type), le service nommé par son nom dans le namespace, sans référence ; ses
+adresses (`address_ids`) vivent dans le domaine externe du cluster, à défaut dans son
+domaine des services, comme son ancrage.
+
 **Journal d'observation** (non versionné, hors référentiel, Q-019-4, X7,
 [ADR 0043](../../docs/adr/0043-observations-hors-referentiel.md)) :
 
@@ -242,7 +248,7 @@ domaines touchés.
 | `kube.operation.invalid` | erreur | opération mal formée : champ inconnu ou manquant, valeur hors bornes (rétention, fenêtre de lot), objet cité inconnu ou domaine qui ne vit pas sur la période, domaine des pods d'un cluster changé tant qu'il a des nœuds ou des namespaces vivants, ancrés dans ce domaine (ajoutée à la tâche 3b, comme `machines.operation.invalid`) |
 | `kube.cluster.range_domain` | erreur | plage hors du domaine désigné |
 | `kube.cluster.connector_group` | erreur | groupe du connecteur inexistant ou clos sur la période |
-| `kube.node.duplicate`, `kube.namespace.duplicate`, `kube.workload.duplicate`, `kube.service.duplicate` | erreur | identité en double sur des périodes chevauchantes |
+| `kube.node.duplicate`, `kube.namespace.duplicate`, `kube.workload.duplicate`, `kube.service.duplicate`, `kube.ingress.duplicate` (ajoutée à la tâche 4c) | erreur | identité en double sur des périodes chevauchantes |
 | `kube.node.machine_kind` | erreur | machine désignée ni `physical` ni `virtual`, ou déjà désignée |
 | `kube.name.invalid`, `kube.label.invalid` | erreur | nom ou label hors syntaxe (réf. § Namespace, labels) |
 | `kube.node.range_outside` | avertissement | plage de pods hors des conteneurs déclarés |

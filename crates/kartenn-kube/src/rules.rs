@@ -42,6 +42,8 @@ rules! {
         "Deux workloads vivants d'un namespace ne portent pas la même sorte et le même nom sur des périodes qui se chevauchent.";
     SERVICE_DUPLICATE = "kube.service.duplicate", Error, ["REQ-019-9"], "Kubernetes, Names",
         "Deux services vivants d'un namespace ne portent pas le même nom sur des périodes qui se chevauchent.";
+    INGRESS_DUPLICATE = "kube.ingress.duplicate", Error, ["REQ-019-10"], "Kubernetes, Names",
+        "Deux ingress vivants d'un namespace ne portent pas le même nom sur des périodes qui se chevauchent.";
     NODE_MACHINE_KIND = "kube.node.machine_kind", Error, ["REQ-019-6"], "019/X2",
         "Un nœud désigne une machine physical ou virtual, que nul autre nœud vivant ne désigne.";
     NAME_INVALID = "kube.name.invalid", Error, ["REQ-019-6", "REQ-019-7", "REQ-019-8", "REQ-019-9", "REQ-019-10"], "Kubernetes, Names",
@@ -95,7 +97,8 @@ mod tests {
         ] {
             assert!(seen.contains(id), "{id} missing");
         }
-        // The 18 of the design, and the malformed operation (task 019-3b).
-        assert_eq!(KUBE_RULES.len(), 19);
+        // The 18 of the design, the malformed operation (task 019-3b) and the duplicate
+        // ingress (task 019-4c).
+        assert_eq!(KUBE_RULES.len(), 20);
     }
 }

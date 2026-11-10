@@ -456,6 +456,26 @@ pub enum PathType {
     ImplementationSpecific,
 }
 
+impl PathType {
+    /// The kartenn spelling, as a route of the `kube.ingress.rules` column.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Exact => "exact",
+            Self::Prefix => "prefix",
+            Self::ImplementationSpecific => "implementation_specific",
+        }
+    }
+
+    /// Reads the kartenn spelling.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        [Self::Exact, Self::Prefix, Self::ImplementationSpecific]
+            .into_iter()
+            .find(|t| t.as_str() == text)
+    }
+}
+
 /// The service backend of an ingress, as read.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IngressBackend {

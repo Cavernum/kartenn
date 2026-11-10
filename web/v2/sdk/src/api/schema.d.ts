@@ -1843,6 +1843,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/ingresses/{id}/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The versions of the record of the kube.ingress, on both axes (REQ-004-18). */
+    get: operations["kube_ingress_history"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/ingresses/{id}/properties": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The resolved values of the properties of the object. */
+    get: operations["kube_ingress_properties"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/ingresses/{id}/properties/{key}/explanation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** How the value of a property resolves on the object (REQ-003-14). */
+    get: operations["kube_ingress_property_explanation"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/ingresses/{id}/properties/{key}/suggestion": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The value the source of a property expects for the object (REQ-003-23). */
+    get: operations["kube_ingress_property_suggestion"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/interfaces": {
     parameters: {
       query?: never;
@@ -8675,7 +8743,8 @@ export interface components {
       | "kube.node"
       | "kube.namespace"
       | "kube.workload"
-      | "kube.service";
+      | "kube.service"
+      | "kube.ingress";
     /**
      * @description A node of the tree, as listed, with its version and, for a prefix, its occupancy, read
      *     at the moment of the page (021/A11).
@@ -15715,6 +15784,174 @@ export interface operations {
       };
       path: {
         /** @description The policy.inference_rule. */
+        id: string;
+        /** @description The property. */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The suggestion. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Suggestion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  kube_ingress_history: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+        /** @description The next page, from `links.next`; it freezes the dates and the filters. */
+        cursor?: string;
+        /** @description The size of a page, 1 to 1 000; 100 by default. */
+        page_size?: number;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path: {
+        /** @description The kube.ingress. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description A page of versions. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Listing_ModuleVersion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  kube_ingress_properties: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path: {
+        /** @description The kube.ingress. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The resolved values. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Resolved"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  kube_ingress_property_explanation: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path: {
+        /** @description The kube.ingress. */
+        id: string;
+        /** @description The property. */
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The explanation. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Explanation"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  kube_ingress_property_suggestion: {
+    parameters: {
+      query?: {
+        /** @description Valid time, RFC 3339 with its offset; now by default. */
+        valid_at?: string;
+        /** @description System time, RFC 3339 with its offset: what kartenn asserted then; now by default. */
+        as_of?: string;
+      };
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path: {
+        /** @description The kube.ingress. */
         id: string;
         /** @description The property. */
         key: string;

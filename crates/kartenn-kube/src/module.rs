@@ -23,19 +23,22 @@ pub const NAMESPACE: &str = "kube.namespace";
 pub const WORKLOAD: &str = "kube.workload";
 /// The qualified type of a service.
 pub const SERVICE: &str = "kube.service";
+/// The qualified type of an ingress.
+pub const INGRESS: &str = "kube.ingress";
 /// A machine of the 009, as a reference names it.
 pub const MACHINE: &str = "machines.machine";
 /// An addressing domain of the core.
 pub const DOMAIN: &str = "domain";
 /// A prefix of the core: a container of pod ranges, a network of services.
 pub const PREFIX: &str = "prefix";
-/// An address of the core: a cluster IP or an external address of a service.
+/// An address of the core: a cluster IP or an external address of a service, an address
+/// of an ingress.
 pub const ADDRESS: &str = "address";
 
 /// The types of the module so far (design « Types d'objets »): the cluster, root of the
 /// tree `kube`, carries `core.owner` and `core.site`; its nodes and namespaces, and the
-/// workloads and services of its namespaces, inherit them and are anchored in its pod
-/// domain.
+/// workloads, services and ingresses of its namespaces, inherit them and are anchored in
+/// one of its domains (pod, service, external).
 static TYPES: &[ObjectType] = &[
     ObjectType {
         kind: CLUSTER,
@@ -72,6 +75,14 @@ static TYPES: &[ObjectType] = &[
     ObjectType {
         kind: SERVICE,
         collection: "kube-services",
+        parent: Some(NAMESPACE),
+        owner_required: false,
+        carries_site: false,
+        domain_anchored: true,
+    },
+    ObjectType {
+        kind: INGRESS,
+        collection: "ingresses",
         parent: Some(NAMESPACE),
         owner_required: false,
         carries_site: false,
@@ -117,6 +128,11 @@ static MIGRATIONS: &[ModuleMigration] = &[
         name: "service",
         sql: include_str!("../migrations/0004_service.sql"),
     },
+    ModuleMigration {
+        version: 5,
+        name: "ingress",
+        sql: include_str!("../migrations/0005_ingress.sql"),
+    },
 ];
 
 macro_rules! permissions {
@@ -156,6 +172,10 @@ permissions! {
     SERVICE_EDIT = "kube.service.edit", "Créer, modifier ou clore un service Kubernetes dans un changeset et le soumettre.";
     SERVICE_APPLY = "kube.service.apply", "Appliquer ou rejeter le changeset d'un autre qui touche un service Kubernetes.";
     SERVICE_APPROVAL_SELF = "kube.service.approval.self", "Appliquer son propre changeset qui touche un service Kubernetes.";
+    INGRESS_READ = "kube.ingress.read", "Lire les ingress Kubernetes.";
+    INGRESS_EDIT = "kube.ingress.edit", "Créer, modifier ou clore un ingress Kubernetes dans un changeset et le soumettre.";
+    INGRESS_APPLY = "kube.ingress.apply", "Appliquer ou rejeter le changeset d'un autre qui touche un ingress Kubernetes.";
+    INGRESS_APPROVAL_SELF = "kube.ingress.approval.self", "Appliquer son propre changeset qui touche un ingress Kubernetes.";
 }
 
 /// What closing an object does to the objects of the module that cite it (D33; design
@@ -189,6 +209,19 @@ static REFERENCES: &[Reference] = &[
     // service no longer holds it (`kube.sync`).
     Reference {
         from: SERVICE,
+        to: ADDRESS,
+        on_close: OnClose::Owned,
+    },
+    // An ingress lives in its namespace: closed with it.
+    Reference {
+        from: INGRESS,
+        to: NAMESPACE,
+        on_close: OnClose::Cascade,
+    },
+    // The addresses of an ingress (usage `vip`), as those of a service. Its routes name a
+    // service by its name, not by a reference (`kube.ingress.backend_missing` warns).
+    Reference {
+        from: INGRESS,
         to: ADDRESS,
         on_close: OnClose::Owned,
     },

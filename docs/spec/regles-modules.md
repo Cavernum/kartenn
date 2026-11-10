@@ -91,6 +91,7 @@ spécification du module.
 | `kube.namespace.duplicate` | erreur | Deux namespaces vivants d'un cluster ne portent pas le même nom sur des périodes qui se chevauchent. | REQ-019-7 | Kubernetes, Namespaces |
 | `kube.workload.duplicate` | erreur | Deux workloads vivants d'un namespace ne portent pas la même sorte et le même nom sur des périodes qui se chevauchent. | REQ-019-8 | 019/X3 |
 | `kube.service.duplicate` | erreur | Deux services vivants d'un namespace ne portent pas le même nom sur des périodes qui se chevauchent. | REQ-019-9 | Kubernetes, Names |
+| `kube.ingress.duplicate` | erreur | Deux ingress vivants d'un namespace ne portent pas le même nom sur des périodes qui se chevauchent. | REQ-019-10 | Kubernetes, Names |
 | `kube.node.machine_kind` | erreur | Un nœud désigne une machine physical ou virtual, que nul autre nœud vivant ne désigne. | REQ-019-6 | 019/X2 |
 | `kube.name.invalid` | erreur | Un nom d'objet Kubernetes est une étiquette ou un sous-domaine DNS en minuscules. | REQ-019-6, REQ-019-7, REQ-019-8, REQ-019-9, REQ-019-10 | Kubernetes, Names |
 | `kube.label.invalid` | erreur | Une clé de label, sa valeur et un sélecteur suivent la syntaxe de Kubernetes. | REQ-019-7, REQ-019-8, REQ-019-9 | Kubernetes, Labels and Selectors |
