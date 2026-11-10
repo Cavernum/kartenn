@@ -451,11 +451,46 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     la 021-22o).
 - [ ] 4. Workloads, services, ingress : tables, `kube.sync` complet, adresses `vip`
   planifiées, sélection d'un service, références et cascades, arêtes — REQ-019-8 à 11,
-  14 — verify : `workload_recreated_keeps_identity`, `service_vip_refuses_close`,
-  `selection_lists_both_ways`, `ingress_backend_missing_warns`, `execution_chain_edges`
-  - où : design « Données », « Références » ; `kartenn-machines/src/handler.rs`
-    (références et cascades de la tâche 009-8) ; ADR 0026 clauses 11, 12
-  - dépend de : 3
+  14 ; découpée le 2026-11-10 en 4a à 4d (trois types et les arêtes ne tiennent pas dans
+  un contexte), cochée avec la dernière.
+- [ ] 4a. Workloads : table `kube.workload` (design « Données », migration suivante),
+  `upsert` et `close` des workloads dans `kube.sync` par (namespace, sorte, nom),
+  labels suivis du gabarit de pod (X4), compte de service, ports déclarés,
+  `hostNetwork` ; référence workload → namespace (refus ; cascade : clôt) ; un
+  workload recréé sous le même nom garde son identité, l'UID change dans son
+  historique — REQ-019-8 — verify : `workload_recreated_keeps_identity`, la cascade du
+  namespace qui clôt ses workloads
+  - où : `crates/kartenn-kube/src/handler.rs`, `pg.rs`, `module.rs`, migrations de
+    `crates/kartenn-kube/` ; design « Données », « Références » ; tests voisins
+    `crates/kartenn-kube/tests/it/clusters.rs` (nœuds, namespaces de la 3b)
+  - dépend de : 3d
+- [ ] 4b. Services : table `kube.service`, `upsert` et `close` dans `kube.sync`, ports
+  (port, port cible, protocole, `appProtocol`, port de nœud), `external_name` ; IP de
+  cluster dans le domaine des services et adresses externes dans le domaine externe du
+  cluster, adresses `vip` du noyau planifiées par le lot (`CreateAddress`, identifiants
+  rendus par `ModuleHandler::planned`, 3a) ; références service → adresse en
+  `OnClose::Owned` avec `ModuleHandler::targets` (3d, sans quoi la clôture échoue) ;
+  sélection `workload_ids` (référence service → workload en mise à nul) lue dans les
+  deux sens — REQ-019-9, 14 — verify : `service_vip_refuses_close`,
+  `selection_lists_both_ways`, un service clos qui clôt ses adresses `vip`
+  - où : comme la 4a ; `ModuleHandler::targets` de la 3d (`handler.rs`, nœud → réseau)
+    à imiter ; `kartenn-machines/src/handler.rs` (références de la tâche 009-8)
+  - dépend de : 4a
+- [ ] 4c. Ingress : table `kube.ingress` (classe, règles, hôtes TLS, adresses `vip`
+  en `Owned` comme la 4b), `upsert` et `close` dans `kube.sync`, avertissement
+  `kube.ingress.backend_missing` pour une règle qui vise un service absent du
+  namespace (pas de refus) — REQ-019-10, 14 — verify : `ingress_backend_missing_warns`,
+  un ingress clos qui clôt ses adresses
+  - où : comme la 4b ; `rules.rs` (avertissement `range_outside` de la 3c à imiter)
+  - dépend de : 4b
+- [ ] 4d. Arêtes : `kube.runs_on`, `kube.node_range`, `kube.selects`,
+  `kube.service_address`, `kube.routes_to`, `kube.ingress_address` déclarées par le
+  module (ADR 0026 clauses 11, 12) ; chaîne d'exécution d'un workload (nœuds, machines,
+  hyperviseurs à la date) avec les arêtes de la 009 — REQ-019-11 — verify :
+  `execution_chain_edges`, `GET /v1/graph/edges?object=<workload>` qui rend ses services
+  - où : `crates/kartenn-kube/src/module.rs` ; arêtes de `kartenn-machines` à imiter ;
+    ADR 0026 clauses 11, 12
+  - dépend de : 4c
 - [ ] 5. Objets miroirs et absence : règles `kube.object.managed` (auteur compte de
   service membre du groupe du connecteur du cluster), `kube.connector.direct` et
   `kube.cluster.connector_group`, `mark_absent`, `clear_absent`, anomalie
