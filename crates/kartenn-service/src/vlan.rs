@@ -199,6 +199,10 @@ pub struct Completed {
     /// The kind of the anchor the group has before the modification.
     #[serde(default)]
     pub anchor_kind: Option<String>,
+    /// The domain the group is anchored on before the modification, if any: the write
+    /// locks it and names it beside the domain it moves to (ADR 0015, REQ-022-4).
+    #[serde(default)]
+    pub anchor_domain: Option<Uuid>,
 }
 
 /// What the storage reads for the plan of an operation on a VLAN: the domains of the
@@ -463,12 +467,20 @@ fn plan_update_group(
         None => None,
     };
     let owner = owner_of(anchor, given)?;
-    let domain = anchor.and_then(|(kind, id)| (kind == "domain").then_some(id));
+    // The domain the group leaves and the one it moves to are both written.
+    let mut domains: Vec<Uuid> = update
+        .completed
+        .anchor_domain
+        .into_iter()
+        .chain(anchor.and_then(|(kind, id)| (kind == "domain").then_some(id)))
+        .collect();
+    domains.sort_unstable();
+    domains.dedup();
     Ok(ModulePlan {
         kind: group_kind(),
         object: group,
         creates: false,
-        domains: domain.into_iter().collect(),
+        domains,
         keys: Vec::new(),
         core: anchors(group, anchor, owner, &update.completed)?,
         data: json!({ "update": patch }),
@@ -618,6 +630,40 @@ mod tests {
             },
         );
         assert_eq!(other.unwrap_err().rule.id, "core.vlan.group_anchor");
+    }
+
+    #[test]
+    fn a_group_moved_writes_the_domain_it_leaves_and_the_one_it_joins() {
+        let (group, from, to) = (Uuid::now_v7(), Uuid::now_v7(), Uuid::now_v7());
+        let resolve = |r| match r {
+            Ref::Id(id) => Some(id),
+            Ref::Local(_) => None,
+        };
+        let completed = json!({ "owner_property": Uuid::now_v7(), "anchor_kind": "domain",
+                                "anchor_domain": from });
+        let moved = plan(
+            &op(
+                "update_vlan_group",
+                json!({ "id": { "id": group }, "anchor": { "domain": { "id": to } },
+                        "owner": { "id": Uuid::now_v7() }, "completed": completed }),
+            ),
+            Uuid::now_v7(),
+            &resolve,
+        )
+        .unwrap();
+        let mut both = vec![from, to];
+        both.sort_unstable();
+        assert_eq!(moved.domains, both);
+        let renamed = plan(
+            &op(
+                "update_vlan_group",
+                json!({ "id": { "id": group }, "slug": "g", "completed": completed }),
+            ),
+            Uuid::now_v7(),
+            &resolve,
+        )
+        .unwrap();
+        assert_eq!(renamed.domains, vec![from]);
     }
 
     #[test]

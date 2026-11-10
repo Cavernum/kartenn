@@ -685,12 +685,15 @@ impl Handler {
             owner_property: property(conn, "core.owner", at).await?,
             site_property: property(conn, "core.site", at).await?,
             anchor_kind: None,
+            anchor_domain: None,
         };
         let body = &mut operation.body;
         if operation.name == "update_vlan_group"
             && let Some(group) = id_in(body, "id")
+            && let Some((kind, object)) = anchor(conn, group, at).await?
         {
-            completed.anchor_kind = anchor(conn, group, at).await?.map(|(kind, _)| kind);
+            completed.anchor_domain = (kind == "domain").then_some(object);
+            completed.anchor_kind = Some(kind);
         }
         // A group anchored on a domain is owned, unless told otherwise, by the resolved
         // owner of the domain (V3).
