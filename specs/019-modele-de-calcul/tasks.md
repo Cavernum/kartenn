@@ -655,6 +655,39 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `range_outside`) ; ni `/v1/ingresses` ni lecture du port `kartenn_kube::read`
     (tâche 8) ; arêtes `kube.routes_to`, `kube.ingress_address` (4d) ; pas de test d'IP
     IPv6 ni de réordonnancement de routes sans version.
+  - reste (revue) : `kube.ingress.duplicate`, ajoutée au catalogue (famille `*.duplicate`,
+    précédent de `kube.operation.invalid`), prise acte ; aucun test ne déclenche
+    `kube.ingress.duplicate` ni `kube.service.duplicate` ; pas de cas d'un service rouvert
+    sous une route encore vivante (`backend_missing`) ; la doc de `owned_columns`
+    (`handler.rs` vers la ligne 1320) a un retour à la ligne parasite ;
+    `ingresses_routing_to` est appelée aussi pour un service touché par un `unselect`
+    (requête inutile) ; deux routes identiques vers deux services différents passent sans
+    avertissement. Partage d'adresse : tâche 4e ; domaines des services et externes
+    changés sous des objets vivants : tâche 4f.
+- [ ] 4e. Adresses `vip` partagées (arbitrage du 2026-11-10, Q-019-17) : les ingress
+  d'une classe ont l'IP du service LoadBalancer de leur contrôleur, deux services peuvent
+  partager une IP ; un second porteur est aujourd'hui refusé (`core.address.duplicate`)
+  et le lot entier du connecteur avec lui. Quand l'adresse existe déjà dans le domaine
+  et qu'un objet `kube.*` vivant du même cluster la possède, le lot la réutilise
+  (citation, pas de `CreateAddress`) ; elle se clôt avec son dernier porteur (`cited`
+  de la 3d le tient déjà) ; une adresse que ne possède aucun objet `kube.*` du cluster
+  (déclarée à la main, ou d'un autre cluster) n'est jamais adoptée : refus comme
+  aujourd'hui — verify : deux ingress et un service sur la même IP, un seul
+  `CreateAddress` ; l'adresse survit à la clôture des deux premiers et se clôt avec le
+  dernier ; une adresse déclarée à la main refusée
+  - où : `crates/kartenn-kube/src/handler.rs` (`vips`, `prepare`), `pg.rs` (lecture des
+    adresses du domaine et de leurs porteurs), `crates/kartenn-service/src/cascade.rs`
+    (`cited`) ; tests voisins de la 4b et de la 4c dans `tests/it/clusters.rs`
+  - dépend de : 4c
+- [ ] 4f. Domaines des services et des adresses externes figés sous des objets vivants
+  (revue de la 4c ; même règle que Q-019-15 pour le domaine des pods) : `update_cluster`
+  qui change `service_domain_id` ou `external_domain_id` d'un cluster qui a des services
+  ou des ingress vivants est refusé (`kube.operation.invalid`), comme
+  `pg::pod_domain_moved` — verify : le changement refusé avec objets vivants, accepté
+  sans
+  - où : `crates/kartenn-kube/src/handler.rs` (`update_cluster`), `pg.rs`
+    (`pod_domain_moved` à imiter) ; test `pod_domain_change_refused_with_living_objects`
+  - dépend de : 4c
 - [ ] 4d. Arêtes : `kube.runs_on`, `kube.node_range`, `kube.selects`,
   `kube.service_address`, `kube.routes_to`, `kube.ingress_address` déclarées par le
   module (ADR 0026 clauses 11, 12) ; chaîne d'exécution d'un workload (nœuds, machines,

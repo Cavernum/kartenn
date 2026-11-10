@@ -264,6 +264,21 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
 - Décision : **A**, amendement additif de l'ADR 0026 (clause des références)
   (l'utilisateur, 2026-11-10).
 
+### Q-019-17 — Adresses `vip` partagées (revue de la tâche 4c)
+- Constat : les ingress d'une classe reçoivent l'IP du service LoadBalancer de leur
+  contrôleur, et deux services peuvent partager une IP ; une adresse `vip` possédée par
+  un seul objet fait refuser le second porteur (`core.address.duplicate`), et le lot
+  entier du connecteur avec lui.
+- Options : (A) possession partagée : une adresse déjà possédée par un objet `kube.*`
+  vivant du même cluster est réutilisée, elle se clôt avec son dernier porteur ; une
+  adresse sans porteur `kube.*` du cluster n'est jamais adoptée ; (B) réutiliser sans
+  posséder (l'adresse peut rester sans porteur) ; (C) adresses d'ingress hors du noyau,
+  contraire à X6 et REQ-019-14.
+- Recommandation : **A**.
+- Décision : **A** (l'utilisateur, 2026-11-10) ; tâche 4e. Le changement des domaines
+  des services et des adresses externes d'un cluster peuplé suit la règle de Q-019-15
+  (refus, tâche 4f ; Claude, 2026-11-11).
+
 ## Synthèse
 - X1 périmètre : hôte physique, hyperviseur, VM, cluster d'hyperviseurs (009) ; cluster,
   nœud, namespace, workload, service, ingress Kubernetes ; pod en observation seulement ;
