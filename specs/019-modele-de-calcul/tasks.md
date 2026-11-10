@@ -381,7 +381,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     droits `core.prefix.edit` sur le domaine des pods sont à rattacher au rôle
     `kube_connector` (X10, tâche 11) sans quoi le connecteur réel est refusé. Le constat
     important (cascade) est la tâche 3d.
-- [ ] 3d. Réseaux des nœuds clos avec la cascade de leur cluster (constat important de la
+- [x] 3d. Réseaux des nœuds clos avec la cascade de leur cluster (constat important de la
   revue de la 3c) — **arbitrée le 2026-11-10 : option A** (Q-019-16 ; contrat de module,
   ADR 0026) : le design
   « Références » (« nœud | réseau de plage | refus ; cascade : clôt le réseau avec le
@@ -407,6 +407,34 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `crates/kartenn-kube/src/module.rs` (référence `node` → `prefix`),
     `docs/adr/0026-contrat-de-module.md`
   - dépend de : 3c
+  - fait (2026-11-10) : `kartenn-service` — `module.rs` (`OnClose::Owned`,
+    `ModuleHandler::targets`, par défaut aucune cible) ; `cascade.rs` (`expand` suivi de
+    `close_owned` : après chaque `Planned::Close`, cascade ou non, la clôture des cibles
+    possédées, récursive, sauf celles déjà closes par le changeset ou citées par un autre
+    objet vivant, fonction `cited`) ; module de test `dummy` (référence
+    `dummy.thing` → `address` possédée, colonne `address_ref`) et test
+    `owned_policy_closes_the_target_with_its_source` (`tests/it/module_pipeline.rs`).
+    `kartenn-kube` — `module.rs` (référence `node` → `prefix` en `Owned`) ; `handler.rs`
+    (`targets` par `pg::node_ranges` ; `close` d'un nœud par `kube.sync` ne planifie plus
+    la clôture de ses réseaux, le noyau s'en charge) ; test
+    `cluster_cascade_closes_node_networks` (`tests/it/clusters.rs`). ADR 0026,
+    amendement 9.
+  - choix : une variante `OnClose::Owned` plutôt qu'un champ `owned: bool` (refus quand
+    la cible se clôt seule, et clôture avec la source : les besoins connus, nœud → réseau
+    et service → `vip`, sont tous deux « refus » ; aucune des 25 déclarations de
+    référence existantes à retoucher) ; une lecture `ModuleHandler::targets`, pendant de
+    `referrers`, faute de quoi le noyau ne sait pas ce que cite la source (le module
+    déclare, le noyau planifie : pas de crochet impératif, l'option B) ; la cible close
+    sans cascade (ses dépendants du noyau la font refuser) ; « citée par un autre objet
+    vivant » = un référent de module ou une affectation d'une propriété de référence
+    hors du changeset ; clôtures ajoutées listées dans `cascaded` (REQ-004-26), même
+    sans `cascade` demandée ; la double clôture évitée en retirant celle du module (une
+    seule voie), le noyau sautant de toute façon une cible déjà close par le changeset ;
+    `pipeline.rs` non touché.
+  - reste : l'annulation (undo) d'un changeset qui a clos un nœud et ses réseaux n'est
+    pas testée pour les clôtures ajoutées ; le changement d'une plage par `kube.sync`
+    clôt toujours son réseau par le module (la plage quitte le nœud, la source ne se clôt
+    pas) ; les adresses `vip` (tâche 4) sont à déclarer `Owned`.
 - [ ] 4. Workloads, services, ingress : tables, `kube.sync` complet, adresses `vip`
   planifiées, sélection d'un service, références et cascades, arêtes — REQ-019-8 à 11,
   14 — verify : `workload_recreated_keeps_identity`, `service_vip_refuses_close`,

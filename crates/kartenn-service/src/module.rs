@@ -80,7 +80,8 @@ pub struct ObjectType {
     pub domain_anchored: bool,
 }
 
-/// What closing the target of a reference does to its sources (D33, ADR 0026 clause 9).
+/// What closing the target of a reference does to its sources (D33, ADR 0026 clause 12),
+/// and, for an owned target, what closing a source does to the target (amendment 9).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OnClose {
     /// Refused while a source lives.
@@ -89,6 +90,11 @@ pub enum OnClose {
     Cascade,
     /// Clears the reference in the sources.
     Nullify,
+    /// The target is owned by its source: refused while a source lives, as
+    /// [`OnClose::Refuse`], and closed by the core with its source, in a cascade or not,
+    /// unless another living object still cites it. The handler of the source lists what
+    /// it owns by [`ModuleHandler::targets`].
+    Owned,
 }
 
 /// A reference from objects of a module to objects of the core or of a module.
@@ -532,6 +538,20 @@ pub trait ModuleHandler: Send + Sync + fmt::Debug {
         period: Option<Period>,
     ) -> BoxFuture<'a, Result<Vec<Uuid>, StoreError>> {
         let _ = (tx, reference, target, period);
+        Box::pin(std::future::ready(Ok(Vec::new())))
+    }
+
+    /// The living objects `source` cites by `reference` (one of the module's
+    /// [`Module::references`] under [`OnClose::Owned`]) at the start of `period`, on the
+    /// state of the transaction: what the core closes with `source`. None by default.
+    fn targets<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        reference: &'a Reference,
+        source: Uuid,
+        period: Option<Period>,
+    ) -> BoxFuture<'a, Result<Vec<Uuid>, StoreError>> {
+        let _ = (tx, reference, source, period);
         Box::pin(std::future::ready(Ok(Vec::new())))
     }
 

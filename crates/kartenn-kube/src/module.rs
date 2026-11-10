@@ -137,12 +137,13 @@ static REFERENCES: &[Reference] = &[
         to: MACHINE,
         on_close: OnClose::Nullify,
     },
-    // The networks of the pod ranges of a node: kept while it cites them; the connector
-    // closes them with the node, or once the range leaves it (`kube.sync`).
+    // The networks of the pod ranges of a node: kept while it cites them, closed by the
+    // core with the node, in the cascade of its cluster or not; the connector closes one
+    // once its range leaves the node (`kube.sync`).
     Reference {
         from: NODE,
         to: PREFIX,
-        on_close: OnClose::Refuse,
+        on_close: OnClose::Owned,
     },
     // The domains, containers and networks a cluster designates: kept while it lives.
     Reference {

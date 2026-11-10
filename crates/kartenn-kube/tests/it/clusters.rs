@@ -769,6 +769,56 @@ async fn node_range_created_and_closed(pool: PgPool) {
     .await;
 }
 
+/// REQ-019-13, design « Références » (task 019-3d): a cluster closed in a cascade closes
+/// its nodes, and each node the networks of its pod ranges (`OnClose::Owned`); the cluster
+/// declared again on the same domain and containers, `kube.sync` takes the ranges back.
+#[kartenn_testing::pg_test]
+async fn cluster_cascade_closes_node_networks(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.new_cluster("prod").await;
+    let node = |cluster: Uuid, name: &str, cidr: &str| {
+        sync(
+            "upsert",
+            "node",
+            cluster,
+            name,
+            json!({"pod_cidrs": [cidr]}),
+        )
+    };
+    env.applied(vec![
+        node(prod, "worker-1", "198.51.100.0/26"),
+        node(prod, "worker-2", "198.51.100.64/26"),
+    ])
+    .await;
+    assert_eq!(env.pod_networks().await.len(), 2);
+    env.applied(vec![Operation::Close {
+        kind: ObjectKind::from_name("kube.cluster").unwrap(),
+        id: Ref::Id(prod),
+        expected: None,
+        cascade: true,
+    }])
+    .await;
+    assert!(env.named("kube.node", prod, "worker-1").await.is_empty());
+    assert!(env.named("kube.node", prod, "worker-2").await.is_empty());
+    assert!(env.pod_networks().await.is_empty());
+    // Declared again, the cluster takes its ranges back: no duplicate network.
+    let again = env.new_cluster("prod").await;
+    assert_ne!(again, prod);
+    env.applied(vec![
+        node(again, "worker-1", "198.51.100.0/26"),
+        node(again, "worker-2", "198.51.100.64/26"),
+    ])
+    .await;
+    let networks: Vec<String> = env
+        .pod_networks()
+        .await
+        .into_iter()
+        .map(|(_, prefix)| prefix)
+        .collect();
+    assert_eq!(networks, ["198.51.100.0/26", "198.51.100.64/26"]);
+    assert_eq!(env.pod_networks_ever().await, 4);
+}
+
 /// REQ-019-13: a pod range outside every pod container of the cluster gets no network and
 /// warns, an anomaly on the node until the range is gone or inside.
 #[kartenn_testing::pg_test]

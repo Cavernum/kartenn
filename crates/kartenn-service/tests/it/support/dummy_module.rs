@@ -3,7 +3,8 @@
 //! lock keys, and `dummy.update_thing`, that relabels a thing; a thing labelled
 //! `forbidden` is refused by the module's own rule on the final state. Its rows end and
 //! come back with the generic `close` and `restore`. A thing references its prefix (closed
-//! with it in a cascade) and a domain (cleared in a cascade) (task 008-7).
+//! with it in a cascade) and a domain (cleared in a cascade) (task 008-7), and may own an
+//! address, closed with it by the core (task 019-3d).
 
 use std::sync::Arc;
 
@@ -64,7 +65,7 @@ static MIGRATIONS: &[ModuleMigration] = &[
     ModuleMigration {
         version: 1,
         name: "thing",
-        sql: "CREATE TABLE thing (id uuid NOT NULL, label text NOT NULL, prefix_id uuid, domain_ref uuid, \
+        sql: "CREATE TABLE thing (id uuid NOT NULL, label text NOT NULL, prefix_id uuid, domain_ref uuid, address_ref uuid, \
               valid_period tstzrange NOT NULL, sys_start timestamptz NOT NULL DEFAULT now(), \
               changeset_id uuid NOT NULL, PRIMARY KEY (id, valid_period WITHOUT OVERLAPS), \
               UNIQUE (label, valid_period WITHOUT OVERLAPS)); \
@@ -82,7 +83,8 @@ static MIGRATIONS: &[ModuleMigration] = &[
 /// The versioned table of the things.
 const TABLE: &str = "dummy.thing";
 
-/// A thing closes with its prefix; its domain is cleared when the domain closes.
+/// A thing closes with its prefix; its domain is cleared when the domain closes; the
+/// address it owns closes with it.
 static REFERENCES: &[Reference] = &[
     Reference {
         from: "dummy.thing",
@@ -93,6 +95,11 @@ static REFERENCES: &[Reference] = &[
         from: "dummy.thing",
         to: "domain",
         on_close: OnClose::Nullify,
+    },
+    Reference {
+        from: "dummy.thing",
+        to: "address",
+        on_close: OnClose::Owned,
     },
 ];
 
@@ -180,6 +187,9 @@ struct CreateThing {
     /// A domain it references.
     #[serde(default)]
     domain_ref: Option<Ref>,
+    /// An address it owns.
+    #[serde(default)]
+    address_ref: Option<Ref>,
     /// A domain the thing creates along, by a core operation.
     #[serde(default)]
     domain: Option<String>,
@@ -232,6 +242,10 @@ impl ModuleHandler for Handler {
             Some(r) => Some(resolve(r).ok_or_else(|| invalid("unknown domain".into()))?),
             None => None,
         };
+        let address_ref = match thing.address_ref {
+            Some(r) => Some(resolve(r).ok_or_else(|| invalid("unknown address".into()))?),
+            None => None,
+        };
         let core = thing
             .domain
             .into_iter()
@@ -244,7 +258,12 @@ impl ModuleHandler for Handler {
             domains: Vec::new(),
             keys: thing.keys,
             core,
-            data: serde_json::json!({"label": thing.label, "prefix": prefix, "domain_ref": domain_ref}),
+            data: serde_json::json!({
+                "label": thing.label,
+                "prefix": prefix,
+                "domain_ref": domain_ref,
+                "address_ref": address_ref,
+            }),
         })
     }
 
@@ -292,8 +311,9 @@ impl ModuleHandler for Handler {
                     plan.data[field].as_str().and_then(|p| p.parse().ok())
                 };
                 sqlx::query(
-                    "INSERT INTO dummy.thing (id, label, prefix_id, domain_ref, valid_period, changeset_id)
-                     VALUES ($1, $2, $3, $7, tstzrange(coalesce($4::timestamptz, now()), $5), $6)",
+                    "INSERT INTO dummy.thing
+                       (id, label, prefix_id, domain_ref, address_ref, valid_period, changeset_id)
+                     VALUES ($1, $2, $3, $7, $8, tstzrange(coalesce($4::timestamptz, now()), $5), $6)",
                 )
                 .bind(plan.object)
                 .bind(label)
@@ -302,6 +322,7 @@ impl ModuleHandler for Handler {
                 .bind(b)
                 .bind(changeset)
                 .bind(uuid("domain_ref"))
+                .bind(uuid("address_ref"))
                 .execute(&mut *connection(tx)?)
                 .await
                 .map_err(|e| StoreError(e.to_string()))?;
@@ -421,6 +442,10 @@ impl ModuleHandler for Handler {
                     "SELECT DISTINCT id FROM dummy.thing WHERE prefix_id = $1
                        AND valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL)"
                 }
+                "address" => {
+                    "SELECT DISTINCT id FROM dummy.thing WHERE address_ref = $1
+                       AND valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL)"
+                }
                 _ => {
                     "SELECT DISTINCT id FROM dummy.thing WHERE domain_ref = $1
                        AND valid_period && tstzrange(coalesce($2::timestamptz, now()), NULL)"
@@ -432,6 +457,29 @@ impl ModuleHandler for Handler {
                 .fetch_all(connection(tx)?)
                 .await
                 .map_err(|e| StoreError(e.to_string()))
+        })
+    }
+
+    fn targets<'a>(
+        &'a self,
+        tx: &'a mut dyn ModuleTx,
+        reference: &'a Reference,
+        source: Uuid,
+        period: Option<Period>,
+    ) -> BoxFuture<'a, Result<Vec<Uuid>, StoreError>> {
+        Box::pin(async move {
+            if reference.to != "address" {
+                return Ok(Vec::new());
+            }
+            sqlx::query_scalar(
+                "SELECT address_ref FROM dummy.thing WHERE id = $1 AND address_ref IS NOT NULL
+                   AND valid_period @> coalesce($2::timestamptz, now())",
+            )
+            .bind(source)
+            .bind(bounds(period).0)
+            .fetch_all(connection(tx)?)
+            .await
+            .map_err(|e| StoreError(e.to_string()))
         })
     }
 
