@@ -24,6 +24,8 @@ macro_rules! rules {
 }
 
 rules! {
+    OPERATION_INVALID = "kube.operation.invalid", Error, ["REQ-019-5", "REQ-019-6", "REQ-019-7"], "ADR 0026 clause 6",
+        "Une opération du module porte les champs qu'il attend, avec des valeurs admises et des objets qui existent.";
     OBJECT_MANAGED = "kube.object.managed", Error, ["REQ-019-12"], "019/X5",
         "Les champs suivis d'un objet Kubernetes ne s'écrivent que par un compte de service membre du groupe du connecteur de son cluster.";
     CONNECTOR_DIRECT = "kube.connector.direct", Error, ["REQ-019-30"], "019/X10, ADR 0044",
@@ -93,6 +95,7 @@ mod tests {
         ] {
             assert!(seen.contains(id), "{id} missing");
         }
-        assert_eq!(KUBE_RULES.len(), 18);
+        // The 18 of the design, and the malformed operation (task 019-3b).
+        assert_eq!(KUBE_RULES.len(), 19);
     }
 }

@@ -15,6 +15,8 @@ fn compiled() -> Vec<Arc<dyn Module>> {
         Arc::new(kartenn_policy::Policy),
         #[cfg(feature = "flow")]
         Arc::new(kartenn_flow::Flows),
+        #[cfg(feature = "kube")]
+        Arc::new(kartenn_kube::Kube),
     ];
     modules
 }

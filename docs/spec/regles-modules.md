@@ -77,3 +77,27 @@ spécification du module.
 | `flow.waiver.invalid` | erreur | Une dérogation a un motif et un risque accepté, une fin au plus tôt de celle du flux et du plafond, et un auteur autre que le demandeur. | REQ-011-9 | 011/F6, Q8 |
 | `flow.separation` | erreur | L'instructeur d'une demande n'en est pas le demandeur. | REQ-011-22 | 011/F17, C1 |
 | `flow.referenced` | erreur | Un objet extrémité d'un flux actif ou à venir ne se clôt pas sans cascade explicite. | REQ-011-3 | 011/F3, D33 |
+
+## `kube`
+
+| Identifiant | Sévérité | Règle | Exigences | Source |
+|---|---|---|---|---|
+| `kube.operation.invalid` | erreur | Une opération du module porte les champs qu'il attend, avec des valeurs admises et des objets qui existent. | REQ-019-5, REQ-019-6, REQ-019-7 | ADR 0026 clause 6 |
+| `kube.object.managed` | erreur | Les champs suivis d'un objet Kubernetes ne s'écrivent que par un compte de service membre du groupe du connecteur de son cluster. | REQ-019-12 | 019/X5 |
+| `kube.connector.direct` | erreur | Un membre d'un groupe de connecteur n'écrit que par l'opération kube.sync. | REQ-019-30 | 019/X10, ADR 0044 |
+| `kube.cluster.range_domain` | erreur | Une plage d'un cluster est dans le domaine qu'il désigne pour elle. | REQ-019-5 | 019/X6 |
+| `kube.cluster.connector_group` | erreur | Le groupe du connecteur d'un cluster existe et vit sur toute la période. | REQ-019-5 | 019/X5, 025/G1 |
+| `kube.node.duplicate` | erreur | Deux nœuds vivants d'un cluster ne portent pas le même nom sur des périodes qui se chevauchent. | REQ-019-6 | Kubernetes, Names |
+| `kube.namespace.duplicate` | erreur | Deux namespaces vivants d'un cluster ne portent pas le même nom sur des périodes qui se chevauchent. | REQ-019-7 | Kubernetes, Namespaces |
+| `kube.workload.duplicate` | erreur | Deux workloads vivants d'un namespace ne portent pas la même sorte et le même nom sur des périodes qui se chevauchent. | REQ-019-8 | 019/X3 |
+| `kube.service.duplicate` | erreur | Deux services vivants d'un namespace ne portent pas le même nom sur des périodes qui se chevauchent. | REQ-019-9 | Kubernetes, Names |
+| `kube.node.machine_kind` | erreur | Un nœud désigne une machine physical ou virtual, que nul autre nœud vivant ne désigne. | REQ-019-6 | 019/X2 |
+| `kube.name.invalid` | erreur | Un nom d'objet Kubernetes est une étiquette ou un sous-domaine DNS en minuscules. | REQ-019-6, REQ-019-7, REQ-019-8, REQ-019-9, REQ-019-10 | Kubernetes, Names |
+| `kube.label.invalid` | erreur | Une clé de label, sa valeur et un sélecteur suivent la syntaxe de Kubernetes. | REQ-019-7, REQ-019-8, REQ-019-9 | Kubernetes, Labels and Selectors |
+| `kube.node.range_outside` | avertissement | La plage de pods d'un nœud est dans un conteneur de plages de pods de son cluster. | REQ-019-13 | 019/X6 |
+| `kube.node.unmatched` | avertissement | Un nœud désigne une machine trouvée sans ambiguïté. | REQ-019-23 | 019/X9 |
+| `kube.object.absent` | avertissement | Un objet Kubernetes cité par un dépendant est présent dans son cluster. | REQ-019-22 | 019/X9 |
+| `kube.ingress.backend_missing` | avertissement | Une règle d'ingress vise un service présent dans son namespace. | REQ-019-10 | 019 design, « Règles » |
+| `kube.label.not_admitted` | avertissement | La valeur d'axe d'un label est admise dans le namespace du workload qui le porte. | REQ-019-34 | 019/X11 |
+| `kube.machine.looks_like_pod` | avertissement | Une machine container hébergée par la machine d'un nœud ne porte pas le nom d'un pod observé. | REQ-019-3 | 019/X2 |
+| `kube.sync.stale` | avertissement | Un cluster reçoit un lot ou un signet de son connecteur au moins toutes les 10 minutes. | REQ-019-18, REQ-019-20 | 019/X8 |

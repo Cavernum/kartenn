@@ -131,6 +131,7 @@ const TELEMETRY: &[&str] = &[
     "crates/kartenn-bench/src/telemetry.rs",
     "crates/kartenn-auth/",
     "crates/kartenn-flow/",
+    "crates/kartenn-kube/",
     "crates/kartenn-machines/",
     "crates/kartenn-policy/",
     "crates/kartenn-rest/",

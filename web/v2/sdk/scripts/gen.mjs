@@ -188,12 +188,18 @@ function nonNull(spec, schema) {
 
 /**
  * The qualified type of a kind the contract names (`TargetKind`): `entity` → `core.entity`,
- * `machine` → `machines.machine`; `null` for a name that is no kind (`id`, `local`).
+ * `machine` → `machines.machine`; `null` for a name that is no kind (`id`, `local`). A name
+ * two modules give a kind (`cluster`: `machines.cluster`, `kube.cluster`) is that of the
+ * module of `type`, the type whose parent it names.
  */
-function kindOf(spec, name) {
+function kindOf(spec, name, type) {
   const kinds = spec.components.schemas.TargetKind.enum;
-  const found = kinds.filter((kind) => kind === name || kind.endsWith(`.${name}`));
-  if (found.length > 1) throw new Error(`parents: kind ${name} is ambiguous in TargetKind`);
+  const matching = kinds.filter((kind) => kind === name || kind.endsWith(`.${name}`));
+  const own = `${type.split(".")[0]}.${name}`;
+  const found = matching.length > 1 ? matching.filter((kind) => kind === own) : matching;
+  if (matching.length > 1 && found.length !== 1) {
+    throw new Error(`parents: kind ${name} is ambiguous in TargetKind`);
+  }
   if (found.length === 0) return null;
   return found[0].includes(".") ? found[0] : `core.${found[0]}`;
 }
@@ -218,7 +224,7 @@ function parentKinds(spec, write, { type, member, list }) {
   const variants = (schema.oneOf ?? []).map((v) => resolved(spec, v));
   const named = variants.map((v) =>
     v.required?.length === 1 && Object.keys(v.properties ?? {}).length === 1
-      ? kindOf(spec, v.required[0])
+      ? kindOf(spec, v.required[0], type)
       : null,
   );
   if (named.length > 0 && named.every((kind) => kind !== null)) return named.sort();
