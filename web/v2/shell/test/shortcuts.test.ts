@@ -378,6 +378,15 @@ describe("help", () => {
     expect(ids).toContain("shell.go.changesets");
     expect(ids).not.toContain("shell.go.admin");
   });
+
+  it("lists `[` and `]` only in a frame with its sidebar and panel (task 16i)", () => {
+    const rows = (framed: boolean) =>
+      helpRows(shellShortcuts({ ...actions(), framed: () => framed }), true, t).map((r) => r.id);
+    expect(rows(true)).toEqual(expect.arrayContaining(["shell.sidebar", "shell.panel"]));
+    expect(rows(false)).not.toContain("shell.sidebar");
+    expect(rows(false)).not.toContain("shell.panel");
+    expect(rows(false)).toContain("shell.help");
+  });
 });
 
 describe("actions of the view", () => {

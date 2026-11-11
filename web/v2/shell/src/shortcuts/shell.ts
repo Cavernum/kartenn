@@ -60,12 +60,18 @@ export interface ShellActions {
   edit: () => boolean;
   /** `false` where it does nothing (the narrow class keeps a rail). */
   sidebar: () => boolean | void;
-  panel: () => void;
+  panel: () => boolean | void;
+  /**
+   * Whether the frame has its sidebar and panel: out of a session it has neither (task
+   * 16i), and `[`, `]` are then neither listed nor heard. Absent: always.
+   */
+  framed?: () => boolean;
 }
 
 /** The shortcuts of the shell, in the order of the help. */
 export function shellShortcuts(actions: ShellActions): ShellShortcut[] {
   const { t } = actions;
+  const framed = () => actions.framed?.() !== false;
   const navigation = NAVIGATION.map(({ letter, entry }): ShellShortcut => ({
     id: `shell.go.${entry}`,
     keys: [["g"], [letter]],
@@ -156,6 +162,7 @@ export function shellShortcuts(actions: ShellActions): ShellShortcut[] {
       label: () => t("shortcuts.sidebar"),
       where: "outsideField",
       scope: "global",
+      shown: framed,
       run: actions.sidebar,
     },
     {
@@ -164,6 +171,7 @@ export function shellShortcuts(actions: ShellActions): ShellShortcut[] {
       label: () => t("shortcuts.panel"),
       where: "outsideField",
       scope: "global",
+      shown: framed,
       run: actions.panel,
     },
   ];

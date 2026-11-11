@@ -1,11 +1,13 @@
 // @vitest-environment happy-dom
-import { ApiProblem, reads } from "@kartenn/sdk";
-import { resetContext } from "@kartenn/sdk/host";
+import { ApiProblem, queryClient, reads } from "@kartenn/sdk";
+import { resetContext, setFetch } from "@kartenn/sdk/host";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createMemoryHistory, createRouter, type RouteRecordRaw } from "vue-router";
+import { createApp, h, nextTick, type App } from "vue";
+import { createMemoryHistory, createRouter, RouterView, type RouteRecordRaw } from "vue-router";
 import { crumbsOf } from "../src/frame/breadcrumb.ts";
 import { frameRoutes } from "../src/frame/routes.ts";
 import { installSession } from "../src/frame/session.ts";
+import ShellFrame from "../src/frame/ShellFrame.vue";
 import {
   forgetSettings,
   keepPanel,
@@ -17,7 +19,8 @@ import {
 } from "../src/frame/settings.ts";
 import { CORE_SPACES, locate, sidebarGroups, spaceEntry } from "../src/frame/spaces.ts";
 import { installPrefetch, queriesOf } from "../src/prefetch/intent.ts";
-import { Rights, type Me } from "../src/rights/index.ts";
+import { createShellI18n } from "../src/i18n/index.ts";
+import { loadSession, Rights, type Me } from "../src/rights/index.ts";
 import {
   checkPeriod,
   goToPeriod,
@@ -309,5 +312,89 @@ describe("settings of the user", () => {
     expect(readPanel()).toEqual({ open: true, tab: "draft", width: 480 });
     localStorage.setItem(PANEL_KEY, "{");
     expect(readPanel().open).toBe(false);
+  });
+});
+
+// Out of a session (task 16i), the banner and the surface alone: no sidebar (nor its
+// drawer, nor its button), date pill, band, draft counter or right panel mounted.
+describe("the frame out of a session", () => {
+  let app: App | undefined;
+  const ME = {
+    identity: "0b5e3c1a-0000-4000-8000-000000000009",
+    kind: "human",
+    bindings: [],
+    global_permissions: [],
+  } as unknown as Me;
+  /** The parts signed in only; the right panel open, or its rail closed. */
+  const PARTS = [
+    ".k-sidebar",
+    ".k-date-pill",
+    ".k-time-band",
+    ".k-draft-counter",
+    ".k-side-panel, .k-side-panel-rail",
+  ];
+
+  beforeEach(() => {
+    setFetch(
+      (async () =>
+        new Response(JSON.stringify({ items: [], links: {} }), {
+          headers: { "Content-Type": "application/json" },
+        })) as typeof fetch,
+    );
+  });
+  afterEach(async () => {
+    app?.unmount();
+    app = undefined;
+    document.body.replaceChildren();
+    queryClient.clear();
+    await loadSession(async () => null);
+    resetContext();
+  });
+
+  /** The frame mounted at `path`, its pages empty. */
+  async function frame(path: string): Promise<HTMLElement> {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        {
+          path: "/",
+          component: ShellFrame,
+          children: [
+            { path: "", component: Empty },
+            { path: "login", component: Empty },
+            { path: "about", component: Empty },
+          ],
+        },
+      ],
+    });
+    await router.push(path);
+    // In the document: the layers of the frame are its own element, found by id.
+    const root = document.body.appendChild(document.createElement("div"));
+    app = createApp({ render: () => h(RouterView) });
+    app.use(createShellI18n("fr")).use(router);
+    app.mount(root);
+    await router.isReady();
+    await nextTick();
+    return root;
+  }
+
+  for (const path of ["/login", "/about"]) {
+    it(`mounts at ${path} the banner, its user menu and the surface alone`, async () => {
+      const root = await frame(path);
+      expect(root.querySelector("header.k-frame__head")).not.toBeNull();
+      expect(root.querySelector(".k-frame__bar-end [aria-haspopup='menu']")).not.toBeNull();
+      expect(root.querySelector("main#k-surface")).not.toBeNull();
+      for (const part of [...PARTS, ".k-frame__nav", ".k-drawer"]) {
+        expect(root.querySelector(part), part).toBeNull();
+      }
+      expect(root.querySelector(".k-frame")?.getAttribute("data-sidebar")).toBe("none");
+    });
+  }
+
+  it("mounts the whole frame once signed in", async () => {
+    await loadSession(async (url) => (url === "/v1/me" ? ME : null));
+    const root = await frame("/about");
+    for (const part of PARTS) expect(root.querySelector(part), part).not.toBeNull();
+    expect(root.querySelector(".k-frame")?.getAttribute("data-sidebar")).toBe("expanded");
   });
 });

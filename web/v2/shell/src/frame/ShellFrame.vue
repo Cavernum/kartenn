@@ -24,6 +24,10 @@
 // login and logout in the user menu; « Session expirée » on a 401 in use, and the end of
 // the session said before it comes, in a toast.
 //
+// Out of a session (the login page, « À propos »; task 16i), a reduced frame: the banner
+// (breadcrumb, user menu) and the surface alone, no sidebar, date pill, band, draft counter
+// nor right panel, and none of their commands or shortcuts.
+//
 // The edit panel of a kind (task 12) in the Détail tab, when a view asks for it.
 //
 // The draft (task 14): the active draft of the tab in the Brouillon tab, its operations and
@@ -126,6 +130,8 @@ const time = useTime();
 
 /** The zone the dates are shown and typed in: the browser's (design 007 « Temps »). */
 const ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
+/** Signed in: the whole frame; out of a session, the banner and the surface alone. */
+const signedIn = computed(() => session.value.me !== null);
 const PANEL = "k-panel";
 
 // The sidebar: the spaces the rights show, the views of the loaded plugins under the space
@@ -505,7 +511,8 @@ const commands = computed<PaletteEntry[]>(() => {
   if (drafting.value) {
     list.push({ id: "cmd:draft", label: t("palette.openDraft"), icon: "draft", run: openDraft });
   }
-  if (!atPresent.value) {
+  // Out of a session, no band, sidebar nor panel to act on.
+  if (signedIn.value && !atPresent.value) {
     list.push({
       id: "cmd:present",
       label: t("palette.present"),
@@ -513,7 +520,7 @@ const commands = computed<PaletteEntry[]>(() => {
       run: () => void backToPresent(),
     });
   }
-  if (width.value !== "narrow") {
+  if (signedIn.value && width.value !== "narrow") {
     const sidebarLabel =
       width.value === "compact" || collapsed.value
         ? "palette.expandSidebar"
@@ -526,13 +533,15 @@ const commands = computed<PaletteEntry[]>(() => {
       run: toggleSidebar,
     });
   }
-  list.push({
-    id: "cmd:panel",
-    label: t(panelOpen.value ? "palette.closePanel" : "palette.openPanel"),
-    icon: "move-horizontal",
-    ...hint(["]"]),
-    run: togglePanel,
-  });
+  if (signedIn.value) {
+    list.push({
+      id: "cmd:panel",
+      label: t(panelOpen.value ? "palette.closePanel" : "palette.openPanel"),
+      icon: "move-horizontal",
+      ...hint(["]"]),
+      run: togglePanel,
+    });
+  }
   list.push({
     id: "cmd:help",
     label: t("palette.help"),
@@ -659,12 +668,18 @@ function openDraft(): void {
   panelOpen.value = true;
   panelTab.value = "draft";
 }
-function togglePanel(): void {
+/** `]`: the panel opened or closed; nothing out of a session, which has none. */
+function togglePanel(): boolean {
+  if (!signedIn.value) return false;
   panelOpen.value = !panelOpen.value;
+  return true;
 }
-/** `[`: the sidebar collapsed or expanded; its drawer in the compact class; a rail when narrow. */
+/**
+ * `[`: the sidebar collapsed or expanded; its drawer in the compact class; a rail when
+ * narrow; nothing out of a session, which has none.
+ */
 function toggleSidebar(): boolean {
-  if (width.value === "narrow") return false;
+  if (!signedIn.value || width.value === "narrow") return false;
   if (width.value === "compact") navOpen.value = !navOpen.value;
   else collapsed.value = !collapsed.value;
   return true;
@@ -689,6 +704,7 @@ for (const shortcut of shellShortcuts({
   edit: () => playView("edit"),
   sidebar: toggleSidebar,
   panel: togglePanel,
+  framed: () => signedIn.value,
 })) {
   registry.register(shortcut);
 }
@@ -766,13 +782,15 @@ onBeforeUnmount(
 <template>
   <div
     class="k-frame"
-    :data-sidebar="collapsed ? 'collapsed' : 'expanded'"
+    :data-sidebar="signedIn ? (collapsed ? 'collapsed' : 'expanded') : 'none'"
     :data-width="width"
     data-k-modal-scope
   >
     <!-- First stop of the page: past the sidebar and the bar to the surface (WCAG 2.4.1). -->
     <a class="k-frame__skip" href="#k-surface" @click.prevent="toSurface">{{ t("app.skip") }}</a>
+    <!-- Out of a session: neither sidebar, nor date, nor draft, nor panel (task 16i). -->
     <SidebarNav
+      v-if="signedIn"
       v-model:collapsed="collapsed"
       :brand="t('app.name')"
       :groups="groups"
@@ -782,7 +800,7 @@ onBeforeUnmount(
       @palette="openPalette"
     />
     <Drawer
-      v-if="width === 'compact'"
+      v-if="signedIn && width === 'compact'"
       v-model:open="navOpen"
       :title="uiT('sidebar')"
       side="start"
@@ -801,6 +819,7 @@ onBeforeUnmount(
       <header class="k-frame__head">
         <div class="k-frame__bar">
           <IconButton
+            v-if="signedIn"
             class="k-frame__nav"
             icon="menu"
             variant="ghost"
@@ -814,6 +833,7 @@ onBeforeUnmount(
           <Breadcrumb :items="crumbs" class="k-frame__crumbs" />
           <div class="k-frame__bar-end">
             <DatePill
+              v-if="signedIn"
               ref="pill"
               :valid-at="time.validAt"
               :as-of="time.asOf"
@@ -823,6 +843,7 @@ onBeforeUnmount(
               @apply="applyPeriod"
             />
             <DraftCounter
+              v-if="signedIn"
               :count="draftCount"
               :expanded="panelOpen"
               :controls="panelOpen ? PANEL : undefined"
@@ -842,6 +863,7 @@ onBeforeUnmount(
           </div>
         </div>
         <TimeBand
+          v-if="signedIn"
           :valid-at="time.validAt"
           :as-of="time.asOf"
           :time-zone="ZONE"
@@ -858,6 +880,7 @@ onBeforeUnmount(
           <RouterView />
         </main>
         <SidePanel
+          v-if="signedIn"
           :id="PANEL"
           v-model:open="panelOpen"
           v-model:tab="panelTab"
@@ -924,6 +947,11 @@ onBeforeUnmount(
     overflow: hidden;
     color: var(--k-text);
     background-color: var(--k-bg);
+  }
+
+  /* Out of a session, no sidebar: the column takes the window. */
+  .k-frame[data-sidebar="none"] {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   /* The skip link: out of the grid, shown over the corner while it has the focus. */
@@ -1087,6 +1115,11 @@ onBeforeUnmount(
     .k-frame__bar {
       gap: var(--k-space-1);
       padding-inline: var(--k-space-1);
+    }
+
+    /* Out of a session, no button of the drawer: the path starts at the edge of the surface. */
+    .k-frame[data-sidebar="none"] .k-frame__bar {
+      padding-inline: var(--k-space-2);
     }
 
     .k-frame__bar-end {
