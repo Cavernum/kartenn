@@ -315,7 +315,9 @@ connecteur sur les domaines désignés du cluster ; le module le déclare au reg
 (ajout au contrat, ADR 0044) et la synchronisation des rôles livrés le crée.
 
 Événements d'audit nouveaux (catalogue du noyau, ADR 0043) : `observation.batch.recorded`
-(INFO, criticité normale ; `journal`, `cluster`, `batch`, `opened`, `closed`, `hash`) et
+(INFO, criticité normale ; `journal`, `cluster`, `batch`, `opened`, `closed`, `hash`,
+`clamped`, `skew_max` : lignes datées après l'instant du lot et ramenées à lui, leur plus
+grande avance en millisecondes, Q-019-26) et
 `observation.batch.altered` (ERROR, criticité haute ; `journal`, `batch`, `expected`,
 `found`). Le premier s'inscrit dans la transaction du lot par `record_in(tx, event)` du
 port du journal PostgreSQL ; un lot vide est audité comme les autres (Q-019-21, 22). Ils
@@ -500,7 +502,7 @@ X7 (Q-019-3 B), l'ordre de grandeur serait 10⁸.
 | B1 | objets de module porteurs de propriétés, arbre de module | ADR 0026 clauses 4, 5 (fourni) |
 | B2 | opérations du noyau planifiées par un lot (réseaux, adresses `vip`, affectations) | clause 6 (fourni) |
 | B3 | auteur du changeset et opérations qu'il a écrites, lisibles par une règle (`kube.object.managed`, `kube.connector.direct`) | `CheckContext::author` et `CheckContext::operations` (amendement 11, additif, Q-019-18, fourni par la tâche 5a) |
-| B4 | route hors changeset auditée par lot | ADR 0043 : inscription d'audit d'un lot par le noyau, `observation.batch.recorded` et `.altered` (à fournir, tâche 6) |
+| B4 | route hors changeset auditée par lot | ADR 0043 : inscription d'audit d'un lot par le noyau, `observation.batch.recorded` et `.altered`, inscrits par `record_in(tx, event)` (fourni, tâche 6b ; ADR 0019 et 0026, amendements du 2026-11-11) |
 | B5 | adresses d'une machine par adresse et machine par nom | 009, ajout additif |
 | B6 | porteur workload, extrémités logiques | amendements de la 010 et de la 011 (tâches 12, 13) |
 | B7 | rôle de connecteur confiné à un cluster | pas de périmètre « objet de module » (ADR 0026 clause 4) : groupe du connecteur (025/G1, G2) lié au rôle `kube_connector` sur les domaines désignés du cluster, types `kube.*` ancrés sur ces domaines, règles `kube.object.managed` et `kube.connector.direct` (X10, ADR 0044) |

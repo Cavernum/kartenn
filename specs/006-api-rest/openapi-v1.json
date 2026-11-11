@@ -485,6 +485,24 @@
         },
         "type": "object"
       },
+      "BatchViolation": {
+        "description": "A line of a batch refused by `invalid-batch` (spec 019, Q-019-21): not a violation of\na rule of a changeset, which `changeset-refused` serves.",
+        "properties": {
+          "detail": {
+            "description": "Why it refuses the batch.",
+            "type": "string"
+          },
+          "pointer": {
+            "description": "The line in the body, a JSON pointer (RFC 6901): `/opened/3`; `\"\"` for the body\nwhole.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pointer",
+          "detail"
+        ],
+        "type": "object"
+      },
       "Batches": {
         "description": "The batches of an import.",
         "properties": {
@@ -4129,6 +4147,58 @@
         ],
         "type": "object"
       },
+      "InvalidBatchProblem": {
+        "description": "The problem `invalid-batch` as served: the members of RFC 9457 and its extensions.",
+        "properties": {
+          "code": {
+            "description": "The code of the module that refuses the batch (`kube.observation.invalid`).",
+            "type": "string"
+          },
+          "detail": {
+            "description": "This occurrence, explained.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "instance": {
+            "description": "The identifier of the request, `urn:uuid:…`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "description": "422.",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "title": {
+            "description": "The title of the class.",
+            "type": "string"
+          },
+          "type": {
+            "description": "`urn:kartenn:problem:invalid-batch`.",
+            "type": "string"
+          },
+          "violations": {
+            "description": "The lines that refuse it, in the order of the body.",
+            "items": {
+              "$ref": "#/components/schemas/BatchViolation"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "violations"
+        ],
+        "type": "object"
+      },
       "IssuerDto": {
         "description": "An issuer a browser logs in at, as the login page names it.",
         "properties": {
@@ -4139,6 +4209,173 @@
         },
         "required": [
           "id"
+        ],
+        "type": "object"
+      },
+      "KubeObjectRef": {
+        "additionalProperties": false,
+        "description": "The identifier of an object of the cluster (006/H3).",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "KubeObservationBatch": {
+        "additionalProperties": false,
+        "description": "A batch of the connector of a cluster: at most `batch_max_operations` lines of the\ncluster in all, accepted or refused whole.",
+        "properties": {
+          "closed": {
+            "description": "The observations it closes.",
+            "items": {
+              "$ref": "#/components/schemas/KubeObservationClosing"
+            },
+            "type": "array"
+          },
+          "opened": {
+            "description": "The observations it opens.",
+            "items": {
+              "$ref": "#/components/schemas/KubeObservationOpening"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "opened",
+          "closed"
+        ],
+        "type": "object"
+      },
+      "KubeObservationBatchRecorded": {
+        "description": "A batch written.",
+        "properties": {
+          "closed": {
+            "description": "The observations it closed.",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "hash": {
+            "description": "SHA-256 of its canonical content (RFC 8785), in lowercase hexadecimal, as its\naudit event `observation.batch.recorded` keeps it.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Its identifier.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "opened": {
+            "description": "The observations it opened; an opening of an observation open with the same values\nwrites nothing and is not counted.",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "received_at": {
+            "description": "When it was received: the instant of its transaction.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "received_at",
+          "opened",
+          "closed",
+          "hash"
+        ],
+        "type": "object"
+      },
+      "KubeObservationClosing": {
+        "additionalProperties": false,
+        "description": "The end of the period of an open observation of the cluster, by pod and IP.",
+        "properties": {
+          "at": {
+            "description": "When it was gone (RFC 3339, with an offset); an instant to come is the instant of\nthe batch.",
+            "type": "string"
+          },
+          "ip": {
+            "description": "Its IP; none in `hostNetwork`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pod_uid": {
+            "description": "The UID of the pod.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pod_uid",
+          "at"
+        ],
+        "type": "object"
+      },
+      "KubeObservationOpening": {
+        "additionalProperties": false,
+        "description": "A pod seen, which opens an observation.",
+        "properties": {
+          "from": {
+            "description": "Since when it is seen (RFC 3339, with an offset); an instant to come is the\ninstant of the batch.",
+            "type": "string"
+          },
+          "host_network": {
+            "description": "Whether it shares the network of its node.",
+            "type": "boolean"
+          },
+          "ip": {
+            "description": "One of its IPs, in a pod container or a pod range of the cluster or an address of\none of its nodes; none in `hostNetwork`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "namespace": {
+            "description": "Its namespace, by name.",
+            "type": "string"
+          },
+          "node": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "The node of the cluster it runs on."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pod_name": {
+            "description": "Its name.",
+            "type": "string"
+          },
+          "pod_uid": {
+            "description": "Its Kubernetes UID.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "workload": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KubeObjectRef",
+                "description": "The workload of the cluster its `ownerReferences` climb to."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "namespace",
+          "pod_name",
+          "pod_uid",
+          "from"
         ],
         "type": "object"
       },
@@ -25934,6 +26171,75 @@
         "tags": [
           "kube"
         ]
+      }
+    },
+    "/v1/kube-clusters/{id}/observations": {
+      "post": {
+        "operationId": "record_kube_observations",
+        "parameters": [
+          {
+            "description": "The cluster.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Kartenn-Background"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KubeObservationBatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KubeObservationBatchRecorded"
+                }
+              }
+            },
+            "description": "Written."
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidBatchProblem"
+                }
+              }
+            },
+            "description": "Refused whole: the lines that refuse it, by JSON pointer."
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "A problem (RFC 9457)."
+          }
+        },
+        "summary": "Writes a batch of observations of the pods of the cluster, outside the changesets (REQ-019-16): under `kube.observation.record` on the pod domain of the cluster, by a service account member of its connector group (403 otherwise; 404, as an absent one, for a cluster the caller neither reads nor holds that right on); at most `batch_max_operations` lines; an instant to come is brought back to the instant of the batch, counted in its event; accepted whole, audited in its transaction (`observation.batch.recorded`, an empty batch too), or refused whole with 422 `invalid-batch` (`code` `kube.observation.invalid`, `violations` by JSON pointer).",
+        "tags": [
+          "kube"
+        ],
+        "x-kartenn": {
+          "simulate": false
+        }
       }
     },
     "/v1/kube-clusters/{id}/properties": {

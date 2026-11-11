@@ -1016,7 +1016,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     famille et par pod ; l'accès direct à une partition de jour n'est pas testé (celle
     des ouvertes l'est) ; les refus en SQL sont jugés sur `is_err()`, sans le code
     `42501`.
-- [ ] 6b. Route d'un lot et son audit (Q-019-21 à 23) : `POST
+- [x] 6b. Route d'un lot et son audit (Q-019-21 à 23) : `POST
   /v1/kube-clusters/{id}/observations` sous `kube.observation.record` (permission
   déclarée, évaluée sur le `pod_domain` du cluster, 403 hors du groupe du connecteur) ;
   contrat OpenAPI : corps `{opened, closed}`, workload et nœud en références `{id}`, au
@@ -1040,6 +1040,53 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `evenements-audit.schema.json`) ; ADR 0019 ; `specs/006-api-rest/openapi-v1.json` et
     les `schema.d.ts` régénérés
   - dépend de : 6a
+  - fait (2026-11-11) : `kartenn-kube` feature `rest` et `rest.rs` (`routes`,
+    `record_batch` ; schémas `KubeObservationBatch`, `KubeObservationOpening`,
+    `KubeObservationClosing`, `KubeObjectRef`, `KubeObservationBatchRecorded`) ;
+    permission `kube.observation.record` (`module.rs`, `labels.rs`) ; `kartenn-core`
+    `audit::catalogue` (`OBSERVATION_BATCH_RECORDED`, `OBSERVATION_BATCH_ALTERED`) ;
+    `kartenn-rest` `ProblemKind::InvalidBatch` ; `kartenn-store-pg`
+    `PgAuditJournal::record_in` ; `kartenn-server` (`modules::routers`, feature `rest` de
+    `kartenn-kube`) ; régénérés : `openapi-v1.json` (ajout seul), les deux `schema.d.ts`,
+    `permissions.md`, `evenements-audit.md` et `.schema.json` ; ADR 0019 (amendement du
+    2026-11-11) et 0026 (amendement 12) ; `interfaces.md` (Erreurs), design (B4) ; tests
+    `observations::route::batch_is_audited_once_with_hash` (201, empreinte hexadécimale
+    égale à celle de `observation_batch` et de l'événement, un événement par lot, lot vide
+    compris), `batch_from_other_cluster_connector_refused` (403 sans le droit sur le
+    domaine des pods, 403 au connecteur d'un autre cluster qui l'a, deux
+    `authz.access.denied`, rien d'écrit ; 404 d'un cluster inconnu),
+    `batch_outside_pod_ranges_refused_whole` (422 `invalid-batch`, pointeurs
+    `/opened/1`, `/opened/2`, `/closed/0`, un `abuse.input.rejected`, rien d'écrit ;
+    plafond dépassé, pointeur `""` ; IP ou instant sans décalage malformés → 400),
+    `batch_emits_no_changes_event` (un abonné du flux voit le changeset d'avant puis celui
+    d'après, rien entre).
+  - choix : membres du corps `namespace`, `pod_name`, `pod_uid`, `workload`, `node`,
+    `ip`, `host_network`, `from` (ouverture) et `pod_uid`, `ip`, `at` (fermeture), noms
+    de `observations::Opening`, `Closing` ; `opened` et `closed` exigés, inconnus refusés ;
+    `violations` `{pointer, detail}` comme l'exemple de RFC 9457 §3 (schémas
+    `BatchViolation`, `InvalidBatchProblem` du noyau, réponse 422 documentée par
+    `Op::refuses_batches`) ; plafond dépassé : `invalid-batch`, une violation de pointeur
+    `""`, avant toute lecture du journal ; IP, UUID, instant malformés ou membre inconnu :
+    400 `bad-request`, comme tout corps qui ne se lit pas ; `abuse.input.rejected`
+    (`reason` `kube.observation.invalid` ou `bad-request`) inscrit par la route pour chaque
+    refus à l'entrée, faute d'un émetteur commun ; cible des trois événements : le
+    cluster ; `journal` vaut `kube.pod_observation` ; tests dans un sous-module
+    `observations::route` qui reprend `Env` du module parent.
+  - correction de revue : le cluster se voit sous `kube.cluster.read` (ADR 0021) ou sous
+    `kube.observation.record` sur son domaine des pods (Q-019-23 : le cluster n'est ancré
+    dans aucun domaine, le rôle du connecteur est lié aux domaines du cluster) ; invisible
+    ou absent → 404 sans `authz.access.denied`, visible sans le droit → 403 journalisé ;
+    refus suivants : corps (400), plafond (422), appartenance au groupe et lignes dans la
+    transaction (403, 422), tous journalisés ; corps illisible journalisé
+    (`abuse.input.rejected`, `bad-request`) ; schéma propre des `violations` ;
+    `invalid-batch` dans la table des erreurs de la 006 et le catalogue de repli du shell ;
+    instants à venir comptés dans l'événement (Q-019-26 : `clamped`, `skew_max` en
+    millisecondes ; `Recorded::clamped`, `skew_max_ms`). Tests :
+    `batch_from_other_cluster_connector_refused` (404 sans aucun droit, cluster existant
+    comme inconnu, rien de journalisé ; 403 au lecteur du cluster),
+    `batch_outside_pod_ranges_refused_whole` (raisons des cinq refus journalisés),
+    `future_instant_clamped_and_audited`.
+  - reste : aucun test de l'annulation du lot quand l'inscription d'audit échoue.
 - [ ] 6c. Tâches de fond du journal (Q-019-20, 24) : colonne
   `observation_batch.earliest` (plus petit instant du lot) et borne de purge écrite par
   cluster ; `kube.observations.verify` (quotidienne : empreinte recalculée des lots dont

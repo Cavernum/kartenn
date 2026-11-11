@@ -23,6 +23,9 @@ use serde_json::{Value, json};
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
 
+/// The same journal through its route (task 019-6b).
+mod route;
+
 /// `n` hours.
 const fn hours(n: u64) -> std::time::Duration {
     std::time::Duration::from_secs(n * 3_600)

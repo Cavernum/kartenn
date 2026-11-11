@@ -538,6 +538,7 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 | URL trop longue | 414 | — (avant le routage, corps minimal) |
 | Type de média | 415 | `unsupported-media-type` |
 | Changeset refusé (`Outcome::Refused`), droit d'écriture manquant (règle `core.object.forbidden`, REQ-005-22), motif manquant, trop d'opérations, clé d'idempotence réutilisée, membre non modifiable ou propriété non déclarée, filtre de sortie ou durée invalide | 422 | `changeset-refused`, `motive-required`, `too-many-operations`, `idempotency-key-reused`, `invalid-member`, `invalid-override` ; `invalid-import` ne sort plus en réponse, il décrit l'`error` d'un import (H18) |
+| Lot écrit hors changeset refusé en entier : lignes invalides, plafond du lot dépassé (spec 019, Q-019-21) | 422 | `invalid-batch` (extensions `code`, le code du module, et `violations` `BatchViolation`) |
 | `If-Match` absent | 428 | `precondition-required` |
 | Quota | 429 | `rate-limited` |
 | Délestage, délai, journal d'audit indisponible (`RequestError::Audit`), base indisponible | 503 | `unavailable` |
@@ -546,6 +547,9 @@ Toutes sous `/v1`, sauf les sondes. Collections à plat, objet par UUID.
 - `violations[]` : `{ rule, severity, detail, subjects[], operation, pointer }`, où
   `pointer` est un JSON Pointer (RFC 6901) dans le corps de la requête
   (`/operations/2/value`) ; pour une route par ressource, l'indice est omis.
+- `invalid-batch` : `violations[]` de schéma `BatchViolation`, `{ pointer, detail }`, le
+  pointeur vers la ligne du corps (`/opened/3`) ou `""` pour le corps entier ; schéma
+  de la réponse `InvalidBatchProblem` (spec 019, Q-019-21).
 - Le droit d'écriture d'un objet est une règle du catalogue (REQ-005-22) : son absence
   est une violation du changeset, listée avec les autres dans la même réponse 422
   (REQ-006-21), et peut faire du changeset une proposition ; 403 reste aux actions que

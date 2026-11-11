@@ -59,6 +59,10 @@ pub enum ProblemKind {
     InvalidOverride,
     /// The elements of an import cannot be sorted.
     InvalidImport,
+    /// A batch written outside a changeset (a journal of observations, ADR 0043) refused
+    /// whole: its extension `code` says by what, `violations` names its lines by JSON
+    /// pointers (RFC 6901; spec 019, Q-019-21).
+    InvalidBatch,
     /// `If-Match` is missing.
     PreconditionRequired,
     /// The quota of the identity is spent.
@@ -80,7 +84,7 @@ pub enum ProblemKind {
 
 impl ProblemKind {
     /// Every class, for the contract and the tests.
-    pub const ALL: [Self; 29] = [
+    pub const ALL: [Self; 30] = [
         Self::BadRequest,
         Self::InvalidCursor,
         Self::Unauthenticated,
@@ -102,6 +106,7 @@ impl ProblemKind {
         Self::InvalidMember,
         Self::InvalidOverride,
         Self::InvalidImport,
+        Self::InvalidBatch,
         Self::PreconditionRequired,
         Self::RateLimited,
         Self::Unavailable,
@@ -137,6 +142,7 @@ impl ProblemKind {
             Self::InvalidMember => "invalid-member",
             Self::InvalidOverride => "invalid-override",
             Self::InvalidImport => "invalid-import",
+            Self::InvalidBatch => "invalid-batch",
             Self::PreconditionRequired => "precondition-required",
             Self::RateLimited => "rate-limited",
             Self::Unavailable => "unavailable",
@@ -173,6 +179,7 @@ impl ProblemKind {
             | Self::InvalidMember
             | Self::InvalidOverride
             | Self::InvalidImport
+            | Self::InvalidBatch
             | Self::PolicyQueryTooLarge
             | Self::DraftLimit => StatusCode::UNPROCESSABLE_ENTITY,
             Self::PreconditionRequired => StatusCode::PRECONDITION_REQUIRED,
@@ -218,6 +225,7 @@ impl ProblemKind {
             Self::InvalidMember => "Un champ ne peut pas être écrit.",
             Self::InvalidOverride => "Le filtre ou sa durée est invalide.",
             Self::InvalidImport => "L'import ne peut pas être ordonné.",
+            Self::InvalidBatch => "Le lot est refusé en entier.",
             Self::PreconditionRequired => {
                 "La version lue de l'objet doit accompagner la modification."
             }
@@ -259,6 +267,7 @@ impl ProblemKind {
             Self::InvalidMember => "A field cannot be written.",
             Self::InvalidOverride => "The filter or its duration is invalid.",
             Self::InvalidImport => "The import cannot be ordered.",
+            Self::InvalidBatch => "The batch is refused whole.",
             Self::PreconditionRequired => {
                 "The version read of the object must come with the change."
             }
@@ -297,6 +306,7 @@ impl ProblemKind {
             Self::InvalidMember => "A member cannot be written",
             Self::InvalidOverride => "The filter or its duration is invalid",
             Self::InvalidImport => "The elements of the import cannot be sorted",
+            Self::InvalidBatch => "The batch is refused",
             Self::PreconditionRequired => "If-Match is required",
             Self::RateLimited => "Too many requests",
             Self::Unavailable => "The service is unavailable",
@@ -396,6 +406,52 @@ impl IntoResponse for Problem {
         // Kept for the request layer, which adds `instance` and writes the body again.
         response.extensions_mut().insert(self);
         response
+    }
+}
+
+/// A line of a batch refused by `invalid-batch` (spec 019, Q-019-21): not a violation of
+/// a rule of a changeset, which `changeset-refused` serves.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct BatchViolation {
+    /// The line in the body, a JSON pointer (RFC 6901): `/opened/3`; `""` for the body
+    /// whole.
+    pub pointer: String,
+    /// Why it refuses the batch.
+    pub detail: String,
+}
+
+/// The problem `invalid-batch` as served: the members of RFC 9457 and its extensions.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct InvalidBatchProblem {
+    /// `urn:kartenn:problem:invalid-batch`.
+    #[serde(rename = "type")]
+    type_: String,
+    /// The title of the class.
+    title: String,
+    /// 422.
+    status: u16,
+    /// This occurrence, explained.
+    detail: Option<String>,
+    /// The identifier of the request, `urn:uuid:…`.
+    instance: Option<String>,
+    /// The code of the module that refuses the batch (`kube.observation.invalid`).
+    code: String,
+    /// The lines that refuse it, in the order of the body.
+    violations: Vec<BatchViolation>,
+}
+
+impl Problem {
+    /// 422 `invalid-batch` for a batch refused whole by `violations`, under the `code`
+    /// of the module (spec 019, Q-019-21).
+    #[must_use]
+    pub fn invalid_batch(code: &str, violations: &[BatchViolation]) -> Self {
+        Self::new(ProblemKind::InvalidBatch)
+            .detail("the batch is refused whole, by its violations")
+            .extension("code", serde_json::Value::from(code))
+            .extension(
+                "violations",
+                serde_json::to_value(violations).unwrap_or_default(),
+            )
     }
 }
 

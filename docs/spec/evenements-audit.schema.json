@@ -948,6 +948,64 @@
         "details": {
           "additionalProperties": false,
           "properties": {
+            "batch": {},
+            "clamped": {},
+            "closed": {},
+            "cluster": {},
+            "hash": {},
+            "journal": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "opened": {},
+            "skew_max": {}
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "observation.batch.recorded"
+        },
+        "severity": {
+          "const": "INFO"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "high"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
+            "batch": {},
+            "expected": {},
+            "found": {},
+            "journal": {},
+            "on_behalf_of": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "name": {
+          "const": "observation.batch.altered"
+        },
+        "severity": {
+          "const": "ERROR"
+        }
+      }
+    },
+    {
+      "properties": {
+        "criticality": {
+          "const": "normal"
+        },
+        "details": {
+          "additionalProperties": false,
+          "properties": {
             "on_behalf_of": {
               "format": "uuid",
               "type": "string"

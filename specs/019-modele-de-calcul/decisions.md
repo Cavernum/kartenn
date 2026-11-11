@@ -373,6 +373,16 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
   `items: []` et `reason: "retention"` hors rétention ; `ip=` accepte une adresse ou un
   réseau (REQ-019-17) ; chaque lecture est journalisée par `record_read` (REQ-012-18).
 
+### Q-019-26 — Instants à venir d'un lot (revue de la tâche 6b)
+- Constat : la 6a ramène à l'instant du lot un début ou une fin datés après lui, sans
+  trace ; une horloge du connecteur en avance passe inaperçue, et le contenu scellé n'est
+  plus celui que le connecteur a envoyé.
+- Options : A. noter dans l'audit (lignes ramenées, plus grande avance) ; B. refuser le
+  lot au-delà d'une tolérance.
+- Décision (l'utilisateur, 2026-11-11) : A. L'instant reste ramené à celui du lot ;
+  `observation.batch.recorded` porte en outre `clamped` (lignes ramenées) et `skew_max`
+  (plus grande avance, en millisecondes comme les durées du catalogue, 0 sans elles).
+
 ## Synthèse
 - X1 périmètre : hôte physique, hyperviseur, VM, cluster d'hyperviseurs (009) ; cluster,
   nœud, namespace, workload, service, ingress Kubernetes ; pod en observation seulement ;

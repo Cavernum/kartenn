@@ -31,6 +31,8 @@ pub fn routers() -> Vec<kartenn_rest::ModuleRouter> {
         kartenn_policy::rest::routes(),
         #[cfg(feature = "flow")]
         kartenn_flow::rest::routes(),
+        #[cfg(feature = "kube")]
+        kartenn_kube::rest::routes(),
     ];
     routers
 }

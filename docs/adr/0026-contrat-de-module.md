@@ -452,6 +452,22 @@ Source : `crates/kartenn-service/src/module.rs` (`CheckContext`),
 les opérations ne changent pas. Tests : `kartenn-kube`
 `clusters::connector_direct_operation_refused`, `clusters::mirror_closed_by_hand_refused`.
 
+### Amendement 12 — 2026-11-11, route d'un lot hors changeset (019/Q-019-21, 22)
+
+Deux ajouts additifs du noyau pour les routes d'un module qui écrivent hors changeset
+(ADR 0043 : un journal d'observations), ratifiés par l'utilisateur (019/Q-019-21, 22) :
+
+| Ajout | Clause | Raison |
+|---|---|---|
+| Classe de problème générique `invalid-batch` (422, `kit::ProblemKind::InvalidBatch`) : un lot refusé en entier ; extensions `code` (le code du module, `kube.observation.invalid`) et `violations`, chacune `{pointer, detail}` (pointeur JSON, RFC 6901, vers la ligne du corps, `/opened/3`, ou `""` pour le corps entier) ; schémas `BatchViolation` et `InvalidBatchProblem`, réponse 422 documentée par `Op::refuses_batches`, problème construit par `Problem::invalid_batch` | 9 | `changeset-refused` dit des règles d'un changeset, `invalid-member` un membre d'une écriture ; une classe par module multiplierait les `type` pour un même sens (Q-019-21, options B et C écartées) |
+| `Api::journal.record_in(tx, event)` (ADR 0019, amendement du 2026-11-11) : l'événement d'audit d'une écriture hors changeset inscrit dans sa transaction | 9 | ADR 0043, décision 5 : chaque lot accepté audité dans sa transaction (Q-019-22) |
+
+Source : `crates/kartenn-rest/src/problem.rs`, `crates/kartenn-store-pg/src/audit_journal.rs` ;
+premier usage `crates/kartenn-kube/src/rest.rs` (`POST /v1/kube-clusters/{id}/observations`).
+Le contrat OpenAPI de référence gagne la route et ses schémas (ajout seul). Tests :
+`kartenn-kube` `observations::route::batch_outside_pod_ranges_refused_whole`,
+`observations::route::batch_is_audited_once_with_hash`.
+
 ## Alternatives
 
 - **Opérations de module dans l'énumération `Operation`, derrière des features** :

@@ -187,6 +187,11 @@ pub struct Recorded {
     pub closed: u32,
     /// SHA-256 of its canonical content ([`content`]).
     pub hash: [u8; 32],
+    /// Its lines dated after the instant of the batch, brought back to it (Q-019-26).
+    pub clamped: u32,
+    /// The longest advance of those lines on the instant of the batch, in milliseconds;
+    /// 0 without any.
+    pub skew_max_ms: u64,
 }
 
 /// An instant as PostgreSQL keeps it, to the microsecond, in UTC.
@@ -332,6 +337,17 @@ pub async fn record(
         Some(true) => {}
     }
     let now = stored(received_at);
+    // The instants to come, brought back to the instant of the batch: counted, and the
+    // longest advance kept, for its audit event (Q-019-26).
+    let ahead: Vec<i128> = batch
+        .opened
+        .iter()
+        .map(|o| o.from)
+        .chain(batch.closed.iter().map(|c| c.at))
+        .map(stored)
+        .filter(|at| *at > now)
+        .map(|at| (at - now).whole_milliseconds())
+        .collect();
     let opened: Vec<Opening> = batch
         .opened
         .iter()
@@ -681,6 +697,11 @@ pub async fn record(
         opened: u32::try_from(written.len()).unwrap_or(u32::MAX),
         closed: u32::try_from(closed.len()).unwrap_or(u32::MAX),
         hash,
+        clamped: u32::try_from(ahead.len()).unwrap_or(u32::MAX),
+        skew_max_ms: ahead
+            .iter()
+            .max()
+            .map_or(0, |ms| u64::try_from(*ms).unwrap_or(u64::MAX)),
     })
 }
 

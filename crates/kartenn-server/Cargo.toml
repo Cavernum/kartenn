@@ -33,7 +33,7 @@ kube = ["machines", "dep:kartenn-kube"]
 
 [dependencies]
 kartenn-flow = { version = "0.1.0", path = "../kartenn-flow", features = ["rest"], optional = true }
-kartenn-kube = { version = "0.1.0", path = "../kartenn-kube", features = ["pg"], optional = true }
+kartenn-kube = { version = "0.1.0", path = "../kartenn-kube", features = ["rest"], optional = true }
 kartenn-machines = { version = "0.1.0", path = "../kartenn-machines", features = ["rest"], optional = true }
 kartenn-policy = { version = "0.1.0", path = "../kartenn-policy", features = ["rest"], optional = true }
 kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }

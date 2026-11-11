@@ -181,7 +181,13 @@ permissions! {
     INGRESS_EDIT = "kube.ingress.edit", "Créer, modifier ou clore un ingress Kubernetes dans un changeset et le soumettre.";
     INGRESS_APPLY = "kube.ingress.apply", "Appliquer ou rejeter le changeset d'un autre qui touche un ingress Kubernetes.";
     INGRESS_APPROVAL_SELF = "kube.ingress.approval.self", "Appliquer son propre changeset qui touche un ingress Kubernetes.";
+    // The journal of the pods observed, outside the changesets (ADR 0043, decision 2):
+    // evaluated on the pod domain of the cluster (Q-019-23), in no delivered role.
+    OBSERVATION_RECORD = "kube.observation.record", "Écrire un lot d'observations au journal des pods d'un cluster Kubernetes (son connecteur seulement).";
 }
+
+/// The permission of a batch of observations (`POST /v1/kube-clusters/{id}/observations`).
+pub const OBSERVATION_RECORD_PERMISSION: &str = OBSERVATION_RECORD.name;
 
 /// What closing an object does to the objects of the module that cite it (D33; design
 /// « Références »).
