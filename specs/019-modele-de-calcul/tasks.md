@@ -1051,7 +1051,9 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   verify : `altered_batch_detected`, `purge_drops_old_partitions`,
   `open_observation_never_purged`
   - où : design « Données » (garde-fous) ; ADR 0023 et `crates/kartenn-server/src/jobs.rs`
-    (tâches de module, 016/G6), `Module::jobs` ; ADR 0043 (décisions 5, 8)
+    (tâches de module, 016/G6), `Module::jobs` ; ADR 0043 (décisions 5, 8 : la décision 8
+    dit encore « sans DELETE de masse » — l'amender selon Q-019-20, purge par cluster par
+    une fonction du propriétaire sous une borne de purge)
   - dépend de : 6b
 - [ ] 6d. Lectures du journal : `who_had` (port de lecture) et
   `GET /v1/kube-clusters/{id}/observations?ip=&at=`, `GET /v1/workloads/{id}/observations`
