@@ -23,6 +23,8 @@ use serde_json::{Value, json};
 use sqlx::types::Uuid;
 use sqlx::types::time::OffsetDateTime;
 
+/// Its verification and purge (task 019-6c).
+mod retention;
 /// The same journal through its route (task 019-6b).
 mod route;
 

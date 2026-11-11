@@ -13,6 +13,9 @@ use sqlx::PgConnection;
 use sqlx::types::time::{OffsetDateTime, UtcOffset};
 use uuid::Uuid;
 
+/// The journal a batch of the module writes, as its audit events name it.
+pub const JOURNAL: &str = "kube.pod_observation";
+
 /// A pod seen: every column of an observation but the end of its period.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Opening {
@@ -597,10 +600,18 @@ pub async fn record(
     // The writes: the batch, its openings, then its closings.
     let written: Vec<Opening> = written.into_iter().cloned().collect();
     let hash = content_hash(cluster, &written, &closed)?;
+    // Its earliest instant: every row it writes ends at or after it, so that the
+    // verification knows it whole while that instant is not before the purge bound of
+    // the cluster (task 019-6c, Q-019-24).
+    let earliest = written
+        .iter()
+        .map(|o| o.from)
+        .chain(closed.iter().map(|c| c.at))
+        .fold(received_at, OffsetDateTime::min);
     let id: Uuid = sqlx::query_scalar(
         "INSERT INTO kube.observation_batch
-                (id, cluster_id, author, received_at, opened, closed, content_hash)
-         VALUES (uuidv7(), $1, $2, $3, $4, $5, $6)
+                (id, cluster_id, author, received_at, opened, closed, content_hash, earliest)
+         VALUES (uuidv7(), $1, $2, $3, $4, $5, $6, $7)
          RETURNING id",
     )
     .bind(cluster)
@@ -609,6 +620,7 @@ pub async fn record(
     .bind(count(written.len()))
     .bind(count(closed.len()))
     .bind(hash.as_slice())
+    .bind(earliest)
     .fetch_one(&mut *conn)
     .await?;
     if !written.is_empty() {

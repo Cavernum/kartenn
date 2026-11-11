@@ -8,7 +8,8 @@ use std::sync::Arc;
 use kartenn_core::authz::Permission;
 use kartenn_core::rules::Rule;
 use kartenn_service::module::{
-    EdgeType, Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, OperationType, Reference,
+    EdgeType, JobSpec, Module, ModuleHandler, ModuleMigration, ObjectType, OnClose, OperationType,
+    Reference,
 };
 
 use crate::rules::KUBE_RULES;
@@ -137,6 +138,11 @@ static MIGRATIONS: &[ModuleMigration] = &[
         version: 6,
         name: "observation",
         sql: include_str!("../migrations/0006_observation.sql"),
+    },
+    ModuleMigration {
+        version: 7,
+        name: "observation_retention",
+        sql: include_str!("../migrations/0007_observation_retention.sql"),
     },
 ];
 
@@ -356,6 +362,16 @@ impl Module for Kube {
     }
     fn migrations(&self) -> &'static [ModuleMigration] {
         MIGRATIONS
+    }
+    fn jobs(&self) -> &'static [JobSpec] {
+        #[cfg(feature = "pg")]
+        {
+            crate::jobs::JOBS
+        }
+        #[cfg(not(feature = "pg"))]
+        {
+            &[]
+        }
     }
     fn handler(&self) -> Option<Arc<dyn ModuleHandler>> {
         #[cfg(feature = "pg")]

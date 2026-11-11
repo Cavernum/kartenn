@@ -21,6 +21,8 @@ mod edges;
 #[cfg(feature = "pg")]
 pub mod handler;
 #[cfg(feature = "pg")]
+pub mod jobs;
+#[cfg(feature = "pg")]
 pub mod observations;
 #[cfg(feature = "pg")]
 mod pg;
