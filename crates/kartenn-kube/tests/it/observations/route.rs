@@ -41,6 +41,9 @@ use tower::ServiceExt;
 
 use super::{Env, closing, op};
 
+/// The reads of the same journal (task 019-6d).
+mod read;
+
 /// Any `Bearer` token is this principal.
 struct As(Principal);
 

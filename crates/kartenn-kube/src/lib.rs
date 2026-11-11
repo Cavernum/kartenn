@@ -24,6 +24,8 @@ pub mod handler;
 pub mod observations;
 #[cfg(feature = "pg")]
 mod pg;
+#[cfg(feature = "pg")]
+pub mod read;
 #[cfg(feature = "rest")]
 pub mod rest;
 

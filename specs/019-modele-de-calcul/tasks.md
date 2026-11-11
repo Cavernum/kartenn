@@ -1102,7 +1102,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     dit encore « sans DELETE de masse » — l'amender selon Q-019-20, purge par cluster par
     une fonction du propriétaire sous une borne de purge)
   - dépend de : 6b
-- [ ] 6d. Lectures du journal : `who_had` (port de lecture) et
+- [x] 6d. Lectures du journal : `who_had` (port de lecture) et
   `GET /v1/kube-clusters/{id}/observations?ip=&at=`, `GET /v1/workloads/{id}/observations`
   sous `kube.observation.read` (permission déclarée, évaluée sur le `pod_domain` du
   cluster) ; `ip=` une adresse ou un réseau ; hors rétention, 200 avec `items: []` et
@@ -1113,6 +1113,46 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - où : design « Port de lecture », « Routes » ; ADR 0043 (décisions 6, 8) ; `rest.rs`
     de la 6b
   - dépend de : 6b
+  - fait (2026-11-12) : `kartenn-kube` `read.rs` (`who_had`, `held`, `of_workload`,
+    `within_retention`, `Observation`, `Key`, `Cut`, `Answer`) ; `rest.rs`
+    (`cluster_observations`, `workload_observations`, `allowed` commun à l'écriture et aux
+    lectures ; schémas `KubeObservation`, `KubeObservationReason`,
+    `Listing_KubeObservation`) ; permission `kube.observation.read` (`module.rs`,
+    `labels.rs`) ; `kartenn-core` `BuiltinRole::entries_with` : aucune permission
+    `<module>.observation.*` dans les rôles livrés (ADR 0043, décision 2) ; régénérés :
+    `openapi-v1.json` (ajout seul), les deux `schema.d.ts` et `filters.ts`,
+    `permissions.md` ; design (« Port de lecture », « Routes ») ; tests
+    `observations::route::read::who_had_ip_at_time` (adresse, réseau, pod en
+    `hostNetwork` par l'adresse de son nœud, pages d'un élément et lien suivant, 400 des
+    questions mal formées, de `valid_at` et `as_of`, workload, une lecture journalisée
+    par réponse avec ses pods, port), `retention_answers_empty_with_reason` (lignes encore
+    stockées, 200 `items: []` `reason: "retention"`, pod vivant depuis plus que la
+    rétention répondu, workload borné à la rétention, lecture journalisée sans cible,
+    port), `observations_read_bounded_to_cluster` (cluster et workload d'un autre domaine
+    des pods → 404 sans journal, lecteur du cluster ou du workload sans le droit → 403
+    journalisés, connecteur qui écrit sans lire → 404, port borné au domaine et vide sans
+    le droit) ; `kartenn-server` `a_module_kind_reads_under_the_short_permission` (aucun
+    rôle livré ne lit le journal).
+  - choix : cluster et workload vivants seuls (comme l'écriture) ; `ip` et `at` exigés,
+    réseau strict (bits d'hôte refusés, REQ-002-5) ; pages par curseur (REQ-006-7) triées
+    par (début, pod, IP), le curseur fige l'instant de la première page, référence de la
+    rétention ; `valid_at`, `as_of` refusés (400) ; `reason` toujours présent, `null` hors
+    coupure, jamais `retention` sur la route du workload (sans instant : ses lignes
+    passées la rétention sont écartées) ; un instant à venir répond les observations
+    ouvertes ; pod en `hostNetwork` répondu quand l'une des adresses de son nœud, dans sa
+    version valide à `at`, est dans le réseau ; éléments `namespace`, `pod_name`,
+    `pod_uid`, `workload` et `node` en `{id}`, `ip`, `host_network`, `from`, `until`,
+    `opened_batch`, `closed_batch` ; `record_read` de cible `kube.pod_observation`, les
+    UID des pods de la page, critères `{collection, filters, valid_at}` ; 400 non
+    journalisés, comme les autres lectures ; `who_had` : sans le droit sur le domaine,
+    rien et pas de motif ; `retention` dès qu'un cluster du domaine est passé sa
+    rétention à `at`, ses lignes écartées, les autres répondues ; exclusion des rôles
+    livrés par le nom (`<module>.observation.*`) plutôt qu'un champ nouveau de
+    `Permission`.
+  - reste : un cluster ou un workload clos n'est plus lisible, même dans la rétention de
+    ses lignes ; la route du workload ne lit que par `workload_id` (index btree), triée
+    sur `lower(observed)` sans index propre ; `cluster_id = ANY(…)` de `who_had` sur
+    l'index GiST non mesuré (aucun `EXPLAIN`).
 - [ ] 7. Port de lecture et propriétés : porteurs `kube.*`, axe `kube.namespace`,
   `axis_values` (composition workload → namespace → cluster → arbre), `workloads_of`,
   `execution_chain` (nœuds par le journal d'observation, tâche 6, puis machines et

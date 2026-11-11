@@ -184,10 +184,16 @@ permissions! {
     // The journal of the pods observed, outside the changesets (ADR 0043, decision 2):
     // evaluated on the pod domain of the cluster (Q-019-23), in no delivered role.
     OBSERVATION_RECORD = "kube.observation.record", "Écrire un lot d'observations au journal des pods d'un cluster Kubernetes (son connecteur seulement).";
+    OBSERVATION_READ = "kube.observation.read", "Lire le journal des pods observés d'un cluster Kubernetes : quel pod avait une adresse, où un workload a tourné.";
 }
 
 /// The permission of a batch of observations (`POST /v1/kube-clusters/{id}/observations`).
 pub const OBSERVATION_RECORD_PERMISSION: &str = OBSERVATION_RECORD.name;
+
+/// The permission of the reads of the journal (`GET /v1/kube-clusters/{id}/observations`,
+/// `GET /v1/workloads/{id}/observations`, `read::who_had`), on the pod domain of the
+/// cluster (Q-019-23).
+pub const OBSERVATION_READ_PERMISSION: &str = OBSERVATION_READ.name;
 
 /// What closing an object does to the objects of the module that cite it (D33; design
 /// « Références »).
