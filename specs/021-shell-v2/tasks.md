@@ -3140,23 +3140,25 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     date le brouillon à cette date une fois l'ajout écrit ; `addOperations` passe par
     `addAt` (la date lue à l'appel, gardée pour le nouvel essai après un 412),
     `addToActive` lit la date une fois, pour l'ajout au brouillon actif comme pour le
-    brouillon qu'il crée ; `draft.ts` : `moveInDraft` lit la date avant le remplacement en
-    place (`drafts.update`). `admin/draft.ts` : `replace` inchangé, son commentaire dit
+    brouillon qu'il crée, ou la reçoit (`at`, second argument facultatif, hors API des
+    plugins) ; `draft.ts` : `moveInDraft` lit la date à son appel, avant la lecture du
+    brouillon actif, et la passe aux deux branches (remplacement en place, `drafts.update` ;
+    ajout, `add(ops, at)`). `admin/draft.ts` : `replace` inchangé, son commentaire dit
     pourquoi (l'administration n'écrit qu'au présent : `present` faux sous `valid_at` seul
     aussi, refus `edit.why.past` de `access.ts`, `roleRefusals`, des listes). Vitest :
     `drafts.test.ts` (« dated at the date read before the addition is sent… » : date
     changée pendant la création puis pendant l'ajout, rien de daté pour un ajout envoyé au
-    présent), `draft-move.test.ts` (remplacé en place, daté et simulé à la date lue avant
-    le `PATCH`). La ligne `choix :` de la 14e redite ; `design.md` (`sdk.drafts`) dit la
+    présent), `draft-move.test.ts` (remplacé en place ou ajouté, la date changée pendant la
+    lecture du brouillon actif hors cache : daté et simulé à la date de l'appel). La ligne `choix :` de la 14e redite ; `design.md` (`sdk.drafts`) dit la
     date lue avant l'envoi.
   - choix : la date se lit à l'appel de l'ajout, non juste avant la requête (après la
     lecture de l'`ETag`) : c'est la date sous laquelle l'utilisateur a agi, et le nouvel
     essai après un 412 garde la même ; `dateAddition` prend la date en argument plutôt que
     de la relire (une seule lecture par ajout) ; pas de Vitest de l'administration,
     `replace` ne changeant pas de comportement.
-  - reste : dans `moveInDraft`, la branche d'ajout (`add`, soit `addToActive`) lit sa date
-    après la lecture du brouillon actif (`fetchQuery`), non à l'appel de `moveInDraft` :
-    écart de quelques millisecondes quand le brouillon est en cache.
+  - reste : relevés par la revue (mineurs) : aucun test ne prouve que le second essai après
+    un 412 garde la date lue à l'appel ; dans `drafts.test.ts`, un seul `it` tient trois cas
+    (création, ajout, ajout envoyé au présent), à scinder.
 - [ ] 14k. Brouillon supprimé dans un autre navigateur, dit dans l'onglet qui l'avait actif,
   tenu par un parcours (reste de la 14 : sous Chromium l'événement `draft` n'était pas venu
   en 20 s, avant la clôture de la tâche 5) : le toast du cadre (`drafts.gone`), le compteur

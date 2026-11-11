@@ -407,13 +407,14 @@ export function createDrafts(deps: DraftDeps) {
   /**
    * Adds operations to the active draft of the tab, creating one if there is none, or if
    * the active one is gone (`draft.add` of the plugins); given as a function, a new draft's
-   * operations are made from none.
+   * operations are made from none. `at` is the date of the addition (`additionDate`), read
+   * at the call unless given (`moveInDraft` reads it before its own reads): read before
+   * anything is sent, a new draft takes it too.
    */
   const addToActive = async (
     operations: Additions,
+    at: string | null = additionDate(),
   ): Promise<DraftOutcome<readonly Operation[]>> => {
-    // The date of the addition, read before anything is sent: a new draft takes it too.
-    const at = additionDate();
     const id = active();
     if (id !== null) {
       const outcome = await addAt(id, operations, at);
