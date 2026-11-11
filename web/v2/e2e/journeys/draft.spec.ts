@@ -17,7 +17,8 @@ import {
 // stays in the menu, refused with its permission, and the draft goes to review. A draft
 // with a violation says it on its operation, with its code; removed, the draft is valid. A
 // draft resumed from another browser of the same identity, with what was written in the
-// first, then deleted there; one renamed from « Mes brouillons » (task 14f). Under
+// first, then deleted there, said gone in the first by the event `draft` (task 14k); one
+// renamed from « Mes brouillons » (task 14f). Under
 // `valid_at` alone the draft is submitted from that date, its dates of effect in the foot;
 // an addition under `valid_at` dates its draft, kept with it back at the present (task
 // 14e); an answer lost at the submission, « Réessayer » sends the same key and the server
@@ -211,6 +212,16 @@ test("a violation on its operation; removed, the draft is valid; resumed and del
       .click();
     await expect(there).toHaveCount(0);
     await expect(counter(other)).toHaveAccessibleName(/^Brouillon 0 opération/);
+
+    // Here, where it was active: the event `draft` says it gone (024 § A), without a reload.
+    await expect(
+      page
+        .getByRole("region", { name: "Notifications" })
+        .getByText("Le brouillon actif n'existe plus : supprimé, soumis ou repris ailleurs."),
+    ).toBeVisible();
+    await expect(counter(page)).toHaveAccessibleName(/^Brouillon 0 opération/);
+    await expect(row).toHaveCount(0);
+    await expectAccessible(page);
   } finally {
     await context.close();
   }
