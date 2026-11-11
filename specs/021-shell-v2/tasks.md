@@ -1316,7 +1316,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     n'a ni `forbidden` ni `reason` pour lui) ; référence (domaine, parent) choisie dans la
     première page de sa collection seulement (au-delà, introuvable dans le panneau) ;
     captures des vrais écrans (comme la 11 : sans API dans le projet `visual`).
-- [ ] 24. Déplacements et invariant des arbres : arbre des préfixes en `derived` (aucun
+- [x] 24. Déplacements et invariant des arbres : arbre des préfixes en `derived` (aucun
   déplacement ; valeur modifiée par le brouillon, aperçu tiré de la simulation, arbre
   relu après application) ; `canMove` du shell (cycle, types tirés du contrat, droits sur
   les deux bouts, présent, codes des règles serveur) ; déplacement → brouillon ou
@@ -1441,6 +1441,45 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (le contrat n'en a pas : remplacement seulement, fait par le test), et la Topographie
     ne marque pas « en brouillon » une plage remplacée au brouillon (seules les opérations
     `update_*` le sont).
+  - fait le 2026-11-11, relevé contre le code (main 50e5bd18) : la clause de `verify` tient
+    toute. `canMove` et ses refus dans l'ordre : `web/v2/sdk/src/data/moves.ts`, Vitest
+    `sdk/test/moves.test.ts` (codes `machines.host.*` compris, 18b). Cas machines : fait par
+    la 18b puis la 18c — arbre de l'hébergement en `TreeGrid` `declared`
+    (`plugins/machines/src/HostingTree.vue`, `canMove` et `draft.move` du SDK, sans
+    optimisme), parcours `moves` « the host of a machine » (hôte sous son invité refusé
+    par le client avec `machines.host.invalid`, rien envoyé ; vers un hôte d'un autre site
+    accepté par le client, « en attente » à sa place pendant la simulation retenue, puis
+    l'avertissement `machines.host.site_mismatch`, au brouillon, aucun changeset ; vers un
+    cluster au clavier) et `machines` (physique vers un cluster refusé par la simulation, à
+    sa place). Aperçu du brouillon : tranché par l'option (b), fait par les 24a à 24d
+    (`placements` et leur opération dans la simulation, aperçu et états `moved`/`preview`
+    de la Topographie) ; enfants jusqu'à 10⁴ lignes par la 24e. Ajouté ici, seul morceau
+    de `verify` manquant : le volet « déplacements dans un arbre à parent déclaré » du
+    test de propriété de bout en bout — parcours `moves` « property: 200 moves of hosts,
+    accepted or refused, and every row under the host the API gives » (Chromium, graine
+    `0x2124`, deux clusters et neuf machines de chaque sorte sous une étiquette propre,
+    200 `machines.update_machine` `host` vers une cible quelconque ou aucune, au brouillon
+    ou directement, acceptés ou refusés par le serveur (009 M5) ; toutes les 10 étapes,
+    chaque nœud de l'étiquette ouvert, l'arbre rendu égal à celui de l'API — niveau et
+    parent de chaque ligne — et chaque ligne sous un hôte qui peut la porter) ; `submit`
+    des deux tests de propriété mis en commun. Vert en 4,4 min.
+  - choix : les déplacements du test de propriété passent par l'API, comme les valeurs du
+    test voisin (le geste lui-même est couvert par les parcours de l'hébergement et par le
+    test de propriété monté) ; arbre comparé sur les seules lignes de l'étiquette, triées
+    par libellé (le premier niveau de l'hébergement est partagé avec les autres parcours ;
+    l'ordre des frères n'est pas l'invariant) ; aucun site, donc aucun avertissement ni
+    anomalie à chaque étape ; aucun cycle possible au-delà de soi-même (009 M5 : un hôte
+    virtuel ne porte que des conteneurs, qui n'hébergent rien), les refus viennent des
+    sortes.
+  - reste (hors de `verify`, ouvert) : Ctrl+Entrée sur un dépôt (REQ-021-32, changeset
+    immédiat) — aucun arbre à parent déclaré du shell n'est à l'écran, et celui de
+    l'hébergement est un plugin, au brouillon seul (W10, 18b) ; l'ancrage d'un groupe de
+    VLAN change par le panneau, sans arbre ni glisser ; états transitoires d'une relecture
+    non couverts (les deux tests comparent l'arbre stable) ; erreur d'un champ du panneau
+    gardée jusqu'au prochain envoi (`EditPanel.vue`, `errors`) ; Ctrl+Entrée sur le
+    chevron du `SplitButton` (020, à vérifier) ; changement des bornes d'une plage absent
+    du contrat, plage remplacée au brouillon non marquée « en brouillon » par la
+    Topographie (`draftedValues` ne lit que les `update_*`).
 - [x] 13. Libellés et codes : `label` (dictionnaire `GET /v1/labels` de la 018 en cache par
   langue et révision, invalidé par l'événement `labels` ; catalogues ; clé),
   `KeyLabel` partout ; toute erreur par `ErrorState`, `InlineAlert`, `Toast` avec codes et
