@@ -4,7 +4,7 @@
 //! the `ETag`, `computed_at` and the snapshots recomputed once the outbox moved (M18).
 
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
@@ -324,27 +324,67 @@ fn computed_at(body: &Value) -> OffsetDateTime {
 /// are served the snapshot without computing, even past a changeset while it is recent;
 /// once old enough, a read is served it once more and recomputes it behind, and the next
 /// one counts the change, its `computed_at` later.
+///
+/// The read « too recent » proves something only when it comes within `refresh` of the
+/// computation, a changeset applied in between. Applying commits, and a commit waits
+/// for the WAL to be flushed: in a full `k-check`, the immediate checkpoints that each
+/// `DROP DATABASE` of the harness asks for held commits of the whole cluster up to 1.2 s
+/// (task 022-21). A pass whose read came later proves nothing and starts over, with
+/// snapshots of its own and a longer `refresh`.
 #[kartenn_testing::pg_test]
 async fn the_etag_and_the_snapshot_follow_the_outbox(pool: PgPool) {
     let lab = domain(&pool, "lab").await;
     let reader = person(&pool, &READ_ALL, ("global", None)).await;
-    let refresh = Duration::from_millis(400);
+    let passes = [
+        (400, "192.0.2.0/24"),
+        (2_000, "198.51.100.0/24"),
+        (10_000, "203.0.113.0/24"),
+    ];
+    let mut late = Vec::new();
+    for (counted, (refresh, prefix)) in (0..).zip(passes) {
+        let refresh = Duration::from_millis(refresh);
+        match follows_the_outbox(&pool, &reader, lab, refresh, prefix, counted).await {
+            None => return,
+            Some(window) => late.push((refresh, window)),
+        }
+    }
+    panic!("no read came within `refresh` of its computation (refresh, window): {late:?}");
+}
+
+/// A pass of [`the_etag_and_the_snapshot_follow_the_outbox`] with `refresh`, `counted`
+/// prefixes in `lab` before it applies `prefix`: `None` once all is proved, or how late
+/// the read « too recent » came, `refresh` or more after the first read began.
+async fn follows_the_outbox(
+    pool: &PgPool,
+    reader: &Principal,
+    lab: Uuid,
+    refresh: Duration,
+    prefix: &str,
+    counted: u64,
+) -> Option<Duration> {
     let snapshots = snapshots(refresh);
-    let app = app_with(&pool, reader, &snapshots);
+    let app = app_with(pool, reader.clone(), &snapshots);
     let before = OffsetDateTime::now_utc() - Duration::from_secs(5);
+    // The snapshots are made during the first read: at a later read, they are younger
+    // than the time elapsed since it began.
+    let start = Instant::now();
     let (status, tag, first) = stats(&app, None).await;
     assert_eq!(status, StatusCode::OK);
     assert!(tag.starts_with('"'), "strong: {tag}");
     assert_eq!(snapshots.computations(), 2, "its rights' part and its own");
     assert!(computed_at(&first) >= before, "{first}");
-    assert_eq!(first["objects"]["core.prefix"], 0);
+    assert_eq!(first["objects"]["core.prefix"], counted);
     let (status, again, body) = stats(&app, Some(&tag)).await;
     assert_eq!(status, StatusCode::NOT_MODIFIED);
     assert_eq!(again, tag);
     assert_eq!(body, Value::Null);
 
-    apply(&pool, vec![prefix_in(lab, "10.0.0.0/8")]).await;
+    apply(pool, vec![prefix_in(lab, prefix)]).await;
     let (status, same, _) = stats(&app, Some(&tag)).await;
+    let window = start.elapsed();
+    if window >= refresh {
+        return Some(window);
+    }
     assert_eq!(
         status,
         StatusCode::NOT_MODIFIED,
@@ -364,9 +404,10 @@ async fn the_etag_and_the_snapshot_follow_the_outbox(pool: PgPool) {
     let (status, moved, after) = stats(&app, Some(&tag)).await;
     assert_eq!(status, StatusCode::OK);
     assert_ne!(moved, tag);
-    assert_eq!(after["objects"]["core.prefix"], 1, "{after}");
+    assert_eq!(after["objects"]["core.prefix"], counted + 1, "{after}");
     assert!(computed_at(&after) > computed_at(&first), "{after}");
     assert_eq!(snapshots.computations(), 4);
+    None
 }
 
 /// M18: an old snapshot is not recomputed while the outbox has not moved, by a read or by
