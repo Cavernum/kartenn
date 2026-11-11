@@ -385,6 +385,27 @@ test.describe("TreeGrid (APG Treegrid)", () => {
     );
   });
 
+  test("crossing the threshold of the window: the focused element stays the same", async ({
+    page,
+  }) => {
+    // « Domaine 1 » open: 1 100 rows, virtualised; closed: 100, every row in the document.
+    await openState(page, "TreeGrid", "virtual");
+    const tree = page.getByRole("treegrid", { name: "Cent mille nœuds" });
+    await tabIn(page);
+    expect(await focusedCell(page)).toBe("v1|");
+    await page.evaluate(() => ((document.activeElement as HTMLElement).dataset.marked = ""));
+    const same = async () => {
+      await expect(page.locator(":focus")).toHaveAttribute("data-marked", "");
+      expect(await focusedCell(page)).toBe("v1|");
+    };
+    await page.keyboard.press("ArrowLeft");
+    await expect(tree).toHaveAttribute("aria-rowcount", "101");
+    await same();
+    await page.keyboard.press("ArrowRight");
+    await expect(tree).toHaveAttribute("aria-rowcount", "1101");
+    await same();
+  });
+
   test("children page by page: aria-setsize -1, the row of the rest reads the next page", async ({
     page,
   }) => {

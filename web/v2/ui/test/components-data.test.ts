@@ -159,9 +159,8 @@ describe("DataGrid", () => {
   });
 
   it("recycles the elements of the rows that leave the window for those that come", () => {
-    const none = new Set<string>();
     const order = ["a", "b", "c", "f"];
-    const first = rowSlots(order, { order: [], slots: new Map() }, none);
+    const first = rowSlots(order, { order: [], slots: new Map() });
     expect([...first]).toEqual([
       ["a", 0],
       ["b", 1],
@@ -170,7 +169,7 @@ describe("DataGrid", () => {
     ]);
     // Scrolled by two rows: the rows that stay keep their slot, those that come take the
     // slots of those that left.
-    const next = rowSlots(["c", "f", "g", "h"], { order, slots: first }, none);
+    const next = rowSlots(["c", "f", "g", "h"], { order, slots: first });
     expect([...next].sort()).toEqual([
       ["c", 2],
       ["f", 3],
@@ -178,16 +177,62 @@ describe("DataGrid", () => {
       ["h", 1],
     ]);
     // The row of the focus (`c`) guarded: a slot freed above it never goes below it (its
-    // element would cross the focus), one below it does; the rest get slots no row had.
-    const guarded = rowSlots(["c", "d", "e", "f"], { order, slots: first }, new Set(["c"]));
+    // element would cross the focus); the rows that come get slots no row had.
+    const guarded = rowSlots(
+      ["c", "d", "e", "f"],
+      { order, slots: first },
+      { guarded: new Set(["c"]) },
+    );
     expect(guarded.get("c")).toBe(2);
     expect(guarded.get("f")).toBe(3);
     expect([guarded.get("d"), guarded.get("e")]).toEqual([4, 5]);
+    // Two rows guarded at once (the focus `b`, the selection `f`): a slot freed between
+    // them is taken between them only, never on either side.
+    const twice = rowSlots(
+      ["b", "d", "f", "g"],
+      { order, slots: first },
+      { guarded: new Set(["b", "f"]) },
+    );
+    expect([twice.get("b"), twice.get("f")]).toEqual([1, 3]);
+    expect(twice.get("d")).toBe(2);
+    expect(twice.get("g")).toBe(4);
     // The slot of the row of the focus that left (`f`, 3) goes to no row that comes.
-    const left = rowSlots(["a", "b", "c", "g"], { order, slots: first }, none, new Set([3]));
+    const left = rowSlots(
+      ["a", "b", "c", "g"],
+      { order, slots: first },
+      { reserved: new Set([3]) },
+    );
     expect(left.get("g")).toBe(4);
     // No slot twice, even for a row asked twice.
-    expect(new Set(rowSlots(["x", "x", "y"], { order, slots: first }, none).values()).size).toBe(2);
+    expect(new Set(rowSlots(["x", "x", "y"], { order, slots: first }).values()).size).toBe(2);
+  });
+
+  it("keeps the slots of the rows that stay when a list crosses VIRTUAL_ROWS", () => {
+    // Below the threshold no slot is taken again: a row that comes gets a new one, as a
+    // list keyed by its rows.
+    const rows = Array.from({ length: 6 }, (_, i) => `n${i}`);
+    const small = rowSlots(rows, { order: [], slots: new Map() }, { reuse: false });
+    const grown = rowSlots(
+      ["n0", "x", ...rows.slice(1, 5)],
+      { order: rows, slots: small },
+      { reuse: false },
+    );
+    expect(grown.get("x")).toBe(6);
+    // A node opened past the threshold: the window holds the first rows only, the focus
+    // (`n4`) and the selection (`n2`) among them, each on the slot it had.
+    const opened = rowSlots(
+      ["n0", "n1", "n2", "n3", "n4", "c1", "c2"],
+      { order: rows, slots: small },
+      { guarded: new Set(["n4", "n2"]) },
+    );
+    expect([opened.get("n2"), opened.get("n4")]).toEqual([2, 4]);
+    // Closed again below it: the same slots still.
+    const closed = rowSlots(
+      rows,
+      { order: ["n0", "n1", "n2", "n3", "n4", "c1", "c2"], slots: opened },
+      { guarded: new Set(["n4", "n2"]), reuse: false },
+    );
+    expect([closed.get("n2"), closed.get("n4")]).toEqual([2, 4]);
   });
 
   // The contract of in-place editing (design « Contrat d'édition »), without a DOM.

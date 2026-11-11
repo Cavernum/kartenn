@@ -10,7 +10,7 @@
 // of a paged list).
 
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import { computed, ref, type ComponentPublicInstance, type Ref } from "vue";
+import { computed, onMounted, onUpdated, ref, type ComponentPublicInstance, type Ref } from "vue";
 
 /**
  * The parts of a virtualised body, in order: the rows to render (`index`), and between
@@ -80,8 +80,16 @@ export interface RenderedSlots {
 export function rowSlots(
   keys: readonly string[],
   before: RenderedSlots,
-  guarded: ReadonlySet<string>,
-  reserved: ReadonlySet<number> = new Set(),
+  {
+    guarded = new Set(),
+    reserved = new Set(),
+    reuse = true,
+  }: {
+    guarded?: ReadonlySet<string>;
+    reserved?: ReadonlySet<number>;
+    /** Slots of rows that left taken again; without, each row that comes gets a new one. */
+    reuse?: boolean;
+  } = {},
 ): Map<string, number> {
   const slots = new Map<string, number>();
   const taken = new Set<number>(reserved);
@@ -115,7 +123,7 @@ export function rowSlots(
   let fresh = 0;
   for (const key of keys) {
     if (slots.has(key)) continue;
-    let slot = freed.get(now.get(key)!)?.shift();
+    let slot = reuse ? freed.get(now.get(key)!)?.shift() : undefined;
     if (slot === undefined) {
       while (taken.has(fresh) || had.has(fresh)) fresh += 1;
       slot = fresh;
@@ -194,32 +202,45 @@ export function useVirtualRows(host: VirtualRowsHost) {
     const end = (i: number) => sizes[i]?.end ?? at(i) + estimate.value;
     return bodyParts(keep, count, at, end, at(0));
   });
-  /** The rows rendered last and their slots (`rowSlots`), and the rows kept then. */
-  let rendered: RenderedSlots = { order: [], slots: new Map() };
-  let keptBefore: (string | undefined)[] = [];
   /**
-   * The key of each part, for a list that recycles its rows' elements once virtualised
-   * (`rowSlots`; the gaps by their order); below, each row by its own key.
+   * The last render committed (`onMounted`, `onUpdated`): its rows, their slots, the rows
+   * kept then. `keys` reads it and never writes it: it may be read outside a render (an
+   * event handler reads `parts`), or twice before one, and gives the same keys each time.
+   */
+  let rendered: RenderedSlots & { kept: readonly (string | undefined)[] } = {
+    order: [],
+    slots: new Map(),
+    kept: [],
+  };
+  /** The state `keys` computed last, committed once its render is done. */
+  let computedLast: typeof rendered | undefined;
+  const commit = () => {
+    if (computedLast) rendered = computedLast;
+  };
+  onMounted(commit);
+  onUpdated(commit);
+  /**
+   * The key of each part (`rowSlots`): `r` and the slot of its row, the gaps by their
+   * order between the guarded rows. Virtualised, a row that comes takes the element of
+   * one that left; below `VIRTUAL_ROWS`, each row that comes a new slot, as a list keyed
+   * by its rows. Either way a row rendered before keeps its slot, so the rows of the focus
+   * and of an editor keep their elements when the list crosses `VIRTUAL_ROWS` (a node
+   * opened, or closed).
    */
   const keys = computed<string[]>(() => {
     const list = parts.value;
-    if (!virtual.value) {
-      rendered = { order: [], slots: new Map() };
-      keptBefore = [];
-      return list.map((part) => ("index" in part ? host.keyAt(part.index) : part.key));
-    }
     const order = list.flatMap((part) => ("index" in part ? [host.keyAt(part.index)] : []));
     const now = new Set(order);
     const kept = host.kept();
     const guarded = new Set(
-      [...kept, ...keptBefore].filter((key): key is string => key !== undefined),
+      [...kept, ...rendered.kept].filter((key): key is string => key !== undefined),
     );
     const reserved = new Set<number>();
     for (const key of guarded) {
       const slot = now.has(key) ? undefined : rendered.slots.get(key);
       if (slot !== undefined) reserved.add(slot);
     }
-    const slots = rowSlots(order, rendered, guarded, reserved);
+    const slots = rowSlots(order, rendered, { guarded, reserved, reuse: virtual.value });
     // The gaps by their order between the guarded rows: never across one either.
     let side = 0;
     let gap = 0;
@@ -232,8 +253,7 @@ export function useVirtualRows(host: VirtualRowsHost) {
       }
       return `r${slots.get(key)}`;
     });
-    rendered = { order, slots };
-    keptBefore = kept;
+    computedLast = { order, slots, kept };
     return out;
   });
   /** The row height of the density, read again when the density changes. */
