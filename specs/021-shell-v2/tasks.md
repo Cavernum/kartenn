@@ -4207,7 +4207,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     vers la ligne 61) ; ADR 0025 (plugins web), ADR 0038 (partage des composants avec les
     plugins)
   - dépend de : 24, 18c ; arbitrage de la spec par l'utilisateur
-- [ ] 24g. Plage remplacée au brouillon marquée « en brouillon » par la Topographie
+- [x] 24g. Plage remplacée au brouillon marquée « en brouillon » par la Topographie
   (REQ-021-17, clause « valeur modifiée par le brouillon » ; reste de la 24) : une plage
   dont le brouillon actif porte le remplacement (`close` de la plage, puis `create_range`
   de mêmes usage et domaine : le contrat n'a pas de bornes dans `update_range`) est
@@ -4224,6 +4224,34 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     `web/v2/shell/test/edit.test.ts` (tests de `draftedValues` à imiter) ; parcours
     `web/v2/e2e/journeys/moves.spec.ts` (« a prefix inserted in the draft… », forme)
   - dépend de : 24, 24b
+  - fait le 2026-11-11 : `draftedClosures` (`views/edit/fields.ts`, voisin de
+    `draftedValues`) : les objets d'une collection qu'un brouillon clôt, par identifiant ;
+    `inDraftOf` (`views/topology.ts`) : les objets de l'arbre que le brouillon change, les
+    `update_*` des préfixes, plages et adresses plus les plages closes, sorti de
+    `TopologyView.vue` (`inDraft` en est le `computed`) pour être testé ; une plage close
+    n'est pas placée par la simulation (elle quitte l'arbre), elle reste donc `draft`, la
+    plage créée `preview` sous son réseau (24b). Vitest : `edit.test.ts` (plage remplacée
+    marquée, préfixe clos lu dans sa collection, plage close sous `within` non lue, une
+    clôture ne change aucune valeur) ; `topology.test.ts` (plage remplacée `draft` à sa
+    place, la créée `preview` sous P avec ses bornes, une autre plage et un préfixe clos sans
+    état). Parcours `moves` « a range replaced in the draft is marked at its place, the new
+    one shown by the preview » (chromium et firefox : brouillon des deux opérations écrit
+    par l'API et rendu actif, faute de geste ; ligne servie « (en brouillon) », ligne
+    d'aperçu « (aperçu du brouillon) » au niveau 2, arbre servi inchangé, axe ; appliqué,
+    aperçu parti, la nouvelle plage servie à sa place, arbre égal à celui de l'API).
+  - choix : toute clôture d'une plage au brouillon la marque, suivie ou non d'un
+    `create_range` (le contrat n'apparie pas les deux ; une plage close est changée par le
+    brouillon) ; une clôture sous `within` n'est pas lue (une autre période que le présent,
+    comme `draftedValues` qui ne lit pas `within`) ; seules les plages : un préfixe ou une
+    adresse clos au brouillon ne sont pas marqués (pas de remplacement à dire, et « en
+    brouillon » n'est pas le mot d'un retrait) ; brouillon du parcours écrit par l'API (le
+    shell n'a pas de geste de remplacement des bornes). Pas de relecture `ui-reviewer` ni
+    `a11y-auditor` : aucun rendu nouveau, l'état `draft` du `TreeGrid` déjà relu (24b, 24d)
+    s'applique à une ligne de plus.
+  - reste : un préfixe ou une adresse clos au brouillon ne sont pas marqués dans la
+    Topographie (`TreeGrid` n'a pas d'état « retiré dans le brouillon », que `DataGrid` a,
+    `removed`) ; la plage close et sa remplaçante ne sont pas reliées à l'écran (deux lignes,
+    deux états, sans lien entre elles).
 - [x] 7a. Préchargement au survol sans lecture pendant un défilement (relevé par la revue
   de la 24e) : `childrenIntent` (`web/v2/shell/src/prefetch/tree.ts` vers la ligne 30) lit
   les enfants de chaque ligne qui passe sous le pointeur immobile pendant un défilement
