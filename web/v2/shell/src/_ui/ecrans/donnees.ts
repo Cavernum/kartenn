@@ -156,12 +156,23 @@ export interface DraftOperation {
   /** The value before, empty for a creation (`after` is then its summary). */
   before: string;
   after: string;
+  /**
+   * Why no edit panel writes it (a property set), its « Modifier » refused (task 14l,
+   * Q-021-17); absent, it opens the panel of its kind.
+   */
+  noPanel?: string;
 }
 
 /** The operations of the active draft (a frame that counts n shows the first n). */
 export const DRAFT_OPERATIONS: DraftOperation[] = [
   { key: "192.0.2.11", what: "Usage", before: "Hôte", after: "VIP" },
-  { key: "192.0.2.12", what: "Propriétaire", before: "Atelier Nord", after: "Atelier Sud" },
+  {
+    key: "192.0.2.12",
+    what: "Propriétaire",
+    before: "Atelier Nord",
+    after: "Atelier Sud",
+    noPanel: "Aucun panneau d'édition pour cette opération : retirez-la, puis refaites-la.",
+  },
   { key: "192.0.2.40", what: "Créer l'adresse", before: "", after: "Hôte, Service Pilote" },
 ];
 

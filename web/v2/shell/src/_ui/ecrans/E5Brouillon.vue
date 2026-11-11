@@ -1,7 +1,9 @@
 <script setup lang="ts">
 // E5 — Brouillon (design « Maquettes »; 021, « Cadre » : panneau du brouillon, « Écrans » :
 // Brouillons; 024/M8, M9): the draft tab of the right panel, over the end of the list it
-// was filled from; its operations that can be removed; the simulation under way, then
+// was filled from; its operations that can be modified in the edit panel of their kind (a
+// property set refused, no panel writes it: task 14l, Q-021-17) or removed; the simulation
+// under way, then
 // with coded violations, then valid but held by a policy; the footer of the tab (result
 // of the simulation, CommitForm, SplitButton open on its menu, « Appliquer » disabled with
 // its reason). And the page `/drafts`: the drafts of the user, to resume, create, delete.

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // The draft tab of the right panel (spec 021, « Cadre » and « Écrans » : Brouillons; 024/M8):
-// the operations of the active draft, each with its remove button and, after a
+// the operations of the active draft, each with its modify and remove buttons and, after a
 // simulation, its violations in plain language with their code (024/M16). The frame shows
 // it in every mock-up; E5 shows its states. The footer (simulation, motive, action) is
 // `EcranSoumission`.
@@ -41,11 +41,21 @@ const operations = computed(() => DRAFT_OPERATIONS.slice(0, props.count));
                 <DiffValue v-else kind="added">{{ op.after }}</DiffValue>
               </span>
             </Cluster>
-            <IconButton
-              icon="x"
-              size="sm"
-              :label="`Retirer l'opération « ${op.what} » sur ${op.key}`"
-            />
+            <!-- « Modifier » (task 14l, Q-021-17): the edit panel of its kind, prefilled; refused
+              with its reason for an operation no panel writes. -->
+            <Cluster gap="1" :wrap="false">
+              <IconButton
+                icon="pencil"
+                size="sm"
+                :label="`Modifier l'opération « ${op.what} » sur ${op.key}`"
+                v-bind="op.noPanel ? { reason: op.noPanel } : {}"
+              />
+              <IconButton
+                icon="x"
+                size="sm"
+                :label="`Retirer l'opération « ${op.what} » sur ${op.key}`"
+              />
+            </Cluster>
           </Cluster>
           <InlineAlert
             v-if="props.violations[op.key]"
