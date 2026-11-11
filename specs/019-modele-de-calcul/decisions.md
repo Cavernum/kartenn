@@ -278,6 +278,10 @@ décision de l'utilisateur (2026-11-09). Les questions 1 à 4 conditionnent tout
 - Décision : **A** (l'utilisateur, 2026-11-10) ; tâche 4e. Le changement des domaines
   des services et des adresses externes d'un cluster peuplé suit la règle de Q-019-15
   (refus, tâche 4f ; Claude, 2026-11-11).
+- Précision (tâche 4e, 2026-11-11) : dans un même lot, deux porteurs nouveaux d'une IP
+  ou une passation demandent que le pipeline partage une création du noyau entre les
+  plans d'un changeset ; amendement additif 10 de l'ADR 0026 (créations partageables,
+  tâche 4e0) plutôt qu'un repli sur le connecteur (l'utilisateur, 2026-11-11).
 
 ## Synthèse
 - X1 périmètre : hôte physique, hyperviseur, VM, cluster d'hyperviseurs (009) ; cluster,

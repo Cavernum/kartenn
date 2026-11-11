@@ -664,6 +664,24 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     (requête inutile) ; deux routes identiques vers deux services différents passent sans
     avertissement. Partage d'adresse : tâche 4e ; domaines des services et externes
     changés sous des objets vivants : tâche 4f.
+- [ ] 4e0. Créations du noyau partagées entre les plans d'un changeset (arbitrage du
+  2026-11-11, Q-019-17 : précision) : chaque opération `kube.sync` est préparée et
+  planifiée seule, deux porteurs nouveaux d'une même IP dans un lot planifient chacun
+  leur `CreateAddress` (refus `core.address.duplicate`), et une passation (A rend l'IP,
+  B la prend dans le même lot) fait clore l'adresse par A avant que B la cite.
+  Amendement additif 10 de l'ADR 0026 : un plan de module marque des opérations du
+  noyau qu'il ajoute comme partageables (par exemple `ModulePlan::shared`, indices dans
+  `core`, vide par défaut) ; dans `pipeline::plan`, un `CreateAddress` partageable
+  identique (domaine, valeur, usage) à celui qu'un plan antérieur du changeset a ajouté
+  n'est pas replanifié, et `planned` reçoit dans `created` l'identifiant antérieur ; la
+  `Close` d'une adresse partageable par un module est retirée si un plan du même
+  changeset la cite — verify : test du pipeline voisin de
+  `module_data_cite_the_core_objects_it_creates` (deux plans, une création, deux
+  citations ; la passation sans clôture) ; comportement inchangé sans marque
+  - où : `crates/kartenn-service/src/module.rs` (`ModulePlan`),
+    `crates/kartenn-service/src/pipeline.rs` (`plan`, vers la ligne 965),
+    `docs/adr/0026-contrat-de-module.md` (amendements 8 et 9 à imiter)
+  - dépend de : 4c
 - [ ] 4e. Adresses `vip` partagées (arbitrage du 2026-11-10, Q-019-17) : les ingress
   d'une classe ont l'IP du service LoadBalancer de leur contrôleur, deux services peuvent
   partager une IP ; un second porteur est aujourd'hui refusé (`core.address.duplicate`)
@@ -678,7 +696,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - où : `crates/kartenn-kube/src/handler.rs` (`vips`, `prepare`), `pg.rs` (lecture des
     adresses du domaine et de leurs porteurs), `crates/kartenn-service/src/cascade.rs`
     (`cited`) ; tests voisins de la 4b et de la 4c dans `tests/it/clusters.rs`
-  - dépend de : 4c
+  - dépend de : 4c, 4e0
 - [ ] 4f. Domaines des services et des adresses externes figés sous des objets vivants
   (revue de la 4c ; même règle que Q-019-15 pour le domaine des pods) : `update_cluster`
   qui change `service_domain_id` ou `external_domain_id` d'un cluster qui a des services
