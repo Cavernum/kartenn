@@ -369,7 +369,6 @@
       "length": "{field} compte de {min} à {max} caractères.",
       "lengthMin": "{field} compte au moins {min} caractères.",
       "lengthMax": "{field} compte au plus {max} caractères.",
-      "pattern": "{field} ne suit pas le motif déclaré : {pattern}.",
       "control": "{field} ne contient aucun caractère de contrôle.",
       "bool": "{field} vaut true ou false.",
       "date": "{field} est une date AAAA-MM-JJ.",

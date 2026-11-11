@@ -92,8 +92,10 @@ export interface PropertyCheck {
 
 const param = (declaration: Declared, name: string) => declaration.params?.[name];
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
-/** A label of a host name (RFC 1123 §2.1), a non-ASCII letter kept for its A-label. */
-const LABEL = /^(?!-)[\p{L}\p{N}-]{1,63}(?<!-)$/u;
+/** A label of a host name (RFC 1123 §2.1), ASCII by LDH, any non-ASCII left to the server. */
+const LABEL = /^(?!-)(?:[A-Za-z0-9-]|[^\u0000-\u007f]){1,63}(?<!-)$/u;
+/** The full stops UTS #46 maps to `.` (ideographic, full-width, half-width). */
+const SEPARATORS = /[。．｡]/g;
 
 /**
  * A measure out of its declared bounds, said by the bounds there are: `<what>` both,
@@ -116,7 +118,8 @@ function bounded(
 
 /**
  * The local check of a value typed for `declaration` (REQ-003-8; design « Édition en
- * place »): the type and its parameters (length, pattern, bounds, a key of the closed list
+ * place »), never stricter than the server's: the type and its parameters (length in NFC,
+ * bounds, a key of the closed list
  * when `choices` holds the whole list). Emptied, the cell removes a value of the object's
  * own: refused when the value shown is not (`own` false). The rest is the server's (422).
  */
@@ -130,27 +133,17 @@ export function checkProperty(
   if (typed === "") return own === false ? { key: "edit.property.nothingToRemove" } : undefined;
   switch (declaration.type) {
     case "text": {
-      if (/[\u0000-\u001f\u007f-\u009f]/.test(typed)) return { key: "edit.check.control" };
-      const length = [...typed].length;
-      const out = bounded(
+      // Counted as the server counts: in NFC, by code point (`values.rs`, TextType). The
+      // pattern is the server's alone: the `regex` crate and JavaScript differ (`\d`, `\w`
+      // are Unicode there), a local check could refuse what the server takes.
+      const normal = typed.normalize("NFC");
+      if (/[\u0000-\u001f\u007f-\u009f]/.test(normal)) return { key: "edit.check.control" };
+      return bounded(
         "length",
-        length,
+        [...normal].length,
         param(declaration, "min_len"),
         param(declaration, "max_len"),
       );
-      if (out) return out;
-      const pattern = param(declaration, "pattern");
-      if (typeof pattern === "string" && pattern !== "") {
-        let anchored: RegExp | null = null;
-        try {
-          anchored = new RegExp(`^(?:${pattern})$`, "u");
-        } catch {
-          // A pattern this engine does not read is the server's alone.
-        }
-        if (anchored && !anchored.test(typed))
-          return { key: "edit.check.pattern", values: { pattern } };
-      }
-      return undefined;
     }
     case "int": {
       const value = Number(typed);
@@ -163,12 +156,17 @@ export function checkProperty(
       return typed === "true" || typed === "false" ? undefined : { key: "edit.check.bool" };
     case "date": {
       const [, y, m, d] = DATE.exec(typed) ?? [];
-      const day = y ? new Date(Date.UTC(Number(y), Number(m) - 1, Number(d))) : null;
-      const valid = day?.toISOString().slice(0, 10) === typed;
+      // `setUTCFullYear`: the years 0 to 99 as they are (`Date.UTC` takes them as 19xx).
+      const day = new Date(0);
+      if (y) day.setUTCFullYear(Number(y), Number(m) - 1, Number(d));
+      const valid = y !== undefined && day.toISOString().slice(0, 10) === typed;
       return valid ? undefined : { key: "edit.check.date" };
     }
     case "fqdn": {
-      const name = typed.replace(/\.$/, "");
+      // Looser than the server (IDNA2008 / UTS #46, `values.rs`): the separators UTS #46
+      // maps to a dot, any non-ASCII character left to it; the lengths hold, an A-label being
+      // never shorter than its Unicode form.
+      const name = typed.replace(SEPARATORS, ".").replace(/\.$/, "");
       const valid = name.length <= 253 && name.split(".").every((label) => LABEL.test(label));
       return valid ? undefined : { key: "edit.check.fqdn" };
     }

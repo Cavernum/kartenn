@@ -369,7 +369,6 @@
       "length": "{field} has {min} to {max} characters.",
       "lengthMin": "{field} has at least {min} characters.",
       "lengthMax": "{field} has at most {max} characters.",
-      "pattern": "{field} does not follow the declared pattern: {pattern}.",
       "control": "{field} holds no control character.",
       "bool": "{field} is true or false.",
       "date": "{field} is a date YYYY-MM-DD.",

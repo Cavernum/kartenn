@@ -62,8 +62,12 @@ describe("a property edited in place", () => {
     expect(checkProperty(declared("x.y", "int", { max: 9 }), "10", true)?.key).toBe(
       "edit.check.betweenMax",
     );
-    expect(checkProperty(text, "AB", true)?.key).toBe("edit.check.pattern");
+    // The pattern is the server's alone (the `regex` crate is not JavaScript's engine).
+    expect(checkProperty(text, "AB", true)).toBeUndefined();
     expect(checkProperty(text, "a\u0007b", true)?.key).toBe("edit.check.control");
+    // Counted in NFC, as the server: « café » decomposed is 4 characters, not 5.
+    const four = declared("custom.word", "text", { min_len: 0, max_len: 4 });
+    expect(checkProperty(four, "café", true)).toBeUndefined();
     const int = declared("custom.rank", "int", { min: -5, max: 10 });
     expect(checkProperty(int, "-3", true)).toBeUndefined();
     expect(checkProperty(int, "11", true)?.key).toBe("edit.check.between");
@@ -72,10 +76,16 @@ describe("a property edited in place", () => {
     const date = declared("custom.end", "date");
     expect(checkProperty(date, "2026-02-28", true)).toBeUndefined();
     expect(checkProperty(date, "2026-02-30", true)?.key).toBe("edit.check.date");
+    // The years 0 to 99 as they are (`Date.UTC` would read 1950).
+    expect(checkProperty(date, "0050-01-01", true)).toBeUndefined();
+    expect(checkProperty(date, "0050-02-29", true)?.key).toBe("edit.check.date");
     const fqdn = declared("dns.name", "fqdn");
     expect(checkProperty(fqdn, "srv-01.example.org.", true)).toBeUndefined();
     expect(checkProperty(fqdn, "srv_01.example.org", true)?.key).toBe("edit.check.fqdn");
     expect(checkProperty(fqdn, "-a.example.org", true)?.key).toBe("edit.check.fqdn");
+    // Never stricter than UTS #46: combining marks, the full stops it maps to a dot.
+    expect(checkProperty(fqdn, "हिन्दी.example", true)).toBeUndefined();
+    expect(checkProperty(fqdn, "café。example．org", true)).toBeUndefined();
     const level = declared("custom.level", "enum");
     expect(checkProperty(level, "high", true, ["low", "high"])).toBeUndefined();
     expect(checkProperty(level, "top", true, ["low", "high"])?.key).toBe("edit.check.choice");
