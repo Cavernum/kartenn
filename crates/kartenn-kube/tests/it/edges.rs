@@ -55,6 +55,10 @@ struct Env {
     registry: Arc<ModuleRegistry>,
     store: PgStore,
     author: Uuid,
+    /// The service account of the connector, which submits the batches.
+    connector: Uuid,
+    /// The connector group of the cluster, the connector its only member.
+    group: Uuid,
     acme: Uuid,
 }
 
@@ -83,11 +87,14 @@ impl Env {
         .fetch_one(pool)
         .await
         .unwrap();
+        let (connector, group) = crate::support::connector(pool, "connector").await;
         let mut env = Self {
             pool: pool.clone(),
             registry,
             store,
             author,
+            connector,
+            group,
             acme: Uuid::nil(),
         };
         env.applied(vec![Operation::CreateEntity {
@@ -100,9 +107,15 @@ impl Env {
         env
     }
 
+    /// `operations` applied, submitted by the connector when they are a batch.
     async fn applied(&self, operations: Vec<Operation>) {
+        let author = if crate::support::batch(&operations) {
+            self.connector
+        } else {
+            self.author
+        };
         let request = ChangesetRequest {
-            author: self.author,
+            author,
             motive: "test".into(),
             period: None,
             operations,
@@ -341,6 +354,7 @@ async fn execution_chain_edges(pool: PgPool) {
                 "external_domain": {"id": external},
                 "pod_containers": [{"id": container}],
                 "service_networks": [{"id": network}],
+                "connector_group": {"id": env.group},
             }),
         ),
     ])

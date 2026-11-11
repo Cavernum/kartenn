@@ -27,6 +27,10 @@ struct Env {
     store: PgStore,
     registry: Arc<ModuleRegistry>,
     author: Uuid,
+    /// The service account of the connector, which submits the batches.
+    connector: Uuid,
+    /// The connector group of every cluster, the connector its only member.
+    group: Uuid,
     acme: Uuid,
     pods: Uuid,
     services: Uuid,
@@ -60,11 +64,14 @@ impl Env {
         .fetch_one(pool)
         .await
         .unwrap();
+        let (connector, group) = crate::support::connector(pool, "connector").await;
         let mut env = Self {
             pool: pool.clone(),
             store,
             registry,
             author,
+            connector,
+            group,
             acme: Uuid::nil(),
             pods: Uuid::nil(),
             services: Uuid::nil(),
@@ -89,9 +96,21 @@ impl Env {
         env
     }
 
+    /// `operations` submitted by the connector when they are a batch, by the author
+    /// otherwise.
     async fn submit(&self, operations: Vec<Operation>) -> Outcome {
+        let author = if crate::support::batch(&operations) {
+            self.connector
+        } else {
+            self.author
+        };
+        self.submit_by(author, operations).await
+    }
+
+    /// `operations` submitted by `author`, without RBAC.
+    async fn submit_by(&self, author: Uuid, operations: Vec<Operation>) -> Outcome {
         let request = ChangesetRequest {
-            author: self.author,
+            author,
             motive: "test".into(),
             period: None,
             operations,
@@ -122,14 +141,18 @@ impl Env {
             .unwrap()
     }
 
-    /// A new identity holding `permissions` on `acme` and what it owns.
+    /// A new service account of the connector group, holding `permissions` on `acme` and
+    /// what it owns.
     async fn granted(&self, permissions: &[&str]) -> Uuid {
         let identity: Uuid = sqlx::query_scalar(
-            "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'r') RETURNING id",
+            "INSERT INTO person (id, display_name, kind)
+             VALUES (gen_random_uuid(), 'r-' || gen_random_uuid(), 'service_account')
+             RETURNING id",
         )
         .fetch_one(&self.pool)
         .await
         .unwrap();
+        crate::support::member(&self.pool, self.group, identity).await;
         let role = Uuid::now_v7();
         sqlx::query(
             "INSERT INTO role (id, key, labels, valid_period, changeset_id)
@@ -232,6 +255,7 @@ impl Env {
             "service_domain": {"id": self.services},
             "pod_containers": [{"id": self.container}],
             "service_networks": [{"id": self.network}],
+            "connector_group": {"id": self.group},
         });
         merge(&mut fields, extra);
         op("create_cluster", fields)
@@ -2121,4 +2145,195 @@ async fn vip_shared_read_required(pool: PgPool) {
     assert!(matches!(outcome, Outcome::Applied { .. }), "{outcome:?}");
     let blog = env.ingresses(payments, "blog").await[0];
     assert_eq!(env.ingress_address_ids(blog).await, [vip]);
+}
+
+/// The workload `web` of `cluster`, in its namespace `payments`, labelled `app: app`.
+fn web(cluster: Uuid, app: &str) -> Operation {
+    workload(
+        "upsert",
+        cluster,
+        "payments",
+        "deployment",
+        "web",
+        json!({ "labels": {"app": app} }),
+    )
+}
+
+/// The declaration of `custom.environment`, a text the workloads carry.
+fn environment() -> Operation {
+    use kartenn_service::operations::{DeclarationInput, TypeInput};
+    Operation::DeclareProperty {
+        local: None,
+        declaration: DeclarationInput {
+            key: "custom.environment".into(),
+            value_type: TypeInput::Text {
+                min_len: 0,
+                max_len: 32,
+                pattern: None,
+            },
+            cardinality: kartenn_core::values::Cardinality::Single,
+            carriers: vec!["kube.workload".into()],
+            inherit: None,
+            module: None,
+            obligations: Vec::new(),
+            expected: None,
+            labels: None,
+        },
+    }
+}
+
+/// The value `value` of `property` set on the workload `object`.
+fn environment_of(object: Uuid, property: Uuid, value: &str) -> Operation {
+    Operation::AssignProperty {
+        object: Ref::Id(object),
+        kind: ObjectKind::from_name("kube.workload").unwrap(),
+        property: Ref::Id(property),
+        values: vec![RawInput::Text(value.into())],
+    }
+}
+
+impl Env {
+    /// The namespace `payments` of `cluster` and its workload `web`, written by the
+    /// connector: the workload.
+    async fn web(&self, cluster: Uuid) -> Uuid {
+        self.applied(vec![sync(
+            "upsert",
+            "namespace",
+            cluster,
+            "payments",
+            json!({}),
+        )])
+        .await;
+        self.applied(vec![web(cluster, "web")]).await;
+        let payments = self.named("kube.namespace", cluster, "payments").await[0];
+        self.workloads(payments).await[0]
+    }
+
+    /// The labels of the living version of the workload `id`.
+    async fn labels(&self, id: Uuid) -> Value {
+        sqlx::query_scalar(
+            "SELECT labels FROM kube.workload WHERE id = $1 AND valid_period @> now()",
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// `operations` by `author`, refused under `rule`.
+    async fn refused_by(&self, author: Uuid, operations: Vec<Operation>, rule: &str) {
+        let outcome = self.submit_by(author, operations).await;
+        assert!(rules(&outcome).contains(&rule), "{rule}: {outcome:?}");
+    }
+}
+
+/// REQ-019-12, 30, 019/X5: the tracked fields of a mirror are written by a service account
+/// of the connector group of its cluster alone: neither by an administrator, nor by the
+/// connector of another cluster, even when both clusters share their domains.
+#[kartenn_testing::pg_test]
+async fn managed_field_refused_for_human(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.new_cluster("prod").await;
+    let web_id = env.web(prod).await;
+    env.refused_by(env.author, vec![web(prod, "shop")], "kube.object.managed")
+        .await;
+    // The connector of another cluster on the same domains.
+    let (other, group) = crate::support::connector(&pool, "connector-test").await;
+    env.applied(vec![
+        env.cluster("test", json!({"connector_group": {"id": group}})),
+    ])
+    .await;
+    env.refused_by(other, vec![web(prod, "shop")], "kube.object.managed")
+        .await;
+    assert_eq!(env.labels(web_id).await, json!({"app": "web"}));
+    // The connector of the cluster writes them.
+    env.applied(vec![web(prod, "shop")]).await;
+    assert_eq!(env.labels(web_id).await, json!({"app": "shop"}));
+}
+
+/// REQ-019-12: a person added to the connector group is no service account: refused.
+#[kartenn_testing::pg_test]
+async fn managed_field_refused_for_person_in_connector_group(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.new_cluster("prod").await;
+    let web_id = env.web(prod).await;
+    crate::support::member(&pool, env.group, env.author).await;
+    env.refused_by(env.author, vec![web(prod, "shop")], "kube.object.managed")
+        .await;
+    assert_eq!(env.labels(web_id).await, json!({"app": "web"}));
+}
+
+/// REQ-019-12: a property on a mirror is written under the ordinary rights, by its
+/// administrator, its tracked fields untouched.
+#[kartenn_testing::pg_test]
+async fn property_on_mirror_accepted(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.new_cluster("prod").await;
+    let web_id = env.web(prod).await;
+    env.applied(vec![environment()]).await;
+    let property = env
+        .id("property_declaration", "key", "custom.environment")
+        .await;
+    env.applied(vec![environment_of(web_id, property, "production")])
+        .await;
+    assert_eq!(env.labels(web_id).await, json!({"app": "web"}));
+}
+
+/// REQ-019-30, 019/X10: the connector writes by `kube.sync` alone: an operation of the core
+/// or a closure in cascade it sends by hand is refused, alone or beside a batch; the plans
+/// `kube.sync` adds itself (a selection set to nothing) pass.
+#[kartenn_testing::pg_test]
+async fn connector_direct_operation_refused(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    let prod = env.new_cluster("prod").await;
+    let web_id = env.web(prod).await;
+    env.applied(vec![environment()]).await;
+    let property = env
+        .id("property_declaration", "key", "custom.environment")
+        .await;
+    let set = environment_of(web_id, property, "production");
+    env.refused_by(env.connector, vec![set.clone()], "kube.connector.direct")
+        .await;
+    env.refused_by(
+        env.connector,
+        vec![web(prod, "shop"), set],
+        "kube.connector.direct",
+    )
+    .await;
+    let payments = env.named("kube.namespace", prod, "payments").await[0];
+    env.refused_by(
+        env.connector,
+        vec![Operation::Close {
+            kind: ObjectKind::from_name("kube.namespace").unwrap(),
+            id: Ref::Id(payments),
+            expected: None,
+            cascade: true,
+        }],
+        "kube.connector.direct",
+    )
+    .await;
+    assert_eq!(env.workloads(payments).await, [web_id]);
+    assert_eq!(env.labels(web_id).await, json!({"app": "web"}));
+    // A service selecting the workload, then the workload gone: its selection is set to
+    // nothing by the same batch.
+    env.applied(vec![service(
+        "upsert",
+        prod,
+        "payments",
+        "frontend",
+        json!({"workloads": [{"kind": "deployment", "name": "web"}]}),
+    )])
+    .await;
+    let frontend = env.services(payments, "frontend").await[0];
+    assert_eq!(env.selected(frontend).await, [web_id]);
+    env.applied(vec![workload(
+        "close",
+        prod,
+        "payments",
+        "deployment",
+        "web",
+        json!({}),
+    )])
+    .await;
+    assert!(env.selected(frontend).await.is_empty());
 }

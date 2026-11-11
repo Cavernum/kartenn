@@ -2097,21 +2097,23 @@ impl ModuleHandler for Handler {
             };
             let (clusters, nodes) = (of(cluster_kind()), of(node_kind()));
             let (mut ingresses, services) = (of(ingress_kind()), of(service_kind()));
+            // Who writes, whatever the changeset writes (019/X5, X10).
+            let author = tx.actors().author;
+            let conn = connection(tx)?;
+            let mut found = crate::authorship::check(conn, author, context, cluster_kind()).await?;
             if clusters.is_empty()
                 && nodes.is_empty()
                 && ingresses.is_empty()
                 && services.is_empty()
             {
-                return Ok(Findings::default());
+                return Ok(Findings::from(found));
             }
-            let conn = connection(tx)?;
             // A service written, created or closed, may be the one an ingress routes to.
             if !services.is_empty() {
                 ingresses.extend(pg::ingresses_routing_to(conn, &services).await?);
                 ingresses.sort_unstable();
                 ingresses.dedup();
             }
-            let mut found = Vec::new();
             if !clusters.is_empty() {
                 for (cluster, range) in pg::ranges_outside(conn, &clusters).await? {
                     found.push(
