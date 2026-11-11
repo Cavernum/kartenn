@@ -446,14 +446,19 @@ function objectOf(key: string): string | null {
   const id = key.slice(PREVIEW.length);
   return itemById.value.has(id) ? id : null;
 }
+/**
+ * The nodes read, by identifier: the first level that holds one wins. Indexed once per
+ * read, not searched per row (the rows of a level of 10⁴ asked each render, task 021-22e).
+ */
+const readById = computed(() => {
+  const found = new Map<string, Node>();
+  for (const parent of results.keys())
+    for (const item of itemsOf(parent)) if (!found.has(item.id)) found.set(item.id, item);
+  return found;
+});
 /** A node read, by identifier, in any level read so far. */
 function nodeById(id: string | undefined): Node | undefined {
-  if (id === undefined) return undefined;
-  for (const parent of results.keys()) {
-    const found = itemsOf(parent).find((item) => item.id === id);
-    if (found) return found;
-  }
-  return undefined;
+  return id === undefined ? undefined : readById.value.get(id);
 }
 /**
  * A node of the URL not read yet (a link, a reload): read as a prefix — the tree's nodes
@@ -511,8 +516,18 @@ function addRefusal(node: Shown | undefined): { forbidden: string } | { reason: 
   return { forbidden: editRight(types[0]!) };
 }
 // The « + » of every prefix; refused, it stays visible and says why (REQ-021-37).
-const addLabel = (node: TreeNode) =>
-  nodeById(node.id)?.kind === "prefix" ? t("edit.addIn", { within: node.label }) : undefined;
+/** The names of the « + », by label, made once per language: asked of each row at each render. */
+const addLabels = computed(() => {
+  void locale.value;
+  return new Map<string, string>();
+});
+function addLabel(node: TreeNode): string | undefined {
+  if (nodeById(node.id)?.kind !== "prefix") return undefined;
+  const made = addLabels.value;
+  const label = made.get(node.label) ?? t("edit.addIn", { within: node.label });
+  made.set(node.label, label);
+  return label;
+}
 const addBlocked = (node: TreeNode) => addRefusal(nodeById(node.id)) ?? undefined;
 function addIn(id: string | undefined): void {
   const node = nodeById(id) ?? chosen.value;
