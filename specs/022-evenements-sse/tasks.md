@@ -431,4 +431,8 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     la sortie). Le harnais paie un point de contrôle immédiat par `DROP DATABASE`, qui
     arrête les validations de toute la grappe ; différer les suppressions à la fin de la
     suite (`kartenn-testing-clean` le fait déjà au début du `k-check` suivant) ôterait
-    ces arrêts pour tous les tests (ADR 0028, à arbitrer).
+    ces arrêts pour tous les tests (ADR 0028, à arbitrer). Revue (mineurs) : une passe
+    abandonnée peut laisser tourner sur l'ancien `Snapshots` un recalcul lancé par sa
+    lecture en retard, en lecture seule mais en charge de plus ; le commentaire
+    « Applying commits, and a commit waits… » se lit mal ; un `eprintln!` des fenêtres
+    en retard rendrait la reprise visible quand un autre test échoue.
