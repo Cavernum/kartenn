@@ -1216,6 +1216,11 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
     `docs/exploitation/` (nouvelle page) ; rôles livrés de la 005
     (`crates/kartenn-core/src/authz.rs`, `READER`, `APPROVER`, K12) et groupes de la 025
     (`crates/kartenn-service/src/rbac.rs`) à imiter
+  - à garder (relevé de la 6b, 2026-11-11) : le cluster n'est ancré dans aucun domaine ;
+    `kube.cluster.read` lié à un domaine ne l'atteint pas. La route des lots le rend visible
+    à qui le lit ou tient `kube.observation.record` sur son `pod_domain` (`rest.rs`,
+    `admitted`) : le rôle `kube_connector` et sa liaison aux domaines du cluster en
+    tiennent compte.
   - dépend de : 10, 2
 
 ## P3 — Politique et flux
