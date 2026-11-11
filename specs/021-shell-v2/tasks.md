@@ -170,7 +170,7 @@ aucun en parallèle sur `@kartenn/ui` (020).
     quitter la vue sur `active: true`. `changesets.simulate` et `changesets.submit`
     (changeset sans brouillon) restent. Vitest : `test/drafts.test.ts`, ajouts à
     `test/write.test.ts`, `test/events.test.ts`, `test/plugins.test.ts`.
-- [ ] 5. Flux d'événements : `events` (ouverture avant les lectures, contrat de la 022,
+- [x] 5. Flux d'événements : `events` (ouverture avant les lectures, contrat de la 022,
   doublons, reconnexion avec attente croissante et `last_event_id`), un flux par
   navigateur (`navigator.locks` + `BroadcastChannel`, repli par onglet), repli sans flux
   (focus, reconnexion, `pageshow` persistant) — REQ-021-23 — verify : Vitest avec un
@@ -180,7 +180,7 @@ aucun en parallèle sur `@kartenn/ui` (020).
   - où : 022 design § « Contrat consommé par les clients », § « Doublons » ;
     `web/shell/src/draft/tab.ts` (`BroadcastChannel` existant) ; `web/sdk/src/context.ts`
   - dépend de : 3 ; 022-9, 022-10 (point d'accès servi)
-  - en cours : SDK fait le 2026-10-24 — `web/v2/sdk/src/events/stream.ts` (`EventStream` :
+  - SDK fait le 2026-10-24 — `web/v2/sdk/src/events/stream.ts` (`EventStream` :
     verrou `kartenn-events`, relais `BroadcastChannel`, repli par onglet, curseur repris en
     `last_event_id`, coupure laissée au navigateur, fermeture → `GET /v1/capabilities`
     puis réouverture à attente doublée plafonnée à 60 s et tirée au hasard, rien sur 401
@@ -193,8 +193,21 @@ aucun en parallèle sur `@kartenn/ui` (020).
     `changeset` = changeset et état ; l'onglet détenteur relaie aussi l'état du flux.
     Vitest (`test/events.test.ts`) : `EventSource` simulé, élection entre trois contextes
     simulés, reprise par un autre onglet, doublons, 401 puis réouverture, attente
-    croissante, effets sur le cache, cycle bfcache. Reste : parcours à deux navigateurs et
-    à trois onglets, après la configuration serveur de la tâche 25 et un premier écran.
+    croissante, effets sur le cache, cycle bfcache.
+  - fait le 2026-11-11 : parcours `web/v2/e2e/journeys/events.spec.ts` contre
+    kartenn-server (Chromium et Firefox) : un réseau renuméroté par Alice (appel de l'API,
+    hors du cache) se voit dans la liste des préfixes de Bob, dans un autre contexte, en
+    moins de 2 s et sans rechargement ; trois onglets d'un contexte n'ouvrent qu'un
+    `EventSource` sur `/v1/events`, le changement s'affiche dans les trois ; l'onglet
+    détenteur fermé, un autre rouvre le flux (toujours un seul) et les deux restants
+    suivent un second changement. Rien de plus dans le SDK : `events/apply.ts` borne déjà
+    les arbres relus aux domaines nommés de l'événement (22c, REQ-022-16 amendée).
+  - choix : « renommage » pris comme la renumérotation d'un préfixe (`update_prefix`),
+    visible dans la cellule de valeur de la liste ; les 2 s comptent depuis la réponse du
+    changeset ; connexions comptées dans la page (sous-classe d'`EventSource` posée par
+    `addInitScript`, flux `OPEN` sur `/v1/events`) plutôt qu'au réseau : elle dit combien
+    sont ouverts à un instant, le réseau combien ont été ouverts (rechargements
+    compris) ; reprise par un autre onglet ajoutée au parcours, déjà couverte par Vitest.
 - [x] 6. Amendement du contrat client de la 022 (A3) : comparaison sur `version`,
   invalidation des vues qui montrent l'objet, relecture en `If-None-Match` sans `version`
   — verify : paragraphe amendé, marqué « *amendé par la 021* »
