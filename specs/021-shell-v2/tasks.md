@@ -1607,7 +1607,25 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     « Réessayer » n'est pas couvert par le parcours ; le titre de repli (`problem.nextPage`)
     d'un niveau dont le nœud n'est plus lu ne le nomme pas ; la page suivante refusée des
     enfants s'affiche deux fois quand le nœud choisi est celui ouvert (arbre et
-    `ContentTab`, même liste).
+    `ContentTab`, même liste). Revue (mineurs) : `expanded.includes(parent)` ne regarde pas
+    les ancêtres (encart possible sous un ancêtre refermé, à vérifier) ; une invalidation
+    qui retire l'encart pendant que le focus est sur un de ses boutons de copie le laisse
+    sur `body` ; si la cellule du focus est hors de la fenêtre virtualisée, le focus reste
+    sur `body` (à vérifier) ; la première page refusée d'un nœud ouvert n'a ni Vitest ni
+    parcours ; le correctif Firefox (`atRest` avant `reload`) aurait dû être un commit à
+    part. Hors périmètre : une relecture refusée d'un niveau enfant qui a des données
+    (`isRefetchError` après une invalidation) reste muette.
+- [ ] 13c. Questions ouvertes des libellés (reportées de la 13, cochée avec la 13b le
+  2026-11-11) : (1) clés en texte simple ou `KeyLabel` dans les listes hors tableau
+  (`DeclarationValues` les montre aujourd'hui en `KeyLabel`) ; (2) raccourci et position des
+  messages passagers (`Toast`) ; (3) attribut `lang` d'un libellé servi en repli dans la
+  langue par défaut (018, ligne R7, WCAG 3.1.2), à amender dans REQ-021-19 avant une
+  tâche (`label` du SDK dirait la langue trouvée, `KeyLabel` la porterait) — arbitrage
+  de l'utilisateur, puis sous-tâches — verify : décisions consignées dans `decisions.md`
+  de la 021, REQ-021-19 amendée, sous-tâches écrites avec `où :` et `verify`
+  - où : tâche 13 (« reste » et relevé du 2026-11-11) ; `web/v2/shell/src/` (`KeyLabel`,
+    `DeclarationValues`), `web/v2/sdk/src/data/labels.ts` ; spec 018 (« Repris par la 021 »)
+  - dépend de : 13
 - [ ] 14. Changesets, revues, brouillon : listes, `DiffList`, actions selon les droits,
   « À instruire » et compteur, panneau droit et page des brouillons (brouillons du
   serveur, `CommitForm`, `SplitButton`, 024) — REQ-021-6, 10, 11, 37 — verify : parcours
