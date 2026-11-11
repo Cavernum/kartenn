@@ -3,17 +3,19 @@
 // E5, vue « liste »): the drafts of the user kept by the server (`GET /v1/drafts`, at most
 // 50, the most recently modified first), each with its operations, its last modification
 // and its deletion announced (`expires_at`); the active one of the tab marked. Resume one
-// (the active draft of the tab), create another, delete one after a confirmation. The list
-// follows the event `draft`.
+// (the active draft of the tab), rename one (task 14f, the menu of E5), create another,
+// delete one after a confirmation. The list follows the event `draft`.
 import { drafts, type DraftList } from "@kartenn/sdk";
 import {
   AlertDialog,
   Button,
   DataGrid,
+  Dialog,
   EmptyState,
   Menu,
   NoValue,
   StatusBadge,
+  TextField,
   injectToasts,
   type CellRef,
   type GridColumn,
@@ -21,7 +23,7 @@ import {
   type MenuItem,
   type RowState,
 } from "@kartenn/ui";
-import { computed, nextTick, onScopeDispose, ref, shallowRef, useTemplateRef } from "vue";
+import { computed, nextTick, onScopeDispose, ref, shallowRef, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useCopyId } from "../changesets/copy.ts";
@@ -106,6 +108,12 @@ const menu = (row: Row): MenuItem[] => [
     icon: "undo-2",
     ...(row.id === active.value ? { disabled: true, reason: t("drafts.why.active") } : {}),
   },
+  {
+    id: "rename",
+    label: t("drafts.rename"),
+    icon: "pencil",
+    ...(writable.value ? {} : { disabled: true, reason: t("drafts.why.past") }),
+  },
   { id: "copy", label: t("changesets.copyId"), icon: "copy" },
   { kind: "separator" },
   {
@@ -122,6 +130,12 @@ async function onMenu(row: Row, id: string): Promise<void> {
   if (id === "resume" && row.id !== active.value) {
     drafts.setActive(row.id);
     toasts?.show({ tone: "ok", title: t("drafts.resumed", { title: row.title }) });
+  } else if (id === "rename" && writable.value) {
+    renaming.value = row;
+    newTitle.value = row.title;
+    titleError.value = undefined;
+    renameRefusal.value = undefined;
+    renameOpen.value = true;
   } else if (id === "copy") await copyId(row.id);
   else if (id === "delete" && writable.value) {
     deleting.value = row;
@@ -144,6 +158,55 @@ async function remove(): Promise<void> {
   await nextTick();
   const grid = view.value?.$el.querySelector<HTMLElement>('[role="grid"]');
   (grid?.querySelector<HTMLElement>('[tabindex="0"]') ?? newButton())?.focus();
+}
+
+/** The longest title the server takes, in characters (`TITLE_MAX`, `kartenn-rest` drafts). */
+const TITLE_MAX = 200;
+const renaming = shallowRef<Row | null>(null);
+const renameOpen = ref(false);
+const newTitle = ref("");
+const titleError = ref<string | undefined>();
+const renameRefusal = shallowRef<Refusal>();
+const renameBusy = ref(false);
+const renameForm = useTemplateRef<HTMLFormElement>("renameForm");
+// The error said until the title checked changes, not past the correction (3.3.1).
+let checked: string | null = null;
+watch(newTitle, (text) => {
+  if (text !== checked) titleError.value = undefined;
+});
+/** The new title under `If-Match` (`PATCH /v1/drafts/{id}`); the same one closes, unwritten. */
+async function rename(): Promise<void> {
+  const row = renaming.value;
+  if (!row || renameBusy.value) return;
+  checked = newTitle.value;
+  const text = checked.trim();
+  // Counted as the server counts, by code point.
+  const length = [...text].length;
+  titleError.value =
+    length === 0
+      ? t("drafts.renameMissing")
+      : length > TITLE_MAX
+        ? t("drafts.renameLong", { max: TITLE_MAX, n: length })
+        : undefined;
+  if (titleError.value) {
+    // The focus to the field in error (3.3.1).
+    renameForm.value?.querySelector<HTMLElement>("input")?.focus();
+    return;
+  }
+  if (text === row.title) {
+    renameOpen.value = false;
+    return;
+  }
+  renameBusy.value = true;
+  renameRefusal.value = undefined;
+  const outcome = await drafts.update(row.id, { title: text });
+  renameBusy.value = false;
+  if (outcome.kind !== "saved") {
+    renameRefusal.value = outcome;
+    return;
+  }
+  renameOpen.value = false;
+  toasts?.show({ tone: "ok", title: t("drafts.renamed", { title: outcome.draft.title }) });
 }
 const view = useTemplateRef<{ $el: HTMLElement }>("view");
 const newButton = () => view.value?.$el.querySelector<HTMLElement>("[data-k-new-draft]") ?? null;
@@ -266,12 +329,40 @@ async function create(): Promise<void> {
     danger
     @confirm="remove"
   />
+  <Dialog
+    v-model:open="renameOpen"
+    :title="t('drafts.renameTitle', { title: renaming?.title ?? '' })"
+    :description="t('drafts.renameText')"
+    size="md"
+  >
+    <form ref="renameForm" class="k-drafts__rename" novalidate @submit.prevent="rename">
+      <TextField
+        v-model="newTitle"
+        :label="t('drafts.renameField')"
+        :hint="t('drafts.renameHint', { max: TITLE_MAX })"
+        :error="titleError"
+        required
+      />
+      <RefusalAlert v-if="renameRefusal && renameOpen" :refusal="renameRefusal" />
+    </form>
+    <template #actions>
+      <Button variant="ghost" @click="renameOpen = false">{{ t("views.cancel") }}</Button>
+      <Button variant="primary" :loading="renameBusy" @click="rename">{{
+        t("drafts.renameConfirm")
+      }}</Button>
+    </template>
+  </Dialog>
 </template>
 
 <style>
 @layer components {
   .k-drafts__muted {
     color: var(--k-text-muted);
+  }
+
+  .k-drafts__rename {
+    display: grid;
+    gap: var(--k-space-3);
   }
 }
 </style>

@@ -17,8 +17,8 @@ import {
 // stays in the menu, refused with its permission, and the draft goes to review. A draft
 // with a violation says it on its operation, with its code; removed, the draft is valid. A
 // draft resumed from another browser of the same identity, with what was written in the
-// first, then deleted there. Under `valid_at` alone the draft is submitted from that date,
-// its dates of effect in the foot; an addition under `valid_at` dates its draft, kept with it
+// first, then deleted there; one renamed from « Mes brouillons » (task 14f). Under
+// `valid_at` alone the draft is submitted from that date, its dates of effect in the foot; an addition under `valid_at` dates its draft, kept with it
 // back at the present (task 14e); an answer lost at the submission, « Réessayer » sends the
 // same key and the server replays its answer: one changeset (REQ-006-15). Under `as_of` the
 // draft is read only (REQ-021-5). Each test writes in a domain of its own (RFC 5737,
@@ -409,6 +409,52 @@ test("under valid_at, an operation added then removed, another submitted at the 
     valid_from: string;
   };
   expect(new Date(read.valid_from).toISOString()).toBe(at);
+});
+
+test("renamed from « Mes brouillons »: the title required, the new one listed, the focus back on its menu", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const { prefixes: ids } = await ownedDomain(page, unique(browserName));
+  const stamp = `${browserName} ${Date.now()}`;
+  const title = `à renommer ${stamp}`;
+  const renamed = `renommé ${stamp}`;
+  const id = await serverDraft(page, title, ids[0]!);
+  await page.goto("/drafts");
+  const row = page.getByRole("grid", { name: "Mes brouillons" }).getByRole("row").filter({
+    hasText: title,
+  });
+  await choose(page, row, title, "Renommer…");
+  const dialog = page.getByRole("dialog", { name: `Renommer « ${title} »` });
+  const field = dialog.getByRole("textbox", { name: "Titre" });
+  // The focus in the field, its title to replace; emptied, Enter says it is required.
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue(title);
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Delete");
+  await page.keyboard.press("Enter");
+  await expect(field).toHaveAccessibleDescription(/Donnez un titre au brouillon\./);
+  await expect(field).toBeFocused();
+  await expectAccessible(page);
+  await page.keyboard.type(renamed);
+  await page.keyboard.press("Enter");
+  await expect(dialog).toBeHidden();
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: `Brouillon renommé : ${renamed}` })
+      .first(),
+  ).toBeVisible();
+  // Its row under its new title, the focus on its menu again (2.4.3).
+  const again = page.getByRole("grid", { name: "Mes brouillons" }).getByRole("row").filter({
+    hasText: renamed,
+  });
+  await expect(again).toHaveCount(1);
+  await expect(again.getByRole("button", { name: `Actions sur « ${renamed} »` })).toBeFocused();
+  const read = (await apiCall(page, "GET", `/v1/drafts/${id}`)).body as { title: string };
+  expect(read.title).toBe(renamed);
 });
 
 /** A draft read only: said at its head, its removal, motive, dates and actions refused. */

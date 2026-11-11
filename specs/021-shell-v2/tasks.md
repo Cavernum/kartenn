@@ -1648,6 +1648,23 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     `PATCH` (amender la 006 ou aligner la route ; le client suit la route, `merge:
     false`) ; le contrat de `GET /v1/changesets` n'énumère pas `state` et ne dit pas le
     format `date-time` de `from`/`to` (le shell les type lui-même, `views/filters.ts`).
+  - découpée le 2026-11-11, le reste relevé contre le code (main `2dc9ecc8`). Levés depuis :
+    les dates d'effet de la soumission (14d : `draftPeriods`, `periodBody` de
+    `draft/state.ts`, `DraftSubmit.vue`) ; `PATCH /v1/drafts/{id}` en `merge-patch+json`
+    seulement (14a, l'arbitrage ci-dessus tranché) ; `CommitForm` en lecture seule avec sa
+    raison (reste de la 14d : `ui/src/components/CommitForm/CommitForm.vue`, `readonly` et
+    `reason`, posés par `DraftSubmit.vue` sous `as_of`) ; captures E4 et E5 : celles des
+    maquettes, acceptées comme pour les 11, 12 et 15 (les vrais écrans demandent l'API) ;
+    « Instruire dans Flux » et « Effet sur la politique » reviennent à la 017 (tâches 3 et
+    19 : action `review-in-flow` ; 2 et 10 : action `effect` sur le type `changeset`). Sous-tâches du
+    reste : « Renommer… » (14f, faite le 2026-11-11), opération masquée (14g, reste de la 14c), pied en attente
+    de reprise (14h), badge de la barre et segments de date (14i, `@kartenn/ui`), brouillon
+    daté (14j), brouillon supprimé ailleurs tenu par un parcours (14k), modifier une
+    opération du brouillon (14l). Restent à l'utilisateur, inchangés : « Revue requise »
+    avant la soumission (contrat), composants du résultat de simulation et de la ligne
+    d'opération, « Tout afficher » d'une `DiffList`, icône de l'état « en revue », contrat
+    de `GET /v1/changesets` ; de la 14e, l'aperçu daté de la Topographie (une règle à
+    poser) et la période par onglet (`sessionStorage`).
 - [x] 15. Administration : groupes (membres, liaisons), rôles, émetteurs, comptes de
   service et secret, identités (groupes et droits effectifs en lecture), audit et
   export, imports ; permissions en nom servi et libellé — REQ-021-12, 025/REQ-025-12 —
@@ -2854,6 +2871,101 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     qu'une date changée pendant l'écriture date le brouillon à la nouvelle ; une clé de
     période reste dans l'onglet si le brouillon est supprimé hors de ses événements (sans
     effet, l'identifiant n'étant pas réutilisé).
+- [x] 14f. « Renommer… » un brouillon depuis « Mes brouillons » (menu de la maquette E5,
+  `E5Brouillon.vue` vers la ligne 111) : dialogue au titre requis (1 à 200 caractères,
+  comptés comme le serveur), `PATCH /v1/drafts/{id}` sous `If-Match`, refusé sous `as_of`
+  avec sa raison, focus rendu au menu de la ligne — REQ-021-11, 024/REQ-024-21 — verify :
+  Vitest `shell/test/changesets.test.ts` (titre requis, rogné, sous `If-Match` ; refusé
+  sous `as_of`) ; parcours `draft` « renamed from « Mes brouillons »… » sous les deux
+  navigateurs
+  - où : `web/v2/shell/src/draft/DraftsView.vue` (`menu`, `onMenu` ; motif du dialogue de
+    rejet de `changesets/ChangesetView.vue`), `drafts.update` (`web/v2/sdk/src/data/drafts.ts`),
+    `changesets/i18n/{fr,en}.json` (`drafts.rename*`), `crates/kartenn-rest/src/drafts.rs`
+    (`TITLE_MAX`, `title`)
+  - dépend de : 14
+  - fait le 2026-11-11 — `DraftsView.vue` : entrée « Renommer… » (`pencil`) entre
+    « Reprendre » et « Copier l'identifiant », refusée sous `as_of` (`drafts.why.past`) ;
+    `Dialog` « Renommer « titre » » au formulaire du rejet (`TextField` « Titre » prérempli,
+    requis, aide « De 1 à 200 caractères. », erreur vide ou trop longue, focus au champ en
+    erreur, effacée dès que le titre vérifié change ; Entrée l'envoie) ; `rename` :
+    `drafts.update(id, { title })` rogné, sous `If-Match` (`etagOf`), un titre inchangé
+    ferme sans écrire, un refus dit par `RefusalAlert` dans le dialogue ; succès : toast
+    « Brouillon renommé : … », liste relue, focus rendu au menu de la ligne (`useOpener`).
+    Chaînes `drafts.rename*`, `drafts.renamed`. Vitest `shell/test/changesets.test.ts`
+    (« renames a draft from « Mes brouillons »… », « under as_of, « Renommer… » is
+    refused… ») ; parcours `draft` « renamed from « Mes brouillons »: the title required,
+    the new one listed, the focus back on its menu » (Chromium et Firefox).
+  - choix : la longueur comptée par point de code, comme `title` du serveur (`chars()`),
+    `TITLE_MAX` recopié côté shell (le contrat ne le publie pas) ; pas d'icône sur
+    « Renommer » du dialogue (la confirmation voisine de suppression n'en a pas) ;
+    l'entrée seulement dans « Mes brouillons », comme la maquette (ni la page
+    `/drafts/:id` ni le panneau) ; description qui dit que la soumission porte le motif,
+    pas le titre.
+  - reste : l'erreur est dite deux fois (le focus au champ, qui la lit par
+    `aria-describedby`, et la région vivante de `TextField`), comme le rejet : à juger
+    avec un vrai lecteur d'écran (`a11y-auditor`).
+- [ ] 14g. Opération masquée dite « masqué » (reste de la 14c) : l'onglet Opérations d'un
+  changeset, comme la ligne d'opération du brouillon, montre `masked : true` et tait
+  `values` (`operationLine`, `draft/operations.ts`) ; dire « masqué » comme le différentiel
+  (`changesets.masked`) — REQ-021-10 — verify : Vitest `shell/test/changesets.test.ts`
+  (`operationLine` d'une opération masquée) ; parcours `changesets` « a sensitive value
+  masked… » étendu à l'onglet Opérations sous les deux navigateurs
+  - où : `web/v2/shell/src/draft/{operations.ts,OperationText.vue}`,
+    `changesets/ChangesetView.vue` (onglet Opérations), `web/v2/e2e/journeys/changesets.spec.ts`
+  - dépend de : 14c
+- [ ] 14h. Pied du brouillon en attente de reprise (relevés des relectures de la 14e) : le
+  motif (`CommitForm`) en lecture seule, avec la raison des dates figées, tant qu'une
+  soumission attend sa reprise (« Réessayer » ne l'envoie pas) ; le passage aux dates
+  figées annoncé (région d'état) ; après une reprise réussie, le focus rendu (« Réessayer »
+  disparu le laisse sur `body`) — REQ-021-11, REQ-006-15 — verify : Vitest
+  `shell/test/changesets.test.ts` (motif `readonly` et sa raison en attente ; focus après
+  la reprise) ; relecture `a11y-auditor`
+  - où : `web/v2/shell/src/draft/{DraftSubmit.vue,LostSubmissions.vue,state.ts}`
+    (`awaiting`, `drafts.period.frozen`), `CommitForm` (`readonly`, `reason`)
+  - dépend de : 14e
+- [ ] 14i. Accessibilité de deux composants de `@kartenn/ui` (relevés des 14 et 14e) : le
+  badge d'une entrée de `SidebarNav` dit son unité aux technologies d'assistance (« À
+  instruire » suivi de « 3 changesets à instruire », pas d'un « 3 » nu) ; les segments d'un
+  `DateTimeField` portent l'aide et la raison dans leur `aria-describedby`, pas le seul
+  groupe (WCAG 1.3.1, 4.1.2) — verify : Vitest des deux composants ; leurs scripts clavier
+  `web/v2/e2e/components/` ; `k-web2-check --base main` ; relecture `a11y-auditor`
+  - où : `web/v2/ui/src/components/SidebarNav/{SidebarNav.vue,sidebar.ts}`
+    (`SidebarEntry.badge`), `DateTimeField/DateTimeField.vue` (`describedBy`, vers la ligne
+    329) ; `web/v2/shell/src/frame/spaces.ts` (`badges`) ; lignes d'inventaire de
+    `specs/020-systeme-de-design/design.md` et de la skill `kartenn-ui`
+  - dépend de : 14
+- [ ] 14j. Brouillon daté, reste de la revue de la 14e : `dateAddition`
+  (`sdk/src/data/drafts.ts`) lit le contexte avant l'envoi, non après la réponse (une date
+  changée pendant l'écriture date aujourd'hui le brouillon à la nouvelle) ; `replace` de
+  `shell/src/admin/draft.ts` (vers la ligne 63) ne date pas le brouillon comme
+  `moveInDraft` (vérifier : sans effet tant que l'administration n'est pas datée, sinon
+  l'aligner) ; la ligne `choix :` de la 14e redite (un brouillon garni au présent puis
+  complété sous `valid_at` prend cette date pour toutes ses opérations) — REQ-021-5 —
+  verify : Vitest `sdk/test/drafts.test.ts` (la date lue avant l'envoi) ; Vitest de
+  l'administration si `replace` change
+  - où : `web/v2/sdk/src/data/drafts.ts` (`dateAddition`, `addOperations`, `addToActive`),
+    `web/v2/shell/src/admin/draft.ts`
+  - dépend de : 14e
+- [ ] 14k. Brouillon supprimé dans un autre navigateur, dit dans l'onglet qui l'avait actif,
+  tenu par un parcours (reste de la 14 : sous Chromium l'événement `draft` n'était pas venu
+  en 20 s, avant la clôture de la tâche 5) : le toast du cadre (`drafts.gone`), le compteur
+  à 0, la page des brouillons sans lui — REQ-021-11, 024/REQ-024-21 — verify : parcours
+  `draft` sous les deux navigateurs (deux contextes de la même identité)
+  - où : `web/v2/e2e/journeys/draft.spec.ts` (« … resumed and deleted elsewhere »,
+    `choose`), `web/v2/shell/src/frame/ShellFrame.vue` (brouillon parti par l'événement),
+    `web/v2/sdk/src/data/drafts.ts` (`gone`)
+  - dépend de : 14, 5
+- [ ] 14l. Modifier une opération du brouillon (design 021 « Écrans », Brouillons :
+  « liste des opérations (retirer, modifier) » ; seul le retrait est là) : sa forme est à
+  confirmer par l'utilisateur avant de la lancer — recommandé : « Modifier » sur la ligne
+  rouvre le panneau d'édition de la sorte (`EditPanel`, REQ-021-36) prérempli de
+  l'opération, qui la remplace en place sous `If-Match` (comme `replace` de
+  `shell/src/admin/draft.ts`), la simulation relancée — REQ-021-11, 36 — verify : Vitest
+  de l'état du brouillon (remplacement en place, `If-Match`) ; parcours `draft` sous les
+  deux navigateurs
+  - où : `web/v2/shell/src/draft/{DraftOperations.vue,operations.ts}`,
+    `web/v2/shell/src/views/edit/` (`EditPanel`, `panel.ts`), `drafts.update`
+  - dépend de : 14
 - [x] 12d. Créer sous `valid_at` seul (REQ-021-5, X5 ; relevé par la revue de la 12c) :
   « Créer » (`c`) des listes et « + » de la Topographie mènent au brouillon daté sous une
   date de validité, comme « Modifier » de la fiche ; « Appliquer » refusé avec sa raison ;
