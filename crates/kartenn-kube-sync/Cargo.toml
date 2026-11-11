@@ -1,0 +1,48 @@
+[package]
+name = "kartenn-kube-sync"
+version.workspace = true
+description = "Kubernetes connector of kartenn (spec 019): configuration, cluster client, list/watch"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+# One integration test binary for the crate (ADR 0027): tests/it/main.rs.
+autotests = false
+
+[[test]]
+name = "kube_sync_it"
+path = "tests/it/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+kartenn-workspace-hack = { version = "0.1", path = "../kartenn-workspace-hack" }
+bytes = "1.12.1"
+figment ={ version = "0.10.19", features = ["toml"] }
+http = "1.5"
+http-body = "1"
+hyper-rustls = { version = "0.27.10", default-features = false, features = ["ring", "http1", "tls12"] }
+hyper-util = { version = "0.1.21", features = ["client-legacy", "http1", "tokio"] }
+# One API version only (Q-019-12): the oldest one the connector supports.
+k8s-openapi = { version = "0.29.0", default-features = false, features = ["std", "v1_33"] }
+# Q-019-12: no default features, so neither the rustls stack of kube with its platform
+# verifier (system roots) nor aws-lc-rs; the TLS stack is built here, on ring.
+kube = { version = "5.0.0", default-features = false, features = ["client"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
+serde = { version = "1.0.229", features = ["derive"] }
+thiserror = "2.0.21"
+tokio = { version = "1.53.3", features = ["fs"] }
+tower = { version = "0.5", features = ["util"] }
+tracing = "0.1.44"
+
+[dev-dependencies]
+http-body-util = "0.1.5"
+hyper = { version = "1.12.0", features = ["server", "http1"] }
+rcgen = "0.14.10"
+serde_json = "1.0.154"
+tempfile = "3.27.0"
+tokio = { version = "1.53.3", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12"] }
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["std", "registry"] }
+futures-util = { version = "0.3", default-features = false }

@@ -914,7 +914,7 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
 
 ## File B — Connecteur
 
-- [ ] 9. Crate `kartenn-kube-sync` : choix du client Kubernetes (rapport `crate-scout`,
+- [x] 9. Crate `kartenn-kube-sync` : choix du client Kubernetes (rapport `crate-scout`,
   Q-019-12), configuration, identifiants en fichiers relus, CA obligatoire, faux serveur
   d'API de test (liste, watch, coupure, `410`, signets, revue d'accès) — REQ-019-18, 29 —
   verify : `config_refuses_missing_ca`, `token_file_reloaded`,
@@ -922,6 +922,37 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - où : design « Connecteur » ; réf. § API, § Sécurité d'accès ;
     `crates/kartenn-server/src/config.rs` (`url_file`) à imiter ; `kartenn-workspace-hack`
   - dépend de : 0
+  - fait : `crates/kartenn-kube-sync` : `config.rs` (TOML : `[kartenn]` `url`,
+    `secret_file` ; `[[clusters]]` `slug`, `api_server` en https, `ca_file` exigé,
+    `token_file` ou `cert_file` et `key_file`, `fallback_period_s` à 300 s,
+    `allow_excess_rights` faux ; champs inconnus refusés, donc aussi
+    `accept_invalid_certs`), `credentials.rs` (`CredentialFile` relu quand sa date, sa
+    longueur ou son inode changent, `Secret` au `Debug` masqué, certificat client relu
+    par la poignée de main qui suit un changement), `client.rs` (`connect` : `kube` sur
+    une pile hyper-rustls et ring qui ne connaît que la CA du fichier, jeton en en-tête
+    sensible relu à chaque requête ; `connect_with` pour un service quelconque) ;
+    mesure de `k8s-openapi` dans `decisions.md` (Q-019-12, 59 s) ; `kartenn-workspace-hack`
+    régénéré ; tests `config::config_accepts_token_or_certificate`,
+    `config_refuses_missing_ca`,
+    `config_refuses_accept_invalid_certs`, `config_refuses_bad_values`,
+    `connect_refuses_unusable_ca`, `client::token_file_reloaded` (réécriture, renommage,
+    fichier supprimé), `tls_trusts_configured_ca_only` (serveur TLS local, autre CA
+    refusée), `no_credential_in_logs` (toutes les traces et logs du client réel, erreurs
+    et `Debug`), `credentials::tests::client_certificate_read_again` ; faux serveur
+    `tests/it/fake_api.rs` (`FakeApi`, `tower::Service` passé à `connect_with`) et
+    `replay::*` (pages sur un instantané, jeton `continue` expiré, watch rejoué depuis
+    une version puis en direct, signet, coupure et reprise, `410` en événement `ERROR` ou
+    en réponse, revues `SelfSubjectRulesReview` et `SelfSubjectAccessReview`).
+  - choix : `k8s-openapi` en `v1_33` (la plus ancienne version servie par la 0.29) ;
+    `kube` avec la seule feature `client`, sans `rustls-tls` (qui tire
+    `rustls-platform-verifier`), la pile TLS montée ici ; `kube-runtime` attend la
+    tâche 10 qui s'en servira ; relecture du jeton par nos soins (métadonnées du fichier
+    à chaque requête) plutôt que le `TokenFile` de `kube` (relu à la minute, sans test
+    possible) ; la CA est lue au démarrage ; bornes de `fallback_period_s` 10 s à 24 h ;
+    faux serveur dans les tests du crate, pas derrière une feature.
+  - reste : le `Debug` des erreurs de `kube` n'est couvert que par le test des logs ;
+    `rustls-native-certs` reste dans l'arbre par `tonic` (sortie OTLP de la télémétrie),
+    jamais appelé par le connecteur.
 - [ ] 10. Boucle list/watch et rapprochement : pagination, reprise, reliste sur `410`,
   projection, lots idempotents, ordre des lots, observations, dates, conduite devant une
   remontée sans workload (`OwnerChainError::ForeignController` : contrôleur de sorte
