@@ -51,6 +51,14 @@ export function addToActiveDraft(
 }
 
 /**
+ * « Modifier » of an operation of a draft (task 14l, REQ-021-11): the edit panel puts its
+ * operation in place of the one of index `index` of the draft as `read` (the version its
+ * line was shown at), under `If-Match`; under `valid_at` alone, the date read at the call
+ * dates the draft as an addition does. Not offered to the plugins.
+ */
+export const replaceInDraft = drafts.replaceOperation;
+
+/**
  * The shell's own change of parent in the active draft, then its simulation: as a plugin's
  * `draft.move`, without its promise to open the draft (REQ-021-33).
  */

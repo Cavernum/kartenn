@@ -204,6 +204,49 @@ describe("writes of the drafts under If-Match (024 § A)", () => {
     expect(updated).toMatchObject({ kind: "conflict", input: { title: "u" } });
   });
 
+  it("replaces an operation at its place, under If-Match of the version its line was read at", async () => {
+    const a = { op: "create_domain", slug: "a", local: 0 } as never;
+    const b = { op: "create_domain", slug: "b" } as never;
+    const s = setup();
+    await s.drafts.create({ title: "t", operations: [close, a] });
+    const read = s.queryClient.getQueryData<Entry<Draft>>(s.drafts.get(D1).queryKey)!;
+    const outcome = await s.drafts.replaceOperation(read, 1, b);
+    expect(outcome).toMatchObject({ kind: "saved", draft: { version: 2 }, etag: '"2"' });
+    expect(s.held.get(D1)!.operations).toEqual([close, b]);
+    const patch = s.seen.find((r) => r.method === "PATCH");
+    expect(patch?.headers.get("If-Match")).toBe('"1"');
+    expect(patch?.body).toEqual({ operations: [close, b] });
+    // The draft in the cache is the one written: its simulation is asked again (its version).
+    expect(s.queryClient.getQueryData<Entry<Draft>>(s.drafts.get(D1).queryKey)?.etag).toBe('"2"');
+  });
+
+  it("a replacement modified elsewhere (412): tried again while the operation is the same, else a conflict", async () => {
+    const a = { op: "create_domain", slug: "a" } as never;
+    const b = { op: "create_domain", slug: "b" } as never;
+    const s = setup();
+    await s.drafts.create({ title: "t", operations: [a, close] });
+    const read = s.queryClient.getQueryData<Entry<Draft>>(s.drafts.get(D1).queryKey)!;
+    // Another tab added an operation after it: the replacement commutes, at its place.
+    s.touch(D1);
+    s.held.get(D1)!.operations.push(close);
+    expect(await s.drafts.replaceOperation(read, 0, b)).toMatchObject({ kind: "saved" });
+    expect(s.held.get(D1)!.operations).toEqual([b, close, close]);
+    const patches = s.seen.filter((r) => r.method === "PATCH");
+    expect(patches.map((r) => r.headers.get("If-Match"))).toEqual(['"1"', '"2"']);
+    // Another tab removed it: its place holds another operation, nothing is replaced.
+    const again = s.queryClient.getQueryData<Entry<Draft>>(s.drafts.get(D1).queryKey)!;
+    s.touch(D1);
+    s.held.get(D1)!.operations.splice(0, 1);
+    const refused = await s.drafts.replaceOperation(again, 0, a);
+    expect(refused).toMatchObject({
+      kind: "conflict",
+      input: a,
+      problem: { status: 412 },
+      current: { etag: '"4"' },
+    });
+    expect(s.held.get(D1)!.operations).toEqual([close, close]);
+  });
+
   it("modifies; removes under If-Match: out of the cache, no longer active, no signal", async () => {
     const s = setup();
     const gone: Gone[] = [];
@@ -303,6 +346,27 @@ describe("the period of a draft, kept with it (REQ-021-5)", () => {
     s.time.validAt = null;
     await s.drafts.addOperations(D1, [close]);
     expect(s.drafts.period(D1)).toBeNull();
+  });
+
+  it("a replacement dates its draft as an addition: at the date read at the call, kept after a 412", async () => {
+    const LATER = "2032-01-01T00:00:00Z";
+    const b = { op: "create_domain", slug: "b" } as never;
+    // The date changes while the server answers the first try (412) and the second.
+    const s = setup((request) => {
+      if (request.method === "PATCH") s.time.validAt = LATER;
+      return undefined;
+    });
+    await s.drafts.create({ title: "t", operations: [close] });
+    const read = () => s.queryClient.getQueryData<Entry<Draft>>(s.drafts.get(D1).queryKey)!;
+    // At the present when called: nothing dates.
+    await s.drafts.replaceOperation(read(), 0, b);
+    expect(s.drafts.period(D1)).toBeNull();
+    s.time.validAt = AT;
+    const first = read();
+    s.touch(D1);
+    expect(await s.drafts.replaceOperation(first, 0, close)).toMatchObject({ kind: "saved" });
+    expect(s.seen.filter((r) => r.method === "PATCH")).toHaveLength(3);
+    expect(s.drafts.period(D1)).toEqual({ valid_from: AT });
   });
 
   it("the foot's choice is kept as set, its empty dates left out; under as_of nothing dates", async () => {
