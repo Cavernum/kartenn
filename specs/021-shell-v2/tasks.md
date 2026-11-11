@@ -208,6 +208,12 @@ aucun en parallèle sur `@kartenn/ui` (020).
     `addInitScript`, flux `OPEN` sur `/v1/events`) plutôt qu'au réseau : elle dit combien
     sont ouverts à un instant, le réseau combien ont été ouverts (rechargements
     compris) ; reprise par un autre onglet ajoutée au parcours, déjà couverte par Vitest.
+  - reste (revue, mineurs) : `openStreams` ne compte que les flux `OPEN` (compter
+    `readyState !== CLOSED` verrait un flux parasite en `CONNECTING`) ; l'attente porte sur
+    `OPEN`, pas sur le traitement de `ready`, si bien qu'un changement tombé avant `ready`
+    est montré par l'invalidation totale et non par `changes` ; après la reprise, l'unicité
+    du flux n'est pas revérifiée une fois le second changement suivi ; une relecture au
+    focus sous `fallback.active` pourrait en théorie montrer la valeur.
 - [x] 6. Amendement du contrat client de la 022 (A3) : comparaison sur `version`,
   invalidation des vues qui montrent l'objet, relecture en `If-None-Match` sans `version`
   — verify : paragraphe amendé, marqué « *amendé par la 021* »
