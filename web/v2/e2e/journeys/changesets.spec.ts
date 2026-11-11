@@ -16,8 +16,8 @@ import {
 // and Carol finds hers applied in « Mes changesets »; another proposal rejected with its
 // motive, asked in a dialog; on a narrow window, « Retirer » folded in « … », refused to
 // Alice with its reason (task 020-31); one withdrawn by Carol, then found by Alice by its author, its
-// state and its period (task 14c); a sensitive value masked in the differential to Carol,
-// who may not read it (REQ-005-21); the violations of a refused changeset. Each test writes
+// state and its period (task 14c); a sensitive value masked in the differential and in its
+// operation to Carol, who may not read it (REQ-005-21, task 14g); the violations of a refused changeset. Each test writes
 // in a domain of its own (RFC 5737, TEST-NET-2).
 
 const unique = (browser: string) => `zz-review-${browser}-${Date.now().toString(36)}`;
@@ -351,9 +351,12 @@ test("a sensitive value masked in the differential to a reader without its right
   const main = page.getByRole("main");
   await expect(main).toContainText(key);
   await expect(main).toContainText(value);
+  // And in its operation (task 14g).
+  await page.getByRole("tab", { name: /Opérations/ }).click();
+  await expect(page.getByRole("list", { name: "Opérations" })).toContainText(`values : ${value}`);
 
   // Carol reads the changesets, not this property (`prop.<key>.read`): « masqué », never
-  // the value.
+  // the value, in the differential and in the operation (task 14g).
   const context = await browser.newContext({ ignoreHTTPSErrors: true, locale: "fr-FR" });
   try {
     const carol = await context.newPage();
@@ -364,6 +367,12 @@ test("a sensitive value masked in the differential to a reader without its right
     await expect(read).toContainText(key);
     await expect(read).toContainText("masqué");
     await expect(read).not.toContainText(value);
+    await carol.getByRole("tab", { name: /Opérations/ }).click();
+    const operations = carol.getByRole("list", { name: "Opérations" });
+    await expect(operations).toContainText("assign_property");
+    await expect(operations).toContainText("values : masqué");
+    await expect(operations).not.toContainText("masked");
+    await expect(operations).not.toContainText(value);
     await expectAccessible(carol);
   } finally {
     await context.close();

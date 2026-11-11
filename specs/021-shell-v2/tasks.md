@@ -1724,7 +1724,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     maquettes, acceptées comme pour les 11, 12 et 15 (les vrais écrans demandent l'API) ;
     « Instruire dans Flux » et « Effet sur la politique » reviennent à la 017 (tâches 3 et
     19 : action `review-in-flow` ; 2 et 10 : action `effect` sur le type `changeset`). Sous-tâches du
-    reste : « Renommer… » (14f, faite le 2026-11-11), opération masquée (14g, reste de la 14c), pied en attente
+    reste : « Renommer… » (14f, faite le 2026-11-11), opération masquée (14g, faite le 2026-11-11), pied en attente
     de reprise (14h), badge de la barre et segments de date (14i, `@kartenn/ui`), brouillon
     daté (14j), brouillon supprimé ailleurs tenu par un parcours (14k), modifier une
     opération du brouillon (14l). Restent à l'utilisateur, inchangés : « Revue requise »
@@ -2979,7 +2979,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     200 caractères n'est publiée qu'en prose (`DraftChange.title`, sans `maxLength`) ; le
     `choix :` de la 14 dit encore « sans « Renommer » » ; commentaire d'en-tête trop long
     dans `e2e/journeys/draft.spec.ts`.
-- [ ] 14g. Opération masquée dite « masqué » (reste de la 14c) : l'onglet Opérations d'un
+- [x] 14g. Opération masquée dite « masqué » (reste de la 14c) : l'onglet Opérations d'un
   changeset, comme la ligne d'opération du brouillon, montre `masked : true` et tait
   `values` (`operationLine`, `draft/operations.ts`) ; dire « masqué » comme le différentiel
   (`changesets.masked`) — REQ-021-10 — verify : Vitest `shell/test/changesets.test.ts`
@@ -2988,6 +2988,20 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/shell/src/draft/{operations.ts,OperationText.vue}`,
     `changesets/ChangesetView.vue` (onglet Opérations), `web/v2/e2e/journeys/changesets.spec.ts`
   - dépend de : 14c
+  - fait le 2026-11-11 — `draft/operations.ts` : `masked` parmi les membres tus ; une
+    opération servie masquée porte le membre `values` marqué `masked` (en dernier), ses
+    valeurs jamais montrées, même servies à côté ; `OperationText.vue` le dit
+    « values : masqué » (`changesets.masked`, le mot du différentiel), en texte simple,
+    ni `k-mono` ni `NoValue` (qui dit une absence). Vitest `shell/test/changesets.test.ts`
+    (« says the values of a masked operation masked, never `masked: true` nor absent ») ;
+    parcours `changesets` « a sensitive value masked… » : Alice lit
+    `values : <valeur>` dans l'onglet Opérations, Carol `values : masqué`, ni `masked`
+    ni la valeur (Chromium et Firefox).
+  - choix : le mot en texte simple, comme le différentiel (`diffGroups`) ; le membre
+    masqué en fin de ligne plutôt qu'à la place de `values` dans l'objet servi.
+  - reste : une valeur réelle « masqué » se lit comme le masque (en chasse fixe à l'écran,
+    pas à l'oreille), comme dans le différentiel : un texte masqué visuellement
+    (« valeur masquée, droit de lecture manquant ») pour les deux, à trancher (`a11y-auditor`).
 - [ ] 14h. Pied du brouillon en attente de reprise (relevés des relectures de la 14e) : le
   motif (`CommitForm`) en lecture seule, avec la raison des dates figées, tant qu'une
   soumission attend sa reprise (« Réessayer » ne l'envoie pas) ; le passage aux dates

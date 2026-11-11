@@ -1,12 +1,16 @@
 <script setup lang="ts">
 // An operation as a line (REQ-021-10, 11): its code in fixed pitch, what it names, then its
-// other members — the line wraps beside its code, never cut (revue du 2026-10-25).
+// other members — the line wraps beside its code, never cut (revue du 2026-10-25); values the
+// reader may not read said « masqué », as the differential says them (task 14g; the key
+// `changesets.masked` of the catalogue the shell merges whole, drafts included).
 import type { Operation } from "@kartenn/sdk";
 import { NoValue } from "@kartenn/ui";
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { operationLine } from "./operations.ts";
 
 const props = defineProps<{ operation: Operation | Record<string, unknown> }>();
+const { t } = useI18n();
 const line = computed(() => operationLine(props.operation));
 </script>
 
@@ -15,7 +19,8 @@ const line = computed(() => operationLine(props.operation));
     <code class="k-operation__op">{{ line.op }}</code>
     <span v-if="line.subject" class="k-mono k-operation__subject">{{ line.subject }}</span>
     <span v-for="member in line.members" :key="member.name" class="k-operation__member"
-      >{{ member.name }} : <NoValue v-if="member.value === null" /><span v-else class="k-mono">{{
+      >{{ member.name }} : <template v-if="member.masked">{{ t("changesets.masked") }}</template
+      ><NoValue v-else-if="member.value === null" /><span v-else class="k-mono">{{
         member.value
       }}</span></span
     >
