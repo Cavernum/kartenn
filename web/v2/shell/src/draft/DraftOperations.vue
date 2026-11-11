@@ -19,7 +19,7 @@ import type { Refusal } from "../views/edit/inline.ts";
 import { useKeyLabel } from "../views/data.ts";
 import LostSubmissions from "./LostSubmissions.vue";
 import OperationText from "./OperationText.vue";
-import { operationLine } from "./operations.ts";
+import { listedOperations, operationLine, withoutOperation } from "./operations.ts";
 import { useDraftQueries } from "./state.ts";
 
 const props = withDefaults(defineProps<{ id: string | null; page?: boolean }>(), {
@@ -36,10 +36,16 @@ const general = computed(() => violations.value.get(-1) ?? []);
 const counts = computed(() => simulated.value?.diff ?? []);
 const cascaded = computed(() => simulated.value?.cascaded.length ?? 0);
 
+// The operations listed, guards left out: each guard goes with the operation of its object,
+// its violations said there, removed with it (Q-021-21).
+const listed = computed(() => listedOperations(operations.value));
+const violationsOf = (item: (typeof listed.value)[number]) =>
+  [item.index, ...item.guards].flatMap((at) => violations.value.get(at) ?? []);
+
 /** What a remove button says: the operation and what it names. */
-function removeLabel(index: number): string {
-  const line = operationLine(operations.value[index]!);
-  return t("drafts.remove", { n: index + 1, op: line.op, subject: line.subject ?? "" });
+function removeLabel(position: number): string {
+  const line = operationLine(listed.value[position]!.operation);
+  return t("drafts.remove", { n: position + 1, op: line.op, subject: line.subject ?? "" });
 }
 
 const list = ref<HTMLElement | null>(null);
@@ -94,10 +100,11 @@ const refusalWords = computed(() =>
  * one before, else the list.
  */
 async function remove(index: number): Promise<void> {
-  if (!props.id || removing.value !== null || !writable.value) return;
+  const at = listed.value[index]?.index;
+  if (!props.id || at === undefined || removing.value !== null || !writable.value) return;
   removing.value = index;
   refusal.value = undefined;
-  const kept = operations.value.filter((_, i) => i !== index);
+  const kept = withoutOperation(operations.value, at);
   const outcome = await drafts.update(props.id, { operations: kept });
   removing.value = null;
   if (outcome.kind !== "saved") {
@@ -144,7 +151,7 @@ const value = (text: string | null | undefined) =>
       >
         {{ t("drafts.expiresText") }}
       </InlineAlert>
-      <p v-if="operations.length === 0" ref="empty" class="k-draft-ops__muted" tabindex="-1">
+      <p v-if="listed.length === 0" ref="empty" class="k-draft-ops__muted" tabindex="-1">
         {{ t("drafts.empty") }}
       </p>
       <ol
@@ -154,10 +161,10 @@ const value = (text: string | null | undefined) =>
         tabindex="-1"
         :aria-label="t('drafts.operations', { title: draft.title })"
       >
-        <li v-for="(operation, index) in operations" :key="index" class="k-draft-ops__item">
+        <li v-for="(item, index) in listed" :key="item.index" class="k-draft-ops__item">
           <div class="k-draft-ops__line">
             <span class="k-draft-ops__mark"><Icon name="draft" /></span>
-            <OperationText :operation="operation" />
+            <OperationText :operation="item.operation" />
             <IconButton
               data-k-remove
               icon="x"
@@ -170,10 +177,10 @@ const value = (text: string | null | undefined) =>
             />
           </div>
           <InlineAlert
-            v-if="violations.get(index)?.length"
+            v-if="violationsOf(item).length"
             tone="ko"
             :title="t('drafts.refusedBySimulation', { n: index + 1 })"
-            :items="violations.get(index)!.map((v) => ({ message: v.detail, code: v.rule }))"
+            :items="violationsOf(item).map((v) => ({ message: v.detail, code: v.rule }))"
           />
         </li>
       </ol>

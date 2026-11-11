@@ -10,6 +10,7 @@ import { collectionById } from "../src/views/collections.ts";
 import {
   checkProperty,
   draftedProperties,
+  guarded,
   originOf,
   propertyOperation,
   propertyPatch,
@@ -17,6 +18,7 @@ import {
   typedInPlace,
   type Declared,
 } from "../src/views/edit/properties.ts";
+import { listedOperations, withoutOperation } from "../src/draft/operations.ts";
 
 // The tab « Propriétés » of a record edited in place (task 021-12h; REQ-021-15, 16, 37;
 // Q-021-19): which values a cell edits and why not, the value checked by its declared
@@ -107,6 +109,28 @@ describe("a property edited in place", () => {
     });
     expect(propertyPatch("custom.code", "abc")).toEqual({ properties: { "custom.code": "abc" } });
     expect(propertyPatch("custom.code", null)).toEqual({ properties: { "custom.code": null } });
+  });
+
+  it("guards the draft on the version read, once by object, the guard going with its operation (Q-021-21)", () => {
+    const code = propertyOperation("prefix", P1, CODE, "a");
+    const zone = propertyOperation("prefix", P1, ZONE, "b");
+    const guard = { op: "expect", kind: "prefix", id: { id: P1 }, expected: V1 };
+    const first = guarded([], "prefix", P1, V1, code);
+    expect(first).toEqual([guard, code]);
+    // A second property of the same object: no second guard.
+    const draft = [...first, ...guarded(first, "prefix", P1, V1, zone)];
+    expect(draft).toEqual([guard, code, zone]);
+    // Listed without its guard (the counter of the server leaves it out too), carried by
+    // the first operation of its object.
+    expect(listedOperations(draft).map((l) => [l.index, l.guards])).toEqual([
+      [1, [0]],
+      [2, []],
+    ]);
+    // Removed with the last operation of its object, kept while one remains.
+    expect(withoutOperation(draft, 1)).toEqual([guard, zone]);
+    expect(withoutOperation(withoutOperation(draft, 1), 1)).toEqual([]);
+    // No version read: no guard.
+    expect(guarded([], "prefix", P1, null, code)).toEqual([code]);
   });
 
   it("reads what a draft changes in the properties of the object, the last winning", () => {
@@ -330,11 +354,12 @@ describe("the tab « Propriétés » edited in place", () => {
       .dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     await nextTick();
 
-    // Enter: `assign_property` to the draft, the cell « en brouillon ».
+    // Enter: `assign_property` to the draft, guarded by the version read; « en brouillon ».
     await type("custom.code", "xyz");
     await expect.poll(() => cell("custom.code")!.getAttribute("data-state")).toBe("draft");
     const post = seen.find((s) => s.method === "POST" && s.url === "/v1/drafts")!;
     expect((post.body as { operations: unknown[] }).operations).toEqual([
+      { op: "expect", kind: "prefix", id: { id: P1 }, expected: V1 },
       {
         op: "assign_property",
         kind: "prefix",

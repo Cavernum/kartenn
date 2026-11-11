@@ -210,6 +210,32 @@ export function propertyOperation(
     : { op: "assign_property", ...target, values: [value] };
 }
 
+/**
+ * The operations an edit adds to a draft whose operations are `current` (Q-021-21): its
+ * guard on the version read (`expect`, as the server's `PATCH` writes one), unless the draft
+ * already guards the object or no version was read, then the operation itself.
+ */
+export function guarded(
+  current: readonly Operation[],
+  kind: string,
+  id: string,
+  version: string | null,
+  operation: Operation,
+): Operation[] {
+  const has = current.some((op) => {
+    const o = op as Record<string, unknown>;
+    return o.op === "expect" && (o.id as { id?: unknown } | undefined)?.id === id;
+  });
+  if (has || version === null) return [operation];
+  const guard: Operation = {
+    op: "expect",
+    kind: kind as Schemas["TargetKind"],
+    id: { id },
+    expected: version,
+  };
+  return [guard, operation];
+}
+
 /** The members of the merge patch (RFC 7396) of the kind: `properties`, `null` removes. */
 export function propertyPatch(key: string, value: Raw | null): Record<string, unknown> {
   const properties: Schemas["PrefixPatch"]["properties"] = { [key]: value };
@@ -521,8 +547,12 @@ export function usePropertyEdit(deps: PropertyEditDeps) {
     const raw = propertyValueOf(declaration, text);
     const version = deps.version();
     shown.set(key, { state: "pending", text, raw, version });
-    const op = propertyOperation(deps.collection().kind, deps.id(), declaration.id, raw);
-    const outcome = await addToActiveDraft([op]);
+    const kind = deps.collection().kind;
+    const op = propertyOperation(kind, deps.id(), declaration.id, raw);
+    // Made from the draft it goes to (read again after a 412): its guard only once.
+    const outcome = await addToActiveDraft((current) =>
+      guarded(current, kind, deps.id(), version, op),
+    );
     if (outcome.kind === "saved") {
       shown.delete(key);
       const said = t("edit.drafted", { what: what(key) });
