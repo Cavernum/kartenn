@@ -9,8 +9,10 @@
 // `valid_to`) stay behind a button until asked for or set — `valid_from` set from the date
 // read under `valid_at` (REQ-021-5) —; the simulation and the submission read them, the
 // sentence of the result says them. The submission keeps its idempotency key and its period
-// until an answer: a retry after a lost answer replays them (REQ-006-15), the dates fixed
-// meanwhile, with their reason. The dates are kept with the draft, from the date of its first
+// until an answer: a retry after a lost answer replays them (REQ-006-15), the motive and the
+// dates fixed meanwhile, with their reason, said by the refusal that fixes them; the answer
+// come, the focus « Réessayer » held goes to the action beside it (2.4.3), or, the foot gone
+// with its draft, to the panel. The dates are kept with the draft, from the date of its first
 // addition under `valid_at`, back at the present too (`draftPeriods`). An answer is said
 // by a toast (applied, in review with its reason), a refusal here. Under `as_of` nothing is
 // written: the fields and the actions are refused with their reason.
@@ -114,7 +116,11 @@ const effect = computed(() => {
 });
 
 // The motive, as the draft keeps it; read again when another draft, or another version
-// of its reason, comes.
+// of its reason, comes. Read only under `as_of`, and while a submission awaits its retry:
+// the replay sends what was sent, a motive changed meanwhile would not go with it.
+const motiveWhy = computed(() =>
+  !writable.value ? t("drafts.why.past") : awaiting.value ? t("drafts.motiveFrozen") : undefined,
+);
 const summary = ref("");
 const description = ref("");
 watch(
@@ -160,6 +166,14 @@ const refusal = shallowRef<Refusal>();
 watch(
   () => props.id,
   () => (refusal.value = undefined),
+);
+
+/** The refusal is the answer lost (no problem) of the submission that awaits its retry. */
+const lostAnswer = computed(
+  () =>
+    awaiting.value !== undefined &&
+    refusal.value?.kind === "failed" &&
+    refusal.value.problem === null,
 );
 
 const reasonChanged = () =>
@@ -214,7 +228,16 @@ async function retry(): Promise<void> {
   } finally {
     busy.value = false;
   }
+  // Answered, « Réessayer » is gone: the focus it held, lost with it, goes to the action
+  // beside it while the foot stays (a refusal, the page); the foot gone with its draft, the
+  // panel takes it (`DraftOperations`).
+  if (awaiting.value) return;
+  await nextTick();
+  const active = document.activeElement;
+  if (active && active !== document.body && active.isConnected) return;
+  (actionsRow.value?.$el as HTMLElement | undefined)?.querySelector<HTMLElement>("button")?.focus();
 }
+const actionsRow = useTemplateRef<InstanceType<typeof Cluster>>("actionsRow");
 
 const form = useTemplateRef<InstanceType<typeof CommitForm>>("form");
 /** The main button: the summary checked by the form, then the chosen action. */
@@ -266,15 +289,21 @@ const failedSimulation = computed(() =>
         :title="t('drafts.simulationFailed')"
         :items="failedSimulation"
       />
-      <RefusalAlert v-if="refusal" :refusal="refusal" />
+      <!-- A lost answer fixes the motive and the dates: its refusal says so (4.1.3), the
+           fields only the consequence. -->
+      <RefusalAlert
+        v-if="refusal"
+        :refusal="refusal"
+        v-bind="lostAnswer ? { note: t('drafts.frozen') } : {}"
+      />
       <CommitForm
         ref="form"
         v-model:summary="summary"
         v-model:description="description"
         required
         collapsible
-        :readonly="!writable"
-        v-bind="writable ? {} : { reason: t('drafts.why.past') }"
+        :readonly="motiveWhy !== undefined"
+        v-bind="motiveWhy ? { reason: motiveWhy } : {}"
         @submit="run"
       />
       <span v-if="!periodShown">
@@ -306,7 +335,7 @@ const failedSimulation = computed(() =>
           size="sm"
         />
       </Stack>
-      <Cluster justify="end" gap="2">
+      <Cluster ref="actionsRow" justify="end" gap="2">
         <Button
           v-if="awaiting"
           variant="ghost"

@@ -55,6 +55,27 @@ watch(
     if (id !== null) refusal.value = undefined;
   },
 );
+/**
+ * The draft left the tab with the foot that held the focus (submitted, its retry
+ * answered), or a retry of the notices was answered: the focus, lost with its button, goes
+ * to what says the tab has no draft (2.4.3) — after a notice, to the « Réessayer » of the
+ * next one still waiting first. A focus elsewhere stays.
+ */
+function focusNone(next = false): void {
+  const active = document.activeElement;
+  if (active && active !== document.body && active.isConnected) return;
+  const retry = next
+    ? none.value?.parentElement?.querySelector<HTMLElement>("[data-k-retry]")
+    : null;
+  (retry ?? none.value)?.focus();
+}
+watch(
+  () => props.id,
+  (id, before) => {
+    if (id === null && before !== null) focusNone();
+  },
+  { flush: "post" },
+);
 /** The draft is no longer the server's (deleted, submitted or taken over elsewhere). */
 const refusedGone = computed(
   () => refusal.value?.kind === "failed" && refusal.value.problem?.status === 404,
@@ -101,7 +122,7 @@ const value = (text: string | null | undefined) =>
   <Stack gap="3" class="k-draft-ops">
     <RefusalAlert v-if="refusal" :refusal="refusal" v-bind="refusalWords" />
     <template v-if="props.id === null">
-      <LostSubmissions />
+      <LostSubmissions @answered="focusNone(true)" />
       <p ref="none" class="k-draft-ops__muted" tabindex="-1">{{ t("drafts.none") }}</p>
       <p>
         <KLink to="/drafts">{{ t("drafts.page") }}</KLink>

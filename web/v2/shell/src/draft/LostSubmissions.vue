@@ -3,10 +3,12 @@
 // the server may have applied it and deleted the draft, its event come before « Réessayer ».
 // Each says so, and « Réessayer » replays it under its key: the server answers what it did
 // (applied, in review), said by a toast; a refusal, here. Under `as_of` nothing is written:
-// « Réessayer » is refused with its reason, as in the foot (REQ-021-5).
+// « Réessayer » is refused with its reason, as in the foot (REQ-021-5). Answered, its notice
+// goes, « Réessayer » with it: `answered` tells the host, which takes the focus it held if
+// lost (2.4.3).
 import type { DraftSubmitOutcome } from "@kartenn/sdk";
 import { Button, InlineAlert } from "@kartenn/ui";
-import { computed, ref, shallowRef } from "vue";
+import { computed, nextTick, ref, shallowRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useTime, writesOf } from "../time/index.ts";
 import RefusalAlert from "../views/edit/RefusalAlert.vue";
@@ -14,6 +16,7 @@ import type { Refusal } from "../views/edit/inline.ts";
 import { useSay } from "../views/edit/say.ts";
 import { lostSubmissions, submitDraft, type LostSubmission } from "./state.ts";
 
+const emit = defineEmits<{ answered: [] }>();
 const { t } = useI18n();
 const say = useSay();
 const time = useTime();
@@ -39,6 +42,9 @@ async function retry(submission: LostSubmission): Promise<void> {
   } finally {
     busy.value = null;
   }
+  if (lostSubmissions.get(submission.id)) return;
+  await nextTick();
+  emit("answered");
 }
 </script>
 
@@ -55,6 +61,7 @@ async function retry(submission: LostSubmission): Promise<void> {
       variant="ghost"
       size="sm"
       icon="refresh-cw"
+      data-k-retry
       :loading="busy === submission.id"
       v-bind="writable ? {} : { reason: t('drafts.why.past') }"
       @click="retry(submission)"

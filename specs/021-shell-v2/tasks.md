@@ -1777,7 +1777,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     « Instruire dans Flux » et « Effet sur la politique » reviennent à la 017 (tâches 3 et
     19 : action `review-in-flow` ; 2 et 10 : action `effect` sur le type `changeset`). Sous-tâches du
     reste : « Renommer… » (14f, faite le 2026-11-11), opération masquée (14g, faite le 2026-11-11), pied en attente
-    de reprise (14h), badge de la barre et segments de date (14i, `@kartenn/ui`), brouillon
+    de reprise (14h, faite le 2026-11-11), badge de la barre et segments de date (14i, `@kartenn/ui`), brouillon
     daté (14j), brouillon supprimé ailleurs tenu par un parcours (14k), modifier une
     opération du brouillon (14l). Restent à l'utilisateur, inchangés : « Revue requise »
     avant la soumission (contrat), composants du résultat de simulation et de la ligne
@@ -3058,7 +3058,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     d'`OperationText.vue` (vu par le parcours seulement) ; l'onglet Opérations d'Alice,
     valeur en clair, n'est pas audité par axe (seul celui de Carol l'est) ; ligne d'en-tête
     trop longue dans `e2e/journeys/changesets.spec.ts`.
-- [ ] 14h. Pied du brouillon en attente de reprise (relevés des relectures de la 14e) : le
+- [x] 14h. Pied du brouillon en attente de reprise (relevés des relectures de la 14e) : le
   motif (`CommitForm`) en lecture seule, avec la raison des dates figées, tant qu'une
   soumission attend sa reprise (« Réessayer » ne l'envoie pas) ; le passage aux dates
   figées annoncé (région d'état) ; après une reprise réussie, le focus rendu (« Réessayer »
@@ -3068,6 +3068,40 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/shell/src/draft/{DraftSubmit.vue,LostSubmissions.vue,state.ts}`
     (`awaiting`, `drafts.period.frozen`), `CommitForm` (`readonly`, `reason`)
   - dépend de : 14e
+  - fait le 2026-11-11 — `DraftSubmit.vue` : `motiveWhy` (comme `periodWhy`) met le motif
+    en lecture seule sous `as_of` et tant qu'une soumission attend sa reprise
+    (`drafts.motiveFrozen` sous le résumé et dans la description des champs) ; le refus d'une
+    réponse perdue (`lostAnswer` : `failed` sans problème, en attente) porte la note
+    `drafts.frozen` (« Motif et dates figés : … »), dite par son `alert` ; les champs de
+    date gardent `drafts.period.frozen`, raccourcie à la conséquence. Focus après la
+    reprise (2.4.3), déplacé seulement s'il est perdu (`body` ou élément détaché) :
+    pied resté (page `/drafts/:id`, refus) → bouton principal du `SplitButton` (premier
+    bouton de la rangée d'actions) ; pied parti avec son brouillon (panneau) → paragraphe
+    « Aucun brouillon actif… » (`DraftOperations.vue`, `focusNone`, observateur `post` de
+    `id` qui passe à `null`, ce qui couvre aussi la première soumission) ; encart
+    `LostSubmissions.vue` répondu (événement `answered`) → « Réessayer » de l'encart suivant
+    (`data-k-retry`), sinon le même paragraphe. Vitest `shell/test/changesets.test.ts` :
+    « awaiting its retry, the motive is read only, why said; answered, the focus to the
+    panel » (hôte `FootHost` : opérations et pied), focus après la reprise de l'encart, de
+    l'encart suivant, et sur la page (brouillon 404 après l'application). Parcours `draft`
+    « an answer lost at the submission… » : le focus sur « Aucun brouillon actif… » ; en-tête
+    du fichier remis à 100 colonnes (reste de la 14f). `k-web2-e2e draft.spec.ts
+    accessibility.spec.ts` (réponse perdue, axe de tous les parcours) : 4 passés.
+  - choix : le passage aux dates figées est annoncé par la note de l'alerte du refus (déjà
+    dite à cet instant), non par une seconde région `status` qui doublerait l'annonce ; la
+    phrase entière une fois (l'alerte), sous les champs la seule conséquence
+    (`ui-reviewer`) ; aucun changement de `state.ts` ni de `@kartenn/ui` (le bouton
+    principal trouvé dans la rangée d'actions, sans `focus()` exposé par `SplitButton`) ;
+    `DraftOperations.vue` touché hors de la ligne `où :` (la cible du focus quand le pied
+    part avec le brouillon y vit).
+  - reste : sur la page `/drafts/:id`, après une soumission acceptée, le brouillon lu reste
+    montré (la requête retirée du cache par `forget`, l'observateur garde sa donnée, même
+    sous un 404 du serveur) avec son pied et une simulation relancée : d'avant cette tâche,
+    à traiter avec la page (et le focus à y rendre si elle passe à « brouillon parti ») ;
+    le retour à des champs modifiables après une reprise refusée (422, 403) n'est pas
+    annoncé, l'alerte du refus dit `edit.kept` (`a11y-auditor`, mineur) ; un clic dans le
+    vide pendant la reprise laisse le focus perdu, qui va alors au bouton principal ;
+    lecture de la raison d'un champ en lecture seule par un vrai lecteur d'écran à juger.
 - [ ] 14i. Accessibilité de deux composants de `@kartenn/ui` (relevés des 14 et 14e) : le
   badge d'une entrée de `SidebarNav` dit son unité aux technologies d'assistance (« À
   instruire » suivi de « 3 changesets à instruire », pas d'un « 3 » nu) ; les segments d'un

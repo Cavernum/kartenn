@@ -144,6 +144,8 @@
     "valid": "Valid simulation",
     "validText": "{n} warning · {effect} | {n} warnings · {effect}",
     "readOnly": "Read only: under a past state, the draft is neither modified nor submitted.",
+    "frozen": "Motive and dates fixed: “Retry” replays the submission left unanswered as sent; they can be changed once it is answered.",
+    "motiveFrozen": "Motive fixed until the answer: “Retry” sends it as it was.",
     "period": {
       "ask": "Choose the dates of effect",
       "from": "Effective from",
@@ -151,7 +153,7 @@
       "to": "Effective until",
       "toHint": "Empty: no end.",
       "order": "The end of the effect must follow its start.",
-      "frozen": "Dates fixed: “Retry” replays the unanswered submission as sent; they change once it is answered.",
+      "frozen": "Dates fixed until the answer: “Retry” sends them as they were.",
       "now": "effective now",
       "since": "effective from {from}",
       "until": "effective until {to}",
