@@ -443,3 +443,13 @@ Tranchés le 2026-11-03 par l'utilisateur, d'après les 11g, 11i et 11j :
   l'héritée ; la cellule le dit avant l'envoi (« surcharge la valeur héritée de
   <source> »), et retirer la valeur propre rend l'héritage. Options pesées : valeur
   propre, cellule sans éditeur avec renvoi vers la source. Retenu : valeur propre.
+- **Q-021-21 — Garde de version d'une propriété au brouillon** (021-12h, revue) : constat,
+  `assign_property` n'a pas d'`expected` au contrat, alors que les champs l'ont et que le
+  `PATCH` du serveur pose un `expect` devant ses propriétés (`resources.rs`) ; sans garde,
+  le brouillon écrirait sur une version jamais lue. Options pesées : `expect` hors compteur,
+  `expect` compté comme une opération, pas de garde. Retenu (utilisateur, 2026-11-11) :
+  `expect` hors compteur — l'édition en place pose `{op: "expect", kind, id, expected}`
+  avec la version lue avant son opération, une seule fois par objet dans un même
+  brouillon ; `operation_count` des brouillons ne compte pas les gardes (serveur), la
+  liste du brouillon ne les montre pas, dit leurs violations sur l'opération de leur
+  objet, et retire une garde avec la dernière opération de son objet.

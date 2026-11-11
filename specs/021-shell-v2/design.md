@@ -422,10 +422,13 @@ sequenceDiagram
   sa version lue comme `expected`.
 - Validation locale par les types du contrat ; la validation métier reste la simulation
   du brouillon ou la réponse 422.
-- Onglet Propriétés d'une fiche (tâche 12h, Q-021-19) : la cellule de valeur s'édite
-  comme une autre ; au brouillon, `assign_property` (vidée, `unassign_property`), appliquée,
+- Onglet Propriétés d'une fiche (tâche 12h, Q-021-19, Q-021-21) : la cellule de valeur
+  s'édite comme une autre ; au brouillon, `assign_property` (vidée, `unassign_property`),
+  gardée par un `expect` de la version lue (un par objet dans le brouillon, hors compteur
+  et hors liste, retiré avec la dernière opération de son objet) ; appliquée,
   `properties` du `PATCH` de la sorte sous `If-Match` ; valeur vérifiée par le type de sa
-  déclaration (longueur, motif, bornes, date, FQDN, clé de la liste fermée). Une valeur
+  déclaration, jamais plus strictement que le serveur (longueur en NFC, bornes, date,
+  FQDN plus lâche qu'UTS #46, clé de la liste fermée ; le motif reste au serveur). Une valeur
   héritée devient valeur propre de l'objet, qui la surcharge : le pied de la grille le dit
   avant l'envoi (« surcharge la valeur héritée de <source> », origine lue dans
   l'explication), et le statut poli à l'ouverture de l'éditeur ; vider une valeur propre la
