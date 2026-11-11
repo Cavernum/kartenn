@@ -2,8 +2,10 @@
 import { ApiProblem, NetworkError, queryClient } from "@kartenn/sdk";
 import { resetContext, setFetch } from "@kartenn/sdk/host";
 import { afterEach, describe, expect, it } from "vitest";
-import { createApp, h, type App } from "vue";
+import { createApp, h, nextTick, type App } from "vue";
+import AboutView from "../src/frame/AboutView.vue";
 import { createShellI18n } from "../src/i18n/index.ts";
+import { resetPlugins, unavailable } from "../src/plugins/registry.ts";
 import ProblemState from "../src/problems/ProblemState.vue";
 import { useProblems } from "../src/problems/index.ts";
 import RefusalAlert from "../src/views/edit/RefusalAlert.vue";
@@ -19,6 +21,7 @@ afterEach(() => {
   app = undefined;
   queryClient.clear();
   resetContext();
+  resetPlugins();
 });
 
 /** The dictionary served: `problem` labelled as the server would. */
@@ -222,5 +225,23 @@ describe("the renderings of a problem", () => {
     // The title says it is invalid: the type under its name, not said again.
     expect(root.textContent).toContain("Code du problème");
     expect(root.textContent).not.toContain("Le changement est refusé par les règles");
+  });
+
+  it("« À propos », the capabilities unread: why, the type and the Request-Id, copyable", async () => {
+    serve({});
+    unavailable(true, problem("urn:kartenn:problem:unavailable", { status: 503 }));
+    const root = mount(() => () => h(AboutView));
+    await nextTick();
+    const alert = [...root.querySelectorAll(".k-inline-alert")].find((a) =>
+      a.textContent?.includes("La liste des plugins n'a pas pu être lue"),
+    )!;
+    expect(alert.textContent).toContain("Le service est momentanément indisponible");
+    const codes = [...alert.querySelectorAll("button code")].map((c) => c.textContent);
+    expect(codes).toEqual(["urn:kartenn:problem:unavailable", "req-1"]);
+    // No answer at all: the network said, no code to pass on.
+    unavailable(true, new NetworkError(new TypeError("Failed to fetch")));
+    await nextTick();
+    expect(root.textContent).toContain("Le serveur n'a pas pu être joint.");
+    expect(root.querySelector(".k-inline-alert button code")).toBeNull();
   });
 });

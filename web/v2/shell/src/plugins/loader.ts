@@ -1,3 +1,4 @@
+import { ApiProblem, NetworkError } from "@kartenn/sdk";
 import { UI_VERSION } from "@kartenn/ui";
 import {
   abandonPlugin,
@@ -204,18 +205,26 @@ function backoff(response: Response | null, attempt: number): number {
 }
 
 /**
- * The plugins of the capabilities of the caller, or `null` if they cannot be read. A
- * refusal for load (429, 503) or a network failure is read again, `Retry-After` honoured;
- * a body without a list of plugins is a failure, never an empty list.
+ * The plugins of the capabilities of the caller; when they cannot be read, the promise
+ * fails with why (REQ-021-20): the problem of the last answer (`ApiProblem`, its `type` and
+ * `Request-Id`), a `NetworkError` without one, a `TypeError` for a body without a list of
+ * plugins (a failure, never an empty list). A refusal for load (429, 503) or a network
+ * failure is read again, `Retry-After` honoured.
  */
 export async function readPlugins(
   fetcher: typeof fetch = fetch,
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
-): Promise<UiPlugin[] | null> {
-  for (let attempt = 0; attempt < CAPABILITY_ATTEMPTS; attempt++) {
-    const response = await fetcher("/v1/capabilities").catch(() => null);
-    const transient = !response || response.status === 429 || response.status === 503;
-    if (response?.ok) {
+): Promise<UiPlugin[]> {
+  for (let attempt = 0; ; attempt++) {
+    let response: Response;
+    try {
+      response = await fetcher("/v1/capabilities");
+    } catch (error) {
+      if (attempt >= CAPABILITY_ATTEMPTS - 1) throw new NetworkError(error);
+      await sleep(backoff(null, attempt));
+      continue;
+    }
+    if (response.ok) {
       const capabilities = (await response.json().catch(() => null)) as {
         ui_plugins?: unknown;
         modules?: { name?: unknown; version?: unknown }[];
@@ -224,14 +233,13 @@ export async function readPlugins(
         ? capabilities.modules.find((m) => m.name === "core")?.version
         : undefined;
       serverVersion(typeof core === "string" ? core : null);
-      return Array.isArray(capabilities?.ui_plugins)
-        ? (capabilities.ui_plugins as UiPlugin[])
-        : null;
+      if (Array.isArray(capabilities?.ui_plugins)) return capabilities.ui_plugins as UiPlugin[];
+      throw new TypeError("GET /v1/capabilities: no list of plugins");
     }
-    if (!transient || attempt === CAPABILITY_ATTEMPTS - 1) return null;
+    const transient = response.status === 429 || response.status === 503;
+    if (!transient || attempt >= CAPABILITY_ATTEMPTS - 1) throw await ApiProblem.from(response);
     await sleep(backoff(response, attempt));
   }
-  return null;
 }
 
 /**
@@ -244,10 +252,12 @@ export async function startPlugins(
   fetcher: typeof fetch = fetch,
 ): Promise<void> {
   unavailable(false);
-  const list = await readPlugins(fetcher);
-  if (list === null) {
-    console.warn("kartenn: the capabilities could not be read; plugins not loaded");
-    unavailable(true);
+  let list: UiPlugin[];
+  try {
+    list = await readPlugins(fetcher);
+  } catch (error) {
+    console.warn("kartenn: the capabilities could not be read; plugins not loaded", error);
+    unavailable(true, error);
     performance.mark(PLUGINS_FETCHED);
     return;
   }
