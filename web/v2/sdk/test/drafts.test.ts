@@ -283,6 +283,28 @@ describe("the period of a draft, kept with it (REQ-021-5)", () => {
     expect(changed).toEqual([D1]);
   });
 
+  it("dated at the date read before the addition is sent, not one changed while it is written", async () => {
+    const LATER = "2032-01-01T00:00:00Z";
+    // The date changes while the server writes: a new draft, then an addition to it.
+    const s = setup((request) => {
+      if (request.method === "POST") s.time.validAt = LATER;
+      return undefined;
+    });
+    s.time.validAt = AT;
+    await s.drafts.addToActive([close]);
+    expect(s.drafts.period(D1)).toEqual({ valid_from: AT });
+    s.drafts.setPeriod(D1, null);
+    s.time.validAt = AT;
+    await s.drafts.addToActive([close]);
+    expect(s.held.get(D1)!.operations).toHaveLength(2);
+    expect(s.drafts.period(D1)).toEqual({ valid_from: AT });
+    // At the present when sent, under `valid_at` when answered: nothing dates.
+    s.drafts.setPeriod(D1, null);
+    s.time.validAt = null;
+    await s.drafts.addOperations(D1, [close]);
+    expect(s.drafts.period(D1)).toBeNull();
+  });
+
   it("the foot's choice is kept as set, its empty dates left out; under as_of nothing dates", async () => {
     const s = setup();
     s.time.validAt = AT;

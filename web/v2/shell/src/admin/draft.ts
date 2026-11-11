@@ -60,7 +60,11 @@ export function useAdminDraft() {
     return true;
   }
 
-  /** Puts `op` in place of the operation of index `index` of the active draft. */
+  /**
+   * Puts `op` in place of the operation of index `index` of the active draft. Unlike
+   * `moveInDraft`, it never dates the draft: the administration writes at the present only
+   * (its refusals say `edit.why.past` under any date, `valid_at` alone included).
+   */
   async function replace(index: number, op: Operation, what: string): Promise<boolean> {
     const id = active.value;
     if (busy.value || id === null) return false;

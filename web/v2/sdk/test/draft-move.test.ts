@@ -47,7 +47,11 @@ const violation = (rule: string, severity: string, at: number | null, subjects: 
 });
 
 /** A server holding the active draft `operations`, simulated as `simulation` answers. */
-function server(operations: unknown[], simulation: (period: unknown) => unknown) {
+function server(
+  operations: unknown[],
+  simulation: (period: unknown) => unknown,
+  patched: () => void = () => undefined,
+) {
   const seen: string[] = [];
   let version = 1;
   setFetch(
@@ -55,6 +59,7 @@ function server(operations: unknown[], simulation: (period: unknown) => unknown)
       "GET /v1/drafts/{id}": () => body(operations, version),
       "PATCH /v1/drafts/{id}": ({ body: change }) => {
         seen.push("PATCH");
+        patched();
         operations = (change as { operations: unknown[] }).operations;
         return body(operations, ++version);
       },
@@ -144,6 +149,24 @@ describe("moveInDraft", () => {
     queryClient.clear();
     await moveInDraft(to("c2"), node, drafts.addToActive);
     expect(periods).toEqual([{ valid_from: at }, { valid_from: at }]);
+  });
+
+  it("replaced in place, dated at the date read before it is sent", async () => {
+    const at = "2031-03-01T08:00:00Z";
+    const periods: unknown[] = [];
+    const later = () => setContext({ time: { validAt: "2032-01-01T00:00:00Z", asOf: null } });
+    server(
+      [other, to("c1")],
+      (period) => {
+        periods.push(period);
+        return simulated(true, []);
+      },
+      later,
+    );
+    setContext({ time: { validAt: at, asOf: null } });
+    await moveInDraft(to("c2"), node, drafts.addToActive);
+    expect(drafts.period(D)).toEqual({ valid_from: at });
+    expect(periods).toEqual([{ valid_from: at }]);
   });
 });
 

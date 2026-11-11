@@ -206,15 +206,18 @@ export function createDrafts(deps: DraftDeps) {
     const validAt = deps.time?.().validAt ?? null;
     return period(id) ?? (validAt ? { valid_from: validAt } : {});
   }
+  /** The date an addition sent now dates its draft at: `valid_at` alone, else none. */
+  function additionDate(): string | null {
+    const time = deps.time?.();
+    return time?.validAt && !time.asOf ? time.validAt : null;
+  }
   /**
-   * An addition to the draft `id` under `valid_at` alone dates it, when it has no period
+   * An addition to the draft `id` dates it at `at` (`additionDate`, read before the addition
+   * was sent: a date changed while it is written does not date it), when it has no period
    * yet: the date of that addition stays its `valid_from`, back at the present too.
    */
-  function dateAddition(id: string): void {
-    const time = deps.time?.();
-    if (time?.validAt && !time.asOf && period(id) === null) {
-      setPeriod(id, { valid_from: time.validAt });
-    }
+  function dateAddition(id: string, at: string | null): void {
+    if (at !== null && period(id) === null) setPeriod(id, { valid_from: at });
   }
 
   /** The `ETag` of the draft read, read first if the cache has none. */
@@ -293,10 +296,16 @@ export function createDrafts(deps: DraftDeps) {
    * Given as a function, the operations are made from those of the draft at the version sent
    * (its `If-Match`), again after a 412: a local name free in the draft stays free (021/A13).
    */
-  const addOperations = async (
+  const addOperations = (
     id: string,
     operations: Additions,
-  ): Promise<DraftOutcome<readonly Operation[]>> => {
+  ): Promise<DraftOutcome<readonly Operation[]>> => addAt(id, operations, additionDate());
+  /** `addOperations`, the draft dated at `at` once they are in (`dateAddition`). */
+  async function addAt(
+    id: string,
+    operations: Additions,
+    at: string | null,
+  ): Promise<DraftOutcome<readonly Operation[]>> {
     let added: readonly Operation[] = typeof operations === "function" ? [] : operations;
     const send = async () => {
       const ifMatch = await etagOf(id);
@@ -308,7 +317,7 @@ export function createDrafts(deps: DraftDeps) {
         body: { operations: added },
         ifMatch,
       });
-      dateAddition(id);
+      dateAddition(id, at);
       return saved(answer.data as Draft, answer.etag);
     };
     try {
@@ -324,7 +333,7 @@ export function createDrafts(deps: DraftDeps) {
     } catch (error) {
       return failure(id, error, added);
     }
-  };
+  }
 
   const remove = async (id: string): Promise<{ kind: "removed" } | Refusal<string>> => {
     ending.add(id);
@@ -403,9 +412,11 @@ export function createDrafts(deps: DraftDeps) {
   const addToActive = async (
     operations: Additions,
   ): Promise<DraftOutcome<readonly Operation[]>> => {
+    // The date of the addition, read before anything is sent: a new draft takes it too.
+    const at = additionDate();
     const id = active();
     if (id !== null) {
-      const outcome = await addOperations(id, operations);
+      const outcome = await addAt(id, operations, at);
       const absent = outcome.kind === "failed" && outcome.problem?.status === 404;
       if (!absent) return outcome;
     }
@@ -414,7 +425,7 @@ export function createDrafts(deps: DraftDeps) {
     if (created.kind !== "saved") {
       return { ...created, input: first } as Refusal<readonly Operation[]>;
     }
-    dateAddition(created.draft.id);
+    dateAddition(created.draft.id, at);
     setActive(created.draft.id);
     return created;
   };
@@ -459,6 +470,7 @@ export function createDrafts(deps: DraftDeps) {
     period,
     setPeriod,
     periodOf,
+    additionDate,
     dateAddition,
     /** Each change of the period kept for a draft; returns the function that stops. */
     onPeriod(listener: (id: string) => void): () => void {

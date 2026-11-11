@@ -87,6 +87,9 @@ export async function moveInDraft(
     : undefined;
   const operations = current?.data.operations ?? [];
   const earlier = operations.findIndex(replaces);
+  // A move replaced in place is an addition too: under `valid_at` alone it dates the draft,
+  // at the date read before it is sent (`add` reads its own).
+  const at = drafts.additionDate();
   const added =
     earlier >= 0
       ? await drafts.update(current!.data.id, {
@@ -94,8 +97,7 @@ export async function moveInDraft(
         })
       : await add([op]);
   if (added.kind !== "saved") return added;
-  // A move replaced in place is an addition too: under `valid_at` alone it dates the draft.
-  if (earlier >= 0) drafts.dateAddition(added.draft.id);
+  if (earlier >= 0) drafts.dateAddition(added.draft.id, at);
   saved?.(added.draft);
   const index = earlier >= 0 ? earlier : (added.draft.operations?.length ?? 1) - 1;
   // Simulated at the period of the draft, as its foot does: from the date of its addition.
