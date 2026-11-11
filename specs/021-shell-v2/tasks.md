@@ -3142,6 +3142,17 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     droits, donc vide) ; le squelette d'`index.html` montre une barre latérale avant
     `/login` (session inconnue au démarrage) ; des captures de référence des pages réelles
     du shell demanderaient au graphe d'impact (029) de les relier à leurs sources.
+  - verify, écarts actés (session principale, 2026-11-11) : aucune capture de référence
+    créée, la suite `visual` ne visitant que `/_ui` ; à la place, captures hors suite de
+    `/login` et `/about` (1440, 1024, 768 et 390 px, clair et sombre) relues par l'agent.
+    Relectures faites : `ui-reviewer` (fil d'Ariane décalé de 4 px en classe compacte,
+    `[` et `]` listés sans effet : corrigés) et `a11y-auditor` (repères et ordre du focus
+    sains ; aide qui listait `[` et `]` : corrigée).
+  - reste (revue, mineurs) : seule l'aide est testée pour `[` et `]` (ni l'écouteur hors
+    session ni l'absence des commandes de la palette) ; le cas connecté de `frame.test.ts`
+    suppose `sidebarCollapsed` à faux sans le remettre à zéro ; sans `TimeBand`, une URL
+    `/about?valid_at=…` hors session garde un contexte daté que rien ne montre (sans
+    effet aujourd'hui).
 
 ## P3 — Plugins (phase 5)
 
