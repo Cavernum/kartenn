@@ -144,6 +144,8 @@
     "valid": "Simulation valide",
     "validText": "{n} avertissement · {effect} | {n} avertissements · {effect}",
     "readOnly": "Lecture seule : sous un état passé, le brouillon ne se modifie ni ne se soumet.",
+    "frozen": "Motif et dates figés : « Réessayer » rejoue telle quelle la soumission restée sans réponse ; ils se modifient une fois sa réponse reçue.",
+    "motiveFrozen": "Motif figé jusqu'à la réponse : « Réessayer » le renvoie tel quel.",
     "period": {
       "ask": "Choisir les dates d'effet",
       "from": "Effet à partir du",
@@ -151,7 +153,7 @@
       "to": "Effet jusqu'au",
       "toHint": "Vide : sans fin.",
       "order": "La fin de l'effet doit suivre son début.",
-      "frozen": "Dates figées : « Réessayer » rejoue telle quelle la soumission sans réponse ; elles se changent une fois sa réponse reçue.",
+      "frozen": "Dates figées jusqu'à la réponse : « Réessayer » les renvoie telles quelles.",
       "now": "effet au présent",
       "since": "effet à partir du {from}",
       "until": "effet jusqu'au {to}",

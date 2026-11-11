@@ -18,11 +18,12 @@ import {
 // with a violation says it on its operation, with its code; removed, the draft is valid. A
 // draft resumed from another browser of the same identity, with what was written in the
 // first, then deleted there; one renamed from « Mes brouillons » (task 14f). Under
-// `valid_at` alone the draft is submitted from that date, its dates of effect in the foot; an addition under `valid_at` dates its draft, kept with it
-// back at the present (task 14e); an answer lost at the submission, « Réessayer » sends the
-// same key and the server replays its answer: one changeset (REQ-006-15). Under `as_of` the
-// draft is read only (REQ-021-5). Each test writes in a domain of its own (RFC 5737,
-// TEST-NET-2 and 3).
+// `valid_at` alone the draft is submitted from that date, its dates of effect in the foot;
+// an addition under `valid_at` dates its draft, kept with it back at the present (task
+// 14e); an answer lost at the submission, « Réessayer » sends the same key and the server
+// replays its answer: one changeset (REQ-006-15), the focus then on what says the tab has
+// no draft (task 14h). Under `as_of` the draft is read only (REQ-021-5). Each test writes
+// in a domain of its own (RFC 5737, TEST-NET-2 and 3).
 
 const unique = (browser: string) => `zz-draft-${browser}-${Date.now().toString(36)}`;
 
@@ -301,6 +302,8 @@ test("an answer lost at the submission, then « Réessayer »: the same key, one
   await retry.click();
   await expect(page.getByRole("status").filter({ hasText: "Appliqué :" }).first()).toBeVisible();
   await expect(retry).toHaveCount(0);
+  // « Réessayer » gone with the draft, its focus goes to what says the tab has none.
+  await expect(panel(page).getByText(/^Aucun brouillon actif dans cet onglet/)).toBeFocused();
   expect(keys).toHaveLength(2);
   expect(keys[0]).not.toBe("");
   expect(keys[1]).toBe(keys[0]);

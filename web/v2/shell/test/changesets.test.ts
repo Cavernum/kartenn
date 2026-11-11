@@ -4,6 +4,7 @@ import { addToActiveDraft, draftHost, resetContext, setFetch } from "@kartenn/sd
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp, defineComponent, h, nextTick, onScopeDispose, ref, type App } from "vue";
 import DraftOperations from "../src/draft/DraftOperations.vue";
+import DraftSubmit from "../src/draft/DraftSubmit.vue";
 import { draftPeriods, lostSubmissions } from "../src/draft/state.ts";
 import { pageCount } from "../src/frame/spaces.ts";
 import { instantOfDay, listFilterModel } from "../src/views/filters.ts";
@@ -297,6 +298,17 @@ describe("the screens of the changesets and the drafts", () => {
       return () => h(DraftOperations, { id: active.value });
     },
   });
+  /** The same tab with its foot, gone with the draft, as the frame shows it. */
+  const FootHost = defineComponent({
+    setup() {
+      const active = ref(drafts.active());
+      onScopeDispose(drafts.onActive((id) => (active.value = id)));
+      return () => [
+        h(DraftOperations, { id: active.value }),
+        active.value ? h(DraftSubmit, { id: active.value }) : null,
+      ];
+    },
+  });
   type Answer = { status?: number; body: unknown; etag?: string } | "lost";
 
   async function mounted(at: string, permissions: string[], answer: (seen: Seen) => Answer) {
@@ -343,6 +355,7 @@ describe("the screens of the changesets and the drafts", () => {
       routes: [
         // The draft tab of the right panel: the operations of the active draft of the tab.
         { path: "/panel", component: PanelHost },
+        { path: "/foot", component: FootHost },
         { path: "/", component: RouterView, children: frameRoutes },
       ],
     });
@@ -657,12 +670,88 @@ describe("the screens of the changesets and the drafts", () => {
     drafts.setActive(null);
     await router.push("/panel");
     await expect.poll(() => root.textContent).toContain("n'a pas eu de réponse");
+    button(root, "Réessayer")!.focus();
     button(root, "Réessayer")!.click();
     await expect.poll(() => submissions).toBe(2);
     const [first, again] = seen.filter((s) => s.url.includes("/submission"));
     expect(again!.key).toBe(first!.key);
     expect(again!.url).toBe(first!.url);
     await expect.poll(() => lostSubmissions.all().length).toBe(0);
+    // Its notice gone with « Réessayer », the focus goes to what says the tab has no draft.
+    await expect
+      .poll(() => document.activeElement?.textContent)
+      .toContain("Aucun brouillon actif dans cet onglet");
+  });
+
+  it("a notice answered, the focus goes to the « Réessayer » of the next one still waiting", async () => {
+    const D2 = "0b5e3c1a-0000-4000-8000-0000000000d2";
+    lostSubmissions.keep({ id: D1, key: "k1", approvalSelf: false, title: "Un", period: {} });
+    lostSubmissions.keep({ id: D2, key: "k2", approvalSelf: false, title: "Deux", period: {} });
+    const { root } = await mounted("/panel", ["core.prefix.edit"], (call) =>
+      call.url.includes("/submission")
+        ? { status: 202, body: { changeset: { id: C1, href: "h" }, state: "pending" } }
+        : { body: draft(OPS), etag: '"1"' },
+    );
+    await expect.poll(() => root.querySelectorAll("[data-k-retry]").length).toBe(2);
+    const first = root.querySelector<HTMLButtonElement>("[data-k-retry]")!;
+    first.focus();
+    first.click();
+    await expect.poll(() => root.querySelectorAll("[data-k-retry]").length).toBe(1);
+    await expect.poll(() => document.activeElement).toBe(root.querySelector("[data-k-retry]"));
+  });
+
+  it("awaiting its retry, the motive is read only, why said; answered, the focus to the panel", async () => {
+    sessionStorage.setItem("kartenn.draft.active", D1);
+    let submissions = 0;
+    const { root } = await mounted(
+      "/foot",
+      ["core.prefix.edit", "core.prefix.approval.self"],
+      (call) => {
+        if (call.url.endsWith("/simulation")) return { body: valid };
+        if (call.url.includes("/submission")) {
+          submissions += 1;
+          if (submissions === 1) return "lost";
+          return {
+            status: 201,
+            body: { changeset: { id: C1, href: "h" }, state: "applied", warnings: [] },
+          };
+        }
+        if (call.method === "PATCH") {
+          return { body: draft(OPS, 2, (call.body as { reason: object }).reason), etag: '"2"' };
+        }
+        return { body: draft(OPS), etag: '"1"' };
+      },
+    );
+    await expect
+      .poll(() => main(root)?.getAttribute("aria-disabled"), { timeout: 3000 })
+      .toBeNull();
+    const summary = () => root.querySelector<HTMLInputElement>(".k-draft-submit input")!;
+    expect(summary().readOnly).toBe(false);
+    main(root).click();
+    await expect.poll(() => button(root, "Réessayer")).toBeDefined();
+    // The refusal that fixes the motive and the dates says so (its alert); the summary,
+    // read only, still focusable, says why in its description.
+    const frozen = "Motif et dates figés : « Réessayer » rejoue telle quelle";
+    expect(root.querySelector(".k-draft-submit [role='alert']")?.textContent).toContain(frozen);
+    expect(summary().readOnly).toBe(true);
+    expect(summary().disabled).toBe(false);
+    const described = (summary().getAttribute("aria-describedby") ?? "")
+      .split(" ")
+      .map((id) => document.getElementById(id)?.textContent ?? "")
+      .join(" ");
+    expect(described).toContain(
+      "Motif figé jusqu'à la réponse : « Réessayer » le renvoie tel quel.",
+    );
+
+    // Answered, the draft leaves the tab with its foot: the focus « Réessayer » held goes to
+    // what says the tab has no draft, not to the body.
+    button(root, "Réessayer")!.focus();
+    button(root, "Réessayer")!.click();
+    await expect.poll(() => drafts.active()).toBeNull();
+    await expect
+      .poll(() => document.activeElement?.textContent)
+      .toContain("Aucun brouillon actif dans cet onglet");
+    expect(root.querySelector(".k-draft-submit")).toBeNull();
   });
 
   it("under valid_at alone, submitted from that date: valid_from set, simulated, replayed as sent", async () => {
@@ -686,6 +775,13 @@ describe("the screens of the changesets and the drafts", () => {
         if (call.method === "PATCH") {
           return { body: draft(OPS, 2, (call.body as { reason: object }).reason), etag: '"2"' };
         }
+        // Applied, the server has deleted the draft.
+        if (submissions === 2) {
+          return {
+            status: 404,
+            body: { type: "urn:kartenn:problem:not-found", title: "Not Found", status: 404 },
+          };
+        }
         return { body: draft(OPS), etag: '"1"' };
       },
     );
@@ -704,7 +800,7 @@ describe("the screens of the changesets and the drafts", () => {
     expect(segments.length).toBeGreaterThan(0);
     for (const segment of segments) expect(segment.getAttribute("aria-readonly")).toBe("true");
     expect(root.querySelector(".k-draft-submit")?.textContent).toContain(
-      "Dates figées : « Réessayer » rejoue telle quelle",
+      "Dates figées jusqu'à la réponse : « Réessayer » les renvoie telles quelles.",
     );
     // Changed after the lost answer: the foot keeps showing, and the replay sends, what was
     // sent, under its key.
@@ -712,12 +808,17 @@ describe("the screens of the changesets and the drafts", () => {
     await expect
       .poll(() => root.querySelector(".k-draft-submit__result")?.textContent, { timeout: 3000 })
       .toContain("effet du ");
+    button(root, "Réessayer")!.focus();
     button(root, "Réessayer")!.click();
     await expect.poll(() => submissions).toBe(2);
     const [first, again] = seen.filter((s) => s.url.includes("/submission"));
     expect(first!.body).toEqual({ valid_from: at, valid_to: end });
     expect(again!.body).toEqual(first!.body);
     expect(again!.key).toBe(first!.key);
+    // Answered, « Réessayer » is gone; the page keeps the draft it read (the server's is
+    // deleted, 404), its foot with it: the focus it held goes to the action beside it.
+    await expect.poll(() => button(root, "Réessayer")).toBeUndefined();
+    await expect.poll(() => document.activeElement).toBe(main(root));
   });
 
   it("without a chosen period, valid_from follows valid_at; under as_of the draft is read only", async () => {
