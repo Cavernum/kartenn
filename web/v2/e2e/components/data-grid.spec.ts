@@ -240,6 +240,17 @@ test.describe("DataGrid (APG Grid)", () => {
     await expect(page.locator("[data-demo='commit']")).toHaveText(
       /^label de .+ \(appliquer maintenant\)$/,
     );
+    // Held in review by the host: the cell says so, and why, as its description
+    // (`stateReason`), and under the pointer in a tooltip.
+    const held = "Une politique d'approbation retient la modification : elle attend une revue.";
+    await expect(cell).toHaveAttribute("data-state", "review");
+    await expect(cell).toHaveAccessibleName(/\(en revue\)/);
+    await expect(cell).toHaveAccessibleDescription(held);
+    await cell.hover();
+    const heldTip = page.locator(".k-tooltip").filter({ hasText: "politique d'approbation" });
+    await expect(heldTip).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(heldTip).toBeHidden();
     // A cell without an editor says why, as its description (`readonlyReason`).
     await page.keyboard.press("ArrowRight");
     const env = grid.locator(`[data-row="${first}"][data-column="env"]`);
