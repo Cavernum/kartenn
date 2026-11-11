@@ -108,3 +108,20 @@ Verify commun aux tâches 2 à 6 : même nombre de tests dans `cargo nextest lis
   complétée dans l'ADR 0027) : `k-check` après une modification du noyau 131 s → 72 et
   98 s (tests 90 → 46 et 70 s, compilation et lien 41 → 26 et 28 s), à froid 341 s →
   313 et 321 s ; 126 → 31 binaires ; `target/debug` 15 → 8,5 Go.
+- [ ] 8. Suppressions différées des bases de test (arbitré le 2026-11-11 par
+  l'utilisateur, sur le constat de la 022-21) : chaque `DROP DATABASE … WITH (FORCE)` du
+  clone en fin de test (`kartenn_testing::drop_database`) demande un point de contrôle
+  immédiat d'environ 3 s, qui bloque les `COMMIT` de toute l'instance jusqu'à 1,2 s
+  (`IO:WalSync`, `LWLock:WALWrite`, `IPC:CheckpointStart`) et rend instables les tests
+  sensibles au temps. Les clones ne sont plus supprimés à la fin de chaque test : ils sont
+  marqués (nom ou commentaire) et supprimés en fin de suite ou au début du `k-check`
+  suivant, par le nettoyage que fait déjà `kartenn-testing-clean` ; disque borné (nombre
+  de clones d'une suite, mesuré) — ADR 0028 amendée — verify : `k-check` complet avant
+  et après au même niveau de charge (durée des tests, attente `IPC:CheckpointStart`
+  relevée par `pg_stat_activity` toutes les 200 ms comme la 022-21) ; aucune base de test
+  laissée après le `k-check` suivant ; disque d'une suite complète relevé
+  - où : `crates/kartenn-testing/src/lib.rs` (`drop_database`, lignes 107, 213, 258, 272,
+    319), `kartenn-testing-clean` (outil de nettoyage), `docs/adr/0028-base-de-test-gabarit.md`
+    (amendement), `docs/practices/rust-build.md` §2.5 ; clôture de la 022-21
+    (`specs/022-evenements-sse/tasks.md`, tâche 21) pour la méthode de mesure
+  - dépend de : 7

@@ -2923,6 +2923,18 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     comparé au champ `version` des capacités, que le shell lit dans `modules[core]` (même
     `CARGO_PKG_VERSION` de `kartenn-rest`).
 
+- [ ] 16i. Cadre réduit hors session (arbitré le 2026-11-11 par l'utilisateur, relevé à
+  la clôture de la 16) : sur la page de connexion et « À propos » sans session, le cadre
+  ne rend ni la barre latérale, ni la pastille de date, ni le compteur du brouillon ;
+  l'en-tête et le contenu restent ; une ligne au design de la 020 (cadre) — verify :
+  capture de la page de connexion et d'« À propos » hors session, mise à jour
+  (`k-web-shots --update` ciblé), Vitest du cadre (rien de monté sans session), parcours
+  `session` inchangé ; `ui-reviewer` et `a11y-auditor` (repères et ordre du focus du
+  cadre réduit)
+  - où : `web/v2/shell/src/frame/ShellFrame.vue` (`DatePill`, `DraftCounter`, barre
+    latérale), `specs/020-systeme-de-design/design.md` (cadre), `e2e/journeys/session.spec.ts`
+  - dépend de : 16
+
 ## P3 — Plugins (phase 5)
 
 - [ ] 17. Écrans VLAN du cœur (amendée par la 026 : plus un plugin, des écrans du shell)
