@@ -1777,7 +1777,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     « Instruire dans Flux » et « Effet sur la politique » reviennent à la 017 (tâches 3 et
     19 : action `review-in-flow` ; 2 et 10 : action `effect` sur le type `changeset`). Sous-tâches du
     reste : « Renommer… » (14f, faite le 2026-11-11), opération masquée (14g, faite le 2026-11-11), pied en attente
-    de reprise (14h, faite le 2026-11-11), badge de la barre et segments de date (14i, `@kartenn/ui`), brouillon
+    de reprise (14h, faite le 2026-11-11), badge de la barre et segments de date (14i, `@kartenn/ui`, faite le 2026-11-11), brouillon
     daté (14j), brouillon supprimé ailleurs tenu par un parcours (14k), modifier une
     opération du brouillon (14l). Restent à l'utilisateur, inchangés : « Revue requise »
     avant la soumission (contrat), composants du résultat de simulation et de la ligne
@@ -3109,7 +3109,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     consigné ci-dessus ; la règle « déplacé seulement s'il est perdu » et le brouillon
     disparu après une action ailleurs n'ont pas de test ; la clause dit encore « région
     d'état » alors que l'annonce passe par l'alerte (noté en `choix :`).
-- [ ] 14i. Accessibilité de deux composants de `@kartenn/ui` (relevés des 14 et 14e) : le
+- [x] 14i. Accessibilité de deux composants de `@kartenn/ui` (relevés des 14 et 14e) : le
   badge d'une entrée de `SidebarNav` dit son unité aux technologies d'assistance (« À
   instruire » suivi de « 3 changesets à instruire », pas d'un « 3 » nu) ; les segments d'un
   `DateTimeField` portent l'aide et la raison dans leur `aria-describedby`, pas le seul
@@ -3120,6 +3120,31 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     329) ; `web/v2/shell/src/frame/spaces.ts` (`badges`) ; lignes d'inventaire de
     `specs/020-systeme-de-design/design.md` et de la skill `kartenn-ui`
   - dépend de : 14
+  - fait le 2026-11-11 — `SidebarEntry.badgeLabel` (facultatif) : le compteur dit avec son
+    unité après le libellé (span `k-visually-hidden`), le nombre visible alors
+    `aria-hidden` ; sans lui, le nombre seul comme avant ; rendu inchangé. Shell :
+    `sidebarGroups` prend des `EntryBadge` (`count`, `label`), `ShellFrame.vue` écrit
+    `badge.proposals` (pluriel de vue-i18n) ou `badge.proposalsMore` (« plus de 100
+    changesets à instruire ») sous une page suivante. `DateTimeField` : chaque segment prend
+    la description de `FormField` (refus puis aide, la raison d'un champ en lecture seule),
+    l'heure et les minutes leur fuseau en plus. Vitest `ui/test/components-frame.test.ts`
+    (unité dite, nombre caché ; sans `badgeLabel`, le nombre nu), `ui/test/dates.test.ts`
+    (segments décrits en lecture seule et sous un refus), `shell/test/changesets.test.ts`
+    (`badgeLabel` passé, rien à zéro, pluriels 1 et 3, borne) ; scripts clavier
+    `e2e/components/sidebar-nav.spec.ts` (noms entiers, `exact`) et `date-time-field.spec.ts`
+    (Année et Heure décrites par l'aide, Jour fautif par le refus et l'aide) ; instantanés
+    ARIA de `SidebarNav` réécrits (noms des liens comptés). `k-web2-check --base main` :
+    969 tests, 2720 captures sur 2720 (tout, `ShellFrame.vue` chargé par chaque page).
+  - choix : le groupe garde sa description et chaque segment la répète, dans l'ordre du
+    groupe (erreur, aide, puis fuseau), comme l'erreur avant la tâche (`a11y-auditor` :
+    bavard, pas nuisible) ; l'infobulle décorative du rail garde le nombre nu, comme le
+    badge visible ; un `badgeLabel` sans `badge` n'est ni montré ni dit ; les maquettes
+    (`shell/src/_ui/ecrans/sidebar.ts`, `donnees017.ts`) gardent leurs compteurs nus ; les
+    instantanés ARIA « confortable » de `SidebarNav` gagnent aussi l'état
+    `single-keys-off`, absent de la référence de main.
+  - reste : la lecture réelle du nom d'un lien compté et de la double description des
+    segments par NVDA, JAWS ou VoiceOver, à juger au lecteur d'écran ; les maquettes à
+    doter de `badgeLabel` si leurs instantanés doivent montrer l'unité.
 - [ ] 14j. Brouillon daté, reste de la revue de la 14e : `dateAddition`
   (`sdk/src/data/drafts.ts`) lit le contexte avant l'envoi, non après la réponse (une date
   changée pendant l'écriture date aujourd'hui le brouillon à la nouvelle) ; `replace` de
