@@ -21,6 +21,7 @@ import {
   InlineAlert,
   Select,
   Split,
+  Stack,
   Toolbar,
   TreeGrid,
   type CellRef,
@@ -67,6 +68,7 @@ import { NODE_COLLECTIONS, nodeApplyRight, useNodeEdit, useNodeWords } from "./e
 import { openEdit } from "./edit/panel.ts";
 import QuickApply from "./edit/QuickApply.vue";
 import { useSay } from "./edit/say.ts";
+import NextPageAlert from "../problems/NextPageAlert.vue";
 import ProblemState from "../problems/ProblemState.vue";
 import { rowsOf, useKeyLabel } from "./data.ts";
 import ViewPanel from "./parts/ViewPanel.vue";
@@ -313,6 +315,46 @@ function openRest(key: string): void {
   const rest = restAt(cappedParent(key));
   if (rest !== null) void router.push(rest);
 }
+
+// A level whose rest could not be read (task 021-13b, REQ-021-20): its next page refused
+// (`failed`), or the first page of a node opened — the first page of the first level
+// refused is the tree's `ProblemState`. Its rows read stay; above the tree, an alert per
+// level names it, says why with its codes copyable, and « Réessayer » asks the page again,
+// as « Afficher la suite » activated does. Out of the tree: no row of its own, so none in
+// the rows `TreeGrid` recycles (task 22e).
+const refused = computed(() =>
+  [...results].flatMap(([parent, result]) => {
+    const error =
+      levelOf(parent)?.failed ??
+      (parent !== null && result.isError && result.data === undefined ? result.error : undefined);
+    // A node closed again hides its alert with its rows: opened, its level says it again.
+    if (error === undefined || error === null) return [];
+    if (parent !== null && !expanded.value.includes(parent)) return [];
+    const holder = parent === null ? undefined : nodeById(parent);
+    const title =
+      parent === null
+        ? t("views.topology.refused.roots", { name: domainSlug.value })
+        : holder
+          ? t("views.topology.refused.node", { name: valueOf(holder) })
+          : t("problem.nextPage");
+    return [{ key: parent ?? "", parent, error, title }];
+  }),
+);
+/** The level whose « Réessayer » was pressed, until its alert goes. */
+let retried: string | null | undefined;
+function retry(parent: string | null): void {
+  retried = parent;
+  onLoad(parent);
+}
+// Its page read, the alert goes with the button that had the focus (2.4.3): the focus back
+// to the tree, its cell of the focus — not taken from anywhere else.
+watch(refused, async (levels) => {
+  if (retried === undefined || levels.some((level) => level.parent === retried)) return;
+  retried = undefined;
+  await nextTick();
+  if (document.activeElement !== null && document.activeElement !== document.body) return;
+  tree.value?.querySelector<HTMLElement>("[role='gridcell'][tabindex='0']")?.focus();
+});
 
 // Parents deduced (D34, REQ-021-17): no move is offered; a node whose value the active
 // draft changes stays where the present has it, marked « en brouillon » (« déplacé dans le
@@ -680,21 +722,32 @@ onBeforeUnmount(() => stopIntent());
           />
         </template>
         <!-- The preview of the draft: what it shows, what waits, partial (never silent);
-             in the band above the tree, which has its margin (the body is flush). -->
-        <template v-if="previewNote" #toolbar>
-          <InlineAlert
-            :tone="previewNote.partial ? 'warn' : 'info'"
-            icon="draft"
-            :title="
-              t(
-                previewNote.partial
-                  ? 'views.topology.preview.partial'
-                  : 'views.topology.preview.title',
-              )
-            "
-          >
-            {{ previewNote.text }}
-          </InlineAlert>
+             the levels whose rest could not be read; in the band above the tree, which has
+             its margin (the body is flush). -->
+        <template v-if="previewNote || refused.length > 0" #toolbar>
+          <Stack class="k-topology__notes">
+            <InlineAlert
+              v-if="previewNote"
+              :tone="previewNote.partial ? 'warn' : 'info'"
+              icon="draft"
+              :title="
+                t(
+                  previewNote.partial
+                    ? 'views.topology.preview.partial'
+                    : 'views.topology.preview.title',
+                )
+              "
+            >
+              {{ previewNote.text }}
+            </InlineAlert>
+            <NextPageAlert
+              v-for="level in refused"
+              :key="level.key"
+              :title="level.title"
+              :error="level.error"
+              :retry="() => retry(level.parent)"
+            />
+          </Stack>
         </template>
         <div ref="tree" class="k-topology__tree">
           <ProblemState
@@ -791,6 +844,13 @@ onBeforeUnmount(() => stopIntent());
   .k-topology__tree {
     display: grid;
     min-inline-size: 0;
+  }
+
+  /* Several levels refused never push the tree out of the panel: past about two alerts,
+   * the band scrolls. */
+  .k-topology__notes {
+    max-block-size: calc(var(--k-row-height) * 12);
+    overflow-y: auto;
   }
 }
 </style>

@@ -1441,7 +1441,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     (le contrat n'en a pas : remplacement seulement, fait par le test), et la Topographie
     ne marque pas « en brouillon » une plage remplacée au brouillon (seules les opérations
     `update_*` le sont).
-- [ ] 13. Libellés et codes : `label` (dictionnaire `GET /v1/labels` de la 018 en cache par
+- [x] 13. Libellés et codes : `label` (dictionnaire `GET /v1/labels` de la 018 en cache par
   langue et révision, invalidé par l'événement `labels` ; catalogues ; clé),
   `KeyLabel` partout ; toute erreur par `ErrorState`, `InlineAlert`, `Toast` avec codes et
   `Request-Id` — REQ-021-19, 20 — verify : Vitest de `label` ; parcours : erreur 422
@@ -1565,7 +1565,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     ni le chargement pendant la relecture (prouvé au registre seulement) ; le 403 de
     `plugins.test.ts` est servi sans `application/problem+json` (refus non transitoire
     avec un vrai `type` non couvert).
-- [ ] 13b. Libellés et codes, Topographie : la page suivante refusée d'un niveau de l'arbre
+- [x] 13b. Libellés et codes, Topographie : la page suivante refusée d'un niveau de l'arbre
   dite avec son problème (phrase, `type`, `Request-Id`) et « Réessayer », au lieu de se taire
   — REQ-021-20 — verify : Vitest (`askNextPage` : un échec de page suivante exposé au
   niveau) ; parcours `tree` (page suivante refusée par `page.route`, dite, relue)
@@ -1574,6 +1574,40 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     !roots.isFetchNextPageError` vers la ligne 686), `problems/NextPageAlert.vue` ;
     `shell/test/topology.test.ts`
   - dépend de : 13, 24e
+  - fait le 2026-11-11 : `levelOfPages` dit au niveau sa page suivante refusée (`failed`,
+    l'erreur de l'observateur, `isFetchNextPageError`) ; ses lignes lues restent, `more`
+    aussi (« Afficher la suite » activée la redemande). `TopologyView` : `refused`, un
+    `NextPageAlert` par niveau dans la bande au-dessus de l'arbre (avec l'aperçu du
+    brouillon, `Stack`), titré par le niveau (`views.topology.refused.roots` / `.node`,
+    le domaine ou la valeur du nœud), phrase du `type`, `type` et `Request-Id` copiables,
+    « Réessayer » = `onLoad` du niveau ; la première page refusée d'un nœud ouvert
+    (muette elle aussi) prend le même encart. `NextPageAlert` reçoit un `title` facultatif.
+    Vitest : `shell/test/topology.test.ts` (« says at the level why its next page was
+    refused… » : 403 avec `type` et `Request-Id` au niveau, lignes gardées, pas redemandée
+    seule, relue par un nouvel appel). Parcours `tree` (« a next page of a level refused is
+    said with its codes, and read again ») : les pages à curseur des enfants du grand
+    conteneur servies 503 par `page.route`, l'encart nommé par le nœud, sa phrase, ses deux
+    boutons de copie, puis « Réessayer » : l'encart part, le focus revient à l'arbre, les
+    lignes d'après viennent. Relectures : le focus du bouton parti avec l'encart revient à
+    la cellule de la focalisation de l'arbre (`retry`, 2.4.3) ; la bande des encarts
+    plafonnée à douze lignes, défilante (plusieurs niveaux refusés ne chassent pas l'arbre) ;
+    un nœud refermé cache l'encart de son niveau. Parcours `tree` sous Firefox : « the
+    chosen node shows its content… » rechargeait avant que les plugins aient fini de charger
+    (erreur d'intégrité du plugin `forged`, deux fois sur deux) : `atRest` avant `reload`.
+    Avec 13a, la tâche 13 se coche ; ses deux questions restent à l'utilisateur.
+  - choix : l'encart hors de l'arbre plutôt qu'une ligne d'avis dans `TreeGrid` — une ligne
+    d'avis n'a qu'un libellé (ni codes copiables ni bouton), et hors de l'arbre l'encart
+    reste hors des lignes que recycle la 22e (invariant de `virtualRows.ts` intact) ; la
+    première page refusée d'un nœud ouvert comprise (même ligne « Afficher la suite », même
+    silence) ; la première page refusée du premier niveau garde son `ProblemState` ; l'encart
+    dans la bande au-dessus de l'arbre (le corps est sans marge), pas dans le corps comme
+    les listes.
+  - reste (relectures, mineurs) : pendant la relecture, ni `aria-busy` ni bouton désactivé,
+    et le succès n'est pas dit (l'encart part) — comme les listes ; un second refus après
+    « Réessayer » n'est pas couvert par le parcours ; le titre de repli (`problem.nextPage`)
+    d'un niveau dont le nœud n'est plus lu ne le nomme pas ; la page suivante refusée des
+    enfants s'affiche deux fois quand le nœud choisi est celui ouvert (arbre et
+    `ContentTab`, même liste).
 - [ ] 14. Changesets, revues, brouillon : listes, `DiffList`, actions selon les droits,
   « À instruire » et compteur, panneau droit et page des brouillons (brouillons du
   serveur, `CommitForm`, `SplitButton`, 024) — REQ-021-6, 10, 11, 37 — verify : parcours

@@ -274,6 +274,10 @@
         "addresses": "L'arbre s'arrête à {n} nœuds : Entrée ouvre la liste des adresses dans {within}",
         "roots": "L'arbre s'arrête à {n} nœuds : Entrée ouvre la liste des préfixes du domaine {name}",
         "nowhere": "L'arbre s'arrête à {n} nœuds"
+      },
+      "refused": {
+        "roots": "La suite des préfixes du domaine {name} n'a pas pu être lue",
+        "node": "La suite de {name} n'a pas pu être lue"
       }
     },
     "anomalies": {

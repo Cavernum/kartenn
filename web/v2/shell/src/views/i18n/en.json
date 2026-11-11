@@ -274,6 +274,10 @@
         "addresses": "The tree stops at {n} nodes: Enter opens the list of the addresses within {within}",
         "roots": "The tree stops at {n} nodes: Enter opens the list of the prefixes of the domain {name}",
         "nowhere": "The tree stops at {n} nodes"
+      },
+      "refused": {
+        "roots": "The rest of the prefixes of the domain {name} could not be read",
+        "node": "The rest of {name} could not be read"
       }
     },
     "anomalies": {
