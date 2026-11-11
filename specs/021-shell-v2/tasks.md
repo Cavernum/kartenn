@@ -3110,7 +3110,7 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     comparé au champ `version` des capacités, que le shell lit dans `modules[core]` (même
     `CARGO_PKG_VERSION` de `kartenn-rest`).
 
-- [ ] 16i. Cadre réduit hors session (arbitré le 2026-11-11 par l'utilisateur, relevé à
+- [x] 16i. Cadre réduit hors session (arbitré le 2026-11-11 par l'utilisateur, relevé à
   la clôture de la 16) : sur la page de connexion et « À propos » sans session, le cadre
   ne rend ni la barre latérale, ni la pastille de date, ni le compteur du brouillon ;
   l'en-tête et le contenu restent ; une ligne au design de la 020 (cadre) — verify :
@@ -3121,6 +3121,27 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/shell/src/frame/ShellFrame.vue` (`DatePill`, `DraftCounter`, barre
     latérale), `specs/020-systeme-de-design/design.md` (cadre), `e2e/journeys/session.spec.ts`
   - dépend de : 16
+  - fait le 2026-11-11 : `ShellFrame.vue` lit `signedIn` (`me !== null`) ; hors session,
+    ni `SidebarNav`, ni son tiroir et son bouton, ni `DatePill`, ni `TimeBand`, ni
+    `DraftCounter`, ni `SidePanel` ; la colonne prend la largeur (`data-sidebar="none"`),
+    en classe compacte le fil d'Ariane au bord de la surface ; `[` et `]` ni listés ni
+    entendus (`framed` de `shellShortcuts`, `shown`), commandes de la palette « barre
+    latérale », « panneau » et « Revenir au présent » absentes. Design de la 020 :
+    paragraphe « Cadre réduit hors session » sous les classes de largeur. Vitest :
+    `frame.test.ts` (« the frame out of a session » : rien de monté à `/login` et
+    `/about`, tout une fois connecté), `shortcuts.test.ts` (`[` et `]` hors de l'aide).
+    Parcours `session` et `accessibility` verts aux deux navigateurs (hors l'échec connu
+    d'`events.spec.ts` sans axe, déjà sur main ; un dépassement Firefox de « reads of the
+    background », vert relancé seul).
+  - choix : la bande du contexte daté et le panneau de droite suivent la pastille et le
+    compteur (« l'en-tête et le contenu restent ») ; aucune capture de référence ne couvre
+    les pages réelles du shell (la suite `visual` ne visite que `/_ui`) : captures prises
+    hors suite (1440, 1024, 768, 390 px, clair et sombre, API simulée) et relues, rien à
+    réécrire.
+  - reste : Ctrl+K ouvre encore la palette hors session (aide seule, recherche sans
+    droits, donc vide) ; le squelette d'`index.html` montre une barre latérale avant
+    `/login` (session inconnue au démarrage) ; des captures de référence des pages réelles
+    du shell demanderaient au graphe d'impact (029) de les relier à leurs sources.
 
 ## P3 — Plugins (phase 5)
 

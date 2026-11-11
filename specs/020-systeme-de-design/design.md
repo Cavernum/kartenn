@@ -349,6 +349,15 @@ Classes de largeur du cadre (seuils choisis par kartenn ; aucune source n'en fix
 | étroite | 600 – 1023 px | barre latérale en rail (icônes) ; panneau en surimpression (`cover`) |
 | compacte | < 600 px | une colonne ; barre latérale en tiroir ouvert par un bouton de la barre d'état ; barre d'état réduite (pastille de date et compteur du brouillon en icône) ; panneau en feuille plein écran avec retour |
 
+Cadre réduit hors session (arbitrage de l'utilisateur du 2026-11-11, tâche 021-16i) : sur
+la page de connexion et « À propos » sans session, à toute largeur, le cadre ne rend ni la
+barre latérale (ni son tiroir, ni son bouton), ni la pastille de date et sa bande, ni le
+compteur du brouillon, ni le panneau de droite ; l'en-tête (fil d'Ariane, menu de
+l'utilisateur) et le contenu restent, la colonne prend toute la largeur
+(`data-sidebar="none"`, en classe compacte le fil d'Ariane au bord de la surface), et les
+commandes et raccourcis de ce qui manque (`[`, `]`, « Revenir au présent ») ne sont ni
+proposés (palette, aide) ni entendus.
+
 Panneau de droite, **tout s'adapte** (décision de l'utilisateur du 2026-10-26, cinquième
 relecture ; remplace « par-dessus partout » du 2026-10-25 et l'exception de la grille dans
 la zone visible) : en classes large et standard, la surface entière se réduit à la
