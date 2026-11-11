@@ -232,6 +232,33 @@ describe("the review of a changeset", () => {
     );
   });
 
+  it("says the values of a masked operation masked, never `masked: true` nor absent", () => {
+    // As served to a reader without `prop.<key>.read` (REQ-005-21): `values` null, `masked`.
+    const line = operationLine({
+      op: "assign_property",
+      kind: "prefix",
+      object: { id: P1 },
+      property: { id: D1 },
+      values: null,
+      masked: true,
+    });
+    expect(line.subject).toBe(P1);
+    expect(line.members).toEqual([
+      { name: "kind", value: "prefix" },
+      { name: "property", value: D1 },
+      { name: "values", value: null, masked: true },
+    ]);
+    // Values served beside `masked` are never shown with the word.
+    expect(
+      operationLine({ op: "assign_property", object: { id: P1 }, values: ["x"], masked: true })
+        .members,
+    ).toEqual([{ name: "values", value: null, masked: true }]);
+    // Not masked: no such member, `masked: false` said by nothing.
+    expect(operationLine({ op: "delete_prefix", id: { id: P1 }, masked: false }).members).toEqual(
+      [],
+    );
+  });
+
   it("counts « À instruire » in the sidebar, nothing shown at zero", () => {
     const rights = new Rights(["core.changeset.read"]);
     const entries = (badges: Record<string, number>) =>
