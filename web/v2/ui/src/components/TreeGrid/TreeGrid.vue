@@ -285,21 +285,28 @@ const virtual = useVirtualRows({
   keyAt: (i) => rows.value[i]?.key ?? String(i),
   indexOf: (key) => rowIndex.value.get(key),
   scroller: grid,
-  kept: () => [current.value?.row, editing.value?.row],
+  // The selected row too: recycled, its colour would fade out of the row it leaves.
+  kept: () => [current.value?.row, editing.value?.row, selected.value],
   top: () => headHeight.value,
   off: () => !!props.loading,
 });
-/** The rows rendered and their gaps; the display guard runs on them (REQ-020-32). */
+/**
+ * The rows rendered and their gaps, each with the key of its element (`slot`: recycled
+ * once virtualised, `recycledKeys`); the display guard runs on them (REQ-020-32).
+ */
 const parts = computed(() => {
   const list = virtual.parts.value;
+  const slots = virtual.keys.value;
   guardRendered(
     "TreeGrid",
     rows.value,
     list.flatMap((part) => ("index" in part ? [part.index] : [])),
     (key) => index.value.get(key)?.parent,
   );
-  return list.map((part) =>
-    "index" in part ? { index: part.index, row: rows.value[part.index]! } : part,
+  return list.map((part, i) =>
+    "index" in part
+      ? { index: part.index, row: rows.value[part.index]!, slot: slots[i]! }
+      : { ...part, slot: slots[i]! },
   );
 });
 /** The rows of one screen (Page Up, Page Down): the rows wholly in view, less one. */
@@ -734,7 +741,7 @@ onBeforeUnmount(() => observer?.disconnect());
         </div>
       </div>
       <div v-else role="rowgroup" class="k-tree-grid__body">
-        <template v-for="part in parts" :key="'gap' in part ? part.key : part.row.key">
+        <template v-for="part in parts" :key="part.slot">
           <div
             v-if="'gap' in part"
             class="k-tree-grid__gap"

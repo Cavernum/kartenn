@@ -4511,6 +4511,59 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - où : `web/v2/ui/src/components/` (`Tree`, `TreeGrid`, rendu virtuel),
     `web/v2/e2e/budgets/budgets.spec.ts` (mesure du défilement)
   - dépend de : 22c, 22d
+  - découpée le 2026-11-11 (option A, retenue par la session principale) : le profil de
+    trame et les corrections sans risque en 22e-a, le reste du verify en 22e-b ; le budget
+    ne change pas.
+  - [x] 22e-a. Profil de trame et premières corrections — verify : passe réduite filtrée
+    (`bench-web small -g "container of"`) avant et après ; tests de `rowSlots` ; focus
+    conservé après défilement
+    - où : `web/v2/shell/src/views/TopologyView.vue` (`nodeById`, `addLabel`),
+      `web/v2/ui/src/components/internal/virtualRows.ts`, `TreeGrid.vue`, `DataGrid.vue`
+      (`scheduleWindow`)
+    - fait le 2026-11-11 — profil (trace CDP, CPU ×4, build non minifié) : `nodeById`
+      de `TopologyView` prenait 3,3 s des ≈ 11 s de tâches longues (par ligne et par
+      rendu, `rowsOf` aplatissait les 10⁴ enfants puis `find`, deux fois par ligne via
+      `addLabel` et `addBlocked`), puis le montage et le démontage des lignes entrant et
+      sortant de la fenêtre à chaque trame, puis le pipeline de rendu. Corrections :
+      index `readById` (premier niveau qui tient le nœud, comme avant) ; noms du « + »
+      mémorisés par libellé et par langue ; au-delà de `VIRTUAL_ROWS`, lignes recyclées
+      (`rowSlots`, `keys` de `useVirtualRows`) : une ligne qui entre reprend l'élément
+      d'une ligne sortie, patché, jamais en traversant une ligne gardée (focus, éditeur,
+      à ce rendu et au précédent), l'emplacement d'une ligne gardée qui sort réservé
+      (démonté, pas hérité) ; sous `VIRTUAL_ROWS` aussi, les lignes ont leur emplacement
+      (sans reprise : une ligne qui entre en a un neuf), si bien qu'une ligne restée garde
+      son élément au passage du seuil (un nœud ouvert ou fermé) ; `keys` calcule depuis le
+      dernier rendu validé (`onMounted`, `onUpdated`), sans écrire cet état ; `measure`
+      tient `elementsCache` du virtualiseur à jour ; `scheduleWindow` de `DataGrid` ignore
+      le défilement d'un élément qui ne le contient pas. Changement de comportement : la
+      ligne sélectionnée de `TreeGrid` reste montée hors de la fenêtre, comme celle du
+      focus (recyclée, son fond s'effacerait sur la ligne qu'elle quitte). Passe réduite
+      filtrée : 86,7 % → 39,0 % de trames perdues, 78 → 2 tâches longues, la plus longue
+      213 → 52 ms. Tests : `rowSlots` (reprise, côté des lignes gardées, deux lignes
+      gardées à la fois, emplacement réservé, passage du seuil ;
+      `ui/test/components-data.test.ts`), élément du focus inchangé après le défilement
+      et au passage du seuil dans les deux sens (`e2e/components/tree-grid.spec.ts`).
+      `k-web2-check --base main` : 956 Vitest ; ciblé : 2 316 captures sur 2 720.
+    - choix : correction principale dans la vue du shell (aucune API touchée) ;
+      recyclage seulement au-delà de `VIRTUAL_ROWS` ; `Tree` non recyclé (les `TreeItem`
+      de Reka dont la `value` change en place : risque, et le banc ne le mesure pas) ;
+      `k-target-seed` depuis la copie principale (`K_TARGET_BASE`), seule à avoir un
+      `kartenn-server` en release.
+    - reste : aucun relecteur d'interface lancé (rien de visible ne change) ; mesures
+      bruitées (écart de 2 à 3 entre passes identiques, machine partagée) ; (revue) sur
+      un élément recyclé, la rotation du chevron et le fond de `data-drop` s'animent
+      d'une ligne à l'autre ; `readById` refait l'aplatissement que fait déjà `items`.
+  - [ ] 22e-b. Le reste du verify de la 22e : pipeline de rendu (double Paint du document
+    à chaque trame, première cellule collante de chaque ligne, pistes `minmax(auto, …)`),
+    lignes en composants (une ligne aux props inchangées ne se rend plus), appels de
+    `stateOf` et `nodeState` par cellule (jusqu'à sept et six) — verify : celui de la 22e
+    - où : `web/v2/ui/src/components/TreeGrid/TreeGrid.vue` (gabarit des lignes, styles
+      `.k-tree-grid__row`), `web/v2/ui/src/components/DataGrid/grid.ts`
+      (`columnsTemplate`)
+    - dépend de : 22e-a
+    - note : le budget (≤ 2 % à ×4 pour 1 000 lignes/s, huit fois le protocole du
+      prototype D-1) est à mesurer par la session principale, seule sur la machine, avant
+      l'arbitrage B (le garder, mesuré seul) ou C (réviser le protocole à 500 lignes/s).
 
 - [ ] 22f. Listes au-delà de dix pages : la page de 100 lignes à 212 ms au p95 (budget
   100 ms) ; quand le cache lâche la première page (`MAX_PAGES`), la liste saute d'une

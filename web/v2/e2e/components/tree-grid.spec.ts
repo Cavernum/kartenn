@@ -357,11 +357,15 @@ test.describe("TreeGrid (APG Treegrid)", () => {
     );
     await expect(page.locator(":focus")).toBeInViewport();
     expect(await tree.getByRole("row").count()).toBeLessThan(300);
-    // The wheel takes it out of the window: it stays in the document, focused.
+    // The wheel takes it out of the window: it stays in the document, focused, the same
+    // element (the rows recycled around it never take it, task 021-22e).
+    await page.evaluate(() => ((document.activeElement as HTMLElement).dataset.marked = ""));
     await tree.evaluate((el) => el.scrollTo({ top: 0 }));
     await expect.poll(() => tree.evaluate((el) => el.scrollTop)).toBe(0);
     await expect(tree.locator("[data-node='v1-1']")).toBeAttached();
     expect(await focusedCell(page)).toBe("v1-500|");
+    await expect(page.locator(":focus")).toHaveAttribute("data-marked", "");
+    await expect(tree.locator("[data-marked]")).toHaveCount(1);
     await page.keyboard.press("ArrowDown");
     expect(await focusedCell(page)).toBe("v1-501|");
     await expect(page.locator(":focus")).toBeInViewport();
@@ -379,6 +383,27 @@ test.describe("TreeGrid (APG Treegrid)", () => {
       "aria-setsize",
       "1001",
     );
+  });
+
+  test("crossing the threshold of the window: the focused element stays the same", async ({
+    page,
+  }) => {
+    // « Domaine 1 » open: 1 100 rows, virtualised; closed: 100, every row in the document.
+    await openState(page, "TreeGrid", "virtual");
+    const tree = page.getByRole("treegrid", { name: "Cent mille nœuds" });
+    await tabIn(page);
+    expect(await focusedCell(page)).toBe("v1|");
+    await page.evaluate(() => ((document.activeElement as HTMLElement).dataset.marked = ""));
+    const same = async () => {
+      await expect(page.locator(":focus")).toHaveAttribute("data-marked", "");
+      expect(await focusedCell(page)).toBe("v1|");
+    };
+    await page.keyboard.press("ArrowLeft");
+    await expect(tree).toHaveAttribute("aria-rowcount", "101");
+    await same();
+    await page.keyboard.press("ArrowRight");
+    await expect(tree).toHaveAttribute("aria-rowcount", "1101");
+    await same();
   });
 
   test("children page by page: aria-setsize -1, the row of the rest reads the next page", async ({
