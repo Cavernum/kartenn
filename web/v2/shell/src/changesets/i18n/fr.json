@@ -109,6 +109,7 @@
   },
   "drafts": {
     "remove": "Retirer l'opération {n} : {op} {subject}",
+    "modify": "Modifier l'opération {n} : {op} {subject}",
     "none": "Aucun brouillon actif dans cet onglet : une modification en place ou un ajout en crée un.",
     "page": "Mes brouillons",
     "onPage": "Le brouillon actif est ouvert dans la page : ses opérations et sa soumission y sont.",
@@ -128,7 +129,8 @@
       "simulating": "La simulation n'est pas finie.",
       "simulationFailed": "La simulation n'a pas abouti.",
       "violations": "La simulation signale des erreurs ({n}) : les corriger ou retirer leurs opérations.",
-      "active": "C'est déjà le brouillon actif."
+      "active": "C'est déjà le brouillon actif.",
+      "noPanel": "Aucun panneau d'édition pour cette opération : retirez-la, puis refaites-la."
     },
     "action": {
       "apply": "Appliquer",

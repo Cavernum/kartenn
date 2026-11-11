@@ -400,6 +400,15 @@
     "kind": "Kind of object",
     "none": "None",
     "unchanged": "Nothing changed: there is nothing to write.",
+    "replace": {
+      "title": "Modify operation {n}: {op} {subject}",
+      "lead": "It is replaced at its place in “{title}”, then the draft is simulated again.",
+      "run": "Replace in the draft",
+      "done": "Operation {n} replaced: {what}.",
+      "same": "The object already has these values: remove the operation from the draft instead.",
+      "changedText": "Nothing is replaced: the operation is no longer at its place. Open it again from the draft.",
+      "goneText": "Nothing is replaced: the draft left this tab (deleted, submitted or taken over elsewhere)."
+    },
     "unsent": "Nothing sent: it takes {permission}.",
     "readError": "{kind}: the object to change could not be read.",
     "hintDraft": "to the draft",

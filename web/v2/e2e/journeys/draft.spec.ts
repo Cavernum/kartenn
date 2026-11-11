@@ -18,7 +18,8 @@ import {
 // with a violation says it on its operation, with its code; removed, the draft is valid. A
 // draft resumed from another browser of the same identity, with what was written in the
 // first, then deleted there, said gone in the first by the event `draft` (task 14k); one
-// renamed from « Mes brouillons » (task 14f). Under
+// renamed from « Mes brouillons » (task 14f); an operation modified in its edit panel,
+// replaced at its place (task 14l). Under
 // `valid_at` alone the draft is submitted from that date, its dates of effect in the foot;
 // an addition under `valid_at` dates its draft, kept with it back at the present (task
 // 14e); an answer lost at the submission, « Réessayer » sends the same key and the server
@@ -471,6 +472,81 @@ test("renamed from « Mes brouillons »: the title required, the new one listed,
   expect(read.title).toBe(renamed);
 });
 
+test("an operation modified: its edit panel prefilled, replaced at its place, simulated again", async ({
+  page,
+  login,
+  browserName,
+}) => {
+  await login("alice");
+  const { prefixes: ids } = await ownedDomain(page, unique(browserName), [
+    "198.51.100.0/24",
+    "203.0.113.0/24",
+  ]);
+  const title = `à modifier ${browserName} ${Date.now()}`;
+  // The second prefix renumbered onto the first (a duplicate), then a change of nature.
+  const created = await apiCall(page, "POST", "/v1/drafts", {
+    title,
+    operations: [
+      { op: "update_prefix", id: { id: ids[1] }, prefix: "198.51.100.0/24" },
+      { op: "update_prefix", id: { id: ids[0] }, nature: "container" },
+    ],
+  });
+  expect(created.status, JSON.stringify(created.body)).toBe(201);
+  const id = (created.body as { id: string }).id;
+  await page.goto("/drafts");
+  const row = page.getByRole("grid", { name: "Mes brouillons" }).getByRole("row").filter({
+    hasText: title,
+  });
+  await choose(page, row, title, "Reprendre");
+  await counter(page).click();
+  await expect(
+    panel(page).getByRole("alert").filter({ hasText: "Opération 1 : refusée" }),
+  ).toBeVisible();
+
+  // « Modifier »: the edit panel of the prefix, the value of the operation in its field. The
+  // line is named by what the operation writes, which changes with it.
+  const modify = panel(page).getByRole("button", {
+    name: /^Modifier l'opération 1 : update_prefix/,
+  });
+  await expect(modify).toHaveAccessibleName(
+    "Modifier l'opération 1 : update_prefix 198.51.100.0/24",
+  );
+  await modify.click();
+  const form = panel(page).getByRole("form", {
+    name: "Modifier l'opération 1 : update_prefix 198.51.100.0/24",
+  });
+  const value = form.getByRole("textbox", { name: /^Valeur/ });
+  await expect(value).toBeFocused();
+  await expect(value).toHaveValue("198.51.100.0/24");
+  await expectAccessible(page);
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.type("203.0.113.0/25");
+  await page.keyboard.press("Control+Enter");
+
+  // Replaced at its place: the draft tab again, the focus on that line, valid now.
+  await expect(form).toBeHidden();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Opération 1 remplacée" }).first(),
+  ).toBeVisible();
+  await expect(modify).toBeFocused();
+  await expect(counter(page)).toHaveAccessibleName(/^Brouillon 2 opérations/);
+  await expect(
+    panel(page).getByRole("status").filter({ hasText: "Simulation valide" }),
+  ).toBeVisible();
+  await expect(split(page)).toHaveText(/^Appliquer/);
+  await expectAccessible(page);
+  const read = (await apiCall(page, "GET", `/v1/drafts/${id}`)).body as {
+    operations: Record<string, unknown>[];
+  };
+  expect(read.operations).toHaveLength(2);
+  expect(read.operations[0]).toMatchObject({
+    op: "update_prefix",
+    id: { id: ids[1] },
+    prefix: "203.0.113.0/25",
+  });
+  expect(read.operations[1]).toMatchObject({ id: { id: ids[0] }, nature: "container" });
+});
+
 /** A draft read only: said at its head, its removal, motive, dates and actions refused. */
 async function assertReadOnly(scope: Locator): Promise<void> {
   await expect(
@@ -478,6 +554,9 @@ async function assertReadOnly(scope: Locator): Promise<void> {
   ).toBeVisible();
   await expect(
     scope.getByRole("button", { name: /^Retirer l'opération 1 : update_prefix/ }),
+  ).toHaveAttribute("aria-disabled", "true");
+  await expect(
+    scope.getByRole("button", { name: /^Modifier l'opération 1 : update_prefix/ }),
   ).toHaveAttribute("aria-disabled", "true");
   await expect(scope.locator(".k-split-button__main")).toHaveText(/^Enregistrer le brouillon/);
   await expect(scope.locator(".k-split-button__main")).toHaveAttribute("aria-disabled", "true");

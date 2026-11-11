@@ -25,8 +25,11 @@ export interface WriteActionOptions {
   rights: () => readonly string[];
   /** The motive prefilled, until the user writes one of their own. */
   motive: () => string;
-  /** The words of the panel: its two actions, and what is said off the present. */
-  words: { draft: string; apply: string; past: string };
+  /**
+   * The words of the panel: its two actions, what is said off the present, and what the
+   * draft written says (`edit.drafted` unless given: an operation replaced, task 14l).
+   */
+  words: { draft: string; apply: string; past: string; saved?: (what: string) => string };
   /** A refusal of the server, kept in the panel: what the panel does with it besides. */
   refused?: (refusal: Refusal) => void;
 }
@@ -156,7 +159,7 @@ export function useWriteAction(options: WriteActionOptions) {
   function settle(outcome: PanelOutcome, what: string): void {
     busy.value = false;
     if (outcome.kind === "saved") {
-      say.status(t("edit.drafted", { what }));
+      say.status(options.words.saved?.(what) ?? t("edit.drafted", { what }));
       closeEdit();
     } else if (outcome.kind === "applied") {
       say.applied(what, outcome.changeset);

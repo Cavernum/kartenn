@@ -601,3 +601,57 @@ export function patchOf(fields: readonly EditField[], changes: Values): Record<s
   }
   return out;
 }
+
+/** The collection whose creation each operation of a draft is. */
+const CREATION_OF: Readonly<Record<string, CollectionId>> = {
+  create_domain: "domains",
+  create_entity: "entities",
+  create_site: "sites",
+  create_prefix: "prefixes",
+  create_range: "ranges",
+  create_address: "addresses",
+  create_vlan_group: "vlan-groups",
+  create_vlan: "vlans",
+};
+
+/** An operation of a draft as the edit panel writes it again (task 14l): its form. */
+export interface DraftedEdit {
+  collection: CollectionId;
+  /** A creation, or the modification of the object `id`. */
+  mode: "create" | "edit";
+  id: string | null;
+  /** Its members as the form holds them (`prefix` → `value`), those it carries only. */
+  values: Values;
+}
+
+/**
+ * The form of the edit panel an operation of a draft is made by, if one (« Modifier » of
+ * its line, Q-021-17): the creation or the modification of a kind; `null` for any other (a
+ * closure, a move, a property, an operation under `within`).
+ */
+export function editOfOperation(operation: Operation): DraftedEdit | null {
+  const op = operation as Record<string, unknown>;
+  const code = String(op.op ?? "");
+  const created = CREATION_OF[code];
+  const updated = (Object.keys(UPDATE_OF) as CollectionId[]).find(
+    (c) => UPDATE_OF[c] === code && (code !== "rename" || NAMED[c] === op.kind),
+  );
+  const collection = created ?? updated;
+  const id = (op.id as { id?: unknown } | undefined)?.id;
+  if (!collection || (!created && typeof id !== "string")) return null;
+  // The member each field is written as: named otherwise by the operation (`value` →
+  // `prefix`), else the field's own name.
+  const named = (created ? CREATION_MEMBERS[collection] : OPERATION_MEMBERS[code]) ?? {};
+  const memberOf = (field: string) =>
+    Object.entries(named).find(([, name]) => name === field)?.[0] ?? field;
+  const edit = EDITS[collection];
+  const values: Values = {};
+  for (const field of created ? edit.creation : edit.modification) {
+    const value = op[memberOf(field.name)];
+    if (value === undefined || value === null) continue;
+    values[field.name] = field.kind === "flag" ? value === true : textOf(value);
+  }
+  return created
+    ? { collection, mode: "create", id: null, values }
+    : { collection, mode: "edit", id: id as string, values };
+}

@@ -14,9 +14,20 @@
 // the lists show the new parent once read again, never before. « Créer un VLAN pour ce
 // réseau » (REQ-026-6, 021/A13): the creation and the setting of `core.vlan` on the network
 // by a local name, two operations of one changeset, to the draft or applied at once; a
-// refusal of the setting said on the field of the network.
-import { addToActiveDraft } from "@kartenn/sdk/host";
-import { changesets, keys, reads, write, type Entry, type Submission } from "@kartenn/sdk";
+// refusal of the setting said on the field of the network. « Modifier » of an operation of a
+// draft (task 14l, Q-021-17): the same form prefilled from the operation — a creation, or the
+// modification over the object read —, which replaces it at its place under `If-Match`
+// (`replaceInDraft`), the draft's simulation asked again by its new version.
+import { addToActiveDraft, replaceInDraft } from "@kartenn/sdk/host";
+import {
+  changesets,
+  keys,
+  reads,
+  write,
+  type Entry,
+  type Operation,
+  type Submission,
+} from "@kartenn/sdk";
 import {
   AttributeList,
   Button,
@@ -47,11 +58,13 @@ import {
 import ProblemState from "../../problems/ProblemState.vue";
 import { problemCode, useProblems } from "../../problems/index.ts";
 import { rowsOf, useKeyLabel } from "../data.ts";
+import { operationLine } from "../../draft/operations.ts";
 import { failed, isConflict, useWriteAction } from "./action.ts";
 import {
   ANCHOR_KINDS,
   changesOf,
   checkValue,
+  editOfOperation,
   editRight,
   EDITS,
   initialValues,
@@ -83,6 +96,14 @@ const kindWords = computed(() => keyLabel("kind", collection.value.type) ?? coll
 const creating = computed(() => props.request.mode === "create");
 const moving = computed(() => props.request.mode === "move");
 const objectId = computed(() => (props.request.mode === "create" ? null : props.request.id));
+/** « Modifier » of an operation of a draft: where it is, the operation, its line. */
+const replacing = computed(() => {
+  const slot = props.request.mode === "move" ? undefined : props.request.replace;
+  const operation = slot?.draft.data.operations?.[slot.index];
+  return slot && operation
+    ? { ...slot, operation, line: operationLine(operation), edit: editOfOperation(operation) }
+    : null;
+});
 const fields = computed<readonly EditField[]>(() => {
   const edit = EDITS[collection.value.id];
   return creating.value ? edit.creation : moving.value ? (edit.move ?? []) : edit.modification;
@@ -224,6 +245,8 @@ const moves = useMoves({
 // replaced by a read that comes later (a 412 reads the object again).
 const values = ref<Values>({});
 const before = ref<Values>({});
+/** The form as it opened: an operation replaced, its own values over the object read. */
+const opened = ref<Values>({});
 const version = ref<string | null>(null);
 const filled = ref(false);
 function fill(): void {
@@ -232,8 +255,9 @@ function fill(): void {
     item.value,
     props.request.mode === "create" ? (props.request.preset ?? {}) : {},
   );
-  values.value = { ...start };
+  values.value = { ...start, ...replacing.value?.edit?.values };
   before.value = { ...start };
+  opened.value = { ...values.value };
   version.value = typeof item.value?.version === "string" ? item.value.version : null;
   if (moving.value) {
     // The parent read, by its slug (the summary of the record), or « Aucun ».
@@ -340,12 +364,50 @@ const {
         ? t("edit.motiveCreate", words)
         : t(moving.value ? "edit.move.motive" : "edit.motiveModify", words);
   },
-  words: { draft: "edit.toDraft", apply: "edit.apply", past: "edit.why.past" },
+  words: {
+    draft: "edit.toDraft",
+    apply: "edit.apply",
+    past: "edit.why.past",
+    ...(replacing.value
+      ? { saved: (what: string) => t("edit.replace.done", { n: replacing.value!.index + 1, what }) }
+      : {}),
+  },
   refused,
+});
+/**
+ * What the refusal of a replacement says: the draft gone (404), or changed so that the
+ * operation is no longer at its place (412, read again by the SDK).
+ */
+const refusalWords = computed(() => {
+  const answer = refusal.value;
+  if (!replacing.value || !answer) return {};
+  if (answer.kind === "failed" && answer.problem?.status === 404) {
+    return { title: t("drafts.goneRefused"), note: t("edit.replace.goneText") };
+  }
+  return answer.kind === "conflict"
+    ? { title: t("drafts.changed"), note: t("edit.replace.changedText") }
+    : {};
+});
+/** « Remplacer dans le brouillon »: the refusal of the draft action, if any (rights). */
+const replaceRefusal = computed(() => {
+  const draft = actions.value.find((a) => a.id === "draft");
+  return draft?.forbidden
+    ? { forbidden: draft.forbidden }
+    : draft?.reason
+      ? { reason: draft.reason }
+      : {};
 });
 
 const title = computed(() => {
   const request = props.request;
+  const slot = replacing.value;
+  if (slot) {
+    return t("edit.replace.title", {
+      n: slot.index + 1,
+      op: slot.line.op,
+      subject: slot.line.subject ?? "",
+    });
+  }
   if (request.mode === "edit") return t("edit.modify", { kind: kindWords.value, name: name.value });
   if (request.mode === "move") {
     return t("edit.move.title", { kind: kindWords.value, name: name.value });
@@ -375,7 +437,11 @@ const shownText = (field: EditField, value: unknown) => {
 };
 /** After a 412: each field whose value read again differs from the input. */
 const changed = computed(() => {
-  const current = refusal.value?.kind === "conflict" ? (refusal.value.current?.data as Item) : null;
+  // An operation replaced: a 412 is of the draft, whose operation moved (`refusalWords`).
+  const current =
+    refusal.value?.kind === "conflict" && !replacing.value
+      ? (refusal.value.current?.data as Item)
+      : null;
   if (!current) return [];
   return fields.value
     .filter((field) => textOf(current[field.name]) !== textOf(values.value[field.name]))
@@ -415,6 +481,8 @@ function refused(answer: Refusal): void {
     );
     void toFirstError();
   }
+  // An operation replaced: the 412 is of the draft, read again by the SDK; nothing here.
+  if (replacing.value) return;
   // Applying again writes on the version read again; the input stays. A 412 gives it; a
   // changeset refused for a version no longer current (a move) does not: read again here.
   const current = answer.kind === "conflict" ? (answer.current?.data as Item | undefined) : null;
@@ -443,6 +511,10 @@ async function run(id: string = action.value): Promise<void> {
     : creating.value
       ? t("edit.whatCreated", { kind: kindWords.value, name: nameOf(values.value as Item) })
       : t("edit.whatModified", { kind: kindWords.value, name: name.value });
+  if (replacing.value) {
+    await replace(what);
+    return;
+  }
   if (id === "apply" && motive.value.trim() === "") {
     errors.value = { ...errors.value, motive: t("edit.motiveMissing") };
     void toFirstError();
@@ -488,6 +560,35 @@ async function run(id: string = action.value): Promise<void> {
       ...(version.value ? { ifMatch: `"${version.value}"` } : {}),
     }),
   );
+}
+
+/**
+ * « Modifier » of an operation of a draft: the operation the form gives, in its place
+ * (`replaceInDraft`, under `If-Match` of the draft as its line was read). A creation keeps
+ * its local name (021/A13: what refers to it still does); a modification is written over
+ * the object read now (its version as `expected`), only what differs from it. Nothing
+ * typed: said, nothing sent; the object already as typed: said, the removal to do instead.
+ */
+async function replace(what: string): Promise<void> {
+  const slot = replacing.value!;
+  if (Object.keys(changesOf(fields.value, opened.value, values.value)).length === 0) {
+    writing.tell(t("edit.unchanged"));
+    return;
+  }
+  const edit = EDITS[collection.value.id];
+  let op: Operation;
+  if (creating.value) {
+    const local = (slot.operation as { local?: unknown }).local;
+    op = { ...edit.create(values.value), ...(typeof local === "number" ? { local } : {}) };
+  } else {
+    const changes = changesOf(fields.value, before.value, values.value);
+    if (Object.keys(changes).length === 0) {
+      writing.tell(t("edit.replace.same"));
+      return;
+    }
+    op = edit.update(objectId.value!, version.value, changes);
+  }
+  await writing.write(what, () => replaceInDraft(slot.draft, slot.index, op));
 }
 
 /**
@@ -590,6 +691,9 @@ watch(
   >
     <Stack gap="3">
       <Heading :level="2">{{ title }}</Heading>
+      <p v-if="replacing" class="k-edit-panel__lead">
+        {{ t("edit.replace.lead", { title: replacing.draft.data.title }) }}
+      </p>
       <Cluster
         v-if="props.request.mode === 'create' && props.request.kinds"
         gap="1"
@@ -679,12 +783,25 @@ watch(
         :key="refusal.kind + changed.length"
         :refusal="refusal"
         :changed="changed"
+        v-bind="refusalWords"
       />
       <!-- Present before its sentence, so that the sentence is said. -->
       <p class="k-edit-panel__notice" role="status">{{ notice ?? "" }}</p>
       <Cluster justify="end" gap="2">
         <Button variant="ghost" @click="closeEdit()">{{ t("views.cancel") }}</Button>
+        <!-- An operation of a draft replaced: to that draft only, nothing applied at once. -->
+        <Button
+          v-if="replacing"
+          variant="primary"
+          icon="draft"
+          :loading="busy"
+          :shortcut="['Control', 'Enter']"
+          v-bind="replaceRefusal"
+          @click="run('draft')"
+          >{{ t("edit.replace.run") }}</Button
+        >
         <SplitButton
+          v-else
           v-model:action="action"
           :actions="actions"
           :loading="busy"
@@ -699,7 +816,8 @@ watch(
 
 <style>
 @layer components {
-  .k-edit-panel__notice {
+  .k-edit-panel__notice,
+  .k-edit-panel__lead {
     color: var(--k-text-muted);
   }
 }

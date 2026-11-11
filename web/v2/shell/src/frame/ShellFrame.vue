@@ -109,7 +109,7 @@ import { readableType, searchObjects } from "../shortcuts/search.ts";
 import { NAVIGATION, pluginShortcut, shellShortcuts } from "../shortcuts/shell.ts";
 import ShortcutHelp from "../shortcuts/ShortcutHelp.vue";
 import { runnable } from "../shortcuts/view.ts";
-import { closeEditWithPage, editRequest } from "../views/edit/panel.ts";
+import { closeEditWithPage, editRequest, lineToReturn } from "../views/edit/panel.ts";
 import { crumbsOf } from "./breadcrumb.ts";
 import { detailRequests } from "./detail.ts";
 import { keepPanel, readPanel, useSettings, THEMES, DENSITIES } from "./settings.ts";
@@ -262,6 +262,14 @@ watch(editing, (request) => {
   if (!request) return;
   panelOpen.value = true;
   panelTab.value = "detail";
+});
+// « Modifier » of an operation of the draft tab closed (task 14l): that tab again, its line
+// taking the focus back (`DraftOperations.vue`). A line of the page `/drafts/:id` (or of
+// another draft than the tab's) takes it back there, the panel left as it is.
+watch(lineToReturn(), (line) => {
+  if (!line || line.draft !== activeDraft.value || draftOnPage.value) return;
+  panelOpen.value = true;
+  panelTab.value = "draft";
 });
 // The object a route of the administration chose in its list (`meta.detail`, task 15a): in
 // the Détail tab, the panel opened on it when another object is chosen, or the same one
