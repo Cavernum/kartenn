@@ -1658,7 +1658,7 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
   - dépend de : 13
   - découpée le 2026-11-01 en 15a, 15b et 15c (fin de P2)
   - faite le 2026-11-02 par ses trois sous-tâches, fusionnées
-- [ ] 16. Hôte des plugins et session : emplacements dans le nouveau cadre, point `widget`
+- [x] 16. Hôte des plugins et session : emplacements dans le nouveau cadre, point `widget`
   de l'Accueil, actions sur le type `changeset`, onglets sur les types de module, frontière
   d'erreur avec code, entrées par espace, « À propos » ; session (reconnexion, échéance
   signalée) — REQ-021-13, 14 — verify : parcours `plugins`, `session`, `example`
@@ -1761,6 +1761,28 @@ Chaque zone : écrans du nouveau shell dans `web/v2/shell`, parcours de l'ancien
     chargement ou écarté) dit « plugin · id », jamais la clé ; premier émetteur en bouton
     principal, les autres et le compte de secours en secondaire ; « Réessayer » rend le
     focus au titre de sa section.
+  - fait le 2026-11-11 (clôture relevée contre le code) : le reste « faute d'écran » est
+    placé et prouvé — tuile de l'Accueil (`HomeView`, `useWidgets`), onglet et panneau de la
+    fiche et menu d'actions (`RecordView`), colonnes des listes (`ListView`), actions sur
+    `changeset` (`ChangesetView`), onglet sur `vlan` (fiche générique) : parcours `plugins`
+    (« the screens of the referential place the tile, the tab, the panel and the column »,
+    « an action on the type changeset… ») ; plugin d'exemple au SDK 1.0 placé partout
+    (`example` : « the screens of the referential place its tile, column, tab, panel and
+    action », tâche 19) ; les deux arbitrages ci-dessus tranchés et livrés par 16a à 16f
+    (`absolute_expires_at`, `Kartenn-Background`), titres recopiés par 16g, « À propos » et
+    action absente par 16h ; repris des tâches 7, 8 et 10 présents (`meta.modules`,
+    `preloadModules`, `requestIdleCallback`, `unmetRange`, `forgetRecent`). Ajouté : focus
+    de `PluginAction` au clavier seul (parcours `plugins`, « an action of a plugin at the
+    keyboard alone… » : « … » à Entrée, l'entrée aux flèches, Tab jusqu'au bouton de
+    l'élément, Entrée puis Échap ferment, le focus revient à « … »), sous Chromium et Firefox.
+    Parcours `plugins`, `session`, `example` verts.
+  - choix : la vérification au clavier passe par le dialogue d'une action sur `changeset`
+    (le seul où une action de plugin est livrée avec un élément qui se ferme lui-même) ;
+    Tab borné à six pressions, le bouton de l'élément visé dans l'élément (la croix du
+    dialogue porte le même nom).
+  - reste (faute de maquette, à trancher avec la 020) : connexion et « À propos » hors
+    session gardent tout le cadre (barre latérale vide, pastille de date, compteur du
+    brouillon).
 
 ### Sous-tâches shell des arbitrages du 2026-11-01
 
