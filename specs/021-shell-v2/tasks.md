@@ -4251,7 +4251,13 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - reste : un préfixe ou une adresse clos au brouillon ne sont pas marqués dans la
     Topographie (`TreeGrid` n'a pas d'état « retiré dans le brouillon », que `DataGrid` a,
     `removed`) ; la plage close et sa remplaçante ne sont pas reliées à l'écran (deux lignes,
-    deux états, sans lien entre elles).
+    deux états, sans lien entre elles). Revue (mineurs) : le `choix :` marque aussi une plage
+    seulement retirée « (en brouillon) » tout en écartant les préfixes parce que ce n'est pas
+    le mot d'un retrait — justification contradictoire, à reprendre avec l'état « retiré » ;
+    un placement `after: null` d'un objet clos ferait passer `moved` avant `draft` (contrat
+    de `placements` pour un objet clos non écrit) ; la clé `kartenn.draft.active` écrite en
+    dur dans `moves.spec.ts` (aide partagée au prochain usage) ; `OTHER_RANGE` n'est jamais
+    clos dans `topology.test.ts`.
 - [x] 7a. Préchargement au survol sans lecture pendant un défilement (relevé par la revue
   de la 24e) : `childrenIntent` (`web/v2/shell/src/prefetch/tree.ts` vers la ligne 30) lit
   les enfants de chaque ligne qui passe sous le pointeur immobile pendant un défilement
