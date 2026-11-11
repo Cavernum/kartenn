@@ -228,7 +228,10 @@ ne vide pas l'écran) avec ses trois états.
   selon les droits (`MenuButton`), état par `StatusBadge` ; « À instruire » avec compteur
   dans la barre latérale.
 - **Brouillons** : onglet du panneau droit et page `/drafts/:id` ; liste des opérations
-  (retirer, modifier), simulation débrayée (400 ms, 024 § A ; `POST /v1/drafts/{id}/simulation`),
+  (retirer, modifier : le panneau d'édition de la sorte prérempli de l'opération, qui la
+  remplace à sa place, Q-021-17 ; une modification garde la version sur laquelle elle a
+  été écrite, l'objet changé depuis dit avec ses champs, « Reprendre sur la version
+  actuelle » pour la réécrire, Q-021-20), simulation débrayée (400 ms, 024 § A ; `POST /v1/drafts/{id}/simulation`),
   violations par opération avec `CodeBadge`, motif, dates d'effet, soumission (clé
   d'idempotence). Page `/drafts` : `DataGrid` des brouillons (titre, opérations, dernière
   modification, suppression annoncée `expires_at`), reprendre, nouveau, supprimer.

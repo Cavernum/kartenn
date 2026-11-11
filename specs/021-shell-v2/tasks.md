@@ -3304,22 +3304,43 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
     operation modified: its edit panel prefilled, replaced at its place, simulated again »
     (doublon corrigé, simulation valide, focus, brouillon relu) ; « … read only » vérifie
     aussi « Modifier » refusé sous `as_of`. `design.md` (`sdk.drafts`) dit le remplacement.
-  - choix : une modification remplacée s'écrit sur l'objet lu à l'ouverture (sa version en
-    `expected`, seulement ce qui en diffère), non sur l'`expected` de l'opération d'origine :
-    rouvrir une opération en conflit la remet à jour ; une création garde son `local`
+  - passe de correction (revue) : une modification remplacée garde l'`expected` d'origine
+    (Q-021-20, arbitré le 2026-11-11 : ce qu'elle écrivait et ce qui est saisi en plus),
+    l'objet changé depuis dit en tête du panneau (« L'objet a changé depuis cette
+    opération », les champs qui ont bougé, lus dans la première page de l'historique de
+    l'objet) ; « Reprendre sur la version actuelle » la réécrit sur la version lue, ce qui
+    en diffère seulement, le focus au premier champ ; une référence locale (`{local: n}`,
+    ancre comprise) gardée : `local:<n>` dans le formulaire (`textOf`, `ref`, `anchor` de
+    `fields.ts`), l'objet de l'opération qu'elle désigne offert dans le champ avec ceux lus,
+    nommé par ce que nomme son opération (« opération n du brouillon », `draftedCreations`).
+    Vitest `draft-replace.test.ts` : `expected` d'origine gardé et champ bougé dit ;
+    « Reprendre sur la version actuelle » ; création à référence locale remplacée ;
+    `editOfOperation` et `create` d'une référence et d'une ancre locales. `design.md`
+    (Brouillons) et `decisions.md` (Q-021-20).
+  - choix : une création garde son `local`
     (021/A13) ; le bouton « Modifier » montré sur chaque ligne, refusé avec sa raison plutôt
     que caché ; un `Button` primaire au lieu d'un `SplitButton` à une entrée ; l'égalité de
     l'opération à sa place comparée par son JSON (servi par le même serveur) ;
     `editOfOperation` dans `fields.ts` (à côté de `OPERATION_MEMBERS`), non dans
     `draft/operations.ts` ; un clic qui laisse le focus sur `body` traité comme un
-    déclencheur parti (le focus va à la ligne) ; Vitest dans un fichier neuf plutôt que dans
+    déclencheur parti (le focus va à la ligne), et `closeEdit` ne rend plus le focus à
+    `body` pour aucune demande d'édition (`#k-surface` alors, comme un déclencheur parti) ;
+    seuls les objets créés par une opération d'avant la ligne remplacée sont offerts à ses
+    références (un nom local désigne un objet créé plus tôt, A13) ; Vitest dans un fichier neuf plutôt que dans
     `changesets.test.ts` (déjà 1 000 lignes) ; maquettes E5 inchangées. Relectures : le
     retour du focus effacé aussi quand le brouillon est parti ou illisible (`a11y-auditor`) ;
     l'onglet Brouillon remontré seulement pour le brouillon actif hors de sa page (sur
     `/drafts/:id`, la ligne reprend le focus, le panneau laissé tel quel).
   - reste : les maquettes `EcranBrouillon.vue` et `E5Brouillon.vue` ne montrent que
     « Retirer » : leur ajouter le crayon (normal et refusé) change une maquette validée et
-    ses captures, à l'utilisateur (`ui-reviewer`) ; relevés mineurs : les lignes sont clées
+    ses captures, posé à l'utilisateur ; revue (mineurs) : `returning` (`lineToReturn`)
+    n'est pas effacé quand son brouillon n'est plus l'actif du cadre (`ShellFrame.vue`,
+    vers la ligne 270 : le cadre l'ignore, aucune liste ne le consomme) ;
+    `replaceOperation` (`drafts.ts`, vers la ligne 311) se replie sur l'`ETag` du cache
+    quand `read.etag` est nul, qui peut être d'une autre version que la ligne lue ; une
+    relecture en 404 après un 412 rend un conflit au lieu du brouillon parti (`gone`) ;
+    l'objet bougé n'est cherché que dans la première page de son historique (sinon la
+    phrase seule, sans champs) ; autres relevés : les lignes sont clées
     par leur index (une renumérotation entre l'ouverture et le retour mène le focus au
     « Modifier » voisin) ; brouillon illisible au retour, le focus reste perdu (l'état
     d'erreur n'a pas de cible) ; cibles de 24 px côte à côte à 4 px (`gap="1"`) à vérifier
