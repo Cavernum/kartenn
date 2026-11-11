@@ -2106,6 +2106,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/kube-clusters/{id}/observations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Writes a batch of observations of the pods of the cluster, outside the changesets (REQ-019-16): under `kube.observation.record` on the pod domain of the cluster, by a service account member of its connector group (403 otherwise); at most `batch_max_operations` lines; accepted whole, audited in its transaction (`observation.batch.recorded`, an empty batch too), or refused whole with 422 `invalid-batch` (`code` `kube.observation.invalid`, `violations` by JSON pointer). */
+    post: operations["record_kube_observations"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/kube-clusters/{id}/properties": {
     parameters: {
       query?: never;
@@ -6048,6 +6065,88 @@ export interface components {
     IssuerDto: {
       /** @description Its local identifier, the `issuer` of `/v1/auth/login`. */
       id: string;
+    };
+    /** @description The identifier of an object of the cluster (006/H3). */
+    KubeObjectRef: {
+      /** Format: uuid */
+      id: string;
+    };
+    /**
+     * @description A batch of the connector of a cluster: at most `batch_max_operations` lines of the
+     *     cluster in all, accepted or refused whole.
+     */
+    KubeObservationBatch: {
+      /** @description The observations it closes. */
+      closed: components["schemas"]["KubeObservationClosing"][];
+      /** @description The observations it opens. */
+      opened: components["schemas"]["KubeObservationOpening"][];
+    };
+    /** @description A batch written. */
+    KubeObservationBatchRecorded: {
+      /**
+       * Format: int32
+       * @description The observations it closed.
+       */
+      closed: number;
+      /**
+       * @description SHA-256 of its canonical content (RFC 8785), in lowercase hexadecimal, as its
+       *     audit event `observation.batch.recorded` keeps it.
+       */
+      hash: string;
+      /**
+       * Format: uuid
+       * @description Its identifier.
+       */
+      id: string;
+      /**
+       * Format: int32
+       * @description The observations it opened; an opening of an observation open with the same values
+       *     writes nothing and is not counted.
+       */
+      opened: number;
+      /** @description When it was received: the instant of its transaction. */
+      received_at: string;
+    };
+    /** @description The end of the period of an open observation of the cluster, by pod and IP. */
+    KubeObservationClosing: {
+      /**
+       * @description When it was gone (RFC 3339, with an offset); an instant to come is the instant of
+       *     the batch.
+       */
+      at: string;
+      /** @description Its IP; none in `hostNetwork`. */
+      ip?: string | null;
+      /**
+       * Format: uuid
+       * @description The UID of the pod.
+       */
+      pod_uid: string;
+    };
+    /** @description A pod seen, which opens an observation. */
+    KubeObservationOpening: {
+      /**
+       * @description Since when it is seen (RFC 3339, with an offset); an instant to come is the
+       *     instant of the batch.
+       */
+      from: string;
+      /** @description Whether it shares the network of its node. */
+      host_network?: boolean;
+      /**
+       * @description One of its IPs, in a pod container or a pod range of the cluster or an address of
+       *     one of its nodes; none in `hostNetwork`.
+       */
+      ip?: string | null;
+      /** @description Its namespace, by name. */
+      namespace: string;
+      node?: components["schemas"]["KubeObjectRef"] | null;
+      /** @description Its name. */
+      pod_name: string;
+      /**
+       * Format: uuid
+       * @description Its Kubernetes UID.
+       */
+      pod_uid: string;
+      workload?: components["schemas"]["KubeObjectRef"] | null;
     };
     /** @description The dictionary of labels for one language. */
     Labels: {
@@ -16761,6 +16860,45 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Listing_ModuleVersion"];
+        };
+      };
+      /** @description A problem (RFC 9457). */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["Problem"];
+        };
+      };
+    };
+  };
+  record_kube_observations: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description `?1` (a Boolean of a structured field, RFC 9651 §3.3.6, without parameters, on one field line): a request the client makes in the background, not at the person's request, no activity of its session. Its end is not pushed back; its session cookie is sent again only after a refresh of its groups, with its last activity as it was. Any other value: an ordinary request (021/A14, A15). */
+        "Kartenn-Background"?: components["parameters"]["Kartenn-Background"];
+      };
+      path: {
+        /** @description The cluster. */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["KubeObservationBatch"];
+      };
+    };
+    responses: {
+      /** @description Written. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KubeObservationBatchRecorded"];
         };
       };
       /** @description A problem (RFC 9457). */

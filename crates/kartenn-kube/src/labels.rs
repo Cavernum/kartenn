@@ -45,6 +45,10 @@ pub(crate) static ENGLISH: English = English {
             "kube.namespace.approval.self",
             "Apply one's own changeset that touches a Kubernetes namespace.",
         ),
+        (
+            "kube.observation.record",
+            "Write a batch of observations to the pod journal of a Kubernetes cluster (its connector only).",
+        ),
         ("kube.workload.read", "Read the Kubernetes workloads."),
         (
             "kube.workload.edit",

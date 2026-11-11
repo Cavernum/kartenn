@@ -24,6 +24,8 @@ pub mod handler;
 pub mod observations;
 #[cfg(feature = "pg")]
 mod pg;
+#[cfg(feature = "rest")]
+pub mod rest;
 
 pub use module::Kube;
 pub use names::{DnsLabel, DnsSubdomain, LabelKey, LabelValue, Labels};
