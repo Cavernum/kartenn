@@ -3002,6 +3002,10 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
   - reste : une valeur réelle « masqué » se lit comme le masque (en chasse fixe à l'écran,
     pas à l'oreille), comme dans le différentiel : un texte masqué visuellement
     (« valeur masquée, droit de lecture manquant ») pour les deux, à trancher (`a11y-auditor`).
+    Revue (mineurs) : le Vitest prouve `operationLine` mais pas le rendu
+    d'`OperationText.vue` (vu par le parcours seulement) ; l'onglet Opérations d'Alice,
+    valeur en clair, n'est pas audité par axe (seul celui de Carol l'est) ; ligne d'en-tête
+    trop longue dans `e2e/journeys/changesets.spec.ts`.
 - [ ] 14h. Pied du brouillon en attente de reprise (relevés des relectures de la 14e) : le
   motif (`CommitForm`) en lecture seule, avec la raison des dates figées, tant qu'une
   soumission attend sa reprise (« Réessayer » ne l'envoie pas) ; le passage aux dates
