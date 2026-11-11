@@ -768,6 +768,85 @@ describe("the screens of the changesets and the drafts", () => {
     expect(lostSubmissions.get(D1)).toBeDefined();
   });
 
+  /** The entries of the menu of a row of « Mes brouillons », opened at the keyboard. */
+  async function rowMenu(root: HTMLElement, title: string): Promise<HTMLElement[]> {
+    await expect
+      .poll(() => root.querySelector(`[aria-label="Actions sur « ${title} »"]`), { timeout: 3000 })
+      .not.toBeNull();
+    const trigger = root.querySelector<HTMLButtonElement>(
+      `[aria-label="Actions sur « ${title} »"]`,
+    )!;
+    trigger.focus();
+    trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    await expect.poll(() => document.querySelectorAll("[role='menuitem']").length).toBe(4);
+    return [...document.querySelectorAll<HTMLElement>("[role='menuitem']")];
+  }
+  const listed = { items: [{ ...draft(OPS), operations: undefined }] };
+
+  it("renames a draft from « Mes brouillons »: the title required, trimmed, under If-Match", async () => {
+    const { seen, root } = await mounted("/drafts", ["core.prefix.edit"], (call) => {
+      if (call.url === "/v1/drafts") return { body: listed };
+      if (call.method === "PATCH") {
+        return { body: { ...draft(OPS, 2), title: "Renumérotation salle B" }, etag: '"2"' };
+      }
+      return { body: draft(OPS), etag: '"1"' };
+    });
+    const entries = await rowMenu(root, "Brouillon du jour");
+    expect(entries.map((e) => e.textContent?.trim())).toContain("Renommer…");
+    entries.find((e) => e.textContent?.trim() === "Renommer…")!.click();
+    await expect.poll(() => document.querySelector("[role='dialog'] input")).not.toBeNull();
+    const dialog = document.querySelector<HTMLElement>("[role='dialog']")!;
+    expect(dialog.textContent).toContain("Renommer « Brouillon du jour »");
+    const input = dialog.querySelector<HTMLInputElement>("input")!;
+    expect(input.value).toBe("Brouillon du jour");
+    const confirm = () =>
+      [...dialog.querySelectorAll<HTMLButtonElement>("button")].find(
+        (b) => b.textContent?.trim() === "Renommer",
+      )!;
+
+    // Empty: said on the field, the focus to it, nothing written.
+    input.value = "   ";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    confirm().click();
+    await expect.poll(() => dialog.textContent).toContain("Donnez un titre au brouillon.");
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(document.activeElement).toBe(input);
+    // Beyond 200 characters, counted by code point.
+    input.value = "é".repeat(201);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    confirm().click();
+    await expect.poll(() => dialog.textContent).toContain("ce titre en compte 201");
+    expect(seen.filter((s) => s.method === "PATCH")).toHaveLength(0);
+
+    input.value = "  Renumérotation salle B ";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    confirm().click();
+    await expect.poll(() => seen.some((s) => s.method === "PATCH")).toBe(true);
+    const patch = seen.find((s) => s.method === "PATCH")!;
+    expect(patch.url).toBe(`/v1/drafts/${D1}`);
+    expect(patch.ifMatch).toBe('"1"');
+    expect(patch.body).toEqual({ title: "Renumérotation salle B" });
+    await expect.poll(() => document.querySelector("[role='dialog']")).toBeNull();
+    // The list read again once written.
+    expect(seen.filter((s) => s.url === "/v1/drafts").length).toBeGreaterThan(1);
+  });
+
+  it("under as_of, « Renommer… » is refused with its reason, nothing opened", async () => {
+    const { seen, root } = await mounted(
+      "/drafts?as_of=2026-01-01T00:00:00Z",
+      ["core.prefix.edit"],
+      (call) => (call.url === "/v1/drafts" ? { body: listed } : { body: draft(OPS), etag: '"1"' }),
+    );
+    const rename = (await rowMenu(root, "Brouillon du jour")).find((e) =>
+      e.textContent?.trim().startsWith("Renommer…"),
+    )!;
+    expect(rename.getAttribute("aria-disabled")).toBe("true");
+    rename.click();
+    await nextTick();
+    expect(document.querySelector("[role='dialog']")).toBeNull();
+    expect(seen.filter((s) => s.method === "PATCH")).toHaveLength(0);
+  });
+
   it("a plugin's draft.add opens the draft; the shell's own additions do not", async () => {
     await mounted("/panel", ["core.prefix.edit"], (call) =>
       call.method === "POST"
