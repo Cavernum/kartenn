@@ -4339,20 +4339,29 @@ parcours les prouve ; `web/v2/shell/test/parity.test.ts` vérifie les titres cit
       (`rowSlots`, `keys` de `useVirtualRows`) : une ligne qui entre reprend l'élément
       d'une ligne sortie, patché, jamais en traversant une ligne gardée (focus, éditeur,
       à ce rendu et au précédent), l'emplacement d'une ligne gardée qui sort réservé
-      (démonté, pas hérité) ; `measure` tient `elementsCache` du virtualiseur à jour ; la
-      ligne sélectionnée gardée montée dans `TreeGrid` ; `scheduleWindow` de `DataGrid`
-      ignore le défilement d'un élément qui ne le contient pas. Passe réduite filtrée :
-      86,7 % → 39,0 % de trames perdues, 78 → 2 tâches longues, la plus longue 213 →
-      52 ms. Tests : `rowSlots` (`ui/test/components-data.test.ts`), élément du focus
-      inchangé après le défilement (`e2e/components/tree-grid.spec.ts`).
-      `k-web2-check --base main` : 955 Vitest ; ciblé : 2 315 captures sur 2 719.
+      (démonté, pas hérité) ; sous `VIRTUAL_ROWS` aussi, les lignes ont leur emplacement
+      (sans reprise : une ligne qui entre en a un neuf), si bien qu'une ligne restée garde
+      son élément au passage du seuil (un nœud ouvert ou fermé) ; `keys` calcule depuis le
+      dernier rendu validé (`onMounted`, `onUpdated`), sans écrire cet état ; `measure`
+      tient `elementsCache` du virtualiseur à jour ; `scheduleWindow` de `DataGrid` ignore
+      le défilement d'un élément qui ne le contient pas. Changement de comportement : la
+      ligne sélectionnée de `TreeGrid` reste montée hors de la fenêtre, comme celle du
+      focus (recyclée, son fond s'effacerait sur la ligne qu'elle quitte). Passe réduite
+      filtrée : 86,7 % → 39,0 % de trames perdues, 78 → 2 tâches longues, la plus longue
+      213 → 52 ms. Tests : `rowSlots` (reprise, côté des lignes gardées, deux lignes
+      gardées à la fois, emplacement réservé, passage du seuil ;
+      `ui/test/components-data.test.ts`), élément du focus inchangé après le défilement
+      et au passage du seuil dans les deux sens (`e2e/components/tree-grid.spec.ts`).
+      `k-web2-check --base main` : 956 Vitest ; ciblé : 2 316 captures sur 2 720.
     - choix : correction principale dans la vue du shell (aucune API touchée) ;
       recyclage seulement au-delà de `VIRTUAL_ROWS` ; `Tree` non recyclé (les `TreeItem`
       de Reka dont la `value` change en place : risque, et le banc ne le mesure pas) ;
       `k-target-seed` depuis la copie principale (`K_TARGET_BASE`), seule à avoir un
       `kartenn-server` en release.
     - reste : aucun relecteur d'interface lancé (rien de visible ne change) ; mesures
-      bruitées (écart de 2 à 3 entre passes identiques, machine partagée).
+      bruitées (écart de 2 à 3 entre passes identiques, machine partagée) ; (revue) sur
+      un élément recyclé, la rotation du chevron et le fond de `data-drop` s'animent
+      d'une ligne à l'autre ; `readById` refait l'aplatissement que fait déjà `items`.
   - [ ] 22e-b. Le reste du verify de la 22e : pipeline de rendu (double Paint du document
     à chaque trame, première cellule collante de chaque ligne, pistes `minmax(auto, …)`),
     lignes en composants (une ligne aux props inchangées ne se rend plus), appels de
