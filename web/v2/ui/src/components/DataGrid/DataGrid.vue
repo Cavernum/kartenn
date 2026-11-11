@@ -350,7 +350,11 @@ function emitWindow(): void {
   last = key;
   emit("window", view);
 }
-function scheduleWindow(): void {
+function scheduleWindow(event?: Event): void {
+  // A scroll that cannot move its rows (a neighbouring tree or list) reads nothing: its
+  // boxes would be read at each frame of that scroll (task 021-22e).
+  const target = event?.target;
+  if (target instanceof Element && grid.value && !target.contains(grid.value)) return;
   if (!frame) frame = requestAnimationFrame(emitWindow);
 }
 onMounted(() => {
