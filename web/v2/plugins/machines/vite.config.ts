@@ -48,5 +48,9 @@ export default defineConfig({
         settings: { disableCSSFileLoading: true, handleDisabledFileLoadingAsSuccess: true },
       },
     },
+    // Each file's `beforeAll` imports the whole plugin, its Vue files transformed on that
+    // first import: under the load of a shared machine (load 18 to 20, several worktrees)
+    // it passed the default 10 s. The time of a transform, not a budget of the plugin.
+    hookTimeout: 30_000,
   },
 });

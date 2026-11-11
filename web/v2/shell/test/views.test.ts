@@ -370,7 +370,9 @@ describe("the routes of the referential", () => {
     // The record's properties come from the route (vue-router gives the function the route).
     const props = record.matched.at(-1)!.props.default;
     expect(typeof props === "function" ? props(record) : props).toMatchObject({ id: range });
-  });
+    // Each route pushed loads its view on first use, its Vue file transformed then: under
+    // the load of a shared machine that passed the default 5 s.
+  }, 20_000);
 
   it("name a record in its breadcrumb once read, by its identifier before", async () => {
     const id = "0b5e3c1a-0000-4000-8000-000000000002";
