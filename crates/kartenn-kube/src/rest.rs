@@ -18,27 +18,32 @@ use kartenn_core::audit::seal::hex;
 use kartenn_core::audit::{
     AUTHZ_DENIED, AuditEvent, INPUT_REJECTED, OBSERVATION_BATCH_RECORDED, Outcome,
 };
+use kartenn_core::authz::type_read_permission;
 use kartenn_rest::ModuleRouter;
-use kartenn_rest::kit::{self, Api, Problem, ProblemKind, documented, op, schemas_of};
+use kartenn_rest::kit::{
+    self, Api, BatchViolation, Problem, ProblemKind, documented, op, schemas_of,
+};
 use kartenn_service::audit::{AuditJournal, RequestContext};
 use kartenn_service::authn::Principal;
 use kartenn_service::authz::Authorizer;
 use kartenn_service::{RequestError, StoreError};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 use utoipa::ToSchema;
 use utoipa::openapi::path::HttpMethod;
 use uuid::Uuid;
 
-use crate::module::OBSERVATION_RECORD_PERMISSION;
+use crate::module::{CLUSTER, OBSERVATION_RECORD_PERMISSION};
 use crate::observations::{self, Batch, Closing, Invalid, Line, Opening, RecordError};
 
 /// The journal a batch of the module writes, as its audit event names it.
 const JOURNAL: &str = "kube.pod_observation";
 /// The code of a batch refused, in the extension `code` of its `invalid-batch` (Q-019-21).
 const INVALID: &str = "kube.observation.invalid";
+/// The `reason` of `abuse.input.rejected` for a body that does not read: the class of
+/// its 400.
+const BAD_REQUEST: &str = "bad-request";
 
 // ---------------------------------------------------------------- representations
 
@@ -184,12 +189,7 @@ async fn journal(
 
 /// 403 for the batch of `cluster` refused by the right `kube.observation.record`, the
 /// refusal journaled (`authz.access.denied`).
-async fn denied(
-    api: &Api,
-    context: &RequestContext,
-    cluster: Uuid,
-    detail: &str,
-) -> Result<Response, Problem> {
+async fn denied(api: &Api, context: &RequestContext, cluster: Uuid, detail: &str) -> Problem {
     let event = context
         .event(&AUTHZ_DENIED, Outcome::Denied)
         .map(|e| {
@@ -197,27 +197,39 @@ async fn denied(
                 .reason(OBSERVATION_RECORD_PERMISSION)
         })
         .and_then(|e| e.detail("permission", OBSERVATION_RECORD_PERMISSION));
-    journal(api, event).await?;
-    Err(Problem::new(ProblemKind::Forbidden).detail(detail))
+    match journal(api, event).await {
+        Ok(()) => Problem::new(ProblemKind::Forbidden).detail(detail),
+        Err(unavailable) => unavailable,
+    }
 }
 
-/// 422 `invalid-batch` for the batch of `cluster` refused by `violations`, the refusal
-/// journaled (`abuse.input.rejected`).
+/// `problem` for the body of a batch of `cluster` refused at the entry, the refusal
+/// journaled (`abuse.input.rejected`, its `reason`): 400 for a body that does not read,
+/// 422 `invalid-batch` for lines that refuse it.
+async fn rejected(
+    api: &Api,
+    context: &RequestContext,
+    cluster: Uuid,
+    reason: &str,
+    problem: Problem,
+) -> Result<Response, Problem> {
+    let event = context
+        .event(&INPUT_REJECTED, Outcome::Failure)
+        .map(|e| e.target("object", [cluster]).reason(reason))
+        .and_then(|e| e.detail("reason", reason));
+    journal(api, event).await?;
+    Err(problem)
+}
+
+/// 422 `invalid-batch` for the batch of `cluster` refused by `violations`, journaled.
 async fn refused(
     api: &Api,
     context: &RequestContext,
     cluster: Uuid,
-    violations: Vec<Value>,
+    violations: &[BatchViolation],
 ) -> Result<Response, Problem> {
-    let event = context
-        .event(&INPUT_REJECTED, Outcome::Failure)
-        .map(|e| e.target("object", [cluster]).reason(INVALID))
-        .and_then(|e| e.detail("reason", INVALID));
-    journal(api, event).await?;
-    Err(Problem::new(ProblemKind::InvalidBatch)
-        .detail("the batch is refused whole, by its violations")
-        .extension("code", json!(INVALID))
-        .extension("violations", Value::Array(violations)))
+    let problem = Problem::invalid_batch(INVALID, violations);
+    rejected(api, context, cluster, INVALID, problem).await
 }
 
 /// The JSON pointer of a line of the body (RFC 6901).
@@ -226,6 +238,53 @@ fn pointer(line: Line) -> String {
         Line::Opened(i) => format!("/opened/{i}"),
         Line::Closed(i) => format!("/closed/{i}"),
     }
+}
+
+/// The `batch_max_operations` of the living cluster `id`, once the caller may write a
+/// batch there. The cluster is seen by whoever reads it (`kube.cluster.read`, ADR 0021)
+/// or holds the right of the batch on its pod domain (Q-019-23), where the connector role
+/// is bound, the cluster itself being anchored in no domain: to anyone else it answers as
+/// an absent one, 404 unjournaled; seen without the right, 403 journaled.
+async fn admitted(
+    api: &Api,
+    principal: &Principal,
+    context: &RequestContext,
+    id: Uuid,
+) -> Result<i32, Problem> {
+    let cluster: Option<(Uuid, i32)> = sqlx::query_as(
+        "SELECT pod_domain_id, batch_max_operations FROM kube.cluster
+          WHERE id = $1 AND valid_period @> now()",
+    )
+    .bind(id)
+    .fetch_optional(&api.pool)
+    .await
+    .map_err(|e| kit::store(&e))?;
+    let Some((pods, max)) = cluster else {
+        return Err(Problem::new(ProblemKind::NotFound));
+    };
+    let subject = principal.subject();
+    let authorizer = api.authorizer();
+    let recordable = authorizer
+        .authorize_many(&subject, OBSERVATION_RECORD_PERMISSION, &[pods])
+        .await?
+        .is_empty();
+    if !recordable {
+        let readable = authorizer
+            .authorize_many(&subject, &type_read_permission(CLUSTER), &[id])
+            .await?
+            .is_empty();
+        if !readable {
+            return Err(Problem::new(ProblemKind::NotFound));
+        }
+        return Err(denied(
+            api,
+            context,
+            id,
+            "kube.observation.record is not held on the pod domain of the cluster",
+        )
+        .await);
+    }
+    Ok(max)
 }
 
 /// `POST /v1/kube-clusters/{id}/observations`: the batch of the connector of the cluster,
@@ -238,48 +297,21 @@ async fn record_batch(
     Path(id): Path<Uuid>,
     raw: Bytes,
 ) -> Result<Response, Problem> {
-    let cluster: Option<(Uuid, i32)> = sqlx::query_as(
-        "SELECT pod_domain_id, batch_max_operations FROM kube.cluster
-          WHERE id = $1 AND valid_period @> now()",
-    )
-    .bind(id)
-    .fetch_optional(&api.pool)
-    .await
-    .map_err(|e| kit::store(&e))?;
-    let Some((pods, max)) = cluster else {
-        return Err(Problem::new(ProblemKind::NotFound));
+    let max = admitted(&api, &principal, &context, id).await?;
+    let batch = match serde_json::from_slice(&raw)
+        .map_err(|e| kit::bad(e.to_string()))
+        .and_then(batch_of)
+    {
+        Ok(batch) => batch,
+        Err(problem) => return rejected(&api, &context, id, BAD_REQUEST, problem).await,
     };
-    // The right on the pod domain of the cluster (Q-019-23), where the connector role is
-    // bound.
-    let outside = api
-        .authorizer()
-        .authorize_many(&principal.subject(), OBSERVATION_RECORD_PERMISSION, &[pods])
-        .await?;
-    if !outside.is_empty() {
-        return denied(
-            &api,
-            &context,
-            id,
-            "kube.observation.record is not held on the pod domain of the cluster",
-        )
-        .await;
-    }
-    let body: BatchBody = serde_json::from_slice(&raw).map_err(|e| kit::bad(e.to_string()))?;
-    let batch = batch_of(body)?;
     let lines = batch.opened.len() + batch.closed.len();
     if usize::try_from(max).is_ok_and(|max| lines > max) {
-        return refused(
-            &api,
-            &context,
-            id,
-            vec![json!({
-                "pointer": "",
-                "detail": format!(
-                    "{lines} lines, over the {max} of the cluster (batch_max_operations)"
-                ),
-            })],
-        )
-        .await;
+        let whole = BatchViolation {
+            pointer: String::new(),
+            detail: format!("{lines} lines, over the {max} of the cluster (batch_max_operations)"),
+        };
+        return refused(&api, &context, id, &[whole]).await;
     }
     let mut tx = api.pool.begin().await.map_err(|e| kit::store(&e))?;
     let recorded = match observations::record(&mut tx, id, principal.identity, &batch).await {
@@ -287,23 +319,24 @@ async fn record_batch(
         Err(RecordError::UnknownCluster(_)) => return Err(Problem::new(ProblemKind::NotFound)),
         Err(RecordError::NotConnector) => {
             drop(tx);
-            return denied(
+            return Err(denied(
                 &api,
                 &context,
                 id,
                 "the caller is not a service account member of the connector group of the cluster",
             )
-            .await;
+            .await);
         }
         Err(RecordError::Invalid(lines)) => {
             drop(tx);
-            let violations = lines
+            let violations: Vec<BatchViolation> = lines
                 .iter()
-                .map(|Invalid { line, reason }| {
-                    json!({ "pointer": pointer(*line), "detail": reason.to_string() })
+                .map(|Invalid { line, reason }| BatchViolation {
+                    pointer: pointer(*line),
+                    detail: reason.to_string(),
                 })
                 .collect();
-            return refused(&api, &context, id, violations).await;
+            return refused(&api, &context, id, &violations).await;
         }
         Err(RecordError::Store(e)) => return Err(kit::store(&e)),
         // A canonical form that failed: a fault of the server, never of the batch.
@@ -319,6 +352,8 @@ async fn record_batch(
         .and_then(|e| e.detail("opened", recorded.opened))
         .and_then(|e| e.detail("closed", recorded.closed))
         .and_then(|e| e.detail("hash", hash.as_str()))
+        .and_then(|e| e.detail("clamped", recorded.clamped))
+        .and_then(|e| e.detail("skew_max", recorded.skew_max_ms))
         .map_err(audited)?;
     // In the transaction of the batch (ADR 0043, decision 5): no batch without its event.
     api.journal
@@ -351,14 +386,17 @@ pub fn routes() -> ModuleRouter {
         "kube",
         "Writes a batch of observations of the pods of the cluster, outside the changesets \
          (REQ-019-16): under `kube.observation.record` on the pod domain of the cluster, by \
-         a service account member of its connector group (403 otherwise); at most \
-         `batch_max_operations` lines; accepted whole, audited in its transaction \
+         a service account member of its connector group (403 otherwise; 404, as an absent \
+         one, for a cluster the caller neither reads nor holds that right on); at most \
+         `batch_max_operations` lines; an instant to come is brought back to the instant of \
+         the batch, counted in its event; accepted whole, audited in its transaction \
          (`observation.batch.recorded`, an empty batch too), or refused whole with 422 \
          `invalid-batch` (`code` `kube.observation.invalid`, `violations` by JSON pointer).",
     )
     .path("id", "The cluster.", true)
     .body("application/json", "KubeObservationBatch", true)
     .answers("201", "Written.", "KubeObservationBatchRecorded")
+    .refuses_batches("Refused whole: the lines that refuse it, by JSON pointer.")
     .build();
     ModuleRouter::new().routes(documented(
         "/kube-clusters/{id}/observations",

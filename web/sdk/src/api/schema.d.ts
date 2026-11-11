@@ -2115,7 +2115,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Writes a batch of observations of the pods of the cluster, outside the changesets (REQ-019-16): under `kube.observation.record` on the pod domain of the cluster, by a service account member of its connector group (403 otherwise); at most `batch_max_operations` lines; accepted whole, audited in its transaction (`observation.batch.recorded`, an empty batch too), or refused whole with 422 `invalid-batch` (`code` `kube.observation.invalid`, `violations` by JSON pointer). */
+    /** Writes a batch of observations of the pods of the cluster, outside the changesets (REQ-019-16): under `kube.observation.record` on the pod domain of the cluster, by a service account member of its connector group (403 otherwise; 404, as an absent one, for a cluster the caller neither reads nor holds that right on); at most `batch_max_operations` lines; an instant to come is brought back to the instant of the batch, counted in its event; accepted whole, audited in its transaction (`observation.batch.recorded`, an empty batch too), or refused whole with 422 `invalid-batch` (`code` `kube.observation.invalid`, `violations` by JSON pointer). */
     post: operations["record_kube_observations"];
     delete?: never;
     options?: never;
@@ -4605,6 +4605,19 @@ export interface components {
     BTreeMap: {
       [key: string]: string;
     };
+    /**
+     * @description A line of a batch refused by `invalid-batch` (spec 019, Q-019-21): not a violation of
+     *     a rule of a changeset, which `changeset-refused` serves.
+     */
+    BatchViolation: {
+      /** @description Why it refuses the batch. */
+      detail: string;
+      /**
+       * @description The line in the body, a JSON pointer (RFC 6901): `/opened/3`; `""` for the body
+       *     whole.
+       */
+      pointer: string;
+    };
     /** @description The batches of an import. */
     Batches: {
       /** @description Applied. */
@@ -6060,6 +6073,26 @@ export interface components {
       native?: components["schemas"]["MachinesObjectRef"] | null;
       /** @description The tagged VLANs of a trunk. */
       tagged?: components["schemas"]["MachinesObjectRef"][] | null;
+    };
+    /** @description The problem `invalid-batch` as served: the members of RFC 9457 and its extensions. */
+    InvalidBatchProblem: {
+      /** @description The code of the module that refuses the batch (`kube.observation.invalid`). */
+      code: string;
+      /** @description This occurrence, explained. */
+      detail?: string | null;
+      /** @description The identifier of the request, `urn:uuid:…`. */
+      instance?: string | null;
+      /**
+       * Format: int32
+       * @description 422.
+       */
+      status: number;
+      /** @description The title of the class. */
+      title: string;
+      /** @description `urn:kartenn:problem:invalid-batch`. */
+      type: string;
+      /** @description The lines that refuse it, in the order of the body. */
+      violations: components["schemas"]["BatchViolation"][];
     };
     /** @description An issuer a browser logs in at, as the login page names it. */
     IssuerDto: {
@@ -16899,6 +16932,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["KubeObservationBatchRecorded"];
+        };
+      };
+      /** @description Refused whole: the lines that refuse it, by JSON pointer. */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/problem+json": components["schemas"]["InvalidBatchProblem"];
         };
       };
       /** @description A problem (RFC 9457). */

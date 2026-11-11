@@ -485,6 +485,24 @@
         },
         "type": "object"
       },
+      "BatchViolation": {
+        "description": "A line of a batch refused by `invalid-batch` (spec 019, Q-019-21): not a violation of\na rule of a changeset, which `changeset-refused` serves.",
+        "properties": {
+          "detail": {
+            "description": "Why it refuses the batch.",
+            "type": "string"
+          },
+          "pointer": {
+            "description": "The line in the body, a JSON pointer (RFC 6901): `/opened/3`; `\"\"` for the body\nwhole.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pointer",
+          "detail"
+        ],
+        "type": "object"
+      },
       "Batches": {
         "description": "The batches of an import.",
         "properties": {
@@ -4126,6 +4144,58 @@
         },
         "required": [
           "mode"
+        ],
+        "type": "object"
+      },
+      "InvalidBatchProblem": {
+        "description": "The problem `invalid-batch` as served: the members of RFC 9457 and its extensions.",
+        "properties": {
+          "code": {
+            "description": "The code of the module that refuses the batch (`kube.observation.invalid`).",
+            "type": "string"
+          },
+          "detail": {
+            "description": "This occurrence, explained.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "instance": {
+            "description": "The identifier of the request, `urn:uuid:…`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "description": "422.",
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "title": {
+            "description": "The title of the class.",
+            "type": "string"
+          },
+          "type": {
+            "description": "`urn:kartenn:problem:invalid-batch`.",
+            "type": "string"
+          },
+          "violations": {
+            "description": "The lines that refuse it, in the order of the body.",
+            "items": {
+              "$ref": "#/components/schemas/BatchViolation"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "violations"
         ],
         "type": "object"
       },
@@ -26142,6 +26212,16 @@
             },
             "description": "Written."
           },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidBatchProblem"
+                }
+              }
+            },
+            "description": "Refused whole: the lines that refuse it, by JSON pointer."
+          },
           "default": {
             "content": {
               "application/problem+json": {
@@ -26153,7 +26233,7 @@
             "description": "A problem (RFC 9457)."
           }
         },
-        "summary": "Writes a batch of observations of the pods of the cluster, outside the changesets (REQ-019-16): under `kube.observation.record` on the pod domain of the cluster, by a service account member of its connector group (403 otherwise); at most `batch_max_operations` lines; accepted whole, audited in its transaction (`observation.batch.recorded`, an empty batch too), or refused whole with 422 `invalid-batch` (`code` `kube.observation.invalid`, `violations` by JSON pointer).",
+        "summary": "Writes a batch of observations of the pods of the cluster, outside the changesets (REQ-019-16): under `kube.observation.record` on the pod domain of the cluster, by a service account member of its connector group (403 otherwise; 404, as an absent one, for a cluster the caller neither reads nor holds that right on); at most `batch_max_operations` lines; an instant to come is brought back to the instant of the batch, counted in its event; accepted whole, audited in its transaction (`observation.batch.recorded`, an empty batch too), or refused whole with 422 `invalid-batch` (`code` `kube.observation.invalid`, `violations` by JSON pointer).",
         "tags": [
           "kube"
         ],

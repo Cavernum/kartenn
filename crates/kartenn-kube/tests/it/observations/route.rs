@@ -129,6 +129,46 @@ async fn bind(pool: &PgPool, group: Uuid, domain: Uuid, permissions: &[&str]) {
     .unwrap();
 }
 
+/// A person granted `permissions` everywhere, by a role of their own.
+async fn person(pool: &PgPool, permissions: &[&str]) -> Uuid {
+    let identity: Uuid = sqlx::query_scalar(
+        "INSERT INTO person (id, display_name) VALUES (gen_random_uuid(), 'p') RETURNING id",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    let role = Uuid::now_v7();
+    sqlx::query(
+        "INSERT INTO role (id, key, labels, valid_period, changeset_id)
+         VALUES ($1, 'r_' || replace($1::text, '-', ''), jsonb_build_object('fr', 'r'),
+                 tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+    )
+    .bind(role)
+    .execute(pool)
+    .await
+    .unwrap();
+    for permission in permissions {
+        sqlx::query(
+            "INSERT INTO role_permission (role_id, permission, valid_period, changeset_id)
+             VALUES ($1, $2, tstzrange(now() - interval '1 day', NULL), gen_random_uuid())",
+        )
+        .bind(role)
+        .bind(permission)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+    sqlx::query(kartenn_testing::BIND_IDENTITY)
+        .bind(identity)
+        .bind(role)
+        .bind("global")
+        .bind(None::<Uuid>)
+        .execute(pool)
+        .await
+        .unwrap();
+    identity
+}
+
 /// The connector group `cluster` designates.
 async fn group_of(pool: &PgPool, cluster: Uuid) -> Uuid {
     sqlx::query_scalar("SELECT connector_group_id FROM kube.cluster WHERE id = $1")
@@ -258,6 +298,8 @@ async fn batch_is_audited_once_with_hash(pool: PgPool) {
             "opened": 2,
             "closed": 0,
             "hash": hash,
+            "clamped": 0,
+            "skew_max": 0,
         })
     );
     assert_eq!(*actor, Some(env.connector));
@@ -297,12 +339,21 @@ async fn batch_from_other_cluster_connector_refused(pool: PgPool) {
     let (other, group) = crate::support::connector(&pool, "other").await;
     env.cluster("stage", group).await;
     let batch = body(&[env.pod(1, "198.51.100.17")], &[]);
-    // Without the right on the pod domain of `prod`: the connector of `prod` itself.
+    // Without any right, the connector of `prod` itself: the cluster answers as an absent
+    // one, as an unknown identifier does, and nothing is journaled (ADR 0021).
     let theirs = app(
         &pool,
         principal(env.connector, IdentityKind::ServiceAccount),
         None,
     );
+    for cluster in [env.prod, Uuid::now_v7()] {
+        let (status, problem) = post(&theirs, cluster, &batch).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{problem}");
+    }
+    assert!(audited(&pool, "authz.access.denied").await.is_empty());
+    // Who reads the cluster without the right on its pod domain: 403.
+    let reader = person(&pool, &["kube.cluster.read"]).await;
+    let theirs = app(&pool, principal(reader, IdentityKind::Person), None);
     let (status, problem) = post(&theirs, env.prod, &batch).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "{problem}");
     assert_eq!(problem["type"], "urn:kartenn:problem:forbidden");
@@ -314,7 +365,7 @@ async fn batch_from_other_cluster_connector_refused(pool: PgPool) {
     assert_eq!(env.counts().await, (0, 0), "nothing written");
     let denials = audited(&pool, "authz.access.denied").await;
     assert_eq!(denials.len(), 2, "{denials:?}");
-    for ((details, actor, targets, outcome), who) in denials.iter().zip([env.connector, other]) {
+    for ((details, actor, targets, outcome), who) in denials.iter().zip([reader, other]) {
         assert_eq!(details, &json!({"permission": "kube.observation.record"}));
         assert_eq!(
             (*actor, targets.as_slice()),
@@ -327,8 +378,6 @@ async fn batch_from_other_cluster_connector_refused(pool: PgPool) {
             .await
             .is_empty()
     );
-    let (status, _) = post(&stranger, Uuid::now_v7(), &batch).await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 /// REQ-019-16 (validation; Q-019-21): a batch with an IP outside the cluster, a node of
@@ -421,7 +470,69 @@ async fn batch_outside_pod_ranges_refused_whole(pool: PgPool) {
     wrong["opened"][0]["from"] = json!("2026-11-02T10:00:00");
     let (status, problem) = post(&app, env.prod, &wrong).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{problem}");
+    wrong["opened"][0]["from"] = json!(rfc3339(now));
+    wrong["opened"][0]["pod_ip"] = json!("198.51.100.21");
+    let (status, problem) = post(&app, env.prod, &wrong).await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "an unknown member: {problem}"
+    );
     assert_eq!(audited(&pool, "observation.batch.recorded").await.len(), 1);
+    // Every refusal at the entry is journaled with its reason: the lines, the ceiling,
+    // then the three bodies that do not read.
+    let reasons: Vec<Value> = audited(&pool, "abuse.input.rejected")
+        .await
+        .into_iter()
+        .map(|(details, ..)| details["reason"].clone())
+        .collect();
+    assert_eq!(
+        reasons,
+        [
+            "kube.observation.invalid",
+            "kube.observation.invalid",
+            "bad-request",
+            "bad-request",
+            "bad-request",
+        ]
+    );
+}
+
+/// Q-019-26: an instant to come is brought back to the instant of the batch, which is
+/// accepted; its event counts the lines brought back (`clamped`) and keeps their longest
+/// advance (`skew_max`, in milliseconds).
+#[kartenn_testing::pg_test]
+async fn future_instant_clamped_and_audited(pool: PgPool) {
+    let env = Env::new(&pool).await;
+    bind(
+        &pool,
+        group_of(&pool, env.prod).await,
+        env.pods,
+        &["kube.observation.record"],
+    )
+    .await;
+    let app = app(
+        &pool,
+        principal(env.connector, IdentityKind::ServiceAccount),
+        None,
+    );
+    let mut ahead = env.pod(1, "198.51.100.17");
+    ahead.from = OffsetDateTime::now_utc() + Duration::from_secs(3_600);
+    let (status, answer) = post(
+        &app,
+        env.prod,
+        &body(&[ahead, env.pod(2, "198.51.100.18")], &[]),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{answer}");
+    let events = audited(&pool, "observation.batch.recorded").await;
+    let details = &events[0].0;
+    assert_eq!(details["clamped"], 1, "{details}");
+    let skew = details["skew_max"].as_u64().unwrap();
+    assert!(
+        (3_590_000..=3_600_000).contains(&skew),
+        "the advance on the instant of the batch: {skew}"
+    );
 }
 
 /// A stream of events being read.
