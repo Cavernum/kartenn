@@ -14,6 +14,8 @@ pub mod selector;
 pub mod tracked;
 
 #[cfg(feature = "pg")]
+mod edges;
+#[cfg(feature = "pg")]
 pub mod handler;
 #[cfg(feature = "pg")]
 mod pg;

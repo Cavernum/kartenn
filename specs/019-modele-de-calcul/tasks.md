@@ -714,6 +714,27 @@ avancent en parallèle sur des crates disjointes ; 12 et 13 (politique, flux) at
   - où : `crates/kartenn-kube/src/module.rs` ; arêtes de `kartenn-machines` à imiter ;
     ADR 0026 clauses 11, 12
   - dépend de : 4c
+  - fait en partie (2026-11-11, non cochée) : les six arêtes déclarées (`module.rs`,
+    `EDGES`) et lues aux dates de la lecture (`edges.rs`, appelé par `Handler::edges`),
+    chaque branche filtrée par la clé ou l'index de sa table ; test
+    `execution_chain_edges` (`tests/it/edges.rs`, par le routeur) : le workload rend le
+    service qui le sélectionne, l'ingress son service et son adresse, le service son
+    ingress, son workload et ses adresses, le nœud sa machine et sa plage, la machine
+    son nœud et son hyperviseur (`machines.hosted_on`) ; une extrémité illisible retire
+    l'arête ; un `as_of` passé rend la sélection d'alors.
+  - choix : `kube.routes_to` résout le nom de service des routes dans le namespace de
+    l'ingress à la date, une arête par couple (ingress, service) quelles que soient ses
+    routes, sur la période commune des deux versions ; une route vers un service absent
+    ne fait pas d'arête ; `kube.service_address` couvre IP de cluster et adresses
+    externes (une adresse des deux à la fois : une arête) ; test dans un module à part,
+    avec son propre `Env` et le routeur (dépendances de test `axum`, `http-body-util`,
+    `kartenn-auth`, `kartenn-rest`, `tower`, déjà du workspace, comme
+    `kartenn-machines`).
+  - arrêtée : la chaîne « workload → nœud » n'a pas de lien dans le modèle versionné
+    (design « Chaîne modélisée » : `workload ─(observé)─▶ nœud`) ; elle demande le
+    journal des pods (tâche 6) et revient à `execution_chain` du port de lecture (tâche
+    7) et à `GET /v1/workloads/{id}/chain` (tâche 8). Aucun lien inventé ; à trancher :
+    cocher 4d sur les arêtes et renvoyer la chaîne à la 7.
 - [ ] 5. Objets miroirs et absence : règles `kube.object.managed` (auteur compte de
   service membre du groupe du connecteur du cluster), `kube.connector.direct` et
   `kube.cluster.connector_group`, `mark_absent`, `clear_absent`, anomalie

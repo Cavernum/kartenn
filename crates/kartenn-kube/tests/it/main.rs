@@ -2,3 +2,4 @@
 //! per subject.
 
 mod clusters;
+mod edges;
