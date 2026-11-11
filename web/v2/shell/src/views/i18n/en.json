@@ -362,7 +362,25 @@
       "required": "{field} is required.",
       "choice": "Choose a value of the list: {values}.",
       "flag": "Choose yes or no.",
-      "integer": "{field} is a whole number."
+      "integer": "{field} is a whole number.",
+      "between": "{field} is a whole number from {min} to {max}.",
+      "betweenMin": "{field} is a whole number of at least {min}.",
+      "betweenMax": "{field} is a whole number of at most {max}.",
+      "length": "{field} has {min} to {max} characters.",
+      "lengthMin": "{field} has at least {min} characters.",
+      "lengthMax": "{field} has at most {max} characters.",
+      "pattern": "{field} does not follow the declared pattern: {pattern}.",
+      "control": "{field} holds no control character.",
+      "bool": "{field} is true or false.",
+      "date": "{field} is a date YYYY-MM-DD.",
+      "fqdn": "{field} is a host name: segments of letters, digits and hyphens, 63 characters at most each."
+    },
+    "property": {
+      "overrides": "A value typed here overrides the value inherited from {source}.",
+      "own": "Its own value: emptying the cell removes it, inheritance resumes.",
+      "overridesUnreadable": "A value typed here overrides the value inherited from an object you may not read.",
+      "overridesUnnamed": "A value typed here overrides the inherited value.",
+      "nothingToRemove": "{field} has no value of its own to remove: the value shown is inherited."
     },
     "conflict": "The object changed since you read it",
     "conflictText": "Your input is kept; apply it again to write it on the new version.",
@@ -415,7 +433,11 @@
       "computed": "A computed value: it does not change.",
       "creation": "Fixed at creation: it does not change.",
       "moved": "The parent changes by “Change parent…”, not in place.",
-      "reference": "An object is chosen in the edit panel (Modify), not in place."
+      "reference": "An object is chosen in the edit panel (Modify), not in place.",
+      "masked": "A masked value: without its read permission, it does not change here.",
+      "typed": "A value of this type (a reference, a set) is not typed in a cell.",
+      "unpatched": "The properties of this kind of object do not change in place.",
+      "undeclared": "A property whose declaration is not read: it does not change here."
     },
     "vlan": {
       "vidProposed": "Next free VID of the group {group}.",

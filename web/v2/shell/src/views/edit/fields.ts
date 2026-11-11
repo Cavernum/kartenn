@@ -77,9 +77,21 @@ export interface CollectionEdit {
 
 /**
  * Why a field never changes by an edit in place: `reference`, an object chosen in the edit
- * panel (`e`), never typed in a cell.
+ * panel (`e`), never typed in a cell. For a property of the record (`properties.ts`):
+ * `masked`, a value the user may not read; `typed`, a value no cell types (a reference, a
+ * set); `unpatched`, a kind whose merge patch writes no property; `undeclared`, a property
+ * whose declaration is not read.
  */
-export type FixedReason = "immutable" | "computed" | "creation" | "moved" | "reference";
+export type FixedReason =
+  | "immutable"
+  | "computed"
+  | "creation"
+  | "moved"
+  | "reference"
+  | "masked"
+  | "typed"
+  | "unpatched"
+  | "undeclared";
 
 /**
  * The values of a form: a text, a whole number as its digits, a key of a closed list, a
@@ -479,8 +491,10 @@ export type Editability = { editable: true } | { editable: false; why: NotEditab
  * Whether the cell `column` of an object of `collection` may be edited in place: the field
  * is one of its patch (or a property of a `prop.<key>` column), the view at the present
  * (`writes.quickEdit`; under `valid_at` alone, the dated draft by the edit panel only), and
- * the user holds `X.edit` of the type and, for a property, `prop.<key>.edit`. The server
- * stays the judge (a 403 is still shown as a refusal).
+ * the user holds `X.edit` of the type for a field, `prop.<key>.edit` for a property (design
+ * « Édition en place »: the assignment asks the property's permission, apart from the
+ * right to modify the object, REQ-003-17). The server stays the judge (a 403 is still
+ * shown as a refusal).
  */
 export function editability(
   rights: Rights,
@@ -498,12 +512,8 @@ export function editability(
   // Under `as_of` nothing is written, whatever the rights; the dated draft (`valid_at`
   // alone) is said only to whom may write it, a missing right named first.
   if (!writes.draft) return { editable: false, why: { kind: "past" } };
-  for (const permission of [
-    editRight(collection.type),
-    ...(property ? [propertyRight(property)] : []),
-  ]) {
-    if (!rights.has(permission)) return { editable: false, why: { kind: "forbidden", permission } };
-  }
+  const permission = property ? propertyRight(property) : editRight(collection.type);
+  if (!rights.has(permission)) return { editable: false, why: { kind: "forbidden", permission } };
   if (!writes.quickEdit) return { editable: false, why: { kind: "dated" } };
   return { editable: true };
 }

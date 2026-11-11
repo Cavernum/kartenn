@@ -57,6 +57,12 @@ export interface QuickAsk {
   /** The collection of the row, and the field the column edits. */
   collection: Collection;
   field: EditField;
+  /** The words of the field, `views.field.<name>` by default (a property: its label). */
+  label?: string;
+  /** The local check of the value typed, `checkValue` of the field by default. */
+  check?: (value: string) => string | undefined;
+  /** Said before applying: a value of the object's own over an inherited one (Q-021-19). */
+  note?: string | undefined;
   /** What the object is named (`192.0.2.0/24`). */
   name: string;
   /** The value typed: kept whatever the answer. */

@@ -362,7 +362,25 @@
       "required": "{field} est obligatoire.",
       "choice": "Choisissez une valeur de la liste : {values}.",
       "flag": "Choisissez oui ou non.",
-      "integer": "{field} est un nombre entier."
+      "integer": "{field} est un nombre entier.",
+      "between": "{field} est un nombre entier de {min} à {max}.",
+      "betweenMin": "{field} est un nombre entier d'au moins {min}.",
+      "betweenMax": "{field} est un nombre entier d'au plus {max}.",
+      "length": "{field} compte de {min} à {max} caractères.",
+      "lengthMin": "{field} compte au moins {min} caractères.",
+      "lengthMax": "{field} compte au plus {max} caractères.",
+      "pattern": "{field} ne suit pas le motif déclaré : {pattern}.",
+      "control": "{field} ne contient aucun caractère de contrôle.",
+      "bool": "{field} vaut true ou false.",
+      "date": "{field} est une date AAAA-MM-JJ.",
+      "fqdn": "{field} est un nom d'hôte : des segments de lettres, chiffres et tirets, 63 caractères au plus chacun."
+    },
+    "property": {
+      "overrides": "Une valeur saisie ici surcharge la valeur héritée de {source}.",
+      "own": "Valeur propre : vider la cellule la retire, l'héritage reprend.",
+      "overridesUnreadable": "Une valeur saisie ici surcharge la valeur héritée d'un objet que vous ne pouvez pas lire.",
+      "overridesUnnamed": "Une valeur saisie ici surcharge la valeur héritée.",
+      "nothingToRemove": "{field} n'a pas de valeur propre à retirer : la valeur montrée est héritée."
     },
     "conflict": "L'objet a changé depuis votre lecture",
     "conflictText": "Votre saisie est gardée ; appliquez-la de nouveau pour l'écrire sur la nouvelle version.",
@@ -415,7 +433,11 @@
       "computed": "Valeur calculée : elle ne se modifie pas.",
       "creation": "Fixée à la création : elle ne se modifie pas.",
       "moved": "Le parent se change par « Changer de parent… », non en place.",
-      "reference": "Un objet se choisit dans le panneau d'édition (Modifier), non en place."
+      "reference": "Un objet se choisit dans le panneau d'édition (Modifier), non en place.",
+      "masked": "Valeur masquée : sans son droit de lecture, elle ne se modifie pas ici.",
+      "typed": "Une valeur de ce type (référence, ensemble) ne se saisit pas dans une cellule.",
+      "unpatched": "Les propriétés de cette sorte d'objet ne se modifient pas en place.",
+      "undeclared": "Propriété dont la déclaration n'est pas lue : elle ne se modifie pas ici."
     },
     "vlan": {
       "vidProposed": "Prochain VID libre du groupe {group}.",
