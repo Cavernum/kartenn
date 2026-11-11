@@ -387,7 +387,7 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
     (`outbox::revision` lit `max(seq)`) : autre cause, probablement la fenêtre de
     400 ms (`refresh`) entre le premier calcul et la lecture « trop récente » qui suit un
     `apply` lent ; non reproduit ici.
-- [ ] 21. `stats::the_etag_and_the_snapshot_follow_the_outbox` instable sous charge (vu le
+- [x] 21. `stats::the_etag_and_the_snapshot_follow_the_outbox` instable sous charge (vu le
   2026-11-02 par la 16f, le 2026-11-03 par la vérification complète de main) : 200 au
   lieu de 304 attendu (« served, recomputed behind », `crates/kartenn-rest/tests/it/stats.rs`
   vers la ligne 358) ; seul, il passe. Piste de la 022-20 : `outbox::revision` lit
@@ -398,3 +398,37 @@ commit, laisse le build vert et nomme ce qu'elle implémente ; chacune porte `o�
   - où : `crates/kartenn-rest/tests/it/stats.rs`, rafraîchissement de `GET /v1/stats`
     (`crates/kartenn-rest/src/stats.rs`)
   - dépend de : —
+  - fait : cause trouvée (échec vu encore le 2026-11-10). La lecture « trop récente » ne
+    prouve quelque chose que si elle tombe moins de `refresh` (400 ms) après le calcul ;
+    entre les deux, deux lectures et `apply`, qui valide deux fois (l'auteur, puis le
+    lot). Ces 400 ms ne sont pas un budget du produit (rien n'exige un `apply` en moins
+    de 400 ms) : c'est la condition du test. Mesuré (fenêtre chronométrée dans le test,
+    `pg_stat_activity` échantillonné toutes les 200 ms) : fenêtre de 113 ms dans la
+    seule suite de `kartenn-rest`, 120 ms dans un `k-check` complet ; mais pendant ce
+    même `k-check`, des `COMMIT` des bases de test attendent le vidage du WAL
+    (`IO:WalSync`, `LWLock:WALWrite`) jusqu'à 1,19 s, huit à dix à la fois, pendant que
+    les `DROP DATABASE … WITH (FORCE)` du harnais (`kartenn_testing::drop_database`)
+    attendent chacun un point de contrôle immédiat (`IPC:CheckpointStart`,
+    `CheckpointDone`, ~3 s chacun, dans 384 échantillons sur 553). Un tel arrêt pendant
+    `apply` porte la fenêtre au-delà de 400 ms : la lecture « trop récente » lance le
+    recalcul, qui finit pendant le `sleep(refresh)`, et la lecture suivante sert le
+    nouvel instantané (200 au lieu de 304, l'échec vu). Le test chronomètre désormais la
+    fenêtre depuis le début de la première lecture (les instantanés sont faits pendant
+    elle, donc plus jeunes que ce temps) : une passe plus lente que `refresh` ne prouve
+    rien et recommence avec des instantanés neufs et un `refresh` plus long (400 ms,
+    2 s, 10 s), puis échoue en donnant les fenêtres mesurées ; toutes les assertions
+    restent, chacune sous une condition vérifiée. Chemin de reprise essayé une fois
+    (première passe forcée à 1 ms : la deuxième passe compte le préfixe de la
+    première). Trois `k-check` complets de suite pendant que 019-5b et 021-22e
+    compilaient et lançaient leurs scripts (charge 9 à 19) : 1 338 tests passés à chaque
+    fois ; 18 échantillons de `COMMIT` de plus de 0,4 s pendant ces trois passages.
+  - choix : reprise bornée à trois passes plutôt qu'un `refresh` plus long d'emblée (le
+    cas courant garde ses 400 ms et son `sleep` court) ; préfixes de documentation
+    (RFC 5737) au lieu de `10.0.0.0/8`, un par passe ; rien de changé côté produit ni
+    dans les autres tests de `stats::`, dont les attentes sont des bornes basses
+    (`sleep` au-delà de `refresh`, `active` ou `forget`), insensibles à la lenteur.
+  - reste : la passe reprise ne laisse pas de trace quand le test passe (nextest avale
+    la sortie). Le harnais paie un point de contrôle immédiat par `DROP DATABASE`, qui
+    arrête les validations de toute la grappe ; différer les suppressions à la fin de la
+    suite (`kartenn-testing-clean` le fait déjà au début du `k-check` suivant) ôterait
+    ces arrêts pour tous les tests (ADR 0028, à arbitrer).
